@@ -1,4 +1,5 @@
 import { AutoGrowTextarea } from "../../components/ui";
+import { useId } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,6 +13,7 @@ const schema = z.object({
   title: z.string().min(1, "title is required").max(120),
   system_prompt: z.string(),
   skip_permissions: z.enum(["null", "true", "false"]),
+  chuck_aware: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -39,6 +41,7 @@ interface RoleFormProps {
 
 export function RoleForm({ initial, onSubmit, onCancel, submitting, error }: RoleFormProps) {
   const isEdit = !!initial;
+  const awarenessHelpID = useId();
   const {
     register,
     handleSubmit,
@@ -50,6 +53,7 @@ export function RoleForm({ initial, onSubmit, onCancel, submitting, error }: Rol
       title: initial?.title ?? "",
       system_prompt: initial?.system_prompt ?? "",
       skip_permissions: skipPermissionsToValue(initial?.skip_permissions),
+      chuck_aware: initial?.chuck_aware !== false,
     },
   });
 
@@ -59,6 +63,7 @@ export function RoleForm({ initial, onSubmit, onCancel, submitting, error }: Rol
       title: vals.title,
       system_prompt: vals.system_prompt,
       skip_permissions: skipPermissionsFromValue(vals.skip_permissions),
+      chuck_aware: vals.chuck_aware,
     });
   };
 
@@ -86,6 +91,12 @@ export function RoleForm({ initial, onSubmit, onCancel, submitting, error }: Rol
       <div className="form-field">
         <label>System prompt</label>
         <AutoGrowTextarea {...register("system_prompt")} rows={5} placeholder="Optional system prompt..." />
+      </div>
+      <div className="form-field">
+        <label>
+          <input type="checkbox" aria-describedby={awarenessHelpID} {...register("chuck_aware")} /> Chuck aware agent
+        </label>
+        <span id={awarenessHelpID} className="form-hint">Adds Chuck operating guidance to the agent's system instructions.</span>
       </div>
       <div className="form-field">
         <label>Skip permissions</label>

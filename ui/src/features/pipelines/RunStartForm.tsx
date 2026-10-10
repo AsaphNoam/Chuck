@@ -1,7 +1,8 @@
 import { AutoGrowTextarea } from "../../components/ui";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useBackends, useConfig, useProjects } from "../../api/config";
+import { useBackends, useConfig, useProjects, useRoles } from "../../api/config";
+import { personaIdentityLabel } from "../../lib/personas";
 import {
   pipelineDiagnostics,
   sharedWorkspaceConflicts,
@@ -72,6 +73,8 @@ export function RunStartForm({
   const projects = useProjects();
   const backends = useBackends();
   const config = useConfig();
+  const { data: roles } = useRoles();
+  const roleLabel = (id: string) => personaIdentityLabel(id, roles?.[id]);
   const start = useStartPipelineRun();
   const [templateID, setTemplateID] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -226,12 +229,12 @@ export function RunStartForm({
   });
   const slots: RuntimeSlot[] = template ? [
     ...(template.stages.some((stage) => stage.coordination !== "think_tank")
-      ? [{ key: "orchestrator", label: `Standing owner · ${template.orchestrator_role}`, field: "orchestrator", value: orchestrator, set: setOrchestrator }]
+      ? [{ key: "orchestrator", label: `Standing owner · ${roleLabel(template.orchestrator_role)}`, field: "orchestrator", value: orchestrator, set: setOrchestrator }]
       : []),
     ...template.stages.filter((stage) => stage.coordination === "dedicated").map((stage) => ({
       key: stage.id,
-      label: `${stage.title} coordinator · ${stage.dedicated_role}`,
-      editLabel: `${stage.title} · coordinator ${stage.dedicated_role}`,
+      label: `${stage.title} coordinator · ${roleLabel(stage.dedicated_role)}`,
+      editLabel: `${stage.title} · coordinator ${roleLabel(stage.dedicated_role)}`,
       field: `dedicated_assignments.${stage.id}`,
       value: dedicatedAssignments[stage.id] ?? blank,
       set: (value: Assignment) => setDedicatedAssignments((current) => ({ ...current, [stage.id]: value })),
@@ -239,14 +242,14 @@ export function RunStartForm({
     ...template.stages.filter((stage) => stage.coordination === "think_tank" && stage.think_tank).flatMap((stage) => [
       ...stage.think_tank!.participants.map((participant) => ({
         key: `${stage.id}:${participant.id}`,
-        label: `${stage.title} Think Tank · ${participant.id} (${participant.role})`,
+        label: `${stage.title} Think Tank · ${participant.id} (${roleLabel(participant.role)})`,
         field: `think_tank_assignments.${stage.id}.participants.${participant.id}`,
         value: roomAssignments[stage.id]?.participants[participant.id] ?? blank,
         set: (value: Assignment) => setRoomSlot(stage.id, participant.id, value),
       })),
       {
         key: `${stage.id}:judge`,
-        label: `${stage.title} Think Tank · judge (${stage.think_tank!.judge_role})`,
+        label: `${stage.title} Think Tank · judge (${roleLabel(stage.think_tank!.judge_role)})`,
         field: `think_tank_assignments.${stage.id}.judge`,
         value: roomAssignments[stage.id]?.judge ?? blank,
         set: (value: Assignment) => setRoomSlot(stage.id, null, value),

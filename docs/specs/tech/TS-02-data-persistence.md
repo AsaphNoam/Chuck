@@ -561,7 +561,7 @@ checkpoint and control progression share one transaction. The generic activation
 attempt without becoming room history. Commit setup/dispatch intent before provider effects and
 publish SSE only after durable mutation; no agent-written canonical file or second DB writer.
 
-**R43 (planned) — The persona default upgrades once without changing public schemas.** For
+**R43 — The persona default upgrades once without changing public schemas.** For
 FS-04.R54–R55, the config store owns one installation-local completion file
 `$CHUCK_HOME/default-persona-upgrade.json`, containing only `{ "version": 1 }`. It is internal
 bookkeeping, excluded from configuration APIs and agent context; no SQLite table or config/Role
@@ -572,7 +572,7 @@ unreadable or unsupported marker is an actionable startup error, never treated a
 
 Read valid configuration first. With no completion marker, change only `default_role:"implementer"`
 to `"default"`; preserve every other preference. Before that change, read Default and require
-empty persona text and inherited permissions under FS-04.R55; an occupied custom definition is an
+empty persona text, inherited permissions and awareness on under FS-04.R55/R57; an occupied custom definition is an
 actionable startup conflict. Ensure the role exists before writing the preference, then publish
 completion only after the config write succeeds. For an already non-Implementer default, publish
 completion without rewriting configuration. A missing/corrupt/unreadable config retains existing
@@ -586,7 +586,7 @@ deliberate removal of that internal file resets this upgrade. Existing frozen se
 and explicit task/pipeline/room assignments are outside its write set. This narrowly supersedes
 R4's no-overwrite rule for the user-approved legacy preference change.
 
-**R44 (planned) — Chuck awareness is one frozen session value.** FS-04.R56/FS-18.R20 add optional
+**R44 — Chuck awareness is one frozen session value.** FS-04.R56/FS-18.R20 add optional
 `chuck_aware` to the ordinary Role JSON: absent/null resolves true; an explicit boolean is preserved.
 Existing files are not rewritten to add it, and seeding sets the internal empty default aware.
 One forward SQLite migration adds `sessions.chuck_aware INTEGER NOT NULL DEFAULT 1`, restricted

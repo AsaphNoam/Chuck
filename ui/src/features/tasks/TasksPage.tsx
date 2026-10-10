@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQueries } from "@tanstack/react-query";
 import { Badge, Button, PageHeader } from "../../components/ui";
-import { useProjects } from "../../api/config";
+import { useProjects, useRoles } from "../../api/config";
+import { personaIdentityLabel } from "../../lib/personas";
 import { limitConcurrency, taskListOptions, useCancelTask, useDeleteTask, useRetryTask } from "../../api/tasks";
 import { usePipelineRun } from "../../api/pipelines";
 import type { Task } from "../../schemas/task";
@@ -109,6 +110,7 @@ function TaskRowView({ row, open, onToggle, onSignal, hidden, collapseInfo, hidd
   onBusyChange: (taskID: string, busy: boolean) => void;
 }) {
   const { task } = row;
+  const { data: roles } = useRoles();
   const status = taskStatus(task);
   const reason = taskReason(row);
   const assigned = assigneeID(task);
@@ -143,7 +145,7 @@ function TaskRowView({ row, open, onToggle, onSignal, hidden, collapseInfo, hidd
         <span>created by <Creator task={task} /></span>
         {task.room
           ? <span>runs as Think Tank · <Link to={`/think-tank/${task.room.room_id}`}>room</Link> · <Link to={`/pipelines/runs/${encodeURIComponent(task.room.run_id)}`}>run</Link></span>
-          : assigned ? <span>assigned to <AgentLabel id={assigned} /></span> : task.target_kind === "launch" ? <span>launches {task.role}</span> : null}
+          : assigned ? <span>assigned to <AgentLabel id={assigned} /></span> : task.target_kind === "launch" ? <span>launches {personaIdentityLabel(task.role ?? "", roles?.[task.role ?? ""])}</span> : null}
       </p>
       {open && <TaskDetail id={detailID} row={row} onSignal={onSignal} onBusyChange={onBusyChange} hiddenBy={hiddenBy} onReveal={onReveal} />}
     </li>

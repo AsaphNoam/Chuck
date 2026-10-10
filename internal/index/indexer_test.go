@@ -620,6 +620,7 @@ func TestLaunchConfigRoundTrips(t *testing.T) {
 	}
 }
 
+// FS-18.A16: replay/reindex preserves legacy on and explicit opt-out metadata.
 func TestAwarenessDefaultsAndFalseRoundTripThroughReindex(t *testing.T) {
 	st, home := openTestDB(t)
 	legacy, err := transcript.Open(home, "a_legacy", nil)

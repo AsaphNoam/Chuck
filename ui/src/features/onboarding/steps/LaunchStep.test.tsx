@@ -8,7 +8,11 @@ import { LaunchStep } from "./LaunchStep";
 import { useUiStore } from "../../../store/uiStore";
 
 // Both the seeded my-app (bad cwd) and the user's freshly-created project exist.
-const roles = { implementer: { title: "Implementer", system_prompt: "" } };
+const roles = {
+  implementer: { title: "Implementer", system_prompt: "" },
+  default: { title: "No persona", system_prompt: "" },
+  reviewer: { title: "Reviewer", system_prompt: "review" },
+};
 const projects = {
   "my-app": { title: "My App", color: [1, 2, 3], cwd: "~/Projects/my-app", add_dirs: [], context_prompt: "" },
   "user-proj": { title: "User Proj", color: [1, 2, 3], cwd: "/tmp/user-proj", add_dirs: [], context_prompt: "" },
@@ -53,6 +57,7 @@ async function clickLaunch() {
   fireEvent.click(button);
 }
 
+// FS-01.A29/FS-01.A30: onboarding follows the ordinary saved/default selection.
 describe("LaunchStep", () => {
   it("launches the just-created project, not the seeded my-app (J2 onboarding-completion blocker)", async () => {
     renderWithQuery(<LaunchStep onDone={() => {}} initialProject="user-proj" />);
@@ -98,5 +103,22 @@ describe("LaunchStep", () => {
     // The launch button should still exist; the wizard stays visible for the user
     // to manually dismiss or retry.
     expect(screen.getByText("Launch")).toBeInTheDocument();
+  });
+
+  it("uses the saved No persona choice and exposes no creation awareness control", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json({ default_role: "default" })));
+    renderWithQuery(<LaunchStep onDone={() => {}} initialProject="user-proj" />);
+
+    expect(await screen.findByText("No persona")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Chuck aware agent/ })).toBeNull();
+  });
+
+  it("shows a saved custom default persona in Advanced", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json({ default_role: "reviewer" })));
+    renderWithQuery(<LaunchStep onDone={() => {}} initialProject="user-proj" />);
+
+    expect(await screen.findByText("Reviewer")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Advanced"));
+    expect((screen.getByLabelText("Persona") as HTMLSelectElement).value).toBe("reviewer");
   });
 });

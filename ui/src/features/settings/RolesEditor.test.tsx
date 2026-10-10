@@ -95,10 +95,24 @@ describe("RolesEditor", () => {
     fireEvent.click(screen.getByText("New role"));
     fireEvent.change(screen.getByPlaceholderText("e.g. security-reviewer"), { target: { value: "new-role" } });
     fireEvent.change(screen.getByPlaceholderText("e.g. Security Reviewer"), { target: { value: "New Role" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chuck aware agent" }));
     fireEvent.click(screen.getByText("Create"));
 
     expect(await screen.findByText("title: title is required")).toBeInTheDocument();
     expect(screen.queryByText(/HTTP 400/)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. security-reviewer")).toHaveValue("new-role");
+    expect(screen.getByPlaceholderText("e.g. Security Reviewer")).toHaveValue("New Role");
+    expect(screen.getByRole("checkbox", { name: "Chuck aware agent" })).not.toBeChecked();
+  });
+
+  it("keeps a custom role titled Default visible in the editor", async () => {
+    server.use(http.get("/api/roles", () => HttpResponse.json({
+      default: { title: "Default", system_prompt: "custom", skip_permissions: null, chuck_aware: true },
+      implementer: { title: "Implementer", system_prompt: "", skip_permissions: null },
+    })));
+    renderWithQuery(<RolesEditor />);
+    expect(await screen.findByText("Default")).toBeInTheDocument();
+    expect(screen.getByText("Implementer")).toBeInTheDocument();
   });
 
   it("delete mutation rejects with a structured {status, body} error on 409", async () => {

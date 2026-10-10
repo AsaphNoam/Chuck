@@ -6,9 +6,11 @@ import (
 	"net"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/backend/credcheck"
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/remote"
 )
@@ -22,6 +24,15 @@ func TestGroupBrowserFixture(t *testing.T) {
 	s := testServer(t, true)
 	defer s.registry.Shutdown(context.Background())
 	s.registry.Chat().SetCommand(buildFakeACP(t))
+	if os.Getenv("CHUCK_PERSONA_BROWSER_ONBOARDING") == "1" {
+		// The persona journey validates launch setup, not real-provider login.
+		s.credCheck = func(context.Context, config.Backend, config.Model, map[string]string) credcheck.CredResult {
+			if _, err := os.Stat(filepath.Join(s.configStore.Home(), "persona-readiness-blocked")); err == nil {
+				return credcheck.CredResult{Status: "missing_credentials"}
+			}
+			return credcheck.CredResult{Status: "ok"}
+		}
+	}
 	cfg, err := s.configStore.ReadConfig()
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +66,7 @@ func TestGroupBrowserFixture(t *testing.T) {
 	phone.StartTLS()
 	defer phone.Close()
 	token := pairTestDevice(t, s, "browser-device", "browser-phone")
-	data, _ := json.Marshal(map[string]string{"desktop": desktop.URL, "phone": phone.URL, "cookie": remoteDeviceCookie, "token": token})
+	data, _ := json.Marshal(map[string]string{"desktop": desktop.URL, "phone": phone.URL, "cookie": remoteDeviceCookie, "token": token, "home": s.configStore.Home()})
 	if err := os.WriteFile(ready, data, 0600); err != nil {
 		t.Fatal(err)
 	}

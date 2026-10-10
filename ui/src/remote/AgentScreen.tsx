@@ -42,6 +42,9 @@ import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { GroupPicker } from "../components/ui/GroupPicker";
+import { useRoles } from "../api/config";
+import { personaIdentityLabel } from "../lib/personas";
+import type { RoleResponse } from "../schemas/role";
 
 // The phone reads a bounded window and keeps at most EARLIER_PAGES older ones
 // (FS-20.R13).
@@ -65,8 +68,8 @@ function retainEarlier(events: TranscriptEvent[]) {
   return unique.slice(start);
 }
 
-export function agentTitle(agent: Pick<AgentState, "name" | "role" | "project">) {
-  return agent.name || `${agent.role}@${agent.project}`;
+export function agentTitle(agent: Pick<AgentState, "name" | "role" | "project">, role?: Partial<RoleResponse>) {
+  return agent.name || `${personaIdentityLabel(agent.role, role)}@${agent.project}`;
 }
 
 /** requestSummary shows the command or the file a permission is for (FS-20.R12). */
@@ -90,6 +93,7 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   disabled: boolean;
   onSettled: () => void;
 }) {
+  const { data: roles } = useRoles();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const decide = async (decision: "approve" | "deny") => {
@@ -108,7 +112,7 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   const summary = requestSummary(event);
   return (
     <section className="phone-card phone-decision" aria-label="Permission request">
-      <p className="phone-card-kicker">{agentTitle(agent)} needs permission</p>
+      <p className="phone-card-kicker">{agentTitle(agent, roles?.[agent.role])} needs permission</p>
       <h2>{String(event.name ?? "Tool")}</h2>
       {summary && <pre className="phone-pre">{clip(summary, 1200)}</pre>}
       {event.reason ? <p>{String(event.reason)}</p> : null}
@@ -189,6 +193,7 @@ function slotAfter(events: TranscriptEvent[], seq: number) {
 }
 
 export function AgentScreen({ agentId }: { agentId: string }) {
+  const { data: roles } = useRoles();
   const agent = useConnection((state) => state.agents[agentId]);
   const rev = useConnection((state) => state.transcriptRev[agentId] ?? 0);
   const link = useConnection((state) => state.link);
@@ -386,7 +391,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   if (agent.archived) {
     return (
       <div className="phone-agent">
-        <header className="phone-agent-header"><h1>{agentTitle(agent)}</h1></header>
+        <header className="phone-agent-header"><h1>{agentTitle(agent, roles?.[agent.role])}</h1></header>
         <p className="phone-empty">Archived on the Mac. Restore is available on the desktop.</p>
         <div className="phone-actions">
           <button type="button" onClick={() => navigate(`/project/${encodeURIComponent(agent.project)}`)}>Project</button>
@@ -421,7 +426,8 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const heldText = held.data && typeof held.data === "object" && "text" in held.data ? String((held.data as { text?: string }).text ?? "") : "";
   const stateLabel = agent.running ? agent.state.replace("_", " ") : "Stopped";
   const runtimeLabel = [agent.backend, agent.model].filter(Boolean).join(" · ");
-  const roleBackend = [agent.role, agent.backend].filter(Boolean).join(" · ");
+  const roleLabel = personaIdentityLabel(agent.role, roles?.[agent.role]);
+  const roleBackend = [roleLabel, agent.backend].filter(Boolean).join(" · ");
 
   return (
     <div className="phone-agent">
@@ -438,7 +444,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       <header className="phone-agent-header phone-agent-identity">
         <div className="phone-agent-title">
           <span className="phone-eyebrow">{roleBackend}</span>
-          <h1>{agentTitle(agent)}</h1>
+          <h1>{agentTitle(agent, roles?.[agent.role])}</h1>
           <p className="phone-agent-runtime">{agent.model}{agent.effort ? ` · ${agent.effort} effort` : ""}</p>
         </div>
         <span className="phone-status" data-tone={agent.running ? agent.state : "stopped"}>
@@ -566,6 +572,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
 }
 
 function AgentManagement({ agent, offline, busy, act, rename, setRename, error }: { agent: AgentState; offline: boolean; busy: boolean; act: (fn: () => Promise<unknown>, clears?: boolean, after?: (result: unknown) => void) => void; rename: string; setRename: (value: string) => void; error: string | null }) {
+  const { data: roles } = useRoles();
   const options = useQuery({ queryKey: ["runtime-options"], queryFn: getRuntimeOptions });
   const [runtime, setRuntime] = useState({ backend: agent.backend, model: agent.model, effort: agent.effort ?? "" });
   const allAgents = useConnection((state) => state.agents);
@@ -590,7 +597,7 @@ function AgentManagement({ agent, offline, busy, act, rename, setRename, error }
   return (
     <section className="phone-section phone-manage" aria-label="Agent management">
       <form className="phone-card phone-form phone-manage-rename" onSubmit={(event) => { event.preventDefault(); if (rename.trim()) act(() => renameAgent(agent.agent_id, rename.trim()), false, () => setRename("")); }}>
-        <label className="phone-field">Name<input value={rename} placeholder={agent.name || agent.role} onChange={(event) => setRename(event.target.value)} /></label>
+        <label className="phone-field">Name<input value={rename} placeholder={agent.name || personaIdentityLabel(agent.role, roles?.[agent.role])} onChange={(event) => setRename(event.target.value)} /></label>
         <button type="submit" disabled={offline || busy || !rename.trim()}>Rename</button>
       </form>
       <form className="phone-card phone-form phone-manage-group" onSubmit={(event) => { event.preventDefault(); act(() => updateAgentIdentity(agent.agent_id, { group: group.trim() }), false, () => setGroup(group.trim())); }}>

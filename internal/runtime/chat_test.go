@@ -18,6 +18,7 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
+// FS-18.A16: current chat/terminal metadata encodes the resolved choice explicitly.
 func TestNewSessionMetaAwarenessAlwaysEncodesResolvedChoice(t *testing.T) {
 	for name, choice := range map[string]*bool{
 		"legacy default": nil,

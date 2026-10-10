@@ -79,6 +79,16 @@ exposed only the old four-role API seed expectation, now updated; closure still 
 UI integration remains active: truthful canonical/custom identity labels, invalid hidden choice
 repair without substituting a persona, tests and actual keyboard journeys. Incumbent embedded
 New Agent inspected on the isolated loopback group fixture; its Role/Options layout is confirmed.
+UI checkpoint: desktop/phone/onboarding persona selectors are in Advanced with compact summaries;
+canonical Default is hidden, customized definitions stay visible, and editor awareness/help round
+trips explicit false. Shared identity presentation consumes existing role metadata; AgentCard
+receives its label from LiveAgentCard to preserve its presentation boundary. No persona leaves
+the name omitted so the existing server suggestion supplies a name. Delayed config/refetch,
+removed-choice repair, failed editor drafts and decoder tests pass. 771 UI tests and 41
+presentation/style checks pass; make dist and both Go test variants pass. Focused lifecycle/clone
+race tests pass. Final browser journey remains active on `/tmp/chuck-persona-final3.json`;
+receipts/screenshots `/tmp/chuck-persona-journey-final3/`, script `ui/scripts/persona-journey.mjs`.
+No credentialed provider/model-behavior claim is made by these fake-provider fixtures.
 
 ## Acceptance gates still owed
 

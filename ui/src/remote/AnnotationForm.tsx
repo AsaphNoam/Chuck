@@ -5,6 +5,8 @@ import type { AgentState, AnnotationDraft } from "../api/types";
 import { annotationAnchor, annotationBatch } from "../lib/annotations";
 import { useAnnotationStore } from "../store/annotationStore";
 import { useConnection } from "./connection";
+import { useRoles } from "../api/config";
+import { personaIdentityLabel } from "../lib/personas";
 
 type Target = "self" | "agent" | "new";
 const noDrafts: AnnotationDraft[] = [];
@@ -15,6 +17,7 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
  *  uses and go out through the same batch request; only the presentation and
  *  the new-task launch (the source's role and project) are the phone's own. */
 export function PhoneAnnotationForm({ agent }: { agent: AgentState }) {
+  const { data: roles } = useRoles();
   const sourceId = agent.agent_id;
   const drafts = useAnnotationStore((state) => state.bySource[sourceId]) ?? noDrafts;
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
@@ -129,7 +132,7 @@ export function PhoneAnnotationForm({ agent }: { agent: AgentState }) {
               <option value="">Choose a running chat agent</option>
               {recipients.map((other) => (
                 <option key={other.agent_id} value={other.agent_id}>
-                  {other.name || `${other.role}@${other.project}`}
+                  {other.name || `${personaIdentityLabel(other.role, roles?.[other.role])}@${other.project}`}
                 </option>
               ))}
             </select>
@@ -139,7 +142,7 @@ export function PhoneAnnotationForm({ agent }: { agent: AgentState }) {
         ))}
       {target === "new" && (
         <p className="phone-meta">
-          Launches a new {agent.role} agent in {agent.project}, then sends these annotations to it.
+          Launches a new {personaIdentityLabel(agent.role, roles?.[agent.role])} agent in {agent.project}, then sends these annotations to it.
         </p>
       )}
       {error && <p className="phone-error">{error}</p>}

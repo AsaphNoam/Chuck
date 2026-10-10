@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1358,7 +1358,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   consumer. No new dependency, token or motion is added; verify style/presentation checks,
   existing focused tests and the FS-12.A38 rendered comparison.
 
-- **R120 (planned) — Persona choice is Advanced; awareness stays in persona configuration.**
+- **R120 — Persona choice is Advanced; awareness stays in persona configuration.**
   FS-01.R47 and FS-04.R56–R57 refine R69's New Agent composition. Reuse the single feature-owned
   disclosure, label it **Advanced**, and move the Persona selector there. The visible compact
   summary names **No persona** or the selected custom persona; opening/closing preserves all
@@ -1554,9 +1554,9 @@ boundary; the manifest remains the visual contract and arbitrary ids never becom
 ## 5. Deviations & open decisions
 
 - FS-12.R52–R59/A26–A31 and R74–R79 define the approved 2026-09-28 shared-layout upgrade.
-  Implementation has not started; all remain planned. The earlier Studio-specific architecture
-  stays incumbent until rollout, with the superseded preservation/oracle clauses explicitly scoped
-  above. No persistence, protocol, security, retention or external-skin decision is changed.
+  Its shipped requirements above own the shared structure and presentation checks, with the
+  superseded preservation/oracle clauses explicitly scoped. No persistence, protocol, security,
+  retention or external-skin decision is changed.
 
 - **Selected architecture: layered plain CSS.** CSS Modules plus a React provider were rejected
   because hashed implementation classes weaken rich skin overrides and a provider makes the core

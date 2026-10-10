@@ -90,7 +90,7 @@ afterAll(() => server.close());
 
 function renderWithQuery(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return { qc, ...render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>) };
 }
 
 async function openOptions() {
@@ -100,9 +100,10 @@ async function openOptions() {
   // still empty, and the pending defaulting effect would then overwrite a test
   // change made in that window.
   await screen.findByText("Sonnet 4.6", { selector: ".new-agent-runtime span" });
-  fireEvent.click(screen.getByText("Options"));
+  fireEvent.click(screen.getByText("Advanced"));
 }
 
+// FS-01.A30: Advanced, summary and request preserve the selected persona.
 describe("NewAgentModal", () => {
   it("renders role and project selects from API", async () => {
     renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
@@ -144,7 +145,7 @@ describe("NewAgentModal", () => {
     expect(projectSelect).toHaveTextContent("My App (my-app-copy)");
     expect(projectSelect).toHaveTextContent("Billing");
     expect(projectSelect).not.toHaveTextContent("Billing (billing)");
-    const roleSelect = screen.getByLabelText("Role");
+    const roleSelect = screen.getByLabelText("Persona");
     expect(roleSelect).toHaveTextContent("Implementer (implementer)");
     expect(roleSelect).toHaveTextContent("Implementer (implementer-copy)");
   });
@@ -503,7 +504,7 @@ describe("NewAgentModal", () => {
     await screen.findByRole("option", { name: "Implementer (implementer)" });
     await screen.findByRole("option", { name: "My App (my-app)" });
 
-    const roleSelect = screen.getByLabelText("Role") as HTMLSelectElement;
+    const roleSelect = screen.getByLabelText("Persona") as HTMLSelectElement;
     const projectSelect = screen.getByLabelText("Project") as HTMLSelectElement;
     // Configured defaults (the second entries) must win over the first entry.
     await waitFor(() => expect(roleSelect.value).toBe("reviewer"));
@@ -560,11 +561,11 @@ describe("NewAgentModal", () => {
     expect(body.effort).toBeUndefined();
     expect(body.fast).toBe(false);
     expect(body.interface).toBe("chat");
-    expect(screen.getByText("Options").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Advanced").closest("details")).not.toHaveAttribute("open");
     await waitFor(() => expect(onClose.called).toBe(true));
   });
 
-  it("keeps customized launch values through Options toggles and submits the summarized runtime", async () => {
+  it("keeps customized launch values through Advanced toggles and submits the summarized runtime", async () => {
     let capturedBody: Record<string, unknown> | undefined;
     server.use(http.post("/api/sessions", async ({ request }) => {
       capturedBody = await request.json() as Record<string, unknown>;
@@ -579,12 +580,12 @@ describe("NewAgentModal", () => {
     fireEvent.change(screen.getByLabelText("Effort"), { target: { value: "low" } });
     fireEvent.click(screen.getByLabelText(/Fast mode/));
 
-    fireEvent.click(screen.getByText("Options"));
+    fireEvent.click(screen.getByText("Advanced"));
     expect(screen.getByLabelText("Backend")).not.toBeVisible();
     expect(screen.getByText("GPT-4o", { selector: ".new-agent-runtime span" })).toBeInTheDocument();
     expect(screen.getByText("low effort")).toBeInTheDocument();
     expect(screen.getByText("Fast mode")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Options"));
+    fireEvent.click(screen.getByText("Advanced"));
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Custom Worker");
     expect((screen.getByLabelText("Backend") as HTMLSelectElement).value).toBe("codex");
     expect((screen.getByLabelText("Effort") as HTMLSelectElement).value).toBe("low");
@@ -671,5 +672,94 @@ describe("NewAgentModal", () => {
     expect(bodies[1]?.group).toBe("Retry group");
     fireEvent.click(screen.getByRole("button", { name: "Launch" }));
     await waitFor(() => expect(calls).toBe(3));
+  });
+
+  it("keeps persona selection inside Advanced and exposes no creation awareness control", async () => {
+    renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
+    await screen.findByRole("option", { name: "Implementer (implementer)" });
+    expect(screen.queryByRole("checkbox", { name: /Chuck aware agent/ })).toBeNull();
+    fireEvent.click(screen.getByText("Advanced"));
+    const persona = screen.getByLabelText("Persona") as HTMLSelectElement;
+    fireEvent.change(persona, { target: { value: "reviewer" } });
+    fireEvent.click(screen.getByText("Advanced"));
+    expect(screen.getByText("Reviewer", { selector: ".new-agent-runtime span" })).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Advanced"));
+    expect((screen.getByLabelText("Persona") as HTMLSelectElement).value).toBe("reviewer");
+  });
+
+  it("waits for saved configuration before choosing a fallback persona", async () => {
+    let release!: () => void;
+    const config = new Promise<Response>((resolve) => {
+      release = () => resolve(HttpResponse.json({ default_role: "reviewer", default_project: "billing" }));
+    });
+    server.use(http.get("/api/config", () => config));
+
+    renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
+    await screen.findByRole("option", { name: "Implementer (implementer)" });
+    expect(screen.getByRole("button", { name: "Launch" })).toBeDisabled();
+
+    release();
+    await waitFor(() => expect((screen.getByLabelText("Persona") as HTMLSelectElement).value).toBe("reviewer"));
+    expect(screen.getByRole("button", { name: "Launch" })).toBeEnabled();
+  });
+
+  // FS-01.A30: the internal role id never becomes an automatically shown name.
+  it("uses the ordinary server name suggestion for No persona", async () => {
+    let sent: Record<string, unknown> | undefined;
+    server.use(
+      http.get("/api/roles", () => HttpResponse.json({ default: { title:"Default", system_prompt:"", skip_permissions:null, chuck_aware:true } })),
+      http.get("/api/config", () => HttpResponse.json({ default_role:"default" })),
+      http.post("/api/sessions", async ({ request }) => {
+        sent = await request.json() as Record<string, unknown>;
+        return HttpResponse.json({ agent:{ agent_id:"a_default", name:"Atlas" } }, { status:201 });
+      }),
+    );
+    renderWithQuery(<NewAgentModal open onClose={() => {}} />);
+    await screen.findByRole("option", { name:"No persona" });
+    await waitFor(() => expect(screen.getByRole("button", { name:"Launch" })).toBeEnabled());
+    await openOptions();
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name:"Launch" }));
+    await waitFor(() => expect(sent).toBeDefined());
+    expect(sent?.role).toBe("default");
+    expect(sent).not.toHaveProperty("name");
+  });
+
+  it("preserves an explicit persona through config and role refetches", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json({ default_role: "implementer" })));
+    const { qc } = renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
+    await screen.findByRole("option", { name: "Implementer (implementer)" });
+    await openOptions();
+    fireEvent.change(screen.getByLabelText("Persona"), { target: { value: "reviewer" } });
+
+    await qc.refetchQueries({ queryKey: ["config"] });
+    await qc.refetchQueries({ queryKey: ["roles"] });
+    expect((screen.getByLabelText("Persona") as HTMLSelectElement).value).toBe("reviewer");
+  });
+
+  it("retains a removed explicit persona as unavailable and blocks launch", async () => {
+    let currentRoles = {
+      implementer: { title: "Implementer", system_prompt: "", skip_permissions: null },
+      "implementer-copy": { title: "Implementer", system_prompt: "", skip_permissions: null },
+      reviewer: { title: "Reviewer", system_prompt: "", skip_permissions: null },
+    };
+    server.use(
+      http.get("/api/config", () => HttpResponse.json({ default_role: "implementer" })),
+      http.get("/api/roles", () => HttpResponse.json(currentRoles)),
+    );
+    const { qc } = renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
+    await screen.findByRole("option", { name: "Implementer (implementer)" });
+    await openOptions();
+    fireEvent.change(screen.getByLabelText("Persona"), { target: { value: "reviewer" } });
+    currentRoles = { implementer: { title: "Implementer", system_prompt: "", skip_permissions: null } };
+    await qc.refetchQueries({ queryKey: ["roles"] });
+    await qc.setQueryData(["roles"], currentRoles);
+
+    await waitFor(() => {
+      expect(screen.getByRole("option", { name: "reviewer (unavailable)" })).toBeInTheDocument();
+      expect(screen.getByText("This persona is unavailable. Choose another persona.")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Launch" })).toBeDisabled();
+    expect(screen.getByText("Advanced").closest("details")).toHaveAttribute("open");
   });
 });

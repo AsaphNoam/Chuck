@@ -8,7 +8,9 @@ function capitalize(s: string): string {
 function suggest(role: string): string {
   // The default agent name is just the role (FS-01.R1 only requires that the
   // modal auto-suggests some name; the user can always override it).
-  if (!role) return "";
+  // Empty persona creation uses the server's ordinary curated suggestion,
+  // rather than exposing its internal role id as the agent's name.
+  if (!role || role === "default") return "";
   return capitalize(role);
 }
 

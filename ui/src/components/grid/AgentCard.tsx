@@ -12,7 +12,7 @@ import { CollapseIcon, ExpandIcon, GripIcon } from "../ui/icons";
 // The Figma session-card composition (FS-12.R65, TS-08.R116): one head region carrying
 // state, identity, runtime, context, preview and footer, with the chat pane below it
 // once expanded. The head is the expanded card's activation target (FS-02.R52).
-export function AgentCard({ agent, lastLine, projectTitle, showProject = true, expanded = false, onToggle, onUse, children }: { agent: AgentState; lastLine?: string; projectTitle?: string; showProject?: boolean; expanded?: boolean; onToggle?: () => void; onUse?: () => void; children?: ReactNode }) {
+export function AgentCard({ agent, lastLine, projectTitle, roleLabel = agent.role, showProject = true, expanded = false, onToggle, onUse, children }: { agent: AgentState; lastLine?: string; projectTitle?: string; roleLabel?: string; showProject?: boolean; expanded?: boolean; onToggle?: () => void; onUse?: () => void; children?: ReactNode }) {
   const navigate = useNavigate();
   const openContextMenu = useUiStore((state) => state.openContextMenu);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: agent.agent_id, disabled: expanded });
@@ -83,7 +83,7 @@ export function AgentCard({ agent, lastLine, projectTitle, showProject = true, e
         <div className="agent-card-context" data-slot="context"><ContextBar value={agent.context_pct} used={agent.context_used} size={agent.context_size} /></div>
         {preview && <p className="agent-preview" data-slot="preview">{preview}</p>}
         <div className="agent-card-footer">
-          <span className="agent-subtitle">{showProject ? `${agent.role} · ${projectLabel}` : agent.role}</span>
+          <span className="agent-subtitle">{showProject ? `${roleLabel} · ${projectLabel}` : roleLabel}</span>
           {agent.pipeline && (
             <Link className="pipeline-association" to={`/pipelines/runs/${encodeURIComponent(agent.pipeline.run_id)}`} onClick={stop}>
               {agent.pipeline.run_name} · {agent.pipeline.stage_id} · attempt {agent.pipeline.attempt_no}

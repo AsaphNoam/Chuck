@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useNavigate } from "react-router-dom";
 import { newCommandID, useCreateThinkTank, type ThinkTankLaunch } from "../../api/thinkTanks";
-import { useProjects } from "../../api/config";
+import { useProjects, useRoles } from "../../api/config";
+import { personaIdentityLabel } from "../../lib/personas";
 import { useAgentStore } from "../../store/agentStore";
 import { NewAgentModal } from "../launch/NewAgentModal";
 import { thinkTankPath } from "./roomText";
@@ -23,6 +24,7 @@ type Row = { key: string; agentID?: string; launch?: ThinkTankLaunch; label: str
 export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: boolean; onClose: () => void; originProject: string }) {
   const navigate = useNavigate();
   const projects = useProjects();
+  const { data: roles } = useRoles();
   const agents = useAgentStore((state) => state.agents);
   const create = useCreateThinkTank();
   const [title, setTitle] = useState("");
@@ -139,7 +141,7 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
               <label className="think-tank-check"><input type="checkbox" checked={openings} onChange={(e) => setOpenings(e.target.checked)} /> Independent openings — each participant answers before seeing the others</label>
               <div className="think-tank-check">
                 <label><input type="checkbox" checked={judge !== null} onChange={(e) => e.target.checked ? setLaunchFor("judge") : setJudge(null)} /> Final synthesis by a fresh judge after the discussion ends</label>
-                {judge && <span className="form-hint">{judge.name || judge.role} in {projectTitle(judge.project)} · <button type="button" className="ad-button-secondary" onClick={() => setLaunchFor("judge")}>Change</button></span>}
+                {judge && <span className="form-hint">{judge.name || personaIdentityLabel(judge.role ?? "", roles?.[judge.role ?? ""])} in {projectTitle(judge.project)} · <button type="button" className="ad-button-secondary" onClick={() => setLaunchFor("judge")}>Change</button></span>}
               </div>
               {error && <p className="form-error" role="alert">{error}</p>}
               <div className="form-actions">

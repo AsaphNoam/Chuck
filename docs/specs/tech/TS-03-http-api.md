@@ -810,7 +810,7 @@ snapshot/results for the request, and honor request cancellation between member 
 No new group job scheduler or persistence is introduced. Verify conflicts with Resume, Stop,
 Archive and regrouping, cross-project isolation, and failures after stop/before archive commit.
 
-**R59 (planned) — Persona awareness extends only role configuration.** For FS-04.R56, role
+**R59 — Persona awareness extends only role configuration.** For FS-04.R56, role
 create/read/list/update responses and on-disk Role shape accept optional `chuck_aware`: boolean
 false means omit shared awareness prompt additions, true means include them, and absent/null
 means true for backward compatibility. Keep explicit false through JSON decoding, validation,

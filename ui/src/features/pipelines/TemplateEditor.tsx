@@ -15,6 +15,7 @@ import type {
   PipelineTemplate,
 } from "../../schemas/pipeline";
 import { displayLabels } from "../../lib/labels";
+import { personaLabel } from "../../lib/personas";
 import { ThinkTankStageFields, defaultThinkTank } from "./ThinkTankStageFields";
 
 export interface TemplateEditorSeed {
@@ -181,7 +182,7 @@ export function TemplateEditor({
         <label className="form-field">
           <span>Standing orchestrator role</span>
           <select value={draft.orchestrator_role} onChange={(event) => mutate((next) => { next.orchestrator_role = event.target.value; })}>
-            {displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, role.title])).map(([roleID, title]) => <option key={roleID} value={roleID}>{title}</option>)}
+            {displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, personaLabel(roleID, role)])).map(([roleID, title]) => <option key={roleID} value={roleID}>{title}</option>)}
             {!roles.data?.[draft.orchestrator_role] && <option value={draft.orchestrator_role}>{draft.orchestrator_role || "Select role"}</option>}
           </select>
         </label>
@@ -243,8 +244,8 @@ export function TemplateEditor({
                 <label className="form-field"><span>Title</span><input value={stage.title} onChange={(event) => mutate((next) => { next.stages[stageIndex].title = event.target.value; })} /></label>
               </div>
               <label className="form-field"><span>Stage objective</span><AutoGrowTextarea rows={4} value={stage.objective ?? ""} onChange={(event) => mutate((next) => { next.stages[stageIndex].objective = event.target.value; })} /></label>
-              <fieldset className="pipeline-coordination"><legend>Coordination</legend><label className="pipeline-check"><input type="radio" checked={stage.coordination === "standing"} onChange={() => mutate((next) => { next.stages[stageIndex].coordination = "standing"; next.stages[stageIndex].dedicated_role = ""; delete next.stages[stageIndex].think_tank; })} /> Standing owner</label><label className="pipeline-check"><input type="radio" checked={stage.coordination === "dedicated"} onChange={() => mutate((next) => { next.stages[stageIndex].coordination = "dedicated"; delete next.stages[stageIndex].think_tank; })} /> Dedicated coordinator</label><label className="pipeline-check"><input type="radio" checked={stage.coordination === "think_tank"} onChange={() => mutate((next) => { const target = next.stages[stageIndex]; target.coordination = "think_tank"; target.dedicated_role = ""; target.think_tank ??= defaultThinkTank(next.orchestrator_role); })} /> Think Tank</label>{stage.coordination === "dedicated" && <label className="form-field"><span>Coordinator role</span><select value={stage.dedicated_role} onChange={(event) => mutate((next) => { next.stages[stageIndex].dedicated_role = event.target.value; })}>{displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, role.title])).map(([roleID, title]) => <option key={roleID} value={roleID}>{title}</option>)}<option value="">Select role</option></select></label>}</fieldset>
-              {stage.coordination === "think_tank" && <ThinkTankStageFields stage={stage} stageIndex={stageIndex} roleOptions={displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, role.title]))} mutate={mutate} />}
+              <fieldset className="pipeline-coordination"><legend>Coordination</legend><label className="pipeline-check"><input type="radio" checked={stage.coordination === "standing"} onChange={() => mutate((next) => { next.stages[stageIndex].coordination = "standing"; next.stages[stageIndex].dedicated_role = ""; delete next.stages[stageIndex].think_tank; })} /> Standing owner</label><label className="pipeline-check"><input type="radio" checked={stage.coordination === "dedicated"} onChange={() => mutate((next) => { next.stages[stageIndex].coordination = "dedicated"; delete next.stages[stageIndex].think_tank; })} /> Dedicated coordinator</label><label className="pipeline-check"><input type="radio" checked={stage.coordination === "think_tank"} onChange={() => mutate((next) => { const target = next.stages[stageIndex]; target.coordination = "think_tank"; target.dedicated_role = ""; target.think_tank ??= defaultThinkTank(next.orchestrator_role); })} /> Think Tank</label>{stage.coordination === "dedicated" && <label className="form-field"><span>Coordinator role</span><select value={stage.dedicated_role} onChange={(event) => mutate((next) => { next.stages[stageIndex].dedicated_role = event.target.value; })}>{displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, personaLabel(roleID, role)])).map(([roleID, title]) => <option key={roleID} value={roleID}>{title}</option>)}<option value="">Select role</option></select></label>}</fieldset>
+              {stage.coordination === "think_tank" && <ThinkTankStageFields stage={stage} stageIndex={stageIndex} roleOptions={displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, personaLabel(roleID, role)]))} mutate={mutate} />}
               <label className="pipeline-check"><input type="checkbox" checked={stage.approval_after_success} onChange={(event) => mutate((next) => { next.stages[stageIndex].approval_after_success = event.target.checked; })} /> Require approval after success</label>
 
               <StageBindings

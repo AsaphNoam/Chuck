@@ -263,7 +263,7 @@ capability, regular-message bootstrap, role-file migration or provider-global co
 Refresh the pipeline authoring reference for the optional field when shipping; FS-14.A54–A55
 exercise actual provider parameters and frozen recovery independently of the composition helper.
 
-**R21 (planned) — Empty Default reuses ordinary role and prompt composition.** For
+**R21 — Empty Default reuses ordinary role and prompt composition.** For
 FS-01.R46 and FS-04.R54–R55, add `default` to `config.seedRoles()` with title `Default`, empty
 `system_prompt` and nil `skip_permissions`; set `DefaultConfig().DefaultRole` to `default`.
 This supersedes R16 only for seed inventory/default selection: retain Chucky, Implementer,
@@ -291,7 +291,7 @@ Provider prompt-preservation assertions use existing pinned contracts rather tha
 behavior from a fake peer. Run the applicable TS-06 closure matrix once at implementation closure
 and verify the Default/custom-role launch journey on desktop and phone.
 
-**R22 (planned) — The frozen awareness choice gates shared prompt wording only.** For FS-18.R20,
+**R22 — The frozen awareness choice gates shared prompt wording only.** For FS-18.R20,
 resolve absent/null persona `chuck_aware` as true at fresh composition and carry the resolved choice
 through `LaunchSpec`, chat/terminal session metadata and TS-02.R44's snapshot. The canonical empty
 No persona choice is always true. Reuse `applyKnowledgeOverlay`: append `operatingContextPrompt`
@@ -362,7 +362,7 @@ SQLite state, REST/SSE data, or MCP arguments.
 ## 5. Deviations & open decisions
 
 - The original knowledge-delivery change adds no external API or schema; `CHUCK_SKILL_DIR`, the
-  managed path and bounded prompt pointer are its agent-facing interfaces. Planned R22's optional
+  managed path and bounded prompt pointer are its agent-facing interfaces. R22's optional
   persona choice and frozen snapshot are separately owned by TS-03.R59 and TS-02.R44; no new
   provider instruction protocol or per-agent launch override is introduced.
 - R15–R17 extend the existing prompt overlay and seed contents only; Claude's additive wire shape

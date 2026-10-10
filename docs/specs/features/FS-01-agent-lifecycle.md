@@ -86,7 +86,7 @@ orphaned processes.
   warnings remain visible outside the disclosure. This refines R1's presentation, not the launch,
   native-configuration inheritance, or CLI contract.
 
-- **R46 (planned) — Launch without a specialized persona.** An operator can select **Default**
+- **R46 — Launch without a specialized persona.** An operator can select **Default**
   in ordinary desktop and phone New Agent setup and onboarding to launch an agent with an empty
   persona prompt. The agent still receives project context, the shared Chuck operating context
   and operating-knowledge delivery under FS-18.R15, and native provider guidance under FS-18.R17;
@@ -97,7 +97,7 @@ orphaned processes.
   does not change the roles of existing agents or explicit task, pipeline or Think Tank assignments.
   It supersedes R37's default-role behavior only as specified by FS-04.R54.
 
-- **R47 (planned) — No persona is the ordinary creation experience.** Superseding R37/R46 only
+- **R47 — No persona is the ordinary creation experience.** Superseding R37/R46 only
   for persona presentation, desktop global/project launch, phone launch and onboarding show
   **No persona** for the underlying empty default choice; they never offer a visible **Default**
   persona. Persona selection belongs to a directly reachable **Advanced** disclosure alongside
@@ -478,7 +478,7 @@ transitions:
   fake output is not proof of provider delivery. *Verify:* pinned-adapter contract fixtures and a
   recorded live-provider gate before claiming provider coverage.
 
-- **A29 (planned)** (R46, FS-04.R54) — Launch Default from desktop global/project setup, phone
+- **A29** (R46, FS-04.R54) — Launch Default from desktop global/project setup, phone
   project setup and onboarding, then launch an explicitly selected specialized/custom role. Check
   the selected role in the request and resulting agent, an empty Default persona contribution,
   retained project/shared/native guidance, and the existing permission policy. Stop/resume, clone
@@ -486,7 +486,7 @@ transitions:
   choice is retained. *Verify:* focused launch/onboarding/phone component tests, server composition
   and lifecycle tests, provider instruction-delivery contracts, and one rendered launch journey.
 
-- **A30 (planned)** (R47) — From desktop global/project launch, phone launch and onboarding,
+- **A30** (R47) — From desktop global/project launch, phone launch and onboarding,
   launch with Advanced closed and observe No persona in the summary and no persona text in the
   composed base prompt. Open Advanced, select a named persona, collapse/reopen and launch; the
   summary, retained draft and actual submitted choice agree. A custom saved default is honestly
@@ -496,7 +496,7 @@ transitions:
 
 ## 6. Deviations & open decisions
 
-- **Persona-free launch (planned):** R46/A29 are approved for
+- **Persona-free launch (implemented 2026-10-10):** R46–R47/A29–A30 are implemented by
   [`agents-without-a-persona-by-default.md`](../../ready-changes/agents-without-a-persona-by-default.md).
   FS-04.R54–R55 own default selection, customization and upgrade preservation. CLI/API select
   `default` through their existing explicit-role contracts (`chuck default@<project>` or

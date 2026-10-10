@@ -36,7 +36,7 @@ project/provider/task-specific instructions retain their contracts.
 Exclude a persona-management redesign, immutable-role architecture, nullable role identity,
 role-omitting CLI/API syntax, per-agent awareness overrides, live persona/awareness switching,
 history purges, assignment remapping, capability/permission removal, skill-installation changes,
-user-prompt rewriting and provider changes. This design task changes no product code.
+user-prompt rewriting and provider changes.
 
 ## Verified seams and local design choices
 
@@ -93,5 +93,5 @@ desktop/phone keyboard journey; design-time source reasoning is not rendered acc
 ## Waiting on
 
 No product decision. Final scope is persona-configuration-only awareness, confirmed on 2026-10-10.
-Implementation has not started. Documentation checks have unrelated pre-existing failures recorded
-in HANDOFF; focused checks for this change pass.
+Implementation selected on 2026-10-10. Backend and UI source are implemented; final rendered
+journeys and closure are in progress. The live handoff owns resumable verification state.

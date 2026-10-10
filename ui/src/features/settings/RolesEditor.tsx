@@ -6,6 +6,7 @@ import type { RoleResponse } from "../../schemas/role";
 import { ConfirmDialog } from "../../components/ui";
 import { RoleForm } from "./RoleForm";
 import { SettingsHeader } from "./SettingsHeader";
+import { isCanonicalNoPersona } from "../../lib/personas";
 
 type DeleteDialog = { id: string; force?: boolean; agents?: string[]; error?: string };
 
@@ -76,7 +77,7 @@ export function RolesEditor() {
 
   if (isLoading) return <p data-ui="config-editor" data-state="loading" data-variant="roles">Loading roles…</p>;
 
-  const entries = Object.entries(roles ?? {});
+  const entries = Object.entries(roles ?? {}).filter(([id, role]) => !isCanonicalNoPersona(id, role));
 
   return (
     <div className="config-editor" data-ui="config-editor" data-state={formError ? "error" : entries.length === 0 ? "empty" : undefined} data-variant="roles">

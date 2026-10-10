@@ -14,6 +14,8 @@ import { PhoneSheet } from "./PhoneSheet";
 import { GroupPicker } from "../components/ui/GroupPicker";
 import { useGroupActions } from "../components/groups/GroupActions";
 import { groupAgents } from "../lib/groups";
+import { isCanonicalNoPersona, personaLabel } from "../lib/personas";
+import { displayLabel, displayLabels } from "../lib/labels";
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -41,23 +43,59 @@ function RuntimeFields({ value, onChange }: { value: { backend: string; model: s
 
 function NewAgent({ project, onClose }: { project: string; onClose: () => void }) {
   const offline = useConnection((state) => state.link !== "connected");
-  const roles = useQuery({ queryKey: ["roles"], queryFn: () => phoneFetch<Record<string, { title: string }>>("/api/roles") });
+  const roles = useQuery({ queryKey: ["roles"], queryFn: () => phoneFetch<Record<string, { title: string; system_prompt?: string; skip_permissions?: boolean | null; chuck_aware?: boolean | null }>>("/api/roles") });
   const config = useQuery({ queryKey: ["config"], queryFn: () => phoneFetch<{ default_role?: string }>("/api/config") });
   const [role, setRole] = useState("");
   const [name, setName] = useSuggestedName(role);
   const [runtime, setRuntime] = useState({ backend: "", model: "", effort: "", fast: false });
+  const runtimeOptions = useQuery({ queryKey: ["runtime-options"], queryFn: getRuntimeOptions });
+  const selectedBackend = runtimeOptions.data?.backends.find((item) => item.id === runtime.backend)
+    ?? runtimeOptions.data?.backends.find((item) => item.default) ?? runtimeOptions.data?.backends[0];
+  const selectedModel = selectedBackend?.models.find((item) => item.id === runtime.model)
+    ?? selectedBackend?.models.find((item) => item.id === selectedBackend.default_model) ?? selectedBackend?.models[0];
   const allAgents = useConnection((state) => state.agents);
   const groups = useMemo(() => Object.values(allAgents).filter((agent) => !agent.archived).map((agent) => agent.group?.trim()).filter((label): label is string => !!label), [allAgents]);
   const [group, setGroup] = useState("");
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
-  const roleID = role || Object.keys(roles.data ?? {}).filter((id) => id !== "chucky")[0] || "";
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const roleEntries = Object.entries(roles.data ?? {});
+  const personaLabels = roleEntries.map(([id, value]) => [id, personaLabel(id, value)] as [string, string]);
+  const roleID = role;
+  const roleInvalid = Boolean(role && roles.data && !roles.data[role]);
+  useEffect(() => { if (roleInvalid) setAdvancedOpen(true); }, [roleInvalid]);
   useEffect(() => {
-    if (role || !roles.data) return;
-    const available = Object.keys(roles.data).filter((id) => id !== "chucky");
-    setRole(config.data?.default_role && available.includes(config.data.default_role) ? config.data.default_role : available[0] ?? "");
-  }, [config.data?.default_role, role, roles.data]);
-  const submit = async () => { setBusy(true); setError(""); try { const result = await launchAgent({ project, role: roleID, name: name.trim() || undefined, group: group.trim() || undefined, ...runtime }); navigate(`/agent/${encodeURIComponent(result.agent.agent_id)}`); } catch (err) { setError(errorText(err)); } finally { setBusy(false); } };
-  return <form className="phone-card phone-form" aria-label="New agent" onSubmit={(event) => { event.preventDefault(); void submit(); }}><h2>New agent</h2><label className="phone-field">Role<select value={roleID} onChange={(event) => setRole(event.target.value)}>{Object.keys(roles.data ?? {}).filter((id) => id !== "chucky").map((id) => <option key={id} value={id}>{roles.data?.[id]?.title || id}</option>)}</select></label><label className="phone-field">Name <input value={name} onChange={(event) => setName(event.target.value)} /></label><label className="phone-field">Group<GroupPicker id="phone-new-agent-group" value={group} groups={groups} onChange={setGroup} /></label><RuntimeFields value={runtime} onChange={setRuntime} />{error && <p className="phone-error">{error}</p>}<div className="phone-actions"><button type="button" onClick={onClose}>Cancel</button><button className="ad-button-primary" type="submit" disabled={offline || busy || !roleID}>Create agent</button></div></form>;
+    if (role || !roles.data || !config.data) return;
+    const configured = config.data.default_role;
+    if (configured && roles.data[configured]) setRole(configured);
+    else if (roleEntries.some(([id, value]) => isCanonicalNoPersona(id, value))) setRole("default");
+    else setRole(roleEntries[0]?.[0] ?? "");
+  }, [config.data, role, roleEntries, roles.data]);
+  const submit = async () => {
+    if (!roleID || roleInvalid) return;
+    setBusy(true); setError("");
+    try {
+      const result = await launchAgent({ project, role: roleID, name: name.trim() || undefined, group: group.trim() || undefined, ...runtime });
+      navigate(`/agent/${encodeURIComponent(result.agent.agent_id)}`);
+    } catch (err) { setError(errorText(err)); setAdvancedOpen(true); }
+    finally { setBusy(false); }
+  };
+  return <form className="phone-card phone-form" aria-label="New agent" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <h2>New agent</h2>
+    <p className="phone-meta">{roleID ? displayLabel(personaLabels, roleID) || roleID : "Loading persona…"} · {selectedBackend?.name || "Configured backend"} · {selectedModel?.name || "Default model"} · Chat{runtime.fast ? " · Fast mode" : ""}</p>
+    <details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+      <summary>Advanced</summary>
+      <label className="phone-field">Persona<select value={roleID} onChange={(event) => setRole(event.target.value)}>
+        {roleInvalid && <option value={roleID}>{roleID} (unavailable)</option>}
+        {displayLabels(personaLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+      </select></label>
+      {roleInvalid && <p className="phone-error">This persona is unavailable. Choose another persona.</p>}
+      <label className="phone-field">Name <input value={name} onChange={(event) => setName(event.target.value)} /></label>
+      <label className="phone-field">Group<GroupPicker id="phone-new-agent-group" value={group} groups={groups} onChange={setGroup} /></label>
+      <RuntimeFields value={runtime} onChange={setRuntime} />
+    </details>
+    {error && <p className="phone-error">{error}</p>}
+    <div className="phone-actions"><button type="button" onClick={onClose}>Cancel</button><button className="ad-button-primary" type="submit" disabled={offline || busy || !roleID || roleInvalid}>Create agent</button></div>
+  </form>;
 }
 
 function StartPipeline({ project, onClose }: { project: string; onClose: () => void }) {
@@ -72,6 +110,7 @@ function StartPipeline({ project, onClose }: { project: string; onClose: () => v
 export function ProjectScreen({ projectID }: { projectID: string }) {
   const agents = useConnection((state) => state.agents); const revision = useConnection((state) => state.revision); const [form, setForm] = useState<"agent" | "pipeline" | null>(null);
   const offline = useConnection((state) => state.link !== "connected");
+  const roleCatalog = useQuery({ queryKey: ["roles", revision], queryFn: () => phoneFetch<Record<string, { title: string; system_prompt?: string; skip_permissions?: boolean | null; chuck_aware?: boolean | null }>>("/api/roles"), placeholderData: (previous) => previous });
   // Project configuration follows the live revision so desktop archival reaches an open screen (FS-20.R39).
   const projects = useQuery({ queryKey: ["projects", revision], queryFn: () => phoneFetch<Record<string, { title: string; color: [number, number, number]; archived?: boolean }>>("/api/projects"), placeholderData: (previous) => previous });
   const home = useQuery({ queryKey: ["home", revision], queryFn: getHome, placeholderData: (previous) => previous });
@@ -82,12 +121,13 @@ export function ProjectScreen({ projectID }: { projectID: string }) {
   if (projects.data?.[projectID]?.archived) return <p className="phone-empty">Archived on the Mac. <button type="button" className="phone-link ad-button-secondary" onClick={() => navigate("/")}>Home</button></p>;
   if (!project) return <p className="phone-empty">{projects.data ? "This project is no longer on the Mac." : "Loading…"} <button type="button" className="phone-link ad-button-secondary" onClick={() => navigate("/")}>Home</button></p>;
   const runs = (home.data?.active_runs ?? []).filter((run) => run.project === projectID);
+  const roleLabel = (id: string) => roleCatalog.data?.[id] ? personaLabel(id, roleCatalog.data[id]) : id;
   return <div className="phone-project">
     <header className="phone-page-heading"><span className="phone-eyebrow">Project</span><h1>{project.title}</h1><p>{project.agents.length} agents · {project.stateSummary}</p></header>
     <div className="phone-actions"><button type="button" className="ad-button-primary" onClick={() => setForm("agent")}><PhoneIcon name="plus" size={16} />New agent</button><button type="button" onClick={() => setForm("pipeline")}><PhoneIcon name="pipeline" size={16} />Start pipeline</button></div>
     {form && <PhoneSheet title={form === "agent" ? "New agent" : "Start pipeline"} onClose={() => setForm(null)}>{form === "agent" ? <NewAgent project={projectID} onClose={() => setForm(null)} /> : <StartPipeline project={projectID} onClose={() => setForm(null)} />}</PhoneSheet>}
     {groupActions.feedback}
     {runs.length > 0 && <section className="phone-section" aria-label="Active runs"><div className="phone-section-title"><h2>Active pipelines</h2><span className="phone-count">{runs.length} runs</span></div><ul className="phone-list">{runs.map((run) => <li key={run.id}><button className="phone-row phone-run-card" type="button" onClick={() => navigate(`/run/${encodeURIComponent(run.id)}`)}><span className="phone-attention-meta"><span><PhoneIcon name="pipeline" size={16} />Pipeline</span><PhoneIcon name="arrow" size={17} /></span><span className="phone-row-title">{run.title}</span><span className="phone-row-reason">{run.reason}</span>{run.stage_number && run.stage_count ? <span className="phone-row-meta">Stage {run.stage_number} of {run.stage_count}</span> : null}</button></li>)}</ul></section>}
-    <section className="phone-section" aria-label="Agents"><div className="phone-section-title"><h2>Agents</h2><span className="phone-count">{project.agents.length} agents</span></div>{project.agents.length === 0 ? <p className="phone-empty">No agents yet.</p> : <div className="phone-agent-groups">{groups.map((group) => { const isCollapsed = collapsed[group.key] ?? false; const running = group.agents.filter((agent) => agent.running).length; return <section className="phone-agent-group" key={group.key} aria-label={`${group.label} group`}><header className="phone-agent-group-header"><button type="button" aria-expanded={!isCollapsed} onClick={() => setCollapsed((value) => ({ ...value, [group.key]: !isCollapsed }))}><strong>{group.label}</strong><span>{group.agents.length} agents · {running} running</span></button>{group.key !== "_ungrouped" && <span className="phone-agent-group-actions"><button type="button" className="ad-button-danger" disabled={offline || groupActions.pending || running === 0} onClick={() => groupActions.open("stop", group.key, group.agents)}>Stop group</button><button type="button" className="ad-button-danger" disabled={offline || groupActions.pending} onClick={() => groupActions.open("archive", group.key, group.agents)}>Archive group</button></span>}</header>{!isCollapsed && <ul className="phone-list phone-agent-list">{group.agents.map((agent: AgentState) => <li key={agent.agent_id}><button type="button" data-tone={agent.running ? agent.state : "stopped"} className={`phone-row phone-agent-row${agent.running ? "" : " phone-row-stopped"}`} onClick={() => navigate(`/agent/${encodeURIComponent(agent.agent_id)}`)}><span className="phone-avatar"><PhoneIcon name="agent" /></span><span className="phone-row-text"><span className="phone-row-title">{agent.name || `${agent.role}@${project.id}`}</span><span className="phone-row-reason">{agent.detail || agent.role}</span><span className="phone-row-meta">{agent.role} · {agent.backend} · {agent.model}</span></span><span className="phone-agent-status"><span className="phone-status" data-tone={agent.running ? agent.state : "stopped"}>{agent.running ? agent.state.replace("_", " ") : "stopped"}</span><PhoneIcon name="arrow" size={16} /></span></button></li>)}</ul>}</section>; })}</div>}</section>
+    <section className="phone-section" aria-label="Agents"><div className="phone-section-title"><h2>Agents</h2><span className="phone-count">{project.agents.length} agents</span></div>{project.agents.length === 0 ? <p className="phone-empty">No agents yet.</p> : <div className="phone-agent-groups">{groups.map((group) => { const isCollapsed = collapsed[group.key] ?? false; const running = group.agents.filter((agent) => agent.running).length; return <section className="phone-agent-group" key={group.key} aria-label={`${group.label} group`}><header className="phone-agent-group-header"><button type="button" aria-expanded={!isCollapsed} onClick={() => setCollapsed((value) => ({ ...value, [group.key]: !isCollapsed }))}><strong>{group.label}</strong><span>{group.agents.length} agents · {running} running</span></button>{group.key !== "_ungrouped" && <span className="phone-agent-group-actions"><button type="button" className="ad-button-danger" disabled={offline || groupActions.pending || running === 0} onClick={() => groupActions.open("stop", group.key, group.agents)}>Stop group</button><button type="button" className="ad-button-danger" disabled={offline || groupActions.pending} onClick={() => groupActions.open("archive", group.key, group.agents)}>Archive group</button></span>}</header>{!isCollapsed && <ul className="phone-list phone-agent-list">{group.agents.map((agent: AgentState) => <li key={agent.agent_id}><button type="button" data-tone={agent.running ? agent.state : "stopped"} className={`phone-row phone-agent-row${agent.running ? "" : " phone-row-stopped"}`} onClick={() => navigate(`/agent/${encodeURIComponent(agent.agent_id)}`)}><span className="phone-avatar"><PhoneIcon name="agent" /></span><span className="phone-row-text"><span className="phone-row-title">{agent.name || `${roleLabel(agent.role)}@${project.id}`}</span><span className="phone-row-reason">{agent.detail || roleLabel(agent.role)}</span><span className="phone-row-meta">{roleLabel(agent.role)} · {agent.backend} · {agent.model}</span></span><span className="phone-agent-status"><span className="phone-status" data-tone={agent.running ? agent.state : "stopped"}>{agent.running ? agent.state.replace("_", " ") : "stopped"}</span><PhoneIcon name="arrow" size={16} /></span></button></li>)}</ul>}</section>; })}</div>}</section>
   </div>;
 }

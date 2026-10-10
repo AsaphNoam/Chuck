@@ -6,8 +6,11 @@ import { annotationAnchor, annotationBatch } from "../../lib/annotations";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { NewAgentModal } from "../../features/launch/NewAgentModal";
+import { useRoles } from "../../api/config";
+import { personaIdentityLabel } from "../../lib/personas";
 
 export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; sourceActive: boolean }) {
+  const { data: roles } = useRoles();
   const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
   const updateInstruction = useAnnotationStore((state) => state.updateInstruction);
@@ -101,7 +104,7 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
           {target === "agent" && (
             <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} disabled={sending} aria-label="Annotation recipient">
               <option value="">Choose an agent</option>
-              {recipients.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({agent.role}@{agent.project})</option>)}
+              {recipients.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({personaIdentityLabel(agent.role, roles?.[agent.role])}@{agent.project})</option>)}
             </select>
           )}
         </div>

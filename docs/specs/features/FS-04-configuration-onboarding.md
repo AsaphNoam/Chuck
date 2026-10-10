@@ -234,7 +234,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   unchanged. Running sessions are not restarted and existing launch snapshots stay frozen under
   R13. All roles still receive the shared context in FS-18.R15 at its stated lifecycle boundary.
 
-- **R54 (planned) — Default launches add no specialized persona.** A fresh home offers a
+- **R54 — Default launches add no specialized persona.** A fresh home offers a
   **Default** role with an empty `system_prompt` and inherited global permission policy alongside
   the four specialized roles in R50. Fresh configuration chooses Default for ordinary new agents;
   desktop and phone New Agent setup and onboarding use that preference unless the operator or
@@ -248,19 +248,20 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   preserved. This is an explicit exception to R14's absent-only configuration seeding, limited to
   the saved default preference; R55 governs role-content conflicts and failures.
 
-- **R55 (planned) — Default follows ordinary role ownership.** Default is seeded with empty
+- **R55 — Default follows ordinary role ownership.** Default is seeded with empty
   persona text and inherited permissions, remains editable/selectable through existing role
   controls, and is recreated on startup if deleted, like other shipped roles. A deliberate edit
   can give it persona text or a permission override; Chuck does not overwrite that customization
   or claim it is still persona-free. Existing same-id role files are never replaced. Before the
   first upgrade selects Default automatically, its existing definition must have empty persona
-  text and inherited permissions. If it has conflicting custom text or a permission override,
+  text, inherited permissions and awareness on. If it has conflicting custom text, a permission
+  override or awareness off,
   startup reports an actionable conflict identifying the occupied role and leaves the saved
   default unchanged; the operator must preserve/rename the custom role or restore an empty
   Default before retrying. Read/write failures preserve existing content and report the failed
   upgrade; no running agents or explicit assignments are rewritten.
 
-- **R56 (planned) — Personas choose Chuck awareness.** Persona create/edit offers a checkbox
+- **R56 — Personas choose Chuck awareness.** Persona create/edit offers a checkbox
   labelled **Chuck aware agent**, on by default for new personas and for older definitions with
   no saved choice. Directly beneath it show: **Adds Chuck operating guidance to the agent's system
   instructions.** The selection is saved with the local persona definition and round-trips through
@@ -271,7 +272,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   appears in agent creation, even in Advanced, and No persona always remains Chuck aware. This
   is an exceptional opt-out, not a promoted launch choice or awareness-status badge.
 
-- **R57 (planned) — The internal default is absent from persona management.** Superseding
+- **R57 — The internal default is absent from persona management.** Superseding
   R54–R55 only for first-party presentation, ordinary persona lists/editors do not expose the
   canonical internal Default entry as an editable persona. Canonical means the internal default
   id, empty persona text, inherited permissions and awareness on. Persona choice controls represent the empty
@@ -516,13 +517,13 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   reason. Unrelated config and frozen sessions remain intact. *Verify:* config/API and Settings
   tests plus the FS-01.A26 browser journey.
 
-- **A34 (planned)** (R54) — On a fresh home, inspect the role/configuration API and Settings:
+- **A34** (R54) — On a fresh home, inspect the role/configuration API and Settings:
   Default has no persona text, inherits permissions, and is the saved ordinary launch default;
   all four specialized roles remain available. Select a custom default and verify desktop,
   phone and onboarding use it, while an explicit launch role wins. *Verify:* configuration seed/API
   tests and the FS-01.A29 selection journeys.
 
-- **A35 (planned)** (R54–R55) — Upgrade a home with saved Implementer: only its default preference
+- **A35** (R54–R55) — Upgrade a home with saved Implementer: only its default preference
   changes and Default is seeded empty with inherited permissions. Restart, explicitly select
   Implementer as the default, and restart again: that later choice survives. Upgrade homes with
   other defaults; preserve them and all role content, existing agents, frozen sessions and explicit
@@ -532,7 +533,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   After successful upgrade, editing/deleting Default retains ordinary role behavior. *Verify:*
   real config fixtures, startup/failure-injection tests and focused role/configuration API tests.
 
-- **A36 (planned)** (R56–R57, FS-01.R47) — Create and edit a persona with Chuck aware agent
+- **A36** (R56–R57, FS-01.R47) — Create and edit a persona with Chuck aware agent
   checked/unchecked; inspect its saved choice and launch a new agent. Missing legacy choices
   display checked. Confirm the explanatory sentence appears beneath the checkbox and is
   associated with it accessibly; failed saves retain the checkbox/draft. Existing agents retain
@@ -544,13 +545,13 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 
 ## 6. Deviations & open decisions
 
-- **Persona-free default (planned):** The user confirmed on 2026-10-10 that Implementer must stop
-  being the default and approved the remaining scope. R54–R55/A34–A35 are ready under
+- **Persona-free default (implemented 2026-10-10):** The user confirmed that Implementer must stop
+  being the default and approved the remaining scope. R54–R57/A34–A36 are implemented under
   [`agents-without-a-persona-by-default.md`](../../ready-changes/agents-without-a-persona-by-default.md).
   Empty text is the seed contract; deliberate role edits retain ordinary ownership semantics.
   The user confirmed R56–R57/A36's persona-configuration-only scope: awareness is an edge-case
   opt-out, not an agent-creation control. No persona stays aware. TS-02.R44, TS-03.R59,
-  TS-08.R120 and TS-11.R22 own the revised implementation contract; prior planned rules apply
+  TS-08.R120 and TS-11.R22 own the revised implementation contract; prior rules apply
   except where these additions explicitly supersede their presentation/unconditional delivery.
 
 - **Invalid seeded-project `cwd`.** An invalid seeded-project `cwd` is still explained only after a

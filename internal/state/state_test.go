@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// FS-18.A16: legacy snapshots keep awareness on after the additive migration.
 func TestMigrationFromV47PreservesLegacyAwarenessAndGuardsBoolean(t *testing.T) {
 	home := t.TempDir()
 	db, err := sql.Open("sqlite3", filepath.Join(home, "state.db"))

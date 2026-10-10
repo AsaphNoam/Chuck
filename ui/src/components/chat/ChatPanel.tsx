@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import * as Tabs from "@radix-ui/react-tabs";
 import { getHeldPrompt, setSessionConfig, switchRuntime } from "../../api/client";
-import { useBackends, useProjects } from "../../api/config";
+import { useBackends, useProjects, useRoles } from "../../api/config";
+import { personaIdentityLabel } from "../../lib/personas";
 import type { AgentState } from "../../api/types";
 import { sseClient } from "../../api/sse";
 import { useAgentStore } from "../../store/agentStore";
@@ -64,6 +65,7 @@ export function ChatPanel() {
   const pushError = useUiStore((state) => state.pushError);
   const { data: backends } = useBackends();
   const { data: projects } = useProjects();
+  const { data: roles } = useRoles();
   // The Think Tank tab appears for any room membership, idle or ended (FS-03.R71).
   const inRooms = (useAgentThinkTanks(id).data?.rooms ?? []).length > 0;
   const [tab, setTab] = useState(() => initialTab(params.get("tab"), agent?.interface));
@@ -249,7 +251,7 @@ export function ChatPanel() {
           name={agent.name}
           state={agent.running ? agent.state : "stopped"}
           status={agent.running ? <StateBadge state={agent.state} /> : <Badge>Stopped</Badge>}
-          details={[agent.role, projectTitle, ...(editableRuntime ? [] : [agent.backend, agent.model, agent.effort]), agent.fast ? "Fast mode" : "Normal speed"]}
+          details={[personaIdentityLabel(agent.role, roles?.[agent.role]), projectTitle, ...(editableRuntime ? [] : [agent.backend, agent.model, agent.effort]), agent.fast ? "Fast mode" : "Normal speed"]}
         />
         <div data-slot="context"><ContextBar detailed value={agent.context_pct} used={agent.context_used} size={agent.context_size} /></div>
       </header>

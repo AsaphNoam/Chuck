@@ -71,8 +71,9 @@ describe("ProjectScreen new agent", () => {
     const opener = await screen.findByRole("button", { name: "New agent" });
     opener.focus();
     fireEvent.click(opener);
-    const role = await screen.findByRole("combobox", { name: "Role" });
+    const role = await screen.findByRole("combobox", { name: "Persona" });
     await waitFor(() => expect(role).toHaveValue("reviewer"));
+    fireEvent.click(screen.getByText("Advanced"));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Reviewer");
     expect(screen.getByRole("combobox", { name: "Model" })).toHaveValue("preferred");
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Remote reviewer" } });
@@ -93,7 +94,8 @@ describe("ProjectScreen new agent", () => {
   async function fillLaunch() {
     renderScreen();
     fireEvent.click(await screen.findByRole("button", { name: "New agent" }));
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Role" })).toHaveValue("reviewer"));
+    fireEvent.click(await screen.findByText("Advanced"));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Persona" })).toHaveValue("reviewer"));
     fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Remote reviewer" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Model" }), { target: { value: "fallback" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Model" }), { target: { value: "preferred" } });
@@ -182,6 +184,7 @@ describe("ProjectScreen groups", () => {
     useConnection.setState({ agents: { existing: phoneAgent("existing", "Existing", true) } });
     renderScreen();
     fireEvent.click(await screen.findByRole("button", { name: "New agent" }));
+    fireEvent.click(await screen.findByText("Advanced"));
     const picker = await screen.findByRole("combobox", { name: "Group" });
     fireEvent.focus(picker);
     fireEvent.click(screen.getByRole("button", { name: "Existing" }));
@@ -191,6 +194,7 @@ describe("ProjectScreen groups", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     launchStatus = 400;
     fireEvent.click(screen.getByRole("button", { name: "New agent" }));
+    fireEvent.click(await screen.findByText("Advanced"));
     const secondPicker = await screen.findByRole("combobox", { name: "Group" });
     fireEvent.change(secondPicker, { target: { value: "Fresh" } });
     fireEvent.click(screen.getByRole("button", { name: 'Create group “Fresh”' }));

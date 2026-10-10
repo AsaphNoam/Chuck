@@ -211,7 +211,7 @@ explicit contribution/leave, incremental reads, ceilings rather than quotas, ind
 intervention and final-only judge. Current tool definitions own invocation details. Guidance grants
 no ability to create/end/delete rooms, edit membership, poll progress or manufacture consensus.
 
-**R20 (planned) — Chuck-awareness prompt guidance is optional.** Superseding R15's unconditional
+**R20 — Chuck-awareness prompt guidance is optional.** Superseding R15's unconditional
 shared prompt delivery and the prompt-pointer portions of R3/R6 only, the **Chuck aware agent**
   choice in FS-04.R56 defaults on. On gives a newly launched agent the shared standing Chuck
 operating context and, when verified, the prompt directing it to the operating skill. Off omits
@@ -366,7 +366,7 @@ tools and explicitly stages its own contribution, preserves ceilings and unresol
 and claims no user-only authority. *Verified by:* package/overlay/tool-definition fixtures and
 TS-06.R33's bounded credentialed room smoke.
 
-**A16 (planned)** (R20, FS-04.R56) — Launch otherwise equivalent checked/unchecked personas and
+**A16** (R20, FS-04.R56) — Launch otherwise equivalent checked/unchecked personas and
 inspect effective provider instruction delivery: on includes the two awareness additions once;
 off excludes them while retaining persona/project/provider and task-specific instructions,
 tools, permissions and installed knowledge availability. Exercise a legacy definition/session
@@ -378,7 +378,7 @@ model behavior.
 
 ## 6. Deviations & open decisions
 
-- **Optional awareness (planned):** R20/A16 and FS-04.R56–R57 are confirmed for
+- **Optional awareness (implemented 2026-10-10):** R20/A16 and FS-04.R56–R57 are implemented by
   [`agents-without-a-persona-by-default.md`](../../ready-changes/agents-without-a-persona-by-default.md).
   The final scope is persona configuration only; no per-agent creation override. TS-11.R22
   supersedes unconditional prompt injection without changing installed knowledge or tool authority.
@@ -389,7 +389,7 @@ model behavior.
   selected product-rename change.
 
 - The original knowledge-delivery change adds no UI, REST endpoint, MCP documentation tool,
-  agent-facing release command, mutable knowledge store or new runtime interface. Planned R20
+  agent-facing release command, mutable knowledge store or new runtime interface. R20
   adds only FS-04.R56's persona checkbox through existing configuration endpoints; no launch
   override, new runtime interface or knowledge authority is added.
 - Customized Chucky roles remain user-owned even if they contain a stale copy of product

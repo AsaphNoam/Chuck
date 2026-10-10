@@ -9,6 +9,7 @@ export const roleSchema = z.object({
   title: z.string().min(1, "title is required").max(120),
   system_prompt: z.string(),
   skip_permissions: z.boolean().nullable().optional(),
+  chuck_aware: z.boolean().nullable().optional(),
 });
 
 export type RoleInput = z.infer<typeof roleSchema>;
@@ -18,6 +19,7 @@ export const roleResponseSchema = z.object({
   title: z.string(),
   system_prompt: z.string(),
   skip_permissions: z.boolean().nullable().optional(),
+  chuck_aware: z.boolean().nullable().optional(),
 });
 
 export type RoleResponse = z.infer<typeof roleResponseSchema>;

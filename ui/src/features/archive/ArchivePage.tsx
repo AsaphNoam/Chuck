@@ -5,7 +5,8 @@ import { useUiStore } from "../../store/uiStore";
 import type { ArchiveProjectGroup, ArchiveResult } from "../../api/types";
 import { Badge } from "../../components/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { QUERY_KEYS } from "../../api/config";
+import { QUERY_KEYS, useRoles } from "../../api/config";
+import { personaIdentityLabel } from "../../lib/personas";
 import type { ProjectResponse } from "../../schemas/project";
 import { RoomList } from "../thinktank/RoomList";
 
@@ -27,6 +28,7 @@ function StateBadge({ active }: { active: boolean }) {
 }
 
 function ArchiveRow({ result, onClick }: { result: ArchiveResult; onClick: () => void }) {
+  const { data: roles } = useRoles();
   return (
     <li className="archive-row" data-slot="result" data-state={result.active ? "active" : "inactive"} role="button" tabIndex={0} onClick={onClick} onKeyDown={(e) => e.key === "Enter" && onClick()}>
       <div className="archive-row-top" data-slot="metadata">
@@ -34,7 +36,7 @@ function ArchiveRow({ result, onClick }: { result: ArchiveResult; onClick: () =>
         <StateBadge active={result.active} />
       </div>
       <div className="archive-row-sub" data-slot="metadata">
-        <span>{result.role} · {result.project}</span>
+        <span>{personaIdentityLabel(result.role, roles?.[result.role])} · {result.project}</span>
         <span>{result.archived ? "archived" : result.active ? "running" : "stopped"}</span>
         <span>{[result.backend, result.model, result.effort, result.fast ? "Fast mode" : "Normal speed"].filter(Boolean).join(" · ")}</span>
       </div>

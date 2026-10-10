@@ -7,12 +7,15 @@ import { useAnnotationStore } from "../../store/annotationStore";
 import { NewAgentModal } from "../launch/NewAgentModal";
 import type { ThinkTankDetail } from "../../schemas/thinkTank";
 import { roomAnnotationSource } from "./roomText";
+import { useRoles } from "../../api/config";
+import { personaIdentityLabel } from "../../lib/personas";
 
 /** RoomAnnotationTray is the familiar tray with the room's three destinations:
  *  Room (shared input between turns), a selected agent, or New task through the
  *  ordinary New Agent flow (FS-21.R30, FS-13.R27). Drafts stay in the bounded
  *  browser tray until a send succeeds. */
 export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
+  const { data: roles } = useRoles();
   const sourceId = roomAnnotationSource(room.room_id);
   const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
@@ -101,7 +104,7 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
           {effectiveTarget === "agent" && (
             <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} disabled={send.isPending} aria-label="Annotation recipient">
               <option value="">Choose an agent</option>
-              {recipients.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({agent.role}@{agent.project})</option>)}
+              {recipients.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({personaIdentityLabel(agent.role, roles?.[agent.role])}@{agent.project})</option>)}
             </select>
           )}
         </div>

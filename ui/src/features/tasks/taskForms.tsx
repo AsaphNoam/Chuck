@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import { AutoGrowTextarea, Button } from "../../components/ui";
 import { useBackends, useConfig, useRoles } from "../../api/config";
+import { personaLabel } from "../../lib/personas";
 import {
   useCreateTask,
   useFireSignal,
@@ -369,7 +370,7 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
         <label>
           Role to launch
           <select value={chosenRole} onChange={(e) => setRole(e.target.value)}>
-            {roleNames.map((item) => <option key={item} value={item}>{item}</option>)}
+            {roleNames.map((item) => <option key={item} value={item}>{personaLabel(item, roles?.[item])}</option>)}
           </select>
         </label>
         <label>Backend (optional)<input value={backend} onChange={(e) => { setBackend(e.target.value); setFast(false); }} /></label>

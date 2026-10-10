@@ -14,6 +14,7 @@ import { describeProviderRuntime, hasProviderSource } from "../../lib/providerRu
 import { useSuggestedName } from "./useSuggestedName";
 import { useAgentStore } from "../../store/agentStore";
 import { GroupPicker } from "../../components/ui/GroupPicker";
+import { isCanonicalNoPersona, personaLabel } from "../../lib/personas";
 
 interface NewAgentModalProps {
   open: boolean;
@@ -39,13 +40,13 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
   const { data: rolesData } = useRoles();
   const { data: projectsData } = useProjects();
   const { data: backendsData, refetch: refetchBackends, isFetching: backendsFetching } = useBackends();
-  const { data: configData } = useConfig();
+  const { data: configData, isError: configError } = useConfig();
   const launch = useLaunchAgent();
   const agents = useAgentStore((state) => state.agents);
 
   const roleEntries = Object.entries(rolesData ?? {});
+  const personaLabels = roleEntries.map(([id, value]) => [id, personaLabel(id, value)] as [string, string]);
   const projectEntries = Object.entries(projectsData ?? {}).filter(([, project]) => !project.archived);
-  const roleLabels = roleEntries.map(([id, role]) => [id, role.title] as [string, string]);
   const projectLabels = projectEntries.map(([id, project]) => [id, project.title] as [string, string]);
 
   const defaultBackendId =
@@ -54,6 +55,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
     "";
 
   const [role, setRole] = useState(initialRole ?? "");
+  const roleInvalid = Boolean(role && rolesData && !rolesData[role]);
   const [project, setProject] = useState(fixedProject ?? initialProject ?? "");
   const [backendId, setBackendId] = useState(defaultBackendId);
   const [modelId, setModelId] = useState("");
@@ -61,6 +63,9 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
   const [fast, setFast] = useState(false);
   const [agentInterface, setAgentInterface] = useState<"chat" | "terminal">("chat");
   const [optionsOpen, setOptionsOpen] = useState(false);
+  useEffect(() => {
+    if (roleInvalid) setOptionsOpen(true);
+  }, [roleInvalid]);
   const [terminalAvailable, setTerminalAvailable] = useState(true);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [group, setGroup] = useState("");
@@ -72,14 +77,17 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
   // default_project, falling back to the first available entry only when the
   // configured id is absent (or unset).
   useEffect(() => {
-    if (role || roleEntries.length === 0) return;
+    if (role || roleEntries.length === 0 || !rolesData || (!configData && !configError)) return;
     const configured = configData?.default_role;
     if (configured && roleEntries.some(([id]) => id === configured)) {
       setRole(configured);
+    } else if (roleEntries.some(([id, value]) => isCanonicalNoPersona(id, value))) {
+      setRole("default");
     } else {
       setRole(roleEntries[0][0]);
     }
-  }, [roleEntries.length, configData?.default_role]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [roleEntries.length, configData?.default_role, configData, configError, rolesData, role]);
+
 
   useEffect(() => {
     if (project || projectEntries.length === 0) return;
@@ -190,7 +198,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLaunchError(null);
-    if (unverifiedSelection) return;
+    if (unverifiedSelection || roleInvalid || !role) return;
     const params: LaunchParams = {
       name: name || undefined, role, project, backend: backendId || undefined, model: modelId || undefined,
       effort: (offerEffort && effort) || undefined, fast: offerFast && fast, interface: agentInterface,
@@ -226,14 +234,6 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
         <Dialog.Content className="dialog-content" data-ui="dialog" data-slot="content" data-variant="default">
           <Dialog.Title>{title}</Dialog.Title>
           <form onSubmit={handleSubmit} className="config-form">
-            <div className="form-field">
-              <label htmlFor="new-agent-role">Role</label>
-              <select id="new-agent-role" value={role} onChange={(e) => setRole(e.target.value)}>
-                {roleEntries.length === 0 && <option value="">No roles</option>}
-                {roleEntries.map(([id]) => <option key={id} value={id}>{displayLabel(roleLabels, id)}</option>)}
-              </select>
-            </div>
-
             {fixedProject ? (
               <div className="form-field">
                 <label htmlFor="new-agent-project">Project</label>
@@ -256,6 +256,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
               {effort && <span>{effort} effort</span>}
               {fast && <span>Fast mode</span>}
               <span>{agentInterface === "terminal" ? "Terminal" : "Chat"}</span>
+              <span>{role ? displayLabel(personaLabels, role) || role : "Loading persona…"}</span>
             </div>
             {providerDescription && (
               <p className={providerDescription.problem ? "form-warning" : "new-agent-provider"}>
@@ -265,8 +266,17 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
             )}
 
             <details className="new-agent-options" open={optionsOpen} onToggle={(event) => setOptionsOpen(event.currentTarget.open)}>
-              <summary>Options</summary>
+              <summary>Advanced</summary>
               <div className="config-form">
+                <div className="form-field">
+                  <label htmlFor="new-agent-role">Persona</label>
+                  <select id="new-agent-role" value={role} onChange={(e) => setRole(e.target.value)}>
+                    {roleInvalid && <option value={role}>{role} (unavailable)</option>}
+                    {roleEntries.length === 0 && <option value="">No personas</option>}
+                    {roleEntries.map(([id]) => <option key={id} value={id}>{displayLabel(personaLabels, id)}</option>)}
+                  </select>
+                  {roleInvalid && <span className="form-error">This persona is unavailable. Choose another persona.</span>}
+                </div>
                 <div className="form-field">
                   <label htmlFor="new-agent-name">Name</label>
                   <input id="new-agent-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Atlas" />
@@ -359,7 +369,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
               <button
                 type="submit"
                 className="ad-button-primary"
-                disabled={launch.isPending || !role || !project || unverifiedSelection}
+                disabled={launch.isPending || !role || roleInvalid || !project || unverifiedSelection}
               >
                 {onConfigure ? "Use these settings" : launch.isPending ? "Launching…" : "Launch"}
               </button>

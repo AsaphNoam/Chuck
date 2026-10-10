@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useRoles, useProjects, useBackends, useLaunchAgent, usePutConfig, configErrorMessage } from "../../../api/config";
+import { useRoles, useProjects, useBackends, useConfig, useLaunchAgent, usePutConfig, configErrorMessage } from "../../../api/config";
 import { useSuggestedName } from "../../launch/useSuggestedName";
 import { useUiStore } from "../../../store/uiStore";
-import { displayLabels } from "../../../lib/labels";
+import { displayLabel, displayLabels } from "../../../lib/labels";
+import { isCanonicalNoPersona, personaLabel } from "../../../lib/personas";
 
 interface LaunchStepProps {
   onDone: () => void;
@@ -17,11 +18,13 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
   const { data: rolesData } = useRoles();
   const { data: projectsData } = useProjects();
   const { data: backendsData } = useBackends();
+  const { data: configData, isError: configError } = useConfig();
   const launch = useLaunchAgent();
   const putConfig = usePutConfig();
   const pushError = useUiStore((state) => state.pushError);
 
   const roleEntries = Object.entries(rolesData ?? {});
+  const personaLabels = roleEntries.map(([id, value]) => [id, personaLabel(id, value)] as [string, string]);
   const projectEntries = Object.entries(projectsData ?? {}).filter(([, project]) => !project.archived);
 
   const defaultBackendId =
@@ -29,22 +32,30 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
     Object.keys(backendsData?.backends ?? {})[0] ??
     "";
 
-  const defaultRole = roleEntries.find(([id]) => id === "implementer")?.[0] ?? roleEntries[0]?.[0] ?? "";
   const defaultProject = (initialProject && projectsData?.[initialProject] && !projectsData[initialProject].archived)
     ? initialProject
     : projectEntries[0]?.[0] ?? "";
 
-  const [role, setRole] = useState(defaultRole);
+  const [role, setRole] = useState("");
   const [project, setProject] = useState(defaultProject);
   const [error, setError] = useState<string | null>(null);
   const [launchSucceeded, setLaunchSucceeded] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const roleInvalid = Boolean(role && rolesData && !rolesData[role]);
+  useEffect(() => {
+    if (roleInvalid) setAdvancedOpen(true);
+  }, [roleInvalid]);
 
   const [name, setName] = useSuggestedName(role);
 
   // Apply defaults once data loads.
   useEffect(() => {
-    if (!role && roleEntries.length > 0) setRole(roleEntries.find(([id]) => id === "implementer")?.[0] ?? roleEntries[0][0]);
-  }, [roleEntries.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (role || roleEntries.length === 0 || (!configData && !configError)) return;
+    const configured = configData?.default_role;
+    if (configured && roleEntries.some(([id]) => id === configured)) setRole(configured);
+    else if (roleEntries.some(([id, value]) => isCanonicalNoPersona(id, value))) setRole("default");
+    else setRole(roleEntries[0][0]);
+  }, [configData, configError, role, roleEntries]);
 
   useEffect(() => {
     if (project) return;
@@ -57,6 +68,7 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
   }, [project, projectsData]);
 
   const handleLaunch = () => {
+    if (roleInvalid || !role) return;
     if (claimMutation && !claimMutation()) return;
     setError(null);
     launch.mutate(
@@ -74,7 +86,8 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
             onSettled: releaseMutation,
           });
         },
-        onError: (e) => {
+      onError: (e) => {
+          setAdvancedOpen(true);
           setError(configErrorMessage(e));
           releaseMutation?.();
         },
@@ -90,24 +103,6 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
       </p>
 
       <div className="form-field">
-        <label>Agent name</label>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Atlas"
-        />
-      </div>
-
-      <div className="form-field">
-        <label>Role</label>
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          {displayLabels(roleEntries.map(([id, r]) => [id, r.title])).map(([id, title]) => (
-            <option key={id} value={id}>{title}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="form-field">
         <label>Project</label>
         <select value={project} onChange={(e) => setProject(e.target.value)}>
           {displayLabels(projectEntries.map(([id, p]) => [id, p.title])).map(([id, title]) => (
@@ -115,11 +110,34 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
           ))}
         </select>
       </div>
+      <div className="new-agent-runtime">
+        <span>Runs with</span>
+        <strong>{backendsData?.backends[defaultBackendId]?.name || "Configured backend"}</strong>
+        <span>Chat</span>
+        <span>{role ? displayLabel(personaLabels, role) || role : "Loading persona…"}</span>
+      </div>
+      <details className="new-agent-options" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+        <summary>Advanced</summary>
+        <div className="form-field">
+          <label htmlFor="onboarding-persona">Persona</label>
+          <select id="onboarding-persona" value={role} onChange={(e) => setRole(e.target.value)}>
+            {roleInvalid && <option value={role}>{role} (unavailable)</option>}
+            {displayLabels(roleEntries.map(([id, r]) => [id, personaLabel(id, r)])).map(([id, title]) => (
+              <option key={id} value={id}>{title}</option>
+            ))}
+          </select>
+          {roleInvalid && <span className="form-error">This persona is unavailable. Choose another persona.</span>}
+        </div>
+        <div className="form-field">
+          <label htmlFor="onboarding-agent-name">Agent name</label>
+          <input id="onboarding-agent-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Atlas" />
+        </div>
+      </details>
 
       {error && <p className="form-error">{error}</p>}
 
       <div className="form-actions" data-slot="actions">
-        <button type="button" className="ad-button-primary" onClick={handleLaunch} disabled={launch.isPending || putConfig.isPending || !role || !project}>
+        <button type="button" className="ad-button-primary" onClick={handleLaunch} disabled={launch.isPending || putConfig.isPending || !role || roleInvalid || !project}>
           {launch.isPending ? "Launching…" : putConfig.isPending ? "Completing setup…" : "Launch"}
         </button>
         {launchSucceeded && !putConfig.isSuccess && (

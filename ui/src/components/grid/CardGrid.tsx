@@ -14,7 +14,8 @@ import { DashboardChatPane } from "./DashboardChatPane";
 import { EmptyState } from "./EmptyState";
 import { NewAgentModal } from "../../features/launch/NewAgentModal";
 import { ThinkTankSetupDialog } from "../../features/thinktank/ThinkTankSetupDialog";
-import { useProjects } from "../../api/config";
+import { useProjects, useRoles } from "../../api/config";
+import { personaIdentityLabel } from "../../lib/personas";
 import { useTasks } from "../../api/tasks";
 import { needsAttention } from "../../features/tasks/taskWork";
 import { Button, IconButton, PageHeader } from "../ui";
@@ -400,6 +401,7 @@ function summary(agents: AgentState[]) {
 }
 
 function LiveAgentCard(props: Omit<ComponentProps<typeof AgentCard>, "lastLine">) {
+  const { data: roles } = useRoles();
   const lastLine = useTranscriptStore((state) => state.previewByAgent[props.agent.agent_id] ?? "");
-  return <AgentCard {...props} lastLine={lastLine}>{props.expanded ? <DashboardChatPane agent={props.agent} /> : null}</AgentCard>;
+  return <AgentCard {...props} roleLabel={personaIdentityLabel(props.agent.role, roles?.[props.agent.role])} lastLine={lastLine}>{props.expanded ? <DashboardChatPane agent={props.agent} /> : null}</AgentCard>;
 }
