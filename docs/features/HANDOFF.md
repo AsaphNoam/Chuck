@@ -28,15 +28,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Review pending — mobile details/composer:** `58b63d1`, FS-20.R32/R43, TS-08.R116.
   Inline selected-file preview, compact Manage and unboxed composer footer. Shared Send touch
   target preserved. Three-appearance evidence: `/tmp/chuck-release-phone-*.png`.
-- **Design ready — No persona and optional persona awareness:**
+- **Review pending — No persona and optional persona awareness:**
   [`agents-without-a-persona-by-default.md`](../ready-changes/agents-without-a-persona-by-default.md)
-  is Waiting to start. Final scope: hide canonical Default, show No persona, persona selection
-  under Advanced; Chuck aware agent only in persona configuration, on by default with help text.
-  User rejected per-agent launch overrides. No persona stays aware; existing agents freeze their
-  resolved choice. References: FS-01.R46–R47/A29–A30, FS-04.R54–R57/A34–A36, FS-18.R20/A16,
-  TS-02.R43–R44, TS-03.R59, TS-08.R120, TS-11.R21–R22. Only the two generic shared prompt
-  additions are gated; tools/permissions/knowledge/project/provider/task guidance remain.
-  No product code changed; this feature has not begun implementation.
+  is Finished. Substantive range `d29a4f5` through `2de7167`. FS-01.R46–R47/A29–A30,
+  FS-04.R54–R57/A34–A36, FS-18.R20/A16, TS-02.R43–R44, TS-03.R59, TS-08.R120,
+  TS-11.R21–R22. Five-role seed/once-only preference upgrade, Advanced persona choice,
+  hidden canonical Default, editor-only awareness and frozen lifecycle/metadata/reindex choice.
+  Both Go variants, focused race checks, 771 UI tests, 41 presentation checks and make dist pass.
+  88 real Chromium checks pass in all three appearances at 1024px and phone 360/390/430px;
+  desktop/phone/onboarding launch/edit keyboard journeys and development matrix were inspected.
+  [Verification receipt](../archive/state/PERSONA-DEFAULT-2026-10-10.md); raw screenshots/receipt
+  `/tmp/chuck-persona-journey-final3/`. Fake providers make no model-adoption claim; existing
+  credentialed provider gates below remain owed. Independent specification/code comparison owed.
 - **Design ready — quota continuation:**
   [`continue-chats-after-quota-reset.md`](../ready-changes/continue-chats-after-quota-reset.md)
   is Waiting to start: FS-01.R40–R45/FS-04.R53, TS-02.R45/TS-03.R60,
@@ -60,35 +63,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-**In progress — No persona and optional persona awareness:**
-[`agents-without-a-persona-by-default.md`](../ready-changes/agents-without-a-persona-by-default.md).
-Implementation selected on 2026-10-10. Slices: (1) configuration seed/once-only preference
-upgrade and role API, (2) frozen session awareness/metadata and lifecycle prompt composition,
-(3) desktop/phone/onboarding Advanced and persona editor, then shared closure and rendered
-keyboard journeys. Config/startup, persistence/runtime metadata and UI are independently
-delegated; parent owns server integration, review and verification. Tree started clean.
-Direction: experienced operators launch project work repeatedly; lead with project and a compact
-runtime/persona summary, keeping persona in one Advanced disclosure. No persona contributes no
-persona text while retaining normal tools and guidance. Reuse form/disclosure tokens with no
-motion. Loading/refetch must not change an explicit choice; errors preserve drafts and expose
-repair. Inspect incumbent and final desktop/phone forms in Core, Sky & Grove and Studio.
-Backend checkpoint: five-role seed, once-only upgrade/marker, role awareness API, SQLite
-migration 48, metadata/reindex and frozen resume/switch/clone composition implemented.
-Focused config/state/index/runtime/startup and server awareness tests pass. Full server run
-exposed only the old four-role API seed expectation, now updated; closure still owed.
-UI integration remains active: truthful canonical/custom identity labels, invalid hidden choice
-repair without substituting a persona, tests and actual keyboard journeys. Incumbent embedded
-New Agent inspected on the isolated loopback group fixture; its Role/Options layout is confirmed.
-UI checkpoint: desktop/phone/onboarding persona selectors are in Advanced with compact summaries;
-canonical Default is hidden, customized definitions stay visible, and editor awareness/help round
-trips explicit false. Shared identity presentation consumes existing role metadata; AgentCard
-receives its label from LiveAgentCard to preserve its presentation boundary. No persona leaves
-the name omitted so the existing server suggestion supplies a name. Delayed config/refetch,
-removed-choice repair, failed editor drafts and decoder tests pass. 771 UI tests and 41
-presentation/style checks pass; make dist and both Go test variants pass. Focused lifecycle/clone
-race tests pass. Final browser journey remains active on `/tmp/chuck-persona-final3.json`;
-receipts/screenshots `/tmp/chuck-persona-journey-final3/`, script `ui/scripts/persona-journey.mjs`.
-No credentialed provider/model-behavior claim is made by these fake-provider fixtures.
+None.
 
 ## Acceptance gates still owed
 

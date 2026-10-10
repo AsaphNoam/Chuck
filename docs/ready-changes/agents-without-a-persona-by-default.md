@@ -1,6 +1,6 @@
 # No persona by default and optional persona awareness
 
-**State:** In progress
+**State:** Finished
 **Why:** Direct `/design-feature` request on 2026-10-10: create agents without a persona by default.
 Implementer must stop being the default, including on upgrade. The follow-up hides Default behind
 **No persona**, moves persona selection to **Advanced**, and adds an on-by-default **Chuck aware
@@ -93,5 +93,7 @@ desktop/phone keyboard journey; design-time source reasoning is not rendered acc
 ## Waiting on
 
 No product decision. Final scope is persona-configuration-only awareness, confirmed on 2026-10-10.
-Implementation selected on 2026-10-10. Backend and UI source are implemented; final rendered
-journeys and closure are in progress. The live handoff owns resumable verification state.
+Implementation and closure finished on 2026-10-10; independent review is available in the live
+handoff. [Verification receipt](../archive/state/PERSONA-DEFAULT-2026-10-10.md): both Go variants,
+focused race checks, 771 UI tests, presentation checks, embedded build and 88 real-browser checks
+passed. Existing credentialed native-provider acceptance gates remain separate.
