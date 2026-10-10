@@ -75,6 +75,7 @@ func (s *Server) runningAgentsMatching(match func(state.Agent) bool) ([]string, 
 // ---- Role request/response bodies ----
 
 type roleCreateBody struct {
+	ChuckAware      *bool  `json:"chuck_aware"`
 	RoleID          string `json:"role"`
 	Title           string `json:"title"`
 	SystemPrompt    string `json:"system_prompt"`
@@ -83,6 +84,7 @@ type roleCreateBody struct {
 
 func (b roleCreateBody) toRole() config.Role {
 	return config.Role{
+		ChuckAware:      b.ChuckAware,
 		Title:           b.Title,
 		SystemPrompt:    b.SystemPrompt,
 		SkipPermissions: b.SkipPermissions,
@@ -90,6 +92,7 @@ func (b roleCreateBody) toRole() config.Role {
 }
 
 type rolePutBody struct {
+	ChuckAware      *bool   `json:"chuck_aware"`
 	RoleID          *string `json:"role"` // optional; must match path if present
 	Title           string  `json:"title"`
 	SystemPrompt    string  `json:"system_prompt"`
@@ -98,6 +101,7 @@ type rolePutBody struct {
 
 func (b rolePutBody) toRole() config.Role {
 	return config.Role{
+		ChuckAware:      b.ChuckAware,
 		Title:           b.Title,
 		SystemPrompt:    b.SystemPrompt,
 		SkipPermissions: b.SkipPermissions,
@@ -105,6 +109,7 @@ func (b rolePutBody) toRole() config.Role {
 }
 
 type roleResponse struct {
+	ChuckAware      *bool  `json:"chuck_aware,omitempty"`
 	RoleID          string `json:"role"`
 	Title           string `json:"title"`
 	SystemPrompt    string `json:"system_prompt"`
@@ -113,6 +118,7 @@ type roleResponse struct {
 
 func toRoleResponse(id string, r config.Role) roleResponse {
 	return roleResponse{
+		ChuckAware:      r.ChuckAware,
 		RoleID:          id,
 		Title:           r.Title,
 		SystemPrompt:    r.SystemPrompt,

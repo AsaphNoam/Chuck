@@ -58,6 +58,72 @@ func doBackendsPut(t *testing.T, h http.Handler, body any) *httptest.ResponseRec
 
 // ---- Roles CRUD tests ----
 
+// FS-04.A36: the real configuration boundary preserves explicit false and
+// defaults omitted/null legacy definitions to on; malformed types are refused.
+func TestRoleAwarenessAPI(t *testing.T) {
+	srv := testServer(t, false)
+	h := srv.routes()
+	for _, tc := range []struct {
+		name    string
+		value   any
+		omitted bool
+		want    bool
+	}{
+		{"on", true, false, true}, {"off", false, false, false},
+		{"legacy", nil, true, true}, {"null", nil, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := map[string]any{"role": tc.name, "title": tc.name, "system_prompt": "persona"}
+			if !tc.omitted {
+				body["chuck_aware"] = tc.value
+			}
+			rec := doRequest(t, h, http.MethodPost, "/api/roles", body)
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("create = %d %s", rec.Code, rec.Body)
+			}
+			var response roleResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if got := response.ChuckAware == nil || *response.ChuckAware; got != tc.want {
+				t.Fatalf("response awareness = %v", got)
+			}
+			role, err := srv.configStore.ReadRole(tc.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := role.ChuckAware == nil || *role.ChuckAware; got != tc.want {
+				t.Fatalf("disk awareness = %v", got)
+			}
+			body["chuck_aware"] = !tc.want
+			rec = doRequest(t, h, http.MethodPut, "/api/roles/"+tc.name, body)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("update = %d %s", rec.Code, rec.Body)
+			}
+			roles := doGET(t, h, "/api/roles")
+			var listed map[string]config.Role
+			if err := json.Unmarshal(roles.Body.Bytes(), &listed); err != nil {
+				t.Fatal(err)
+			}
+			if got := listed[tc.name].ChuckAware; got == nil || *got != !tc.want {
+				t.Fatalf("list awareness = %v", got)
+			}
+		})
+	}
+	for _, invalid := range []any{"false", 0, []bool{false}} {
+		for _, method := range []string{http.MethodPost, http.MethodPut} {
+			path := "/api/roles"
+			if method == http.MethodPut {
+				path += "/off"
+			}
+			rec := doRequest(t, h, method, path, map[string]any{"role": "off", "title": "Off", "chuck_aware": invalid})
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("invalid %v %s = %d %s", invalid, method, rec.Code, rec.Body)
+			}
+		}
+	}
+}
+
 // FS-04.A1: role CRUD round-trips every owned field.
 func TestRolesCRUDRoundTrip(t *testing.T) {
 	srv := testServer(t, false)

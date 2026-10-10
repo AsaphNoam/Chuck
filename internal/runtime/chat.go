@@ -1928,6 +1928,7 @@ func runtimeMeta(spec LaunchSpec, sessionID string) SessionMetaData {
 		sum := sha256sum(spec.SystemPrompt)
 		sha = fmt.Sprintf("%x", sum[:])
 	}
+	aware := spec.IsChuckAware()
 	return SessionMetaData{
 		Name:            spec.Agent.Name,
 		Role:            spec.Agent.Role,
@@ -1941,6 +1942,7 @@ func runtimeMeta(spec LaunchSpec, sessionID string) SessionMetaData {
 		Cwd:             spec.Cwd,
 		SystemPrompt:    spec.SystemPrompt,
 		SystemPromptSHA: sha,
+		ChuckAware:      &aware,
 		EnvKeys:         envKeys(spec.Env),
 		SkipPermissions: spec.SkipPerms,
 		AddDirs:         spec.AddDirs,

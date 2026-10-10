@@ -52,6 +52,39 @@ func readEvents(t *testing.T, srv *Server, id string) []runtime.Event {
 	return evs
 }
 
+// FS-18.A16: clone copies the source's frozen opt-out even after its persona
+// has been changed to enable awareness for future launches.
+func TestClonePreservesFrozenAwarenessAfterPersonaEdit(t *testing.T) {
+	srv, ts, _ := cloneServer(t, map[string]string{"FAKEACP_CAPS": "1"})
+	off := false
+	role := config.Role{Title: "Unaware", SystemPrompt: "persona", ChuckAware: &off}
+	if err := srv.configStore.WriteRole("unaware", role); err != nil {
+		t.Fatal(err)
+	}
+	src := launchAndWaitIdle(t, ts, "unaware", "tmpproj")
+	if resp, body := post(t, ts.URL+"/api/sessions/"+src+"/prompt", map[string]string{"text": "hello"}); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("prompt = %d %s", resp.StatusCode, body)
+	}
+	waitStatus(t, srv, src, "idle")
+	on := true
+	role.ChuckAware = &on
+	if err := srv.configStore.WriteRole("unaware", role); err != nil {
+		t.Fatal(err)
+	}
+	resp, body := post(t, ts.URL+"/api/sessions/"+src+"/clone", map[string]string{})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("clone = %d %s", resp.StatusCode, body)
+	}
+	var out cloneResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := srv.stateStore.ReadSession(out.Agent.AgentID)
+	if err != nil || snap.ChuckAware {
+		t.Fatalf("clone snapshot = %+v, err %v", snap, err)
+	}
+}
+
 // FS-01.R39 — a clone name keeps the suffix within the display-name limit, and
 // an unnamed source falls back to the curated suggestion.
 func TestCloneNameAppendsCopyWithinTheLimit(t *testing.T) {

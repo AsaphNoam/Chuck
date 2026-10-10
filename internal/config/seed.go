@@ -29,7 +29,7 @@ func DefaultConfig() Config {
 		Version:         1,
 		Port:            4317,
 		DefaultProject:  "my-app",
-		DefaultRole:     "implementer",
+		DefaultRole:     "default",
 		SkipPermissions: false,
 		Notifications: NotificationsConfig{
 			DesktopEnabled: true,
@@ -191,10 +191,17 @@ var supersededRolePromptDigests = map[string][]string{
 	},
 }
 
-// seedRoles is the four shipped personas (FS-04.R50). SkipPermissions is nil
-// (null on disk) so each role inherits the global config by default.
+// seedRoles is the five shipped personas (FS-04.R50). SkipPermissions is nil
+// (null on disk) so each role inherits the global config by default. The
+// internal empty default is Chuck-aware and is represented as No persona by UI.
 func seedRoles() map[string]Role {
 	return map[string]Role{
+		"default": {
+			Title:           "Default",
+			SystemPrompt:    "",
+			ChuckAware:      boolPtr(true),
+			SkipPermissions: nil,
+		},
 		"chucky": {
 			Title:           "Chucky",
 			SystemPrompt:    chuckyPrompt,

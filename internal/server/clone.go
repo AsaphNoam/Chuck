@@ -75,7 +75,7 @@ func (s *Server) cloneAgent(ctx context.Context, sourceID string) (cloneResponse
 	resp, ae := s.launchAgent(ctx, launchRequest{
 		Name: cloneName(source.Name), Role: source.Role, Project: source.Project, Backend: source.Backend, Model: source.Model,
 		Effort: source.Effort, Fast: source.Fast, Interface: source.Interface, Group: source.Group,
-	}, launchOptions{Fork: &runtime.ForkPlan{
+	}, launchOptions{ChuckAware: &snap.ChuckAware, Fork: &runtime.ForkPlan{
 		SourceAgentID: sourceID, SourceSessionID: snap.LastSessionID, SourceSeq: boundary, Prefix: prefix,
 	}})
 	if ae != nil {

@@ -60,7 +60,25 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+**In progress — No persona and optional persona awareness:**
+[`agents-without-a-persona-by-default.md`](../ready-changes/agents-without-a-persona-by-default.md).
+Implementation selected on 2026-10-10. Slices: (1) configuration seed/once-only preference
+upgrade and role API, (2) frozen session awareness/metadata and lifecycle prompt composition,
+(3) desktop/phone/onboarding Advanced and persona editor, then shared closure and rendered
+keyboard journeys. Config/startup, persistence/runtime metadata and UI are independently
+delegated; parent owns server integration, review and verification. Tree started clean.
+Direction: experienced operators launch project work repeatedly; lead with project and a compact
+runtime/persona summary, keeping persona in one Advanced disclosure. No persona contributes no
+persona text while retaining normal tools and guidance. Reuse form/disclosure tokens with no
+motion. Loading/refetch must not change an explicit choice; errors preserve drafts and expose
+repair. Inspect incumbent and final desktop/phone forms in Core, Sky & Grove and Studio.
+Backend checkpoint: five-role seed, once-only upgrade/marker, role awareness API, SQLite
+migration 48, metadata/reindex and frozen resume/switch/clone composition implemented.
+Focused config/state/index/runtime/startup and server awareness tests pass. Full server run
+exposed only the old four-role API seed expectation, now updated; closure still owed.
+UI integration remains active: truthful canonical/custom identity labels, invalid hidden choice
+repair without substituting a persona, tests and actual keyboard journeys. Incumbent embedded
+New Agent inspected on the isolated loopback group fixture; its Role/Options layout is confirmed.
 
 ## Acceptance gates still owed
 

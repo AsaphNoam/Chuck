@@ -1,6 +1,6 @@
 # No persona by default and optional persona awareness
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-10-10: create agents without a persona by default.
 Implementer must stop being the default, including on upgrade. The follow-up hides Default behind
 **No persona**, moves persona selection to **Advanced**, and adds an on-by-default **Chuck aware

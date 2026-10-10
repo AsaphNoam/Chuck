@@ -23,6 +23,8 @@ type LaunchSpec struct {
 	Cwd          string   // resolved absolute working dir (project.cwd, ~-expanded)
 	AddDirs      []string // project.add_dirs, ~-expanded
 	SystemPrompt string   // composed: context_prompt + role.system_prompt — the FROZEN, persisted snapshot
+	// ChuckAware is the frozen shared-awareness choice. Nil is legacy/default on.
+	ChuckAware *bool
 	// RuntimeAddDirs are product-managed directories exposed to this process only.
 	// Persistence snapshots AddDirs, never this overlay, so an unavailable later
 	// dashboard start cannot recover a stale managed path from session metadata.
@@ -79,6 +81,9 @@ type LaunchSpec struct {
 	// one-shot launch input and never persisted as configuration (INV §3).
 	Fork *ForkPlan
 }
+
+// IsChuckAware resolves omitted legacy choices to the enabled default.
+func (s LaunchSpec) IsChuckAware() bool { return s.ChuckAware == nil || *s.ChuckAware }
 
 // ForkPlan is Clone's launch input: the source's native session to fork, and
 // the durable copy of its visible transcript through the fork boundary.

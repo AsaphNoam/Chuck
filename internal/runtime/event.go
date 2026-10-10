@@ -234,6 +234,7 @@ type SessionMetaData struct {
 	Cwd             string   `json:"cwd"`
 	SystemPrompt    string   `json:"system_prompt,omitempty"`
 	SystemPromptSHA string   `json:"system_prompt_sha,omitempty"`
+	ChuckAware      *bool    `json:"chuck_aware"`
 	EnvKeys         []string `json:"env_keys,omitempty"`
 	// SkipPermissions and AddDirs are part of the frozen composed config: they are
 	// resolved once at launch and persisted so resume/switch reproduce the original
@@ -256,6 +257,9 @@ type SessionMetaData struct {
 	ForkedFromAgentID string `json:"forked_from_agent_id,omitempty"`
 	ForkedFromSeq     int64  `json:"forked_from_seq,omitempty"`
 }
+
+// IsChuckAware resolves omitted legacy metadata to the enabled default.
+func (m SessionMetaData) IsChuckAware() bool { return m.ChuckAware == nil || *m.ChuckAware }
 
 // SessionCapabilities is the runtime's provider-independent capability value
 // (TS-01.R35). It shares the state package's vocabulary so the snapshot and the

@@ -74,6 +74,8 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 type launchOptions struct {
 	AgentID    string
 	Generation string
+	// ChuckAware preserves the source session's choice during clone only.
+	ChuckAware *bool
 	// Notice, when non-nil, receives the checkout-recreation report so the start
 	// response can carry it (FS-19.R7). Callers that do not report it — the
 	// composition tests, and every path whose response has no place for it —
@@ -367,7 +369,12 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeInternal, err.Error())
 	}
 
+	aware := role.IsChuckAware()
+	if options.ChuckAware != nil {
+		aware = *options.ChuckAware
+	}
 	spec := runtime.LaunchSpec{
+		ChuckAware:         &aware,
 		Agent:              agent,
 		Generation:         generation,
 		Cwd:                cwd,
@@ -411,13 +418,17 @@ func (s *Server) applyKnowledgeOverlay(spec runtime.LaunchSpec) runtime.LaunchSp
 	for _, tool := range s.messaging.ToolNames() {
 		spec.AutoApproveTools["mcp__"+messagingMCPName+"__"+tool] = struct{}{}
 	}
-	spec.RuntimeSystemPromptSuffix = appendSystemPromptOnce(spec.RuntimeSystemPromptSuffix, operatingContextPrompt)
+	if spec.IsChuckAware() {
+		spec.RuntimeSystemPromptSuffix = appendSystemPromptOnce(spec.RuntimeSystemPromptSuffix, operatingContextPrompt)
+	}
 	spec.Env = removeEnvKey(spec.Env, "CHUCK_SKILL_DIR")
 	if !s.knowledge.Available {
 		return spec
 	}
 	spec.RuntimeAddDirs = appendUnique(spec.RuntimeAddDirs, s.knowledge.Root)
-	spec.RuntimeSystemPromptSuffix = appendSystemPromptOnce(spec.RuntimeSystemPromptSuffix, fmt.Sprintf(knowledgePrompt, s.knowledge.SkillDir))
+	if spec.IsChuckAware() {
+		spec.RuntimeSystemPromptSuffix = appendSystemPromptOnce(spec.RuntimeSystemPromptSuffix, fmt.Sprintf(knowledgePrompt, s.knowledge.SkillDir))
+	}
 	spec.RuntimeEnv = composeEnv(spec.Env, map[string]string{"CHUCK_SKILL_DIR": s.knowledge.SkillDir})
 	return spec
 }

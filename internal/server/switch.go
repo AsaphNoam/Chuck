@@ -451,6 +451,7 @@ func (s *Server) composeSwitchSpecContext(ctx context.Context, target state.Agen
 		Cwd:                snap.Cwd,
 		AddDirs:            snap.AddDirs,
 		SystemPrompt:       snap.SystemPrompt,
+		ChuckAware:         &snap.ChuckAware,
 		BackendType:        be.Type,
 		ModelID:            model.Model,
 		Effort:             target.Effort,

@@ -720,4 +720,10 @@ ALTER TABLE think_tank_members ADD COLUMN stop_teardown INTEGER NOT NULL DEFAULT
 ALTER TABLE running ADD COLUMN generation TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		// Freeze the resolved awareness choice. Legacy rows retain the enabled
+		// default and the CHECK keeps this field boolean (TS-02.R44).
+		version: 48,
+		sql:     `ALTER TABLE sessions ADD COLUMN chuck_aware INTEGER NOT NULL DEFAULT 1 CHECK (chuck_aware IN (0, 1));`,
+	},
 }

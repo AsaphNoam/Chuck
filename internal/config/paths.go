@@ -62,10 +62,11 @@ const (
 	dirPipelines = "pipelines"
 	dirSessions  = "sessions"
 
-	fileBackends      = "backends.json"
-	fileConfig        = "config.json"
-	fileConfigSources = "config-sources.json"
-	fileLayout        = "layout.json"
+	fileBackends              = "backends.json"
+	fileConfig                = "config.json"
+	fileConfigSources         = "config-sources.json"
+	fileLayout                = "layout.json"
+	fileDefaultPersonaUpgrade = "default-persona-upgrade.json"
 )
 
 // dataDirs is every directory EnsureLayout creates under home.
@@ -95,7 +96,8 @@ func (s *Store) rolePath(id string) string     { return s.objPath(dirRoles, id) 
 func (s *Store) projectPath(id string) string  { return s.objPath(dirProjects, id) }
 func (s *Store) pipelinePath(id string) string { return s.objPath(dirPipelines, id) }
 
-func (s *Store) backendsPath() string      { return s.filePath(fileBackends) }
-func (s *Store) configPath() string        { return s.filePath(fileConfig) }
-func (s *Store) configSourcesPath() string { return s.filePath(fileConfigSources) }
-func (s *Store) layoutPath() string        { return s.filePath(fileLayout) }
+func (s *Store) backendsPath() string              { return s.filePath(fileBackends) }
+func (s *Store) configPath() string                { return s.filePath(fileConfig) }
+func (s *Store) configSourcesPath() string         { return s.filePath(fileConfigSources) }
+func (s *Store) layoutPath() string                { return s.filePath(fileLayout) }
+func (s *Store) defaultPersonaUpgradePath() string { return s.filePath(fileDefaultPersonaUpgrade) }

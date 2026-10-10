@@ -620,6 +620,71 @@ func TestLaunchConfigRoundTrips(t *testing.T) {
 	}
 }
 
+func TestAwarenessDefaultsAndFalseRoundTripThroughReindex(t *testing.T) {
+	st, home := openTestDB(t)
+	legacy, err := transcript.Open(home, "a_legacy", nil)
+	if err != nil {
+		t.Fatalf("transcript.Open legacy: %v", err)
+	}
+	legacyData := json.RawMessage(`{"name":"Legacy","role":"r","project":"p","backend":"claude","model":"m","interface":"chat","cwd":"/tmp","created_at":"2026-01-01T00:00:00Z","session_id":"legacy"}`)
+	if err := legacy.Append(runtime.Event{Type: runtime.EvSessionMeta, Data: legacyData, Ts: "2026-01-01T00:00:00Z"}); err != nil {
+		t.Fatalf("append legacy metadata: %v", err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatalf("close legacy transcript: %v", err)
+	}
+
+	aware := false
+	current := meta()
+	current.ChuckAware = &aware
+	current.Name = "Unaware"
+	current.SessionID = "unaware"
+	currentData, err := json.Marshal(current)
+	if err != nil {
+		t.Fatalf("marshal false metadata: %v", err)
+	}
+	currentWriter, err := transcript.Open(home, "a_unaware", nil)
+	if err != nil {
+		t.Fatalf("transcript.Open false: %v", err)
+	}
+	if err := currentWriter.Append(runtime.Event{Type: runtime.EvSessionMeta, Data: currentData, Ts: current.CreatedAt}); err != nil {
+		t.Fatalf("append false metadata: %v", err)
+	}
+	if err := currentWriter.Close(); err != nil {
+		t.Fatalf("close false transcript: %v", err)
+	}
+
+	if err := Reindex(home, st.DB()); err != nil {
+		t.Fatalf("Reindex: %v", err)
+	}
+	legacySnapshot, err := st.ReadSession("a_legacy")
+	if err != nil {
+		t.Fatalf("read legacy snapshot: %v", err)
+	}
+	if !legacySnapshot.ChuckAware {
+		t.Fatal("legacy metadata resolved to unaware")
+	}
+	falseSnapshot, err := st.ReadSession("a_unaware")
+	if err != nil {
+		t.Fatalf("read false snapshot: %v", err)
+	}
+	if falseSnapshot.ChuckAware {
+		t.Fatal("explicit false metadata lost during reindex")
+	}
+	inactive, err := st.ListInactiveSessions("", "")
+	if err != nil {
+		t.Fatalf("list inactive sessions: %v", err)
+	}
+	for _, snapshot := range inactive {
+		if snapshot.AgentID == "a_unaware" && snapshot.ChuckAware {
+			t.Fatal("explicit false metadata lost from inactive-session listing")
+		}
+	}
+	if _, err := st.DB().Exec(`UPDATE sessions SET chuck_aware = 2 WHERE agent_id = 'a_unaware'`); err == nil {
+		t.Fatal("invalid awareness value accepted by boolean CHECK")
+	}
+}
+
 // TestUpsertSessionMetaTransactionAtomicity verifies that session row and
 // metadata document are updated atomically: both succeed or both roll back
 // (TS-02.R16, INV §15).

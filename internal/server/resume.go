@@ -509,6 +509,7 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 		Cwd:                snap.Cwd,
 		AddDirs:            snap.AddDirs,
 		SystemPrompt:       snap.SystemPrompt,
+		ChuckAware:         &snap.ChuckAware,
 		BackendType:        be.Type,
 		ModelID:            model.Model,
 		Effort:             agent.Effort,

@@ -115,6 +115,10 @@ func resolvePreparedConfig(cfgStore *config.Store, log *slog.Logger) (config.Con
 		// Corrupt/missing config → default (do not rewrite the corrupt file).
 		log.Warn("config unreadable; using default", "err", err)
 		cfg = config.DefaultConfig()
+		return cfg, nil
+	}
+	if cfg, err = cfgStore.PrepareDefaultPersonaUpgrade(cfg); err != nil {
+		return config.Config{}, err
 	}
 	return cfg, nil
 }

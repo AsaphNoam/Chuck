@@ -442,14 +442,14 @@ func TestSeedIfAbsentNoClobber(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListRoles: %v", err)
 	}
-	// FS-04.A30: exactly the four shipped personas, enumerated from the
+	// FS-04.A30: exactly the five shipped personas, enumerated from the
 	// requirement rather than from seedRoles().
 	ids := make([]string, 0, len(roles))
 	for id := range roles {
 		ids = append(ids, id)
 	}
 	slices.Sort(ids)
-	if want := []string{"chucky", "implementer", "researcher", "reviewer"}; !slices.Equal(ids, want) {
+	if want := []string{"chucky", "default", "implementer", "researcher", "reviewer"}; !slices.Equal(ids, want) {
 		t.Fatalf("seeded roles = %v, want %v", ids, want)
 	}
 	for id, role := range roles {
@@ -457,8 +457,8 @@ func TestSeedIfAbsentNoClobber(t *testing.T) {
 			t.Errorf("seeded role %q pins permissions; it must inherit the global policy", id)
 		}
 	}
-	if cfg, err := s.ReadConfig(); err != nil || cfg.DefaultRole != "implementer" {
-		t.Fatalf("default role = %q, %v; want implementer", cfg.DefaultRole, err)
+	if cfg, err := s.ReadConfig(); err != nil || cfg.DefaultRole != "default" {
+		t.Fatalf("default role = %q, %v; want default", cfg.DefaultRole, err)
 	}
 	chucky, err := s.ReadRole("chucky")
 	if err != nil || chucky.SystemPrompt != chuckyPrompt || strings.Contains(chucky.SystemPrompt, "propose_pipeline") {

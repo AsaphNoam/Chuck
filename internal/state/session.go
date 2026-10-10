@@ -22,6 +22,7 @@ type SessionSnapshot struct {
 	Group        string
 	Cwd          string
 	SystemPrompt string
+	ChuckAware   bool
 	EnvKeys      []string // key names only; values re-resolved at resume time
 	// Frozen composed-config: resolved once at launch and read back verbatim on
 	// resume/switch (techspec §12.4). NOT re-derived from current role/project.
@@ -62,13 +63,13 @@ func (s *Store) ReadSession(agentID string) (SessionSnapshot, error) {
 	var launchConfigJSON, capabilitiesJSON string
 	var lastUsed, lastSize sql.NullInt64
 	err := s.db.QueryRow(`
-SELECT agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt,
+SELECT agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware,
        env_keys, skip_permissions, add_dirs, launch_config_json, last_session_id, last_seq, last_context_pct,
        last_context_used, last_context_size, created_at, runtime_capabilities_json
 FROM sessions WHERE agent_id = ?`, agentID).Scan(
 		&snap.AgentID, &snap.Name, &snap.Role, &snap.Project,
 		&snap.Backend, &snap.Model, &snap.Effort, &snap.Fast, &snap.Interface, &snap.Group,
-		&snap.Cwd, &snap.SystemPrompt, &envKeysJSON, &snap.SkipPermissions, &addDirsJSON, &launchConfigJSON,
+		&snap.Cwd, &snap.SystemPrompt, &snap.ChuckAware, &envKeysJSON, &snap.SkipPermissions, &addDirsJSON, &launchConfigJSON,
 		&snap.LastSessionID, &snap.LastSeq, &snap.LastContextPct, &lastUsed, &lastSize, &snap.CreatedAt,
 		&capabilitiesJSON,
 	)
@@ -95,7 +96,7 @@ FROM sessions WHERE agent_id = ?`, agentID).Scan(
 func (s *Store) ListInactiveSessions(role, project string) ([]SessionSnapshot, error) {
 	q := `
 SELECT s.agent_id, s.name, s.role, s.project, s.backend, s.model, s.effort, s.fast, s.interface, s.grp,
-       s.cwd, s.system_prompt, s.env_keys, s.skip_permissions, s.add_dirs, s.launch_config_json,
+       s.cwd, s.system_prompt, s.chuck_aware, s.env_keys, s.skip_permissions, s.add_dirs, s.launch_config_json,
        s.last_session_id, s.last_seq, s.last_context_pct, s.last_context_used, s.last_context_size, s.created_at
 FROM sessions s
 LEFT JOIN running r ON r.agent_id = s.agent_id
@@ -124,7 +125,7 @@ WHERE r.agent_id IS NULL`
 		if err := rows.Scan(
 			&snap.AgentID, &snap.Name, &snap.Role, &snap.Project,
 			&snap.Backend, &snap.Model, &snap.Effort, &snap.Fast, &snap.Interface, &snap.Group,
-			&snap.Cwd, &snap.SystemPrompt, &envKeysJSON, &snap.SkipPermissions, &addDirsJSON, &launchConfigJSON,
+			&snap.Cwd, &snap.SystemPrompt, &snap.ChuckAware, &envKeysJSON, &snap.SkipPermissions, &addDirsJSON, &launchConfigJSON,
 			&snap.LastSessionID, &snap.LastSeq, &snap.LastContextPct, &lastUsed, &lastSize, &snap.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("state: scan inactive session: %w", err)

@@ -9,10 +9,16 @@ package config
 // Role is a reusable persona. SkipPermissions is a pointer so null (inherit the
 // global config), true, and false are all distinguishable on disk and over the API.
 type Role struct {
-	Title           string `json:"title"`
-	SystemPrompt    string `json:"system_prompt"`
-	SkipPermissions *bool  `json:"skip_permissions"` // null = inherit global; true/false = override
+	Title        string `json:"title"`
+	SystemPrompt string `json:"system_prompt"`
+	// ChuckAware is nullable for backwards-compatible role files. An omitted
+	// value resolves to true; an explicit false opts the persona out.
+	ChuckAware      *bool `json:"chuck_aware,omitempty"`
+	SkipPermissions *bool `json:"skip_permissions"` // null = inherit global; true/false = override
 }
+
+// IsChuckAware resolves the legacy omitted/null value to the shipped default.
+func (r Role) IsChuckAware() bool { return r.ChuckAware == nil || *r.ChuckAware }
 
 // ---- Project: projects/{project}.json (PRD §3.3) ----
 

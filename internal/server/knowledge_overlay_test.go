@@ -8,9 +8,111 @@ import (
 	"testing"
 
 	"github.com/AsaphNoam/Chuck/internal/agentknowledge"
+	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
+
+// FS-01.A29: the internal empty choice contributes no persona text; ordinary
+// project/task instructions, inherited permissions and capabilities still apply.
+func TestDefaultPersonaUsesOrdinaryLaunchComposition(t *testing.T) {
+	srv := testServer(t, true)
+	if err := srv.configStore.WriteProject("plain", config.Project{Title: "Plain", Cwd: t.TempDir(), ContextPrompt: "project guidance"}); err != nil {
+		t.Fatal(err)
+	}
+	spec, agent, ae := srv.composeLaunchWithOptions(t.Context(), launchRequest{Role: "default", Project: "plain"}, launchOptions{OrchestratorInstructions: "task guidance"})
+	if ae != nil {
+		t.Fatal(ae)
+	}
+	if agent.Role != "default" || !spec.IsChuckAware() || spec.SkipPerms != srv.cfg.SkipPermissions {
+		t.Fatalf("default launch = %+v, %+v", agent, spec)
+	}
+	if !strings.HasPrefix(spec.SystemPrompt, "project guidance") || !strings.Contains(spec.SystemPrompt, "task guidance") || strings.Contains(spec.SystemPrompt, operatingContextPrompt) {
+		t.Fatalf("frozen prompt = %q", spec.SystemPrompt)
+	}
+	if strings.Count(spec.StartSystemPrompt(), operatingContextPrompt) != 1 || len(spec.MCPServers) == 0 || len(spec.AutoApproveTools) == 0 {
+		t.Fatal("empty persona lost guidance or tools")
+	}
+}
+
+// FS-18.A16: opting out gates both prompt additions, while skill discovery,
+// permissions, project/task instructions and tools retain their contracts.
+func TestUnawarePersonaKeepsCapabilitiesWithoutSharedPrompt(t *testing.T) {
+	srv := testServer(t, true)
+	root := filepath.Join(srv.configStore.Home(), "cache", "agent-skills")
+	skillDir := filepath.Join(root, ".agents", "skills", "operating-chuck")
+	off := false
+	for _, available := range []bool{true, false} {
+		srv.knowledge = agentknowledge.Installation{Available: available, Root: root, SkillDir: skillDir}
+		base := runtime.LaunchSpec{ChuckAware: &off, SystemPrompt: "persona\nproject\ntask",
+			SkipPerms: true, AddDirs: []string{"/project"}, Env: []string{"PROJECT=value", "CHUCK_SKILL_DIR=stale"}}
+		got := srv.applyKnowledgeOverlay(srv.applyKnowledgeOverlay(base))
+		if got.StartSystemPrompt() != base.SystemPrompt || !got.SkipPerms || len(got.AutoApproveTools) != len(srv.messaging.ToolNames()) {
+			t.Fatalf("unaware overlay changed prompt/permissions/tools: %+v", got)
+		}
+		if got.SystemPrompt != base.SystemPrompt || envValue(got.StartEnv(), "PROJECT") != "value" {
+			t.Fatal("project guidance/env lost")
+		}
+		if available {
+			if countStr(got.StartAddDirs(), root) != 1 || envValue(got.StartEnv(), "CHUCK_SKILL_DIR") != skillDir {
+				t.Fatal("opt-out removed installed knowledge availability")
+			}
+		} else if envValue(got.StartEnv(), "CHUCK_SKILL_DIR") != "" || countStr(got.StartAddDirs(), root) != 0 {
+			t.Fatal("unavailable package advertised a stale path")
+		}
+		if runtime.NewSessionMeta(got, "session").IsChuckAware() {
+			t.Fatal("metadata lost explicit false")
+		}
+	}
+}
+
+// FS-18.A16: the same frozen choice reaches resume, wake, terminal and switch
+// composition after the persona's future-launch setting changes.
+func TestAwarenessIsFrozenAcrossLifecycleComposers(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	off := false
+	role, err := srv.configStore.ReadRole("impl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	role.ChuckAware = &off
+	if err := srv.configStore.WriteRole("impl", role); err != nil {
+		t.Fatal(err)
+	}
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	agent, _ := srv.stateStore.ReadAgent(id)
+	snap, err := srv.stateStore.ReadSession(id)
+	if err != nil || snap.ChuckAware {
+		t.Fatalf("snapshot = %+v, err %v", snap, err)
+	}
+	on := true
+	role.ChuckAware = &on
+	if err := srv.configStore.WriteRole("impl", role); err != nil {
+		t.Fatal(err)
+	}
+	backends, _ := srv.configStore.ReadBackends()
+	be := backends.Backends[agent.Backend]
+	model := be.Models[agent.Model]
+	for _, iface := range []string{"chat", "terminal"} {
+		agent.Interface = iface
+		snap.Interface = iface
+		for _, generation := range []string{"", "wake", "pipeline"} {
+			spec, ae := srv.composeResumeSpecWithGeneration(agent, snap, be, model, generation)
+			if ae != nil || spec.IsChuckAware() || strings.Contains(spec.StartSystemPrompt(), operatingContextPrompt) {
+				t.Fatalf("%s resume %s = %+v, error %v", iface, generation, spec, ae)
+			}
+		}
+		spec, ae := srv.composeSwitchSpec(agent, "")
+		if ae != nil || spec.IsChuckAware() || strings.Contains(spec.StartSystemPrompt(), operatingContextPrompt) {
+			t.Fatalf("%s switch = %+v, error %v", iface, spec, ae)
+		}
+	}
+	// Fresh launches resolve the edited persona, unlike retained sessions.
+	spec, _, ae := srv.composeLaunch(t.Context(), launchRequest{Role: "impl", Project: "tmpproj"})
+	if ae != nil || !spec.IsChuckAware() {
+		t.Fatalf("fresh launch = %+v, error %v", spec, ae)
+	}
+}
 
 func envValue(env []string, key string) string {
 	prefix := key + "="

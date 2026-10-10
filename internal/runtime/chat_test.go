@@ -18,6 +18,36 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
+func TestNewSessionMetaAwarenessAlwaysEncodesResolvedChoice(t *testing.T) {
+	for name, choice := range map[string]*bool{
+		"legacy default": nil,
+		"explicit true":  func() *bool { v := true; return &v }(),
+		"explicit false": func() *bool { v := false; return &v }(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			meta := NewSessionMeta(LaunchSpec{ChuckAware: choice}, "session")
+			if meta.ChuckAware == nil {
+				t.Fatal("session metadata omitted resolved awareness pointer")
+			}
+			want := choice == nil || *choice
+			if *meta.ChuckAware != want {
+				t.Fatalf("resolved awareness = %v, want %v", *meta.ChuckAware, want)
+			}
+			raw, err := json.Marshal(meta)
+			if err != nil {
+				t.Fatalf("marshal metadata: %v", err)
+			}
+			var decoded map[string]any
+			if err := json.Unmarshal(raw, &decoded); err != nil {
+				t.Fatalf("decode metadata: %v", err)
+			}
+			if decoded["chuck_aware"] != want {
+				t.Fatalf("encoded chuck_aware = %v, want %v", decoded["chuck_aware"], want)
+			}
+		})
+	}
+}
+
 var (
 	fakeOnce sync.Once
 	fakePath string

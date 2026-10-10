@@ -1,6 +1,7 @@
 package state
 
 import (
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,6 +10,55 @@ import (
 	"testing"
 	"time"
 )
+
+func TestMigrationFromV47PreservesLegacyAwarenessAndGuardsBoolean(t *testing.T) {
+	home := t.TempDir()
+	db, err := sql.Open("sqlite3", filepath.Join(home, "state.db"))
+	if err != nil {
+		t.Fatalf("open legacy db: %v", err)
+	}
+	_, err = db.Exec(`
+CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+CREATE TABLE sessions (
+ agent_id TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL, project TEXT NOT NULL,
+ backend TEXT NOT NULL, model TEXT NOT NULL, effort TEXT NOT NULL DEFAULT '', fast INTEGER NOT NULL DEFAULT 0,
+ interface TEXT NOT NULL, grp TEXT NOT NULL DEFAULT '', cwd TEXT NOT NULL, system_prompt TEXT NOT NULL,
+ env_keys TEXT NOT NULL DEFAULT '[]', skip_permissions INTEGER NOT NULL DEFAULT 0,
+ add_dirs TEXT NOT NULL DEFAULT '[]', launch_config_json TEXT NOT NULL DEFAULT '{}',
+ last_session_id TEXT NOT NULL DEFAULT '', last_seq INTEGER NOT NULL DEFAULT 0,
+ last_context_pct REAL NOT NULL DEFAULT 0, last_context_used INTEGER, last_context_size INTEGER,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL, turn_count INTEGER NOT NULL DEFAULT 0,
+ event_count INTEGER NOT NULL DEFAULT 0, files_touched INTEGER NOT NULL DEFAULT 0,
+ commands_run INTEGER NOT NULL DEFAULT 0, runtime_capabilities_json TEXT NOT NULL DEFAULT '{}',
+ forked_from_agent_id TEXT, forked_from_seq INTEGER
+);
+INSERT INTO schema_migrations(version, applied_at)
+SELECT value, '2026-01-01T00:00:00Z' FROM (SELECT 1 value UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15 UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19 UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23 UNION ALL SELECT 24 UNION ALL SELECT 25 UNION ALL SELECT 26 UNION ALL SELECT 27 UNION ALL SELECT 28 UNION ALL SELECT 29 UNION ALL SELECT 30 UNION ALL SELECT 31 UNION ALL SELECT 32 UNION ALL SELECT 33 UNION ALL SELECT 34 UNION ALL SELECT 35 UNION ALL SELECT 36 UNION ALL SELECT 37 UNION ALL SELECT 38 UNION ALL SELECT 39 UNION ALL SELECT 40 UNION ALL SELECT 41 UNION ALL SELECT 42 UNION ALL SELECT 43 UNION ALL SELECT 44 UNION ALL SELECT 45 UNION ALL SELECT 46 UNION ALL SELECT 47);
+INSERT INTO sessions(agent_id, name, role, project, backend, model, interface, cwd, system_prompt, created_at, updated_at)
+VALUES ('legacy', 'Legacy', 'r', 'p', 'b', 'm', 'chat', '/tmp', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');`)
+	if err != nil {
+		db.Close()
+		t.Fatalf("build v47 database: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close legacy db: %v", err)
+	}
+	st, err := Open(home)
+	if err != nil {
+		t.Fatalf("migrate v47 database: %v", err)
+	}
+	defer st.Close()
+	var aware bool
+	if err := st.DB().QueryRow(`SELECT chuck_aware FROM sessions WHERE agent_id = 'legacy'`).Scan(&aware); err != nil {
+		t.Fatalf("read migrated awareness: %v", err)
+	}
+	if !aware {
+		t.Fatal("legacy session migrated with awareness off")
+	}
+	if _, err := st.DB().Exec(`UPDATE sessions SET chuck_aware = 2 WHERE agent_id = 'legacy'`); err == nil {
+		t.Fatal("boolean CHECK accepted invalid awareness value")
+	}
+}
 
 func newTestStore(t *testing.T) (*Store, string) {
 	t.Helper()
