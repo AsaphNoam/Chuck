@@ -504,6 +504,32 @@ describe("AgentScreen", () => {
     expect(efforts[efforts.length - 1]).toHaveValue("high");
     expect([...efforts[efforts.length - 1].querySelectorAll("option")].map((o) => o.getAttribute("value"))).toEqual(["", "low", "high"]);
   });
+
+  it("switches the model from the button above the composer and closes the sheet", async () => {
+    const switches: unknown[] = [];
+    server.use(
+      http.get("/api/remote/runtime-options", () => HttpResponse.json({ backends: [{ id: "claude", name: "Claude", default: true, default_model: "m", models: [
+        { id: "m", name: "M", efforts: [], fast: false },
+        { id: "n", name: "N", efforts: [], fast: false },
+      ] }] })),
+      http.post("/api/sessions/a1/switch-runtime", async ({ request }) => {
+        switches.push(await request.json());
+        return HttpResponse.json({ history_handoff: "native_resume" });
+      }),
+    );
+    useConnection.setState({ agents: { a1: { ...agent, state: "idle", backend: "claude", model: "m" } } });
+    renderScreen();
+    const open = screen.getByRole("button", { name: /^Switch model/ });
+    expect(open.closest("form")).toBeNull();
+    fireEvent.click(open);
+    const sheet = await screen.findByRole("dialog", { name: "Switch runtime" });
+    const model = within(sheet).getByRole("combobox", { name: "Model" });
+    await waitFor(() => expect(model.querySelectorAll("option")).toHaveLength(2));
+    fireEvent.change(model, { target: { value: "n" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Switch runtime" }));
+    await waitFor(() => expect(switches).toEqual([{ backend: "claude", model: "n", effort: "" }]));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Switch runtime" })).toBeNull());
+  });
 });
 
 // FS-20.A11/A12 — agent management, Commands, and Open file send the desktop's

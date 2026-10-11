@@ -1245,12 +1245,13 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   This supersedes the Core-only phone verification clauses in R110 and FS-12.R60/A32.
   Agent Manage and Files use phone-scoped compact controls. File content is rendered inside
   the selected tracked-file row using the existing single selected-path query. The composer
-  has a single panel border enclosing its top-right runtime metadata, borderless textbox
-  and bottom-right Send. Phone-scoped textbox focus removes the blue outline without changing
+  has a single panel border enclosing its borderless textbox and bottom-right Send. The runtime
+  metadata is a sibling button above it, bordered with the shared keyline/offset shadows, that
+  opens a PhoneSheet over AgentManagement's runtime action. Phone-scoped textbox focus removes the blue outline without changing
   other controls' focus styling. Send uses the shared icon-primary button and phone touch target.
   PhoneSheet's centered variant applies to New agent; other sheets keep their bottom placement.
   The phone agent header uses the shared detailed ContextBar with the existing agent context
-  fields and imported meter styles. Back is icon-only beside the name; a wrapper aligns the
+  fields and imported meter styles. Back is icon-only beside the persona eyebrow above the name; a wrapper aligns the
   semantic tablist with a sibling Stop/Resume control rather than adding an action tab.
 
 - **R117 — Phone and desktop share the working indicator.** FS-20.R44 uses

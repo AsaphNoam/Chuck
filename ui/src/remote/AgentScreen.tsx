@@ -41,6 +41,7 @@ import { useConnection, watchReasoning, type OpenTranscript } from "./connection
 import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
+import { PhoneSheet } from "./PhoneSheet";
 import { ContextBar } from "../components/grid/ContextBar";
 import { GroupPicker } from "../components/ui/GroupPicker";
 import { useRoles } from "../api/config";
@@ -208,6 +209,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const [busy, setBusy] = useState(false);
   const [quotaCancelError, setQuotaCancelError] = useState<string | undefined>();
   const [stopOpen, setStopOpen] = useState(false);
+  const [runtimeOpen, setRuntimeOpen] = useState(false);
   const [tab, setTab] = useState<"chat" | "files" | "manage">("chat");
   const [rename, setRename] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -454,14 +456,14 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   return (
     <div className="phone-agent">
       <header className="phone-agent-header">
-        <span className="phone-eyebrow">{roleBackend}</span>
+        <div className="phone-agent-title">
+          <button type="button" className="phone-agent-back ad-button-secondary" aria-label={`Back to ${agent.project}`} onClick={() => navigate(`/project/${encodeURIComponent(agent.project)}`)}>
+            <PhoneIcon name="back" size={19} />
+          </button>
+          <span className="phone-eyebrow">{roleBackend}</span>
+        </div>
         <div className="phone-agent-identity">
-          <div className="phone-agent-title">
-            <button type="button" className="phone-agent-back ad-button-secondary" aria-label={`Back to ${agent.project}`} onClick={() => navigate(`/project/${encodeURIComponent(agent.project)}`)}>
-              <PhoneIcon name="back" size={19} />
-            </button>
-            <h1>{agentTitle(agent, roles?.[agent.role])}</h1>
-          </div>
+          <h1>{agentTitle(agent, roles?.[agent.role])}</h1>
           <span className="phone-status" data-tone={agent.running ? agent.state : "stopped"}>
             {stateLabel}
           </span>
@@ -541,6 +543,17 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             </div>
           )}
           {agent.running && (
+            <button type="button" className="phone-model-switch" aria-label={`Switch model, current ${runtimeLabel}${agent.effort ? ` ${agent.effort}` : ""}`} disabled={offline || busy} onClick={() => setRuntimeOpen(true)}>
+              {runtimeLabel}{agent.effort ? ` · ${agent.effort}` : ""}
+              <PhoneIcon name="down" size={12} />
+            </button>
+          )}
+          {runtimeOpen && (
+            <PhoneSheet title="Switch runtime" onClose={() => setRuntimeOpen(false)}>
+              <AgentManagement agent={agent} offline={offline} busy={busy} act={(fn, clears, after) => void act(fn, clears, (result) => { after?.(result); setRuntimeOpen(false); })} rename={rename} setRename={setRename} error={error} action="runtime" />
+            </PhoneSheet>
+          )}
+          {agent.running && (
             <form
               className="phone-composer phone-composer-box"
               onSubmit={(event) => {
@@ -551,7 +564,6 @@ export function AgentScreen({ agentId }: { agentId: string }) {
                 });
               }}
             >
-              <span className="phone-composer-meta">{runtimeLabel}{agent.effort ? ` · ${agent.effort}` : ""}</span>
               <label className="phone-field">
                 <VisuallyHidden>{agent.state === "waiting_input" && !pending ? "Reply" : "Message"}</VisuallyHidden>
                 <AutoGrowTextarea rows={3} maxHeight="40vh" value={text} placeholder={offline ? "Reconnect to send a message" : "Ask for changes…"} onChange={(event) => setText(event.target.value)} />

@@ -7,7 +7,7 @@ export function PhoneIcon({ name, size = 20 }: { name: string; size?: number }) 
     phone: <><rect x="6" y="2" width="12" height="20" rx="3" /><path d="M10 18h4" /></>,
     agent: <><rect x="4" y="6" width="16" height="14" rx="4" /><path d="M12 2v4M8 11v2m8-2v2M9 16h6" /></>,
     pipeline: <><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="15" y="15" width="6" height="6" rx="1" /><path d="M9 6h8v9M6 9v9h9" /></>,
-    arrow: <path d="m9 6 6 6-6 6" />, back: <path d="m15 6-6 6 6 6" />,
+    arrow: <path d="m9 6 6 6-6 6" />, back: <path d="m15 6-6 6 6 6" />, down: <path d="m6 9 6 6 6-6" />,
     bell: <><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5Z" /><path d="M10 21h4" /></>,
     folder: <path d="M3 7V4h7l2 3h9v13H3Z" />,
     check: <path d="m5 12 4 4L19 6" />, plus: <path d="M12 5v14M5 12h14" />,

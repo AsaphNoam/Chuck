@@ -113,7 +113,7 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-composer-box .phone-field { gap: 0; }
 .phone-composer-box .phone-field textarea { background: transparent; border: 0; border-radius: 0; outline: none; box-shadow: none; min-height: 104px; padding: var(--ad-space-2); resize: none; }
 .phone-composer-actions { align-items: center; justify-content: flex-end; display: flex; gap: var(--ad-space-2); border: 0; background: transparent; padding: 0; }
-.phone-composer-meta { color: var(--ad-text-muted); font-size: 0.625rem; justify-self: end; text-align: right; overflow-wrap: anywhere; }
+.phone-model-switch { align-items: center; display: inline-flex; gap: var(--ad-space-1); justify-self: end; max-width: 100%; min-height: 36px; padding: 0 var(--ad-space-3); background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-strong); border-radius: var(--ad-radius-round); box-shadow: var(--ad-shadow-keyline), var(--ad-shadow-offset); color: var(--ad-text-secondary); font-size: 0.6875rem; overflow-wrap: anywhere; text-align: right; }
 .phone-composer-actions.phone-actions > button { flex: 0 0 auto; }
 /* Fill/shape/size now come from .ad-button-icon-primary; the button is already a 44px touch target. */
 .phone-send-icon { flex-shrink: 0; }

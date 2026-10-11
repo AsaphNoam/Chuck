@@ -266,11 +266,12 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   the phone follows the desktop's durable appearance preference without offering a skin picker.
   This supersedes R16's skins exclusion only for applying the configured appearance.
   Manage uses quiet, compact fields and actions separated by rules rather than stacked cards.
-  Files has compact text actions. The chat composer has one outline enclosing the textbox,
-  model/effort at the top right and Send inside at the bottom right. Typing adds no blue
+  Files has compact text actions. The chat composer has one outline enclosing the textbox and
+  Send inside at the bottom right. Model/effort sits outside, right-aligned above the composer,
+  as an outlined, slightly raised button that opens the Switch runtime sheet. Typing adds no blue
   highlight to the textbox. Send uses R68's quiet outlined surface within a 44px touch target.
   The New agent modal is centered in the viewport; other phone sheets retain their placement.
-  The agent header places an icon-only back chevron beside the name, with no separate
+  The agent header places an icon-only back chevron beside the persona line above the name, with no separate
   project/back action row. Context usage sits between the identity header and tabs, using
   live percentage and exact token counts when known. Stop (or Resume when stopped) sits at
   the tabs row's right edge as a separate action, outside the tablist.

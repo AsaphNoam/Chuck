@@ -157,11 +157,13 @@ try {
         const circle = getComputedStyle(button, "::before");
         const box = document.querySelector(".phone-composer-box").getBoundingClientRect();
         const field = document.querySelector(".phone-composer-box textarea");
-        const metadata = document.querySelector(".phone-composer-meta");
-        return { footerBorder: footer.borderWidth, sendWidth: send.width, sendHeight: send.height, circleWidth: send.width - parseFloat(circle.left) - parseFloat(circle.right), circleHeight: send.height - parseFloat(circle.top) - parseFloat(circle.bottom), overflow: document.documentElement.scrollWidth > innerWidth, typingOutline: getComputedStyle(field).outlineStyle, textboxBorder: getComputedStyle(field).borderWidth, metadataAboveTextbox: metadata.getBoundingClientRect().bottom <= field.getBoundingClientRect().top, metadataAlignment: getComputedStyle(metadata).textAlign, sendInside: send.bottom <= box.bottom && send.right <= box.right };
+        const metadata = document.querySelector(".phone-model-switch");
+        const metaStyle = getComputedStyle(metadata);
+        const metaBox = metadata.getBoundingClientRect();
+        return { footerBorder: footer.borderWidth, sendWidth: send.width, sendHeight: send.height, circleWidth: send.width - parseFloat(circle.left) - parseFloat(circle.right), circleHeight: send.height - parseFloat(circle.top) - parseFloat(circle.bottom), overflow: document.documentElement.scrollWidth > innerWidth, typingOutline: getComputedStyle(field).outlineStyle, textboxBorder: getComputedStyle(field).borderWidth, metadataAboveTextbox: metaBox.bottom <= box.top && !document.querySelector(".phone-composer-box").contains(metadata), metadataAlignment: Math.abs(metaBox.right - box.right) <= 1 ? "right" : "left", metadataBordered: metaStyle.borderTopWidth !== "0px" && metaStyle.boxShadow !== "none", sendInside: send.bottom <= box.bottom && send.right <= box.right };
       });
       if (metrics.footerBorder !== "0px" || metrics.sendWidth !== 44 || metrics.sendHeight !== 44 || metrics.circleWidth !== 44 || metrics.circleHeight !== 28 || metrics.overflow) throw new Error(`${theme}: ${JSON.stringify(metrics)}`);
-      if (metrics.typingOutline !== "none" || metrics.textboxBorder !== "0px" || !metrics.metadataAboveTextbox || metrics.metadataAlignment !== "right" || !metrics.sendInside) throw new Error(`${theme} composer: ${JSON.stringify(metrics)}`);
+      if (metrics.typingOutline !== "none" || metrics.textboxBorder !== "0px" || !metrics.metadataAboveTextbox || metrics.metadataAlignment !== "right" || !metrics.metadataBordered || !metrics.sendInside) throw new Error(`${theme} composer: ${JSON.stringify(metrics)}`);
       await page.getByRole("tab", { name: "Files", exact: true }).click();
       await page.getByRole("button", { name: "Open file", exact: true }).first().click();
       await page.getByRole("region", { name: "File content" }).getByText("package main", { exact: false }).waitFor();
@@ -178,14 +180,15 @@ try {
         await page.getByRole("heading", { level: 1 }).waitFor();
         await page.getByRole("tab", { name: "Chat", exact: true }).click();
         const header = await page.evaluate(() => {
-          const title = document.querySelector(".phone-agent-title h1").getBoundingClientRect();
+          const persona = document.querySelector(".phone-agent-title .phone-eyebrow").getBoundingClientRect();
+          const title = document.querySelector(".phone-agent-identity h1").getBoundingClientRect();
           const back = document.querySelector(".phone-agent-back");
           const backBox = back.getBoundingClientRect();
           const tabs = document.querySelector(".phone-tabs").getBoundingClientRect();
           const action = document.querySelector(".phone-agent-tabs > button");
           const actionBox = action.getBoundingClientRect();
           const meter = document.querySelector("[data-ui=context-meter]").getBoundingClientRect();
-          return { backText: back.textContent, backAlignment: Math.abs(backBox.y + backBox.height / 2 - title.y - title.height / 2), actionAlignment: Math.abs(actionBox.y + actionBox.height / 2 - tabs.y - tabs.height / 2), actionOutsideTabs: !action.closest("[role=tablist]"), contextBetween: meter.top > title.bottom && meter.bottom <= tabs.top, overflow: document.documentElement.scrollWidth > innerWidth };
+          return { backText: back.textContent, backAlignment: Math.abs(backBox.y + backBox.height / 2 - persona.y - persona.height / 2) + (persona.bottom <= title.top ? 0 : 99), actionAlignment: Math.abs(actionBox.y + actionBox.height / 2 - tabs.y - tabs.height / 2), actionOutsideTabs: !action.closest("[role=tablist]"), contextBetween: meter.top > title.bottom && meter.bottom <= tabs.top, overflow: document.documentElement.scrollWidth > innerWidth };
         });
         if (header.backText || header.backAlignment > 1 || header.actionAlignment > 1 || !header.actionOutsideTabs || !header.contextBetween || header.overflow) throw new Error(`${theme}/${width} header: ${JSON.stringify(header)}`);
         await page.screenshot({ path: `${prefix}-header-${width}.png`, animations: "disabled" });
