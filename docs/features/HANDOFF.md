@@ -38,7 +38,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. The mobile header/composer/model-switch unit is finished and awaiting review above.
+In progress — mobile chat drafts and Theme selection (2026-10-11), FS-20.R49–R50/A20–A21,
+TS-08.R122, TS-13.R25. Shared draft helpers and narrow appearance-only config write are wired.
+49 focused phone tests, server field/route checks, type and 41 presentation checks pass.
+Chromium verifies navigation/reload/refusal/deletion and Theme selection at 360/390/430px.
+Receipt: `/tmp/mobile-parity-20261011*.png`, `phone-render.mjs --parity-check`.
+Next: final UI/Go closure matrix and refreshed embed.
+The previous agent's mobile header/runtime work is committed; its review unit remains above.
 
 ## Acceptance gates still owed
 

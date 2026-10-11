@@ -42,6 +42,9 @@ let earlierPage: Record<string, unknown> = {};
 const reads: string[] = [];
 
 const server = setupServer(
+  http.get("/api/roles", () => HttpResponse.json({})),
+  http.get("/api/sessions/a2/prompt", () => HttpResponse.json({ text: "" })),
+  http.get("/api/sessions/a2/transcript", () => HttpResponse.json({ agent_id: "a2", events: [], has_more: false })),
   http.get("/api/sessions/a1/transcript", ({ request }) => {
     const url = new URL(request.url);
     reads.push(url.search);
@@ -84,6 +87,7 @@ const server = setupServer(
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
+  localStorage.removeItem("chuck-chat-drafts");
   permissionStatus = 200;
   promptStatus = 200;
   annotationStatus = 202;
@@ -114,6 +118,55 @@ function renderScreen() {
 }
 
 describe("AgentScreen", () => {
+  it("restores exact drafts after leaving and keeps agents separate", () => {
+    useConnection.setState({ agents: { a1: { ...agent, state: "idle" } } });
+    renderScreen();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "  draft\nnext line  " } });
+    cleanup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    useConnection.setState({ agents: { a1: { ...agent, state: "idle" }, a2: { ...agent, agent_id: "a2", state: "idle" } } });
+    render(<QueryClientProvider client={client}><AgentScreen agentId="a2" /></QueryClientProvider>);
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue("");
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "other draft" } });
+    cleanup();
+    renderScreen();
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue("  draft\nnext line  ");
+  });
+
+  it("clears accepted text but preserves a newer draft during delivery", async () => {
+    useConnection.setState({ agents: { a1: { ...agent, state: "idle" } } });
+    renderScreen();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "first" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send", exact: true }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue(""));
+    cleanup();
+    renderScreen();
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue("");
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    server.use(http.post("/api/sessions/a1/prompt", async () => { await blocked; return HttpResponse.json({ accepted: true }); }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "submitted" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send", exact: true }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "newer" } });
+    release();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled());
+    cleanup();
+    renderScreen();
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue("newer");
+  });
+
+  it("retains refused delivery across leaving and reopening", async () => {
+    useConnection.setState({ agents: { a1: { ...agent, state: "idle" } } });
+    promptStatus = 409;
+    renderScreen();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "retry me" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send", exact: true }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled());
+    cleanup();
+    renderScreen();
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue("retry me");
+  });
+
   it("keeps Back icon-only, separates Stop from tabs, and updates context usage", () => {
     useConnection.setState({ agents: { a1: { ...agent, context_pct: 0.22, context_used: 44000, context_size: 200000 } } });
     renderScreen();

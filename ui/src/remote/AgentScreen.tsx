@@ -42,6 +42,7 @@ import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
+import { chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft } from "../components/chat/drafts";
 import { ContextBar } from "../components/grid/ContextBar";
 import { GroupPicker } from "../components/ui/GroupPicker";
 import { useRoles } from "../api/config";
@@ -203,7 +204,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const link = useConnection((state) => state.link);
   const offline = link !== "connected";
   const client = useQueryClient();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => getChatDraft(agentId));
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -410,12 +411,16 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   // Every refused action shows the desktop's reason and keeps the typed text
   // (FS-20.R27); only a delivered message clears the composer.
   const act = async (fn: () => Promise<unknown>, clears = false, after?: (result: unknown) => void) => {
+    const submittedRevision = chatDraftRevision(agentId);
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
       const result = await fn();
-      if (clears) setText("");
+      if (clears && chatDraftRevision(agentId) === submittedRevision) {
+        discardChatDraft(agentId);
+        setText("");
+      }
       after?.(result);
     } catch (err) {
       setError(errorText(err));
@@ -566,7 +571,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             >
               <label className="phone-field">
                 <VisuallyHidden>{agent.state === "waiting_input" && !pending ? "Reply" : "Message"}</VisuallyHidden>
-                <AutoGrowTextarea rows={3} maxHeight="40vh" value={text} placeholder={offline ? "Reconnect to send a message" : "Ask for changes…"} onChange={(event) => setText(event.target.value)} />
+                <AutoGrowTextarea rows={3} maxHeight="40vh" value={text} placeholder={offline ? "Reconnect to send a message" : "Ask for changes…"} onChange={(event) => { setText(event.target.value); setChatDraft(agentId, event.target.value); }} />
               </label>
               {error && <p className="phone-error">{error}</p>}
               {notice && <p className="phone-meta">{notice}</p>}

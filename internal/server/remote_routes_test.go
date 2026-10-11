@@ -214,6 +214,55 @@ func TestRemoteTrackedFileRead(t *testing.T) {
 	}
 }
 
+func TestRemoteAppearanceOnlyConfigWrite(t *testing.T) {
+	s := testServer(t, true)
+	h := s.remoteRoutes(testDomain, testWhoIs(map[string]string{"100.64.0.2:5000": "n"}))
+	token := pairTestDevice(t, s, "d1", "n")
+	before, err := s.configStore.ReadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, skin := range []string{"sky-grove", "studio", ""} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, phoneRequest(http.MethodPut, "/api/config", fmt.Sprintf(`{"appearance_skin":%q}`, skin), token))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("theme %q = %d %s", skin, rec.Code, rec.Body)
+		}
+		got, err := s.configStore.ReadConfig()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := before
+		want.AppearanceSkin = skin
+		gotJSON, _ := json.Marshal(got)
+		wantJSON, _ := json.Marshal(want)
+		if string(gotJSON) != string(wantJSON) {
+			t.Fatalf("config changed beyond appearance: %s want %s", gotJSON, wantJSON)
+		}
+	}
+	for _, body := range []string{`{"appearance_skin":"studio","auto_continue":false}`, `{"notifications":{}}`, `{"default_project":"x"}`, `{"port":99}`} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, phoneRequest(http.MethodPut, "/api/config", body, token))
+		if rec.Code != http.StatusBadRequest || errorCode(t, rec) != codeRemoteFieldNotAllowed {
+			t.Fatalf("body %s = %d %s", body, rec.Code, rec.Body)
+		}
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, phoneRequest(http.MethodPut, "/api/config", `{"appearance_skin":"unknown"}`, token))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown theme = %d %s", rec.Code, rec.Body)
+	}
+	got, err := s.configStore.ReadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotJSON, _ := json.Marshal(got)
+	wantJSON, _ := json.Marshal(before)
+	if string(gotJSON) != string(wantJSON) {
+		t.Fatalf("refused writes changed config: %s", gotJSON)
+	}
+}
+
 func TestRemoteAllowlistAndFieldFilter(t *testing.T) {
 	s := testServer(t, true)
 	h := s.remoteRoutes(testDomain, testWhoIs(map[string]string{"100.64.0.2:5000": "n"}))
@@ -222,7 +271,6 @@ func TestRemoteAllowlistAndFieldFilter(t *testing.T) {
 	for _, c := range []struct{ method, path string }{
 		{"GET", "/api/backends"},
 		{"GET", "/api/remote"},
-		{"PUT", "/api/config"},
 		{"POST", "/api/sessions/a/restore"},
 		{"GET", "/api/sessions/a/file-search"},
 		{"GET", "/api/tasks"},

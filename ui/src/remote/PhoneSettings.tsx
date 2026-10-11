@@ -4,6 +4,7 @@ import { phoneFetch, unpairSelf } from "./api";
 import { disconnect, rememberPaired, useConnection } from "./connection";
 import { ConfirmDialog } from "../components/ui";
 import { PhoneIcon } from "./PhoneIcon";
+import { effectiveAppearance, SKY_GROVE_SKIN, STUDIO_SKIN } from "../features/appearance/appearance";
 
 interface Self {
   id: string;
@@ -33,6 +34,7 @@ export function PhoneSettings() {
   const offline = link !== "connected";
   const client = useQueryClient();
   const self = useQuery({ queryKey: ["self"], queryFn: () => phoneFetch<Self>("/api/remote/self") });
+  const appearance = useQuery({ queryKey: ["phone-appearance"], queryFn: () => phoneFetch<{ appearance_skin?: string; appearance_skin_warning?: string }>("/api/config"), enabled: !offline });
   const [name, setName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -125,6 +127,29 @@ export function PhoneSettings() {
           </button>
         )}
       </form></details>
+      <section className="phone-section" aria-label="Theme">
+        <div className="phone-section-title"><h2>Theme</h2></div>
+        <div className="phone-settings-card">
+          <p className="phone-help">Applies to all Chuck browsers, including your Mac and other phones.</p>
+          <label className="phone-field">
+            Theme
+            <select value={effectiveAppearance(appearance.isError ? undefined : appearance.data?.appearance_skin)} disabled={offline || busy || !appearance.data} onChange={(event) => {
+              const appearance_skin = event.target.value === "core" ? "" : event.target.value;
+              void run(async () => {
+                await phoneFetch("/api/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appearance_skin }) });
+                client.setQueryData(["phone-appearance"], { appearance_skin });
+                void client.invalidateQueries({ queryKey: ["phone-appearance"] });
+              });
+            }}>
+              <option value="core">Chuck Core</option>
+              <option value={SKY_GROVE_SKIN}>Sky &amp; Grove</option>
+              <option value={STUDIO_SKIN}>Studio</option>
+            </select>
+          </label>
+          {(appearance.isError || appearance.data?.appearance_skin_warning) && <p className="phone-help" role="status">The saved theme is unavailable. Chuck Core is active.</p>}
+          {offline && <p className="phone-help">Reconnect to your Mac to change the theme.</p>}
+        </div>
+      </section>
       <section className="phone-section" aria-label="Notifications">
         <div className="phone-section-title"><h2>Notifications</h2></div>
         <div className="phone-settings-card"><PhoneIcon name="bell" size={19} /><strong>Know when you’re needed</strong>

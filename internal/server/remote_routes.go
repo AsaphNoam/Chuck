@@ -28,6 +28,7 @@ var remoteAllowed = map[string][]string{
 	"GET /api/capabilities":   nil,
 	"GET /api/events":         nil,
 	"GET /api/config":         nil,
+	"PUT /api/config":         {"appearance_skin"},
 	"GET /api/projects":       nil,
 	"GET /api/roles":          nil,
 	"GET /api/pipelines":      nil,
@@ -79,7 +80,7 @@ var remoteDenied = map[string]bool{
 	"GET /api/backends": true, "POST /api/backends": true, "PUT /api/backends": true,
 	// Provider refresh executes a desktop CLI and reports paths (TS-03.R53).
 	"POST /api/backends/{id}/refresh-provider": true,
-	"PUT /api/config":                          true, "GET /api/remote": true, "PUT /api/remote": true,
+	"GET /api/remote":                          true, "PUT /api/remote": true,
 	// Think Tank rooms have no phone UI (FS-21.R40, TS-14.R11).
 	"GET /api/think-tanks": true, "POST /api/think-tanks": true, "GET /api/think-tanks/{id}": true,
 	"DELETE /api/think-tanks/{id}": true, "GET /api/think-tanks/{id}/entries": true,

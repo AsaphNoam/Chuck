@@ -255,6 +255,12 @@ the installed app on iOS.
   the new route producers and rejection of forbidden fields, revoked/unpaired devices and global
   group release's absence. This narrowly supersedes R5/R21's group and identity exclusions.
 
+- **R25 (planned) — Paired phones may change only appearance configuration.** Supersede
+  R5's configuration-write exclusion for `PUT /api/config` with only `appearance_skin`
+  admitted by the existing body field filter. Use the shared partial-merge handler and built-in
+  skin validation; every other config field is rejected before mutation. Authentication,
+  Origin/Host guards, body bounds and device attribution remain mandatory.
+
 ## 3. Interfaces & data shapes
 
 Loopback-only: `GET /api/remote`, `PUT /api/remote` `{enabled, keep_awake}`, `POST

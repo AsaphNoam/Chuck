@@ -10,6 +10,7 @@ import { useConnection } from "./connection";
 let notifications = "off";
 const calls: string[] = [];
 const server = setupServer(
+  http.get("/api/config", () => HttpResponse.json({ appearance_skin: "" })),
   http.get("/api/remote/self", () => HttpResponse.json({ id: "d1", name: "Pixel", notifications, vapid_public_key: "BAAA" })),
   http.put("/api/remote/self/push", async ({ request }) => {
     calls.push(`put ${await request.text()}`);
@@ -58,6 +59,42 @@ function renderSettings() {
 }
 
 describe("PhoneSettings", () => {
+  it.each(["sky-grove", "studio", "core"])("saves the shared theme %s", async (choice) => {
+    let skin = "studio";
+    const bodies: unknown[] = [];
+    server.use(
+      http.get("/api/config", () => HttpResponse.json({ appearance_skin: skin })),
+      http.put("/api/config", async ({ request }) => {
+        const body = await request.json() as { appearance_skin: string };
+        bodies.push(body);
+        skin = body.appearance_skin;
+        return HttpResponse.json({ appearance_skin: skin });
+      }),
+    );
+    renderSettings();
+    const select = await screen.findByRole("combobox", { name: "Theme" });
+    await waitFor(() => expect(select).toBeEnabled());
+    fireEvent.change(select, { target: { value: choice } });
+    await waitFor(() => expect(bodies).toEqual([{ appearance_skin: choice === "core" ? "" : choice }]));
+    await waitFor(() => expect(select).toHaveValue(choice));
+  });
+
+  it("reports a refused theme save and retains the previous choice", async () => {
+    server.use(http.put("/api/config", () => HttpResponse.json({ error: { code: "refused", message: "Theme save refused" } }, { status: 409 })));
+    renderSettings();
+    const select = await screen.findByRole("combobox", { name: "Theme" });
+    await waitFor(() => expect(select).toBeEnabled());
+    fireEvent.change(select, { target: { value: "studio" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Theme save refused");
+    expect(select).toHaveValue("core");
+  });
+
+  it("disables theme selection while offline", async () => {
+    useConnection.setState({ link: "unreachable" });
+    renderSettings();
+    expect(await screen.findByRole("combobox", { name: "Theme" })).toBeDisabled();
+  });
+
   it("subscribes this phone to attention notifications", async () => {
     renderSettings();
     fireEvent.click(await screen.findByRole("button", { name: "Turn notifications on" }));

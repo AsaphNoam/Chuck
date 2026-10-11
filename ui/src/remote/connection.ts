@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { AgentState, RuntimeActivity, TranscriptEvent } from "../api/types";
 import { openTurnKey } from "../components/chat/turnActivity";
 import { useAnnotationStore } from "../store/annotationStore";
+import { discardChatDraft } from "../components/chat/drafts";
 import { useReasoningStore } from "../store/reasoningStore";
 import { checkPaired, MacUnreachableError, PhoneAPIError } from "./api";
 
@@ -119,6 +120,7 @@ export function connect() {
     }
     const agent = envelope?.data as AgentState | undefined;
     if (!agent?.agent_id) return;
+    if (agent.removed) discardChatDraft(agent.agent_id);
     if (hydratingAgents) {
       if (agent.removed) delete hydratingAgents[agent.agent_id];
       else hydratingAgents[agent.agent_id] = agent;

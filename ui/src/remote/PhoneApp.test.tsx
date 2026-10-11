@@ -9,6 +9,7 @@ import { setupServer } from "msw/node";
 import { PhoneApp } from "./PhoneApp";
 import { disconnect, useConnection } from "./connection";
 import type { HomeLists } from "./api";
+import { getChatDraft, setChatDraft } from "../components/chat/drafts";
 
 class FakeEventSource {
   static last: FakeEventSource | null = null;
@@ -93,6 +94,21 @@ function renderApp() {
 }
 
 describe("PhoneApp", () => {
+  it("removes only a deleted agent's cached chat draft", async () => {
+    setChatDraft("a1", "deleted draft");
+    setChatDraft("a2", "keep draft");
+    renderApp();
+    await screen.findByText("implementer@my-app");
+    const stream = FakeEventSource.last!;
+    act(() => {
+      stream.onopen?.();
+      stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+      stream.emit("state_update", { data: { agent_id: "a1", removed: true } });
+    });
+    expect(getChatDraft("a1")).toBe("");
+    expect(getChatDraft("a2")).toBe("keep draft");
+  });
+
   it("refreshes all configured appearances without remounting Home and falls back on failure", async () => {
     let appearance = "studio";
     let failed = false;

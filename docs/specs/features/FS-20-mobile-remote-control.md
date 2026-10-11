@@ -263,8 +263,8 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   status bar or surrounding studio. Pairing retains R6's eight-character code and iPhone install
   handoff. Long content, empty/error/offline states and action refusal remain usable at 360–430px.
   All three Chuck appearances share this composition and use their existing semantic palettes;
-  the phone follows the desktop's durable appearance preference without offering a skin picker.
-  This supersedes R16's skins exclusion only for applying the configured appearance.
+  the phone follows the shared durable appearance preference, with selection under R50.
+  This supersedes R16's skins exclusion for applying and selecting the configured appearance.
   Manage uses quiet, compact fields and actions separated by rules rather than stacked cards.
   Files has compact text actions. The chat composer has one outline enclosing the textbox and
   Send inside at the bottom right. Model/effort sits outside, right-aligned above the composer,
@@ -346,6 +346,16 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   permission is withdrawn or its subscription expires, the phone's desktop entry shows
   **Notifications off**, and the installed app offers to turn them back on.
 
+- **R49 (planned) — Phone chat keeps browser-local drafts.** The mobile composer uses
+  FS-03.R36's exact per-agent text, navigation/reload restoration, twenty-draft retention,
+  deletion cleanup and newer-draft protection for Send and Steer. Drafts stay on this browser
+  and never queue delivery on reconnect.
+- **R50 (planned) — This phone offers Theme.** Choose Chuck Core, Sky & Grove or Studio
+  to save the same durable appearance preference used by desktop and other paired phones.
+  The setting explicitly says it applies to all Chuck browsers. Saving is disabled offline;
+  a failed save reports the refusal and leaves the previous appearance active. This supersedes
+  R16's configuration/skins exclusion only for appearance selection.
+
 ## 5. Acceptance criteria
 
 - **A1 (planned)** (R1–R4, R29) — Turning remote control on joins the tailnet, shows each connection
@@ -421,7 +431,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   Figma `/mobile` reference at 390px, with 360px/430px long-content and offline checks.
   Core, Sky & Grove and Studio retain the common geometry and distinct existing palettes;
   changing desktop appearance reaches the phone after configuration refresh, unknown/failed
-  configuration falls back to Core, and no phone appearance control appears. Exercise navigation,
+  configuration falls back to Core, and the phone appearance control follows R50. Exercise navigation,
   launch, conversation/permission, pipeline and unpair actions with existing refusal/draft
   preservation. Verify focused remote tests, presentation checks, development visual matrix
   and real-browser screenshots of the actual phone entry.
@@ -446,6 +456,15 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   scrolling and releasing early. Verify the action sheet at phone widths, keyboard dismissal/focus,
   running/stopped and offline availability, confirmation and a refused mutation retaining values.
   — focused phone tests and a phone-width browser journey.
+
+- **A20 (planned)** (R49) — Type exact multiline text, leave the agent screen, open another
+  agent, return and reload: each draft is restored independently. Accepted Send/Steer clears
+  only the submitted draft; refused delivery and newer text during delivery remain intact.
+  Agent deletion removes its draft. — focused phone tests and browser journey.
+- **A21 (planned)** (R50) — From This phone choose Core, Sky & Grove and Studio; each saves
+  the shared preference and applies across routes. A refused save keeps the previous appearance
+  and reports the error; offline disables selection. Other config fields are refused by the
+  paired-phone route without modifying configuration. — server/UI tests and phone browser journey.
 
 ## 6. Deviations & open decisions
 

@@ -18,6 +18,7 @@ const [fixturePath, out = join(tmpdir(), "phone-render.png")] = process.argv.sli
 const historyCheck = process.argv.includes("--history-check");
 const detailsCheck = process.argv.includes("--details-check");
 const spinnerCheck = process.argv.includes("--spinner-check");
+const parityCheck = process.argv.includes("--parity-check");
 let skin = "";
 
 const agent = {
@@ -65,7 +66,11 @@ try {
     const path = new URL(route.request().url()).pathname;
     if (detailsCheck && path === "/api/projects") return route.fulfill({ json: { "my-app": { title: "My App", color: [50, 120, 180] } } });
     if (detailsCheck && path === "/api/roles") return route.fulfill({ json: { implementer: { title: "Implementer" } } });
-    if ((detailsCheck || spinnerCheck) && path === "/api/config") return route.fulfill({ json: { appearance_skin: skin } });
+    if ((detailsCheck || spinnerCheck || parityCheck) && path === "/api/config") {
+      if (route.request().method() === "PUT") skin = route.request().postDataJSON().appearance_skin;
+      return route.fulfill({ json: { appearance_skin: skin } });
+    }
+    if (parityCheck && path === "/api/remote/self") return route.fulfill({ json: { id: "d1", name: "iPhone", notifications: "off", vapid_public_key: "" } });
     if (detailsCheck && path === "/api/remote/runtime-options") return route.fulfill({ json: { backends: [{ id: "claude", name: "Claude", default_model: "m", models: [{ id: "m", name: "Sonnet", efforts: ["low", "medium", "high"], default_effort: "medium" }] }] } });
     if (detailsCheck && path === "/api/sessions/a1/files") return route.fulfill({ json: { agent_id: "a1", files: ["src/main.go", "src/another-file-with-a-long-name.go"].map((path) => ({ path, edit_count: 2, last_ts: "2026-10-10T00:00:00Z", has_diff: false, diff_refs: [] })) } });
     if (detailsCheck && path === "/api/sessions/a1/file") return route.fulfill({ json: { path: new URL(route.request().url()).searchParams.get("path"), content: "package main\n\nfunc main() {\n    println(\"hello\")\n}\n", truncated: false } });
@@ -104,6 +109,47 @@ try {
     console.log(`automatic upward load kept the visible anchor within ${drift}px`);
   }
   await page.screenshot({ path: out, fullPage: !historyCheck });
+  if (shown && parityCheck) {
+    const openAgent = async () => {
+      await page.evaluate(() => {
+        history.pushState(null, "", "/agent/a1");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+      await page.getByRole("textbox").waitFor();
+    };
+    const draft = "  Keep this draft\nwhen moving screens.  ";
+    await page.getByRole("textbox").fill(draft);
+    await page.getByRole("button", { name: "Chuck Home", exact: true }).click();
+    await openAgent();
+    if (await page.getByRole("textbox").inputValue() !== draft) throw new Error("navigation lost draft");
+    await page.goto("http://localhost:5199/remote.html");
+    await openAgent();
+    if (await page.getByRole("textbox").inputValue() !== draft) throw new Error("reload lost draft");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await page.getByText("none", { exact: true }).waitFor();
+    if (await page.getByRole("textbox").inputValue() !== draft) throw new Error("refused send lost draft");
+    for (const width of [360, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.getByRole("button", { name: "Open navigation" }).click();
+      await page.getByRole("button", { name: "This phone", exact: true }).click();
+      const select = page.getByRole("combobox", { name: "Theme" });
+      await select.waitFor();
+      for (const choice of ["sky-grove", "studio", "core"]) {
+        await select.selectOption(choice);
+        await page.waitForFunction((expected) => (document.documentElement.dataset.skin || "") === expected, choice === "core" ? "" : choice);
+        const metrics = await select.evaluate((el) => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, overflow: document.documentElement.scrollWidth > innerWidth }));
+        if (metrics.height < 44 || metrics.overflow) throw new Error(`theme layout ${width}/${choice}: ${JSON.stringify(metrics)}`);
+        await page.screenshot({ path: out.replace(/\.png$/, `-theme-${width}-${choice}.png`), fullPage: true });
+      }
+      await openAgent();
+      if (await page.getByRole("textbox").inputValue() !== draft) throw new Error("settings navigation lost draft");
+    }
+    await page.evaluate(() => window.__phoneRenderSource.dispatchEvent(new MessageEvent("state_update", { data: JSON.stringify({ data: { agent_id: "a1", removed: true } }) })));
+    await page.getByText("This agent is not on the Mac any more.", { exact: false }).waitFor();
+    const retained = await page.evaluate(() => JSON.parse(localStorage.getItem("chuck-chat-drafts")).drafts.a1);
+    if (retained) throw new Error("deleted agent retained draft");
+    console.log("mobile parity: navigation/reload/refused-send/deletion and all themes at 360/390/430px pass");
+  }
   if (shown && spinnerCheck) {
     for (const theme of ["", "sky-grove", "studio"]) {
       skin = theme;

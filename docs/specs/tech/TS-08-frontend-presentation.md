@@ -1234,9 +1234,9 @@ only existing state-color/typographic feedback changes, and reduced motion loses
 - **R111 — Mobile composition shares Chuck's appearance seam.** FS-20.R43's
   phone layout lives in `styles/features/phone.css` and feature-owned `remote/` composition.
   `remote.css` statically imports the existing finite skin styles after shared construction;
-  the paired phone applies the same `applyAppearance` allowlist to its read-only `/api/config`
+  the paired phone applies the same `applyAppearance` allowlist to its `/api/config`
   projection, refreshing while open and retaining Core on missing/unknown/failed configuration.
-  No theme provider, browser preference, skin picker, new palette, API authority or desktop-shell
+  R122 adds appearance selection. No theme provider, browser preference, new palette or desktop-shell
   import is added. Shared icons/mark, semantic tokens, Radix dialogs and existing renderers supply
   the reference's construction. Setup and destructive sheets preserve validation, drafts,
   focus trapping and dismissal semantics. Pipeline progress comes from the existing run detail,
@@ -1391,6 +1391,14 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   after movement over 10px, scrolling, touch end/cancel and unmount; a completed press suppresses
   its synthetic click. Prevent native text selection/callout on agent rows. FS-20.R47 uses page-local
   project/group choices capped at 256 most recently changed identities, with no layout write.
+
+- **R122 (planned) — Mobile draft and theme parity reuses existing owners.** The phone
+  composer uses `components/chat/drafts.ts`, including revision checks before accepted-send
+  cleanup, and the phone deleted-agent event discards that agent's draft. This phone offers
+  a labelled Theme select using the existing finite appearance ids and shared `/api/config`
+  preference. Its successful mutation updates the `phone-appearance` query projection consumed
+  by the shell; failures preserve the previous projection and surface an error. No phone-local
+  appearance preference or second draft store is introduced.
 
 ## 3. Interfaces & data shapes
 
