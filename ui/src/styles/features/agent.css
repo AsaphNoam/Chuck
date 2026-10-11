@@ -94,6 +94,55 @@
   min-width: 0;
 }
 
+.phone-agent > .quota-banner {
+  margin-inline: var(--ad-space-4);
+}
+
+.quota-banner {
+  align-items: center;
+  background: var(--ad-surface-subtle);
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  border-inline-start: var(--ad-border-thick) solid var(--ad-state-error);
+  border-radius: var(--ad-radius-small);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-space-3) var(--ad-space-4);
+  justify-content: space-between;
+  margin: 0 var(--ad-space-8) var(--ad-space-4);
+  padding: var(--ad-space-3) var(--ad-space-4);
+}
+
+.quota-banner-copy {
+  align-items: baseline;
+  display: flex;
+  flex: 1 1 18rem;
+  flex-wrap: wrap;
+  gap: var(--ad-space-2) var(--ad-space-4);
+  min-width: 0;
+}
+
+.quota-banner-copy strong {
+  color: var(--ad-state-error);
+  font-size: 0.8125rem;
+}
+
+.quota-banner-copy span {
+  color: var(--ad-text-secondary);
+  font-size: 0.75rem;
+}
+
+.quota-banner-cancel {
+  flex: none;
+  min-height: 2rem;
+}
+
+.quota-banner-error {
+  color: var(--ad-state-error);
+  flex-basis: 100%;
+  font-size: 0.75rem;
+  margin: 0;
+}
+
 .agent-monogram {
   background: color-mix(in srgb, var(--ad-state-done) 10%, var(--ad-surface-raised));
   border: var(--ad-border-thin) solid color-mix(in srgb, var(--ad-state-done) 24%, var(--ad-surface-raised));
@@ -1755,6 +1804,10 @@
   .chat-tabs-list,
   .chat-card > [data-slot="composer"] {
     padding-inline: var(--ad-space-6);
+  }
+
+  .chat-card > .quota-banner {
+    margin-inline: var(--ad-space-6);
   }
 
   .chat-panel .transcript-view {

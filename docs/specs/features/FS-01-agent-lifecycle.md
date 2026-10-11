@@ -219,7 +219,7 @@ orphaned processes.
 
 ### Quota interruption and automatic continuation
 
-- **R40 (planned)** — **Quota interruption is system state.** Every chat agent whose executing
+- **R40 (implemented 2026-10-11)** — **Quota interruption is system state.** Every chat agent whose executing
   turn is interrupted by a provider usage quota shows **Quota reached** on its dashboard card and
   conversation, independently of the process being live or stopped. This includes ordinary chats,
   task assignees, pipeline agents and all Think Tank participant/private/closing/judge turns.
@@ -229,7 +229,7 @@ orphaned processes.
   shown as a local date/time with timezone; missing or ambiguous evidence reads **Reset time
   unknown**, never an invented countdown. Each affected chat is tracked independently, including
   several agents using the same provider quota.
-- **R41 (planned)** — **Auto continue schedules the interrupted conversation.** With the global
+- **R41 (implemented 2026-10-11)** — **Auto continue schedules the interrupted conversation.** With the global
   setting in FS-04.R53 on, a known future quota reset creates one durable scheduled continuation
   for that agent's interrupted work, visible in its conversation as **Will continue at …**.
   A repeated observation of the same interruption creates no duplicate. The schedule lives locally
@@ -237,8 +237,11 @@ orphaned processes.
   conversation, duplicate a durable task, or claim that unfinished work has completed. A person can
   cancel that pending continuation in the conversation without disabling the global feature.
   Unknown reset times keep the quota indicator and explain that automatic continuation cannot yet
-  be scheduled. Later trustworthy reset evidence for that same interruption can schedule it.
-- **R42 (planned)** — **Continuation preserves the work and its owner.** At or after the reset,
+  be scheduled. Later trustworthy reset evidence for that same interruption can schedule it. The
+  current supported Claude/Codex paths have no verified applicable reset timestamp, so observed
+  provider interruptions remain `unknown_reset`; provider-driven timed scheduling is not claimed
+  until the live-provider gate in A28 is met.
+- **R42 (implemented 2026-10-11)** — **Continuation preserves the work and its owner.** At or after the reset,
   Chuck continues the same conversation through its ordinary prompt/resume path, with its current
   runtime identity and frozen permission/configuration rules. It asks the agent to continue the
   interrupted work from its existing history, rather than replaying the original request or tools.
@@ -254,7 +257,7 @@ orphaned processes.
   a failed turn's staged text as though that turn succeeded. Waiting for a busy agent, lifecycle
   action or available capacity delays the schedule
   visibly, without starting overlapping turns or turning that delay into a failure.
-- **R43 (planned)** — **Manual control supersedes pending automation.** Disabling Auto continue
+- **R43 (implemented 2026-10-11)** — **Manual control supersedes pending automation.** Disabling Auto continue
   cancels every pending quota continuation, including one waiting for admission; it stops no turn
   already admitted. A successful manual Send/Steer, Cancel/Stop, Resume/Retry/Continue, runtime
   change, conversation archive/deletion, or relevant task/run/room control that supersedes or closes
@@ -262,7 +265,7 @@ orphaned processes.
   setting applies to later quota interruptions and does not resurrect cancelled schedules.
   Each cancellation and dispatch is serialized so only one can win; no stale timer revives work
   after the person's intervention. Normal resume/project/archive eligibility still applies.
-- **R44 (planned)** — **Reset recovery is bounded and honest.** Chuck must be running to dispatch
+- **R44 (implemented 2026-10-11)** — **Reset recovery is bounded and honest.** Chuck must be running to dispatch
   a continuation. After restart it admits overdue schedules only after checking that the original
   work is still unfinished and eligible; it does not replay an uncertain pre-crash delivery.
   A newly observed quota interruption can schedule its newly reported future reset, with at most
@@ -271,7 +274,7 @@ orphaned processes.
   automatic retry; an unavailable/archived target cannot silently create replacement work.
   Passing the reset time alone does not claim the quota has cleared. Successful continuation
   clears the interruption indicator; a fresh quota failure updates it and its next known reset.
-- **R45 (planned)** — **The chat attributes automatic continuation to Chuck.** Once continuation
+- **R45 (implemented 2026-10-11)** — **The chat attributes automatic continuation to Chuck.** Once continuation
   actually begins, the conversation gains exactly one durable system message:
   **Chuck continued this conversation when the quota reset**. It is attributed to Chuck, never
   to the person or agent, and replays in live, archived and phone transcripts in order. Merely
@@ -445,32 +448,44 @@ transitions:
   route and, after success, opens `/agent/<new-agent-id>`; a failed fork stays on the source surface
   and keeps the existing error feedback. *Verify:* `CardContextMenu.test.tsx`.
 
-- **A23 (planned)** (R40–R41) — Drive terminal provider quota evidence in ordinary chats and
+- **A23 (implemented 2026-10-11; fake-provider/API/UI coverage)** (R40–R41) — Drive terminal provider quota evidence in ordinary chats and
   concurrently in several agents sharing a backend. Each card/chat shows its own quota reason,
-  trustworthy reset time and exactly one schedule. Try arbitrary prose, advisory warnings,
-  retrying-provider errors, transient 429s and unknown/ambiguous reset times; none falsely schedules.
-  *Verify:* provider-boundary fixtures, state/API tests and a focused desktop/phone browser journey.
+  unknown reset honestly remains unscheduled, and a state fixture with a known future reset produces
+  one schedule. Try arbitrary prose, advisory warnings, retrying-provider errors, transient 429s and
+  unknown/ambiguous reset times; none falsely schedules. Provider-produced evidence remains A28.
+  *Verify:* `internal/runtime/session_failure_test.go`, `internal/runtime/quota_test.go`,
+  `internal/server/quota_http_test.go`, `internal/server/quota_dispatch_test.go`,
+  `internal/server/quota_concurrent_test.go`, and
+  `ui/src/components/agent/QuotaBanner.test.tsx`.
 - **A24 (planned)** (R41–R42, R45) — Reach a known reset in a partially completed ordinary chat,
   once with the runtime live and once stopped. Continue the same identity/history without replaying
   the original request; append the exact Chuck message once only after work begins. Reload live,
-  Archive and phone transcripts; ordering, attribution and retained history agree. *Verify:*
-  controllable-clock fake-provider integration tests, transcript/component tests and A23's journey.
-- **A25 (planned)** (R42) — Quota-interrupt an ordinary task, standing/coordinator pipeline work,
+  Archive and phone transcripts; ordering, attribution and retained history agree. The current
+  browser journey verifies the unknown-reset quota banner only; it does not establish this known-reset
+  notice parity. Backend implementation is covered below. *Verify:*
+  `internal/state/quota_test.go`, `internal/server/quota_dispatch_test.go`,
+  `internal/server/quota_notice_test.go`, and `internal/server/quota_http_test.go`; A28 remains the
+  provider-produced reset and delivery gate.
+- **A25 (implemented 2026-10-11; fake-provider owner-path coverage)** (R42) — Quota-interrupt an ordinary task, standing/coordinator pipeline work,
   delegated work and each Think Tank phase (opening, discussion, private, closing and judge),
   including a room-backed pipeline stage. Reset resumes only the unfinished owned opportunity in
   the same conversation; task/assignee/room/run provenance is retained, no outcome/allowance/stage
   advances on quota, and accepted/published/withheld work is never duplicated. *Verify:*
-  owner-state and fake-provider integration tests with post-submission quota failure cases.
-- **A26 (planned)** (R41, R43) — Race reset admission against cancelling one schedule, global
+  `internal/server/quota_dispatch_test.go`, `internal/state/quota_room_test.go`, and
+  `internal/state/quota_controls_test.go` (including pipeline-owner snapshots).
+- **A26 (implemented 2026-10-11; state/HTTP race coverage)** (R41, R43) — Race reset admission against cancelling one schedule, global
   disable, successful/refused manual input/control, runtime switch, archive/deletion and owner
   closure. Only the winning eligible action takes effect, failed manual actions retain recovery,
   and re-enable does not revive a cancelled schedule. *Verify:* state/lifecycle/API race tests and
-  A23's cancellation/settings journey.
-- **A27 (planned)** (R42, R44–R45) — Restart before reset, after reset and around admission/provider
+  `internal/state/quota_test.go`, `internal/server/quota_http_test.go`,
+  `internal/server/quota_controls_test.go`, and `internal/server/quota_dispatch_test.go`.
+- **A27 (implemented 2026-10-11; restart/receipt recovery coverage)** (R42, R44–R45) — Restart before reset, after reset and around admission/provider
   delivery/notice append. Eligible overdue work continues; uncertain delivery holds for attention;
   busy/capacity deferral does not spend failures; no duplicate turn or system message occurs.
   New quota evidence with a future reset replaces the wait; stale times and non-quota errors stop
-  automatic retry with a readable reason. *Verify:* fake-clock restart/failure-injection tests.
+  automatic retry with a readable reason. *Verify:* `internal/state/quota_test.go`,
+  `internal/state/quota_notices_test.go`, `internal/server/quota_notice_test.go`, and
+  `internal/server/quota_dispatch_test.go`.
 - **A28 (planned)** (R40–R45) — Exercise packaged and supported installed Claude/Codex quota
   signals through ordinary and owner-activation prompt paths. Verify terminal classification,
   reset provenance/timezone and actual continuation using captured provider wire shapes, plus a
@@ -542,6 +557,19 @@ transitions:
   acceptance gates (FS-09.A7) before a release claims that live-CLI compatibility.
 
 ## 7. Traceability
+
+- **Quota interruption and continuation (R40–R45/A23–A27, implemented 2026-10-11):** provider
+  failure normalization and exact turn settlement are in `internal/runtime/session_failure.go`,
+  `internal/runtime/acpmap.go` and `internal/runtime/quota.go`; the bounded per-agent record and
+  compare-and-swap operations are in `internal/state/quota.go`, `quota_admission.go`,
+  `quota_controls.go`, `quota_owners.go`, `quota_projection.go`, `quota_notices.go`,
+  `quota_success.go`, and `internal/state/schema.go`; owner settlement, dispatch, control and
+  idempotent notice recovery are in `internal/server/quota.go`, `quota_controls.go`,
+  `quota_dispatch.go`, `quota_notice.go`, and `internal/server/config_handlers.go`; projections and controls are in
+  `ui/src/components/agent/QuotaBanner.tsx`, `ui/src/components/chat/ChatPanel.tsx`,
+  `ui/src/remote/AgentScreen.tsx`, and `ui/src/features/settings/QuotaContinuationEditor.tsx`.
+  A28 remains the credentialed provider acceptance gate; supported providers currently expose no
+  verified reset timestamp for scheduling.
 
 - Launch compose + rollback: `internal/server/launch.go` (`composeLaunch`, `handleLaunch`,
   `teardownAgentRegistration`, `reapOrphanRuntime`).

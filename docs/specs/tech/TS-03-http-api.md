@@ -842,7 +842,7 @@ Update current Go/TypeScript schemas and consumers together; the operator's API 
 waiver applies, with no need for old-client aliases. Verify real serialized partial/unknown shapes,
 read failure, source change and stopped-session behavior independently of UI fixtures.
 
-**R60 (planned) — Quota recovery uses explicit session control and live config.** For
+**R60 (implemented 2026-10-11) — Quota recovery uses explicit session control and live config.** For
 FS-01.R40–R45/FS-04.R53, GET/PUT `/api/config` exposes effective boolean `auto_continue`;
 PUT merges an explicit boolean and rejects invalid values under the existing config validation.
 Disabling serializes with quota admission: save the disabled policy before cancelling pending
@@ -874,6 +874,13 @@ Update every current UI/CLI/internal client, schema, fixture and operator refere
 old client contracts need no compatibility matrix. Existing local/remote guards and error
 envelopes remain. Verify serialized Go responses, client decoders, known-stopped quota cancellation,
 stale-target races, failed config writes and global disable versus provider admission.
+
+Implementation: `internal/server/config_handlers.go` (`handlePutConfig`),
+`internal/server/launch.go` and `internal/server/handlers.go` (read projections),
+`internal/server/sessions.go` (targeted cancellation), `internal/server/quota_http_test.go`,
+`ui/src/api/client.ts`, `ui/src/api/config.ts`, `ui/src/api/types.ts`,
+`ui/src/schemas/config.ts`, and `ui/src/lib/quota.ts`. Supported provider paths currently project unknown reset times; no API claim
+of provider-derived timed scheduling is made before FS-01.A28.
 
 Planned additive backend response field (R47; the example shows one entry, but all registered
 types are returned):

@@ -14,12 +14,23 @@ import (
 // ThinkTankBegin is the guarded admission of one room turn, committed inside
 // the runtime's before(turnID) callback before the provider frame (TS-14.R3).
 type ThinkTankBegin struct {
-	RoomID     string
-	Revision   int64
-	AgentID    string
-	Turn       string
-	Generation string
-	TurnID     string
+	RoomID            string
+	Revision          int64
+	AgentID           string
+	Turn              string
+	Generation        string
+	TurnID            string
+	QuotaContinuation *ThinkTankQuotaContinuation
+}
+
+// ThinkTankQuotaContinuation is an exact, one-use authorization to continue a
+// failed quota-held room turn. It points at the old attempt; Begin creates a
+// new attempt with a new token and execution tuple.
+type ThinkTankQuotaContinuation struct {
+	EpisodeID       string
+	Revision        int64
+	AttemptToken    string
+	SourceAttemptID string
 }
 
 // BeginThinkTankAttempt admits the room's next opportunity only if the room is
@@ -39,7 +50,17 @@ func (s *Store) BeginThinkTankAttempt(b ThinkTankBegin) (ThinkTankAttempt, error
 	if err != nil {
 		return ThinkTankAttempt{}, err
 	}
-	if b.Turn == ThinkTankTurnOpening {
+	var quotaSource *ThinkTankAttempt
+	if b.QuotaContinuation != nil {
+		quotaSource, err = validateQuotaThinkTankContinuationTx(tx, b, d)
+		if err != nil {
+			return ThinkTankAttempt{}, err
+		}
+	}
+	if quotaSource != nil { // The descriptor was checked against the current room and exact next
+		// unfinished opportunity above. It bypasses only the ordinary held-turn
+		// lookup below; attempt construction remains this shared builder.
+	} else if b.Turn == ThinkTankTurnOpening {
 		// Openings are admitted independently: a sibling's start, completion,
 		// queued input or ceiling change must not veto this one, so eligibility
 		// is checked directly rather than by revision (TS-14.R23).
@@ -110,6 +131,23 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			return ThinkTankAttempt{}, fmt.Errorf("state: start think tank judge: %w", err)
 		}
 	}
+	if quotaSource != nil {
+		q := b.QuotaContinuation
+		if err := markQuotaProviderStartedTx(tx, b.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, b.Generation, b.TurnID); err != nil {
+			return ThinkTankAttempt{}, thinkTankConflict("quota continuation claim is stale")
+		}
+		var otherQuotaOwners int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM quota_intents q WHERE q.agent_id!=? AND q.state!=?
+AND json_extract(q.owner_json,'$.kind')='room' AND json_extract(q.owner_json,'$.room_id')=?`+quotaRoomOwnerCurrentClause,
+			b.AgentID, QuotaContinued, b.RoomID).Scan(&otherQuotaOwners); err != nil {
+			return ThinkTankAttempt{}, fmt.Errorf("state: read sibling quota room owners: %w", err)
+		}
+		if otherQuotaOwners == 0 {
+			if _, err := tx.Exec(`UPDATE think_tanks SET hold='' WHERE room_id=? AND hold='Quota reached'`, b.RoomID); err != nil {
+				return ThinkTankAttempt{}, fmt.Errorf("state: clear quota room hold: %w", err)
+			}
+		}
+	}
 	if err := resetTurnBudgetTx(tx, b.AgentID, b.TurnID); err != nil {
 		return ThinkTankAttempt{}, err
 	}
@@ -124,6 +162,65 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		return ThinkTankAttempt{}, fmt.Errorf("state: commit think tank attempt: %w", err)
 	}
 	return a, nil
+}
+
+func validateQuotaThinkTankContinuationTx(tx *sql.Tx, b ThinkTankBegin, d ThinkTankDetail) (*ThinkTankAttempt, error) {
+	q := b.QuotaContinuation
+	if q == nil || q.EpisodeID == "" || q.Revision <= 0 || q.AttemptToken == "" || q.SourceAttemptID == "" {
+		return nil, thinkTankConflict("quota continuation authorization is incomplete")
+	}
+	if d.Room.Revision != b.Revision || d.Room.Control != ThinkTankRunning || d.Room.Hold != "Quota reached" {
+		return nil, thinkTankConflict("quota-held room changed or is under operator control")
+	}
+	intent, err := scanQuota(tx.QueryRow(quotaSelect+` WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt_token=? AND provider_started=0`,
+		b.AgentID, q.EpisodeID, q.Revision, q.AttemptToken))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, thinkTankConflict("quota continuation claim is stale")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if intent.Owner.Kind != "room" || intent.Owner.RoomID != b.RoomID || intent.Owner.AttemptID != q.SourceAttemptID || intent.Owner.Turn != b.Turn {
+		return nil, thinkTankConflict("quota claim names another room opportunity")
+	}
+	old, err := scanThinkTankAttempt(tx.QueryRow(`SELECT `+thinkTankAttemptColumns+` FROM think_tank_attempts WHERE attempt_id=?`, q.SourceAttemptID))
+	if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+		return nil, thinkTankConflict("quota source attempt no longer exists")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if old.RoomID != b.RoomID || old.AgentID != b.AgentID || old.Turn != b.Turn || old.State != ThinkTankAttemptFailed || old.Failure != "Quota reached" ||
+		old.Generation != intent.SourceGeneration || old.TurnID != intent.ExecutingTurn {
+		return nil, thinkTankConflict("source attempt is not the failed quota turn")
+	}
+	probe := d
+	probe.Room.Hold = ""
+	if b.Turn == ThinkTankTurnOpening {
+		remaining := make([]ThinkTankAttempt, 0, len(d.Attempts)-1)
+		for _, attempt := range d.Attempts {
+			if attempt.AttemptID != old.AttemptID {
+				remaining = append(remaining, attempt)
+			}
+		}
+		probe.Attempts = remaining
+		eligible := false
+		for _, opportunity := range ThinkTankOpeningOpportunities(probe) {
+			if opportunity.AgentID == b.AgentID && opportunity.Turn == b.Turn {
+				eligible = true
+				break
+			}
+		}
+		if !eligible {
+			return nil, thinkTankConflict("quota opening is no longer unfinished")
+		}
+	} else {
+		next, ok := NextThinkTankOpportunity(probe)
+		if !ok || next.AgentID != b.AgentID || next.Turn != b.Turn {
+			return nil, thinkTankConflict("quota turn is no longer the current unfinished opportunity")
+		}
+	}
+	return &old, nil
 }
 
 // ThinkTankReceipt is the opaque proof that an attempt's full new conversation
@@ -713,7 +810,24 @@ func (s *Store) RecoverThinkTanks() error {
 		return fmt.Errorf("state: fence think tank setup launch: %w", err)
 	}
 	for _, a := range running {
-		if _, err := finishThinkTankAttemptTx(tx, a, "Chuck restarted during this turn; it was not replayed."); err != nil {
+		quotaContinuation, err := quotaContinuationRunningTx(tx, a)
+		if err != nil {
+			return err
+		}
+		if quotaContinuation {
+			if _, err := tx.Exec(`UPDATE think_tank_attempts SET state=?, failure='Quota continuation delivery uncertain', finished_at=? WHERE attempt_id=? AND state=?`,
+				ThinkTankAttemptFailed, formatTime(timeNow()), a.AttemptID, ThinkTankAttemptRunning); err != nil {
+				return err
+			}
+			if a.Turn == ThinkTankTurnJudge {
+				if _, err := tx.Exec(`UPDATE think_tanks SET judge_status=?, judge_error='Quota continuation delivery uncertain' WHERE room_id=?`, ThinkTankJudgeFailed, a.RoomID); err != nil {
+					return err
+				}
+			}
+			if err := applyThinkTankBoundaryTx(tx, a.RoomID); err != nil {
+				return err
+			}
+		} else if _, err := finishThinkTankAttemptTx(tx, a, "Chuck restarted during this turn; it was not replayed."); err != nil {
 			return err
 		}
 	}
@@ -721,16 +835,81 @@ func (s *Store) RecoverThinkTanks() error {
 WHERE judge_status = ?`, ThinkTankJudgeFailed, "Chuck restarted while the judge was starting.", ThinkTankJudgeLaunching); err != nil {
 		return fmt.Errorf("state: fence think tank judge launch: %w", err)
 	}
-	if _, err := tx.Exec(`UPDATE think_tanks SET control = ?,
-  hold = CASE WHEN hold = '' THEN 'Chuck restarted; resume to continue.' ELSE hold END,
-  revision = revision + 1
-WHERE phase != ? AND control IN (?, ?)`, ThinkTankPaused, ThinkTankPhaseEnded, ThinkTankRunning, ThinkTankPauseRequested); err != nil {
-		return fmt.Errorf("state: hold think tanks: %w", err)
+	// A quota-held opportunity keeps its owner and eligibility across restart.
+	// A pause/end requested by the user remains authoritative above.
+	if _, err := tx.Exec(`UPDATE think_tanks SET hold='Quota reached', revision=revision+1
+WHERE phase != ? AND control = ? AND hold = ''
+AND EXISTS (SELECT 1 FROM quota_intents q WHERE q.state != ?
+  AND json_extract(q.owner_json,'$.kind')='room'
+  AND json_extract(q.owner_json,'$.room_id')=think_tanks.room_id `+quotaRoomOwnerCurrentClause+`)`,
+		ThinkTankPhaseEnded, ThinkTankRunning, QuotaContinued); err != nil {
+		return fmt.Errorf("state: restore quota room hold: %w", err)
+	}
+	// Don't apply the generic restart pause to a room whose only open work is
+	// the durable quota continuation obligation.
+	if _, err := tx.Exec(`UPDATE think_tanks SET control=?, hold=CASE WHEN hold='' THEN 'Chuck restarted; resume to continue.' ELSE hold END,
+revision=revision+1 WHERE phase != ? AND control IN (?, ?) AND NOT EXISTS (
+SELECT 1 FROM quota_intents q WHERE q.state != ?
+AND json_extract(q.owner_json,'$.kind')='room'
+AND json_extract(q.owner_json,'$.room_id')=think_tanks.room_id `+quotaRoomOwnerCurrentClause+`)`,
+		ThinkTankPaused, ThinkTankPhaseEnded, ThinkTankRunning, ThinkTankPauseRequested, QuotaContinued); err != nil {
+		return fmt.Errorf("state: hold non-quota think tanks: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("state: commit recover think tanks: %w", err)
 	}
 	return nil
+}
+
+// ReleaseQuotaRoomHold clears only the quota-owned intervention hold, and only
+// after every current room-owned episode has settled. A concurrent observation
+// or continuation changes the answer inside this same transaction.
+func (s *Store) ReleaseQuotaRoomHold(roomID string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("state: begin quota room hold release: %w", err)
+	}
+	defer tx.Rollback()
+	if err := releaseQuotaRoomHoldTx(tx, roomID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func releaseQuotaRoomHoldTx(tx *sql.Tx, roomID string) error {
+	var pending int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM quota_intents q WHERE q.state!=?
+AND json_extract(q.owner_json,'$.kind')='room' AND json_extract(q.owner_json,'$.room_id')=?`+quotaRoomOwnerCurrentClause,
+		QuotaContinued, roomID).Scan(&pending); err != nil {
+		return fmt.Errorf("state: read pending quota room owners: %w", err)
+	}
+	if pending == 0 {
+		if _, err := tx.Exec(`UPDATE think_tanks SET hold='', revision=revision+1 WHERE room_id=? AND hold='Quota reached'`, roomID); err != nil {
+			return fmt.Errorf("state: release quota room hold: %w", err)
+		}
+	}
+	return nil
+}
+
+func quotaContinuationRunningTx(tx *sql.Tx, current ThinkTankAttempt) (bool, error) {
+	var found int
+	err := tx.QueryRow(`SELECT 1 FROM quota_intents q
+JOIN think_tank_attempts source ON source.attempt_id=json_extract(q.owner_json,'$.attempt_id')
+WHERE q.agent_id=? AND q.state != ?
+AND q.continued_generation=? AND q.continued_turn=?
+AND json_extract(q.owner_json,'$.kind')='room'
+AND json_extract(q.owner_json,'$.room_id')=? AND json_extract(q.owner_json,'$.turn')=?
+AND source.state=? AND source.failure='Quota reached'
+AND source.agent_id=? AND source.room_id=? AND source.turn=?`,
+		current.AgentID, QuotaContinued, current.Generation, current.TurnID, current.RoomID, current.Turn,
+		ThinkTankAttemptFailed, current.AgentID, current.RoomID, current.Turn).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("state: identify quota continuation attempt: %w", err)
+	}
+	return true, nil
 }
 
 // Reading the room ---------------------------------------------------------

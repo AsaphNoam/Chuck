@@ -45,6 +45,8 @@ import { GroupPicker } from "../components/ui/GroupPicker";
 import { useRoles } from "../api/config";
 import { personaIdentityLabel } from "../lib/personas";
 import type { RoleResponse } from "../schemas/role";
+import { decodeQuotaState } from "../lib/quota";
+import { QuotaBanner } from "../components/agent/QuotaBanner";
 
 // The phone reads a bounded window and keeps at most EARLIER_PAGES older ones
 // (FS-20.R13).
@@ -203,6 +205,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [quotaCancelError, setQuotaCancelError] = useState<string | undefined>();
   const [stopOpen, setStopOpen] = useState(false);
   const [tab, setTab] = useState<"chat" | "files" | "manage">("chat");
   const [rename, setRename] = useState("");
@@ -420,6 +423,24 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     }
   };
   const isBusy = agent.state === "busy" || agent.state === "waiting_input";
+  const quota = decodeQuotaState(agent.quota);
+  const cancelQuotaContinuation = async () => {
+    if (!quota || busy || offline) return;
+    setBusy(true);
+    setQuotaCancelError(undefined);
+    try {
+      await cancelTurn(agentId, {
+        target: "quota_continuation",
+        episode_id: quota.episode_id,
+        revision: quota.revision,
+      });
+    } catch (err) {
+      setQuotaCancelError(errorText(err));
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  };
   const annotate = (draft: AnnotationDraft) => {
     if (!addAnnotation(agentId, draft)) setError("At most 20 annotations can wait at once. Send or discard them first.");
   };
@@ -451,6 +472,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           {stateLabel}
         </span>
       </header>
+      <QuotaBanner value={quota} cancelPending={busy} cancelDisabled={offline} cancelError={quotaCancelError} onCancel={() => void cancelQuotaContinuation()} />
       <div className="phone-actions phone-tabs" role="tablist" aria-label="Agent views">
         {(["chat", "files", "manage"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} className={tab === name ? "active" : undefined} onClick={() => setTab(name)}>{name[0].toUpperCase() + name.slice(1)}{name === "files" && files.data?.files.length ? <span className="phone-tab-count">{files.data.files.length}</span> : null}</button>)}
       </div>
@@ -548,7 +570,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       )}
       <div className="phone-actions phone-controls">
         {agent.running && isBusy && (
-          <button type="button" disabled={offline || busy} onClick={() => void act(() => cancelTurn(agentId))}>
+          <button type="button" disabled={offline || busy} onClick={() => void act(() => cancelTurn(agentId, { target: "turn" }))}>
             Cancel turn
           </button>
         )}

@@ -191,6 +191,12 @@ func (s *Server) routeTable() []routeEntry {
 	// method-specific "OPTIONS /" does not conflict with "GET /..." patterns.
 	api("OPTIONS /", func(http.ResponseWriter, *http.Request) {})
 
+	for i := range table {
+		if !table[i].raw {
+			table[i].handler = s.wrapQuotaControl(table[i].pattern, table[i].handler)
+		}
+	}
+
 	// In-process MCP messaging server (Phase 5, techspec §2.2 (A)): the go-sdk
 	// streamable HTTP transport. Registered for the explicit methods the
 	// transport uses (POST messages, GET SSE stream, DELETE session teardown) —

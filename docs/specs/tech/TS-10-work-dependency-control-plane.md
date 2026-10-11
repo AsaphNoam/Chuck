@@ -1,6 +1,6 @@
 # TS-10 — Work dependency control plane
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks`
 **Absorbed:** —
 
@@ -396,15 +396,15 @@ parallel copy of them.
   variant to task wire shapes, UI parsing/status/actions,
   fixtures, migrations and validation together; source room/entry is provenance, never caller authority.
 
-### 2.2 Quota continuation within the existing server (planned)
+### 2.2 Quota continuation within the existing server (implemented 2026-10-11; provider reset input remains unknown)
 
-- **R39 (planned)** — FS-01.R40–R45 extends this server-owned control plane to timed recovery
+- **R39 (implemented 2026-10-11)** — FS-01.R40–R45 extends this server-owned control plane to timed recovery
   for every chat agent, including one without a durable task. A quota continuation is a domain
   intent for the interrupted work, not another task/assignment/prerequisite or a generic timer
   service. Use TS-04.R86–R88's normalized terminal evidence. Schedule eligibility, source owner,
   original generation/turn and quota episode are durable before post-commit signals; SSE remains
   presentation only. No second daemon, state writer, model-based scheduler or self-HTTP call.
-- **R40 (planned)** — Extend the existing two-second server dispatch tick with an indexed due
+- **R40 (implemented 2026-10-11)** — Extend the existing two-second server dispatch tick with an indexed due
   quota-intent query, ordered by due time and stable identity. Read/admit at most eight due intents
   per pass and share an eight-start in-flight cap across passes; never allocate a sleeping
   goroutine/timer per chat or scan every transcript. Claim an intent by its revision and attempt
@@ -413,14 +413,14 @@ parallel copy of them.
   inside the admission transaction/lease held through the provider frame. Busy/claim/capacity
   deferrals preserve the due intent without spending task start attempts; store failures surface
   instead of guessing. Ordinary task runtime budget and room opening admission remain authoritative.
-- **R41 (planned)** — For an unowned conversation, use the existing activation registry with a
+- **R41 (implemented 2026-10-11)** — For an unowned conversation, use the existing activation registry with a
   `quota_continue` kind and a code-owned instruction to continue the quota-interrupted work from
   existing history without replaying already executed operations. It carries no transcript or
   copied task payload and is not user-authored text. For owned work, its domain authorizes and
   starts the continuation through the current task/pipeline/room activation and lifecycle seams;
   a generic quota activation cannot bypass that owner. The durable intent stores only the
   exact source identity needed to authorize this handoff, not a replacement work graph.
-- **R42 (planned)** — Task quota settlement retains the exclusive assignment, assignee and
+- **R42 (implemented 2026-10-11)** — Task quota settlement retains the exclusive assignment, assignee and
   work-context membership, separates quota waiting from generic unexpected interruption and
   records no result. Establish a durable quota-specific owner pause/eligibility mutation before
   generic error settlement; task/run/room recovery must recognize that marker rather than clearing
@@ -438,7 +438,7 @@ parallel copy of them.
   Already published, withheld or completed opportunities are never re-executed;
   only any genuinely unfinished continuation/settlement is eligible. All phases, concurrent
   openings, private room-owned work and room-backed pipeline stages join the same quota contract.
-- **R43 (planned)** — Cancellation and admission share a revision/attempt compare-and-swap.
+- **R43 (implemented 2026-10-11)** — Cancellation and admission share a revision/attempt compare-and-swap.
   Wire FS-01.R43 invalidation through the existing successful human-input/lifecycle/owner-control
   seams; an old callback cannot cancel or renew a later episode. Startup establishes the durable
   quota-ownership exception before normal task/run/room recovery, then checks bounded pending/
@@ -449,7 +449,7 @@ parallel copy of them.
   provider effect can be readmitted; a claim whose provider delivery cannot be corroborated is held
   for attention, never replayed. A new quota failure with a new future reset updates the next
   intent; non-quota/start failures hold, and repeated old/past times cannot create immediate loops.
-- **R44 (planned)** — Append FS-01.R45's exact sentence through the common per-agent transcript
+- **R44 (implemented 2026-10-11)** — Append FS-01.R45's exact sentence through the common per-agent transcript
   writer as a Chuck-owned `notice` only after actual continuation is corroborated by provider
   progress or successful completion, not merely `StartActivation` returning or a scheduled tick.
   Progress is a valid root assistant delta or tool execution from the newly admitted continuation's
@@ -460,6 +460,18 @@ parallel copy of them.
   acknowledgement cannot duplicate it. Failed/uncertain append remains recoverable without
   re-running the provider turn. Ordinary notice projection keeps it out of assistant previews and
   search text, and replay in desktop/Archive/phone uses the shared event reducer.
+
+Implementation: bounded dispatch, owner transitions, startup recovery and controls live in
+`internal/server/quota.go`, `quota_controls.go`, `quota_dispatch.go`, `quota_notice.go`,
+`internal/server/server.go`, `internal/server/sessions.go`, `internal/server/config_handlers.go`,
+and `internal/state/quota.go`, `quota_admission.go`, `quota_controls.go`, `quota_owners.go`,
+`quota_projection.go`, `quota_notices.go`, and `quota_success.go`; ordinary and Think Tank
+activation kinds are registered in `internal/state/activations.go` and
+`internal/runtime/activation_kinds.go`. Regression coverage is in `internal/server/quota_dispatch_test.go`,
+`quota_notice_test.go`, `quota_http_test.go`, `quota_controls_test.go`,
+`internal/state/quota_test.go`, `quota_room_test.go`, `quota_controls_test.go`,
+`quota_notices_test.go`, and `internal/runtime/quota_test.go`. Current providers do not
+supply a verified reset time, so due-time dispatch has no provider-driven schedule until FS-01.A28.
 
 ## 3. Interfaces & data shapes
 

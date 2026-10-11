@@ -34,7 +34,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 // matched running entry (omitted if the agent has none).
 type sessionEntry struct {
 	state.Agent
-	Running *runningView `json:"running,omitempty"`
+	Running *runningView           `json:"running,omitempty"`
+	Quota   *state.QuotaProjection `json:"quota,omitempty"`
 }
 
 // runningView is the running sub-object embedded in a session entry. AgentID is
@@ -74,8 +75,14 @@ func (s *Server) handleSessions(w http.ResponseWriter, _ *http.Request) {
 			// running entry with no identity: skip (orphan).
 			continue
 		}
+		quota, err := s.stateStore.QuotaProjection(r.AgentID)
+		if err != nil {
+			writeAPIError(w, apiError("internal", "quota state could not be read"))
+			return
+		}
 		out = append(out, sessionEntry{
 			Agent: a,
+			Quota: quota,
 			Running: &runningView{
 				PID:       r.PID,
 				SessionID: r.SessionID,

@@ -370,6 +370,21 @@ func (r *Registry) AppendAnnotationAndSync(agentID string, data AnnotationData) 
 	return chat.AppendAnnotationAndSync(agentID, data)
 }
 
+// AppendQuotaNoticeAndSync appends through the currently owning chat runtime's
+// durable transcript writer. Stopped-agent recovery is owned by the server's
+// lifecycle-claimed transcript path.
+func (r *Registry) AppendQuotaNoticeAndSync(agentID string, data NoticeData) (Event, error) {
+	rt, err := r.ownerFor(agentID)
+	if err != nil {
+		return Event{}, err
+	}
+	chat, ok := rt.(*ChatRuntime)
+	if !ok {
+		return Event{}, ErrNotImplemented
+	}
+	return chat.AppendQuotaNoticeAndSync(agentID, data)
+}
+
 // Commands returns the owning chat runtime's latest ACP available-commands
 // snapshot (TS-04.R24). A terminal (non-chat) owner yields ErrNotImplemented and
 // an unowned agent yields ErrNoHandle, which the API layer maps to a typed error.

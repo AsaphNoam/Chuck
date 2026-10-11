@@ -525,6 +525,11 @@ WHERE a.agent_id = ?`, agentID)
 	if association, err := m.store.PipelineAssociationForAgent(agentID); err == nil {
 		out.Pipeline = association
 	}
+	quota, err := m.store.QuotaProjection(agentID)
+	if err != nil {
+		return AgentStateUpdate{}, err
+	}
+	out.Quota = quota
 
 	m.setKnown(agentID, true)
 	out.Clone = CloneAvailability(out.Interface, out.Archived, out.RuntimeCapabilities, nativeSession.String, CloneBusyState(out.State))

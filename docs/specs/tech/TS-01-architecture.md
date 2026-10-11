@@ -250,13 +250,17 @@ default.
 payload-free activation record with a stable id, stable target `agent_id`, closed code-owned kind,
 state, claim token, and operational timestamps. It represents an opportunity to initiate work; it
 does not define universal coalescing, retry, successful-start, or completion semantics. Those belong
-to the source domain. `mail` is the only valid kind in this change, and FS-06 owns its deliberately
-at-most-once policy. The record contains no message body, prompt, transcript excerpt, context
+to the source domain. `mail` was the initial kind, and FS-06 owns its deliberately at-most-once
+policy. The closed registry also includes `dependency` plus quota-only `quota_continue` and
+`quota_think_tank` kinds; FS-16/TS-10 and FS-01/TS-10 own their source identity and recovery rules.
+The record contains no message body, prompt, transcript excerpt, context
 reference, dependency, assignment, retry policy, or arbitrary metadata; adding a kind requires an
 owning FS requirement, an explicit server handler, and a declared source identity/coalescing/retry
 contract. There is no generic activation CRUD API, UI, graph, plug-in registry, or workflow DSL.
-The shared concept is reusable by later context-link, dependency, and semantic orchestration
-features; the initial mail schema and policy are not declared sufficient for those features.
+The initial mail schema and policy are not declared sufficient for other activation kinds. The
+quota kinds were added 2026-10-11 in `internal/state/activations.go` and
+`internal/runtime/activation_kinds.go`; dispatch and source-specific admission remain in
+`internal/server/quota_dispatch.go` and the owner services.
 
 **R20 — Source fact and activation commit together; execution is a separate
 service.** A state-owned transaction first commits the authoritative domain mutation and the

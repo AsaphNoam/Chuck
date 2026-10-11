@@ -71,10 +71,34 @@ recovery; (4) desktop/phone projections and controls, then closure and focused b
 Keep lifecycle/owner integration under one owner; independent config implementation and a read-only
 provider/continuation survey are delegated. Config field/default/persistence verified with
 `go test ./internal/config`: omitted reads true and explicit false survives restart. Provider
-normalization and bounded state primitives are in progress in independent owned files. Existing
+normalization, bounded state primitives, owner settlement/admission and UI are implemented; final
+integration/verification remains in progress. Existing
 tree was clean at startup. Reset units remain unknown unless supported primary evidence verifies them.
 UX task: understand why an interrupted conversation is waiting, retain manual control, and resume
 the same unfinished owned work without duplicating accepted results or uncertain provider delivery.
+Focused runtime/state tests pass; approved loopback server `TestQuota` passes, including same-chat
+live/stopped dispatch, one notice, explicit stopped cancellation/stale/replay and config partial
+disable failure. Use `GOCACHE=/tmp/chuck-go-cache`; server/browser tests need bounded approved
+loopback/Chromium execution in this sandbox. UI 781 tests/style/build passed before final receipt
+and partial-save edits; rerun closure after integration. Current Vite at 127.0.0.1:5178 is session
+37586; do not use stale 4317 for verification. Desktop quota matrix at 1024px passes all appearances;
+phone must use actual AgentScreen, not shrink the desktop matrix's 960px card.
+Integration checkpoint 2026-10-11: exact settlement/notice repair, owner-preserving dispatch,
+manual/global cancellation, API/SSE projections and desktop/phone controls are verified by focused
+runtime/state/server tests and quota races. 782 UI tests, 41 presentation checks, build/embed and
+three-skin desktop/phone layout checks pass. Embedded authenticated browser journey verifies explicit
+turn cancellation, unknown-reset indication, actual process Stop with retained phone transcript,
+and persisted disabled policy. Receipts: `/tmp/chuck-quota-journey-stopped/` and
+`/tmp/chuck-quota-render-final/`. Concurrent shared-backend evidence has independent records and
+API/SSE projections. Known-reset fixtures preserve exactly one notice through live reload,
+phone-sized transcript windows and actual archive. Lifecycle closure exposed quota mutex waits
+changing Stop/group release conflicts; TryLock restores the existing conflicts and focused
+switch/wake/group/task tests pass. A concurrent full-matrix run also hit a provider-version probe
+timeout; isolated recheck passes. No tests were weakened.
+Next: finish known-reset notice desktop/phone/Archive browser parity, run sequential final closure
+after the final fixture/test edits, then finish the change and add its independent review unit.
+No live-provider reset-unit receipt was found: pinned Claude SDK 0.3.286's bare number and API
+RFC3339 headers describe different surfaces, so both pinned providers still have unknown reset.
 
 ## Acceptance gates still owed
 

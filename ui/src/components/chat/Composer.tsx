@@ -235,7 +235,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
             onClick={() => {
               setError(null);
               setNotice(null);
-              cancelTurn(agentId).catch(() => setError("Failed to cancel — the turn may have already finished."));
+              cancelTurn(agentId, { target: "turn" }).catch(() => setError("Failed to cancel — the turn may have already finished."));
             }}
           >
             <StopIcon />

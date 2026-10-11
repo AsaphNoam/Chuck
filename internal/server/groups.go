@@ -11,6 +11,7 @@ import (
 
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
+	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 const releaseGroupWorkers = 4
@@ -103,6 +104,10 @@ func (s *Server) handleProjectGroupAction(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) groupAction(ctx context.Context, project, group string, ids []string, archive bool) ([]groupActionResult, error) {
+	if !s.quotaControlMu.TryLock() {
+		return nil, errGroupLifecycleBusy
+	}
+	defer s.quotaControlMu.Unlock()
 	projects := make(map[string]string, len(ids))
 	archiveClaimed := make([]string, 0, len(ids))
 	if archive {
@@ -160,6 +165,23 @@ func (s *Server) groupAction(ctx context.Context, project, group string, ids []s
 	for _, id := range ids {
 		agent, err := s.stateStore.ReadAgent(id)
 		if err != nil || agent.Project != project || agent.Archived || strings.TrimSpace(agent.Group) != group {
+			for _, leased := range startLeased {
+				s.releaseAgentStart(projects[leased], leased)
+			}
+			for _, claimedID := range claimed {
+				s.releaseLifecycle(claimedID)
+			}
+			for _, archivedID := range archiveClaimed {
+				s.endAgentArchive(projects[archivedID], archivedID)
+			}
+			return nil, errGroupLifecycleBusy
+		}
+	}
+	var quotaSnapshots []state.QuotaControlSnapshot
+	if archive {
+		var err error
+		quotaSnapshots, err = s.captureQuotaSnapshots(ids)
+		if err != nil {
 			for _, leased := range startLeased {
 				s.releaseAgentStart(projects[leased], leased)
 			}
@@ -236,8 +258,22 @@ func (s *Server) groupAction(ctx context.Context, project, group string, ids []s
 					}
 				}
 			} else {
+				stoppedSet := make(map[string]bool, len(stopped))
 				for _, id := range stopped {
-					_, _ = s.stateMgr.Touch(id)
+					stoppedSet[id] = true
+				}
+				var settled []state.QuotaControlSnapshot
+				for _, snapshot := range quotaSnapshots {
+					if stoppedSet[snapshot.AgentID] {
+						settled = append(settled, snapshot)
+					}
+				}
+				if err := s.cancelQuotaSnapshots(settled); err != nil {
+					for i := range ids {
+						if stoppedSet[ids[i]] {
+							results[i] = groupActionResult{AgentID: ids[i], Error: &groupActionError{Code: runtime.CodeInternal, Message: "archived but quota schedule could not be invalidated: " + err.Error()}}
+						}
+					}
 				}
 			}
 		}

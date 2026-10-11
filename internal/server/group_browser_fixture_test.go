@@ -13,6 +13,7 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/backend/credcheck"
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/remote"
+	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 // Opt-in isolated browser fixture for the group-journey.mjs acceptance run.
@@ -66,7 +67,37 @@ func TestGroupBrowserFixture(t *testing.T) {
 	phone.StartTLS()
 	defer phone.Close()
 	token := pairTestDevice(t, s, "browser-device", "browser-phone")
-	data, _ := json.Marshal(map[string]string{"desktop": desktop.URL, "phone": phone.URL, "cookie": remoteDeviceCookie, "token": token, "home": s.configStore.Home()})
+	quotaAgent := ""
+	if os.Getenv("CHUCK_QUOTA_BROWSER_KNOWN") == "1" {
+		quotaAgent = launchAndWaitIdle(t, desktop, "implementer", "other")
+		generation := s.registry.Generation(quotaAgent)
+		reset := time.Now().UTC().Add(-time.Second)
+		q, err := s.stateStore.ObserveQuota(state.QuotaObservation{
+			AgentID: quotaAgent, EpisodeID: "browser-known-reset", SourceGeneration: generation,
+			ExecutingTurn: "browser-interrupted-turn", Owner: state.QuotaOwner{Kind: "ordinary"},
+			ObservedAt: reset.Add(-time.Minute), ResetAt: &reset, DueAt: &reset, State: state.QuotaScheduled,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.startQuotaContinuation(context.Background(), q)
+		deadline := time.Now().Add(15 * time.Second)
+		for {
+			q, err = s.stateStore.GetQuota(quotaAgent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if q.State == state.QuotaContinued {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("known-reset browser continuation did not settle: %+v", q)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		waitStatus(t, s, quotaAgent, "idle")
+	}
+	data, _ := json.Marshal(map[string]string{"desktop": desktop.URL, "phone": phone.URL, "cookie": remoteDeviceCookie, "token": token, "home": s.configStore.Home(), "quota_agent": quotaAgent})
 	if err := os.WriteFile(ready, data, 0600); err != nil {
 		t.Fatal(err)
 	}

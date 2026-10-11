@@ -10,6 +10,8 @@ import { DiffBlock } from "../components/chat/renderers/DiffBlock";
 import { ToolCall } from "../components/chat/renderers/ToolCall";
 import { ToolResult } from "../components/chat/renderers/ToolResult";
 import { Composer } from "../components/chat/Composer";
+import { QuotaBanner } from "../components/agent/QuotaBanner";
+import { NoticeRow } from "../components/chat/renderers/NoticeRow";
 import type { AgentState, AgentStatus } from "../api/types";
 import { DndContext } from "@dnd-kit/core";
 import { SortableContext } from "@dnd-kit/sortable";
@@ -133,6 +135,7 @@ export function VisualMatrix() {
             <AgentIdentity name="Nova orchestration reviewer" state="busy" status={<StateBadge state="busy" />} details={["reviewer", "Chuck", "Fast mode"]} />
             <div data-slot="context"><ContextBar detailed value={0.34} used={68000} size={200000} /></div>
           </header>
+          <QuotaBanner value={{ episode_id: "fixture-episode", revision: 3, observed_at: "2026-10-10T10:00:00Z", reset_at: "2026-10-10T12:00:00Z", due_at: "2026-10-10T12:00:00Z", continuation_state: "scheduled" }} onCancel={() => undefined} />
           <div className="chat-runtime-picker">
             <fieldset className="chat-runtime-staged">
               <legend>Runtime</legend>
@@ -172,6 +175,7 @@ export function VisualMatrix() {
                 context_pct: index * 0.17,
                 unread_messages: index === 2 ? 3 : undefined,
                 last_sent_at: index === 3 ? "2026-10-10T00:00:00Z" : undefined,
+                quota: index === 0 ? { episode_id: "fixture-unknown-reset", revision: 1, observed_at: "2026-10-10T10:00:00Z", reset_at: null, due_at: null, continuation_state: "unknown_reset" } : undefined,
               })}
             />
           ))}
@@ -226,6 +230,7 @@ export function VisualMatrix() {
           <AssistantText event={{ seq: 17, kind: "assistant_text", text: "```ts\nconst appearance = 'sky-grove';\n```" }} />
           <AssistantText event={{ seq: 19, kind: "assistant_text", text: "```mermaid\ngraph TD;\n  Deck-->Agent;\n  Agent-->Task;\n```" }} />
           <AssistantText event={{ seq: 20, kind: "assistant_text", text: "```mermaid\ngraph LR;\n  Intake-->Plan-->Implement-->Verify-->Release;\n```" }} />
+          <NoticeRow event={{ seq: 21, kind: "notice", origin: "chuck", continuation_attempt: "fixture-attempt", severity: "info", title: "Chuck continued this conversation when the quota reset" }} />
           <DiffBlock
             event={{ seq: 18, kind: "diff", path: "ui/src/styles/skins/sky-grove.css", old_text: "--surface: core;", new_text: "--surface: sky;" }}
             onAnnotate={() => undefined}

@@ -506,6 +506,51 @@ func parseInt64Query(r *http.Request, key string) (int64, error) {
 // handleCancel implements POST /api/sessions/{id}/cancel (techspec §7.4).
 func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	var body struct {
+		Target    string `json:"target"`
+		EpisodeID string `json:"episode_id"`
+		Revision  int64  `json:"revision"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || (body.Target != "turn" && body.Target != "quota_continuation") {
+		writeAPIError(w, apiError(runtime.CodeInvalidField, "cancel target must be turn or quota_continuation"))
+		return
+	}
+	if body.Target == "quota_continuation" {
+		s.configMu.Lock()
+		defer s.configMu.Unlock()
+		if _, err := s.stateStore.ReadAgent(id); err != nil {
+			writeAPIError(w, apiError(runtime.CodeNotFound, "no such agent: "+id))
+			return
+		}
+		q, err := s.stateStore.GetQuota(id)
+		if body.EpisodeID == "" || body.Revision < 1 {
+			writeAPIError(w, apiError(runtime.CodeInvalidField, "quota cancellation requires episode_id and revision"))
+			return
+		}
+		if err == nil && q.EpisodeID == body.EpisodeID && q.State == state.QuotaCancelled && body.Revision == q.Revision-1 {
+			writeJSON(w, http.StatusAccepted, map[string]any{"cancelled": false})
+			return
+		}
+		if errors.Is(err, state.ErrNotFound) || err == nil && (q.EpisodeID != body.EpisodeID || q.Revision != body.Revision) {
+			writeAPIError(w, apiError(runtime.CodeConflict, "quota continuation changed; refresh and try again"))
+			return
+		}
+		if err != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "quota continuation could not be read"))
+			return
+		}
+		cancelled := false
+		if q.State != state.QuotaCancelled && !q.ProviderStarted && (q.State == state.QuotaScheduled || q.State == state.QuotaDeferred || q.State == state.QuotaClaimed) {
+			if err := s.stateStore.CancelQuota(id, q.EpisodeID, q.Revision, q.AttemptToken); err != nil {
+				writeAPIError(w, apiError(runtime.CodeConflict, "quota continuation changed; refresh and try again"))
+				return
+			}
+			cancelled = true
+			_, _ = s.stateMgr.Touch(id)
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"cancelled": cancelled})
+		return
+	}
 	cancelled, err := s.registry.Cancel(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, runtime.ErrNoHandle) {
@@ -541,6 +586,10 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 // (INV §4). Losing the claim returns the same conflict a losing resume returns;
 // the caller may retry once the transition settles.
 func (s *Server) stopAgent(ctx context.Context, id string) *runtime.APIError {
+	if !s.quotaControlMu.TryLock() {
+		return apiError(runtime.CodeConflict, "a lifecycle or quota action is already in progress")
+	}
+	defer s.quotaControlMu.Unlock()
 	if !s.claimLifecycle(id) {
 		return apiError(runtime.CodeConflict, "a resume is already in progress")
 	}
@@ -552,6 +601,10 @@ func (s *Server) stopAgent(ctx context.Context, id string) *runtime.APIError {
 // held by the caller. Group release reserves all member claims before it stops
 // any member, preserving its all-or-nothing contention contract.
 func (s *Server) stopAgentClaimed(ctx context.Context, id string) *runtime.APIError {
+	snapshot, err := s.stateStore.SnapshotAgentQuota(id)
+	if err != nil {
+		return apiError(runtime.CodeInternal, "quota owner could not be read")
+	}
 	if err := s.registry.Stop(ctx, id); err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
 			return apiError(runtime.CodeInternal, err.Error())
@@ -568,6 +621,11 @@ func (s *Server) stopAgentClaimed(ctx context.Context, id string) *runtime.APIEr
 		}
 	}
 	s.teardownAgentRegistration(id)
+	if snapshot != nil {
+		if err := s.cancelQuotaSnapshots([]state.QuotaControlSnapshot{*snapshot}); err != nil {
+			return apiError(runtime.CodeInternal, "agent stopped but quota schedule could not be invalidated")
+		}
+	}
 	return nil
 }
 

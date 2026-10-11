@@ -8,6 +8,7 @@ import { StateBadge } from "./StateBadge";
 import { useUiStore } from "../../store/uiStore";
 import { IconButton } from "../ui";
 import { CollapseIcon, ExpandIcon, GripIcon } from "../ui/icons";
+import { QuotaBanner } from "../agent/QuotaBanner";
 
 // The Figma session-card composition (FS-12.R65, TS-08.R116): one head region carrying
 // state, identity, runtime, context, preview and footer, with the chat pane below it
@@ -55,6 +56,7 @@ export function AgentCard({ agent, lastLine, projectTitle, roleLabel = agent.rol
             <GripIcon />
           </button>}
         </div>
+        <QuotaBanner value={agent.quota} />
         <div className="agent-card-title-row">
           <Link className="agent-card-name-link" data-slot="identity" to={`/agent/${agent.agent_id}`} onClick={stop}>
             {agent.name}

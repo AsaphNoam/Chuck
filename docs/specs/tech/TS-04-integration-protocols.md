@@ -1082,7 +1082,7 @@ the failure: agent, backend type, operation, RPC code, the provider data's top-l
 (sorted, at most 8) and any recognized reason. Raw data values, prompt text and stderr are never
 logged or returned (R12, INV §8).
 
-**R86 (planned) — Quota evidence is normalized at actual provider completion.** For
+**R86 (implemented 2026-10-11) — Quota evidence is normalized at actual provider completion.** For
 FS-01.R40–R45, add AIR `sessionFailure` to R62's bilateral capability negotiation and decode
 `_meta.jetbrains.air.sessionFailure` from prompt results and `session_info_update`, retaining the
 actual source generation/executing turn. The pinned Claude 0.85.1 and Codex 2.1.1 wire omits its
@@ -1095,12 +1095,15 @@ terminal quota failure and attaching bounded optional quota evidence to that `tu
 The same failure id/revision seen in an update and result yields one episode. Root ownership is
 never inferred from child activity, current counters, arbitrary message text or an HTTP 429.
 
-**R87 (planned) — Only applicable reset evidence can authorize timed continuation.** Decode
+**R87 (implemented conservative unknown-reset behavior 2026-10-11; provider timestamp verification remains open) — Only applicable reset evidence can authorize timed continuation.** Decode
 Claude `usage_update._meta["_claude/rateLimit"]` separately from context usage; its subscription
 `status:"rejected"`, `rateLimitType` and finite `resetsAt` can describe the blocking window only
 after the supported source's timestamp unit has a verified provider/primary-code receipt. The
-pinned SDK's number declaration alone does not establish epoch seconds. Until verified, retain
-reset as unknown; never infer its unit from numeric magnitude. Correlate evidence to the same
+  pinned SDK's number declaration alone does not establish epoch seconds. No supported provider
+  adapter currently forwards a timestamp with a verified producer-unit receipt; the implemented
+  behavior therefore retains reset as unknown and does not schedule from provider data. If that
+  changes, retain reset as unknown until verified; never infer its unit from numeric magnitude.
+  Correlate evidence to the same
 provider session/executing quota episode, not another
 agent, old runtime, model or earlier allowance. Do not substitute an allowed/warning window,
 an overage timestamp when ordinary usage is blocked, or an unrelated future reset. If several
@@ -1110,7 +1113,7 @@ normalized instant in UTC and let clients display timezone. Missing, stale, conf
 malformed or uncorrelated data stays unknown. No provider-text date parser, independent login,
 extra provider client or prompt-based quota polling is introduced.
 
-**R88 (planned) — Quota blocks automatic successor admission.** Persist/source-correlate the
+**R88 (implemented 2026-10-11) — Quota blocks automatic successor admission.** Persist/source-correlate the
 quota interruption before completing owner settlement or admitting held follow-ups, mail/task
 activations and room turns. Retain their existing pending input rather than consuming it or
 running it immediately into the same quota. The quota terminal path suppresses `runReservedHeld`
@@ -1120,6 +1123,13 @@ quota continuation may enter the ordinary turn gate; a successful turn clears th
 quota failure renews it, and an unrelated failure remains needs-attention. Shared turn preparation,
 inline-mail confirmation and exact source generation/turn-end fan-out retain TS-01.R31–R32's
 contracts. This is neither a permission policy nor a new agent lifecycle state vocabulary.
+
+Implementation: `internal/runtime/session_failure.go`, `internal/runtime/acpmap.go`,
+`internal/runtime/quota.go`, `internal/runtime/chat.go`, and `internal/runtime/quota_test.go` cover
+terminal classification, exact turn ownership, warning/retry refusal and successor suppression.
+`internal/server/quota.go`, `internal/server/quota_dispatch.go`, `internal/server/quota_notice.go`,
+and the focused server/state quota tests cover durable settlement and recovery. Current provider
+timestamp support remains unknown; the packaged/installed live acceptance in FS-01.A28 is still owed.
 
 **R89 (planned) — Subscription-window views consume verified passive data only.** For
 FS-09.R80–R81, normalize a provider/session-scoped observation into at most two display windows,

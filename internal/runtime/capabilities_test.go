@@ -12,8 +12,8 @@ import (
 const codex211Init = `{"protocolVersion":1,"agentCapabilities":{"loadSession":true,"mcpCapabilities":{"acp":false,"http":true,"sse":false},"sessionCapabilities":{"resume":{},"list":{},"close":{},"delete":{},"fork":{},"additionalDirectories":{},"subagents":{}}},"_meta":{"steering":{"supported":true},"jetbrains":{"air":{"version":1,"goal":{"version":1,"controlMethod":"_session/goal","actions":["set","pause","resume","clear"]},"capabilities":["sessionFailure","diffPatch","agentFileChangeReport","nativeSubagentSessions","asyncTasks","recommendedValue","rawInputRendering","planContentDelta"]}}}}`
 
 func TestNegotiateCapabilitiesIsBilateral(t *testing.T) {
-	all := clientOffer{Subagents: true, AsyncTasks: true, FileChangeReports: true}
-	full := SessionCapabilities{Fork: true, Subagents: true, BackgroundTasks: true, BackgroundTaskStop: true, FileChangeReports: true}
+	all := clientOffer{Subagents: true, AsyncTasks: true, FileChangeReports: true, SessionFailure: true}
+	full := SessionCapabilities{Fork: true, Subagents: true, BackgroundTasks: true, BackgroundTaskStop: true, FileChangeReports: true, SessionFailure: true}
 	cases := []struct {
 		name  string
 		init  string
@@ -30,6 +30,7 @@ func TestNegotiateCapabilitiesIsBilateral(t *testing.T) {
 		{"malformed AIR list", `{"_meta":{"jetbrains":{"air":{"version":1,"capabilities":"asyncTasks"}}}}`, all, SessionCapabilities{}},
 		{"async only", `{"_meta":{"jetbrains":{"air":{"version":1,"capabilities":["asyncTasks"]}}}}`, all,
 			SessionCapabilities{BackgroundTasks: true, BackgroundTaskStop: true}},
+		{"session failure requires offer", `{"_meta":{"jetbrains":{"air":{"version":1,"capabilities":["sessionFailure"]}}}}`, clientOffer{}, SessionCapabilities{}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -44,8 +45,8 @@ func TestClientCapabilitiesOfferOnlyImplementedSurfaces(t *testing.T) {
 	if got, _ := json.Marshal(clientCapabilitiesFor(clientOffer{})); string(got) != `{"session":{"notices":{}}}` {
 		t.Fatalf("empty offer = %s", got)
 	}
-	got, _ := json.Marshal(clientCapabilitiesFor(clientOffer{Subagents: true, AsyncTasks: true, FileChangeReports: true}))
-	want := `{"_meta":{"jetbrains":{"air":{"capabilities":["asyncTasks","agentFileChangeReport"],"version":1}}},"session":{"notices":{}},"subagents":{}}`
+	got, _ := json.Marshal(clientCapabilitiesFor(clientOffer{Subagents: true, AsyncTasks: true, FileChangeReports: true, SessionFailure: true}))
+	want := `{"_meta":{"jetbrains":{"air":{"capabilities":["asyncTasks","agentFileChangeReport","sessionFailure"],"version":1}}},"session":{"notices":{}},"subagents":{}}`
 	if string(got) != want {
 		t.Fatalf("full offer = %s, want %s", got, want)
 	}

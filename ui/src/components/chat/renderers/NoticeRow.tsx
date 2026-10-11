@@ -5,10 +5,11 @@ import { Badge } from "../../ui";
 // bubble. The server already bounds the text and maps unknown severity to info.
 export function NoticeRow({ event }: { event: TranscriptEvent }) {
   const warning = event.severity === "warning";
+  const chuckOrigin = event.origin === "chuck";
   const description = String(event.description ?? "");
   return (
     <div className="notice-row" role="note">
-      <Badge variant={warning ? "warning" : "neutral"}>{warning ? "warning" : "info"}</Badge>
+      <Badge variant={warning ? "warning" : "neutral"}>{chuckOrigin ? "Chuck" : warning ? "warning" : "info"}</Badge>
       <span className="notice-title">{String(event.title ?? "")}</span>
       {description ? <span className="notice-description">{description}</span> : null}
     </div>

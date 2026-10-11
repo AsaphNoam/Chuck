@@ -696,11 +696,16 @@ Each names the verification that demonstrates it.
 
 ## 6. Deviations & open decisions
 
-- **Planned quota continuation:** FS-01.R40–R45 specializes interruption/recovery only for a
-  provider-confirmed quota interruption. The same task/assignee remains unfinished; its schedule
-  is a host continuation intent, not a second task or a result/prerequisite. It includes pipeline
-  and room-owned work through their owners. The no-time-based-starts exclusion below remains
-  current until this ships, then excludes general timers/cron but permits this quota-reset recovery.
+- **Quota continuation (implemented 2026-10-11):** FS-01.R40–R45 specializes interruption/recovery
+  only for a provider-confirmed quota interruption. The same task/assignee remains unfinished; its
+  schedule is a host continuation intent, not a second task or a result/prerequisite. It includes
+  pipeline and room-owned work through their owners. The no-time-based-starts exclusion below still
+  excludes general timers/cron; only this narrow quota recovery may use a verified provider reset.
+  Task hold/admission is implemented in `internal/server/quota.go`,
+  `internal/server/task_dispatcher.go`, and `internal/state/quota_owners.go`; regressions are in
+  `internal/server/quota_dispatch_test.go` and `internal/state/quota_test.go`. Current supported
+  provider paths have no verified reset timestamp, so they do not create timed schedules; FS-01.A28
+  remains owed.
 
 - **Collapse and room-backed stage tasks (shipped 2026-10-08).** R46–R48 shipped; room-owned turns
   now attribute created tasks as stage descendants. Invalid lineage — a cycle or a chain that never

@@ -8,7 +8,9 @@ import (
 )
 
 const (
-	ActivationKindMail = "mail"
+	ActivationKindMail           = "mail"
+	ActivationKindQuotaContinue  = "quota_continue"
+	ActivationKindQuotaThinkTank = "quota_think_tank"
 	// ActivationKindDependency is dependent work crossing into an existing
 	// conversation. Its uniqueness key is one pending row per (agent, task)
 	// rather than mail's one per agent, and it stays actionable until its owning

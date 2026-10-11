@@ -176,8 +176,16 @@ export function stopBackgroundTask(agentId: string, taskId: string, activityId?:
   });
 }
 
-export function cancelTurn(agentId: string) {
-  return json<unknown>(`/api/sessions/${agentId}/cancel`, { method: "POST" });
+export type CancelTarget =
+  | { target: "turn" }
+  | { target: "quota_continuation"; episode_id: string; revision: number };
+
+export function cancelTurn(agentId: string, body: CancelTarget) {
+  return json<{ cancelled: boolean }>(`/api/sessions/${agentId}/cancel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 export function decidePermission(agentId: string, toolCallId: string, decision: "approve" | "deny") {

@@ -854,6 +854,7 @@ type configPutBody struct {
 	DefaultProject       *string                     `json:"default_project"`
 	DefaultRole          *string                     `json:"default_role"`
 	AppearanceSkin       *string                     `json:"appearance_skin"`
+	AutoContinue         json.RawMessage             `json:"auto_continue"`
 	Notifications        *config.NotificationsConfig `json:"notifications"`
 	TaskConcurrency      *int                        `json:"task_concurrency"`
 	MessageBudgetPerTurn *int                        `json:"message_budget_per_turn"`
@@ -870,6 +871,15 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			{Field: "", Code: "bad_request", Message: "malformed JSON"},
 		}})
 		return
+	}
+	var autoContinue *bool
+	if len(body.AutoContinue) != 0 {
+		var value bool
+		if string(body.AutoContinue) == "null" || json.Unmarshal(body.AutoContinue, &value) != nil {
+			writeValidationError(w, &config.ValidationErrors{Errors: []config.FieldError{{Field: "auto_continue", Code: "invalid", Message: "auto_continue must be a boolean"}}})
+			return
+		}
+		autoContinue = &value
 	}
 	// Reject attempts to change immutable fields.
 	if body.Version != nil || body.Port != nil {
@@ -895,6 +905,8 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.quotaControlMu.Lock()
+	defer s.quotaControlMu.Unlock()
 	s.configMu.Lock()
 	defer s.configMu.Unlock()
 	cfg, err := s.configStore.ReadConfig()
@@ -952,6 +964,9 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	if body.AppearanceSkin != nil {
 		cfg.AppearanceSkin = *body.AppearanceSkin
 	}
+	if autoContinue != nil {
+		cfg.AutoContinue = *autoContinue
+	}
 	if body.Notifications != nil {
 		cfg.Notifications = *body.Notifications
 		normalizeNotifications(&cfg)
@@ -967,6 +982,13 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("config: write", "err", err)
 		writeAPIError(w, apiError("internal", "internal error"))
 		return
+	}
+	if autoContinue != nil && !cfg.AutoContinue {
+		if err := s.stateStore.CancelPendingQuotas(); err != nil {
+			s.log.Error("cancel disabled quota continuations", "err", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"auto_continue": false, "error": map[string]string{"code": "internal", "message": "Auto continue is off, but pending continuations could not be cancelled. Restore local storage and save again."}})
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, cfg)
 }

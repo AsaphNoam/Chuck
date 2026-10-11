@@ -204,9 +204,6 @@ func (s *Server) handleArchiveProjectAction(w http.ResponseWriter, r *http.Reque
 		writeAPIError(w, apiError(runtime.CodeInternal, "write project archive state: "+err.Error()))
 		return
 	}
-	for _, agentID := range ids {
-		_, _ = s.stateMgr.Touch(agentID)
-	}
 	// Checkout deletion runs last, inside this same claim and after every process
 	// is stopped and the archive is durably committed (TS-12.R7). A failure here
 	// is reported beside a successful archive rather than undoing it: the archive

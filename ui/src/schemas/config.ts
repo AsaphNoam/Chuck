@@ -22,6 +22,7 @@ export const configSchema = z.object({
   appearance_skin: z.string().optional(),
   appearance_skin_warning: z.enum(["unsupported", "config_unreadable"]).optional(),
   skip_permissions: z.boolean(),
+  auto_continue: z.boolean().default(true),
   onboarding_complete: z.boolean(),
   task_concurrency: z.number().int().positive(),
   notifications: z.object({

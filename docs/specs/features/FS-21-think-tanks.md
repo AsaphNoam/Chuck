@@ -548,12 +548,17 @@ completion; R37 defines partial opening publication and pending input on End.
 
 ## 6. Deviations & open decisions
 
-- **Planned quota recovery:** FS-01.R40–R45 authorizes scheduled recovery for every
+- **Quota recovery (implemented 2026-10-11):** FS-01.R40–R45 authorizes recovery for every
   quota-interrupted participant/private/closing/judge chat, including concurrent openings and
   pipeline-owned rooms. This narrowly replaces explicit-intervention-only error recovery for
   confirmed quota interruptions while preserving the same unfinished room opportunity and
   published/withheld work. Pause/End, stage/run closure, existing read/submission authority and
   completed allowance remain authoritative; it does not authorize retry of other failures.
+  Guarded continuation is in `internal/server/quota_dispatch.go`,
+  `internal/server/quota_notice.go`, `internal/state/quota.go`,
+  `internal/state/quota_owners.go`, and `internal/state/think_tank_turns.go`; phase, restart and concurrent-opening regressions are in
+  `internal/state/quota_room_test.go`. Current providers have no verified reset timestamp, so
+  provider-driven timed recovery remains gated by FS-01.A28.
 
 **Pipeline-owned rooms, 2026-10-08.** R41–R42 and A31 shipped. A32 stays planned until a
 fake-provider race test cancels a live room turn on Stop while an unrelated private turn survives;

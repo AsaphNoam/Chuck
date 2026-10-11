@@ -6,6 +6,7 @@ import { NotificationsEditor } from "./NotificationsEditor";
 import { AppearanceEditor } from "./AppearanceEditor";
 import { TaskConcurrencyEditor } from "./TaskConcurrencyEditor";
 import { RemoteEditor } from "./RemoteEditor";
+import { QuotaContinuationEditor } from "./QuotaContinuationEditor";
 
 export function SettingsPage() {
   return (
@@ -38,6 +39,7 @@ export function SettingsPage() {
         </Tabs.Content>
         <Tabs.Content value="tasks" className="settings-tab-content" data-slot="content">
           <TaskConcurrencyEditor />
+          <QuotaContinuationEditor />
         </Tabs.Content>
         <Tabs.Content value="remote" className="settings-tab-content" data-slot="content">
           <RemoteEditor />

@@ -35,6 +35,10 @@ func (s *Server) runTaskDispatcher(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if err := s.repairQuotaNotices(ctx); err != nil {
+				s.log.Error("repair quota continuation notices", "err", err)
+			}
+			s.dispatchQuotaContinuations(ctx)
 			s.reconcileTaskCleanup(ctx)
 			s.dispatchReadyTasks(ctx)
 		}
@@ -121,6 +125,9 @@ func (s *Server) planTaskStart(task state.Task) (state.TaskReservation, bool) {
 // parking is a transition out of starting, so it happens once the reservation
 // exists.
 func (s *Server) planExistingAgentStart(task state.Task, attemptID, agentID string) (state.TaskReservation, bool) {
+	if blocked, err := s.quotaBlocksAgent(agentID); err != nil || blocked {
+		return state.TaskReservation{}, false
+	}
 	claim := state.ClaimWoke
 	generation := attemptID
 	if _, err := s.stateStore.ReadRunning(agentID); err == nil {
@@ -696,6 +703,13 @@ func (s *Server) recoverTasks(ctx context.Context) error {
 			continue
 		}
 		if task.State == state.TaskRunning {
+			quotaHeld, err := s.stateStore.QuotaHoldsTask(task)
+			if err != nil {
+				return err
+			}
+			if quotaHeld {
+				continue
+			}
 			// Its agent is an unowned orphan now, which the ordinary reconciliation
 			// sweep reaps. Nothing is resumed on a guess and no outcome is invented.
 			s.interruptTask(task, "the server restarted while this task was running")
@@ -778,6 +792,16 @@ func (s *Server) interruptTask(task state.Task, reason string) {
 // A task that already recorded one is untouched, which is what makes the stop
 // that follows a report safe.
 func (s *Server) interruptTaskOnExit(agentID, generation, cause string) {
+	if task, err := s.stateStore.AssignedTask(agentID); err == nil && task.AssignedGeneration == generation {
+		held, err := s.stateStore.QuotaHoldsTask(task)
+		if err != nil {
+			s.log.Error("read quota-held assignment on exit", "agent", agentID, "err", err)
+			return
+		}
+		if held {
+			return
+		}
+	}
 	if task, ok, err := s.stateStore.InterruptTaskForAgent(agentID, generation,
 		"the assigned agent went away before recording a result: "+cause); err != nil {
 		s.log.Warn("interrupt task on agent exit", "agent_id", agentID, "err", err)

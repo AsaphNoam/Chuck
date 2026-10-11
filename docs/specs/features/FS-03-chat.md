@@ -1099,11 +1099,15 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 
 ## 6. Deviations & open decisions
 
-- **Planned quota recovery:** FS-01.R40–R45 adds system quota state and the attributed
-  continuation message. R68 remains advisory-only for ordinary runtime notices; confirmed
-  quota interruption is established at the provider completion boundary, never guessed from
-  conversation prose. The continuation message reuses R68's compact system-notice presentation
-  and metadata-only search treatment across live, archived and phone transcripts.
+- **Quota recovery (implemented 2026-10-11):** FS-01.R40–R45 adds system quota state and the
+  attributed continuation message. R68 remains advisory-only for ordinary runtime notices;
+  confirmed quota interruption is established at the provider completion boundary, never guessed
+  from conversation prose. The continuation message reuses R68's compact system-notice presentation
+  and metadata-only search treatment across live, archived and phone transcripts. Implementation:
+  `ui/src/components/chat/ChatPanel.tsx`, `ui/src/remote/AgentScreen.tsx`,
+  `ui/src/components/agent/QuotaBanner.tsx`, and `ui/src/components/chat/renderers/NoticeRow.tsx`;
+  provider-produced timed scheduling remains gated by FS-01.A28 because current adapters have no
+  verified applicable reset timestamp.
 
 - R73–R77/A54–A58 (quiet completed turns, live-open thoughts) shipped 2026-10-06. They supersede
   only R57/A39's collapsed default and R26/A11's uninterrupted-run grouping at the completed-turn

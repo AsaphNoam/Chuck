@@ -505,6 +505,11 @@ func mapPromptResult(result json.RawMessage) (TurnEndData, bool) {
 		return TurnEndData{StopReason: "end_turn"}, false
 	}
 	td := TurnEndData{StopReason: defaultStr(r.StopReason, "end_turn")}
+	if quota, ok := decodeSessionFailure(result); ok {
+		td.Quota = &quota
+		// A terminal typed account quota failure overrides a misleading success.
+		td.StopReason = "error"
+	}
 	return td, false
 }
 

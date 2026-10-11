@@ -608,7 +608,7 @@ R12/INV §17; verify explicit false through durable storage, metadata, reindex a
 
 ## 3. Interfaces & data shapes
 
-**R45 (planned) — Quota recovery is one bounded record per conversation.** For
+**R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For
 FS-01.R40–R45/TS-10.R39–R44, one forward-only migration adds a state-owned quota-recovery row
 keyed uniquely by `agent_id`, plus an indexed nullable UTC due time for dispatch. It holds only
 the current episode id/revision, source runtime generation/executing turn, a validated closed
@@ -631,9 +631,16 @@ the exact visible sentence is FS-01.R45's. Notice retention/search behavior stay
 Use the existing atomic owner-only config writer, sole SQLite writer and ordered transcript
 writer; add no second database, quota-history log, generic schedule table or raw provider cache.
 
-Implementation checkpoint (2026-10-11): the configuration field/default/persistence is implemented
-and verified in `internal/config/appconfig_test.go`; quota storage and live server policy wiring
-remain planned with the remainder of R45.
+Implementation checkpoint (2026-10-11): configuration default/persistence is covered by
+`internal/config/appconfig_test.go`; the single-row migration is in `internal/state/schema.go`, and
+state/CAS operations are in `internal/state/quota.go`, `quota_admission.go`, `quota_controls.go`,
+`quota_owners.go`, `quota_projection.go`, `quota_notices.go`, and `quota_success.go`. Restart,
+deletion, ownership, boundedness and receipt regressions are in `internal/state/quota_test.go`,
+`quota_controls_test.go`, `quota_room_test.go`, and `quota_notices_test.go`. Server settlement and
+policy integration are in `internal/server/quota.go`, `quota_controls.go`, `quota_dispatch.go`,
+`quota_notice.go`, and `internal/server/config_handlers.go`. Reset and due
+timestamps remain nullable; the current provider paths do not supply a verified reset time, so these
+records expose `unknown_reset` instead of a provider-driven scheduled state.
 
 The durable layout is:
 

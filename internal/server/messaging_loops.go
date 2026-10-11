@@ -70,6 +70,9 @@ func (s *Server) executePendingMailActivations(ctx context.Context, onlyAgentID 
 }
 
 func (s *Server) executeMailActivation(ctx context.Context, activation state.Activation) {
+	if blocked, err := s.quotaBlocksAgent(activation.AgentID); err != nil || blocked {
+		return
+	}
 	// An exclusive lifecycle transition (pipeline stage launch/continue, runtime
 	// switch, stop, resume) can already own this agent while its runtime is
 	// registered and idle — a stage's first durable assignment is composed inside

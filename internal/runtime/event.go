@@ -126,6 +126,7 @@ type TurnEndData struct {
 	// The exact pair recorded with ContextPct, omitted when unknown, so an index
 	// rebuild restores the same tuple as the live rollup (TS-02.R39).
 	*state.ContextCounts
+	Quota *QuotaEvidence `json:"quota,omitempty"`
 }
 
 // ErrorData — runtime/protocol/process error surfaced to the client.
@@ -146,10 +147,14 @@ type BackendSwitchData struct {
 
 // NoticeData is a bounded runtime advisory. Severity is "info" or "warning".
 type NoticeData struct {
-	Severity    string `json:"severity"`
-	Title       string `json:"title"`
-	Description string `json:"description,omitempty"`
+	Severity            string `json:"severity"`
+	Title               string `json:"title"`
+	Description         string `json:"description,omitempty"`
+	Origin              string `json:"origin,omitempty"`
+	ContinuationAttempt string `json:"continuation_attempt,omitempty"`
 }
+
+const QuotaContinuationNoticeTitle = "Chuck continued this conversation when the quota reset"
 
 // AnnotationData is a point-in-time capture that a dashboard user has assigned
 // to an agent. It deliberately stores the excerpt, rather than a live file

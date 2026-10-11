@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import * as Tabs from "@radix-ui/react-tabs";
-import { getHeldPrompt, setSessionConfig, switchRuntime } from "../../api/client";
+import { cancelTurn, getHeldPrompt, setSessionConfig, switchRuntime } from "../../api/client";
 import { useBackends, useProjects, useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
 import type { AgentState } from "../../api/types";
@@ -27,6 +27,8 @@ import { RoomCue, ThinkTankTab } from "../../features/thinktank/RoomTurnNotice";
 import { useAgentThinkTanks } from "../../api/thinkTanks";
 import type { FileLink } from "./renderers/filePath";
 import { displayLabels } from "../../lib/labels";
+import { decodeQuotaState } from "../../lib/quota";
+import { QuotaBanner } from "../agent/QuotaBanner";
 
 function runtimeSelection(agent: AgentState): RuntimeSelection {
   return { backend: agent.backend, model: agent.model, effort: agent.effort ?? "" };
@@ -76,6 +78,8 @@ export function ChatPanel() {
   const [applyingSetting, setApplyingSetting] = useState<"effort" | "fast" | null>(null);
   const [liveFast, setLiveFast] = useState(agent?.fast ?? false);
   const [headerMenu, setHeaderMenu] = useState<PointerMenuState | null>(null);
+  const [quotaCancelPending, setQuotaCancelPending] = useState(false);
+  const [quotaCancelError, setQuotaCancelError] = useState<string | undefined>();
 
   // The agent often isn't in the store yet at mount (it hydrates over SSE), so
   // the useState initializer above can't see its interface. Once it loads, apply
@@ -189,6 +193,23 @@ export function ChatPanel() {
   const editableRuntime = agent.running && agent.interface === "chat";
   const currentModel = backends?.backends[agent.backend]?.models[agent.model];
   const stagedRuntime = runtime.backend !== agent.backend || runtime.model !== agent.model;
+  const quota = decodeQuotaState(agent.quota);
+  const cancelQuotaContinuation = async () => {
+    if (!quota || quotaCancelPending) return;
+    setQuotaCancelPending(true);
+    setQuotaCancelError(undefined);
+    try {
+      await cancelTurn(agent.agent_id, {
+        target: "quota_continuation",
+        episode_id: quota.episode_id,
+        revision: quota.revision,
+      });
+    } catch (error) {
+      setQuotaCancelError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setQuotaCancelPending(false);
+    }
+  };
 
   const applySetting = async (body: { effort?: string; fast?: boolean }, kind: "effort" | "fast") => {
     if (applyingSetting) return;
@@ -255,6 +276,7 @@ export function ChatPanel() {
         />
         <div data-slot="context"><ContextBar detailed value={agent.context_pct} used={agent.context_used} size={agent.context_size} /></div>
       </header>
+      <QuotaBanner value={quota} cancelPending={quotaCancelPending} cancelError={quotaCancelError} onCancel={() => void cancelQuotaContinuation()} />
       {editableRuntime && (
         // Two honest groups (FS-03.R47): backend/model stage a change behind
         // Switch, effort and speed apply on selection (FS-12.R61).

@@ -726,4 +726,37 @@ ALTER TABLE running ADD COLUMN generation TEXT NOT NULL DEFAULT '';
 		version: 48,
 		sql:     `ALTER TABLE sessions ADD COLUMN chuck_aware INTEGER NOT NULL DEFAULT 1 CHECK (chuck_aware IN (0, 1));`,
 	},
+	{
+		// One bounded current quota-recovery episode per conversation. Owner
+		// references point at existing work; they do not duplicate authority or
+		// payload. Agent deletion owns the retention boundary (TS-02.R45).
+		version: 49,
+		sql: `
+CREATE TABLE quota_intents (
+  agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
+  episode_id TEXT NOT NULL,
+  revision INTEGER NOT NULL CHECK (revision > 0),
+  source_generation TEXT NOT NULL,
+  executing_turn TEXT NOT NULL,
+  owner_json TEXT NOT NULL CHECK (length(CAST(owner_json AS BLOB)) <= 1024),
+  observed_at TEXT NOT NULL,
+  reset_at TEXT,
+  due_at TEXT,
+  state TEXT NOT NULL CHECK (state IN ('disabled','unknown_reset','scheduled','deferred','claimed','continued','cancelled','needs_attention')),
+  reason_code TEXT NOT NULL DEFAULT '' CHECK (reason_code IN ('','busy','capacity','store_failure','owner_unavailable','project_ineligible','archived','provider_start_failed','uncertain_delivery','non_quota_failure','invalid_owner')),
+  attempt_token TEXT NOT NULL DEFAULT '',
+  provider_started INTEGER NOT NULL DEFAULT 0 CHECK (provider_started IN (0, 1)),
+  continued_generation TEXT NOT NULL DEFAULT '',
+  continued_turn TEXT NOT NULL DEFAULT '',
+  notice_key TEXT NOT NULL DEFAULT '',
+  notice_confirmed INTEGER NOT NULL DEFAULT 0 CHECK (notice_confirmed IN (0, 1)),
+  success_confirmed INTEGER NOT NULL DEFAULT 0 CHECK (success_confirmed IN (0, 1)),
+  manual_generation TEXT NOT NULL DEFAULT '',
+  manual_turn TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);
+		CREATE INDEX idx_quota_intents_due ON quota_intents(due_at, agent_id)
+  WHERE state IN ('scheduled','deferred') AND due_at IS NOT NULL;
+`,
+	},
 }

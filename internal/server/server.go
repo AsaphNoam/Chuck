@@ -70,7 +70,9 @@ type Server struct {
 	activationSlots chan struct{}
 	// taskStartSlots bounds task starts in flight across dispatch passes. The
 	// budget bounds runtimes; this bounds workers (TS-10.R3, R17).
-	taskStartSlots chan struct{}
+	taskStartSlots  chan struct{}
+	quotaStartSlots chan struct{}
+	quotaControlMu  sync.Mutex
 	// thinkTankKick nudges the Think Tank progression dispatcher.
 	thinkTankKick chan struct{}
 	// thinkTankSlots bounds rooms progressing at once; thinkTankRooms keeps
@@ -302,6 +304,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		activationCh:              activationCh,
 		activationSlots:           make(chan struct{}, messaging.ActivationBatch),
 		taskStartSlots:            make(chan struct{}, taskDispatchBatch),
+		quotaStartSlots:           make(chan struct{}, taskDispatchBatch),
 		thinkTankKick:             make(chan struct{}, 1),
 		thinkTankSlots:            make(chan struct{}, thinkTankProgressBatch),
 		thinkTankRooms:            map[string]struct{}{},
@@ -371,17 +374,26 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 	// committing the record stay here, with the plane that owns them (TS-10.R13).
 	msg.SetTaskControl(s)
 	if registry != nil {
+		registry.SetQuotaSettlement(s.settleQuotaTurn)
+		registry.SetQuotaManualBind(s.stateStore.BindQuotaManualTurn)
 		registry.SetActivitySink(func(notice runtime.ActivityNotice) {
 			agentID := notice.AgentID
 			eventBus.Publish("runtime_activity", &agentID, notice)
 		})
 		registry.SetEventSink(func(ev runtime.Event) {
 			eventBus.PublishRuntimeEvent(ev)
+			if err := s.confirmQuotaProgress(ev); err != nil {
+				s.log.Error("confirm quota continuation progress", "agent", ev.AgentID, "err", err)
+			}
 			s.captureThinkTankEvent(ev)
 			if ev.Type == runtime.EvPermissionRequest || ev.Type == runtime.EvPermissionResolved {
 				s.handlePermissionEvent(ev)
 			}
 			if ev.Type == runtime.EvTurnEnd {
+				var terminal runtime.TurnEndData
+				if json.Unmarshal(ev.Data, &terminal) == nil && terminal.Quota != nil {
+					return // its exact owner was preserved by settleQuotaTurn
+				}
 				generation := registry.Generation(ev.AgentID)
 				go s.dispatchTurnEnd(ev.AgentID, generation)
 				// Seal room authority before the runtime releases this turn to a
@@ -523,6 +535,14 @@ func (s *Server) Start(ctx context.Context) error {
 	sweepCtx, stopSweep := context.WithCancel(ctx)
 	defer stopSweep()
 	s.startReconciliationSweep(sweepCtx)
+	if err := s.stateStore.RecoverQuotaClaims(); err != nil {
+		ln.Close()
+		return fmt.Errorf("recover quota continuation: %w", err)
+	}
+	if err := s.repairQuotaNotices(sweepCtx); err != nil {
+		ln.Close()
+		return fmt.Errorf("recover quota continuation notices: %w", err)
+	}
 	if err := s.startMessagingLoops(sweepCtx); err != nil {
 		ln.Close()
 		return err

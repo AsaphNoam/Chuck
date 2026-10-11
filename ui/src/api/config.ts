@@ -13,7 +13,7 @@ import type {
   CreateBackendResponse,
 } from "../schemas/backends";
 import { editableBackendsConfig, refreshProviderResponseSchema, withBackendSupport } from "../schemas/backends";
-import type { Config } from "../schemas/config";
+import { configSchema, type Config } from "../schemas/config";
 
 // Query keys — used for cache invalidation.
 export const QUERY_KEYS = {
@@ -280,7 +280,13 @@ export function useRefreshProvider() {
 export function useConfig() {
   return useQuery({
     queryKey: QUERY_KEYS.config,
-    queryFn: () => json<Config>("/api/config"),
+    queryFn: async () => {
+      const config = await json<Config>("/api/config");
+      return {
+        ...config,
+        auto_continue: configSchema.shape.auto_continue.parse((config as Partial<Config>).auto_continue),
+      };
+    },
     refetchInterval: 10_000, // poll for onboarding state changes
   });
 }
@@ -288,7 +294,7 @@ export function useConfig() {
 export function usePutConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<Pick<Config, "onboarding_complete" | "default_project" | "default_role" | "appearance_skin" | "notifications" | "task_concurrency">>) =>
+    mutationFn: (data: Partial<Pick<Config, "onboarding_complete" | "default_project" | "default_role" | "appearance_skin" | "notifications" | "task_concurrency" | "auto_continue">>) =>
       json<Config>("/api/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

@@ -1083,11 +1083,15 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   labels; these actions retain existing per-agent owner/lifecycle behavior and do not acquire a
   new run-wide Stop meaning merely because members share a label.
 
-- **Planned quota recovery:** FS-01.R40–R45 covers every quota-interrupted pipeline chat,
-  including its standing owner, stage coordinator, delegate and room-backed stage participants.
-  It authorizes only same-work continuation after a known reset, not generic blocked-result
-  Continue, Retry with a fresh agent, manufactured output or bypass of an explicit Pause/Stop.
-  Other recovery and outcome rules remain authoritative.
+- **Quota recovery (implemented 2026-10-11):** FS-01.R40–R45 covers every quota-interrupted
+  pipeline chat, including its standing owner, stage coordinator, delegate and room-backed stage
+  participants. It authorizes only same-work continuation when a verified future reset is available,
+  not generic blocked-result Continue, Retry with a fresh agent, manufactured output or bypass of an
+  explicit Pause/Stop. Other recovery and outcome rules remain authoritative. Owner preservation
+  and admission are in `internal/server/quota.go`, `internal/server/task_dispatcher.go`,
+  `internal/state/quota_owners.go`, and `internal/state/quota_admission.go`; tests include
+  `internal/server/quota_dispatch_test.go` and `internal/state/quota_controls_test.go`. Current
+  provider reset timestamps remain unknown; FS-01.A28 is still owed.
 
 **Think Tank stage recovery, 2026-10-08.** R81–R86 now retain Stop cleanup through claimed setup
 and room-turn settlement, attribute room-turn tasks as stage descendants, reject downstream room

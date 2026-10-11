@@ -23,6 +23,14 @@ type ActivationKind struct {
 // here cannot start, so an unregistered kind fails loudly at its first use
 // rather than prompting a model with another kind's instruction.
 var activationKinds = map[string]ActivationKind{
+	state.ActivationKindQuotaThinkTank: {
+		Instruction:  "Continue your quota-interrupted Think Tank opportunity. Call read_think_tank to read the current room, following its cursor until the read is complete. Submit once using this turn's new read_receipt and authority; do not reuse or publish an earlier failed turn's staged submission.",
+		StatusDetail: "continuing a Think Tank turn", LastTrace: "QuotaContinuation",
+	},
+	state.ActivationKindQuotaContinue: {
+		Instruction:  "Continue the work interrupted by the provider quota from this conversation's existing history. Read the current state of any owned work first. Do not replay already executed operations or repeat accepted results.",
+		StatusDetail: "continuing after quota reset", LastTrace: "QuotaContinuation",
+	},
 	state.ActivationKindMail: {
 		Instruction:  "Handle the attributed peer mail supplied with this turn.",
 		StatusDetail: "checking messages",

@@ -155,6 +155,18 @@
   padding: var(--ad-space-4);
 }
 
+.agent-card .quota-banner {
+  align-items: flex-start;
+  margin: 0 0 var(--ad-space-3);
+  padding: var(--ad-space-2) var(--ad-space-3);
+}
+
+.agent-card .quota-banner-copy {
+  display: grid;
+  flex-basis: auto;
+  gap: var(--ad-space-1);
+}
+
 .agent-card-topline,
 .agent-card-title-row {
   align-items: center;

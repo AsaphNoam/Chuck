@@ -9,6 +9,14 @@ Use Chuck to launch a role in a project, then supervise the resulting agent by i
 - The Claude Code or Codex executable is not part of that frozen snapshot. Every process start — launch, resume, wake, clone, switch — uses the backend's current provider choice: the operator's installed CLI by default, or Chuck's bundled copy when the operator chose it in Settings. A provider update or Settings change therefore applies at the next start and never alters a running agent. A missing or too-old provider fails that start with the repair to make; Chuck does not switch providers, start a replacement conversation, or replay the prompt on its own.
 - Resume keeps the frozen session configuration by default. Runtime switch changes the selected interface/backend/model while preserving the logical session; a provider change may use a bounded one-shot history primer. Switch never carries a fast-mode change, because that setting is applied on the running agent instead. A reported fast mode is the setting Chuck applied and not a live reading from the provider, so an agent whose provider has since suspended it can still read as on.
 - Stop ends the live process without deleting its durable session. Archive and resume remain available for known sessions.
+- **Quota interruptions:** Settings → Tasks contains the global **Auto continue after quota reset**
+  toggle. It defaults on, including when an older `config.json` omits the field. Turning it off
+  persists the policy and cancels pending continuations; if cancellation is incomplete, Chuck reports
+  that while keeping the saved policy off. A quota interruption remains visible in the dashboard/chat.
+  Current Claude/Codex adapters do not provide a reset timestamp with verified units, so Chuck shows
+  **Reset time unknown** and does not schedule a timed continuation from those provider signals. Use
+  the normal Resume/Send controls when you choose to continue manually. Re-enabling the toggle does
+  not restore a cancelled schedule.
 - Role and project files are user-owned configuration. Project resources live in Chuck's project-scoped resource directory and are composed into supported launches; do not treat state database files as editable configuration.
 - A project's working directory may be a Git worktree Chuck created and owns. Everything inside one project — agents, tasks, pipeline stages — shares that checkout, so parallel isolation means another project, not another directory inside one. The checkout is disposable and is recreated from its recorded branch when a launch finds it missing; the branch, commits, project, and session identities are the durable things. Removing an owned checkout only ever happens as an explicit operator choice.
 

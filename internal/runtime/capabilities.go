@@ -13,6 +13,7 @@ const (
 	airVersion           = 1
 	airAsyncTasks        = "asyncTasks"
 	airFileChangeReports = "agentFileChangeReport"
+	airSessionFailure    = "sessionFailure"
 	maxAirCapabilities   = 32
 )
 
@@ -23,10 +24,11 @@ type clientOffer struct {
 	Subagents         bool
 	AsyncTasks        bool
 	FileChangeReports bool
+	SessionFailure    bool
 }
 
 // offered is what this build implements.
-var offered = clientOffer{Subagents: true, AsyncTasks: true, FileChangeReports: true}
+var offered = clientOffer{Subagents: true, AsyncTasks: true, FileChangeReports: true, SessionFailure: true}
 
 // clientCapabilitiesFor builds the initialize `clientCapabilities` object.
 func clientCapabilitiesFor(o clientOffer) map[string]any {
@@ -42,6 +44,9 @@ func clientCapabilitiesFor(o clientOffer) map[string]any {
 	}
 	if o.FileChangeReports {
 		air = append(air, airFileChangeReports)
+	}
+	if o.SessionFailure {
+		air = append(air, airSessionFailure)
 	}
 	if len(air) > 0 {
 		caps["_meta"] = map[string]any{"jetbrains": map[string]any{"air": map[string]any{
@@ -79,6 +84,7 @@ func negotiateCapabilities(initRes json.RawMessage, o clientOffer) SessionCapabi
 		BackgroundTasks:    asyncTasks,
 		BackgroundTaskStop: asyncTasks,
 		FileChangeReports:  o.FileChangeReports && air[airFileChangeReports],
+		SessionFailure:     o.SessionFailure && air[airSessionFailure],
 	}
 }
 

@@ -99,6 +99,7 @@ type RuntimeCapabilities struct {
 	BackgroundTasks    bool `json:"background_tasks"`
 	BackgroundTaskStop bool `json:"background_task_stop"`
 	FileChangeReports  bool `json:"file_change_reports"`
+	SessionFailure     bool `json:"session_failure"`
 }
 
 // DecodeRuntimeCapabilities reads a stored snapshot. Anything outside the
@@ -201,6 +202,7 @@ type AgentState struct {
 	UpdatedAt      int64                `json:"updated_at"`
 	Archived       bool                 `json:"archived"`
 	Pipeline       *PipelineAssociation `json:"pipeline,omitempty"`
+	Quota          *QuotaProjection     `json:"quota,omitempty"`
 }
 
 // AgentStateUpdate is the payload published after Manager recomputes an agent.

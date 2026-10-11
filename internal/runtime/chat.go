@@ -60,8 +60,10 @@ type ChatRuntime struct {
 	agents map[string]*agentState
 	sink   func(Event)
 	// activitySink receives live-only reasoning (TS-03.R44).
-	activitySink func(ActivityNotice)
-	touch        func(string)
+	activitySink    func(ActivityNotice)
+	touch           func(string)
+	quotaSettlement func(agentID, generation, turnID string, quota *QuotaEvidence, successful bool) error
+	quotaManualBind func(agentID, generation, turnID string) error
 
 	transcriptHome string
 	openTranscript TranscriptOpener
@@ -216,22 +218,28 @@ type agentState struct {
 	skipPerms        bool // auto-approve every permission request (techspec §5.2)
 	autoApproveTools map[string]struct{}
 
-	mu      sync.Mutex
-	seq     int64
-	turnSeq int64
+	mu       sync.Mutex
+	noticeMu sync.Mutex
+	seq      int64
+	turnSeq  int64
 	// execTurnID is the turn actually executing, distinct from turnSeq, which
 	// a held/Steer successor reservation advances before the old turn's
 	// terminal emission. Events carry it so a consumer never infers ownership
 	// from the counter (TS-14.R4).
-	execTurnID string
-	context    contextReading
-	turnActive bool
-	stopping   bool
-	toolNames  map[string]string       // toolCallID -> normalized name (for status detail)
-	pending    map[string]*pendingPerm // toolCallID -> withheld permission request
-	resolved   map[string]struct{}     // toolCallIDs already settled this turn
-	transcript []Event
-	writer     TranscriptWriter
+	execTurnID             string
+	turnQuota              *QuotaEvidence
+	turnFailure            *SessionFailureRecord
+	quotaBlocked           bool
+	quotaBlockedGeneration string
+	quotaBlockedTurnID     string
+	context                contextReading
+	turnActive             bool
+	stopping               bool
+	toolNames              map[string]string       // toolCallID -> normalized name (for status detail)
+	pending                map[string]*pendingPerm // toolCallID -> withheld permission request
+	resolved               map[string]struct{}     // toolCallIDs already settled this turn
+	transcript             []Event
+	writer                 TranscriptWriter
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
 	// replace-only live state, not a transcript event: each update overwrites it,
 	// an empty update clears it, and it dies with this agentState on stop/crash.
@@ -782,6 +790,17 @@ func (c *ChatRuntime) runPromptTurn(as *agentState, text, turnID string) error {
 		as.mu.Unlock()
 		return err
 	}
+	c.mu.Lock()
+	bindManual := c.quotaManualBind
+	c.mu.Unlock()
+	if bindManual != nil {
+		if err := bindManual(as.agentID, as.generation, turnID); err != nil {
+			as.mu.Lock()
+			as.turnActive = false
+			as.mu.Unlock()
+			return err
+		}
+	}
 	as.setExecTurn(turnID)
 	// Persist the accepted user side of the turn before handing it to ACP. This
 	// gives it the same durable sequence, replay, and index path as assistant
@@ -813,19 +832,11 @@ func (c *ChatRuntime) runPromptTurn(as *agentState, text, turnID string) error {
 				return
 			}
 			c.clearInlineMail(as.agentID, deliveryKey)
-			td := as.lastContext().turnEnd("error")
-			as.settleTurnContext(&td, false)
 			c.emit(as, EvError, ErrorData{Scope: "protocol", Message: promptFailureMessage(as, err), Fatal: false})
-			nextText, nextTurnID := c.finishTurn(as, turnID, td)
-			c.runReservedHeld(as, nextText, nextTurnID)
+			c.completePromptTurn(as, turnID, deliveryKey, json.RawMessage(`{"stopReason":"error"}`))
 			return
 		}
-		td, hasPct := mapPromptResult(res)
-		c.settleInlineMail(as, deliveryKey, res)
-		as.settleTurnContext(&td, hasPct)
-
-		nextText, nextTurnID := c.finishTurn(as, turnID, td)
-		c.runReservedHeld(as, nextText, nextTurnID)
+		c.completePromptTurn(as, turnID, deliveryKey, res)
 	}()
 
 	return nil
@@ -953,6 +964,11 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) 
 	c.emitIn(as, activityScope{TurnID: turnID}, EvTurnEnd, td)
 	as.mu.Lock()
 	as.execTurnID = ""
+	if as.quotaBlocked {
+		as.turnActive = false
+		as.mu.Unlock()
+		return "", ""
+	}
 	nextText, nextTurnID := as.reserveHeldSuccessorLocked()
 	as.mu.Unlock()
 	return nextText, nextTurnID
@@ -961,6 +977,8 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) 
 func (as *agentState) setExecTurn(turnID string) {
 	as.mu.Lock()
 	as.execTurnID = turnID
+	as.turnQuota = nil
+	as.turnFailure = nil
 	as.mu.Unlock()
 }
 
@@ -1366,14 +1384,38 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	if err != nil {
 		return false, err
 	}
+	quotaContinuation := kind == state.ActivationKindQuotaContinue || kind == state.ActivationKindQuotaThinkTank
+	var currentQuota state.QuotaIntent
+	if !quotaContinuation {
+		q, err := c.store.GetQuota(agentID)
+		if err != nil && !errors.Is(err, state.ErrNotFound) {
+			return false, err
+		}
+		if err == nil && q.State != state.QuotaContinued {
+			return false, nil
+		}
+		currentQuota = q
+	}
 	st, err := c.store.ReadStatus(as.agentID)
-	if err != nil || st.State != "idle" {
+	if err != nil || st.State != "idle" && !(quotaContinuation && st.State == "error") {
 		return false, err
 	}
 	as.mu.Lock()
 	if as.turnActive {
 		as.mu.Unlock()
 		return false, nil
+	}
+	if as.quotaBlocked && !quotaContinuation {
+		if currentQuota.State == state.QuotaContinued && as.quotaBlockedGeneration == as.generation &&
+			((currentQuota.ContinuedGeneration == as.quotaBlockedGeneration && currentQuota.ContinuedTurn == as.quotaBlockedTurnID) ||
+				(currentQuota.ManualGeneration == as.quotaBlockedGeneration && currentQuota.ManualTurn == as.quotaBlockedTurnID)) {
+			as.quotaBlocked = false
+			as.quotaBlockedGeneration = ""
+			as.quotaBlockedTurnID = ""
+		} else {
+			as.mu.Unlock()
+			return false, nil
+		}
 	}
 	as.turnActive = true
 	as.cancelEscalated = false
@@ -1438,18 +1480,11 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 				return
 			}
 			c.clearInlineMail(as.agentID, deliveryKey)
-			td := as.lastContext().turnEnd("error")
-			as.settleTurnContext(&td, false)
 			c.emit(as, EvError, ErrorData{Scope: "protocol", Message: promptFailureMessage(as, err), Fatal: false})
-			nextText, nextTurnID := c.finishTurn(as, turnID, td)
-			c.runReservedHeld(as, nextText, nextTurnID)
+			c.completePromptTurn(as, turnID, deliveryKey, json.RawMessage(`{"stopReason":"error"}`))
 			return
 		}
-		td, hasPct := mapPromptResult(res)
-		c.settleInlineMail(as, deliveryKey, res)
-		as.settleTurnContext(&td, hasPct)
-		nextText, nextTurnID := c.finishTurn(as, turnID, td)
-		c.runReservedHeld(as, nextText, nextTurnID)
+		c.completePromptTurn(as, turnID, deliveryKey, res)
 	}()
 	return true, nil
 }
@@ -1553,6 +1588,24 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	scope, known := as.scopeFor(sessionIDOf(params))
 	if !known || scope.ActivityID != "" {
 		c.onChildNotification(as, scope, known, params)
+		return
+	}
+	// Failure updates describe this executing root turn, never history replay or
+	// an idle session. They do not themselves finish a turn or create a schedule.
+	if failure, ok := decodeSessionFailureRecord(params); ok {
+		as.mu.Lock()
+		if as.caps.SessionFailure && !as.loadReplay && as.execTurnID != "" && as.turnActive {
+			if as.turnFailure == nil ||
+				(as.turnFailure.ID == failure.ID && failure.Revision > as.turnFailure.Revision) ||
+				(failure.ID != as.turnFailure.ID && failure.Quota && !as.turnFailure.Quota) {
+				as.turnFailure = &failure
+				as.turnQuota = nil
+				if failure.Quota {
+					as.turnQuota = &QuotaEvidence{FailureID: failure.ID, Revision: failure.Revision}
+				}
+			}
+		}
+		as.mu.Unlock()
 		return
 	}
 	// available_commands_update is replace-only live state, not a normalized
@@ -1826,6 +1879,70 @@ func (c *ChatRuntime) AppendAnnotationAndSync(agentID string, data AnnotationDat
 	return ev, nil
 }
 
+// AppendQuotaNoticeAndSync appends one idempotent quota-continuation notice
+// through the active transcript writer. The server persists its receipt first;
+// this method only reports success after the transcript and its file contents
+// are synced. It deliberately does not invoke the event sink, which would
+// re-enter the server's quota progress hook.
+func (c *ChatRuntime) AppendQuotaNoticeAndSync(agentID string, data NoticeData) (Event, error) {
+	as, err := c.lookup(agentID)
+	if err != nil {
+		return Event{}, err
+	}
+	if data.ContinuationAttempt == "" || len(data.ContinuationAttempt) > 128 {
+		return Event{}, fmt.Errorf("invalid quota notice identity")
+	}
+	data = NoticeData{Severity: "info", Title: QuotaContinuationNoticeTitle, Origin: "chuck", ContinuationAttempt: data.ContinuationAttempt}
+	as.noticeMu.Lock()
+	defer as.noticeMu.Unlock()
+	as.mu.Lock()
+	for _, old := range as.transcript {
+		if old.Type != EvNotice {
+			continue
+		}
+		var notice NoticeData
+		if json.Unmarshal(old.Data, &notice) == nil && notice.Origin == data.Origin && notice.ContinuationAttempt == data.ContinuationAttempt {
+			as.mu.Unlock()
+			return old, nil
+		}
+	}
+	w := as.writer
+	if w == nil {
+		as.mu.Unlock()
+		return Event{}, fmt.Errorf("quota notice requires an active durable transcript")
+	}
+	as.seq++
+	ev := Event{
+		AgentID: as.agentID, Generation: as.generation, TurnID: as.execTurnID,
+		Seq: as.seq, Type: EvNotice, Ts: time.Now().UTC().Format(time.RFC3339),
+	}
+	var marshalErr error
+	ev.Data, marshalErr = json.Marshal(data)
+	as.mu.Unlock()
+	if marshalErr != nil {
+		return Event{}, marshalErr
+	}
+	if err := w.Append(ev); err != nil {
+		return Event{}, fmt.Errorf("append quota notice: %w", err)
+	}
+	if err := w.Sync(); err != nil {
+		return Event{}, fmt.Errorf("sync quota notice: %w", err)
+	}
+	c.mu.Lock()
+	ix := c.indexer
+	c.mu.Unlock()
+	if ix != nil {
+		if err := ix.OnEvent(agentID, ev); err != nil {
+			slog.Error("runtime: index quota notice", "agent", agentID, "seq", ev.Seq, "err", err)
+		}
+	}
+	as.mu.Lock()
+	as.transcript = append(as.transcript, ev)
+	as.mu.Unlock()
+	as.hub.Publish(ev)
+	return ev, nil
+}
+
 func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID string) error {
 	c.mu.Lock()
 	home := c.transcriptHome
@@ -1885,13 +2002,18 @@ func (c *ChatRuntime) persistEvent(as *agentState, ev Event) bool {
 		}
 		return true
 	}
-	if ev.Type == EvAnnotation {
+	if ev.Type == EvAnnotation || ev.Type == EvNotice {
 		if err := w.Sync(); err != nil {
-			slog.Error("runtime: sync annotation", "agent", as.agentID, "seq", ev.Seq, "err", err)
+			slog.Error("runtime: sync transcript event", "agent", as.agentID, "seq", ev.Seq, "type", ev.Type, "err", err)
 			return false
 		}
-		if err := ix.OnEventAndFlushContent(as.agentID, ev, ev.Seq, ev.Ts); err != nil {
-			slog.Error("runtime: index annotation", "agent", as.agentID, "seq", ev.Seq, "err", err)
+		if ev.Type == EvAnnotation {
+			if err := ix.OnEventAndFlushContent(as.agentID, ev, ev.Seq, ev.Ts); err != nil {
+				slog.Error("runtime: index annotation", "agent", as.agentID, "seq", ev.Seq, "err", err)
+				return false
+			}
+		} else if err := ix.OnEvent(as.agentID, ev); err != nil {
+			slog.Error("runtime: index quota notice", "agent", as.agentID, "seq", ev.Seq, "err", err)
 			return false
 		}
 		return true

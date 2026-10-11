@@ -60,6 +60,9 @@ describe("VisualMatrix", () => {
     render(<MemoryRouter><VisualMatrix /></MemoryRouter>);
     expect(screen.getByRole("button", { name: "Switch" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Runtime switch failed; current settings were restored.");
+    expect(screen.getAllByText("Quota reached").length).toBeGreaterThan(0);
+    expect(screen.getByText("Chuck continued this conversation when the quota reset")).toBeInTheDocument();
+    expect(document.querySelector('.notice-row [data-slot="label"]')).toHaveTextContent("Chuck");
   });
 
   it("renders zero, one, five and overflowing active-project navigation fixtures", () => {

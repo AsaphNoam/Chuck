@@ -42,6 +42,7 @@ type sessionResponse struct {
 	Running  *state.RunningEntry        `json:"running,omitempty"`
 	Status   *state.Status              `json:"status,omitempty"`
 	Pipeline *state.PipelineAssociation `json:"pipeline,omitempty"`
+	Quota    *state.QuotaProjection     `json:"quota,omitempty"`
 	// Worktree reports that this start had to re-materialize the project's owned
 	// checkout before it could run (FS-19.R7). Absent on every ordinary start.
 	Worktree *worktreeStartNotice `json:"worktree,omitempty"`
@@ -168,6 +169,10 @@ func (s *Server) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError(runtime.CodeNotFound, "no such agent: "+id))
 		return
 	}
+	if _, err := s.stateStore.QuotaProjection(id); err != nil {
+		writeAPIError(w, apiError(runtime.CodeInternal, "quota state could not be read"))
+		return
+	}
 	writeJSON(w, http.StatusOK, s.readSession(id))
 }
 
@@ -185,6 +190,11 @@ func (s *Server) readSession(id string) sessionResponse {
 	}
 	if association, err := s.stateStore.PipelineAssociationForAgent(id); err == nil {
 		resp.Pipeline = association
+	}
+	if quota, err := s.stateStore.QuotaProjection(id); err == nil {
+		resp.Quota = quota
+	} else {
+		s.log.Error("read session quota", "agent", id, "err", err)
 	}
 	return resp
 }

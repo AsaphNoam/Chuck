@@ -393,6 +393,11 @@ func handle(msg *rpcMessage) {
 		// client's permission reply / cancel while the scenario blocks.
 		go func() {
 			stop := runScenario(os.Getenv("FAKEACP_SCENARIO"))
+			if failure := sessionFailureEnv("FAKEACP_FAILURE_UPDATE"); failure != nil {
+				emitUpdate(map[string]any{"sessionUpdate": "session_info_update", "_meta": map[string]any{
+					"jetbrains": map[string]any{"air": map[string]any{"version": 1, "sessionFailure": failure}},
+				}})
+			}
 			// codex-acp 1.12 publishes the requested file-change report as a
 			// session_info_update before answering the prompt (TS-04.R66). A stale
 			// report precedes it; its paths include out-of-scope entries.
@@ -403,13 +408,19 @@ func handle(msg *rpcMessage) {
 			// from a usage_update notification, while the prompt result carries
 			// token accounting only.
 			emitUpdate(map[string]any{"sessionUpdate": "usage_update", "used": 44000, "size": 200000})
-			respond(id, map[string]any{
+			result := map[string]any{
 				"stopReason": stop,
 				"usage": map[string]any{
 					"inputTokens": 42000, "outputTokens": 800,
 					"cachedReadTokens": 1200, "cachedWriteTokens": 0, "totalTokens": 44000,
 				},
-			})
+			}
+			if failure := sessionFailureEnv("FAKEACP_FAILURE_RESULT"); failure != nil {
+				result["_meta"] = map[string]any{"jetbrains": map[string]any{"air": map[string]any{
+					"version": 1, "sessionFailure": failure,
+				}}}
+			}
+			respond(id, result)
 			if ended := os.Getenv("FAKEACP_PROMPT_END_FILE"); ended != "" {
 				if hold := os.Getenv("FAKEACP_HOLD_FILE"); hold != "" {
 					_ = os.Remove(hold)
@@ -420,6 +431,18 @@ func handle(msg *rpcMessage) {
 	default:
 		respondErr(*msg.ID, -32601, "method not found: "+msg.Method)
 	}
+}
+
+func sessionFailureEnv(name string) map[string]any {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return nil
+	}
+	var failure map[string]any
+	if json.Unmarshal([]byte(raw), &failure) != nil || failure == nil {
+		return nil
+	}
+	return failure
 }
 
 // Session configuration state. Both pinned adapters model configuration options

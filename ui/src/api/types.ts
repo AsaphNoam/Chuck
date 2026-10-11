@@ -1,3 +1,5 @@
+import type { QuotaState } from "../lib/quota";
+
 export type AgentStatus = "busy" | "idle" | "waiting_input" | "done" | "error" | "unknown";
 
 /** Ephemeral `runtime_activity` SSE payload (TS-03.R44): no transcript seq. */
@@ -50,6 +52,7 @@ export interface AgentState {
   driver?: string;
   state: AgentStatus;
   detail: string;
+  quota?: QuotaState;
   last_trace?: string;
   busy_since?: string;
   context_pct: number;
