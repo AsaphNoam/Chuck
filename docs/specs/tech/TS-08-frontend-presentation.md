@@ -1379,6 +1379,13 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   Verify focused components and actual keyboard launch/edit journeys in Core, Sky & Grove and
   Studio at the desktop floor and phone widths; source inspection is not rendered acceptance.
 
+- **R121 — Phone row actions reuse the phone management controls.** FS-20.R48
+  uses the existing PhoneSheet and confirmations and renders the same rename, group and runtime
+  forms as Manage. Keep the current remote route restrictions. A 500ms single-touch timer cancels
+  after movement over 10px, scrolling, touch end/cancel and unmount; a completed press suppresses
+  its synthetic click. Prevent native text selection/callout on agent rows. FS-20.R47 uses page-local
+  project/group choices capped at 256 most recently changed identities, with no layout write.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

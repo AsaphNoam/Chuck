@@ -593,7 +593,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   );
 }
 
-function AgentManagement({ agent, offline, busy, act, rename, setRename, error }: { agent: AgentState; offline: boolean; busy: boolean; act: (fn: () => Promise<unknown>, clears?: boolean, after?: (result: unknown) => void) => void; rename: string; setRename: (value: string) => void; error: string | null }) {
+export function AgentManagement({ agent, offline, busy, act, rename, setRename, error, action }: { agent: AgentState; offline: boolean; busy: boolean; act: (fn: () => Promise<unknown>, clears?: boolean, after?: (result: unknown) => void) => void; rename: string; setRename: (value: string) => void; error: string | null; action?: "rename" | "group" | "runtime" }) {
   const { data: roles } = useRoles();
   const options = useQuery({ queryKey: ["runtime-options"], queryFn: getRuntimeOptions });
   const [runtime, setRuntime] = useState({ backend: agent.backend, model: agent.model, effort: agent.effort ?? "" });
@@ -618,15 +618,15 @@ function AgentManagement({ agent, offline, busy, act, rename, setRename, error }
   };
   return (
     <section className="phone-section phone-manage" aria-label="Agent management">
-      <form className="phone-card phone-form phone-manage-rename" onSubmit={(event) => { event.preventDefault(); if (rename.trim()) act(() => renameAgent(agent.agent_id, rename.trim()), false, () => setRename("")); }}>
+      {(!action || action === "rename") && <form className="phone-card phone-form phone-manage-rename" onSubmit={(event) => { event.preventDefault(); if (rename.trim()) act(() => renameAgent(agent.agent_id, rename.trim()), false, () => setRename("")); }}>
         <label className="phone-field">Name<input value={rename} placeholder={agent.name || personaIdentityLabel(agent.role, roles?.[agent.role])} onChange={(event) => setRename(event.target.value)} /></label>
         <button type="submit" disabled={offline || busy || !rename.trim()}>Rename</button>
-      </form>
-      <form className="phone-card phone-form phone-manage-group" onSubmit={(event) => { event.preventDefault(); act(() => updateAgentIdentity(agent.agent_id, { group: group.trim() }), false, () => setGroup(group.trim())); }}>
+      </form>}
+      {(!action || action === "group") && <form className="phone-card phone-form phone-manage-group" onSubmit={(event) => { event.preventDefault(); act(() => updateAgentIdentity(agent.agent_id, { group: group.trim() }), false, () => setGroup(group.trim())); }}>
         <label className="phone-field">Group<GroupPicker id="phone-manage-group" value={group} groups={groups} onChange={setGroup} disabled={offline || busy} /></label>
         <button type="submit" disabled={offline || busy}>Save group</button>
-      </form>
-      {agent.running && agent.interface === "chat" && (
+      </form>}
+      {(!action || action === "runtime") && agent.running && agent.interface === "chat" && (
         <form className="phone-card phone-form" onSubmit={(event) => { event.preventDefault(); act(() => switchRuntime(agent.agent_id, runtime)); }}>
           <p className="phone-card-kicker">Runtime</p>
           <label className="phone-field">Backend<select value={runtime.backend} onChange={(event) => selectBackend(event.target.value)}><option value="">Choose…</option>{(options.data?.backends ?? []).map((item) => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select></label>
@@ -635,6 +635,7 @@ function AgentManagement({ agent, offline, busy, act, rename, setRename, error }
           <button type="submit" disabled={disable || !runtime.backend || !runtime.model}>Switch runtime</button>
         </form>
       )}
+      {!action && <>
       {agent.fast_available && <label className="phone-card phone-check"><input type="checkbox" checked={agent.fast} disabled={disable} onChange={(event) => act(() => setSessionConfig(agent.agent_id, { fast: event.target.checked }))} /> Fast mode</label>}
       {agent.running && agent.interface === "chat" && (liveModel?.efforts.length ?? 0) > 0 && <label className="phone-card phone-field">Effort<select value={agent.effort ?? ""} disabled={disable} onChange={(event) => act(() => setSessionConfig(agent.agent_id, { effort: event.target.value }))}><option value="">Model default</option>{liveModel!.efforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}</select></label>}
       <div className="phone-card phone-manage-lifecycle">
@@ -642,6 +643,7 @@ function AgentManagement({ agent, offline, busy, act, rename, setRename, error }
         {agent.clone && !agent.clone.available && <p className="phone-meta">{agent.clone.reason}</p>}
         <button type="button" className="ad-button-danger" disabled={offline || busy} onClick={() => setArchiveConfirm(true)}>Archive</button>
       </div>
+      </>}
       {!archiveConfirm && error && <p className="phone-error" role="alert">{error}</p>}
       <ConfirmDialog
         open={archiveConfirm}

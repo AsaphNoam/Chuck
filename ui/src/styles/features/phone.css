@@ -73,7 +73,7 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-status[data-tone="amber"] { color: var(--ad-state-waiting); }
 .phone-status[data-tone="muted"] { color: var(--ad-text-muted); }
 .phone-agent-list { gap: var(--ad-space-3); }
-.phone-agent-row { display: flex; align-items: center; gap: var(--ad-space-3); padding: var(--ad-space-4) var(--ad-space-3); border-left: 3px solid var(--ad-state-done); }
+.phone-agent-row { display: flex; align-items: center; gap: var(--ad-space-3); padding: var(--ad-space-4) var(--ad-space-3); border-left: 3px solid var(--ad-state-done); user-select: none; -webkit-touch-callout: none; }
 .phone-agent-row[data-tone="busy"] { border-left-color: var(--ad-state-busy); }
 .phone-agent-row[data-tone="waiting_input"] { border-left-color: var(--ad-state-waiting); }
 .phone-agent-row[data-tone="error"] { border-left-color: var(--ad-state-error); }

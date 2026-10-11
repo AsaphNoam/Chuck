@@ -287,6 +287,20 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   management only for these group actions. Desktop uses drag and the picker; the phone uses
   the picker, with no mobile drag. These actions update desktop and other phones live.
 
+- **R47 — Phone group choices survive navigation.** Each project's expanded and
+  collapsed agent groups, including Ungrouped, retain their choices while moving between phone
+  screens in the same page session. Choices are device-local and project-scoped; a reload may reset
+  them and they never write the desktop layout.
+
+- **R48 — Long pressing a phone agent row opens its actions.** A stationary
+  half-second press opens a dismissible action sheet instead of navigating. A tap still opens chat;
+  movement, scrolling, cancellation and unmount cancel the press. Offer Open chat, Rename,
+  Stop/Resume, Switch runtime, Clone, Move to group and Archive with the same phone permissions,
+  availability, confirmations and failure feedback as the existing conversation controls. Runtime
+  changes remain chat-only; terminal reveal and interface switching remain desktop-only.
+  Keyboard context-menu invocation opens the same sheet. Offline permits inspection and navigation
+  but disables mutations. Forms retain values on refusal and closing returns focus to the row.
+
 ## 3. States & transitions
 
 Desktop remote connection: `Off → Needs Tailscale sign-in → Connecting → On`; `On → Connecting` on
@@ -419,6 +433,12 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   Stop group and Archive group; verify desktop reflects each accepted change and each device
   reflects changes from the other. Offline permits no action; refusals preserve the form values.
   — focused remote route/form tests and FS-02.A57's two-device browser journey at 390px.
+
+- **A19** (R47–R48) — Collapse one project's group, visit an agent and another project,
+  then return and verify independent retained choices. Tap a row; long press it; cancel by moving,
+  scrolling and releasing early. Verify the action sheet at phone widths, keyboard dismissal/focus,
+  running/stopped and offline availability, confirmation and a refused mutation retaining values.
+  — focused phone tests and a phone-width browser journey.
 
 ## 6. Deviations & open decisions
 

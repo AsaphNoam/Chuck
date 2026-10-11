@@ -17,6 +17,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   checksum manifest are uploaded; manifest size (323869523) and SHA-256 match GitHub's
   archive metadata. Readable notes are published. Manual provider gates below remain owed.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
+- **Work in progress — phone group memory and long-press agent actions:**
+  FS-20.R47–R48/A19, TS-08.R121. Page-session, project-scoped group choices and
+  a long-press action sheet over shared phone management forms are implemented.
+  789 UI tests, 41 presentation checks, refreshed embed and tagged build pass.
+  Nine fixture-driven browser journeys at 360/390/430px in all three appearances pass
+  (retained collapse, held-press click suppression, refused rename draft, focus and overflow).
+  Receipt/harness: shared project resources `mobile-actions-20261011/`; screenshots
+  `/tmp/chuck-mobile-actions/`. Full Go variants are running with `CHUCK_RUNTIME_ROOT`
+  unset: the inherited installed bundle violates a credential test's source-build assumption.
 - **Review complete — desktop/phone group controls:** FS-02.R72–R76/A54–A57,
   FS-20.R45–R46/A17–A18, TS-03.R56–R58, TS-08.R118, TS-13.R24.
   Range `4a7899b` through `1ec40f4` closed without originating findings on 2026-10-11.

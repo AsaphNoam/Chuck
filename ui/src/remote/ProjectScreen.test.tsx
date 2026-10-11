@@ -7,6 +7,7 @@ import { setupServer } from "msw/node";
 import { ProjectScreen } from "./ProjectScreen";
 import { useConnection } from "./connection";
 import type { AgentState } from "../api/types";
+import { usePhoneGroupChoices } from "./groupChoices";
 
 const server = setupServer(
   http.get("/api/projects", () => HttpResponse.json({ app: { title: "App", color: [1, 2, 3] } })),
@@ -50,6 +51,7 @@ let groupActions: unknown[] = [];
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
+  usePhoneGroupChoices.setState({ choices: {} });
   useConnection.setState({ link: "connected", revision: 0, agents: {} });
   window.history.replaceState(null, "", "/");
   launches = [];
@@ -171,6 +173,68 @@ describe("ProjectScreen archival", () => {
 });
 
 describe("ProjectScreen groups", () => {
+  it("retains collapse across screen remounts, independently for each project", async () => {
+    server.use(http.get("/api/projects", () => HttpResponse.json({ app: { title: "App" }, other: { title: "Other" } })));
+    useConnection.setState({ agents: { a: phoneAgent("a", "Alpha", true), b: { ...phoneAgent("b", "Alpha", true), project: "other" } } });
+    renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: /Alpha.*1 agents/ }));
+    cleanup();
+    render(<QueryClientProvider client={new QueryClient()}><ProjectScreen projectID="other" /></QueryClientProvider>);
+    expect(await screen.findByRole("button", { name: /Alpha.*1 agents/ })).toHaveAttribute("aria-expanded", "true");
+    cleanup();
+    renderScreen();
+    expect(await screen.findByRole("button", { name: /Alpha.*1 agents/ })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("a")).toBeNull();
+  });
+
+  it("opens actions on a held press without navigating and cancels movement and early release", async () => {
+    useConnection.setState({ agents: { a: phoneAgent("a", "Alpha", true) } });
+    renderScreen();
+    const row = (await screen.findByText("a")).closest("button")!;
+    const touch = { touches: [{ clientX: 20, clientY: 30 }] };
+    fireEvent.touchStart(row, touch);
+    fireEvent.touchEnd(row);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 550)); });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.touchStart(row, touch);
+    fireEvent.touchMove(row, { touches: [{ clientX: 20, clientY: 60 }] });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 550)); });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.touchStart(row, touch);
+    fireEvent.scroll(window);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 550)); });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.touchStart(row, touch);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 550)); });
+    fireEvent.touchEnd(row);
+    fireEvent.click(row);
+    expect(window.location.pathname).toBe("/");
+    const sheet = screen.getByRole("dialog", { name: "a" });
+    for (const name of ["Open chat", "Rename", "Stop", "Switch runtime", "Clone", "Move to group", "Archive"]) expect(within(sheet).getByRole("button", { name, exact: true })).toBeInTheDocument();
+    fireEvent.keyDown(sheet, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(row);
+    fireEvent.click(row);
+    expect(window.location.pathname).toBe("/agent/a");
+  });
+
+  it("keeps a refused rename draft and disables mutations while offline", async () => {
+    server.use(http.post("/api/sessions/:id/rename", () => HttpResponse.json({ error: { message: "Rename refused" } }, { status: 409 })));
+    useConnection.setState({ agents: { a: phoneAgent("a", "Alpha", false) } });
+    renderScreen();
+    const row = (await screen.findByText("a")).closest("button")!;
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Switch runtime" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Rename", exact: true }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "New name" } });
+    fireEvent.click(screen.getByRole("button", { name: "Rename", exact: true }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Rename refused");
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("New name");
+    act(() => useConnection.setState({ link: "unreachable" }));
+    expect(screen.getByRole("button", { name: "Rename", exact: true })).toBeDisabled();
+  });
+
   it("projects collapsible groups with counts, running-first order, and Ungrouped last", async () => {
     useConnection.setState({ agents: {
       z: phoneAgent("z", undefined, false),
