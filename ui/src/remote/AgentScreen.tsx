@@ -547,6 +547,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
                 });
               }}
             >
+              <span className="phone-composer-meta">{runtimeLabel}{agent.effort ? ` · ${agent.effort}` : ""}</span>
               <label className="phone-field">
                 <VisuallyHidden>{agent.state === "waiting_input" && !pending ? "Reply" : "Message"}</VisuallyHidden>
                 <AutoGrowTextarea rows={3} maxHeight="40vh" value={text} placeholder={offline ? "Reconnect to send a message" : "Ask for changes…"} onChange={(event) => setText(event.target.value)} />
@@ -554,7 +555,6 @@ export function AgentScreen({ agentId }: { agentId: string }) {
               {error && <p className="phone-error">{error}</p>}
               {notice && <p className="phone-meta">{notice}</p>}
               <div className="phone-actions phone-composer-actions">
-                <span className="phone-composer-meta">{runtimeLabel}{agent.effort ? ` · ${agent.effort}` : ""}</span>
                 {agent.steering_available && isBusy && (
                   <button type="button" disabled={offline || busy || !text.trim()} onClick={() => void act(() => steerPrompt(agentId, text), true)}>
                     Steer

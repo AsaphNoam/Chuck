@@ -95,8 +95,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. Quota continuation findings QUOTA-01–04 are fixed and verified; the originating unit is
-closed. Previously recorded manual/provider acceptance gates remain owed below.
+In progress — mobile composer and New agent placement (FS-20.R43, TS-08.R111).
+New agent alone uses PhoneSheet's centered variant. The composer encloses top-right model/effort,
+borderless textarea and bottom-right Send; scoped textbox styling removes the blue typing outline.
+Existing shared button, management, inline-file and other-sheet behavior is preserved.
+48 focused phone tests, all 789 UI tests, 41 presentation/style checks and `make dist` pass.
+`phone-render.mjs --details-check` verifies all three appearances, centered dialog geometry at
+360/390/430px, metadata position, Send containment and absent typing outline. Screenshots:
+`/tmp/mobile-composer-20261011-*.png`. Both Go variants are running before final closure.
+Previously recorded manual/provider acceptance gates remain owed below.
 
 ## Acceptance gates still owed
 

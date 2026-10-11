@@ -2,13 +2,13 @@ import type { ReactNode } from "react";
 import { useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 
-export function PhoneSheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function PhoneSheet({ title, onClose, children, centered = false }: { title: string; onClose: () => void; children: ReactNode; centered?: boolean }) {
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   return <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="dialog-overlay" data-ui="dialog" data-slot="overlay" />
       <Dialog.Content
-        className="dialog-content phone-sheet"
+        className={`dialog-content phone-sheet${centered ? " phone-sheet-centered" : ""}`}
         data-ui="dialog"
         data-slot="content"
         data-variant="default"

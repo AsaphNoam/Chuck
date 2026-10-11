@@ -266,8 +266,10 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   the phone follows the desktop's durable appearance preference without offering a skin picker.
   This supersedes R16's skins exclusion only for applying the configured appearance.
   Manage uses quiet, compact fields and actions separated by rules rather than stacked cards.
-  Files has compact text actions. The chat composer outlines only its textbox; its model/effort
-  footer is unboxed and Send uses R68's quiet outlined surface within a 44px touch target.
+  Files has compact text actions. The chat composer has one outline enclosing the textbox,
+  model/effort at the top right and Send inside at the bottom right. Typing adds no blue
+  highlight to the textbox. Send uses R68's quiet outlined surface within a 44px touch target.
+  The New agent modal is centered in the viewport; other phone sheets retain their placement.
 
 - **R44 — Live chat work is visible on the phone.** At the conversation tail,
   a running, busy chat agent shows the desktop's spinner and **Working…** label, including

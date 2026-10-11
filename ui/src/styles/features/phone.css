@@ -106,11 +106,11 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-quote { border-left: var(--ad-border-thick) solid var(--ad-border-default); color: var(--ad-text-secondary); display: grid; font-size: 0.75rem; gap: var(--ad-space-1); margin: 0; padding-left: var(--ad-space-3); white-space: pre-wrap; }
 .phone-quote span { color: var(--ad-text-muted); font-size: 0.625rem; }
 .phone-composer { display: grid; gap: var(--ad-space-2); border-top: var(--ad-border-thin) solid var(--ad-border-default); padding-top: var(--ad-space-4); }
-.phone-composer-box { background: transparent; border: 0; padding: 0; }
+.phone-composer-box { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-medium); padding: var(--ad-space-2); }
 .phone-composer-box .phone-field { gap: 0; }
-.phone-composer-box .phone-field textarea { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-medium); min-height: 104px; padding: var(--ad-space-3); resize: none; }
-.phone-composer-actions { align-items: center; display: flex; gap: var(--ad-space-2); border: 0; background: transparent; padding: 0 var(--ad-space-2); }
-.phone-composer-meta { color: var(--ad-text-muted); font-size: 0.625rem; margin-right: auto; overflow-wrap: anywhere; }
+.phone-composer-box .phone-field textarea { background: transparent; border: 0; border-radius: 0; outline: none; box-shadow: none; min-height: 104px; padding: var(--ad-space-2); resize: none; }
+.phone-composer-actions { align-items: center; justify-content: flex-end; display: flex; gap: var(--ad-space-2); border: 0; background: transparent; padding: 0; }
+.phone-composer-meta { color: var(--ad-text-muted); font-size: 0.625rem; justify-self: end; text-align: right; overflow-wrap: anywhere; }
 .phone-composer-actions.phone-actions > button { flex: 0 0 auto; }
 /* Fill/shape/size now come from .ad-button-icon-primary; the button is already a 44px touch target. */
 .phone-send-icon { flex-shrink: 0; }
@@ -200,6 +200,8 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 /* Only the remote entry imports these portal overrides. */
 .dialog-content { top: auto; bottom: 0; left: 50%; transform: translateX(-50%); width: min(480px, 100vw); max-height: 90dvh; border-radius: var(--ad-radius-large) var(--ad-radius-large) 0 0; padding: var(--ad-space-6); overflow: auto; }
 .dialog-content::before { content: ""; display: block; width: 34px; height: 4px; border-radius: var(--ad-radius-round); background: var(--ad-border-default); margin: 0 auto var(--ad-space-4); }
+.dialog-content.phone-sheet-centered { top: 50%; bottom: auto; transform: translate(-50%, -50%); width: min(480px, calc(100vw - var(--ad-space-8))); border-radius: var(--ad-radius-large); }
+.phone-sheet-centered::before { display: none; }
 .phone-sheet .phone-card { border: 0; padding: 0; background: transparent; }
 .phone-sheet .phone-form > h2 { display: none; }
 .phone-sheet .phone-section-title h2 { font-size: 1.3125rem; }
