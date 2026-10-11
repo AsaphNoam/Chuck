@@ -17,6 +17,17 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   checksum manifest are uploaded; manifest size (323869523) and SHA-256 match GitHub's
   archive metadata. Readable notes are published. Manual provider gates below remain owed.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
+- **Awaiting review — centered mobile setup and composer placement:** `c3b3c70`,
+  FS-20.R43, TS-08.R111. New agent alone uses the centered PhoneSheet variant. Model/effort
+  sits at the composer's top right, Send stays inside at the bottom right, and the borderless
+  textbox has no blue typing outline. Existing management, inline-file, shared buttons and other
+  sheets retain their behavior. 48 focused phone tests, all 789 UI tests, 41 presentation/style
+  checks and `make dist` pass. Chromium verifies all three appearances, centered modal geometry
+  at 360/390/430px, metadata position, Send containment and absent visible typing outline;
+  inspected screenshots are `/tmp/mobile-composer-20261011-*.png` and the repeatable harness is
+  `ui/scripts/phone-render.mjs --details-check`.
+  The ordinary Go suite hit the documented `TestOrdinaryStageAgentStopPausesPipelineRun` 409
+  race; its focused retry passed. Other ordinary packages and the full tagged suite passed.
 - **Awaiting review — phone group memory and long-press agent actions:** `17b73ed`,
   FS-20.R47–R48/A19, TS-08.R121. Finished 2026-10-11. Page-session, project-scoped group choices and
   a long-press action sheet over shared phone management forms are implemented.
@@ -95,14 +106,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-In progress — mobile composer and New agent placement (FS-20.R43, TS-08.R111).
-New agent alone uses PhoneSheet's centered variant. The composer encloses top-right model/effort,
-borderless textarea and bottom-right Send; scoped textbox styling removes the blue typing outline.
-Existing shared button, management, inline-file and other-sheet behavior is preserved.
-48 focused phone tests, all 789 UI tests, 41 presentation/style checks and `make dist` pass.
-`phone-render.mjs --details-check` verifies all three appearances, centered dialog geometry at
-360/390/430px, metadata position, Send containment and absent typing outline. Screenshots:
-`/tmp/mobile-composer-20261011-*.png`. Both Go variants are running before final closure.
+None. Mobile composer and New agent placement is finished and awaiting review above.
 Previously recorded manual/provider acceptance gates remain owed below.
 
 ## Acceptance gates still owed
