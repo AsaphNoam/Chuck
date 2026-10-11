@@ -346,11 +346,11 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   permission is withdrawn or its subscription expires, the phone's desktop entry shows
   **Notifications off**, and the installed app offers to turn them back on.
 
-- **R49 (planned) — Phone chat keeps browser-local drafts.** The mobile composer uses
+- **R49 — Phone chat keeps browser-local drafts.** The mobile composer uses
   FS-03.R36's exact per-agent text, navigation/reload restoration, twenty-draft retention,
   deletion cleanup and newer-draft protection for Send and Steer. Drafts stay on this browser
   and never queue delivery on reconnect.
-- **R50 (planned) — This phone offers Theme.** Choose Chuck Core, Sky & Grove or Studio
+- **R50 — This phone offers Theme.** Choose Chuck Core, Sky & Grove or Studio
   to save the same durable appearance preference used by desktop and other paired phones.
   The setting explicitly says it applies to all Chuck browsers. Saving is disabled offline;
   a failed save reports the refusal and leaves the previous appearance active. This supersedes
@@ -457,11 +457,11 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   running/stopped and offline availability, confirmation and a refused mutation retaining values.
   — focused phone tests and a phone-width browser journey.
 
-- **A20 (planned)** (R49) — Type exact multiline text, leave the agent screen, open another
+- **A20** (R49) — Type exact multiline text, leave the agent screen, open another
   agent, return and reload: each draft is restored independently. Accepted Send/Steer clears
   only the submitted draft; refused delivery and newer text during delivery remain intact.
   Agent deletion removes its draft. — focused phone tests and browser journey.
-- **A21 (planned)** (R50) — From This phone choose Core, Sky & Grove and Studio; each saves
+- **A21** (R50) — From This phone choose Core, Sky & Grove and Studio; each saves
   the shared preference and applies across routes. A refused save keeps the previous appearance
   and reports the error; offline disables selection. Other config fields are refused by the
   paired-phone route without modifying configuration. — server/UI tests and phone browser journey.

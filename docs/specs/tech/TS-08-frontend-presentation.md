@@ -1392,7 +1392,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   its synthetic click. Prevent native text selection/callout on agent rows. FS-20.R47 uses page-local
   project/group choices capped at 256 most recently changed identities, with no layout write.
 
-- **R122 (planned) — Mobile draft and theme parity reuses existing owners.** The phone
+- **R122 — Mobile draft and theme parity reuses existing owners.** The phone
   composer uses `components/chat/drafts.ts`, including revision checks before accepted-send
   cleanup, and the phone deleted-agent event discards that agent's draft. This phone offers
   a labelled Theme select using the existing finite appearance ids and shared `/api/config`

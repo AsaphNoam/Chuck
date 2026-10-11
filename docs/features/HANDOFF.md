@@ -6,8 +6,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** `v0.13.0` tagged at `b3ccae0` and published 2026-10-10; publication verified.
-  The user's release waiver is not completed review. Manual provider gates below remain owed.
+- **Release:** `v0.14.0` tagged locally 2026-10-11 at the release commit, **unpushed**; pushing
+  `main` and the tag needs explicit user authorization, then publication verification (workflow
+  §16.6). `v0.13.0` was published 2026-10-10. The user waived the open review units below for
+  release; that is not completed review. Manual provider gates below remain owed.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
 - **Awaiting review — mobile agent header, composer and model switch:** `c3b3c70`, `73cc75b`,
   `f15ee50`; FS-20.R43, TS-08.R111. New agent alone uses the centered PhoneSheet. The back
@@ -22,6 +24,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   FS-20.R47–R48/A19, TS-08.R121. Project-scoped page-session group choices and a long-press
   action sheet over shared phone management forms. Receipts: shared project resources
   `mobile-actions-20261011/`. Fixtures make no provider claim.
+- **Awaiting review — phone chat drafts and Theme selection:** FS-20.R49–R50/A20–A21,
+  TS-08.R122, TS-13.R25. Per-agent browser-local drafts via `components/chat/drafts.ts` and an
+  appearance-only `PUT /api/config` for paired phones. Receipt: `phone-render.mjs --parity-check`.
 - **Design awaiting scope confirmation — CLI parity:** `docs/ideas.md` proposes full nonvisual
   web parity with composable terminal input/output. No requirements or active change yet.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
@@ -38,13 +43,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-In progress — mobile chat drafts and Theme selection (2026-10-11), FS-20.R49–R50/A20–A21,
-TS-08.R122, TS-13.R25. Shared draft helpers and narrow appearance-only config write are wired.
-49 focused phone tests, server field/route checks, type and 41 presentation checks pass.
-Chromium verifies navigation/reload/refusal/deletion and Theme selection at 360/390/430px.
-Receipt: `/tmp/mobile-parity-20261011*.png`, `phone-render.mjs --parity-check`.
-Next: final UI/Go closure matrix and refreshed embed.
-The previous agent's mobile header/runtime work is committed; its review unit remains above.
+None. The v0.14.0 release is cut; the next change starts from a review unit above or a new request.
 
 ## Acceptance gates still owed
 
@@ -113,4 +112,5 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-See [`RELEASE-v0.13.0-notes.md`](../archive/state/RELEASE-v0.13.0-notes.md).
+See [`RELEASE-v0.14.0-notes.md`](../archive/state/RELEASE-v0.14.0-notes.md) (unpublished until
+pushed) and [`RELEASE-v0.13.0-notes.md`](../archive/state/RELEASE-v0.13.0-notes.md).

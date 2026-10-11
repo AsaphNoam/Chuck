@@ -407,3 +407,11 @@ Editing that older release is separate publication work.
 
 See [`RELEASE-v0.13.0-notes.md`](../archive/state/RELEASE-v0.13.0-notes.md).
 Publication verified; settled pre-release evidence is in the handoff archive.
+
+## Settled at v0.14.0 release (2026-10-11)
+
+Mobile chat drafts and Theme selection (FS-20.R49–R50/A20–A21, TS-08.R122, TS-13.R25) closed:
+49 focused phone tests, server field/route checks, type and 41 presentation checks, Chromium
+navigation/reload/refusal/deletion and Theme at 360/390/430px (`/tmp/mobile-parity-20261011*.png`,
+`phone-render.mjs --parity-check`). Release closure ran both Go variants via `make test`, the UI
+suite and `make dist VERSION=0.14.0`.

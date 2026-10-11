@@ -129,7 +129,7 @@ cd ui && npm ci && npm run dev   # http://localhost:5173
 ## Layout (`~/.chuck/`)
 
 ```
-roles/{role}.json     personas (seeded: chucky, implementer, reviewer, researcher)
+roles/{role}.json     personas (seeded: default, chucky, implementer, reviewer, researcher)
 projects/{p}.json     workspaces (seeded: my-app)
 backends.json         providers + models (version 2)
 config-sources.json   optional Claude/Codex native-config bindings
@@ -159,19 +159,20 @@ Seeding is per-file and if-absent: new roles appear on the next `dashboard start
 and your edits to existing ones are never overwritten. Edit them in Settings or
 directly in `roles/{role}.json`.
 
+- **`default`** — no specialized persona (shown as No persona). It is the default for new agents.
 - **`chucky`** — built-in Chuck expert and coordinator. Ask it how anything works
   (launch syntax, config files, switch-runtime, archive, messaging), or hand it
   a goal: it can launch other agents via the `chuck` CLI and coordinate
   them over MCP messaging when the selected real CLI passes the credentialed HTTP-MCP
   compatibility gate recorded in the specifications.
 - **`implementer`** — completes a requested change within existing conventions and reports the
-  verification it actually ran. It is the default role.
+  verification it actually ran.
 - **`reviewer`** — assesses work against its requirements and reports evidence-backed findings.
 - **`researcher`** — investigates code, specifications and history, or external documentation,
   and reports sourced findings.
 
 Every role, including one you write yourself, also receives a short Chuck operating context at
-launch. Homes created before these four roles keep any `pm` or `teammate` role files as ordinary
+launch unless its persona turns off **Chuck aware agent**. Homes created before these roles keep any `pm` or `teammate` role files as ordinary
 editable roles; Chuck no longer creates them.
 
 ## HTTP API (`127.0.0.1:{port}`)
