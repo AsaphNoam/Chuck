@@ -469,7 +469,30 @@ func waitLifecycleClaim(t *testing.T, srv *Server, id string) {
 func TestStopDuringWakeConflictsAndKeepsRegistration(t *testing.T) {
 	srv, ts := wakeTestServer(t)
 	id := launchThenStop(t, srv, ts)
-	srv.registry.Chat().SetCommand(slowACP(t, "1", 0))
+	// Hold A inside provider startup while unrelated running targets remain
+	// stoppable through both the individual and group routes (FS-01.R34).
+	others := make([]string, 3)
+	for i := range others {
+		resp, body := post(t, ts.URL+"/api/sessions", map[string]string{"role": "impl", "project": "tmpproj", "group": "unrelated" + strconv.Itoa(i)})
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("launch unrelated: %d %s", resp.StatusCode, body)
+		}
+		var session sessionResponse
+		if err := json.Unmarshal(body, &session); err != nil {
+			t.Fatal(err)
+		}
+		others[i] = session.Agent.AgentID
+	}
+	dir := t.TempDir()
+	entered, release := filepath.Join(dir, "entered"), filepath.Join(dir, "release")
+	script := filepath.Join(dir, "blocked-acp")
+	scriptBody := "#!/bin/sh\ntouch " + strconv.Quote(entered) + "\nwhile [ ! -e " + strconv.Quote(release) + " ]; do sleep 0.01; done\nexec " + strconv.Quote(buildFakeACP(t)) + " \"$@\"\n"
+	if err := os.WriteFile(script, []byte(scriptBody), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	unblock := func() { _ = os.WriteFile(release, nil, 0o600) }
+	defer unblock()
+	srv.registry.Chat().SetCommand(script)
 
 	type result struct {
 		status int
@@ -481,6 +504,33 @@ func TestStopDuringWakeConflictsAndKeepsRegistration(t *testing.T) {
 		resumed <- result{resp.StatusCode, string(body)}
 	}()
 	waitLifecycleClaim(t, srv, id)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(entered); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("resume never entered provider startup")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	for i, target := range others {
+		path := "/api/sessions/" + target + "/stop"
+		var request any
+		if i > 0 {
+			action := "stop"
+			if i == 2 {
+				action = "archive"
+			}
+			path = "/api/projects/tmpproj/groups/" + action
+			request = map[string]string{"group": "unrelated" + strconv.Itoa(i)}
+		}
+		resp, body := post(t, ts.URL+path, request)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("unrelated control during startup: %s = %d %s", path, resp.StatusCode, body)
+		}
+		waitRunning(t, srv, target, false)
+	}
 
 	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/stop", nil)
 	if resp.StatusCode != http.StatusConflict {
@@ -490,6 +540,7 @@ func TestStopDuringWakeConflictsAndKeepsRegistration(t *testing.T) {
 		t.Fatalf("stop during wake code = %q, want conflict: %s", code, body)
 	}
 
+	unblock()
 	got := <-resumed
 	if got.status != http.StatusOK {
 		t.Fatalf("resume status = %d, want 200: %s", got.status, got.body)

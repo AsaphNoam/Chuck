@@ -1,15 +1,73 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
+
+// FS-01.R34 / TS-10.R43: an owner reserves its captured agents, automatic
+// contention returns to the due queue, and unrelated Stop remains available.
+func TestQuotaOwnerActionScopesContentionAndDefersAdmission(t *testing.T) {
+	s := testServer(t, true)
+	q := seedQuotaHTTP(t, s, "owner-action-target")
+	other := seedQuotaHTTP(t, s, "unrelated-stop-target")
+	if err := s.stateStore.ClaimQuota(q.AgentID, q.EpisodeID, q.Revision, "owner-action-attempt"); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }); <-done }
+	handler := s.quotaControlHandler(func(*http.Request) ([]state.QuotaControlSnapshot, error) {
+		return s.captureQuotaSnapshots([]string{q.AgentID})
+	}, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(entered)
+		<-release
+		w.WriteHeader(http.StatusConflict) // preserve the deferral for the next tick
+	}), "task")
+	go func() {
+		defer close(done)
+		r := newLocalRequest(http.MethodPost, "/api/tasks/owner/cancel", nil)
+		r.SetPathValue("id", "owner")
+		handler.ServeHTTP(httptest.NewRecorder(), r)
+	}()
+	defer unblock()
+	<-entered
+	if w := quotaHTTP(t, s, http.MethodPost, "/api/sessions/"+q.AgentID+"/stop", ""); w.Code != http.StatusConflict {
+		t.Fatalf("target Stop during owner action: %d %s", w.Code, w.Body.String())
+	}
+	// Even while the policy lock is held, unrelated Stop does not join it.
+	s.quotaControlMu.Lock()
+	w := quotaHTTP(t, s, http.MethodPost, "/api/sessions/"+other.AgentID+"/stop", "")
+	s.quotaControlMu.Unlock()
+	if w.Code != http.StatusOK {
+		t.Fatalf("unrelated Stop: %d %s", w.Code, w.Body.String())
+	}
+	s.startQuotaContinuation(context.Background(), q)
+	fresh, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil || fresh.State != state.QuotaDeferred || fresh.ProviderStarted {
+		t.Fatalf("contended admission left stuck claim: %+v err=%v", fresh, err)
+	}
+	due, err := s.stateStore.DueQuotaIntents(fresh.DueAt.Add(time.Second), state.MaxQuotaDueBatch)
+	if err != nil || len(due) != 1 || due[0].AgentID != q.AgentID {
+		t.Fatalf("deferral absent from next due pass: %+v err=%v", due, err)
+	}
+	unblock()
+	if ae := s.stopAgent(context.Background(), q.AgentID); ae != nil {
+		t.Fatalf("reservation not released: %v", ae)
+	}
+}
 
 func TestQuotaControlWrapperPreservesRefusalAndReplacedEpisode(t *testing.T) {
 	s := testServer(t, true)

@@ -586,10 +586,11 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 // (INV §4). Losing the claim returns the same conflict a losing resume returns;
 // the caller may retry once the transition settles.
 func (s *Server) stopAgent(ctx context.Context, id string) *runtime.APIError {
-	if !s.quotaControlMu.TryLock() {
+	release, ok := s.claimQuotaActions(quotaAgentKeys([]string{id}))
+	if !ok {
 		return apiError(runtime.CodeConflict, "a lifecycle or quota action is already in progress")
 	}
-	defer s.quotaControlMu.Unlock()
+	defer release()
 	if !s.claimLifecycle(id) {
 		return apiError(runtime.CodeConflict, "a resume is already in progress")
 	}

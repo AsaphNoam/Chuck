@@ -73,6 +73,8 @@ type Server struct {
 	taskStartSlots  chan struct{}
 	quotaStartSlots chan struct{}
 	quotaControlMu  sync.Mutex
+	quotaActionMu   sync.Mutex
+	quotaActions    map[string]bool
 	// thinkTankKick nudges the Think Tank progression dispatcher.
 	thinkTankKick chan struct{}
 	// thinkTankSlots bounds rooms progressing at once; thinkTankRooms keeps

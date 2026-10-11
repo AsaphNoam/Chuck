@@ -104,10 +104,11 @@ func (s *Server) handleProjectGroupAction(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) groupAction(ctx context.Context, project, group string, ids []string, archive bool) ([]groupActionResult, error) {
-	if !s.quotaControlMu.TryLock() {
+	release, ok := s.claimQuotaActions(quotaAgentKeys(ids))
+	if !ok {
 		return nil, errGroupLifecycleBusy
 	}
-	defer s.quotaControlMu.Unlock()
+	defer release()
 	projects := make(map[string]string, len(ids))
 	archiveClaimed := make([]string, 0, len(ids))
 	if archive {

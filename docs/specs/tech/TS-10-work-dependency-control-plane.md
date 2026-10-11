@@ -443,7 +443,10 @@ parallel copy of them.
   openings, private room-owned work and room-backed pipeline stages join the same quota contract.
 - **R43 (implemented 2026-10-11)** — Cancellation and admission share a revision/attempt compare-and-swap.
   Wire FS-01.R43 invalidation through the existing successful human-input/lifecycle/owner-control
-  seams; an old callback cannot cancel or renew a later episode. Startup establishes the durable
+  seams; an old callback cannot cancel or renew a later episode. Manual actions reserve only the
+  affected agents and owner, including an automatic continuation's pipeline parent; unrelated
+  Stop/group controls remain available during provider startup. Global disable and automatic
+  admission retain one policy ordering through the provider boundary. Startup establishes the durable
   quota-ownership exception before normal task/run/room recovery, then checks bounded pending/
   claimed intents after ordinary runtime orphan reconciliation. Generic recovery cannot clear
   a preserved assignment or mark its quota-held opportunity as an unrelated failed turn.

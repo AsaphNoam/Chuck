@@ -63,7 +63,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   and unscheduled. Known-reset recovery proof uses state fixtures; FS-01.A28 remains owed.
   Independent specification/code comparison completed on 2026-10-11. QUOTA-01/04 publication
   fixes passed focused HTTP tests, including live/reconnect truth, mixed group members and
-  save-again recovery after publication failure. QUOTA-02/03 remain open (medium fixes).
+  save-again recovery after publication failure. QUOTA-02 is fixed: target agent/owner reservations
+  keep unrelated Stop/group actions available during startup; QUOTA-03 remains in progress.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61 prepare Claude and Codex 5-hour/Weekly views. Chat-header disclosure confirmed.
   Full passive paired snapshots/reads remain TBD for both providers: Claude only has partial live
@@ -79,8 +80,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. All eight trivial/easy findings are fixed and verified. QUOTA-02/03 remain open
-as medium fixes; the quota continuation unit remains open.
+Quota continuation fixes: QUOTA-02 is verified with a pre-fix failing startup/Stop regression,
+focused quota/lifecycle checks and owner contention/deferral coverage. QUOTA-03 metadata repair is
+implemented; legacy append/index-before-receipt crash recovery and final shared closure remain.
 
 ## Acceptance gates still owed
 
@@ -195,17 +197,6 @@ named. No unresolved implementation-local choice. Product code and specification
 
 ### Quota continuation — `9409787` through `8011691`, reviewed 2026-10-11. **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** — QUOTA-02: unrelated agent actions reject Stop and group controls.
-  `internal/server/sessions.go:589–592`, `internal/server/groups.go:107–110`, and
-  `internal/server/quota_controls.go:68–76` use one install-wide quota-control mutex. An ordinary
-  Resume/Switch or owner action holds it through the full handler, including provider startup.
-  During that interval, Stop on a different agent, or Stop/Archive on an unrelated group, returns
-  409 despite having no competing transition on any target. A slow provider can therefore prevent
-  the operator from stopping other running work. FS-01.R6/R34 and FS-02.R75–R76 promise target
-  lifecycle contention; INV §5/§10. Scope owner/manual serialization to the affected agent/owner
-  set while retaining atomic global-disable/admission ordering. Regression: pause Resume for agent
-  A inside startup; Stop agent B and an unrelated group must succeed, while Stop A still returns
-  conflict and its winning resume retains registration. Fix difficulty: medium.
 - **Worth fixing** — QUOTA-03: stopped notice repair bypasses ordinary metadata indexing.
   `internal/server/quota_notice.go:242–248` appends and syncs a repaired Chuck notice directly,
   whereas the live writer also calls the common indexer. After restart repairs a corroborated
@@ -222,6 +213,13 @@ committed cancellations with an idempotent save-again recovery path; group Archi
 successful members once after quota cancellation. Both new live/reconnect regressions failed
 before the fix; focused config/archive checks and state cancellation tests pass. Both full Go
 variants, focused state/server race checks and make dist passed at final closure.
+
+QUOTA-02 checkpoint 2026-10-11 (INV §4/§5/§10/§16/§17): manual controls reserve only target
+agents/owners, automatic admission includes pipeline parents, and global disable/admission retains
+policy ordering. `TestStopDuringWakeConflictsAndKeepsRegistration` failed against the old server
+via `/tmp/quota02-before-overlay.json` and passes after the fix; unrelated individual Stop and group
+Stop/Archive succeed while same-agent Stop conflicts and registration survives. Focused quota,
+lifecycle and owner-deferral tests pass. QUOTA-03 and final closure checks remain.
 
 Review verification: focused server quota/concurrent-quota suite passed with bounded approved
 loopback execution (`GOCACHE=/tmp/chuck-go-cache go test ./internal/server -run

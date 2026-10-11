@@ -39,6 +39,16 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 // Claims follow the indexed due order; provider/resume work uses bounded worker
 // slots after this short admission, as ordinary task dispatch does.
 func (s *Server) claimDueQuota(q state.QuotaIntent) (state.QuotaIntent, bool) {
+	keys, err := s.quotaAdmissionKeys(q)
+	if err != nil {
+		s.log.Error("read quota admission owner", "err", err)
+		return state.QuotaIntent{}, false
+	}
+	release, ok := s.claimQuotaActions(keys)
+	if !ok {
+		return state.QuotaIntent{}, false
+	}
+	defer release()
 	s.quotaControlMu.Lock()
 	defer s.quotaControlMu.Unlock()
 	s.configMu.Lock()
@@ -59,6 +69,26 @@ func (s *Server) claimDueQuota(q state.QuotaIntent) (state.QuotaIntent, bool) {
 }
 
 func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent) {
+	keys, err := s.quotaAdmissionKeys(q)
+	if err != nil {
+		s.log.Error("read quota admission owner", "err", err)
+		if q.State == state.QuotaClaimed {
+			if holdErr := s.stateStore.HoldQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, "owner_unavailable"); holdErr != nil && !errors.Is(holdErr, state.ErrQuotaConflict) {
+				s.log.Error("hold quota continuation with unavailable owner", "err", holdErr)
+			}
+		}
+		return
+	}
+	release, ok := s.claimQuotaActions(keys)
+	if !ok {
+		if q.State == state.QuotaClaimed {
+			if err := s.stateStore.DeferQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, time.Now().UTC().Add(taskDispatchInterval), "busy"); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
+				s.log.Error("defer quota continuation behind manual action", "err", err)
+			}
+		}
+		return
+	}
+	defer release()
 	s.quotaControlMu.Lock()
 	defer s.quotaControlMu.Unlock()
 	// The live policy lock spans eligibility, claim, and the turn's durable
