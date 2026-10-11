@@ -26,9 +26,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Independent specification/code and rendered comparison completed on 2026-10-11. One Must-fix
   phone Settings omission and one Worth-fixing duplicate pairing arrow below keep this unit open.
   Review receipts and screenshots: `/tmp/chuck-button-review-20261011/`.
-- **Review pending — Think Tank room page:** `815a57e`, FS-12.R64/A36, TS-08.R115.
-  Independent comparison owed, including paused/held failure/pipeline, Files viewer and focus.
-  Evidence: shared resources `think-tank-design/runs/r1/`.
+- **Reviewed; fixes pending — Think Tank room page:** `815a57e`, FS-12.R64/A36, TS-08.R115.
+  Independent specification/code and rendered comparison completed on 2026-10-11, including
+  paused/held failure/pipeline, Files viewer and focus. One Must-fix dialog focus regression and
+  one Worth-fixing unavailable-source count below keep this unit open. Review receipts and
+  screenshots: `/tmp/chuck-think-tank-review-20261011/`.
 - **Reviewed; fixes pending — mobile details/composer:** `58b63d1`, FS-20.R37/R43,
   TS-08.R111. Independent specification/code and rendered checks completed on 2026-10-11.
   Inline preview, compact Manage, unboxed footer and Send touch target passed. One Must-fix
@@ -77,8 +79,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. No persona, quota continuation, button redesign and mobile details/composer have completed
-review with fixes pending above.
+None. No persona, quota continuation, Think Tank room page, button redesign and mobile
+details/composer have completed review with fixes pending above.
 
 ## Acceptance gates still owed
 
@@ -274,6 +276,75 @@ Existing lifecycle/registration and external-CLI seams remain in use. Provider c
 durable ownership/CAS/restart/notice claims, bounded admission, explicit Cancel client wiring,
 local/remote guards, and parsed/styled UI surfaces had no additional confirmed findings. No
 unresolved implementation-local choice was found. Product code and specifications were unchanged.
+
+### Think Tank room page — `815a57e`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — ROOM-PAGE-01: closing Files/Commands loses the operator's keyboard position.
+  `ui/src/features/thinktank/ThinkTankPage.tsx:389–393` opens a controlled Radix dialog without
+  a `Dialog.Trigger` or the opener capture/restore handlers used by `ConfirmDialog.tsx:28–45`.
+  Focus Files with the keyboard, press Enter, then Escape; or open Commands and activate Close.
+  After either dismissal `document.activeElement` is BODY; the next Tab restarts at the Chuck
+  shell link instead of continuing from the initiating control. Chromium reproduces both paths
+  in Core, Sky & Grove and Studio at 1024/1440px (12 failed focus assertions). Radix's default
+  modal close handler prevents automatic restoration and focuses its absent trigger ref. This
+  violates TS-08.R115's dialog-built-like-ConfirmDialog contract and the retained keyboard
+  interaction under FS-12.R64/A36; INV §8/§10. Reuse the existing opener-ref autofocus pattern
+  or register the actual trigger; verify Escape, Close and overlay dismissal return focus to
+  the correct Files/Commands button, with dialog-to-viewer focus handled deliberately. Fix
+  difficulty: trivial/easy. Evidence: `receipt.json` and `focus-after-close.png` in the review
+  directory below; the supplemental receipt proves the resulting Tab jump.
+- **Worth fixing** — ROOM-PAGE-02: new header counts report unavailable sources as zero.
+  `ui/src/features/thinktank/ThinkTankPage.tsx:209–210` and `:229–230` derive the counted header
+  buttons from `files.data?.files ?? []` and `commands.data?.commands ?? []`, without considering
+  a completed query error. Return 500 for the room's Files/Commands GETs, exhaust retries, and
+  the header says Files 0 and Commands 0 without indicating that those counts could not be read.
+  Opening Files also says no files changed. The old inline panels already used that empty-list
+  fallback; this finding is specifically the newly introduced counted header, not attribution
+  of the old panel error omission to this commit. The operator cannot distinguish no retained
+  sources from unavailable reads. FS-12.R64's sourced counts and FS-21.R24's source-specific
+  inspection, INV §8/§10. Render loading/unavailable counts truthfully and expose retry at the
+  owning source surface. Regression: reject both reads on a fresh page and verify no
+  authoritative zero/empty result is shown after retries. Fix difficulty: trivial/easy.
+  Evidence: `extra-receipt.json` and `sources-error.png` in the review directory below.
+
+Review verification: independent source/specification audit and root integration/render review
+checked FS-12.R64/A36, TS-08.R115 and the retained FS-21 room contracts in both directions.
+All 25 focused ThinkTankPage tests and all 41 style/presentation checks passed. Approved execution
+ran the working tree's embedded production server on loopback with a newly isolated fixture home
+and deterministic fake ACP. Chromium inspected all three appearances at 1024/1440px: concurrent
+hidden openings, a live turn with held input, paused, failed-turn, ended/synthesis/departed,
+long-title/goal, pipeline and failed-judge states. Representative state/read payloads were
+injected at the browser boundary; actual message and turn-limit mutations used the real server.
+Files dialogs opened the existing viewer with the originating source preserved; Commands listed
+attribution. Layout/state/read-only/reduced-motion checks passed without horizontal page overflow.
+The main run records 130 passing checks and the 12 focus failures above. Eleven supplemental
+checks passed, including entry annotation/excerpt capture, exact opening retry identity,
+refused-retry error feedback, modal focus trapping, the focus-loss consequence, source-error
+observation, and actual room deletion/navigation while preserving participant sessions. These
+observation checks prove the recorded failures; they do not close them. No product-page exception
+was observed. The initial reference host needed automatic JSX and a React Router 7-to-6 Link
+import adaptation before it rendered; these temporary-host repairs changed no product code.
+
+Retrieved the Figma Make study's ThinkTank component/styles and rendered them in a temporary
+minimal host for comparison. Inspected the reference and representative product screenshots;
+composition, density, attribution, speaker tints, recovery state salience, goal disclosure and
+viewer layering conform apart from the findings above. The development matrix rendered at both
+widths in all appearances. Current button construction comes from later `0a4bfb9`; its retry
+variant changes are not findings against this unit. No live-provider delivery/reset/synthesis
+claim is made, and the existing credentialed gates remain owed.
+Receipts/screenshots: `/tmp/chuck-think-tank-review-20261011/`; probe sources:
+`/tmp/chuck-think-tank-review-20261011.mjs` and
+`/tmp/chuck-think-tank-review-extra-20261011.mjs`.
+
+Invariant sweep: §1/§2/§8/§10/§11/§13/§16/§17 matched and were checked. §3 has no persisted
+runtime field or seeded-config write; §4 has no registration artifact; §5 has no concurrent
+claim; §6 has no new interface/runtime; §7 has no record repair/recovery iteration; §9 has no
+durability/liveness primitive; §12 has no external-CLI invocation; §14 has no request trust or
+filesystem-security change; §15 has no external-side-effect ordering change. Existing keyed
+room state, shared room vocabulary, sourced file loading, bounded query windows, canonical
+annotation/rendering seams and feature-owned semantic palette are sound local choices. The new
+dialog's incomplete focus convention and false source-count fallback are rejected above. No
+unresolved product decision. Product code and specifications were unchanged.
 
 ### Button redesign — `0a4bfb9`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
