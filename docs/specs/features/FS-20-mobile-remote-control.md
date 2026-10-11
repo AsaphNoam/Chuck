@@ -270,6 +270,10 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   model/effort at the top right and Send inside at the bottom right. Typing adds no blue
   highlight to the textbox. Send uses R68's quiet outlined surface within a 44px touch target.
   The New agent modal is centered in the viewport; other phone sheets retain their placement.
+  The agent header places an icon-only back chevron beside the name, with no separate
+  project/back action row. Context usage sits between the identity header and tabs, using
+  live percentage and exact token counts when known. Stop (or Resume when stopped) sits at
+  the tabs row's right edge as a separate action, outside the tablist.
 
 - **R44 — Live chat work is visible on the phone.** At the conversation tail,
   a running, busy chat agent shows the desktop's spinner and **Working…** label, including

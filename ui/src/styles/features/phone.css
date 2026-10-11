@@ -58,9 +58,9 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-project-unavailable { opacity: 0.6; }
 .phone-home-note { align-items: center; display: flex; gap: var(--ad-space-1); justify-content: center; color: var(--ad-text-muted); font-size: 0.625rem; margin: 0; }
 .phone-agent, .phone-project, .phone-run-page { display: grid; gap: var(--ad-space-6); min-width: 0; }
-.phone-agent-top { display: flex; align-items: center; justify-content: space-between; gap: var(--ad-space-3); }
 .phone-agent-identity { display: flex; align-items: center; justify-content: space-between; gap: var(--ad-space-2); }
-.phone-agent-title { min-width: 0; }
+.phone-agent-title { display: flex; align-items: center; gap: var(--ad-space-2); min-width: 0; }
+.phone-agent-title .phone-agent-back { flex-shrink: 0; width: 32px; min-height: 44px; justify-content: center; }
 .phone-agent-header h1, .phone-agent-title h1 { font-size: 1.5625rem; line-height: 1.16; font-weight: 600; margin: var(--ad-space-2) 0; overflow-wrap: anywhere; }
 .phone-agent-runtime { color: var(--ad-text-muted); font-size: 0.75rem; margin: 0; overflow-wrap: anywhere; }
 .phone-status { display: inline-flex; align-items: center; gap: var(--ad-space-1); color: var(--ad-state-done); font-size: 0.625rem; line-height: 1.5; }
@@ -83,6 +83,9 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-agent-status > svg { color: var(--ad-text-muted); }
 .phone-row-stopped { opacity: 0.65; }
 .phone-actions.phone-tabs { display: flex; flex-wrap: nowrap; gap: var(--ad-space-6); border-bottom: var(--ad-border-thin) solid var(--ad-border-default); }
+.phone-agent-tabs { display: flex; align-items: center; gap: var(--ad-space-3); border-bottom: var(--ad-border-thin) solid var(--ad-border-default); }
+.phone-agent-tabs .phone-tabs { flex: 1; min-width: 0; gap: var(--ad-space-4); border-bottom: 0; }
+.phone-agent-tabs > button { flex-shrink: 0; }
 .phone-actions.phone-tabs > button { flex: 0 1 auto; border: 0; border-bottom: var(--ad-border-thick) solid transparent; border-radius: 0; background: transparent; color: var(--ad-text-muted); min-height: 44px; padding: var(--ad-space-2) 0; font-size: 0.75rem; }
 .phone-tabs button[aria-selected="true"] { border-bottom-color: var(--ad-state-done); color: var(--ad-state-done); font-weight: 600; }
 .phone-tab-count { color: var(--ad-text-muted); font-size: 0.625rem; margin-left: var(--ad-space-2); }

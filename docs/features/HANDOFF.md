@@ -106,7 +106,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. Mobile composer and New agent placement is finished and awaiting review above.
+In progress — mobile agent header and context meter (FS-20.R43, TS-08.R111).
+Icon-only Back sits beside the agent name; Stop/Resume is a sibling action at the right of
+the tabs row. The shared detailed ContextBar shows live percentage and exact counts when known
+between identity and tabs. No standalone project/back action row remains.
+35 focused tests and all 790 UI tests/41 presentation checks pass. Native Chromium geometry
+checks pass in all three appearances at 360/390/430px; final Chat captures are
+`/tmp/mobile-header-20261011-*-header-*.png` with `phone-render.mjs --details-check`.
+Production embed/build passes; both Go variants are running before closure.
 Previously recorded manual/provider acceptance gates remain owed below.
 
 ## Acceptance gates still owed

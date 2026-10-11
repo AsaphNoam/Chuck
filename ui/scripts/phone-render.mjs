@@ -23,7 +23,7 @@ let skin = "";
 const agent = {
   agent_id: "a1", name: "phone-render", role: "implementer", project: "my-app", backend: "claude", model: "m",
   fast: false, fast_available: false, steering_available: true, interface: "chat", created_at: "", running: true,
-  state: "idle", detail: "", context_pct: 0, updated_at: 0, archived: false,
+  state: "idle", detail: "", context_pct: detailsCheck ? 0.22 : 0, context_used: detailsCheck ? 44000 : undefined, context_size: detailsCheck ? 200000 : undefined, updated_at: 0, archived: false,
 };
 const event = (seq, type, data) => ({ agent_id: "a1", seq, type, ts: "", data });
 const words = "Done. **All tests** pass now, and the build is `green` again after the fix.".split(/(?<= )/);
@@ -171,6 +171,24 @@ try {
       await page.screenshot({ path: `${prefix}-manage.png`, fullPage: true, animations: "disabled" });
       for (const width of [360, 390, 430]) {
         await page.setViewportSize({ width, height: 844 });
+        await page.evaluate(() => {
+          history.pushState(null, "", "/agent/a1");
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        });
+        await page.getByRole("heading", { level: 1 }).waitFor();
+        await page.getByRole("tab", { name: "Chat", exact: true }).click();
+        const header = await page.evaluate(() => {
+          const title = document.querySelector(".phone-agent-title h1").getBoundingClientRect();
+          const back = document.querySelector(".phone-agent-back");
+          const backBox = back.getBoundingClientRect();
+          const tabs = document.querySelector(".phone-tabs").getBoundingClientRect();
+          const action = document.querySelector(".phone-agent-tabs > button");
+          const actionBox = action.getBoundingClientRect();
+          const meter = document.querySelector("[data-ui=context-meter]").getBoundingClientRect();
+          return { backText: back.textContent, backAlignment: Math.abs(backBox.y + backBox.height / 2 - title.y - title.height / 2), actionAlignment: Math.abs(actionBox.y + actionBox.height / 2 - tabs.y - tabs.height / 2), actionOutsideTabs: !action.closest("[role=tablist]"), contextBetween: meter.top > title.bottom && meter.bottom <= tabs.top, overflow: document.documentElement.scrollWidth > innerWidth };
+        });
+        if (header.backText || header.backAlignment > 1 || header.actionAlignment > 1 || !header.actionOutsideTabs || !header.contextBetween || header.overflow) throw new Error(`${theme}/${width} header: ${JSON.stringify(header)}`);
+        await page.screenshot({ path: `${prefix}-header-${width}.png`, animations: "disabled" });
         await page.evaluate(() => {
           history.pushState(null, "", "/project/my-app");
           window.dispatchEvent(new PopStateEvent("popstate"));

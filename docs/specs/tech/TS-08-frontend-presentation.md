@@ -1249,6 +1249,9 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   and bottom-right Send. Phone-scoped textbox focus removes the blue outline without changing
   other controls' focus styling. Send uses the shared icon-primary button and phone touch target.
   PhoneSheet's centered variant applies to New agent; other sheets keep their bottom placement.
+  The phone agent header uses the shared detailed ContextBar with the existing agent context
+  fields and imported meter styles. Back is icon-only beside the name; a wrapper aligns the
+  semantic tablist with a sibling Stop/Resume control rather than adding an action tab.
 
 - **R117 — Phone and desktop share the working indicator.** FS-20.R44 uses
   the same stateless transcript indicator component, existing `.transcript-pending` and

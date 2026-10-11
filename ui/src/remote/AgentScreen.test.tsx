@@ -114,6 +114,19 @@ function renderScreen() {
 }
 
 describe("AgentScreen", () => {
+  it("keeps Back icon-only, separates Stop from tabs, and updates context usage", () => {
+    useConnection.setState({ agents: { a1: { ...agent, context_pct: 0.22, context_used: 44000, context_size: 200000 } } });
+    renderScreen();
+    const back = screen.getByRole("button", { name: "Back to my-app" });
+    expect(back.textContent).toBe("");
+    const tabs = screen.getByRole("tablist", { name: "Agent views" });
+    expect(within(tabs).getAllByRole("tab")).toHaveLength(3);
+    expect(tabs).not.toContainElement(screen.getByRole("button", { name: "Stop", exact: true }));
+    expect(screen.getByLabelText("44K / 200K tokens · 22% context used")).toBeInTheDocument();
+    act(() => useConnection.setState({ agents: { a1: { ...agent, running: false, context_pct: 0.65, context_used: 130000, context_size: 200000 } } }));
+    expect(screen.getByLabelText("130K / 200K tokens · 65% context used")).toBeInTheDocument();
+    expect(tabs).not.toContainElement(screen.getByRole("button", { name: "Resume", exact: true }));
+  });
   // FS-20.A16: live busy state, connection loss and inactive agents.
   it("shows live work and removes it when busy ends or the connection is lost", async () => {
     renderScreen();

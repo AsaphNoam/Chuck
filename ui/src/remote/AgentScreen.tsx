@@ -41,6 +41,7 @@ import { useConnection, watchReasoning, type OpenTranscript } from "./connection
 import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
+import { ContextBar } from "../components/grid/ContextBar";
 import { GroupPicker } from "../components/ui/GroupPicker";
 import { useRoles } from "../api/config";
 import { personaIdentityLabel } from "../lib/personas";
@@ -452,29 +453,32 @@ export function AgentScreen({ agentId }: { agentId: string }) {
 
   return (
     <div className="phone-agent">
-      <div className="phone-agent-top">
-        <button type="button" className="phone-agent-back ad-button-secondary" aria-label={`Back to ${agent.project}`} onClick={() => navigate(`/project/${encodeURIComponent(agent.project)}`)}>
-          <PhoneIcon name="back" size={19} />{agent.project}
-        </button>
+      <header className="phone-agent-header">
+        <span className="phone-eyebrow">{roleBackend}</span>
+        <div className="phone-agent-identity">
+          <div className="phone-agent-title">
+            <button type="button" className="phone-agent-back ad-button-secondary" aria-label={`Back to ${agent.project}`} onClick={() => navigate(`/project/${encodeURIComponent(agent.project)}`)}>
+              <PhoneIcon name="back" size={19} />
+            </button>
+            <h1>{agentTitle(agent, roles?.[agent.role])}</h1>
+          </div>
+          <span className="phone-status" data-tone={agent.running ? agent.state : "stopped"}>
+            {stateLabel}
+          </span>
+        </div>
+        <p className="phone-agent-runtime">{agent.model}{agent.effort ? ` · ${agent.effort} effort` : ""}</p>
+      </header>
+      <ContextBar detailed value={agent.context_pct} used={agent.context_used} size={agent.context_size} />
+      <QuotaBanner value={quota} cancelPending={busy} cancelDisabled={offline} cancelError={quotaCancelError} onCancel={() => void cancelQuotaContinuation()} />
+      <div className="phone-agent-tabs">
+        <div className="phone-actions phone-tabs" role="tablist" aria-label="Agent views">
+          {(["chat", "files", "manage"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} className={tab === name ? "active" : undefined} onClick={() => setTab(name)}>{name[0].toUpperCase() + name.slice(1)}{name === "files" && files.data?.files.length ? <span className="phone-tab-count">{files.data.files.length}</span> : null}</button>)}
+        </div>
         {agent.running ? (
           <button type="button" className="ad-button-danger" disabled={offline || busy} onClick={() => setStopOpen(true)}>Stop</button>
         ) : (
           <button type="button" className="ad-button-secondary" disabled={offline || busy} onClick={() => void act(() => resumeAgent(agentId))}>Resume</button>
         )}
-      </div>
-      <header className="phone-agent-header phone-agent-identity">
-        <div className="phone-agent-title">
-          <span className="phone-eyebrow">{roleBackend}</span>
-          <h1>{agentTitle(agent, roles?.[agent.role])}</h1>
-          <p className="phone-agent-runtime">{agent.model}{agent.effort ? ` · ${agent.effort} effort` : ""}</p>
-        </div>
-        <span className="phone-status" data-tone={agent.running ? agent.state : "stopped"}>
-          {stateLabel}
-        </span>
-      </header>
-      <QuotaBanner value={quota} cancelPending={busy} cancelDisabled={offline} cancelError={quotaCancelError} onCancel={() => void cancelQuotaContinuation()} />
-      <div className="phone-actions phone-tabs" role="tablist" aria-label="Agent views">
-        {(["chat", "files", "manage"] as const).map((name) => <button key={name} type="button" role="tab" aria-selected={tab === name} className={tab === name ? "active" : undefined} onClick={() => setTab(name)}>{name[0].toUpperCase() + name.slice(1)}{name === "files" && files.data?.files.length ? <span className="phone-tab-count">{files.data.files.length}</span> : null}</button>)}
       </div>
       {!agent.running && tab !== "manage" && error && <p className="phone-error" role="alert">{error}</p>}
       {tab === "files" && <section className="phone-section phone-files" aria-label="Files">
