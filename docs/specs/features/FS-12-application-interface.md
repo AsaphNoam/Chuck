@@ -472,7 +472,10 @@ Requirements are user-observable.
   the stable room id at the right. The header pairs a mono uppercase "Think Tank / project"
   eyebrow with a room-symbol tile over the large title; at the right sit Files and Commands with
   their counts, a short rule, the existing Pause / Keep going / Resume control, a quiet
-  destructive End discussion and Delete. A context row follows: a state chip (Running, Waiting,
+  destructive End discussion and Delete. Source counts distinguish loading and unavailable reads
+  from a successful zero; each source dialog surfaces read failure with its own Retry action.
+  Dismissing the dialog restores keyboard focus to its Files or Commands opener.
+  A context row follows: a state chip (Running, Waiting,
   Needs attention, Paused, Ended — colored by its tone with a dot), "Phase …", a rule,
   "Independent openings On/Off", "Final synthesis On/Off" and, for a pipeline room, its run link
   at the right. The goal is a full-width card disclosure, "Room goal" with a one-line preview and

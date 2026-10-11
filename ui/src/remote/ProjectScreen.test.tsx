@@ -80,6 +80,16 @@ describe("ProjectScreen new agent", () => {
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Remote reviewer");
   });
 
+  it("falls back to a usable persona when configuration cannot be read", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json({ error: { message: "config unavailable" } }, { status: 500 })));
+    renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: "New agent" }));
+    const role = await screen.findByRole("combobox", { name: "Persona" });
+    await waitFor(() => expect(role).toHaveValue("implementer"));
+    expect(screen.queryByText("Loading persona…")).toBeNull();
+    expect(screen.getByRole("button", { name: "Create agent" })).toBeEnabled();
+  });
+
   it("returns focus to the New agent opener after dismissal", async () => {
     renderScreen();
     const opener = await screen.findByRole("button", { name: "New agent" });

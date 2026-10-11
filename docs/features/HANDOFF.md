@@ -21,22 +21,22 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   FS-20.R45–R46/A17–A18, TS-03.R56–R58, TS-08.R118, TS-13.R24.
   Range `4a7899b` through `1ec40f4` closed without originating findings on 2026-10-11.
   Source/server comparison and 33 original-snapshot authenticated browser checks passed.
-  Current-tree Archive publication regression belongs to quota continuation as QUOTA-04 below.
-- **Reviewed; fixes pending — button redesign:** `0a4bfb9`, FS-12.R68/A38, TS-08.R119.
-  Independent specification/code and rendered comparison completed on 2026-10-11. One Must-fix
-  phone Settings omission and one Worth-fixing duplicate pairing arrow below keep this unit open.
+  The later quota continuation Archive publication regression QUOTA-04 is now fixed.
+- **Reviewed; fixes verified/closed 2026-10-11 — button redesign:** `0a4bfb9`, FS-12.R68/A38,
+  TS-08.R119. Independent specification/code and rendered comparison completed on 2026-10-11;
+  BUTTON-01/02 are fixed and verified.
   Review receipts and screenshots: `/tmp/chuck-button-review-20261011/`.
-- **Reviewed; fixes pending — Think Tank room page:** `815a57e`, FS-12.R64/A36, TS-08.R115.
-  Independent specification/code and rendered comparison completed on 2026-10-11, including
-  paused/held failure/pipeline, Files viewer and focus. One Must-fix dialog focus regression and
-  one Worth-fixing unavailable-source count below keep this unit open. Review receipts and
+- **Reviewed; fixes verified/closed 2026-10-11 — Think Tank room page:** `815a57e`, FS-12.R64/A36,
+  TS-08.R115. Independent specification/code and rendered comparison completed on 2026-10-11,
+  including paused/held failure/pipeline, Files viewer and focus. ROOM-PAGE-01/02 are fixed and
+  verified. Review receipts and
   screenshots: `/tmp/chuck-think-tank-review-20261011/`.
-- **Reviewed; fixes pending — mobile details/composer:** `58b63d1`, FS-20.R37/R43,
-  TS-08.R111. Independent specification/code and rendered checks completed on 2026-10-11.
-  Inline preview, compact Manage, unboxed footer and Send touch target passed. One Must-fix
-  action-color finding below keeps this unit open. Receipts and screenshots:
+- **Reviewed; fixes verified/closed 2026-10-11 — mobile details/composer:** `58b63d1`,
+  FS-20.R37/R43, TS-08.R111. Independent specification/code and rendered checks completed on
+  2026-10-11. Inline preview, compact Manage, unboxed footer and Send touch target passed;
+  MOBILE-01 is fixed and verified. Receipts and screenshots:
   `/tmp/chuck-mobile-review-20261011/`.
-- **Reviewed; fixes pending — No persona and optional persona awareness:**
+- **Reviewed; fixes verified/closed 2026-10-11 — No persona and optional persona awareness:**
   [`agents-without-a-persona-by-default.md`](../ready-changes/agents-without-a-persona-by-default.md)
   is Finished. Substantive range `d29a4f5` through `2de7167`. FS-01.R46–R47/A29–A30,
   FS-04.R54–R57/A34–A36, FS-18.R20/A16, TS-02.R43–R44, TS-03.R59, TS-08.R120,
@@ -48,8 +48,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [Verification receipt](../archive/state/PERSONA-DEFAULT-2026-10-10.md); raw screenshots/receipt
   `/tmp/chuck-persona-journey-final3/`. Fake providers make no model-adoption claim; existing
   credentialed provider gates below remain owed. Independent specification/code comparison
-  completed on 2026-10-11; one Must-fix phone configuration-error finding below keeps this same
-  unit open.
+  completed on 2026-10-11; PERSONA-01 is fixed and verified.
 - **Reviewed; fixes pending — quota continuation:**
   [`continue-chats-after-quota-reset.md`](../ready-changes/continue-chats-after-quota-reset.md)
   is Finished. Substantive range `9409787` through `8011691`: FS-01.R40–R45/FS-04.R53,
@@ -80,9 +79,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-Trivial finding fixes in progress: independent phone/persona/button and Think Tank fixes are
-implemented with focused tests passing. Parent owns integration, rendered checks, build/embed
-and final closure. Quota publication fixes are verified; QUOTA-02/03 remain outside this run.
+None. All eight trivial/easy findings are fixed and verified. QUOTA-02/03 remain open
+as medium fixes; the quota continuation unit remains open.
 
 ## Acceptance gates still owed
 
@@ -171,21 +169,6 @@ choice or product decision. Product code and specifications were unchanged.
 
 ### No persona and optional persona awareness — `d29a4f5` through `2de7167`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-- **Must fix** — PERSONA-01: phone creation stays in a silent loading state after configuration failure.
-  `ui/src/remote/ProjectScreen.tsx:66–72` requires `config.data` before selecting a persona, but
-  never handles `config.isError`. On a fresh phone page where roles/runtime load successfully and
-  GET `/api/config` fails through its retries, the ordinary New Agent path remains on
-  “Loading persona…” with Create agent disabled and no error or recovery instruction. Advanced
-  also displays the browser's first option (Chucky) despite empty selection state. Explicitly
-  choosing a persona there enables creation, but the operator is never directed to that workaround.
-  The previous phone path had a roles-based fallback; desktop and onboarding already handle a
-  completed config error. FS-01.R47/A29–A30, TS-08.R120; INV §8/§10. Handle the completed error
-  through the existing default-selection seam or surface a truthful retry/recovery path. Regression:
-  return 500 for config and valid roles/runtime, exhaust retries, and verify the phone form exits
-  silent loading with a usable, honestly labelled choice or an explicit error/retry action.
-  Preserve waiting for late successful config and subsequent explicit choices. Fix difficulty:
-  trivial/easy.
-
 Review verification: focused config/state/index/CLI persona and reindex tests passed in untagged
 and `sqlite_fts5` builds; focused server/runtime awareness, API, overlay and clone tests passed
 with bounded approved loopback execution. Frozen lifecycle/clone race checks passed. Six focused
@@ -237,8 +220,8 @@ named. No unresolved implementation-local choice. Product code and specification
 Fix checkpoint 2026-10-11: QUOTA-01/04 closed (INV §1/§2/§8/§10). Global disable publishes
 committed cancellations with an idempotent save-again recovery path; group Archive publishes all
 successful members once after quota cancellation. Both new live/reconnect regressions failed
-before the fix; focused config/archive checks and state cancellation tests pass. Final closure
-matrix remains in progress under Active change.
+before the fix; focused config/archive checks and state cancellation tests pass. Both full Go
+variants, focused state/server race checks and make dist passed at final closure.
 
 Review verification: focused server quota/concurrent-quota suite passed with bounded approved
 loopback execution (`GOCACHE=/tmp/chuck-go-cache go test ./internal/server -run
@@ -260,34 +243,6 @@ local/remote guards, and parsed/styled UI surfaces had no additional confirmed f
 unresolved implementation-local choice was found. Product code and specifications were unchanged.
 
 ### Think Tank room page — `815a57e`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Must fix** — ROOM-PAGE-01: closing Files/Commands loses the operator's keyboard position.
-  `ui/src/features/thinktank/ThinkTankPage.tsx:389–393` opens a controlled Radix dialog without
-  a `Dialog.Trigger` or the opener capture/restore handlers used by `ConfirmDialog.tsx:28–45`.
-  Focus Files with the keyboard, press Enter, then Escape; or open Commands and activate Close.
-  After either dismissal `document.activeElement` is BODY; the next Tab restarts at the Chuck
-  shell link instead of continuing from the initiating control. Chromium reproduces both paths
-  in Core, Sky & Grove and Studio at 1024/1440px (12 failed focus assertions). Radix's default
-  modal close handler prevents automatic restoration and focuses its absent trigger ref. This
-  violates TS-08.R115's dialog-built-like-ConfirmDialog contract and the retained keyboard
-  interaction under FS-12.R64/A36; INV §8/§10. Reuse the existing opener-ref autofocus pattern
-  or register the actual trigger; verify Escape, Close and overlay dismissal return focus to
-  the correct Files/Commands button, with dialog-to-viewer focus handled deliberately. Fix
-  difficulty: trivial/easy. Evidence: `receipt.json` and `focus-after-close.png` in the review
-  directory below; the supplemental receipt proves the resulting Tab jump.
-- **Worth fixing** — ROOM-PAGE-02: new header counts report unavailable sources as zero.
-  `ui/src/features/thinktank/ThinkTankPage.tsx:209–210` and `:229–230` derive the counted header
-  buttons from `files.data?.files ?? []` and `commands.data?.commands ?? []`, without considering
-  a completed query error. Return 500 for the room's Files/Commands GETs, exhaust retries, and
-  the header says Files 0 and Commands 0 without indicating that those counts could not be read.
-  Opening Files also says no files changed. The old inline panels already used that empty-list
-  fallback; this finding is specifically the newly introduced counted header, not attribution
-  of the old panel error omission to this commit. The operator cannot distinguish no retained
-  sources from unavailable reads. FS-12.R64's sourced counts and FS-21.R24's source-specific
-  inspection, INV §8/§10. Render loading/unavailable counts truthfully and expose retry at the
-  owning source surface. Regression: reject both reads on a fresh page and verify no
-  authoritative zero/empty result is shown after retries. Fix difficulty: trivial/easy.
-  Evidence: `extra-receipt.json` and `sources-error.png` in the review directory below.
 
 Review verification: independent source/specification audit and root integration/render review
 checked FS-12.R64/A36, TS-08.R115 and the retained FS-21 room contracts in both directions.
@@ -330,29 +285,6 @@ unresolved product decision. Product code and specifications were unchanged.
 
 ### Button redesign — `0a4bfb9`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-- **Must fix** — BUTTON-01: phone Settings omits the primary construction for confirming actions.
-  `ui/src/remote/PhoneSettings.tsx:123`, `:137` and `:146` leave Save name, Turn notifications
-  back on and Turn notifications on as bare buttons. When editing the phone name or enabling/
-  recovering notifications, these are the sole confirming actions of their form or section, but
-  the new baseline renders muted secondary text without the primary outline or trailing arrow.
-  The notification actions lost `phone-primary` without gaining its replacement. This violates
-  FS-12.R68's primary-action hierarchy and TS-08.R119's variant wiring; INV §8/§10/§13.
-  Apply the existing primary variant at these call sites. Regression: at 390px in all three
-  appearances, edit the name and render notifications off/expired; each forward action must have
-  primary foreground, outline and one trailing arrow while retaining the 44px target and existing
-  disabled/error behavior. Fix difficulty: trivial/easy. Reproduced in
-  `/tmp/chuck-button-review-20261011/extra/receipt.json` and the `*-phone-name-save.png` /
-  `*-phone-notifications-{off,expired}.png` screenshots; notification status alone was stubbed.
-- **Worth fixing** — BUTTON-02: Pair renders two trailing direction symbols.
-  `ui/src/remote/PairScreen.tsx:122–123` adds `ad-button-primary` but retains the inline arrow
-  icon. The shared primary `::after` in `ui/src/styles/components/primitives.css:83–92` supplies
-  another arrow, so entering an eight-character code renders “Pair › →” on the phone. It adds
-  unnecessary visual noise to the approved one-arrow construction (FS-12.R68/A38,
-  TS-08.R119; INV §2/§13). Remove the redundant inline icon while preserving the label and
-  pairing action. Regression: enabled and disabled Pair in all three appearances show exactly
-  one trailing arrow. Fix difficulty: trivial/easy. Evidence:
-  `/tmp/chuck-button-review-20261011/extra/*-phone-pair-{enabled,disabled}.png`.
-
 Review verification: 782 UI tests, all 41 style/presentation checks and the production TypeScript/
 Vite build passed; built entry asset names match the embedded UI. Independently inspected the live
 Figma `/study/buttons` reference and current-tree Chromium surfaces in Core, Sky & Grove and Studio.
@@ -382,20 +314,6 @@ severity-marker formatting was normalized to the existing handoff checker contra
 
 ### Mobile details/composer — `58b63d1`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-- **Must fix** — MOBILE-01: compact Files and Manage actions override the shared action colors.
-  `ui/src/styles/features/phone.css:128` gives all non-danger buttons in these sections
-  `--ad-state-done`, overriding the baseline muted secondary text and its foreground hover color.
-  Open file, Close and Clone stay success-green while hovered; the same override applies to
-  Manage's form actions. This violates FS-12.R68's shared action language (INV §8/§10/§13);
-  FS-20.R43's compact layout does not authorize a separate secondary-action palette. Remove the
-  feature-owned color override and inherit the shared variants while preserving the compact
-  geometry, danger color, focus ring and 44px target. Regression: in Core, Sky & Grove and Studio,
-  secondary actions start muted and turn foreground with an underline on hover. Fix difficulty:
-  trivial/easy. Independent Chromium reproduction at 390px in all three appearances is in
-  `/tmp/chuck-mobile-review-20261011/hover-receipt.json` and `*-390-{files,manage}-hover.png`.
-  Core Open file stayed `rgb(22, 132, 91)` before and during hover; its required muted and
-  foreground values were `rgb(104, 109, 115)` and `rgb(21, 23, 26)`.
-
 Review verification: a focused independent source comparison and root integration review checked
 FS-20.R37/R43, TS-08.R111 and FS-12's applicable presentation rules in both directions. The
 previous handoff's FS-20.R32/TS-08.R116 pointers named diff annotation and desktop cards rather
@@ -421,6 +339,17 @@ change; §14 no request trust/security change (the existing tracked-file query a
 remain in place); §15 no side-effect ordering change; §16 no new admission or retained-state
 mechanism. The existing single selected-path query is sound. The feature-local green secondary
 choice is rejected as MOBILE-01; compact geometry and inline row placement are sound.
+
+## Changelog
+
+- 2026-10-11: closed PERSONA-01 (INV §8/§10), ROOM-PAGE-01/02 (INV §8/§10), BUTTON-01/02
+  (INV §2/§8/§10/§13), MOBILE-01 (INV §8/§10/§13), and QUOTA-01/04 (INV §1/§2/§8/§10).
+  Both Go variants, focused quota state/server race checks, 786 UI tests, 41 presentation
+  checks and make dist passed. Chromium passed 21 room checks at 1024px and 15 phone checks
+  at 390px across Core, Sky & Grove and Studio; representative screenshots were inspected.
+  Receipts: `/tmp/chuck-trivial-room-fix-check/receipt.json` and
+  `/tmp/chuck-trivial-phone-fix-check/receipt.json`. These fixtures use actual UI with mocked
+  API data; they make no live-provider claim. QUOTA-02/03 remain open (medium fix model).
 
 ## Blocked on human
 

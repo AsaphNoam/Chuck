@@ -120,7 +120,7 @@ export function PairScreen({ onPaired }: { onPaired: () => void }) {
         </label>
         {error && <p className="phone-error">{error}</p>}
         <button type="submit" className="ad-button-primary" disabled={code.trim().length !== 8 || !name.trim()}>
-          Pair <PhoneIcon name="arrow" size={17} />
+          Pair
         </button>
       </form>
       <p className="phone-help">The code works once and expires after five minutes. No desktop password is entered on this phone.</p>

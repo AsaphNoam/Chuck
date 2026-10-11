@@ -68,7 +68,17 @@ describe("PhoneSettings", () => {
   it("offers to turn lapsed notifications back on", async () => {
     notifications = "expired";
     renderSettings();
-    expect(await screen.findByRole("button", { name: "Turn notifications back on" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Turn notifications back on" })).toHaveClass("ad-button-primary");
+  });
+
+  it("uses the primary construction for confirming phone settings", async () => {
+    renderSettings();
+    fireEvent.click(await screen.findByRole("button", { name: "Turn notifications on" }));
+    expect(await screen.findByRole("button", { name: "Turn notifications off" })).not.toHaveClass("ad-button-primary");
+    fireEvent.click(screen.getByRole("group").querySelector("summary")!);
+    fireEvent.change(screen.getByRole("textbox", { name: "Name for this phone" }), { target: { value: "Pixel 2" } });
+    const save = await screen.findByRole("button", { name: "Save name" });
+    expect(save).toHaveClass("ad-button-primary");
   });
 
   it("unpairs itself", async () => {

@@ -120,7 +120,7 @@ export function PhoneSettings() {
           <input maxLength={64} value={name ?? s.name} onChange={(event) => setName(event.target.value)} />
         </label>
         {name !== null && (
-          <button type="submit" disabled={offline || busy || !name.trim()}>
+          <button type="submit" className="ad-button-primary" disabled={offline || busy || !name.trim()}>
             Save name
           </button>
         )}
@@ -134,7 +134,7 @@ export function PhoneSettings() {
         ) : lapsed ? (
           <>
             <p className="phone-error">Notifications are off: this phone stopped accepting them.</p>
-            <button type="button" disabled={offline || busy} onClick={() => void enable()}>
+            <button type="button" className="ad-button-primary" disabled={offline || busy} onClick={() => void enable()}>
               Turn notifications back on
             </button>
           </>
@@ -143,7 +143,7 @@ export function PhoneSettings() {
             Turn notifications off
           </button>
         ) : (
-          <button type="button" disabled={offline || busy} onClick={() => void enable()}>
+          <button type="button" className="ad-button-primary" disabled={offline || busy} onClick={() => void enable()}>
             Turn notifications on
           </button>
         )}

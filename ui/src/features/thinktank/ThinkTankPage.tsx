@@ -1,4 +1,4 @@
-import { useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
@@ -90,6 +90,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
   const entries = useThinkTankEntries(id);
   const activity = useThinkTankActivity(id);
   const [panel, setPanel] = useState<"" | "files" | "commands">("");
+  const sourceFocusRef = useRef<HTMLElement | null>(null);
   const files = useThinkTankFiles(id, true);
   const commands = useThinkTankCommands(id, true);
   const agents = useAgentStore((state) => state.agents);
@@ -226,8 +227,8 @@ function Room({ room }: { room: ThinkTankDetail }) {
           <h1 className="think-tank-title">{roomTitle(room)}</h1>
         </div>
         <div className="think-tank-actions">
-          <Button type="button" onClick={() => setPanel("files")}><FileIcon />Files <span className="think-tank-count">{fileList.length}</span></Button>
-          <Button type="button" onClick={() => setPanel("commands")}><CommandIcon />Commands <span className="think-tank-count">{commandList.length}</span></Button>
+          <Button type="button" onClick={() => setPanel("files")}><FileIcon />Files <span className="think-tank-count">{files.isLoading ? "…" : files.isError ? "unavailable" : fileList.length}</span></Button>
+          <Button type="button" onClick={() => setPanel("commands")}><CommandIcon />Commands <span className="think-tank-count">{commands.isLoading ? "…" : commands.isError ? "unavailable" : commandList.length}</span></Button>
           {(!ended || room.deletable) && <span className="think-tank-action-rule" aria-hidden="true" />}
           {!ended && room.control === "running" && <Button type="button" onClick={() => act(() => control.mutateAsync("pause"))} busy={control.isPending}><PauseIcon />Pause</Button>}
           {!ended && room.control === "pause_requested" && <Button type="button" onClick={() => act(() => control.mutateAsync("resume"))}>Keep going</Button>}
@@ -389,14 +390,30 @@ function Room({ room }: { room: ThinkTankDetail }) {
       <Dialog.Root open={panel !== ""} onOpenChange={(open) => { if (!open) setPanel(""); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay" data-ui="dialog" data-slot="overlay" />
-          <Dialog.Content className="dialog-content think-tank-sources" data-ui="dialog" data-slot="content" data-variant="default" aria-describedby={undefined}>
+          <Dialog.Content
+            className="dialog-content think-tank-sources"
+            data-ui="dialog"
+            data-slot="content"
+            data-variant="default"
+            aria-describedby={undefined}
+            onOpenAutoFocus={() => {
+              sourceFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              sourceFocusRef.current?.focus();
+              sourceFocusRef.current = null;
+            }}
+          >
             <p className="think-tank-eyebrow">Think Tank / {originTitle}</p>
             <Dialog.Title data-slot="title">{panel === "files" ? "Files" : "Commands"}</Dialog.Title>
             {panel === "files" && (
               <section data-ui="think-tank" data-slot="files">
                 <p className="think-tank-sources-note">Files changed in participant turns. Each file opens from its participant's retained workspace.</p>
                 {files.data?.clipped && <p className="think-tank-sources-note">Files from the newest 10,000 activity records are shown. Earlier changes remain in retained room history.</p>}
-                {fileList.length === 0 && <p className="think-tank-sources-note">No files changed in room turns.</p>}
+                {files.isLoading && <p className="think-tank-sources-note">Loading files…</p>}
+                {files.isError && <div className="think-tank-sources-note"><p role="alert">Files could not be loaded.</p><Button type="button" onClick={() => void files.refetch()}>Retry files</Button></div>}
+                {!files.isLoading && !files.isError && fileList.length === 0 && <p className="think-tank-sources-note">No files changed in room turns.</p>}
                 <ul className="think-tank-source-rows">
                   {fileList.map((f) => (
                     <li key={`${f.source_id}-${f.path}`}>
@@ -412,7 +429,9 @@ function Room({ room }: { room: ThinkTankDetail }) {
               <section data-ui="think-tank" data-slot="commands">
                 <p className="think-tank-sources-note">Commands from participant activity, not room-level tool calls.</p>
                 {commands.data?.clipped && <p className="think-tank-sources-note">Commands from the newest 10,000 activity records are shown. Earlier commands remain in retained room history.</p>}
-                {commandList.length === 0 && <p className="think-tank-sources-note">No commands ran in room turns.</p>}
+                {commands.isLoading && <p className="think-tank-sources-note">Loading commands…</p>}
+                {commands.isError && <div className="think-tank-sources-note"><p role="alert">Commands could not be loaded.</p><Button type="button" onClick={() => void commands.refetch()}>Retry commands</Button></div>}
+                {!commands.isLoading && !commands.isError && commandList.length === 0 && <p className="think-tank-sources-note">No commands ran in room turns.</p>}
                 <ul className="think-tank-source-rows">
                   {commandList.map((c) => (
                     <li key={`${c.seq}`}>

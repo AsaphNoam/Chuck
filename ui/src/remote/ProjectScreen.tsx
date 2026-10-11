@@ -64,12 +64,12 @@ function NewAgent({ project, onClose }: { project: string; onClose: () => void }
   const roleInvalid = Boolean(role && roles.data && !roles.data[role]);
   useEffect(() => { if (roleInvalid) setAdvancedOpen(true); }, [roleInvalid]);
   useEffect(() => {
-    if (role || !roles.data || !config.data) return;
-    const configured = config.data.default_role;
+    if (role || !roles.data || (!config.data && !config.isError)) return;
+    const configured = config.data?.default_role;
     if (configured && roles.data[configured]) setRole(configured);
     else if (roleEntries.some(([id, value]) => isCanonicalNoPersona(id, value))) setRole("default");
     else setRole(roleEntries[0]?.[0] ?? "");
-  }, [config.data, role, roleEntries, roles.data]);
+  }, [config.data, config.isError, role, roleEntries, roles.data]);
   const submit = async () => {
     if (!roleID || roleInvalid) return;
     setBusy(true); setError("");

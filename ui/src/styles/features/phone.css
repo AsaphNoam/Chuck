@@ -124,8 +124,6 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-manage .phone-card { background: transparent; border: 0; border-bottom: var(--ad-border-thin) solid var(--ad-border-default); border-radius: 0; padding: 0 0 var(--ad-space-4); gap: var(--ad-space-3); }
 .phone-manage .phone-field input, .phone-manage .phone-field select { min-height: 36px; font-size: 0.875rem; padding: var(--ad-space-2); border-radius: var(--ad-radius-small); }
 .phone-manage button, .phone-file-actions.phone-actions > button { flex: 0 0 auto; width: auto; border: 0; background: transparent; border-radius: var(--ad-radius-small); font-size: 0.75rem; padding: var(--ad-space-1) var(--ad-space-2); justify-self: start; }
-/* The link colour is this group's own secondary look; a danger button keeps .ad-button-danger's colour instead. */
-.phone-manage button:not(.ad-button-danger), .phone-file-actions.phone-actions > button:not(.ad-button-danger) { color: var(--ad-state-done); }
 .phone-manage .phone-manage-rename { display: flex; align-items: flex-end; }
 .phone-manage-rename .phone-field { flex: 1; min-width: 0; }
 .phone-manage .phone-manage-lifecycle { display: flex; flex-wrap: wrap; align-items: center; }

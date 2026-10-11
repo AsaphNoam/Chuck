@@ -19,6 +19,8 @@ import { THINK_TANK_KEYS, fetchAllActivity, noteThinkTankActivity, useThinkTankA
 const room = () => structuredClone(fixture.room);
 let detail: Record<string, unknown> = room();
 let posted: unknown[] = [];
+let failFiles = false;
+let failCommands = false;
 
 const server = setupServer(
   http.get("/api/projects", () => HttpResponse.json({ alpha: { title: "Alpha", cwd: "/tmp" } })),
@@ -30,8 +32,8 @@ const server = setupServer(
   http.get("/api/think-tanks/tt_fixture", () => HttpResponse.json(detail)),
   http.get("/api/think-tanks/tt_fixture/entries", () => HttpResponse.json({ version: 1, entries: fixture.entries, complete: true })),
   http.get("/api/think-tanks/tt_fixture/activity", () => HttpResponse.json({ version: 1, activity: [], complete: true })),
-  http.get("/api/think-tanks/tt_fixture/files", () => HttpResponse.json({ version: 1, sources: [], files: [] })),
-  http.get("/api/think-tanks/tt_fixture/commands", () => HttpResponse.json({ sources: [], commands: [{ source_id: "src_1", agent_name: "Ari", project: "alpha", tool_call_id: "t1", command: "go test ./...", status: "completed", seq: 4 }] })),
+  http.get("/api/think-tanks/tt_fixture/files", () => failFiles ? new HttpResponse(null, { status: 500 }) : HttpResponse.json({ version: 1, sources: [], files: [] })),
+  http.get("/api/think-tanks/tt_fixture/commands", () => failCommands ? new HttpResponse(null, { status: 500 }) : HttpResponse.json({ sources: [], commands: [{ source_id: "src_1", agent_name: "Ari", project: "alpha", tool_call_id: "t1", command: "go test ./...", status: "completed", seq: 4 }] })),
   http.get("/api/sessions/:agentId/file-search", () => HttpResponse.json({ agent_id: "a_one", files: [] })),
   http.post("/api/think-tanks/tt_fixture/messages", async ({ request }) => {
     posted.push(await request.json());
@@ -55,6 +57,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   detail = room();
   posted = [];
+  failFiles = false;
+  failCommands = false;
   useAgentStore.setState({ agents: {}, order: [], hydrated: true, hydrating: false });
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
 });
@@ -420,6 +424,45 @@ describe("ThinkTankPage", () => {
     expect(within(dialog).getByText(/^Ari · .+ · completed$/)).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("returns focus to the source button when its dialog closes", async () => {
+    renderRoom();
+    const commands = await screen.findByRole("button", { name: /Commands 1/ });
+    commands.focus();
+    fireEvent.click(commands);
+    const dialog = await screen.findByRole("dialog", { name: "Commands" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(commands).toHaveFocus());
+
+    const files = await screen.findByRole("button", { name: /Files 0/ });
+    files.focus();
+    fireEvent.click(files);
+    fireEvent.keyDown(await screen.findByRole("dialog", { name: "Files" }), { key: "Escape" });
+    await waitFor(() => expect(files).toHaveFocus());
+  });
+
+  it("shows unavailable source counts and retries each source in its dialog", async () => {
+    failFiles = true;
+    failCommands = true;
+    renderRoom();
+
+    const files = await screen.findByRole("button", { name: /Files unavailable/ });
+    const commands = await screen.findByRole("button", { name: /Commands unavailable/ });
+    fireEvent.click(files);
+    const filesDialog = await screen.findByRole("dialog", { name: "Files" });
+    expect(within(filesDialog).getByRole("alert")).toHaveTextContent("Files could not be loaded.");
+    failFiles = false;
+    fireEvent.click(within(filesDialog).getByRole("button", { name: "Retry files" }));
+    await waitFor(() => expect(within(filesDialog).getByText("No files changed in room turns.")).toBeTruthy());
+
+    fireEvent.click(within(filesDialog).getByRole("button", { name: "Close" }));
+    fireEvent.click(commands);
+    const commandsDialog = await screen.findByRole("dialog", { name: "Commands" });
+    expect(within(commandsDialog).getByRole("alert")).toHaveTextContent("Commands could not be loaded.");
+    failCommands = false;
+    fireEvent.click(within(commandsDialog).getByRole("button", { name: "Retry commands" }));
+    await waitFor(() => expect(within(commandsDialog).getByText("go test ./...")).toBeTruthy());
   });
 
   // FS-21.R46, FS-12.R64: an ended room replaces the composer with a read-only note.
