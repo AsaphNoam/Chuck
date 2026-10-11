@@ -984,9 +984,15 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if autoContinue != nil && !cfg.AutoContinue {
-		if err := s.stateStore.CancelPendingQuotas(); err != nil {
+		ids, err := s.stateStore.CancelPendingQuotas()
+		if err != nil {
 			s.log.Error("cancel disabled quota continuations", "err", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"auto_continue": false, "error": map[string]string{"code": "internal", "message": "Auto continue is off, but pending continuations could not be cancelled. Restore local storage and save again."}})
+			return
+		}
+		if err := s.publishQuotaAgents(ids); err != nil {
+			s.log.Error("publish disabled quota continuations", "err", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"auto_continue": false, "error": map[string]string{"code": "internal", "message": "Auto continue is off and pending continuations are cancelled, but live state could not be refreshed. Restore local storage and save again."}})
 			return
 		}
 	}

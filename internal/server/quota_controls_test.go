@@ -95,3 +95,51 @@ func TestSuccessfulGroupAndProjectArchiveCancelCapturedQuota(t *testing.T) {
 		})
 	}
 }
+
+// Archive publishes every committed member once, including members without any quota history.
+func TestGroupArchivePublishesMixedQuotaMembers(t *testing.T) {
+	s := testServer(t, true)
+	q := seedQuotaHTTP(t, s, "mixed-quota")
+	for _, id := range []string{q.AgentID, "mixed-ordinary"} {
+		agent := state.Agent{AgentID: id, Name: id, Project: "my-app", Group: "ops", Interface: "chat", CreatedAt: time.Now().UTC()}
+		if err := s.stateStore.WriteAgent(agent); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.stateMgr.Touch(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	events, unsubscribe := s.eventBus.Subscribe()
+	defer unsubscribe()
+	w := quotaHTTP(t, s, http.MethodPost, "/api/projects/my-app/groups/archive", `{"group":"ops"}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("archive: %d %s", w.Code, w.Body.String())
+	}
+	counts := map[string]int{}
+	for len(events) > 0 {
+		ev := <-events
+		if ev.Type != "state_update" {
+			continue
+		}
+		u := ev.Data.(state.AgentStateUpdate)
+		if !u.Archived {
+			t.Fatalf("published unarchived member: %+v", u)
+		}
+		counts[u.AgentID]++
+	}
+	for _, id := range []string{q.AgentID, "mixed-ordinary"} {
+		if counts[id] != 1 {
+			t.Fatalf("%s updates=%d, want one", id, counts[id])
+		}
+	}
+	snapshot, _, disconnect := s.eventBus.SubscribeWithSnapshot()
+	disconnect()
+	if len(snapshot) != 2 {
+		t.Fatalf("reconnect members: %+v", snapshot)
+	}
+	for _, u := range snapshot {
+		if !u.Archived || u.AgentID == q.AgentID && (u.Quota == nil || u.Quota.ContinuationState != state.QuotaCancelled) {
+			t.Fatalf("reconnect archive projection: %+v", u)
+		}
+	}
+}

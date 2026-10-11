@@ -268,10 +268,14 @@ func (s *Server) groupAction(ctx context.Context, project, group string, ids []s
 						settled = append(settled, snapshot)
 					}
 				}
-				if err := s.cancelQuotaSnapshots(settled); err != nil {
+				// Commit cancellation before publishing each archived member exactly
+				// once, including members without a quota episode.
+				_, cancelErr := s.stateStore.CancelQuotaSnapshots(settled)
+				publishErr := s.publishQuotaAgents(stopped)
+				if err := errors.Join(cancelErr, publishErr); err != nil {
 					for i := range ids {
 						if stoppedSet[ids[i]] {
-							results[i] = groupActionResult{AgentID: ids[i], Error: &groupActionError{Code: runtime.CodeInternal, Message: "archived but quota schedule could not be invalidated: " + err.Error()}}
+							results[i] = groupActionResult{AgentID: ids[i], Error: &groupActionError{Code: runtime.CodeInternal, Message: "archived but quota cancellation or live publication failed: " + err.Error()}}
 						}
 					}
 				}

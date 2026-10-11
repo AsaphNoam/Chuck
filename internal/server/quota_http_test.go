@@ -67,6 +67,11 @@ func TestQuotaCancellationExplicitStoppedTarget(t *testing.T) {
 func TestQuotaConfigLiveDisableAndValidation(t *testing.T) {
 	s := testServer(t, true)
 	q := seedQuotaHTTP(t, s, "quota-config")
+	if _, err := s.stateMgr.Touch(q.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	events, unsubscribe := s.eventBus.Subscribe()
+	defer unsubscribe()
 	w := quotaHTTP(t, s, http.MethodPut, "/api/config", `{"auto_continue":null}`)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("null config: %d %s", w.Code, w.Body.String())
@@ -78,6 +83,20 @@ func TestQuotaConfigLiveDisableAndValidation(t *testing.T) {
 	q, err := s.stateStore.GetQuota(q.AgentID)
 	if err != nil || q.State != state.QuotaCancelled {
 		t.Fatalf("pending after disable: %+v %v", q, err)
+	}
+	select {
+	case ev := <-events:
+		u, ok := ev.Data.(state.AgentStateUpdate)
+		if ev.Type != "state_update" || !ok || u.Quota == nil || u.Quota.ContinuationState != state.QuotaCancelled || u.Quota.Revision != q.Revision {
+			t.Fatalf("disable live projection: %+v", ev)
+		}
+	default:
+		t.Fatal("disable did not publish cancellation")
+	}
+	snapshot, _, disconnect := s.eventBus.SubscribeWithSnapshot()
+	disconnect()
+	if len(snapshot) != 1 || snapshot[0].Quota == nil || snapshot[0].Quota.ContinuationState != state.QuotaCancelled || snapshot[0].Quota.Revision != q.Revision {
+		t.Fatalf("disable reconnect projection: %+v", snapshot)
 	}
 	w = quotaHTTP(t, s, http.MethodPut, "/api/config", `{"auto_continue":true}`)
 	if w.Code != http.StatusOK {
@@ -127,6 +146,36 @@ func TestQuotaConfigReportsSavedFalseWhenCancellationFails(t *testing.T) {
 	cfg, err := s.configStore.ReadConfig()
 	if err != nil || cfg.AutoContinue {
 		t.Fatalf("actual saved policy: %+v %v", cfg, err)
+	}
+}
+
+func TestQuotaConfigPublicationFailureCanBeRetried(t *testing.T) {
+	s := testServer(t, true)
+	q := seedQuotaHTTP(t, s, "quota-publish-retry")
+	if _, err := s.stateMgr.Touch(q.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.stateStore.DB().Exec(`ALTER TABLE sessions RENAME TO sessions_unavailable`); err != nil {
+		t.Fatal(err)
+	}
+	w := quotaHTTP(t, s, http.MethodPut, "/api/config", `{"auto_continue":false}`)
+	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), `"auto_continue":false`) || !strings.Contains(w.Body.String(), "save again") {
+		t.Fatalf("publication failure: %d %s", w.Code, w.Body.String())
+	}
+	cancelled, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil || cancelled.State != state.QuotaCancelled {
+		t.Fatalf("committed cancellation: %+v %v", cancelled, err)
+	}
+	if _, err := s.stateStore.DB().Exec(`ALTER TABLE sessions_unavailable RENAME TO sessions`); err != nil {
+		t.Fatal(err)
+	}
+	w = quotaHTTP(t, s, http.MethodPut, "/api/config", `{"auto_continue":false}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("publication retry: %d %s", w.Code, w.Body.String())
+	}
+	snapshot := s.eventBus.Snapshot()
+	if len(snapshot) != 1 || snapshot[0].Quota == nil || snapshot[0].Quota.ContinuationState != state.QuotaCancelled || snapshot[0].Quota.Revision != cancelled.Revision {
+		t.Fatalf("repaired projection: %+v", snapshot)
 	}
 }
 

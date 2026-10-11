@@ -849,6 +849,9 @@ Disabling serializes with quota admission: save the disabled policy before cance
 rows; a partial cancellation failure reports the actual saved false state and a readable failure,
 while the durable policy already prevents new admission. Re-enable does not revive cancelled
 episodes. Config-read failures refuse automatic admission instead of assuming enabled.
+Publish committed cancellations to live updates and reconnect snapshots. If projection refresh
+fails, report the saved false policy and cancelled state with a save-again recovery instruction;
+repeating the disabled save republishes cancelled identities without advancing their revisions.
 
 All ordinary session/agent read and SSE snapshot/update projections carry one optional `quota`
 object while the quota episode remains active: `episode_id`, `revision`, `observed_at`, nullable

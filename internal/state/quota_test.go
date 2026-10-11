@@ -200,7 +200,7 @@ func TestQuotaDueOrderNoticeReceiptAndAgentDeletion(t *testing.T) {
 	if err != nil || len(items) != 2 || items[0].AgentID != early.AgentID {
 		t.Fatalf("due order=%v err=%v", items, err)
 	}
-	if err := st.CancelPendingQuotas(); err != nil {
+	if _, err := st.CancelPendingQuotas(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.GetQuota(late.AgentID); err != nil {

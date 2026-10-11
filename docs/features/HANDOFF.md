@@ -62,8 +62,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [Verification receipt](../archive/state/QUOTA-CONTINUATION-2026-10-11.md).
   Current providers have no verified reset-unit receipt, so observed interruptions remain unknown
   and unscheduled. Known-reset recovery proof uses state fixtures; FS-01.A28 remains owed.
-  Independent specification/code comparison completed on 2026-10-11: three Must-fix findings and
-  one Worth-fixing finding below keep this same unit open. Other review units remain available.
+  Independent specification/code comparison completed on 2026-10-11. QUOTA-01/04 publication
+  fixes passed focused HTTP tests, including live/reconnect truth, mixed group members and
+  save-again recovery after publication failure. QUOTA-02/03 remain open (medium fixes).
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61 prepare Claude and Codex 5-hour/Weekly views. Chat-header disclosure confirmed.
   Full passive paired snapshots/reads remain TBD for both providers: Claude only has partial live
@@ -79,8 +80,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. No persona, quota continuation, Think Tank room page, button redesign and mobile
-details/composer have completed review with fixes pending above.
+Trivial finding fixes in progress: independent phone/persona/button and Think Tank fixes are
+implemented with focused tests passing. Parent owns integration, rendered checks, build/embed
+and final closure. Quota publication fixes are verified; QUOTA-02/03 remain outside this run.
 
 ## Acceptance gates still owed
 
@@ -210,16 +212,6 @@ named. No unresolved implementation-local choice. Product code and specification
 
 ### Quota continuation — `9409787` through `8011691`, reviewed 2026-10-11. **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** — QUOTA-01: global disable leaves live quota projections stale.
-  `internal/server/config_handlers.go:986–993` cancels pending rows without touching/publishing the
-  affected agents. When a person disables Auto continue while a chat is scheduled or waiting,
-  SQLite becomes `cancelled` but the retained SSE snapshot and connected desktop/phone banners
-  continue advertising the old schedule and revision. Reconnecting to that retained snapshot also
-  restores stale truth; clicking its Cancel returns a stale-revision conflict. FS-01.R43,
-  TS-03.R60; INV §1/§8/§10. Return the affected identities from cancellation and publish their
-  committed projections, including a consistent recovery path for publication errors. Regression:
-  hydrate a scheduled chat, PUT `auto_continue:false`, then assert the live update and reconnect
-  snapshot both show cancellation without another agent mutation. Fix difficulty: trivial/easy.
 - **Must fix** — QUOTA-02: unrelated agent actions reject Stop and group controls.
   `internal/server/sessions.go:589–592`, `internal/server/groups.go:107–110`, and
   `internal/server/quota_controls.go:68–76` use one install-wide quota-control mutex. An ordinary
@@ -241,22 +233,12 @@ named. No unresolved implementation-local choice. Product code and specification
   repair a stopped session's pending notice, compare transcript sequence and session counters,
   repeat repair and verify unchanged counters and exactly one notice. Fix difficulty: medium
   (coordinated transcript/index receipt repair).
-- **Must fix** — QUOTA-04: successful group Archive leaves live and reconnect state unarchived.
-  `internal/server/groups.go:260–271` replaces publication for every successfully archived member
-  with `cancelQuotaSnapshots(settled)`. `internal/server/quota_controls.go:123–145` excludes
-  members without a quota snapshot and publishes only quota rows changed by cancellation.
-  Archive a normal group whose members have never hit quota: the archive flag commits and the
-  response reports success, but desktop and phone retain the group/cards. A phone reload also
-  hydrates the stale retained event snapshot, so it does not repair the display. Introduced by
-  `30c6aea`; the original group unit at `1ec40f4` publishes and passes this journey.
-  FS-02.R75–R76/A57, FS-20.R45–R46/A18, TS-03.R56–R58; INV §1/§2/§10.
-  Publish the committed projection of every successfully archived member independently of
-  whether quota cancellation changed a row, without duplicating quota-driven publication.
-  Regression: archive a mixed group with no-quota and scheduled-quota members; assert live
-  updates and reconnect hydration show every successful member archived, with one authoritative
-  update each. Fix difficulty: trivial/easy. Independent current-tree authenticated desktop/phone
-  reproduction: `/tmp/chuck-group-review-20261011/quota-archive-receipt.json` and
-  `quota-archive-stale-{desktop,phone}.png`; probe: `/tmp/chuck-group-quota-repro.mjs`.
+
+Fix checkpoint 2026-10-11: QUOTA-01/04 closed (INV §1/§2/§8/§10). Global disable publishes
+committed cancellations with an idempotent save-again recovery path; group Archive publishes all
+successful members once after quota cancellation. Both new live/reconnect regressions failed
+before the fix; focused config/archive checks and state cancellation tests pass. Final closure
+matrix remains in progress under Active change.
 
 Review verification: focused server quota/concurrent-quota suite passed with bounded approved
 loopback execution (`GOCACHE=/tmp/chuck-go-cache go test ./internal/server -run

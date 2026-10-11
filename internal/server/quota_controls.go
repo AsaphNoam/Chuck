@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -139,10 +140,17 @@ func (s *Server) cancelQuotaSnapshots(snapshots []state.QuotaControlSnapshot) er
 	if err != nil {
 		return err
 	}
-	for _, agentID := range changed {
-		_, _ = s.stateMgr.Touch(agentID)
+	return s.publishQuotaAgents(changed)
+}
+
+func (s *Server) publishQuotaAgents(ids []string) error {
+	var failures []error
+	for _, id := range ids {
+		if _, err := s.stateMgr.Touch(id); err != nil {
+			failures = append(failures, fmt.Errorf("publish %s: %w", id, err))
+		}
 	}
-	return nil
+	return errors.Join(failures...)
 }
 
 func (s *Server) wrapQuotaControl(pattern string, next http.Handler) http.Handler {

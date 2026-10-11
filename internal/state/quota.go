@@ -480,10 +480,40 @@ func (s *Store) CancelQuota(agentID, episode string, revision int64, token strin
 	return nil
 }
 
-// CancelPendingQuotas invalidates all intents when the global policy is disabled.
-func (s *Store) CancelPendingQuotas() error {
-	_, err := s.db.Exec(`UPDATE quota_intents SET state='cancelled', revision=revision+1, due_at=NULL, updated_at=? WHERE state IN ('scheduled','deferred','claimed') AND provider_started=0`, formatTime(timeNow()))
-	return err
+// CancelPendingQuotas invalidates all unstarted intents when policy is disabled.
+// Already-cancelled identities are included so saving false again can repair a
+// failed projection publication without changing their revisions.
+func (s *Store) CancelPendingQuotas() ([]string, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE quota_intents SET state='cancelled', revision=revision+1, due_at=NULL, updated_at=? WHERE state IN ('scheduled','deferred','claimed') AND provider_started=0`, formatTime(timeNow())); err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(`SELECT agent_id FROM quota_intents WHERE state='cancelled' AND provider_started=0 ORDER BY agent_id`)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // ClearQuota cancels an intent only when it still names the exact execution
