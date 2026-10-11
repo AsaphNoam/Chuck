@@ -27,9 +27,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Review pending — Think Tank room page:** `815a57e`, FS-12.R64/A36, TS-08.R115.
   Independent comparison owed, including paused/held failure/pipeline, Files viewer and focus.
   Evidence: shared resources `think-tank-design/runs/r1/`.
-- **Review pending — mobile details/composer:** `58b63d1`, FS-20.R32/R43, TS-08.R116.
-  Inline selected-file preview, compact Manage and unboxed composer footer. Shared Send touch
-  target preserved. Three-appearance evidence: `/tmp/chuck-release-phone-*.png`.
+- **Reviewed; fixes pending — mobile details/composer:** `58b63d1`, FS-20.R37/R43,
+  TS-08.R111. Independent specification/code and rendered checks completed on 2026-10-11.
+  Inline preview, compact Manage, unboxed footer and Send touch target passed. One Must-fix
+  action-color finding below keeps this unit open. Receipts and screenshots:
+  `/tmp/chuck-mobile-review-20261011/`.
 - **Reviewed; fixes pending — No persona and optional persona awareness:**
   [`agents-without-a-persona-by-default.md`](../ready-changes/agents-without-a-persona-by-default.md)
   is Finished. Substantive range `d29a4f5` through `2de7167`. FS-01.R46–R47/A29–A30,
@@ -73,7 +75,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. No persona, quota continuation and button redesign have completed review with fixes pending above.
+None. No persona, quota continuation, button redesign and mobile details/composer have completed
+review with fixes pending above.
 
 ## Acceptance gates still owed
 
@@ -273,6 +276,48 @@ event handlers are sound. No unresolved implementation-local choice. The partial
 diagnostic report, not sole A38 evidence; supplemental routes and report inspection were required.
 Product code and specifications were unchanged. Pre-existing persona/quota finding heading and
 severity-marker formatting was normalized to the existing handoff checker contract.
+
+### Mobile details/composer — `58b63d1`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — MOBILE-01: compact Files and Manage actions override the shared action colors.
+  `ui/src/styles/features/phone.css:128` gives all non-danger buttons in these sections
+  `--ad-state-done`, overriding the baseline muted secondary text and its foreground hover color.
+  Open file, Close and Clone stay success-green while hovered; the same override applies to
+  Manage's form actions. This violates FS-12.R68's shared action language (INV §8/§10/§13);
+  FS-20.R43's compact layout does not authorize a separate secondary-action palette. Remove the
+  feature-owned color override and inherit the shared variants while preserving the compact
+  geometry, danger color, focus ring and 44px target. Regression: in Core, Sky & Grove and Studio,
+  secondary actions start muted and turn foreground with an underline on hover. Fix difficulty:
+  trivial/easy. Independent Chromium reproduction at 390px in all three appearances is in
+  `/tmp/chuck-mobile-review-20261011/hover-receipt.json` and `*-390-{files,manage}-hover.png`.
+  Core Open file stayed `rgb(22, 132, 91)` before and during hover; its required muted and
+  foreground values were `rgb(104, 109, 115)` and `rgb(21, 23, 26)`.
+
+Review verification: a focused independent source comparison and root integration review checked
+FS-20.R37/R43, TS-08.R111 and FS-12's applicable presentation rules in both directions. The
+previous handoff's FS-20.R32/TS-08.R116 pointers named diff annotation and desktop cards rather
+than this unit; the pointers above are corrected. All 34 AgentScreen tests and all 41
+style/presentation checks passed. The focused test run emitted existing unmatched `/api/roles`
+fixture warnings; this unit adds no roles request. Current-tree Chromium checks covered Core,
+Sky & Grove and Studio at 360/390/430px: inline preview loading, row switching and Close, long
+paths/content, compact Manage, refused rename with preserved draft, offline action disabling,
+unboxed footer and outlined Send with a visible focus ring and a 44×44px target. The failed-file
+state rendered its read error in the selected row. All checked states had no page errors or
+horizontal page overflow; action heights remained at least 44px. The 1024px development matrix
+rendered in each appearance. Representative screenshots were independently inspected. Evidence:
+`/tmp/chuck-mobile-review-20261011/receipt.json`, the supplemental hover receipt and screenshots;
+probe source `/tmp/chuck-mobile-review.mjs`. The bounded harness used a loopback-only Vite server
+and mocked API/event input against the real phone entry. It made no live-provider, pairing or
+production-state claim. No product code or specification changed.
+
+Invariant sweep: §8/§10/§13/§17 matched and were checked. §1 has no lifecycle/derived-state
+transition change; §2 no second builder; §3 no persisted/seeded field change; §4 no registration
+artifact change; §5 no concurrent claim; §6 no new runtime/interface; §7 no record repair or
+recovery change; §9 no durability/liveness change; §11 no wire contract change; §12 no external-CLI
+change; §14 no request trust/security change (the existing tracked-file query and server limits
+remain in place); §15 no side-effect ordering change; §16 no new admission or retained-state
+mechanism. The existing single selected-path query is sound. The feature-local green secondary
+choice is rejected as MOBILE-01; compact geometry and inline row placement are sound.
 
 ## Blocked on human
 
