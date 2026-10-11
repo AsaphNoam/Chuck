@@ -156,16 +156,96 @@ func (ix *Indexer) onEventLocked(agentID string, ev runtime.Event) error {
 	if err := ix.trackEvent(agentID, ev); err != nil {
 		return err
 	}
+	_, err = updateEventCounters(ix.db, agentID, ev)
+	return err
+}
+
+func updateEventCounters(db execer, agentID string, ev runtime.Event) (int64, error) {
 	if ev.Seq > 0 {
-		_, err := ix.db.Exec(`
+		res, err := db.Exec(`
 UPDATE sessions
 SET event_count = event_count + 1,
     last_seq = CASE WHEN last_seq < ? THEN ? ELSE last_seq END,
     updated_at = CASE WHEN updated_at < ? THEN ? ELSE updated_at END
 WHERE agent_id = ?`, ev.Seq, ev.Seq, ev.Ts, ev.Ts, agentID)
 		if err != nil {
-			return fmt.Errorf("index: update event counters: %w", err)
+			return 0, fmt.Errorf("index: update event counters: %w", err)
 		}
+		return res.RowsAffected()
+	}
+	return 0, nil
+}
+
+// OnQuotaNotice indexes a durable notice and acknowledges its attempt in one
+// transaction. The quota receipt is the idempotence marker: a crash after the
+// transcript append but before this commit leaves both updates pending.
+func (ix *Indexer) OnQuotaNotice(q state.QuotaIntent, ev runtime.Event) error {
+	return ix.onQuotaNotice(q, ev, nil)
+}
+
+// TranscriptCounters are the durable transcript's session-index counters.
+// Stopped notice repair uses them because an older live writer could have
+// indexed the notice before crashing without confirming its receipt.
+type TranscriptCounters struct {
+	EventCount int64
+	LastSeq    int64
+	UpdatedAt  string
+}
+
+func (ix *Indexer) ReconcileQuotaNotice(q state.QuotaIntent, ev runtime.Event, counters TranscriptCounters) error {
+	if counters.EventCount < 1 || counters.LastSeq < ev.Seq || counters.UpdatedAt < ev.Ts {
+		return fmt.Errorf("index: invalid quota transcript counters")
+	}
+	return ix.onQuotaNotice(q, ev, &counters)
+}
+
+func (ix *Indexer) onQuotaNotice(q state.QuotaIntent, ev runtime.Event, counters *TranscriptCounters) error {
+	if ev.Type != runtime.EvNotice || ev.AgentID != q.AgentID || ev.Seq <= 0 || ev.Ts == "" {
+		return fmt.Errorf("index: invalid quota notice event")
+	}
+	var notice runtime.NoticeData
+	if err := json.Unmarshal(ev.Data, &notice); err != nil || notice.Origin != "chuck" || notice.ContinuationAttempt == "" || notice.ContinuationAttempt != q.NoticeKey {
+		return fmt.Errorf("index: quota notice identity mismatch")
+	}
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	tx, err := ix.db.Begin()
+	if err != nil {
+		return fmt.Errorf("index: begin quota notice transaction: %w", err)
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`UPDATE quota_intents SET revision=revision+1, notice_confirmed=1, updated_at=?
+WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt_token=?
+AND provider_started=1 AND notice_key=? AND notice_confirmed=0`,
+		time.Now().UTC().Format(time.RFC3339), q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, q.NoticeKey)
+	if err != nil {
+		return fmt.Errorf("index: acknowledge quota notice: %w", err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n != 1 {
+		return state.ErrQuotaConflict
+	}
+	var affected int64
+	if counters == nil {
+		affected, err = updateEventCounters(tx, q.AgentID, ev)
+	} else {
+		var result sql.Result
+		result, err = tx.Exec(`UPDATE sessions SET event_count=?, last_seq=?,
+updated_at=CASE WHEN updated_at < ? THEN ? ELSE updated_at END WHERE agent_id=?`,
+			counters.EventCount, counters.LastSeq, counters.UpdatedAt, counters.UpdatedAt, q.AgentID)
+		if err == nil {
+			affected, err = result.RowsAffected()
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("index: update quota notice counters: %w", err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("index: quota notice session metadata is missing")
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("index: commit quota notice transaction: %w", err)
 	}
 	return nil
 }

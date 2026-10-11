@@ -49,7 +49,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   `/tmp/chuck-persona-journey-final3/`. Fake providers make no model-adoption claim; existing
   credentialed provider gates below remain owed. Independent specification/code comparison
   completed on 2026-10-11; PERSONA-01 is fixed and verified.
-- **Reviewed; fixes pending — quota continuation:**
+- **Reviewed; fixes verified/closed 2026-10-11 — quota continuation:**
   [`continue-chats-after-quota-reset.md`](../ready-changes/continue-chats-after-quota-reset.md)
   is Finished. Substantive range `9409787` through `8011691`: FS-01.R40–R45/FS-04.R53,
   TS-02.R45/TS-03.R60, TS-04.R86–R88/TS-10.R39–R44 and the named owner exceptions.
@@ -64,7 +64,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Independent specification/code comparison completed on 2026-10-11. QUOTA-01/04 publication
   fixes passed focused HTTP tests, including live/reconnect truth, mixed group members and
   save-again recovery after publication failure. QUOTA-02 is fixed: target agent/owner reservations
-  keep unrelated Stop/group actions available during startup; QUOTA-03 remains in progress.
+  keep unrelated Stop/group actions available during startup. QUOTA-03 is fixed: live/stopped
+  notice indexing and receipt confirmation commit together; stopped repair reconciles durable
+  transcript counters, including legacy crash orders, and publishes one repaired notice.
+  Final both Go variants, tagged build, go vet and focused quota/lifecycle/index races passed.
+  No findings remain in this originating unit; FS-01.A28 remains the live-provider gate.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61 prepare Claude and Codex 5-hour/Weekly views. Chat-header disclosure confirmed.
   Full passive paired snapshots/reads remain TBD for both providers: Claude only has partial live
@@ -80,9 +84,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-Quota continuation fixes: QUOTA-02 is verified with a pre-fix failing startup/Stop regression,
-focused quota/lifecycle checks and owner contention/deferral coverage. QUOTA-03 metadata repair is
-implemented; legacy append/index-before-receipt crash recovery and final shared closure remain.
+None. Quota continuation findings QUOTA-01–04 are fixed and verified; the originating unit is
+closed. Previously recorded manual/provider acceptance gates remain owed below.
 
 ## Acceptance gates still owed
 
@@ -195,18 +198,10 @@ claim; the existing overlay gates both shared prompt blocks while preserving too
 availability. Canonical presentation uses the shared predicate and keeps customized same-id roles
 named. No unresolved implementation-local choice. Product code and specifications were unchanged.
 
-### Quota continuation — `9409787` through `8011691`, reviewed 2026-10-11. **Fix model:** medium — Codex Terra or Claude Opus.
+### Quota continuation — `9409787` through `8011691`, reviewed and closed 2026-10-11. **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Worth fixing** — QUOTA-03: stopped notice repair bypasses ordinary metadata indexing.
-  `internal/server/quota_notice.go:242–248` appends and syncs a repaired Chuck notice directly,
-  whereas the live writer also calls the common indexer. After restart repairs a corroborated
-  continuation on a stopped chat, the transcript contains the notice but `sessions.event_count`,
-  `last_seq`, and `updated_at` exclude it; Archive metadata/ordering differs from the live path.
-  FS-01.R45, TS-10.R44; INV §2/§9/§10. Route stopped repair through the ordinary metadata-indexing
-  seam, with receipt/idempotence protection against counting the same event twice. Regression:
-  repair a stopped session's pending notice, compare transcript sequence and session counters,
-  repeat repair and verify unchanged counters and exactly one notice. Fix difficulty: medium
-  (coordinated transcript/index receipt repair).
+All findings are fixed and verified. FS-01.A28 remains owed; fixture proof is not a live-provider
+reset/delivery receipt. Fix commits continue the originating unit and create no new review unit.
 
 Fix checkpoint 2026-10-11: QUOTA-01/04 closed (INV §1/§2/§8/§10). Global disable publishes
 committed cancellations with an idempotent save-again recovery path; group Archive publishes all
@@ -219,7 +214,19 @@ agents/owners, automatic admission includes pipeline parents, and global disable
 policy ordering. `TestStopDuringWakeConflictsAndKeepsRegistration` failed against the old server
 via `/tmp/quota02-before-overlay.json` and passes after the fix; unrelated individual Stop and group
 Stop/Archive succeed while same-agent Stop conflicts and registration survives. Focused quota,
-lifecycle and owner-deferral tests pass. QUOTA-03 and final closure checks remain.
+lifecycle and owner-deferral tests pass.
+
+QUOTA-03 closure 2026-10-11 (INV §2/§5/§7/§9/§10/§15/§17): the shared indexer commits ordinary
+session counters and the quota notice receipt in one transaction after transcript sync. Stopped
+repair holds the lifecycle claim through durable counter reconciliation, so an unindexed notice,
+an old live index-before-receipt crash, and a later indexed event all retain exact metadata.
+Success and progress receipt transitions serialize; publication follows a newly committed receipt,
+including an existing pending notice, once. Stopped-metadata and legacy double-count regressions
+failed before their corrections.
+`TestQuotaNoticeRepairIndexesOnceAcrossAppendCrash`, failed-index/retry publication, and live/stopped
+dispatcher metadata checks pass. Final `make test` (both Go variants), `make build`, `make vet`, and
+focused server/state/runtime/index quota, lifecycle and index-boundary races pass. UI source was
+unchanged by these fixes; concurrent mobile work is excluded from the commits.
 
 Review verification: focused server quota/concurrent-quota suite passed with bounded approved
 loopback execution (`GOCACHE=/tmp/chuck-go-cache go test ./internal/server -run
@@ -340,6 +347,11 @@ choice is rejected as MOBILE-01; compact geometry and inline row placement are s
 
 ## Changelog
 
+- 2026-10-11: closed QUOTA-02 (INV §4/§5/§10/§16/§17) and QUOTA-03
+  (INV §2/§5/§7/§9/§10/§15/§17). Unrelated Stop/group controls stay available during manual
+  provider startup; repaired notices retain exact session metadata and publish once after a
+  successful index/receipt commit. Both Go variants, tagged build, vet and focused races pass.
+  The quota continuation unit is closed; FS-01.A28 remains owed.
 - 2026-10-11: closed PERSONA-01 (INV §8/§10), ROOM-PAGE-01/02 (INV §8/§10), BUTTON-01/02
   (INV §2/§8/§10/§13), MOBILE-01 (INV §8/§10/§13), and QUOTA-01/04 (INV §1/§2/§8/§10).
   Both Go variants, focused quota state/server race checks, 786 UI tests, 41 presentation
@@ -347,7 +359,7 @@ choice is rejected as MOBILE-01; compact geometry and inline row placement are s
   at 390px across Core, Sky & Grove and Studio; representative screenshots were inspected.
   Receipts: `/tmp/chuck-trivial-room-fix-check/receipt.json` and
   `/tmp/chuck-trivial-phone-fix-check/receipt.json`. These fixtures use actual UI with mocked
-  API data; they make no live-provider claim. QUOTA-02/03 remain open (medium fix model).
+  API data; they make no live-provider claim. QUOTA-02/03 were closed in the subsequent fix above.
 
 ## Blocked on human
 

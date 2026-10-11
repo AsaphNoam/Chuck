@@ -463,9 +463,13 @@ parallel copy of them.
   do not qualify. A successful empty provider completion may qualify under that same ownership.
   Commit the source receipt before publishing the notice, with one stable continuation-attempt
   key checked against durable transcript history on recovery so a crash between append and
-  acknowledgement cannot duplicate it. Failed/uncertain append remains recoverable without
-  re-running the provider turn. Ordinary notice projection keeps it out of assistant previews and
-  search text, and replay in desktop/Archive/phone uses the shared event reducer.
+  acknowledgement cannot duplicate it. After transcript fsync, update ordinary session metadata
+  counters and acknowledge that key in one SQLite transaction, for live and stopped writers alike;
+  stopped repair reconciles session counters from the durable transcript before acknowledging an
+  already-appended notice, including one indexed by an older live writer before a crash. Failed/uncertain
+  append remains recoverable without re-running the provider turn. Ordinary notice projection keeps
+  it out of assistant previews and search text, and replay in desktop/Archive/phone uses the shared
+  event reducer.
 
 Implementation: bounded dispatch, owner transitions, startup recovery and controls live in
 `internal/server/quota.go`, `quota_controls.go`, `quota_dispatch.go`, `quota_notice.go`,

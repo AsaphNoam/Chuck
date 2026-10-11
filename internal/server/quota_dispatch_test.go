@@ -72,6 +72,34 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 			if notices != 1 {
 				t.Fatalf("continuation notices=%d", notices)
 			}
+			var wantCount, wantLastSeq int64
+			var wantUpdatedAt string
+			for _, ev := range events {
+				if ev.Seq > 0 {
+					wantCount++
+				}
+				if ev.Seq > wantLastSeq {
+					wantLastSeq = ev.Seq
+				}
+				if ev.Ts > wantUpdatedAt {
+					wantUpdatedAt = ev.Ts
+				}
+			}
+			indexDeadline := time.Now().Add(5 * time.Second)
+			for {
+				var eventCount, lastSeq int64
+				var updatedAt string
+				if err := s.stateStore.DB().QueryRow(`SELECT event_count, last_seq, updated_at FROM sessions WHERE agent_id=?`, id).Scan(&eventCount, &lastSeq, &updatedAt); err != nil {
+					t.Fatal(err)
+				}
+				if eventCount == wantCount && lastSeq == wantLastSeq && updatedAt == wantUpdatedAt {
+					break
+				}
+				if time.Now().After(indexDeadline) {
+					t.Fatalf("session index count/seq/updated=%d/%d/%s, transcript=%d/%d/%s", eventCount, lastSeq, updatedAt, wantCount, wantLastSeq, wantUpdatedAt)
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
 			// FS-01.A24: live reload, phone-sized window and archived reads retain
 			// the exact durable order and Chuck attribution of the notice.
 			h := s.routes()

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	persistindex "github.com/AsaphNoam/Chuck/internal/index"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/transcript"
@@ -72,8 +73,8 @@ func quotaNoticeKey(q state.QuotaIntent) string {
 func (s *Server) commitQuotaNotice(q state.QuotaIntent) error {
 	quotaNoticeAppendMu.Lock()
 	defer quotaNoticeAppendMu.Unlock()
-	ev, _, created, err := s.ensureQuotaNoticeLocked(q)
-	if err == nil && created && ev.AgentID != "" && s.eventBus != nil {
+	ev, _, confirmedNow, err := s.ensureQuotaNoticeLocked(q)
+	if err == nil && confirmedNow && ev.AgentID != "" && s.eventBus != nil {
 		s.eventBus.PublishRuntimeEvent(ev)
 	}
 	return err
@@ -111,7 +112,7 @@ func (s *Server) ensureQuotaNoticeLocked(q state.QuotaIntent) (runtime.Event, st
 	if err != nil {
 		return runtime.Event{}, current, false, err
 	}
-	created := false
+	indexed := false
 	if !found {
 		if s.registry != nil {
 			ev, err = s.registry.AppendQuotaNoticeAndSync(current.AgentID, data)
@@ -126,23 +127,32 @@ func (s *Server) ensureQuotaNoticeLocked(q state.QuotaIntent) (runtime.Event, st
 			if err != nil {
 				return runtime.Event{}, current, false, err
 			}
+			indexed = true
 		}
-		created = true
-	}
-	current, err = s.stateStore.GetQuota(current.AgentID)
-	if err != nil {
-		return runtime.Event{}, current, false, err
-	}
-	if !current.NoticeConfirmed {
-		if err := s.stateStore.MarkQuotaNoticeConfirmed(current.AgentID, current.EpisodeID, current.Revision, current.AttemptToken, key); err != nil {
+	} else if s.registry == nil || s.registry.Generation(current.AgentID) == "" {
+		// A stopped repair may find a notice indexed by an older live writer
+		// before its receipt was acknowledged. Reconcile from the transcript.
+		ev, err = s.appendStoppedQuotaNotice(current, data)
+		if err != nil {
 			return runtime.Event{}, current, false, err
 		}
-		current, err = s.stateStore.GetQuota(current.AgentID)
+		indexed = true
 	}
-	return ev, current, created, err
+	if !indexed && s.indexer == nil {
+		return runtime.Event{}, current, false, fmt.Errorf("quota notice index is unavailable")
+	}
+	if !indexed {
+		if err := s.indexer.OnQuotaNotice(current, ev); err != nil {
+			return runtime.Event{}, current, false, err
+		}
+	}
+	current, err = s.stateStore.GetQuota(current.AgentID)
+	return ev, current, true, err
 }
 
 func (s *Server) confirmQuotaSuccess(agentID, generation, turn string) error {
+	quotaNoticeAppendMu.Lock()
+	defer quotaNoticeAppendMu.Unlock()
 	q, err := s.stateStore.GetQuota(agentID)
 	if err != nil || !quotaNoticeClaimMatches(q, generation, turn) {
 		return err
@@ -156,9 +166,7 @@ func (s *Server) confirmQuotaSuccess(agentID, generation, turn string) error {
 			return err
 		}
 	}
-	quotaNoticeAppendMu.Lock()
-	defer quotaNoticeAppendMu.Unlock()
-	ev, q, created, err := s.ensureQuotaNoticeLocked(q)
+	ev, q, confirmedNow, err := s.ensureQuotaNoticeLocked(q)
 	if err != nil {
 		return err
 	}
@@ -171,7 +179,7 @@ func (s *Server) confirmQuotaSuccess(agentID, generation, turn string) error {
 			return err
 		}
 	}
-	if created && ev.AgentID != "" && s.eventBus != nil {
+	if confirmedNow && ev.AgentID != "" && s.eventBus != nil {
 		s.eventBus.PublishRuntimeEvent(ev)
 	}
 	return nil
@@ -219,33 +227,61 @@ func (s *Server) appendStoppedQuotaNotice(q state.QuotaIntent, data runtime.Noti
 	} else if !errors.Is(err, state.ErrNotFound) {
 		return runtime.Event{}, err
 	}
+	if s.indexer == nil {
+		return runtime.Event{}, fmt.Errorf("quota notice index is unavailable")
+	}
 	// Recheck while holding the lifecycle claim in case the earlier check raced
 	// the tail of a provider append.
-	if ev, found, err := findQuotaNotice(s.configStore.Home(), q.AgentID, data.ContinuationAttempt); err != nil {
-		return runtime.Event{}, err
-	} else if found {
-		return ev, nil
-	}
-	w, err := transcript.Open(s.configStore.Home(), q.AgentID, nil)
+	ev, found, err := findQuotaNotice(s.configStore.Home(), q.AgentID, data.ContinuationAttempt)
 	if err != nil {
 		return runtime.Event{}, err
 	}
-	defer w.Close()
-	raw, err := json.Marshal(data)
+	if !found {
+		w, err := transcript.Open(s.configStore.Home(), q.AgentID, nil)
+		if err != nil {
+			return runtime.Event{}, err
+		}
+		defer w.Close()
+		raw, err := json.Marshal(data)
+		if err != nil {
+			return runtime.Event{}, err
+		}
+		ev = runtime.Event{
+			AgentID: q.AgentID, Generation: q.ContinuedGeneration, TurnID: q.ContinuedTurn,
+			Seq: w.NextSeq(), Type: runtime.EvNotice, Data: raw, Ts: time.Now().UTC().Format(time.RFC3339),
+		}
+		if err := w.Append(ev); err != nil {
+			return runtime.Event{}, err
+		}
+		if err := w.Sync(); err != nil {
+			return runtime.Event{}, err
+		}
+	}
+	counters, err := quotaTranscriptCounters(s.configStore.Home(), q.AgentID)
 	if err != nil {
 		return runtime.Event{}, err
 	}
-	ev := runtime.Event{
-		AgentID: q.AgentID, Generation: q.ContinuedGeneration, TurnID: q.ContinuedTurn,
-		Seq: w.NextSeq(), Type: runtime.EvNotice, Data: raw, Ts: time.Now().UTC().Format(time.RFC3339),
-	}
-	if err := w.Append(ev); err != nil {
-		return runtime.Event{}, err
-	}
-	if err := w.Sync(); err != nil {
+	if err := s.indexer.ReconcileQuotaNotice(q, ev, counters); err != nil {
 		return runtime.Event{}, err
 	}
 	return ev, nil
+}
+
+func quotaTranscriptCounters(home, agentID string) (persistindex.TranscriptCounters, error) {
+	var counters persistindex.TranscriptCounters
+	err := transcript.ForEachFile(home, agentID, transcript.ReadOptions{}, func(ev runtime.Event) error {
+		if ev.Seq > 0 {
+			counters.EventCount++
+		}
+		if ev.Seq > counters.LastSeq {
+			counters.LastSeq = ev.Seq
+		}
+		if ev.Ts > counters.UpdatedAt {
+			counters.UpdatedAt = ev.Ts
+		}
+		return nil
+	})
+	return counters, err
 }
 
 // repairQuotaNotices drains only receipt-backed claimed attempts. Provider

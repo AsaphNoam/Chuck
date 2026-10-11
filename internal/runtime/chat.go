@@ -1882,8 +1882,9 @@ func (c *ChatRuntime) AppendAnnotationAndSync(agentID string, data AnnotationDat
 // AppendQuotaNoticeAndSync appends one idempotent quota-continuation notice
 // through the active transcript writer. The server persists its receipt first;
 // this method only reports success after the transcript and its file contents
-// are synced. It deliberately does not invoke the event sink, which would
-// re-enter the server's quota progress hook.
+// are synced. The server indexes it with the durable notice receipt after this
+// call. It deliberately does not invoke the event sink, which would re-enter
+// the server's quota progress hook.
 func (c *ChatRuntime) AppendQuotaNoticeAndSync(agentID string, data NoticeData) (Event, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
@@ -1927,14 +1928,6 @@ func (c *ChatRuntime) AppendQuotaNoticeAndSync(agentID string, data NoticeData) 
 	}
 	if err := w.Sync(); err != nil {
 		return Event{}, fmt.Errorf("sync quota notice: %w", err)
-	}
-	c.mu.Lock()
-	ix := c.indexer
-	c.mu.Unlock()
-	if ix != nil {
-		if err := ix.OnEvent(agentID, ev); err != nil {
-			slog.Error("runtime: index quota notice", "agent", agentID, "seq", ev.Seq, "err", err)
-		}
 	}
 	as.mu.Lock()
 	as.transcript = append(as.transcript, ev)
