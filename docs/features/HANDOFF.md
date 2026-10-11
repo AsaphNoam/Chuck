@@ -20,8 +20,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Review pending — desktop/phone group controls:** FS-02.R72–R76/A54–A57,
   FS-20.R45–R46/A17–A18, TS-03.R56–R58, TS-08.R118, TS-13.R24.
   Range `4a7899b` through `1ec40f4`. Implementation/browser evidence is in the archive.
-- **Review pending — button redesign:** `0a4bfb9`, FS-12.R68/A38, TS-08.R119.
-  Independent comparison owed; shared resources `button-design/PLAN.md`.
+- **Reviewed; fixes pending — button redesign:** `0a4bfb9`, FS-12.R68/A38, TS-08.R119.
+  Independent specification/code and rendered comparison completed on 2026-10-11. One Must-fix
+  phone Settings omission and one Worth-fixing duplicate pairing arrow below keep this unit open.
+  Review receipts and screenshots: `/tmp/chuck-button-review-20261011/`.
 - **Review pending — Think Tank room page:** `815a57e`, FS-12.R64/A36, TS-08.R115.
   Independent comparison owed, including paused/held failure/pipeline, Files viewer and focus.
   Evidence: shared resources `think-tank-design/runs/r1/`.
@@ -71,7 +73,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. No persona and quota continuation have completed review with fixes pending above.
+None. No persona, quota continuation and button redesign have completed review with fixes pending above.
 
 ## Acceptance gates still owed
 
@@ -126,11 +128,9 @@ None. No persona and quota continuation have completed review with fixes pending
 
 ## Review findings
 
-**No persona and optional persona awareness — `d29a4f5` through `2de7167`, reviewed 2026-10-11.**
+### No persona and optional persona awareness — `d29a4f5` through `2de7167`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Must fix — PERSONA-01: phone creation stays in a silent loading state after configuration failure.**
+- **Must fix** — PERSONA-01: phone creation stays in a silent loading state after configuration failure.
   `ui/src/remote/ProjectScreen.tsx:66–72` requires `config.data` before selecting a persona, but
   never handles `config.isError`. On a fresh phone page where roles/runtime load successfully and
   GET `/api/config` fails through its retries, the ordinary New Agent path remains on
@@ -169,11 +169,9 @@ claim; the existing overlay gates both shared prompt blocks while preserving too
 availability. Canonical presentation uses the shared predicate and keeps customized same-id roles
 named. No unresolved implementation-local choice. Product code and specifications were unchanged.
 
-**Quota continuation — `9409787` through `8011691`, reviewed 2026-10-11.**
+### Quota continuation — `9409787` through `8011691`, reviewed 2026-10-11. **Fix model:** medium — Codex Terra or Claude Opus.
 
-**Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix — QUOTA-01: global disable leaves live quota projections stale.**
+- **Must fix** — QUOTA-01: global disable leaves live quota projections stale.
   `internal/server/config_handlers.go:986–993` cancels pending rows without touching/publishing the
   affected agents. When a person disables Auto continue while a chat is scheduled or waiting,
   SQLite becomes `cancelled` but the retained SSE snapshot and connected desktop/phone banners
@@ -183,7 +181,7 @@ named. No unresolved implementation-local choice. Product code and specification
   committed projections, including a consistent recovery path for publication errors. Regression:
   hydrate a scheduled chat, PUT `auto_continue:false`, then assert the live update and reconnect
   snapshot both show cancellation without another agent mutation. Fix difficulty: trivial/easy.
-- **Must fix — QUOTA-02: unrelated agent actions reject Stop and group controls.**
+- **Must fix** — QUOTA-02: unrelated agent actions reject Stop and group controls.
   `internal/server/sessions.go:589–592`, `internal/server/groups.go:107–110`, and
   `internal/server/quota_controls.go:68–76` use one install-wide quota-control mutex. An ordinary
   Resume/Switch or owner action holds it through the full handler, including provider startup.
@@ -194,7 +192,7 @@ named. No unresolved implementation-local choice. Product code and specification
   set while retaining atomic global-disable/admission ordering. Regression: pause Resume for agent
   A inside startup; Stop agent B and an unrelated group must succeed, while Stop A still returns
   conflict and its winning resume retains registration. Fix difficulty: medium.
-- **Worth fixing — QUOTA-03: stopped notice repair bypasses ordinary metadata indexing.**
+- **Worth fixing** — QUOTA-03: stopped notice repair bypasses ordinary metadata indexing.
   `internal/server/quota_notice.go:242–248` appends and syncs a repaired Chuck notice directly,
   whereas the live writer also calls the common indexer. After restart repairs a corroborated
   continuation on a stopped chat, the transcript contains the notice but `sessions.event_count`,
@@ -223,6 +221,58 @@ Existing lifecycle/registration and external-CLI seams remain in use. Provider c
 durable ownership/CAS/restart/notice claims, bounded admission, explicit Cancel client wiring,
 local/remote guards, and parsed/styled UI surfaces had no additional confirmed findings. No
 unresolved implementation-local choice was found. Product code and specifications were unchanged.
+
+### Button redesign — `0a4bfb9`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — BUTTON-01: phone Settings omits the primary construction for confirming actions.
+  `ui/src/remote/PhoneSettings.tsx:123`, `:137` and `:146` leave Save name, Turn notifications
+  back on and Turn notifications on as bare buttons. When editing the phone name or enabling/
+  recovering notifications, these are the sole confirming actions of their form or section, but
+  the new baseline renders muted secondary text without the primary outline or trailing arrow.
+  The notification actions lost `phone-primary` without gaining its replacement. This violates
+  FS-12.R68's primary-action hierarchy and TS-08.R119's variant wiring; INV §8/§10/§13.
+  Apply the existing primary variant at these call sites. Regression: at 390px in all three
+  appearances, edit the name and render notifications off/expired; each forward action must have
+  primary foreground, outline and one trailing arrow while retaining the 44px target and existing
+  disabled/error behavior. Fix difficulty: trivial/easy. Reproduced in
+  `/tmp/chuck-button-review-20261011/extra/receipt.json` and the `*-phone-name-save.png` /
+  `*-phone-notifications-{off,expired}.png` screenshots; notification status alone was stubbed.
+- **Worth fixing** — BUTTON-02: Pair renders two trailing direction symbols.
+  `ui/src/remote/PairScreen.tsx:122–123` adds `ad-button-primary` but retains the inline arrow
+  icon. The shared primary `::after` in `ui/src/styles/components/primitives.css:83–92` supplies
+  another arrow, so entering an eight-character code renders “Pair › →” on the phone. It adds
+  unnecessary visual noise to the approved one-arrow construction (FS-12.R68/A38,
+  TS-08.R119; INV §2/§13). Remove the redundant inline icon while preserving the label and
+  pairing action. Regression: enabled and disabled Pair in all three appearances show exactly
+  one trailing arrow. Fix difficulty: trivial/easy. Evidence:
+  `/tmp/chuck-button-review-20261011/extra/*-phone-pair-{enabled,disabled}.png`.
+
+Review verification: 782 UI tests, all 41 style/presentation checks and the production TypeScript/
+Vite build passed; built entry asset names match the embedded UI. Independently inspected the live
+Figma `/study/buttons` reference and current-tree Chromium surfaces in Core, Sky & Grove and Studio.
+The repository button sweep reported zero errors/legacy-style findings; a supplemental isolated
+fake-provider run covered 57 room, confirmation, launch, onboarding, phone pipeline, pairing and
+Settings states, with no page errors, horizontal overflow or phone buttons under 44px. Nine actual
+fake-provider permission-card render checks passed at 1024/1440px desktop and 390px phone across
+all appearances (`live-permission.json`); phone permission targets measured at least 44px. Twelve
+keyboard-focus, primary/destructive-hover and reduced-motion checks passed. Development matrix
+and representative room fixtures rendered at 1024/1440px; screenshots were inspected. Receipts,
+interaction checks and screenshots are under `/tmp/chuck-button-review-20261011/`; supplemental
+probe sources are `/tmp/chuck-button-review-extra.mjs`, `/tmp/chuck-button-review-states.mjs` and
+`/tmp/chuck-button-live-permission.mjs`.
+The fixture owns temporary CHUCK_HOME state and loopback listeners; no live-provider claim or
+production-state mutation was made. Existing credentialed gates remain owed.
+
+Invariant sweep: §2/§3/§8/§10/§13/§17 matched and were checked. §1 has no derived-state transition;
+§4–§6 no registration/lifecycle/concurrent claim/new runtime; §7 no repair/read-recovery change;
+§9 no durability/liveness change; §11 no wire payload change; §12 no external-CLI invocation
+change; §14 no request trust/security boundary change; §15 no side-effect ordering change;
+§16 no production admission, retained-state, stream or fan-out change. The shared semantic CSS
+construction, public variant update, retired-token removal, navigation selected cues and preserved
+event handlers are sound. No unresolved implementation-local choice. The partial sweep is a
+diagnostic report, not sole A38 evidence; supplemental routes and report inspection were required.
+Product code and specifications were unchanged. Pre-existing persona/quota finding heading and
+severity-marker formatting was normalized to the existing handoff checker contract.
 
 ## Blocked on human
 
