@@ -1,6 +1,6 @@
 # Continue chats after a quota reset
 
-**State:** In progress
+**State:** Finished
 **Why:** Direct `/design-feature` request on 2026-10-09; global default-on, all-agent coverage and
 the exact continuation notice confirmed, with API/retention approval on 2026-10-10.
 **Relevant requirements:** FS-01.R40–R45/A23–A28, FS-04.R53/A33, TS-02.R45, TS-03.R60,
@@ -63,3 +63,10 @@ replacement surface. Reverify on adapter updates before changing the verified su
 
 None for quota indication/recovery using available reset evidence. Full passive subscription
 snapshots and Codex structured reset forwarding remain separate ACP wishlist dependencies.
+
+Implementation and closure finished on 2026-10-11; independent review is available in the live
+handoff for substantive range `9409787` through `8011691`.
+[Verification receipt](../archive/state/QUOTA-CONTINUATION-2026-10-11.md): both Go variants,
+focused races, go vet, 782 UI tests, 41 presentation checks, tagged build/embed and 41 Chromium
+checks pass. Known-reset recovery uses state fixtures; current Claude/Codex interruptions remain
+unknown and unscheduled. FS-01.A28's credentialed provider gate remains owed.

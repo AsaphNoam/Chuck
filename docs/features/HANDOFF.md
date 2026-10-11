@@ -40,14 +40,19 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [Verification receipt](../archive/state/PERSONA-DEFAULT-2026-10-10.md); raw screenshots/receipt
   `/tmp/chuck-persona-journey-final3/`. Fake providers make no model-adoption claim; existing
   credentialed provider gates below remain owed. Independent specification/code comparison owed.
-- **Design ready — quota continuation:**
+- **Review pending — quota continuation:**
   [`continue-chats-after-quota-reset.md`](../ready-changes/continue-chats-after-quota-reset.md)
-  is In progress: FS-01.R40–R45/FS-04.R53, TS-02.R45/TS-03.R60,
-  TS-04.R86–R88/TS-10.R39–R44. Global on by default, every chat agent, exact attributed notice,
-  one-record-per-conversation retention and API replacement approved. Current Cancel clients move
-  to an explicit target; no backwards API compatibility is required. Codex reset forwarding is
-  absent and stays an ACP wishlist dependency per the 2026-10-10 instruction; unknown reset means
-  indication/manual recovery, never a guessed schedule.
+  is Finished. Substantive range `9409787` through `8011691`: FS-01.R40–R45/FS-04.R53,
+  TS-02.R45/TS-03.R60, TS-04.R86–R88/TS-10.R39–R44 and the named owner exceptions.
+  Default-on policy, exact terminal classification, bounded owner-preserving recovery and receipts,
+  explicit Cancel targets, desktop/phone indicators and manual controls are implemented.
+  Both Go variants, go vet, focused runtime/state/server races, 782 UI tests, 41 presentation
+  checks and tagged build/embed pass. 41 Chromium checks cover three-skin desktop/phone layout,
+  stopped unknown-reset indication/settings/cancellation and exact-once notice reload/Archive parity.
+  [Verification receipt](../archive/state/QUOTA-CONTINUATION-2026-10-11.md).
+  Current providers have no verified reset-unit receipt, so observed interruptions remain unknown
+  and unscheduled. Known-reset recovery proof uses state fixtures; FS-01.A28 remains owed.
+  Independent specification/code comparison is available without displacing the other units.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61 prepare Claude and Codex 5-hour/Weekly views. Chat-header disclosure confirmed.
   Full passive paired snapshots/reads remain TBD for both providers: Claude only has partial live
@@ -63,52 +68,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-**Continue chats after a quota reset** — `continue-chats-after-quota-reset.md`.
-
-Plan: (1) verified provider completion classification and default-on config; (2) bounded durable
-episode/claim storage and owner-preserving settlement; (3) dispatcher, cancellation and startup
-recovery; (4) desktop/phone projections and controls, then closure and focused browser journeys.
-Keep lifecycle/owner integration under one owner; independent config implementation and a read-only
-provider/continuation survey are delegated. Config field/default/persistence verified with
-`go test ./internal/config`: omitted reads true and explicit false survives restart. Provider
-normalization, bounded state primitives, owner settlement/admission and UI are implemented; final
-integration/verification remains in progress. Existing
-tree was clean at startup. Reset units remain unknown unless supported primary evidence verifies them.
-UX task: understand why an interrupted conversation is waiting, retain manual control, and resume
-the same unfinished owned work without duplicating accepted results or uncertain provider delivery.
-Focused runtime/state tests pass; approved loopback server `TestQuota` passes, including same-chat
-live/stopped dispatch, one notice, explicit stopped cancellation/stale/replay and config partial
-disable failure. Use `GOCACHE=/tmp/chuck-go-cache`; server/browser tests need bounded approved
-loopback/Chromium execution in this sandbox. UI 781 tests/style/build passed before final receipt
-and partial-save edits; rerun closure after integration. Current Vite at 127.0.0.1:5178 is session
-37586; do not use stale 4317 for verification. Desktop quota matrix at 1024px passes all appearances;
-phone must use actual AgentScreen, not shrink the desktop matrix's 960px card.
-Integration checkpoint 2026-10-11: exact settlement/notice repair, owner-preserving dispatch,
-manual/global cancellation, API/SSE projections and desktop/phone controls are verified by focused
-runtime/state/server tests and quota races. 782 UI tests, 41 presentation checks, build/embed and
-three-skin desktop/phone layout checks pass. Embedded authenticated browser journey verifies explicit
-turn cancellation, unknown-reset indication, actual process Stop with retained phone transcript,
-and persisted disabled policy. Receipts: `/tmp/chuck-quota-journey-stopped/` and
-`/tmp/chuck-quota-render-final/`. Concurrent shared-backend evidence has independent records and
-API/SSE projections. Known-reset fixtures preserve exactly one notice through live reload,
-phone-sized transcript windows and actual archive. Lifecycle closure exposed quota mutex waits
-changing Stop/group release conflicts; TryLock restores the existing conflicts and focused
-switch/wake/group/task tests pass. A concurrent full-matrix run also hit a provider-version probe
-timeout; isolated recheck passes. No tests were weakened.
-Final integration checkpoint: known-reset notice browser parity passes ten checks across desktop
-reload, authenticated phone reload and desktop Archive, with distinct Chuck attribution and
-unchanged sequence (`/tmp/chuck-quota-notice-journey-final/`). Stopped borrowed-task recovery now
-atomically reserves ordinary runtime capacity before resume; full capacity defers with no provider
-frame, assignment change or start-attempt charge. Focused state/server tests and final quota/
-lifecycle races pass, including resume after capacity opens. The sequential closure before that
-capacity refinement passed both Go variants; final closure reruns are in progress.
-Next: finish sequential closure after the final capacity edits, then finish the change and add its
-independent review unit.
-No live-provider reset-unit receipt was found: pinned Claude SDK 0.3.286's bare number and API
-RFC3339 headers describe different surfaces, so both pinned providers still have unknown reset.
+None. Quota continuation finished on 2026-10-11 and is available for independent review above.
 
 ## Acceptance gates still owed
 
+- **FS-01.A28:** bounded packaged/installed Claude/Codex terminal-quota and owner-activation
+  provider receipt. Current Claude SDK 0.3.286's bare numeric reset declaration has no verified
+  producer-unit receipt; Codex forwards no typed reset. Both remain unknown and unscheduled.
+  Known-reset state/fake-provider/browser proof is not live-provider reset or delivery evidence.
 - **FS-14.A50 / FS-21.A31:** bounded packaged Claude/Codex Think Tank stage probe (start → fresh
   participants → judge → accepted output → next stage). Fake-provider E2E and the 318-check render
   pass are not live receipts. **FS-14.A49** restart/race matrix and **FS-21.A32** live Stop-cancel
