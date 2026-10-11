@@ -17,9 +17,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   checksum manifest are uploaded; manifest size (323869523) and SHA-256 match GitHub's
   archive metadata. Readable notes are published. Manual provider gates below remain owed.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
-- **Review pending — desktop/phone group controls:** FS-02.R72–R76/A54–A57,
+- **Review complete — desktop/phone group controls:** FS-02.R72–R76/A54–A57,
   FS-20.R45–R46/A17–A18, TS-03.R56–R58, TS-08.R118, TS-13.R24.
-  Range `4a7899b` through `1ec40f4`. Implementation/browser evidence is in the archive.
+  Range `4a7899b` through `1ec40f4` closed without originating findings on 2026-10-11.
+  Source/server comparison and 33 original-snapshot authenticated browser checks passed.
+  Current-tree Archive publication regression belongs to quota continuation as QUOTA-04 below.
 - **Reviewed; fixes pending — button redesign:** `0a4bfb9`, FS-12.R68/A38, TS-08.R119.
   Independent specification/code and rendered comparison completed on 2026-10-11. One Must-fix
   phone Settings omission and one Worth-fixing duplicate pairing arrow below keep this unit open.
@@ -58,7 +60,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [Verification receipt](../archive/state/QUOTA-CONTINUATION-2026-10-11.md).
   Current providers have no verified reset-unit receipt, so observed interruptions remain unknown
   and unscheduled. Known-reset recovery proof uses state fixtures; FS-01.A28 remains owed.
-  Independent specification/code comparison completed on 2026-10-11: two Must-fix findings and
+  Independent specification/code comparison completed on 2026-10-11: three Must-fix findings and
   one Worth-fixing finding below keep this same unit open. Other review units remain available.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61 prepare Claude and Codex 5-hour/Weekly views. Chat-header disclosure confirmed.
@@ -130,6 +132,38 @@ review with fixes pending above.
   silently through bare `writeText`.
 
 ## Review findings
+
+### Desktop/phone group controls — `4a7899b` through `1ec40f4`, reviewed and closed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Independent server audit and root frontend/integration review compared the group requirements in
+both directions. No confirmed defect originates in this unit; no group fix is required.
+Current-tree focused server group,
+identity and remote-route tests passed; six focused UI files passed all 120 tests, and all 41
+presentation checks passed. The UI run emitted existing unmatched `/api/roles` fixture warnings;
+group work adds no roles request. Current-tree Chromium verified keyboard Create selection,
+typing without assignment and refused-launch draft retention in all three appearances, and
+rendered the 1024px development matrix. Long labels, section collapse, picker focus/stacking,
+confirmation focus and result feedback were independently inspected.
+
+Current-tree authenticated Archive exposed QUOTA-04, introduced by `30c6aea` after this unit.
+To establish attribution, exported `1ec40f4` to an isolated temporary checkout, generated its UI
+with Vite and `make embed -o ui`, and ran its own loopback-only fake-provider server fixture.
+The temporary shared-node_modules symlink caused a TypeScript inferred-declaration path error;
+Vite generation and the original snapshot's 41 presentation checks passed. This is not a new
+TypeScript closure claim. Its authenticated desktop/phone browser journey passed all 33 checks:
+Core, Sky & Grove and Studio; desktop 1024/1440px and phone 360/390/430px; collapsed-header
+cross-status drag, bidirectional membership, Cancel focus, cross-project isolation, successful
+live Archive removal, individual Restore, legacy-route absence, no overflow or page exceptions.
+Receipts/screenshots: `/tmp/chuck-group-original-render-20261011/`; current-tree supplemental
+keyboard/matrix evidence: `/tmp/chuck-group-review-20261011/extra/`. Current-tree Archive gate
+remains failed under QUOTA-04, rather than being represented by the passing historical receipt.
+
+Invariant sweep: §1–§2, §4–§5, §7–§11 and §13–§17 matched and were checked. §3 has no one-shot
+runtime/config field or seeded-config form change; group is durable identity. §6 has no new
+interface/runtime/driver; §12 has no changed external-CLI invocation. Shared picker/projection,
+member stop/archive services, existing claims, four-worker request lifetime, JSON label transport,
+pointer collision and unchanged flat manual order are sound local choices. No unresolved local
+choice or product decision. Product code and specifications were unchanged.
 
 ### No persona and optional persona awareness — `d29a4f5` through `2de7167`, reviewed 2026-10-11. **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -205,6 +239,22 @@ named. No unresolved implementation-local choice. Product code and specification
   repair a stopped session's pending notice, compare transcript sequence and session counters,
   repeat repair and verify unchanged counters and exactly one notice. Fix difficulty: medium
   (coordinated transcript/index receipt repair).
+- **Must fix** — QUOTA-04: successful group Archive leaves live and reconnect state unarchived.
+  `internal/server/groups.go:260–271` replaces publication for every successfully archived member
+  with `cancelQuotaSnapshots(settled)`. `internal/server/quota_controls.go:123–145` excludes
+  members without a quota snapshot and publishes only quota rows changed by cancellation.
+  Archive a normal group whose members have never hit quota: the archive flag commits and the
+  response reports success, but desktop and phone retain the group/cards. A phone reload also
+  hydrates the stale retained event snapshot, so it does not repair the display. Introduced by
+  `30c6aea`; the original group unit at `1ec40f4` publishes and passes this journey.
+  FS-02.R75–R76/A57, FS-20.R45–R46/A18, TS-03.R56–R58; INV §1/§2/§10.
+  Publish the committed projection of every successfully archived member independently of
+  whether quota cancellation changed a row, without duplicating quota-driven publication.
+  Regression: archive a mixed group with no-quota and scheduled-quota members; assert live
+  updates and reconnect hydration show every successful member archived, with one authoritative
+  update each. Fix difficulty: trivial/easy. Independent current-tree authenticated desktop/phone
+  reproduction: `/tmp/chuck-group-review-20261011/quota-archive-receipt.json` and
+  `quota-archive-stale-{desktop,phone}.png`; probe: `/tmp/chuck-group-quota-repro.mjs`.
 
 Review verification: focused server quota/concurrent-quota suite passed with bounded approved
 loopback execution (`GOCACHE=/tmp/chuck-go-cache go test ./internal/server -run
