@@ -31,6 +31,7 @@ func DefaultConfig() Config {
 		DefaultProject:  "my-app",
 		DefaultRole:     "default",
 		SkipPermissions: false,
+		AutoContinue:    true,
 		Notifications: NotificationsConfig{
 			DesktopEnabled: true,
 			Muted: map[string]bool{

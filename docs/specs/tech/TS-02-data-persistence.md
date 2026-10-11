@@ -631,6 +631,10 @@ the exact visible sentence is FS-01.R45's. Notice retention/search behavior stay
 Use the existing atomic owner-only config writer, sole SQLite writer and ordered transcript
 writer; add no second database, quota-history log, generic schedule table or raw provider cache.
 
+Implementation checkpoint (2026-10-11): the configuration field/default/persistence is implemented
+and verified in `internal/config/appconfig_test.go`; quota storage and live server policy wiring
+remain planned with the remainder of R45.
+
 The durable layout is:
 
 ```text

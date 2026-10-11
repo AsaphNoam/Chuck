@@ -42,12 +42,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   credentialed provider gates below remain owed. Independent specification/code comparison owed.
 - **Design ready — quota continuation:**
   [`continue-chats-after-quota-reset.md`](../ready-changes/continue-chats-after-quota-reset.md)
-  is Waiting to start: FS-01.R40–R45/FS-04.R53, TS-02.R45/TS-03.R60,
+  is In progress: FS-01.R40–R45/FS-04.R53, TS-02.R45/TS-03.R60,
   TS-04.R86–R88/TS-10.R39–R44. Global on by default, every chat agent, exact attributed notice,
   one-record-per-conversation retention and API replacement approved. Current Cancel clients move
   to an explicit target; no backwards API compatibility is required. Codex reset forwarding is
   absent and stays an ACP wishlist dependency per the 2026-10-10 instruction; unknown reset means
-  indication/manual recovery, never a guessed schedule. No product code or active unit selected.
+  indication/manual recovery, never a guessed schedule.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61 prepare Claude and Codex 5-hour/Weekly views. Chat-header disclosure confirmed.
   Full passive paired snapshots/reads remain TBD for both providers: Claude only has partial live
@@ -63,7 +63,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+**Continue chats after a quota reset** — `continue-chats-after-quota-reset.md`.
+
+Plan: (1) verified provider completion classification and default-on config; (2) bounded durable
+episode/claim storage and owner-preserving settlement; (3) dispatcher, cancellation and startup
+recovery; (4) desktop/phone projections and controls, then closure and focused browser journeys.
+Keep lifecycle/owner integration under one owner; independent config implementation and a read-only
+provider/continuation survey are delegated. Config field/default/persistence verified with
+`go test ./internal/config`: omitted reads true and explicit false survives restart. Provider
+normalization and bounded state primitives are in progress in independent owned files. Existing
+tree was clean at startup. Reset units remain unknown unless supported primary evidence verifies them.
+UX task: understand why an interrupted conversation is waiting, retain manual control, and resume
+the same unfinished owned work without duplicating accepted results or uncertain provider delivery.
 
 ## Acceptance gates still owed
 

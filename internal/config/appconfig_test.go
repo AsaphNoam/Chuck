@@ -7,6 +7,52 @@ import (
 	"testing"
 )
 
+func TestAutoContinueConfigDefaultsAndPersists(t *testing.T) {
+	s := newTestStore(t)
+
+	// Existing version-1 files resolve an omitted field to enabled.
+	older := []byte("{\"version\":1}\n")
+	if err := os.WriteFile(s.configPath(), older, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.ReadConfig()
+	if err != nil {
+		t.Fatalf("ReadConfig older file: %v", err)
+	}
+	if !cfg.AutoContinue {
+		t.Fatal("older config auto_continue = false, want default true")
+	}
+
+	if !DefaultConfig().AutoContinue {
+		t.Fatal("DefaultConfig auto_continue = false, want true")
+	}
+	cfg = DefaultConfig()
+	cfg.AutoContinue = false
+	if err := s.WriteConfig(cfg); err != nil {
+		t.Fatalf("WriteConfig false: %v", err)
+	}
+	restarted := NewWithHome(s.Home())
+	got, err := restarted.ReadConfig()
+	if err != nil {
+		t.Fatalf("ReadConfig after restart: %v", err)
+	}
+	if got.AutoContinue {
+		t.Fatal("auto_continue after restart = true, want explicit false")
+	}
+
+	raw, err := os.ReadFile(s.configPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if string(doc["auto_continue"]) != "false" {
+		t.Fatalf("persisted auto_continue = %s, want false", doc["auto_continue"])
+	}
+}
+
 func TestAppearanceSkinConfigPersistence(t *testing.T) {
 	s := newTestStore(t)
 

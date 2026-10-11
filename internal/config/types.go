@@ -137,6 +137,7 @@ type Config struct {
 	DefaultRole        string              `json:"default_role"`    // "implementer"
 	AppearanceSkin     string              `json:"appearance_skin,omitempty"`
 	SkipPermissions    bool                `json:"skip_permissions"`    // false
+	AutoContinue       bool                `json:"auto_continue"`       // true when absent
 	OnboardingComplete bool                `json:"onboarding_complete"` // set after first launch
 	Notifications      NotificationsConfig `json:"notifications"`
 	Switch             SwitchConfig        `json:"switch"`

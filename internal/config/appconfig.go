@@ -35,6 +35,7 @@ func (s *Store) ReadConfig() (Config, error) {
 		DefaultRole          string              `json:"default_role"`
 		AppearanceSkin       string              `json:"appearance_skin,omitempty"`
 		SkipPermissions      bool                `json:"skip_permissions"`
+		AutoContinue         *bool               `json:"auto_continue"`
 		OnboardingComplete   bool                `json:"onboarding_complete"`
 		Notifications        NotificationsConfig `json:"notifications"`
 		Switch               SwitchConfig        `json:"switch"`
@@ -52,6 +53,10 @@ func (s *Store) ReadConfig() (Config, error) {
 		SkipPermissions: disk.SkipPermissions, OnboardingComplete: disk.OnboardingComplete,
 		Notifications: disk.Notifications, Switch: disk.Switch, TaskConcurrency: disk.TaskConcurrency,
 		RemoteEnabled: disk.RemoteEnabled, KeepAwake: disk.KeepAwake,
+		AutoContinue: true,
+	}
+	if disk.AutoContinue != nil {
+		c.AutoContinue = *disk.AutoContinue
 	}
 	_ = json.Unmarshal(disk.MessageBudgetPerTurn, &c.MessageBudgetPerTurn)
 	return c, nil

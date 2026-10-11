@@ -1,6 +1,6 @@
 # Continue chats after a quota reset
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-10-09; global default-on, all-agent coverage and
 the exact continuation notice confirmed, with API/retention approval on 2026-10-10.
 **Relevant requirements:** FS-01.R40–R45/A23–A28, FS-04.R53/A33, TS-02.R45, TS-03.R60,
