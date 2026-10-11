@@ -40,7 +40,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [Verification receipt](../archive/state/PERSONA-DEFAULT-2026-10-10.md); raw screenshots/receipt
   `/tmp/chuck-persona-journey-final3/`. Fake providers make no model-adoption claim; existing
   credentialed provider gates below remain owed. Independent specification/code comparison owed.
-- **Review pending — quota continuation:**
+- **Reviewed; fixes pending — quota continuation:**
   [`continue-chats-after-quota-reset.md`](../ready-changes/continue-chats-after-quota-reset.md)
   is Finished. Substantive range `9409787` through `8011691`: FS-01.R40–R45/FS-04.R53,
   TS-02.R45/TS-03.R60, TS-04.R86–R88/TS-10.R39–R44 and the named owner exceptions.
@@ -52,7 +52,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [Verification receipt](../archive/state/QUOTA-CONTINUATION-2026-10-11.md).
   Current providers have no verified reset-unit receipt, so observed interruptions remain unknown
   and unscheduled. Known-reset recovery proof uses state fixtures; FS-01.A28 remains owed.
-  Independent specification/code comparison is available without displacing the other units.
+  Independent specification/code comparison completed on 2026-10-11: two Must-fix findings and
+  one Worth-fixing finding below keep this same unit open. Other review units remain available.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61 prepare Claude and Codex 5-hour/Weekly views. Chat-header disclosure confirmed.
   Full passive paired snapshots/reads remain TBD for both providers: Claude only has partial live
@@ -123,7 +124,60 @@ None. Quota continuation finished on 2026-10-11 and is available for independent
 
 ## Review findings
 
-None.
+**Quota continuation — `9409787` through `8011691`, reviewed 2026-10-11.**
+
+**Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix — QUOTA-01: global disable leaves live quota projections stale.**
+  `internal/server/config_handlers.go:986–993` cancels pending rows without touching/publishing the
+  affected agents. When a person disables Auto continue while a chat is scheduled or waiting,
+  SQLite becomes `cancelled` but the retained SSE snapshot and connected desktop/phone banners
+  continue advertising the old schedule and revision. Reconnecting to that retained snapshot also
+  restores stale truth; clicking its Cancel returns a stale-revision conflict. FS-01.R43,
+  TS-03.R60; INV §1/§8/§10. Return the affected identities from cancellation and publish their
+  committed projections, including a consistent recovery path for publication errors. Regression:
+  hydrate a scheduled chat, PUT `auto_continue:false`, then assert the live update and reconnect
+  snapshot both show cancellation without another agent mutation. Fix difficulty: trivial/easy.
+- **Must fix — QUOTA-02: unrelated agent actions reject Stop and group controls.**
+  `internal/server/sessions.go:589–592`, `internal/server/groups.go:107–110`, and
+  `internal/server/quota_controls.go:68–76` use one install-wide quota-control mutex. An ordinary
+  Resume/Switch or owner action holds it through the full handler, including provider startup.
+  During that interval, Stop on a different agent, or Stop/Archive on an unrelated group, returns
+  409 despite having no competing transition on any target. A slow provider can therefore prevent
+  the operator from stopping other running work. FS-01.R6/R34 and FS-02.R75–R76 promise target
+  lifecycle contention; INV §5/§10. Scope owner/manual serialization to the affected agent/owner
+  set while retaining atomic global-disable/admission ordering. Regression: pause Resume for agent
+  A inside startup; Stop agent B and an unrelated group must succeed, while Stop A still returns
+  conflict and its winning resume retains registration. Fix difficulty: medium.
+- **Worth fixing — QUOTA-03: stopped notice repair bypasses ordinary metadata indexing.**
+  `internal/server/quota_notice.go:242–248` appends and syncs a repaired Chuck notice directly,
+  whereas the live writer also calls the common indexer. After restart repairs a corroborated
+  continuation on a stopped chat, the transcript contains the notice but `sessions.event_count`,
+  `last_seq`, and `updated_at` exclude it; Archive metadata/ordering differs from the live path.
+  FS-01.R45, TS-10.R44; INV §2/§9/§10. Route stopped repair through the ordinary metadata-indexing
+  seam, with receipt/idempotence protection against counting the same event twice. Regression:
+  repair a stopped session's pending notice, compare transcript sequence and session counters,
+  repeat repair and verify unchanged counters and exactly one notice. Fix difficulty: medium
+  (coordinated transcript/index receipt repair).
+
+Review verification: focused server quota/concurrent-quota suite passed with bounded approved
+loopback execution (`GOCACHE=/tmp/chuck-go-cache go test ./internal/server -run
+'TestQuota|TestConcurrentQuota' -count=1`). Independent state package and race runs passed; focused
+runtime quota/session-failure tests passed. Three isolated Go overlay probes reproduced QUOTA-01,
+QUOTA-02 and QUOTA-03 without editing repository tests; probe sources/overlay are
+`/tmp/quota_review_probe_test.go` and `/tmp/quota_review_overlay.json`. Fresh current-tree Chromium
+rendering passed all 23 checks at 1024px desktop and 390px phone in Core, Sky & Grove and Studio;
+screenshots inspected, no retained visual finding. Receipt:
+`/tmp/chuck-quota-render-review-20261011/receipt.json`. The phone fixture proves layout, not
+authenticated successful quota cancellation. FS-01.A28 remains the previously declared live-provider
+gate; no provider-generated known-reset delivery claim was made.
+
+Invariant sweep: classes §1–§5 and §7–§17 matched the diff and were checked; the findings above
+identify their matching classes. §6 has no applicable new runtime/interface/driver surface.
+Existing lifecycle/registration and external-CLI seams remain in use. Provider classification,
+durable ownership/CAS/restart/notice claims, bounded admission, explicit Cancel client wiring,
+local/remote guards, and parsed/styled UI surfaces had no additional confirmed findings. No
+unresolved implementation-local choice was found. Product code and specifications were unchanged.
 
 ## Blocked on human
 
