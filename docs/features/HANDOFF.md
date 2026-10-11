@@ -28,7 +28,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Review pending — mobile details/composer:** `58b63d1`, FS-20.R32/R43, TS-08.R116.
   Inline selected-file preview, compact Manage and unboxed composer footer. Shared Send touch
   target preserved. Three-appearance evidence: `/tmp/chuck-release-phone-*.png`.
-- **Review pending — No persona and optional persona awareness:**
+- **Reviewed; fixes pending — No persona and optional persona awareness:**
   [`agents-without-a-persona-by-default.md`](../ready-changes/agents-without-a-persona-by-default.md)
   is Finished. Substantive range `d29a4f5` through `2de7167`. FS-01.R46–R47/A29–A30,
   FS-04.R54–R57/A34–A36, FS-18.R20/A16, TS-02.R43–R44, TS-03.R59, TS-08.R120,
@@ -39,7 +39,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   desktop/phone/onboarding launch/edit keyboard journeys and development matrix were inspected.
   [Verification receipt](../archive/state/PERSONA-DEFAULT-2026-10-10.md); raw screenshots/receipt
   `/tmp/chuck-persona-journey-final3/`. Fake providers make no model-adoption claim; existing
-  credentialed provider gates below remain owed. Independent specification/code comparison owed.
+  credentialed provider gates below remain owed. Independent specification/code comparison
+  completed on 2026-10-11; one Must-fix phone configuration-error finding below keeps this same
+  unit open.
 - **Reviewed; fixes pending — quota continuation:**
   [`continue-chats-after-quota-reset.md`](../ready-changes/continue-chats-after-quota-reset.md)
   is Finished. Substantive range `9409787` through `8011691`: FS-01.R40–R45/FS-04.R53,
@@ -69,7 +71,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. Quota continuation finished on 2026-10-11 and is available for independent review above.
+None. No persona and quota continuation have completed review with fixes pending above.
 
 ## Acceptance gates still owed
 
@@ -123,6 +125,49 @@ None. Quota continuation finished on 2026-10-11 and is available for independent
   silently through bare `writeText`.
 
 ## Review findings
+
+**No persona and optional persona awareness — `d29a4f5` through `2de7167`, reviewed 2026-10-11.**
+
+**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix — PERSONA-01: phone creation stays in a silent loading state after configuration failure.**
+  `ui/src/remote/ProjectScreen.tsx:66–72` requires `config.data` before selecting a persona, but
+  never handles `config.isError`. On a fresh phone page where roles/runtime load successfully and
+  GET `/api/config` fails through its retries, the ordinary New Agent path remains on
+  “Loading persona…” with Create agent disabled and no error or recovery instruction. Advanced
+  also displays the browser's first option (Chucky) despite empty selection state. Explicitly
+  choosing a persona there enables creation, but the operator is never directed to that workaround.
+  The previous phone path had a roles-based fallback; desktop and onboarding already handle a
+  completed config error. FS-01.R47/A29–A30, TS-08.R120; INV §8/§10. Handle the completed error
+  through the existing default-selection seam or surface a truthful retry/recovery path. Regression:
+  return 500 for config and valid roles/runtime, exhaust retries, and verify the phone form exits
+  silent loading with a usable, honestly labelled choice or an explicit error/retry action.
+  Preserve waiting for late successful config and subsequent explicit choices. Fix difficulty:
+  trivial/easy.
+
+Review verification: focused config/state/index/CLI persona and reindex tests passed in untagged
+and `sqlite_fts5` builds; focused server/runtime awareness, API, overlay and clone tests passed
+with bounded approved loopback execution. Frozen lifecycle/clone race checks passed. Six focused
+UI files passed all 59 tests. `make embed` passed TypeScript/build and all 41 presentation checks.
+Fresh Chromium launch/edit/onboarding journeys passed all 85 checks with zero page errors in
+Core, Sky & Grove and Studio at desktop 1024px and phone 360/390/430px. Screenshots of compact/
+Advanced launch, editor and onboarding states were inspected; no additional material visual
+finding. Receipt and screenshots: `/tmp/chuck-persona-review-20261011/receipt.json`.
+An independent phone probe reproduced PERSONA-01 after four failed config requests, with no
+visible error and disabled Create, then verified explicit Advanced selection enables Create:
+`/tmp/chuck-persona-review-20261011/config-failure-receipt.json` and `phone-config-failure.png`;
+probe source `/tmp/chuck-persona-review-failure.mjs`. The isolated home/fake provider proves host
+behavior, not live native-provider prompt adoption; existing credentialed gates remain owed.
+
+Invariant sweep: §1–§5, §7–§11, §13–§15 and §17 matched and were checked. §6 has no new interface/
+runtime/driver; §12 has no changed external-CLI invocation; §16 has no new stream, queue, sweep,
+fan-out or retained-state admission surface. No additional confirmed finding. Local choices are
+sound: private once-only completion uses the existing atomic writer and records completion last;
+occupied customized Default definitions preserve ownership and block automatic selection;
+awareness uses one normalized SQLite/metadata value and Clone's internal option under its existing
+claim; the existing overlay gates both shared prompt blocks while preserving tools/knowledge
+availability. Canonical presentation uses the shared predicate and keeps customized same-id roles
+named. No unresolved implementation-local choice. Product code and specifications were unchanged.
 
 **Quota continuation — `9409787` through `8011691`, reviewed 2026-10-11.**
 
