@@ -379,6 +379,10 @@ choice is rejected as MOBILE-01; compact geometry and inline row placement are s
 
 ## Changelog
 
+- 2026-10-11: began CLI parity feature design in `docs/ideas.md`. Read-only CLI/web comparison
+  found missing conversation controls and broader management gaps. Proposed full nonvisual web
+  parity with composable terminal input/output; waiting for product-scope confirmation before
+  planned requirements and technical design. No product code or active change was created.
 - 2026-10-11: closed QUOTA-02 (INV §4/§5/§10/§16/§17) and QUOTA-03
   (INV §2/§5/§7/§9/§10/§15/§17). Unrelated Stop/group controls stay available during manual
   provider startup; repaired notices retain exact session metadata and publish once after a
