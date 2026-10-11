@@ -457,14 +457,16 @@ transitions:
   `internal/server/quota_http_test.go`, `internal/server/quota_dispatch_test.go`,
   `internal/server/quota_concurrent_test.go`, and
   `ui/src/components/agent/QuotaBanner.test.tsx`.
-- **A24 (planned)** (R41–R42, R45) — Reach a known reset in a partially completed ordinary chat,
+- **A24 (implemented 2026-10-11; known-reset evidence is a state fixture)** (R41–R42, R45) — Reach a known reset in a partially completed ordinary chat,
   once with the runtime live and once stopped. Continue the same identity/history without replaying
   the original request; append the exact Chuck message once only after work begins. Reload live,
-  Archive and phone transcripts; ordering, attribution and retained history agree. The current
-  browser journey verifies the unknown-reset quota banner only; it does not establish this known-reset
-  notice parity. Backend implementation is covered below. *Verify:*
+  Archive and phone transcripts; ordering, attribution and retained history agree. The embedded
+  desktop/authenticated-phone journey verifies exact-once notice rendering, distinct Chuck
+  attribution, reload and desktop Archive parity. It uses known-reset state evidence, not a verified
+  provider reset timestamp. *Verify:*
   `internal/state/quota_test.go`, `internal/server/quota_dispatch_test.go`,
-  `internal/server/quota_notice_test.go`, and `internal/server/quota_http_test.go`; A28 remains the
+  `internal/server/quota_notice_test.go`, `internal/server/quota_http_test.go`, and
+  `ui/scripts/quota-notice-journey.mjs`; A28 remains the
   provider-produced reset and delivery gate.
 - **A25 (implemented 2026-10-11; fake-provider owner-path coverage)** (R42) — Quota-interrupt an ordinary task, standing/coordinator pipeline work,
   delegated work and each Think Tank phase (opening, discussion, private, closing and judge),

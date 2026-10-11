@@ -41,8 +41,8 @@ Fake fixtures cannot satisfy the bounded live-provider gate.
 `scripts/release/package.json`/lock pin Claude ACP 0.85.1 and Codex ACP 2.1.1. Both expose
 AIR `sessionFailure`, whose pinned error/limit/empty-actions policy distinguishes account quota
 from rate-limit retry and context/session new-session policies; its wire omits the internal kind.
-Chuck currently neither negotiates it (`internal/runtime/capabilities.go`) nor decodes prompt
-metadata (`acpmap.go`). Claude forwards rejected-window resets in
+Before implementation, Chuck neither negotiated it (`internal/runtime/capabilities.go`) nor decoded
+prompt metadata (`acpmap.go`); both are now implemented. Claude forwards rejected-window resets in
 `usage_update._meta["_claude/rateLimit"]` after assistant usage is known. Codex privately consumes
 `account/rateLimits/read`/`updated`, forwarding no typed reset; `/status` returns text.
 Claude `/usage` similarly queues a conversation turn and renders text, so neither command is a

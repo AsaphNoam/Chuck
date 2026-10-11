@@ -95,8 +95,15 @@ phone-sized transcript windows and actual archive. Lifecycle closure exposed quo
 changing Stop/group release conflicts; TryLock restores the existing conflicts and focused
 switch/wake/group/task tests pass. A concurrent full-matrix run also hit a provider-version probe
 timeout; isolated recheck passes. No tests were weakened.
-Next: finish known-reset notice desktop/phone/Archive browser parity, run sequential final closure
-after the final fixture/test edits, then finish the change and add its independent review unit.
+Final integration checkpoint: known-reset notice browser parity passes ten checks across desktop
+reload, authenticated phone reload and desktop Archive, with distinct Chuck attribution and
+unchanged sequence (`/tmp/chuck-quota-notice-journey-final/`). Stopped borrowed-task recovery now
+atomically reserves ordinary runtime capacity before resume; full capacity defers with no provider
+frame, assignment change or start-attempt charge. Focused state/server tests and final quota/
+lifecycle races pass, including resume after capacity opens. The sequential closure before that
+capacity refinement passed both Go variants; final closure reruns are in progress.
+Next: finish sequential closure after the final capacity edits, then finish the change and add its
+independent review unit.
 No live-provider reset-unit receipt was found: pinned Claude SDK 0.3.286's bare number and API
 RFC3339 headers describe different surfaces, so both pinned providers still have unknown reset.
 

@@ -137,6 +137,21 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 			return
 		}
 	} else if errors.Is(err, state.ErrNotFound) {
+		if q.Owner.Kind == "task" {
+			admitted, err := s.stateStore.AdmitQuotaTaskResume(q, s.taskConcurrencyBudget())
+			if err != nil {
+				if errors.Is(err, state.ErrQuotaOwner) {
+					hold("owner_unavailable")
+				} else {
+					hold("store_failure")
+				}
+				return
+			}
+			if !admitted {
+				deferBusy()
+				return
+			}
+		}
 		if ae := s.resumeSessionWithHooks(ctx, q.AgentID, resumeOverride{}, nil, start); ae != nil {
 			if ae.Code == runtime.CodeConflict {
 				deferBusy()

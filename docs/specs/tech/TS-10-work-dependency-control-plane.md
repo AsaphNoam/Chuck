@@ -413,6 +413,9 @@ parallel copy of them.
   inside the admission transaction/lease held through the provider frame. Busy/claim/capacity
   deferrals preserve the due intent without spending task start attempts; store failures surface
   instead of guessing. Ordinary task runtime budget and room opening admission remain authoritative.
+  Before resuming a stopped borrowed task, atomically reserve its existing assignment as a woke
+  runtime under that same budget. Created/woke assignments retain their already reserved slot;
+  capacity deferral changes neither ownership nor the task's start-attempt allowance.
 - **R41 (implemented 2026-10-11)** — For an unowned conversation, use the existing activation registry with a
   `quota_continue` kind and a code-owned instruction to continue the quota-interrupted work from
   existing history without replaying already executed operations. It carries no transcript or

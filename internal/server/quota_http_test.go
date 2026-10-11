@@ -130,6 +130,7 @@ func TestQuotaConfigReportsSavedFalseWhenCancellationFails(t *testing.T) {
 	}
 }
 
+// FS-01.A27: a failed state read cannot masquerade as settled quota recovery.
 func TestQuotaFailedTurnPropagatesStateReadError(t *testing.T) {
 	s := testServer(t, true)
 	if _, err := s.stateStore.DB().Exec(`DROP TABLE quota_intents`); err != nil {
