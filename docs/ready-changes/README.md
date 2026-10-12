@@ -43,6 +43,9 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`chat-images-and-file-attachments.md`](chat-images-and-file-attachments.md) — desktop/phone
+  file picker, drag/drop and pasted images; clickable thumbnails/modal, native image delivery,
+  host-file copies for ordinary tools, retained history and compatible Send/Steer transport.
 - [`continue-chats-after-quota-reset.md`](continue-chats-after-quota-reset.md) — default-on global
   quota indication and same-work continuation for every chat, with explicit Cancel targeting,
   durable restart recovery and an attributed Chuck notice; unknown reset evidence stays manual.

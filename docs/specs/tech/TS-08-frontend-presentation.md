@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1400,6 +1400,39 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   by the shell; failures preserve the previous projection and surface an error. No phone-local
   appearance preference or second draft store is introduced.
 
+### 2.13 Chat attachment presentation
+
+- **R123 (planned) — Extend shared chat owners for attachment composition and viewing.**
+  FS-03.R81–R86 extends the existing Composer, transcript reducer, SanitizedMarkdown and phone
+  composer integration rather than creating parallel chat implementations. One feature-owned
+  attachment draft model tracks ordered browser Blob values and exact text revision per agent.
+  Browser persistence stores blobs in IndexedDB alongside an attachment-only/combined
+  draft identity participating in R36's existing 20-draft recency bound; it preserves legacy text
+  drafts without a destructive migration. Removed, sent or evicted revisions release unowned
+  blobs; failure preserves the submitted draft for recovery without replacing newer edits.
+  Storage/quota failure keeps the in-memory draft usable and visibly explains that attachment
+  persistence failed. Upload starts only on Send/Steer; browser site-data removal deletes drafts.
+  Drafts do not synchronize between devices. Send captures an immutable revision and stable request
+  id; accepted response, held state and streamed event reconcile one message. A held attachment
+  returned by the host is recoverable even when the original browser draft was already cleared.
+  A newer draft prevents automatic restoration over it; offer explicit recovery of the older one.
+
+  Add a quiet attachment strip above composer text, keeping Send the primary action and `@`/`#`
+  in their existing roles. Thumbnails preserve aspect ratio within a 72px square desktop box and
+  a 64px phone box; names and Remove remain accessible. The strip wraps/scrolls locally, never
+  widens chat. Add file-only drop feedback over the composer, suppressing default navigation only
+  for handled file drops; text selection, ordinary paste and surrounding drag behavior survive.
+  Native browser picker cancellation changes nothing; pasting mixed image/text retains available
+  plain text once without duplicate image items. One shared existing dialog primitive owns the
+  viewport-fitted image modal, focus trap, Escape/backdrop Close and focus restoration. Keep the
+  image as its focal point; no editor, carousel, zoom subsystem or new animation is introduced.
+  Loading/error and pending/held delivery states use existing tokens and product vocabulary.
+  Presentation remains a leaf, uses existing appearance contracts, and meets phone target sizing.
+  Extend the one Markdown image override and shared event reducer for both replay and live content;
+  URI-only local images stay actionable placeholders until explicitly opened. Verify all three
+  desktop appearances, phone, archive, root/child/tool images, long filenames and newer-draft races
+  under FS-03.A62–A65. Provider capability is never inferred from thumbnail display.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract
@@ -1573,6 +1606,10 @@ boundary; the manifest remains the visual contract and arbitrary ids never becom
   explicitly identified as a browser-only visual check.
 
 ## 5. Deviations & open decisions
+
+- R123 defines the planned thumbnail/modal feature approved 2026-10-12, including browser-local
+  draft retention and explicit local-image reads. Status becomes Partial solely because this
+  attachment requirement is unshipped.
 
 - FS-12.R52–R59/A26–A31 and R74–R79 define the approved 2026-09-28 shared-layout upgrade.
   Its shipped requirements above own the shared structure and presentation checks, with the

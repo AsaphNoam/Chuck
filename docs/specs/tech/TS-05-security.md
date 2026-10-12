@@ -256,6 +256,25 @@ keeps credentials and incidental private coordination payloads out of durable an
 activity. Shared content has no system-instruction authority. Retained file origins reuse R24's
 local process-readable file boundary; this adds neither repository confinement nor process isolation.
 
+**R26 (planned) — Attachment content preserves the existing host/device boundary.** For
+FS-03.R81–R86/TS-03.R62–R63, owned attachment lookup accepts opaque ids, checks conversation
+ownership and opens only server-owned regular files without following substituted symlinks.
+Original client filenames are bounded display metadata (255 UTF-8 bytes), never executable text,
+header syntax or path authority. Reject directories and special files; sniff image formats and
+dimensions before browser display. SVG/HTML and arbitrary bytes never render inline. Treat file
+tool access as ordinary provider work under the existing permission/sandbox policy; do not grant
+blanket access to Chuck home or copy files into the repository to evade permission checks.
+Upload content is private conversation data, not logs, notifications or API error diagnostics.
+The shared Markdown renderer replaces image elements so raw Markdown `src` cannot initiate web,
+`file:`, arbitrary `data:` or script requests. Only host-validated image bytes use owned browser
+object URLs; release them on removal/unmount/modal close as applicable.
+
+Desktop local-image reads reuse R24's explicitly chosen same-host regular-file boundary and safe
+open behavior, with image bounds in TS-03.R63. Paired-phone reads retain TS-13.R22's tracked-file,
+workspace containment and no-symlink restrictions; uploaded assets require session-manifest
+ownership instead of arbitrary path access. No broader phone filesystem read is granted. Remote
+web image URLs and URI-only remote provider images cause no browser, server or provider fetch by Chuck.
+
 ## 3. Interfaces & data shapes
 
 Security-relevant interfaces are the single listener, Host/Origin middleware, launch token
@@ -285,6 +304,9 @@ Their concrete payloads are owned by TS-03, TS-04, and TS-07.
   it never degrades into an agent launch without the promised accessible directory.
 
 ## 5. Deviations & open decisions
+
+- R26 defines planned attachment isolation and explicit local-image reading for the scope approved
+  2026-10-12. Existing desktop same-host and paired-phone tracked-workspace boundaries are retained.
 
 - Same-machine API callers are trusted as described by R3; real API authentication is not shipped.
 - Full environment inheritance is accepted behavior under R8. The UI masks likely secret fields but

@@ -42,11 +42,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   open for the draft fix; the other available review units are unchanged.
 - **Design awaiting scope confirmation — CLI parity:** `docs/ideas.md` proposes full nonvisual
   web parity with composable terminal input/output. No requirements or active change yet.
-- **Design awaiting scope confirmation — chat images and attachments (2026-10-12):**
-  `docs/ideas.md` records picker/drop/pasted-image attachment and clickable thumbnail/modal support.
-  Current composer, prompt API and durable user event are text-only; `@` inserts a path reference.
-  Confirm image sources, agent delivery, desktop/phone scope and retention before planned FS-03
-  requirements and technical design. No product code or ready change.
+- **Design ready — chat images and attachments (2026-10-12):**
+  [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
+  waits to start. FS-03.R81–R86/A62–A65; TS-02.R46–R47, TS-03.R62–R63,
+  TS-04.R90–R91, TS-05.R26, TS-08.R123 and TS-13.R26 cover desktop/phone picker/drop/paste,
+  thumbnails/modal, native images, other files through copied host paths and ordinary tools,
+  browser drafts, immutable local history and compatible multipart Send/Steer with retry receipts.
+  Product and technical choices approved; additive API judgment delegated by the operator.
+  Changelog: planned ownership/cleanup, bounded admission and honest delivery across history,
+  runtime and device boundaries (INV §4/§8/§10/§11/§14/§15/§16). No product code; live provider
+  receipts remain implementation closure gates, not evidence already obtained.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command

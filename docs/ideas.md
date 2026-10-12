@@ -33,12 +33,6 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
-- **Chat images and file attachments.** Requested on 2026-10-12 through `/design-feature`:
-  display images in chat; attach files through a picker and drag/drop, and paste images into the
-  composer. Image attachments appear as small clickable previews that open a display modal.
-  Defining scope under FS-03: agent delivery, assistant/local/remote image sources, desktop/phone
-  coverage, and attachment storage/retention need confirmation before technical design.
-  No ready change or product implementation yet.
 - **CLI parity with chat.** Requested on 2026-10-11 through `/design-feature`: the CLI is
   outdated relative to chat; add all relevant capabilities. Read-only discovery confirms
   `internal/cli/root.go` and `launch.go` expose launch/resume, dashboard and maintenance commands;

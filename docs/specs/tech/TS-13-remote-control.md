@@ -1,6 +1,6 @@
 # TS-13 — Remote control
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/remote/`, `internal/server/remote*.go`, `ui/remote.html`, `ui/src/remote/`
 **Absorbed:** —
 
@@ -261,6 +261,18 @@ the installed app on iOS.
   skin validation; every other config field is rejected before mutation. Authentication,
   Origin/Host guards, body bounds and device attribution remain mandatory.
 
+**R26 (planned) — Phone attachment transport is a narrow allowlist extension.** For
+FS-03.R81–R86/TS-03.R62–R63, admit multipart only on the existing prompt/steer routes; share the
+same bounded stream parser and capability validation as loopback after device/Origin/Host guards.
+This supersedes only R6's uniform buffering clause for those multipart actions. The current
+1 MiB JSON-body guard remains for other routes; only those two multipart actions get
+the 26 MiB limit. Do not `ReadAll` a multipart body through the JSON field filter. Allowlist the
+owned attachment byte read and explicit local-image read, with R22's existing tracked-workspace
+and no-symlink checks for local paths and TS-05.R26's ownership checks for uploaded copies.
+Use shared error mapping and API schemas; no unauthenticated byte endpoint or broader arbitrary
+host-file access is introduced. Device revocation and remote disable block subsequent image reads
+and sends. Native phone picker/paste limitations report capability honestly without hiding Send.
+
 ## 3. Interfaces & data shapes
 
 Loopback-only: `GET /api/remote`, `PUT /api/remote` `{enabled, keep_awake}`, `POST
@@ -300,6 +312,9 @@ listener by R4's guard), INV §15 (commit device rows before releasing cookies o
 INV §16 (bounded pairing attempts, push queue, and coalescing).
 
 ## 5. Deviations & open decisions
+
+- R26 defines the planned attachment-only remote extension approved 2026-10-12; larger multipart
+  admission applies only to the existing authenticated prompt/steer actions.
 
 - R24 shipped 2026-10-10 as the paired-phone group mutation extension with TS-03.R57.
 

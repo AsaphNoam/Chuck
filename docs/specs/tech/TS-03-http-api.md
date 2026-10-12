@@ -824,6 +824,45 @@ the internal frozen session value is not a new session-setting control or sessio
 TS-02.R44 owns the additive transcript metadata and private snapshot representation. Verify the
 real role API and frontend decoder round-trip true/false/legacy omission and reject invalid types.
 
+**R62 (planned) — Attachment delivery extends existing Send/Steer.** For FS-03.R83:
+existing JSON `{text}` requests and response meanings remain compatible. The same prompt/steer
+routes additionally accept multipart form data with one bounded JSON `message` part containing
+`{request_id,text,files:[{part,name}]}` and matching binary file parts in the declared order.
+Reject missing/duplicate/undeclared parts, duplicate identifiers, invalid metadata and changed
+payloads under a reused request id. Host-generated descriptors are authoritative; clients cannot
+choose filesystem paths, MIME authority or asset ownership. Attachment-only Send is valid;
+attachment-bearing Steer is valid only with compatible runtime input capability. Empty JSON Steer
+retains its existing consume-held-message meaning. GET held prompt includes optional ordered
+attachments and request id; a released held attachment message appears as an optional `recovery`
+message, distinct from a live hold. Text-only consumers remain valid. Acceptance responses retain
+current delivery/new-turn fields and add request id, normalized attachments and
+`attachment_delivery:held|submitted|released|failed|unknown` for attachment requests; retry responses
+report current receipt state without pretending that a formerly held message is still queued.
+JSON prompt/steer additionally accept `{request_id,text,attachment_ids}` for explicit resubmission
+of owned recovered copies; client-supplied ids still undergo session ownership, limits and
+capability checks, and the new request id marks the user's explicit new delivery intent.
+Submitting the recovered copy acknowledges only that exact recovery record; dismissing it uses
+`DELETE /prompt?recovery_request_id=<id>`, which must not withdraw a different current hold.
+The existing parameter-free DELETE behavior is unchanged.
+Retries with the same id replay acceptance without provider re-consumption, including after a lost
+HTTP response. New field/error schemas move with Go and UI types; arrays normalize to `[]`.
+
+**R63 (planned) — Reads and upload bounds are explicit.** New planned routes are
+`GET /api/sessions/{id}/attachments/{attachment_id}` for owned bytes and
+`GET /api/sessions/{id}/image?path=...` for explicitly activated local images. Each read resolves
+the known chat session first; attachment ids resolve only through that conversation's manifest.
+Legacy `/file` remains UTF-8-only. Validate native preview formats PNG/JPEG/WebP/GIF by content;
+other formats remain non-preview files. Admission is at most 10 files, 10 MiB each,
+25 MiB aggregate raw bytes, 40 megapixels per preview image, and a 26 MiB multipart request bound
+(including a 64 KiB message part). Stream each upload to bounded temporary storage; admit at most
+one upload per agent and four process-wide. Bound source reads and ACP base64 expansion at the
+same ingress, not after allocation; expose typed errors for limit, type, storage and capability
+failures. Session reads expose additive attachment capabilities/limits so disabled Send/Steer
+names the reason; declarations are not a guarantee that a model can interpret every file.
+Binary reads set verified Content-Type, `nosniff`, and private no-store caching; files outside
+native image types use attachment disposition. Local-image reads occur only after explicit user
+activation, never from transcript parsing or scrolling. These routes inherit existing guards.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and
@@ -926,6 +965,10 @@ integers instead of silently applying defaults.
   together; no API field or directory is left unreachable or undocumented.
 
 ## 5. Deviations & open decisions
+
+- R62–R63 are the 2026-10-12 planned attachment API. The operator authorized additive API judgment;
+  multipart extends the same Send/Steer intent rather than introducing a competing delivery action.
+  Existing text-only request/response contracts remain compatible.
 
 - R56–R58 shipped 2026-10-10. The user waived legacy release compatibility:
   that route is removed and replaced by project-scoped actions. TS-13.R24 defines the

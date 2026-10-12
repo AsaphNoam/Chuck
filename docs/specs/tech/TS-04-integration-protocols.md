@@ -1154,6 +1154,39 @@ Revisit that transport only when an advertised primary wire surface and provider
 the wishlist. The chat disclosure uses existing UI primitives, semantic tokens and supported
 header layout under TS-08; it adds no new public presentation hook or dynamic-style exception.
 
+**R90 (planned) — Use negotiated image input and explicit host-file references.** For
+FS-03.R83, extend the existing runtime prompt value to exact text plus immutable ordered attachment
+descriptors; text-only internal callers keep the existing semantics. Send, hold, withdraw, stopped
+wake and Steer share one content builder and revalidate capability at consumption. Negotiated ACP
+`promptCapabilities.image` permits native `{type:"image",data:<base64>,mimeType:<verified>}`
+blocks. General-file delivery uses a baseline ACP `resource_link` with a server-generated
+local file URI and display name plus a bounded host-generated instruction to read that uploaded
+copy through normal tools. No arbitrary binary embedded resource, base64-as-text fallback, adapter
+patch, hidden conversion/extraction service or widened provider filesystem permissions is added.
+The UI distinguishes native image input from **Agent reads uploaded file**; accepting the message
+does not claim a model read/interpreted the file. Permission denial and provider/model rejection
+remain visible; unsupported images are never silently converted to filename-only image input.
+Steer capability and image input capability are separate gates. Existing native resume and bounded
+cross-backend primer semantics remain; switching runtimes does not automatically resubmit historical
+images or promise preserved multimodal model context.
+
+**R91 (planned) — Normalize assistant image output without inline transcript blobs.** Accept
+ACP image content from assistant message chunks and tool-result content in root or child activity.
+Validate and persist bounded supplied base64 bytes before emitting normalized `assistant_image`
+events (or typed tool-image descriptors), carrying immutable attachment descriptors and existing
+activity/tool identity. Preserve ordering among text/image/tool events and isolate decode/storage
+failure to the image. URI-only local image output uses explicit activation under TS-05.R26;
+URI-only remote output remains an inert unavailable-image reference and triggers no network fetch.
+Native session-load replay must not duplicate retained images; use the existing replay gate and
+provider identity where supplied. Only capabilities the runtime actually negotiates are exposed.
+Pinned adapter schema/source tests and credentialed Claude/Codex image-send, file-read and Steer
+receipts are distinct closure evidence; fake peers alone do not establish live provider support.
+Native image base64 expansion must fit bounded ACP frames: at most 36 MiB per transport frame
+for this feature, with independent raw image limits from TS-03.R63 enforced at normalization.
+Keep transcript records at their existing 8 MiB limit because blobs live outside NDJSON. Update
+the real transport and fake-peer frame bounds together, then test maximum-size input and output;
+never use an unlimited reader to accommodate images.
+
 ## 3. Interfaces & data shapes
 
 - ACP: JSON-RPC messages over newline-delimited child stdin/stdout; adapter determines exact
@@ -1224,6 +1257,15 @@ header layout under TS-08; it adds no new public presentation hook or dynamic-st
   local turn state is committed before the provider frame is written (R27).
 
 ## 5. Deviations & open decisions
+
+- R90–R91 define planned attachment delivery approved 2026-10-12. Static pinned evidence: Claude 0.85.1
+  `dist/acp-agent.js` (`promptToClaude`) and Codex 2.1.1 `dist/index.js` (`buildPromptItems`) under
+  `scripts/release/node_modules/@agentclientprotocol/` both support native image blocks. Claude
+  ignores embedded binary resources; Codex serializes non-image blobs into encoded text. Current
+  upstream Claude still ignores blobs in
+  [promptToClaude](https://github.com/zed-industries/claude-agent-acp/blob/main/src/acp-agent.ts)
+  (checked 2026-10-12). Thus native arbitrary-file delivery is not portable; baseline resource
+  links plus explicit normal file-tool reads are the approved alternative, requiring live receipts.
 
 - **Quota-reset ACP gap (checked 2026-10-10):** R86–R88 use verified typed terminal failure and
   applicable Claude live reset metadata. Codex ACP 2.1.1 privately receives
