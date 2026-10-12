@@ -31,18 +31,28 @@ self.addEventListener("fetch", (event) => {
   }
   if (url.pathname.startsWith("/assets/")) {
     event.respondWith(
-      caches.match(event.request).then(
-        (hit) =>
-          hit ||
-          fetch(event.request).then((response) => {
-            const copy = response.clone();
-            caches.open(SHELL).then((cache) => cache.put(event.request, copy));
-            return response;
-          }),
-      ),
+      caches.match(event.request).then(async (hit) => {
+        if (hit && isValidAssetResponse(hit, event.request.url)) return hit;
+        const cache = await caches.open(SHELL);
+        if (hit) await cache.delete(event.request);
+        const response = await fetch(event.request);
+        if (isValidAssetResponse(response, event.request.url)) await cache.put(event.request, response.clone());
+        return response;
+      }),
     );
   }
 });
+
+function isValidAssetResponse(response, requestURL) {
+  if (!response.ok) return false;
+  const type = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+  const path = new URL(requestURL).pathname;
+  if (path.endsWith(".css")) return type === "text/css";
+  if (path.endsWith(".js") || path.endsWith(".mjs")) {
+    return type === "application/javascript" || type === "text/javascript" || type === "application/x-javascript";
+  }
+  return type !== "text/html" && type !== "application/json";
+}
 
 // Notifications carry no actions: every decision happens inside the app
 // (FS-20.R21). A shared tag replaces rather than stacks (FS-20.R20).

@@ -44,8 +44,18 @@ func spaHandler(fsys fs.FS) http.Handler {
 // phone entry for every app route, and the service worker at /sw.js so it can
 // control the whole origin. The desktop entry is never served.
 func phoneSPAHandler(fsys fs.FS) http.Handler {
-	assets := phoneAssetGraph(fsys)
+	return phoneSPAHandlerWithGraph(fsys, phoneAssetGraph(fsys), false)
+}
+
+func phoneSPAHandlerWithGraph(fsys fs.FS, initialAssets map[string]bool, refresh bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assets := initialAssets
+		if refresh {
+			// Disk-backed dev builds can replace the manifest and hashed assets while
+			// the server remains running. Resolve the graph with the current request
+			// so rebuilt phone entries are immediately reachable.
+			assets = phoneAssetGraph(fsys)
+		}
 		reqPath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		switch {
 		case reqPath == "sw.js":
@@ -58,6 +68,10 @@ func phoneSPAHandler(fsys fs.FS) http.Handler {
 			writeRemoteError(w, http.StatusNotFound, codeRemoteRouteNotAvailable, "this file is only available on the Mac")
 			return
 		} else if err != nil || st.IsDir() {
+			if strings.HasPrefix(reqPath, "assets/") {
+				writeRemoteError(w, http.StatusNotFound, codeRemoteRouteNotAvailable, "this asset is not available")
+				return
+			}
 			reqPath = "remote.html"
 		}
 		if reqPath == "remote.html" {

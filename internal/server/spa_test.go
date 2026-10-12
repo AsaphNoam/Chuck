@@ -67,7 +67,6 @@ func TestStaticEntriesStayOnTheirListener(t *testing.T) {
 // Investigation: mobile stylesheet failure. Retired asset URLs must not be
 // answered with app HTML, which the phone worker can cache as the stylesheet.
 func TestPhoneMissingStylesheetDoesNotServeAppHTML(t *testing.T) {
-	t.Skip("mobile CSS investigation: missing asset returns cacheable app HTML; unskip in fix")
 	rec := httptest.NewRecorder()
 	phoneSPAHandler(twoEntryDist).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/assets/remote-retired.css", nil))
 	if rec.Code != http.StatusNotFound {
@@ -77,7 +76,6 @@ func TestPhoneMissingStylesheetDoesNotServeAppHTML(t *testing.T) {
 
 // Investigation: the dev FS changes after a UI rebuild while the handler lives.
 func TestPhoneStylesheetAfterDevRebuild(t *testing.T) {
-	t.Skip("mobile CSS investigation: dev asset allowlist is frozen before rebuild; unskip in fix")
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".vite"), 0o700); err != nil {
 		t.Fatal(err)
@@ -94,7 +92,7 @@ func TestPhoneStylesheetAfterDevRebuild(t *testing.T) {
 	write("remote.html", `<link rel="stylesheet" href="/assets/old.css">`)
 	write("assets/old.css", "body { color: red; }")
 	write(".vite/manifest.json", `{"remote.html":{"css":["assets/old.css"]}}`)
-	handler := phoneSPAHandler(os.DirFS(root))
+	handler := phoneSPAHandlerWithGraph(os.DirFS(root), nil, true)
 	write("remote.html", `<link rel="stylesheet" href="/assets/new.css">`)
 	write("assets/new.css", "body { color: blue; }")
 	write(".vite/manifest.json", `{"remote.html":{"css":["assets/new.css"]}}`)
