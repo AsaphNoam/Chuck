@@ -1,6 +1,6 @@
 # Chat images and file attachments
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-10-12 for image display, file attachments,
 drag/drop and pasted images, with small clickable image previews opening a display modal.
 The operator approved feature scope and technical delivery/retention/limits, then delegated
@@ -67,3 +67,21 @@ live-provider evidence. No live support claim is made by this design.
 ## Waiting on
 
 None. Ready for implementation; provider receipts and rendered checks are implementation gates.
+
+## Implementation plan
+
+Storage and UI work proceed independently while the runtime owner extends the existing turn gate;
+the parent owns HTTP admission, durable receipts and lifecycle integration. Verify each boundary
+with focused storage, wire, API and component tests before final closure and rendered/provider gates.
+
+1. Immutable bounded attachment storage, descriptors and safe reads.
+2. Runtime message value, shared ACP assembly, image output and held-message lifecycle.
+3. Multipart admission, durable request receipts, remote guard exception, clone/delete ownership.
+4. Shared browser attachment drafts, composer strip, thumbnail/modal and safe Markdown images.
+5. Integrated failure/recovery journeys, rendered appearance matrix and pinned provider receipts.
+
+The experienced operator adds context to an existing conversation and inspects it before sending.
+Keep the text entry and Send primary, with a quiet wrapping strip above it; distinguish native image
+input from files read through ordinary tools. Preserve keyboard flow, exact newer drafts and chat
+position. Use the existing dialog and tokens, with no added motion. Preparation begins on Send;
+errors preserve work and held recovery requires explicit delivery.

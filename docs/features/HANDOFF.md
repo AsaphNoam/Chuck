@@ -66,7 +66,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. The v0.14.0 release is cut; the next change starts from a review unit above or a new request.
+**In progress — chat images and file attachments:**
+[`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md).
+FS-03.R81–R86/A62–A65 and the named attachment TS requirements remain planned until closure.
+Storage, runtime and UI slices are delegated with distinct ownership; HTTP admission, durable
+receipts and history/lifecycle integration remain under the parent. The working tree was clean
+at selection. Next: verify bounded owned storage and runtime contracts, integrate multipart routes
+and receipts, then exercise drafts, recovery, clone/delete, rendered and live-provider gates.
 
 ## Acceptance gates still owed
 
