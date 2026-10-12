@@ -33,29 +33,6 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
-- **CLI parity with chat.** Requested on 2026-10-11 through `/design-feature`: the CLI is
-  outdated relative to chat; add all relevant capabilities. Read-only discovery confirms
-  `internal/cli/root.go` and `launch.go` expose launch/resume, dashboard and maintenance commands;
-  `pipeline.go` has only template list/validate and run start/show/continue/retry/stop.
-  Shipped operation inventory is in `internal/server/routes.go`.
-  Proposed scope: all useful nonvisual web operations, including agent discovery/detail,
-  send/held-message read/withdraw, steer, cancel, permission decisions, transcript read/follow,
-  live context/runtime status, native child activity and background-task control, file/command
-  discovery and reads, annotation/assignment, lifecycle and runtime/config controls; project/group
-  management, archive/search, worktrees, complete pipeline controls, tasks/signals, Think Tank
-  rooms and configuration/provider/federation/remote administration.
-  Proposed experience: human-readable results plus explicit JSON output, file/stdin input for
-  longer text/structured requests, exact target identifiers, no implicit prompts in scripts,
-  and clear accepted/queued/completed distinctions. Preserve the existing command forms and
-  server-owned state, permissions, ownership, persistence and provider capability limits.
-  Keep chat's Send-versus-Steer and Cancel-versus-Stop meanings; waiting/following must not imply
-  that accepted work completed or that leaving the CLI stops an agent.
-  Exclude visual layout, browser drafts, phone presentation/push setup and embedded terminal
-  emulation; do not implement TBD provider quota reads or the paused direct agent-action transport.
-  Operator CLI parity does not grant agents new authority or change the MCP migration gate.
-  **Waiting on:** confirm full nonvisual web parity versus conversation-only parity before planned
-  feature requirements and technical design. Exact syntax, output contracts and destructive-action
-  confirmation behavior remain to be specified after scope confirmation. No ready change yet.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;

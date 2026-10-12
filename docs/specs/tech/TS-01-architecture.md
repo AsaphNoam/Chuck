@@ -506,6 +506,16 @@ ownership/completion and guarded source actions rather than adding a second laun
 event watcher or generic orchestration framework. Published room entries are canonical group
 history; each normal provider transcript remains canonical for that individual session.
 
+**R38 (planned) — Operator CLI is a client of the existing control plane.** FS-22 adds
+Cobra operation families inside `internal/cli`, using TS-03.R64–R69's shared REST/SSE client.
+The client reads existing local config only to discover the dashboard port; operational reads and
+mutations go through server-owned APIs, never direct SQLite/config/transcript writes, provider
+process calls or a second runtime/scheduler. Existing offline maintenance, auth and dashboard
+commands retain their separately specified behavior. Human transcript text uses
+`transcript.ProjectEvent`; machine mode preserves original normalized events and additive fields.
+Reuse server validation, composition, ownership, lifecycle claims and receipt seams rather than
+reimplementing them in command handlers. No direct-action/MCP migration work is included.
+
 ## 3. Interfaces & data shapes
 
 **Runtime interface** (`internal/runtime/runtime.go`, minimum surface):

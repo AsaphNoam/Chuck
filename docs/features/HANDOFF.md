@@ -40,8 +40,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Send cleanup missing a composer reopened while delivery was pending (see Review findings).
   Theme selection and the narrow paired-phone config route passed review. This same unit remains
   open for the draft fix; the other available review units are unchanged.
-- **Design awaiting scope confirmation — CLI parity:** `docs/ideas.md` proposes full nonvisual
-  web parity with composable terminal input/output. No requirements or active change yet.
+- **Design ready — full operator CLI parity (2026-10-12):**
+  [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md) waits to start.
+  FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 specify full nonvisual web
+  operation coverage, legacy compatibility, readable/JSON output, file/stdin input, explicit
+  consent and bounded reconnect-safe transcript follow. Scope and CLI contract are approved.
+  Attachment A8 waits for the separate in-progress attachment unit; other families may start
+  independently. Changelog: planned boundary recovery, shared client, lifecycle cleanup, honest
+  results, consent and finite independent verification (INV §1/§2/§4/§7/§8/§9/§10/§11/§14/§15/§16/§17).
+  Spec lint, design-feature/UX launcher twin comparisons and diff checks pass.
+  No CLI product code; the active attachment change remains separate.
 - **Design ready — chat images and attachments (2026-10-12):**
   [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
   waits to start. FS-03.R81–R86/A62–A65; TS-02.R46–R47, TS-03.R62–R63,
@@ -119,7 +127,6 @@ focused runtime/API/UI checks, then exercise rendered and live-provider gates.
   ownership (compatibility change).
 - Whether a pipeline stage paused after failed launch/resume continues withholding **Open agent**,
   matching restart recovery, or permits chat under a wider continuation contract.
-- CLI parity product scope (see Current position).
 
 ## Design consistency notes
 

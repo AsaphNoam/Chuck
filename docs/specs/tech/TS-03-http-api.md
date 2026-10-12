@@ -863,6 +863,95 @@ Binary reads set verified Content-Type, `nosniff`, and private no-store caching;
 native image types use attachment disposition. Local-image reads occur only after explicit user
 activation, never from transcript parsing or scrolling. These routes inherit existing guards.
 
+**R64 (planned) — One operator client, existing routes.** For FS-22, extend `internal/cli`
+with one injectable HTTP client using existing `dashboardPort` resolution and fixed
+`http://127.0.0.1:<port>`. Do not add a remote URL flag, auto-start, user authentication, producer
+token, provider side client or generic arbitrary-request command. Reuse the existing operation
+methods, paths, JSON/query/header shapes and error envelopes. Path segments and queries are
+encoded independently; group labels stay in JSON. Role/project/backend `show` performs an exact
+id lookup in the corresponding authoritative collection response; no new item route is required.
+New command handlers use shared request/input/output/error helpers, not copies of the current
+launch/resume/pipeline HTTP code. Existing entry points may delegate to that client through
+compatibility presentation adapters; retain FS-22.R1's legacy default behavior.
+
+**R65 (planned) — Preserve wire meaning and CLI output.** Implement FS-22.R2's stdout/stderr
+and exit contract without changing server error envelopes. Success JSON uses raw JSON values or
+number-preserving decoding so unknown fields and integer sequences/ids survive. Human rendering
+decodes only its required fields; it never converts a missing state into success/completion.
+Parse R3 nested errors and R4 flat/validation errors, preserving safe codes and field-validation
+details; absent codes use stable client codes such as `api_error`, `invalid_input`,
+`dashboard_unavailable`, `response_too_large`, `invalid_response`, `result_unknown` or `stream_gap`.
+Do not print raw HTML, credential values or provider diagnostics as a fallback. JSON stderr uses
+one object per diagnostic, also during follow; use an optional `http_status` for HTTP failures.
+Treat bulk member failures as nonzero while retaining the authoritative result on stdout.
+Binary reads write only to an explicit `--output` destination; stage bounded bytes to an owner-only
+temporary file, remove it on failure and publish the destination only after a complete successful
+read. Reject destination overwrite absent `--overwrite`; return `{}` in JSON mode after success.
+Escape terminal controls in human labels/content; JSON escaping preserves original strings as data.
+
+**R66 (planned) — Explicit bounded input and observation.** Read text and JSON files/stdin with
+limit+1 readers: 1 MiB per text/JSON input, reduced by any stricter operation bound. Reject
+conflicting sources or duplicate flag/JSON fields; preserve explicit false/zero versus omission.
+JSON input is one object with no trailing value. Nonstream responses are bounded at 64 MiB,
+individual SSE frames at 16 MiB, and live catch-up buffers at both 256 events and 32 MiB.
+No implicit fetch-all or permanent retained transcript copy is allowed. A too-large history
+response names `--since-seq` as the way to request a smaller suffix; never silently truncate it.
+Ordinary requests use a 30-second deadline by default; expose an explicit positive `--timeout`
+when a legitimate server operation needs longer, without imposing that total deadline on follow.
+Follow uses the existing 10-second pings with a 30-second liveness/recovery window and bounded
+backoff beginning at the server's 2-second retry interval. An unrecoverable gap, corrupt response,
+missing target or expired recovery budget exits nonzero with the last emitted durable sequence.
+At most one stream and one catch-up request are active per invocation, with one bounded tail;
+close bodies and cancel outstanding requests on exit, interrupt, overflow or broken output pipe.
+Backpressure never starts unbounded writers/reconnects or blocks server publication. A broken
+pipe ends observation normally; it never issues Cancel or Stop.
+
+**R67 (planned) — Subscribe before reading; recover by transcript sequence.** Follow opens the
+existing global `/api/events`, filters by exact `agent_id` and waits for its `hydrated` marker
+while buffering that agent's durable `new_message` events. Then read the authoritative transcript
+using the user's initial `since_seq` (or the last emitted seq on reconnect). Emit returned events
+in sequence, discard buffered duplicates at/below the emitted boundary, and drain the bounded
+tail in order before continuing live. Gaps trigger the same catch-up; overflow drops the observer
+connection and refills from durable truth within R66's recovery budget, never silently skipping
+events. Reset connection-derived state and discard ephemeral activity on every reconnect.
+SSE ids are global bus ids, not transcript cursors; no `Last-Event-ID` replay is assumed.
+JSON follow emits the original normalized durable event as each line, including native child
+identity; live-only `runtime_activity` emits its original bus envelope, whose type identifies
+the different stream shape and whose outer sequence is not a transcript cursor. Human output
+labels reasoning live-only. Unknown normalized transcript events are inspectable; unrelated or
+unknown bus event types may be ignored under R8. Initial reads, reconnect races and repeated
+events use one reconciliation helper, independently tested against server-origin fixtures.
+
+**R68 (planned) — Commands preserve guards and receipts.** FS-22.R8's complete operation
+inventory maps directly to the relevant server handlers. Do not widen scope through UI-only or
+agent/phone producer routes. `--yes` is a CLI acknowledgement only; forward federation preview
+tokens, checkout/dirty/shared-workspace consents, force flags, revisions, ETags and expected limits
+through their existing fields. Never fetch a newer revision/ETag and retry a refused mutation
+automatically. Preserve full task/room/pipeline input shapes, including effort/fast assignments,
+participant mentions and retry targets/attempts. Existing compact stage syntax remains compatible;
+`--request-file` JSON supplies fields that compact syntax cannot express and never repurposes
+the existing pipeline `--input` flags. Ordinary Cancel requires
+`{target:"turn"}`; quota Cancel forwards the exact R60 target/episode/revision. New launch always
+POSTs, while legacy launch automatic-resume selection is unchanged. New inspection/settings
+commands never create a session or execute a discovered provider command as a side effect.
+Do not automatically replay mutations after timeout, connection loss or partial response. Caller
+ids for idempotent pipeline/room/attachment requests are generated before submission when absent,
+printed on ambiguous failure, and explicitly reusable with identical payloads; they are not new
+retry guarantees for ordinary mutations. Help documents read-current-state versus safe identical
+retry for each affected operation. Config writes remain field-aware and reject immutable keys;
+backend catalog updates require caller-supplied ETag rather than blind replacement.
+
+**R69 (planned) — Attachment commands reuse approved admission.** CLI Send/Steer with
+`--attach` is implemented only after R62–R63's multipart/receipt/owned-byte seams ship. Reuse one
+ordered message declaration with request id and binary parts; stream at most 10 files, each
+10 MiB, aggregate 25 MiB, with the existing 64 KiB message/26 MiB multipart limits and native-image
+capability rules. Validate bounds while reading even when a source grows after stat. Avoid a
+second CLI blob store, private upload route or provider content assembler. Owned-copy resubmission
+and recovery dismissal use exactly R62's JSON and query shapes. Save/read commands use R63's
+session-owned ids and explicit local-image reader; downloaded bytes have the same file/image
+limits, not an unbounded exception to R66. Metadata inspection never triggers a binary read.
+No change to server storage, cleanup, redaction, trust or device grants is required by this CLI.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

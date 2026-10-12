@@ -273,6 +273,23 @@ private Send/Steer, native resume and end-only judge; record versions/results an
 receipts explicitly owed. Fake ACP and documentation checks cannot satisfy those gates. Design
 closure runs only spec lint, applicable twin-skill comparisons and diff checks.
 
+**R34 (planned) — CLI parity closes through independent wire and process evidence.** FS-22.A1–A9
+use temporary Chuck homes and loopback-only real server/fake-provider fixtures. Compare the Cobra
+surface against an independently reviewed FS-22.R8 operation list and registered server routes,
+including explicit exclusions; do not derive expected coverage from the command table under test.
+Assert actual method/path/query/headers/body, stdin bytes, output streams, exit status and durable
+side effects. Exercise initial follow/reconnect/overflow/sequence races and process interruption,
+stale consent/revision/ETag/permission targets, mixed bulk outcomes, multipart retry and binary-file
+failure cleanup. Inspect built-binary help and run a bounded terminal/script journey through
+agent conversation and management, pipeline/task/room control and redacted administration.
+Update README/operator CLI examples and any shipped operating reference that actually describes
+changed CLI behavior, retaining the scoped agent-action/MCP boundary. Follow R5's applicable
+closure matrix once after final relevant edits; no UI/embed rebuild or rendered browser journey
+is needed for an exclusively CLI change. Attachment evidence depends on FS-03.A62–A65's shipped
+seams and remains distinct from live-provider support receipts. Existing manual tailnet/provider
+gates are neither repeated by default nor satisfied by fake-provider CLI proof. Design-only
+closure uses spec lint, launcher twin comparison and diff checks.
+
 ## 3. Interfaces & data shapes
 
 The canonical commands are:

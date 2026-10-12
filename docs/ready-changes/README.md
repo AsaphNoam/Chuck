@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`full-operator-cli-parity.md`](full-operator-cli-parity.md) — full nonvisual web operations
+  through composable CLI commands; preserve existing syntax and server-owned semantics, with
+  explicit consent, script output and reconnect-safe transcript follow.
+
 - [`chat-images-and-file-attachments.md`](chat-images-and-file-attachments.md) — desktop/phone
   file picker, drag/drop and pasted images; clickable thumbnails/modal, native image delivery,
   host-file copies for ordinary tools, retained history and compatible Send/Steer transport.
