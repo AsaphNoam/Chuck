@@ -11,6 +11,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   §16.6). `v0.13.0` was published 2026-10-10. The user waived the open review units below for
   release; that is not completed review. Manual provider gates below remain owed.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
+- **Investigated — mobile CSS missing, fix open (2026-10-12):** dev-mode UI rebuilds can
+  leave the phone static allowlist behind; the service worker permanently caches the resulting
+  stylesheet error. Three confirmed defects and skipped reproductions are recorded under Review
+  findings. The user's authorized dev restart completed; the tailnet is On and current CSS returns
+  200 `text/css`. Phone cache recovery and on-device styling remain unverified; product code unchanged.
 - **Closed mobile outage investigation — 2026-10-12:** the user confirmed that an unrelated
   terminal crash stopped Chuck. The separate embedded tailnet device going offline while the
   Mac stayed connected is expected. Investigation `e0489b5` is closed at the user's request;
@@ -107,6 +112,63 @@ None. The v0.14.0 release is cut; the next change starts from a review unit abov
   switch shows it above the composer.
 
 ## Review findings
+
+### Mobile CSS missing in dev mode — investigation 2026-10-12 — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Report verbatim: “the css isn't loading on mobile”. Follow-up: “It's running on dev mode, not an
+installed release, go ahead and try restarting”. Screenshot: Android phone app at 07:35, showing
+the Chuck companion Home, Connected to your Mac and agent attention data, with default serif text,
+buttons and oversized mark. Attachment `1-1000192461.jpg` was provided; no logs accompanied the
+report. Exact running commit/browser version and whether reload helps were not supplied.
+Classified as a code defect against FS-20.R10 and TS-08.R73/R111, TS-13.R14.
+
+- **Must fix — confirmed** — Dev phone asset allowlist freezes before UI rebuild.
+  `internal/server/spa.go:47,57–59` snapshots `phoneAssetGraph` when the handler starts, while
+  `internal/server/static_dev.go:31–32` serves a changing `os.DirFS("ui/dist")`. Rebuilding Vite
+  changes HTML and hashed CSS/JS names; the same running handler serves the new HTML but rejects
+  its existing assets as 404 `remote_route_not_available`. This breaks the dev build's documented
+  rebuild-without-restart behavior and TS-13.R14's embedded phone entry contract (INV §1/§10).
+  `TestPhoneStylesheetAfterDevRebuild` failed with new HTML 200 and its CSS 404. Fix difficulty:
+  trivial/easy; refresh the dev asset graph at the existing static seam, retaining the desktop
+  asset exclusion. The frozen graph was introduced by `680775d` (2026-09-29).
+- **Must fix — confirmed** — Failed stylesheet responses poison the persistent shell cache.
+  `ui/public/remote-sw.js:5,32–42` caches every asset response without checking status or MIME
+  type, then serves the cache hit without attempting the network. A 404 JSON CSS response remains
+  unusable after the server recovers; restarting the Mac alone cannot repair the phone cache.
+  This violates FS-20.R10 and the usable shell of TS-08.R73 (INV §1). Running the actual worker in
+  `ui/scripts/remote-sw.test.mjs` reproduced the failure: a second CSS request returned the cached
+  404 JSON, despite the network being ready to return valid CSS. The same test reproduced cached
+  200 HTML at the CSS URL. Fix difficulty: trivial/easy; cache only valid assets and repair existing
+  invalid cached responses, with recovery for already affected phones that preserves pairing.
+  This unconditional cache behavior dates to the initial phone worker in `edf9d77`; the cache name
+  changed at `a7157c1`, but validation/recovery was not added.
+- **Worth fixing — confirmed** — Missing asset requests become successful app HTML.
+  `internal/server/spa.go:60–62` applies SPA fallback to missing `/assets/*.css` and JavaScript
+  files. After a rebuild removes old hashes, an asset request gets 200 `text/html`, which browsers
+  cannot use as CSS and the worker caches. This hides broken delivery as success in remote request
+  logs (TS-13.R14; INV §7). `TestPhoneMissingStylesheetDoesNotServeAppHTML` failed with 200
+  `text/html` instead of 404. Fix difficulty: trivial/easy; return 404 for unavailable static asset
+  URLs while preserving app-route fallback and the listener security boundary.
+
+Field-cause confidence: **probable**, supported by the actual `~/.chuck/dashboard.log`:
+2026-10-11 22:33:40 +03:00 recorded `/assets/remote-CJjGcYOz.css` 404 alongside rejected rebuilt
+JS; 2026-10-12 07:21:46–49 recorded current `remote-BEZY269w.js` and `appearance-BqEL4BPf.js`
+200, with no new request for the unchanged CSS hash before the 07:35 screenshot. Phone Cache
+Storage was not directly inspected, so the field cache contents are not confirmed. Before and after
+the authorized restart, a direct tailnet fetch of that CSS returned 200 `text/css`, 80,301 bytes.
+The dev process was gracefully stopped and restarted using `go run -tags dev ./cmd/chuck dashboard
+stop` then `dashboard start --detach`; the new PID was 60404 at loopback port 4317, and `/api/remote`
+reported On with the existing Android pairing retained. No site data was cleared.
+
+Verification: all four reproduction cases failed unskipped on existing product code, then were
+marked skipped for fix. Focused static Go tests passed with two skips; the worker tests have two
+skips. Commands: `env -u CHUCK_RUNTIME_ROOT go test ./internal/server -run
+'TestPhoneStylesheetAfterDevRebuild|TestPhoneMissingStylesheetDoesNotServeAppHTML|TestStaticEntriesStayOnTheirListener'
+-count=1`; `node --test ui/scripts/remote-sw.test.mjs`. Product code, specifications and generated
+assets were not changed. Fix should unskip these tests, preserve desktop asset exclusion, verify an
+affected cache recovers without deleting pairing cookies, and complete the applicable TS-06 closure.
+Applicable invariant classes: §1/§7/§10/§14/§17; §13 selector coverage is not the cause (the current
+built CSS includes phone styles). Other trigger classes have no applicable investigation surface.
 
 ### Phone chat drafts and Theme selection — `79cbbc3` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
