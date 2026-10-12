@@ -101,7 +101,58 @@ None. The v0.14.0 release is cut; the next change starts from a review unit abov
 
 ## Review findings
 
-None open. Closed 2026-10-11 reviews (group controls, persona, quota continuation, Think Tank
+### Mobile outage investigation — 2026-10-12 — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Report verbatim: “mobile is unresponsive, even though tailscale shows the Mac is connected
+(but chuck isn't)”. Environment: this Mac, `~/.chuck`, configured desktop port 4317,
+`remote_enabled=true`, `keep_awake=true`; running build/launch method at failure unknown.
+Repository HEAD at investigation: `605ea3e` (local v0.14.0 release). No user-supplied logs;
+local `dashboard.log` and live process/tailnet evidence were inspected.
+
+**Confirmed outage condition:** the pidfile names PID 84843, which no longer exists; no desktop
+listener answers port 4317. Tailscale reports the Mac and Android phone online but the separate
+embedded `chuck` device offline, last seen about four hours earlier. The log records successful
+phone requests through 2026-10-11 22:46:22 +03:00 and desktop requests through 22:57:23.745614,
+then ends without `dashboard shutting down`, a fatal error, or a panic. The previous orderly
+shutdown at 21:56:37 and start at 21:57:01 are logged. No Chuck crash report or matching macOS
+termination event was found in the inspected 22:56:50–22:58:10 window. Chuck being stopped
+explains its tailnet device being offline (FS-20.R1, TS-13.R1–R2); why it exited is
+**undetermined**, with an abrupt exit **probable**, not a confirmed crash. A connected Mac's
+independent Tailscale app cannot keep Chuck's embedded node alive. Recovery: start the normal
+dashboard detached, then verify desktop health, remote `on`, and the phone; no runtime state was
+changed by this investigation.
+
+- **Must fix** — MOBILE-OFFLINE-1 — confirmed defect; contribution to this field symptom
+  undetermined; fix complexity trivial/easy. `ui/src/remote/api.ts:24` and
+  `ui/src/remote/connection.ts:55,95`: a health fetch has no deadline. When a lost tailnet path
+  leaves it pending, initial classification remains `checking`, so PhoneApp stays on
+  “Connecting to your Mac…”; the five-second SSE-error timer likewise awaits that unbounded
+  classification and can leave an existing view `reconnecting`. FS-20.R23 and INV §8/§9 require an explicit
+  unreachable/stale state. Reproduced with a fetch that never answers: after 30 seconds of fake
+  time, link is still `checking`, not `unreachable`. This is a generous regression-test ceiling,
+  not a new specification deadline. `ui/src/remote/connection.test.ts` contains the reproduced
+  assertion, committed skipped under §12. Suggested fix: bound the read-only health probe,
+  classify timeout as unreachable, and retain automatic reconnect; do not add retries or replay
+  to mutations or put the health timeout on pairing's intentional long poll. Unskip the test and
+  cover a stalled probe after SSE failure as well as recovery to connected.
+- **Worth fixing** — MOBILE-OFFLINE-2 — confirmed observability gap; exit cause undetermined;
+  fix complexity trivial/easy. `internal/cli/dashboard.go:178–207` and
+  `internal/server/server.go:534`: the retained log identifies the listening address but not the
+  dashboard PID/build/start mode, and a new start silently overwrites a stale pidfile. In this
+  outage there is no exit record, so future restart loses the remaining process identity evidence.
+  TS-01.R15 supplies the durable diagnostic sink; INV §9 governs process-liveness evidence;
+  workflow §12.5 requires a diagnostic finding
+  when silence prevents diagnosis. Log bounded, secret-free startup identity and the discovery
+  of a dead prior PID before overwriting it, plus handled shutdown signal/error where available.
+  Test these records for foreground/detached starts. This can identify an unclean prior exit and
+  the affected build; it cannot capture SIGKILL or explain an OS kill from inside the dead process.
+
+Investigation verification: live process/local endpoint/tailnet checks; relevant code/spec trace;
+reproduction failed as expected before marking skipped. Focused phone suite: 14 passed, one
+reproduction skipped (existing unhandled `/api/roles` mock warnings). `make check-specs` passes.
+Product code and specifications are unchanged.
+
+Closed 2026-10-11 reviews (group controls, persona, quota continuation, Think Tank
 room page, button redesign, mobile details/composer) are in the archive above.
 
 ## Blocked on human
