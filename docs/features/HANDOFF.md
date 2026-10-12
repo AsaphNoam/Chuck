@@ -42,6 +42,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   open for the draft fix; the other available review units are unchanged.
 - **Design awaiting scope confirmation — CLI parity:** `docs/ideas.md` proposes full nonvisual
   web parity with composable terminal input/output. No requirements or active change yet.
+- **Design awaiting scope confirmation — chat images and attachments (2026-10-12):**
+  `docs/ideas.md` records picker/drop/pasted-image attachment and clickable thumbnail/modal support.
+  Current composer, prompt API and durable user event are text-only; `@` inserts a path reference.
+  Confirm image sources, agent delivery, desktop/phone scope and retention before planned FS-03
+  requirements and technical design. No product code or ready change.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
