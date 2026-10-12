@@ -29,9 +29,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   FS-20.R47–R48/A19, TS-08.R121. Project-scoped page-session group choices and a long-press
   action sheet over shared phone management forms. Receipts: shared project resources
   `mobile-actions-20261011/`. Fixtures make no provider claim.
-- **Awaiting review — phone chat drafts and Theme selection:** FS-20.R49–R50/A20–A21,
-  TS-08.R122, TS-13.R25. Per-agent browser-local drafts via `components/chat/drafts.ts` and an
-  appearance-only `PUT /api/config` for paired phones. Receipt: `phone-render.mjs --parity-check`.
+- **Reviewed — phone chat drafts and Theme selection, fix open:** `79cbbc3`,
+  FS-20.R49–R50/A20–A21, TS-08.R122, TS-13.R25. The 2026-10-12 review reproduced accepted
+  Send cleanup missing a composer reopened while delivery was pending (see Review findings).
+  Theme selection and the narrow paired-phone config route passed review. This same unit remains
+  open for the draft fix; the other available review units are unchanged.
 - **Design awaiting scope confirmation — CLI parity:** `docs/ideas.md` proposes full nonvisual
   web parity with composable terminal input/output. No requirements or active change yet.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
@@ -106,9 +108,37 @@ None. The v0.14.0 release is cut; the next change starts from a review unit abov
 
 ## Review findings
 
-None open. The mobile outage investigation was closed by the user on 2026-10-12 (see Current
-position). Closed 2026-10-11 reviews (group controls, persona, quota continuation, Think Tank
-room page, button redesign, mobile details/composer) are in the archive above.
+### Phone chat drafts and Theme selection — `79cbbc3` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed 2026-10-12; fix open.
+
+- **Must fix** — Accepted Send leaves submitted text in a reopened composer (INV §1).
+  `ui/src/remote/AgentScreen.tsx:207,413–423` restores the draft only on mount and clears local
+  text only in the component that submitted it. Send, navigate away while delivery is pending,
+  then reopen the same agent before acceptance: the reopened composer restores the submitted
+  draft, but acceptance clears only storage and the old unmounted component. The visible text
+  remains available to send again. This violates FS-03.R36 and FS-20.R49/A20's accepted-draft
+  cleanup. Synchronize the mounted composer with accepted cleanup through the shared draft seam,
+  preserving revision protection for newer text. Add a delayed Send/Steer leave/reopen/accept
+  regression case. Independent Chromium reproduction retained `submitted before navigation`
+  in the textbox after the storage entry became absent; evidence:
+  `/tmp/review-phone-boundary-20261012.mjs` and `/tmp/review-phone-boundary-20261012.png`.
+
+Review evidence: 66 focused UI tests passed (AgentScreen, PhoneSettings, PhoneApp and drafts);
+the two focused remote appearance/field-filter server tests passed. Existing PhoneApp fixtures
+emit missing `/api/roles` MSW warnings without failing. The working tree's actual remote entry
+passed `phone-render.mjs --parity-check` with isolated Chromium at 360/390/430px in all three
+appearances; inspected screenshots show a labelled, readable Theme control, adequate touch height
+and no horizontal overflow. Receipts: `/tmp/review-phone-parity-20261012*.png`. Fixtures make no
+live-provider or real-tailnet claim. Shared draft/config reuse, partial config merge, finite skin
+selection and query ownership are sound local choices; none needs a human decision.
+
+Invariant sweep: §1 has the finding above. Applicable §2, §3, §8, §10, §11, §13, §14, §15,
+§16 and §17 have no additional findings. §4, §5, §6, §7, §9 and §12 have no applicable surface
+in this unit. Product code and specifications were unchanged.
+
+The mobile outage investigation was closed by the user on 2026-10-12 (see Current position).
+Closed 2026-10-11 reviews are in the archive above.
 
 ## Blocked on human
 
