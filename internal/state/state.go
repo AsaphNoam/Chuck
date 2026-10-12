@@ -11,7 +11,8 @@ import (
 
 // Store owns the SQLite state database.
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	home string
 }
 
 // Open opens home/state.db, enables WAL and foreign keys, applies migrations,
@@ -59,7 +60,7 @@ func Open(home string) (*Store, error) {
 		return nil, fmt.Errorf("state: chmod db: %w", err)
 	}
 
-	return &Store{db: db}, nil
+	return &Store{db: db, home: home}, nil
 }
 
 // Close closes the underlying database handle.

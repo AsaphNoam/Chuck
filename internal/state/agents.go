@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 )
 
 var randRead = rand.Read
@@ -227,6 +228,11 @@ func (s *Store) RestoreAgentArchiveStates(states map[string]bool) error {
 func (s *Store) DeleteAgent(id string) error {
 	if _, err := s.db.Exec(`DELETE FROM agents WHERE agent_id = ?`, id); err != nil {
 		return fmt.Errorf("state: delete agent: %w", err)
+	}
+	if s.home != "" {
+		if err := attachment.New(s.home).DeleteConversation(id); err != nil {
+			return fmt.Errorf("state: remove deleted conversation attachments: %w", err)
+		}
 	}
 	return nil
 }

@@ -71,8 +71,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 FS-03.R81–R86/A62–A65 and the named attachment TS requirements remain planned until closure.
 Storage, runtime and UI slices are delegated with distinct ownership; HTTP admission, durable
 receipts and history/lifecycle integration remain under the parent. The working tree was clean
-at selection. Next: verify bounded owned storage and runtime contracts, integrate multipart routes
-and receipts, then exercise drafts, recovery, clone/delete, rendered and live-provider gates.
+at selection. **Verified storage checkpoint:** immutable owner-only blobs/manifests, per-file
+validation, safe reads, independent clone copies, provisional-marker startup cleanup and
+conversation deletion; SQLite request receipts release held copies for explicit recovery after
+restart. Full `internal/attachment` and `internal/state` tests pass. Limits apply per message,
+not per conversation. HTTP/runtime/UI integration is in progress and uncommitted; next: finish
+focused runtime/API/UI checks, then exercise rendered and live-provider gates.
 
 ## Acceptance gates still owed
 

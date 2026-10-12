@@ -759,4 +759,21 @@ CREATE TABLE quota_intents (
   WHERE state IN ('scheduled','deferred') AND due_at IS NOT NULL;
 `,
 	},
+	{
+		version: 50,
+		sql: `CREATE TABLE attachment_receipts (
+ agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+ request_id TEXT NOT NULL,
+ payload_hash TEXT NOT NULL,
+ message_json TEXT NOT NULL CHECK(length(CAST(message_json AS BLOB)) <= 65536),
+ action TEXT NOT NULL CHECK(action IN ('prompt','steer')),
+ delivery TEXT NOT NULL CHECK(delivery IN ('held','submitted','released','failed','unknown')),
+ outcome TEXT NOT NULL DEFAULT '',
+ dismissed INTEGER NOT NULL DEFAULT 0 CHECK(dismissed IN (0,1)),
+ updated_at TEXT NOT NULL,
+ PRIMARY KEY(agent_id,request_id)
+);
+CREATE INDEX idx_attachment_recovery ON attachment_receipts(agent_id,updated_at)
+ WHERE delivery = 'released' AND dismissed = 0;`,
+	},
 }

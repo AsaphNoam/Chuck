@@ -80,6 +80,11 @@ with focused storage, wire, API and component tests before final closure and ren
 4. Shared browser attachment drafts, composer strip, thumbnail/modal and safe Markdown images.
 5. Integrated failure/recovery journeys, rendered appearance matrix and pinned provider receipts.
 
+Storage checkpoint: `internal/attachment` and state migration 50 implement immutable owned bytes
+and attachment receipts. Provisional markers allow startup cleanup without deleting retained copies
+whose old transcript is corrupt. `internal/attachment` and `internal/state` full suites pass.
+Overall attachment behavior and its requirements remain planned while integration proceeds.
+
 The experienced operator adds context to an existing conversation and inspects it before sending.
 Keep the text entry and Send primary, with a quiet wrapping strip above it; distinguish native image
 input from files read through ordinary tools. Preserve keyboard flow, exact newer drafts and chat
