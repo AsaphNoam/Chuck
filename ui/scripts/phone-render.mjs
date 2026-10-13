@@ -252,6 +252,19 @@ try {
         if (center.x > 1 || center.y > 1 || center.overflow) throw new Error(`${theme}/${width} dialog: ${JSON.stringify(center)}`);
         await page.screenshot({ path: `${prefix}-new-agent-${width}.png`, animations: "disabled" });
         await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+        await page.locator(".phone-agent-row").first().click({ button: "right" });
+        const sheet = page.getByRole("dialog");
+        await sheet.getByRole("button", { name: "Move to group", exact: true }).click();
+        await sheet.getByRole("combobox", { name: "Group" }).focus();
+        const picker = await sheet.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const list = el.querySelector("[role=listbox]").getBoundingClientRect();
+          return { inside: list.bottom <= box.bottom && list.bottom <= innerHeight, scrolled: el.scrollHeight > el.clientHeight };
+        });
+        if (!picker.inside || picker.scrolled) throw new Error(`${theme}/${width} group picker: ${JSON.stringify(picker)}`);
+        await page.screenshot({ path: `${prefix}-group-${width}.png`, animations: "disabled" });
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
       }
       await page.setViewportSize({ width: 390, height: 844 });
       console.log(`${theme || "core"} details: ${JSON.stringify(metrics)}`);

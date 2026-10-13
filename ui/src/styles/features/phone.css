@@ -210,6 +210,9 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .dialog-content::before { content: ""; display: block; width: 34px; height: 4px; border-radius: var(--ad-radius-round); background: var(--ad-border-default); margin: 0 auto var(--ad-space-4); }
 .dialog-content.phone-sheet-centered { top: 50%; bottom: auto; transform: translate(-50%, -50%); width: min(480px, calc(100vw - var(--ad-space-8))); border-radius: var(--ad-radius-large); }
 .phone-sheet-centered::before { display: none; }
+/* A bottom sheet sizes to its content, so picker options flow inside it instead of overhanging the screen edge. */
+.phone-sheet .group-picker-options { position: static; }
+.phone-sheet .phone-manage-group { display: grid; }
 .phone-sheet .phone-card { border: 0; padding: 0; background: transparent; }
 .phone-sheet .phone-form > h2 { display: none; }
 .phone-sheet .phone-section-title h2 { font-size: 1.3125rem; }
