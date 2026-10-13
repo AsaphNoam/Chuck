@@ -599,6 +599,13 @@ member fails; retry targets remaining eligible members. Normal per-agent lifecyc
 and owner behavior remain applicable. Membership is resolved at submission; newly joined members
 are not silently added to an operation already running.
 
+**R77.** The scoped project page (`/project/:id`) offers a cursor-positioned context menu opened by
+right-clicking its background — any point that is not an agent card, room card, form control, dialog,
+or open menu, which keep their own behavior. It offers **New agent** (R43) and, only while the page
+shows the **Think Tank** button (R65: active, non-archived project), **New think tank**; each item opens
+exactly what the matching header button opens. It reuses the `context-menu` portal presentation and
+click-outside/Escape dismissal of R41.
+
 ## 5. Acceptance criteria
 
 **A1.** Launching an agent adds its card within ~1s with no manual refresh; a status change flips the
@@ -954,6 +961,10 @@ the other device. Verify Cancel, a pre-execution lifecycle conflict with zero ch
 failure with per-member feedback and retry. Exercise a group label containing `/` through the
 actual JSON wire and confirm the old global release route is absent on both listeners.
 — server/UI tests and a fake-provider browser journey.
+
+**A58** (R77) — Right-clicking the scoped project page background shows **New agent** and
+**New think tank**; each opens the dialog its header button opens. Right-clicking an agent card opens
+no background menu. — `ScopedProjectDashboard.test.tsx`.
 
 ## 6. Deviations & open decisions
 

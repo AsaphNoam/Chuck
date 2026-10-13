@@ -91,7 +91,7 @@ export function ArchiveAgentPage() {
         </button>
       </header>
       {error && <p className="archive-error">{error}</p>}
-      <div data-slot="content"><TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} openFile={openFile} onOpenFile={openFileInViewer} /></div>
+      <div data-slot="content"><TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} openFile={openFile} onOpenFile={openFileInViewer} inlineDiffs /></div>
       {/* No Composer — read-only view */}
       <div />
       </div>

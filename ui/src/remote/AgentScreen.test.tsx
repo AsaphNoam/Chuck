@@ -725,8 +725,16 @@ describe("AgentScreen diff annotations", () => {
   const idle = { ...agent, state: "idle" as const, detail: "" };
   const draft = { seq: 4, path: "main.go", side: "old", start_line: 2, end_line: 2, excerpt: "second" };
 
+  // File changes stay out of the conversation; the diff opens from Files (FS-03.R87).
   async function annotateLine() {
+    server.use(http.get("/api/sessions/a1/files", () => HttpResponse.json({ agent_id: "a1", files: [{ path: "main.go", edit_count: 1, last_ts: "2026-10-02T00:00:00Z", has_diff: true, diff_refs: [{ seq: 4, tool_call_id: "t1" }] }] })));
+    earlierPage = { agent_id: "a1", events: [events[3]], has_more: true };
     renderScreen();
+    const conversation = await screen.findByRole("list", { name: "Conversation" });
+    await waitFor(() => expect(conversation.textContent).not.toBe(""));
+    expect(conversation).not.toHaveTextContent("main.go");
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open diff" }));
     expect(await screen.findByText("Tap line numbers to select a range.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Old line 2" }));
     fireEvent.click(screen.getByRole("button", { name: "Annotate lines 2–2" }));

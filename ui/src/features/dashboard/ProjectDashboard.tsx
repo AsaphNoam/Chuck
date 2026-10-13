@@ -1,11 +1,11 @@
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { RoomList } from "../thinktank/RoomList";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { createPortal } from "react-dom";
 import { configErrorMessage, QUERY_KEYS, useCreateProject, useProjects, useUpdateProject } from "../../api/config";
 import { useAgentStore } from "../../store/agentStore";
-import { CardGrid } from "../../components/grid/CardGrid";
+import { CardGrid, type CardGridOpeners } from "../../components/grid/CardGrid";
 import { archiveProject, getWorktreeStatus } from "../../api/client";
 import type { CheckoutConsent } from "../../api/client";
 import { useUiStore } from "../../store/uiStore";
@@ -317,8 +317,32 @@ export function ScopedProjectDashboard() {
 
 function ScopedProjectView({ id, project }: { id: string; project?: Omit<ProjectResponse, "project"> }) {
   const [forkOpen, setForkOpen] = useState(false);
+  const [bgMenu, setBgMenu] = useState<BackgroundMenu | null>(null);
+  const bgMenuPlacement = useMenuPlacement(bgMenu);
+  const openersRef = useRef<CardGridOpeners | null>(null);
+  const canThinkTank = Boolean(project && !project.archived);
+  useEffect(() => {
+    if (!bgMenu) return;
+    const dismiss = (event: globalThis.MouseEvent) => {
+      if (!(event.target as HTMLElement).closest(".context-menu")) setBgMenu(null);
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setBgMenu(null); };
+    window.addEventListener("mousedown", dismiss);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("mousedown", dismiss);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [bgMenu]);
+  // A right-click on a card, room, form control, dialog or open menu keeps its own behavior.
+  const openBackgroundMenu = (event: MouseEvent) => {
+    if ((event.target as HTMLElement).closest(".agent-card, .room-card, .context-menu, [role='dialog'], [data-ui='dialog'], input, textarea, select")) return;
+    event.preventDefault();
+    setBgMenu({ x: event.clientX, y: event.clientY });
+  };
+  const choose = (open: "newAgent" | "thinkTank") => { setBgMenu(null); openersRef.current?.[open](); };
   return (
-    <section>
+    <section onContextMenu={openBackgroundMenu}>
       <div className="scoped-project-header">
         <Link to="/">Back to projects</Link>
         {project?.worktree?.owned && (
@@ -330,7 +354,14 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
       </div>
       {/* Rooms precede the agent grid, one card per row (FS-02.R71). */}
       <RoomList project={id} />
-      <CardGrid projectID={id} fixedProject={project ? id : undefined} projectTitle={project?.title ?? id} />
+      <CardGrid projectID={id} fixedProject={project ? id : undefined} projectTitle={project?.title ?? id} openersRef={openersRef} />
+      {bgMenu && createPortal(
+        <div className="context-menu" data-ui="context-menu" role="menu" ref={bgMenuPlacement.ref} style={bgMenuPlacement.style}>
+          <button type="button" role="menuitem" data-slot="item" onClick={() => choose("newAgent")}>New agent</button>
+          {canThinkTank && <button type="button" role="menuitem" data-slot="item" onClick={() => choose("thinkTank")}>New think tank</button>}
+        </div>,
+        document.body,
+      )}
       {forkOpen && project && (
         <WorktreeForkDialog sourceID={id} sourceTitle={project.title} onClose={() => setForkOpen(false)} />
       )}

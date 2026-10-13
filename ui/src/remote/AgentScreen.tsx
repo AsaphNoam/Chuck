@@ -33,7 +33,7 @@ import { NoticeRow } from "../components/chat/renderers/NoticeRow";
 import { ToolCall } from "../components/chat/renderers/ToolCall";
 import { ToolResult } from "../components/chat/renderers/ToolResult";
 import { groupTranscriptRows, ToolRun } from "../components/chat/toolRun";
-import { markBackgrounded, nestActivities, withReasoning, type ChildNode } from "../components/chat/runtimeActivity";
+import { hideFileChanges, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "../components/chat/runtimeActivity";
 import { carryLeadKey } from "../components/chat/turnActivity";
 import { ChildActivity } from "../components/chat/renderers/ChildActivity";
 import { ThinkingDisclosure } from "../components/chat/renderers/ThinkingDisclosure";
@@ -361,7 +361,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   useEffect(() => watchReasoning(agentId, () => viewRef.current), [agentId]);
   const rows = useMemo(() => {
     const spans = reasoning?.map((span) => ({ ...span, anchor: slotAfter(events, span.anchor) }));
-    return nestActivities(withReasoning(markBackgrounded(events), spans, lead));
+    return nestActivities(hideFileChanges(withReasoning(markBackgrounded(events), spans, lead)));
   }, [events, reasoning, lead]);
   const choices = useTurnChoices(agentId);
   const listRef = useRef<HTMLDivElement>(null);

@@ -142,6 +142,26 @@ describe("TranscriptView annotation entry point", () => {
     expect(screen.queryByText("Completed")).toBeNull();
   });
 
+  // FS-03.A66: file changes stay out of the stream; a Files-tab reveal shows only its diff.
+  it("hides diffs unless one is revealed or the view keeps them inline", () => {
+    const withDiffs = [
+      { kind: "assistant_text", seq: 1, text: "Edited both files." },
+      { kind: "diff", seq: 2, path: "a.go", old_text: "a", new_text: "b" },
+      { kind: "diff", seq: 3, path: "c.go", old_text: "c", new_text: "d" },
+    ];
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+    const view = (props: { reveal?: { seq: number }; inlineDiffs?: boolean }) => (
+      <QueryClientProvider client={client}><TranscriptView agentId="a1" events={withDiffs} {...props} /></QueryClientProvider>
+    );
+    const { rerender } = render(view({}));
+    expect(screen.getByText("Edited both files.")).toBeInTheDocument();
+    expect(document.querySelector(".diff-block")).toBeNull();
+    rerender(view({ reveal: { seq: 3 } }));
+    expect([...document.querySelectorAll(".diff-block")].map((node) => node.textContent)).toEqual([expect.stringContaining("c.go")]);
+    rerender(view({ inlineDiffs: true }));
+    expect(document.querySelectorAll(".diff-block")).toHaveLength(2);
+  });
+
   it("starts a new tool run after non-tool activity", () => {
     renderTranscript(false, [
       { kind: "tool_call", seq: 1, name: "Read" },

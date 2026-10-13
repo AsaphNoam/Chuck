@@ -18,7 +18,7 @@ import { NoticeRow } from "./renderers/NoticeRow";
 import { ThinkingDisclosure } from "./renderers/ThinkingDisclosure";
 import { ChildActivity } from "./renderers/ChildActivity";
 import { BackgroundTaskList } from "./renderers/BackgroundTaskList";
-import { collectTasks, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "./runtimeActivity";
+import { collectTasks, hideFileChanges, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "./runtimeActivity";
 import { useReasoningStore } from "../../store/reasoningStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { projectTurns } from "./turnActivity";
@@ -46,7 +46,7 @@ import { useQueryClient } from "@tanstack/react-query";
 // taskControl offers targeted background-task Stop; only a live session whose
 // runtime negotiated it passes true, and the archive never does (FS-03.R59).
 // reveal names an event the caller is about to scroll to; a fresh object per request.
-export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, openFile = null, onOpenFile, taskControl = false, reveal = null }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; openFile?: FileLink | null; onOpenFile?: (link: FileLink | null, options?: { replace?: boolean }) => void; taskControl?: boolean; reveal?: { seq: number } | null }) {
+export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, openFile = null, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; openFile?: FileLink | null; onOpenFile?: (link: FileLink | null, options?: { replace?: boolean }) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -100,7 +100,9 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
 
   const results = useThinkTankResults(agentId);
   const settled = useTranscriptStore((state) => Boolean(state.settled[agentId]));
-  const nested = nestActivities(withReasoning(markBackgrounded(mergeThinkTankResults(events, results.data, settled)), reasoning));
+  const merged = withReasoning(markBackgrounded(mergeThinkTankResults(events, results.data, settled)), reasoning);
+  // A view without a Files tab keeps diffs inline (FS-03.R87).
+  const nested = nestActivities(inlineDiffs ? merged : hideFileChanges(merged, reveal?.seq));
   const choices = useTurnChoices(agentId);
   const trackFocus = useFocusReturn(scrollRef);
   // A Files-tab Diff reveal opens the completed turn hiding that row before the

@@ -57,6 +57,13 @@ export function nestActivities(events: TranscriptEvent[]): TranscriptEvent[] {
   return root;
 }
 
+// hideFileChanges drops diff rows from a chat's event stream; file changes stay
+// in the Files tab, whose Diff action reveals exactly one diff (FS-03.R2). Apply
+// it after withReasoning, whose span slots index the unfiltered list.
+export function hideFileChanges(events: TranscriptEvent[], revealSeq?: number): TranscriptEvent[] {
+  return events.filter((event) => kindOf(event) !== "diff" || (revealSeq !== undefined && event.seq === revealSeq));
+}
+
 // withReasoning places each live reasoning span at its chronological slot as a
 // render-only row. It has no seq, so it is never annotated, and it never enters
 // the transcript store (FS-03.R57). Desktop and phone both render through it.

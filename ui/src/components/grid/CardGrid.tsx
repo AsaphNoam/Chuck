@@ -43,7 +43,10 @@ function TaskAttentionLink({ projectID }: { projectID?: string }) {
   );
 }
 
-export function CardGrid({ projectID, projectTitle, fixedProject }: { projectID?: string; projectTitle?: string; fixedProject?: string } = {}) {
+/** Lets the scoped project page's background menu run the same openers as the header buttons. */
+export type CardGridOpeners = { newAgent: () => void; thinkTank: () => void };
+
+export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: { projectID?: string; projectTitle?: string; fixedProject?: string; openersRef?: { current: CardGridOpeners | null } } = {}) {
   const agents = useAgentStore((state) => state.agents);
   const agentsObserved = useAgentStore((state) => state.observed);
   const agentsHydrated = useAgentStore((state) => state.hydrated);
@@ -58,6 +61,11 @@ export function CardGrid({ projectID, projectTitle, fixedProject }: { projectID?
   const pushError = useUiStore((state) => state.pushError);
   const [showNewAgent, setShowNewAgent] = useState(false);
   const [showThinkTank, setShowThinkTank] = useState(false);
+  useEffect(() => {
+    if (!openersRef) return;
+    openersRef.current = { newAgent: () => setShowNewAgent(true), thinkTank: () => setShowThinkTank(true) };
+    return () => { openersRef.current = null; };
+  }, [openersRef]);
   const groupActions = useGroupActions({ project: projectID, projectTitle });
   const [moving, setMoving] = useState(false);
   const movingRef = useRef(false);

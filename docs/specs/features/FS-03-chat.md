@@ -42,6 +42,14 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   highlighted — including inside the user's own prompt bubble, whose highlight colour must differ
   from the bubble background so the selection remains visible there. This lets a reader copy any
   message content out of the panel.
+- **R87 (implemented 2026-10-13) — File changes stay out of the conversation stream.** **Supersedes
+  R2's diff clause.** Desktop chat, expanded dashboard chat and the phone conversation do not
+  render `diff` events inline; archived transcripts and Think Tank rooms, which have no Files tab,
+  keep them (FS-05, FS-21). File
+  changes remain in the Files tab (FS-05.R20): its **Diff** action reveals exactly that diff in the
+  desktop transcript with its file heading and line-selection annotation (FS-05.R37, FS-13.R4), and
+  the phone's **Open diff** card is unchanged (FS-20.R32). Capture, storage, tracking and
+  annotation of diff events are unchanged.
 
 ### 2.2 Prompting and turn state
 
@@ -1182,6 +1190,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   misleading MIME/name, incomplete upload, unavailable capability, and storage failure. Typed text
   and accepted attachments survive rejection; concurrent sends preserve newer drafts. *Verify:*
   negative API tests, component tests and bounded-allocation checks.
+- **A66 (implemented 2026-10-13)** (R87) — A transcript containing a tool call, a diff and assistant
+  text renders the tool call and text but no diff row on desktop and phone; a Files-tab Diff reveal
+  renders only the requested diff. *Verify:* `TranscriptView.test.tsx`, `AgentScreen.test.tsx`.
 
 ## 6. Deviations & open decisions
 

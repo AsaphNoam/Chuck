@@ -85,3 +85,56 @@ describe("ScopedProjectDashboard worktree surface", () => {
     await waitFor(() => expect(screen.getByLabelText("Base")).toHaveValue("trunk"));
   });
 });
+
+describe("ScopedProjectDashboard background menu (FS-02.R77)", () => {
+  const catalog = () => server.use(http.get("/api/projects", () => HttpResponse.json({
+    app: { title: "App", color: [100, 116, 139], cwd: "/tmp/app", add_dirs: [], context_prompt: "", archived: false },
+  })));
+
+  it("offers New agent and New think tank on a background right-click", async () => {
+    catalog();
+    const { container } = renderScoped("app");
+    await screen.findByText("Back to projects");
+    fireEvent.contextMenu(container.querySelector(".scoped-project-header")!, { clientX: 30, clientY: 40 });
+    expect(screen.getByRole("menuitem", { name: "New agent" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "New think tank" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("opens the dialog each header button opens", async () => {
+    catalog();
+    const { container } = renderScoped("app");
+    await screen.findByText("Back to projects");
+    fireEvent.contextMenu(container.querySelector(".scoped-project-header")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "New think tank" }));
+    expect(await screen.findByText("New Think Tank")).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByText("New Think Tank")).toBeNull());
+
+    fireEvent.contextMenu(container.querySelector(".scoped-project-header")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "New agent" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("leaves a right-click on an agent card to the card", async () => {
+    catalog();
+    useAgentStore.setState({
+      agents: { a1: {
+        agent_id: "a1", name: "alpha", role: "implementer", project: "app", backend: "claude", model: "sonnet",
+        interface: "chat", created_at: "2026-07-29T00:00:00Z", running: false, state: "done", detail: "",
+        context_pct: 0, updated_at: 1, archived: false,
+      } },
+      order: ["a1"],
+    });
+    const { container } = renderScoped("app");
+    const card = await waitFor(() => {
+      const el = container.querySelector(".agent-card");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    fireEvent.contextMenu(card);
+    expect(screen.queryByRole("menuitem", { name: "New think tank" })).toBeNull();
+  });
+});
