@@ -17,11 +17,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   regressions, 800 UI tests, `make test` (both Go variants), `make build`, and `make dist` pass.
   On-device cache recovery remains unverified. Changelog: fixed derived asset state, error amplification, and dev wiring
   drift (INV §1/§7/§10).
-- **Closed mobile outage investigation — 2026-10-12:** the user confirmed that an unrelated
-  terminal crash stopped Chuck. The separate embedded tailnet device going offline while the
-  Mac stayed connected is expected. Investigation `e0489b5` is closed at the user's request;
-  incidental timeout/diagnostic findings are withdrawn from the fix queue, not implemented,
-  and the skipped reproduction test is removed. No product or runtime changes.
+- **Awaiting review — projects home redesign (2026-10-13):** `40e414e`, FS-12.R69/A39,
+  TS-08.R124; no Figma study. Checks pass except the baseline `NewAgentModal` flake.
 - **Reviewed — mobile agent header, composer and model switch; fix pending (2026-10-13):**
   `c3b3c70`, `73cc75b`, `f15ee50`; FS-20.R43, TS-08.R111. One Must-fix: Back measures
   32×44px and model switch is 36px tall, below FS-12.R68/A38's 44px phone action target.
