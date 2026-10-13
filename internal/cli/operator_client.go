@@ -35,11 +35,14 @@ type operatorError struct {
 func (e *operatorError) Error() string { return e.Message }
 
 type operatorClient struct {
-	HTTP    *http.Client
-	BaseURL string
+	HTTP            *http.Client
+	BaseURL         string
+	responseHeaders http.Header // current response metadata, scoped to one invocation
 }
 
 var operatorClientFactory = newOperatorClient
+
+var errOperatorResponseLimit = errors.New("response byte limit exceeded")
 
 func newOperatorClient() (*operatorClient, error) {
 	store, err := config.New()
@@ -95,6 +98,14 @@ func operatorRequestID(body any) string {
 				return id
 			}
 		}
+	default:
+		data, err := json.Marshal(body)
+		if err == nil {
+			var value map[string]json.RawMessage
+			if json.Unmarshal(data, &value) == nil {
+				return operatorRequestID(value)
+			}
+		}
 	}
 	return ""
 }
@@ -103,6 +114,7 @@ func operatorRequestID(body any) string {
 // pre-encoded request bodies. The caller owns payload; this helper owns the
 // response and error contract.
 func (c *operatorClient) requestReader(ctx context.Context, method, path string, payload io.Reader, headers http.Header) (json.RawMessage, error) {
+	c.responseHeaders = nil
 	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.BaseURL, "/")+path, payload)
 	if err != nil {
 		return nil, operatorInputError(err)
@@ -116,22 +128,29 @@ func (c *operatorClient) requestReader(ctx context.Context, method, path string,
 	if client == nil {
 		client = &http.Client{}
 	}
-	resp, err := client.Do(req)
+	boundedClient := *client
+	boundedClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := boundedClient.Do(req)
 	if err != nil {
 		code, message, exit := "dashboard_unavailable", "could not reach dashboard; run `chuck dashboard start` first", 3
 		if method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions {
-			code, message = "result_unknown", "dashboard connection failed after a mutation; result is unknown; inspect status before retrying"
+			code, message = "result_unknown", "dashboard connection failed; result is unknown; inspect status before retrying or run `chuck dashboard start` if unavailable"
 		}
 		return nil, &operatorError{Code: code, Message: message, ExitCode: exit}
 	}
 	defer resp.Body.Close()
+	c.responseHeaders = resp.Header.Clone()
 	data, err := readOperatorBounded(resp.Body, operatorResponseLimit)
 	if err != nil {
-		code, exit := "response_too_large", 1
-		if isMutationMethod(method) {
-			code, exit = "result_unknown", 3
+		code, exit, message := "dashboard_unavailable", 3, "dashboard response was interrupted; run `chuck dashboard start` if unavailable"
+		if errors.Is(err, errOperatorResponseLimit) {
+			code, exit, message = "response_too_large", 1, "response exceeds 64 MiB"
 		}
-		return nil, &operatorError{Code: code, Message: err.Error(), HTTPStatus: resp.StatusCode, ExitCode: exit}
+		if isMutationMethod(method) {
+			code = "result_unknown"
+			message += "; result is unknown; inspect status before retrying"
+		}
+		return nil, &operatorError{Code: code, Message: message, HTTPStatus: resp.StatusCode, ExitCode: exit}
 	}
 	trimmed := bytes.TrimSpace(data)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -143,7 +162,7 @@ func (c *operatorClient) requestReader(ctx context.Context, method, path string,
 	if !json.Valid(trimmed) {
 		code, exit := "invalid_response", 1
 		if isMutationMethod(method) {
-			code, exit = "result_unknown", 3
+			code, exit = "result_unknown", 1
 		}
 		return nil, &operatorError{Code: code, Message: "dashboard returned invalid JSON; result is unknown", HTTPStatus: resp.StatusCode, ExitCode: exit}
 	}
@@ -170,7 +189,7 @@ func readOperatorBounded(r io.Reader, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	if int64(len(b)) > limit {
-		return nil, fmt.Errorf("response exceeds %d MiB limit", limit>>20)
+		return nil, fmt.Errorf("response exceeds %d MiB: %w", limit>>20, errOperatorResponseLimit)
 	}
 	return b, nil
 }
@@ -361,7 +380,7 @@ func operatorOutput(cmd *cobra.Command, data json.RawMessage) error {
 	}
 	if machine {
 		if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
-			return err
+			return &operatorError{Code: "output_failed", Message: "could not write command output", ExitCode: 1}
 		}
 		if operatorBulkFailed(value) {
 			return &operatorError{Code: "bulk_failed", Message: "one or more operation results failed", ExitCode: 1}
@@ -373,7 +392,9 @@ func operatorOutput(cmd *cobra.Command, data json.RawMessage) error {
 		pretty.Write(data)
 	}
 	if pretty.Len() > 0 {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), pretty.String())
+		if _, err := fmt.Fprintln(cmd.OutOrStdout(), safeOperatorJSON(pretty.String())); err != nil {
+			return &operatorError{Code: "output_failed", Message: "could not write command output", ExitCode: 1}
+		}
 	}
 	if operatorBulkFailed(value) {
 		return &operatorError{Code: "bulk_failed", Message: "one or more operation results failed", ExitCode: 1}
@@ -445,8 +466,20 @@ func operatorExitCode(err error) int {
 func safeOperatorText(s string) string {
 	var b strings.Builder
 	for _, r := range s {
-		if r < 0x20 || r == 0x7f {
+		if r < 0x20 || (r >= 0x7f && r <= 0x9f) {
 			b.WriteString(fmt.Sprintf("\\x%02x", r))
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func safeOperatorJSON(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if (r < 0x20 && r != '\n' && r != '\t') || (r >= 0x7f && r <= 0x9f) {
+			fmt.Fprintf(&b, "\\u%04x", r)
 		} else {
 			b.WriteRune(r)
 		}

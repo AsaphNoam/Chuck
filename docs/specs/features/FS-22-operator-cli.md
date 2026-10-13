@@ -57,6 +57,8 @@ The full nonvisual scope and CLI contract in R2–R4 were confirmed on 2026-10-1
   an operator acknowledgement and cannot mint or replace that token.
   Required revision, ETag, expected-limit, opening-attempt and retry-request identifiers remain
   caller-visible; stale actions fail rather than silently rereading and overriding them.
+  `backend list --etag-output <path>` explicitly saves the catalog response ETag to an owner-only
+  new file while retaining the unchanged server JSON on stdout; it refuses an existing file.
 - **R5 (planned) — Conversation control.** Agent commands preserve FS-03's Send/Steer,
   held-message replacement/withdrawal, capability gating, permission decisions and background-task
   control; FS-01's lifecycle/runtime changes and FS-01.R43's explicit quota-cancellation target.
@@ -68,6 +70,9 @@ The full nonvisual scope and CLI contract in R2–R4 were confirmed on 2026-10-1
   not a way around them. Status includes available context usage, runtime capabilities,
   pending permissions, held/recovered messages and quota-continuation state, preserving unknown
   values. Native children remain nested activity, not independent Chuck agents.
+  `agent status <id>` combines the existing session detail, hydrated state snapshot, held-message
+  read and a bounded 500-event permission window. Pending permissions retain exact tool/child
+  identities; a window with earlier history explicitly reports incomplete permission coverage.
 - **R6 (planned) — Inspect and follow.** `agent transcript <id>` reads durable history with
   explicit `--since-seq`; `--follow` follows that agent until interruption. Durable events remain
   ordered and duplicate-free across initial load, live delivery, gaps and reconnect; report
@@ -94,7 +99,7 @@ The full nonvisual scope and CLI contract in R2–R4 were confirmed on 2026-10-1
 | Family | Required operations | Owning behavior |
 |---|---|---|
 | `status` | local service health and capabilities | FS-00, FS-09 |
-| `agent` | list, show, launch, resume, stop, cancel, rename, identity/group edit, clone, archive, restore, switch-runtime, session-config; send, held, withdraw, steer, approve, deny, background-task-stop; transcript/follow, files, commands, file-search, available-commands, file, attachments/image reads, messages, think-tank-results, annotate | FS-01, FS-02, FS-03, FS-05, FS-06, FS-13 |
+| `agent` | list, show, status, launch, resume, stop, cancel, rename, identity/group edit, clone, archive, restore, switch-runtime, session-config; send, held, withdraw, steer, approve, deny, background-task-stop; transcript/follow, files, commands, file-search, available-commands, file, attachments/image reads, messages, think-tank-results, annotate | FS-01, FS-02, FS-03, FS-05, FS-06, FS-13 |
 | `project`, `group`, `worktree` | project list/show/create/edit/delete/archive/restore; project-scoped named-group Stop/Archive; worktree fork/status, including title/branch/base and setup warnings | FS-02, FS-04, FS-05, FS-19 |
 | `archive` | search with query, project and active filters, explicit limit/offset; project archive detail, retained agent/room discovery | FS-05, FS-21 |
 | `pipeline template`, `pipeline proposal`, `pipeline run` | template list/show/validate/create/update/delete; proposal list/decline/delete, save/start via the template/run operations; run list/show/start/continue/retry/replace/repair-cleanup/stop/delete | FS-14 |

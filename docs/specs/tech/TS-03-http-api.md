@@ -877,6 +877,9 @@ id lookup in the corresponding authoritative collection response; no new item ro
 New command handlers use shared request/input/output/error helpers, not copies of the current
 launch/resume/pipeline HTTP code. Existing entry points may delegate to that client through
 compatibility presentation adapters; retain FS-22.R1's legacy default behavior.
+Agent status composes existing raw server values as `{session,snapshot,held,permissions}`;
+the permissions projection retains raw pending events and an explicit completeness boolean from
+the bounded transcript window. No status read creates a session or a permanent transcript replica.
 
 **R65 (planned) — Preserve wire meaning and CLI output.** Implement FS-22.R2's stdout/stderr
 and exit contract without changing server error envelopes. Success JSON uses raw JSON values or
@@ -921,8 +924,11 @@ events. Reset connection-derived state and discard ephemeral activity on every r
 SSE ids are global bus ids, not transcript cursors; no `Last-Event-ID` replay is assumed.
 JSON follow emits the original normalized durable event as each line, including native child
 identity; live-only `runtime_activity` emits its original bus envelope, whose type identifies
-the different stream shape and whose outer sequence is not a transcript cursor. Human output
-labels reasoning live-only. Unknown normalized transcript events are inspectable; unrelated or
+the different stream shape and whose outer sequence is not a transcript cursor. Follow
+uses the seq:0 `session_meta` header only to verify retained history, not as a cursor-bearing
+follow event; `transcript --include-meta` can inspect that header explicitly. Empty suffixes
+verify history availability through an existing bounded one-event metadata read.
+Human output labels reasoning live-only. Unknown normalized transcript events are inspectable; unrelated or
 unknown bus event types may be ignored under R8. Initial reads, reconnect races and repeated
 events use one reconciliation helper, independently tested against server-origin fixtures.
 

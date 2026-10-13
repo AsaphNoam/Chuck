@@ -39,16 +39,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   now verify delayed Send and Steer leave/reopen/accept cleanup through the shared draft seam,
   including newer-draft protection. Changelog: synchronized accepted draft cleanup across
   reopened composers (INV §1). The other review units are unchanged.
-- **Design ready — full operator CLI parity (2026-10-12):**
-  [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md) waits to start.
+- **Work in progress — full operator CLI parity (2026-10-13):**
+  [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md) is active.
   FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 specify full nonvisual web
   operation coverage, legacy compatibility, readable/JSON output, file/stdin input, explicit
   consent and bounded reconnect-safe transcript follow. Scope and CLI contract are approved.
   Attachment A8 can use the completed attachment unit; other families may start
   independently. Changelog: planned boundary recovery, shared client, lifecycle cleanup, honest
   results, consent and finite independent verification (INV §1/§2/§4/§7/§8/§9/§10/§11/§14/§15/§16/§17).
-  Spec lint, design-feature/UX launcher twin comparisons and diff checks pass.
-  No CLI product code; the completed attachment change remains separate.
+  Shared client and agent/attachment/observer checkpoints are verified. Management and workflow
+  wire checks and a built-binary real-server fake-provider journey pass; status composition,
+  final input/error coverage, documentation and shared closure remain active.
+  The completed attachment change remains separate.
 - **Awaiting review — chat images and attachments (2026-10-13):**
   [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
   is implemented in the attachment commits beginning `91ae7db`, `e8c50f7`, and `395c1a8`, plus
@@ -90,12 +92,23 @@ pipeline/task/Think Tank commands; agent conversation/attachments and transcript
 independent wire/process and real-server journeys, documentation and final Go/build closure.
 Shared client, management and workflow families are delegated with separate file ownership;
 the parent owns agent commands, observer lifecycle and integration. No UI work or new API.
-Verified shared client checkpoint: raw JSON/number preservation, bounded explicit text and JSON
-input, safe diagnostics, typed exits, shared request/response ownership and no mutation retry.
-Focused client/input/text/diagnostic tests pass. Command families and transcript observer remain
-uncommitted integration work; wire tests pass for agent lifecycle/control and multipart/download.
-The built-binary journey is running against an isolated real server/fake ACP; its first assertion
-used an incorrect `held:true` fixture and is being aligned to the server's `delivery:"held"`.
+Verified checkpoints: shared client/raw JSON/input/diagnostics/exits; agent lifecycle/conversation
+routes, streamed multipart, atomic owned-file downloads and bounded transcript observer.
+Focused client, agent and observer tests pass, including large-frame parsing, subscribe/read order,
+gap/reconnect refill, overflow, EPIPE and healthy pings beyond 30 seconds. The seq:0 metadata header
+is not a follow cursor; empty suffixes verify retained history with a one-event metadata read.
+Command registration, management/workflow/pipeline families, full status composition and final
+documentation remain integration work. Management/workflow/pipeline wire checks pass. A built
+binary against a real loopback server/fake ACP passes conversation/attachments, task/room/pipeline
+controls, stale revisions, ETags, explicit federation consent/redaction and remote configuration.
+The process EPIPE test was just added and still needs its focused run; final shared matrix is owed.
+
+INV §6 checklist: CLI extends the existing operator surface rather than registering a runtime.
+Persistence and full launch composition use session APIs; runtime fan-out/drain remains server-owned;
+CLI observers close only their own streams. Mailbox eligibility, turn boundaries, reconciliation and
+hooks retain their existing server owners. Capabilities are read from server projections. Teardown
+closes every request/body/observer and removes unaccepted output temporaries; no agent registration
+or new mailbox/lifecycle store is introduced.
 Initial tree clean. Attachment server seams are implemented and available for CLI reuse.
 
 Chat images and file attachments is complete and available for independent review above.

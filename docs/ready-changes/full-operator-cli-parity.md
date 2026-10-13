@@ -50,7 +50,6 @@ No CLI test substitutes for existing live-provider or tailnet receipts.
 
 ## Waiting on
 
-Nothing prevents starting the nonattachment families. The attachment slice and FS-22.A8 cannot
-close until [chat images and file attachments](chat-images-and-file-attachments.md) ships its
-approved multipart, receipt, storage and read contracts. Do not implement a workaround for that
-dependency; other families can proceed independently. No unresolved product/technical decision.
+The completed [chat images and file attachments](chat-images-and-file-attachments.md) unit supplies
+the approved multipart, receipt, storage and read contracts. This CLI change reuses those seams;
+no dependency prevents completion and no unresolved product/technical decision remains.
