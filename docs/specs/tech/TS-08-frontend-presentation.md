@@ -1433,6 +1433,16 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   desktop appearances, phone, archive, root/child/tool images, long filenames and newer-draft races
   under FS-03.A62–A65. Provider capability is never inferred from thumbnail display.
 
+- **R124 — The projects-home composition stays in `ProjectDashboard`.** FS-12.R69 lives in
+  `features/dashboard/ProjectDashboard` and `styles/features/dashboard.css`. Per-state counts
+  are derived in the component from the shared `deriveDashboardProjects` projection's agents; the
+  phone keeps that projection's `stateSummary`. State dots are feature classes mapped onto
+  `--ad-state-*`; no presentation hook, contract state or inline style is added (the project
+  accent stays the one existing `--ad-project-accent` exception). The unused
+  `--ad-shadow-project-edge` core token is removed. No skin rule, motion or dependency is added.
+  `ui/scripts/projects-render.mjs` renders the stubbed page in every appearance at 1024px and
+  1440px for A39.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

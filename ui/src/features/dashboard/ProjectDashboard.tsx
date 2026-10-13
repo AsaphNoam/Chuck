@@ -16,9 +16,27 @@ import { WorktreeForkDialog } from "./WorktreeForkDialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProjectResponse } from "../../schemas/project";
 import type { MouseEvent } from "react";
+import type { AgentState, AgentStatus } from "../../api/types";
 import { deriveDashboardProjects } from "./projectDashboardData";
 
-type ProjectEdit = { id: string; project: Omit<ProjectResponse, "project"> };
+const STATE_ORDER: { state: AgentStatus; label: string }[] = [
+  { state: "waiting_input", label: "waiting" }, { state: "error", label: "error" }, { state: "busy", label: "busy" },
+  { state: "idle", label: "idle" }, { state: "done", label: "done" }, { state: "unknown", label: "unknown" },
+];
+
+/** Running agents by state, attention first; a stopped agent counts as stopped
+ * rather than under its last state, matching its grayed agent card (FS-02.R6). */
+function projectStateCounts(agents: AgentState[]): { state: AgentStatus | "stopped"; label: string; count: number }[] {
+  const running = agents.filter((agent) => agent.running);
+  const counts: { state: AgentStatus | "stopped"; label: string; count: number }[] = STATE_ORDER
+    .map(({ state, label }) => ({ state, label, count: running.filter((agent) => agent.state === state).length }))
+    .filter(({ count }) => count > 0);
+  const stopped = agents.length - running.length;
+  if (stopped > 0) counts.push({ state: "stopped", label: "stopped", count: stopped });
+  return counts;
+}
+
+type ProjectEdit ={ id: string; project: Omit<ProjectResponse, "project"> };
 type ProjectMenu = { id: string; x: number; y: number };
 type BackgroundMenu = { x: number; y: number };
 
@@ -100,20 +118,38 @@ export function ProjectDashboard() {
   if (projects.isError) return <section className="project-dashboard" data-ui="project-dashboard"><p className="form-error">Could not load projects. Please retry.</p></section>;
 
   const archiveProjectEntry = archiveID ? projects.data?.[archiveID] : null;
+  const runningTotal = dashboardProjects.reduce((total, project) => total + project.agents.filter((agent) => agent.running).length, 0);
   return (
     <section className="project-dashboard" data-ui="project-dashboard" onContextMenu={openBackgroundMenu}>
       <div className="project-dashboard-header">
-        <h1>Projects</h1>
+        <div>
+          <p className="project-dashboard-eyebrow">Workspace <span>/ Projects</span></p>
+          <h1>Projects</h1>
+          <span className="project-dashboard-note">{dashboardProjects.length} {dashboardProjects.length === 1 ? "project" : "projects"} · {runningTotal} {runningTotal === 1 ? "agent" : "agents"} running</span>
+        </div>
         <button type="button" className="ad-button-primary" onClick={openCreate}>New project</button>
       </div>
       <div className="project-card-grid">
         {dashboardProjects.map((project) => {
           const configured = projects.data?.[project.id];
+          const running = project.agents.filter((agent) => agent.running).length;
           return <article className={`project-card${project.unavailable ? " unavailable" : ""}`} key={project.id} style={project.color ? { "--ad-project-accent": `rgb(${project.color.join(",")})` } as React.CSSProperties : undefined} onClick={() => navigate(`/project/${project.id}`)} onContextMenu={(event: MouseEvent) => { if (project.unavailable) return; event.preventDefault(); setBgMenu(null); setContextMenu({ id: project.id, x: event.clientX, y: event.clientY }); }}>
-            {project.color && <span className="project-card-color" style={{ background: `rgb(${project.color.join(",")})` }} aria-label="Project color" />}
-            <strong>{project.title}</strong>
-            {configured?.worktree?.owned && <span className="project-card-branch" title={`Worktree on ${configured.worktree.branch}`}>⑂ {configured.worktree.branch}</span>}
-            <span>{project.unavailable ? "Project unavailable" : `${project.agents.length} agents`}</span><small>{project.unavailable ? "" : project.stateSummary}</small>
+            <div className="project-card-head">
+              <span className="project-card-tile" aria-hidden="true">{project.unavailable ? "?" : project.title.trim().charAt(0).toUpperCase()}</span>
+              <div className="project-card-identity">
+                <strong className="project-card-title">{project.title}</strong>
+                {configured?.worktree?.owned && <span className="project-card-branch" title={`Worktree on ${configured.worktree.branch}`}>⑂ {configured.worktree.branch}</span>}
+              </div>
+            </div>
+            <ul className="project-card-states" aria-label="Agent states">
+              {project.unavailable ? <li>Project unavailable</li>
+                : project.agents.length === 0 ? <li>No agents</li>
+                  : projectStateCounts(project.agents).map(({ state, label, count }) => <li key={state} className={`project-state-${state}`}>{count} {label}</li>)}
+            </ul>
+            <div className="project-card-footer">
+              <span>{project.agents.length} {project.agents.length === 1 ? "agent" : "agents"}</span>
+              {!project.unavailable && <span>{running} running</span>}
+            </div>
           </article>;
         })}
       </div>

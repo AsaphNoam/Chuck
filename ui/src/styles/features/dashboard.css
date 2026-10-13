@@ -668,11 +668,166 @@
   outline: var(--ad-border-thick) solid var(--ad-text-primary);
   outline-offset: var(--ad-border-thick);
 }
-.project-dashboard { align-content: start; display: grid; gap: var(--ad-space-4); min-block-size: 100%; padding: var(--ad-space-8); }
-.project-dashboard-header { align-items: center; display: flex; gap: var(--ad-space-4); justify-content: space-between; }
-.project-card-grid { align-items: start; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--ad-space-4); }
-.project-card { --ad-project-accent: var(--ad-project-fallback); background: color-mix(in srgb, var(--ad-project-accent) 9%, var(--ad-surface-panel)); border: var(--ad-border-thin) solid color-mix(in srgb, var(--ad-project-accent) 50%, var(--ad-border-strong)); border-radius: var(--ad-radius-large); box-shadow: var(--ad-shadow-project-edge); cursor: pointer; display: grid; gap: var(--ad-space-2); padding: var(--ad-space-4) var(--ad-space-4) var(--ad-space-4) var(--ad-space-6); position: relative; }
-.project-card-color { inline-size: var(--ad-space-4); block-size: var(--ad-space-4); border-radius: var(--ad-radius-round); border: var(--ad-border-thin) solid var(--ad-border-strong); }
+/* Projects home: an eyebrow/title header and large raised project cards in the
+   language of the session and room cards (FS-12.R69, TS-08.R124). The project
+   hue stays a faint wash, a tinted border and the leading edge (FS-02.R40). */
+.project-dashboard { align-content: start; display: grid; gap: var(--ad-space-6); grid-template-columns: minmax(0, 1fr); min-block-size: 100%; padding: var(--ad-space-8); }
+.project-dashboard > * { margin: 0 auto; max-width: 1680px; width: 100%; }
+.project-dashboard-header {
+  align-items: end;
+  border-bottom: var(--ad-border-thin) solid var(--ad-border-default);
+  display: flex;
+  gap: var(--ad-space-4);
+  justify-content: space-between;
+  padding-bottom: var(--ad-space-4);
+}
+
+.project-dashboard-eyebrow {
+  color: var(--ad-text-secondary);
+  font-family: var(--ad-font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.project-dashboard-eyebrow > span,
+.project-dashboard-note {
+  color: var(--ad-text-muted);
+}
+
+.project-dashboard-header h1 {
+  font-size: 1.875rem;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin: var(--ad-space-1) 0;
+}
+
+.project-dashboard-note {
+  font-size: 0.75rem;
+}
+
+.project-card-grid { align-items: start; display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: var(--ad-space-6); }
+
+.project-card {
+  --ad-project-accent: var(--ad-project-fallback);
+  background: color-mix(in srgb, var(--ad-project-accent) 4%, var(--ad-surface-raised));
+  border: var(--ad-border-thin) solid color-mix(in srgb, var(--ad-project-accent) 30%, var(--ad-border-default));
+  border-radius: var(--ad-radius-medium);
+  box-shadow: var(--ad-shadow-keyline);
+  cursor: pointer;
+  display: grid;
+  gap: var(--ad-space-4);
+  min-block-size: 11rem;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--ad-space-6) var(--ad-space-6) var(--ad-space-4) calc(var(--ad-space-6) + var(--ad-space-1));
+  position: relative;
+  transition: border-color 200ms ease;
+}
+
+.project-card::before {
+  background: var(--ad-project-accent);
+  content: "";
+  inset: 0 auto 0 0;
+  pointer-events: none;
+  position: absolute;
+  width: 4px;
+}
+
+@media (hover: hover) {
+  .project-card:hover {
+    border-color: color-mix(in srgb, var(--ad-project-accent) 55%, var(--ad-text-muted));
+  }
+}
+
+.project-card-head {
+  align-items: center;
+  display: flex;
+  gap: var(--ad-space-4);
+  min-width: 0;
+}
+
+.project-card-tile {
+  background: color-mix(in srgb, var(--ad-project-accent) 16%, var(--ad-surface-raised));
+  border: var(--ad-border-thin) solid color-mix(in srgb, var(--ad-project-accent) 45%, var(--ad-border-default));
+  border-radius: var(--ad-radius-medium);
+  color: var(--ad-text-primary);
+  display: grid;
+  flex: none;
+  font-family: var(--ad-font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  height: 44px;
+  place-items: center;
+  width: 44px;
+}
+
+.project-card-identity {
+  display: grid;
+  gap: var(--ad-space-1);
+  min-width: 0;
+}
+
+.project-card-title {
+  color: var(--ad-text-primary);
+  font-family: var(--ad-font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+/* Live agents by state, attention first, each with its state-tone dot. */
+.project-card-states {
+  color: var(--ad-text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+  gap: var(--ad-space-1) var(--ad-space-4);
+  line-height: 1.6;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.project-card-states li {
+  --ad-project-state-tone: var(--ad-text-muted);
+  align-items: center;
+  display: inline-flex;
+  gap: var(--ad-space-2);
+}
+
+.project-card-states li[class]::before {
+  background: var(--ad-project-state-tone);
+  border-radius: var(--ad-radius-round);
+  content: "";
+  height: 6px;
+  width: 6px;
+}
+
+.project-card-states .project-state-busy { --ad-project-state-tone: var(--ad-state-busy); }
+.project-card-states .project-state-idle { --ad-project-state-tone: var(--ad-state-idle); }
+.project-card-states .project-state-waiting_input { --ad-project-state-tone: var(--ad-state-waiting); }
+.project-card-states .project-state-done { --ad-project-state-tone: var(--ad-state-done); }
+.project-card-states .project-state-error { --ad-project-state-tone: var(--ad-state-error); }
+.project-card-states .project-state-unknown { --ad-project-state-tone: var(--ad-state-unknown); }
+.project-card-states .project-state-stopped { color: var(--ad-text-muted); }
+
+.project-card-footer {
+  align-items: center;
+  align-self: end;
+  border-top: var(--ad-border-thin) solid var(--ad-border-default);
+  color: var(--ad-text-muted);
+  display: flex;
+  font-family: var(--ad-font-mono);
+  font-size: 0.6875rem;
+  gap: var(--ad-space-3);
+  justify-content: space-between;
+  padding-top: var(--ad-space-3);
+}
+
 .context-menu-color { display: grid; gap: var(--ad-space-2); padding: var(--ad-space-2); }
 .context-menu-color > span { color: var(--ad-text-muted); font-size: 0.625rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .project-card.unavailable { opacity: .75; }

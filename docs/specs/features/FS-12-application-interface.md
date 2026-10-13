@@ -569,6 +569,20 @@ Requirements are user-observable.
   stays, now the shared icon-primary action). Labels, placement, order, disabled reasons and
   actions are unchanged.
 
+- **R69 — The projects home adopts the redesigned card language.** The projects home (`/`)
+  follows R63/R65's compositions (operator request 2026-10-13). Its header is a mono uppercase
+  "Workspace / Projects" eyebrow over the large "Projects" title and a quiet "N projects · M
+  agents running" note, with New project at the right and a quiet rule beneath; content shares
+  the agent grid's centred maximum width. Project cards are larger (a wider minimum column, a
+  taller card and roomier padding) softly raised rounded panels: a tile with the project's
+  initial in its accent tint beside a large title and the worktree branch when owned; a row of
+  live agent counts by state with a dot in each state's tone, attention first (waiting, error,
+  busy, idle, done) and stopped agents counted apart as "stopped"; and a ruled mono footer of
+  "N agents" and "M running". FS-02.R40's project hue survives as a faint wash, a tinted border
+  and a 4px leading edge. An unavailable project shows a "?" tile and "Project unavailable".
+  All three appearances express the composition through their semantic palettes. Navigation,
+  right-click menus, New project and every project action are unchanged.
+
 ## 3. States & transitions
 
 - **Route change:** the persistent shell remains visually stable while the current-route
@@ -833,6 +847,11 @@ Requirements are user-observable.
   in rest, hover, focus and disabled states without overflow; navigation controls keep a
   visible selected state; phone actions measure at least 44px.
   *Verify:* style/presentation checks plus the working tree's real-browser comparison.
+- **A39** (R69) — Render the projects home at 1024px and 1440px in Core, Sky & Grove and Studio
+  with a busy/waiting/stopped project, a worktree project with a long branch, a long title, an
+  empty project and an unavailable project: the header, larger cards, state counts and footer
+  read without horizontal overflow; right-click menus and New project are unchanged.
+  *Verify:* focused `ProjectDashboard` tests, presentation checks and `ui/scripts/projects-render.mjs`.
 
 ## 6. Deviations & open decisions
 

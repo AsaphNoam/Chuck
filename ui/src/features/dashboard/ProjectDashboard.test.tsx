@@ -56,10 +56,14 @@ describe("ProjectDashboard", () => {
     renderDashboard();
     expect(await screen.findByText("App")).toBeInTheDocument();
     expect(screen.getByText("2 agents")).toBeInTheDocument();
-    expect(screen.getByText("1 busy · 1 done")).toBeInTheDocument();
-    expect(screen.getByLabelText("Project color")).toHaveStyle({ background: "rgb(100, 116, 139)" });
+    expect(screen.getByText("1 busy")).toHaveClass("project-state-busy");
+    expect(screen.getByText("1 stopped")).toHaveClass("project-state-stopped");
+    expect(screen.getByText("1 running")).toBeInTheDocument();
+    expect(screen.getByText("1 project · 1 agent running")).toBeInTheDocument();
 
     const card = screen.getByText("App").closest("article")!;
+    expect(card.style.getPropertyValue("--ad-project-accent")).toBe("rgb(100,116,139)");
+    expect(card.querySelector(".project-card-tile")).toHaveTextContent("A");
     fireEvent.contextMenu(card, { clientX: 40, clientY: 50 });
     expect(screen.getByRole("button", { name: "Rename" })).toBeInTheDocument();
     expect(screen.getByText("Change color")).toBeInTheDocument();
