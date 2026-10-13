@@ -51,7 +51,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   now verify delayed Send and Steer leave/reopen/accept cleanup through the shared draft seam,
   including newer-draft protection. Changelog: synchronized accepted draft cleanup across
   reopened composers (INV §1). The other review units are unchanged.
-- **Awaiting review — full operator CLI parity (2026-10-13):**
+- **Reviewed — full operator CLI parity; fix pending (2026-10-13):**
   [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md), implementation
   `f6e7b2b`, `ff031e4`, `219b4b7`; final closure record is administrative, not another review unit.
   FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 are implemented.
@@ -64,6 +64,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test` pass (both Go variants and spec checks).
   Changelog: shared client, explicit authority/consent, bounded recovery and lifecycle cleanup,
   honest results and independent verification (INV §1/§2/§4/§7/§8/§9/§10/§11/§14/§15/§16/§17).
+  Independent review found one Must-fix: `role edit` help promises partial JSON, while the
+  existing server replaces the full definition and clears omitted settings. The real-handler
+  probe confirms prompt and explicit permission/awareness override loss. Fresh CLI tests,
+  including the built-binary real-server journey, and focused observer/attachment/status race
+  checks pass. Finding and fix recommendation below; this unit remains open.
+  Changelog: identified misleading role-edit replacement guidance (INV §10).
   No provider/tailnet claim; the completed attachment review unit remains separate.
 - **Awaiting review — chat images and attachments (2026-10-13):**
   [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
@@ -103,7 +109,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. Full operator CLI parity is finished and available for independent review above.
+None. Full operator CLI parity is finished; independent review found misleading role-edit help,
+recorded below, and its fix remains pending.
 CLI extends existing session APIs without a runtime registration, new storage or lifecycle owner.
 INV §6: persistence/full launch use server composition; fan-out/drain, mailbox eligibility, turn
 boundaries, reconciliation and hooks retain server ownership; capabilities use server projections.
@@ -178,6 +185,55 @@ runs; the complete rerun without concurrent build load passes. Credential code i
   switch shows it above the composer.
 
 ## Review findings
+
+### Full operator CLI parity — `f6e7b2b`, `ff031e4`, `219b4b7` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed independently 2026-10-13 against FS-22.R1–R12/A1–A9, TS-01.R38,
+TS-03.R64–R69 and TS-06.R34. Closure record `e90a15a` and intervening unrelated review,
+handoff and UI commits are excluded. The attachment implementation remains a separate unit.
+
+- **Must fix** — role-edit help promises a partial update that clears omitted settings
+  (INV §10). Location: `internal/cli/operator_management.go:105` (submission at `:666`).
+  `chuck role edit --help` describes "partial role JSON", so an operator changing only a title
+  can reasonably submit `{"title":"Reviewer v2"}` with `--id reviewer --request-file`.
+  The command forwards that object unchanged to the existing `PUT /api/roles/{role}` handler,
+  which replaces the definition rather than merging it. A real-handler probe with a retained
+  prompt and explicit `chuck_aware:false` / `skip_permissions:false` confirms a successful
+  title-only update clears the prompt and resets both overrides to inheritance/defaults.
+  This loses persona instructions and can change subsequent launch permissions. FS-22.R1/R3/R8
+  require accurate operation help/input shapes and existing semantics; TS-03.R64 requires the
+  existing request contract. Correct the help and example to describe a complete replacement,
+  identify the omitted-field resets, and show how to retain existing values from `role show`.
+  Do not introduce a client-side read/merge mutation as an incidental fix. Add a focused help
+  regression and a real-server role-edit case covering complete replacement, retained explicit
+  false settings and the documented reset behavior. No product or architecture decision is needed.
+
+Code and specifications otherwise agree in both directions. The single REST/SSE client,
+exact collection lookups, raw JSON/number preservation, server-owned launch and mutation semantics,
+explicit guard/receipt forwarding, shared transcript projection and bounded temporary observer
+tail are sound local choices. The CLI adds no runtime registration or lifecycle owner: persistence,
+full launch composition, fan-out/drain, mailbox eligibility, turn boundaries, reconciliation and
+hooks remain server-owned; capabilities use existing server projections. Observer teardown closes
+only its own request/stream and joins its worker; file downloads publish only completed bounded
+owner-only temporaries. Separate JSON/shortcut-field duplicates are rejected; ordinary repeated
+scalar flags retain Cobra's established behavior, which the specifications do not prohibit.
+
+Verification: fresh `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 go test -count=1 ./internal/cli`
+passes, including independent family wire/input/output/consent tests and the built-binary
+real-server fake-ACP conversation, management, pipeline/task/room, redaction, response-loss retry,
+exact child permission, Ctrl-C and EPIPE journeys. Focused `go test -race -count=1` observer,
+status and attachment checks pass. The initial sandboxed fresh run could not bind loopback;
+both passing runs used authorized loopback-enabled execution. A temporary Go overlay probe
+exercises the actual role handler and persisted definition without repository test/code edits:
+`/private/tmp/review-cli-role-probe_test.go` and `/private/tmp/review-cli-role-overlay.json`.
+The probe confirms the observed loss, rather than claiming the desired preservation passes.
+Fixtures make no live-provider, physical-device or real-tailnet claim.
+
+Invariant sweep: applicable §1, §2, §4, §6, §7, §8, §9, §11, §14, §15, §16 and §17 have
+no findings; §10 has the help/behavior drift above. §3, §5, §12 and §13 have no applicable
+changed surface: no seeded UI form or transient persisted runtime field, runtime check/claim,
+new installed-tool invocation, or UI markup/style change. Product code and specifications were
+unchanged. This finding keeps the same unit open; every other role/review unit is unchanged.
 
 ### Blank phone entry on local dev — investigation 2026-10-13 — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
