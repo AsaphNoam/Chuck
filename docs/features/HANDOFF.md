@@ -37,12 +37,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   choices, touch and keyboard actions, refusals, nested confirmation, stopped availability and
   restored focus at 360/390/430px in all three appearances. Review evidence below; fixtures
   make no provider or real-tailnet claim. Other review units remain unchanged.
-- **Reviewed — phone chat drafts and Theme selection, repair awaiting verification:** `79cbbc3`,
+- **Reviewed and closed — phone chat drafts and Theme selection (2026-10-13):** `79cbbc3`,
   FS-20.R49–R50/A20–A21, TS-08.R122, TS-13.R25. The 2026-10-12 review reproduced accepted
-  Send cleanup missing a composer reopened while delivery was pending (see Review findings).
-  Theme selection and the narrow paired-phone config route passed review. The attachment unit's
-  shared draft repair now covers this reopening race; independent verification of the original
-  finding remains available. This same unit stays open; the other review units are unchanged.
+  Send cleanup missing a composer reopened while delivery was pending. Theme selection and the
+  narrow paired-phone config route passed review. Independent text-only AgentScreen regressions
+  now verify delayed Send and Steer leave/reopen/accept cleanup through the shared draft seam,
+  including newer-draft protection. Changelog: synchronized accepted draft cleanup across
+  reopened composers (INV §1). The other review units are unchanged.
 - **Design ready — full operator CLI parity (2026-10-12):**
   [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md) waits to start.
   FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 specify full nonvisual web
@@ -155,7 +156,9 @@ runs; the complete rerun without concurrent build load passes. Credential code i
 
 ## Review findings
 
-### Phone group memory and long-press agent actions — `17b73ed` — closed, no findings
+### Phone group memory and long-press agent actions — `17b73ed` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Closed, no findings.
 
 Reviewed independently 2026-10-13 against FS-20.R47–R48/A19 and TS-08.R121.
 **Fix model:** none — no open fixes.
@@ -183,24 +186,13 @@ specifications were unchanged. This review closes only this unit and creates no 
 
 ### Phone chat drafts and Theme selection — `79cbbc3` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-Reviewed 2026-10-12; fix open.
+Closed, no findings.
 
-2026-10-13 implementation note: the attachment unit now synchronizes shared draft cleanup across
-mounted/reopened composers with revision protection. Automated delayed-acceptance/reopening tests
-and the rendered browser recovery checks pass. Keep this originating unit available for independent
-verification of the finding below; it is not recorded as independently reviewed by its implementer.
-
-- **Must fix** — Accepted Send leaves submitted text in a reopened composer (INV §1).
-  `ui/src/remote/AgentScreen.tsx:207,413–423` restores the draft only on mount and clears local
-  text only in the component that submitted it. Send, navigate away while delivery is pending,
-  then reopen the same agent before acceptance: the reopened composer restores the submitted
-  draft, but acceptance clears only storage and the old unmounted component. The visible text
-  remains available to send again. This violates FS-03.R36 and FS-20.R49/A20's accepted-draft
-  cleanup. Synchronize the mounted composer with accepted cleanup through the shared draft seam,
-  preserving revision protection for newer text. Add a delayed Send/Steer leave/reopen/accept
-  regression case. Independent Chromium reproduction retained `submitted before navigation`
-  in the textbox after the storage entry became absent; evidence:
-  `/tmp/review-phone-boundary-20261012.mjs` and `/tmp/review-phone-boundary-20261012.png`.
+Reviewed 2026-10-12 and independently verified 2026-10-13. The shared draft seam now synchronizes
+accepted cleanup to mounted and reopened composers while its revision guard preserves newer text.
+Focused AgentScreen tests cover delayed text-only Send and Steer leave/reopen/accept flows; 41
+AgentScreen tests pass. No product specification change was needed because the fix restores
+FS-03.R36 and FS-20.R49/A20 behavior already specified.
 
 Review evidence: 66 focused UI tests passed (AgentScreen, PhoneSettings, PhoneApp and drafts);
 the two focused remote appearance/field-filter server tests passed. Existing PhoneApp fixtures
@@ -211,9 +203,9 @@ and no horizontal overflow. Receipts: `/tmp/review-phone-parity-20261012*.png`. 
 live-provider or real-tailnet claim. Shared draft/config reuse, partial config merge, finite skin
 selection and query ownership are sound local choices; none needs a human decision.
 
-Invariant sweep: §1 has the finding above. Applicable §2, §3, §8, §10, §11, §13, §14, §15,
-§16 and §17 have no additional findings. §4, §5, §6, §7, §9 and §12 have no applicable surface
-in this unit. Product code and specifications were unchanged.
+Invariant sweep: applicable §1, §2, §3, §8, §10, §11, §13, §14, §15, §16 and §17 have no
+findings. §4, §5, §6, §7, §9 and §12 have no applicable surface in this unit. Product code and
+specifications were unchanged.
 
 The mobile outage investigation was closed by the user on 2026-10-12 (see Current position).
 Closed 2026-10-11 reviews are in the archive above.

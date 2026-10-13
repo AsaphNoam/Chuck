@@ -155,6 +155,34 @@ describe("AgentScreen", () => {
     expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue("newer");
   });
 
+  it.each([
+    ["Send", "prompt", "idle"],
+    ["Steer", "steer", "busy"],
+  ] as const)("clears a reopened %s composer after delayed acceptance", async (action, endpoint, state) => {
+    useConnection.setState({ agents: { a1: { ...agent, state } } });
+    let release!: () => void;
+    let started!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const requestStarted = new Promise<void>((resolve) => { started = resolve; });
+    server.use(
+      endpoint === "prompt"
+        ? http.post("/api/sessions/a1/prompt", async () => { started(); await blocked; return HttpResponse.json({ accepted: true }); })
+        : http.post("/api/sessions/a1/steer", async () => { started(); await blocked; return HttpResponse.json({ accepted: true }); }),
+    );
+    renderScreen();
+    const textbox = screen.getByRole("textbox");
+    fireEvent.change(textbox, { target: { value: "submitted before navigation" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: action, exact: true })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: action, exact: true }));
+    await requestStarted;
+
+    cleanup();
+    renderScreen();
+    expect(screen.getByRole("textbox")).toHaveValue("submitted before navigation");
+    release();
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
+  });
+
   it("retains refused delivery across leaving and reopening", async () => {
     useConnection.setState({ agents: { a1: { ...agent, state: "idle" } } });
     promptStatus = 409;
