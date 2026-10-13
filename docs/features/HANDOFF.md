@@ -83,7 +83,22 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. Chat images and file attachments is complete and available for independent review above.
+Full operator CLI parity is in progress (2026-10-13), selected by `/work`.
+The approved FS-22/TS-03 contracts remain planned until verified implementation closes.
+Slices: shared bounded loopback client/input/output; management and administration commands;
+pipeline/task/Think Tank commands; agent conversation/attachments and transcript follow;
+independent wire/process and real-server journeys, documentation and final Go/build closure.
+Shared client, management and workflow families are delegated with separate file ownership;
+the parent owns agent commands, observer lifecycle and integration. No UI work or new API.
+Verified shared client checkpoint: raw JSON/number preservation, bounded explicit text and JSON
+input, safe diagnostics, typed exits, shared request/response ownership and no mutation retry.
+Focused client/input/text/diagnostic tests pass. Command families and transcript observer remain
+uncommitted integration work; wire tests pass for agent lifecycle/control and multipart/download.
+The built-binary journey is running against an isolated real server/fake ACP; its first assertion
+used an incorrect `held:true` fixture and is being aligned to the server's `delivery:"held"`.
+Initial tree clean. Attachment server seams are implemented and available for CLI reuse.
+
+Chat images and file attachments is complete and available for independent review above.
 Final closure: full attachment/state/runtime/transcript and focused API/security/race checks pass.
 Forward migration 51 preserves checkpoint-50 receipts; pre-wire recovery remains separate from
 ambiguous post-wire outcomes. Incoming output images obey 10-image/25-MiB decoded per-frame limits

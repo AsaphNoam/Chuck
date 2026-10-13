@@ -1,6 +1,6 @@
 # Full operator CLI parity
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** `/design-feature` request on 2026-10-11: the CLI is outdated relative to chat;
 add all relevant capabilities. Full nonvisual web coverage and the concrete CLI
 input/output/consent/local-service contract were confirmed on 2026-10-12.
