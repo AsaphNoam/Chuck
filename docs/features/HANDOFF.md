@@ -11,13 +11,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   §16.6). `v0.13.0` was published 2026-10-10. The user waived the open review units below for
   release; that is not completed review. Manual provider gates below remain owed.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
-- **Investigated — blank phone entry on local dev (2026-10-13):** confirmed live
-  HTML/asset mismatch in the running pre-fix dev process. The phone HTML loads, but its
-  current JavaScript, shared module and CSS are rejected with 404s before pairing can render.
-  The running binary was built and started before `0de23db`'s asset-refresh fix; that source
-  fix and its focused regressions pass. Recovery pending: rebuild/restart the Go dev server
-  from current source, then verify current phone assets and the unpaired pairing screen.
-  Finding/evidence below; no product code or specification change is needed.
+- **Closed — blank phone entry on local dev (2026-10-13):** rebuilt the current dev server
+  as `/private/tmp/chuck-remote-recovery` and gracefully restarted the pre-fix process;
+  PID 18990 serves loopback port 4317 and the existing tailnet address. Live Chromium
+  phone-emulation checks show Android pairing and iPhone browser Home Screen instructions;
+  all requested JavaScript, CSS and font assets return 200 with no page errors.
+  Receipt/screenshots: `/private/tmp/chuck-remote-recovery-{receipt.json,Android.png,iPhone.png}`.
+  The fix was already in `0de23db`; no product code/specification change or new review unit.
+  Physical-phone reload/pairing remains the operator's next step. Other review units unchanged.
+  Changelog: loaded the existing derived-asset refresh fix into the live dev process (INV §1/§10).
 - **Closed — mobile CSS missing in dev mode (2026-10-12):** dev-only phone asset graph refresh,
   404s for missing `/assets/` paths, and service-worker invalid-cache recovery implemented. The
   reproductions were confirmed failing before the fix, then unskipped and passed; five worker
@@ -234,45 +236,6 @@ no findings; §10 has the help/behavior drift above. §3, §5, §12 and §13 hav
 changed surface: no seeded UI form or transient persisted runtime field, runtime check/claim,
 new installed-tool invocation, or UI markup/style change. Product code and specifications were
 unchanged. This finding keeps the same unit open; every other role/review unit is unchanged.
-
-### Blank phone entry on local dev — investigation 2026-10-13 — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Report verbatim: "remote isn't working, opening on my phone I get a blank screen, tried
-unpairing and deleting mobile cache, don't get the pairing screen, chuck is running on dev
-locally (not the latest released version, local dev)." No logs were supplied with the report;
-the local dashboard log was available during investigation. Phone OS/browser was not supplied.
-Expected: FS-20.R6/R7/R9/R10 and TS-13.R14/TS-08.R73 require the unpaired phone app to load
-and show pairing. Classification: confirmed code defect in the running older dev binary,
-already fixed in current source, with operational recovery still pending.
-
-- **Must fix** — **confirmed: the live dev process rejects its current phone assets (INV §1/§10).**
-  Location: pre-`0de23db` `internal/server/static_dev.go:30` and
-  `internal/server/spa.go:47` captured `phoneAssetGraph` once over mutable `ui/dist`.
-  A later UI build replaces hashed assets and HTML while the Go process retains its old
-  allowlist. The new HTML is served, but its JavaScript is denied, leaving the empty root
-  before `PhoneApp` can classify pairing. PID 60404's `dev`-tagged Go binary has mtime
-  2026-10-12 07:20:34 +0300 and process start 08:13:46, before `0de23db` at 09:04:43.
-  Direct requests to the live tailnet origin reproduced `/` = 200 with current HTML and
-  `/assets/remote-BZVxC8LR.js` = 404 `remote_route_not_available`, message
-  "this file is only available on the Mac". The JavaScript, imported
-  `appearance-DC8edA48.js` and `remote-CUJF96Zg.css` all exist in the current dist and
-  manifest. `/Users/mcnoam/.chuck/dashboard.log:47500`–`:47502` records those three
-  requests returning 404 immediately after a fresh HTML 200 at 23:05:21 +0300 on
-  2026-10-13; the same failures recur throughout the day. Local remote status is `on`
-  with no paired devices. Cache clearing and unpairing cannot repair the server allowlist.
-  Fix complexity: trivial/easy operational recovery; rebuild/restart from current source,
-  then verify every HTML-referenced asset returns 200 and the phone displays pairing.
-  Current `static_dev.go` already refreshes the graph per request via `0de23db`; do not
-  duplicate that fix or reopen its completed implementation as new product work.
-
-Verification: current-source `TestPhoneStylesheetAfterDevRebuild` and
-`TestPhoneMissingStylesheetDoesNotServeAppHTML` pass with `-tags dev`; the existing
-rebuild regression covers this boundary, so no duplicate skipped reproduction was added.
-Both regressions and `TestStaticEntriesStayOnTheirListener` also pass without build tags.
-No missing-observability finding: request status logs identified the failed startup assets.
-The live server was not restarted; post-restart phone recovery remains unverified.
-Product code and specifications are unchanged. This is an administrative investigation record;
-all other review units remain unchanged.
 
 ### Projects home redesign — `40e414e` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
