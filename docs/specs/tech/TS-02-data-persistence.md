@@ -606,7 +606,7 @@ rewritten, the session/role deletion lifetime is unchanged, and no new private r
 introduced. Update executable migration/version guards and independent legacy/reindex tests under
 R12/INV §17; verify explicit false through durable storage, metadata, reindex and lifecycle recovery.
 
-**R46 (planned) — Attachment bytes are immutable conversation artifacts.** For FS-03.R81–R86,
+**R46 (implemented 2026-10-13) — Attachment bytes are immutable conversation artifacts.** For FS-03.R81–R86,
 store originals beneath `sessions/{agent_id}/attachments/{attachment_id}/`, with server-generated
 opaque identifiers and fixed internal filenames, never client path components. Each descriptor
 contains `id`, display `name`, verified `mime_type`, `size`, SHA-256, and `kind:image|file`.
@@ -615,7 +615,7 @@ as base64. Persist files before publishing a durable event referencing them. Sto
 failure before acceptance rolls back newly owned files; failure after acceptance is a delivery
 outcome, never a retryable response that could repeat consumption (INV §15).
 
-**R47 (planned) — Attachment ownership survives history operations.** Keep accepted attachment
+**R47 (implemented 2026-10-13) — Attachment ownership survives history operations.** Keep accepted attachment
 descriptors in the exact user event or assistant-image event that owns them. Archive, Stop, resume
 and runtime switch preserve blobs; conversation deletion removes its owned files. Clone copies
 only blobs referenced by copied transcript events and gives the clone independent ownership, so
@@ -624,7 +624,13 @@ through the canonical transcript projector; it never OCRs images, parses arbitra
 or indexes encoded payloads. Missing/corrupt blobs are per-item errors, not transcript failure.
 Durable attachment-bearing request receipts are keyed by `(agent_id, request_id)` with payload hash
 and acceptance/delivery state; duplicates replay the same result, conflicting reuse is refused.
-Receipts own accepted blobs before a user event exists, including host-held messages. Withdrawal,
+Receipts own accepted blobs before a user event exists, including host-held messages. Migration 51
+upgrades checkpoint-50 receipt rows in place, preserving their contents while adding the `prepared`
+state and larger bounded recovery JSON. `prepared` means no provider frame was released and may be
+offered for explicit recovery after restart; `unknown` after submission remains ambiguous and is
+never automatically redelivered. Provisional blobs have durable pending markers; startup prunes
+only unreferenced blobs that still carry a pending marker. Retained blobs remain untouched if an
+older transcript is corrupt, because ownership recovery fails closed. Withdrawal,
 Stop, crash, archive and host restart release a held message for explicit recovery instead of
 deleting its bytes or automatically delivering it. Transfer to a transcript event retains the same
 immutable descriptors. Released/failed receipts keep their copies until conversation deletion;
@@ -707,10 +713,11 @@ R1–R26 and must be reflected here when its contract changes.
 
 ## 5. Deviations & open decisions
 
-- R46–R47 are approved planned attachment storage for the 2026-10-12 scope. Provider consumption
-  remains distinct from host acceptance; a crash after dispatch may leave an unknown delivery
-  outcome, which cannot be retried automatically. Legacy text-only holds retain their existing
-  process-local lifetime.
+- R46–R47 were approved 2026-10-12 and implemented 2026-10-13. Migration 51's checkpoint-50
+  upgrade and attachment receipt restart/recovery behavior are covered by `internal/state` receipt
+  tests and server/runtime attachment tests. Provider consumption remains distinct from host
+  acceptance; a crash after dispatch may leave an unknown delivery outcome, which cannot be retried
+  automatically. Legacy text-only holds retain their existing process-local lifetime.
 
 - **Pipeline replacement:** TS-09.R37/R40/R45 and TS-10.R25/R27–R33 define the forward-only schema
   update and authorized legacy reset that replace R17's old pipeline rows, R26's creator projection,

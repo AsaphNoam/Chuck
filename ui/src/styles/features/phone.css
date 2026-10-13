@@ -109,6 +109,11 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-quote { border-left: var(--ad-border-thick) solid var(--ad-border-default); color: var(--ad-text-secondary); display: grid; font-size: 0.75rem; gap: var(--ad-space-1); margin: 0; padding-left: var(--ad-space-3); white-space: pre-wrap; }
 .phone-quote span { color: var(--ad-text-muted); font-size: 0.625rem; }
 .phone-composer { display: grid; gap: var(--ad-space-2); border-top: var(--ad-border-thin) solid var(--ad-border-default); padding-top: var(--ad-space-4); }
+.phone-composer.is-file-drop-target { outline: var(--ad-border-thick) solid var(--ad-highlight); outline-offset: 2px; }
+.phone-app .chat-attachment { grid-template-columns: 64px minmax(0, 1fr); }
+.phone-app .chat-attachment-preview { width: 64px; height: 64px; }
+.phone-composer .chat-attachment-strip { max-height: 10rem; overflow-y: auto; }
+.phone-composer .chat-attachment-remove { min-height: 36px; }
 .phone-composer-box { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-medium); padding: var(--ad-space-2); }
 .phone-composer-box .phone-field { gap: 0; }
 .phone-composer-box .phone-field textarea { background: transparent; border: 0; border-radius: 0; outline: none; box-shadow: none; min-height: 104px; padding: var(--ad-space-2); resize: none; }

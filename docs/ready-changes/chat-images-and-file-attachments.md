@@ -1,6 +1,6 @@
 # Chat images and file attachments
 
-**State:** In progress
+**State:** Finished — 2026-10-13; available for independent review
 **Why:** Direct `/design-feature` request on 2026-10-12 for image display, file attachments,
 drag/drop and pasted images, with small clickable image previews opening a display modal.
 The operator approved feature scope and technical delivery/retention/limits, then delegated
@@ -33,7 +33,7 @@ Phone multipart must bypass the current JSON buffering only through its narrow a
 exception; all other routes retain their current bounds. No public hosting, remote web image fetch,
 image editing, OCR, archive extraction, adapter patch or broader filesystem permission grant.
 
-### Verified seams and limitations
+### Seams verified before implementation
 
 - Current Composer, prompt API and `UserPromptData` are text-only; `@` inserts text under FS-03.R31.
   Extend these seams; do not treat mentions as uploads or replace the existing file viewer.
@@ -66,7 +66,7 @@ live-provider evidence. No live support claim is made by this design.
 
 ## Waiting on
 
-None. Ready for implementation; provider receipts and rendered checks are implementation gates.
+None. Implementation closure gates passed; independent review is available.
 
 ## Implementation plan
 
@@ -83,14 +83,37 @@ with focused storage, wire, API and component tests before final closure and ren
 Storage checkpoint: `internal/attachment` and state migration 50 implement immutable owned bytes
 and attachment receipts. Provisional markers allow startup cleanup without deleting retained copies
 whose old transcript is corrupt. `internal/attachment` and `internal/state` full suites pass.
-Overall attachment behavior and its requirements remain planned while integration proceeds.
+This checkpoint was followed by the runtime/API and browser integration below.
 
 Runtime/API checkpoint: the existing message/turn gate now carries ordered descriptors through
 Send, hold, wake, Steer and clone, with native image negotiation and bounded output retention.
 Shared multipart admission and owned/local image reads retain the desktop/phone guards; durable
 receipts prevent duplicate provider delivery. Migration 51 is forward-only from checkpoint 50.
-Full runtime/transcript and focused race/API/security tests pass. The full server run had one
-Stop/resume conflict flake whose focused rerun passed; final closure remains required.
+Full runtime/transcript and focused race/API/security tests pass. A server fixture Stop/resume
+race also reproduced on baseline `5fd573c` (2/10 runs). Its test now waits for startup's lifecycle
+claim to drain before explicitly stopping; the stabilized test passes 10/10. No product lifecycle
+behavior changed.
+
+Final browser closure covers shared IndexedDB drafts, accepted-send cleanup after reopening,
+stable retry identities, restored held-message recovery, ordered picker/drop/paste, attachment-only
+Send, exact copied bytes, archived history, and bounded image reads. Rendered desktop chat, dashboard
+and archive checks cover Core, Sky & Grove and Studio; phone checks cover 360/390/430px. Wide and tall
+images preserve aspect ratio, corrupt images expose Retry, and Escape/button/backdrop dismissal
+restores trigger focus without changing draft or scroll. An embedded-server browser journey also
+passes desktop and authenticated TLS test-phone upload/read/reload/history checks. This test peer
+does not claim physical-phone or real-tailnet acceptance.
+
+Credentialed native-image, ordinary copied-file read and attachment-bearing Steer receipts passed
+for pinned Claude ACP 0.85.1 / CLI 2.1.286 and Codex ACP 2.1.1 / CLI 0.159.3. Evidence is retained in
+`/private/tmp/chuck-live-attachment-evidence`; the opt-in live harness skips ordinary test runs.
+Codex's first tiny 64×32 image was misinterpreted; the independently verified 512×256 fixture passed
+with exact retained bytes. Delivery evidence does not imply perfect model image interpretation.
+Browser receipts are in `/private/tmp/attachment-render` and
+`/private/tmp/chuck-attachment-browser-receipts`. Full UI verification passes 805 tests in 88 files.
+Final `make test` passes both Go variants; `make dist` refreshes the embedded UI and builds the
+binary successfully. A preceding concurrent run hit a two-second credential fixture timeout;
+ten current and baseline focused runs and the full rerun without build contention pass, with
+credential product code unchanged. Spec/launcher and diff checks pass.
 
 The experienced operator adds context to an existing conversation and inspects it before sending.
 Keep the text entry and Send primary, with a quiet wrapping strip above it; distinguish native image

@@ -1154,7 +1154,7 @@ Revisit that transport only when an advertised primary wire surface and provider
 the wishlist. The chat disclosure uses existing UI primitives, semantic tokens and supported
 header layout under TS-08; it adds no new public presentation hook or dynamic-style exception.
 
-**R90 (planned) — Use negotiated image input and explicit host-file references.** For
+**R90 (implemented 2026-10-13) — Use negotiated image input and explicit host-file references.** For
 FS-03.R83, extend the existing runtime prompt value to exact text plus immutable ordered attachment
 descriptors; text-only internal callers keep the existing semantics. Send, hold, withdraw, stopped
 wake and Steer share one content builder and revalidate capability at consumption. Negotiated ACP
@@ -1170,7 +1170,7 @@ Steer capability and image input capability are separate gates. Existing native 
 cross-backend primer semantics remain; switching runtimes does not automatically resubmit historical
 images or promise preserved multimodal model context.
 
-**R91 (planned) — Normalize assistant image output without inline transcript blobs.** Accept
+**R91 (implemented 2026-10-13) — Normalize assistant image output without inline transcript blobs.** Accept
 ACP image content from assistant message chunks and tool-result content in root or child activity.
 Validate and persist bounded supplied base64 bytes before emitting normalized `assistant_image`
 events (or typed tool-image descriptors), carrying immutable attachment descriptors and existing
@@ -1182,10 +1182,12 @@ provider identity where supplied. Only capabilities the runtime actually negotia
 Pinned adapter schema/source tests and credentialed Claude/Codex image-send, file-read and Steer
 receipts are distinct closure evidence; fake peers alone do not establish live provider support.
 Native image base64 expansion must fit bounded ACP frames: at most 36 MiB per transport frame
-for this feature, with independent raw image limits from TS-03.R63 enforced at normalization.
-Keep transcript records at their existing 8 MiB limit because blobs live outside NDJSON. Update
-the real transport and fake-peer frame bounds together, then test maximum-size input and output;
-never use an unlimited reader to accommodate images.
+for this feature. Before storage, each incoming frame admits at most 10 images, 10 MiB decoded per
+image and 25 MiB decoded aggregate. Decode through bounded readers; malformed, oversized and
+overflow images become typed unavailable image entries, with normalized fanout capped at 10 images
+per frame. Keep transcript records at their existing 8 MiB limit because blobs live outside NDJSON.
+The real transport and fake-peer frame bounds match; tests cover frame limits and maximum-size input
+and output. Never use an unlimited reader to accommodate images.
 
 ## 3. Interfaces & data shapes
 
@@ -1258,14 +1260,13 @@ never use an unlimited reader to accommodate images.
 
 ## 5. Deviations & open decisions
 
-- R90–R91 define planned attachment delivery approved 2026-10-12. Static pinned evidence: Claude 0.85.1
-  `dist/acp-agent.js` (`promptToClaude`) and Codex 2.1.1 `dist/index.js` (`buildPromptItems`) under
-  `scripts/release/node_modules/@agentclientprotocol/` both support native image blocks. Claude
-  ignores embedded binary resources; Codex serializes non-image blobs into encoded text. Current
-  upstream Claude still ignores blobs in
-  [promptToClaude](https://github.com/zed-industries/claude-agent-acp/blob/main/src/acp-agent.ts)
-  (checked 2026-10-12). Thus native arbitrary-file delivery is not portable; baseline resource
-  links plus explicit normal file-tool reads are the approved alternative, requiring live receipts.
+- R90–R91 were approved 2026-10-12 and implemented 2026-10-13. Pinned and authenticated live
+  receipts verify native image input, copied-file reads and attachment Steer on Claude ACP 0.85.1
+  with Claude CLI 2.1.286, and Codex ACP 2.1.1 with Codex CLI 0.159.3. Arbitrary-file ACP
+  embedded resources remain non-portable, so uploaded copies use baseline resource links and
+  explicit normal file-tool reads. Runtime tests cover negotiated capability gates, image ordering,
+  typed per-image failures and bounded frame fanout; live receipts are separate from those
+  fake-peer checks.
 
 - **Quota-reset ACP gap (checked 2026-10-10):** R86–R88 use verified typed terminal failure and
   applicable Claude live reset metadata. Codex ACP 2.1.1 privately receives

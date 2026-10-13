@@ -35,31 +35,42 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   FS-20.R47–R48/A19, TS-08.R121. Project-scoped page-session group choices and a long-press
   action sheet over shared phone management forms. Receipts: shared project resources
   `mobile-actions-20261011/`. Fixtures make no provider claim.
-- **Reviewed — phone chat drafts and Theme selection, fix open:** `79cbbc3`,
+- **Reviewed — phone chat drafts and Theme selection, repair awaiting verification:** `79cbbc3`,
   FS-20.R49–R50/A20–A21, TS-08.R122, TS-13.R25. The 2026-10-12 review reproduced accepted
   Send cleanup missing a composer reopened while delivery was pending (see Review findings).
-  Theme selection and the narrow paired-phone config route passed review. This same unit remains
-  open for the draft fix; the other available review units are unchanged.
+  Theme selection and the narrow paired-phone config route passed review. The attachment unit's
+  shared draft repair now covers this reopening race; independent verification of the original
+  finding remains available. This same unit stays open; the other review units are unchanged.
 - **Design ready — full operator CLI parity (2026-10-12):**
   [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md) waits to start.
   FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 specify full nonvisual web
   operation coverage, legacy compatibility, readable/JSON output, file/stdin input, explicit
   consent and bounded reconnect-safe transcript follow. Scope and CLI contract are approved.
-  Attachment A8 waits for the separate in-progress attachment unit; other families may start
+  Attachment A8 can use the completed attachment unit; other families may start
   independently. Changelog: planned boundary recovery, shared client, lifecycle cleanup, honest
   results, consent and finite independent verification (INV §1/§2/§4/§7/§8/§9/§10/§11/§14/§15/§16/§17).
   Spec lint, design-feature/UX launcher twin comparisons and diff checks pass.
-  No CLI product code; the active attachment change remains separate.
-- **Design ready — chat images and attachments (2026-10-12):**
+  No CLI product code; the completed attachment change remains separate.
+- **Awaiting review — chat images and attachments (2026-10-13):**
   [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
-  waits to start. FS-03.R81–R86/A62–A65; TS-02.R46–R47, TS-03.R62–R63,
+  is implemented in the attachment commits beginning `91ae7db`, `e8c50f7`, and `395c1a8`, plus
+  the final attachment closure commit. The unrelated CLI design commit `5fd573c` is excluded.
+  FS-03.R81–R86/A62–A65; TS-02.R46–R47, TS-03.R62–R63,
   TS-04.R90–R91, TS-05.R26, TS-08.R123 and TS-13.R26 cover desktop/phone picker/drop/paste,
   thumbnails/modal, native images, other files through copied host paths and ordinary tools,
   browser drafts, immutable local history and compatible multipart Send/Steer with retry receipts.
-  Product and technical choices approved; additive API judgment delegated by the operator.
-  Changelog: planned ownership/cleanup, bounded admission and honest delivery across history,
-  runtime and device boundaries (INV §4/§8/§10/§11/§14/§15/§16). No product code; live provider
-  receipts remain implementation closure gates, not evidence already obtained.
+  Changelog: immutable local copies, bounded multipart admission, native image input, ordinary
+  file references, durable retry receipts, explicit held recovery and shared browser drafts;
+  assistant/local image rendering and keyboard-accessible inspection across history and device
+  boundaries (INV §1/§2/§4/§5/§7/§8/§9/§10/§11/§12/§13/§14/§15/§16/§17).
+  UI verification passes 805 tests in 88 files. Rendered chat/dashboard/archive and phone checks
+  pass, including portrait containment, modal focus, reload and newer-draft recovery. Embedded
+  server desktop and authenticated TLS test-phone journeys pass; no physical-phone/tailnet claim.
+  Pinned Claude 0.85.1/2.1.286 and Codex 2.1.1/0.159.3 live image, copied-file and attachment-Steer
+  receipts pass; `/private/tmp/chuck-live-attachment-evidence` retains evidence and the first
+  Codex tiny-image interpretation mismatch. Browser receipts: `/private/tmp/attachment-render`
+  and `/private/tmp/chuck-attachment-browser-receipts`. Final `make test` (both Go variants),
+  `make dist`, spec/launcher checks and diff checks pass; the embedded UI is refreshed.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
@@ -74,29 +85,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-**In progress — chat images and file attachments:**
-[`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md).
-FS-03.R81–R86/A62–A65 and the named attachment TS requirements remain planned until closure.
-Storage, runtime and UI slices are delegated with distinct ownership; HTTP admission, durable
-receipts and history/lifecycle integration remain under the parent. The working tree was clean
-at selection. **Verified storage checkpoint:** immutable owner-only blobs/manifests, per-file
-validation, safe reads, independent clone copies, provisional-marker startup cleanup and
-conversation deletion; SQLite request receipts release held copies for explicit recovery after
-restart. Full `internal/attachment` and `internal/state` tests pass. Limits apply per message,
-not per conversation. **Verified runtime/API checkpoint (2026-10-13):** native image/file content
-assembly, held/Steer outcomes, durable-before-wire acceptance, assistant/tool/child image events,
-clone ownership, multipart and guarded binary reads pass focused integration tests. Full runtime
-and transcript suites pass; focused runtime races pass. Migration 51 preserves checkpoint-50
-databases and separates pre-wire `prepared` recovery from ambiguous post-wire `unknown` outcomes.
-State tests pass, including the older minimal migration fixture and receipt preservation.
-The full server run hit `TestPipelineOrchestratorInstructionsReachStandingAndDedicatedOnce`'s
-409 Stop/resume race; its focused rerun passed. Final closure remains owed.
-Codex 2.1.1/0.159.3 live image, copied-file and attachment-Steer receipts pass; fixtures/receipts:
-`/private/tmp/chuck-live-attachment-evidence`. An initial tiny-image interpretation mismatch was
-resolved with an independently verified larger fixture. Claude live checks are running with native
-auth and isolated Chuck/project state. UI is uncommitted: focused checks pass, but rendered/source
-validation found Escape dismissal, missing sent thumbnails and shared draft lifecycle gaps; those
-repairs are in progress. Next: close rendered/reload/recovery checks, Claude gates and final matrix.
+None. Chat images and file attachments is complete and available for independent review above.
+Final closure: full attachment/state/runtime/transcript and focused API/security/race checks pass.
+Forward migration 51 preserves checkpoint-50 receipts; pre-wire recovery remains separate from
+ambiguous post-wire outcomes. Incoming output images obey 10-image/25-MiB decoded per-frame limits
+before storage and bounded event fanout. Session reads and state snapshots share the same attachment
+capability projection. Rendered findings in modal dismissal, sent thumbnails and shared draft
+lifecycle were repaired and verified. The existing orchestrator-instructions test race reproduced
+on baseline `5fd573c` 2/10 times; a test-only lifecycle-drain wait now passes 10/10.
+Final shared matrix passes in `/private/tmp/chuck-attachments-closure-test.log`; final embedded
+build passes in `/private/tmp/chuck-attachments-final-dist.log`. The preceding concurrent run's
+two-second Codex credential fixture timeout did not reproduce in ten focused current or baseline
+runs; the complete rerun without concurrent build load passes. Credential code is unchanged.
 
 ## Acceptance gates still owed
 
@@ -156,6 +156,11 @@ repairs are in progress. Next: close rendered/reload/recovery checks, Claude gat
 ### Phone chat drafts and Theme selection — `79cbbc3` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Reviewed 2026-10-12; fix open.
+
+2026-10-13 implementation note: the attachment unit now synchronizes shared draft cleanup across
+mounted/reopened composers with revision protection. Automated delayed-acceptance/reopening tests
+and the rendered browser recovery checks pass. Keep this originating unit available for independent
+verification of the finding below; it is not recorded as independently reviewed by its implementer.
 
 - **Must fix** — Accepted Send leaves submitted text in a reopened composer (INV §1).
   `ui/src/remote/AgentScreen.tsx:207,413–423` restores the draft only on mount and clears local

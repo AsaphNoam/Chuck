@@ -7,6 +7,7 @@ import { Composer } from "./Composer";
 import { getChatDraft } from "./drafts";
 import { useHeldStore } from "../../store/heldStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
+import { clearAttachmentDraftCacheForTests } from "./attachments";
 
 // Files returned by the mock file-search, narrowed by the q param so the test can
 // assert query filtering (FS-03.R30/A15).
@@ -16,6 +17,7 @@ const filesFor = (q: string) => {
 };
 
 let promptBodies: string[] = [];
+let attachmentRequests: string[] = [];
 let failFileSearch = false;
 let resolvePrompt: ((response: Response) => void) | null = null;
 
@@ -35,7 +37,9 @@ const server = setupServer(
     }),
   ),
   http.post("/api/sessions/:id/prompt", async ({ request }) => {
-    promptBodies.push(await request.text());
+    if (request.headers.get("content-type")?.includes("multipart/form-data")) {
+      attachmentRequests.push(request.headers.get("content-type") ?? "");
+    } else promptBodies.push(await request.text());
     return HttpResponse.json({}, { status: 202 });
   }),
 );
@@ -44,10 +48,12 @@ beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterEach(() => {
   cleanup();
   localStorage.clear();
-  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {} });
+  clearAttachmentDraftCacheForTests();
+  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {} });
   useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {} });
   server.resetHandlers();
   promptBodies = [];
+  attachmentRequests = [];
   failFileSearch = false;
   resolvePrompt = null;
   vi.restoreAllMocks();
@@ -61,6 +67,25 @@ function type(el: HTMLTextAreaElement, value: string) {
 }
 
 describe("Composer autocomplete", () => {
+  it("sends selected files and text together in declared order, including attachment-only sends", async () => {
+    render(<Composer agentId="a_1" busy={false} />);
+    const picker = screen.getByLabelText("Choose files to attach");
+    fireEvent.change(picker, { target: { files: [new File(["first"], "one.png", { type: "image/png" }), new File(["second"], "two.txt", { type: "text/plain" })] } });
+    type(screen.getByRole("textbox") as HTMLTextAreaElement, "look at these");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(attachmentRequests).toHaveLength(1));
+    expect(attachmentRequests[0]).toContain("multipart/form-data; boundary=");
+  });
+
+  it("allows an image-only attachment message", async () => {
+    render(<Composer agentId="a_1" busy={false} />);
+    fireEvent.change(screen.getByLabelText("Choose files to attach"), { target: { files: [new File(["image"], "image.png", { type: "image/png" })] } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(attachmentRequests).toHaveLength(1));
+    expect(attachmentRequests[0]).toContain("multipart/form-data; boundary=");
+  });
+
   // FS-03.A19: browser-local drafts follow the selected chat through navigation
   // and remounts, but never cross to another agent.
   it("restores distinct drafts for their matching chat after navigation and remount", async () => {

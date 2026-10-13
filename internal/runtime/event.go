@@ -77,6 +77,7 @@ type AssistantImageData struct {
 	Path       string                 `json:"path,omitempty"`
 	Name       string                 `json:"name,omitempty"`
 	Error      string                 `json:"error,omitempty"`
+	ErrorCode  string                 `json:"error_code,omitempty"`
 	ToolCallID string                 `json:"tool_call_id,omitempty"`
 }
 

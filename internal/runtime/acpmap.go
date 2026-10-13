@@ -463,8 +463,9 @@ func mapSessionUpdateImages(params json.RawMessage, image func(acpContentBlock, 
 	case "tool_call_update":
 		var safe []json.RawMessage
 		_ = json.Unmarshal(u.Content, &safe)
-		evs := make([]mappedEvent, 0, 1+len(safe))
-		contentEvents := make([]mappedEvent, 0, len(safe))
+		evs := make([]mappedEvent, 0, 1+maxImagesPerFrame)
+		contentEvents := make([]mappedEvent, 0, maxImagesPerFrame)
+		budget := imageFrameBudget{}
 		for i, raw := range safe {
 			var b acpContentBlock
 			_ = json.Unmarshal(raw, &b)
@@ -476,10 +477,18 @@ func mapSessionUpdateImages(params json.RawMessage, image func(acpContentBlock, 
 				continue
 			}
 			d := AssistantImageData{ToolCallID: u.ToolCallID, Error: "image unavailable"}
-			if image != nil {
+			admitted, failure := budget.admit(img, u.ToolCallID)
+			if !admitted {
+				d = failure
+			} else if image != nil {
 				d = image(img, u.ToolCallID)
 			}
-			contentEvents = append(contentEvents, mappedEvent{Type: EvAssistantImage, Data: d})
+			// Overflow remains an unavailable entry in the tool result. It must not
+			// expand a frame containing thousands of tiny images into thousands of
+			// normalized events or persisted files.
+			if budget.count <= maxImagesPerFrame {
+				contentEvents = append(contentEvents, mappedEvent{Type: EvAssistantImage, Data: d})
+			}
 			if i < len(safe) {
 				safe[i], _ = json.Marshal(map[string]any{"type": "image", "image": d})
 			}

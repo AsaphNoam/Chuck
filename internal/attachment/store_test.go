@@ -1,3 +1,4 @@
+// FS-03.A65: immutable storage enforces file, format and decoding limits.
 package attachment
 
 import (

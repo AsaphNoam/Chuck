@@ -1,3 +1,5 @@
+import { ensureDraftIndexed, noteDraftChange } from "./draftIndex";
+
 const storageKey = "chuck-chat-drafts";
 const maxDrafts = 20;
 
@@ -11,9 +13,29 @@ type StoredDrafts = Record<string, Draft>;
 // request cannot outlive a page reload, so a fresh process starting at zero is
 // correct.
 const revisions: Record<string, number> = {};
+const listeners = new Map<string, Set<() => void>>();
+
+export function subscribeChatDraft(agentId: string, listener: () => void) {
+  const subscribers = listeners.get(agentId) ?? new Set<() => void>();
+  subscribers.add(listener);
+  listeners.set(agentId, subscribers);
+  return () => {
+    subscribers.delete(listener);
+    if (!subscribers.size) listeners.delete(agentId);
+  };
+}
+
+function notifyDraftCleared(agentId: string) {
+  listeners.get(agentId)?.forEach((listener) => listener());
+}
 
 export function chatDraftRevision(agentId: string): number {
   return revisions[agentId] ?? 0;
+}
+
+export function bumpChatDraftRevision(agentId: string): number {
+  revisions[agentId] = chatDraftRevision(agentId) + 1;
+  return revisions[agentId];
 }
 
 export function getChatDraft(agentId: string): string {
@@ -22,6 +44,11 @@ export function getChatDraft(agentId: string): string {
 }
 
 export function setChatDraft(agentId: string, text: string) {
+  try {
+    noteDraftChange(agentId, { text: text !== "" });
+  } catch {
+    // Draft persistence remains best-effort, matching the existing text draft contract.
+  }
   const drafts = readDrafts();
   if (text === "") {
     delete drafts[agentId];
@@ -29,16 +56,23 @@ export function setChatDraft(agentId: string, text: string) {
     const newest = Math.max(Date.now(), ...Object.values(drafts).map((draft) => draft.editedAt + 1));
     drafts[agentId] = { text, editedAt: newest };
   }
-  revisions[agentId] = chatDraftRevision(agentId) + 1;
+  bumpChatDraftRevision(agentId);
   writeDrafts(drafts);
 }
 
 export function discardChatDraft(agentId: string) {
+  try {
+    noteDraftChange(agentId, { text: false });
+  } catch {
+    // Keep the in-memory cleanup working when browser storage is unavailable.
+  }
   const drafts = readDrafts();
   delete drafts[agentId];
-  revisions[agentId] = chatDraftRevision(agentId) + 1;
+  bumpChatDraftRevision(agentId);
   writeDrafts(drafts);
+  notifyDraftCleared(agentId);
 }
+
 
 function readDrafts(): StoredDrafts {
   try {
@@ -47,6 +81,13 @@ function readDrafts(): StoredDrafts {
     const parsed: unknown = JSON.parse(raw);
     if (!isStoredDrafts(parsed)) return {};
     const drafts = pruneDrafts(parsed.drafts);
+    let removed = false;
+    Object.entries(drafts).sort((left, right) => right[1].editedAt - left[1].editedAt).forEach(([agentId, draft]) => {
+      try {
+        if (!ensureDraftIndexed(agentId, { text: true, editedAt: draft.editedAt })) { delete drafts[agentId]; removed = true; }
+      } catch { /* Index migration must not hide a readable text draft. */ }
+    });
+    if (removed) writeDrafts(drafts);
     // Rehydration enforces the same retention bound as writes.
     if (Object.keys(drafts).length !== Object.keys(parsed.drafts).length) writeDrafts(drafts);
     return drafts;

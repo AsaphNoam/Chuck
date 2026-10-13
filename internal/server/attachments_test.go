@@ -1,3 +1,4 @@
+// FS-03.A62, FS-03.A64, FS-03.A65: multipart delivery, retry identity and admission bounds.
 package server
 
 import (

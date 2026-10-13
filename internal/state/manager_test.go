@@ -59,8 +59,9 @@ func TestManagerRecomputesEffectiveAgentState(t *testing.T) {
 		CreatedAt: formatTime(created), Running: true, PID: 48213, SessionID: "claude-sess-xyz",
 		StartedAt: formatTime(started), State: "busy", Detail: "Editing src/auth.ts",
 		LastTrace: "PostToolUse: Edit", BusySince: formatTime(busy), ContextPct: 0.42,
-		UpdatedAt: mustTime(t, "2026-06-22T10:01:00Z").UnixMilli(),
-		Clone:     CloneAffordance{Reason: CloneReasonNoFork},
+		UpdatedAt:              mustTime(t, "2026-06-22T10:01:00Z").UnixMilli(),
+		Clone:                  CloneAffordance{Reason: CloneReasonNoFork},
+		AttachmentCapabilities: &AttachmentCapabilities{Files: true, MaxFiles: 10, MaxFileBytes: 10 << 20, MaxTotalBytes: 25 << 20, MaxPixels: 40_000_000},
 	}}
 	if !reflect.DeepEqual(update, want) {
 		t.Fatalf("update = %+v, want %+v", update, want)

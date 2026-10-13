@@ -503,6 +503,7 @@ WHERE a.agent_id = ?`, agentID)
 	// the extension — both render no Steer control rather than a failing one.
 	out.SteeringAvailable = steeringAvailable.Valid && steeringAvailable.Bool
 	out.RuntimeCapabilities = DecodeRuntimeCapabilities(capabilities.String)
+	out.AttachmentCapabilities = AttachmentCapabilitiesFor(out.Interface, out.RuntimeCapabilities)
 	if state.Valid && state.String != "" {
 		out.State = state.String
 	}

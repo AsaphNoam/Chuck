@@ -5,18 +5,22 @@ import { cancelTurn, sendPrompt, steerPrompt } from "../../api/client";
 import { withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
-import { chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft } from "./drafts";
+import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
 import { useAutocomplete } from "./autocomplete";
+import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "./attachments";
+import { DraftAttachments } from "./AttachmentView";
+import type { AttachmentCapabilities } from "../../api/types";
 
 // Composer sends to one agent and owns its `@` file / `#` command picker through
 // the shared autocomplete hook (FS-03.R30–R34).
 
-export function Composer({ agentId, busy, running = true, steerable = false, variant }: {
+export function Composer({ agentId, busy, running = true, steerable = false, variant, attachmentCapabilities }: {
   agentId: string;
   busy: boolean;
   running?: boolean;
   steerable?: boolean;
   variant?: "dashboard";
+  attachmentCapabilities?: AttachmentCapabilities;
 }) {
   const [text, setText] = useState(() => getChatDraft(agentId));
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +28,12 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   // things, so it is reported rather than left to be inferred (FS-03.R50).
   const [notice, setNotice] = useState<string | null>(null);
   const [steering, setSteering] = useState(false);
+  const [files, setFiles] = useState<DraftAttachment[]>([]);
+  const [filesReady, setFilesReady] = useState(() => !hasPersistedAttachmentDraft(agentId));
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [draggingFiles, setDraggingFiles] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [retry, setRetry] = useState<{ text: string; files: DraftAttachment[]; requestId: string; steer: boolean; revision: number; retryable?: boolean } | null>(null);
   const held = useHeldStore((state) => state.byAgent[agentId]);
   const hold = useHeldStore((state) => state.hold);
   const releaseHeld = useHeldStore((state) => state.release);
@@ -31,6 +41,8 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const currentAgentId = useRef(agentId);
   const steeringAgents = useRef(new Set<string>());
+  const pickerRef = useRef<HTMLInputElement>(null);
+  const inFlight = useRef(false);
   currentAgentId.current = agentId;
   const autocomplete = useAutocomplete({
     sourceId: agentId,
@@ -43,13 +55,122 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   });
 
   useEffect(() => {
+    let current = true;
+    const initialRevision = chatDraftRevision(agentId);
     setText(getChatDraft(agentId));
     setError(null);
     setNotice(null);
     autocomplete.reset();
     setSteering(steeringAgents.current.has(agentId));
+    setFiles([]);
+    const needsAttachmentRestore = hasPersistedAttachmentDraft(agentId);
+    setFilesReady(!needsAttachmentRestore);
+    setAttachmentError(null);
+    if (needsAttachmentRestore) {
+      void restoreAttachments(agentId).then((restored) => { if (current) { setFiles(restored); setFilesReady(true); } }).catch(() => { if (current) setAttachmentError("Saved attachments could not be restored. Reload before sending to avoid losing them."); });
+    }
+    void restorePendingAttachmentSend(agentId).then(async (pending) => {
+      if (current && pending && !inFlight.current) {
+        const liveFiles = await restoreAttachments(agentId);
+        const revision = chatDraftRevision(agentId);
+        const sameFiles = pending.files.length === liveFiles.length && pending.files.every((file) => liveFiles.some((live) => live.id === file.id));
+        const sameDraft = getChatDraft(agentId) === pending.text && sameFiles;
+        setRetry({ ...pending, revision: revision === initialRevision && sameDraft ? revision : -1 });
+      }
+    }).catch(() => { if (current) setAttachmentError("A previous attachment send could not be restored from browser storage."); });
+    return () => { current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
+
+  useEffect(() => subscribeChatDraft(agentId, () => setText("")), [agentId]);
+  useEffect(() => subscribeAttachmentDraft(agentId, setFiles), [agentId]);
+
+  const saveFiles = (next: DraftAttachment[]) => {
+    setFiles(next);
+    setAttachmentError(null);
+    const indexed = touchAttachmentDraft(agentId, next, text !== "");
+    bumpChatDraftRevision(agentId);
+    if (!indexed) setAttachmentError(attachmentErrorForStorage());
+    void persistAttachments(agentId, next).catch(() => setAttachmentError(attachmentErrorForStorage()));
+  };
+
+  const acceptFiles = (list: FileList | File[], source: "picker" | "paste" | "drop") => {
+    const result = addFiles(files, list, source, attachmentCapabilities);
+    if (result.files !== files) saveFiles(result.files);
+    setAttachmentError(result.errors[0] ?? null);
+  };
+
+  const onPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const images = [...event.clipboardData.items]
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => !!file);
+    if (!images.length) return;
+    acceptFiles(images, "paste");
+    // Keep any available text once through the normal textarea paste behavior.
+    if (!event.clipboardData.getData("text/plain")) event.preventDefault();
+  };
+
+  const capabilityError = files.some((file) => isPreviewImage(file)
+    ? attachmentCapabilities?.image_input === false
+    : attachmentCapabilities?.files === false)
+    ? files.some((file) => isPreviewImage(file) && attachmentCapabilities?.image_input === false)
+      ? "This runtime does not accept image input. Remove the image or choose a runtime that supports it."
+      : "This runtime cannot read uploaded files. Remove the file or choose a runtime that supports it."
+    : null;
+
+  const onSubmitFiles = async (prompt: string, selected: DraftAttachment[], requestId: string, steeringMessage = false, expectedRevision?: number) => {
+    if (inFlight.current || !filesReady) return;
+    inFlight.current = true;
+    setSending(true);
+    const submittedRevision = expectedRevision ?? chatDraftRevision(agentId);
+    const pending = { text: prompt, files: selected, requestId, steer: steeringMessage, revision: submittedRevision };
+    setRetry(pending);
+    try { await persistPendingAttachmentSend(agentId, pending); } catch { setAttachmentError(attachmentErrorForStorage()); }
+    setError(null);
+    setNotice(null);
+    try {
+      const requestFiles = selected.map(({ name, blob }) => ({ name, blob }));
+      const result = steeringMessage
+        ? await steerPrompt(agentId, prompt, requestFiles, requestId)
+        : await sendPrompt(agentId, prompt, requestFiles, requestId);
+      const acceptedAttachments = "attachments" in result ? result.attachments ?? [] : [];
+      const acceptedRequestId = "request_id" in result ? result.request_id : undefined;
+      if (!steeringMessage && "delivery" in result && result.delivery === "held") hold(agentId, prompt, result.after_seq, acceptedAttachments);
+      const attachmentStatus = "attachment_delivery" in result ? result.attachment_delivery : undefined;
+      if (!steeringMessage && (!selected.length || attachmentStatus === "submitted")) append(agentId, { kind: "user_text", text: prompt, attachments: acceptedAttachments, message_id: acceptedRequestId ?? requestId });
+      if (selected.length && attachmentStatus !== "submitted" && attachmentStatus !== "held") {
+        setError(attachmentStatus === "released"
+          ? "This message was released for recovery. Restore it from the conversation before sending again."
+          : attachmentStatus === "failed"
+            ? "The message was not delivered. Its attachments remain in the composer; retry the same send."
+            : "Delivery could not be confirmed. Its attachments remain available; retry uses the same request receipt.");
+        const retryable = attachmentStatus !== "released";
+        const pendingRetry = { text: prompt, files: selected, requestId, steer: steeringMessage, revision: submittedRevision, retryable };
+        setRetry(pendingRetry);
+        if (!retryable) void persistPendingAttachmentSend(agentId, pendingRetry).catch(() => setAttachmentError(attachmentErrorForStorage()));
+        return;
+      }
+      if (chatDraftRevision(agentId) === submittedRevision) {
+        discardChatDraft(agentId);
+        setText("");
+      }
+      if (selected.length) {
+        try { await removeAcceptedAttachments(agentId, selected.map((file) => file.id), getChatDraft(agentId) !== ""); }
+        catch { setAttachmentError("Message was accepted, but attachment cleanup could not be saved. Remove any sent files before sending again."); }
+      }
+      setRetry(null);
+      void clearPendingAttachmentSend(agentId, requestId).catch(() => setAttachmentError("Message was sent, but its retry receipt could not be cleared from browser storage."));
+      if (steeringMessage) setNotice("Delivered into the running turn.");
+    } catch (err) {
+      const reason = err instanceof Error && err.message ? err.message : "the agent may have stopped";
+      setError(`Could not send — ${reason}. Your message is still available to retry.`);
+      setRetry({ text: prompt, files: selected, requestId, steer: steeringMessage, revision: submittedRevision });
+    } finally {
+      inFlight.current = false;
+      setSending(false);
+    }
+  };
 
   // Stop, crash, or archive leaves no next turn for a held message, so it comes
   // back as the person's own text — but only into an empty composer, never over
@@ -72,7 +193,18 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     // a picker insertion's trailing space is part of the prompt and must reach both
     // the optimistic event and POST /prompt verbatim (FS-03.R31/R33, INV §1).
     const prompt = text;
-    if (!prompt.trim()) return;
+    if (!filesReady) { setAttachmentError("Restoring attachments… wait before sending."); return; }
+    if (!prompt.trim() && files.length === 0) return;
+    if (capabilityError) { setError(capabilityError); return; }
+    if (retry?.retryable === false && retry.text === prompt && sameFileSet(retry.files, files)) return;
+    if (retry?.retryable !== false && retry && retry.text === prompt && sameFileSet(retry.files, files)) {
+      void onSubmitFiles(retry.text, retry.files, retry.requestId, retry.steer, retry.revision);
+      return;
+    }
+    if (files.length) {
+      void onSubmitFiles(prompt, files, chatDraftRequestId(agentId) || crypto.randomUUID());
+      return;
+    }
     setError(null);
     setNotice(null);
     // A busy agent queues the message, and a queued message is not in the
@@ -119,7 +251,9 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   // retype it (FS-03.R50).
   const steer = async () => {
     const typed = text.trim() ? text : "";
-    if (!typed && !held) return;
+    if (!typed && files.length === 0 && !held) return;
+    if (!filesReady) { setAttachmentError("Restoring attachments… wait before steering."); return; }
+    if (capabilityError) { setError(capabilityError); return; }
     if (steeringAgents.current.has(agentId)) return;
     const steeringAgentId = agentId;
     steeringAgents.current.add(steeringAgentId);
@@ -127,6 +261,10 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     setError(null);
     setNotice(null);
     try {
+      if (files.length) {
+        await onSubmitFiles(typed, files, chatDraftRequestId(agentId) || crypto.randomUUID(), true);
+        return;
+      }
       const result = await steerPrompt(steeringAgentId, typed);
       if (typed) {
         setText("");
@@ -188,7 +326,13 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   };
 
   return (
-    <form className="composer" data-ui="composer" data-variant={variant} onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <form className={`composer${draggingFiles ? " is-file-drop-target" : ""}`} data-ui="composer" data-variant={variant} onSubmit={(event) => { event.preventDefault(); void submit(); }}
+      onDragEnter={(event) => { if ([...event.dataTransfer.types].includes("Files")) { event.preventDefault(); setDraggingFiles(true); } }}
+      onDragOver={(event) => { if ([...event.dataTransfer.types].includes("Files")) event.preventDefault(); }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDraggingFiles(false); }}
+      onDrop={(event) => { if (!event.dataTransfer.files.length) return; event.preventDefault(); setDraggingFiles(false); acceptFiles(event.dataTransfer.files, "drop"); }}>
+      <input ref={pickerRef} className="ad-visually-hidden" type="file" multiple aria-label="Choose files to attach" onChange={(event) => { if (event.target.files) acceptFiles(event.target.files, "picker"); event.target.value = ""; }} />
+      <DraftAttachments files={files} onRemove={(id) => saveFiles(files.filter((file) => file.id !== id))} disabled={sending} />
       <div className="composer-input">
         <AutoGrowTextarea
           ref={textareaRef}
@@ -204,6 +348,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
           onKeyUp={(event) => autocomplete.syncTrigger(event.currentTarget)}
           onClick={(event) => autocomplete.syncTrigger(event.currentTarget)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
         />
         {autocomplete.picker}
       </div>
@@ -219,9 +364,10 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         </div>
       )}
       <div className="composer-actions">
-        <button type="submit" className="composer-icon ad-button-icon-primary" aria-label="Send" title="Send">{!variant && <span className="composer-send-label">Send</span>}<SendIcon /></button>
+        <button type="button" className="ad-button-secondary composer-attach" aria-label="Attach files" title="Attach files" disabled={sending} onClick={() => pickerRef.current?.click()}>Attach</button>
+        <button type="submit" className="composer-icon ad-button-icon-primary" aria-label="Send" title="Send" disabled={!filesReady || sending || (!text.trim() && files.length === 0) || !!capabilityError || (retry?.retryable === false && retry.text === text && sameFileSet(retry.files, files))}>{!variant && <span className="composer-send-label">Send</span>}<SendIcon /></button>
         {busy && steerable && (
-          <button type="button" className="ad-button-secondary" disabled={steering} onClick={() => void steer()}>Steer</button>
+          <button type="button" className="ad-button-secondary" disabled={steering || !!capabilityError || (retry?.retryable === false && retry.text === text && sameFileSet(retry.files, files))} onClick={() => void steer()}>Steer</button>
         )}
         {held && (
           <button type="button" className="ad-button-secondary" onClick={() => void withdraw()}>Withdraw queued</button>
@@ -243,8 +389,16 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         )}
       </div>
       </div>
+      {!filesReady && <p className="composer-retry" role="status">Restoring attachments…</p>}
+      {retry && <p className="composer-retry" role="status"><span>Previous message was not confirmed.</span> {retry.retryable === false ? <span>Use the recovered message above to decide whether to send it again.</span> : <button type="button" disabled={!filesReady || sending} onClick={() => void onSubmitFiles(retry.text, retry.files, retry.requestId, retry.steer, retry.revision)}>Retry previous send</button>}</p>}
+      {draggingFiles && <p className="composer-drop-hint" aria-live="polite">Drop files to attach</p>}
+      {attachmentError && <p className="composer-error" role="alert">{attachmentError}</p>}
       {notice && <p className="composer-notice" role="status">{notice}</p>}
       {error && <p className="composer-error">{error}</p>}
     </form>
   );
+}
+
+function sameFileSet(left: DraftAttachment[], right: DraftAttachment[]) {
+  return left.length === right.length && left.every((file) => right.some((candidate) => candidate.id === file.id));
 }

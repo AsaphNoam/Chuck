@@ -1,3 +1,4 @@
+// FS-03.A64: startup cleanup preserves retained copies and prunes provisional orphans.
 package attachment
 
 import (

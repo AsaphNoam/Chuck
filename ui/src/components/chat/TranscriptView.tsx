@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import type { AnnotationDraft, TranscriptEvent } from "../../api/types";
+import type { AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../../api/types";
 import { clipAnnotationExcerpt } from "../../lib/annotations";
 import { copyText } from "../../lib/copyText";
 import { claimWebLink } from "../../lib/linkActions";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Button } from "../ui";
 import { AssistantText } from "./renderers/AssistantText";
+import { AssistantImageRow, MessageAttachments } from "./AttachmentView";
 import { DiffBlock } from "./renderers/DiffBlock";
 import { PermissionPrompt } from "./renderers/PermissionPrompt";
 import { ToolCall } from "./renderers/ToolCall";
@@ -34,6 +35,8 @@ import { useHeldStore } from "../../store/heldStore";
 import { withdrawHeldMessage } from "../../lib/heldMessage";
 import { WorkingIndicator } from "./WorkingIndicator";
 import { useUiStore } from "../../store/uiStore";
+import { dismissPromptRecovery, sendRecoveredPrompt } from "../../api/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 // openFile/onOpenFile are per-surface, exactly as annotationsEnabled already is
 // (TS-08.R57). The agent and archived-agent screens pass the file their route
@@ -53,6 +56,8 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   // The queued follow-up renders beside the event list, never inside it: the
   // server sends no event for a message it has not delivered (TS-08.R56).
   const held = useHeldStore((state) => state.byAgent[agentId]);
+  const heldAttachments = useHeldStore((state) => state.attachmentsByAgent[agentId] ?? []);
+  const recovery = useHeldStore((state) => state.recoveryByAgent[agentId]);
   const reasoning = useReasoningStore((state) => state.byAgent[agentId]?.spans);
 
   // Annotating is a right-click action on the event under the pointer: it captures the
@@ -142,7 +147,8 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
         )}
         <BackgroundTaskList agentId={agentId} tasks={collectTasks(events)} controllable={taskControl} />
         {busy && <WorkingIndicator />}
-        {held !== undefined && <HeldMessage agentId={agentId} text={held} />}
+        {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
+        {recovery && <RecoveryMessage agentId={agentId} recovery={recovery} />}
       </div>
       {!atBottom && (
         <button type="button" className="jump-to-latest ad-button-secondary" onClick={jumpToLatest}>
@@ -153,6 +159,47 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
+}
+
+function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const client = useQueryClient();
+  const key = `chuck-recovery-send:${agentId}:${recovery.request_id}`;
+  const sendId = () => {
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const id = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(key, id);
+    return id;
+  };
+  const send = async () => {
+    setBusy(true); setError("");
+    try {
+      await sendRecoveredPrompt(agentId, recovery.text, recovery.attachments.map((item) => item.id), sendId());
+      localStorage.removeItem(key);
+      useHeldStore.getState().setRecovery(agentId, null);
+      await client.invalidateQueries({ queryKey: ["held", agentId] });
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not restore this message."); }
+    finally { setBusy(false); }
+  };
+  const dismiss = async () => {
+    setBusy(true); setError("");
+    try {
+      await dismissPromptRecovery(agentId, recovery.request_id);
+      localStorage.removeItem(key);
+      useHeldStore.getState().setRecovery(agentId, null);
+      await client.invalidateQueries({ queryKey: ["held", agentId] });
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not dismiss this message."); }
+    finally { setBusy(false); }
+  };
+  return <div className="transcript-held" data-ui="transcript" data-variant="held">
+    <p className="transcript-held-label">Message not delivered — choose whether to send it again</p>
+    {recovery.text && <p className="transcript-held-text">{recovery.text}</p>}
+    <MessageAttachments agentId={agentId} attachments={recovery.attachments} />
+    <div className="transcript-held-actions"><button type="button" className="ad-button-primary" disabled={busy} onClick={() => void send()}>Send recovered message</button><button type="button" className="ad-button-secondary" disabled={busy} onClick={() => void dismiss()}>Dismiss</button></div>
+    {error && <p className="transcript-held-error" role="alert">{error}</p>}
+  </div>;
 }
 
 // eventRenderer is the one row renderer for the root list and every nested
@@ -207,12 +254,13 @@ export function eventRenderer({ agentId, onAnnotate, onContextMenu, onOpenFile }
 // read that way rather than as a sent message awaiting a reply — the failure mode
 // is believing the agent already has it — and it carries its own withdraw
 // affordance (FS-03.R48, TS-08.R56, INV §8).
-function HeldMessage({ agentId, text }: { agentId: string; text: string }) {
+function HeldMessage({ agentId, text, attachments }: { agentId: string; text: string; attachments: AttachmentDescriptor[] }) {
   const [error, setError] = useState<string | null>(null);
   return (
     <div className="transcript-held" data-ui="transcript" data-variant="held">
       <p className="transcript-held-label">Queued — sends when this turn ends</p>
       <p className="transcript-held-text">{text}</p>
+      <MessageAttachments agentId={agentId} attachments={attachments} />
       <button
         type="button"
         className="transcript-held-withdraw ad-button-secondary"
@@ -286,9 +334,10 @@ function keyOf(event: TranscriptEvent, index: number) {
 
 function TranscriptItem({ agentId, event, onAnnotate, onOpenFile }: { agentId: string; event: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void; onOpenFile?: (link: FileLink | null) => void }) {
   const kind = String(event.kind ?? event.type ?? "");
-  if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} />;
+  if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} agentId={agentId} />;
   if (kind === "user_text")
-    return <article className="message user-message" data-ui="transcript" data-variant="user">{String(event.text ?? "")}</article>;
+    return <article className="message user-message" data-ui="transcript" data-variant="user">{String(event.text ?? "")}<MessageAttachments agentId={agentId} attachments={event.attachments ?? []} /></article>;
+  if (kind === "assistant_image") return <article className="message assistant-message" data-ui="transcript" data-variant="assistant"><AssistantImageRow agentId={agentId} attachment={event.attachment} path={typeof event.path === "string" ? event.path : undefined} name={typeof event.name === "string" ? event.name : undefined} error={typeof event.error === "string" ? event.error : undefined} /></article>;
   if (kind === "permission_request") return <PermissionPrompt agentId={agentId} event={event} />;
   if (kind === "diff") return <DiffBlock event={event} onAnnotate={onAnnotate} onOpenFile={onOpenFile} />;
   if (kind === "tool_call") return <ToolCall event={event} />;

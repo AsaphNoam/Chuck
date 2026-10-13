@@ -14,7 +14,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/backend"
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/hooks"
@@ -50,14 +49,7 @@ type sessionResponse struct {
 	Worktree *worktreeStartNotice `json:"worktree,omitempty"`
 }
 
-type attachmentCapabilities struct {
-	ImageInput    bool  `json:"image_input"`
-	Files         bool  `json:"files"`
-	MaxFiles      int   `json:"max_files"`
-	MaxFileBytes  int64 `json:"max_file_bytes"`
-	MaxTotalBytes int64 `json:"max_total_bytes"`
-	MaxPixels     int64 `json:"max_pixels"`
-}
+type attachmentCapabilities = state.AttachmentCapabilities
 
 // worktreeStartNotice is what a start path says about a recreated checkout: it
 // happened, on which branch, and whether the project's setup command warned.
@@ -208,7 +200,7 @@ func (s *Server) readSession(id string) sessionResponse {
 		s.log.Error("read session quota", "agent", id, "err", err)
 	}
 	if resp.Agent.Interface == "chat" {
-		caps := &attachmentCapabilities{Files: true, MaxFiles: attachment.MaxFiles, MaxFileBytes: attachment.MaxFileBytes, MaxTotalBytes: attachment.MaxTotalBytes, MaxPixels: attachment.MaxPixels}
+		caps := state.AttachmentCapabilitiesFor(resp.Agent.Interface, state.RuntimeCapabilities{})
 		if snap, err := s.stateStore.ReadSession(id); err == nil {
 			caps.ImageInput = snap.RuntimeCapabilities.ImageInput
 		}

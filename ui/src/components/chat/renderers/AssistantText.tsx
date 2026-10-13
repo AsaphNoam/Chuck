@@ -2,11 +2,11 @@ import type { TranscriptEvent } from "../../../api/types";
 import { SanitizedMarkdown } from "./SanitizedMarkdown";
 import type { FileLink } from "./filePath";
 
-export function AssistantText({ event, onOpenFile }: { event: TranscriptEvent; onOpenFile?: (link: FileLink) => void }) {
+export function AssistantText({ event, onOpenFile, agentId }: { event: TranscriptEvent; onOpenFile?: (link: FileLink) => void; agentId?: string }) {
   const text = String(event.text ?? event.delta ?? "");
   return (
     <article className="message assistant-message" data-ui="transcript" data-variant="assistant">
-      <SanitizedMarkdown text={text} onOpenFile={onOpenFile} />
+      <SanitizedMarkdown text={text} onOpenFile={onOpenFile} agentId={agentId} />
     </article>
   );
 }

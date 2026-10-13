@@ -99,6 +99,15 @@ func TestPipelineOrchestratorInstructionsReachStandingAndDedicatedOnce(t *testin
 	loadDump := filepath.Join(t.TempDir(), "load.json")
 	t.Setenv("FAKEACP_LOAD_DUMP", loadDump)
 	handler := srv.routes()
+	// Registry ownership becomes visible before the pipeline launch releases its
+	// lifecycle claim. Let the initial assignment finish before testing resume.
+	deadline = time.Now().Add(2 * time.Second)
+	for srv.lifecycleInFlight(coordinator.AssignedAgentID) && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if srv.lifecycleInFlight(coordinator.AssignedAgentID) {
+		t.Fatal("coordinator start lifecycle claim did not settle")
+	}
 	if rec := doRequest(t, handler, http.MethodPost, "/api/sessions/"+coordinator.AssignedAgentID+"/stop", nil); rec.Code != http.StatusOK {
 		t.Fatalf("stop = %d %s", rec.Code, rec.Body.String())
 	}

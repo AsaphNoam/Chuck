@@ -64,6 +64,7 @@ export function ChatPanel() {
   const heldAfterSeq = useHeldStore((state) => state.afterSeqByAgent[id] ?? 0);
   const hold = useHeldStore((state) => state.hold);
   const releaseHeld = useHeldStore((state) => state.release);
+  const setRecovery = useHeldStore((state) => state.setRecovery);
   const pushError = useUiStore((state) => state.pushError);
   const { data: backends } = useBackends();
   const { data: projects } = useProjects();
@@ -108,15 +109,16 @@ export function ChatPanel() {
   }, [id]);
 
   useEffect(() => {
-    if (!agent?.running || agent.interface !== "chat") return;
+    if (!agent || agent.interface !== "chat") return;
     let current = true;
     getHeldPrompt(id).then((snapshot) => {
       if (!current) return;
-      if (snapshot.text) hold(id, snapshot.text, snapshot.after_seq);
+      if (snapshot.text || snapshot.attachments?.length) hold(id, snapshot.text, snapshot.after_seq, snapshot.attachments);
       else releaseHeld(id);
+      setRecovery(id, snapshot.recovery ?? null);
     }).catch(() => { /* SSE remains the primary agent-state path. */ });
     return () => { current = false; };
-  }, [agent?.running, agent?.interface, id, hold, releaseHeld]);
+  }, [agent?.running, agent?.interface, id, hold, releaseHeld, setRecovery]);
 
   // A held message stops being pending the moment the server actually sends it,
   // which is when it enters the durable transcript as an ordinary user prompt.
@@ -374,6 +376,7 @@ export function ChatPanel() {
             busy={agent.state === "busy" || agent.state === "waiting_input"}
             running={agent.running}
             steerable={agent.steering_available}
+            attachmentCapabilities={agent.attachment_capabilities}
           />
         </div>
       )}

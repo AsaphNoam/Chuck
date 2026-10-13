@@ -256,7 +256,7 @@ keeps credentials and incidental private coordination payloads out of durable an
 activity. Shared content has no system-instruction authority. Retained file origins reuse R24's
 local process-readable file boundary; this adds neither repository confinement nor process isolation.
 
-**R26 (planned) — Attachment content preserves the existing host/device boundary.** For
+**R26 (implemented 2026-10-13) — Attachment content preserves the existing host/device boundary.** For
 FS-03.R81–R86/TS-03.R62–R63, owned attachment lookup accepts opaque ids, checks conversation
 ownership and opens only server-owned regular files without following substituted symlinks.
 Original client filenames are bounded display metadata (255 UTF-8 bytes), never executable text,
@@ -305,8 +305,11 @@ Their concrete payloads are owned by TS-03, TS-04, and TS-07.
 
 ## 5. Deviations & open decisions
 
-- R26 defines planned attachment isolation and explicit local-image reading for the scope approved
-  2026-10-12. Existing desktop same-host and paired-phone tracked-workspace boundaries are retained.
+- R26 was approved 2026-10-12 and implemented 2026-10-13. Security tests cover opaque-id
+  conversation ownership, symlink/special-file rejection, sniffed media types and bounded explicit
+  local-image reads; the Markdown renderer and image-viewer tests confirm remote URLs are inert and
+  only validated bytes reach owned browser object URLs. Existing desktop same-host and paired-phone
+  tracked-workspace boundaries are retained.
 
 - Same-machine API callers are trusted as described by R3; real API authentication is not shipped.
 - Full environment inheritance is accepted behavior under R8. The UI masks likely secret fields but

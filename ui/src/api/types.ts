@@ -18,6 +18,16 @@ export interface RuntimeCapabilities {
   background_tasks: boolean;
   background_task_stop: boolean;
   file_change_reports: boolean;
+  image_input?: boolean;
+}
+
+export interface AttachmentCapabilities {
+  image_input: boolean;
+  files: boolean;
+  max_files: number;
+  max_file_bytes: number;
+  max_total_bytes: number;
+  max_pixels: number;
 }
 
 export interface AgentState {
@@ -39,6 +49,7 @@ export interface AgentState {
   /** The session snapshot's normalized native capabilities (TS-03.R44); all
    * false when unknown. An affordance only — the server revalidates. */
   runtime_capabilities?: RuntimeCapabilities;
+  attachment_capabilities?: AttachmentCapabilities;
   /** Whether Clone is offered and, if not, why (FS-01.R36, TS-03.R43). */
   clone?: { available: boolean; reason: string };
   interface: string;
@@ -114,6 +125,15 @@ export interface RuntimeEvent {
   parent_activity_id?: string;
 }
 
+export interface AttachmentDescriptor {
+  id: string;
+  name: string;
+  mime_type: string;
+  size: number;
+  sha256: string;
+  kind: "image" | "file";
+}
+
 // TranscriptEvent is the flat, render-ready shape the store and renderers consume:
 // `kind` plus the payload fields spread to the top level. normalizeEvent() maps a
 // RuntimeEvent into this; locally-created events (e.g. the optimistic user message)
@@ -130,6 +150,8 @@ export interface TranscriptEvent {
   activity_id?: string;
   parent_activity_id?: string;
   data?: unknown;
+  attachments?: AttachmentDescriptor[];
+  attachment?: AttachmentDescriptor;
   [key: string]: unknown;
 }
 

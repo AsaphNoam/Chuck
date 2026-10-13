@@ -1,4 +1,4 @@
-import type { AnnotationBatch, ArchiveProjectGroup, ArchiveResult, AvailableCommand, Capabilities, FileContent, Layout, TrackedFile, TranscriptEvent } from "./types";
+import type { AnnotationBatch, ArchiveProjectGroup, ArchiveResult, AvailableCommand, AttachmentDescriptor, Capabilities, FileContent, Layout, TrackedFile, TranscriptEvent } from "./types";
 import type { ProjectResponse, WorktreeStatus } from "../schemas/project";
 
 async function json<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -130,16 +130,37 @@ export type PromptDelivery = "sent" | "held";
  * running turn, or started a fresh turn because that one had already ended. */
 export type SteerOutcome = "steered" | "new_turn";
 
-export function sendPrompt(agentId: string, text: string) {
-  return json<{ accepted: true; agent_id: string; delivery: PromptDelivery; after_seq: number }>(`/api/sessions/${agentId}/prompt`, {
+export type PromptResult = { accepted: true; agent_id: string; delivery: PromptDelivery; after_seq: number; request_id?: string; attachments?: AttachmentDescriptor[]; attachment_delivery?: "held" | "submitted" | "released" | "failed" | "unknown" };
+export type PromptFile = { name: string; blob: Blob };
+
+function multipartBody(text: string, files: PromptFile[], requestId: string) {
+  const form = new FormData();
+  const declared = files.map((file, index) => ({ part: `file_${index}`, name: file.name }));
+  form.append("message", JSON.stringify({ request_id: requestId, text, files: declared }));
+  files.forEach((file, index) => form.append(`file_${index}`, file.blob, file.name));
+  return form;
+}
+
+export function sendPrompt(agentId: string, text: string, files: PromptFile[] = [], requestId?: string) {
+  const url = `/api/sessions/${encodeURIComponent(agentId)}/prompt`;
+  if (files.length) {
+    return json<PromptResult>(url, { method: "POST", body: multipartBody(text, files, requestId ?? crypto.randomUUID()) });
+  }
+  return json<PromptResult>(url, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+  });
+}
+
+export function sendRecoveredPrompt(agentId: string, text: string, attachmentIds: string[], requestId: string) {
+  return json<PromptResult>(`/api/sessions/${encodeURIComponent(agentId)}/prompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ request_id: requestId, text, attachment_ids: attachmentIds }),
   });
 }
 
 export function getHeldPrompt(agentId: string) {
-  return json<{ agent_id: string; text: string; after_seq: number }>(`/api/sessions/${agentId}/prompt`);
+  return json<{ agent_id: string; text: string; after_seq: number; request_id?: string; attachments?: AttachmentDescriptor[]; recovery?: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }>(`/api/sessions/${encodeURIComponent(agentId)}/prompt`);
 }
 
 /** Withdraws the agent's held follow-up. A no-op when nothing is held. */
@@ -147,13 +168,29 @@ export function withdrawPrompt(agentId: string) {
   return json<{ accepted: true; agent_id: string }>(`/api/sessions/${agentId}/prompt`, { method: "DELETE" });
 }
 
+export function dismissPromptRecovery(agentId: string, requestId: string) {
+  return json<unknown>(`/api/sessions/${encodeURIComponent(agentId)}/prompt?recovery_request_id=${encodeURIComponent(requestId)}`, { method: "DELETE" });
+}
+
+export function attachmentURL(agentId: string, attachmentId: string) {
+  return `/api/sessions/${encodeURIComponent(agentId)}/attachments/${encodeURIComponent(attachmentId)}`;
+}
+
+export function localImageURL(agentId: string, path: string) {
+  return `/api/sessions/${encodeURIComponent(agentId)}/image?path=${encodeURIComponent(path)}`;
+}
+
 /** Steers the running turn. An empty text delivers the held message instead,
  * which is the only way to send one (TS-03.R39). */
-export function steerPrompt(agentId: string, text: string) {
-  return json<{ accepted: true; agent_id: string; outcome: SteerOutcome }>(`/api/sessions/${agentId}/steer`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+export type SteerResult = { accepted: true; agent_id: string; outcome: SteerOutcome; request_id?: string; attachments?: AttachmentDescriptor[]; attachment_delivery?: PromptResult["attachment_delivery"] };
+
+export function steerPrompt(agentId: string, text: string, files: PromptFile[] = [], requestId?: string) {
+  const url = `/api/sessions/${encodeURIComponent(agentId)}/steer`;
+  if (files.length) {
+    return json<SteerResult>(url, { method: "POST", body: multipartBody(text, files, requestId ?? crypto.randomUUID()) });
+  }
+  return json<{ accepted: true; agent_id: string; outcome: SteerOutcome }>(url, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
   });
 }
 

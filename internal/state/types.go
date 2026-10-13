@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 )
 
 // Agent is the stable identity of an agent. AgentID never changes.
@@ -103,6 +105,24 @@ type RuntimeCapabilities struct {
 	SessionFailure     bool `json:"session_failure"`
 }
 
+// AttachmentCapabilities is the same bounded input affordance on session reads
+// and state snapshots; runtime negotiation remains authoritative at delivery.
+type AttachmentCapabilities struct {
+	ImageInput    bool  `json:"image_input"`
+	Files         bool  `json:"files"`
+	MaxFiles      int   `json:"max_files"`
+	MaxFileBytes  int64 `json:"max_file_bytes"`
+	MaxTotalBytes int64 `json:"max_total_bytes"`
+	MaxPixels     int64 `json:"max_pixels"`
+}
+
+func AttachmentCapabilitiesFor(iface string, caps RuntimeCapabilities) *AttachmentCapabilities {
+	if iface != "chat" {
+		return nil
+	}
+	return &AttachmentCapabilities{ImageInput: caps.ImageInput, Files: true, MaxFiles: attachment.MaxFiles, MaxFileBytes: attachment.MaxFileBytes, MaxTotalBytes: attachment.MaxTotalBytes, MaxPixels: attachment.MaxPixels}
+}
+
 // DecodeRuntimeCapabilities reads a stored snapshot. Anything outside the
 // boolean vocabulary, or a malformed value, reads as all false (TS-02.R35).
 func DecodeRuntimeCapabilities(raw string) RuntimeCapabilities {
@@ -187,7 +207,8 @@ type AgentState struct {
 	SteeringAvailable bool `json:"steering_available"`
 	// RuntimeCapabilities is the session snapshot's frozen advertisement; always
 	// present, all false when unknown (TS-03.R44). An affordance, never authority.
-	RuntimeCapabilities RuntimeCapabilities `json:"runtime_capabilities"`
+	RuntimeCapabilities    RuntimeCapabilities     `json:"runtime_capabilities"`
+	AttachmentCapabilities *AttachmentCapabilities `json:"attachment_capabilities,omitempty"`
 	// Clone is the Clone affordance (FS-01.R36, TS-03.R43); always present.
 	Clone CloneAffordance `json:"clone"`
 

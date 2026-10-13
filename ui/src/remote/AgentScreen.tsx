@@ -8,11 +8,13 @@ import {
   decidePermission,
   getFileContent,
   getHeldPrompt,
+  dismissPromptRecovery,
   getTrackedFiles,
   renameAgent,
   getTranscriptWindow,
   resumeAgent,
   sendPrompt,
+  sendRecoveredPrompt,
   setSessionConfig,
   steerPrompt,
   stopAgent,
@@ -20,7 +22,7 @@ import {
   withdrawPrompt,
   updateAgentIdentity,
 } from "../api/client";
-import type { AgentState, AnnotationDraft, TranscriptEvent } from "../api/types";
+import type { AgentState, AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../api/types";
 import { useAnnotationStore } from "../store/annotationStore";
 import { useReasoningStore } from "../store/reasoningStore";
 import { foldTranscript, normalizeEvent } from "../store/transcriptStore";
@@ -42,7 +44,9 @@ import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
-import { chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft } from "../components/chat/drafts";
+import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
+import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
+import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
 import { GroupPicker } from "../components/ui/GroupPicker";
 import { useRoles } from "../api/config";
@@ -90,6 +94,38 @@ function requestSummary(event: TranscriptEvent): string {
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
+
+function sameAttachmentSet(left: DraftAttachment[], right: DraftAttachment[]) {
+  return left.length === right.length && left.every((file) => right.some((candidate) => candidate.id === file.id));
+}
+
+function PhoneRecovery({ agentId, recovery, offline }: { agentId: string; recovery: { text: string; request_id: string; attachments: AttachmentDescriptor[] }; offline: boolean }) {
+  const client = useQueryClient();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const key = `chuck-recovery-send:${agentId}:${recovery.request_id}`;
+  const act = async (dismiss: boolean) => {
+    setBusy(true); setError("");
+    try {
+      if (dismiss) await dismissPromptRecovery(agentId, recovery.request_id);
+      else {
+        let id = localStorage.getItem(key);
+        if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); }
+        await sendRecoveredPrompt(agentId, recovery.text, recovery.attachments.map((item) => item.id), id);
+      }
+      localStorage.removeItem(key);
+      await client.invalidateQueries({ queryKey: ["held", agentId] });
+    } catch (reason) { setError(errorText(reason)); }
+    finally { setBusy(false); }
+  };
+  return <section className="phone-card" aria-label="Message available to restore">
+    <p className="phone-card-kicker">Message not delivered — choose whether to send it again</p>
+    {recovery.text && <p>{recovery.text}</p>}
+    <MessageAttachments agentId={agentId} attachments={recovery.attachments} />
+    <div className="phone-actions"><button type="button" disabled={busy || offline} onClick={() => void act(false)}>Send recovered message</button><button type="button" disabled={busy || offline} onClick={() => void act(true)}>Dismiss</button></div>
+    {error && <p className="phone-error" role="alert">{error}</p>}
+  </section>;
+}
 
 function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   agent: AgentState;
@@ -140,12 +176,14 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   );
 }
 
-function EventRow({ event, onAnnotate }: { event: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
+function EventRow({ agentId, event, onAnnotate }: { agentId: string; event: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
   switch (event.kind) {
     case "user_text":
-      return <p className="phone-user">{String(event.text ?? "")}</p>;
+      return <div className="phone-user">{String(event.text ?? "")}<MessageAttachments agentId={agentId} attachments={event.attachments ?? []} /></div>;
     case "assistant_text":
-      return <AssistantText event={event} />;
+      return <AssistantText event={event} agentId={agentId} />;
+    case "assistant_image":
+      return <div className="assistant-message"><AssistantImageRow agentId={agentId} attachment={event.attachment} path={typeof event.path === "string" ? event.path : undefined} name={typeof event.name === "string" ? event.name : undefined} error={typeof event.error === "string" ? event.error : undefined} /></div>;
     case "tool_call":
       return <ToolCall event={event} />;
     case "tool_result":
@@ -167,13 +205,13 @@ function EventRow({ event, onAnnotate }: { event: TranscriptEvent; onAnnotate: (
 
 // renderRows is the phone's row renderer inside the shared turn list: tool runs,
 // nested native children and ordinary rows, each one list item (FS-03.R77).
-function renderRows(list: TranscriptEvent[], onAnnotate: (draft: AnnotationDraft) => void, ancestry: string[], depth: number): ReactNode {
-  const nested = (events: TranscriptEvent[], path: string[], level: number) => renderRows(events, onAnnotate, path, level);
+function renderRows(agentId: string, list: TranscriptEvent[], onAnnotate: (draft: AnnotationDraft) => void, ancestry: string[], depth: number): ReactNode {
+  const nested = (events: TranscriptEvent[], path: string[], level: number) => renderRows(agentId, events, onAnnotate, path, level);
   return groupTranscriptRows(list).map((row, index) => {
     if (row.kind === "tool-run") {
       return (
         <div className="phone-message" role="listitem" key={`run:${row.events[0].seq ?? index}`}>
-          <ToolRun events={row.events} renderEvent={(event) => <EventRow key={`${event.seq}:${event.kind}`} event={event} onAnnotate={onAnnotate} />} />
+          <ToolRun events={row.events} renderEvent={(event) => <EventRow key={`${event.seq}:${event.kind}`} agentId={agentId} event={event} onAnnotate={onAnnotate} />} />
         </div>
       );
     }
@@ -183,7 +221,7 @@ function renderRows(list: TranscriptEvent[], onAnnotate: (draft: AnnotationDraft
         {event.kind === "activity" ? (
           <ChildActivity node={event.node as ChildNode} ancestry={ancestry} depth={depth} renderEvents={nested} />
         ) : (
-          <EventRow event={event} onAnnotate={onAnnotate} />
+          <EventRow agentId={agentId} event={event} onAnnotate={onAnnotate} />
         )}
       </div>
     );
@@ -205,6 +243,12 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const offline = link !== "connected";
   const client = useQueryClient();
   const [text, setText] = useState(() => getChatDraft(agentId));
+  const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  const [attachmentsReady, setAttachmentsReady] = useState(() => !hasPersistedAttachmentDraft(agentId));
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [draggingFiles, setDraggingFiles] = useState(false);
+  const [retryPhoneSend, setRetryPhoneSend] = useState<{ text: string; files: DraftAttachment[]; requestId: string; steer: boolean; revision: number; retryable?: boolean } | null>(null);
+  const attachmentPicker = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -230,6 +274,45 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   }, [tab, focusedDiff.data]);
   const addAnnotation = useAnnotationStore((state) => state.add);
 
+  useEffect(() => {
+    let current = true;
+    setText(getChatDraft(agentId));
+    setAttachments([]);
+    const needsAttachmentRestore = hasPersistedAttachmentDraft(agentId);
+    setAttachmentsReady(!needsAttachmentRestore);
+    setAttachmentError(null);
+    if (needsAttachmentRestore) {
+      void restoreAttachments(agentId).then((restored) => { if (current) { setAttachments(restored); setAttachmentsReady(true); } }).catch(() => { if (current) setAttachmentError("Saved attachments could not be restored. Reload before sending to avoid losing them."); });
+    }
+    const initialRevision = chatDraftRevision(agentId);
+    void restorePendingAttachmentSend(agentId).then(async (pending) => {
+      if (current && pending) {
+        const liveFiles = await restoreAttachments(agentId);
+        const revision = chatDraftRevision(agentId);
+        const sameFiles = pending.files.length === liveFiles.length && pending.files.every((file) => liveFiles.some((live) => live.id === file.id));
+        const sameDraft = getChatDraft(agentId) === pending.text && sameFiles;
+        setRetryPhoneSend({ ...pending, revision: revision === initialRevision && sameDraft ? revision : -1 });
+      }
+    }).catch(() => { if (current) setAttachmentError("A previous attachment send could not be restored from browser storage."); });
+    return () => { current = false; };
+  }, [agentId]);
+
+  useEffect(() => subscribeChatDraft(agentId, () => setText("")), [agentId]);
+  useEffect(() => subscribeAttachmentDraft(agentId, setAttachments), [agentId]);
+
+  const saveAttachments = (next: DraftAttachment[]) => {
+    setAttachments(next);
+    setAttachmentError(null);
+    if (!touchAttachmentDraft(agentId, next, text !== "")) setAttachmentError(attachmentErrorForStorage());
+    bumpChatDraftRevision(agentId);
+    void persistAttachments(agentId, next).catch(() => setAttachmentError(attachmentErrorForStorage()));
+  };
+  const acceptPhoneFiles = (files: FileList | File[], source: "picker" | "paste" | "drop") => {
+    const result = addFiles(attachments, files, source, agent?.attachment_capabilities);
+    if (result.files !== attachments) saveAttachments(result.files);
+    setAttachmentError(result.errors[0] ?? null);
+  };
+
   // Older windows cover seqs before `anchor`; while they are shown, the live
   // window reads from the anchor so the two stay contiguous.
   const [earlier, setEarlier] = useState<{ anchor: number; events: TranscriptEvent[]; pages: number; hasMore: boolean; recoveredLiveStart?: number; recoveryPages?: number } | null>(null);
@@ -250,7 +333,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const held = useQuery({
     queryKey: ["held", agentId, rev, agent?.state],
     queryFn: () => getHeldPrompt(agentId).catch(() => null),
-    enabled: chat && !!agent?.running,
+    enabled: chat && !!agent,
   });
 
   // Fold the joined windows as the desktop does, so streamed deltas coalesce
@@ -410,7 +493,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
 
   // Every refused action shows the desktop's reason and keeps the typed text
   // (FS-20.R27); only a delivered message clears the composer.
-  const act = async (fn: () => Promise<unknown>, clears = false, after?: (result: unknown) => void) => {
+  const act = async (fn: () => Promise<unknown>, clears = false, after?: (result: unknown) => void | Promise<void>) => {
     const submittedRevision = chatDraftRevision(agentId);
     setBusy(true);
     setError(null);
@@ -421,7 +504,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
         discardChatDraft(agentId);
         setText("");
       }
-      after?.(result);
+      await after?.(result);
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -429,6 +512,70 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       refresh();
       void client.invalidateQueries({ queryKey: ["held", agentId] });
     }
+  };
+  const finishPhoneAttachmentSend = async (result: unknown, selected: DraftAttachment[], promptText: string, requestId: string, steeringMessage: boolean, submittedRevision: number) => {
+    const response = result && typeof result === "object" ? result as { attachment_delivery?: string; delivery?: string } : {};
+    if (selected.length && response.attachment_delivery !== "submitted" && response.attachment_delivery !== "held") {
+      setError(response.attachment_delivery === "released"
+        ? "This message was released for recovery. Restore it from the conversation before sending again."
+        : response.attachment_delivery === "failed"
+          ? "The message was not delivered. Its attachments remain here; retry the same send."
+          : "Delivery could not be confirmed. Its attachments remain available; retry uses the same request receipt.");
+      const retryable = response.attachment_delivery !== "released";
+      const pendingRetry = { text: promptText, files: selected, requestId, steer: steeringMessage, revision: submittedRevision, retryable };
+      setRetryPhoneSend(pendingRetry);
+      if (!retryable) void persistPendingAttachmentSend(agentId, pendingRetry).catch(() => setAttachmentError(attachmentErrorForStorage()));
+      return;
+    }
+    if (response.delivery === "held" || response.attachment_delivery === "held") setNotice("Held — it will be sent when the current turn ends.");
+    if (chatDraftRevision(agentId) === submittedRevision) {
+      discardChatDraft(agentId);
+      setText("");
+    }
+    try { await removeAcceptedAttachments(agentId, selected.map((file) => file.id), getChatDraft(agentId) !== ""); }
+    catch { setAttachmentError("Message was accepted, but attachment cleanup could not be saved. Remove any sent files before sending again."); }
+    setRetryPhoneSend(null);
+    void clearPendingAttachmentSend(agentId, requestId).catch(() => setAttachmentError("Message was sent, but its retry receipt could not be cleared from browser storage."));
+  };
+  const sendPhoneMessage = (steeringMessage: boolean, requestId?: string, expectedRevision?: number, retryFiles?: DraftAttachment[], retryText?: string) => {
+    const matchingRetry = !requestId && !retryFiles && retryPhoneSend?.retryable !== false && retryPhoneSend && retryPhoneSend.text === text && sameAttachmentSet(retryPhoneSend.files, attachments) ? retryPhoneSend : null;
+    const messageText = retryText ?? matchingRetry?.text ?? text;
+    const selected = retryFiles ?? matchingRetry?.files ?? [...attachments];
+    const request = requestId ?? matchingRetry?.requestId ?? (chatDraftRequestId(agentId) || crypto.randomUUID());
+    const submittedRevision = expectedRevision ?? matchingRetry?.revision ?? chatDraftRevision(agentId);
+    if (!attachmentsReady) { setAttachmentError("Restoring attachments… wait before sending."); return; }
+    if (!messageText.trim() && !selected.length) return;
+    if (!requestId && retryPhoneSend?.retryable === false && retryPhoneSend.text === messageText && sameAttachmentSet(retryPhoneSend.files, selected)) return;
+    const unsupportedImage = selected.some((file) => isPreviewImage(file) && agent?.attachment_capabilities?.image_input === false);
+    const unsupportedFile = selected.some((file) => !isPreviewImage(file) && agent?.attachment_capabilities?.files === false);
+    if (unsupportedImage || unsupportedFile) {
+      setError(unsupportedImage
+        ? "This runtime does not accept image input. Remove the image or choose a runtime that supports it."
+        : "This runtime cannot read uploaded files. Remove the file or choose a runtime that supports it.");
+      return;
+    }
+    if (!selected.length) {
+      void act(
+        () => (matchingRetry?.steer ?? steeringMessage) ? steerPrompt(agentId, messageText) : sendPrompt(agentId, messageText),
+        true,
+        (result) => {
+          if (result && typeof result === "object" && "delivery" in result && result.delivery === "held") setNotice("Held — it will be sent when the current turn ends.");
+        },
+      );
+      return;
+    }
+    setRetryPhoneSend({ text: messageText, files: selected, requestId: request, steer: steeringMessage, revision: submittedRevision });
+    void (async () => {
+      try { await persistPendingAttachmentSend(agentId, { text: messageText, files: selected, requestId: request, steer: steeringMessage, revision: submittedRevision }); }
+      catch { setAttachmentError(attachmentErrorForStorage()); }
+      await act(
+        () => (matchingRetry?.steer ?? steeringMessage)
+          ? steerPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
+          : sendPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request),
+        false,
+        (result) => finishPhoneAttachmentSend(result, selected, messageText, request, matchingRetry?.steer ?? steeringMessage, submittedRevision),
+      );
+    })();
   };
   const isBusy = agent.state === "busy" || agent.state === "waiting_input";
   const quota = decodeQuotaState(agent.quota);
@@ -453,6 +600,9 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     if (!addAnnotation(agentId, draft)) setError("At most 20 annotations can wait at once. Send or discard them first.");
   };
   const heldText = held.data && typeof held.data === "object" && "text" in held.data ? String((held.data as { text?: string }).text ?? "") : "";
+  const heldAttachments = held.data && typeof held.data === "object" && Array.isArray((held.data as { attachments?: unknown }).attachments) ? (held.data as { attachments: AttachmentDescriptor[] }).attachments : [];
+  const recovery = held.data && typeof held.data === "object" && "recovery" in held.data ? (held.data as { recovery?: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }).recovery : undefined;
+  const releaseBlocked = retryPhoneSend?.retryable === false && retryPhoneSend.text === text && sameAttachmentSet(retryPhoneSend.files, attachments);
   const stateLabel = agent.running ? agent.state.replace("_", " ") : "Stopped";
   const runtimeLabel = [agent.backend, agent.model].filter(Boolean).join(" · ");
   const roleLabel = personaIdentityLabel(agent.role, roles?.[agent.role]);
@@ -514,7 +664,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             <strong>Diff</strong>
             <button type="button" onClick={() => setDiffSeq(null)}>Close</button>
           </div>
-          {focusedDiff.isError ? <p className="phone-error">{errorText(focusedDiff.error)}</p> : focusedDiff.data ? <EventRow event={normalizeEvent(focusedDiff.data)} onAnnotate={annotate} /> : focusedDiff.data === null ? <p className="phone-meta">This diff is no longer in the conversation.</p> : <p className="phone-meta">Loading…</p>}
+          {focusedDiff.isError ? <p className="phone-error">{errorText(focusedDiff.error)}</p> : focusedDiff.data ? <EventRow agentId={agentId} event={normalizeEvent(focusedDiff.data)} onAnnotate={annotate} /> : focusedDiff.data === null ? <p className="phone-meta">This diff is no longer in the conversation.</p> : <p className="phone-meta">Loading…</p>}
         </section>
       )}
       {!chat ? (
@@ -526,15 +676,16 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             <p className="phone-meta">Earlier messages are outside the phone's retained history.</p>
           )}
           <div className="phone-transcript phone-transcript-bubbles" role="list" aria-label="Conversation" ref={listRef} onFocus={trackFocus}>
-            <TurnList agentId={agentId} events={rows} lead={lead} choices={choices} renderEvents={(list) => renderRows(list, annotate, [], 1)} />
+            <TurnList agentId={agentId} events={rows} lead={lead} choices={choices} renderEvents={(list) => renderRows(agentId, list, annotate, [], 1)} />
             {!offline && agent.running && agent.state === "busy" && <WorkingIndicator />}
           </div>
           {pending && <PermissionCard agent={agent} event={pending} latest={latest} disabled={offline} onSettled={refresh} />}
           <PhoneAnnotationForm agent={agent} />
-          {heldText && (
+          {(heldText || heldAttachments.length > 0) && (
             <div className="phone-card">
               <p className="phone-card-kicker">Held until the current turn ends</p>
-              <p>{heldText}</p>
+              {heldText && <p>{heldText}</p>}
+              <MessageAttachments agentId={agentId} attachments={heldAttachments} />
               <div className="phone-actions">
                 {agent.steering_available && isBusy && (
                   <button type="button" disabled={offline || busy} onClick={() => void act(() => steerPrompt(agentId, ""))}>
@@ -547,6 +698,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
               </div>
             </div>
           )}
+          {recovery && <PhoneRecovery agentId={agentId} recovery={recovery} offline={offline} />}
           {agent.running && (
             <button type="button" className="phone-model-switch" aria-label={`Switch model, current ${runtimeLabel}${agent.effort ? ` ${agent.effort}` : ""}`} disabled={offline || busy} onClick={() => setRuntimeOpen(true)}>
               {runtimeLabel}{agent.effort ? ` · ${agent.effort}` : ""}
@@ -560,28 +712,40 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           )}
           {agent.running && (
             <form
-              className="phone-composer phone-composer-box"
+              className={`phone-composer phone-composer-box${draggingFiles ? " is-file-drop-target" : ""}`}
+              onDragEnter={(event) => { if ([...event.dataTransfer.types].includes("Files")) { event.preventDefault(); setDraggingFiles(true); } }}
+              onDragOver={(event) => { if ([...event.dataTransfer.types].includes("Files")) event.preventDefault(); }}
+              onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDraggingFiles(false); }}
+              onDrop={(event) => { if (!event.dataTransfer.files.length) return; event.preventDefault(); setDraggingFiles(false); acceptPhoneFiles(event.dataTransfer.files, "drop"); }}
               onSubmit={(event) => {
                 event.preventDefault();
-                if (!text.trim()) return;
-                void act(() => sendPrompt(agentId, text), true, (result) => {
-                  if ((result as { delivery?: string })?.delivery === "held") setNotice("Held — it will be sent when the current turn ends.");
-                });
+                sendPhoneMessage(false);
               }}
             >
+              <input ref={attachmentPicker} className="ad-visually-hidden" type="file" multiple aria-label="Choose files to attach" onChange={(event) => { if (event.target.files) acceptPhoneFiles(event.target.files, "picker"); event.target.value = ""; }} />
+              <DraftAttachments files={attachments} onRemove={(id) => saveAttachments(attachments.filter((file) => file.id !== id))} disabled={busy} />
               <label className="phone-field">
                 <VisuallyHidden>{agent.state === "waiting_input" && !pending ? "Reply" : "Message"}</VisuallyHidden>
-                <AutoGrowTextarea rows={3} maxHeight="40vh" value={text} placeholder={offline ? "Reconnect to send a message" : "Ask for changes…"} onChange={(event) => { setText(event.target.value); setChatDraft(agentId, event.target.value); }} />
+                <AutoGrowTextarea rows={3} maxHeight="40vh" value={text} placeholder={offline ? "Reconnect to send a message" : "Ask for changes…"} onChange={(event) => { setText(event.target.value); setChatDraft(agentId, event.target.value); }} onPaste={(event) => {
+                  const images = [...event.clipboardData.items].filter((item) => item.kind === "file" && item.type.startsWith("image/")).map((item) => item.getAsFile()).filter((file): file is File => !!file);
+                  if (images.length) { acceptPhoneFiles(images, "paste"); if (!event.clipboardData.getData("text/plain")) event.preventDefault(); }
+                }} />
               </label>
               {error && <p className="phone-error">{error}</p>}
               {notice && <p className="phone-meta">{notice}</p>}
+              {attachmentError && <p className="phone-error" role="alert">{attachmentError}</p>}
+                {!attachmentsReady && !attachmentError && <p className="phone-meta" role="status">Restoring attachments…</p>}
+                {retryPhoneSend && <p className="phone-meta" role="status">Previous message was not confirmed. {retryPhoneSend.retryable === false ? "Use the recovered message above to decide whether to send it again." : <button type="button" disabled={!attachmentsReady || busy || offline} onClick={() => sendPhoneMessage(retryPhoneSend.steer, retryPhoneSend.requestId, retryPhoneSend.revision, retryPhoneSend.files, retryPhoneSend.text)}>Retry previous send</button>}</p>}
+                {attachments.some((file) => isPreviewImage(file) && agent.attachment_capabilities?.image_input === false) && <p className="phone-error">This runtime does not accept image input. Remove the image or switch runtime.</p>}
+                {attachments.some((file) => !isPreviewImage(file) && agent.attachment_capabilities?.files === false) && <p className="phone-error">This runtime cannot read uploaded files. Remove the file or switch runtime.</p>}
               <div className="phone-actions phone-composer-actions">
+                <button type="button" disabled={offline || busy} onClick={() => attachmentPicker.current?.click()}>Attach</button>
                 {agent.steering_available && isBusy && (
-                  <button type="button" disabled={offline || busy || !text.trim()} onClick={() => void act(() => steerPrompt(agentId, text), true)}>
+                  <button type="button" disabled={!attachmentsReady || offline || busy || releaseBlocked || (!text.trim() && attachments.length === 0) || attachments.some((file) => isPreviewImage(file) ? agent.attachment_capabilities?.image_input === false : agent.attachment_capabilities?.files === false)} onClick={() => sendPhoneMessage(true)}>
                     Steer
                   </button>
                 )}
-                <button type="submit" className="phone-send-icon ad-button-icon-primary" aria-label="Send" title="Send" disabled={offline || busy || !text.trim()}>
+                <button type="submit" className="phone-send-icon ad-button-icon-primary" aria-label="Send" title="Send" disabled={!attachmentsReady || offline || busy || releaseBlocked || (!text.trim() && attachments.length === 0) || attachments.some((file) => isPreviewImage(file) ? agent.attachment_capabilities?.image_input === false : agent.attachment_capabilities?.files === false)}>
                   <PhoneIcon name="up" size={14} />
                 </button>
               </div>

@@ -395,6 +395,14 @@ func handle(msg *rpcMessage) {
 		// Run the scenario asynchronously so the read loop keeps handling the
 		// client's permission reply / cancel while the scenario blocks.
 		go func() {
+			if path := os.Getenv("FAKEACP_UPDATE_OUTPUT_FILE"); path != "" {
+				if raw, err := os.ReadFile(path); err == nil {
+					var update map[string]any
+					if json.Unmarshal(raw, &update) == nil {
+						emitUpdate(update)
+					}
+				}
+			}
 			image := os.Getenv("FAKEACP_IMAGE_OUTPUT")
 			if path := os.Getenv("FAKEACP_IMAGE_OUTPUT_FILE"); path != "" {
 				if b, err := os.ReadFile(path); err == nil {

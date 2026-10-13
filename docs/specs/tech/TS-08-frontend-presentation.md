@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1402,7 +1402,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
 
 ### 2.13 Chat attachment presentation
 
-- **R123 (planned) — Extend shared chat owners for attachment composition and viewing.**
+- **R123 (implemented 2026-10-13) — Extend shared chat owners for attachment composition and viewing.**
   FS-03.R81–R86 extends the existing Composer, transcript reducer, SanitizedMarkdown and phone
   composer integration rather than creating parallel chat implementations. One feature-owned
   attachment draft model tracks ordered browser Blob values and exact text revision per agent.
@@ -1607,9 +1607,12 @@ boundary; the manifest remains the visual contract and arbitrary ids never becom
 
 ## 5. Deviations & open decisions
 
-- R123 defines the planned thumbnail/modal feature approved 2026-10-12, including browser-local
-  draft retention and explicit local-image reads. Status becomes Partial solely because this
-  attachment requirement is unshipped.
+- R123 was approved 2026-10-12 and implemented 2026-10-13. Verification: the full UI suite passes
+  (805 tests in 88 files); rendered desktop checks cover Core, Sky & Grove and Studio and Core phone
+  checks cover 360/390/430px. The journeys cover archive, dashboard pane, picker/drop/paste,
+  thumbnails, modal keyboard/focus behavior, recovery and newer
+  draft races. Embedded desktop and authenticated TLS test-phone journeys pass. Physical-phone and
+  real-tailnet operation are not claimed.
 
 - FS-12.R52–R59/A26–A31 and R74–R79 define the approved 2026-09-28 shared-layout upgrade.
   Its shipped requirements above own the shared structure and presentation checks, with the

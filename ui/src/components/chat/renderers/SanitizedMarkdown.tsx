@@ -10,6 +10,7 @@ import { classifyFileLink, type FileLink } from "./filePath";
 import { PointerContextMenu, type PointerMenuState } from "../../ui/PointerContextMenu";
 import { offerWebLink, webLinkActions } from "../../../lib/linkActions";
 import { useUiStore } from "../../../store/uiStore";
+import { LocalImage } from "../AttachmentView";
 
 // The one sanitized Markdown renderer in the product. An assistant message and the
 // file viewer's rendered Markdown form both go through it, so `rehypeSanitize`,
@@ -25,9 +26,13 @@ import { useUiStore } from "../../../store/uiStore";
 // transform. The widening has no rendered effect on its own: a local path never
 // reaches an `href`, because the override turns it into a viewer control or, on a
 // surface with no viewer, into inert text (TS-05.R21).
-const LINK_SCHEMA = {
+const IMAGE_SCHEMA = {
   ...defaultSchema,
-  protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), "file"] },
+  protocols: {
+    ...defaultSchema.protocols,
+    href: [...(defaultSchema.protocols?.href ?? []), "file"],
+    src: [...(defaultSchema.protocols?.src ?? []), "file"],
+  },
 };
 
 function transformUrl(url: string): string {
@@ -70,7 +75,7 @@ function WebLink({ href, children, ...rest }: ComponentProps<"a"> & { href: stri
   );
 }
 
-export function SanitizedMarkdown({ text, onOpenFile }: { text: string; onOpenFile?: (link: FileLink) => void }) {
+export function SanitizedMarkdown({ text, onOpenFile, agentId }: { text: string; onOpenFile?: (link: FileLink) => void; agentId?: string }) {
   // The component map must stay referentially stable for the life of the message: a new map
   // remounts every block under it, so rebuilding it per streamed delta drops a settled diagram
   // back to source and repeats main-thread Mermaid work (FS-03.R37, TS-08.R40). The fence check
@@ -79,6 +84,8 @@ export function SanitizedMarkdown({ text, onOpenFile }: { text: string; onOpenFi
   textRef.current = text;
   const openRef = useRef(onOpenFile);
   openRef.current = onOpenFile;
+  const agentRef = useRef(agentId);
+  agentRef.current = agentId;
   const components = useMemo<Components>(() => ({
     code({ className, children, node }) {
       const match = /language-(\w+)/.exec(className ?? "");
@@ -92,6 +99,11 @@ export function SanitizedMarkdown({ text, onOpenFile }: { text: string; onOpenFi
     table({ node, ...rest }) {
       void node;
       return <div className="markdown-table"><table {...rest} /></div>;
+    },
+    img({ src, alt }) {
+      const local = classifyFileLink(src);
+      if (local && agentRef.current) return <LocalImage agentId={agentRef.current} path={local.path} alt={alt ?? local.path} />;
+      return <span className="markdown-image-placeholder">Image: {alt || "external image not loaded"}</span>;
     },
     // A link whose target is a local path opens the file viewer instead of
     // navigating the browser, which today leaves the conversation entirely
@@ -118,7 +130,7 @@ export function SanitizedMarkdown({ text, onOpenFile }: { text: string; onOpenFi
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      rehypePlugins={[[rehypeSanitize, LINK_SCHEMA]]}
+      rehypePlugins={[[rehypeSanitize, IMAGE_SCHEMA]]}
       urlTransform={transformUrl}
       components={components}
     >

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { AttachmentDescriptor } from "../api/types";
 
 // The queued follow-up (FS-03.R48) is live state on both sides. The runtime holds
 // at most one per agent and it dies with the process, so this mirror is memory
@@ -12,25 +13,39 @@ import { create } from "zustand";
 interface HeldStoreState {
   byAgent: Record<string, string>;
   afterSeqByAgent: Record<string, number>;
-  hold: (agentId: string, text: string, afterSeq?: number) => void;
+  attachmentsByAgent: Record<string, AttachmentDescriptor[]>;
+  recoveryByAgent: Record<string, { text: string; request_id: string; attachments: AttachmentDescriptor[] }>;
+  hold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[]) => void;
   release: (agentId: string) => void;
+  setRecovery: (agentId: string, recovery: { text: string; request_id: string; attachments: AttachmentDescriptor[] } | null) => void;
 }
 
 export const useHeldStore = create<HeldStoreState>((set) => ({
   byAgent: {},
   afterSeqByAgent: {},
-  hold: (agentId, text, afterSeq = 0) =>
+  attachmentsByAgent: {},
+  recoveryByAgent: {},
+  hold: (agentId, text, afterSeq = 0, attachments = []) =>
     set((state) => ({
       byAgent: { ...state.byAgent, [agentId]: text },
       afterSeqByAgent: { ...state.afterSeqByAgent, [agentId]: afterSeq },
+      attachmentsByAgent: { ...state.attachmentsByAgent, [agentId]: attachments },
     })),
   release: (agentId) =>
     set((state) => {
       if (!(agentId in state.byAgent)) return state;
       const byAgent = { ...state.byAgent };
       const afterSeqByAgent = { ...state.afterSeqByAgent };
+      const attachmentsByAgent = { ...state.attachmentsByAgent };
       delete byAgent[agentId];
       delete afterSeqByAgent[agentId];
-      return { byAgent, afterSeqByAgent };
+      delete attachmentsByAgent[agentId];
+      return { byAgent, afterSeqByAgent, attachmentsByAgent };
     }),
+  setRecovery: (agentId, recovery) => set((state) => {
+    const recoveryByAgent = { ...state.recoveryByAgent };
+    if (recovery) recoveryByAgent[agentId] = recovery;
+    else delete recoveryByAgent[agentId];
+    return { recoveryByAgent };
+  }),
 }));

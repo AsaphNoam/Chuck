@@ -1,6 +1,6 @@
 # TS-13 — Remote control
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/remote/`, `internal/server/remote*.go`, `ui/remote.html`, `ui/src/remote/`
 **Absorbed:** —
 
@@ -261,7 +261,7 @@ the installed app on iOS.
   skin validation; every other config field is rejected before mutation. Authentication,
   Origin/Host guards, body bounds and device attribution remain mandatory.
 
-**R26 (planned) — Phone attachment transport is a narrow allowlist extension.** For
+**R26 (implemented 2026-10-13) — Phone attachment transport is a narrow allowlist extension.** For
 FS-03.R81–R86/TS-03.R62–R63, admit multipart only on the existing prompt/steer routes; share the
 same bounded stream parser and capability validation as loopback after device/Origin/Host guards.
 This supersedes only R6's uniform buffering clause for those multipart actions. The current
@@ -313,8 +313,11 @@ INV §16 (bounded pairing attempts, push queue, and coalescing).
 
 ## 5. Deviations & open decisions
 
-- R26 defines the planned attachment-only remote extension approved 2026-10-12; larger multipart
-  admission applies only to the existing authenticated prompt/steer actions.
+- R26 was approved 2026-10-12 and implemented 2026-10-13. Rendered browser journeys verify picker,
+  paste where supported and explicit recovery. The embedded-server authenticated TLS journey
+  verifies multipart delivery, owned-image reads, reload and archive behavior on the paired
+  allowlist. Larger multipart admission applies only to existing authenticated prompt/steer actions;
+  physical-phone and real-tailnet operation are not claimed.
 
 - R24 shipped 2026-10-10 as the paired-phone group mutation extension with TS-03.R57.
 

@@ -814,7 +814,10 @@ func TestSessionMetaFreezesRuntimeCapabilities(t *testing.T) {
 		t.Fatalf("reset capabilities = %s / %+v", raw, got)
 	}
 	encoded, _ := json.Marshal(state.AgentState{})
-	if !strings.Contains(string(encoded), `"runtime_capabilities":{"fork":false`) {
+	var projection struct {
+		Capabilities *state.RuntimeCapabilities `json:"runtime_capabilities"`
+	}
+	if err := json.Unmarshal(encoded, &projection); err != nil || projection.Capabilities == nil || *projection.Capabilities != (state.RuntimeCapabilities{}) {
 		t.Fatalf("projection omits non-null runtime_capabilities: %s", encoded)
 	}
 }

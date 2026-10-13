@@ -1,3 +1,4 @@
+// FS-03.A65: phone reads preserve workspace and symlink guards.
 package server
 
 import (

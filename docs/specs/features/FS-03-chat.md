@@ -113,7 +113,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   dashboard restart; it is live state, not durable work. A browser reload rehydrates the hold from
   the still-running dashboard process, including its delivery sequence boundary, so the pending
   message and Withdraw remain available and a later stop can still release it to the composer.
-  R84's planned attachment-bearing exception retains an explicitly recoverable released copy;
+  R84's implemented attachment-bearing exception retains an explicitly recoverable released copy;
   it never turns restart into automatic delivery or replaces a newer composer draft.
 
 - **R50.** **Steer the turn that is running.** Beside Send, a chat agent
@@ -714,19 +714,19 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 
 ### 4.1 Chat images and file attachments
 
-- **R81 (planned) — Compose attachments.** Desktop full chat, expanded dashboard chat, and
+- **R81 (implemented 2026-10-13) — Compose attachments.** Desktop full chat, expanded dashboard chat, and
   paired-phone agent chat accept files through an **Attach** picker and file drag/drop where the
   browser supports it; pasting clipboard image data adds an image attachment without submitting.
   Ordinary text paste keeps its current behavior. Multiple selections append in order; each item
   can be removed before Send. Existing `@` path mentions remain ordinary text under R31.
   Attachment-only messages are allowed, superseding R6/R19's text-required rule for this case.
-- **R82 (planned) — Preview and inspect images.** Image attachments show compact, aspect-preserving
+- **R82 (implemented 2026-10-13) — Preview and inspect images.** Image attachments show compact, aspect-preserving
   thumbnails both in the composer and with their sent transcript message. Activating a thumbnail
   opens a modal with the larger image and filename; Close, Escape, or backdrop dismissal returns
   focus to its trigger. The modal fits desktop and phone viewports without page overflow, contains
   keyboard focus, and leaves chat position and draft unchanged. Other files show filename and size.
   Loading and unreadable images have labelled states and a retry action instead of a blank box.
-- **R83 (planned) — Deliver the selected contents.** Send delivers text and the selected file/image
+- **R83 (implemented 2026-10-13) — Deliver the selected contents.** Send delivers text and the selected file/image
   contents as one message to the selected agent; attachment-only Send has the same meaning.
   Images reach image-capable runtimes as image input, not merely a filename. Other files are
   immutable uploaded copies identified by exact local path for the agent to read with its normal
@@ -738,7 +738,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Busy Send, stopped-agent wake, failed-send recovery and withdrawal retain the same message and
   attachment order. Attachment-bearing Steer retains R50's current-turn meaning when the runtime
   supports the input; unavailable Steer explains its capability limit and leaves Send usable.
-- **R84 (planned) — Retain sent attachments.** Sent attachment bytes live locally in Chuck-owned
+- **R84 (implemented 2026-10-13) — Retain sent attachments.** Sent attachment bytes live locally in Chuck-owned
   conversation storage, outside the project repository, until that conversation is deleted.
   Reload, restart, archival and another paired device retain the same viewable bytes; Stop and
   archive do not delete them. They are sent to the selected provider only through message delivery.
@@ -754,7 +754,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Stop, crash, archive and host restart retain an explicitly recoverable released copy. Restore
   into an empty composer or offer recovery alongside a newer draft, never overwriting it. Recovery
   is not a live queued message and cannot send automatically; explicit Send starts a new delivery.
-- **R85 (planned) — Display assistant and local images.** Assistant-produced image content and
+- **R85 (implemented 2026-10-13) — Display assistant and local images.** Assistant-produced image content and
   local image links in assistant Markdown can show the same thumbnail/modal treatment in live and
   archived chat. Explicit activation of a local link resolves it under the existing host-file read
   boundary R64; local URI-only images show a filename/alt placeholder until activated. Provider-
@@ -762,7 +762,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   not be fetched automatically by the browser or server without a separate privacy decision.
   Image payloads cannot execute HTML or scripts. Missing files, unsupported formats and corrupt
   bytes leave surrounding conversation content usable with a clear unavailable state.
-- **R86 (planned) — Bound and preserve attachment work.** Type/count/size admission limits are
+- **R86 (implemented 2026-10-13) — Bound and preserve attachment work.** Type/count/size admission limits are
   visible before Send and enforced by the host; rejected items name the reason without discarding
   other attachments or typed text. Preparation and delivery have distinct visible states. A newer
   same-agent draft created during an earlier send is never cleared or overwritten by its outcome.
@@ -1159,17 +1159,17 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   remaining views work, `?tab=commands` opens Transcript, and command activity survives reload.
   *Verify:* chat/phone component tests and rendered navigation; FS-05.A23 covers tracking.
 
-- **A62 (planned)** (R81–R83) — Pick a file, drop multiple files, paste an image and ordinary text,
+- **A62 (implemented 2026-10-13)** (R81–R83) — Pick a file, drop multiple files, paste an image and ordinary text,
   remove one attachment, then send text-plus-files and image-only messages. Verify exact order and
   contents at a fake ACP peer and exactly one user message. Repeat full chat, expanded pane and
   paired-phone picker/paste where supported. *Verify:* component tests, HTTP/runtime integration
   tests and a real-browser journey; pinned Claude/Codex live image receipts are required separately.
-- **A63 (planned)** (R82, R85) — Open wide/tall images from draft, user transcript, assistant output
+- **A63 (implemented 2026-10-13)** (R82, R85) — Open wide/tall images from draft, user transcript, assistant output
   and local Markdown link. Close with button, Escape and backdrop; verify focus restoration,
   keyboard containment and unchanged draft/scroll. Corrupt/missing images show a repairable state.
   *Verify:* real-browser checks in Core, Sky & Grove and Studio on desktop and Core on phone,
   plus renderer/modal tests; remote-image fixtures assert no external image request.
-- **A64 (planned)** (R83–R84) — Send, queue, withdraw, wake a stopped agent, fail delivery, retry,
+- **A64 (implemented 2026-10-13)** (R83–R84) — Send, queue, withdraw, wake a stopped agent, fail delivery, retry,
   reload, restart and archive with attachments. Verify exact bytes remain viewable and drafts are
   recoverable, with no duplicate agent consumption. Clone completed history, delete its source,
   and verify the clone's independent image/file copies remain readable. Delete the conversation and verify its owned
@@ -1178,14 +1178,20 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Specifically restart with an attachment-bearing hold: it is released for explicit recovery,
   not automatically sent; a newer draft survives and old bytes remain available. A32 retains the
   legacy text-only restart behavior.
-- **A65 (planned)** (R86) — Test the chosen limits at and beyond each boundary, malformed metadata,
+- **A65 (implemented 2026-10-13)** (R86) — Test the chosen limits at and beyond each boundary, malformed metadata,
   misleading MIME/name, incomplete upload, unavailable capability, and storage failure. Typed text
   and accepted attachments survive rejection; concurrent sends preserve newer drafts. *Verify:*
   negative API tests, component tests and bounded-allocation checks.
 
 ## 6. Deviations & open decisions
 
-- R81–R86/A62–A65 are the 2026-10-12 approved chat-image/file-attachment feature scope.
+- R81–R86/A62–A65 were approved 2026-10-12 and implemented 2026-10-13. Verification: all 805 UI
+  tests in 88 files pass; rendered desktop checks cover Core, Sky & Grove and Studio, and Core
+  phone checks cover 360/390/430px. Embedded desktop plus authenticated TLS test-phone journeys
+  pass. Live native-image,
+  copied-file and attachment-Steer receipts pass on Claude ACP 0.85.1 with Claude CLI 2.1.286, and
+  Codex ACP 2.1.1 with Codex CLI 0.159.3.
+  Physical-phone and real-tailnet operation remain unclaimed.
   The operator approved native image delivery, other files through uploaded copies and normal
   file tools, desktop/phone, attachment-only messages, browser-local unsent retention,
   assistant/local images, explicit local reads, attachment-bearing Steer when supported,

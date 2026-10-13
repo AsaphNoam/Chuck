@@ -34,7 +34,7 @@ export function DashboardChatPane({ agent }: { agent: AgentState }) {
         taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)}
       />
       <div className="dashboard-chat-composer">
-        <Composer agentId={agent.agent_id} busy={agent.state === "busy" || agent.state === "waiting_input"} variant="dashboard" />
+        <Composer agentId={agent.agent_id} busy={agent.state === "busy" || agent.state === "waiting_input"} variant="dashboard" attachmentCapabilities={agent.attachment_capabilities} />
       </div>
     </div>
   );

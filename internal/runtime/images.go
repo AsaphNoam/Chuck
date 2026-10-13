@@ -2,11 +2,53 @@ package runtime
 
 import (
 	"encoding/base64"
-	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"io"
 	"net/url"
 	"strings"
+
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 )
+
+// Each incoming ACP frame owns one admission budget. Decode into a bounded
+// discard sink before storage so the aggregate bound uses actual raw bytes.
+const maxImagesPerFrame = attachment.MaxFiles
+
+type imageFrameBudget struct {
+	count int
+	bytes int64
+}
+
+func (b *imageFrameBudget) admit(image acpContentBlock, toolID string) (bool, AssistantImageData) {
+	b.count++
+	failure := AssistantImageData{ToolCallID: toolID, ErrorCode: CodeAttachmentLimit}
+	if b.count > maxImagesPerFrame {
+		failure.Error = "tool output exceeds 10 images per frame"
+		return false, failure
+	}
+	if image.Data == "" {
+		return true, AssistantImageData{}
+	}
+	if len(image.Data) > base64.StdEncoding.EncodedLen(attachment.MaxFileBytes) {
+		failure.Error = "image exceeds 10 MiB limit"
+		return false, failure
+	}
+	n, err := io.Copy(io.Discard, io.LimitReader(base64.NewDecoder(base64.StdEncoding, strings.NewReader(image.Data)), attachment.MaxFileBytes+1))
+	if err != nil {
+		failure.Error = "image bytes are invalid"
+		failure.ErrorCode = CodeAttachmentType
+		return false, failure
+	}
+	if n > attachment.MaxFileBytes {
+		failure.Error = "image exceeds 10 MiB limit"
+		return false, failure
+	}
+	if b.bytes+n > attachment.MaxTotalBytes {
+		failure.Error = "tool output exceeds 25 MiB of images per frame"
+		return false, failure
+	}
+	b.bytes += n
+	return true, AssistantImageData{}
+}
 
 func (c *ChatRuntime) persistImage(as *agentState, b acpContentBlock, toolID string) AssistantImageData {
 	d := AssistantImageData{ToolCallID: toolID}
