@@ -93,7 +93,9 @@ var remoteDenied = map[string]bool{
 	"POST /api/think-tanks/{id}/end": true, "POST /api/think-tanks/{id}/retry": true,
 	"POST /api/think-tanks/{id}/participants/{agent_id}/turn-limit": true,
 	"GET /api/sessions/{id}/think-tank-results":                     true,
-	"POST /api/remote/pairings":                                     true, "POST /api/remote/pairings/{id}/allow": true,
+	// Permission modes are a desktop chat-header control (FS-03.R88).
+	"GET /api/sessions/{id}/modes": true, "POST /api/sessions/{id}/mode": true,
+	"POST /api/remote/pairings": true, "POST /api/remote/pairings/{id}/allow": true,
 	"POST /api/remote/pairings/{id}/decline": true, "GET /api/remote/devices": true,
 	"PATCH /api/remote/devices/{id}": true, "DELETE /api/remote/devices/{id}": true,
 	"GET /api/layout": true, "PUT /api/layout": true,

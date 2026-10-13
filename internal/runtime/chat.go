@@ -211,10 +211,14 @@ type agentState struct {
 	// current by every set_config_option response because a model change rebuilds
 	// it (TS-04.R46). Guarded by mu, like every other live session field.
 	configOptions sessionConfigAdvertisement
-	hub           *Hub
-	stdin         interface{ Close() error }
-	stderr        *ringBuffer
-	stderrDone    chan struct{}
+	// modes is the live permission-mode advertisement, guarded by modeMu
+	// rather than mu (see setModes).
+	modeMu     sync.Mutex
+	modes      SessionModes
+	hub        *Hub
+	stdin      interface{ Close() error }
+	stderr     *ringBuffer
+	stderrDone chan struct{}
 
 	ctx    context.Context // turn-scoped base context, cancelled on Stop
 	cancel context.CancelFunc
@@ -437,6 +441,9 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 	as.sessionID = sess.SessionID
 	as.mu.Unlock()
 	as.configOptions = decodeSessionConfigOptions(newRes)
+	if modes, ok := decodeSessionModes(newRes); ok {
+		as.setModes(modes)
+	}
 	applied, err := applySessionConfig(ctx, as.transport, ad, spec, sess.SessionID, as.configOptions)
 	if err != nil {
 		failForked()
@@ -1412,6 +1419,9 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 			// echoed id overrides the request.
 			loaded = true
 			configOptions.replace(decodeSessionConfigOptions(loadRes))
+			if modes, ok := decodeSessionModes(loadRes); ok {
+				as.setModes(modes)
+			}
 			resolvedSessionID = sessionID
 			var res struct {
 				SessionID string `json:"sessionId"`
@@ -1461,6 +1471,9 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		}
 		resolvedSessionID = sess.SessionID
 		configOptions.replace(decodeSessionConfigOptions(newRes))
+		if modes, ok := decodeSessionModes(newRes); ok {
+			as.setModes(modes)
+		}
 	}
 	as.mu.Lock()
 	as.sessionID = resolvedSessionID
@@ -1767,6 +1780,11 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 		as.mu.Lock()
 		as.commands = cmds
 		as.mu.Unlock()
+		return
+	}
+	// Mode updates are replace-only live state like commands; they never take
+	// mu, so a mode change answered mid-request cannot stall the read loop.
+	if as.onModeUpdate(params) {
 		return
 	}
 	// usage_update is live runtime state rather than a transcript event. The

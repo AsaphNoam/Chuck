@@ -151,6 +151,8 @@ func (s *Server) routeTable() []routeEntry {
 	api("POST /api/sessions/{id}/restore", s.handleRestoreAgentAction)
 	api("POST /api/sessions/{id}/switch-runtime", s.handleSwitchRuntime)
 	api("POST /api/sessions/{id}/session-config", s.handleSessionConfig)
+	api("GET /api/sessions/{id}/modes", s.handleSessionModes)
+	api("POST /api/sessions/{id}/mode", s.handleSetSessionMode)
 	api("GET /api/sessions/{id}/files", s.handleFiles)
 	api("GET /api/sessions/{id}/commands", s.handleCommands)
 	api("GET /api/sessions/{id}/file-search", s.handleFileSearch)

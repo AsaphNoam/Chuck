@@ -99,7 +99,7 @@ The full nonvisual scope and CLI contract in R2–R4 were confirmed on 2026-10-1
 | Family | Required operations | Owning behavior |
 |---|---|---|
 | `status` | local service health and capabilities | FS-00, FS-09 |
-| `agent` | list, show, status, launch, resume, stop, cancel, rename, identity/group edit, clone, archive, restore, switch-runtime, session-config; send, held, withdraw, steer, approve, deny, background-task-stop; transcript/follow, files, commands, file-search, available-commands, file, attachments/image reads, messages, think-tank-results, annotate | FS-01, FS-02, FS-03, FS-05, FS-06, FS-13 |
+| `agent` | list, show, status, launch, resume, stop, cancel, rename, identity/group edit, clone, archive, restore, switch-runtime, session-config, permission modes/mode; send, held, withdraw, steer, approve, deny, background-task-stop; transcript/follow, files, commands, file-search, available-commands, file, attachments/image reads, messages, think-tank-results, annotate | FS-01, FS-02, FS-03, FS-05, FS-06, FS-13 |
 | `project`, `group`, `worktree` | project list/show/create/edit/delete/archive/restore; project-scoped named-group Stop/Archive; worktree fork/status, including title/branch/base and setup warnings | FS-02, FS-04, FS-05, FS-19 |
 | `archive` | search with query, project and active filters, explicit limit/offset; project archive detail, retained agent/room discovery | FS-05, FS-21 |
 | `pipeline template`, `pipeline proposal`, `pipeline run` | template list/show/validate/create/update/delete; proposal list/decline/delete, save/start via the template/run operations; run list/show/start/continue/retry/replace/repair-cleanup/stop/delete | FS-14 |

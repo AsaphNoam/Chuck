@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -272,6 +273,17 @@ func handle(msg *rpcMessage) {
 			respondErr(*msg.ID, -32603, "Unknown config option: "+setParams.ConfigID)
 			return
 		}
+		if setParams.ConfigID == "mode" {
+			if !slices.Contains(fakeModes(), setParams.Value) {
+				respondErr(*msg.ID, -32603, "Invalid value for config option mode: "+setParams.Value)
+				return
+			}
+			applyConfigOption(setParams.ConfigID, setParams.Value)
+			// The pinned Claude adapter announces the new mode before it answers.
+			emitUpdate(map[string]any{"sessionUpdate": "current_mode_update", "currentModeId": setParams.Value})
+			respond(*msg.ID, map[string]any{"configOptions": fakeConfigOptions()})
+			return
+		}
 		applyConfigOption(setParams.ConfigID, setParams.Value)
 		// SetSessionConfigOptionResponse requires the full rebuilt option list.
 		respond(*msg.ID, map[string]any{"configOptions": fakeConfigOptions()})
@@ -504,6 +516,18 @@ func initConfigOptions() {
 	add("effort", fakeDefaultEffort)
 	add("reasoning_effort", fakeDefaultEffort)
 	add(os.Getenv("FAKEACP_FAST_OPTION"), "off")
+	if modes := fakeModes(); len(modes) > 0 {
+		add("mode", modes[0])
+	}
+}
+
+// fakeModes is FAKEACP_MODE_OPTIONS split on commas: the permission modes the
+// pinned Claude adapter advertises as a "mode"-category select option.
+func fakeModes() []string {
+	if raw := os.Getenv("FAKEACP_MODE_OPTIONS"); raw != "" {
+		return strings.Split(raw, ",")
+	}
+	return nil
 }
 
 // fakeConfigOptions renders the current option set in the pinned adapters' shape.
@@ -518,9 +542,17 @@ func fakeConfigOptions() []map[string]any {
 		if alias := os.Getenv("FAKEACP_MODEL_ALIAS"); alias != "" && id == "model" {
 			rows = []map[string]any{{"value": "default", "name": "Default"}, {"value": alias, "name": alias}}
 		}
-		out = append(out, map[string]any{
+		option := map[string]any{
 			"id": id, "name": id, "type": "select", "currentValue": configValues[id], "options": rows,
-		})
+		}
+		if id == "mode" {
+			rows = nil
+			for _, mode := range fakeModes() {
+				rows = append(rows, map[string]any{"value": mode, "name": "Mode " + mode, "description": "Fake " + mode})
+			}
+			option["options"], option["category"], option["name"] = rows, "mode", "Mode"
+		}
+		out = append(out, option)
 	}
 	return out
 }

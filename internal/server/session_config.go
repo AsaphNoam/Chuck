@@ -101,6 +101,66 @@ func (s *Server) handleSessionConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, agent)
 }
 
+// handleSessionModes serves GET /api/sessions/{id}/modes: the live session's
+// advertised permission modes (FS-03.R88, TS-03.R70). An agent with no live
+// handle is agent_not_running, so the header can hide the control.
+func (s *Server) handleSessionModes(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.stateStore.ReadAgent(id); err != nil {
+		if errors.Is(err, state.ErrNotFound) {
+			writeAPIError(w, apiError(runtime.CodeNotFound, "no such agent: "+id))
+			return
+		}
+		writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
+		return
+	}
+	modes, err := s.registry.SessionModes(id)
+	if err != nil {
+		writeAPIError(w, sessionConfigError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, modes)
+}
+
+// handleSetSessionMode serves POST /api/sessions/{id}/mode with {"mode": id}.
+// It takes the same per-agent lifecycle claim as session-config so a mode
+// change cannot land on a session that Stop, Resume or Switch is replacing
+// (INV §5). Nothing is persisted: the mode lives only as long as the session.
+func (s *Server) handleSetSessionMode(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var req struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Mode == "" {
+		writeAPIError(w, apiError(runtime.CodeValidation, "mode is required"))
+		return
+	}
+	if !s.claimLifecycle(id) {
+		writeAPIError(w, apiError(runtime.CodeConflict, "a lifecycle transition is already in progress"))
+		return
+	}
+	defer s.releaseLifecycle(id)
+	agent, err := s.stateStore.ReadAgent(id)
+	if errors.Is(err, state.ErrNotFound) {
+		writeAPIError(w, apiError(runtime.CodeNotFound, "no such agent: "+id))
+		return
+	}
+	if err != nil {
+		writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
+		return
+	}
+	if agent.Interface != "chat" || !s.registry.Owns(id) {
+		writeAPIError(w, apiError(runtime.CodeConflict, "agent is not a running chat session"))
+		return
+	}
+	modes, err := s.registry.SetSessionMode(r.Context(), id, req.Mode)
+	if err != nil {
+		writeAPIError(w, sessionConfigError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, modes)
+}
+
 // sessionConfigError maps a runtime session-setting failure to the distinct,
 // actionable reason the route contract promises (TS-03.R37). Collapsing all of
 // them into one upstream-failure status left API clients unable to tell an

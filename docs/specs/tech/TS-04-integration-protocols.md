@@ -1189,6 +1189,19 @@ per frame. Keep transcript records at their existing 8 MiB limit because blobs l
 The real transport and fake-peer frame bounds match; tests cover frame limits and maximum-size input
 and output. Never use an unlimited reader to accommodate images.
 
+**R92 (implemented 2026-10-13) — Permission modes are the session's own advertisement.** For
+FS-03.R88, decode the mode list from `session/new`, `session/load`, `session/fork` and
+`config_option_update`: a select config option in ACP's `mode` category wins (set through
+`session/set_config_option`), and the older `modes` field is the fallback (set through
+`session/set_mode`). Keep at most 16 options, ids up to 64 bytes, names 40 and descriptions 160
+runes. `current_mode_update` moves only to an advertised id. The list is live per-session state
+like available commands: never persisted, never a transcript event, decoded again on every launch
+or resume (INV §1/§3). Mode updates have their own lock and never wait on the agent lock, because
+the transport delivers notifications on the read goroutine and adapters announce a new mode before
+answering the request that set it. A response whose reported mode differs from the request is
+`ErrSettingIgnored`. Claude 0.59.0's mode option is source-checked; the Codex mode shape and live
+provider receipts remain unverified.
+
 ## 3. Interfaces & data shapes
 
 - ACP: JSON-RPC messages over newline-delimited child stdin/stdout; adapter determines exact

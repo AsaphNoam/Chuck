@@ -342,6 +342,33 @@ func (r *Registry) SetSessionConfig(ctx context.Context, agentID string, effort 
 	return chat.SetSessionConfig(ctx, agentID, effort, fast)
 }
 
+// SessionModes returns the owning chat runtime's live permission-mode
+// advertisement (FS-03.R88).
+func (r *Registry) SessionModes(agentID string) (SessionModes, error) {
+	rt, err := r.ownerFor(agentID)
+	if err != nil {
+		return SessionModes{}, err
+	}
+	chat, ok := rt.(*ChatRuntime)
+	if !ok {
+		return SessionModes{}, ErrNotImplemented
+	}
+	return chat.SessionModes(agentID)
+}
+
+// SetSessionMode routes a live permission-mode change to the owning chat runtime.
+func (r *Registry) SetSessionMode(ctx context.Context, agentID, mode string) (SessionModes, error) {
+	rt, err := r.ownerFor(agentID)
+	if err != nil {
+		return SessionModes{}, err
+	}
+	chat, ok := rt.(*ChatRuntime)
+	if !ok {
+		return SessionModes{}, ErrNotImplemented
+	}
+	return chat.SetSessionMode(ctx, agentID, mode)
+}
+
 // AppendAnnotation dispatches a structured dashboard annotation through the
 // live chat runtime. Terminal runtimes are intentionally excluded.
 func (r *Registry) AppendAnnotation(agentID string, data AnnotationData) (Event, error) {

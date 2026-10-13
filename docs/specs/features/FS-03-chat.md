@@ -323,6 +323,18 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   stores the selection with surrounding whitespace trimmed. With no selection, the existing
   whole-event annotation action is unchanged; where annotations are disabled, the browser-native
   context menu remains available. A clipboard failure surfaces an actionable error.
+- **R88 (implemented 2026-10-13) — Permission modes switch from the chat header.** For a running
+  chat agent whose live session advertises permission modes (Claude: Manual, Accept Edits, Plan
+  Mode, Don't Ask, Bypass Permissions where offered), the runtime band shows a **Permissions**
+  choice listing exactly the advertised modes with the current one selected; each mode's provider
+  description is its tooltip. Choosing a mode applies it to the live session immediately, without
+  restart, and the selection follows what the provider reports. A turn that moves the mode itself
+  (leaving plan mode) is reflected after the next agent state change. A refused or ignored change
+  restores the reported mode and shows its reason inline. The control is absent for a session
+  that advertises no modes, a stopped agent, terminal agents, and the phone. The mode is not
+  persisted: a resume, runtime switch or relaunch starts in the provider's default. A mode that
+  skips provider prompts means Chuck receives no permission request to show (R15); Chuck's own
+  `skip_permissions` gate is unchanged (TS-03.R70, TS-04.R92).
 
 ### 2.6 Composer file and ACP command autocomplete
 
@@ -1193,6 +1205,11 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 - **A66 (implemented 2026-10-13)** (R87) — A transcript containing a tool call, a diff and assistant
   text renders the tool call and text but no diff row on desktop and phone; a Files-tab Diff reveal
   renders only the requested diff. *Verify:* `TranscriptView.test.tsx`, `AgentScreen.test.tsx`.
+- **A67 (implemented 2026-10-13)** (R88) — A running chat agent whose fake adapter advertises
+  three modes shows them with the current one selected; choosing another applies it through the
+  advertised option and the selection follows the reported mode; a refusal restores it with the
+  reason; an unoffered mode never reaches the provider; no advertisement shows no control.
+  *Verify:* `session_mode_test.go` (runtime and server), `PermissionModeToggle.test.tsx`.
 
 ## 6. Deviations & open decisions
 

@@ -19,7 +19,7 @@ func newOperatorAgentCmd() *cobra.Command {
 	parent := &cobra.Command{Use: "agent", Short: "Inspect and control a named conversation"}
 	list := agentOperation("list", "GET", "", 0, false, false, nil)
 	parent.AddCommand(list)
-	for _, suffix := range []string{"show", "held", "files", "commands", "available-commands", "messages", "think-tank-results"} {
+	for _, suffix := range []string{"show", "held", "files", "commands", "available-commands", "modes", "messages", "think-tank-results"} {
 		route := suffix
 		if suffix == "show" {
 			route = ""
@@ -48,6 +48,9 @@ func newOperatorAgentCmd() *cobra.Command {
 	for _, action := range []string{"resume", "stop", "clone", "archive", "restore"} {
 		parent.AddCommand(agentOperation(action+" <id>", "POST", action, 1, false, false, nil))
 	}
+	mode := agentOperation("mode <id>", "POST", "mode", 1, false, false, []string{"mode"})
+	mode.Flags().String("mode", "", "one of the session's advertised permission modes (see `agent modes`)")
+	parent.AddCommand(mode)
 	rename := agentOperation("rename <id>", "POST", "rename", 1, false, false, []string{"name"})
 	rename.Flags().String("name", "", "new display name")
 	parent.AddCommand(rename)
@@ -121,6 +124,7 @@ func agentOperation(use, method, suffix string, nargs int, text, yes bool, requi
 		"launch": "{role,project,backend?,model?,effort?,fast?,interface?,driver?,name?,group?}; always creates a new agent",
 		"rename": "{name}", "identity": "{name?,group?}; an explicit empty group removes membership",
 		"switch-runtime": "{interface,backend?,model?,effort?,driver?}", "session-config": "{effort?,fast?}; explicit false disables fast mode",
+		"mode": "{mode}; one of the live session's advertised permission modes", "modes": "no input; the live session's advertised permission modes and current mode",
 		"cancel":  "{target:\"turn\"} or {target:\"quota_continuation\",episode_id,revision}; quota cancellation requires the exact positive revision",
 		"approve": "{tool_call_id}; approves only the exact pending tool call", "deny": "{tool_call_id}; denies only the exact pending tool call",
 		"background-task-stop": "{task_id,activity_id?}; reports acceptance, then inspect native task state for its terminal update",
@@ -143,7 +147,7 @@ func agentOperation(use, method, suffix string, nargs int, text, yes bool, requi
 		if err != nil {
 			return err
 		}
-		for _, field := range []string{"role", "project", "backend", "model", "effort", "interface", "driver", "name", "group", "fast", "target", "episode-id", "revision", "tool-call-id", "task-id", "activity-id", "request-id"} {
+		for _, field := range []string{"role", "project", "backend", "model", "effort", "interface", "driver", "name", "group", "mode", "fast", "target", "episode-id", "revision", "tool-call-id", "task-id", "activity-id", "request-id"} {
 			if c.Flags().Lookup(field) == nil || !c.Flags().Changed(field) {
 				continue
 			}

@@ -34,6 +34,8 @@ func TestOperatorAgentWireInventory(t *testing.T) {
 		{[]string{"cancel", "a", "--target", "quota_continuation", "--episode-id", "e", "--revision", "7"}, "POST", "/api/sessions/a/cancel", `{"target":"quota_continuation","episode_id":"e","revision":7}`},
 		{[]string{"switch-runtime", "a", "--interface", "chat", "--backend", "claude", "--model", "m"}, "POST", "/api/sessions/a/switch-runtime", `{"interface":"chat","backend":"claude","model":"m"}`},
 		{[]string{"session-config", "a", "--fast=false"}, "POST", "/api/sessions/a/session-config", `{"fast":false}`},
+		{[]string{"modes", "a"}, "GET", "/api/sessions/a/modes", ""},
+		{[]string{"mode", "a", "--mode", "plan"}, "POST", "/api/sessions/a/mode", `{"mode":"plan"}`},
 		{[]string{"send", "a", "--text", "こんにちは\nline\n"}, "POST", "/api/sessions/a/prompt", `{"text":"こんにちは\nline\n"}`},
 		{[]string{"steer", "a"}, "POST", "/api/sessions/a/steer", `{}`},
 		{[]string{"held", "a"}, "GET", "/api/sessions/a/prompt", ""},

@@ -81,6 +81,22 @@ export function setSessionConfig(agentId: string, body: { effort?: string; fast?
   });
 }
 
+export type SessionModes = { current: string; options: { id: string; name: string; description: string }[] };
+
+// The live session's provider-advertised permission modes (FS-03.R88, TS-03.R70).
+export async function getSessionModes(agentId: string): Promise<SessionModes> {
+  const modes = await json<SessionModes>(`/api/sessions/${agentId}/modes`);
+  return { current: modes.current ?? "", options: modes.options ?? [] };
+}
+
+export function setSessionMode(agentId: string, mode: string) {
+  return json<SessionModes>(`/api/sessions/${agentId}/mode`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
+}
+
 export function renameAgent(agentId: string, name: string) {
   return json<unknown>(`/api/sessions/${agentId}/rename`, {
     method: "POST",

@@ -964,6 +964,17 @@ session-owned ids and explicit local-image reader; downloaded bytes have the sam
 limits, not an unbounded exception to R66. Metadata inspection never triggers a binary read.
 No change to server storage, cleanup, redaction, trust or device grants is required by this CLI.
 
+**R70 (implemented 2026-10-13) — Permission modes have a read and a set route.** For FS-03.R88,
+`GET /api/sessions/{id}/modes` returns `{current, options:[{id,name,description}]}` from the live
+session (TS-04.R92); `options` is always an array, empty when the session advertises none. `POST
+/api/sessions/{id}/mode` takes `{mode}` and returns the same shape after the change. The set route
+takes the per-agent lifecycle claim (409 `conflict` while one is held) and requires a running chat
+agent. A missing `mode` is 422 `validation`; an unoffered mode or a provider refusal is 400
+`invalid_field`; no advertisement is 400 `invalid_field`; a provider that reports another mode is
+502 `runtime_start_failed`; an agent without a live handle is `agent_not_running`; unknown agents
+are 404. Nothing is persisted. Both routes are loopback-only (phone-denied) and reachable from the
+CLI as `chuck agent modes` / `chuck agent mode --mode` (FS-22.R8).
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

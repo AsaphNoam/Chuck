@@ -147,6 +147,14 @@ export function VisualMatrix() {
               <div className="form-field"><label htmlFor="matrix-effort">Effort</label><select id="matrix-effort" defaultValue="high"><option value="low">low</option><option value="high">high</option></select></div>
               <label className="chat-fast-toggle"><input type="checkbox" defaultChecked /> Fast mode — higher provider usage</label>
             </fieldset>
+            <fieldset className="chat-permission-modes">
+              <legend>Permissions</legend>
+              <div className="chat-permission-mode-options">
+                {["Manual", "Accept Edits", "Plan Mode", "Don't Ask"].map((name, index) => (
+                  <label key={name} className="chat-permission-mode"><input type="radio" name="matrix-permission-mode" defaultChecked={index === 1} />{name}</label>
+                ))}
+              </div>
+            </fieldset>
             <div className="chat-runtime-pending">
               <span>Unapplied changes</span>
               <button className="chat-runtime-switch ad-button-primary" type="button">Switch</button>

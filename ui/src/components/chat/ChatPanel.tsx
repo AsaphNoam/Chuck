@@ -19,6 +19,7 @@ import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextM
 import { Composer } from "./Composer";
 import { TranscriptView } from "./TranscriptView";
 import { FilesTab } from "./FilesTab";
+import { PermissionModeToggle } from "./PermissionModeToggle";
 import { TerminalTab } from "./TerminalTab";
 import { resetRuntimeForBackend, resetRuntimeForModel, type RuntimeSelection } from "../../lib/runtimeSelection";
 import { fileLinkFromParams, writeFileLinkParams } from "../../lib/fileLinkParams";
@@ -329,6 +330,7 @@ export function ChatPanel() {
               )}
             </fieldset>
           )}
+          <PermissionModeToggle agentId={agent.agent_id} agentState={agent.state} />
           {runtimeChanged ? (
             <div className="chat-runtime-pending">
               <span>Unapplied changes</span>

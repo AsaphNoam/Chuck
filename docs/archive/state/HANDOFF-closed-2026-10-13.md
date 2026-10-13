@@ -32,3 +32,25 @@ session-start header inside its budget.
   now verify delayed Send and Steer leave/reopen/accept cleanup through the shared draft seam,
   including newer-draft protection. Changelog: synchronized accepted draft cleanup across
   reopened composers (INV §1). The other review units are unchanged.
+
+## Active-change closure notes (moved 2026-10-13)
+
+CLI extends existing session APIs without a runtime registration, new storage or lifecycle owner.
+INV §6: persistence/full launch use server composition; fan-out/drain, mailbox eligibility, turn
+boundaries, reconciliation and hooks retain server ownership; capabilities use server projections.
+Observers close only their requests/streams, join bounded workers and remove failed output
+temporaries. No new registration, mailbox or lifecycle store. Loopback test fixtures require
+loopback-enabled execution permission and fail rather than silently skip when unavailable.
+
+Chat images and file attachments is implemented and independently reviewed; its fixes are pending above.
+Final closure: full attachment/state/runtime/transcript and focused API/security/race checks pass.
+Forward migration 51 preserves checkpoint-50 receipts; pre-wire recovery remains separate from
+ambiguous post-wire outcomes. Incoming output images obey 10-image/25-MiB decoded per-frame limits
+before storage and bounded event fanout. Session reads and state snapshots share the same attachment
+capability projection. Rendered findings in modal dismissal, sent thumbnails and shared draft
+lifecycle were repaired and verified. The existing orchestrator-instructions test race reproduced
+on baseline `5fd573c` 2/10 times; a test-only lifecycle-drain wait now passes 10/10.
+Final shared matrix passes in `/private/tmp/chuck-attachments-closure-test.log`; final embedded
+build passes in `/private/tmp/chuck-attachments-final-dist.log`. The preceding concurrent run's
+two-second Codex credential fixture timeout did not reproduce in ten focused current or baseline
+runs; the complete rerun without concurrent build load passes. Credential code is unchanged.

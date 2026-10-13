@@ -402,6 +402,80 @@
   }
 }
 
+/* Permission modes: native radios drawn as one segmented choice, applied on
+   selection (FS-03.R88). The legend floats into the row like "Runtime". */
+.chat-permission-modes {
+  align-items: center;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-space-2) var(--ad-space-3);
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.chat-permission-modes legend {
+  color: var(--ad-text-muted);
+  float: left;
+  opacity: 0.8;
+  padding: 0;
+}
+
+.chat-permission-mode-options {
+  background: color-mix(in srgb, var(--ad-text-muted) 12%, var(--ad-surface-raised));
+  border-radius: var(--ad-radius-round);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ad-border-thick);
+  padding: var(--ad-border-thick);
+}
+
+.chat-permission-mode {
+  border-radius: var(--ad-radius-round);
+  color: var(--ad-text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: var(--ad-space-1) var(--ad-space-3);
+  position: relative;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+  white-space: nowrap;
+}
+
+.chat-permission-mode input {
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.chat-permission-mode:hover {
+  color: var(--ad-text-primary);
+}
+
+.chat-permission-mode:has(input:checked) {
+  background: var(--ad-surface-raised);
+  box-shadow: var(--ad-shadow-keyline);
+  color: var(--ad-text-primary);
+}
+
+.chat-permission-mode:has(input:focus-visible) {
+  outline: var(--ad-border-thick) solid var(--ad-action-secondary);
+  outline-offset: var(--ad-border-thin);
+}
+
+.chat-permission-modes:disabled .chat-permission-mode {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-permission-mode {
+    transition: none;
+  }
+}
+
 .chat-runtime-hint {
   color: var(--ad-text-muted);
   font-size: 0.65rem;

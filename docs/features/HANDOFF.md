@@ -14,12 +14,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Closed entries (2026-10-12/13):** blank phone entry, dev mobile CSS, phone group memory and
   phone chat drafts are archived in
   [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
-- **In progress — chat permission modes, project-page menu, hidden file changes (2026-10-13):**
-  user request via `/work`. Finished slice `bac0d40`: FS-02.R77/A58 project-page background
-  menu (New agent / New think tank via `CardGrid` `openersRef`); FS-03.R87/A66 diffs hidden from
-  desktop/phone agent chats (`hideFileChanges`, `runtimeActivity.ts`; Files-tab Diff reveal keeps
-  its diff; archive and Think Tank keep inline diffs). Focused tests, typecheck and spec check
-  pass; full closure matrix owed. Next: permission-mode toggles in the chat header.
+- **Awaiting review — chat permission modes, project-page menu, hidden file changes
+  (2026-10-13):** one review unit; scope, review notes and evidence under **Unit notes**.
+  `make test` (both Go variants) and `make dist` pass; UI 815/816, the one failure being the known
+  `NewAgentModal` flake (varying case, reproduced 2/3 on unchanged HEAD `2930250`).
 - **Reviewed — projects home redesign; fix pending (2026-10-13):** `40e414e`,
   FS-12.R69/A39, TS-08.R124. One Must-fix: unavailable-project cards omit their known running
   count from the required footer. The rest of the composition and existing interactions pass
@@ -99,26 +97,25 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 ## Active change
 
 None. Full operator CLI parity is finished; independent review found misleading role-edit help,
-recorded below, and its fix remains pending.
-CLI extends existing session APIs without a runtime registration, new storage or lifecycle owner.
-INV §6: persistence/full launch use server composition; fan-out/drain, mailbox eligibility, turn
-boundaries, reconciliation and hooks retain server ownership; capabilities use server projections.
-Observers close only their requests/streams, join bounded workers and remove failed output
-temporaries. No new registration, mailbox or lifecycle store. Loopback test fixtures require
-loopback-enabled execution permission and fail rather than silently skip when unavailable.
+recorded below, and its fix remains pending. CLI parity and attachment closure notes are archived
+in [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
 
-Chat images and file attachments is implemented and independently reviewed; its fixes are pending above.
-Final closure: full attachment/state/runtime/transcript and focused API/security/race checks pass.
-Forward migration 51 preserves checkpoint-50 receipts; pre-wire recovery remains separate from
-ambiguous post-wire outcomes. Incoming output images obey 10-image/25-MiB decoded per-frame limits
-before storage and bounded event fanout. Session reads and state snapshots share the same attachment
-capability projection. Rendered findings in modal dismissal, sent thumbnails and shared draft
-lifecycle were repaired and verified. The existing orchestrator-instructions test race reproduced
-on baseline `5fd573c` 2/10 times; a test-only lifecycle-drain wait now passes 10/10.
-Final shared matrix passes in `/private/tmp/chuck-attachments-closure-test.log`; final embedded
-build passes in `/private/tmp/chuck-attachments-final-dist.log`. The preceding concurrent run's
-two-second Codex credential fixture timeout did not reproduce in ten focused current or baseline
-runs; the complete rerun without concurrent build load passes. Credential code is unchanged.
+## Unit notes
+
+- **Chat permission modes, project-page menu, hidden file changes (2026-10-13).** `bac0d40`:
+  FS-02.R77/A58 project-page background menu (`CardGrid` `openersRef`); FS-03.R87/A66 diffs
+  hidden from desktop/phone agent chats (`hideFileChanges`; Files-tab Diff reveal keeps its diff;
+  archive/Think Tank keep inline). Permission modes: FS-03.R88/A67, TS-03.R70, TS-04.R92, FS-22.R8
+  inventory. `internal/runtime/session_mode.go` decodes the advertised mode list (mode-category
+  config option, legacy `modes` fallback); live-only state under its own `modeMu`, so read-loop
+  mode updates never wait on `as.mu`. `GET /modes`, `POST /mode` (lifecycle claim, phone-denied),
+  CLI `agent modes|mode`; desktop `PermissionModeToggle`, reread on agent state change.
+  Review notes: Claude 0.59.0's mode option is source-checked only; the Codex mode shape and live
+  provider receipts are unverified. Pre-existing risk observed, unchanged: `SetSessionConfig`
+  holds `as.mu` across its provider call while `onNotification` takes `as.mu` for unmatched frames
+  on the synchronous read loop, so an adapter notification sent before that reply could stall it.
+  Rendered runtime band: `/private/tmp/chuck-modes-shots`. Changelog: provider-advertised modes as
+  live state with bounded copy and lock-free read-loop handling (INV §1/§3/§5/§8/§10/§11/§16).
 
 ## Acceptance gates still owed
 
