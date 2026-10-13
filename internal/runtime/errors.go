@@ -10,6 +10,12 @@ import (
 // layer maps it to HTTP 501 / code "not_implemented" (techspec §3.2, §7.7).
 var ErrNotImplemented = errors.New("not implemented")
 
+var ErrAttachmentCapability = errors.New("runtime: this agent does not support native image input")
+
+// ErrMessageAccepted prevents callers rolling back bytes referenced by a durable
+// message when receipt bookkeeping fails before its provider dispatch.
+var ErrMessageAccepted = errors.New("runtime: message retained but delivery is uncertain")
+
 // Runtime-state sentinels. The API layer maps these to 404/409 (techspec §7).
 var (
 	// ErrNoHandle: no live handle for the agent (not started / already stopped).
@@ -66,12 +72,16 @@ var (
 // Error code vocabulary (techspec §7.7). These are the project-wide error codes
 // surfaced in the API error envelope; each maps to a fixed HTTP status.
 const (
-	CodeValidation         = "validation"           // 422
-	CodeNotFound           = "not_found"            // 404
-	CodeConflict           = "conflict"             // 409
-	CodeNotImplemented     = "not_implemented"      // 501
-	CodeRuntimeStartFailed = "runtime_start_failed" // 502
-	CodeInternal           = "internal"             // 500
+	CodeAttachmentCapability = "attachment_capability"
+	CodeAttachmentLimit      = "attachment_limit"
+	CodeAttachmentType       = "attachment_type"
+	CodeAttachmentStorage    = "attachment_storage"
+	CodeValidation           = "validation"           // 422
+	CodeNotFound             = "not_found"            // 404
+	CodeConflict             = "conflict"             // 409
+	CodeNotImplemented       = "not_implemented"      // 501
+	CodeRuntimeStartFailed   = "runtime_start_failed" // 502
+	CodeInternal             = "internal"             // 500
 
 	// switch-runtime error codes (Phase 6 techspec §8.1). Distinct code strings
 	// the UI branches on, each with its own HTTP status.
@@ -170,6 +180,7 @@ func (e *APIError) HTTPStatus() int {
 func statusForCode(code string) int {
 	switch code {
 	case CodeValidation, CodeTerminalUnavailable, CodeSourceInvalid,
+		CodeAttachmentCapability, CodeAttachmentType,
 		CodePathRefused, CodeNotAFile, CodeNotText, CodeFileUnreadable, CodeWorkspaceUnavailable,
 		CodeBackgroundTaskControlUnavailable, CodeCloneUnavailable,
 		CodeProviderExecutableMissing, CodeProviderExecutableInvalid, CodeBundledProviderMissing,
@@ -191,6 +202,8 @@ func statusForCode(code string) int {
 		return http.StatusNotImplemented // 501
 	case CodeRuntimeStartFailed:
 		return http.StatusBadGateway // 502
+	case CodeAttachmentLimit:
+		return http.StatusRequestEntityTooLarge
 	default:
 		return http.StatusInternalServerError // 500
 	}
@@ -208,6 +221,13 @@ func NewAPIError(code, message string) *APIError {
 func APIErrorFor(err error) *APIError {
 	if err == nil {
 		return nil
+	}
+	var typed *APIError
+	if errors.As(err, &typed) {
+		return typed
+	}
+	if errors.Is(err, ErrAttachmentCapability) {
+		return NewAPIError(CodeAttachmentCapability, err.Error())
 	}
 	if errors.Is(err, ErrNotImplemented) {
 		return NewAPIError(CodeNotImplemented, err.Error())

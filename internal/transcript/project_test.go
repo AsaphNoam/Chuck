@@ -4,8 +4,25 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 )
+
+func TestProjectAttachmentNamesWithoutBlobOrHostPath(t *testing.T) {
+	a := attachment.Descriptor{ID: "owned-id", Name: "diagram.png", SHA256: "digest", Kind: "image"}
+	for _, ev := range []runtime.Event{
+		projectionEvent(t, runtime.EvUserPrompt, runtime.UserPromptData{Attachments: []attachment.Descriptor{a}}),
+		projectionEvent(t, runtime.EvAssistantImage, runtime.AssistantImageData{Attachment: &a, Path: "/private/source.png"}),
+	} {
+		p, err := ProjectEvent(ev)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.SearchText() != "diagram.png" {
+			t.Fatalf("attachment search=%q", p.SearchText())
+		}
+	}
+}
 
 func projectionEvent(t *testing.T, typ string, data any) runtime.Event {
 	t.Helper()
@@ -22,8 +39,9 @@ func projectionEvent(t *testing.T, typ string, data any) runtime.Event {
 func sampleEvents(t *testing.T) map[string]runtime.Event {
 	t.Helper()
 	return map[string]runtime.Event{
-		runtime.EvUserPrompt:    projectionEvent(t, runtime.EvUserPrompt, runtime.UserPromptData{Text: "  ship it  "}),
-		runtime.EvAssistantText: projectionEvent(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "on it"}),
+		runtime.EvUserPrompt:     projectionEvent(t, runtime.EvUserPrompt, runtime.UserPromptData{Text: "  ship it  "}),
+		runtime.EvAssistantText:  projectionEvent(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "on it"}),
+		runtime.EvAssistantImage: projectionEvent(t, runtime.EvAssistantImage, runtime.AssistantImageData{Name: "generated-image.png"}),
 		runtime.EvToolCall: projectionEvent(t, runtime.EvToolCall, runtime.ToolCallData{
 			ToolCallID: "tc1", Name: "Bash", Args: json.RawMessage(`{"command":"ls"}`), Status: "pending"}),
 		runtime.EvToolResult: projectionEvent(t, runtime.EvToolResult, runtime.ToolResultData{

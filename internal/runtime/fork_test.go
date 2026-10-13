@@ -1,13 +1,51 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestForkOwnsIndependentAttachmentCopiesBeforeHistoryPublication(t *testing.T) {
+	c, spec, _ := forkSpec(t, "FAKEACP_CAPS=1")
+	home := t.TempDir()
+	c.transcriptHome = home
+	store := attachment.New(home)
+	file, err := store.Put("a_src", "notes.txt", bytes.NewBufferString("immutable source"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := store.Put("a_src", "output.png", bytes.NewReader(imageBytes(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, _ := json.Marshal(UserPromptData{Text: "review", Attachments: []attachment.Descriptor{file}})
+	assistant, _ := json.Marshal(AssistantImageData{Attachment: &img})
+	spec.Fork.Prefix = []Event{{AgentID: "a_src", Seq: 1, Type: EvUserPrompt, Data: user}, {AgentID: "a_src", Seq: 2, Type: EvAssistantImage, Data: assistant}}
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Stop(context.Background(), h.AgentID) })
+	for _, d := range []attachment.Descriptor{file, img} {
+		if err := store.Remove("a_src", d.ID); err != nil {
+			t.Fatal(err)
+		}
+		f, copied, err := store.Open(h.AgentID, d.ID)
+		if err != nil {
+			t.Fatalf("source deletion broke clone: %v", err)
+		}
+		f.Close()
+		if copied != d {
+			t.Fatal("clone descriptor identity changed")
+		}
+	}
+}
 
 func forkPrefix() []Event {
 	raw := func(v any) json.RawMessage { b, _ := json.Marshal(v); return b }

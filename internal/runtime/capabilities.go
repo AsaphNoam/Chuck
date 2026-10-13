@@ -61,6 +61,9 @@ func clientCapabilitiesFor(o clientOffer) map[string]any {
 func negotiateCapabilities(initRes json.RawMessage, o clientOffer) SessionCapabilities {
 	var body struct {
 		AgentCapabilities struct {
+			PromptCapabilities struct {
+				Image bool `json:"image"`
+			} `json:"promptCapabilities"`
 			SessionCapabilities map[string]json.RawMessage `json:"sessionCapabilities"`
 		} `json:"agentCapabilities"`
 		Meta struct {
@@ -79,6 +82,7 @@ func negotiateCapabilities(initRes json.RawMessage, o clientOffer) SessionCapabi
 	air := decodeAir(body.Meta.JetBrains.Air.Version, body.Meta.JetBrains.Air.Capabilities)
 	asyncTasks := o.AsyncTasks && air[airAsyncTasks]
 	return SessionCapabilities{
+		ImageInput:         body.AgentCapabilities.PromptCapabilities.Image,
 		Fork:               isObject(session["fork"]),
 		Subagents:          o.Subagents && isObject(session["subagents"]),
 		BackgroundTasks:    asyncTasks,

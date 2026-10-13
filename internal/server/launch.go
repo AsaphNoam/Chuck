@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/backend"
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/hooks"
@@ -38,14 +39,24 @@ type launchRequest struct {
 
 // sessionResponse is the {agent, running, status} envelope (techspec §7.1/§7.2).
 type sessionResponse struct {
-	Agent    state.Agent                `json:"agent"`
-	Running  *state.RunningEntry        `json:"running,omitempty"`
-	Status   *state.Status              `json:"status,omitempty"`
-	Pipeline *state.PipelineAssociation `json:"pipeline,omitempty"`
-	Quota    *state.QuotaProjection     `json:"quota,omitempty"`
+	Agent       state.Agent                `json:"agent"`
+	Running     *state.RunningEntry        `json:"running,omitempty"`
+	Status      *state.Status              `json:"status,omitempty"`
+	Pipeline    *state.PipelineAssociation `json:"pipeline,omitempty"`
+	Quota       *state.QuotaProjection     `json:"quota,omitempty"`
+	Attachments *attachmentCapabilities    `json:"attachment_capabilities,omitempty"`
 	// Worktree reports that this start had to re-materialize the project's owned
 	// checkout before it could run (FS-19.R7). Absent on every ordinary start.
 	Worktree *worktreeStartNotice `json:"worktree,omitempty"`
+}
+
+type attachmentCapabilities struct {
+	ImageInput    bool  `json:"image_input"`
+	Files         bool  `json:"files"`
+	MaxFiles      int   `json:"max_files"`
+	MaxFileBytes  int64 `json:"max_file_bytes"`
+	MaxTotalBytes int64 `json:"max_total_bytes"`
+	MaxPixels     int64 `json:"max_pixels"`
 }
 
 // worktreeStartNotice is what a start path says about a recreated checkout: it
@@ -195,6 +206,13 @@ func (s *Server) readSession(id string) sessionResponse {
 		resp.Quota = quota
 	} else {
 		s.log.Error("read session quota", "agent", id, "err", err)
+	}
+	if resp.Agent.Interface == "chat" {
+		caps := &attachmentCapabilities{Files: true, MaxFiles: attachment.MaxFiles, MaxFileBytes: attachment.MaxFileBytes, MaxTotalBytes: attachment.MaxTotalBytes, MaxPixels: attachment.MaxPixels}
+		if snap, err := s.stateStore.ReadSession(id); err == nil {
+			caps.ImageInput = snap.RuntimeCapabilities.ImageInput
+		}
+		resp.Attachments = caps
 	}
 	return resp
 }

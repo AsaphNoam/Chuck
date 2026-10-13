@@ -14,7 +14,7 @@ import (
 // maxFrameBytes is the scanner's max token size. ACP tool_result/diff frames can
 // be large (full file patches); the default 64 KiB bufio cap would truncate them
 // (techspec §2 — "buffer enlargement is load-bearing").
-const maxFrameBytes = 8 * 1024 * 1024 // 8 MiB
+const maxFrameBytes = 36 * 1024 * 1024 // 36 MiB; binary bytes remain separately bounded.
 
 // errTransportClosed is returned to pending Calls when the read loop ends.
 var errTransportClosed = errors.New("runtime: transport closed")

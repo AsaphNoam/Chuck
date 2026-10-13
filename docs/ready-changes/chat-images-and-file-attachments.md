@@ -85,6 +85,13 @@ and attachment receipts. Provisional markers allow startup cleanup without delet
 whose old transcript is corrupt. `internal/attachment` and `internal/state` full suites pass.
 Overall attachment behavior and its requirements remain planned while integration proceeds.
 
+Runtime/API checkpoint: the existing message/turn gate now carries ordered descriptors through
+Send, hold, wake, Steer and clone, with native image negotiation and bounded output retention.
+Shared multipart admission and owned/local image reads retain the desktop/phone guards; durable
+receipts prevent duplicate provider delivery. Migration 51 is forward-only from checkpoint 50.
+Full runtime/transcript and focused race/API/security tests pass. The full server run had one
+Stop/resume conflict flake whose focused rerun passed; final closure remains required.
+
 The experienced operator adds context to an existing conversation and inspects it before sending.
 Keep the text entry and Send primary, with a quiet wrapping strip above it; distinguish native image
 input from files read through ordinary tools. Preserve keyboard flow, exact newer drafts and chat

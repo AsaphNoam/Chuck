@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/backend"
 	"github.com/AsaphNoam/Chuck/internal/backend/providerexec"
 	"github.com/AsaphNoam/Chuck/internal/config"
@@ -42,10 +44,12 @@ const defaultStartupCallTimeout = 30 * time.Second
 // backend.BackendAdapter; this file orchestrates process lifecycle, the hub, and
 // status writes.
 type ChatRuntime struct {
-	store         *state.Store
-	messageBudget func() int
-	command       string   // adapter binary OVERRIDE (injectable for tests); empty → adapter default
-	cmdArgs       []string // adapter args override
+	messageMu      sync.RWMutex
+	messageOutcome func(string, string, string) error
+	store          *state.Store
+	messageBudget  func() int
+	command        string   // adapter binary OVERRIDE (injectable for tests); empty → adapter default
+	cmdArgs        []string // adapter args override
 
 	// onExit notifies the owner (the Registry) that an agent's live handle is
 	// gone after an unsolicited teardown (crash). Without it, Registry.rtByAgent
@@ -293,10 +297,13 @@ type agentState struct {
 }
 
 type heldMessage struct {
-	Text     string
-	AfterSeq int64
-	Ready    bool
-	TurnID   string
+	recorded    bool
+	Text        string
+	Attachments []attachment.Descriptor
+	RequestID   string
+	AfterSeq    int64
+	Ready       bool
+	TurnID      string
 }
 
 // pendingPerm is a withheld session/request_permission awaiting a decision.
@@ -492,18 +499,45 @@ func (c *ChatRuntime) SendPrompt(ctx context.Context, agentID, text string) erro
 // run continue past the gate that paused it. Reports whether the message was
 // held rather than sent.
 func (c *ChatRuntime) SendPromptOrHold(ctx context.Context, agentID, text string) (bool, error) {
+	return c.SendMessageOrHold(ctx, agentID, Message{Text: text})
+}
+
+func (c *ChatRuntime) SendMessageOrHold(ctx context.Context, agentID string, message Message) (bool, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
 		return false, err
 	}
-	turnID, held, err := as.claimTurnOrHold(text)
+	message = message.copy()
+	if _, err := c.messageContent(as, message); err != nil {
+		return false, err
+	}
+	as.mu.Lock()
+	if as.stopping || as.stopped {
+		as.mu.Unlock()
+		return false, ErrNoHandle
+	}
+	turnID, claimed := as.claimTurnLocked()
+	if !claimed {
+		if err := c.messageTransition(as.agentID, as.held.RequestID, "released"); err != nil {
+			as.mu.Unlock()
+			return false, err
+		}
+		if err := c.messageTransition(as.agentID, message.RequestID, "held"); err != nil {
+			_ = c.messageTransition(as.agentID, as.held.RequestID, "held")
+			as.mu.Unlock()
+			return false, err
+		}
+		as.held = hold(message, as.seq)
+	}
+	as.mu.Unlock()
+	held := !claimed
 	if err != nil {
 		return false, err
 	}
 	if held {
 		return true, nil
 	}
-	return false, c.runPromptTurn(as, text, turnID)
+	return false, c.runMessageTurn(as, message, turnID)
 }
 
 // WithdrawHeld drops the agent's held follow-up, if any (FS-03.R48). It is
@@ -515,6 +549,10 @@ func (c *ChatRuntime) WithdrawHeld(agentID string) error {
 		return err
 	}
 	as.mu.Lock()
+	if err := c.messageTransition(agentID, as.held.RequestID, "released"); err != nil {
+		as.mu.Unlock()
+		return err
+	}
 	as.held = heldMessage{}
 	as.mu.Unlock()
 	return nil
@@ -525,13 +563,18 @@ func (c *ChatRuntime) WithdrawHeld(agentID string) error {
 // read, not persistence: a browser may rehydrate while this dashboard process
 // is alive, while a dashboard restart still clears the live hold (FS-03.R48/R49).
 func (c *ChatRuntime) Held(agentID string) (string, int64, error) {
+	m, seq, err := c.HeldMessage(agentID)
+	return m.Text, seq, err
+}
+
+func (c *ChatRuntime) HeldMessage(agentID string) (Message, int64, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
-		return "", 0, err
+		return Message{}, 0, err
 	}
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	return as.held.Text, as.held.AfterSeq, nil
+	return as.held.message().copy(), as.held.AfterSeq, nil
 }
 
 // SteerOutcome is what the adapter did with a steered message (TS-04.R49). The
@@ -554,6 +597,10 @@ const (
 // one operation here rather than a client-side withdraw-then-steer that could
 // drop the text between two requests.
 func (c *ChatRuntime) Steer(ctx context.Context, agentID, text string) (SteerOutcome, error) {
+	return c.SteerMessage(ctx, agentID, Message{Text: text})
+}
+
+func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message Message) (SteerOutcome, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
 		return "", err
@@ -564,52 +611,117 @@ func (c *ChatRuntime) Steer(ctx context.Context, agentID, text string) (SteerOut
 		as.mu.Unlock()
 		return "", ErrSteeringUnsupported
 	}
-	promoted := text == ""
+	message = message.copy()
+	promoted := message.empty()
 	if promoted {
 		// Take the hold under the same lock it is written and released under, so a
 		// concurrent withdraw or turn-end delivery cannot let one message both
 		// steer and run as its own turn (INV §5).
-		if as.held.Text == "" {
+		if as.held.message().empty() {
 			as.mu.Unlock()
 			return "", ErrNothingHeld
 		}
-		text = as.held.Text
-		as.held = heldMessage{}
+		message = as.held.message()
 	}
-	if as.steerFallback.Text != "" {
+	if !as.steerFallback.message().empty() {
 		as.mu.Unlock()
 		return "", ErrTurnInFlight
 	}
-	as.steerFallback = heldMessage{Text: text, AfterSeq: as.seq}
+	as.mu.Unlock()
+	content, err := c.messageContent(as, message)
+	if err != nil {
+		return "", err
+	}
+	as.mu.Lock()
+	if as.stopping || as.stopped {
+		as.mu.Unlock()
+		return "", ErrNoHandle
+	}
+	if promoted && (as.held.message().empty() || !reflect.DeepEqual(as.held.message(), message)) {
+		as.mu.Unlock()
+		return "", ErrNothingHeld
+	}
+	if !as.steerFallback.message().empty() {
+		as.mu.Unlock()
+		return "", ErrTurnInFlight
+	}
+	if promoted {
+		as.held = heldMessage{}
+	}
+	as.steerFallback = hold(message, as.seq)
 	if !as.turnActive {
 		turnID, _ := as.claimTurnLocked()
 		as.steerFallback.TurnID = turnID
 	}
 	as.mu.Unlock()
+	persisted := message.RequestID != "" || len(message.Attachments) > 0
+	if persisted && c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
+		as.resolveSteerFallback("", fmt.Errorf("message persistence failed"), promoted)
+		return "", NewAPIError(CodeAttachmentStorage, "Could not retain accepted message")
+	}
+	if persisted {
+		as.mu.Lock()
+		as.steerFallback.recorded = true
+		as.mu.Unlock()
+	}
+	if err := c.messageTransition(agentID, message.RequestID, "submitted"); err != nil {
+		as.resolveSteerFallback("", err, promoted)
+		if persisted {
+			return "", fmt.Errorf("%w: delivery receipt unavailable", ErrMessageAccepted)
+		}
+		return "", err
+	}
 
 	res, callErr := as.transport.Call(ctx, steeringMethod, map[string]any{
 		"sessionId": as.sessionID,
-		"prompt":    []map[string]any{{"type": "text", "text": text}},
+		"prompt":    content,
 		"_meta": map[string]any{
 			"steering": map[string]any{"idleBehavior": "promptRequired"},
 		},
 	})
 	outcome, err := mapSteerResult(res, callErr)
-	nextText, nextTurnID := as.resolveSteerFallback(outcome, err, promoted)
-	if nextText != "" {
-		if runErr := c.runPromptTurn(as, nextText, nextTurnID); runErr != nil {
+	restorePromoted := promoted
+	refused := false
+	var rpcErr *rpcError
+	if errors.As(callErr, &rpcErr) && (rpcErr.Code == -32602 || rpcErr.Code == -32601) {
+		refused = true
+	}
+	if persisted && err != nil && !refused {
+		restorePromoted = false
+	}
+	nextMessage, nextTurnID := as.resolveSteerFallback(outcome, err, restorePromoted)
+	if !nextMessage.empty() {
+		if runErr := c.runMessageTurn(as, nextMessage, nextTurnID); runErr != nil {
 			err = runErr
 		}
 	}
 	if err == nil && outcome == steerPromptRequired {
 		return SteerNewTurn, nil
 	}
-	if err == nil {
+	if err == nil && !persisted {
 		// The agent really did receive it — injected into the running turn or as
 		// the turn the adapter started — so it belongs in the durable transcript
 		// as an ordinary user message on the same path every other prompt takes
 		// (FS-03.R50, INV §2). A refusal deliberately writes nothing.
-		c.emit(as, EvUserPrompt, UserPromptData{Text: text})
+		c.emit(as, EvUserPrompt, message.promptData())
+	}
+	if err != nil {
+		state := "unknown"
+		if refused {
+			state = "failed"
+			if promoted {
+				state = "held"
+				as.mu.Lock()
+				if as.stopped || as.stopping {
+					state = "released"
+				}
+				as.mu.Unlock()
+			}
+		}
+		_ = c.messageTransition(agentID, message.RequestID, state)
+		if persisted {
+			return outcome, errors.Join(ErrMessageAccepted, err)
+		}
 	}
 	return outcome, err
 }
@@ -704,45 +816,45 @@ func (as *agentState) claimTurnOrHold(text string) (string, bool, error) {
 // resolveSteerFallback commits the reservation only after the adapter guarantees
 // it consumed nothing. Until then turn settlement transfers the gate to the
 // reservation without firing it, so a concurrent Send remains behind it.
-func (as *agentState) resolveSteerFallback(outcome SteerOutcome, callErr error, promoted bool) (string, string) {
+func (as *agentState) resolveSteerFallback(outcome SteerOutcome, callErr error, promoted bool) (Message, string) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 	fallback := as.steerFallback
-	if fallback.Text == "" {
-		return "", ""
+	if fallback.message().empty() {
+		return Message{}, ""
 	}
 	if callErr == nil && outcome == steerPromptRequired {
 		as.steerFallback.Ready = true
 		if fallback.TurnID == "" {
-			return "", ""
+			return Message{}, ""
 		}
 		as.steerFallback = heldMessage{}
-		return fallback.Text, fallback.TurnID
+		return fallback.message(), fallback.TurnID
 	}
 	as.steerFallback = heldMessage{}
 	restoredPromoted := false
-	if callErr != nil && promoted && as.held.Text == "" {
-		as.held = heldMessage{Text: fallback.Text, AfterSeq: as.seq}
+	if callErr != nil && promoted && as.held.message().empty() {
+		as.held = hold(fallback.message(), as.seq)
 		restoredPromoted = true
 	}
 	if fallback.TurnID == "" {
-		return "", ""
+		return Message{}, ""
 	}
 	if restoredPromoted {
 		as.turnActive = false
-		return "", ""
+		return Message{}, ""
 	}
-	if as.held.Text == "" {
+	if as.held.message().empty() {
 		as.turnActive = false
-		return "", ""
+		return Message{}, ""
 	}
-	text := as.held.Text
+	message := as.held.message()
 	as.held = heldMessage{}
-	return text, fallback.TurnID
+	return message, fallback.TurnID
 }
 
 func (as *agentState) claimTurnLocked() (string, bool) {
-	if as.turnActive || as.stopping {
+	if as.turnActive || as.stopping || as.stopped {
 		return "", false
 	}
 	as.turnActive = true
@@ -777,13 +889,24 @@ func (c *ChatRuntime) claimIdleStop(agentID string) bool {
 // release, and steer promotion paths cannot grow divergent turn bookkeeping
 // (INV §2).
 func (c *ChatRuntime) runPromptTurn(as *agentState, text, turnID string) error {
+	return c.runMessageTurn(as, Message{Text: text}, turnID)
+}
+
+func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID string) error {
+	content, err := c.messageContent(as, message)
+	if err != nil {
+		as.mu.Lock()
+		as.turnActive = false
+		as.mu.Unlock()
+		return err
+	}
 	if err := c.store.ResetTurnBudget(as.agentID, turnID); err != nil {
 		as.mu.Lock()
 		as.turnActive = false
 		as.mu.Unlock()
 		return err
 	}
-	promptText, deliveryKey, _, err := c.prepareTurnPrompt(as.agentID, text, false)
+	promptText, deliveryKey, _, err := c.prepareTurnPrompt(as.agentID, message.Text, false)
 	if err != nil {
 		as.mu.Lock()
 		as.turnActive = false
@@ -802,10 +925,28 @@ func (c *ChatRuntime) runPromptTurn(as *agentState, text, turnID string) error {
 		}
 	}
 	as.setExecTurn(turnID)
+	if !message.recorded && c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
+		as.mu.Lock()
+		as.turnActive = false
+		as.mu.Unlock()
+		return fmt.Errorf("runtime: could not retain the accepted message")
+	}
+	if err := c.messageTransition(as.agentID, message.RequestID, "submitted"); err != nil {
+		as.mu.Lock()
+		as.turnActive = false
+		as.mu.Unlock()
+		return fmt.Errorf("%w: delivery receipt unavailable", ErrMessageAccepted)
+	}
 	// Persist the accepted user side of the turn before handing it to ACP. This
 	// gives it the same durable sequence, replay, and index path as assistant
 	// output, so a reconnect cannot replace the chat with a one-sided history.
-	c.emit(as, EvUserPrompt, UserPromptData{Text: text})
+	if promptText != message.Text {
+		if message.Text != "" {
+			content[0]["text"] = promptText
+		} else {
+			content = append([]map[string]any{{"type": "text", "text": promptText}}, content...)
+		}
+	}
 
 	// busy / thinking (techspec §4.4).
 	now := time.Now().UTC()
@@ -821,11 +962,12 @@ func (c *ChatRuntime) runPromptTurn(as *agentState, text, turnID string) error {
 	go func() {
 		params := map[string]any{
 			"sessionId": as.sessionID,
-			"prompt":    []map[string]any{{"type": "text", "text": promptText}},
+			"prompt":    content,
 		}
 		as.fileReportMeta(params)
 		res, err := as.transport.Call(as.ctx, "session/prompt", params)
 		if err != nil {
+			_ = c.messageTransition(as.agentID, message.RequestID, "unknown")
 			// Transport closed (crash/stop) is owned by onTransportClosed / Stop.
 			// A genuine RPC error while the process lives surfaces here.
 			if errors.Is(err, errTransportClosed) || as.isStopped() {
@@ -957,7 +1099,7 @@ func (c *ChatRuntime) clearInlineMail(agentID, deliveryKey string) {
 // the activation turn end here, so cancel and normal completion cannot grow
 // divergent delivery paths (FS-03.R49, INV §2). The crash path deliberately does
 // not: its held message has no next turn to run in and dies with the agent.
-func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) (string, string) {
+func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) (Message, string) {
 	c.applyTurnEndStatus(as, td)
 	// Keep the gate until terminal subscribers have settled this owner. A racing
 	// Send cannot start a successor before the room completion callback returns.
@@ -967,7 +1109,7 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) 
 	if as.quotaBlocked {
 		as.turnActive = false
 		as.mu.Unlock()
-		return "", ""
+		return Message{}, ""
 	}
 	nextText, nextTurnID := as.reserveHeldSuccessorLocked()
 	as.mu.Unlock()
@@ -986,35 +1128,35 @@ func (as *agentState) setExecTurn(turnID string) {
 // waiting, transfers that same gate directly to it. There is no idle claim
 // window in which a newer Send can overtake the earlier held message (INV §5,
 // §15). Caller must hold as.mu.
-func (as *agentState) reserveHeldSuccessorLocked() (string, string) {
-	if as.stopped {
+func (as *agentState) reserveHeldSuccessorLocked() (Message, string) {
+	if as.stopped || as.stopping {
 		as.turnActive = false
-		return "", ""
+		return Message{}, ""
 	}
-	text := as.steerFallback.Text
-	if text != "" {
+	message := as.steerFallback.message()
+	if !message.empty() {
 		if as.steerFallback.TurnID == "" {
 			as.steerFallback.TurnID = as.nextTurnIDLocked()
 		}
 		if !as.steerFallback.Ready {
-			return "", ""
+			return Message{}, ""
 		}
 		turnID := as.steerFallback.TurnID
 		as.steerFallback = heldMessage{}
 		as.cancelEscalated = false
 		as.resolved = map[string]struct{}{}
-		return text, turnID
+		return message, turnID
 	} else {
-		text = as.held.Text
+		message = as.held.message()
 		as.held = heldMessage{}
 	}
-	if text == "" {
+	if message.empty() {
 		as.turnActive = false
-		return "", ""
+		return Message{}, ""
 	}
 	as.cancelEscalated = false
 	as.resolved = map[string]struct{}{}
-	return text, as.nextTurnIDLocked()
+	return message, as.nextTurnIDLocked()
 }
 
 func (as *agentState) settleTurnContext(td *TurnEndData, hasPct bool) {
@@ -1028,11 +1170,12 @@ func (as *agentState) settleTurnContext(td *TurnEndData, hasPct bool) {
 	}
 }
 
-func (c *ChatRuntime) runReservedHeld(as *agentState, text, turnID string) {
-	if text == "" {
+func (c *ChatRuntime) runReservedHeld(as *agentState, message Message, turnID string) {
+	if message.empty() {
 		return
 	}
-	if err := c.runPromptTurn(as, text, turnID); err != nil {
+	if err := c.runMessageTurn(as, message, turnID); err != nil {
+		_ = c.messageTransition(as.agentID, message.RequestID, "failed")
 		// runPromptTurn already released the gate. Nobody is waiting on a return
 		// value here, so the person learns about it the only way that is visible:
 		// as a turn error in their transcript (INV §8).
@@ -1064,6 +1207,15 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 	// durable transcript explains why the tool did not run.
 	as.mu.Lock()
 	pendingIDs := make([]string, 0, len(as.pending))
+	as.stopping = true
+	_ = c.messageTransition(agentID, as.held.RequestID, "released")
+	steerDelivery := "unknown"
+	if as.steerFallback.Ready {
+		steerDelivery = "released"
+	}
+	_ = c.messageTransition(agentID, as.steerFallback.RequestID, steerDelivery)
+	as.held = heldMessage{}
+	as.steerFallback = heldMessage{}
 	for id := range as.pending {
 		pendingIDs = append(pendingIDs, id)
 	}
@@ -1693,7 +1845,7 @@ func (c *ChatRuntime) mapScoped(as *agentState, scope activityScope, params json
 	if scope.ActivityID == "" && as.capabilities().Subagents && c.onSubagentUpdate(as, params) {
 		return
 	}
-	for _, m := range mapSessionUpdate(params) {
+	for _, m := range mapSessionUpdateImages(params, func(b acpContentBlock, toolID string) AssistantImageData { return c.persistImage(as, b, toolID) }) {
 		m = scopeMapped(scope, m)
 		c.emitIn(as, scope, m.Type, m.Data)
 		c.applyEventStatus(as, m)
@@ -1728,6 +1880,14 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 		return
 	}
 	cancelEscalated := as.cancelEscalated
+	_ = c.messageTransition(as.agentID, as.held.RequestID, "released")
+	steerDelivery := "unknown"
+	if as.steerFallback.Ready {
+		steerDelivery = "released"
+	}
+	_ = c.messageTransition(as.agentID, as.steerFallback.RequestID, steerDelivery)
+	as.held = heldMessage{}
+	as.steerFallback = heldMessage{}
 	as.stopped = true
 	as.turnActive = false
 	pend := as.pending
@@ -1819,7 +1979,29 @@ func (c *ChatRuntime) emitIn(as *agentState, scope activityScope, typ string, da
 	// Durability is best-effort: a transcript write failure is logged inside
 	// persistEvent but must NOT suppress live delivery, or subscribers' in-memory
 	// view would silently diverge from Transcript() on a disk error.
-	c.persistEvent(as, ev)
+	persisted := c.persistEvent(as, ev)
+	if !persisted && typ == EvUserPrompt {
+		as.mu.Lock()
+		for i := range as.transcript {
+			if as.transcript[i].Seq == ev.Seq {
+				as.transcript = append(as.transcript[:i], as.transcript[i+1:]...)
+				break
+			}
+		}
+		as.mu.Unlock()
+		return Event{}
+	}
+	if persisted && typ == EvAssistantImage {
+		var image AssistantImageData
+		if json.Unmarshal(ev.Data, &image) == nil && image.Attachment != nil {
+			c.mu.Lock()
+			home := c.transcriptHome
+			c.mu.Unlock()
+			if err := attachment.New(home).Retain(as.agentID, []string{image.Attachment.ID}); err != nil {
+				slog.Error("runtime: retain owned image", "agent", as.agentID, "err", err)
+			}
+		}
+	}
 	as.hub.Publish(ev)
 	c.mu.Lock()
 	sink := c.sink
@@ -1995,7 +2177,7 @@ func (c *ChatRuntime) persistEvent(as *agentState, ev Event) bool {
 		}
 		return true
 	}
-	if ev.Type == EvAnnotation || ev.Type == EvNotice {
+	if ev.Type == EvAnnotation || ev.Type == EvNotice || ev.Type == EvUserPrompt {
 		if err := w.Sync(); err != nil {
 			slog.Error("runtime: sync transcript event", "agent", as.agentID, "seq", ev.Seq, "type", ev.Type, "err", err)
 			return false

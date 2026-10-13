@@ -52,13 +52,16 @@ type Server struct {
 	registry    *runtime.Registry
 	// taskGeneration is the task dispatcher's generation lookup. Tests replace
 	// it to cover a runtime disappearing between wake and durable confirmation.
-	taskGeneration  func(string) string
-	terminal        *terminal.Runtime
-	cfg             config.Config
-	log             *slog.Logger
-	knowledge       agentknowledge.Installation
-	permissionMu    sync.Mutex
-	permissionTools map[string]string
+	taskGeneration       func(string) string
+	terminal             *terminal.Runtime
+	cfg                  config.Config
+	log                  *slog.Logger
+	knowledge            agentknowledge.Installation
+	permissionMu         sync.Mutex
+	permissionTools      map[string]string
+	attachmentMu         sync.Mutex
+	attachmentBusy       map[string]bool
+	attachmentStartupErr error
 
 	indexer           *persistindex.Indexer
 	messaging         *messaging.Server
@@ -377,6 +380,14 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 	msg.SetTaskControl(s)
 	if registry != nil {
 		registry.SetQuotaSettlement(s.settleQuotaTurn)
+		registry.SetMessageOutcomeHandler(s.stateStore.SetAttachmentDelivery)
+		s.attachmentStartupErr = s.stateStore.ReleaseRestartedAttachments()
+		if s.attachmentStartupErr == nil {
+			s.attachmentStartupErr = s.recoverAttachmentStorage()
+		}
+		if s.attachmentStartupErr != nil {
+			s.log.Error("release held attachments after restart", "err", s.attachmentStartupErr)
+		}
 		registry.SetQuotaManualBind(s.stateStore.BindQuotaManualTurn)
 		registry.SetActivitySink(func(notice runtime.ActivityNotice) {
 			agentID := notice.AgentID

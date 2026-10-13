@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"log/slog"
 	"time"
 )
@@ -83,6 +84,44 @@ func (c *ChatRuntime) deleteForkedSession(as *agentState, sessionID string) {
 // is persisted and indexed but not published: it is history, not live work.
 // A failed append stops the copy so the launch can roll the clone back.
 func (c *ChatRuntime) writeForkPrefix(as *agentState, plan *ForkPlan) error {
+	c.mu.Lock()
+	home := c.transcriptHome
+	c.mu.Unlock()
+	ids := map[string]bool{}
+	var collect func(any)
+	collect = func(v any) {
+		switch v := v.(type) {
+		case map[string]any:
+			if id, ok := v["id"].(string); ok {
+				if _, descriptor := v["sha256"]; descriptor {
+					ids[id] = true
+				}
+			}
+			for _, x := range v {
+				collect(x)
+			}
+		case []any:
+			for _, x := range v {
+				collect(x)
+			}
+		}
+	}
+	for _, ev := range plan.Prefix {
+		var v any
+		if err := json.Unmarshal(ev.Data, &v); err != nil {
+			return err
+		}
+		collect(v)
+	}
+	selected := make([]string, 0, len(ids))
+	for id := range ids {
+		selected = append(selected, id)
+	}
+	if len(selected) > 0 {
+		if err := attachment.New(home).Clone(plan.SourceAgentID, as.agentID, selected); err != nil {
+			return err
+		}
+	}
 	for _, ev := range plan.Prefix {
 		as.mu.Lock()
 		as.seq++
@@ -94,6 +133,11 @@ func (c *ChatRuntime) writeForkPrefix(as *agentState, plan *ForkPlan) error {
 		}
 	}
 	c.emit(as, EvForkBoundary, ForkBoundaryData{ForkedFromAgentID: plan.SourceAgentID, ForkedFromSeq: plan.SourceSeq})
+	if len(selected) > 0 {
+		if err := attachment.New(home).Retain(as.agentID, selected); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

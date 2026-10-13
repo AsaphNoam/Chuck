@@ -3,6 +3,7 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"strings"
 
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -15,6 +16,7 @@ import (
 const (
 	EvUserPrompt         = "user_text"
 	EvAssistantText      = "assistant_text"
+	EvAssistantImage     = "assistant_image"
 	EvToolCall           = "tool_call"
 	EvToolResult         = "tool_result"
 	EvDiff               = "diff"
@@ -65,7 +67,17 @@ type AssistantTextData struct {
 // request begins so replay, archive, and full-text search retain both sides of
 // every conversation.
 type UserPromptData struct {
-	Text string `json:"text"`
+	Text        string                  `json:"text"`
+	Attachments []attachment.Descriptor `json:"attachments,omitempty"`
+	RequestID   string                  `json:"request_id,omitempty"`
+}
+
+type AssistantImageData struct {
+	Attachment *attachment.Descriptor `json:"attachment,omitempty"`
+	Path       string                 `json:"path,omitempty"`
+	Name       string                 `json:"name,omitempty"`
+	Error      string                 `json:"error,omitempty"`
+	ToolCallID string                 `json:"tool_call_id,omitempty"`
 }
 
 // ToolCallData — the agent intends to / begins to run a tool.
@@ -279,6 +291,7 @@ type SessionCapabilities = state.RuntimeCapabilities
 var AllEventTypes = []string{
 	EvUserPrompt,
 	EvAssistantText,
+	EvAssistantImage,
 	EvToolCall,
 	EvToolResult,
 	EvDiff,

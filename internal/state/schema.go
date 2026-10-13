@@ -776,4 +776,45 @@ CREATE TABLE quota_intents (
 CREATE INDEX idx_attachment_recovery ON attachment_receipts(agent_id,updated_at)
  WHERE delivery = 'released' AND dismissed = 0;`,
 	},
+	{
+		// Preserve checkpoint-50 databases. Prepared means no provider frame has
+		// been released, so restart may offer explicit recovery safely; unknown
+		// after submission remains ambiguous and cannot be redelivered.
+		version: 51,
+		apply:   migrateAttachmentReceipts,
+	},
+}
+
+func migrateAttachmentReceipts(tx *sql.Tx) error {
+	var existing int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM attachment_receipts`).Scan(&existing); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`ALTER TABLE attachment_receipts RENAME TO attachment_receipts_v50;
+DROP INDEX idx_attachment_recovery;
+CREATE TABLE attachment_receipts (
+ agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+ request_id TEXT NOT NULL,
+ payload_hash TEXT NOT NULL,
+ message_json TEXT NOT NULL CHECK(length(CAST(message_json AS BLOB)) <= 98304),
+ action TEXT NOT NULL CHECK(action IN ('prompt','steer')),
+ delivery TEXT NOT NULL CHECK(delivery IN ('prepared','held','submitted','released','failed','unknown')),
+ outcome TEXT NOT NULL DEFAULT '',
+ dismissed INTEGER NOT NULL DEFAULT 0 CHECK(dismissed IN (0,1)),
+ updated_at TEXT NOT NULL,
+ PRIMARY KEY(agent_id,request_id)
+);`); err != nil {
+		return err
+	}
+	// Some migration fixtures intentionally omit the agents table and contain
+	// no receipts. Only populated databases need the foreign-key checked copy.
+	if existing > 0 {
+		if _, err := tx.Exec(`INSERT INTO attachment_receipts SELECT * FROM attachment_receipts_v50`); err != nil {
+			return err
+		}
+	}
+	_, err := tx.Exec(`DROP TABLE attachment_receipts_v50;
+CREATE INDEX idx_attachment_recovery ON attachment_receipts(agent_id,updated_at)
+WHERE delivery IN ('released','failed') AND dismissed = 0;`)
+	return err
 }

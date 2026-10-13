@@ -155,6 +155,8 @@ func (s *Server) routeTable() []routeEntry {
 	api("GET /api/sessions/{id}/commands", s.handleCommands)
 	api("GET /api/sessions/{id}/file-search", s.handleFileSearch)
 	api("GET /api/sessions/{id}/file", s.handleFileRead)
+	api("GET /api/sessions/{id}/attachments/{attachment_id}", s.handleAttachmentRead)
+	api("GET /api/sessions/{id}/image", s.handleImageRead)
 	api("GET /api/sessions/{id}/available-commands", s.handleAvailableCommands)
 	api("GET /api/sessions/{id}/messages", s.handleMessages)
 	api("GET /api/sessions/{id}/think-tank-results", s.handleThinkTankResults)

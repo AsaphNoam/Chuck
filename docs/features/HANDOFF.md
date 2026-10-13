@@ -83,8 +83,20 @@ at selection. **Verified storage checkpoint:** immutable owner-only blobs/manife
 validation, safe reads, independent clone copies, provisional-marker startup cleanup and
 conversation deletion; SQLite request receipts release held copies for explicit recovery after
 restart. Full `internal/attachment` and `internal/state` tests pass. Limits apply per message,
-not per conversation. HTTP/runtime/UI integration is in progress and uncommitted; next: finish
-focused runtime/API/UI checks, then exercise rendered and live-provider gates.
+not per conversation. **Verified runtime/API checkpoint (2026-10-13):** native image/file content
+assembly, held/Steer outcomes, durable-before-wire acceptance, assistant/tool/child image events,
+clone ownership, multipart and guarded binary reads pass focused integration tests. Full runtime
+and transcript suites pass; focused runtime races pass. Migration 51 preserves checkpoint-50
+databases and separates pre-wire `prepared` recovery from ambiguous post-wire `unknown` outcomes.
+State tests pass, including the older minimal migration fixture and receipt preservation.
+The full server run hit `TestPipelineOrchestratorInstructionsReachStandingAndDedicatedOnce`'s
+409 Stop/resume race; its focused rerun passed. Final closure remains owed.
+Codex 2.1.1/0.159.3 live image, copied-file and attachment-Steer receipts pass; fixtures/receipts:
+`/private/tmp/chuck-live-attachment-evidence`. An initial tiny-image interpretation mismatch was
+resolved with an independently verified larger fixture. Claude live checks are running with native
+auth and isolated Chuck/project state. UI is uncommitted: focused checks pass, but rendered/source
+validation found Escape dismissal, missing sent thumbnails and shared draft lifecycle gaps; those
+repairs are in progress. Next: close rendered/reload/recovery checks, Claude gates and final matrix.
 
 ## Acceptance gates still owed
 

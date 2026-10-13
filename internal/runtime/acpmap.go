@@ -300,8 +300,12 @@ type acpUpdate struct {
 // acpContentBlock is a single content item (text or diff). Tool-call content is
 // an array of these; message-chunk content is one of these.
 type acpContentBlock struct {
-	Type string `json:"type"` // "text" | "diff" | ...
-	Text string `json:"text,omitempty"`
+	Type     string           `json:"type"` // "text" | "diff" | ...
+	Text     string           `json:"text,omitempty"`
+	Data     string           `json:"data,omitempty"`
+	MIMEType string           `json:"mimeType,omitempty"`
+	URI      string           `json:"uri,omitempty"`
+	Content  *acpContentBlock `json:"content,omitempty"`
 	// diff fields (Type == "diff")
 	Path    string `json:"path,omitempty"`
 	OldText string `json:"oldText,omitempty"`
@@ -420,6 +424,10 @@ type mappedEvent struct {
 // (agent_thought_chunk, plan) yield no events. A decode failure yields nil so the
 // caller can log and continue (the transport already resyncs on bad frames).
 func mapSessionUpdate(params json.RawMessage) []mappedEvent {
+	return mapSessionUpdateImages(params, nil)
+}
+
+func mapSessionUpdateImages(params json.RawMessage, image func(acpContentBlock, string) AssistantImageData) []mappedEvent {
 	var su acpSessionUpdate
 	if err := json.Unmarshal(params, &su); err != nil {
 		return nil
@@ -427,8 +435,17 @@ func mapSessionUpdate(params json.RawMessage) []mappedEvent {
 	u := su.Update
 	switch u.SessionUpdate {
 	case "agent_message_chunk":
+		if block, ok := decodeImageBlock(u.Content); ok && image != nil {
+			return []mappedEvent{{Type: EvAssistantImage, Data: image(block, "")}}
+		}
 		var block acpContentBlock
-		if err := json.Unmarshal(u.Content, &block); err != nil || block.Text == "" {
+		if err := json.Unmarshal(u.Content, &block); err != nil {
+			return nil
+		}
+		if block.Type == "image" && image != nil {
+			return []mappedEvent{{Type: EvAssistantImage, Data: image(block, "")}}
+		}
+		if block.Text == "" {
 			return nil
 		}
 		return []mappedEvent{{Type: EvAssistantText, Data: AssistantTextData{Delta: block.Text}}}
@@ -444,8 +461,33 @@ func mapSessionUpdate(params json.RawMessage) []mappedEvent {
 		}}}
 
 	case "tool_call_update":
-		blocks := decodeContentArray(u.Content)
-		evs := make([]mappedEvent, 0, 1+len(blocks))
+		var safe []json.RawMessage
+		_ = json.Unmarshal(u.Content, &safe)
+		evs := make([]mappedEvent, 0, 1+len(safe))
+		contentEvents := make([]mappedEvent, 0, len(safe))
+		for i, raw := range safe {
+			var b acpContentBlock
+			_ = json.Unmarshal(raw, &b)
+			if b.Type == "diff" {
+				contentEvents = append(contentEvents, mappedEvent{Type: EvDiff, Data: DiffData{ToolCallID: u.ToolCallID, Path: b.Path, OldText: b.OldText, NewText: b.NewText}})
+			}
+			img, ok := decodeImageBlock(raw)
+			if !ok {
+				continue
+			}
+			d := AssistantImageData{ToolCallID: u.ToolCallID, Error: "image unavailable"}
+			if image != nil {
+				d = image(img, u.ToolCallID)
+			}
+			contentEvents = append(contentEvents, mappedEvent{Type: EvAssistantImage, Data: d})
+			if i < len(safe) {
+				safe[i], _ = json.Marshal(map[string]any{"type": "image", "image": d})
+			}
+		}
+		content := u.Content
+		if safe != nil {
+			content, _ = json.Marshal(safe)
+		}
 		// Only a TERMINAL update produces a tool_result (ToolResultData.Status is
 		// "completed" | "failed"). An intermediate/in-progress update — or one that
 		// omits status — must not be mapped to a completed result, or the status
@@ -454,21 +496,12 @@ func mapSessionUpdate(params json.RawMessage) []mappedEvent {
 			evs = append(evs, mappedEvent{Type: EvToolResult, Data: ToolResultData{
 				ToolCallID: u.ToolCallID,
 				Status:     u.Status,
-				Content:    nonNullRaw(u.Content),
+				Content:    nonNullRaw(content),
 			}})
 		}
 		// A tool_call_update may carry one or more diff blocks (one per file); diffs
 		// can stream on in-progress updates, so emit them regardless of status.
-		for _, b := range blocks {
-			if b.Type == "diff" {
-				evs = append(evs, mappedEvent{Type: EvDiff, Data: DiffData{
-					ToolCallID: u.ToolCallID,
-					Path:       b.Path,
-					OldText:    b.OldText,
-					NewText:    b.NewText,
-				}})
-			}
-		}
+		evs = append(evs, contentEvents...)
 		return evs
 
 	case "notice":
@@ -528,6 +561,36 @@ func decodeContentArray(raw json.RawMessage) []acpContentBlock {
 		return nil
 	}
 	return blocks
+}
+
+// Image recognition is independent of optional field types. A malformed MIME
+// value must not leave a provider's base64 blob inside a raw tool result.
+func decodeImageBlock(raw json.RawMessage) (acpContentBlock, bool) {
+	return decodeImageBlockDepth(raw, 0)
+}
+
+func decodeImageBlockDepth(raw json.RawMessage, depth int) (acpContentBlock, bool) {
+	var envelope struct {
+		Type    string          `json:"type"`
+		Content json.RawMessage `json:"content"`
+	}
+	if json.Unmarshal(raw, &envelope) != nil {
+		return acpContentBlock{}, false
+	}
+	if envelope.Type == "content" {
+		if depth >= 2 {
+			return acpContentBlock{Type: "image"}, true
+		}
+		return decodeImageBlockDepth(envelope.Content, depth+1)
+	}
+	if envelope.Type != "image" {
+		return acpContentBlock{}, false
+	}
+	var b acpContentBlock
+	if json.Unmarshal(raw, &b) != nil {
+		return acpContentBlock{Type: "image"}, true
+	}
+	return b, true
 }
 
 func defaultStr(v, def string) string {

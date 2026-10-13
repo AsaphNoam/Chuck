@@ -107,7 +107,7 @@ var (
 func main() {
 	reqSeq.Store(1000)
 	sc := bufio.NewScanner(os.Stdin)
-	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+	sc.Buffer(make([]byte, 0, 64*1024), 36*1024*1024)
 	for sc.Scan() {
 		line := sc.Bytes()
 		if len(line) == 0 {
@@ -162,6 +162,9 @@ func handle(msg *rpcMessage) {
 			}
 		}
 		res := map[string]any{"protocolVersion": ver, "agentCapabilities": map[string]any{}}
+		if os.Getenv("FAKEACP_IMAGE_INPUT") != "" {
+			res["agentCapabilities"].(map[string]any)["promptCapabilities"] = map[string]any{"image": true}
+		}
 		// Both current pinned adapters advertise the steering extension in the
 		// initialize response's top-level `_meta`. Withholding it is the other
 		// half of the contract under test: a client must then offer no Steer.
@@ -392,6 +395,18 @@ func handle(msg *rpcMessage) {
 		// Run the scenario asynchronously so the read loop keeps handling the
 		// client's permission reply / cancel while the scenario blocks.
 		go func() {
+			image := os.Getenv("FAKEACP_IMAGE_OUTPUT")
+			if path := os.Getenv("FAKEACP_IMAGE_OUTPUT_FILE"); path != "" {
+				if b, err := os.ReadFile(path); err == nil {
+					image = string(b)
+				}
+			}
+			if image != "" {
+				var b map[string]any
+				if json.Unmarshal([]byte(image), &b) == nil {
+					emitUpdate(map[string]any{"sessionUpdate": "agent_message_chunk", "content": b})
+				}
+			}
 			stop := runScenario(os.Getenv("FAKEACP_SCENARIO"))
 			if failure := sessionFailureEnv("FAKEACP_FAILURE_UPDATE"); failure != nil {
 				emitUpdate(map[string]any{"sessionUpdate": "session_info_update", "_meta": map[string]any{

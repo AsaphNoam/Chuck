@@ -191,6 +191,11 @@ func scopeMapped(scope activityScope, m mappedEvent) mappedEvent {
 	case DiffData:
 		d.ToolCallID = scope.toolCallID(d.ToolCallID)
 		m.Data = d
+	case AssistantImageData:
+		if d.ToolCallID != "" {
+			d.ToolCallID = scope.toolCallID(d.ToolCallID)
+		}
+		m.Data = d
 	}
 	return m
 }

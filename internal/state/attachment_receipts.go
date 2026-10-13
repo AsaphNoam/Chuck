@@ -22,7 +22,7 @@ func (s *Store) AttachmentReceipt(agentID, requestID string) (AttachmentReceipt,
 }
 
 func (s *Store) CreateAttachmentReceipt(r AttachmentReceipt) error {
-	_, err := s.db.Exec(`INSERT INTO attachment_receipts(agent_id,request_id,payload_hash,message_json,action,delivery,updated_at) VALUES(?,?,?,?,?,'unknown',?)`, r.AgentID, r.RequestID, r.PayloadHash, r.MessageJSON, r.Action, formatTime(time.Now().UTC()))
+	_, err := s.db.Exec(`INSERT INTO attachment_receipts(agent_id,request_id,payload_hash,message_json,action,delivery,updated_at) VALUES(?,?,?,?,?,'prepared',?)`, r.AgentID, r.RequestID, r.PayloadHash, r.MessageJSON, r.Action, formatTime(time.Now().UTC()))
 	return err
 }
 
@@ -43,7 +43,7 @@ func (s *Store) RemoveAttachmentReceipt(agentID, requestID string) error {
 
 func (s *Store) AttachmentRecovery(agentID string) (AttachmentReceipt, error) {
 	var id string
-	err := s.db.QueryRow(`SELECT request_id FROM attachment_receipts WHERE agent_id=? AND delivery='released' AND dismissed=0 ORDER BY updated_at DESC,rowid DESC LIMIT 1`, agentID).Scan(&id)
+	err := s.db.QueryRow(`SELECT request_id FROM attachment_receipts WHERE agent_id=? AND delivery IN ('released','failed') AND dismissed=0 ORDER BY updated_at DESC,rowid DESC LIMIT 1`, agentID).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AttachmentReceipt{}, ErrNotFound
 	}
@@ -54,13 +54,13 @@ func (s *Store) AttachmentRecovery(agentID string) (AttachmentReceipt, error) {
 }
 
 func (s *Store) DismissAttachmentRecovery(agentID, requestID string) error {
-	_, err := s.db.Exec(`UPDATE attachment_receipts SET dismissed=1 WHERE agent_id=? AND request_id=? AND delivery='released'`, agentID, requestID)
+	_, err := s.db.Exec(`UPDATE attachment_receipts SET dismissed=1 WHERE agent_id=? AND request_id=? AND delivery IN ('released','failed')`, agentID, requestID)
 	return err
 }
 
 // A held request is never a durable runnable queue. Startup releases it for
 // explicit recovery; submitted/unknown receipts remain non-retryable evidence.
 func (s *Store) ReleaseRestartedAttachments() error {
-	_, err := s.db.Exec(`UPDATE attachment_receipts SET delivery='released',updated_at=? WHERE delivery='held'`, formatTime(time.Now().UTC()))
+	_, err := s.db.Exec(`UPDATE attachment_receipts SET delivery='released',updated_at=? WHERE delivery IN ('held','prepared')`, formatTime(time.Now().UTC()))
 	return err
 }

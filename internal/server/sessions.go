@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/transcript"
@@ -25,52 +26,7 @@ const (
 
 // handlePrompt implements POST /api/sessions/{id}/prompt (techspec §7.3).
 func (s *Server) handlePrompt(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	var body struct {
-		Text string `json:"text"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeAPIError(w, apiError(runtime.CodeValidation, "invalid JSON body"))
-		return
-	}
-	if strings.TrimSpace(body.Text) == "" {
-		writeAPIError(w, apiError(runtime.CodeValidation, "text is required"))
-		return
-	}
-	// This is the person's path, so it queues behind a running turn rather than
-	// refusing (FS-03.R48). The agent-facing callers reach the runtime in-process
-	// and keep the fail-closed SendPrompt, which is why holding needs no
-	// authorization concept here beyond the route boundary (TS-01.R29, TS-03.R38).
-	held, err := s.registry.SendPromptOrHold(r.Context(), id, body.Text)
-	// A prompt to a stopped chat agent wakes it and is then delivered in the woken
-	// session (FS-01.R33, TS-03.R25). The wake runs inside this request, so the
-	// caller simply waits out the resume; ACP's per-stage deadlines bound it
-	// (TS-04.R22). An agent the wake gates exclude keeps today's 404.
-	if errors.Is(err, runtime.ErrNoHandle) {
-		woken, ae := s.wakeAgent(r.Context(), id)
-		if ae != nil {
-			writeAPIError(w, ae)
-			return
-		}
-		if woken {
-			held, err = s.registry.SendPromptOrHold(r.Context(), id, body.Text)
-		}
-	}
-	if err != nil {
-		writeAPIError(w, sessionOpError(err))
-		return
-	}
-	afterSeq := int64(0)
-	if held {
-		_, afterSeq, err = s.registry.Held(id)
-		if err != nil {
-			writeAPIError(w, sessionOpError(err))
-			return
-		}
-	}
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"accepted": true, "agent_id": id, "delivery": promptDelivery(held), "after_seq": afterSeq,
-	})
+	s.handleMessageAction(w, r, "prompt")
 }
 
 // promptDelivery names what happened to a submitted prompt so a client renders
@@ -88,14 +44,38 @@ func promptDelivery(held bool) string {
 // and never enters the transcript or database (FS-03.R48/R49, TS-08.R56).
 func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	text, afterSeq, err := s.registry.Held(id)
+	msg, afterSeq, err := s.registry.HeldMessage(id)
 	if err != nil {
-		writeAPIError(w, sessionOpError(err))
+		if !errors.Is(err, runtime.ErrNoHandle) {
+			writeAPIError(w, sessionOpError(err))
+			return
+		}
+		if _, e := s.stateStore.ReadAgent(id); e != nil {
+			writeAPIError(w, sessionOpError(err))
+			return
+		}
+		if _, e := s.stateStore.AttachmentRecovery(id); errors.Is(e, state.ErrNotFound) {
+			writeAPIError(w, sessionOpError(err))
+			return
+		} else if e != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read message recovery"))
+			return
+		}
+	}
+	msg.Attachments = append([]attachment.Descriptor{}, msg.Attachments...)
+	body := map[string]any{"agent_id": id, "text": msg.Text, "after_seq": afterSeq, "attachments": msg.Attachments, "request_id": msg.RequestID}
+	if recovery, e := s.stateStore.AttachmentRecovery(id); e == nil {
+		var recovered runtime.Message
+		if e = json.Unmarshal([]byte(recovery.MessageJSON), &recovered); e != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read recovered message"))
+			return
+		}
+		body["recovery"] = recovered
+	} else if !errors.Is(e, state.ErrNotFound) {
+		writeAPIError(w, apiError(runtime.CodeInternal, "cannot read message recovery"))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"agent_id": id, "text": text, "after_seq": afterSeq,
-	})
+	writeJSON(w, http.StatusOK, body)
 }
 
 // handleWithdrawPrompt implements DELETE /api/sessions/{id}/prompt: the one
@@ -103,6 +83,14 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 // nothing is held returns the same body, so a double withdraw is not an error.
 func (s *Server) handleWithdrawPrompt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if requestID := r.URL.Query().Get("recovery_request_id"); requestID != "" {
+		if err := s.stateStore.DismissAttachmentRecovery(id, requestID); err != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "cannot dismiss recovered message"))
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "agent_id": id, "delivery": "dismissed"})
+		return
+	}
 	if err := s.registry.WithdrawHeld(id); err != nil {
 		writeAPIError(w, sessionOpError(err))
 		return
@@ -115,29 +103,7 @@ func (s *Server) handleWithdrawPrompt(w http.ResponseWriter, r *http.Request) {
 // handleSteer implements POST /api/sessions/{id}/steer (TS-03.R39, FS-03.R50).
 // An empty text steers the held follow-up, which is the only way to send one.
 func (s *Server) handleSteer(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	var body struct {
-		Text string `json:"text"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeAPIError(w, apiError(runtime.CodeValidation, "invalid JSON body"))
-		return
-	}
-	// Unlike the prompt route, empty is meaningful here and whitespace-only is
-	// not: it means "steer what is held", so only the text is trimmed for that
-	// test, never the message itself (FS-03.R31's verbatim-delivery rule).
-	text := body.Text
-	if strings.TrimSpace(text) == "" {
-		text = ""
-	}
-	outcome, err := s.registry.Steer(r.Context(), id, text)
-	if err != nil {
-		writeAPIError(w, steerError(err))
-		return
-	}
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"accepted": true, "agent_id": id, "outcome": string(outcome),
-	})
+	s.handleMessageAction(w, r, "steer")
 }
 
 // steerError maps a steer failure to an APIError. An adapter that does not

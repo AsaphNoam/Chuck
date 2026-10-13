@@ -29,6 +29,7 @@ type PartKind string
 
 const (
 	PartPrompt                PartKind = "prompt"
+	PartAttachmentName        PartKind = "attachment_name"
 	PartAssistantDelta        PartKind = "assistant_delta"
 	PartToolName              PartKind = "tool_name"
 	PartToolArgs              PartKind = "tool_args"
@@ -100,6 +101,20 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 		}
 		p.Role = "user"
 		p.Parts = []Part{{Kind: PartPrompt, Text: d.Text, Indexed: true}}
+		for _, a := range d.Attachments {
+			p.Parts = append(p.Parts, Part{Kind: PartAttachmentName, Text: a.Name, Indexed: true})
+		}
+	case runtime.EvAssistantImage:
+		var d runtime.AssistantImageData
+		if err := decode(ev, &d); err != nil {
+			return Projection{}, err
+		}
+		p.Role = "assistant"
+		name := d.Name
+		if d.Attachment != nil {
+			name = d.Attachment.Name
+		}
+		p.Parts = []Part{{Kind: PartAttachmentName, Text: name, Indexed: true}}
 	case runtime.EvAssistantText:
 		var d runtime.AssistantTextData
 		if err := decode(ev, &d); err != nil {

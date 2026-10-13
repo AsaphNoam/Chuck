@@ -34,27 +34,29 @@ var remoteAllowed = map[string][]string{
 	"GET /api/pipelines":      nil,
 	"GET /api/pipelines/{id}": nil,
 
-	"GET /api/sessions":                      nil,
-	"POST /api/sessions":                     {"role", "project", "name", "group", "backend", "model", "effort", "fast"},
-	"GET /api/sessions/{id}":                 nil,
-	"GET /api/sessions/{id}/transcript":      nil,
-	"POST /api/sessions/{id}/prompt":         nil,
-	"GET /api/sessions/{id}/prompt":          nil,
-	"DELETE /api/sessions/{id}/prompt":       nil,
-	"POST /api/sessions/{id}/steer":          nil,
-	"POST /api/sessions/{id}/cancel":         nil,
-	"POST /api/sessions/{id}/stop":           nil,
-	"POST /api/sessions/{id}/rename":         {"name"},
-	"POST /api/sessions/{id}/clone":          nil,
-	"POST /api/sessions/{id}/archive":        nil,
-	"POST /api/sessions/{id}/switch-runtime": {"backend", "model", "effort"},
-	"POST /api/sessions/{id}/session-config": {"effort", "fast"},
-	"GET /api/sessions/{id}/files":           nil,
-	"GET /api/sessions/{id}/commands":        nil,
-	"GET /api/sessions/{id}/file":            nil,
-	"POST /api/sessions/{id}/resume":         nil,
-	"POST /api/sessions/{id}/permission":     nil,
-	"POST /api/sessions/{id}/identity":       {"group"},
+	"GET /api/sessions":                                  nil,
+	"POST /api/sessions":                                 {"role", "project", "name", "group", "backend", "model", "effort", "fast"},
+	"GET /api/sessions/{id}":                             nil,
+	"GET /api/sessions/{id}/transcript":                  nil,
+	"POST /api/sessions/{id}/prompt":                     nil,
+	"GET /api/sessions/{id}/prompt":                      nil,
+	"DELETE /api/sessions/{id}/prompt":                   nil,
+	"POST /api/sessions/{id}/steer":                      nil,
+	"POST /api/sessions/{id}/cancel":                     nil,
+	"POST /api/sessions/{id}/stop":                       nil,
+	"POST /api/sessions/{id}/rename":                     {"name"},
+	"POST /api/sessions/{id}/clone":                      nil,
+	"POST /api/sessions/{id}/archive":                    nil,
+	"POST /api/sessions/{id}/switch-runtime":             {"backend", "model", "effort"},
+	"POST /api/sessions/{id}/session-config":             {"effort", "fast"},
+	"GET /api/sessions/{id}/files":                       nil,
+	"GET /api/sessions/{id}/commands":                    nil,
+	"GET /api/sessions/{id}/file":                        nil,
+	"GET /api/sessions/{id}/image":                       nil,
+	"GET /api/sessions/{id}/attachments/{attachment_id}": nil,
+	"POST /api/sessions/{id}/resume":                     nil,
+	"POST /api/sessions/{id}/permission":                 nil,
+	"POST /api/sessions/{id}/identity":                   {"group"},
 	// Diff-line annotate-and-assign (FS-20.R32, TS-13.R16); nested anchors,
 	// limits, and targets are validated by the shared FS-13 handler.
 	"POST /api/sessions/{id}/annotations": {"annotations", "overall_instruction", "target"},
@@ -267,7 +269,7 @@ func (s *Server) remoteRoutes(domain string, whois func(context.Context, string)
 		if e.pattern == "POST /api/pipeline-runs" {
 			h = s.remotePipelineRuntimeFilter(h)
 		}
-		if e.pattern == "GET /api/sessions/{id}/file" {
+		if e.pattern == "GET /api/sessions/{id}/file" || e.pattern == "GET /api/sessions/{id}/image" {
 			h = s.remoteTrackedFileFilter(h)
 		}
 		if fields != nil {
@@ -424,6 +426,11 @@ func (s *Server) remoteAuth(next http.Handler) http.Handler {
 func remoteBodyFilter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if isMultipartMessageRoute(r) {
+			r.Body = http.MaxBytesReader(w, r.Body, attachmentRequestLimit)
 			next.ServeHTTP(w, r)
 			return
 		}

@@ -94,6 +94,7 @@ func contextCountsColumns(c *ContextCounts) (any, any) {
 // version. The zero value (all false) is the answer for old rows, terminals and
 // any adapter that does not advertise.
 type RuntimeCapabilities struct {
+	ImageInput         bool `json:"image_input"`
 	Fork               bool `json:"fork"`
 	Subagents          bool `json:"subagents"`
 	BackgroundTasks    bool `json:"background_tasks"`
