@@ -17,8 +17,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   regressions, 800 UI tests, `make test` (both Go variants), `make build`, and `make dist` pass.
   On-device cache recovery remains unverified. Changelog: fixed derived asset state, error amplification, and dev wiring
   drift (INV §1/§7/§10).
-- **Awaiting review — projects home redesign (2026-10-13):** `40e414e`, FS-12.R69/A39,
-  TS-08.R124; no Figma study. Checks pass except the baseline `NewAgentModal` flake.
+- **Reviewed — projects home redesign; fix pending (2026-10-13):** `40e414e`,
+  FS-12.R69/A39, TS-08.R124. One Must-fix: unavailable-project cards omit their known running
+  count from the required footer. The rest of the composition and existing interactions pass
+  22 focused dashboard tests, 46 presentation/style checks and six independent Chromium journeys
+  at 1024/1440px in all three appearances. Finding, evidence and fix recommendation below;
+  this unit remains open. Other review units are unchanged.
+  Changelog: identified incomplete unavailable-project footers (INV §10).
 - **Reviewed — mobile agent header, composer and model switch; fix pending (2026-10-13):**
   `c3b3c70`, `73cc75b`, `f15ee50`; FS-20.R43, TS-08.R111. One Must-fix: Back measures
   32×44px and model switch is 36px tall, below FS-12.R68/A38's 44px phone action target.
@@ -166,6 +171,44 @@ runs; the complete rerun without concurrent build load passes. Credential code i
   switch shows it above the composer.
 
 ## Review findings
+
+### Projects home redesign — `40e414e` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed independently 2026-10-13 against FS-12.R69/A39 and TS-08.R124.
+
+- **Must fix — unavailable-project cards omit the running count (INV §10).**
+  Location: `ui/src/features/dashboard/ProjectDashboard.tsx:151`. When a non-archived agent
+  names a project missing from the configuration, the shared projection retains that agent in
+  an unavailable-project card. The new footer renders its agent count but suppresses its running
+  count with `!project.unavailable`. FS-12.R69 requires the ruled footer to show both counts,
+  and A39 explicitly includes the unavailable state. The independent fixture's `ghost` card has
+  one running agent but shows only `1 agent`, while the header includes that agent in its running
+  total. This reproduces at both required widths in all three appearances. Render the already
+  computed running count for unavailable cards too; add a focused regression with a missing
+  project and running/stopped agents, asserting both footer values and the page total.
+
+Other code and specifications agree in both directions. Keeping count derivation in the feature
+component over `deriveDashboardProjects`, leaving the phone's distinct `stateSummary` contract
+alone, using semantic state tones and the existing project-accent exception, and removing the
+unused shadow token are sound local choices. No human decision is needed.
+
+Verification: 21 `ProjectDashboard` tests plus one shared-projection test and 46 presentation/style
+checks pass. The shipped `projects-render.mjs` fixture passes all six appearance/width combinations;
+a separate Chromium harness exercises the working tree's actual UI in Core, Sky & Grove and Studio
+at 1024px and 1440px. It verifies all seven live/stopped labels in attention order, archived-agent
+exclusion, running totals and live running-to-stopped updates, long-title wrapping, long-branch
+ellipsis without card/page overflow, right-click project/background menus, Rename/Archive/New
+project dialogs and cancellation, keyboard focus feedback, and reduced-motion project navigation.
+Settled screenshots and an independent visual critique confirm the footer finding and otherwise
+readable header, cards, state tones and menus. The deterministic visual matrix was rendered in each
+appearance at both widths; the removed token has no remaining source or embedded reference.
+Fixtures make no provider or real-home claim. Evidence:
+`/private/tmp/review-projects-20261013.mjs` and
+`/private/tmp/chuck-projects-review/{receipt.json,*.png}`.
+
+Invariant sweep: applicable §2, §4, §8, §13 and §17 have no findings; §10 has the finding above.
+§1, §3, §5, §6, §7, §9, §11, §12, §14, §15 and §16 have no applicable surface in this unit.
+Product code and specifications were unchanged. Only this unit's review state was updated.
 
 ### Mobile agent header, composer and model switch — `c3b3c70`, `73cc75b`, `f15ee50` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
