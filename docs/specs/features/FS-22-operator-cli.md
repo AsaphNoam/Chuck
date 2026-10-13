@@ -1,6 +1,6 @@
 # FS-22 — Operator CLI
 
-**Status:** Implemented
+**Status:** Current
 **Code:** `internal/cli/`, `cmd/chuck/`, `internal/server/` · **Journeys:** —
 **Absorbed:** —
 

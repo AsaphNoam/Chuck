@@ -1,6 +1,6 @@
 # Full operator CLI parity
 
-**State:** In progress
+**State:** Finished — 2026-10-13; available for independent review
 **Why:** `/design-feature` request on 2026-10-11: the CLI is outdated relative to chat;
 add all relevant capabilities. Full nonvisual web coverage and the concrete CLI
 input/output/consent/local-service contract were confirmed on 2026-10-12.
@@ -50,6 +50,16 @@ No CLI test substitutes for existing live-provider or tailnet receipts.
 
 ## Waiting on
 
-The completed [chat images and file attachments](chat-images-and-file-attachments.md) unit supplies
-the approved multipart, receipt, storage and read contracts. This CLI change reuses those seams;
-no dependency prevents completion and no unresolved product/technical decision remains.
+None. The completed [chat images and file attachments](chat-images-and-file-attachments.md) unit
+supplies the reused multipart, receipt, storage and read contracts.
+
+## Verification
+
+Implementation commits: `f6e7b2b`, `ff031e4`, `219b4b7`, plus the final closure record.
+Independent family wire/input/output fixtures and built-binary real-server fake-ACP journeys pass.
+Focused observer/attachment race checks, built-binary help, `make build` and final
+`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test` pass (both Go variants, including spec checks).
+The unchanged runtime image-boundary test intermittently exceeded its three-second collector;
+isolated and full runtime retries passed, then the complete matrix passed without test changes.
+Provider/tailnet gates remain separate. Operator examples and limits are in
+[`operator-cli.md`](../operator-cli.md).

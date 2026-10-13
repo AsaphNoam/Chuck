@@ -39,19 +39,20 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   now verify delayed Send and Steer leave/reopen/accept cleanup through the shared draft seam,
   including newer-draft protection. Changelog: synchronized accepted draft cleanup across
   reopened composers (INV §1). The other review units are unchanged.
-- **Work in progress — full operator CLI parity (2026-10-13):**
-  [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md) is active.
-  FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 specify full nonvisual web
-  operation coverage, legacy compatibility, readable/JSON output, file/stdin input, explicit
-  consent and bounded reconnect-safe transcript follow. Scope and CLI contract are approved.
-  Attachment A8 can use the completed attachment unit; other families may start
-  independently. Changelog: planned boundary recovery, shared client, lifecycle cleanup, honest
-  results, consent and finite independent verification (INV §1/§2/§4/§7/§8/§9/§10/§11/§14/§15/§16/§17).
-  All command families, status composition, input/output contracts and documentation are implemented.
-  Independent wire and built-binary real-server fake-provider journeys pass, including legacy
-  auto-resume, native-child permission decisions, lost-response attachment retries and follow
-  interruption. Focused observer race checks pass. Final shared Go/build closure remains active.
-  The completed attachment change remains separate.
+- **Awaiting review — full operator CLI parity (2026-10-13):**
+  [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md), implementation
+  `f6e7b2b`, `ff031e4`, `219b4b7`; final closure record is administrative, not another review unit.
+  FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 are implemented.
+  All nonvisual command families, explicit JSON/file/stdin input, consent, attachments, status
+  and bounded transcript follow are covered. Legacy launch/resume defaults are preserved;
+  auto-resume now reads the existing project-scoped archive response.
+  Independent wire and real-server built-binary fake-ACP journeys pass, including exact child
+  permission IDs, attachment retry after response loss, stale guards and Ctrl-C/EPIPE.
+  Focused observer/attachment race tests, binary help, `make build`, and final
+  `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test` pass (both Go variants and spec checks).
+  Changelog: shared client, explicit authority/consent, bounded recovery and lifecycle cleanup,
+  honest results and independent verification (INV §1/§2/§4/§7/§8/§9/§10/§11/§14/§15/§16/§17).
+  No provider/tailnet claim; the completed attachment review unit remains separate.
 - **Awaiting review — chat images and attachments (2026-10-13):**
   [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
   is implemented in the attachment commits beginning `91ae7db`, `e8c50f7`, and `395c1a8`, plus
@@ -83,39 +84,20 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   intermittently returns 409 “a resume is already in progress” (pre-existing at `74c8e84`).
   `ui` `NewAgentModal.test.tsx` fails 1–2 cases intermittently on unchanged `d3c9307`
   (observed 2026-10-11). Neither is investigated.
+  Runtime `TestToolImageFrameBoundsAcrossActualWire` exceeded its unchanged three-second
+  collector for 25-MiB frames during CLI closure on 2026-10-13. Isolated tests and full runtime
+  retries passed, then the complete matrix passed with package execution serialized (`GOFLAGS=-p=1`).
+  No runtime code or test was changed; timing cause remains uninvestigated.
 
 ## Active change
 
-Full operator CLI parity is in progress (2026-10-13), selected by `/work`.
-The FS-22/TS-03 contracts are implemented; final shared closure is next.
-Slices: shared bounded loopback client/input/output; management and administration commands;
-pipeline/task/Think Tank commands; agent conversation/attachments and transcript follow;
-independent wire/process and real-server journeys, documentation and final Go/build closure.
-Shared client, management and workflow families are delegated with separate file ownership;
-the parent owns agent commands, observer lifecycle and integration. No UI work or new API.
-Verified checkpoints: shared client/raw JSON/input/diagnostics/exits; agent lifecycle/conversation
-routes, streamed multipart, atomic owned-file downloads and bounded transcript observer.
-Focused client, agent and observer tests pass, including large-frame parsing, subscribe/read order,
-gap/reconnect refill, overflow, EPIPE and healthy pings beyond 30 seconds. The seq:0 metadata header
-is not a follow cursor; empty suffixes verify retained history with a one-event metadata read.
-Command registration, management/workflow/pipeline families, full status composition and final
-documentation are complete. Management/workflow/pipeline wire checks pass. A built
-binary against a real loopback server/fake ACP passes conversation/attachments, task/room/pipeline
-controls, stale revisions, ETags, explicit federation consent/redaction and remote configuration.
-The process Ctrl-C/EPIPE and legacy auto-resume checks pass. Ping reconciliation recovers a
-dropped final durable event without a later sequence gap. Focused observer/attachment race tests
-pass. New output fixtures preserve accepted/held/steered outcomes and stored-failure reads;
-machine diagnostics retain original control-character data while human rendering escapes it.
-Final `env -u CHUCK_RUNTIME_ROOT make test` and `make build` are owed. Loopback tests require
-the loopback-enabled execution permission; listener failures now fail fixtures rather than skip.
-
-INV §6 checklist: CLI extends the existing operator surface rather than registering a runtime.
-Persistence and full launch composition use session APIs; runtime fan-out/drain remains server-owned;
-CLI observers close only their own streams. Mailbox eligibility, turn boundaries, reconciliation and
-hooks retain their existing server owners. Capabilities are read from server projections. Teardown
-closes every request/body/observer and removes unaccepted output temporaries; no agent registration
-or new mailbox/lifecycle store is introduced.
-Initial tree clean. Attachment server seams are implemented and available for CLI reuse.
+None. Full operator CLI parity is finished and available for independent review above.
+CLI extends existing session APIs without a runtime registration, new storage or lifecycle owner.
+INV §6: persistence/full launch use server composition; fan-out/drain, mailbox eligibility, turn
+boundaries, reconciliation and hooks retain server ownership; capabilities use server projections.
+Observers close only their requests/streams, join bounded workers and remove failed output
+temporaries. No new registration, mailbox or lifecycle store. Loopback test fixtures require
+loopback-enabled execution permission and fail rather than silently skip when unavailable.
 
 Chat images and file attachments is complete and available for independent review above.
 Final closure: full attachment/state/runtime/transcript and focused API/security/race checks pass.
