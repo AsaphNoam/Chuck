@@ -31,10 +31,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   73 phone tests, 41 presentation/style checks, spec check and `make dist` pass; full UI suite
   790/791 with only the NewAgentModal flake below. `ui/scripts/phone-render.mjs --details-check`
   passes all three appearances at 360/390/430px; receipts `/tmp/mobile-model-20261011-*.png`.
-- **Awaiting review — phone group memory and long-press agent actions:** `17b73ed`,
-  FS-20.R47–R48/A19, TS-08.R121. Project-scoped page-session group choices and a long-press
-  action sheet over shared phone management forms. Receipts: shared project resources
-  `mobile-actions-20261011/`. Fixtures make no provider claim.
+- **Reviewed and closed — phone group memory and long-press agent actions (2026-10-13):**
+  `17b73ed`, FS-20.R47–R48/A19, TS-08.R121. No findings; 14 focused phone tests and 46
+  presentation/style checks pass. Nine independent Chromium journeys verify retained group
+  choices, touch and keyboard actions, refusals, nested confirmation, stopped availability and
+  restored focus at 360/390/430px in all three appearances. Review evidence below; fixtures
+  make no provider or real-tailnet claim. Other review units remain unchanged.
 - **Reviewed — phone chat drafts and Theme selection, repair awaiting verification:** `79cbbc3`,
   FS-20.R49–R50/A20–A21, TS-08.R122, TS-13.R25. The 2026-10-12 review reproduced accepted
   Send cleanup missing a composer reopened while delivery was pending (see Review findings).
@@ -152,6 +154,32 @@ runs; the complete rerun without concurrent build load passes. Credential code i
   switch shows it above the composer.
 
 ## Review findings
+
+### Phone group memory and long-press agent actions — `17b73ed` — closed, no findings
+
+Reviewed independently 2026-10-13 against FS-20.R47–R48/A19 and TS-08.R121.
+**Fix model:** none — no open fixes.
+
+Code and specifications agree in both directions. Project/group identity keys, the page-session
+256-entry recency cap, reuse of AgentManagement forms and PhoneSheet, and existing remote API
+clients/allowlist are sound local choices; none requires a human decision. Gesture timers and the
+scroll listener have cancellation and unmount cleanup. Offline permits Open chat and disables
+mutations; runtime changes remain running-chat-only and existing confirmation/error rules apply.
+
+Verification: ProjectScreen's 14 tests and 46 presentation/style checks pass. Independent Chromium
+journeys pass at 360/390/430px in Core, Sky & Grove and Studio using the current working tree's
+actual remote entry. They verify collapse retention across conversation navigation, a native
+held touch without navigation, a subsequent ordinary tap, keyboard action launch, refused rename
+value retention, refused Stop confirmation with cancellation, stopped Resume/runtime availability,
+Escape dismissal and row-focus restoration. Settled screenshots show readable sheets, visible
+destructive actions and refusal feedback, consistent styling, and no horizontal overflow.
+Fixtures make no live-provider, physical-device or real-tailnet claim. Evidence:
+`/private/tmp/review-phone-actions-20261013.mjs` and
+`/private/tmp/review-phone-actions-20261013/{receipt.json,*.png}`.
+
+Invariant sweep: applicable §1, §2, §3, §4, §8, §10, §11, §13, §14, §16 and §17 have no findings.
+§5, §6, §7, §9, §12 and §15 have no applicable surface in this unit. Product code and
+specifications were unchanged. This review closes only this unit and creates no review obligation.
 
 ### Phone chat drafts and Theme selection — `79cbbc3` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
