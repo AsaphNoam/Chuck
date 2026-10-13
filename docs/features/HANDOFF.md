@@ -161,7 +161,6 @@ runs; the complete rerun without concurrent build load passes. Credential code i
 Closed, no findings.
 
 Reviewed independently 2026-10-13 against FS-20.R47–R48/A19 and TS-08.R121.
-**Fix model:** none — no open fixes.
 
 Code and specifications agree in both directions. Project/group identity keys, the page-session
 256-entry recency cap, reuse of AgentManagement forms and PhoneSheet, and existing remote API
@@ -190,8 +189,9 @@ Closed, no findings.
 
 Reviewed 2026-10-12 and independently verified 2026-10-13. The shared draft seam now synchronizes
 accepted cleanup to mounted and reopened composers while its revision guard preserves newer text.
-Focused AgentScreen tests cover delayed text-only Send and Steer leave/reopen/accept flows; 41
-AgentScreen tests pass. No product specification change was needed because the fix restores
+The existing same-composer regression covers newer-draft protection; focused AgentScreen tests
+add delayed text-only Send and Steer leave/reopen/accept flows, with 41 AgentScreen tests passing.
+No product specification change was needed because the fix restores
 FS-03.R36 and FS-20.R49/A20 behavior already specified.
 
 Review evidence: 66 focused UI tests passed (AgentScreen, PhoneSettings, PhoneApp and drafts);
