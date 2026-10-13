@@ -180,7 +180,7 @@ runs; the complete rerun without concurrent build load passes. Credential code i
 Reviewed independently 2026-10-13 against FS-03.R81–R86/A62–A65, TS-02.R46–R47,
 TS-03.R62–R63, TS-04.R90–R91, TS-05.R26, TS-08.R123 and TS-13.R26.
 `91ae7db` starts the administrative state; unrelated CLI design `5fd573c`, later CLI/UI
-units and concurrent uncommitted dashboard/diff-display changes are excluded.
+units and concurrent dashboard/diff-display work are excluded.
 
 - **Must fix** — one corrupt retained blob disables attachment delivery globally after restart
   (INV §7). Locations: `internal/attachment/store.go:238`,
@@ -247,6 +247,10 @@ settled receipts: `/private/tmp/review-attachments-render.mjs` and
 authorized execution after the sandbox refused binding. These fixtures make no live-provider,
 physical-phone or real-tailnet claim. Existing pinned-provider receipts and their independent
 image/file/Steer oracles were inspected separately, including the retained tiny-image mismatch.
+Fresh `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 go test -count=1 ./internal/attachment
+./internal/state ./internal/runtime ./internal/transcript ./internal/server` passes all five
+packages (`/private/tmp/review-attachments-go.log`), including real fake-provider wire and
+server failure/security journeys. Spec, launcher/review-contract and diff checks pass.
 Failure probes: `/private/tmp/chuck_attachment_repro_test.go`,
 `/private/tmp/chuck-overlay.json`, `/private/tmp/review-attachments-repro.log`;
 `env -u CHUCK_RUNTIME_ROOT GOCACHE=/private/tmp/chuck-gocache go test
