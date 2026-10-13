@@ -22,15 +22,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Mac stayed connected is expected. Investigation `e0489b5` is closed at the user's request;
   incidental timeout/diagnostic findings are withdrawn from the fix queue, not implemented,
   and the skipped reproduction test is removed. No product or runtime changes.
-- **Awaiting review — mobile agent header, composer and model switch:** `c3b3c70`, `73cc75b`,
-  `f15ee50`; FS-20.R43, TS-08.R111. New agent alone uses the centered PhoneSheet. The back
-  chevron sits beside the persona eyebrow above the agent name; context usage sits between
-  identity and tabs; Stop/Resume is a sibling of the tablist. The composer encloses a borderless
-  textbox (no blue typing outline) and Send at bottom right. Model/effort is a right-aligned,
-  bordered, raised button above the composer that opens the Switch runtime sheet. Final state:
-  73 phone tests, 41 presentation/style checks, spec check and `make dist` pass; full UI suite
-  790/791 with only the NewAgentModal flake below. `ui/scripts/phone-render.mjs --details-check`
-  passes all three appearances at 360/390/430px; receipts `/tmp/mobile-model-20261011-*.png`.
+- **Reviewed — mobile agent header, composer and model switch; fix pending (2026-10-13):**
+  `c3b3c70`, `73cc75b`, `f15ee50`; FS-20.R43, TS-08.R111. One Must-fix: Back measures
+  32×44px and model switch is 36px tall, below FS-12.R68/A38's 44px phone action target.
+  Behavior and composition otherwise pass 41 AgentScreen tests, 46 presentation/style checks
+  and nine independent Chromium journeys at 360/390/430px in all three appearances.
+  Finding, verification and fix recommendation below; this unit remains open. Other review units
+  are unchanged. Changelog: identified undersized phone action targets (INV §10).
 - **Reviewed and closed — phone group memory and long-press agent actions (2026-10-13):**
   `17b73ed`, FS-20.R47–R48/A19, TS-08.R121. No findings; 14 focused phone tests and 46
   presentation/style checks pass. Nine independent Chromium journeys verify retained group
@@ -155,6 +153,47 @@ runs; the complete rerun without concurrent build load passes. Credential code i
   switch shows it above the composer.
 
 ## Review findings
+
+### Mobile agent header, composer and model switch — `c3b3c70`, `73cc75b`, `f15ee50` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed independently 2026-10-13 against FS-20.R43, TS-08.R111 and their shared
+FS-12.R68/A38 phone action sizing contract. Administrative checkpoints `c2266b2`/`470b53d`
+and unrelated CLI design checkpoint `d3c9307` are excluded. Later draft and attachment changes
+are separate units; rendered checks exercise the current working tree's actual remote entry.
+
+- **Must fix** — Restore 44px phone hit targets (INV §10). In
+  `ui/src/styles/features/phone.css:63`, `.phone-agent-title .phone-agent-back` sets width to
+  32px; at `:121`, `.phone-model-switch` sets minimum height to 36px. Opening an agent on a
+  phone and tapping Back or the model switch encounters targets below FS-12.R68/A38's required
+  44px size, making these common actions harder to hit. Independent Chromium measurement
+  confirms Back is 32×44px and model switch is 36px tall at 360/390/430px in Core, Sky & Grove
+  and Studio. Preserve the specified compact chevron and raised model surface while extending
+  their hit areas to at least 44px. Add rendered assertions for Back width/height and model
+  switch height in the same nine-case matrix; existing header/composer geometry checks omit
+  these dimensions. No product decision or spec change is required.
+
+Code and specifications otherwise agree in both directions. Reusing detailed ContextBar,
+AgentManagement's runtime action, the mutation/error seam, and PhoneSheet's opt-in centered
+variant are sound local choices; none needs human input. Refused runtime switching retains the
+chosen model and effort, successful switching closes the sheet without clearing the composer
+draft, and focus returns to the trigger. Runtime-sheet bottom placement, centered New agent
+placement with expanded fields contained in the viewport, live context updates, stopped
+Resume availability, offline mutation disabling and Back navigation pass independent checks.
+Inspected settled screenshots show the required header hierarchy, borderless typing surface,
+Send inside the composer, right-aligned model control, readable refusals and no horizontal
+overflow in all three appearances.
+
+Verification: AgentScreen's 41 tests and 46 presentation/style checks pass. Nine independent
+Chromium journeys pass the behavior and composition checks above while reporting the undersized
+targets. Harness and receipts:
+`/private/tmp/review-mobile-header-20261013.mjs` and
+`/private/tmp/review-mobile-header-20261013/{receipt.json,*.png}`. Fixtures make no live-provider,
+physical-device or real-tailnet claim.
+
+Invariant sweep: applicable §1, §2, §8, §10, §13, §16 and §17 were checked; only §10 has the
+finding above. §3–§7, §9, §11, §12, §14 and §15 have no applicable changed surface in this unit.
+Product code and specifications are unchanged. The finding keeps this same unit open and
+creates no second review obligation; every other role/review unit is unchanged.
 
 ### Phone group memory and long-press agent actions — `17b73ed` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
