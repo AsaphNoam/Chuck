@@ -506,7 +506,7 @@ ownership/completion and guarded source actions rather than adding a second laun
 event watcher or generic orchestration framework. Published room entries are canonical group
 history; each normal provider transcript remains canonical for that individual session.
 
-**R38 (planned) — Operator CLI is a client of the existing control plane.** FS-22 adds
+**R38 — Operator CLI is a client of the existing control plane.** FS-22 adds
 Cobra operation families inside `internal/cli`, using TS-03.R64–R69's shared REST/SSE client.
 The client reads existing local config only to discover the dashboard port; operational reads and
 mutations go through server-owned APIs, never direct SQLite/config/transcript writes, provider
@@ -595,6 +595,9 @@ lost.
 
 ## 6. Traceability
 
+- Operator client boundary (R38): `internal/cli/operator_client.go`, `operator_follow.go`,
+  the `operator_*` command families and `operator_process_test.go`; server routes and service
+  owners remain unchanged.
 - Planned launch support (R36): `internal/backend/adapter.go`, the shared Terminal gate in
   `internal/server/terminal.go`, `internal/config/validate.go`, and the FS-09.A30–A32 consumers
   in `ui/src/features/{launch,settings}/` and `ui/src/components/grid/CardContextMenu.tsx`;

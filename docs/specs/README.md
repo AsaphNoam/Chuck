@@ -48,7 +48,7 @@ operates on all of this is [`AGENT-WORKFLOW.md`](../features/AGENT-WORKFLOW.md).
 | FS-19 | [features/FS-19-worktree-projects.md](features/FS-19-worktree-projects.md) | Current | Worktree projects: fork a repo-backed project into an isolated owned Git worktree, base-branch and setup-command settings, disposable-checkout recovery, conservative cleanup |
 | FS-20 | [features/FS-20-mobile-remote-control.md](features/FS-20-mobile-remote-control.md) | Partial | Mobile remote control: tailnet-only reachability, desktop-initiated phone pairing, phone web app (planned desktop-flow dashboard, project pages, agent management), attention notifications, keep-awake |
 | FS-21 | [features/FS-21-think-tanks.md](features/FS-21-think-tanks.md) | Partial | Independent agent deliberation and durable room history; planned titled cards, normal chat composition, shared mentions, parallel openings, live ceilings, judge-chat results, deployment grouping and pipeline-owned rooms |
-| FS-22 | [features/FS-22-operator-cli.md](features/FS-22-operator-cli.md) | Partial | Planned full nonvisual operator CLI parity, composable input/output, explicit consent and transcript recovery |
+| FS-22 | [features/FS-22-operator-cli.md](features/FS-22-operator-cli.md) | Implemented | Full nonvisual operator CLI parity, composable input/output, explicit consent and transcript recovery |
 
 ### Technical specs
 

@@ -2,10 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -66,7 +68,7 @@ func postResume(port int, agentID string, body map[string]string) (*http.Respons
 	return resp, data, nil
 }
 
-// archiveResult is one session from GET /api/archive.
+// archiveResult is one session from a project-scoped archive read.
 type archiveResult struct {
 	AgentID string `json:"agent_id"`
 	Name    string `json:"name"`
@@ -80,14 +82,15 @@ type archiveResult struct {
 // by name, so a bare `role@project --name X` only auto-resumes the session
 // actually named X rather than any inactive role@project session.
 func listInactiveSessions(port int, role, project, name string) ([]archiveResult, error) {
-	url := fmt.Sprintf("http://127.0.0.1:%d/api/archive?active=false&limit=200", port)
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	// The global archive is grouped by project. Its existing project detail
+	// route supplies the flat agent rows the legacy matching rule consumes.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client := &operatorClient{HTTP: &http.Client{}, BaseURL: fmt.Sprintf("http://127.0.0.1:%d", port)}
+	data, err := client.Request(ctx, http.MethodGet, "/api/archive/projects/"+url.PathEscape(project)+"?active=false&limit=200", nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
 
 	var ar struct {
 		Results []archiveResult `json:"results"`

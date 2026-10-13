@@ -273,7 +273,7 @@ private Send/Steer, native resume and end-only judge; record versions/results an
 receipts explicitly owed. Fake ACP and documentation checks cannot satisfy those gates. Design
 closure runs only spec lint, applicable twin-skill comparisons and diff checks.
 
-**R34 (planned) — CLI parity closes through independent wire and process evidence.** FS-22.A1–A9
+**R34 — CLI parity closes through independent wire and process evidence.** FS-22.A1–A9
 use temporary Chuck homes and loopback-only real server/fake-provider fixtures. Compare the Cobra
 surface against an independently reviewed FS-22.R8 operation list and registered server routes,
 including explicit exclusions; do not derive expected coverage from the command table under test.
@@ -331,6 +331,9 @@ shared target guarantees.
 
 ## 6. Traceability
 
+- Operator closure (R34): `internal/cli/operator_contract_test.go`, the family wire tests,
+  `operator_follow_test.go` and `operator_process_test.go`; the latter builds the executable
+  and uses an isolated real loopback server/fake ACP. Focused race checks verify observer cleanup.
 - Source toolchains/targets and the optional Claude adapter: `go.mod`, `ui/package.json`, `Makefile`,
   `install.sh`.
 - Release assembly/installer/update: `scripts/release/`, `internal/release/`, `internal/cli/`,

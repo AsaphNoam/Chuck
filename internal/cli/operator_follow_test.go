@@ -85,7 +85,7 @@ func operatorFollowServer(t *testing.T, transcriptBody string, stream func(http.
 	})
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
-		t.Skipf("loopback unavailable: %v", err)
+		t.Fatalf("loopback unavailable: %v", err)
 	}
 	s := &http.Server{Handler: h}
 	go func() { _ = s.Serve(ln) }()
@@ -205,7 +205,7 @@ func TestOperatorFollowE2EOpensSubscriptionBeforeTranscriptRead(t *testing.T) {
 	})
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
-		t.Skip()
+		t.Fatal(err)
 	}
 	srv := &http.Server{Handler: h}
 	go srv.Serve(ln)
@@ -256,7 +256,7 @@ func TestOperatorFollowE2EGapRefillsFromAuthoritativeTranscript(t *testing.T) {
 	})
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
-		t.Skip()
+		t.Fatal(err)
 	}
 	srv := &http.Server{Handler: h}
 	go srv.Serve(ln)
@@ -272,6 +272,57 @@ func TestOperatorFollowE2EGapRefillsFromAuthoritativeTranscript(t *testing.T) {
 	}
 	if got := strings.Count(out.buf.String(), "seq"); got != 3 {
 		t.Fatalf("gap refill lines = %d, output=%q", got, out.buf.String())
+	}
+}
+
+func TestOperatorFollowPingRecoversDroppedFinalTail(t *testing.T) {
+	read := make(chan struct{})
+	var reads atomic.Int32
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/events":
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = io.WriteString(w, operatorSSEEvent("state_update", map[string]any{"agent_id": "__hydrated__", "data": map[string]bool{"hydrated": true}}))
+			w.(http.Flusher).Flush()
+			select {
+			case <-read:
+			case <-r.Context().Done():
+				return
+			}
+			_, _ = io.WriteString(w, "event: ping\ndata: {}\n\n")
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		case "/api/sessions/a/transcript":
+			if reads.Add(1) == 1 {
+				_, _ = io.WriteString(w, `{"agent_id":"a","events":[{"seq":1,"type":"unknown_future","data":{"value":"first"}}]}`)
+				close(read)
+			} else {
+				if r.URL.Query().Get("since_seq") != "1" {
+					t.Errorf("catchup cursor: %s", r.URL.RawQuery)
+				}
+				_, _ = io.WriteString(w, `{"agent_id":"a","events":[{"seq":2,"type":"unknown_future","data":{"value":"dropped-final"}}]}`)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: h}
+	go srv.Serve(ln)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out := &countOutput{cancel: cancel, target: 2}
+	cmd := operatorFollowCmd(t, ctx, out)
+	client := &operatorClient{HTTP: &http.Client{}, BaseURL: "http://" + ln.Addr().String()}
+	if err := operatorFollow(cmd, client, "a", 0); err != nil {
+		t.Fatal(err)
+	}
+	if reads.Load() != 2 || strings.Count(out.buf.String(), "dropped-final") != 1 || out.writes != 2 {
+		t.Fatalf("reads=%d output=%q", reads.Load(), out.buf.String())
 	}
 }
 
@@ -317,7 +368,7 @@ func TestOperatorFollowE2EReconnectsAndResumesCursor(t *testing.T) {
 	})
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
-		t.Skip()
+		t.Fatal(err)
 	}
 	srv := &http.Server{Handler: h}
 	go srv.Serve(ln)
@@ -365,7 +416,7 @@ func TestOperatorSubscribeOverflowClosesBoundedObserver(t *testing.T) {
 	})
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
-		t.Skip()
+		t.Fatal(err)
 	}
 	srv := &http.Server{Handler: h}
 	go srv.Serve(ln)

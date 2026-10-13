@@ -867,7 +867,7 @@ Binary reads set verified Content-Type, `nosniff`, and private no-store caching;
 native image types use attachment disposition. Local-image reads occur only after explicit user
 activation, never from transcript parsing or scrolling. These routes inherit existing guards.
 
-**R64 (planned) — One operator client, existing routes.** For FS-22, extend `internal/cli`
+**R64 — One operator client, existing routes.** For FS-22, extend `internal/cli`
 with one injectable HTTP client using existing `dashboardPort` resolution and fixed
 `http://127.0.0.1:<port>`. Do not add a remote URL flag, auto-start, user authentication, producer
 token, provider side client or generic arbitrary-request command. Reuse the existing operation
@@ -881,7 +881,7 @@ Agent status composes existing raw server values as `{session,snapshot,held,perm
 the permissions projection retains raw pending events and an explicit completeness boolean from
 the bounded transcript window. No status read creates a session or a permanent transcript replica.
 
-**R65 (planned) — Preserve wire meaning and CLI output.** Implement FS-22.R2's stdout/stderr
+**R65 — Preserve wire meaning and CLI output.** Implement FS-22.R2's stdout/stderr
 and exit contract without changing server error envelopes. Success JSON uses raw JSON values or
 number-preserving decoding so unknown fields and integer sequences/ids survive. Human rendering
 decodes only its required fields; it never converts a missing state into success/completion.
@@ -896,7 +896,7 @@ temporary file, remove it on failure and publish the destination only after a co
 read. Reject destination overwrite absent `--overwrite`; return `{}` in JSON mode after success.
 Escape terminal controls in human labels/content; JSON escaping preserves original strings as data.
 
-**R66 (planned) — Explicit bounded input and observation.** Read text and JSON files/stdin with
+**R66 — Explicit bounded input and observation.** Read text and JSON files/stdin with
 limit+1 readers: 1 MiB per text/JSON input, reduced by any stricter operation bound. Reject
 conflicting sources or duplicate flag/JSON fields; preserve explicit false/zero versus omission.
 JSON input is one object with no trailing value. Nonstream responses are bounded at 64 MiB,
@@ -913,12 +913,14 @@ close bodies and cancel outstanding requests on exit, interrupt, overflow or bro
 Backpressure never starts unbounded writers/reconnects or blocks server publication. A broken
 pipe ends observation normally; it never issues Cancel or Stop.
 
-**R67 (planned) — Subscribe before reading; recover by transcript sequence.** Follow opens the
+**R67 — Subscribe before reading; recover by transcript sequence.** Follow opens the
 existing global `/api/events`, filters by exact `agent_id` and waits for its `hydrated` marker
 while buffering that agent's durable `new_message` events. Then read the authoritative transcript
 using the user's initial `since_seq` (or the last emitted seq on reconnect). Emit returned events
 in sequence, discard buffered duplicates at/below the emitted boundary, and drain the bounded
-tail in order before continuing live. Gaps trigger the same catch-up; overflow drops the observer
+tail in order before continuing live. Existing keepalive pings also reconcile the durable suffix,
+so a dropped final event is recovered even without a later event revealing its sequence gap.
+Gaps trigger the same catch-up; overflow drops the observer
 connection and refills from durable truth within R66's recovery budget, never silently skipping
 events. Reset connection-derived state and discard ephemeral activity on every reconnect.
 SSE ids are global bus ids, not transcript cursors; no `Last-Event-ID` replay is assumed.
@@ -932,7 +934,7 @@ Human output labels reasoning live-only. Unknown normalized transcript events ar
 unknown bus event types may be ignored under R8. Initial reads, reconnect races and repeated
 events use one reconciliation helper, independently tested against server-origin fixtures.
 
-**R68 (planned) — Commands preserve guards and receipts.** FS-22.R8's complete operation
+**R68 — Commands preserve guards and receipts.** FS-22.R8's complete operation
 inventory maps directly to the relevant server handlers. Do not widen scope through UI-only or
 agent/phone producer routes. `--yes` is a CLI acknowledgement only; forward federation preview
 tokens, checkout/dirty/shared-workspace consents, force flags, revisions, ETags and expected limits
@@ -951,7 +953,7 @@ retry guarantees for ordinary mutations. Help documents read-current-state versu
 retry for each affected operation. Config writes remain field-aware and reject immutable keys;
 backend catalog updates require caller-supplied ETag rather than blind replacement.
 
-**R69 (planned) — Attachment commands reuse approved admission.** CLI Send/Steer with
+**R69 — Attachment commands reuse approved admission.** CLI Send/Steer with
 `--attach` is implemented only after R62–R63's multipart/receipt/owned-byte seams ship. Reuse one
 ordered message declaration with request id and binary parts; stream at most 10 files, each
 10 MiB, aggregate 25 MiB, with the existing 64 KiB message/26 MiB multipart limits and native-image
@@ -1090,6 +1092,10 @@ integers instead of silently applying defaults.
 
 ## 6. Traceability
 
+- Operator wire contract (R64–R69): `internal/cli/operator_client.go`, `operator_output.go`,
+  `operator_follow.go`, `operator_attachments.go`, agent/status/management/workflow command
+  files and `pipeline.go`; independent wire, input/error, SSE race and built-binary process
+  evidence lives in the corresponding `operator_*_test.go` files.
 - Planned backend support (R47): `internal/server/{handlers,config_handlers}.go`,
   `ui/src/schemas/backends.ts`, `ui/src/features/{launch,settings}/` and
   `ui/src/components/grid/CardContextMenu.tsx`; FS-09.A30–A32 cover

@@ -126,6 +126,21 @@ cd ui && npm ci && npm run dev   # http://localhost:5173
 | `chuck resume <agent_id>` | resume a specific inactive persisted session |
 | `chuck reindex` | rebuild the archive search index from `sessions/` |
 
+The [operator CLI](docs/operator-cli.md) also exposes conversations, projects/groups/worktrees,
+archive, pipelines, tasks, Think Tanks, configuration and remote administration through the running
+local service. Use `chuck <family> <operation> --help` for request shapes and examples. New commands
+support `--json`, explicit text files/stdin and structured `--request-file` input; they do not
+start the dashboard automatically.
+
+```sh
+chuck agent launch --role default --project my-app --json
+chuck agent send AGENT_ID --text-file message.txt --json
+chuck agent transcript AGENT_ID --since-seq 42 --follow --json
+chuck group stop --project my-app --group workers --yes
+chuck pipeline run start --request-file run.json --json
+chuck backend list --etag-output catalog.etag --json
+```
+
 ## Layout (`~/.chuck/`)
 
 ```

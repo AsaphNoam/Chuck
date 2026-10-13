@@ -3,6 +3,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -28,7 +29,26 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newUpdateCmd())
 	root.AddCommand(newAuthCmd())
 	root.AddCommand(newPipelineCmd())
+	operatorCommands := append(newOperatorManagementCommands(), newOperatorWorkflowCommands()...)
+	operatorCommands = append(operatorCommands, newOperatorAgentCmd(), newOperatorStatusCmd())
+	for _, cmd := range operatorCommands {
+		markOperatorCommands(cmd)
+		root.AddCommand(cmd)
+	}
 	return root
+}
+
+func markOperatorCommands(cmd *cobra.Command) {
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+	cmd.Annotations["operator"] = "true"
+	if cmd.HasSubCommands() && cmd.PersistentFlags().Lookup("json") == nil {
+		cmd.PersistentFlags().Bool("json", false, "write machine-readable diagnostics")
+	}
+	for _, child := range cmd.Commands() {
+		markOperatorCommands(child)
+	}
 }
 
 // newResumeCmd returns the `chuck resume <agent_id>` cobra command.
@@ -54,11 +74,28 @@ func Execute(args []string) int {
 
 	root := NewRootCmd()
 	root.SetArgs(args)
-	if err := root.Execute(); err != nil {
+	root.SilenceErrors = true
+	cmd, err := root.ExecuteC()
+	if err != nil {
+		if cmd != nil && (cmd.Annotations["operator"] == "true" || operatorMode(cmd)) {
+			var op *operatorError
+			if !errors.As(err, &op) {
+				err = operatorInvalid(err.Error())
+			}
+			operatorDiagnostic(cmd, err)
+			return operatorExitCode(err)
+		}
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		if errors.Is(err, errProviderUnavailable) {
 			return 3
 		}
 		return 1
 	}
 	return 0
+}
+
+func operatorMode(cmd *cobra.Command) bool {
+	json, _ := cmd.Flags().GetBool("json")
+	request, _ := cmd.Flags().GetString("request-file")
+	return json || request != "" || cmd.Flags().Changed("timeout")
 }

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -62,20 +63,27 @@ func newAgentTranscriptCmd() *cobra.Command {
 		if follow && (limit != 0 || before != 0) {
 			return operatorInvalid("--follow cannot be combined with --limit or --before-seq")
 		}
-		ctx, cancel, err := operatorContext(c)
-		if err != nil {
-			return err
-		}
-		defer cancel()
 		client, err := operatorClientFactory()
 		if err != nil {
 			return err
 		}
 		if follow {
+			timeout, _ := c.Flags().GetDuration("timeout")
+			if timeout <= 0 {
+				return operatorInvalid("--timeout must be positive")
+			}
+			ctx, cancel := signal.NotifyContext(c.Context(), os.Interrupt)
+			defer cancel()
+			c.SetContext(ctx)
 			signal.Ignore(syscall.SIGPIPE)
 			defer signal.Reset(syscall.SIGPIPE)
 			return operatorFollow(c, client, args[0], since)
 		}
+		ctx, cancel, err := operatorContext(c)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 		q := url.Values{"since_seq": {fmt.Sprint(since)}, "include_meta": {fmt.Sprint(meta)}}
 		if before > 0 {
 			q.Set("before_seq", fmt.Sprint(before))
@@ -196,7 +204,12 @@ func operatorFollow(cmd *cobra.Command, client *operatorClient, agentID string, 
 			}
 			consume := func(f operatorSSEFrame) error {
 				defer o.release(f)
-				if f.event == "ping" || f.event == "state_update" {
+				if f.event == "ping" {
+					// Recover a dropped terminal tail even when no later durable
+					// event arrives to reveal its sequence gap.
+					return catchup()
+				}
+				if f.event == "state_update" {
 					return nil
 				}
 				err := operatorFollowFrame(cmd, f, agentID, &last)
@@ -280,11 +293,7 @@ func operatorSubscribe(ctx context.Context, client *operatorClient, agentID stri
 		cancel()
 		return nil, operatorInvalid("invalid stream target")
 	}
-	httpClient := client.HTTP
-	if httpClient == nil {
-		httpClient = &http.Client{}
-	}
-	resp, err := httpClient.Do(req)
+	resp, err := client.httpClient().Do(req)
 	timer.Stop()
 	if err != nil {
 		cancel()

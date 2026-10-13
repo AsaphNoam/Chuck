@@ -47,9 +47,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Attachment A8 can use the completed attachment unit; other families may start
   independently. Changelog: planned boundary recovery, shared client, lifecycle cleanup, honest
   results, consent and finite independent verification (INV §1/§2/§4/§7/§8/§9/§10/§11/§14/§15/§16/§17).
-  Shared client and agent/attachment/observer checkpoints are verified. Management and workflow
-  wire checks and a built-binary real-server fake-provider journey pass; status composition,
-  final input/error coverage, documentation and shared closure remain active.
+  All command families, status composition, input/output contracts and documentation are implemented.
+  Independent wire and built-binary real-server fake-provider journeys pass, including legacy
+  auto-resume, native-child permission decisions, lost-response attachment retries and follow
+  interruption. Focused observer race checks pass. Final shared Go/build closure remains active.
   The completed attachment change remains separate.
 - **Awaiting review — chat images and attachments (2026-10-13):**
   [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
@@ -86,7 +87,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 ## Active change
 
 Full operator CLI parity is in progress (2026-10-13), selected by `/work`.
-The approved FS-22/TS-03 contracts remain planned until verified implementation closes.
+The FS-22/TS-03 contracts are implemented; final shared closure is next.
 Slices: shared bounded loopback client/input/output; management and administration commands;
 pipeline/task/Think Tank commands; agent conversation/attachments and transcript follow;
 independent wire/process and real-server journeys, documentation and final Go/build closure.
@@ -98,10 +99,15 @@ Focused client, agent and observer tests pass, including large-frame parsing, su
 gap/reconnect refill, overflow, EPIPE and healthy pings beyond 30 seconds. The seq:0 metadata header
 is not a follow cursor; empty suffixes verify retained history with a one-event metadata read.
 Command registration, management/workflow/pipeline families, full status composition and final
-documentation remain integration work. Management/workflow/pipeline wire checks pass. A built
+documentation are complete. Management/workflow/pipeline wire checks pass. A built
 binary against a real loopback server/fake ACP passes conversation/attachments, task/room/pipeline
 controls, stale revisions, ETags, explicit federation consent/redaction and remote configuration.
-The process EPIPE test was just added and still needs its focused run; final shared matrix is owed.
+The process Ctrl-C/EPIPE and legacy auto-resume checks pass. Ping reconciliation recovers a
+dropped final durable event without a later sequence gap. Focused observer/attachment race tests
+pass. New output fixtures preserve accepted/held/steered outcomes and stored-failure reads;
+machine diagnostics retain original control-character data while human rendering escapes it.
+Final `env -u CHUCK_RUNTIME_ROOT make test` and `make build` are owed. Loopback tests require
+the loopback-enabled execution permission; listener failures now fail fixtures rather than skip.
 
 INV §6 checklist: CLI extends the existing operator surface rather than registering a runtime.
 Persistence and full launch composition use session APIs; runtime fan-out/drain remains server-owned;

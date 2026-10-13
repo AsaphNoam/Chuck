@@ -252,7 +252,7 @@ func newAgentDownloadCmd(image bool) *cobra.Command {
 		if err != nil {
 			return operatorInvalid("invalid download target")
 		}
-		resp, err := client.HTTP.Do(req)
+		resp, err := client.httpClient().Do(req)
 		if err != nil {
 			return &operatorError{Code: "dashboard_unavailable", Message: "cannot reach dashboard; run `chuck dashboard start`", ExitCode: 3}
 		}

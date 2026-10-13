@@ -40,6 +40,15 @@ type operatorClient struct {
 	responseHeaders http.Header // current response metadata, scoped to one invocation
 }
 
+func (c *operatorClient) httpClient() *http.Client {
+	client := http.Client{}
+	if c.HTTP != nil {
+		client = *c.HTTP
+	}
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &client
+}
+
 var operatorClientFactory = newOperatorClient
 
 var errOperatorResponseLimit = errors.New("response byte limit exceeded")
@@ -124,13 +133,7 @@ func (c *operatorClient) requestReader(ctx context.Context, method, path string,
 			req.Header.Add(key, value)
 		}
 	}
-	client := c.HTTP
-	if client == nil {
-		client = &http.Client{}
-	}
-	boundedClient := *client
-	boundedClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	resp, err := boundedClient.Do(req)
+	resp, err := c.httpClient().Do(req)
 	if err != nil {
 		code, message, exit := "dashboard_unavailable", "could not reach dashboard; run `chuck dashboard start` first", 3
 		if method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions {
@@ -159,7 +162,7 @@ func (c *operatorClient) requestReader(ctx context.Context, method, path string,
 	if len(trimmed) == 0 {
 		return json.RawMessage("{}"), nil
 	}
-	if !json.Valid(trimmed) {
+	if !json.Valid(trimmed) || !utf8.Valid(trimmed) {
 		code, exit := "invalid_response", 1
 		if isMutationMethod(method) {
 			code, exit = "result_unknown", 1
@@ -180,7 +183,7 @@ func isMutationMethod(method string) bool {
 	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
 }
 func operatorInputError(err error) *operatorError {
-	return &operatorError{Code: "invalid_input", Message: safeOperatorText(err.Error()), ExitCode: 2}
+	return &operatorError{Code: "invalid_input", Message: err.Error(), ExitCode: 2}
 }
 
 func readOperatorBounded(r io.Reader, limit int64) ([]byte, error) {
@@ -207,6 +210,12 @@ func operatorHTTPError(status int, data []byte) error {
 				message = operatorRawString(nested["message"], message)
 			} else {
 				message = operatorRawString(raw, message)
+				if code == "api_error" {
+					var flat string
+					if json.Unmarshal(raw, &flat) == nil && flat != "" && !strings.ContainsAny(flat, " \t\r\n") {
+						code = safeOperatorText(flat)
+					}
+				}
 			}
 		}
 		if raw := envelope["errors"]; len(raw) > 0 && string(raw) != "null" {
@@ -226,7 +235,7 @@ func operatorRawString(raw json.RawMessage, fallback string) string {
 	}
 	var s string
 	if json.Unmarshal(raw, &s) == nil && s != "" {
-		return safeOperatorText(s)
+		return s
 	}
 	return fallback
 }
@@ -262,6 +271,9 @@ func operatorInput(cmd *cobra.Command) (map[string]json.RawMessage, error) {
 	data, err := operatorReadInput(cmd, file)
 	if err != nil {
 		return nil, operatorInputError(err)
+	}
+	if !utf8.Valid(data) {
+		return nil, operatorInputError(errors.New("request JSON is not valid UTF-8"))
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	first, err := dec.Token()
@@ -330,6 +342,9 @@ func operatorText(cmd *cobra.Command) (string, bool, error) {
 	}
 	if textChanged {
 		value, _ := cmd.Flags().GetString("text")
+		if !utf8.ValidString(value) {
+			return "", false, operatorInputError(errors.New("text input is not valid UTF-8"))
+		}
 		if len([]byte(value)) > int(operatorInputLimit) {
 			return "", false, operatorInputError(errors.New("text exceeds 1 MiB limit"))
 		}
@@ -382,7 +397,16 @@ func operatorOutput(cmd *cobra.Command, data json.RawMessage) error {
 		if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
 			return &operatorError{Code: "output_failed", Message: "could not write command output", ExitCode: 1}
 		}
-		if operatorBulkFailed(value) {
+		if operatorMutationOutput(cmd) && operatorBulkFailed(value) {
+			return &operatorError{Code: "bulk_failed", Message: "one or more operation results failed", ExitCode: 1}
+		}
+		return nil
+	}
+	if human, ok := operatorHumanOutput(cmd, value); ok {
+		if _, err := fmt.Fprintln(cmd.OutOrStdout(), human); err != nil {
+			return &operatorError{Code: "output_failed", Message: "could not write command output", ExitCode: 1}
+		}
+		if operatorMutationOutput(cmd) && operatorBulkFailed(value) {
 			return &operatorError{Code: "bulk_failed", Message: "one or more operation results failed", ExitCode: 1}
 		}
 		return nil
@@ -396,13 +420,17 @@ func operatorOutput(cmd *cobra.Command, data json.RawMessage) error {
 			return &operatorError{Code: "output_failed", Message: "could not write command output", ExitCode: 1}
 		}
 	}
-	if operatorBulkFailed(value) {
+	if operatorMutationOutput(cmd) && operatorBulkFailed(value) {
 		return &operatorError{Code: "bulk_failed", Message: "one or more operation results failed", ExitCode: 1}
 	}
 	return nil
 }
 
 func operatorRun(cmd *cobra.Command, method, path string, body any, headers http.Header) error {
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+	cmd.Annotations["operator-method"] = method
 	timeout, flagErr := cmd.Flags().GetDuration("timeout")
 	if flagErr == nil && timeout <= 0 {
 		op := &operatorError{Code: "invalid_input", Message: "--timeout must be positive", ExitCode: 2}
@@ -444,7 +472,7 @@ func operatorDiagnostic(cmd *cobra.Command, err error) {
 		op = &operatorError{Code: "api_error", Message: err.Error(), ExitCode: 1}
 	}
 	if machine, _ := cmd.Flags().GetBool("json"); machine {
-		v := map[string]any{"error": map[string]any{"code": op.Code, "message": safeOperatorText(op.Message)}}
+		v := map[string]any{"error": map[string]any{"code": op.Code, "message": op.Message}}
 		if op.HTTPStatus != 0 {
 			v["http_status"] = op.HTTPStatus
 		}
@@ -485,18 +513,6 @@ func safeOperatorJSON(s string) string {
 		}
 	}
 	return b.String()
-}
-
-func operatorHumanValue(value any) string {
-	if m, ok := value.(map[string]any); ok {
-		for _, key := range []string{"message", "status", "state", "name", "id", "agent_id"} {
-			if v, ok := m[key].(string); ok && v != "" {
-				return safeOperatorText(v)
-			}
-		}
-	}
-	data, _ := json.Marshal(value)
-	return safeOperatorText(string(data))
 }
 
 func operatorBulkFailed(value any) bool {

@@ -13,7 +13,10 @@ import (
 // auto-resume must respect --name: with a name given, only the session actually
 // named that matches; without a name, all role@project inactive sessions match.
 func TestListInactiveSessionsNameFilter(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.RequestURI() != "/api/archive/projects/app?active=false&limit=200" {
+			t.Errorf("legacy archive wire %s %s", r.Method, r.URL)
+		}
 		fmt.Fprint(w, `{"results":[
 			{"agent_id":"a_1","name":"Atlas","role":"impl","project":"app","active":false},
 			{"agent_id":"a_2","name":"Borg","role":"impl","project":"app","active":false},
