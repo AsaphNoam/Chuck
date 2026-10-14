@@ -43,6 +43,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   build pass; full UI suite fails only the `NewAgentModal` flake.
   Changelog: phone heartbeat recovery (INV §1/§4/§5/§16); recovery review (INV §1/§4/§8/§17);
   page-cache action gate (INV §1/§4/§8); harness exit finding false (INV §17, no change).
+- **Open — think tank non-leaver filler (investigated 2026-10-14):** see `## Review findings`;
+  skipped reproduction committed. Fix model: medium.
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption.
@@ -157,7 +159,47 @@ None.
 
 ## Review findings
 
-None open.
+**Investigation unit — think tank non-leavers cannot decline a turn (2026-10-14).** Report
+(verbatim, user, current `main` `d129cf7e`, no logs): “If may_leave=true—the default—the agent can
+effectively say ‘I'm done here’ by leaving. But if may_leave=false, an agent that has nothing
+substantive left to contribute appears to have no clean option except: manufacture another reply,
+wait for its allowance to exhaust, or rely on the human ending the discussion. That cuts against one
+of the main things think tank wanted to avoid: agents producing polite filler because the protocol
+expects another turn.” Classification: code defect against FS-21.R14/R16 plus a specification gap in
+TS-14.R5. Reproduction: `TestThinkTankNonLeaverCanPassDiscussionTurn` in
+`internal/messaging/think_tank_tools_test.go`, committed skipped; un-skipped it fails with
+“disposition must be reply, leave or decline_closing”.
+**Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** (confirmed, reproduced) — `internal/state/think_tank_turns.go:289-310` and
+  `internal/messaging/think_tank_tools.go:180,192`. A participant created with `may_leave=false`
+  is told “maximum, not a quota… no obligation to use every turn”, but on a discussion turn its only
+  accepted disposition is `reply` with nonblank text (`leave` → `leave_forbidden`,
+  `decline_closing` → closing only). Normal-use trigger: any room with non-leaving participants whose
+  views have settled; R20 keeps scheduling them until each cap is exhausted, so two non-leavers with
+  cap N yield up to 2N forced replies. Why it matters: the protocol compels the filler FS-21.R16
+  exists to prevent and contradicts its own guidance. Requirements: FS-21.R14, R16, R20; TS-14.R5.
+  Suggested fix: add a `pass` disposition for discussion turns, available to every participant
+  regardless of leave permission, with no message; it completes the turn, charges one allowance
+  (keeps R14 bounding), advances the read checkpoint, publishes no contribution but records a
+  visible “passed” marker, and keeps the participant eligible. Extend FS-21.R12/R16/R17/R20,
+  TS-14.R5 and the tool contract, the guidance text, UI room schema/rendering of the marker, and
+  un-skip the reproduction. INV §8, §10, §11, §17.
+- **Must fix** (confirmed from code path) — `internal/state/think_tank_turns.go:416`. A non-leaver
+  that follows the guidance and ends its turn without submitting holds the whole room with “The turn
+  ended without submitting a contribution” until the operator intervenes (TS-14.R6). Normal-use
+  trigger: the guidance's “contribute only when you have something useful to add” read literally.
+  Why it matters: the honest response to “nothing to add” stalls the room. Closed by the `pass`
+  disposition above; the guidance must name `pass` as the way to decline a turn. Test: guidance for
+  a non-leaver mentions `pass` (extend `TestThinkTankToolsOverMCP`).
+- **Worth fixing** (specification gap; product decision for the fix session to confirm with the
+  user under workflow §3) — FS-21.R20 ends discussion only on departures or exhaustion. With `pass`,
+  a room where every eligible participant passes consecutively with no new published entry or user
+  message in between would still spin through remaining allowances as passes. Suggested rule: such a
+  full quiet rotation ends ordinary discussion with its own completion reason (“participants had
+  nothing further to add”), distinct from exhaustion and departure, then the closing/judge steps run
+  as today. Test: two non-leavers each pass once → discussion ends with that reason and unspent
+  allowance.
 
 Closed 2026-10-12–14 reviews are in the archive above.
 

@@ -227,3 +227,34 @@ func tokenOf(t *testing.T, store *state.Store, agent string) string {
 	}
 	return running[0].Token
 }
+
+// FS-21.R14/R16: a participant without leave permission is told the ceiling
+// is a maximum with no obligation to use every turn, yet its only accepted
+// discussion disposition is a nonblank reply. Reproduces the HANDOFF finding
+// "Think tank non-leavers cannot decline a turn"; the fix session un-skips it
+// and adjusts the disposition name to the specified one.
+func TestThinkTankNonLeaverCanPassDiscussionTurn(t *testing.T) {
+	t.Skip("reproduces open finding: non-leavers cannot decline a discussion turn (HANDOFF Review findings)")
+	store := newStore(t)
+	srv := New(store, nil)
+	srv.Register("tok-b", "b")
+	b := connect(t, srv, "tok-b")
+	d, err := store.CreateThinkTank(state.ThinkTankCreate{CommandID: "c", Goal: "Pick storage", OriginProject: "p",
+		Members: []state.ThinkTankMember{
+			{AgentID: "b", AgentName: "Bea", Project: "p", Cap: 3},
+			{AgentID: "a", AgentName: "Ari", Project: "p", Cap: 3}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bt, err := store.BeginThinkTankAttempt(state.ThinkTankBegin{RoomID: d.Room.RoomID, Revision: d.Room.Revision,
+		AgentID: "b", Turn: state.ThinkTankTurnDiscussion, Generation: "g", TurnID: "t1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj, _ := callRoomTool(t, b, "read_think_tank", map[string]any{})
+	obj, isErr := callRoomTool(t, b, "submit_think_tank_turn", map[string]any{
+		"turn_token": bt.Token, "disposition": "pass", "read_receipt": obj["read_receipt"]})
+	if isErr || obj["staged"] != true {
+		t.Fatalf("non-leaver pass = %v (isError %v); the only accepted option is a filler reply", obj, isErr)
+	}
+}
