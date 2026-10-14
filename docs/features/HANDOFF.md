@@ -96,7 +96,7 @@ None.
 
 ### Operator CLI built-binary journey depends on an installed provider — `219b4b7` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-- **Must fix — `TestOperatorBuiltBinaryRealServerJourney` is not hermetic.** It fakes the chat
+- **Must fix** — `TestOperatorBuiltBinaryRealServerJourney` is not hermetic. It fakes the chat
   command (`registry.Chat().SetCommand(fake)`) but provider selection still resolves the real
   Claude executable, so on a host without Claude Code `agent launch` returns 422
   `provider_executable_missing` and the test fails. It passed locally only because Claude is
@@ -104,9 +104,10 @@ None.
   "Verify release transaction coverage") failed on it, blocking `v0.15.0` publication. Fix: give
   `internal/cli` tests the same hermetic provider stubs as `internal/server/main_test.go`
   (`CLAUDE_CODE_EXECUTABLE`/`CODEX_PATH` pointing at stub executables). Verify with `PATH` lacking
-  `claude`/`codex`.
-- CI run 38512698255 also failed the known `TestToolImageFrameBoundsAcrossActualWire` timing flake
-  (see Known flaky checks); CI does not serialize packages.
+  `claude`/`codex`. (no invariant class)
+
+CI run 38512698255 also failed the known `TestToolImageFrameBoundsAcrossActualWire` timing flake
+(see Known flaky checks); CI does not serialize packages.
 
 Closed 2026-10-12–14 reviews are in the archive above.
 
