@@ -10,6 +10,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   **Review findings** below. Product code and specifications are unchanged; six failing reproduction
   assertions are retained skipped. This record was originally local-only and was absent from the
   shared fix queue and v0.16.0 release gate. Next: `/fix` this investigation unit.
+- **Recovered investigation — stopped-agent image refusal (2026-10-14):** the finding and skipped
+  reproduction existed only on `claude/awesome-gates-nxg67z`, outside the shared main fix queue and
+  v0.16.0 cut. Recovered locally under **Review findings**; publication still requires authorization.
 - **Release:** `v0.16.0` published 2026-10-14 (Latest): release CI run 38593397312 passed and
   the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from
   [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md). Manual provider gates
@@ -256,6 +259,46 @@ range. The shared handoff at `c80dd5fd` correctly recorded no open findings visi
 Reconciled against that newer main without reverting its fixes or release record. Compared current
 provider continuity code against the investigation baseline: primer, switch, resume and adapter
 logic are unchanged; chat-runtime changes only optimize update routing, so the findings remain open.
+
+### Recovered investigation — stopped agent refuses an image (2026-10-14) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report (verbatim):** “Trying to send a message with an attached image when an agent is stopped
+gives an error that this provider doesn't support images.” No version, provider or logs supplied;
+the refusal is client-side, so nothing would be logged. Original investigation read current main
+at v0.15.1. Recovered from commit `1d4db58bd685e1c458d35bf1a8fe9ae1d0c4e53b` on remote branch
+`claude/awesome-gates-nxg67z`. Its finding and skipped reproduction were absent from main at
+`c80dd5fd`; this is an independent missing investigation, not another copy of the model/provider
+continuity unit. No product behavior is changed by this recovery.
+
+- **Must fix** — **Confirmed code defect and specification coverage gap; fix complexity medium.**
+  Stopped agents whose saved capability snapshot predates image negotiation project `image_input`
+  as false. `image_input` joined the snapshot in `395c1a8` (2026-10-13);
+  `state.DecodeRuntimeCapabilities` decodes an absent key as false, and both
+  `AttachmentCapabilitiesFor` projections (`internal/state/manager.go` and
+  `internal/server/launch.go`) publish that value. The desktop Composer and phone AgentScreen
+  reject attached images before Send can reach the otherwise-correct stopped-agent wake path.
+  Normal-use trigger: upgrade and attach an image to an agent not run since; manual Resume clears
+  the stale capability. FS-03.R83 and TS-04.R90 require wake-time revalidation. TS-01.R35/TS-03.R63
+  need a specified unknown-advertisement state rather than making old rows look like a genuine
+  provider refusal. INV §1/§11/§17. Suggested fix: preserve unknown versus a provider-advertised
+  false, let unknown capability reach server wake-time revalidation, and retain explicit refusal
+  for real false. Un-skip `internal/server/attachment_wake_repro_test.go`
+  `TestStoppedAgentWithPreImageSnapshotDoesNotRefuseImages`; add desktop/phone coverage for unknown
+  capability and genuine refusal. The recovered reproduction fails on the false projection while
+  its direct image wake succeeds with 202. Original author recorded it as reproduced; recovery
+  independently re-ran the unskipped test against current main through a temporary overlay and
+  observed the same projection failure with no wake-202 failure. The retained test stays skipped;
+  focused checks pass untagged and with `sqlite_fts5`, and spec/diff checks pass.
+
+**Cloud-work audit scope (2026-10-14):** Checked this cloud checkout's worktree, branches, reflog and
+unreachable commits; all five non-main remote branches; and all ten GitHub pull requests (all
+merged; none open or closed-unmerged). Besides the two investigation records above, no additional
+undelivered work was found in this scope. The August review/fix branches and July Learning Atlas
+branch have patch-equivalent changes on main. The July Skip setup branch's behavior is present as
+Set up later, with current spec and tests. Other chats' private/unpushed cloud workspaces and
+account-wide conversation history are not accessible to this session; those are not certified clear.
+Recovery is local-only until authorized publication. **Next:** publish the two recovered records to
+the shared queue, then fix them as separate units.
 
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
