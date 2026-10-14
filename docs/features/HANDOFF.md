@@ -28,6 +28,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
+- **Design in progress — phone foreground recovery (2026-10-14):** operator reports a stale
+  connection after background/return, recovered by manual refresh. FS-20.R51–R52/A22–A24 draft
+  automatic in-page catch-up, preserved route/tab/forms/reading position and unsent text/files,
+  with existing bounded-history fallback and no mutation replay. Awaiting scope confirmation
+  before technical design; source idea/evidence in [`ideas.md`](../ideas.md). No ready change or
+  product code. Source inspection proves there is no foreground recovery/watchdog in the phone
+  connection, but the suspected suspended/stalled EventSource has no real-device reproduction.
+  Changelog: draft phone foreground recovery (INV §1); spec checks, twin-skill comparison and
+  whitespace check pass.
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption.

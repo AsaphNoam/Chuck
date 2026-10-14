@@ -358,6 +358,23 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   The setting explicitly says it applies to all Chuck browsers. Saving is disabled offline;
   a failed save reports the refusal and leaves the previous appearance active. This supersedes
   R16's configuration/skins exclusion only for appearance selection.
+- **R51 (planned) — Returning to the open phone app recovers current state automatically.**
+  When an existing phone page returns from the background, including restoration from the browser's
+  page cache, it recovers its live connection and catches up to the Mac without a manual refresh.
+  Restoring network access while the page is visible also recovers automatically. The phone keeps
+  last-known content visible while reconnecting, identifies recovery through its existing connection
+  status, and enables actions only after receiving the current agent snapshot. An unavailable Mac
+  follows R23; a revoked pairing follows R8. Repeated foreground/network signals do not disrupt a
+  recovery already in progress. No action or draft is queued, sent or replayed by recovery.
+- **R52 (planned) — Connection recovery preserves the person's place and unsent input.**
+  Recovery happens within the existing page: retain its route, selected tab, open form and entered
+  values, composer text and selected attachments, and transcript reading position rather than
+  navigating Home, reloading the page or jumping to the newest message. Refreshed state follows the
+  existing archival/removal behavior (R39) and bounded transcript/history recovery (R13), including
+  its explicit latest-window fallback when the retained history cannot be bridged. Draft ownership,
+  retention and deletion remain R49 and FS-03.R36/R86; recovery never overwrites newer input.
+  Browser termination or a cold launch retains existing route/draft restoration behavior and adds
+  no promise to restore transient forms or scroll position across page destruction.
 
 ## 5. Acceptance criteria
 
@@ -468,8 +485,34 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   the shared preference and applies across routes. A refused save keeps the previous appearance
   and reports the error; offline disables selection. Other config fields are refused by the
   paired-phone route without modifying configuration. — server/UI tests and phone browser journey.
+- **A22 (planned)** (R17, R51) — Start connected, background the phone page, change agent status,
+  resolve a permission and append transcript messages on the Mac, then foreground the page with
+  its old live stream stalled and emitting neither open nor error. Without refreshing, the phone
+  receives the current snapshot, refreshes the visible view and transcript without duplicates,
+  and continues receiving new activity. Actions remain disabled through snapshot hydration.
+  Verify phone connection/component tests for visible-return and page-cache restoration, plus a
+  paired real iPhone Home Screen app and Android browser/installed-app background-return journey;
+  simulated events alone do not prove device suspension recovery.
+- **A23 (planned)** (R13, R49, R52) — Open a phone conversation with retained older history,
+  scroll to an older message, type multiline text and select an attachment; recover after backgrounding
+  while new messages arrive. The same conversation/tab and visible message position remain, with
+  exact unsent input and attachments intact and nothing delivered. Repeat with a Files/Manage tab
+  and an entered form; verify current values survive recovery. Exercise R13's bounded-gap fallback
+  separately and confirm its explanation remains visible with the draft preserved. Verify component
+  tests plus a phone-width real-browser journey with rendered scroll and network recovery.
+- **A24 (planned)** (R8, R23, R51–R52) — Foreground while the Mac is unavailable: show stale
+  cached content and the existing unreachable status, preserve input, and allow no mutation.
+  Restore network access with the page visible and recover without refresh; deliver no previously
+  attempted action. Closely spaced return/network signals do not create competing recoveries.
+  Revoke pairing while backgrounded, then return: show the existing unpaired screen and admit no
+  further protected stream data or actions. Verify connection/component tests for failures,
+  overlapping lifecycle events and revocation, plus the paired-device recovery journey.
 
 ## 6. Deviations & open decisions
+
+- R51–R52/A22–A24 are a draft foreground-recovery scope awaiting operator confirmation before
+  technical design. No product code has changed. The stalled-stream background-suspension cause
+  is inferred from the missing recovery path, not yet reproduced on a paired device.
 
 - R45–R46/A17–A18 are confirmed, including project-only bulk actions and mobile picker
   without drag and the narrow paired-phone route extension.

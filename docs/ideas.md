@@ -33,6 +33,15 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Recover the phone connection when returning to Chuck.** Operator report, 2026-10-14:
+  the remote mobile app sometimes appears disconnected after backgrounding and reopening;
+  manual refresh recovers it. Restore current Mac state automatically without losing the current
+  screen, reading position or unsent input. Evaluate proactive foreground recovery and choose
+  the simplest reliable extension of the existing connection. Draft behavior:
+  FS-20.R51–R52/A22–A24 (planned); awaiting operator confirmation before technical design.
+  Source inspection finds no foreground recovery or stale-stream watchdog in
+  `ui/src/remote/connection.ts`; the phone relies on EventSource retry. Background suspension
+  leaving the stream stalled is a hypothesis, not a reproduced device finding.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;
