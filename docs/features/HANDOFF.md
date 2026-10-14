@@ -66,7 +66,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   (one new), presentation checks, spec check and embed pass; full UI suite fails only the flakes
   above. `phone-render.mjs --details-check` verifies left/right placement in all appearances;
   screenshots `/tmp/mobile-effort-20261014-*.png`.
-- **Awaiting review — phone scroll memory (2026-10-14):** FS-20.R54/A26, TS-08.R125. A bounded
+- **Reviewed — phone scroll memory, finding open (2026-10-14):** FS-20.R54/A26, TS-08.R125. A bounded
   (50-entry) page-session map keeps each chat's top visible message row (`data-place`) or
   at-newest, and other routes' `scrollY`. First open and left-at-newest open at the newest message.
   86 phone tests (scrollMemory bound test new), tsc, presentation checks, spec check and embed
@@ -75,6 +75,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Full UI suite 823/823 after dependencies were restored. Under load one earlier run failed two
   AgentScreen pagination tests that pass 42/42 alone with and without this change.
   INV: §8/§13 no new class or message; §16 map capped at 50.
+  Independent review of `e522eb1a` on current `main`: the existing `--scroll-check` passes,
+  but the live-revision/cache-miss journey loses a project position (1000px → 0px); see the
+  review finding below. All 101 remote tests pass. The unit stays open. No validated trivial/easy
+  findings.
 
 - **Awaiting review — mobile wallpaper restoration (2026-10-14):** `.phone-app` is transparent,
   exposing the existing Core, Sky & Grove and Studio `body::before` backgrounds (FS-20.R43,
@@ -159,7 +163,34 @@ None.
 
 ## Review findings
 
-**Investigation unit — think tank non-leavers cannot decline a turn (2026-10-14).** Report
+### Review unit — phone scroll memory (`e522eb1a`, reviewed 2026-10-14) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Code and specification review plus independent Chromium verification on current `main`. The existing
+`phone-render.mjs --scroll-check` passes (chat row restored within 0px, newest kept, project at
+179px); `npx vitest run src/remote` passes all 101 tests. The review fixture
+`/tmp/chuck-scroll-review.mjs` adds 20 active runs, a live
+`state_update` while viewing the chat, and a 300ms project/home response delay: the project was
+left at 1000px and returned at 0px after its content loaded (exit 1; screenshot
+`/tmp/chuck-scroll-review-revision.png`). No local-choice notes needed resolution. Invariant sweep:
+§1/§10 expose the restoration lifecycle/wiring defect below; §4/§8/§13/§16 checked with no additional
+finding; §17's existing journey misses the live-revision/cache-miss case. No applicable surface for
+§2/§3/§5/§6/§7/§9/§11/§12/§14/§15. User authorized all trivial/easy repairs; this finding is medium
+and remains for a fix session.
+
+- **Must fix** (confirmed, Chromium reproduction) — `ui/src/remote/PhoneApp.tsx:42–50` restores
+  non-chat scroll only when the route changes, before asynchronous page content is ready.
+  Normal-use trigger: scroll a long project/run page, open a chat, receive a live state/task/pipeline
+  update, then return. ProjectScreen/RunScreen include the connection revision in their query keys;
+  on remount the new revision has no cached data, and placeholder data cannot carry across that
+  unmount. The browser clamps the saved `scrollY` to the shorter initial page, and the effect does
+  not retry after content arrives. This loses the reading position promised by FS-20.R54/A26 and
+  TS-08.R125. INV §1/§10/§17. Suggested fix: coordinate non-chat restoration with page data readiness,
+  retain the saved target until it can be applied, and cover a delayed response after a live revision
+  change in the phone-width browser journey (project and run; Home also uses revision-keyed queries).
+
+### Investigation unit — think tank non-leavers cannot decline a turn (2026-10-14) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Report
 (verbatim, user, current `main` `d129cf7e`, no logs): “If may_leave=true—the default—the agent can
 effectively say ‘I'm done here’ by leaving. But if may_leave=false, an agent that has nothing
 substantive left to contribute appears to have no clean option except: manufacture another reply,
@@ -169,7 +200,6 @@ expects another turn.” Classification: code defect against FS-21.R14/R16 plus 
 TS-14.R5. Reproduction: `TestThinkTankNonLeaverCanPassDiscussionTurn` in
 `internal/messaging/think_tank_tools_test.go`, committed skipped; un-skipped it fails with
 “disposition must be reply, leave or decline_closing”.
-**Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Must fix** (confirmed, reproduced) — `internal/state/think_tank_turns.go:289-310` and
   `internal/messaging/think_tank_tools.go:180,192`. A participant created with `may_leave=false`
@@ -191,7 +221,7 @@ TS-14.R5. Reproduction: `TestThinkTankNonLeaverCanPassDiscussionTurn` in
   trigger: the guidance's “contribute only when you have something useful to add” read literally.
   Why it matters: the honest response to “nothing to add” stalls the room. Closed by the `pass`
   disposition above; the guidance must name `pass` as the way to decline a turn. Test: guidance for
-  a non-leaver mentions `pass` (extend `TestThinkTankToolsOverMCP`).
+  a non-leaver mentions `pass` (extend `TestThinkTankToolsOverMCP`). INV §8/§10/§17.
 - **Worth fixing** (specification gap; product decision for the fix session to confirm with the
   user under workflow §3) — FS-21.R20 ends discussion only on departures or exhaustion. With `pass`,
   a room where every eligible participant passes consecutively with no new published entry or user
