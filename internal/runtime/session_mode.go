@@ -157,6 +157,7 @@ func decodeModeUpdate(params json.RawMessage) (modes SessionModes, current strin
 func (as *agentState) setModes(modes SessionModes) {
 	as.modeMu.Lock()
 	as.modes = modes
+	as.modeRevision++
 	as.modeMu.Unlock()
 }
 
@@ -164,6 +165,7 @@ func (as *agentState) setCurrentMode(id string) {
 	as.modeMu.Lock()
 	if as.modes.offers(id) {
 		as.modes.Current = id
+		as.modeRevision++
 	}
 	as.modeMu.Unlock()
 }
@@ -209,7 +211,10 @@ func (c *ChatRuntime) SetSessionMode(ctx context.Context, agentID, id string) (S
 	if err != nil {
 		return SessionModes{}, err
 	}
-	modes := as.currentModes()
+	as.modeMu.Lock()
+	modes, revision := as.modes, as.modeRevision
+	modes.Options = append([]SessionModeOption{}, as.modes.Options...)
+	as.modeMu.Unlock()
 	if len(modes.Options) == 0 {
 		return modes, fmt.Errorf("%w: permission mode", ErrSettingUnsupported)
 	}
@@ -231,7 +236,14 @@ func (c *ChatRuntime) SetSessionMode(ctx context.Context, agentID, id string) (S
 	if reported, ok := decodeSessionModes(result); ok {
 		as.setModes(reported)
 	} else {
-		as.setCurrentMode(id)
+		// Empty legacy acknowledgements imply acceptance only if no provider
+		// update arrived during the call. Count repeated values too, and check
+		// and apply under one lock so a notification cannot be overwritten.
+		as.modeMu.Lock()
+		if as.modeRevision == revision && as.modes.offers(id) {
+			as.modes.Current = id
+		}
+		as.modeMu.Unlock()
 	}
 	after := as.currentModes()
 	if after.Current != "" && after.Current != id {

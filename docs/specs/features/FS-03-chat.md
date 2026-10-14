@@ -1209,6 +1209,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   three modes shows them with the current one selected; choosing another applies it through the
   advertised option and the selection follows the reported mode; a refusal restores it with the
   reason; an unoffered mode never reaches the provider; no advertisement shows no control.
+  An empty legacy set reply preserves both unchanged and changed provider reports and surfaces
+  an ignored selection; without a notification it accepts the requested mode. Config-option
+  replies continue to follow the effective reported value.
   *Verify:* `session_mode_test.go` (runtime and server), `PermissionModeToggle.test.tsx`.
 
 ## 6. Deviations & open decisions

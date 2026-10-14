@@ -213,7 +213,22 @@ func handle(msg *rpcMessage) {
 		// read loop has stored the snapshot by the time session/new returns.
 		emitAvailableCommands()
 		initConfigOptions()
+		if os.Getenv("FAKEACP_LEGACY_MODES") != "" {
+			rows := []map[string]any{}
+			for _, id := range fakeModes() {
+				rows = append(rows, map[string]any{"id": id, "name": id})
+			}
+			respond(*msg.ID, map[string]any{"sessionId": sessionID, "configOptions": fakeConfigOptions(), "modes": map[string]any{"currentModeId": fakeModes()[0], "availableModes": rows}})
+			return
+		}
 		respond(*msg.ID, map[string]any{"sessionId": sessionID, "configOptions": fakeConfigOptions()})
+	case "session/set_mode":
+		// Legacy ACP acknowledges with an empty result, optionally announcing
+		// the effective mode first (including an unchanged mode).
+		if reported := os.Getenv("FAKEACP_MODE_REPORTED"); reported != "" {
+			emitUpdate(map[string]any{"sessionUpdate": "current_mode_update", "currentModeId": reported})
+		}
+		respond(*msg.ID, map[string]any{})
 	case "session/load":
 		// If asked, dump the raw load params so tests can assert that the
 		// fresh MCP registration is carried on the load path (not just new).
@@ -277,6 +292,9 @@ func handle(msg *rpcMessage) {
 			if !slices.Contains(fakeModes(), setParams.Value) {
 				respondErr(*msg.ID, -32603, "Invalid value for config option mode: "+setParams.Value)
 				return
+			}
+			if reported := os.Getenv("FAKEACP_MODE_REPORTED"); reported != "" {
+				setParams.Value = reported
 			}
 			applyConfigOption(setParams.ConfigID, setParams.Value)
 			// The pinned Claude adapter announces the new mode before it answers.
@@ -516,7 +534,7 @@ func initConfigOptions() {
 	add("effort", fakeDefaultEffort)
 	add("reasoning_effort", fakeDefaultEffort)
 	add(os.Getenv("FAKEACP_FAST_OPTION"), "off")
-	if modes := fakeModes(); len(modes) > 0 {
+	if modes := fakeModes(); len(modes) > 0 && os.Getenv("FAKEACP_LEGACY_MODES") == "" {
 		add("mode", modes[0])
 	}
 }

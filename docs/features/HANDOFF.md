@@ -15,9 +15,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   phone chat drafts are archived in
   [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
 - **Reviewed — chat permission modes, project-page menu, hidden file changes; fix pending
-  (2026-10-14):** `bac0d40`, `7cd50ff`; one review unit. Two Must-fix findings: an empty legacy
-  mode-set response overwrites a different provider-reported mode, and the project background
-  menu intercepts right-clicks on buttons. Findings, independent wire/browser evidence and fix
+  (2026-10-14):** `bac0d40`, `7cd50ff`; one review unit. The legacy mode-set finding is fixed:
+  empty replies preserve provider reports, including unchanged values (INV §8/§11/§12).
+  The project background menu Must-fix remains open: it intercepts right-clicks on buttons.
+  Findings, independent wire/browser evidence and fix
   recommendation below. Focused runtime/CLI/server checks, runtime race checks, 90 UI tests,
   46 presentation/style checks and 15 Chromium journeys pass apart from the intentional failing
   legacy-mode regression probe. Changelog: identified false mode success and form-control menu
@@ -165,21 +166,17 @@ Reviewed independently 2026-10-14 against FS-02.R77/A58, FS-03.R87–R88/A66–A
 FS-22.R1/R3/R8, TS-03.R70 and TS-04.R92. Administrative state commit `ada1b49`, unrelated
 phone-sheet change `2930250` and existing uncommitted CLI/dashboard/phone fixes are excluded.
 
-- **Must fix** — **an empty legacy mode-set reply overwrites the provider's reported mode
-  (INV §8/§11/§12).** Location: `internal/runtime/session_mode.go:234`. A legacy adapter
-  advertises Manual and Plan, receives a request for Plan, reports Manual through
-  `current_mode_update`, then returns the normal empty `session/set_mode` result `{}`.
-  The notification correctly records Manual, but the fallback calls `setCurrentMode(id)`,
-  overwriting it with Plan and returning success. Desktop and CLI therefore claim a mode the
-  session did not adopt, instead of restoring the reported selection and surfacing the ignored
-  change required by FS-03.R88 and TS-04.R92/TS-03.R70. An independent actual-wire fake-provider
-  overlay probe fails with `Current:plan` and `err:<nil>` when the required result is
-  `Current:default` and `ErrSettingIgnored`. Preserve any provider mode notification received
-  during the call before applying an optimistic fallback. A pre/post value comparison is
-  insufficient because the notification can report the same mode as before the call. Cover
-  both unchanged and changed reported modes, successful legacy sets without notifications,
-  and the existing config-option path. This fix has medium difficulty because it coordinates
-  the read-loop notification and setter under the existing mode lock.
+Fixed legacy mode-set empty replies (INV §8/§11/§12): mode revisions count provider updates
+even when their value is unchanged; the fallback checks atomically under `modeMu`. Actual-wire
+regressions failed before the fix for unchanged and changed reports and now pass, alongside
+accepted notifications, no-notification legacy success and config-option results. FS-03.A67
+and TS-04.R92 clarify the contract. The menu finding stays open.
+Closure: `env -u CHUCK_RUNTIME_ROOT GOCACHE=/private/tmp/chuck-gocache GOFLAGS=-p=1 make test`
+passes both Go variants; `make build`, focused mode tests and focused mode race checks pass.
+Full tests require approved loopback execution; the initial sandbox run could not bind test
+servers. Log: `/private/tmp/chat-permissions-closure-approved.log`. No UI change or live-provider
+receipt; existing provider uncertainties remain. This scoped fix creates no new review unit.
+
 - **Must fix** — **the scoped-project background menu intercepts button right-clicks
   (INV §10).** Location: `ui/src/features/dashboard/ProjectDashboard.tsx:339`. The exclusion
   selector covers inputs, textareas and selects but omits buttons. Right-clicking the header's
