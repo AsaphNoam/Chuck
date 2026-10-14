@@ -68,13 +68,19 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Closed — mobile wallpaper restoration (2026-10-14):** FS-20.R43, TS-08.R111 (`33987801`);
   review found no findings.
 
-- **Reviewed — agent page width and side panels, finding open (2026-10-14):** FS-12.R61, TS-08.R112.
-  `7a0228e5`, `30204eaf`: card ~80% of the window; conversation and composer 85% of the card
-  (7.5% insets, held when panels narrow it). File viewer and annotation tray sit outside the
-  card via `AgentStage` portal slots. Chat/archive tests, presentation checks, embed pass;
-  full suite fails only the `NewAgentModal` flake. Independent review reproduced clipped conversation
-  and composer with both panels open and a long agent name at 1024/1280 in all three appearances.
-  See the finding below. Implementation receipts: `agent-design/runs/eighty/`.
+- **Closed — agent page width and side panels (2026-10-14):** FS-12.R61/A33, TS-08.R112
+  (`7a0228e5`, `30204eaf` plus `06d6f177`). Review's Must fix closed: header and composer toolbar
+  wrap as the card narrows; the external viewer uses 34cqi at docked stage widths up to 1280px,
+  leaving room for runtime controls and conversation. The card remains about 80% of the window
+  without panels; conversation/composer retain 7.5% side insets. The new
+  `chat-cleanup-render.mjs --panels` regression fails before the fix and passes after with long
+  names, runtime controls and both panels expanded on active/archive pages at 1024/1280 in all
+  three appearances. All 277 full chat browser checks and 12 rebuilt production fake-ACP checks
+  pass; receipts: `/tmp/chuck-panel-final-closure/` and `/tmp/chuck-panel-real-fixed/`.
+  `make test` (both Go variants), `make dist` and full UI suite (843/843 on retry) pass. The
+  concurrent UI run timed out in the phone successive-gap test; rerunning without browser load
+  passed. No live provider used. Changelog: narrowed agent workspace keeps conversation and
+  composer usable (INV §8/§10/§17).
 
 - **Closed — project rooms at the bottom, collapsible (2026-10-14):** FS-02.R71/A53,
   FS-05.R39, FS-21.R44, TS-08.R96 (`4440e79e` plus fix). Review's Must fix closed: the
@@ -98,13 +104,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-Fixing the agent-page side-panel finding below. The header and composer toolbar now wrap;
-the external viewer narrows to 34cqi at docked stage widths up to 1280px. The browser regression
-fails before the fix and passes after; all 277 chat browser checks and 12 rebuilt fake-ACP
-active/archive checks pass. `make dist` and the full UI suite (843/843 on retry) pass. The
-concurrent full UI run hit a phone-history timeout; the rerun without browser load passed.
-Both Go variants passed before the final file-width adjustment; `make test` against the final
-regenerated embed is running. Close this same unit and remove its finding after it passes.
+None.
 
 ## Acceptance gates still owed
 
@@ -168,40 +168,7 @@ regenerated embed is running. Close this same unit and remove its finding after 
 
 ## Review findings
 
-### Review unit — agent page width and side panels (`7a0228e5`, `30204eaf`, reviewed 2026-10-14) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Independent read-only code review plus parent-owned Chromium verification; the reviewed component
-and stylesheet sources still match the selected unit. `cd ui && npm test -- --run
-src/components/chat/ChatPanel.test.tsx src/components/chat/TranscriptView.test.tsx
-src/features/archive/ArchiveAgentPage.test.tsx` passes all 70 tests and all 46 presentation checks.
-The independent working-source fixture `/tmp/chuck-panel-review.mjs` renders active/archive pages
-in Core, Sky & Grove and Studio at 1024/1280/1440, with no panels, a file, both panels and a collapsed
-tray (72 captured states; screenshots and geometry in `/tmp/chuck-panel-review/`). Plain/file-only
-states retain the reading/composer insets and external file placement; tray collapse returns width.
-The production `go run -tags sqlite_fts5 ./scripts/stress-fixture -port 4499 -scenario
-activity_showcase` server uses its own temporary home and deterministic fake ACP. The independent
-`/tmp/chuck-panel-real-review.mjs` reproduces the finding with a real session and transcript,
-`README.md` in the viewer and a persisted annotation draft in all three appearances at 1024/1280;
-screenshots and geometry: `/tmp/chuck-panel-real-review/`. No live provider was invoked. The full
-A33 comparison is not closed while this finding remains. No local-choice notes needed resolution.
-Invariant sweep: §8/§10 expose the finding; §1/§2/§13/§17 checked with no additional finding.
-No applicable surface for §3/§4/§5/§6/§7/§9/§11/§12/§14/§15/§16. The speculative absolute-tray
-containing-block concern was withdrawn: source inspection alone did not establish a failure.
-
-- **Must fix** (confirmed, independent Chromium and production fake-ACP reproduction) —
-  `ui/src/styles/features/agent.css:87–89` lets the entire card shrink between the side panels
-  while `:129–145`/`:276–279` keep the header in one flex row with a fixed 10.5rem context meter.
-  Normal-use trigger: open a file and keep the annotation tray expanded for an agent named
-  "Review agent with a long descriptive name" at the supported 1024px or 1280px desktop width.
-  The side panels consume 38% and 30% of the stage, leaving a 275px/357px card. In the real-session
-  reproduction the header grows to 1396px/573px; the card ends at y=852, while the transcript starts
-  at y=1706/y=909 and the composer at y=1671/y=873. `.chat-card` clips overflow, so the operator
-  cannot read the conversation or reach the composer until they close/collapse a panel. All three
-  appearances reproduce it. FS-12.R61/A33 and TS-08.R112 require the narrowed composition to retain
-  the working conversation and composer (INV §8/§10). Make the header reflow with the narrowed
-  card, including its meter and archive action, and keep transcript/composer usable with both panels
-  open. Add a browser regression at 1024/1280 with a long real agent name, both expanded panels,
-  and assertions that transcript, input and Send remain inside the visible card; cover archive too.
+None.
 
 Closed 2026-10-12–14 reviews are in the archive above.
 
