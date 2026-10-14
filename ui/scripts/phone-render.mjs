@@ -24,6 +24,8 @@ const recoveryCheck = process.argv.includes("--recovery-check");
 let healthCount = 0;
 let healthDown = false;
 let skin = "";
+let slowPages = false;
+const activeRuns = Array.from({ length: 20 }, (_, i) => ({ kind: "run", id: `r${i}`, title: `Pipeline ${i}`, project: "my-app", state: "running", reason: "Stage in progress", stage_number: 1, stage_count: 3, since: "" }));
 
 const agent = {
   agent_id: "a1", name: "phone-render", role: "implementer", project: "my-app", backend: "claude", model: "m",
@@ -67,8 +69,9 @@ try {
     };
   }, [{ agent_id: "a1", data: agent }, { agent_id: "__hydrated__", data: { hydrated: true } }]);
   // A URL predicate, not "**/api/**", which would also catch Vite's /src/api modules.
-  await context.route((url) => url.pathname.startsWith("/api/"), (route) => {
+  await context.route((url) => url.pathname.startsWith("/api/"), async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (slowPages && ["/api/projects", "/api/remote/home"].includes(path)) await new Promise((resolve) => setTimeout(resolve, 400));
     if ((detailsCheck || scrollCheck) && path === "/api/projects") return route.fulfill({ json: { "my-app": { title: "My App", color: [50, 120, 180] } } });
     if (detailsCheck && path === "/api/roles") return route.fulfill({ json: { implementer: { title: "Implementer" } } });
     if ((detailsCheck || spinnerCheck || parityCheck) && path === "/api/config") {
@@ -91,7 +94,7 @@ try {
       const eligible = history.filter((item) => (!before || item.seq < before) && item.seq > since);
       return route.fulfill({ json: { agent_id: "a1", events: eligible.slice(-750), has_more: eligible.length > 750, pending_permission: null, latest_assistant: "" } });
     }
-    if (path === "/api/remote/home") return route.fulfill({ json: { needs_you: [], active_runs: [] } });
+    if (path === "/api/remote/home") return route.fulfill({ json: { needs_you: scrollCheck ? activeRuns : [], active_runs: scrollCheck ? activeRuns : [] } });
     if (path === "/api/sessions/a1/prompt") return route.fulfill({ status: 404, json: { error: { code: "not_found", message: "none" } } });
     return route.fulfill({ json: {} });
   });
@@ -160,7 +163,28 @@ try {
     const projectAfter = await page.evaluate(() => window.scrollY);
     if (Math.abs(projectAfter - projectY) > 1) throw new Error(`project page returned at ${projectAfter}px, left at ${projectY}px`);
     await page.setViewportSize({ width: 390, height: 844 });
-    console.log(`scroll memory: chat row ${before.key} within ${Math.abs(after.top - before.top)}px, newest kept, project at ${projectAfter}px`);
+    // A live update while away re-keys these pages' queries, so they reload
+    // empty and slowly; the saved place must still be restored.
+    const revisited = [];
+    for (const route of ["/project/my-app", "/"]) {
+      await go(route);
+      await page.getByText("Pipeline 19", { exact: true }).first().waitFor();
+      await page.evaluate(() => window.scrollTo(0, 1000));
+      await settle();
+      const left = await page.evaluate(() => window.scrollY);
+      if (left < 500) throw new Error(`${route} too short to check live-update scroll (${left}px)`);
+      await go("/agent/a1");
+      slowPages = true;
+      await page.evaluate((data) => window.__phoneRenderSource.dispatchEvent(new MessageEvent("state_update", { data: JSON.stringify(data) })), { agent_id: "a1", data: agent });
+      await go(route);
+      await page.getByText("Pipeline 19", { exact: true }).first().waitFor();
+      await settle();
+      slowPages = false;
+      const back = await page.evaluate(() => window.scrollY);
+      if (Math.abs(back - left) > 1) throw new Error(`${route} returned at ${back}px after a live update, left at ${left}px`);
+      revisited.push(`${route} ${back}px`);
+    }
+    console.log(`scroll memory: chat row ${before.key} within ${Math.abs(after.top - before.top)}px, newest kept, project at ${projectAfter}px, after live update ${revisited.join(", ")}`);
   }
   if (shown && recoveryCheck) {
     // FS-20.A23/A25 at phone width: a healthy stream survives return signals;

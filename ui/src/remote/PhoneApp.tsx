@@ -38,15 +38,36 @@ function Shell({ children, back }: { children: ReactNode; back?: boolean }) {
   const skin = config.isError ? undefined : config.data?.appearance_skin;
   useEffect(() => { applyAppearance(skin); }, [skin]);
   // Non-chat screens return to their previous scroll position; a chat keeps
-  // its own reading position (FS-20.R54).
+  // its own reading position (FS-20.R54). The page may still be loading (a
+  // live update re-keys its queries), so the saved target is re-applied as
+  // content arrives until it is reached or the page scrolls elsewhere.
   useLayoutEffect(() => {
     if ("scrollRestoration" in history) history.scrollRestoration = "manual";
     if (match(path, "agent")) return;
     const place = recallPlace(path);
-    window.scrollTo(0, place && "y" in place ? place.y : 0);
-    const save = () => rememberPlace(path, { y: window.scrollY });
+    const target = place && "y" in place ? place.y : 0;
+    let pending = true;
+    let applied = 0;
+    const content = new MutationObserver(() => apply());
+    const settle = () => { pending = false; content.disconnect(); };
+    const apply = () => {
+      window.scrollTo(0, target);
+      applied = window.scrollY;
+      if (Math.abs(applied - target) <= 1) settle();
+    };
+    const save = () => {
+      // A short page clamps the restore; only a different position is the person's.
+      if (pending && Math.abs(window.scrollY - applied) <= 1) return;
+      settle();
+      rememberPlace(path, { y: window.scrollY });
+    };
+    content.observe(document.body, { childList: true, subtree: true });
+    apply();
     window.addEventListener("scroll", save, { passive: true });
-    return () => window.removeEventListener("scroll", save);
+    return () => {
+      content.disconnect();
+      window.removeEventListener("scroll", save);
+    };
   }, [path]);
   const go = (route: string) => { setMenuOpen(false); navigate(route); };
   return (

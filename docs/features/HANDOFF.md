@@ -55,19 +55,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   single-peek ACP update routing (INV §16); large-frame test budgets (no invariant class).
 - **Closed — phone model and effort split (2026-10-14):** FS-20.R43, TS-08.R111 (`b1bc5284`);
   review found no findings.
-- **Reviewed — phone scroll memory, finding open (2026-10-14):** FS-20.R54/A26, TS-08.R125. A bounded
-  (50-entry) page-session map keeps each chat's top visible message row (`data-place`) or
-  at-newest, and other routes' `scrollY`. First open and left-at-newest open at the newest message.
-  86 phone tests (scrollMemory bound test new), tsc, presentation checks, spec check and embed
-  pass. `phone-render.mjs --scroll-check` passes (row restored within 0px, newest kept, project
-  page restored) and fails with restoration disabled; `--details/--history/--parity-check` pass.
-  Full UI suite 823/823 after dependencies were restored. Under load one earlier run failed two
-  AgentScreen pagination tests that pass 42/42 alone with and without this change.
-  INV: §8/§13 no new class or message; §16 map capped at 50.
-  Independent review of `e522eb1a` on current `main`: the existing `--scroll-check` passes,
-  but the live-revision/cache-miss journey loses a project position (1000px → 0px); see the
-  review finding below. All 101 remote tests pass. The unit stays open. No validated trivial/easy
-  findings.
+- **Closed — phone scroll memory (2026-10-14):** FS-20.R54/A26, TS-08.R125 (`e522eb1a` plus
+  fix). Review's Must fix closed: after a live update re-keys a page's queries, `PhoneApp`
+  re-applies the saved `scrollY` on each DOM change until reached; the clamped position is not
+  saved, any other scroll ends the restore. `phone-render.mjs --scroll-check` now adds a live
+  `state_update` plus 400 ms project/home reload: failed before (project 1000px → 0px), passes
+  after (project and Home at 1000px); review fixture drift 0; `--details/--history/--parity-check`
+  pass. Run page uses the same `PhoneApp` path but has no browser fixture. 101 remote tests, tsc,
+  `make test`, embed, build pass; full UI suite 840/841 (only the `NewAgentModal` flake).
+  Changelog: phone restore waits for reloaded page content (INV §1/§10/§17).
 
 - **Closed — mobile wallpaper restoration (2026-10-14):** FS-20.R43, TS-08.R111 (`33987801`);
   review found no findings.
@@ -193,31 +189,6 @@ for §1/§2/§3/§4/§5/§6/§7/§9/§11/§12/§14/§15/§16. The unit remains o
   discovery without collapse or the shared preference. INV §10. Document the shipped Archive
   toggle and cross-project/shared preference in the governing requirements, with a cross-surface
   acceptance test; keep product behavior unless the human chooses a different preference scope.
-
-### Review unit — phone scroll memory (`e522eb1a`, reviewed 2026-10-14) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Code and specification review plus independent Chromium verification on current `main`. The existing
-`phone-render.mjs --scroll-check` passes (chat row restored within 0px, newest kept, project at
-179px); `npx vitest run src/remote` passes all 101 tests. The review fixture
-`/tmp/chuck-scroll-review.mjs` adds 20 active runs, a live
-`state_update` while viewing the chat, and a 300ms project/home response delay: the project was
-left at 1000px and returned at 0px after its content loaded (exit 1; screenshot
-`/tmp/chuck-scroll-review-revision.png`). No local-choice notes needed resolution. Invariant sweep:
-§1/§10 expose the restoration lifecycle/wiring defect below; §4/§8/§13/§16 checked with no additional
-finding; §17's existing journey misses the live-revision/cache-miss case. No applicable surface for
-§2/§3/§5/§6/§7/§9/§11/§12/§14/§15. User authorized all trivial/easy repairs; this finding is medium
-and remains for a fix session.
-
-- **Must fix** (confirmed, Chromium reproduction) — `ui/src/remote/PhoneApp.tsx:42–50` restores
-  non-chat scroll only when the route changes, before asynchronous page content is ready.
-  Normal-use trigger: scroll a long project/run page, open a chat, receive a live state/task/pipeline
-  update, then return. ProjectScreen/RunScreen include the connection revision in their query keys;
-  on remount the new revision has no cached data, and placeholder data cannot carry across that
-  unmount. The browser clamps the saved `scrollY` to the shorter initial page, and the effect does
-  not retry after content arrives. This loses the reading position promised by FS-20.R54/A26 and
-  TS-08.R125. INV §1/§10/§17. Suggested fix: coordinate non-chat restoration with page data readiness,
-  retain the saved target until it can be applied, and cover a delayed response after a live revision
-  change in the phone-width browser journey (project and run; Home also uses revision-keyed queries).
 
 Closed 2026-10-12–14 reviews are in the archive above.
 

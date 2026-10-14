@@ -1455,7 +1455,9 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   `remote/scrollMemory`: a module-level map keyed by route path, capped at 50 entries with the
   least recently saved evicted, never persisted. Non-chat routes store window `scrollY` and
   `PhoneApp` restores it in a layout effect when the path changes; history scroll restoration is
-  manual. The agent screen stores the `data-place` key (the row's own React key) of the first
+  manual. A page whose revision-keyed queries reload empty is shorter than the saved position, so
+  the target is re-applied on each DOM change until reached; meanwhile the clamped position is not
+  saved, and any other scroll position ends the restore and is saved. The agent screen stores the `data-place` key (the row's own React key) of the first
   message row below the sticky header plus its offset, or an at-newest flag, and restores once
   per mount after the first non-placeholder transcript renders; a missing key falls back to the
   top of the loaded list. Restoration never triggers older-history loading by itself.
