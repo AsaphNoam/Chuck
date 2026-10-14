@@ -19,6 +19,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Failed before the fix with `HOME` isolated and no provider CLIs on `PATH`; passes after. Full
   `make test` (both Go variants) passes. Changelog: hermetic CLI journey provider selection
   (no invariant class).
+- **Open investigation (2026-10-14):** stopped agents last run before image negotiation refuse
+  image Sends; see the investigation unit under **Review findings** (ready for `/fix`).
 - **Repository:** `AsaphNoam/Chuck`; branch `main`. `origin` URL corrected 2026-10-14 (it had a
   stray trailing `.`).
 - **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
@@ -104,7 +106,36 @@ None.
 
 ## Review findings
 
-None open. Closed 2026-10-12–14 reviews are in the archive above.
+Closed 2026-10-12–14 reviews are in the archive above.
+
+**Investigation unit — stopped agent refuses an image (2026-10-14, `/investigate-bug`).**
+Report (verbatim): “Trying to send a message with an attached image when an agent is stopped gives
+an error that this provider doesn't support images.” No version, provider or logs supplied; the
+refusal is client-side, so nothing would be logged. Read as current `main` (`v0.15.1`).
+**Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** (confirmed — reproduced) — Stopped agents from before image negotiation refuse images.
+  `image_input` joined the frozen capability snapshot in `395c1a8` (2026-10-13). A stopped agent
+  whose last handshake ran on an older build has `sessions.runtime_capabilities_json` without that
+  key; `state.DecodeRuntimeCapabilities` reads it as false, and both `AttachmentCapabilitiesFor`
+  projections (`internal/state/manager.go` state snapshot, `internal/server/launch.go` session read)
+  publish `image_input:false`. `ui/src/components/chat/Composer.tsx` (`capabilityError`, Send/Steer
+  disabled) and `ui/src/remote/AgentScreen.tsx` then refuse with “This runtime does not accept image
+  input…”. The server path is correct: Send → `ErrNoHandle` → `wakeAgent` → resume renegotiates
+  `initialize` → the image is delivered (202). Normal-use trigger: upgrade to `v0.15.x`, then attach
+  an image to any agent not run since; manual Resume clears it. Violates FS-03.R83 (stopped-agent
+  wake carries the message’s attachments) and TS-04.R90 (wake revalidates capability at
+  consumption). Spec gap alongside it: TS-01.R35/TS-03.R63 do not say what the projection reports
+  when the snapshot has no image advertisement on record — `types.go` calls zero “the answer for old
+  rows”, which here turns unknown into a refusal. Suggested fix: decode an absent `image_input` as
+  unknown (omit it or make it nullable in `attachment_capabilities`), have both composers allow an
+  unknown image and rely on the server’s wake-time revalidation (`attachment_capability` 422 still
+  surfaces a real refusal), and record the unknown state in TS-03.R63/TS-01.R35. A genuine frozen
+  `false` from a real handshake keeps blocking. Regression test: un-skip
+  `internal/server/attachment_wake_repro_test.go`
+  `TestStoppedAgentWithPreImageSnapshotDoesNotRefuseImages` (fails today on the `image_input:false`
+  projection; its wake Send already returns 202), plus a Composer/AgentScreen test that an unknown
+  image capability leaves Send enabled.
 
 ## Blocked on human
 
