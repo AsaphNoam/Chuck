@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -34,7 +35,8 @@ func TestNegotiateCapabilitiesIsBilateral(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := negotiateCapabilities(json.RawMessage(tc.init), tc.offer); got != tc.want {
+			tc.want.ImageInput = new(bool) // a fresh peer always gives an explicit refusal or support
+			if got := negotiateCapabilities(json.RawMessage(tc.init), tc.offer); !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("got %+v, want %+v", got, tc.want)
 			}
 		})
@@ -81,7 +83,7 @@ func TestStartNegotiatesCapabilitiesFromInitialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lookup: %v", err)
 	}
-	if got, want := as.capabilities(), negotiateCapabilities(json.RawMessage(codex211Init), offered); got != want || !got.Fork {
+	if got, want := as.capabilities(), negotiateCapabilities(json.RawMessage(codex211Init), offered); !reflect.DeepEqual(got, want) || !got.Fork {
 		t.Fatalf("session capabilities = %+v, want %+v", got, want)
 	}
 }

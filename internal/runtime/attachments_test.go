@@ -446,7 +446,7 @@ func TestAttachmentCapabilityAdvertisementIsIndependentOfSteer(t *testing.T) {
 		{`{"agentCapabilities":{"promptCapabilities":{"image":"yes"}}}`, false, false},
 	} {
 		caps := negotiateCapabilities(json.RawMessage(test.wire), clientOffer{})
-		if caps.ImageInput != test.image || decodeSteeringSupport(json.RawMessage(test.wire)) != test.steer {
+		if caps.ImageInput == nil || *caps.ImageInput != test.image || decodeSteeringSupport(json.RawMessage(test.wire)) != test.steer {
 			t.Fatalf("capabilities inferred outside advertisement: %s", test.wire)
 		}
 	}

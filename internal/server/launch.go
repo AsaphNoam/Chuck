@@ -200,11 +200,8 @@ func (s *Server) readSession(id string) sessionResponse {
 		s.log.Error("read session quota", "agent", id, "err", err)
 	}
 	if resp.Agent.Interface == "chat" {
-		caps := state.AttachmentCapabilitiesFor(resp.Agent.Interface, state.RuntimeCapabilities{})
-		if snap, err := s.stateStore.ReadSession(id); err == nil {
-			caps.ImageInput = snap.RuntimeCapabilities.ImageInput
-		}
-		resp.Attachments = caps
+		snap, _ := s.stateStore.ReadSession(id)
+		resp.Attachments = state.AttachmentCapabilitiesFor(resp.Agent.Interface, snap.RuntimeCapabilities)
 	}
 	return resp
 }

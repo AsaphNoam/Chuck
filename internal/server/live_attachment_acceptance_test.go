@@ -127,7 +127,7 @@ func runLiveAttachmentAcceptance(t *testing.T, providerID string) {
 	}
 	id := launch.Agent.AgentID
 	waitLiveStatus(t, srv, h, id, "idle")
-	if launch.Attachments == nil || !launch.Attachments.ImageInput {
+	if launch.Attachments == nil || launch.Attachments.ImageInput == nil || !*launch.Attachments.ImageInput {
 		t.Fatalf("live %s did not advertise image input: %+v", providerID, launch.Attachments)
 	}
 	imageBytes := func(width, height int) []byte {

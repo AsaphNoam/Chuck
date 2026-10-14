@@ -22,7 +22,8 @@ export interface RuntimeCapabilities {
 }
 
 export interface AttachmentCapabilities {
-  image_input: boolean;
+  /** Absent for older snapshots; the server revalidates after waking the agent. */
+  image_input?: boolean;
   files: boolean;
   max_files: number;
   max_file_bytes: number;
@@ -47,7 +48,8 @@ export interface AgentState {
    * render no Steer control rather than a disabled one. */
   steering_available: boolean;
   /** The session snapshot's normalized native capabilities (TS-03.R44); all
-   * false when unknown. An affordance only — the server revalidates. */
+   * false when unknown, except image_input, which stays absent. An affordance
+   * only — the server revalidates. */
   runtime_capabilities?: RuntimeCapabilities;
   attachment_capabilities?: AttachmentCapabilities;
   /** Whether Clone is offered and, if not, why (FS-01.R36, TS-03.R43). */

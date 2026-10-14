@@ -394,7 +394,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       {draggingFiles && <p className="composer-drop-hint" aria-live="polite">Drop files to attach</p>}
       {attachmentError && <p className="composer-error" role="alert">{attachmentError}</p>}
       {notice && <p className="composer-notice" role="status">{notice}</p>}
-      {error && <p className="composer-error">{error}</p>}
+      {(error || capabilityError) && <p className="composer-error">{error || capabilityError}</p>}
     </form>
   );
 }

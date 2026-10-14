@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
@@ -106,7 +107,7 @@ func TestAttachmentCapabilitiesUseRealSnapshotAndSessionProjection(t *testing.T)
 				t.Fatal(err)
 			}
 			response := srv.readSession(id)
-			if update.AttachmentCapabilities == nil || response.Attachments == nil || *update.AttachmentCapabilities != *response.Attachments || response.Attachments.ImageInput != image || !response.Attachments.Files || response.Attachments.MaxFiles != 10 || response.Attachments.MaxFileBytes != 10<<20 || response.Attachments.MaxTotalBytes != 25<<20 || response.Attachments.MaxPixels != 40_000_000 {
+			if update.AttachmentCapabilities == nil || response.Attachments == nil || !reflect.DeepEqual(update.AttachmentCapabilities, response.Attachments) || response.Attachments.ImageInput == nil || *response.Attachments.ImageInput != image || !response.Attachments.Files || response.Attachments.MaxFiles != 10 || response.Attachments.MaxFileBytes != 10<<20 || response.Attachments.MaxTotalBytes != 25<<20 || response.Attachments.MaxPixels != 40_000_000 {
 				t.Fatalf("snapshot/session input declarations differ: %+v %+v", update.AttachmentCapabilities, response.Attachments)
 			}
 		})

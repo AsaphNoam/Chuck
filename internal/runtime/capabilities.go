@@ -59,6 +59,7 @@ func clientCapabilitiesFor(o clientOffer) map[string]any {
 // negotiateCapabilities maps an initialize response into the normalized value.
 // Absent, malformed, or wrongly-typed advertisements read as unsupported.
 func negotiateCapabilities(initRes json.RawMessage, o clientOffer) SessionCapabilities {
+	imageInput := false
 	var body struct {
 		AgentCapabilities struct {
 			PromptCapabilities struct {
@@ -76,13 +77,14 @@ func negotiateCapabilities(initRes json.RawMessage, o clientOffer) SessionCapabi
 		} `json:"_meta"`
 	}
 	if json.Unmarshal(initRes, &body) != nil {
-		return SessionCapabilities{}
+		return SessionCapabilities{ImageInput: &imageInput}
 	}
 	session := body.AgentCapabilities.SessionCapabilities
 	air := decodeAir(body.Meta.JetBrains.Air.Version, body.Meta.JetBrains.Air.Capabilities)
 	asyncTasks := o.AsyncTasks && air[airAsyncTasks]
+	imageInput = body.AgentCapabilities.PromptCapabilities.Image
 	return SessionCapabilities{
-		ImageInput:         body.AgentCapabilities.PromptCapabilities.Image,
+		ImageInput:         &imageInput,
 		Fork:               isObject(session["fork"]),
 		Subagents:          o.Subagents && isObject(session["subagents"]),
 		BackgroundTasks:    asyncTasks,

@@ -93,22 +93,23 @@ func contextCountsColumns(c *ContextCounts) (any, any) {
 // of native session capabilities (TS-01.R35, TS-02.R35). It is populated only
 // from a live ACP initialize response, frozen onto the session snapshot for
 // stopped-session affordances, and never inferred from backend type or adapter
-// version. The zero value (all false) is the answer for old rows, terminals and
-// any adapter that does not advertise.
+// version. ImageInput is nil for snapshots predating image negotiation; live
+// negotiation always records an explicit boolean, including unsupported input.
+// Other capabilities default to false.
 type RuntimeCapabilities struct {
-	ImageInput         bool `json:"image_input"`
-	Fork               bool `json:"fork"`
-	Subagents          bool `json:"subagents"`
-	BackgroundTasks    bool `json:"background_tasks"`
-	BackgroundTaskStop bool `json:"background_task_stop"`
-	FileChangeReports  bool `json:"file_change_reports"`
-	SessionFailure     bool `json:"session_failure"`
+	ImageInput         *bool `json:"image_input,omitempty"`
+	Fork               bool  `json:"fork"`
+	Subagents          bool  `json:"subagents"`
+	BackgroundTasks    bool  `json:"background_tasks"`
+	BackgroundTaskStop bool  `json:"background_task_stop"`
+	FileChangeReports  bool  `json:"file_change_reports"`
+	SessionFailure     bool  `json:"session_failure"`
 }
 
 // AttachmentCapabilities is the same bounded input affordance on session reads
 // and state snapshots; runtime negotiation remains authoritative at delivery.
 type AttachmentCapabilities struct {
-	ImageInput    bool  `json:"image_input"`
+	ImageInput    *bool `json:"image_input,omitempty"`
 	Files         bool  `json:"files"`
 	MaxFiles      int   `json:"max_files"`
 	MaxFileBytes  int64 `json:"max_file_bytes"`
@@ -124,7 +125,8 @@ func AttachmentCapabilitiesFor(iface string, caps RuntimeCapabilities) *Attachme
 }
 
 // DecodeRuntimeCapabilities reads a stored snapshot. Anything outside the
-// boolean vocabulary, or a malformed value, reads as all false (TS-02.R35).
+// boolean vocabulary, or a malformed value, reads as false operation flags and
+// unknown image input (TS-02.R35).
 func DecodeRuntimeCapabilities(raw string) RuntimeCapabilities {
 	var caps RuntimeCapabilities
 	if raw == "" || json.Unmarshal([]byte(raw), &caps) != nil {
@@ -206,7 +208,8 @@ type AgentState struct {
 	// rather than a disabled one.
 	SteeringAvailable bool `json:"steering_available"`
 	// RuntimeCapabilities is the session snapshot's frozen advertisement; always
-	// present, all false when unknown (TS-03.R44). An affordance, never authority.
+	// present, false operation flags and absent image input when unknown
+	// (TS-03.R44/TS-03.R63). An affordance, never authority.
 	RuntimeCapabilities    RuntimeCapabilities     `json:"runtime_capabilities"`
 	AttachmentCapabilities *AttachmentCapabilities `json:"attachment_capabilities,omitempty"`
 	// Clone is the Clone affordance (FS-01.R36, TS-03.R43); always present.

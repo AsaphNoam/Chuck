@@ -8,6 +8,7 @@ import { AgentScreen } from "./AgentScreen";
 import { useConnection } from "./connection";
 import type { AgentState } from "../api/types";
 import { useAnnotationStore } from "../store/annotationStore";
+import { clearAttachmentDraftCacheForTests } from "../components/chat/attachments";
 
 // jsdom has no layout for the diff library; a tap on its line number is what
 // the shared DiffBlock listens for (FS-13.R17).
@@ -87,7 +88,8 @@ const server = setupServer(
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
-  localStorage.removeItem("chuck-chat-drafts");
+  clearAttachmentDraftCacheForTests();
+  localStorage.clear();
   permissionStatus = 200;
   promptStatus = 200;
   annotationStatus = 202;
@@ -118,6 +120,32 @@ function renderScreen() {
 }
 
 describe("AgentScreen", () => {
+  // FS-03.A64/A65: the phone composer uses the same three capability states.
+  it.each([undefined, true, false])("honors image advertisement %s", async (image_input) => {
+    const attachmentRequests: string[] = [];
+    server.use(http.post("/api/sessions/a1/prompt", async ({ request }) => {
+      attachmentRequests.push(request.headers.get("content-type") ?? "");
+      return HttpResponse.json({ accepted: true }, { status: 202 });
+    }));
+    useConnection.setState({ agents: { a1: { ...agent, state: "idle", attachment_capabilities: { image_input, files: true, max_files: 10, max_file_bytes: 10485760, max_total_bytes: 26214400, max_pixels: 40000000 } } } });
+    renderScreen();
+    fireEvent.change(screen.getByLabelText("Choose files to attach"), { target: { files: [new File(["image"], "wake.png", { type: "image/png" })] } });
+    const send = screen.getByRole("button", { name: "Send", exact: true });
+    if (image_input === false) {
+      expect(send).toBeDisabled();
+      expect(screen.getByText(/This runtime does not accept image input/)).toBeInTheDocument();
+      expect(screen.getByText("wake.png")).toBeInTheDocument();
+      fireEvent.click(send);
+      expect(attachmentRequests).toHaveLength(0);
+    } else {
+      await waitFor(() => expect(send).toBeEnabled());
+      fireEvent.click(send);
+      await waitFor(() => expect(attachmentRequests).toHaveLength(1));
+      expect(attachmentRequests[0]).toContain("multipart/form-data; boundary=");
+      await waitFor(() => expect(send).toBeEnabled());
+    }
+  });
+
   it("restores exact drafts after leaving and keeps agents separate", () => {
     useConnection.setState({ agents: { a1: { ...agent, state: "idle" } } });
     renderScreen();

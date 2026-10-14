@@ -858,7 +858,8 @@ func TestIndexerDegradesWhenFTS5WritesAreUnavailable(t *testing.T) {
 }
 
 // Each handshake replaces the frozen capability snapshot; a record without one
-// (a terminal, an old transcript) stores all false, and the agent projection
+// (a terminal, an old transcript) stores unknown image input and false operation
+// flags, and the agent projection
 // always carries the decoded value (TS-02.R35, TS-03.R44).
 func TestSessionMetaFreezesRuntimeCapabilities(t *testing.T) {
 	st, _ := openTestDB(t)

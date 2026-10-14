@@ -75,7 +75,7 @@ func (c *ChatRuntime) messageContent(as *agentState, m Message) ([]map[string]an
 			return nil, NewAPIError(CodeAttachmentLimit, "Attachment bytes exceed limits")
 		}
 		if actual.Kind == "image" {
-			if !as.capabilities().ImageInput {
+			if imageInput := as.capabilities().ImageInput; imageInput == nil || !*imageInput {
 				f.Close()
 				return nil, ErrAttachmentCapability
 			}

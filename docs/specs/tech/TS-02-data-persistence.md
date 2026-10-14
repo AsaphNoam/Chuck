@@ -527,8 +527,10 @@ schema migration adds nullable `sessions.forked_from_agent_id`, `forked_from_seq
 `runtime_capabilities_json` snapshot. The source foreign identity is informational rather than a
 cascading foreign key: deleting or archiving either agent never deletes the other agent's session,
 transcript, index or provider history. Capability JSON accepts only Chuck's boolean vocabulary,
-defaults to all false for old rows, is replaced after each successful handshake, and is never an
-oracle for a new peer that fails to advertise the capability.
+defaults to false for old rows except image input, which remains unknown when its boolean key is
+absent, is replaced after each successful handshake, and is never an oracle for a new peer that
+fails to advertise the capability. Unknown image input remains absent when reserialized; explicit
+false remains false. Malformed snapshots retain unknown image input and false operation flags.
 
 Durable normalized events add optional `activity_id` and `parent_activity_id` fields and the event
 kinds `activity_started`, `activity_state`, `background_task_state`, `file_report`, and

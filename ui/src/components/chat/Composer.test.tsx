@@ -67,6 +67,24 @@ function type(el: HTMLTextAreaElement, value: string) {
 }
 
 describe("Composer autocomplete", () => {
+  // FS-03.A64/A65: legacy unknown input reaches wake; a real refusal keeps the draft.
+  it.each([undefined, true, false])("honors image advertisement %s without inventing a refusal", async (image_input) => {
+    render(<Composer agentId="a_1" busy={false} attachmentCapabilities={{ image_input, files: true, max_files: 10, max_file_bytes: 10485760, max_total_bytes: 26214400, max_pixels: 40000000 }} />);
+    fireEvent.change(screen.getByLabelText("Choose files to attach"), { target: { files: [new File(["image"], "wake.png", { type: "image/png" })] } });
+    const send = screen.getByRole("button", { name: "Send" });
+    if (image_input === false) {
+      expect(send).toBeDisabled();
+      expect(screen.getByText(/This runtime does not accept image input/)).toBeInTheDocument();
+      expect(screen.getByText("wake.png")).toBeInTheDocument();
+      fireEvent.click(send);
+      expect(attachmentRequests).toHaveLength(0);
+    } else {
+      expect(send).toBeEnabled();
+      fireEvent.click(send);
+      await waitFor(() => expect(attachmentRequests).toHaveLength(1));
+    }
+  });
+
   it("sends selected files and text together in declared order, including attachment-only sends", async () => {
     render(<Composer agentId="a_1" busy={false} />);
     const picker = screen.getByLabelText("Choose files to attach");

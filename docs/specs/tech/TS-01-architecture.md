@@ -453,6 +453,9 @@ new peer before an operation proceeds; no server, persistence or UI branch infer
 `backend == "codex-acp"` or an adapter version. Chat implements the advertised operations and the
 terminal runtime returns the ordinary unsupported result. The registry remains the sole dispatcher,
 so launch, resume, switch, clone, wake and rollback never reach a Codex app-server client directly.
+Image input preserves three snapshot states: advertised true, advertised false, and unknown when
+an older snapshot has no boolean image advertisement. Unknown is not a client-side refusal;
+Send may wake the agent and the fresh runtime must revalidate before consuming the image.
 
 Normalized durable events gain optional `activity_id` and `parent_activity_id` scope plus bounded
 activity/background-task lifecycle payloads. Root events omit both fields. Child assistant, tool,

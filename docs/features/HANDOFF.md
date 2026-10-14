@@ -52,7 +52,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+Stopped-agent image finding: implementation and focused regressions pass. Image input now
+preserves unknown versus true/false across saved snapshots and both read projections; live peers
+always record a boolean and consumption still refuses unsupported input. Desktop now displays the
+existing reason beside a disabled image Send. Desktop/phone component tests cover all three
+states; the recovered wake regression covers fresh acceptance and refusal. Phone stopped agents
+currently offer Resume rather than a wake composer; this fix does not change that flow.
+Remaining: final `make test`, UI tests and `make dist`, handoff closure, commit and authorized push.
 
 ## Acceptance gates still owed
 

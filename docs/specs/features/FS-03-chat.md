@@ -1198,6 +1198,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Specifically restart with an attachment-bearing hold: it is released for explicit recovery,
   not automatically sent; a newer draft survives and old bytes remain available. A32 retains the
   legacy text-only restart behavior.
+  A stopped agent with a snapshot predating image negotiation can submit an image from the
+  desktop wake composer without manual Resume; the fresh provider accepts or visibly refuses it
+  before consumption. Desktop and phone composers treat an unknown image capability as eligible
+  for server validation; a saved explicit image refusal still blocks Send and preserves the draft.
 - **A65 (implemented 2026-10-13)** (R86) — Test the chosen limits at and beyond each boundary, malformed metadata,
   misleading MIME/name, incomplete upload, unavailable capability, and storage failure. Typed text
   and accepted attachments survive rejection; concurrent sends preserve newer drafts. *Verify:*

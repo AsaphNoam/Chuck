@@ -859,7 +859,10 @@ one upload per agent and four process-wide. Bound source reads and ACP base64 ex
 same ingress, not after allocation; expose typed errors for limit, type, storage and capability
 failures. Session responses and the same initial `state_update` agent snapshot expose the shared
 additive `attachment_capabilities` projection: `image_input`, `files`, `max_files`,
-`max_file_bytes`, `max_total_bytes`, and `max_pixels`. Disabled Send/Steer names the reason;
+`max_file_bytes`, `max_total_bytes`, and `max_pixels`. Omit `image_input` when the saved snapshot
+has no boolean image advertisement; both desktop and phone allow that unknown state to reach
+server wake-time revalidation. Explicit false still disables image Send/Steer and preserves the
+draft. Disabled Send/Steer names the reason;
 declarations are not a guarantee that a model can interpret every file. Typed upload failures use
 `attachment_limit`, `attachment_type`, `attachment_capability`, and `attachment_storage` with their
 documented 413, 422, 422, and 500 statuses.
