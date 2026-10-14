@@ -86,11 +86,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   spec check pass; rendered via `room-render.mjs <out> project` at 1440. Owed: rendered check
   with real agent cards above the rooms and keyboard toggle focus.
 
-- **Awaiting review — conversation-only archive search (2026-10-14):** FS-05.R41/A24
-  (`9627fa96`). Projection no longer indexes tool name/args/output, diff path/text or
-  permission reason; prompts, attachment names, replies and annotations stay. Old documents keep
-  tool text until `chuck reindex`. New archive test fails without the fix; both Go variants and
-  build pass. `check-specs` failed only on another session's uncommitted FS-21.R52/R53 citations.
+- **Closed — conversation-only archive search (2026-10-14):** FS-05.R41/A24
+  (`9627fa96`); independent review found no findings. Shared projection filters live indexing and
+  reindex without changing readable tool context or tracking; legacy documents retain tool text
+  until `chuck reindex`, as specified. Transcript, index, archive and contextref tests pass uncached
+  in both Go variants. The new archive regression fails against the pre-change projection through
+  a temporary Go overlay. Spec lint and diff checks pass. No local-choice notes needed resolution.
+  Invariant sweep: §2/§7/§8/§9/
+  §10/§16/§17 checked with no findings; no applicable surface for §1/§3/§4/§5/§6/§11/§12/§13/§14/§15.
+  **Fix model:** trivial/easy — Claude Sonnet or Codex Luna (no open fixes).
 
 ## Active change
 
