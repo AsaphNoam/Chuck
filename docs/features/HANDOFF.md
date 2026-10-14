@@ -127,13 +127,29 @@ None.
 
 ## Review findings
 
+### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64)
 
-None. The recovered stopped-agent image unit is closed; live provider/device acceptance gates
-and unrelated known risks above remain open.
+Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
+**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Worth fixing — J7/A64 stale Retry after a definite image refusal:** `ui/src/components/chat/Composer.tsx`
+  ~L140–168 sets the unconfirmed-send `retry` state for every failed send, so a stopped agent whose
+  fresh peer refuses an image (422, nothing consumed) shows “Previous message was not confirmed.
+  Retry previous send” beside the refusal. Retry repeats the same 422 with no visible change and the
+  notice survives reload. It misstates delivery and invites a dead loop (FS-03.A64 “visibly
+  refuses”). Test: a definite 4xx refusal keeps the draft and error but offers no unconfirmed-send
+  Retry.
+
+The recovered stopped-agent image implementation unit itself remains closed; live
+provider/device acceptance gates and unrelated known risks above remain open.
 
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-14 — usability review (J1, FS-03.A64 desktop wake):** real tagged binary, fresh home,
+  fake peer as `claude-agent-acp` on PATH, Chromium. J1 and the accept/explicit-refusal variants
+  pass; one Worth-fixing stale Retry after refusal recorded above; phone wake not exercised.
 
 - **2026-10-14 — stopped-agent image fix (INV §1/§2/§8/§11/§17):** confirmed the recovered
   regression failed before editing; preserved unknown image advertisements across persistence
