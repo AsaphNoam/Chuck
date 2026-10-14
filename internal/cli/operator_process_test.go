@@ -592,6 +592,41 @@ func TestOperatorBuiltBinaryRealServerJourney(t *testing.T) {
 	// consent; these fixtures never enable a tailnet or call a real provider.
 	run(`{"role":"cli-persona","title":"CLI persona","system_prompt":""}`, 0, "role", "create", "--request-file", "-", "--json")
 	run(`{"title":"Edited persona","system_prompt":"Be precise"}`, 0, "role", "edit", "--id", "cli-persona", "--request-file", "-", "--json")
+	// Role edit is a complete replacement: explicit false settings survive when
+	// resubmitted, and omitted fields reset.
+	var roleOut struct {
+		Title           string `json:"title"`
+		SystemPrompt    string `json:"system_prompt"`
+		ChuckAware      *bool  `json:"chuck_aware"`
+		SkipPermissions *bool  `json:"skip_permissions"`
+	}
+	readRole := func() {
+		t.Helper()
+		roleOut = struct {
+			Title           string `json:"title"`
+			SystemPrompt    string `json:"system_prompt"`
+			ChuckAware      *bool  `json:"chuck_aware"`
+			SkipPermissions *bool  `json:"skip_permissions"`
+		}{}
+		if err := json.Unmarshal(run("", 0, "role", "show", "--id", "cli-persona", "--json"), &roleOut); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run(`{"title":"Full","system_prompt":"Keep me","chuck_aware":false,"skip_permissions":false}`, 0, "role", "edit", "--id", "cli-persona", "--request-file", "-", "--json")
+	readRole()
+	if roleOut.Title != "Full" || roleOut.SystemPrompt != "Keep me" || roleOut.ChuckAware == nil || *roleOut.ChuckAware || roleOut.SkipPermissions == nil || *roleOut.SkipPermissions {
+		t.Fatalf("full replacement %+v", roleOut)
+	}
+	run(`{"title":"Full v2","system_prompt":"Keep me","chuck_aware":false,"skip_permissions":false}`, 0, "role", "edit", "--id", "cli-persona", "--request-file", "-", "--json")
+	readRole()
+	if roleOut.Title != "Full v2" || roleOut.SystemPrompt != "Keep me" || roleOut.ChuckAware == nil || *roleOut.ChuckAware || roleOut.SkipPermissions == nil || *roleOut.SkipPermissions {
+		t.Fatalf("resubmitted explicit false %+v", roleOut)
+	}
+	run(`{"title":"Title only"}`, 0, "role", "edit", "--id", "cli-persona", "--request-file", "-", "--json")
+	readRole()
+	if roleOut.Title != "Title only" || roleOut.SystemPrompt != "" || roleOut.ChuckAware != nil || roleOut.SkipPermissions != nil {
+		t.Fatalf("omitted fields were not reset %+v", roleOut)
+	}
 	run("", 2, "role", "delete", "--id", "cli-persona", "--json")
 	run("", 0, "role", "delete", "--id", "cli-persona", "--yes", "--json")
 	etagPath := filepath.Join(home, "catalog.etag")

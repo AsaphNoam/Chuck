@@ -379,6 +379,22 @@ func TestOperatorManagementLeavesEveryLeafWithPracticalExample(t *testing.T) {
 	}
 }
 
+func TestOperatorRoleEditHelpDescribesFullReplacement(t *testing.T) {
+	cmd, _, err := newOperatorRoleCmd().Find([]string{"edit"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	help := strings.ToLower(cmd.Long + "\n" + cmd.Example)
+	if strings.Contains(help, "partial") {
+		t.Errorf("role edit help still says partial: %s", help)
+	}
+	for _, want := range []string{"replace", "reset", "role show --id", "--json"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("role edit help missing %q: %s", want, help)
+		}
+	}
+}
+
 func TestOperatorCollectionShowClassifiesMalformedCollection(t *testing.T) {
 	for _, response := range []string{`[]`, `null`, `{"backends":null}`, `{}`} {
 		t.Run(response, func(t *testing.T) {

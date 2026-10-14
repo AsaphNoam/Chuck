@@ -234,9 +234,9 @@ try {
           const action = document.querySelector(".phone-agent-tabs > button");
           const actionBox = action.getBoundingClientRect();
           const meter = document.querySelector("[data-ui=context-meter]").getBoundingClientRect();
-          return { backText: back.textContent, backAlignment: Math.abs(backBox.y + backBox.height / 2 - persona.y - persona.height / 2) + (persona.bottom <= title.top ? 0 : 99), actionAlignment: Math.abs(actionBox.y + actionBox.height / 2 - tabs.y - tabs.height / 2), actionOutsideTabs: !action.closest("[role=tablist]"), contextBetween: meter.top > title.bottom && meter.bottom <= tabs.top, overflow: document.documentElement.scrollWidth > innerWidth };
+          return { backText: back.textContent, backWidth: backBox.width, backHeight: backBox.height, modelHeight: document.querySelector(".phone-model-switch").getBoundingClientRect().height, backAlignment: Math.abs(backBox.y + backBox.height / 2 - persona.y - persona.height / 2) + (persona.bottom <= title.top ? 0 : 99), actionAlignment: Math.abs(actionBox.y + actionBox.height / 2 - tabs.y - tabs.height / 2), actionOutsideTabs: !action.closest("[role=tablist]"), contextBetween: meter.top > title.bottom && meter.bottom <= tabs.top, overflow: document.documentElement.scrollWidth > innerWidth };
         });
-        if (header.backText || header.backAlignment > 1 || header.actionAlignment > 1 || !header.actionOutsideTabs || !header.contextBetween || header.overflow) throw new Error(`${theme}/${width} header: ${JSON.stringify(header)}`);
+        if (header.backText || header.backWidth < 44 || header.backHeight < 44 || header.modelHeight < 44 || header.backAlignment > 1 || header.actionAlignment > 1 || !header.actionOutsideTabs || !header.contextBetween || header.overflow) throw new Error(`${theme}/${width} header: ${JSON.stringify(header)}`);
         await page.screenshot({ path: `${prefix}-header-${width}.png`, animations: "disabled" });
         await page.evaluate(() => {
           history.pushState(null, "", "/project/my-app");

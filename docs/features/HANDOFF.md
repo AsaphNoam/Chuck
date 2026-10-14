@@ -22,21 +22,22 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   46 presentation/style checks and 15 Chromium journeys pass apart from the intentional failing
   legacy-mode regression probe. Changelog: identified false mode success and form-control menu
   interception (INV §8/§10/§11/§12). Other review units remain unchanged.
-- **Reviewed — projects home redesign; fix pending (2026-10-13):** `40e414e`,
-  FS-12.R69/A39, TS-08.R124. One Must-fix: unavailable-project cards omit their known running
-  count from the required footer. The rest of the composition and existing interactions pass
-  22 focused dashboard tests, 46 presentation/style checks and six independent Chromium journeys
-  at 1024/1440px in all three appearances. Finding, evidence and fix recommendation below;
-  this unit remains open. Other review units are unchanged.
-  Changelog: identified incomplete unavailable-project footers (INV §10).
-- **Reviewed — mobile agent header, composer and model switch; fix pending (2026-10-13):**
-  `c3b3c70`, `73cc75b`, `f15ee50`; FS-20.R43, TS-08.R111. One Must-fix: Back measures
-  32×44px and model switch is 36px tall, below FS-12.R68/A38's 44px phone action target.
-  Behavior and composition otherwise pass 41 AgentScreen tests, 46 presentation/style checks
-  and nine independent Chromium journeys at 360/390/430px in all three appearances.
-  Finding, verification and fix recommendation below; this unit remains open. Other review units
-  are unchanged. Changelog: identified undersized phone action targets (INV §10).
-- **Reviewed — full operator CLI parity; fix pending (2026-10-13):**
+- **Closed — projects home redesign (2026-10-14):** `40e414e` plus the fix commit. Unavailable-
+  project cards now render their running count; `ProjectDashboard` regression with a missing
+  project and running/stopped agents fails before the fix. Changelog: complete unavailable-project
+  footers (INV §10).
+- **Closed — mobile agent header, composer and model switch (2026-10-14):** `c3b3c70`,
+  `73cc75b`, `f15ee50` plus the fix commit. Back is 44×44px and the model switch 44px tall
+  (`phone.css`); `phone-render.mjs "" <out.png> --parity-check` now asserts both in the
+  nine-case width/appearance matrix and passes. Changelog: restored 44px phone action
+  targets (INV §10).
+- **Closed — full operator CLI parity (2026-10-14):** role-edit help fix below closes the unit.
+  Help and example now describe a complete replacement, name the omitted-field resets and start
+  from `role show --id <role> --json`; no client-side merge. Help regression
+  `TestOperatorRoleEditHelpDescribesFullReplacement`; the built-binary real-server journey adds
+  full replacement, retained explicit false settings and title-only reset. Changelog: accurate
+  role-edit replacement guidance (INV §10). Original unit record follows.
+- **Full operator CLI parity record (2026-10-13):**
   [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md), implementation
   `f6e7b2b`, `ff031e4`, `219b4b7`; final closure record is administrative, not another review unit.
   FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 are implemented.
@@ -100,8 +101,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. Full operator CLI parity is finished; independent review found misleading role-edit help,
-recorded below, and its fix remains pending. CLI parity and attachment closure notes are archived
+None. Full operator CLI parity, projects home redesign and mobile agent header units closed
+2026-10-14 with their review fixes. CLI parity and attachment closure notes are archived
 in [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
 
 ## Unit notes
@@ -330,134 +331,6 @@ Invariant sweep: applicable §1, §2, §5, §8–§14 and §17 have no additiona
 local-image teardown. §3 and §6 have no applicable changed surface: no seeded config form or
 one-shot persisted configuration field, and no new runtime/interface/driver. Review changes
 only this state file; every other role/review unit and concurrent product edits remain unchanged.
-
-### Full operator CLI parity — `f6e7b2b`, `ff031e4`, `219b4b7` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed independently 2026-10-13 against FS-22.R1–R12/A1–A9, TS-01.R38,
-TS-03.R64–R69 and TS-06.R34. Closure record `e90a15a` and intervening unrelated review,
-handoff and UI commits are excluded. The attachment implementation remains a separate unit.
-
-- **Must fix** — role-edit help promises a partial update that clears omitted settings
-  (INV §10). Location: `internal/cli/operator_management.go:105` (submission at `:666`).
-  `chuck role edit --help` describes "partial role JSON", so an operator changing only a title
-  can reasonably submit `{"title":"Reviewer v2"}` with `--id reviewer --request-file`.
-  The command forwards that object unchanged to the existing `PUT /api/roles/{role}` handler,
-  which replaces the definition rather than merging it. A real-handler probe with a retained
-  prompt and explicit `chuck_aware:false` / `skip_permissions:false` confirms a successful
-  title-only update clears the prompt and resets both overrides to inheritance/defaults.
-  This loses persona instructions and can change subsequent launch permissions. FS-22.R1/R3/R8
-  require accurate operation help/input shapes and existing semantics; TS-03.R64 requires the
-  existing request contract. Correct the help and example to describe a complete replacement,
-  identify the omitted-field resets, and show how to retain existing values from `role show`.
-  Do not introduce a client-side read/merge mutation as an incidental fix. Add a focused help
-  regression and a real-server role-edit case covering complete replacement, retained explicit
-  false settings and the documented reset behavior. No product or architecture decision is needed.
-
-Code and specifications otherwise agree in both directions. The single REST/SSE client,
-exact collection lookups, raw JSON/number preservation, server-owned launch and mutation semantics,
-explicit guard/receipt forwarding, shared transcript projection and bounded temporary observer
-tail are sound local choices. The CLI adds no runtime registration or lifecycle owner: persistence,
-full launch composition, fan-out/drain, mailbox eligibility, turn boundaries, reconciliation and
-hooks remain server-owned; capabilities use existing server projections. Observer teardown closes
-only its own request/stream and joins its worker; file downloads publish only completed bounded
-owner-only temporaries. Separate JSON/shortcut-field duplicates are rejected; ordinary repeated
-scalar flags retain Cobra's established behavior, which the specifications do not prohibit.
-
-Verification: fresh `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 go test -count=1 ./internal/cli`
-passes, including independent family wire/input/output/consent tests and the built-binary
-real-server fake-ACP conversation, management, pipeline/task/room, redaction, response-loss retry,
-exact child permission, Ctrl-C and EPIPE journeys. Focused `go test -race -count=1` observer,
-status and attachment checks pass. The initial sandboxed fresh run could not bind loopback;
-both passing runs used authorized loopback-enabled execution. A temporary Go overlay probe
-exercises the actual role handler and persisted definition without repository test/code edits:
-`/private/tmp/review-cli-role-probe_test.go` and `/private/tmp/review-cli-role-overlay.json`.
-The probe confirms the observed loss, rather than claiming the desired preservation passes.
-Fixtures make no live-provider, physical-device or real-tailnet claim.
-
-Invariant sweep: applicable §1, §2, §4, §6, §7, §8, §9, §11, §14, §15, §16 and §17 have
-no findings; §10 has the help/behavior drift above. §3, §5, §12 and §13 have no applicable
-changed surface: no seeded UI form or transient persisted runtime field, runtime check/claim,
-new installed-tool invocation, or UI markup/style change. Product code and specifications were
-unchanged. This finding keeps the same unit open; every other role/review unit is unchanged.
-
-### Projects home redesign — `40e414e` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed independently 2026-10-13 against FS-12.R69/A39 and TS-08.R124.
-
-- **Must fix** — **unavailable-project cards omit the running count (INV §10).**
-  Location: `ui/src/features/dashboard/ProjectDashboard.tsx:151`. When a non-archived agent
-  names a project missing from the configuration, the shared projection retains that agent in
-  an unavailable-project card. The new footer renders its agent count but suppresses its running
-  count with `!project.unavailable`. FS-12.R69 requires the ruled footer to show both counts,
-  and A39 explicitly includes the unavailable state. The independent fixture's `ghost` card has
-  one running agent but shows only `1 agent`, while the header includes that agent in its running
-  total. This reproduces at both required widths in all three appearances. Render the already
-  computed running count for unavailable cards too; add a focused regression with a missing
-  project and running/stopped agents, asserting both footer values and the page total.
-
-Other code and specifications agree in both directions. Keeping count derivation in the feature
-component over `deriveDashboardProjects`, leaving the phone's distinct `stateSummary` contract
-alone, using semantic state tones and the existing project-accent exception, and removing the
-unused shadow token are sound local choices. No human decision is needed.
-
-Verification: 21 `ProjectDashboard` tests plus one shared-projection test and 46 presentation/style
-checks pass. The shipped `projects-render.mjs` fixture passes all six appearance/width combinations;
-a separate Chromium harness exercises the working tree's actual UI in Core, Sky & Grove and Studio
-at 1024px and 1440px. It verifies all seven live/stopped labels in attention order, archived-agent
-exclusion, running totals and live running-to-stopped updates, long-title wrapping, long-branch
-ellipsis without card/page overflow, right-click project/background menus, Rename/Archive/New
-project dialogs and cancellation, keyboard focus feedback, and reduced-motion project navigation.
-Settled screenshots and an independent visual critique confirm the footer finding and otherwise
-readable header, cards, state tones and menus. The deterministic visual matrix was rendered in each
-appearance at both widths; the removed token has no remaining source or embedded reference.
-Fixtures make no provider or real-home claim. Evidence:
-`/private/tmp/review-projects-20261013.mjs` and
-`/private/tmp/chuck-projects-review/{receipt.json,*.png}`.
-
-Invariant sweep: applicable §2, §4, §8, §13 and §17 have no findings; §10 has the finding above.
-§1, §3, §5, §6, §7, §9, §11, §12, §14, §15 and §16 have no applicable surface in this unit.
-Product code and specifications were unchanged. Only this unit's review state was updated.
-
-### Mobile agent header, composer and model switch — `c3b3c70`, `73cc75b`, `f15ee50` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed independently 2026-10-13 against FS-20.R43, TS-08.R111 and their shared
-FS-12.R68/A38 phone action sizing contract. Administrative checkpoints `c2266b2`/`470b53d`
-and unrelated CLI design checkpoint `d3c9307` are excluded. Later draft and attachment changes
-are separate units; rendered checks exercise the current working tree's actual remote entry.
-
-- **Must fix** — Restore 44px phone hit targets (INV §10). In
-  `ui/src/styles/features/phone.css:63`, `.phone-agent-title .phone-agent-back` sets width to
-  32px; at `:121`, `.phone-model-switch` sets minimum height to 36px. Opening an agent on a
-  phone and tapping Back or the model switch encounters targets below FS-12.R68/A38's required
-  44px size, making these common actions harder to hit. Independent Chromium measurement
-  confirms Back is 32×44px and model switch is 36px tall at 360/390/430px in Core, Sky & Grove
-  and Studio. Preserve the specified compact chevron and raised model surface while extending
-  their hit areas to at least 44px. Add rendered assertions for Back width/height and model
-  switch height in the same nine-case matrix; existing header/composer geometry checks omit
-  these dimensions. No product decision or spec change is required.
-
-Code and specifications otherwise agree in both directions. Reusing detailed ContextBar,
-AgentManagement's runtime action, the mutation/error seam, and PhoneSheet's opt-in centered
-variant are sound local choices; none needs human input. Refused runtime switching retains the
-chosen model and effort, successful switching closes the sheet without clearing the composer
-draft, and focus returns to the trigger. Runtime-sheet bottom placement, centered New agent
-placement with expanded fields contained in the viewport, live context updates, stopped
-Resume availability, offline mutation disabling and Back navigation pass independent checks.
-Inspected settled screenshots show the required header hierarchy, borderless typing surface,
-Send inside the composer, right-aligned model control, readable refusals and no horizontal
-overflow in all three appearances.
-
-Verification: AgentScreen's 41 tests and 46 presentation/style checks pass. Nine independent
-Chromium journeys pass the behavior and composition checks above while reporting the undersized
-targets. Harness and receipts:
-`/private/tmp/review-mobile-header-20261013.mjs` and
-`/private/tmp/review-mobile-header-20261013/{receipt.json,*.png}`. Fixtures make no live-provider,
-physical-device or real-tailnet claim.
-
-Invariant sweep: applicable §1, §2, §8, §10, §13, §16 and §17 were checked; only §10 has the
-finding above. §3–§7, §9, §11, §12, §14 and §15 have no applicable changed surface in this unit.
-Product code and specifications are unchanged. The finding keeps this same unit open and
-creates no second review obligation; every other role/review unit is unchanged.
 
 ### Phone group memory and long-press agent actions — `17b73ed` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 

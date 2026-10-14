@@ -148,7 +148,7 @@ export function ProjectDashboard() {
             </ul>
             <div className="project-card-footer">
               <span>{project.agents.length} {project.agents.length === 1 ? "agent" : "agents"}</span>
-              {!project.unavailable && <span>{running} running</span>}
+              <span>{running} running</span>
             </div>
           </article>;
         })}

@@ -102,7 +102,7 @@ func managementHelp(family, action, short string) string {
 		"group:archive":         "{group}; the label is scoped to --project",
 		"worktree:fork":         "{title,branch,base?}; --project identifies the source workspace",
 		"role:create":           "{role,title,system_prompt?,chuck_aware?,skip_permissions?}",
-		"role:edit":             "partial role JSON, such as {title,system_prompt,chuck_aware,skip_permissions}",
+		"role:edit":             "complete replacement role JSON {title,system_prompt?,chuck_aware?,skip_permissions?}",
 		"backend:create":        "{backend_id,name,type,connect_native_configuration?}",
 		"backend:replace":       "{version,backends}; --etag supplies the catalog If-Match value",
 		"backend:refresh":       "optional {model_id}; --etag supplies the catalog If-Match value",
@@ -127,6 +127,9 @@ func managementHelp(family, action, short string) string {
 	}
 	if family == "project" && (action == "delete" || action == "archive") {
 		text += " Checkout deletion and dirty-checkout expectations are separate explicit flags; --dirty requires --dirty-known, and --yes does not supply either."
+	}
+	if family == "role" && action == "edit" {
+		text += " This replaces the whole role definition: omitted fields are reset (system_prompt is cleared; chuck_aware and skip_permissions revert to inheritance). To keep existing values, start from the output of chuck role show --id <role> --json and edit that."
 	}
 	if family == "role" && action == "delete" {
 		text += " Use --force separately when deleting a role with active references."
@@ -190,7 +193,7 @@ func operatorExample(parent, use string) string {
 	case "role:create":
 		return "chuck role create --request-file role.json"
 	case "role:edit":
-		return "chuck role edit --id reviewer --request-file changes.json"
+		return "chuck role show --id reviewer --json > role.json  # edit role.json, then:  chuck role edit --id reviewer --request-file role.json"
 	case "role:delete":
 		return "chuck role delete --id reviewer --yes"
 	case "backend:list":

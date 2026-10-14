@@ -73,6 +73,21 @@ describe("ProjectDashboard", () => {
     expect(card.querySelector(".context-menu")).toBeNull();
   });
 
+  it("shows both footer counts on unavailable-project cards", async () => {
+    useAgentStore.setState({
+      agents: {
+        live: { ...agent("live", "busy"), project: "ghost" },
+        idle: { ...agent("idle", "done"), project: "ghost" },
+      },
+      order: ["live", "idle"],
+    });
+
+    renderDashboard();
+    const card = (await screen.findByText("Project unavailable")).closest("article")!;
+    expect(card.querySelector(".project-card-footer")).toHaveTextContent("2 agents1 running");
+    expect(screen.getByText(/· 1 agent running$/)).toBeInTheDocument();
+  });
+
   it("renames through a dialog and leaves the request untouched on cancel", async () => {
     let saved: Record<string, unknown> | null = null;
     server.use(http.put("/api/projects/app", async ({ request }) => {
