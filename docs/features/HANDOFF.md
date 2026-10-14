@@ -12,16 +12,19 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   before teardown. Full serial tests, tagged build and focused race checks pass. Live provider
   receipts remain gates below. Original evidence and closure are in
   [`INVESTIGATION-agent-continuity-2026-10-14`](../archive/state/INVESTIGATION-agent-continuity-2026-10-14.md).
-- **Recovered investigation — stopped-agent image refusal (2026-10-14):** the finding and skipped
-  reproduction existed only on `claude/awesome-gates-nxg67z`, outside the shared main fix queue and
-  v0.16.0 cut. Recovered locally under **Review findings**; publication still requires authorization.
+- **Finished — stopped-agent image refusal (2026-10-14):** old snapshots preserve unknown image
+  capability instead of advertising refusal; desktop wake reaches fresh runtime validation.
+  Explicit false still blocks image Send with a visible reason and preserves the draft. Both read
+  projections, desktop/phone composers, fresh acceptance and refusal have regression coverage.
+  Full Go matrix passes with `GOFLAGS=-p=1`, all 850 UI tests pass, and `make dist` passes.
+  Phone stopped agents retain their existing Resume flow. The originating fix unit is closed.
 - **Release:** `v0.16.0` published 2026-10-14 (Latest): release CI run 38593397312 passed and
   the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from
   [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md). Manual provider gates
   below remain owed.
 - **Main CI UI test races fixed locally (CI unconfirmed):** `NewAgentModal` tests now wait for an
   enabled Launch and mock `/api/config`; the phone successive-gap test has a 20 s timeout. Full
-  UI suite passes locally; the next `main` push should confirm CI green. Range `v0.15.1..v0.16.0`: the shipped
+  UI suite passes locally; remote CI confirmation remains owed. Range `v0.15.1..v0.16.0`: the shipped
   `operating-chuck` Think Tank reference now names the discussion `pass` disposition and the
   quiet-round ending; nothing else agent-facing.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
@@ -34,7 +37,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   parser, login side client or new adapter patch.
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
-  violates a credential test's source-build assumption.
+  violates a credential test's source-build assumption. Prefer `GOFLAGS=-p=1` for full closure:
+  the parallel image-fix run timed out `TestCodexProberAcceptsNativeLoginWithoutAPIKey` after 2 s;
+  five isolated repeats and the full serial matrix passed without code changes.
 - **Known flaky checks (uninvestigated):** `internal/server`
   `TestOrdinaryStageAgentStopPausesPipelineRun` intermittently returns 409 “a resume is already in
   progress”. `FileViewer.test.tsx`
@@ -52,13 +57,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-Stopped-agent image finding: implementation and focused regressions pass. Image input now
-preserves unknown versus true/false across saved snapshots and both read projections; live peers
-always record a boolean and consumption still refuses unsupported input. Desktop now displays the
-existing reason beside a disabled image Send. Desktop/phone component tests cover all three
-states; the recovered wake regression covers fresh acceptance and refusal. Phone stopped agents
-currently offer Resume rather than a wake composer; this fix does not change that flow.
-Remaining: final `make test`, UI tests and `make dist`, handoff closure, commit and authorized push.
+None.
 
 ## Acceptance gates still owed
 
@@ -129,55 +128,24 @@ Remaining: final `make test`, UI tests and `make dist`, handoff closure, commit 
 ## Review findings
 
 
-### Recovered investigation — stopped agent refuses an image (2026-10-14) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-**Report (verbatim):** “Trying to send a message with an attached image when an agent is stopped
-gives an error that this provider doesn't support images.” No version, provider or logs supplied;
-the refusal is client-side, so nothing would be logged. Original investigation read current main
-at v0.15.1. Recovered from commit `1d4db58bd685e1c458d35bf1a8fe9ae1d0c4e53b` on remote branch
-`claude/awesome-gates-nxg67z`. Its finding and skipped reproduction were absent from main at
-`c80dd5fd`; this is an independent missing investigation, not another copy of the model/provider
-continuity unit. No product behavior is changed by this recovery.
-
-- **Must fix** — **Confirmed code defect and specification coverage gap; fix complexity medium.**
-  Stopped agents whose saved capability snapshot predates image negotiation project `image_input`
-  as false. `image_input` joined the snapshot in `395c1a8` (2026-10-13);
-  `state.DecodeRuntimeCapabilities` decodes an absent key as false, and both
-  `AttachmentCapabilitiesFor` projections (`internal/state/manager.go` and
-  `internal/server/launch.go`) publish that value. The desktop Composer and phone AgentScreen
-  reject attached images before Send can reach the otherwise-correct stopped-agent wake path.
-  Normal-use trigger: upgrade and attach an image to an agent not run since; manual Resume clears
-  the stale capability. FS-03.R83 and TS-04.R90 require wake-time revalidation. TS-01.R35/TS-03.R63
-  need a specified unknown-advertisement state rather than making old rows look like a genuine
-  provider refusal. INV §1/§11/§17. Suggested fix: preserve unknown versus a provider-advertised
-  false, let unknown capability reach server wake-time revalidation, and retain explicit refusal
-  for real false. Un-skip `internal/server/attachment_wake_repro_test.go`
-  `TestStoppedAgentWithPreImageSnapshotDoesNotRefuseImages`; add desktop/phone coverage for unknown
-  capability and genuine refusal. The recovered reproduction fails on the false projection while
-  its direct image wake succeeds with 202. Original author recorded it as reproduced; recovery
-  independently re-ran the unskipped test against current main through a temporary overlay and
-  observed the same projection failure with no wake-202 failure. The retained test stays skipped;
-  focused checks pass untagged and with `sqlite_fts5`, and spec/diff checks pass.
-
-**Cloud-work audit scope (2026-10-14):** Checked this cloud checkout's worktree, branches, reflog and
-unreachable commits; all five non-main remote branches; and all ten GitHub pull requests (all
-merged; none open or closed-unmerged). Besides the archived continuity and image investigations, no additional
-undelivered work was found in this scope. The August review/fix branches and July Learning Atlas
-branch have patch-equivalent changes on main. The July Skip setup branch's behavior is present as
-Set up later, with current spec and tests. Other chats' private/unpushed cloud workspaces and
-account-wide conversation history are not accessible to this session; those are not certified clear.
-Recovery is local-only until authorized publication. The continuity unit is now closed locally.
-**Next:** `/fix` this stopped-agent image unit independently.
+None. The recovered stopped-agent image unit is closed; live provider/device acceptance gates
+and unrelated known risks above remain open.
 
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-14 — stopped-agent image fix (INV §1/§2/§8/§11/§17):** confirmed the recovered
+  regression failed before editing; preserved unknown image advertisements across persistence
+  and shared read projections, retained explicit refusal and wake-time validation, and surfaced
+  the desktop disabled-Send reason. Added serialization, fresh-wake acceptance/refusal and both
+  composer regressions. `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test`, all 850 UI tests,
+  `make dist` and diff checks pass. No findings remain in this unit; existing manual gates remain.
 - **2026-10-14 — context continuity fix (INV §1/§2/§3/§4/§5/§7/§8/§11/§12/§16/§17):** closed
   C1–C9 with canonical bounded primers, durable conversation bridges, explicit model provenance,
   atomic partial-switch composition, fail-closed restore and honest provider capability/refusal.
   `make test` passes both variants serially; tagged build and focused lifecycle race checks pass.
-  Live provider verification, the stopped-agent image unit and the mail-test assertion race remain.
+  Live provider verification and the mail-test assertion race remain.
 
 ## Blocked on human
 
