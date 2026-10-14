@@ -19,7 +19,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   updates, including unchanged values; project background menus exclude buttons and nested
   content. Actual-wire mode and header-control regressions failed before their fixes and pass
   afterward. Changelog: restored effective-mode reporting and form-control exclusions
-  (INV §8/§10/§11/§12). Integration verification is in progress.
+  (INV §8/§10/§11/§12). Both findings are closed; combined verification is recorded below.
 - **Closed — projects home redesign (2026-10-14):** `40e414e` plus the fix commit. Unavailable-
   project cards now render their running count; `ProjectDashboard` regression with a missing
   project and running/stopped agents fails before the fix. Changelog: complete unavailable-project
@@ -38,18 +38,25 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   variants), `make build` and UI build pass; UI 815/817, the two failures being the known
   `NewAgentModal` flake (reproduced on unchanged `d74fb39`).
 - **Closed — chat images and attachments (2026-10-14):** `e8c50f7`, `395c1a8`, `9ae6f59` plus
-  the fix commit on `fix/chat-attachments-20261014`. Startup recovery now clears an owned item's
+  fix `e8ffaf6`, merged into `main`. Startup recovery now clears an owned item's
   pending marker without byte validation and isolates per-conversation failures (logged,
   copies preserved), so a corrupt owned blob is only a per-item read error
   (`TestRestartWithCorruptOwnedAttachmentKeepsDeliveryAvailable`). `DeleteAgent` removes owned
   bytes before the identity row (`TestDeleteAgentKeepsOwnershipUntilAttachmentCleanupSucceeds`).
   Local-image Escape routes through `setDialogOpen` (two `AttachmentView` regressions). All four
   regressions fail on the pre-fix code. TS-02.R47 records deletion ordering and per-conversation
-  recovery. Closure: `make test` (both Go variants) passes with `GOFLAGS=-p=1`; the
-  parallel run failed only the known `TestToolImageFrameBoundsAcrossActualWire` timing flake.
-  `make build` and `make embed` pass; UI 816/819, the failures being the known `NewAgentModal`
-  flake. Changelog: isolated attachment recovery, retryable conversation deletion and
+  recovery. Both Must-fix items and the Worth-fixing item are closed.
+  Changelog: isolated attachment recovery, retryable conversation deletion and
   Escape modal teardown (INV §4/§7/§15/§16).
+- **Combined fix integration (2026-10-14):** permission modes, project menu and attachment
+  branches merged locally into `main` (`ce06af5`, `b237c61`, `9ec87bd`); no push. Shared handoff
+  entries reconciled and embedded UI regenerated from the combined source with `make embed`.
+  `env -u CHUCK_RUNTIME_ROOT GOCACHE=/private/tmp/chuck-gocache GOFLAGS=-p=1 make test`
+  passes both full Go variants; `make build`, UI build, all 821 UI tests in 89 files with two
+  workers, all 46 presentation/style checks and focused permission-mode race tests pass.
+  Logs: `/private/tmp/chuck-merged-{go,ui,embed,build,race}-20261014.log`. No browser,
+  live-provider or physical-phone journeys were rerun for these fixes; previously owed gates
+  remain below. Closure creates no new review unit.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
@@ -68,7 +75,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. Full operator CLI parity, projects home redesign and mobile agent header units closed
+None. Permission modes/project-menu and attachment review fixes are merged and closed.
+Full operator CLI parity, projects home redesign and mobile agent header units closed
 2026-10-14 with their review fixes. CLI parity and attachment closure notes are archived
 in [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
 
