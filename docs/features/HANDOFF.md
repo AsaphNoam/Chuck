@@ -60,12 +60,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   JSON decode CPU for the 25 MiB frame fell from 1.17 s to 0.71 s and the subtest from ~2.4 s to
   ~1.9 s. `make test` (both variants, parallel packages) and runtime `-race` pass. Changelog:
   single-peek ACP update routing (INV §16); large-frame test budgets (no invariant class).
-- **Closed — phone model and effort split (2026-10-14):** FS-20.R43, TS-08.R111 (`b1bc5284`).
-  Independent review found no findings: the effort button reuses Manage's live-model, chat-only
-  gating, the shared `runtime-options` query and the session-config request through `act`, so
-  refusals surface. `phone-render.mjs --details-check` re-run on `main` passes in Core, Sky &
-  Grove and Studio (model left, effort right, no overflow). Changelog: phone effort cycle review
-  (INV §2/§8/§10/§13 checked; §1, §3–§7, §9, §11, §12, §14–§17 no surface).
+- **Closed — phone model and effort split (2026-10-14):** FS-20.R43, TS-08.R111 (`b1bc5284`);
+  review found no findings.
 - **Reviewed — phone scroll memory, finding open (2026-10-14):** FS-20.R54/A26, TS-08.R125. A bounded
   (50-entry) page-session map keeps each chat's top visible message row (`data-place`) or
   at-newest, and other routes' `scrollY`. First open and left-at-newest open at the newest message.
@@ -80,19 +76,20 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   review finding below. All 101 remote tests pass. The unit stays open. No validated trivial/easy
   findings.
 
-- **Closed — mobile wallpaper restoration (2026-10-14):** FS-20.R43, TS-08.R111 (`33987801`).
-  Independent review found no findings: the one-line change makes `.phone-app` transparent so
-  each appearance's `body::before` shows; header, rows, cards, bubbles and composer keep their
-  panel surfaces. `phone-render.mjs --details-check` re-run on `main` passes in Core, Sky & Grove
-  and Studio; chat, files and manage screenshots stay legible. In full-page captures the fixed
-  wallpaper ends at viewport height, which is a Playwright capture artifact, not a defect.
-  Changelog: phone wallpaper review (INV §13 checked, no new selectors; §1–§12, §14–§17 no surface).
+- **Closed — mobile wallpaper restoration (2026-10-14):** FS-20.R43, TS-08.R111 (`33987801`);
+  review found no findings.
 
 - **Awaiting review — agent page width and side panels (2026-10-14):** FS-12.R61, TS-08.R112.
   `7a0228e5`, `30204eaf`: card ~80% of the window; conversation and composer 85% of the card
   (7.5% insets, held when panels narrow it). File viewer and annotation tray sit outside the
   card via `AgentStage` portal slots. Chat/archive tests, presentation checks, embed pass;
   full suite fails only the `NewAgentModal` flake. Receipts: `agent-design/runs/eighty/`.
+
+- **Awaiting review — conversation-only archive search (2026-10-14):** FS-05.R41/A24
+  (`9627fa96`). Projection no longer indexes tool name/args/output, diff path/text or
+  permission reason; prompts, attachment names, replies and annotations stay. Old documents keep
+  tool text until `chuck reindex`. New archive test fails without the fix; both Go variants and
+  build pass. `check-specs` failed only on another session's uncommitted FS-21.R52/R53 citations.
 
 ## Active change
 
