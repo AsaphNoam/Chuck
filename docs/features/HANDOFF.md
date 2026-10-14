@@ -28,21 +28,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
-- **Closed — phone connection recovery (2026-10-14):** FS-20.R51–R53/A25, TS-13.R27–R29.
-  One owner in `ui/src/remote/connection.ts`: ping-fed 25 s deadline, serialized health+stream
-  attempts, 5–60 s backoff, hidden pause; initial page stays `checking` until hydration.
-  `ReplaceForm` unkeyed; chat re-anchors after refresh. `connection.test.ts` (13, fake clock),
-  `phone-render.mjs --recovery-check` (fails without the anchor fix), full UI suite (known
-  `NewAgentModal` flake only), `make test`, embed and build pass. Device gates owed below.
-  Review (`45dfe9a4`, `ca1fd120`) findings closed: `pause` now moves `connected` to
-  `reconnecting` when it closes a hydrated source, so page-cache restore keeps actions gated
-  until the replacement hydrates (TS-13.R28/R30 updated; new delayed-health regression fails
-  without the fix; 14 connection tests). The harness finding was false: `phone-render.mjs`
-  already sets exit code 1 when the conversation is missing (verified with a deliberately
-  missing agent: screenshot written, exit 1); no change. `--recovery-check`, `make test`, embed,
-  build pass; full UI suite fails only the `NewAgentModal` flake.
-  Changelog: phone heartbeat recovery (INV §1/§4/§5/§16); recovery review (INV §1/§4/§8/§17);
-  page-cache action gate (INV §1/§4/§8); harness exit finding false (INV §17, no change).
 - **Closed — think tank non-leaver filler (2026-10-14):** FS-21.R16/R20/R52–R53/A38, TS-14.R5.
   Any participant can now submit disposition `pass` on a discussion turn (no message; charges one
   turn, advances the checkpoint, publishes a bodiless `pass` marker, stays eligible); discussion
@@ -92,6 +77,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   (7.5% insets, held when panels narrow it). File viewer and annotation tray sit outside the
   card via `AgentStage` portal slots. Chat/archive tests, presentation checks, embed pass;
   full suite fails only the `NewAgentModal` flake. Receipts: `agent-design/runs/eighty/`.
+
+- **Awaiting review — project rooms at the bottom, collapsible (`4440e79e`, 2026-10-14):**
+  FS-02.R71/A53, FS-12.R63, FS-21.R44/A33, TS-08.R96. Rooms follow the agent grid; the heading
+  is an `aria-expanded` toggle (count stays visible) remembered in `localStorage`
+  `chuck.think-tank-rooms-collapsed` (shared with Archive). Grid header lost "Live operations".
+  838/841 UI tests (only the `NewAgentModal` flake, 34/34 alone), presentation checks, tsc and
+  spec check pass; rendered via `room-render.mjs <out> project` at 1440. Owed: rendered check
+  with real agent cards above the rooms and keyboard toggle focus.
 
 - **Awaiting review — conversation-only archive search (2026-10-14):** FS-05.R41/A24
   (`9627fa96`). Projection no longer indexes tool name/args/output, diff path/text or

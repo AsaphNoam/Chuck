@@ -131,3 +131,21 @@ specifications were unchanged.
 The mobile outage investigation was closed by the user on 2026-10-12 (see Current position).
 Closed 2026-10-11 reviews are in the archive above.
 
+
+## Settled closure moved from the live handoff — 2026-10-14
+
+- **Closed — phone connection recovery (2026-10-14):** FS-20.R51–R53/A25, TS-13.R27–R29.
+  One owner in `ui/src/remote/connection.ts`: ping-fed 25 s deadline, serialized health+stream
+  attempts, 5–60 s backoff, hidden pause; initial page stays `checking` until hydration.
+  `ReplaceForm` unkeyed; chat re-anchors after refresh. `connection.test.ts` (13, fake clock),
+  `phone-render.mjs --recovery-check` (fails without the anchor fix), full UI suite (known
+  `NewAgentModal` flake only), `make test`, embed and build pass. Device gates owed below.
+  Review (`45dfe9a4`, `ca1fd120`) findings closed: `pause` now moves `connected` to
+  `reconnecting` when it closes a hydrated source, so page-cache restore keeps actions gated
+  until the replacement hydrates (TS-13.R28/R30 updated; new delayed-health regression fails
+  without the fix; 14 connection tests). The harness finding was false: `phone-render.mjs`
+  already sets exit code 1 when the conversation is missing (verified with a deliberately
+  missing agent: screenshot written, exit 1); no change. `--recovery-check`, `make test`, embed,
+  build pass; full UI suite fails only the `NewAgentModal` flake.
+  Changelog: phone heartbeat recovery (INV §1/§4/§5/§16); recovery review (INV §1/§4/§8/§17);
+  page-cache action gate (INV §1/§4/§8); harness exit finding false (INV §17, no change).
