@@ -1,62 +1,21 @@
 # Chuck — Implementation handoff
 
-**Live agent state.** Settled state through 2026-10-11 is archived in
-[`HANDOFF-through-2026-10-11`](../archive/state/HANDOFF-through-2026-10-11.md).
+**Live agent state.** Settled state through 2026-10-14 is archived in
+[`HANDOFF-through-2026-10-14`](../archive/state/HANDOFF-through-2026-10-14.md).
 Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** `v0.14.0` tagged locally 2026-10-11 at the release commit, **unpushed**; pushing
+- **Release:** `v0.15.0` tagged locally 2026-10-14 at the release commit, **unpushed**; pushing
   `main` and the tag needs explicit user authorization, then publication verification (workflow
-  §16.6). `v0.13.0` was published 2026-10-10. The user waived the open review units below for
-  release; that is not completed review. Manual provider gates below remain owed.
-- **Repository:** `AsaphNoam/Chuck`; branch `main`.
-- **Closed entries (2026-10-12/13):** blank phone entry, dev mobile CSS, phone group memory and
-  phone chat drafts are archived in
-  [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
-- **Closed — chat permission modes, project-page menu, hidden file changes (2026-10-14):**
-  `bac0d40`, `7cd50ff` plus fixes `a27f8d2`, `96d828f`. Empty legacy replies preserve provider
-  updates, including unchanged values; project background menus exclude buttons and nested
-  content. Actual-wire mode and header-control regressions failed before their fixes and pass
-  afterward. Changelog: restored effective-mode reporting and form-control exclusions
-  (INV §8/§10/§11/§12). Both findings are closed; combined verification is recorded below.
-- **Closed — projects home redesign (2026-10-14):** `40e414e` plus the fix commit. Unavailable-
-  project cards now render their running count; `ProjectDashboard` regression with a missing
-  project and running/stopped agents fails before the fix. Changelog: complete unavailable-project
-  footers (INV §10).
-- **Closed — mobile agent header, composer and model switch (2026-10-14):** `c3b3c70`,
-  `73cc75b`, `f15ee50` plus the fix commit. Back is 44×44px and the model switch 44px tall
-  (`phone.css`); `phone-render.mjs "" <out.png> --parity-check` now asserts both in the
-  nine-case width/appearance matrix and passes. Changelog: restored 44px phone action
-  targets (INV §10).
-- **Closed — full operator CLI parity (2026-10-14):** `f6e7b2b`, `ff031e4`, `219b4b7` plus the
-  fix commit; unit record is in Git history. Help and example now describe a complete replacement, name the omitted-field resets and start
-  from `role show --id <role> --json`; no client-side merge. Help regression
-  `TestOperatorRoleEditHelpDescribesFullReplacement`; the built-binary real-server journey adds
-  full replacement, retained explicit false settings and title-only reset. Changelog: accurate
-  role-edit replacement guidance (INV §10). Closure for all three fixes: `make test` (both Go
-  variants), `make build` and UI build pass; UI 815/817, the two failures being the known
-  `NewAgentModal` flake (reproduced on unchanged `d74fb39`).
-- **Closed — chat images and attachments (2026-10-14):** `e8c50f7`, `395c1a8`, `9ae6f59` plus
-  fix `e8ffaf6`, merged into `main`. Startup recovery now clears an owned item's
-  pending marker without byte validation and isolates per-conversation failures (logged,
-  copies preserved), so a corrupt owned blob is only a per-item read error
-  (`TestRestartWithCorruptOwnedAttachmentKeepsDeliveryAvailable`). `DeleteAgent` removes owned
-  bytes before the identity row (`TestDeleteAgentKeepsOwnershipUntilAttachmentCleanupSucceeds`).
-  Local-image Escape routes through `setDialogOpen` (two `AttachmentView` regressions). All four
-  regressions fail on the pre-fix code. TS-02.R47 records deletion ordering and per-conversation
-  recovery. Both Must-fix items and the Worth-fixing item are closed.
-  Changelog: isolated attachment recovery, retryable conversation deletion and
-  Escape modal teardown (INV §4/§7/§15/§16).
-- **Combined fix integration (2026-10-14):** permission modes, project menu and attachment
-  branches merged locally into `main` (`ce06af5`, `b237c61`, `9ec87bd`); no push. Shared handoff
-  entries reconciled and embedded UI regenerated from the combined source with `make embed`.
-  `env -u CHUCK_RUNTIME_ROOT GOCACHE=/private/tmp/chuck-gocache GOFLAGS=-p=1 make test`
-  passes both full Go variants; `make build`, UI build, all 821 UI tests in 89 files with two
-  workers, all 46 presentation/style checks and focused permission-mode race tests pass.
-  Logs: `/private/tmp/chuck-merged-{go,ui,embed,build,race}-20261014.log`. No browser,
-  live-provider or physical-phone journeys were rerun for these fixes; previously owed gates
-  remain below. Closure creates no new review unit.
+  §16.6). Latest published is `v0.13.0`; the `v0.14.0` tag stays local-only by user decision and
+  `v0.15.0` notes cover everything since `v0.13.0`. All range review units are closed.
+- **Repository:** `AsaphNoam/Chuck`; branch `main`. The local `origin` URL ends in a stray `.`
+  (`Chuck.git.`), so `git push`/`ls-remote` report "Repository not found"; fix the remote URL
+  before pushing.
+- **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
+  provider call while `onNotification` takes `as.mu` for unmatched frames on the synchronous read
+  loop, so an adapter notification sent before that reply could stall it.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
@@ -75,29 +34,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None. Permission modes/project-menu and attachment review fixes are merged and closed.
-Full operator CLI parity, projects home redesign and mobile agent header units closed
-2026-10-14 with their review fixes. CLI parity and attachment closure notes are archived
-in [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
-
-## Unit notes
-
-- **Chat permission modes, project-page menu, hidden file changes (2026-10-13).** `bac0d40`:
-  FS-02.R77/A58 project-page background menu (`CardGrid` `openersRef`); FS-03.R87/A66 diffs
-  hidden from desktop/phone agent chats (`hideFileChanges`; Files-tab Diff reveal keeps its diff;
-  archive/Think Tank keep inline). Permission modes: FS-03.R88/A67, TS-03.R70, TS-04.R92, FS-22.R8
-  inventory. `internal/runtime/session_mode.go` decodes the advertised mode list (mode-category
-  config option, legacy `modes` fallback); live-only state under its own `modeMu`, so read-loop
-  mode updates never wait on `as.mu`. `GET /modes`, `POST /mode` (lifecycle claim, phone-denied),
-  CLI `agent modes|mode`; desktop `PermissionModeToggle`, reread on agent state change.
-  Review notes: Claude 0.59.0's mode option is source-checked only; the Codex mode shape and live
-  provider receipts are unverified. Pre-existing risk observed, unchanged: `SetSessionConfig`
-  holds `as.mu` across its provider call while `onNotification` takes `as.mu` for unmatched frames
-  on the synchronous read loop, so an adapter notification sent before that reply could stall it.
-  Rendered runtime band: `/private/tmp/chuck-modes-shots`. Changelog: provider-advertised modes as
-  live state with bounded copy and lock-free read-loop handling (INV §1/§3/§5/§8/§10/§11/§16).
+None.
 
 ## Acceptance gates still owed
+
+- **FS-03.A67 / TS-04.R92:** live Claude/Codex permission-mode receipt. Claude 0.59.0's mode
+  option is source-checked only; the Codex mode shape is unverified.
 
 - **FS-01.A28:** bounded packaged/installed Claude/Codex terminal-quota and owner-activation
   provider receipt. Current Claude SDK 0.3.286's bare numeric reset declaration has no verified
@@ -152,60 +94,7 @@ in [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
 
 ## Review findings
 
-
-### Phone group memory and long-press agent actions — `17b73ed` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Closed, no findings.
-
-Reviewed independently 2026-10-13 against FS-20.R47–R48/A19 and TS-08.R121.
-
-Code and specifications agree in both directions. Project/group identity keys, the page-session
-256-entry recency cap, reuse of AgentManagement forms and PhoneSheet, and existing remote API
-clients/allowlist are sound local choices; none requires a human decision. Gesture timers and the
-scroll listener have cancellation and unmount cleanup. Offline permits Open chat and disables
-mutations; runtime changes remain running-chat-only and existing confirmation/error rules apply.
-
-Verification: ProjectScreen's 14 tests and 46 presentation/style checks pass. Independent Chromium
-journeys pass at 360/390/430px in Core, Sky & Grove and Studio using the current working tree's
-actual remote entry. They verify collapse retention across conversation navigation, a native
-held touch without navigation, a subsequent ordinary tap, keyboard action launch, refused rename
-value retention, refused Stop confirmation with cancellation, stopped Resume/runtime availability,
-Escape dismissal and row-focus restoration. Settled screenshots show readable sheets, visible
-destructive actions and refusal feedback, consistent styling, and no horizontal overflow.
-Fixtures make no live-provider, physical-device or real-tailnet claim. Evidence:
-`/private/tmp/review-phone-actions-20261013.mjs` and
-`/private/tmp/review-phone-actions-20261013/{receipt.json,*.png}`.
-
-Invariant sweep: applicable §1, §2, §3, §4, §8, §10, §11, §13, §14, §16 and §17 have no findings.
-§5, §6, §7, §9, §12 and §15 have no applicable surface in this unit. Product code and
-specifications were unchanged. This review closes only this unit and creates no review obligation.
-
-### Phone chat drafts and Theme selection — `79cbbc3` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Closed, no findings.
-
-Reviewed 2026-10-12 and independently verified 2026-10-13. The shared draft seam now synchronizes
-accepted cleanup to mounted and reopened composers while its revision guard preserves newer text.
-The existing same-composer regression covers newer-draft protection; focused AgentScreen tests
-add delayed text-only Send and Steer leave/reopen/accept flows, with 41 AgentScreen tests passing.
-No product specification change was needed because the fix restores
-FS-03.R36 and FS-20.R49/A20 behavior already specified.
-
-Review evidence: 66 focused UI tests passed (AgentScreen, PhoneSettings, PhoneApp and drafts);
-the two focused remote appearance/field-filter server tests passed. Existing PhoneApp fixtures
-emit missing `/api/roles` MSW warnings without failing. The working tree's actual remote entry
-passed `phone-render.mjs --parity-check` with isolated Chromium at 360/390/430px in all three
-appearances; inspected screenshots show a labelled, readable Theme control, adequate touch height
-and no horizontal overflow. Receipts: `/tmp/review-phone-parity-20261012*.png`. Fixtures make no
-live-provider or real-tailnet claim. Shared draft/config reuse, partial config merge, finite skin
-selection and query ownership are sound local choices; none needs a human decision.
-
-Invariant sweep: applicable §1, §2, §3, §8, §10, §11, §13, §14, §15, §16 and §17 have no
-findings. §4, §5, §6, §7, §9 and §12 have no applicable surface in this unit. Product code and
-specifications were unchanged.
-
-The mobile outage investigation was closed by the user on 2026-10-12 (see Current position).
-Closed 2026-10-11 reviews are in the archive above.
+None open. Closed 2026-10-12–14 reviews are in the archive above.
 
 ## Blocked on human
 
@@ -215,5 +104,6 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-See [`RELEASE-v0.14.0-notes.md`](../archive/state/RELEASE-v0.14.0-notes.md) (unpublished until
-pushed) and [`RELEASE-v0.13.0-notes.md`](../archive/state/RELEASE-v0.13.0-notes.md).
+See [`RELEASE-v0.15.0-notes.md`](../archive/state/RELEASE-v0.15.0-notes.md) (unpublished until
+pushed; supersedes the never-published v0.14.0 notes) and
+[`RELEASE-v0.13.0-notes.md`](../archive/state/RELEASE-v0.13.0-notes.md).
