@@ -255,6 +255,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const [quotaCancelError, setQuotaCancelError] = useState<string | undefined>();
   const [stopOpen, setStopOpen] = useState(false);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
+  const runtimeOptions = useQuery({ queryKey: ["runtime-options"], queryFn: getRuntimeOptions });
   const [tab, setTab] = useState<"chat" | "files" | "manage">("chat");
   const [rename, setRename] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -605,6 +606,12 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const releaseBlocked = retryPhoneSend?.retryable === false && retryPhoneSend.text === text && sameAttachmentSet(retryPhoneSend.files, attachments);
   const stateLabel = agent.running ? agent.state.replace("_", " ") : "Stopped";
   const runtimeLabel = [agent.backend, agent.model].filter(Boolean).join(" · ");
+  // The effort button steps through the live model's efforts in order and wraps;
+  // "model default" counts as the model's default effort.
+  const liveModel = runtimeOptions.data?.backends.find((item) => item.id === agent.backend)?.models.find((item) => item.id === agent.model);
+  const efforts = agent.interface === "chat" ? liveModel?.efforts ?? [] : [];
+  const currentEffort = agent.effort || liveModel?.default_effort || "";
+  const nextEffort = efforts[(efforts.indexOf(currentEffort) + 1) % Math.max(efforts.length, 1)] ?? "";
   const roleLabel = personaIdentityLabel(agent.role, roles?.[agent.role]);
   const roleBackend = [roleLabel, agent.backend].filter(Boolean).join(" · ");
 
@@ -700,10 +707,17 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           )}
           {recovery && <PhoneRecovery agentId={agentId} recovery={recovery} offline={offline} />}
           {agent.running && (
-            <button type="button" className="phone-model-switch" aria-label={`Switch model, current ${runtimeLabel}${agent.effort ? ` ${agent.effort}` : ""}`} disabled={offline || busy} onClick={() => setRuntimeOpen(true)}>
-              {runtimeLabel}{agent.effort ? ` · ${agent.effort}` : ""}
-              <PhoneIcon name="down" size={12} />
-            </button>
+            <div className="phone-runtime-controls">
+              <button type="button" className="phone-model-switch" aria-label={`Switch model, current ${runtimeLabel}`} disabled={offline || busy} onClick={() => setRuntimeOpen(true)}>
+                {runtimeLabel}
+                <PhoneIcon name="down" size={12} />
+              </button>
+              {efforts.length > 0 && (
+                <button type="button" className="phone-model-switch phone-effort-cycle" aria-label={`Effort ${currentEffort || "model default"}; change to ${nextEffort}`} disabled={offline || busy} onClick={() => void act(() => setSessionConfig(agentId, { effort: nextEffort }))}>
+                  {currentEffort || "default"} effort
+                </button>
+              )}
+            </div>
           )}
           {runtimeOpen && (
             <PhoneSheet title="Switch runtime" onClose={() => setRuntimeOpen(false)}>

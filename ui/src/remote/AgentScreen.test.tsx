@@ -611,6 +611,28 @@ describe("AgentScreen", () => {
     await waitFor(() => expect(switches).toEqual([{ backend: "claude", model: "n", effort: "" }]));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Switch runtime" })).toBeNull());
   });
+
+  it("cycles effort through the live model's efforts from the button beside the model", async () => {
+    const configs: unknown[] = [];
+    server.use(
+      http.get("/api/remote/runtime-options", () => HttpResponse.json({ backends: [{ id: "claude", name: "Claude", default: true, default_model: "m", models: [
+        { id: "m", name: "M", efforts: ["low", "medium", "high"], default_effort: "medium", fast: false },
+      ] }] })),
+      http.post("/api/sessions/a1/session-config", async ({ request }) => {
+        configs.push(await request.json());
+        return HttpResponse.json({});
+      }),
+    );
+    // Model default counts as the model's default effort, so the next step is high.
+    useConnection.setState({ agents: { a1: { ...agent, state: "idle", backend: "claude", model: "m", effort: "" } } });
+    renderScreen();
+    expect(screen.getByRole("button", { name: /^Switch model/ }).textContent).not.toContain("effort");
+    fireEvent.click(await screen.findByRole("button", { name: "Effort medium; change to high" }));
+    await waitFor(() => expect(configs).toEqual([{ effort: "high" }]));
+    act(() => useConnection.setState({ agents: { a1: { ...agent, state: "idle", backend: "claude", model: "m", effort: "high" } } }));
+    fireEvent.click(await screen.findByRole("button", { name: "Effort high; change to low" }));
+    await waitFor(() => expect(configs).toEqual([{ effort: "high" }, { effort: "low" }]));
+  });
 });
 
 // FS-20.A11/A12 — agent management, Commands, and Open file send the desktop's

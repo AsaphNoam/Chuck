@@ -267,8 +267,11 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   This supersedes R16's skins exclusion for applying and selecting the configured appearance.
   Manage uses quiet, compact fields and actions separated by rules rather than stacked cards.
   Files has compact text actions. The chat composer has one outline enclosing the textbox and
-  Send inside at the bottom right. Model/effort sits outside, right-aligned above the composer,
-  as an outlined, slightly raised button that opens the Switch runtime sheet. Typing adds no blue
+  Send inside at the bottom right. Above the composer, outside it, sit two outlined,
+  slightly raised buttons: the model at the left opens the Switch runtime sheet; the effort at
+  the right, shown only when the live model declares efforts, changes the running agent's effort
+  to the next one in the model's order on each tap, wrapping after the last (model default
+  counts as the model's default effort). Typing adds no blue
   highlight to the textbox. Send uses R68's quiet outlined surface within a 44px touch target.
   The New agent modal is centered in the viewport; other phone sheets retain their placement.
   The agent header places an icon-only back chevron beside the persona line above the name, with no separate
