@@ -105,7 +105,7 @@ export const thinkTankDetailSchema = thinkTankSummarySchema.extend({
 
 export const thinkTankEntrySchema = z.object({
   seq: z.number(),
-  kind: z.enum(["opening", "reply", "departure", "closing", "user", "annotation", "synthesis", "missing_opening", "stage_context"]),
+  kind: z.enum(["opening", "reply", "departure", "closing", "user", "annotation", "synthesis", "missing_opening", "stage_context", "pass"]),
   agent_id: z.string().optional().default(""),
   agent_name: z.string().optional().default(""),
   project: z.string().optional().default(""),

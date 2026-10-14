@@ -41,6 +41,7 @@ export function endReasonText(reason: string): string {
     case "participants_left": return "Participants left the discussion.";
     case "allowance_exhausted": return "Participants reached their turn limits.";
     case "left_and_exhausted": return "Participants left or reached their turn limits.";
+    case "nothing_further": return "Participants had nothing further to add.";
     default: return "";
   }
 }
@@ -123,6 +124,7 @@ export function entryLabel(entry: ThinkTankEntry): string {
     case "annotation": return "Annotations";
     case "synthesis": return "Synthesis";
     case "missing_opening": return "No opening submitted";
+    case "pass": return "Passed — nothing to add";
     case "stage_context": return "Pipeline stage context";
     default: return "";
   }

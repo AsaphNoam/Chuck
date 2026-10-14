@@ -290,7 +290,7 @@ func New(store *state.Store, log *slog.Logger) *Server {
 	}, s.handleReadThinkTank)
 	addTool(s, &mcp.Tool{
 		Name:        "submit_think_tank_turn",
-		Description: "Submit your current Think Tank turn once: reply with a message, leave (only when permitted, optionally with a final message), or decline_closing on a closing turn. It is published when your turn completes.",
+		Description: "Submit your current Think Tank turn once: reply with a message, pass a discussion turn when you have nothing useful to add, leave (only when permitted, optionally with a final message), or decline_closing on a closing turn. It is published when your turn completes.",
 	}, s.handleSubmitThinkTankTurn)
 
 	// getServer resolves the per-request server. Reading the token header here

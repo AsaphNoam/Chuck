@@ -111,7 +111,7 @@ func TestThinkTankToolsOverMCP(t *testing.T) {
 	if first["author"] != "Ari" || first["project"] != "p" || first["text"] != "Use SQLite" {
 		t.Fatalf("b's read = %v", obj)
 	}
-	if !strings.Contains(obj["guidance"].(string), "not permitted to leave") {
+	if g := obj["guidance"].(string); !strings.Contains(g, "not permitted to leave") || !strings.Contains(g, "disposition pass") {
 		t.Fatalf("guidance = %v", obj["guidance"])
 	}
 	obj, isErr = callRoomTool(t, b, "submit_think_tank_turn", map[string]any{
@@ -228,13 +228,9 @@ func tokenOf(t *testing.T, store *state.Store, agent string) string {
 	return running[0].Token
 }
 
-// FS-21.R14/R16: a participant without leave permission is told the ceiling
-// is a maximum with no obligation to use every turn, yet its only accepted
-// discussion disposition is a nonblank reply. Reproduces the HANDOFF finding
-// "Think tank non-leavers cannot decline a turn"; the fix session un-skips it
-// and adjusts the disposition name to the specified one.
+// FS-21.R16, R52: a participant without leave permission can decline a
+// discussion turn with pass instead of manufacturing a reply.
 func TestThinkTankNonLeaverCanPassDiscussionTurn(t *testing.T) {
-	t.Skip("reproduces open finding: non-leavers cannot decline a discussion turn (HANDOFF Review findings)")
 	store := newStore(t)
 	srv := New(store, nil)
 	srv.Register("tok-b", "b")

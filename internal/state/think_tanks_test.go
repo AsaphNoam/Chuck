@@ -371,6 +371,54 @@ func TestThinkTankDiscussionRotationReadsAndClosing(t *testing.T) {
 	}
 }
 
+// FS-21.R52–R53: a non-leaver passes a discussion turn without a message; the
+// pass charges one turn and publishes a bodiless marker, and discussion ends
+// once every eligible participant passed with nothing new in between.
+func TestThinkTankPassAndQuietRotation(t *testing.T) {
+	st, _ := newTestStore(t)
+	a, b := ttMember("a", 4), ttMember("b", 4)
+	a.MayLeave, b.MayLeave = false, false
+	room := ttCreate(t, st, false, a, b).Room.RoomID
+
+	a1, _, receipt := ttTurn(t, st, room)
+	if _, err := st.StageThinkTankTurn(a1.AgentID, a1.Token, ThinkTankPass, "nothing", receipt); !errors.Is(err, ErrThinkTankInvalid) {
+		t.Fatalf("pass with a message = %v, want invalid", err)
+	}
+	f := ttSubmit(t, st, a1, receipt, ThinkTankPass, "")
+	if f.Detail.Room.Phase != ThinkTankPhaseDiscussion || len(f.Published) != 1 ||
+		f.Published[0].Kind != ThinkTankEntryPass || f.Published[0].Body != "" {
+		t.Fatalf("after pass: phase=%s published=%+v", f.Detail.Room.Phase, f.Published)
+	}
+	b1, _, receipt := ttTurn(t, st, room)
+	ttSubmit(t, st, b1, receipt, ThinkTankReply, "B: use SQLite")
+	a2, _, receipt := ttTurn(t, st, room)
+	ttSubmit(t, st, a2, receipt, ThinkTankPass, "")
+	// New user input resets the quiet round, so a's earlier pass no longer counts.
+	if _, _, err := st.AddThinkTankMessage(room, "u1", "Consider backups", nil); err != nil {
+		t.Fatal(err)
+	}
+	b2, _, receipt := ttTurn(t, st, room)
+	f = ttSubmit(t, st, b2, receipt, ThinkTankPass, "")
+	if f.Detail.Room.Phase != ThinkTankPhaseDiscussion {
+		t.Fatalf("discussion ended across new input: %s/%s", f.Detail.Room.Phase, f.Detail.Room.EndReason)
+	}
+	a3, _, receipt := ttTurn(t, st, room)
+	f = ttSubmit(t, st, a3, receipt, ThinkTankPass, "")
+	if f.Detail.Room.Phase != ThinkTankPhaseEnded || f.Detail.Room.EndReason != ThinkTankEndNothingFurther {
+		t.Fatalf("after quiet round: %s/%s", f.Detail.Room.Phase, f.Detail.Room.EndReason)
+	}
+	counts := map[string]int{}
+	for _, m := range f.Detail.Members {
+		counts[m.AgentID] = m.Completed
+		if m.Checkpoint == 0 {
+			t.Fatalf("%s's checkpoint did not advance", m.AgentID)
+		}
+	}
+	if counts["a"] != 3 || counts["b"] != 2 {
+		t.Fatalf("each pass charges one turn: %v", counts)
+	}
+}
+
 func mustTT(t *testing.T, st *Store, room string) ThinkTankDetail {
 	t.Helper()
 	d, err := st.ReadThinkTank(room)

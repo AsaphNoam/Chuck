@@ -71,7 +71,8 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
 - **R16** — Participants are told their remaining turn ceiling. The instruction explicitly
   frames it as a maximum rather than a quota: use turns only for useful contributions, there is no
   obligation to use every available turn, unresolved material disagreement is acceptable, and early
-  departure is available only when that participant is permitted to leave. This helps participants
+  departure is available only when that participant is permitted to leave. Every participant is
+  told it may pass a discussion turn under R52 instead of replying. This helps participants
   plan within the limit without requiring agreement or promising a quality improvement.
 - **R17** — An independent opening consumes one participant turn. An optional final
   departure message is included within that departure turn, not an additional discussion turn.
@@ -92,7 +93,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   is no further participant turn. Departure removes a participant from future discussion turns
   without stopping or deleting its normal session; exhaustion is recorded distinctly from voluntary
   departure. Approval/failure waits under R19 do not remove a participant for this test. No live
-  judge is needed to decide when discussion stops.
+  judge is needed to decide when discussion stops. R53 adds a quiet-round ending.
 - **R21** — Participant turn limits count completed contributions. A failed attempt
   consumes no contribution allowance; an explicitly retried turn consumes one only when its
   contribution completes. R19 prevents automatic failed-turn retries. This bounds completed room
@@ -300,6 +301,16 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   and retry does not reset later manual regrouping. Completing/deleting the room preserves groups
   and agents; no retrospective regrouping or new membership/group lifecycle is introduced. This
   narrowly extends FS-02.R65's previous unchanged-grouping statement for new room deployments.
+- **R52 (shipped 2026-10-14)** — Any participant, whether or not it may leave, can pass an
+  ordinary discussion turn when it has nothing useful to add. A pass carries no message, uses that
+  turn under R14, advances its read checkpoint and keeps it eligible for later turns. The room shows
+  an attributed “passed” marker in place of a contribution. Passing is not available on an opening,
+  closing or judge turn; R20's closing decline remains the closing equivalent.
+- **R53 (shipped 2026-10-14)** — Ordinary discussion also ends when every eligible
+  participant has passed since the last published entry of any other kind (a contribution, user
+  message or annotation). The room records its own reason — participants had nothing further to
+  add — distinct from departure and exhaustion; unspent allowance stays unspent, no closing message
+  is offered, and the optional judge step runs as after any other ending.
 
 ## 3. States & transitions
 
@@ -545,6 +556,12 @@ completion; R37 defines partial opening publication and pending input on End.
   completion callbacks produce no false/duplicate result. Room deletion preserves that result in
   the judge history; participant chats receive no fabricated assistant messages. *Verify:* durable
   transcript/projection and UI tests plus the rendered judge/Archive journey in A33.
+- **A38** (R16, R52–R53) — In a room of participants not permitted to leave, a discussion
+  turn's guidance names pass; one passes and the room shows its marker, charges one turn and keeps
+  it eligible. A reply or user message between passes keeps discussion going; once every eligible
+  participant has passed since then, discussion ends with the nothing-further reason and unspent
+  allowance. Pass with a message or on a non-discussion turn is refused. *Verify:* state and MCP
+  tool tests plus the room page test.
 
 ## 6. Deviations & open decisions
 

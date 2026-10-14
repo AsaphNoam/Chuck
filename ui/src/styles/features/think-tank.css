@@ -452,8 +452,8 @@ a.think-tank-author:hover {
   border-color: var(--ad-border-default);
 }
 
-/* Departures and missing openings are quiet events, not contributions. */
-.think-tank-entry:is([data-variant="departure"], [data-variant="missing_opening"]) {
+/* Departures, missing openings and passes are quiet events, not contributions. */
+.think-tank-entry:is([data-variant="departure"], [data-variant="missing_opening"], [data-variant="pass"]) {
   background: var(--ad-surface-subtle);
   border: var(--ad-border-thin) solid var(--ad-border-default);
   border-radius: var(--ad-radius-small);
@@ -462,11 +462,11 @@ a.think-tank-author:hover {
   padding: var(--ad-space-3) calc(var(--ad-space-3) + var(--ad-space-1));
 }
 
-.think-tank-entry:is([data-variant="departure"], [data-variant="missing_opening"]) .think-tank-entry-meta {
+.think-tank-entry:is([data-variant="departure"], [data-variant="missing_opening"], [data-variant="pass"]) .think-tank-entry-meta {
   margin: 0;
 }
 
-.think-tank-entry:is([data-variant="departure"], [data-variant="missing_opening"]) .think-tank-entry-body {
+.think-tank-entry:is([data-variant="departure"], [data-variant="missing_opening"], [data-variant="pass"]) .think-tank-entry-body {
   background: transparent;
   border: 0;
   line-height: 1.6;

@@ -51,7 +51,7 @@ var activationKinds = map[string]ActivationKind{
 	state.ActivationKindThinkTank: {
 		Instruction: "It is your turn in a Think Tank. Call read_think_tank to read the goal, your role, " +
 			"its guidance and the new discussion, following its cursor until the read is complete. Then call " +
-			"submit_think_tank_turn once with your contribution and the read_receipt.",
+			"submit_think_tank_turn once with the read_receipt and the disposition the guidance offers.",
 		StatusDetail: "taking a Think Tank turn",
 		LastTrace:    "ThinkTankActivation",
 	},

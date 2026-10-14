@@ -184,6 +184,8 @@ func thinkTankGuidance(page state.ThinkTankReadPage) string {
 			b.WriteString("This is your independent opening: other participants' openings stay hidden until every opening is published. ")
 		case state.ThinkTankTurnClosing:
 			b.WriteString("You are the last participant with turns remaining. You may publish one closing message with disposition reply, or decline with disposition decline_closing. ")
+		case state.ThinkTankTurnDiscussion:
+			b.WriteString("If you have nothing useful to add, submit disposition pass with no message instead of replying; it uses this turn and you stay in the discussion. Discussion ends when every remaining participant passes in turn with nothing new in between. ")
 		}
 	}
 	if m.MayLeave {
@@ -196,8 +198,8 @@ func thinkTankGuidance(page state.ThinkTankReadPage) string {
 
 type submitThinkTankTurnArgs struct {
 	TurnToken   string `json:"turn_token" jsonschema:"turn_token returned by read_think_tank for your current turn"`
-	Disposition string `json:"disposition" jsonschema:"reply, leave (only when permitted), or decline_closing (closing turn only)"`
-	Message     string `json:"message,omitempty" jsonschema:"your contribution; required for reply, optional for leave, omitted for decline_closing"`
+	Disposition string `json:"disposition" jsonschema:"reply, pass (discussion turn only), leave (only when permitted), or decline_closing (closing turn only)"`
+	Message     string `json:"message,omitempty" jsonschema:"your contribution; required for reply, optional for leave, omitted for pass and decline_closing"`
 	ReadReceipt string `json:"read_receipt" jsonschema:"read_receipt from the final page of your read_think_tank context read"`
 }
 

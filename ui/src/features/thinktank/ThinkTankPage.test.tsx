@@ -474,6 +474,19 @@ describe("ThinkTankPage", () => {
     expect(screen.queryByLabelText("Message the room")).toBeNull();
     expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
   });
+
+  // FS-21.R52–R53: a pass is a bodiless event marker, and a quiet round's
+  // ending names its own reason.
+  it("shows passed turns and the nothing-further ending", async () => {
+    detail = { ...room(), phase: "ended", end_reason: "nothing_further", judge_status: "", judge: { enabled: false }, deletable: true };
+    const pass = { ...fixture.entries[0], seq: 99, kind: "pass", body: "", attempt_id: "" };
+    server.use(http.get("/api/think-tanks/tt_fixture/entries", () =>
+      HttpResponse.json({ version: 1, entries: [...fixture.entries, pass], complete: true })));
+    renderRoom();
+    expect(await screen.findByText(/Participants had nothing further to add/)).toBeTruthy();
+    const marker = await screen.findByText("Passed — nothing to add");
+    expect(marker.closest("[data-variant]")?.getAttribute("data-variant")).toBe("pass");
+  });
 });
 
 describe("roomStatus", () => {

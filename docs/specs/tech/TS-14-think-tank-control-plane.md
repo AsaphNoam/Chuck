@@ -47,8 +47,11 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   Unowned legacy/terminal activity is not guessed into a room. No ACP wire extension is required.
 - **R5** — Each immutable attempt owns a random turn token, participant/role, generation,
   runtime turn id, phase and frozen context head. `submit_think_tank_turn` stages one terminal intent:
-  `reply`, authorized `leave` with optional message, or `decline_closing`. Judge reply kind is
-  server-derived. Reply requires nonblank text; leave accepts omitted text and decline accepts none.
+  `reply`, discussion-turn `pass`, authorized `leave` with optional message, or `decline_closing`.
+  Judge reply kind is server-derived. Reply requires nonblank text; leave accepts omitted text; pass
+  and decline accept none. A completed pass charges one turn, advances the read checkpoint and
+  publishes a bodiless `pass` entry; settlement ends discussion with `nothing_further` once every
+  eligible member has a `pass` entry after the last non-pass entry (FS-21.R52–R53).
   Exact replay returns the same staged receipt; conflicting, foreign, ended or stale
   submissions do not mutate state. A staged receipt does not promise publication or charge allowance.
   A completed authorized departure charges one turn even without a message; declining the sole
@@ -326,7 +329,7 @@ MCP read_think_tank(room_id?, cursor?, view?)
   returns goal/phase/role/ceiling, attributed conversation/activity page, continuation,
   read receipt, and turn token only for caller's current attempt
 MCP submit_think_tank_turn(turn_token, disposition, message?, read_receipt)
-  disposition: reply | leave | decline_closing
+  disposition: reply | pass | leave | decline_closing
   returns staged receipt; room/actor/role derive from server state; publication follows R6
 SSE think_tank_update: version, room_id, revision, phase/control, current_actor?, reason?
 SSE think_tank_activity: room_id, attempt_id, actor/source tuple, bounded event/live notice

@@ -57,6 +57,9 @@ const (
 	ThinkTankReply          = "reply"
 	ThinkTankLeave          = "leave"
 	ThinkTankDeclineClosing = "decline_closing"
+	// ThinkTankPass declines a discussion turn without a message; any
+	// participant may pass (FS-21.R52).
+	ThinkTankPass = "pass"
 
 	ThinkTankEntryOpening        = "opening"
 	ThinkTankEntryReply          = "reply"
@@ -70,11 +73,16 @@ const (
 	// context, published first so every participant and the judge read it
 	// through the ordinary paged context read (TS-14.R19).
 	ThinkTankEntryStageContext = "stage_context"
+	// ThinkTankEntryPass is the bodiless marker of a passed discussion turn.
+	ThinkTankEntryPass = "pass"
 
 	ThinkTankEndOperator           = "operator"
 	ThinkTankEndParticipantsLeft   = "participants_left"
 	ThinkTankEndAllowanceExhausted = "allowance_exhausted"
 	ThinkTankEndLeftAndExhausted   = "left_and_exhausted"
+	// ThinkTankEndNothingFurther ends discussion after every eligible
+	// participant passed with nothing new published in between (FS-21.R53).
+	ThinkTankEndNothingFurther = "nothing_further"
 
 	ThinkTankJudgeNone      = ""
 	ThinkTankJudgeWaiting   = "waiting"
@@ -1509,6 +1517,15 @@ func settleThinkTankTx(tx *sql.Tx, roomID string) error {
 			return err
 		}
 		next, reason := thinkTankTransition(d)
+		if next == "" && d.Room.Phase == ThinkTankPhaseDiscussion && d.Active == nil {
+			quiet, err := thinkTankQuietRotationTx(tx, d)
+			if err != nil {
+				return err
+			}
+			if quiet {
+				next, reason = ThinkTankPhaseEnded, ThinkTankEndNothingFurther
+			}
+		}
 		if next == "" {
 			return nil
 		}
@@ -1546,6 +1563,38 @@ func eligibleThinkTankMembers(d ThinkTankDetail) []ThinkTankMember {
 		}
 	}
 	return out
+}
+
+// thinkTankQuietRotationTx reports whether every eligible participant has
+// passed since the last published entry of any other kind (FS-21.R53).
+func thinkTankQuietRotationTx(tx *sql.Tx, d ThinkTankDetail) (bool, error) {
+	rows, err := tx.Query(`SELECT DISTINCT agent_id FROM think_tank_entries WHERE room_id = ? AND kind = ?
+AND seq > (SELECT COALESCE(MAX(seq), 0) FROM think_tank_entries WHERE room_id = ? AND kind <> ?)`,
+		d.Room.RoomID, ThinkTankEntryPass, d.Room.RoomID, ThinkTankEntryPass)
+	if err != nil {
+		return false, fmt.Errorf("state: read think tank passes: %w", err)
+	}
+	passed := map[string]bool{}
+	for rows.Next() {
+		var agentID string
+		if err := rows.Scan(&agentID); err != nil {
+			rows.Close()
+			return false, fmt.Errorf("state: scan think tank pass: %w", err)
+		}
+		passed[agentID] = true
+	}
+	if err := closeRows(rows, "think tank passes"); err != nil {
+		return false, err
+	}
+	if len(passed) == 0 {
+		return false, nil
+	}
+	for _, m := range eligibleThinkTankMembers(d) {
+		if !passed[m.AgentID] {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func thinkTankStopReason(d ThinkTankDetail) string {

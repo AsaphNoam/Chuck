@@ -305,8 +305,15 @@ func (s *Store) StageThinkTankTurn(callerAgentID, token, disposition, message, r
 		if message != "" {
 			return ThinkTankAttempt{}, thinkTankInvalid("decline_closing takes no message")
 		}
+	case ThinkTankPass:
+		if a.Turn != ThinkTankTurnDiscussion {
+			return ThinkTankAttempt{}, thinkTankInvalid("pass is only available on a discussion turn")
+		}
+		if message != "" {
+			return ThinkTankAttempt{}, thinkTankInvalid("pass takes no message")
+		}
 	default:
-		return ThinkTankAttempt{}, thinkTankInvalid("disposition must be reply, leave or decline_closing")
+		return ThinkTankAttempt{}, thinkTankInvalid("disposition must be reply, pass, leave or decline_closing")
 	}
 	if a.Turn == ThinkTankTurnJudge && disposition == ThinkTankReply {
 		var runID, templateJSON, outputJSON string
@@ -493,6 +500,8 @@ func finishThinkTankAttemptTx(tx *sql.Tx, a ThinkTankAttempt, failure string) ([
 		entryKind = ThinkTankEntryDeparture
 	case a.Disposition == ThinkTankDeclineClosing:
 		charge = false
+	case a.Disposition == ThinkTankPass:
+		entryKind = ThinkTankEntryPass
 	case a.Turn == ThinkTankTurnClosing:
 		entryKind = ThinkTankEntryClosing
 	default:

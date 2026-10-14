@@ -157,7 +157,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
   const failedOpenings = room.phase === "openings" ? room.failed.filter((a) => a.turn === "opening") : [];
 
   const annotateEntry = (mouse: MouseEvent<HTMLElement>, entry: ThinkTankEntry) => {
-    if (entry.kind === "missing_opening") return;
+    if (entry.kind === "missing_opening" || entry.kind === "pass") return;
     const selected = selectionWithin(mouse.currentTarget);
     mouse.preventDefault();
     const draft: AnnotationDraft = {
@@ -212,7 +212,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
   const writing = room.active_attempts.map((a) => memberName(room, a.agent_id));
   // Ruled round labels introduce the first opening and the first discussion reply.
   const firstOpening = shownEntries.find((e) => e.kind === "opening" || e.kind === "missing_opening")?.seq;
-  const firstReply = shownEntries.find((e) => e.kind === "reply")?.seq;
+  const firstReply = shownEntries.find((e) => e.kind === "reply" || e.kind === "pass")?.seq;
 
   return (
     <section className="think-tank" data-ui="think-tank" data-state={room.phase}>
@@ -268,7 +268,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
             {activity.data?.clipped && <li className="think-tank-empty">Showing the newest 5,000 activity records. Earlier activity remains in retained room history.</li>}
             {shownEntries.map((entry) => {
               const member = room.members.find((m) => m.agent_id === entry.agent_id);
-              const event = entry.kind === "departure" || entry.kind === "missing_opening";
+              const event = entry.kind === "departure" || entry.kind === "missing_opening" || entry.kind === "pass";
               const user = !!entry.input_id;
               return (
                 <li key={entry.seq}>
@@ -282,7 +282,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
                     onContextMenu={(mouse) => annotateEntry(mouse, entry)}
                   >
                     {user && <span className="think-tank-avatar" aria-hidden="true">Y</span>}
-                    {event && <span className="think-tank-event-symbol" aria-hidden="true">{entry.kind === "departure" ? "↗" : "○"}</span>}
+                    {event && <span className="think-tank-event-symbol" aria-hidden="true">{entry.kind === "departure" ? "↗" : entry.kind === "pass" ? "–" : "○"}</span>}
                     <div className="think-tank-entry-main">
                       <header className="think-tank-entry-meta">
                         {entry.agent_id && member?.exists
