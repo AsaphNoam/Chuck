@@ -76,15 +76,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   and composer with both panels open and a long agent name at 1024/1280 in all three appearances.
   See the finding below. Implementation receipts: `agent-design/runs/eighty/`.
 
-- **Reviewed — project rooms at the bottom, collapsible, findings open (`4440e79e`, 2026-10-14):**
-  FS-02.R71/A53, FS-12.R63, FS-21.R44/A33, TS-08.R96. Rooms follow the agent grid; the heading
-  is an `aria-expanded` toggle (count stays visible) remembered in `localStorage`
-  `chuck.think-tank-rooms-collapsed` (shared with Archive). Grid header lost "Live operations".
-  838/841 UI tests (only the `NewAgentModal` flake, 34/34 alone), presentation checks, tsc and
-  spec check pass; rendered via `room-render.mjs <out> project` at 1440. Independent review now
-  verifies real agent cards above rooms, keyboard focus/Enter/Space, count and reload persistence
-  in all three appearances at 1024/1440. Collapsed failed reads hide the unavailable message;
-  the shared project/Archive preference also lacks normative coverage. See the findings below.
+- **Closed — project rooms at the bottom, collapsible (2026-10-14):** FS-02.R71/A53,
+  FS-05.R39, FS-21.R44, TS-08.R96 (`4440e79e` plus fix). Review's Must fix closed: the
+  "Could not load Think Tanks." message now sits outside the collapsible body, so it shows while
+  collapsed. Worth fixing closed: specs now state one browser collapse preference shared by every
+  project and Archive (behavior unchanged). New RoomList tests: collapsed initial failure and
+  failed refetch over cached rooms (failed before the fix, pass after) and cross-project/Archive
+  carry-over. `make test`, tsc, embed, build pass; full UI suite 841/843 (only the
+  `NewAgentModal` flake). Not re-rendered in Chromium. Changelog: collapsed room list keeps
+  failed reads visible (INV §8/§10); shared room-collapse preference specified (INV §10).
 
 - **Closed — conversation-only archive search (2026-10-14):** FS-05.R41/A24
   (`9627fa96`); independent review found no findings. Shared projection filters live indexing and
@@ -196,36 +196,6 @@ containing-block concern was withdrawn: source inspection alone did not establis
   card, including its meter and archive action, and keep transcript/composer usable with both panels
   open. Add a browser regression at 1024/1280 with a long real agent name, both expanded panels,
   and assertions that transcript, input and Send remain inside the visible card; cover archive too.
-
-### Review unit — project rooms at the bottom, collapsible (`4440e79e`, reviewed 2026-10-14) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Code/specification review with an independent read-only subagent; current reviewed source matches
-the selected commit. All 38 RoomList/ProjectDashboard/ArchivePage tests and all 46 presentation
-checks pass. Independent Chromium fixture `/tmp/chuck-rooms-review.mjs` renders the actual UI with
-two real agent-card components above the rooms; all three appearances at 1024/1440 pass ordering,
-visible keyboard focus, Enter collapse, Space expand, retained room count and reload persistence.
-Screenshots: `/tmp/chuck-rooms-independent/`; baseline project/matrix runs:
-`/tmp/chuck-rooms-review/` and `/tmp/chuck-rooms-review-matrix/`. The fixture disables SharedWorker
-so its stubbed EventSource supplies the agent snapshot. No local-choice notes needed resolution.
-Invariant sweep: §8/§10 expose the findings below; §13 checked with no finding; §17's new test
-proves toggle/remount persistence but does not cover collapsed failed reads. No applicable surface
-for §1/§2/§3/§4/§5/§6/§7/§9/§11/§12/§14/§15/§16. The unit remains open.
-
-- **Must fix** (confirmed, Chromium reproduction) — `ui/src/features/thinktank/RoomList.tsx:40–41`
-  puts the failed-read message inside the hidden collapsed body. Normal-use trigger: collapse rooms,
-  then reload or let the room-list read fail during a reconnect/refetch. The heading gives no
-  unavailable indication; Chromium reports the attached error invisible while collapsed and
-  visible after expansion (`collapsed-error-core-1024.png`). This hides failed reads required by
-  FS-21.R44 and TS-08.R96. INV §8/§10. Keep the unavailable indication outside the collapsed cards
-  and add a collapsed-error regression for initial failure and failed refetch with cached rooms.
-- **Worth fixing** (confirmed code/specification coverage gap) —
-  `ui/src/features/thinktank/RoomList.tsx:16,51–66` applies one browser preference to every project
-  and Archive (`ArchivePage.tsx:193`). Normal-use trigger: collapse a project's rooms, then open
-  another project or Archive; its rooms start collapsed too. FS-02.R71 specifies scoped-project
-  collapse; FS-12.R63 explicitly names the project section; FS-05.R39/TS-08.R96 describe Archive
-  discovery without collapse or the shared preference. INV §10. Document the shipped Archive
-  toggle and cross-project/shared preference in the governing requirements, with a cross-surface
-  acceptance test; keep product behavior unless the human chooses a different preference scope.
 
 Closed 2026-10-12–14 reviews are in the archive above.
 

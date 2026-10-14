@@ -236,6 +236,8 @@ R22's `active` validation remain binding.
 
 - **R39** — Archive also discovers Think Tank rooms under FS-21.R39, with distinct room
   identity, originating project, phase/completion reason and link to the room conversation page.
+  Its "Retained room history" heading collapses the cards with the same browser preference as
+  project room sections (FS-02.R71).
   Active and ended rooms remain discoverable after their project or participating agents are
   removed. Room entries are not synthetic agent sessions and do not alter the existing agent
   archive/resume contracts; opening an ended room does not automatically restart discussion.

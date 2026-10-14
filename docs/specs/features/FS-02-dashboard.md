@@ -309,8 +309,9 @@ still shows that project's tasks.
 
 **R71** — A scoped project's Think Tanks section follows its agent grid at the bottom of the
 page and displays one wide room card per row, independently of agent column density. Its heading
-collapses and expands the cards; the choice is remembered in the browser and the heading keeps
-the room count visible while collapsed. Room title/phase lead a quiet
+collapses and expands the cards; the choice is one browser preference shared by every project's
+room section and Archive's (FS-05.R39), and the heading keeps the room count and any failed-read
+message visible while collapsed. Room title/phase lead a quiet
 goal preview, full wrapping roster, current speaker(s), per-member/collective remaining ceilings,
 judge state and attention/completion reason under FS-21.R43–R44. The card has familiar Chuck
 geometry with a restrained collective cue distinct from agent cards. Room and participant links
@@ -936,7 +937,8 @@ picker and launches with the route project's id; the general modal continues to 
   active project's section and filter option; opening the archived project's Tasks focus still
   shows its tasks. *Verify:* `TasksPage.test.tsx`.
 
-**A53** — FS-21.A33 exercises R71's distinct titled room cards after the agent grid, collapse/expand,
+**A53** — FS-21.A33 exercises R71's distinct titled room cards after the agent grid, collapse/expand
+(the choice carrying to another project and Archive; a failed read visible while collapsed),
 full roster/allowances, current speaker(s), attention/ended states and separate accessible links in
 all three appearances at 1024px and a wider desktop. Existing density/group/card behavior remains;
 new room deployments get FS-21.R51's title group. *Verify:* dashboard/wire tests and that real-binary

@@ -1044,7 +1044,8 @@ only existing state-color/typographic feedback changes, and reduced motion loses
 - **R96** — FS-02.R71/FS-21.R43–R44 extend the existing `RoomList` feature projection
   into distinct room navigation cards after the project agent grid, one row per room independent
   of `CardGrid` density/order. Archive uses titled room discovery without acquiring agent-grid
-  layout. Use existing Surface/Badge/Button/link seams, semantic depth/radius/spacing and full
+  layout. Every `RoomList` reads and writes one `localStorage` collapse key; the failed-read
+  message sits outside the collapsible body. Use existing Surface/Badge/Button/link seams, semantic depth/radius/spacing and full
   wrapping member identities. Read title/state → quiet goal preview → roster/allowances → current
   room activity/attention; judge state is separate. Preserve independent link focus, loading/error
   and retained tombstone states. This refines R87's goal-first hierarchy to compact title/state;

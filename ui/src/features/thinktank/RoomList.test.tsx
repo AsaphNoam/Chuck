@@ -95,4 +95,56 @@ describe("RoomList cards", () => {
     expect(await screen.findByRole("link", { name: "Cache choice" })).toBeTruthy();
     expect(window.localStorage.getItem("chuck.think-tank-rooms-collapsed")).toBeNull();
   });
+
+  // FS-02.R71, FS-05.R39: one browser preference collapses every project's
+  // room section and Archive's.
+  it("shares the collapsed choice across projects and Archive", async () => {
+    window.localStorage.clear();
+    rooms = [summary()];
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Thinking together" }));
+
+    cleanup();
+    renderList("beta");
+    expect((await screen.findByRole("button", { name: "Thinking together" })).getAttribute("aria-expanded")).toBe("false");
+
+    cleanup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter><RoomList title="Retained room history" emptyText="No Think Tanks yet." /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect((await screen.findByRole("button", { name: "Retained room history" })).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("link", { name: "Cache choice" })).toBeNull();
+    window.localStorage.clear();
+  });
+
+  // FS-21.R44: a failed read stays visible while the cards are collapsed,
+  // both on first load and when a refetch fails over cached rooms.
+  it("shows a failed read while collapsed", async () => {
+    window.localStorage.setItem("chuck.think-tank-rooms-collapsed", "1");
+    server.use(http.get("/api/think-tanks", () => HttpResponse.json({ error: { code: "internal", message: "down" } }, { status: 500 })));
+    renderList();
+    expect((await screen.findByText("Could not load Think Tanks.")).closest("[hidden]")).toBeNull();
+    expect(screen.getByRole("button", { name: "Thinking together" }).getAttribute("aria-expanded")).toBe("false");
+    server.resetHandlers();
+
+    cleanup();
+    rooms = [summary()];
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter><RoomList project="alpha" /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/1 room · separate from agent sessions/)).toBeTruthy();
+    expect(screen.queryByText("Could not load Think Tanks.")).toBeNull();
+    server.use(http.get("/api/think-tanks", () => HttpResponse.json({ error: { code: "internal", message: "down" } }, { status: 500 })));
+    await client.refetchQueries();
+    expect((await screen.findByText("Could not load Think Tanks.")).closest("[hidden]")).toBeNull();
+    expect(screen.getByText(/1 room · separate from agent sessions/)).toBeTruthy();
+    server.resetHandlers();
+    window.localStorage.clear();
+  });
 });

@@ -37,8 +37,9 @@ export function RoomList({ project, title = "Thinking together", emptyText }: { 
         </div>
         {list.length > 0 && <span className="room-list-note">{list.length} {list.length === 1 ? "room" : "rooms"} · separate from agent sessions</span>}
       </div>
+      {/* A failed read stays visible while the cards are collapsed (FS-21.R44). */}
+      {rooms.isError && <p className="form-error">Could not load Think Tanks.</p>}
       <div id={bodyID} className="room-list-body" hidden={collapsed}>
-        {rooms.isError && <p className="form-error">Could not load Think Tanks.</p>}
         {!rooms.isError && list.length === 0 && <p>{emptyText}</p>}
         <ul>
           {list.map((room) => <RoomCard key={room.room_id} room={room} showOrigin={!project} />)}
