@@ -28,13 +28,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
-- **Awaiting review — phone connection recovery (2026-10-14):** FS-20.R51–R53/A25, TS-13.R27–R29.
+- **Reviewed — phone connection recovery; findings open (2026-10-14):** FS-20.R51–R53/A25, TS-13.R27–R29.
   One owner in `ui/src/remote/connection.ts`: ping-fed 25 s deadline, serialized health+stream
   attempts, 5–60 s backoff, hidden pause; initial page stays `checking` until hydration.
   `ReplaceForm` unkeyed; chat re-anchors after refresh. `connection.test.ts` (13, fake clock),
   `phone-render.mjs --recovery-check` (fails without the anchor fix), full UI suite (known
   `NewAgentModal` flake only), `make test`, embed and build pass. Device gates owed below.
-  Changelog: phone heartbeat recovery (INV §1/§4/§5/§16).
+  Review covered implementation `45dfe9a4` and closure `ca1fd120`; two findings below keep
+  this same unit open. Independent connection tests (13) and screen tests (62) pass;
+  `phone-render.mjs --recovery-check` passes (reading row drift 0.375px, draft/attachment retained).
+  A separate loopback Chromium probe confirms Send remains enabled during page-cache recovery's
+  pending health read, with the old stream closed and no reconnecting banner.
+  Changelog: phone heartbeat recovery (INV §1/§4/§5/§16); recovery review (INV §1/§4/§8/§17).
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption.
@@ -149,7 +154,41 @@ None.
 
 ## Review findings
 
-None open. Closed 2026-10-12–14 reviews are in the archive above.
+### Phone connection recovery — `45dfe9a4` plus `ca1fd120` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — P1, INV §1/§4/§8: `ui/src/remote/connection.ts:146–156`
+  closes a healthy stream on `pagehide` without changing `link` from `connected`.
+  On page-cache restore, `onReturn` starts a replacement, but the health read and stream opening
+  retain that link until `onopen`. Actions therefore remain enabled against cached state for up
+  to the five-second health timeout plus the opening delay; no recovery banner appears. This
+  violates FS-20.R51 and TS-13.R27/R29's live-connection/completed-snapshot gate. A phone-width
+  Chromium probe hydrated an agent, entered a draft, dispatched `pagehide`/`pageshow` and held the
+  second health reply: after 500ms the old source was closed, Send was enabled, and the
+  reconnecting banner was absent. Set `reconnecting` when closing the healthy source or before
+  starting its replacement. Add a delayed-health/page-cache regression asserting actions stay
+  disabled through opening and partial hydration, until the replacement snapshot completes.
+  Fix complexity: trivial/easy; existing link-state seam and a focused regression.
+- **Must fix** — P2, INV §17: `ui/scripts/phone-render.mjs:165` runs the new recovery
+  assertions only when `shown` is true. The preceding conversation wait converts a timeout to
+  false (`:107`), so a startup/render/hydration regression skips every recovery assertion, writes
+  a screenshot and exits successfully. This cannot serve as a failing FS-20.A25 / TS-13.R30
+  acceptance check when the initial conversation is broken. For `--recovery-check`, retain the
+  failure screenshot but throw if the conversation did not appear; verify that a deliberately
+  missing conversation exits nonzero. Fix complexity: trivial/easy; a localized harness guard.
+
+Review choices accepted: keep the replacement form unkeyed so new run revisions retain input;
+reuse the bounded scroll-memory row/offset for refreshed chat rows; separate opening and
+hydration budgets so pings cannot keep incomplete hydration alive. No broader product decision
+is required. A possible late callback after native `EventSource.close()` was not promoted to a
+normal-use finding without evidence that the browser can deliver it after closure.
+
+Invariant sweep: §1/§4/§8 have the action-gating finding; §17 has the skipped-check finding.
+§2/§3/§5/§7/§9/§10/§11/§13/§14/§16 were checked on the connection, form, snapshot, test or
+browser surfaces and have no other finding. §6 has no new runtime/interface, §12 no external-CLI
+invocation, and §15 no durable mutation/external-effect ordering surface. No new selectors or
+visual styling were introduced. Paired iPhone/Android gates remain owed above.
+
+Closed 2026-10-12–14 reviews are in the archive above.
 
 ## Blocked on human
 
