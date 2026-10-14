@@ -45,6 +45,17 @@ func TestOperatorBuiltBinaryRealServerJourney(t *testing.T) {
 	t.Setenv("FAKEACP_HOLD_FILE", filepath.Join(home, "release"))
 	t.Setenv("FAKEACP_STEERING", "1")
 	t.Setenv("FAKEACP_IMAGE_INPUT", "1")
+	// Provider selection still requires a selectable Claude/Codex executable even
+	// though chat runs the fake ACP peer; inert stand-ins keep the journey from
+	// depending on the host's installed CLIs (TS-04.R75).
+	providers := t.TempDir()
+	for key, name := range map[string]string{"CLAUDE_CODE_EXECUTABLE": "claude", "CODEX_PATH": "codex"} {
+		path := filepath.Join(providers, name)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(key, path)
+	}
 	cfgStore := config.NewWithHome(home)
 	if err := cfgStore.EnsureLayout(); err != nil {
 		t.Fatal(err)
