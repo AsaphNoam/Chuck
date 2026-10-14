@@ -336,7 +336,7 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
   }, [bgMenu]);
   // A right-click on a card, room, form control, dialog or open menu keeps its own behavior.
   const openBackgroundMenu = (event: MouseEvent) => {
-    if ((event.target as HTMLElement).closest(".agent-card, .room-card, .context-menu, [role='dialog'], [data-ui='dialog'], input, textarea, select")) return;
+    if ((event.target as HTMLElement).closest(".agent-card, .room-card, .context-menu, [role='dialog'], [data-ui='dialog'], button, input, textarea, select")) return;
     event.preventDefault();
     setBgMenu({ x: event.clientX, y: event.clientY });
   };

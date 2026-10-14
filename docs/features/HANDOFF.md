@@ -15,9 +15,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   phone chat drafts are archived in
   [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
 - **Reviewed — chat permission modes, project-page menu, hidden file changes; fix pending
-  (2026-10-14):** `bac0d40`, `7cd50ff`; one review unit. Two Must-fix findings: an empty legacy
-  mode-set response overwrites a different provider-reported mode, and the project background
-  menu intercepts right-clicks on buttons. Findings, independent wire/browser evidence and fix
+  (2026-10-14):** `bac0d40`, `7cd50ff`; one review unit. One Must-fix finding remains: an empty legacy
+  mode-set response overwrites a different provider-reported mode. The project background menu
+  now excludes buttons and their nested content (INV §10); header-control and excluded-surface
+  regressions cover the fix. Findings, independent wire/browser evidence and fix
   recommendation below. Focused runtime/CLI/server checks, runtime race checks, 90 UI tests,
   46 presentation/style checks and 15 Chromium journeys pass apart from the intentional failing
   legacy-mode regression probe. Changelog: identified false mode success and form-control menu
@@ -180,14 +181,18 @@ phone-sheet change `2930250` and existing uncommitted CLI/dashboard/phone fixes 
   both unchanged and changed reported modes, successful legacy sets without notifications,
   and the existing config-option path. This fix has medium difficulty because it coordinates
   the read-loop notification and setter under the existing mode lock.
-- **Must fix** — **the scoped-project background menu intercepts button right-clicks
-  (INV §10).** Location: `ui/src/features/dashboard/ProjectDashboard.tsx:339`. The exclusion
-  selector covers inputs, textareas and selects but omits buttons. Right-clicking the header's
-  Think Tank button opens New agent/New think tank and prevents the control's own context-menu
-  behavior, violating FS-02.R77's explicit form-control exclusion. Independent Chromium
-  reproduces this at 1024px and 1440px in Core, Sky & Grove and Studio. Extend the existing
-  exclusion to buttons (including nested button content); add regressions for header controls
-  while retaining background, card, dialog and menu behavior. This is a trivial/easy fix.
+
+Menu finding fixed 2026-10-14 (INV §10): the existing form-control exclusion now includes
+buttons through `closest`, including nested content. The new header-control regression failed
+before the fix because the event was prevented. FS-02.A58 now names the excluded surfaces;
+regressions retain background openers, agent cards, room cards, forms, dialogs and menus.
+The permission-mode finding above remains open for its separately assigned fix.
+Menu closure: `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-menu-gocache
+make test` passes both Go variants; `make build` and `make embed` pass. UI closure passes
+819 tests in 89 files with two workers and all 46 presentation/style checks. The initial full
+UI run timed out in the unrelated phone successive-gap test; the complete two-worker retry
+passes. No new browser/provider receipt is claimed. Invariant sweep: §10 restored, §17 covered
+by the failing-before-fix regression; the remaining classes have no applicable changed surface.
 
 Other code and specifications agree in both directions. Reusing the header's dialog openers,
 shared diff filtering after reasoning placement, explicit archive opt-in, provider-advertised
