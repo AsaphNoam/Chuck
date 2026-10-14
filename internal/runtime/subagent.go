@@ -58,6 +58,11 @@ func (s activityScope) toolCallID(raw string) string {
 	return s.ActivityID + "/" + raw
 }
 
+// isSubagentUpdate reports the session/update kinds onSubagentUpdate handles.
+func isSubagentUpdate(kind string) bool {
+	return kind == "subagent_spawned" || kind == "subagent_state_update"
+}
+
 // sessionIDOf reads the top-level ACP session id of a notification or request.
 func sessionIDOf(params json.RawMessage) string {
 	var body struct {

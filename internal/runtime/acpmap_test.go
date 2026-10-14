@@ -249,3 +249,17 @@ func TestCanonicalToolNameWinsOverFallback(t *testing.T) {
 		t.Fatalf("permission identity = %q", id)
 	}
 }
+
+// The read loop routes each session/update by one peek; a malformed frame has
+// no kind, so no kind-specific decoder runs for it (INV §16).
+func TestPeekSessionUpdate(t *testing.T) {
+	for _, tc := range []struct{ raw, id, kind string }{
+		{`{"sessionId":"child-1","update":{"sessionUpdate":"usage_update","used":1,"size":2}}`, "child-1", "usage_update"},
+		{`{"update":{"sessionUpdate":"tool_call_update","content":[{"type":"content"}]}}`, "", "tool_call_update"},
+		{`{"sessionId":"s","update":{"sessionUpdate":"agent_thought_chunk"`, "", ""},
+	} {
+		if id, kind := peekSessionUpdate(json.RawMessage(tc.raw)); id != tc.id || kind != tc.kind {
+			t.Fatalf("peek %s = %q/%q, want %q/%q", tc.raw, id, kind, tc.id, tc.kind)
+		}
+	}
+}

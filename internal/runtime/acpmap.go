@@ -266,6 +266,21 @@ func (r contextReading) turnEnd(stopReason string) TurnEndData {
 // here. The shapes coded against are the §12.1 "assumed wire shapes"; the gated
 // real-CLI test (1.6) verifies them and any drift is fixed in this file alone.
 
+// peekSessionUpdate reads only a session/update's session id and kind. Every
+// json.Unmarshal scans the whole payload whatever it decodes into, so the read
+// loop peeks once and runs only the decoder for that kind: an in-limit image
+// result is tens of megabytes (INV §16).
+func peekSessionUpdate(params json.RawMessage) (sessionID, kind string) {
+	var su struct {
+		SessionID string `json:"sessionId"`
+		Update    struct {
+			SessionUpdate string `json:"sessionUpdate"`
+		} `json:"update"`
+	}
+	_ = json.Unmarshal(params, &su)
+	return su.SessionID, su.Update.SessionUpdate
+}
+
 // acpSessionUpdate is the params of a `session/update` notification.
 type acpSessionUpdate struct {
 	SessionID string    `json:"sessionId"`

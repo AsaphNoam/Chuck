@@ -1751,9 +1751,10 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	}
 	// A native child's frames arrive under its own session id; they are never
 	// the root's commands or context meter (TS-04.R63).
-	scope, known := as.scopeFor(sessionIDOf(params))
+	sessionID, kind := peekSessionUpdate(params)
+	scope, known := as.scopeFor(sessionID)
 	if !known || scope.ActivityID != "" {
-		c.onChildNotification(as, scope, known, params)
+		c.onChildNotification(as, scope, known, sessionID, kind, params)
 		return
 	}
 	// Failure updates describe this executing root turn, never history replay or
@@ -1777,15 +1778,17 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	// available_commands_update is replace-only live state, not a normalized
 	// transcript event: it gets no seq, durable append, index entry, or SSE
 	// publication (TS-04.R24). Handle it before event mapping and return.
-	if cmds, ok := decodeAvailableCommands(params); ok {
-		as.mu.Lock()
-		as.commands = cmds
-		as.mu.Unlock()
+	if kind == "available_commands_update" {
+		if cmds, ok := decodeAvailableCommands(params); ok {
+			as.mu.Lock()
+			as.commands = cmds
+			as.mu.Unlock()
+		}
 		return
 	}
 	// Mode updates are replace-only live state like commands; they never take
 	// mu, so a mode change answered mid-request cannot stall the read loop.
-	if as.onModeUpdate(params) {
+	if (kind == "current_mode_update" || kind == "config_option_update") && as.onModeUpdate(params) {
 		return
 	}
 	// usage_update is live runtime state rather than a transcript event. The
@@ -1794,12 +1797,14 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	// through the existing status-write seam immediately so a long-running
 	// turn's dashboard meter does not go stale waiting for the next
 	// tool/status event or turn_end (TS-04.R25, INV §1).
-	if reading, ok := decodeContextUsage(params); ok {
-		as.mu.Lock()
-		as.context = reading
-		as.mu.Unlock()
-		c.republishContext(as)
-		return
+	if kind == "usage_update" {
+		if reading, ok := decodeContextUsage(params); ok {
+			as.mu.Lock()
+			as.context = reading
+			as.mu.Unlock()
+			c.republishContext(as)
+			return
+		}
 	}
 	// While session/load restores provider-native context, a replayed frame is
 	// the conversation Chuck already rendered and persisted, not new work.
@@ -1817,51 +1822,57 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	if replay {
 		return
 	}
-	c.mapScoped(as, activityScope{}, params)
+	c.mapScoped(as, activityScope{}, kind, params)
 }
 
 // onChildNotification maps a frame addressed to a child session. Announcements
 // under a child parent a grandchild; replayed history is dropped like the
 // root's; an unannounced child produces only a bounded diagnostic.
-func (c *ChatRuntime) onChildNotification(as *agentState, scope activityScope, known bool, params json.RawMessage) {
+func (c *ChatRuntime) onChildNotification(as *agentState, scope activityScope, known bool, sessionID, kind string, params json.RawMessage) {
 	as.mu.Lock()
 	replay := as.loadReplay
 	as.mu.Unlock()
 	if replay {
 		return
 	}
-	if c.onSubagentUpdate(as, params) {
+	if isSubagentUpdate(kind) && c.onSubagentUpdate(as, params) {
 		return
 	}
 	if !known {
-		as.noteUnknownChild(sessionIDOf(params))
+		as.noteUnknownChild(sessionID)
 		return
 	}
-	if _, ok := decodeAvailableCommands(params); ok {
-		return
+	if kind == "available_commands_update" {
+		if _, ok := decodeAvailableCommands(params); ok {
+			return
+		}
 	}
-	if _, ok := decodeContextUsage(params); ok {
-		return
+	if kind == "usage_update" {
+		if _, ok := decodeContextUsage(params); ok {
+			return
+		}
 	}
-	c.mapScoped(as, scope, params)
+	c.mapScoped(as, scope, kind, params)
 }
 
 // mapScoped is the one live mapper for root and child updates (INV §2).
 // Reasoning streams live and is never persisted; any other update closes that
 // activity's open reasoning span (FS-03.R57, TS-04.R63).
-func (c *ChatRuntime) mapScoped(as *agentState, scope activityScope, params json.RawMessage) {
-	if delta, ok := decodeThoughtChunk(params); ok {
-		c.publishReasoning(as, scope.ActivityID, delta)
-		return
+func (c *ChatRuntime) mapScoped(as *agentState, scope activityScope, kind string, params json.RawMessage) {
+	if kind == "agent_thought_chunk" {
+		if delta, ok := decodeThoughtChunk(params); ok {
+			c.publishReasoning(as, scope.ActivityID, delta)
+			return
+		}
 	}
 	as.closeReasoningSpan(scope.ActivityID)
-	if scope.ActivityID == "" && as.capabilities().FileChangeReports && c.onFileReport(as, params) {
+	if scope.ActivityID == "" && kind == "session_info_update" && as.capabilities().FileChangeReports && c.onFileReport(as, params) {
 		return
 	}
-	if as.capabilities().BackgroundTasks && c.onAsyncTaskUpdate(as, scope, params) {
+	if (kind == "async_task_spawned" || kind == "async_task_state_update") && as.capabilities().BackgroundTasks && c.onAsyncTaskUpdate(as, scope, params) {
 		return
 	}
-	if scope.ActivityID == "" && as.capabilities().Subagents && c.onSubagentUpdate(as, params) {
+	if scope.ActivityID == "" && isSubagentUpdate(kind) && as.capabilities().Subagents && c.onSubagentUpdate(as, params) {
 		return
 	}
 	for _, m := range mapSessionUpdateImages(params, func(b acpContentBlock, toolID string) AssistantImageData { return c.persistImage(as, b, toolID) }) {

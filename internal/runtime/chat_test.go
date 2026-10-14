@@ -122,8 +122,15 @@ func newChatTest(t *testing.T, scenario string) (*ChatRuntime, LaunchSpec) {
 // drainTurn collects events from ch until a turn_end (or timeout).
 func drainTurn(t *testing.T, ch <-chan Event) []Event {
 	t.Helper()
+	return drainTurnWithin(t, ch, 3*time.Second)
+}
+
+// drainTurnWithin is drainTurn for a turn whose frame is large enough that the
+// default budget would measure the host's speed rather than the behavior.
+func drainTurnWithin(t *testing.T, ch <-chan Event, limit time.Duration) []Event {
+	t.Helper()
 	var got []Event
-	deadline := time.After(3 * time.Second)
+	deadline := time.After(limit)
 	for {
 		select {
 		case ev, ok := <-ch:

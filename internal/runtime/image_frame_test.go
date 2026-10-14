@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/attachment"
 )
@@ -61,7 +62,9 @@ func TestToolImageFrameBoundsAcrossActualWire(t *testing.T) {
 			if err := c.SendPrompt(context.Background(), h.AgentID, "produce image batch"); err != nil {
 				t.Fatal(err)
 			}
-			events := drainTurn(t, ch)
+			// A ~34 MB frame takes seconds on a shared CI runner; the bound under
+			// test is the frame's content, not its speed.
+			events := drainTurnWithin(t, ch, 20*time.Second)
 			imageEvents := 0
 			var result *ToolResultData
 			for _, ev := range events {

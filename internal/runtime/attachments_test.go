@@ -64,7 +64,7 @@ func TestAttachmentPromptMaximumNativeWireAndFileOrder(t *testing.T) {
 	if held, err := c.SendMessageOrHold(context.Background(), h.AgentID, m); err != nil || held {
 		t.Fatalf("send=%v %v", held, err)
 	}
-	events := drainTurn(t, ch)
+	events := drainTurnWithin(t, ch, 20*time.Second) // 15 MiB of attachments
 	raw, err := os.ReadFile(dump)
 	if err != nil {
 		t.Fatal(err)
@@ -371,7 +371,7 @@ func TestAssistantImagePersistsBeforeEventAndStripsToolBlob(t *testing.T) {
 	if err := c.SendPrompt(context.Background(), h.AgentID, "generate"); err != nil {
 		t.Fatal(err)
 	}
-	events := drainTurn(t, ch)
+	events := drainTurnWithin(t, ch, 20*time.Second) // 10 MiB image frame
 	found := false
 	for _, ev := range events {
 		if ev.Type != EvAssistantImage {
@@ -407,9 +407,9 @@ func TestAssistantImagePersistsBeforeEventAndStripsToolBlob(t *testing.T) {
 	}
 	bad, _ := json.Marshal(map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": acpContentBlock{Type: "image", Data: "not base64", MIMEType: "image/png"}}})
 	scope := activityScope{ActivityID: "child", ParentActivityID: "parent"}
-	c.mapScoped(as, scope, bad)
+	c.mapScoped(as, scope, "agent_message_chunk", bad)
 	text, _ := json.Marshal(map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": acpContentBlock{Type: "text", Text: "still readable"}}})
-	c.mapScoped(as, scope, text)
+	c.mapScoped(as, scope, "agent_message_chunk", text)
 	all, _ := c.Transcript(h.AgentID)
 	last := all[len(all)-2:]
 	if last[0].Type != EvAssistantImage || last[1].Type != EvAssistantText || last[0].ActivityID != "child" || last[0].ParentActivityID != "parent" {
@@ -420,7 +420,7 @@ func TestAssistantImagePersistsBeforeEventAndStripsToolBlob(t *testing.T) {
 	if unavailable.Error == "" || unavailable.Attachment != nil {
 		t.Fatal("invalid base64 was retained")
 	}
-	c.mapScoped(as, scope, params)
+	c.mapScoped(as, scope, "tool_call_update", params)
 	all, _ = c.Transcript(h.AgentID)
 	var childImage AssistantImageData
 	json.Unmarshal(all[len(all)-1].Data, &childImage)
