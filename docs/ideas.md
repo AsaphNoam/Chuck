@@ -65,36 +65,6 @@ the relevant feature and technical specifications; it does not change product co
   provider's automatic mode for Claude. Specify scope, persistence, provider mapping, whether a
   running session can change policy safely, and how this relates to frozen role/global
   `skip_permissions` and per-request Approve/Deny.
-- **Edit a sent message, or split a conversation at an earlier one.** From the 2026-08-10 play
-  session: like Codex, editing the most recent message edits it in place, and editing an older one
-  forks the conversation from that point; a separate request asked for an explicit split action.
-  Both need the same missing capability. Designing edit on 2026-08-27 established that AgentDeck
-  cannot give it the meaning Codex does, and the user chose to hold the idea rather than ship a
-  weaker meaning under the same name. Codex owns its own conversation state; AgentDeck supervises a
-  provider CLI session that has already ingested the message. Findings, so a later attempt does not
-  re-derive them:
-  - **The protocol has no rewind.** The ACP client is hand-rolled and pins protocol version 1.
-    Whole-session Clone (FS-01.R36) now uses `session/fork` and `session/delete`, but the fork takes
-    only a session id and branches at the latest completed turn. Nothing edits, rewinds, truncates,
-    or forks from an earlier point; `session/load` is a whole-session resume keyed by id and takes
-    no offset or sequence.
-  - **The transcript is append-only.** `internal/transcript/writer.go` exposes only
-    `Append`/`Sync`/`Close`, and `Open()` repairs a torn trailing record on the assumption that only
-    the final line can ever be incomplete (TS-02.R8, INV §9).
-  - **The search index is immutable per turn.** One FTS document per completed turn, never reread or
-    rewritten (TS-02.R16), and one document blends several messages by seq range — so an edited
-    message's original text stays searchable no matter what the UI shows. FS-05.R32 names the
-    transcript and search index as things archival may not change.
-  - **The only rewind-shaped seam is lossy.** The switch-runtime history primer
-    (`internal/server/primer.go`) rebuilds a session from an 8000-token budget: the last six turns
-    verbatim and a summary of everything older. Using it to fix a typo would silently discard the
-    agent's context.
-  Anything shippable is therefore one of: correct-and-resend as a new turn with the supersession
-  stated honestly; a true session rebuild that accepts the primer's context loss; or a display-only
-  supersede that makes the visible history stop matching what the agent received. Each needs a
-  product decision about what "edit" should promise. An earlier split additionally needs a truthful
-  provider-context boundary, parent/child lineage, visible history rules, and behavior for
-  providers without point-in-time fork support.
 - **Broader agent authority.** Agents can already create, list, read, retry and re-arm their own
   tasks (TS-10.R34). Two further powers remain undefined: stopping, resuming or launching another
   agent without going through a task, which is a new authority surface and needs a threat model;
@@ -126,6 +96,21 @@ capability; it is not by itself authority to remove the fallback or ship the def
   wire shape and provider evidence before completing TBD. Do not silently substitute command-text
   parsing, provider credential probes or an unrequested adapter patch.
 
+- **Edit a sent message / fork from an earlier message (held 2026-10-14).** From the 2026-08-10 play
+  session: editing the last message edits in place (like Codex), and editing or splitting at an
+  older one forks from that point. User rule (2026-10-14): ship only on standard ACP, never on a
+  vendor `_meta` extension. Standard ACP has no fork point, rewind, truncate or edit: SDK 1.8.0
+  `ForkSessionRequest` carries only `sessionId`, `cwd`, `additionalDirectories`, `mcpServers` and
+  `_meta`, and forks at the latest turn, so even edit-last cannot exclude the message being edited.
+  Both pinned adapters (Claude ACP 0.85.1 `dist/fork-session.js`, Codex ACP 2.1.1
+  `SessionFork.ts`) and the latest (0.90.0, 2.2.2) accept an unadvertised JetBrains extension,
+  `_meta.jetbrains.air.fork = {version: 1, messageId, …}`, forking after the turn holding that agent
+  message (Claude `upToMessageId`, Codex `thread/fork` `lastTurnId`); excluded by the rule above.
+  The only standard-ACP substitutes are lossy: a new session primed by `internal/server/primer.go`
+  (8000-token budget) re-sends history in a new shape that misses the provider prompt cache.
+  Chuck-side constraints still apply when the gate opens: append-only transcript (TS-02.R8, INV
+  §9), immutable per-turn search documents (TS-02.R16), no file rewind, and Chuck does not yet
+  capture adapter `messageId`s. Reopen when ACP standardizes a fork point or rewind.
 - **Steering.** The pinned Claude 0.85.1 and Codex 2.1.1 adapters advertise
   `_session/steering`, and AgentDeck uses it. Codex 2.1.1 still starts a detached turn when a steer
   arrives idle and ignores AgentDeck's `promptRequired` metadata, so the packaged steering patch
