@@ -102,6 +102,46 @@ describe("ScopedProjectDashboard background menu (FS-02.R77)", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  // FS-02.A58: header form controls retain their own context-menu behavior.
+  it("leaves header buttons and their nested content alone", async () => {
+    server.use(http.get("/api/projects", () => HttpResponse.json({
+      app: { title: "App", color: [100, 116, 139], cwd: "/tmp/app", add_dirs: [], context_prompt: "", archived: false, repo_backed: true },
+    })));
+    renderScoped("app");
+    await screen.findByRole("button", { name: "New worktree project" });
+    for (const name of ["New worktree project", "Think Tank", "New Agent"]) {
+      const button = screen.getByRole("button", { name });
+      const nested = document.createElement("span");
+      button.append(nested);
+      for (const target of [button, nested]) {
+        expect(fireEvent.contextMenu(target)).toBe(true);
+        expect(screen.queryByRole("menu")).toBeNull();
+      }
+    }
+  });
+
+  // FS-02.A58: excluded surfaces do not become project background targets.
+  it("preserves room, form, dialog and open-menu right-clicks", async () => {
+    catalog();
+    const { container } = renderScoped("app");
+    await screen.findByText("Back to projects");
+    const header = container.querySelector(".scoped-project-header")!;
+    for (const markup of [
+      '<div class="room-card"><span></span></div>',
+      '<input>', '<textarea></textarea>', '<select></select>',
+      '<div role="dialog"><span></span></div>',
+      '<div data-ui="dialog"><span></span></div>',
+      '<div class="context-menu"><span></span></div>',
+    ]) {
+      const fixture = document.createElement("div");
+      fixture.innerHTML = markup;
+      header.append(fixture);
+      expect(fireEvent.contextMenu(fixture.querySelector("span") ?? fixture.firstElementChild!)).toBe(true);
+      expect(screen.queryByRole("menu")).toBeNull();
+      fixture.remove();
+    }
+  });
+
   it("opens the dialog each header button opens", async () => {
     catalog();
     const { container } = renderScoped("app");

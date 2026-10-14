@@ -14,15 +14,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Closed entries (2026-10-12/13):** blank phone entry, dev mobile CSS, phone group memory and
   phone chat drafts are archived in
   [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
-- **Reviewed — chat permission modes, project-page menu, hidden file changes; fix pending
-  (2026-10-14):** `bac0d40`, `7cd50ff`; one review unit. The legacy mode-set finding is fixed:
-  empty replies preserve provider reports, including unchanged values (INV §8/§11/§12).
-  The project background menu Must-fix remains open: it intercepts right-clicks on buttons.
-  Findings, independent wire/browser evidence and fix
-  recommendation below. Focused runtime/CLI/server checks, runtime race checks, 90 UI tests,
-  46 presentation/style checks and 15 Chromium journeys pass apart from the intentional failing
-  legacy-mode regression probe. Changelog: identified false mode success and form-control menu
-  interception (INV §8/§10/§11/§12). Other review units remain unchanged.
+- **Closed — chat permission modes, project-page menu, hidden file changes (2026-10-14):**
+  `bac0d40`, `7cd50ff` plus fixes `a27f8d2`, `96d828f`. Empty legacy replies preserve provider
+  updates, including unchanged values; project background menus exclude buttons and nested
+  content. Actual-wire mode and header-control regressions failed before their fixes and pass
+  afterward. Changelog: restored effective-mode reporting and form-control exclusions
+  (INV §8/§10/§11/§12). Integration verification is in progress.
 - **Closed — projects home redesign (2026-10-14):** `40e414e` plus the fix commit. Unavailable-
   project cards now render their running count; `ProjectDashboard` regression with a missing
   project and running/stopped agents fails before the fix. Changelog: complete unavailable-project
@@ -160,65 +157,6 @@ in [`HANDOFF-closed-2026-10-13`](../archive/state/HANDOFF-closed-2026-10-13.md).
 
 ## Review findings
 
-### Chat permission modes, project-page menu and hidden file changes — `bac0d40`, `7cd50ff` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Reviewed independently 2026-10-14 against FS-02.R77/A58, FS-03.R87–R88/A66–A67,
-FS-22.R1/R3/R8, TS-03.R70 and TS-04.R92. Administrative state commit `ada1b49`, unrelated
-phone-sheet change `2930250` and existing uncommitted CLI/dashboard/phone fixes are excluded.
-
-Fixed legacy mode-set empty replies (INV §8/§11/§12): mode revisions count provider updates
-even when their value is unchanged; the fallback checks atomically under `modeMu`. Actual-wire
-regressions failed before the fix for unchanged and changed reports and now pass, alongside
-accepted notifications, no-notification legacy success and config-option results. FS-03.A67
-and TS-04.R92 clarify the contract. The menu finding stays open.
-Closure: `env -u CHUCK_RUNTIME_ROOT GOCACHE=/private/tmp/chuck-gocache GOFLAGS=-p=1 make test`
-passes both Go variants; `make build`, focused mode tests and focused mode race checks pass.
-Full tests require approved loopback execution; the initial sandbox run could not bind test
-servers. Log: `/private/tmp/chat-permissions-closure-approved.log`. No UI change or live-provider
-receipt; existing provider uncertainties remain. This scoped fix creates no new review unit.
-
-- **Must fix** — **the scoped-project background menu intercepts button right-clicks
-  (INV §10).** Location: `ui/src/features/dashboard/ProjectDashboard.tsx:339`. The exclusion
-  selector covers inputs, textareas and selects but omits buttons. Right-clicking the header's
-  Think Tank button opens New agent/New think tank and prevents the control's own context-menu
-  behavior, violating FS-02.R77's explicit form-control exclusion. Independent Chromium
-  reproduces this at 1024px and 1440px in Core, Sky & Grove and Studio. Extend the existing
-  exclusion to buttons (including nested button content); add regressions for header controls
-  while retaining background, card, dialog and menu behavior. This is a trivial/easy fix.
-
-Other code and specifications agree in both directions. Reusing the header's dialog openers,
-shared diff filtering after reasoning placement, explicit archive opt-in, provider-advertised
-mode inventory, bounded display copy, a separate mode lock, per-agent lifecycle claims,
-phone route denial and live-only mode state are sound local choices. No human decision is needed.
-
-Verification: 90 focused UI tests pass across PermissionModeToggle, TranscriptView,
-ScopedProjectDashboard, AgentScreen and VisualMatrix; 46 style/presentation checks pass.
-Fresh CLI wire-inventory and live fake-provider server mode-route tests pass with authorized
-loopback execution. Runtime tests and focused mode race tests pass. The intentional failing
-legacy-mode regression was independently rerun from
-`/private/tmp/chuck-legacy-probe/{overlay.json,legacy_mode_probe_test.go,fake-overlay.json}`;
-no repository test or product file was edited. Initial sandbox CLI/server/browser attempts
-could not bind loopback; bounded approved executions completed those checks.
-
-The actual working-tree UI passes six desktop journeys at 1024/1440px and nine phone journeys
-at 360/390/430px across all three appearances. Desktop checks cover advertised radio choices,
-keyboard selection, provider refusal and selection restoration, reread after agent state change,
-hidden transcript diffs, Files-tab reveal of exactly one requested diff, retained archive diffs,
-both background-menu dialog openers, card exclusion, Escape dismissal and horizontal containment.
-All six desktop cases additionally reproduce the button-interception finding. Phone checks
-confirm no permission-mode control, hidden conversation diffs, exactly one requested Open diff
-card and viewport containment. Inspected settled screenshots show readable labels and inline
-refusals, coherent runtime grouping and contained phone diffs. Evidence:
-`/private/tmp/review-modes-ui.mjs` and `/private/tmp/review-modes-ui/{receipt.json,*.png}`.
-Fixtures make no live-provider, physical-phone or tailnet claim; those provider uncertainties
-remain as recorded in TS-04.R92 and Unit notes.
-
-Invariant sweep: applicable §1, §2, §3, §4, §5, §7, §13, §14, §16 and §17 have no findings;
-§8/§11/§12 have the mode-report finding and §10 has the button-exclusion finding above.
-§6, §9 and §15 have no applicable changed surface: no new runtime/interface, durability or
-process-liveness primitive, or durable-commit/side-effect ordering change. Product code and
-specifications are unchanged. These findings keep this same unit open; every other unit is
-unchanged. Commit only this review state.
 
 ### Chat images and file attachments — `e8c50f7`, `395c1a8`, `9ae6f59` — **Fix model:** medium — Codex Terra or Claude Opus.
 

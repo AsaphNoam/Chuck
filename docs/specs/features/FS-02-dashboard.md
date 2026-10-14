@@ -963,8 +963,9 @@ actual JSON wire and confirm the old global release route is absent on both list
 — server/UI tests and a fake-provider browser journey.
 
 **A58** (R77) — Right-clicking the scoped project page background shows **New agent** and
-**New think tank**; each opens the dialog its header button opens. Right-clicking an agent card opens
-no background menu. — `ScopedProjectDashboard.test.tsx`.
+**New think tank**; each opens the dialog its header button opens. Right-clicking an agent card,
+room card, form control (including header buttons and their nested content), dialog or open menu
+keeps its own behavior and opens no background menu. — `ScopedProjectDashboard.test.tsx`.
 
 ## 6. Deviations & open decisions
 
