@@ -51,8 +51,9 @@ const (
 )
 
 // Part is one text fragment of a projected event. Indexed marks the fragments
-// that make up the full-text search bag; the remainder is readable framing that
-// search deliberately ignores.
+// that make up the full-text search bag. Only conversation text is indexed
+// (FS-05.R41); tool calls, tool output, edits and permission requests are
+// readable in pulled context but deliberately ignored by search.
 type Part struct {
 	Kind    PartKind
 	Text    string
@@ -129,8 +130,8 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 		}
 		p.Role = "assistant"
 		p.Parts = []Part{
-			{Kind: PartToolName, Text: d.Name, Indexed: true},
-			{Kind: PartToolArgs, Text: string(d.Args), Indexed: true},
+			{Kind: PartToolName, Text: d.Name},
+			{Kind: PartToolArgs, Text: string(d.Args)},
 		}
 	case runtime.EvToolResult:
 		var d runtime.ToolResultData
@@ -139,7 +140,7 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 		}
 		p.Role = "assistant"
 		p.Parts = []Part{
-			{Kind: PartToolResultContent, Text: string(d.Content), Indexed: true},
+			{Kind: PartToolResultContent, Text: string(d.Content)},
 			{Kind: PartToolResultStatus, Text: d.Status},
 			{Kind: PartToolError, Text: d.Error},
 		}
@@ -150,8 +151,8 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 		}
 		p.Role = "assistant"
 		p.Parts = []Part{
-			{Kind: PartDiffPath, Text: d.Path, Indexed: true},
-			{Kind: PartDiffText, Text: d.NewText, Indexed: true},
+			{Kind: PartDiffPath, Text: d.Path},
+			{Kind: PartDiffText, Text: d.NewText},
 			{Kind: PartDiffPatch, Text: d.Patch},
 		}
 	case runtime.EvPermissionRequest:
@@ -161,7 +162,7 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 		}
 		p.Role = "system"
 		p.Parts = []Part{
-			{Kind: PartPermissionReason, Text: d.Reason, Indexed: true},
+			{Kind: PartPermissionReason, Text: d.Reason},
 			{Kind: PartPermissionTool, Text: d.Name},
 		}
 	case runtime.EvPermissionResolved:

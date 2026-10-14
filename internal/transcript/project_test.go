@@ -130,18 +130,17 @@ func TestProjectEventUnknownTypeIsExplicit(t *testing.T) {
 	}
 }
 
-// TestProjectEventSearchText pins the exact search bag each type contributed
-// before the projection was extracted, so routing the indexer through it is a
-// refactor rather than a silent change to archive search.
+// TestProjectEventSearchText pins the exact search bag each type contributes:
+// conversation text only, never tool activity or edits (FS-05.R41).
 func TestProjectEventSearchText(t *testing.T) {
 	samples := sampleEvents(t)
 	want := map[string]string{
 		runtime.EvUserPrompt:         "ship it",
 		runtime.EvAssistantText:      "on it",
-		runtime.EvToolCall:           `Bash {"command":"ls"}`,
-		runtime.EvToolResult:         `"file.go"`,
-		runtime.EvDiff:               "main.go b",
-		runtime.EvPermissionRequest:  "runs a command",
+		runtime.EvToolCall:           "",
+		runtime.EvToolResult:         "",
+		runtime.EvDiff:               "",
+		runtime.EvPermissionRequest:  "",
 		runtime.EvPermissionResolved: "",
 		runtime.EvSessionMeta:        "",
 		runtime.EvTurnEnd:            "",

@@ -114,6 +114,13 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   and phone agent conversations. R16–R19's capture, endpoint, ordering and archive rollup counts,
   retained records and transcript activity are unchanged. No deletion or migration is introduced.
 
+- **R41 — Search covers the conversation only.** Transcript search documents contain only
+  conversation text: user prompts and their attachment names, assistant replies and image names, and
+  annotations. Tool names and arguments, tool output, file edits (paths and contents), permission
+  requests and errors are not indexed, so a term that appears only in them finds nothing. File and
+  command tracking (R16–R19) is unchanged. Documents written before this rule keep their content
+  until `chuck reindex` rebuilds the archive index.
+
 ## 3. States & transitions
 
 - **Session persistence.** A session row is written at launch and updated as the agent runs (identity,
@@ -331,6 +338,12 @@ R22's `active` validation remain binding.
   the commands endpoint and archive rollup. History, ordering and counts remain available while
   desktop and phone offer no Commands tab. *Verify:* existing tracking/server tests and focused
   chat/phone absence tests under FS-03.A61.
+
+- **A24** (R41) — Index a turn whose tool call, tool output and edit carry unique terms beside a
+  prompt and reply. Searching a prompt or reply term finds the session; searching a term found only
+  in the tool call, output or edit finds nothing, while the edit and command stay tracked:
+  `internal/transcript/project_test.go::TestProjectEventSearchText` and
+  `internal/archive/archive_fts_test.go::TestArchiveSearchIgnoresToolActivity`.
 
 ## 6. Deviations & open decisions
 

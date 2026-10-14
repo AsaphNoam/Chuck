@@ -301,3 +301,64 @@ func writeTranscript(t *testing.T, home, agentID, name, role, project, content s
 		t.Fatalf("append turn_end %s: %v", agentID, err)
 	}
 }
+
+// FS-05.A24: tool calls, tool output and edits are tracked but not searchable;
+// only the conversation text is.
+func TestArchiveSearchIgnoresToolActivity(t *testing.T) {
+	home := t.TempDir()
+	st, err := state.Open(home)
+	if err != nil {
+		t.Fatalf("state.Open: %v", err)
+	}
+	defer st.Close()
+	db := st.DB()
+
+	meta := &runtime.SessionMetaData{
+		Name: "Tooly", Role: "implementer", Project: "my-app",
+		Backend: "claude", Model: "sonnet", Interface: "chat",
+		Cwd: "/tmp", CreatedAt: "2026-06-28T10:00:00Z",
+	}
+	w, err := transcript.Open(home, "t_tools", meta)
+	if err != nil {
+		t.Fatalf("transcript.Open: %v", err)
+	}
+	events := []struct {
+		typ  string
+		data any
+	}{
+		{runtime.EvUserPrompt, runtime.UserPromptData{Text: "please sharpen pelican"}},
+		{runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "tc_1", Name: "Bash", Args: json.RawMessage(`{"command":"grep walrusarg"}`), Status: "in_progress"}},
+		{runtime.EvToolResult, runtime.ToolResultData{ToolCallID: "tc_1", Status: "completed", Content: json.RawMessage(`"narwhaloutput"`)}},
+		{runtime.EvDiff, runtime.DiffData{ToolCallID: "tc_2", Path: "/tmp/otterpath.go", NewText: "package beaverbody"}},
+		{runtime.EvAssistantText, runtime.AssistantTextData{Delta: "done with falcon"}},
+		{runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn"}},
+	}
+	for i, e := range events {
+		data, _ := json.Marshal(e.data)
+		if err := w.Append(runtime.Event{AgentID: "t_tools", Seq: int64(i + 1), Type: e.typ, Ts: "2026-06-28T10:01:00Z", Data: data}); err != nil {
+			t.Fatalf("append %s: %v", e.typ, err)
+		}
+	}
+	w.Close()
+	if err := index.Reindex(home, db); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+
+	a := New(db)
+	for _, q := range []string{"pelican", "falcon"} {
+		resp, err := a.Search(Query{Q: q, Limit: 10})
+		if err != nil || resp.Total != 1 {
+			t.Fatalf("conversation term %q: total=%d err=%v", q, resp.Total, err)
+		}
+	}
+	for _, q := range []string{"Bash", "walrusarg", "narwhaloutput", "otterpath", "beaverbody"} {
+		resp, err := a.Search(Query{Q: q, Limit: 10})
+		if err != nil || resp.Total != 0 {
+			t.Fatalf("tool-only term %q: total=%d %+v err=%v", q, resp.Total, resp.Results, err)
+		}
+	}
+	var files int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM tracked_files WHERE agent_id = 't_tools'`).Scan(&files); err != nil || files != 1 {
+		t.Fatalf("tracked edit: files=%d err=%v", files, err)
+	}
+}
