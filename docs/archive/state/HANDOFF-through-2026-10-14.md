@@ -149,3 +149,27 @@ Closed 2026-10-11 reviews are in the archive above.
   build pass; full UI suite fails only the `NewAgentModal` flake.
   Changelog: phone heartbeat recovery (INV §1/§4/§5/§16); recovery review (INV §1/§4/§8/§17);
   page-cache action gate (INV §1/§4/§8); harness exit finding false (INV §17, no change).
+
+## Settled at the `v0.16.0` release cut — 2026-10-14
+
+- **Release before this cut:** `v0.15.1` published 2026-10-14 (release CI run 38513998402).
+  Pushed tag `v0.15.0` has no GitHub Release (CI run 38512698302 failed on the CLI journey test);
+  `v0.14.0` stays local-only by user decision. `origin` URL corrected 2026-10-14.
+- **Closed — operator CLI journey hermeticity:** `TestOperatorBuiltBinaryRealServerJourney` points
+  `CLAUDE_CODE_EXECUTABLE`/`CODEX_PATH` at inert stand-ins; failed before with no provider CLIs on
+  `PATH`, passes after.
+- **Closed — think tank non-leaver filler:** FS-21.R16/R20/R52–R53/A38, TS-14.R5. Discussion-turn
+  `pass` disposition; quiet round ends with `nothing_further`. `TestThinkTankPassAndQuietRotation`
+  and room-page marker test. Not run through a live provider.
+- **Closed — image-frame CI timeout:** large-frame runtime tests use `drainTurnWithin` 20 s;
+  `onNotification` routes via one `peekSessionUpdate` (25 MiB frame decode 1.17 s → 0.71 s).
+- **Closed — phone model and effort split** (FS-20.R43, TS-08.R111, `b1bc5284`) and **mobile
+  wallpaper restoration** (`33987801`): reviews found no findings.
+- **Closed — phone scroll memory:** FS-20.R54/A26, TS-08.R125 (`e522eb1a`, `f5f86dde`). Restore
+  re-applies saved `scrollY` after live-update reload; `phone-render.mjs --scroll-check` covers it.
+- **Closed — agent page width and side panels:** FS-12.R61/A33, TS-08.R112 (`7a0228e5`,
+  `30204eaf`, `06d6f177`). `chat-cleanup-render.mjs --panels` regression added.
+- **Closed — project rooms at the bottom, collapsible:** FS-02.R71/A53, FS-05.R39, FS-21.R44,
+  TS-08.R96 (`4440e79e`, `f61a5280`).
+- **Closed — conversation-only archive search:** FS-05.R41/A24 (`9627fa96`); no review findings.
+- **Release notes:** [`RELEASE-v0.16.0-notes.md`](RELEASE-v0.16.0-notes.md).

@@ -16,7 +16,12 @@ private exchanges with the person are never copied into the room.
   that ends without a submission publishes nothing and waits for the person.
 - Your turn limit is a ceiling, not a quota. Contribute when you have something useful to add.
   Unresolved disagreement is an acceptable outcome; do not manufacture consensus or restate others to
-  fill a turn. When permitted, you may leave with an optional final message; leaving uses that turn.
+  fill a turn. On an ordinary discussion turn with nothing useful to add, submit the `pass`
+  disposition with no message: it uses that turn, publishes only an attributed pass marker and keeps
+  you eligible for later turns. Pass is not available on an opening, closing or judge turn. Once
+  every eligible participant has passed since the last other room entry, discussion ends as having
+  nothing further to add. When permitted, you may leave with an optional final message; leaving
+  uses that turn.
   The person can raise your ceiling while discussion is open; read the current allowance on each
   new room turn. An increase does not interrupt your current turn or resume a paused room.
 - With independent openings, other participants' openings stay hidden until every opening is

@@ -6,21 +6,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** `v0.15.1` published 2026-10-14 (Latest): release CI run 38513998402 passed and
-  the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from the
-  notes file. Manual provider gates below remain owed. Pushed tag `v0.15.0` has no
-  GitHub Release: its release CI (run 38512698302) failed on the CLI journey test closed below;
-  leave that tag in place. `v0.14.0` stays local-only by user decision. `v0.15.1` notes cover
-  everything since the last published `v0.13.0`. Range `v0.15.0..v0.15.1` changes nothing
-  agent-facing.
-- **Closed — operator CLI journey hermeticity (2026-10-14):** `TestOperatorBuiltBinaryRealServerJourney`
-  resolved the host's real Claude executable, failing CI and release CI on hosts without it. It now
-  points `CLAUDE_CODE_EXECUTABLE`/`CODEX_PATH` at inert stand-ins like `internal/server/main_test.go`.
-  Failed before the fix with `HOME` isolated and no provider CLIs on `PATH`; passes after. Full
-  `make test` (both Go variants) passes. Changelog: hermetic CLI journey provider selection
-  (no invariant class).
-- **Repository:** `AsaphNoam/Chuck`; branch `main`. `origin` URL corrected 2026-10-14 (it had a
-  stray trailing `.`).
+- **Release:** `v0.16.0` tagged 2026-10-14 at the release commit; push of `main` and the tag
+  authorized. Publication verification (release CI, GitHub Release assets, release body from
+  [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md)) follows the push.
+  Manual provider gates below remain owed. Range `v0.15.1..v0.16.0`: the shipped
+  `operating-chuck` Think Tank reference now names the discussion `pass` disposition and the
+  quiet-round ending; nothing else agent-facing.
+- **Repository:** `AsaphNoam/Chuck`; branch `main`.
 - **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
   provider call while `onNotification` takes `as.mu` for unmatched frames on the synchronous read
   loop, so an adapter notification sent before that reply could stall it.
@@ -28,79 +20,19 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
-- **Closed — think tank non-leaver filler (2026-10-14):** FS-21.R16/R20/R52–R53/A38, TS-14.R5.
-  Any participant can now submit disposition `pass` on a discussion turn (no message; charges one
-  turn, advances the checkpoint, publishes a bodiless `pass` marker, stays eligible); discussion
-  guidance names it, so following “nothing to add” no longer holds the room. User-confirmed
-  product rule: once every eligible participant has passed since the last non-pass entry,
-  discussion ends with `nothing_further` (closing skipped, judge runs). The un-skipped
-  reproduction failed before with “disposition must be reply, leave or decline_closing” and passes;
-  new `TestThinkTankPassAndQuietRotation` (state) and room-page marker test. `make test`, UI suite
-  (known `NewAgentModal` flake only), UI and Go build pass; not run through a live provider.
-  Changelog: think tank pass disposition (INV §8/§10/§11/§17); quiet-round ending (INV §10/§17).
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption.
-- **Known flaky checks:** `internal/server` `TestOrdinaryStageAgentStopPausesPipelineRun`
-  intermittently returns 409 “a resume is already in progress” (pre-existing at `74c8e84`).
-  `ui` `NewAgentModal.test.tsx` fails 1–2 cases intermittently on unchanged `d3c9307`
-  (observed 2026-10-11). Neither is investigated. `FileViewer.test.tsx` "scrolls to and marks a
-  cited line" failed once in the full UI suite on 2026-10-14 and passes 3/3 alone.
-  Closed 2026-10-14 — image-frame CI timeout: large-frame runtime tests (image frame and both
-  10 MiB attachment tests) use `drainTurnWithin` 20 s instead of the fixed 3 s collector; the
-  10 MiB image test also failed under `-race` on unchanged code. `onNotification` now peeks each
-  `session/update`'s id and kind once (`peekSessionUpdate`) and runs only that kind's decoder:
-  JSON decode CPU for the 25 MiB frame fell from 1.17 s to 0.71 s and the subtest from ~2.4 s to
-  ~1.9 s. `make test` (both variants, parallel packages) and runtime `-race` pass. Changelog:
-  single-peek ACP update routing (INV §16); large-frame test budgets (no invariant class).
-- **Closed — phone model and effort split (2026-10-14):** FS-20.R43, TS-08.R111 (`b1bc5284`);
-  review found no findings.
-- **Closed — phone scroll memory (2026-10-14):** FS-20.R54/A26, TS-08.R125 (`e522eb1a` plus
-  fix). Review's Must fix closed: after a live update re-keys a page's queries, `PhoneApp`
-  re-applies the saved `scrollY` on each DOM change until reached; the clamped position is not
-  saved, any other scroll ends the restore. `phone-render.mjs --scroll-check` now adds a live
-  `state_update` plus 400 ms project/home reload: failed before (project 1000px → 0px), passes
-  after (project and Home at 1000px); review fixture drift 0; `--details/--history/--parity-check`
-  pass. Run page uses the same `PhoneApp` path but has no browser fixture. 101 remote tests, tsc,
-  `make test`, embed, build pass; full UI suite 840/841 (only the `NewAgentModal` flake).
-  Changelog: phone restore waits for reloaded page content (INV §1/§10/§17).
-
-- **Closed — mobile wallpaper restoration (2026-10-14):** FS-20.R43, TS-08.R111 (`33987801`);
-  review found no findings.
-
-- **Closed — agent page width and side panels (2026-10-14):** FS-12.R61/A33, TS-08.R112
-  (`7a0228e5`, `30204eaf` plus `06d6f177`). Review's Must fix closed: header and composer toolbar
-  wrap as the card narrows; the external viewer uses 34cqi at docked stage widths up to 1280px,
-  leaving room for runtime controls and conversation. The card remains about 80% of the window
-  without panels; conversation/composer retain 7.5% side insets. The new
-  `chat-cleanup-render.mjs --panels` regression fails before the fix and passes after with long
-  names, runtime controls and both panels expanded on active/archive pages at 1024/1280 in all
-  three appearances. All 277 full chat browser checks and 12 rebuilt production fake-ACP checks
-  pass; receipts: `/tmp/chuck-panel-final-closure/` and `/tmp/chuck-panel-real-fixed/`.
-  `make test` (both Go variants), `make dist` and full UI suite (843/843 on retry) pass. The
-  concurrent UI run timed out in the phone successive-gap test; rerunning without browser load
-  passed. No live provider used. Changelog: narrowed agent workspace keeps conversation and
-  composer usable (INV §8/§10/§17).
-
-- **Closed — project rooms at the bottom, collapsible (2026-10-14):** FS-02.R71/A53,
-  FS-05.R39, FS-21.R44, TS-08.R96 (`4440e79e` plus fix). Review's Must fix closed: the
-  "Could not load Think Tanks." message now sits outside the collapsible body, so it shows while
-  collapsed. Worth fixing closed: specs now state one browser collapse preference shared by every
-  project and Archive (behavior unchanged). New RoomList tests: collapsed initial failure and
-  failed refetch over cached rooms (failed before the fix, pass after) and cross-project/Archive
-  carry-over. `make test`, tsc, embed, build pass; full UI suite 841/843 (only the
-  `NewAgentModal` flake). Not re-rendered in Chromium. Changelog: collapsed room list keeps
-  failed reads visible (INV §8/§10); shared room-collapse preference specified (INV §10).
-
-- **Closed — conversation-only archive search (2026-10-14):** FS-05.R41/A24
-  (`9627fa96`); independent review found no findings. Shared projection filters live indexing and
-  reindex without changing readable tool context or tracking; legacy documents retain tool text
-  until `chuck reindex`, as specified. Transcript, index, archive and contextref tests pass uncached
-  in both Go variants. The new archive regression fails against the pre-change projection through
-  a temporary Go overlay. Spec lint and diff checks pass. No local-choice notes needed resolution.
-  Invariant sweep: §2/§7/§8/§9/
-  §10/§16/§17 checked with no findings; no applicable surface for §1/§3/§4/§5/§6/§11/§12/§13/§14/§15.
-  **Fix model:** trivial/easy — Claude Sonnet or Codex Luna (no open fixes).
+- **Known flaky checks (uninvestigated):** `internal/server`
+  `TestOrdinaryStageAgentStopPausesPipelineRun` intermittently returns 409 “a resume is already in
+  progress”. `ui` `NewAgentModal.test.tsx` fails 1–2 cases intermittently. `FileViewer.test.tsx`
+  “scrolls to and marks a cited line” failed once in the full suite and passes alone. The phone
+  successive-gap test can time out when the UI suite runs alongside browser load.
+  `internal/server` `TestQuotaDispatcherContinuesSameConversationOnce/stopped` failed once
+  (“reloaded transcript differs”, FTS5 variant) in the `v0.16.0` closure run; 40 isolated runs,
+  30 `-race` runs and a full FTS5 package rerun pass. Range commit `9989fb88` touched ACP update
+  routing; whether it relates is uninvestigated.
+- **Fix model:** trivial/easy — Claude Sonnet or Codex Luna (no open fixes).
 
 ## Active change
 
@@ -170,7 +102,7 @@ None.
 
 None.
 
-Closed 2026-10-12–14 reviews are in the archive above.
+Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Blocked on human
 
@@ -180,6 +112,7 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-See [`RELEASE-v0.15.1-notes.md`](../archive/state/RELEASE-v0.15.1-notes.md) (supersedes the
+See [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md),
+[`RELEASE-v0.15.1-notes.md`](../archive/state/RELEASE-v0.15.1-notes.md) (supersedes the
 never-published v0.14.0 and v0.15.0 notes) and
 [`RELEASE-v0.13.0-notes.md`](../archive/state/RELEASE-v0.13.0-notes.md).
