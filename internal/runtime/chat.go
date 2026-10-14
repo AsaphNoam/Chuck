@@ -213,12 +213,13 @@ type agentState struct {
 	configOptions sessionConfigAdvertisement
 	// modes is the live permission-mode advertisement, guarded by modeMu
 	// rather than mu (see setModes).
-	modeMu     sync.Mutex
-	modes      SessionModes
-	hub        *Hub
-	stdin      interface{ Close() error }
-	stderr     *ringBuffer
-	stderrDone chan struct{}
+	modeMu       sync.Mutex
+	modes        SessionModes
+	modeRevision uint64
+	hub          *Hub
+	stdin        interface{ Close() error }
+	stderr       *ringBuffer
+	stderrDone   chan struct{}
 
 	ctx    context.Context // turn-scoped base context, cancelled on Stop
 	cancel context.CancelFunc

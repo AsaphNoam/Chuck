@@ -1198,7 +1198,9 @@ runes. `current_mode_update` moves only to an advertised id. The list is live pe
 like available commands: never persisted, never a transcript event, decoded again on every launch
 or resume (INV §1/§3). Mode updates have their own lock and never wait on the agent lock, because
 the transport delivers notifications on the read goroutine and adapters announce a new mode before
-answering the request that set it. A response whose reported mode differs from the request is
+answering the request that set it. An empty set reply preserves any provider mode update received
+during the call, including one repeating the previous value; only without such an update may it
+fall back to the requested mode. A response whose reported mode differs from the request is
 `ErrSettingIgnored`. Claude 0.59.0's mode option is source-checked; the Codex mode shape and live
 provider receipts remain unverified.
 

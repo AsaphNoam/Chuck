@@ -99,6 +99,44 @@ func TestSetSessionModeAppliesAdvertisedMode(t *testing.T) {
 	}
 }
 
+// An empty acknowledgement must not erase a provider report, even when that
+// report repeats the pre-call value (FS-03.A67, TS-04.R92).
+func TestSetSessionModePreservesProviderReport(t *testing.T) {
+	for _, tc := range []struct {
+		name, reported, want string
+		legacy, ignored      bool
+	}{
+		{"legacy unchanged", "default", "default", true, true},
+		{"legacy changed", "acceptEdits", "acceptEdits", true, true},
+		{"legacy accepted notification", "plan", "plan", true, false},
+		{"legacy no notification", "", "plan", true, false},
+		{"config unchanged", "default", "default", false, true},
+		{"config changed", "acceptEdits", "acceptEdits", false, true},
+		{"config accepted", "", "plan", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, spec := newChatTest(t, "stream_text")
+			spec.Env = append(spec.Env, "FAKEACP_MODE_OPTIONS=default,acceptEdits,plan", "FAKEACP_MODE_REPORTED="+tc.reported)
+			if tc.legacy {
+				spec.Env = append(spec.Env, "FAKEACP_LEGACY_MODES=1")
+			}
+			h, err := c.Start(context.Background(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { c.Stop(context.Background(), h.AgentID) })
+			got, err := c.SetSessionMode(context.Background(), h.AgentID, "plan")
+			if got.Current != tc.want || errors.Is(err, ErrSettingIgnored) != tc.ignored || (!tc.ignored && err != nil) {
+				t.Fatalf("mode = %q, err = %v; want %q, ignored=%v", got.Current, err, tc.want, tc.ignored)
+			}
+			live, err := c.SessionModes(h.AgentID)
+			if err != nil || live.Current != tc.want {
+				t.Fatalf("live = %+v, err=%v", live, err)
+			}
+		})
+	}
+}
+
 func TestSetSessionModeWithoutAdvertisementIsUnsupported(t *testing.T) {
 	c, spec := newChatTest(t, "stream_text")
 	h, err := c.Start(context.Background(), spec)
