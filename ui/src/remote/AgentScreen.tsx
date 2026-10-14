@@ -44,6 +44,7 @@ import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
+import { recallPlace, rememberPlace } from "./scrollMemory";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
 import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
@@ -210,14 +211,14 @@ function renderRows(agentId: string, list: TranscriptEvent[], onAnnotate: (draft
   return groupTranscriptRows(list).map((row, index) => {
     if (row.kind === "tool-run") {
       return (
-        <div className="phone-message" role="listitem" key={`run:${row.events[0].seq ?? index}`}>
+        <div className="phone-message" role="listitem" key={`run:${row.events[0].seq ?? index}`} data-place={`run:${row.events[0].seq ?? index}`}>
           <ToolRun events={row.events} renderEvent={(event) => <EventRow key={`${event.seq}:${event.kind}`} agentId={agentId} event={event} onAnnotate={onAnnotate} />} />
         </div>
       );
     }
     const event = row.event;
     return (
-      <div className="phone-message" role="listitem" key={`${event.seq ?? event.message_id ?? index}:${event.kind}`}>
+      <div className="phone-message" role="listitem" key={`${event.seq ?? event.message_id ?? index}:${event.kind}`} data-place={`${event.seq ?? event.message_id ?? index}:${event.kind}`}>
         {event.kind === "activity" ? (
           <ChildActivity node={event.node as ChildNode} ancestry={ancestry} depth={depth} renderEvents={nested} />
         ) : (
@@ -417,12 +418,48 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     window.scrollTo(0, top + document.documentElement.scrollHeight - height);
   }, [earlier?.events]);
 
+  // Reopening a chat returns to the message that was at the top of the screen, or
+  // to the newest message when it was left there or is new (FS-20.R54).
+  const placePath = `/agent/${agentId}`;
+  const initialPlace = useRef(recallPlace(placePath));
+  const placeRestored = useRef(false);
+  const lastY = useRef(0);
+  useLayoutEffect(() => {
+    if (placeRestored.current || !transcript.data || transcript.isPlaceholderData || !listRef.current) return;
+    placeRestored.current = true;
+    const place = initialPlace.current;
+    const top = document.querySelector(".phone-header")?.getBoundingClientRect().bottom ?? 0;
+    if (place && "row" in place) {
+      const row = listRef.current.querySelector(`[data-place="${CSS.escape(place.row)}"]`) ?? listRef.current;
+      window.scrollTo(0, window.scrollY + row.getBoundingClientRect().top - (row === listRef.current ? top : place.offset));
+    } else {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    }
+    lastY.current = window.scrollY;
+  }, [rows, tab, transcript.data, transcript.isPlaceholderData]);
+
   useEffect(() => {
-    let lastY = window.scrollY;
+    let frame = 0;
+    const save = () => {
+      frame = 0;
+      const list = listRef.current;
+      if (!placeRestored.current || !list) return;
+      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 48) return rememberPlace(placePath, { newest: true });
+      const top = document.querySelector(".phone-header")?.getBoundingClientRect().bottom ?? 0;
+      const row = [...list.querySelectorAll<HTMLElement>("[data-place]")].find((item) => item.getBoundingClientRect().bottom > top);
+      if (row) rememberPlace(placePath, { row: row.dataset.place!, offset: row.getBoundingClientRect().top });
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(save); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", onScroll); };
+  }, [placePath]);
+
+  useEffect(() => {
+    lastY.current = window.scrollY;
     const onScroll = () => {
       const y = window.scrollY;
-      if (y < lastY && y <= 200 && (gap || olderAvailable)) void showEarlier();
-      lastY = y;
+      if (y < lastY.current && y <= 200 && (gap || olderAvailable)) void showEarlier();
+      lastY.current = y;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -608,7 +645,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const runtimeLabel = [agent.backend, agent.model].filter(Boolean).join(" · ");
   // The effort button steps through the live model's efforts in order and wraps;
   // "model default" counts as the model's default effort.
-  const liveModel = runtimeOptions.data?.backends.find((item) => item.id === agent.backend)?.models.find((item) => item.id === agent.model);
+  const liveModel = runtimeOptions.data?.backends?.find((item) => item.id === agent.backend)?.models.find((item) => item.id === agent.model);
   const efforts = agent.interface === "chat" ? liveModel?.efforts ?? [] : [];
   const currentEffort = agent.effort || liveModel?.default_effort || "";
   const nextEffort = efforts[(efforts.indexOf(currentEffort) + 1) % Math.max(efforts.length, 1)] ?? "";

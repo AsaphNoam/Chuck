@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import { applyAppearance } from "../features/appearance/appearance";
@@ -13,6 +13,7 @@ import { AgentScreen } from "./AgentScreen";
 import { PhoneSettings } from "./PhoneSettings";
 import { RunScreen } from "./RunScreen";
 import { ProjectScreen } from "./ProjectScreen";
+import { recallPlace, rememberPlace } from "./scrollMemory";
 
 function Banner() {
   const link = useConnection((state) => state.link);
@@ -36,6 +37,17 @@ function Shell({ children, back }: { children: ReactNode; back?: boolean }) {
   const config = useQuery({ queryKey: ["phone-appearance"], queryFn: () => phoneFetch<{ appearance_skin?: string }>("/api/config"), refetchInterval: 5000, enabled: link === "connected" });
   const skin = config.isError ? undefined : config.data?.appearance_skin;
   useEffect(() => { applyAppearance(skin); }, [skin]);
+  // Non-chat screens return to their previous scroll position; a chat keeps
+  // its own reading position (FS-20.R54).
+  useLayoutEffect(() => {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    if (match(path, "agent")) return;
+    const place = recallPlace(path);
+    window.scrollTo(0, place && "y" in place ? place.y : 0);
+    const save = () => rememberPlace(path, { y: window.scrollY });
+    window.addEventListener("scroll", save, { passive: true });
+    return () => window.removeEventListener("scroll", save);
+  }, [path]);
   const go = (route: string) => { setMenuOpen(false); navigate(route); };
   return (
     <div className="phone-app">

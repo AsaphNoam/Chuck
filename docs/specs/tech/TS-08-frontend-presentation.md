@@ -1444,6 +1444,14 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   `ui/scripts/projects-render.mjs` renders the stubbed page in every appearance at 1024px and
   1440px for A39.
 
+- **R125 — Phone scroll memory is one bounded, page-lifetime module.** FS-20.R54 lives in
+  `remote/scrollMemory`: a module-level map keyed by route path, capped at 50 entries with the
+  least recently saved evicted, never persisted. Non-chat routes store window `scrollY` and
+  `PhoneApp` restores it in a layout effect when the path changes; history scroll restoration is
+  manual. The agent screen stores the `data-place` key (the row's own React key) of the first
+  message row below the sticky header plus its offset, or an at-newest flag, and restores once
+  per mount after the first non-placeholder transcript renders; a missing key falls back to the
+  top of the loaded list. Restoration never triggers older-history loading by itself.
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

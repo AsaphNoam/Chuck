@@ -46,12 +46,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   `ui` `NewAgentModal.test.tsx` fails 1–2 cases intermittently on unchanged `d3c9307`
   (observed 2026-10-11). Neither is investigated. `FileViewer.test.tsx` "scrolls to and marks a
   cited line" failed once in the full UI suite on 2026-10-14 and passes 3/3 alone.
-- **Awaiting review — phone model and effort split (2026-10-14):** FS-20.R43, TS-08.R111. Above
-  the composer the model button sits left (opens Switch runtime) and a separate effort button
-  sits right, stepping through the live model's efforts on each tap and wrapping. 85 phone tests
-  (one new), presentation checks, spec check and embed pass; full UI suite fails only the flakes
-  above. `phone-render.mjs --details-check` verifies left/right placement in all appearances;
-  screenshots `/tmp/mobile-effort-20261014-*.png`.
   Closed 2026-10-14 — image-frame CI timeout: large-frame runtime tests (image frame and both
   10 MiB attachment tests) use `drainTurnWithin` 20 s instead of the fixed 3 s collector; the
   10 MiB image test also failed under `-race` on unchanged code. `onNotification` now peeks each
@@ -59,6 +53,20 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   JSON decode CPU for the 25 MiB frame fell from 1.17 s to 0.71 s and the subtest from ~2.4 s to
   ~1.9 s. `make test` (both variants, parallel packages) and runtime `-race` pass. Changelog:
   single-peek ACP update routing (INV §16); large-frame test budgets (no invariant class).
+- **Awaiting review — phone model and effort split (2026-10-14):** FS-20.R43, TS-08.R111. Above
+  the composer the model button sits left (opens Switch runtime) and a separate effort button
+  sits right, stepping through the live model's efforts on each tap and wrapping. 85 phone tests
+  (one new), presentation checks, spec check and embed pass; full UI suite fails only the flakes
+  above. `phone-render.mjs --details-check` verifies left/right placement in all appearances;
+  screenshots `/tmp/mobile-effort-20261014-*.png`.
+- **Awaiting review — phone scroll memory (2026-10-14):** FS-20.R54/A26, TS-08.R125. A bounded
+  (50-entry) page-session map keeps each chat's top visible message row (`data-place`) or
+  at-newest, and other routes' `scrollY`. First open and left-at-newest open at the newest message.
+  86 phone tests (scrollMemory bound test new), tsc, presentation checks, spec check and embed
+  pass. `phone-render.mjs --scroll-check` passes (row restored within 0px, newest kept, project
+  page restored) and fails with restoration disabled; `--details/--history/--parity-check` pass.
+  **Owed:** full UI suite. `ui/node_modules` was partly removed mid-run by a concurrent session
+  (no `.bin`); not reinstalled here. INV: §8/§13 no new class or message; §16 map capped at 50.
 
 ## Active change
 

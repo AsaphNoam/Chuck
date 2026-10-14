@@ -19,6 +19,7 @@ const historyCheck = process.argv.includes("--history-check");
 const detailsCheck = process.argv.includes("--details-check");
 const spinnerCheck = process.argv.includes("--spinner-check");
 const parityCheck = process.argv.includes("--parity-check");
+const scrollCheck = process.argv.includes("--scroll-check");
 let skin = "";
 
 const agent = {
@@ -28,7 +29,7 @@ const agent = {
 };
 const event = (seq, type, data) => ({ agent_id: "a1", seq, type, ts: "", data });
 const words = "Done. **All tests** pass now, and the build is `green` again after the fix.".split(/(?<= )/);
-const history = historyCheck ? Array.from({ length: 1500 }, (_, index) => event(index + 1, "user_text", { text: `History ${index + 1}` })) : null;
+const history = historyCheck || scrollCheck ? Array.from({ length: 1500 }, (_, index) => event(index + 1, "user_text", { text: `History ${index + 1}` })) : null;
 const transcript = fixturePath
   ? JSON.parse(readFileSync(fixturePath, "utf8"))
   : {
@@ -64,7 +65,7 @@ try {
   // A URL predicate, not "**/api/**", which would also catch Vite's /src/api modules.
   await context.route((url) => url.pathname.startsWith("/api/"), (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (detailsCheck && path === "/api/projects") return route.fulfill({ json: { "my-app": { title: "My App", color: [50, 120, 180] } } });
+    if ((detailsCheck || scrollCheck) && path === "/api/projects") return route.fulfill({ json: { "my-app": { title: "My App", color: [50, 120, 180] } } });
     if (detailsCheck && path === "/api/roles") return route.fulfill({ json: { implementer: { title: "Implementer" } } });
     if ((detailsCheck || spinnerCheck || parityCheck) && path === "/api/config") {
       if (route.request().method() === "PUT") skin = route.request().postDataJSON().appearance_skin;
@@ -108,7 +109,52 @@ try {
     if (!before || !after || drift > 2) throw new Error(`upward history load moved the anchor by ${drift}px`);
     console.log(`automatic upward load kept the visible anchor within ${drift}px`);
   }
-  await page.screenshot({ path: out, fullPage: !historyCheck });
+  if (shown && scrollCheck) {
+    // FS-20.A26: chats and other screens return to where the person left them.
+    const go = async (to) => {
+      await page.evaluate((path) => { history.pushState(null, "", path); window.dispatchEvent(new PopStateEvent("popstate")); }, to);
+      await page.waitForTimeout(150);
+    };
+    const settle = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const atNewest = () => page.evaluate(() => window.scrollY + innerHeight >= document.documentElement.scrollHeight - 2);
+    const topTurn = () => page.evaluate(() => {
+      const top = document.querySelector(".phone-header").getBoundingClientRect().bottom;
+      const turn = [...document.querySelectorAll("[data-place]")].find((item) => item.getBoundingClientRect().bottom > top);
+      return { key: turn.dataset.place, top: turn.getBoundingClientRect().top };
+    });
+    await page.getByText("History 1500", { exact: true }).waitFor();
+    await settle();
+    if (!(await atNewest())) throw new Error("first open did not show the newest message");
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight / 2));
+    await settle();
+    const before = await topTurn();
+    await go("/project/my-app");
+    await page.getByRole("button", { name: "New agent", exact: true }).waitFor();
+    await go("/agent/a1");
+    await settle();
+    const after = await topTurn();
+    if (after.key !== before.key || Math.abs(after.top - before.top) > 2) throw new Error(`chat reopened at ${JSON.stringify(after)}, left at ${JSON.stringify(before)}`);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await settle();
+    await go("/");
+    await go("/agent/a1");
+    await settle();
+    if (!(await atNewest())) throw new Error("chat left at newest did not reopen at newest");
+    await page.setViewportSize({ width: 390, height: 360 });
+    await go("/project/my-app");
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await settle();
+    const projectY = await page.evaluate(() => window.scrollY);
+    if (projectY < 50) throw new Error(`project page too short to check scroll (${projectY}px)`);
+    await go("/agent/a1");
+    await go("/project/my-app");
+    await settle();
+    const projectAfter = await page.evaluate(() => window.scrollY);
+    if (Math.abs(projectAfter - projectY) > 1) throw new Error(`project page returned at ${projectAfter}px, left at ${projectY}px`);
+    await page.setViewportSize({ width: 390, height: 844 });
+    console.log(`scroll memory: chat row ${before.key} within ${Math.abs(after.top - before.top)}px, newest kept, project at ${projectAfter}px`);
+  }
+  await page.screenshot({ path: out, fullPage: !historyCheck && !scrollCheck });
   if (shown && parityCheck) {
     const openAgent = async () => {
       await page.evaluate(() => {
