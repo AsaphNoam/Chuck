@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`recover-phone-connection.md`](recover-phone-connection.md) — existing heartbeat-based phone
+  recovery with healthy-stream reuse, foreground-only capped retries and preserved navigation,
+  reading position, forms and unsent text/files.
+
 - [`full-operator-cli-parity.md`](full-operator-cli-parity.md) — full nonvisual web operations
   through composable CLI commands; preserve existing syntax and server-owned semantics, with
   explicit consent, script output and reconnect-safe transcript follow.

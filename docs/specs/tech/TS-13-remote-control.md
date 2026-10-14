@@ -1,6 +1,6 @@
 # TS-13 — Remote control
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/remote/`, `internal/server/remote*.go`, `ui/remote.html`, `ui/src/remote/`
 **Absorbed:** —
 
@@ -273,6 +273,68 @@ Use shared error mapping and API schemas; no unauthenticated byte endpoint or br
 host-file access is introduced. Device revocation and remote disable block subsequent image reads
 and sends. Native phone picker/paste limitations report capability honestly without hiding Send.
 
+- **R27 (planned) — The phone observes existing SSE heartbeats for foreground liveness.**
+  Extend the plain phone EventSource owner in `ui/src/remote/connection.ts` (R14), without a new
+  transport, endpoint, heartbeat packet or desktop change. Observe the existing dispatched `ping`
+  every 10 seconds (`internal/server/sse.go`, TS-03.R7); record receipt time without bumping view
+  revisions or triggering queries. Reset connection-scoped liveness/hydration state on every open
+  (INV §1), including any browser reopen. While visible, use one rearmed 25-second deadline rather
+  than periodic polling to detect a silent stall; a new connection gets a 25-second opening budget
+  and, on open, replace its opening deadline with a separate 25-second snapshot-completion
+  budget that pings cannot extend and only completed hydration clears. The
+  timeout callback checks actual visibility and current generation before acting.
+  `visibilitychange` to visible, visible `pageshow`, and visible `online` invoke the same liveness
+  check. An open, hydrated source with a ping received within 25 seconds is kept without a health
+  request or replacement; an active opening/hydration attempt keeps its remaining deadline.
+  A source with expired liveness or a closed source enters R28 recovery. A replacement must hydrate
+  even if a late ping arrives on the discarded stream. Browser suspension can delay JS execution;
+  recovery is evaluated when execution resumes, not promised while the browser is frozen.
+- **R28 (planned) — One foreground owner controls phone recovery and retry.**
+  Close a failed/stale EventSource before replacement so the server's `retry: 2000` cannot run a
+  competing native retry loop. Serialize one recovery attempt (pairing check followed by stream
+  opening/hydration); concurrently allow at most one source, one health request, and one
+  liveness/retry deadline per phone page. Use the existing authenticated `GET /api/health`
+  pairing/reachability check with an abortable five-second timeout. Health success never sets
+  `connected`; only the new generation's
+  `__hydrated__` marker does. A first detected loss may attempt recovery immediately; failure of that
+  attempt schedules retries after 5, 10, 20, 40, then 60 seconds, capped at 60 until success.
+  Opening, partial hydration and duplicate lifecycle signals do not reset the failure count;
+  completed hydration does. A genuine hidden-to-visible or offline-to-online transition may
+  advance one scheduled attempt, but repeated signals in that transition do not defeat backoff.
+  A failed health read follows the existing unreachable/error classification; 401 closes the source,
+  shows unpaired and stops recovery. On hidden, cancel deadlines and abort an in-flight health
+  check, preserve backoff and cached state, and close a failed or not-yet-hydrated source; a healthy
+  hydrated source may stay open. Errors on a hidden source close it without starting checks/retries.
+  Foreground resumes the owner; `pagehide`, app teardown, explicit disconnect and unpair release its
+  timers, source and abort controller. Source callbacks, fetch completions and deadlines must match
+  the current generation so old work cannot reopen access or replace newer state (INV §4/§5).
+- **R29 (planned) — Recovery refreshes server state without remounting phone screens.**
+  Startup, post-pairing and recovery share R27/R28's connection owner; use `checking` only for the
+  initial page, and `reconnecting`/`unreachable` during recovery so `PhoneApp` keeps its Shell and
+  route mounted. Reuse the existing staged agent snapshot, `__hydrated__` replacement, open
+  transcript revision/fence refresh and TS-08.R103's ephemeral reasoning reset. Preserve last-known
+  view data until the new snapshot/read settles; coalesce snapshot-driven view revisions rather
+  than refetching on every hydration row, and refresh active query families through the existing
+  query client without creating a second focus/reconnect fetch path. Heartbeats are never view
+  refresh signals. Preserve agent/project/run ownership of draft/form state; a refreshed run revision
+  must not remount an entered replacement form (currently `ReplaceForm key={rev}`), and stale
+  selections remain available for the existing server refusal rather than silently replacing input.
+  Preserve the visible transcript message identity and viewport offset across refresh/bridge
+  projection, including changes in rendered row height; do not restore an obsolete anchor after
+  the person scrolls/navigates. Keep R18's bounded history and explicit gap fallback, browser-local
+  text/attachment draft stores, ordinary archival/removal semantics and mutation delivery rules.
+  No recovery code sends, steers, retries a mutation or clears unsent input.
+- **R30 (planned) — Verify connection recovery and its resource bounds.**
+  FS-20.A22–A25 cover healthy-return reuse, silent foreground/background stalls, complete and
+  incomplete hydration, expired health checks, outage backoff, hidden pauses, duplicate signals,
+  revocation, obsolete callbacks and teardown with fake clocks/EventSources; stream tests retain
+  snapshot pruning and transcript catch-up assertions. Screen/browser checks exercise route/tab,
+  entered form, text/attachments and rendered message-anchor retention as current state changes.
+  Request-count checks prove pings make no queries/reconnects and prolonged outages obey the retry
+  schedule. Documentation-only design does not claim runtime or battery measurements; actual paired
+  iPhone/Android background testing remains required by A22. Closure uses the applicable TS-06
+  frontend/remote matrix, including generated embed output, after implementation.
+
 ## 3. Interfaces & data shapes
 
 Loopback-only: `GET /api/remote`, `PUT /api/remote` `{enabled, keep_awake}`, `POST
@@ -305,13 +367,18 @@ build and dependency pinning in TS-06.R27; the phone bundle in TS-08.R73.
 
 ## 4. Invariants
 
-INV §2 (one attention helper; shared handlers across listeners), INV §4 (node and device-stream
-teardown), INV §5 (pairing claim and enable/disable generations), INV §8 (bounded, in-vocabulary
+INV §1 (phone reconnect liveness/hydration reset), INV §2 (one attention helper; shared handlers
+across listeners), INV §4 (node and device-stream teardown), INV §5 (pairing claim and enable/disable
+generations), INV §8 (bounded, in-vocabulary
 phone and push data), INV §10 (allowlist wiring test), INV §14 (every route guarded — the tailnet
 listener by R4's guard), INV §15 (commit device rows before releasing cookies or push sends),
 INV §16 (bounded pairing attempts, push queue, and coalescing).
 
 ## 5. Deviations & open decisions
+
+- R27–R30 are planned under
+  [`recover-phone-connection.md`](../../ready-changes/recover-phone-connection.md); the operator
+  asked the designer to evaluate/select the smallest reliable recovery on 2026-10-14.
 
 - R26 was approved 2026-10-12 and implemented 2026-10-13. Rendered browser journeys verify picker,
   paste where supported and explicit recovery. The embedded-server authenticated TLS journey

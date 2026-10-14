@@ -363,7 +363,8 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   page cache, it recovers its live connection and catches up to the Mac without a manual refresh.
   Restoring network access while the page is visible also recovers automatically. The phone keeps
   last-known content visible while reconnecting, identifies recovery through its existing connection
-  status, and enables actions only after receiving the current agent snapshot. An unavailable Mac
+  status, and enables actions only with a verified live connection and its completed agent snapshot;
+  replacing a stale connection requires a new snapshot. An unavailable Mac
   follows R23; a revoked pairing follows R8. Repeated foreground/network signals do not disrupt a
   recovery already in progress. No action or draft is queued, sent or replayed by recovery.
 - **R52 (planned) — Connection recovery preserves the person's place and unsent input.**
@@ -375,6 +376,14 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   retention and deletion remain R49 and FS-03.R36/R86; recovery never overwrites newer input.
   Browser termination or a cold launch retains existing route/draft restoration behavior and adds
   no promise to restore transient forms or scroll position across page destruction.
+- **R53 (planned) — Recovery avoids unnecessary traffic and repeated failed attempts.**
+  Returning to an already healthy phone connection does not replace it. A silently stalled
+  connection is also detected and recovered while the app remains visible, without requiring a
+  return event or manual refresh. Repeated failures retry at increasing, capped delays while the
+  page is visible; connection checks and recovery retries pause while hidden. An existing healthy
+  live connection may remain open while hidden; zero background traffic is not promised. A revoked
+  pairing stops recovery until paired again. Recovery adds no recurring HTTP health polling to a
+  healthy connection and does not alter desktop behavior.
 
 ## 5. Acceptance criteria
 
@@ -507,12 +516,22 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   Revoke pairing while backgrounded, then return: show the existing unpaired screen and admit no
   further protected stream data or actions. Verify connection/component tests for failures,
   overlapping lifecycle events and revocation, plus the paired-device recovery journey.
+- **A25 (planned)** (R51, R53) — Keep a hydrated stream healthy with server heartbeats and
+  send repeated return/network signals: no replacement stream or recovery health request is made.
+  Stall the stream while the page stays visible and emit no lifecycle/error events: recover through
+  a new snapshot. During a prolonged outage, request counts follow the capped backoff rather than
+  two-second browser retries; hidden pages make no recovery attempts, and returning resumes without
+  competing streams or resetting backoff through duplicate signals. Verify fake-clock connection
+  tests including initial connect/hydration timeouts, old callbacks after replacement and teardown;
+  measure request counts in the phone-width browser journey. Real-device suspension remains A22's gate.
 
 ## 6. Deviations & open decisions
 
-- R51–R52/A22–A24 are a draft foreground-recovery scope awaiting operator confirmation before
-  technical design. No product code has changed. The stalled-stream background-suspension cause
-  is inferred from the missing recovery path, not yet reproduced on a paired device.
+- R51–R53/A22–A25 are planned under
+  [`recover-phone-connection.md`](../../ready-changes/recover-phone-connection.md). The operator
+  requested technical evaluation/selection on 2026-10-14, prioritizing minimal battery/network
+  cost. No product code has changed. The stalled-stream background-suspension cause is inferred
+  from the missing recovery path, not yet reproduced on a paired device.
 
 - R45–R46/A17–A18 are confirmed, including project-only bulk actions and mobile picker
   without drag and the narrow paired-phone route extension.
