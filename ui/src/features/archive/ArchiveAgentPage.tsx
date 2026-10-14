@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getTranscript, restoreAgent, resumeAgent } from "../../api/client";
 import { useProjects } from "../../api/config";
-import { AgentBreadcrumb, AgentIdentity } from "../../components/chat/ChatPanel";
+import { AgentBreadcrumb, AgentIdentity, AgentStage } from "../../components/chat/ChatPanel";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { useAgentStore } from "../../store/agentStore";
-import { TranscriptView } from "../../components/chat/TranscriptView";
+import { TranscriptView, type PanelSlots } from "../../components/chat/TranscriptView";
 import type { FileLink } from "../../components/chat/renderers/filePath";
 import { fileLinkFromParams, writeFileLinkParams } from "../../lib/fileLinkParams";
 
@@ -19,6 +19,7 @@ export function ArchiveAgentPage() {
   const agent = useAgentStore((state) => state.agents[id]);
   const [resuming, setResuming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [panelSlots, setPanelSlots] = useState<PanelSlots | undefined>(undefined);
   // Resume and runtime switch append newer session_meta boundaries, and Resume
   // uses the most recent one. Reading the first record would show the original
   // backend/model beside Resume for a switched session (FS-05.R31/A15).
@@ -69,6 +70,7 @@ export function ArchiveAgentPage() {
   return (
     <section className="chat-panel" data-ui="agent-workspace" data-state="archived" data-file-open={openFile ? "true" : undefined} data-variant="chat">
       <AgentBreadcrumb backTarget="/archive" backLabel="Back to Archive" project={projectTitle} name={archivedName} agentId={id} />
+      <AgentStage onSlots={setPanelSlots}>
       <div className="chat-card">
       <header className="chat-header" data-slot="header">
         <AgentIdentity
@@ -91,10 +93,11 @@ export function ArchiveAgentPage() {
         </button>
       </header>
       {error && <p className="archive-error">{error}</p>}
-      <div data-slot="content"><TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} openFile={openFile} onOpenFile={openFileInViewer} inlineDiffs /></div>
+      <div data-slot="content"><TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} openFile={openFile} onOpenFile={openFileInViewer} inlineDiffs panelSlots={panelSlots} /></div>
       {/* No Composer — read-only view */}
       <div />
       </div>
+      </AgentStage>
     </section>
   );
 }

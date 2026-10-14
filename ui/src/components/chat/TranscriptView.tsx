@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../../api/types";
 import { clipAnnotationExcerpt } from "../../lib/annotations";
 import { copyText } from "../../lib/copyText";
@@ -46,7 +47,7 @@ import { useQueryClient } from "@tanstack/react-query";
 // taskControl offers targeted background-task Stop; only a live session whose
 // runtime negotiated it passes true, and the archive never does (FS-03.R59).
 // reveal names an event the caller is about to scroll to; a fresh object per request.
-export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, openFile = null, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false, footer }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; openFile?: FileLink | null; onOpenFile?: (link: FileLink | null, options?: { replace?: boolean }) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; footer?: ReactNode }) {
+export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, openFile = null, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; openFile?: FileLink | null; onOpenFile?: (link: FileLink | null, options?: { replace?: boolean }) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -122,7 +123,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
 
   return (
     <div className="transcript-wrap" data-ui="transcript">
-      {openFile && onOpenFile && (
+      {openFile && onOpenFile && inSlot(
         <FileViewer
           agentId={agentId}
           link={openFile}
@@ -137,7 +138,8 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
             annotate: () => addAnnotation(agentId, draft),
             link,
           }) : undefined}
-        />
+        />,
+        panelSlots?.start,
       )}
       <div className="transcript-view" data-slot="list" ref={scrollRef} onScroll={onScroll} onFocus={trackFocus}>
         <TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} />
@@ -157,11 +159,21 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           Jump to latest
         </button>
       )}
-      {footer && <div className="transcript-footer">{footer}</div>}
-      {annotationsEnabled && <AnnotationTray sourceId={agentId} sourceActive={sourceActive} />}
+      {annotationsEnabled && inSlot(<AnnotationTray sourceId={agentId} sourceActive={sourceActive} />, panelSlots?.end)}
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
+}
+
+/** Elements beside the full agent page's card that host the file viewer (start)
+ *  and annotation tray (end) outside it (FS-12.R61). Without them both stay in
+ *  the transcript's own grid, as the dashboard pane needs. */
+export type PanelSlots = { start: HTMLElement | null; end: HTMLElement | null };
+
+// A portal keeps the panel's React state, context and handlers while placing its
+// box outside the card.
+function inSlot(node: ReactNode, slot: HTMLElement | null | undefined) {
+  return slot ? createPortal(node, slot) : node;
 }
 
 function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }) {

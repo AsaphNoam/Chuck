@@ -17,7 +17,7 @@ import { Badge, VisuallyHidden } from "../ui";
 import { BackIcon } from "../ui/icons";
 import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
 import { Composer } from "./Composer";
-import { TranscriptView } from "./TranscriptView";
+import { TranscriptView, type PanelSlots } from "./TranscriptView";
 import { FilesTab } from "./FilesTab";
 import { PermissionModeToggle } from "./PermissionModeToggle";
 import { TerminalTab } from "./TerminalTab";
@@ -80,6 +80,7 @@ export function ChatPanel() {
   const [applyingSetting, setApplyingSetting] = useState<"effort" | "fast" | null>(null);
   const [liveFast, setLiveFast] = useState(agent?.fast ?? false);
   const [headerMenu, setHeaderMenu] = useState<PointerMenuState | null>(null);
+  const [panelSlots, setPanelSlots] = useState<PanelSlots | undefined>(undefined);
   const [quotaCancelPending, setQuotaCancelPending] = useState(false);
   const [quotaCancelError, setQuotaCancelError] = useState<string | undefined>();
 
@@ -247,10 +248,6 @@ export function ChatPanel() {
 
   const projectTitle = (agent.project && projects?.[agent.project]?.title) || agent.project;
   const sessionSettings = (selectedModel?.efforts ?? []).length > 0 || !!currentModel?.fast;
-  // On the Transcript tab the composer is the transcript's footer row, so an open
-  // file and a docked annotation tray run the full height beside it and it narrows
-  // to the conversation column (FS-12.R61). Other tabs keep it below. Its draft and
-  // attachments persist, so moving between the two places loses no input.
   const composer = agent.interface === "terminal" ? (
     <p className="terminal-readonly chat-composer" data-slot="composer">Terminal agents receive input in the terminal tab.</p>
   ) : (
@@ -272,6 +269,7 @@ export function ChatPanel() {
     // annotation tray already carries, not a measurement (FS-03.R53, TS-08.R57).
     <section className="chat-panel" data-ui="agent-workspace" data-state="active" data-file-open={openFile ? "true" : undefined} data-variant={agent.interface === "terminal" ? "terminal" : "chat"}>
       <AgentBreadcrumb backTarget={backTarget} backLabel={projectActive ? "Back to project" : "Back"} project={projectTitle} name={agent.name} agentId={agent.agent_id} />
+      <AgentStage onSlots={setPanelSlots}>
       <div className="chat-card">
       <header
         className="chat-header"
@@ -370,7 +368,7 @@ export function ChatPanel() {
           {agent.interface === "terminal" && <Tabs.Trigger value="terminal">Terminal</Tabs.Trigger>}
         </Tabs.List>
         <Tabs.Content value="transcript" className="chat-tab-content" data-slot="content">
-          <TranscriptView agentId={id} events={events} sourceActive={agent.running && agent.state === "idle"} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} openFile={openFile} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} footer={composer} />
+          <TranscriptView agentId={id} events={events} sourceActive={agent.running && agent.state === "idle"} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} openFile={openFile} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} panelSlots={panelSlots} />
         </Tabs.Content>
         <Tabs.Content value="files" className="chat-tab-content" data-slot="content">
           <FilesTab agentId={id} onReveal={revealInTranscript} onOpenFile={openFileInViewer} />
@@ -386,9 +384,26 @@ export function ChatPanel() {
           </Tabs.Content>
         )}
       </Tabs.Root>
-      {tab !== "transcript" && composer}
+      {composer}
       </div>
+      </AgentStage>
     </section>
+  );
+}
+
+// The card between two slots that host the file viewer and annotation tray
+// outside it (FS-12.R61), so opening either narrows the card rather than the
+// conversation inside an unchanged card. The archived page shares it.
+export function AgentStage({ onSlots, children }: { onSlots: (slots: PanelSlots) => void; children: ReactNode }) {
+  const [start, setStart] = useState<HTMLDivElement | null>(null);
+  const [end, setEnd] = useState<HTMLDivElement | null>(null);
+  useEffect(() => onSlots({ start, end }), [start, end, onSlots]);
+  return (
+    <div className="chat-stage">
+      <div className="chat-side chat-side-start" ref={setStart} />
+      {children}
+      <div className="chat-side chat-side-end" ref={setEnd} />
+    </div>
   );
 }
 

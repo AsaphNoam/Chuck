@@ -132,18 +132,20 @@ it("offers no Commands tab and opens Transcript for ?tab=commands", () => {
   expect(screen.getByRole("tabpanel")).toBeInTheDocument();
 });
 
-// FS-12.R61: on Transcript the composer is the transcript's footer row, so an
-// open file and a docked tray run beside it; other tabs keep it below.
-it("places the composer in the transcript footer only on the Transcript tab", () => {
-  useAgentStore.setState({ agents: { a_footer: liveAgent("a_footer") }, order: ["a_footer"], hydrated: true, hydrating: false });
-  renderPanel("a_footer");
-  expect(screen.getByRole("textbox").closest(".transcript-footer")).not.toBeNull();
-  cleanup();
+// FS-12.R61: an open file sits beside the card, outside it, while the composer
+// stays inside the card.
+it("opens a file beside the card and keeps the composer inside it", async () => {
+  useAgentStore.setState({ agents: { a_side: liveAgent("a_side") }, order: ["a_side"], hydrated: true, hydrating: false });
+  renderPanel("a_side", "?file=internal%2Fstate%2Fstate.go");
 
-  renderPanel("a_footer", "?tab=files");
-  const textbox = screen.getByRole("textbox");
-  expect(textbox.closest(".transcript-footer")).toBeNull();
-  expect(textbox.closest(".chat-card > .chat-composer")).not.toBeNull();
+  const viewer = await waitFor(() => {
+    const element = document.querySelector(".file-viewer");
+    expect(element).not.toBeNull();
+    return element!;
+  });
+  expect(viewer.closest(".chat-side-start")).not.toBeNull();
+  expect(viewer.closest(".chat-card")).toBeNull();
+  expect(screen.getByRole("textbox").closest(".chat-card > .chat-composer")).not.toBeNull();
 });
 
 // FS-03.R66/A47: the full agent screen's context meter renders the shared

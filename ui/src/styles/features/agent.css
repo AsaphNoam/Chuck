@@ -4,13 +4,15 @@
    composer. Rules under .chat-panel stay off the dashboard pane
    and the phone, which share the transcript renderers. */
 .chat-panel {
-  /* Prose and activity share a measure of about half the window (never under
-     44rem), technical blocks a wider one, the composer a little wider than the
-     prose. Each is capped by its column, so an open file or docked tray narrows
-     them rather than overlapping them. */
-  --ad-reading-measure: min(100%, max(44rem, 48vw));
-  --ad-technical-measure: min(100%, max(58rem, 64vw));
-  --ad-composer-measure: min(100%, max(48rem, 54vw));
+  /* Prose and activity use about 71% of the window (never under 44rem), the
+     composer about 81%, and the card about 92%, so the page keeps margins
+     about twice the shell's beside the card. Each is capped by its
+     container, so an open file or annotation tray beside the card narrows the
+     card and its content rather than covering them. */
+  --ad-reading-measure: min(100%, max(44rem, 71vw));
+  --ad-technical-measure: 100%;
+  --ad-composer-measure: min(100%, max(48rem, 81vw));
+  --ad-card-measure: max(52rem, 92vw);
 
   display: grid;
   gap: var(--ad-space-4);
@@ -67,6 +69,43 @@
   font-size: 0.75rem;
   margin-left: auto;
   padding: 0;
+}
+
+/* The card between two slots hosting the file viewer and annotation tray outside
+   it (FS-12.R61). The stage is the tray's query container here, so the tray
+   takes its docked form beside the card. Empty slots take no space. */
+.chat-stage {
+  container: transcript / inline-size;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+}
+
+.chat-stage > .chat-card {
+  flex: 0 1 var(--ad-card-measure);
+}
+
+.chat-side {
+  display: flex;
+  flex: none;
+  min-height: 0;
+}
+
+.chat-side:empty {
+  display: none;
+}
+
+.chat-side-start {
+  margin-right: var(--ad-space-4);
+}
+
+.chat-side-end {
+  margin-left: var(--ad-space-4);
+}
+
+.chat-side > :is(.file-viewer, .annotation-tray) {
+  margin: 0;
 }
 
 .chat-card {
@@ -622,10 +661,7 @@
      otherwise drop the transcript into the viewer's content-sized column
      (FS-03.R53, FS-13.R20, TS-08.R57). */
   grid-template-columns: auto minmax(0, 1fr) auto;
-  /* The optional footer row holds the full agent page's composer in the middle
-     column only, so the viewer and a docked tray span both rows beside it
-     (FS-12.R61). Without a footer the row is empty and zero tall. */
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   position: relative;
@@ -643,12 +679,6 @@
   scroll-padding: var(--ad-space-6);
   /* Keep transcript text selectable so people can mark, copy, and reuse it. */
   user-select: text;
-}
-
-.transcript-footer {
-  grid-column: 2;
-  grid-row: 2;
-  min-width: 0;
 }
 
 .transcript-item {
@@ -1087,8 +1117,6 @@
   padding-top: var(--ad-space-3);
 }
 
-/* The overlay form floats over the transcript row only, never over a footer
-   composer; the docked form below spans both rows. */
 .annotation-tray {
   bottom: var(--ad-space-4);
   grid-column: 3;
@@ -1179,7 +1207,7 @@
 }
 
 /* Placed in the transcript's own grid area, so it centres on the text it scrolls
-   and stays above a footer composer, docked tray or open file. */
+   beside a docked tray or open file. */
 .jump-to-latest {
   bottom: var(--ad-space-3);
   grid-column: 2;

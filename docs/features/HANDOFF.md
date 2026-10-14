@@ -89,14 +89,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Changelog: phone wallpaper review (INV §13 checked, no new selectors; §1–§12, §14–§17 no surface).
 
 - **Awaiting review — agent page width and side panels (2026-10-14):** FS-12.R61, TS-08.R112.
-  Reading column narrowed to `max(44rem, 48vw)` (side gaps ≈1.9× the 2026-10-10 70% layout at
-  1710px); on Transcript the composer is `TranscriptView`'s footer row, so an open file and a
-  docked tray run full height beside it and it narrows to the middle column; overlay tray and
-  Jump to latest stay above it; other tabs keep it below. 36 ChatPanel tests (one new),
-  presentation checks, UI build, embed and `go build` pass; full UI suite fails only the known
-  `NewAgentModal` flake (different cases each run). Rendered with the agent-design fixture
-  (`harness/layout.mjs`, plain / file / file+tray) at 1024/1280/1710 in Core and Studio; receipts
-  in shared project resources `agent-design/runs/side/`. Go tests not rerun (no Go change).
+  Operator correction of `afab6e63`: the conversation keeps ~71% of the window, the composer is
+  ~81% (+10%), and the card shrinks to ~92% (68px page margin at 1710px vs 32px). The file
+  viewer and annotation tray render outside the card through `AgentStage` slots (portals); the
+  card narrows between them; the composer is back inside the card on every tab (footer prop
+  removed). Archived page shares the stage. ChatPanel/archive tests (new outside-card test),
+  presentation checks, UI build and embed pass; full UI suite fails only the known
+  `NewAgentModal` flake. Measured with `agent-design/harness/layout.mjs` (plain / file /
+  file+tray) at 1024/1280/1710 in Core and Studio; receipts `agent-design/runs/outside/`.
 
 ## Active change
 
