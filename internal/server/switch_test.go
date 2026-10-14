@@ -241,7 +241,7 @@ func TestSwitchRuntimeBackendSwapUsesPrimer(t *testing.T) {
 }
 
 // FS-01.A8: unverified history delivery is refused before stopping the source.
-func TestSwitchClaudeToOpenCodePrimer(t *testing.T) {
+func TestSwitchRejectsUnverifiedHistoryPrimer(t *testing.T) {
 	srv, ts := switchTestServer(t)
 	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
 	before := runningSessionID(t, srv, id)
@@ -262,8 +262,8 @@ func TestSwitchClaudeToOpenCodePrimer(t *testing.T) {
 	}
 }
 
-// Regression (review fix): the backend-swap history primer is a one-shot context
-// injection for the new backend — it must NOT bake into the frozen
+// Regression (review fix): the backend-swap history primer belongs to the new
+// native context — it must NOT bake into the frozen
 // sessions.system_prompt snapshot, and two successive primer switches must not
 // stack primers (each primes from the clean pre-primer base). Before the fix,
 // switch.go overwrote spec.SystemPrompt with the primer, which flowed to

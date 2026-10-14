@@ -50,6 +50,9 @@ were enabled and their pre-fix failures confirmed (C5 via temporary switch/resum
 Next: focused lifecycle race checks and shared `make test` / `make build` closure with
 `CHUCK_RUNTIME_ROOT` unset and writable `GOCACHE=/private/tmp/chuck-go-build`; loopback integration
 tests need sandbox escalation. No UI change. Stopped-agent image refusal remains a separate unit.
+Focused race checks and tagged build pass. First full closure found terminal-error precedence;
+the handoff guard now follows target validation, and existing terminal-refusal regressions pass.
+Next: full closure rerun, then remove this investigation's findings and commit its closure.
 
 ## Acceptance gates still owed
 

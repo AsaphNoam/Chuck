@@ -201,8 +201,8 @@ orphaned processes.
     supports on resume) keeps the CLI's own native session; only the changed argument differs.
   - **`primer`** — a **cross-backend** switch (e.g. Claude ↔ Codex), or a model swap on a
     backend that cannot switch model on resume, starts a fresh native session and injects a bounded
-    history primer synthesized from Chuck's transcript, appended to the launch composition for
-    native conversation (not persisted to the role or frozen persona). The bounded bridge is stored
+    history primer synthesized from Chuck's transcript, appended to each process-start composition
+    for that native conversation (not persisted to the role or frozen persona). The bounded bridge is stored
     separately and reapplied on Stop/wake, restart, later native model/interface switches, and after
     target turns or compaction. A new primer handoff replaces the bridge rather than stacking it.
     A `backend_switch` marker records the transition;
@@ -211,8 +211,8 @@ orphaned processes.
     folds adjacent assistant deltas, and includes tool arguments/results and diff evidence. It
     reserves space for the newest six turns first, clipping from the older end when necessary;
     remaining space carries the most recent older excerpts. Deterministic excerpts and omissions
-    are labelled honestly, never called a semantic summary or verbatim when clipped. The default
-    8,000-token default and ceiling is a four-bytes-per-token heuristic, not a provider tokenizer guarantee.
+    are labelled honestly, never called a semantic summary or verbatim when clipped. The
+    8,000-token default and ceiling uses a four-bytes-per-token heuristic, not a provider tokenizer guarantee.
     Input streams through the transcript reader with bounded retained text and UTF-8-safe clipping.
 - **R15** — **Switch matrix.** The terminal interface is supported **only** on `claude-acp`; a switch
   (or launch, or resume) that would land the terminal interface on `codex-acp` or any additional
@@ -393,7 +393,7 @@ transitions:
 - **A8** — Same-backend switch uses native resume; cross-backend uses a primer and keeps one
   continuous session; codex/other-backend terminal is rejected. *Verify:*
   `TestSwitchRuntimeModelSwapSameBackend`, `TestSwitchRuntimeChatToTerminal`,
-  `TestSwitchRuntimeBackendSwapUsesPrimer`, `TestSwitchClaudeToOpenCodePrimer`,
+  `TestSwitchRuntimeBackendSwapUsesPrimer`, `TestSwitchRejectsUnverifiedHistoryPrimer`,
   `TestCodexTerminalRejected`, `TestNewBackendTerminalRejected`; journey **J7**.
   Primer continuity and bounds: `TestHistoryPrimerConversationContinuityInvestigation`,
   `TestHistoryPrimerRespectsBudget`, `TestHistoryPrimerUTF8AndStreaming`.

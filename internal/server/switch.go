@@ -138,6 +138,10 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	previousSnapshot, err := s.stateStore.ReadSession(id)
+	if errors.Is(err, state.ErrNotFound) {
+		writeAPIError(w, apiError(runtime.CodeValidation, "no persisted session to switch"))
+		return
+	}
 	if err != nil {
 		writeAPIError(w, apiError(runtime.CodeInternal, "read previous session: "+err.Error()))
 		return
@@ -156,10 +160,6 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	usePrimer := !sameBackend || (target.Model != agent.Model && !ad.CanSwitchModelOnResume())
 	resumeID := ad.ResolveResumeID(prev.SessionID, sameBackend && !usePrimer)
 	if usePrimer {
-		if !ad.SupportsHistoryPrimer() {
-			writeAPIError(w, apiError(runtime.CodeValidation, "this provider has no verified history handoff; keep the current model or switch to Claude or Codex"))
-			return
-		}
 		resumeID = ""
 		handoff = "primer"
 	}
@@ -171,6 +171,10 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	// old-artifact cleanup (step 2) wipe the target's just-created registration.
 	if ae := s.validateSwitchTarget(target); ae != nil {
 		writeAPIError(w, ae)
+		return
+	}
+	if usePrimer && !ad.SupportsHistoryPrimer() {
+		writeAPIError(w, apiError(runtime.CodeValidation, "this provider has no verified history handoff; keep the current model or switch to Claude or Codex"))
 		return
 	}
 
