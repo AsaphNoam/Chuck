@@ -31,32 +31,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   (`phone.css`); `phone-render.mjs "" <out.png> --parity-check` now asserts both in the
   nine-case width/appearance matrix and passes. Changelog: restored 44px phone action
   targets (INV §10).
-- **Closed — full operator CLI parity (2026-10-14):** role-edit help fix below closes the unit.
-  Help and example now describe a complete replacement, name the omitted-field resets and start
+- **Closed — full operator CLI parity (2026-10-14):** `f6e7b2b`, `ff031e4`, `219b4b7` plus the
+  fix commit; unit record is in Git history. Help and example now describe a complete replacement, name the omitted-field resets and start
   from `role show --id <role> --json`; no client-side merge. Help regression
   `TestOperatorRoleEditHelpDescribesFullReplacement`; the built-binary real-server journey adds
   full replacement, retained explicit false settings and title-only reset. Changelog: accurate
-  role-edit replacement guidance (INV §10). Original unit record follows.
-- **Full operator CLI parity record (2026-10-13):**
-  [`full-operator-cli-parity.md`](../ready-changes/full-operator-cli-parity.md), implementation
-  `f6e7b2b`, `ff031e4`, `219b4b7`; final closure record is administrative, not another review unit.
-  FS-22.R1–R12/A1–A9, TS-01.R38, TS-03.R64–R69 and TS-06.R34 are implemented.
-  All nonvisual command families, explicit JSON/file/stdin input, consent, attachments, status
-  and bounded transcript follow are covered. Legacy launch/resume defaults are preserved;
-  auto-resume now reads the existing project-scoped archive response.
-  Independent wire and real-server built-binary fake-ACP journeys pass, including exact child
-  permission IDs, attachment retry after response loss, stale guards and Ctrl-C/EPIPE.
-  Focused observer/attachment race tests, binary help, `make build`, and final
-  `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test` pass (both Go variants and spec checks).
-  Changelog: shared client, explicit authority/consent, bounded recovery and lifecycle cleanup,
-  honest results and independent verification (INV §1/§2/§4/§7/§8/§9/§10/§11/§14/§15/§16/§17).
-  Independent review found one Must-fix: `role edit` help promises partial JSON, while the
-  existing server replaces the full definition and clears omitted settings. The real-handler
-  probe confirms prompt and explicit permission/awareness override loss. Fresh CLI tests,
-  including the built-binary real-server journey, and focused observer/attachment/status race
-  checks pass. Finding and fix recommendation below; this unit remains open.
-  Changelog: identified misleading role-edit replacement guidance (INV §10).
-  No provider/tailnet claim; the completed attachment review unit remains separate.
+  role-edit replacement guidance (INV §10). Closure for all three fixes: `make test` (both Go
+  variants), `make build` and UI build pass; UI 815/817, the two failures being the known
+  `NewAgentModal` flake (reproduced on unchanged `d74fb39`).
 - **Reviewed — chat images and attachments; fix pending (2026-10-13):**
   [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
   is implemented in the attachment commits beginning `91ae7db`, `e8c50f7`, and `395c1a8`, plus
