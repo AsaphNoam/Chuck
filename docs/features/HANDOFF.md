@@ -80,12 +80,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   review finding below. All 101 remote tests pass. The unit stays open. No validated trivial/easy
   findings.
 
-- **Awaiting review — mobile wallpaper restoration (2026-10-14):** `.phone-app` is transparent,
-  exposing the existing Core, Sky & Grove and Studio `body::before` backgrounds (FS-20.R43,
-  TS-08.R111; INV §13). All three appearances rendered with `phone-render.mjs --details-check`;
-  screenshots `/tmp/phone-wallpaper-*-chat.png`. Presentation checks, full UI suite (823/823;
-  one initial pagination timeout passed 42/42 alone then the full rerun), UI build, embed,
-  binary build and `make test` (both Go variants) pass. No wallpaper duplication or skin edits.
+- **Closed — mobile wallpaper restoration (2026-10-14):** FS-20.R43, TS-08.R111 (`33987801`).
+  Independent review found no findings: the one-line change makes `.phone-app` transparent so
+  each appearance's `body::before` shows; header, rows, cards, bubbles and composer keep their
+  panel surfaces. `phone-render.mjs --details-check` re-run on `main` passes in Core, Sky & Grove
+  and Studio; chat, files and manage screenshots stay legible. In full-page captures the fixed
+  wallpaper ends at viewport height, which is a Playwright capture artifact, not a defect.
+  Changelog: phone wallpaper review (INV §13 checked, no new selectors; §1–§12, §14–§17 no surface).
 
 - **Awaiting review — agent page width and side panels (2026-10-14):** FS-12.R61, TS-08.R112.
   Reading column narrowed to `max(44rem, 48vw)` (side gaps ≈1.9× the 2026-10-10 70% layout at
