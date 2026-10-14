@@ -39,32 +39,19 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   role-edit replacement guidance (INV §10). Closure for all three fixes: `make test` (both Go
   variants), `make build` and UI build pass; UI 815/817, the two failures being the known
   `NewAgentModal` flake (reproduced on unchanged `d74fb39`).
-- **Reviewed — chat images and attachments; fix pending (2026-10-13):**
-  [`chat-images-and-file-attachments.md`](../ready-changes/chat-images-and-file-attachments.md)
-  is implemented in the attachment commits beginning `91ae7db`, `e8c50f7`, and `395c1a8`, plus
-  the final attachment closure commit. The unrelated CLI design commit `5fd573c` is excluded.
-  FS-03.R81–R86/A62–A65; TS-02.R46–R47, TS-03.R62–R63,
-  TS-04.R90–R91, TS-05.R26, TS-08.R123 and TS-13.R26 cover desktop/phone picker/drop/paste,
-  thumbnails/modal, native images, other files through copied host paths and ordinary tools,
-  browser drafts, immutable local history and compatible multipart Send/Steer with retry receipts.
-  Changelog: immutable local copies, bounded multipart admission, native image input, ordinary
-  file references, durable retry receipts, explicit held recovery and shared browser drafts;
-  assistant/local image rendering and keyboard-accessible inspection across history and device
-  boundaries (INV §1/§2/§4/§5/§7/§8/§9/§10/§11/§12/§13/§14/§15/§16/§17).
-  UI verification passes 805 tests in 88 files. Rendered chat/dashboard/archive and phone checks
-  pass, including portrait containment, modal focus, reload and newer-draft recovery. Embedded
-  server desktop and authenticated TLS test-phone journeys pass; no physical-phone/tailnet claim.
-  Pinned Claude 0.85.1/2.1.286 and Codex 2.1.1/0.159.3 live image, copied-file and attachment-Steer
-  receipts pass; `/private/tmp/chuck-live-attachment-evidence` retains evidence and the first
-  Codex tiny-image interpretation mismatch. Browser receipts: `/private/tmp/attachment-render`
-  and `/private/tmp/chuck-attachment-browser-receipts`. Final `make test` (both Go variants),
-  `make dist`, spec/launcher checks and diff checks pass; the embedded UI is refreshed.
-  Independent review confirms two Must-fix items: a corrupt retained blob blocks subsequent
-  attachment delivery globally after restart, and failed conversation-byte cleanup removes
-  durable identity before leaving retained bytes behind. One Worth-fixing item: local-image
-  Escape dismissal bypasses object-URL/request cleanup. Findings and evidence below; the same
-  unit stays open. Changelog: identified recovery amplification and incomplete deletion/modal
-  teardown (INV §4/§7/§15/§16). Other review units are unchanged.
+- **Closed — chat images and attachments (2026-10-14):** `e8c50f7`, `395c1a8`, `9ae6f59` plus
+  the fix commit on `fix/chat-attachments-20261014`. Startup recovery now clears an owned item's
+  pending marker without byte validation and isolates per-conversation failures (logged,
+  copies preserved), so a corrupt owned blob is only a per-item read error
+  (`TestRestartWithCorruptOwnedAttachmentKeepsDeliveryAvailable`). `DeleteAgent` removes owned
+  bytes before the identity row (`TestDeleteAgentKeepsOwnershipUntilAttachmentCleanupSucceeds`).
+  Local-image Escape routes through `setDialogOpen` (two `AttachmentView` regressions). All four
+  regressions fail on the pre-fix code. TS-02.R47 records deletion ordering and per-conversation
+  recovery. Closure: `make test` (both Go variants) passes with `GOFLAGS=-p=1`; the
+  parallel run failed only the known `TestToolImageFrameBoundsAcrossActualWire` timing flake.
+  `make build` and `make embed` pass; UI 816/819, the failures being the known `NewAgentModal`
+  flake. Changelog: isolated attachment recovery, retryable conversation deletion and
+  Escape modal teardown (INV §4/§7/§15/§16).
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
@@ -222,97 +209,6 @@ Invariant sweep: applicable §1, §2, §3, §4, §5, §7, §13, §14, §16 and �
 process-liveness primitive, or durable-commit/side-effect ordering change. Product code and
 specifications are unchanged. These findings keep this same unit open; every other unit is
 unchanged. Commit only this review state.
-
-### Chat images and file attachments — `e8c50f7`, `395c1a8`, `9ae6f59` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Reviewed independently 2026-10-13 against FS-03.R81–R86/A62–A65, TS-02.R46–R47,
-TS-03.R62–R63, TS-04.R90–R91, TS-05.R26, TS-08.R123 and TS-13.R26.
-`91ae7db` starts the administrative state; unrelated CLI design `5fd573c`, later CLI/UI
-units and concurrent dashboard/diff-display work are excluded.
-
-- **Must fix** — one corrupt retained blob disables attachment delivery globally after restart
-  (INV §7). Locations: `internal/attachment/store.go:238`,
-  `internal/server/attachment_recovery.go:74`, `internal/server/attachments.go:454`.
-  Startup enumerates durable ownership, then `PruneUnowned` calls `Retain` on each owned
-  descriptor. An integrity error or missing blob within a retained attachment directory
-  propagates through `recoverAttachmentStorage` into the global `attachmentStartupErr`.
-  Every subsequent attachment-bearing Send/Steer receives 500, including valid new uploads;
-  text-only conversations remain usable. A temporary actual-server overlay probe retains a
-  receipt-owned blob, corrupts it, runs startup recovery and confirms a new valid multipart
-  upload is rejected. TS-02.R47 requires missing/corrupt blobs to remain per-item errors;
-  FS-03.R85 requires surrounding conversation to remain usable. Preserve the bad item's
-  ownership, report its unavailability, and isolate recovery failure so healthy conversations
-  and uploads proceed. Add a restart regression with a corrupt owned item and a healthy
-  second conversation, checking failed item reads and successful new delivery; do not delete
-  retained bytes merely because ownership enumeration or validation fails.
-
-- **Must fix** — failed conversation-byte deletion loses durable ownership before cleanup can
-  be retried (INV §4/§15). Location: `internal/state/agents.go:229–234`.
-  `DeleteAgent` commits the identity deletion and cascades receipt rows before attempting
-  `DeleteConversation`. A filesystem cleanup error returns after the identity is already
-  absent. An independent probe retains a blob, makes its own attachment directory read-only
-  (`0500`), calls deletion, and observes both `ReadAgent` returning not found and the exact
-  original blob remaining readable at its original path. Restoring permissions allows a
-  direct internal retry, but no durable identity/receipt schedules or exposes that retry;
-  startup preserves retained copies without a pending marker. This affects the owning
-  deletion/failed-launch rollback seam; there is currently no public session DELETE route.
-  TS-02.R47 and FS-03.R84/A64 require conversation deletion to remove its owned copies.
-  Keep durable ownership until cleanup succeeds, or durably retain the cleanup obligation;
-  add an injected cleanup-failure regression proving retryability and eventual byte removal.
-  Successful deletion must still leave source/project files untouched.
-
-- **Worth fixing** — Escape leaves a local-image fetch/object URL owned by a closed modal
-  (INV §4/§16). Location: `ui/src/components/chat/AttachmentView.tsx:178`.
-  Both Escape handlers call `setOpen(false)` directly, bypassing `setDialogOpen(false)`'s
-  generation invalidation, request abort, object-URL revocation and source reset. A loaded
-  local image remains retained while its hidden component is mounted; a pending read may
-  complete after dismissal. TS-05.R26 requires owned object URLs to be released on applicable
-  modal close. Independent isolated component probes observe zero revocations after Escape
-  and one after the Close button. Route both Escape paths through the existing close helper
-  and add loaded-image and in-flight-request regressions. No new mechanism is needed.
-
-Specifications otherwise cover the shipped attachment behavior. Sound local choices include
-opaque fixed-path ownership, bounded immutable uploads, shared multipart/owned-copy admission,
-durable request receipts, negotiated native images versus ordinary uploaded-file reads,
-shared draft revisions and retention, and the existing dialog/Markdown seams. Separate image
-and Steer capability gates preserve Send. Prepared recovery remains distinct from ambiguous
-post-wire outcomes. Historical runtime switching does not resend images. Clone copies have
-independent ownership: the apparent runtime-only rollback gap is covered by server
-`DeleteAgent`; a final applied-config write failure retains identity and copied transcript,
-so it is not an unowned-copy finding. Attachment-only Stop recovery is covered by the
-authoritative held/recovery refetch; the legacy text truthiness check alone is not a
-confirmed lost-attachment finding.
-
-Verification: 100 focused UI tests across Composer, attachments, TranscriptView, AttachmentView
-and phone AgentScreen pass; 46 presentation/style checks pass. Six independent real Chromium
-fixture journeys cover desktop 1024px in Core, Sky & Grove and Studio and Core phone
-360/390/430px. They verify aspect-preserving previews, wide/tall modal containment, keyboard
-focus, all three dismissals, preserved draft text, corrupt-image Retry, inert remote image
-references and local reads only after activation. Desktop chat, expanded pane and archive
-screenshots retain the quiet strip/primary composer and existing visual language. Harness and
-settled receipts: `/private/tmp/review-attachments-render.mjs` and
-`/private/tmp/review-attachments-render/{receipt.json,*.png}`; the loopback/Chromium run used
-authorized execution after the sandbox refused binding. These fixtures make no live-provider,
-physical-phone or real-tailnet claim. Existing pinned-provider receipts and their independent
-image/file/Steer oracles were inspected separately, including the retained tiny-image mismatch.
-Fresh `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 go test -count=1 ./internal/attachment
-./internal/state ./internal/runtime ./internal/transcript ./internal/server` passes all five
-packages (`/private/tmp/review-attachments-go.log`), including real fake-provider wire and
-server failure/security journeys. Spec, launcher/review-contract and diff checks pass.
-Failure probes: `/private/tmp/chuck_attachment_repro_test.go`,
-`/private/tmp/chuck-overlay.json`, `/private/tmp/review-attachments-repro.log`;
-`env -u CHUCK_RUNTIME_ROOT GOCACHE=/private/tmp/chuck-gocache go test
--overlay=/private/tmp/chuck-overlay.json -count=1 ./internal/server
--run 'TestRepro(CorruptRetainedBlocksRecovery|DeletePermissionFailureLeavesOriginalBytes)'`
-passes by asserting the observed failures. Local-modal probes and output:
-`/private/tmp/review-localimage-escape.test.tsx`,
-`/private/tmp/review-localimage-escape.output.txt` (two passing observations of Escape/Close).
-
-Invariant sweep: applicable §1, §2, §5, §8–§14 and §17 have no additional findings;
-§7 has recovery amplification, §4/§15 have deletion ownership ordering and §4/§16 have
-local-image teardown. §3 and §6 have no applicable changed surface: no seeded config form or
-one-shot persisted configuration field, and no new runtime/interface/driver. Review changes
-only this state file; every other role/review unit and concurrent product edits remain unchanged.
 
 ### Phone group memory and long-press agent actions — `17b73ed` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 

@@ -175,7 +175,7 @@ export function LocalImage({ agentId, path, alt }: { agentId: string; path: stri
     <Dialog.Root open={open} onOpenChange={setDialogOpen}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" data-ui="dialog" data-slot="overlay" />
-        <Dialog.Content className="dialog-content chat-image-dialog" data-ui="dialog" data-slot="content" data-variant="default" aria-describedby={undefined} onKeyDownCapture={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setOpen(false); } }} onEscapeKeyDown={(event) => { event.preventDefault(); setOpen(false); }} onCloseAutoFocus={(event) => { event.preventDefault(); requestAnimationFrame(() => triggerRef.current?.focus()); }}>
+        <Dialog.Content className="dialog-content chat-image-dialog" data-ui="dialog" data-slot="content" data-variant="default" aria-describedby={undefined} onKeyDownCapture={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setDialogOpen(false); } }} onEscapeKeyDown={(event) => { event.preventDefault(); setDialogOpen(false); }} onCloseAutoFocus={(event) => { event.preventDefault(); requestAnimationFrame(() => triggerRef.current?.focus()); }}>
           <div className="chat-image-dialog-heading"><Dialog.Title>{alt || path}</Dialog.Title><Dialog.Close asChild><button type="button" className="ad-button-secondary">Close</button></Dialog.Close></div>
           {src ? <img src={src} alt={alt || path} onError={imageFailed} /> : <div role="status" className="chat-image-unavailable">{error ? `Image unavailable: ${error}` : "Loading image…"}<button type="button" onClick={() => void load()}>Retry</button></div>}
         </Dialog.Content>

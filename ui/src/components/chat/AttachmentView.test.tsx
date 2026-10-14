@@ -1,7 +1,7 @@
 // FS-03.A63: owned image thumbnails, modal inspection and corrupt-image recovery.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MessageAttachments } from "./AttachmentView";
+import { LocalImage, MessageAttachments } from "./AttachmentView";
 
 afterEach(() => {
   cleanup();
@@ -33,6 +33,42 @@ describe("owned attachment previews", () => {
     render(<MessageAttachments agentId="agent-1" attachments={[{ id: "att-1", name: "missing.png", mime_type: "image/png", size: 3, sha256: "hash", kind: "image" }]} />);
     expect(await screen.findByText(/Image unavailable: 404 Not Found/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry image" })).toBeInTheDocument();
+  });
+});
+
+// TS-05.R26: Escape releases the local-image request and object URL like Close.
+describe("local image dialog teardown", () => {
+  const openLocalImage = async () => {
+    render(<LocalImage agentId="agent-1" path="shot.png" alt="shot" />);
+    fireEvent.click(screen.getByRole("button", { name: /Open local image/ }));
+    return screen.findByRole("dialog");
+  };
+
+  it("revokes a loaded image's object URL on Escape", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Blob(["png"], { type: "image/png" }), { status: 200, headers: { "Content-Type": "image/png" } })));
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:local-shot"), revokeObjectURL });
+    const dialog = await openLocalImage();
+    await within(dialog).findByRole("img", { name: "shot" });
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:local-shot");
+  });
+
+  it("aborts an in-flight read on Escape and never creates its object URL", async () => {
+    let resolve!: (response: Response) => void;
+    const fetchMock = vi.fn(() => new Promise<Response>((done) => { resolve = done; }));
+    vi.stubGlobal("fetch", fetchMock);
+    const createObjectURL = vi.fn(() => "blob:late");
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL: vi.fn() });
+    const dialog = await openLocalImage();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const signal = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].signal;
+    expect(signal?.aborted).toBe(true);
+    resolve(new Response(new Blob(["png"], { type: "image/png" }), { status: 200, headers: { "Content-Type": "image/png" } }));
+    await new Promise((done) => setTimeout(done, 0));
+    expect(createObjectURL).not.toHaveBeenCalled();
   });
 });
 import React from "react";

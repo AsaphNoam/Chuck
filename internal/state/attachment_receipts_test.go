@@ -3,6 +3,8 @@ package state
 import (
 	"errors"
 	"github.com/AsaphNoam/Chuck/internal/attachment"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -72,6 +74,58 @@ func TestAttachmentReceiptsRestartAndRecovery(t *testing.T) {
 	if f, _, err := attachment.New(s.home).Open(a.AgentID, asset.ID); err == nil {
 		f.Close()
 		t.Fatal("deleted conversation retained owned bytes")
+	}
+}
+
+func TestDeleteAgentKeepsOwnershipUntilAttachmentCleanupSucceeds(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	a := Agent{AgentID: "a_cleanup", Name: "Attachments", Project: "p", Role: "r", Backend: "b", Model: "m", Interface: "chat"}
+	if err = s.WriteAgent(a); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(t.TempDir(), "source.txt")
+	if err = os.WriteFile(source, []byte("source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	asset, err := attachment.New(s.home).Put(a.AgentID, "notes.txt", strings.NewReader("owned"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.CreateAttachmentReceipt(AttachmentReceipt{AgentID: a.AgentID, RequestID: "r1", PayloadHash: "h", MessageJSON: "{}", Action: "prompt"}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(s.home, "sessions", a.AgentID, "attachments", asset.ID)
+	if err = os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	if err = s.DeleteAgent(a.AgentID); err == nil {
+		t.Fatal("cleanup failure was reported as successful deletion")
+	}
+	if _, err = s.ReadAgent(a.AgentID); err != nil {
+		t.Fatalf("failed cleanup dropped durable identity: %v", err)
+	}
+	if _, err = s.AttachmentReceipt(a.AgentID, "r1"); err != nil {
+		t.Fatalf("failed cleanup dropped receipt ownership: %v", err)
+	}
+	if err = os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.DeleteAgent(a.AgentID); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if _, err = s.ReadAgent(a.AgentID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("retried deletion kept identity: %v", err)
+	}
+	if _, err = os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("retried deletion kept owned bytes: %v", err)
+	}
+	if raw, err := os.ReadFile(source); err != nil || string(raw) != "source" {
+		t.Fatalf("source file changed: %q %v", raw, err)
 	}
 }
 
