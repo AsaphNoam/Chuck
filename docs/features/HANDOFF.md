@@ -35,12 +35,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   intermittently returns 409 “a resume is already in progress” (pre-existing at `74c8e84`).
   `ui` `NewAgentModal.test.tsx` fails 1–2 cases intermittently on unchanged `d3c9307`
   (observed 2026-10-11). Neither is investigated.
-  Runtime `TestToolImageFrameBoundsAcrossActualWire` exceeded its unchanged three-second
-  collector for 25-MiB frames during CLI closure on 2026-10-13. Isolated tests and full runtime
-  retries passed, then the complete matrix passed with package execution serialized (`GOFLAGS=-p=1`).
-  No runtime code or test was changed; timing cause remains uninvestigated. On GitHub CI
-  (parallel packages) it failed on both 2026-10-14 `main` runs (38512698255, 38513996157), so
-  `main` CI is red until it is investigated.
+  Runtime `TestToolImageFrameBoundsAcrossActualWire` is investigated: see Review findings; `main`
+  CI stays red on it until that unit is fixed.
 
 ## Active change
 
@@ -104,7 +100,38 @@ None.
 
 ## Review findings
 
-None open. Closed 2026-10-12–14 reviews are in the archive above.
+### Investigation — image-frame test times out on GitHub CI — `9ae6f59`, `7cd50ff` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Report (verbatim, 2026-10-14): "TestToolImageFrameBoundsAcrossActualWire times out its three-second
+collector for 25-MiB frames on GitHub CI (runs 38512698255, 38513996157), keeping main CI red".
+CI log: `exact_aggregate_boundary` → `image_frame_test.go:64: timed out; collected 1 events` on
+`ubuntu-latest`, `make test` with parallel packages; also seen locally 2026-10-13 during CLI closure.
+Governing items: FS-03.R86/A65 (25 MiB aggregate is an in-limit tool image frame), INV §16.
+Classification: a test-budget defect plus a product efficiency defect; no specification gap.
+No reproduction test committed: the timeout is load-dependent and did not fail deterministically
+here (full CPU contention stretched the large subtests to 3.0–3.4 s but they still passed).
+
+- **Must fix** — Confirmed. `drainTurn` (`internal/runtime/chat_test.go:123`) gives every turn
+  one fixed 3 s deadline, but the two large subtests in `internal/runtime/image_frame_test.go` push
+  a ~34 MB JSON frame through the fake ACP wire. On an idle Apple-silicon Mac each takes
+  ~2.4 s (unchanged at `GOMAXPROCS` 8/2/1), i.e. 80% of the budget, so slower shared CI runners
+  overrun it and keep `main` CI red. Fix: give this test a deadline sized for its frame (e.g. a
+  `drainTurn` variant taking a duration, ~20 s here) without loosening other tests; verify by
+  running the package under CPU contention and on CI. (no invariant class)
+- **Worth fixing** — Probable as the main contributor; mechanism confirmed by profile.
+  `ChatRuntime.onNotification` (`internal/runtime/chat.go:1748`) fully `json.Unmarshal`s each
+  `session/update` payload in sequence through `sessionIDOf`, `decodeAvailableCommands`, `decodeModeUpdate` (added by `7cd50ff` on 2026-10-13, when the
+  timeout first appeared), `decodeContextUsage`, then `mapScoped`'s `decodeThoughtChunk`,
+  `mapSessionUpdateImages` and `decodeImageBlock`. Each pass validates the whole payload on the
+  synchronous read loop. CPU profile of `exact_aggregate_boundary`: `json.Unmarshal` is 77% of
+  samples, split across those eight callers (`/private/tmp/imgframe.cpu`). An in-limit 25 MiB
+  image result therefore blocks all other frames for that agent for seconds, and every ordinary
+  update pays the same multiple. Fix: decode the `sessionUpdate`/`sessionId` discriminator once
+  and route to the matching kind's decoder, preserving current precedence; regression: existing
+  runtime/mode/usage/command tests plus a check that the large frame is processed with one full
+  decode. (INV §16)
+
+Closed 2026-10-12–14 reviews are in the archive above.
 
 ## Blocked on human
 
