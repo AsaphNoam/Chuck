@@ -645,6 +645,35 @@ describe("NewAgentModal", () => {
     expect(capturedBody?.group).toBe(expected);
   });
 
+  // Reproduction for the HANDOFF "NewAgentModal launch-click race" finding: the group
+  // tests click Launch once roles and backends render, but Launch stays disabled
+  // until saved configuration settles (the suite leaves /api/config unmocked, so it
+  // settles only when a bypassed real request fails). A slow config response makes
+  // the click a no-op. The fix waits for Launch to be enabled; un-skip it then.
+  it.skip("launches a selected group when saved configuration arrives late", async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    server.use(
+      http.get("/api/config", async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        return HttpResponse.json({});
+      }),
+      http.post("/api/sessions", async ({ request }) => {
+        capturedBody = await request.json() as Record<string, unknown>;
+        return HttpResponse.json({ agent: { agent_id: "a1", name: "Atlas" } }, { status: 201 });
+      }),
+    );
+    renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
+    await screen.findByRole("option", { name: "Implementer (implementer)" });
+    await openOptions();
+    const picker = screen.getByRole("combobox", { name: "Group" });
+    fireEvent.focus(picker);
+    fireEvent.change(picker, { target: { value: "New team" } });
+    fireEvent.click(screen.getByRole("button", { name: /Create group/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    await waitFor(() => expect(capturedBody).toBeDefined());
+    expect(capturedBody?.group).toBe("New team");
+  });
+
   it("launches blank as ungrouped and retains a selected group after refusal", async () => {
     let calls = 0;
     const bodies: Record<string, unknown>[] = [];
