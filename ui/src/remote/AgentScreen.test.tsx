@@ -499,7 +499,8 @@ describe("AgentScreen", () => {
       await screen.findByText(`Gap question ${end}`, {}, { timeout: 5000 });
     }
     expect(screen.getAllByText("Gap question 4700")).toHaveLength(1);
-  });
+    // Rendering 4,700 rows takes ~4.4 s on CI runners, near the 5 s default.
+  }, 20_000);
 
   it("shows only status for a terminal agent", async () => {
     useConnection.setState({ agents: { a1: { ...agent, interface: "terminal", state: "busy" } } });

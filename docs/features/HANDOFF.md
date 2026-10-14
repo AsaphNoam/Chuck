@@ -10,9 +10,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from
   [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md). Manual provider gates
   below remain owed.
-- **Main CI red on UI test races (investigated, open):** CI runs 38514607452, 38593397065 and
-  38594631482 on `main` failed only in the UI suite. Both root causes are test defects, not product
-  defects; see the investigation unit in **Review findings**. Range `v0.15.1..v0.16.0`: the shipped
+- **Main CI UI test races fixed locally (CI unconfirmed):** `NewAgentModal` tests now wait for an
+  enabled Launch and mock `/api/config`; the phone successive-gap test has a 20 s timeout. Full
+  UI suite passes locally; the next `main` push should confirm CI green. Range `v0.15.1..v0.16.0`: the shipped
   `operating-chuck` Think Tank reference now names the discussion `pass` disposition and the
   quiet-round ending; nothing else agent-facing.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
@@ -30,12 +30,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   `TestOrdinaryStageAgentStopPausesPipelineRun` intermittently returns 409 “a resume is already in
   progress”. `FileViewer.test.tsx`
   “scrolls to and marks a cited line” failed once in the full suite and passes alone.
-  (`NewAgentModal` and the phone successive-gap test are diagnosed in **Review findings**.)
   `internal/server` `TestQuotaDispatcherContinuesSameConversationOnce/stopped` failed once
   (“reloaded transcript differs”, FTS5 variant) in the `v0.16.0` closure run; 40 isolated runs,
   30 `-race` runs and a full FTS5 package rerun pass. Range commit `9989fb88` touched ACP update
   routing; whether it relates is uninvestigated.
-- **Fix model:** trivial/easy — Claude Sonnet or Codex Luna (main CI UI-race investigation unit).
+- **Fix model:** trivial/easy — Claude Sonnet or Codex Luna (no open fixes).
 
 ## Active change
 
@@ -103,37 +102,7 @@ None.
 
 ## Review findings
 
-**Investigation unit — main CI UI test races (2026-10-14, `/investigate-bug`).** Report:
-“NewAgentModal and phone successive-gap test flakes turn main CI red.” Evidence: `main` CI runs
-38203274933, 38514607452, 38593397065 and 38594631482 (commits through `c80dd5fd`, ubuntu-latest,
-`npm test`) failed only in the UI step. NewAgentModal cases failed with `expected undefined to be
-defined` after ~1.1 s on `waitFor(() => expect(capturedBody|bodies[0]).toBeDefined())` — “launches
-with an new selected group”, “launches blank as ungrouped and retains a selected group after
-refusal”, “keeps customized launch values through Advanced toggles…”. The phone `AgentScreen`
-“recovers two successive live gaps…” failed with `Test timed out in 5000ms` at 5975 ms. Classification:
-code behaves as specified (Launch waiting for saved configuration is itself tested in “waits for
-saved configuration before choosing a fallback persona”); both are test defects (INV §17).
-**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Must fix — confirmed:** `ui/src/features/launch/NewAgentModal.test.tsx` clicks Launch before
-  it is enabled. Launch is disabled until a persona and project are chosen, and the persona waits for
-  `/api/config` to settle (`NewAgentModal.tsx` role-default effect). The suite has no default
-  `/api/config` handler, so with `onUnhandledRequest: "bypass"` config settles only when a real
-  request to jsdom's `localhost:3000` fails; tests that wait only for roles and the backend model then
-  click a disabled button, the click is a no-op, and the body wait times out. Reproduced: the
-  committed skipped test “launches a selected group when saved configuration arrives late” delays
-  config 300 ms and fails exactly like CI; adding `await waitFor(() => expect(Launch).toBeEnabled())`
-  before the click makes it pass. The unmodified file also fails locally in 3 of 4 isolated runs
-  (mostly the blank/refusal case). Fix: un-skip it, and wait for an enabled Launch before every
-  unwaited Launch click (the group tests, blank/refusal test, customized-values test, and the
-  missing-support-metadata test); also add a default `http.get("/api/config")` handler so the suite
-  no longer depends on a bypassed real network request.
-- **Must fix — confirmed:** `ui/src/remote/AgentScreen.test.tsx` “recovers two successive live
-  gaps…” renders up to 4,700 rows under vitest's default 5 s per-test timeout while its own inner
-  `findByText` allows 5 s. It takes ~1.75 s alone on a 10-core Mac and 4.43 s in passing CI run
-  38594631482, so a ~13% slower runner fails it (5975 ms in 38593397065). Timing-dependent; no
-  skipped reproduction committed. Fix: give the test an explicit timeout (e.g. 20 s) consistent with
-  its inner waits, or shrink the fixture if the paging contract allows it.
+None.
 
 Closed reviews through the `v0.16.0` cut are in the archive above.
 

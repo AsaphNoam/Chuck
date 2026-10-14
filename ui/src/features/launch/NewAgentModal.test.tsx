@@ -24,6 +24,7 @@ const server = setupServer(
     }),
   ),
   http.get("/api/backends", () => HttpResponse.json(backendsFixture())),
+  http.get("/api/config", () => HttpResponse.json({})),
   http.post("/api/sessions", () =>
     HttpResponse.json(
       { agent: { agent_id: "a1", name: "Atlas", role: "implementer", project: "my-app" } },
@@ -101,6 +102,13 @@ async function openOptions() {
   // change made in that window.
   await screen.findByText("Sonnet 4.6", { selector: ".new-agent-runtime span" });
   fireEvent.click(screen.getByText("Advanced"));
+}
+
+// Launch stays disabled until persona, project and saved configuration settle
+// and while a launch is pending; clicking it earlier is a silent no-op.
+async function clickLaunch() {
+  await waitFor(() => expect(screen.getByRole("button", { name: "Launch" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Launch" }));
 }
 
 // FS-01.A30: Advanced, summary and request preserve the selected persona.
@@ -373,9 +381,8 @@ describe("NewAgentModal", () => {
     expect(await screen.findByLabelText("Effort")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Terminal/i })).toBeDisabled();
     expect(screen.getByText(/Launch options could not be loaded for Terminal/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Launch" })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    await clickLaunch();
     await waitFor(() => expect(posted).toBeDefined());
     expect(posted).toMatchObject({ interface: "chat", effort: "medium", fast: false });
   });
@@ -409,9 +416,8 @@ describe("NewAgentModal", () => {
 
     expect(await screen.findByLabelText("Effort")).toBeInTheDocument();
     expect(screen.getByText(/Launch options could not be loaded for Chat/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Launch" })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    await clickLaunch();
     await waitFor(() => expect(posted).toBeDefined());
     expect(posted).toMatchObject({ interface: "terminal", effort: "medium", fast: false });
   });
@@ -445,7 +451,7 @@ describe("NewAgentModal", () => {
     expect(screen.queryByLabelText("Effort")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Fast mode/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    await clickLaunch();
     await waitFor(() => expect(posted).toBeDefined());
     expect(posted).toMatchObject({ backend: "codex", model: "gpt-4o", fast: false, interface: "chat" });
     expect(posted!.effort).toBeUndefined();
@@ -591,7 +597,7 @@ describe("NewAgentModal", () => {
     expect((screen.getByLabelText("Effort") as HTMLSelectElement).value).toBe("low");
     expect((screen.getByLabelText(/Fast mode/) as HTMLInputElement).checked).toBe(true);
 
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    await clickLaunch();
     await waitFor(() => expect(capturedBody).toBeDefined());
     expect(capturedBody).toMatchObject({
       name: "Custom Worker",
@@ -640,17 +646,14 @@ describe("NewAgentModal", () => {
     fireEvent.focus(picker);
     fireEvent.change(picker, { target: { value: typed } });
     fireEvent.click(screen.getByRole("button", { name: expected === "Core" ? "Core" : /Create group/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    await clickLaunch();
     await waitFor(() => expect(capturedBody).toBeDefined());
     expect(capturedBody?.group).toBe(expected);
   });
 
-  // Reproduction for the HANDOFF "NewAgentModal launch-click race" finding: the group
-  // tests click Launch once roles and backends render, but Launch stays disabled
-  // until saved configuration settles (the suite leaves /api/config unmocked, so it
-  // settles only when a bypassed real request fails). A slow config response makes
-  // the click a no-op. The fix waits for Launch to be enabled; un-skip it then.
-  it.skip("launches a selected group when saved configuration arrives late", async () => {
+  // Launch stays disabled until saved configuration settles; a slow config
+  // response must not turn the Launch click into a no-op.
+  it("launches a selected group when saved configuration arrives late", async () => {
     let capturedBody: Record<string, unknown> | undefined;
     server.use(
       http.get("/api/config", async () => {
@@ -669,7 +672,7 @@ describe("NewAgentModal", () => {
     fireEvent.focus(picker);
     fireEvent.change(picker, { target: { value: "New team" } });
     fireEvent.click(screen.getByRole("button", { name: /Create group/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    await clickLaunch();
     await waitFor(() => expect(capturedBody).toBeDefined());
     expect(capturedBody?.group).toBe("New team");
   });
@@ -689,17 +692,18 @@ describe("NewAgentModal", () => {
     renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
     await screen.findByRole("option", { name: "Implementer (implementer)" });
     await openOptions();
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    await clickLaunch();
     await waitFor(() => expect(bodies[0]).toBeDefined());
     expect(bodies[0].group).toBeUndefined();
     const picker = screen.getByRole("combobox", { name: "Group" });
     fireEvent.focus(picker);
     fireEvent.change(picker, { target: { value: "Retry group" } });
     fireEvent.click(screen.getByRole("button", { name: /Create group/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Group" })).toHaveValue("Retry group"));
+    await clickLaunch();
+    expect(await screen.findByText(/runtime unavailable/)).toBeInTheDocument();
     expect(bodies[1]?.group).toBe("Retry group");
-    fireEvent.click(screen.getByRole("button", { name: "Launch" }));
+    expect(screen.getByRole("combobox", { name: "Group" })).toHaveValue("Retry group");
+    await clickLaunch();
     await waitFor(() => expect(calls).toBe(3));
   });
 
