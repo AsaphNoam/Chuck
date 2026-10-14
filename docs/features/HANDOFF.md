@@ -6,13 +6,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** `v0.15.0` tagged locally 2026-10-14 at the release commit, **unpushed**; pushing
-  `main` and the tag needs explicit user authorization, then publication verification (workflow
-  §16.6). Latest published is `v0.13.0`; the `v0.14.0` tag stays local-only by user decision and
-  `v0.15.0` notes cover everything since `v0.13.0`. All range review units are closed.
-- **Repository:** `AsaphNoam/Chuck`; branch `main`. The local `origin` URL ends in a stray `.`
-  (`Chuck.git.`), so `git push`/`ls-remote` report "Repository not found"; fix the remote URL
-  before pushing.
+- **Release:** `main` and tag `v0.15.0` pushed 2026-10-14 with user authorization, but release
+  CI run 38512698302 **failed** (Must-fix finding below), so no `v0.15.0` GitHub Release exists.
+  Latest published is `v0.13.0`; `v0.14.0` stays local-only by user decision. Do not move the
+  pushed tag: after `/fix`, cut `v0.15.1` reusing
+  [`RELEASE-v0.15.0-notes.md`](../archive/state/RELEASE-v0.15.0-notes.md) (covers since `v0.13.0`).
+- **Repository:** `AsaphNoam/Chuck`; branch `main`. `origin` URL corrected 2026-10-14 (it had a
+  stray trailing `.`).
 - **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
   provider call while `onNotification` takes `as.mu` for unmatched frames on the synchronous read
   loop, so an adapter notification sent before that reply could stall it.
@@ -94,7 +94,21 @@ None.
 
 ## Review findings
 
-None open. Closed 2026-10-12–14 reviews are in the archive above.
+### Operator CLI built-binary journey depends on an installed provider — `219b4b7` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix — `TestOperatorBuiltBinaryRealServerJourney` is not hermetic.** It fakes the chat
+  command (`registry.Chat().SetCommand(fake)`) but provider selection still resolves the real
+  Claude executable, so on a host without Claude Code `agent launch` returns 422
+  `provider_executable_missing` and the test fails. It passed locally only because Claude is
+  installed here. Both GitHub CI (run 38512698255) and the release workflow (run 38512698302,
+  "Verify release transaction coverage") failed on it, blocking `v0.15.0` publication. Fix: give
+  `internal/cli` tests the same hermetic provider stubs as `internal/server/main_test.go`
+  (`CLAUDE_CODE_EXECUTABLE`/`CODEX_PATH` pointing at stub executables). Verify with `PATH` lacking
+  `claude`/`codex`.
+- CI run 38512698255 also failed the known `TestToolImageFrameBoundsAcrossActualWire` timing flake
+  (see Known flaky checks); CI does not serialize packages.
+
+Closed 2026-10-12–14 reviews are in the archive above.
 
 ## Blocked on human
 
