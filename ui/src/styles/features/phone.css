@@ -2,7 +2,7 @@
 /* FS-20.R43: one phone composition in every Chuck palette. */
 html { min-width: 0; }
 body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
-.phone-app { margin: 0 auto; max-width: 480px; min-height: 100dvh; background: var(--ad-surface-canvas); padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.phone-app { margin: 0 auto; max-width: 480px; min-height: 100dvh; background: transparent; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 .phone-app svg, .phone-navigation svg { flex-shrink: 0; }
 /* FS-12.R68 "Just enough": every phone action button is a 44px touch target with an 8px visible-surface inset. */
 .phone-app button, .phone-navigation button { --ad-button-height: 44px; --ad-button-inset: var(--ad-space-2); }

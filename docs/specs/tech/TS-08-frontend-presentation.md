@@ -1234,6 +1234,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
 - **R111 — Mobile composition shares Chuck's appearance seam.** FS-20.R43's
   phone layout lives in `styles/features/phone.css` and feature-owned `remote/` composition.
   `remote.css` statically imports the existing finite skin styles after shared construction;
+  `.phone-app` stays transparent so the shared `body::before` wallpaper shows through.
   the paired phone applies the same `applyAppearance` allowlist to its `/api/config`
   projection, refreshing while open and retaining Core on missing/unknown/failed configuration.
   R122 adds appearance selection. No theme provider, browser preference, new palette or desktop-shell

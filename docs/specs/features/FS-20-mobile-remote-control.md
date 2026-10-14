@@ -264,6 +264,7 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   handoff. Long content, empty/error/offline states and action refusal remain usable at 360–430px.
   All three Chuck appearances share this composition and use their existing semantic palettes;
   the phone follows the shared durable appearance preference, with selection under R50.
+  The appearance's existing background wallpaper remains visible behind phone content.
   This supersedes R16's skins exclusion for applying and selecting the configured appearance.
   Manage uses quiet, compact fields and actions separated by rules rather than stacked cards.
   Files has compact text actions. The chat composer has one outline enclosing the textbox and

@@ -69,6 +69,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   AgentScreen pagination tests that pass 42/42 alone with and without this change.
   INV: §8/§13 no new class or message; §16 map capped at 50.
 
+- **Awaiting review — mobile wallpaper restoration (2026-10-14):** `.phone-app` is transparent,
+  exposing the existing Core, Sky & Grove and Studio `body::before` backgrounds (FS-20.R43,
+  TS-08.R111; INV §13). All three appearances rendered with `phone-render.mjs --details-check`;
+  screenshots `/tmp/phone-wallpaper-*-chat.png`. Presentation checks, full UI suite (823/823;
+  one initial pagination timeout passed 42/42 alone then the full rerun), UI build, embed,
+  binary build and `make test` (both Go variants) pass. No wallpaper duplication or skin edits.
+
 ## Active change
 
 None.
