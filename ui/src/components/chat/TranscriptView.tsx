@@ -46,7 +46,7 @@ import { useQueryClient } from "@tanstack/react-query";
 // taskControl offers targeted background-task Stop; only a live session whose
 // runtime negotiated it passes true, and the archive never does (FS-03.R59).
 // reveal names an event the caller is about to scroll to; a fresh object per request.
-export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, openFile = null, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; openFile?: FileLink | null; onOpenFile?: (link: FileLink | null, options?: { replace?: boolean }) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean }) {
+export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, openFile = null, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false, footer }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; openFile?: FileLink | null; onOpenFile?: (link: FileLink | null, options?: { replace?: boolean }) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; footer?: ReactNode }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
@@ -157,6 +157,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           Jump to latest
         </button>
       )}
+      {footer && <div className="transcript-footer">{footer}</div>}
       {annotationsEnabled && <AnnotationTray sourceId={agentId} sourceActive={sourceActive} />}
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>

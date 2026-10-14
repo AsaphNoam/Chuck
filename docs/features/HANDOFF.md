@@ -76,6 +76,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   one initial pagination timeout passed 42/42 alone then the full rerun), UI build, embed,
   binary build and `make test` (both Go variants) pass. No wallpaper duplication or skin edits.
 
+- **Awaiting review — agent page width and side panels (2026-10-14):** FS-12.R61, TS-08.R112.
+  Reading column narrowed to `max(44rem, 48vw)` (side gaps ≈1.9× the 2026-10-10 70% layout at
+  1710px); on Transcript the composer is `TranscriptView`'s footer row, so an open file and a
+  docked tray run full height beside it and it narrows to the middle column; overlay tray and
+  Jump to latest stay above it; other tabs keep it below. 36 ChatPanel tests (one new),
+  presentation checks, UI build, embed and `go build` pass; full UI suite fails only the known
+  `NewAgentModal` flake (different cases each run). Rendered with the agent-design fixture
+  (`harness/layout.mjs`, plain / file / file+tray) at 1024/1280/1710 in Core and Studio; receipts
+  in shared project resources `agent-design/runs/side/`. Go tests not rerun (no Go change).
+
 ## Active change
 
 None.

@@ -247,6 +247,23 @@ export function ChatPanel() {
 
   const projectTitle = (agent.project && projects?.[agent.project]?.title) || agent.project;
   const sessionSettings = (selectedModel?.efforts ?? []).length > 0 || !!currentModel?.fast;
+  // On the Transcript tab the composer is the transcript's footer row, so an open
+  // file and a docked annotation tray run the full height beside it and it narrows
+  // to the conversation column (FS-12.R61). Other tabs keep it below. Its draft and
+  // attachments persist, so moving between the two places loses no input.
+  const composer = agent.interface === "terminal" ? (
+    <p className="terminal-readonly chat-composer" data-slot="composer">Terminal agents receive input in the terminal tab.</p>
+  ) : (
+    <div className="chat-composer" data-slot="composer">
+      <Composer
+        agentId={id}
+        busy={agent.state === "busy" || agent.state === "waiting_input"}
+        running={agent.running}
+        steerable={agent.steering_available}
+        attachmentCapabilities={agent.attachment_capabilities}
+      />
+    </div>
+  );
 
   return (
     // data-file-open relaxes the panel's bounded content width in CSS while a file
@@ -353,7 +370,7 @@ export function ChatPanel() {
           {agent.interface === "terminal" && <Tabs.Trigger value="terminal">Terminal</Tabs.Trigger>}
         </Tabs.List>
         <Tabs.Content value="transcript" className="chat-tab-content" data-slot="content">
-          <TranscriptView agentId={id} events={events} sourceActive={agent.running && agent.state === "idle"} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} openFile={openFile} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} />
+          <TranscriptView agentId={id} events={events} sourceActive={agent.running && agent.state === "idle"} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} openFile={openFile} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} footer={composer} />
         </Tabs.Content>
         <Tabs.Content value="files" className="chat-tab-content" data-slot="content">
           <FilesTab agentId={id} onReveal={revealInTranscript} onOpenFile={openFileInViewer} />
@@ -369,19 +386,7 @@ export function ChatPanel() {
           </Tabs.Content>
         )}
       </Tabs.Root>
-      {agent.interface === "terminal" ? (
-        <p className="terminal-readonly" data-slot="composer">Terminal agents receive input in the terminal tab.</p>
-      ) : (
-        <div data-slot="composer">
-          <Composer
-            agentId={id}
-            busy={agent.state === "busy" || agent.state === "waiting_input"}
-            running={agent.running}
-            steerable={agent.steering_available}
-            attachmentCapabilities={agent.attachment_capabilities}
-          />
-        </div>
-      )}
+      {tab !== "transcript" && composer}
       </div>
     </section>
   );

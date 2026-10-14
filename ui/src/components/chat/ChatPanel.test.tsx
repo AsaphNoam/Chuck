@@ -29,6 +29,7 @@ vi.mock("../../api/client", () => ({
   setSessionConfig: mocks.setSessionConfig,
   switchRuntime: mocks.switchRuntime,
   getFileContent: mocks.getFileContent,
+  getTrackedFiles: vi.fn(async () => ({ files: [] })),
 }));
 
 vi.mock("../../api/config", async (importOriginal) => ({
@@ -129,6 +130,20 @@ it("offers no Commands tab and opens Transcript for ?tab=commands", () => {
   expect(tabs).toEqual(["Transcript", "Files"]);
   expect(screen.getByRole("tab", { name: "Transcript" })).toHaveAttribute("aria-selected", "true");
   expect(screen.getByRole("tabpanel")).toBeInTheDocument();
+});
+
+// FS-12.R61: on Transcript the composer is the transcript's footer row, so an
+// open file and a docked tray run beside it; other tabs keep it below.
+it("places the composer in the transcript footer only on the Transcript tab", () => {
+  useAgentStore.setState({ agents: { a_footer: liveAgent("a_footer") }, order: ["a_footer"], hydrated: true, hydrating: false });
+  renderPanel("a_footer");
+  expect(screen.getByRole("textbox").closest(".transcript-footer")).not.toBeNull();
+  cleanup();
+
+  renderPanel("a_footer", "?tab=files");
+  const textbox = screen.getByRole("textbox");
+  expect(textbox.closest(".transcript-footer")).toBeNull();
+  expect(textbox.closest(".chat-card > .chat-composer")).not.toBeNull();
 });
 
 // FS-03.R66/A47: the full agent screen's context meter renders the shared

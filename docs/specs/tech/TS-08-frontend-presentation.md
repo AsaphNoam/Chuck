@@ -1269,7 +1269,12 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   classes rather than new public hooks. The status label reuses `StateBadge`; the context meter
   is `ContextBar`'s `detailed` layout with the same accessible label. `Composer` gains a toolbar
   that is `display: contents` outside the workspace, so the dashboard composer's geometry is
-  unchanged. Colors map onto semantic tokens (forest to `--ad-state-done`, coral to
+  unchanged. On the Transcript tab `ChatPanel` passes the composer to `TranscriptView`'s optional
+  `footer`, a second row of `.transcript-wrap`'s middle column; the file viewer and docked tray
+  span both rows, the overlay tray and Jump to latest stay in the transcript's first-row area,
+  and other tabs render the composer below. Measures are `.chat-panel` custom properties capped by
+  `min(100%, …)`. The draft and attachments persist, so the remount on a tab change loses no
+  input. Colors map onto semantic tokens (forest to `--ad-state-done`, coral to
   `--ad-action-primary`, blue tints to `--ad-action-secondary`, attention to
   `--ad-state-waiting`); no token, skin rule, motion or dependency is added. Verify with focused
   tests, the presentation checks, the development matrix and the A33 browser comparison.

@@ -4,6 +4,14 @@
    composer. Rules under .chat-panel stay off the dashboard pane
    and the phone, which share the transcript renderers. */
 .chat-panel {
+  /* Prose and activity share a measure of about half the window (never under
+     44rem), technical blocks a wider one, the composer a little wider than the
+     prose. Each is capped by its column, so an open file or docked tray narrows
+     them rather than overlapping them. */
+  --ad-reading-measure: min(100%, max(44rem, 48vw));
+  --ad-technical-measure: min(100%, max(58rem, 64vw));
+  --ad-composer-measure: min(100%, max(48rem, 54vw));
+
   display: grid;
   gap: var(--ad-space-4);
   grid-template-rows: auto minmax(0, 1fr);
@@ -614,7 +622,10 @@
      otherwise drop the transcript into the viewer's content-sized column
      (FS-03.R53, FS-13.R20, TS-08.R57). */
   grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: minmax(0, 1fr);
+  /* The optional footer row holds the full agent page's composer in the middle
+     column only, so the viewer and a docked tray span both rows beside it
+     (FS-12.R61). Without a footer the row is empty and zero tall. */
+  grid-template-rows: minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
   position: relative;
@@ -623,6 +634,7 @@
 .transcript-view {
   background: var(--ad-surface-raised);
   grid-column: 2;
+  grid-row: 1;
   border: 0;
   border-radius: 0;
   height: 100%;
@@ -631,6 +643,12 @@
   scroll-padding: var(--ad-space-6);
   /* Keep transcript text selectable so people can mark, copy, and reuse it. */
   user-select: text;
+}
+
+.transcript-footer {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
 }
 
 .transcript-item {
@@ -1069,9 +1087,12 @@
   padding-top: var(--ad-space-3);
 }
 
+/* The overlay form floats over the transcript row only, never over a footer
+   composer; the docked form below spans both rows. */
 .annotation-tray {
   bottom: var(--ad-space-4);
   grid-column: 3;
+  grid-row: 1;
   box-shadow: var(--ad-shadow-keyline);
   display: flex;
   flex-direction: column;
@@ -1157,8 +1178,12 @@
   width: 100%;
 }
 
+/* Placed in the transcript's own grid area, so it centres on the text it scrolls
+   and stays above a footer composer, docked tray or open file. */
 .jump-to-latest {
   bottom: var(--ad-space-3);
+  grid-column: 2;
+  grid-row: 1;
   left: 50%;
   position: absolute;
   transform: translateX(-50%);
@@ -1174,6 +1199,7 @@
 .file-viewer {
   background: var(--ad-surface-panel);
   grid-column: 1;
+  grid-row: 1 / -1;
   border: var(--ad-border-thin) solid var(--ad-border-strong);
   border-radius: var(--ad-radius-large) var(--ad-radius-small) var(--ad-radius-small) var(--ad-radius-large);
   display: flex;
@@ -1284,6 +1310,7 @@
 
   .annotation-tray {
     bottom: auto;
+    grid-row: 1 / -1;
     height: 100%;
     margin-left: var(--ad-space-4);
     max-height: none;
@@ -1322,12 +1349,6 @@
   .annotation-tray[data-state="collapsed"] .annotation-tray-title,
   .annotation-tray[data-state="collapsed"] .annotation-tray-discard {
     display: none;
-  }
-
-  /* The overlay it floats above still spans the whole region, but a docked tray
-     takes the right of it, so re-centre the button on the text it scrolls. */
-  .transcript-wrap:has(.annotation-tray) .jump-to-latest {
-    left: calc(50% - (min(30cqi, 460px) + var(--ad-space-4)) / 2);
   }
 }
 
@@ -1753,13 +1774,8 @@
   margin: 0;
 }
 
-/* Agent-page reading column (FS-12.R61). Prose and activity share one measure
-   of about 70% of the window (78% of the padded transcript); technical blocks
-   take the full width; user bubbles sit right, assistant bubbles left. */
+/* Agent-page reading column (FS-12.R61): the measures are declared on .chat-panel. */
 .chat-panel .transcript-view {
-  --ad-reading-measure: 78%;
-  --ad-technical-measure: 100%;
-
   background: var(--ad-surface-raised);
   padding: var(--ad-space-6) var(--ad-space-12) var(--ad-space-8);
 }
@@ -1773,8 +1789,8 @@
   max-width: var(--ad-technical-measure);
 }
 
-/* The measure is a percentage, so rows nested in opened activity or a tool run
-   fill their already-measured parent instead of shrinking again. */
+/* Rows nested in opened activity or a tool run fill their already-measured
+   parent. */
 .chat-panel .transcript-view :is(.turn-activity-content, .tool-run, .runtime-child) :is(.transcript-item, .tool-run, .runtime-child, .turn-end) {
   max-width: none;
 }
@@ -1887,12 +1903,12 @@
 }
 
 /* Inset composer box: the textarea above a toolbar of @/# inserts and actions. */
-.chat-card > [data-slot="composer"] {
+.chat-composer {
   background: var(--ad-surface-raised);
   padding: var(--ad-space-3) var(--ad-space-8) var(--ad-space-6);
 }
 
-.chat-card > [data-slot="composer"] .composer {
+.chat-composer .composer {
   background: var(--ad-surface-raised);
   border: var(--ad-border-thin) solid color-mix(in srgb, var(--ad-state-done) 22%, var(--ad-surface-raised));
   border-radius: var(--ad-radius-medium);
@@ -1901,26 +1917,26 @@
   flex-direction: column;
   gap: 0;
   margin-inline: auto;
-  max-width: 80%;
+  max-width: var(--ad-composer-measure);
   padding: 0;
 }
 
-.chat-card > [data-slot="composer"] .composer:focus-within {
+.chat-composer .composer:focus-within {
   border-color: var(--ad-state-done);
 }
 
-.chat-card > [data-slot="composer"] .composer textarea {
+.chat-composer .composer textarea {
   background: transparent;
   min-height: 65px;
   padding: var(--ad-space-4) calc(var(--ad-space-4) + var(--ad-space-1)) var(--ad-space-1);
 }
 
-.chat-card > [data-slot="composer"] .composer textarea:focus {
+.chat-composer .composer textarea:focus {
   box-shadow: none;
   outline: none;
 }
 
-.chat-card > [data-slot="composer"] .composer-toolbar {
+.chat-composer .composer-toolbar {
   align-items: center;
   display: flex;
   gap: var(--ad-space-3);
@@ -1928,18 +1944,18 @@
   padding: var(--ad-space-2) var(--ad-space-3) var(--ad-space-3);
 }
 
-.chat-card > [data-slot="composer"] .composer-references {
+.chat-composer .composer-references {
   display: flex;
   gap: var(--ad-space-1);
 }
 
-.chat-card > [data-slot="composer"] .composer-actions {
+.chat-composer .composer-actions {
   align-items: center;
   display: flex;
   gap: var(--ad-space-2);
 }
 
-.chat-card > [data-slot="composer"] .composer-actions button {
+.chat-composer .composer-actions button {
   align-self: center;
 }
 
@@ -1954,12 +1970,12 @@
   white-space: nowrap;
 }
 
-.chat-card > [data-slot="composer"] :is(.composer-error, .composer-notice) {
+.chat-composer :is(.composer-error, .composer-notice) {
   margin: 0;
   padding: 0 var(--ad-space-4) var(--ad-space-3);
 }
 
-.chat-card > .terminal-readonly {
+.chat-composer.terminal-readonly {
   padding: var(--ad-space-4) var(--ad-space-8);
 }
 
@@ -1972,7 +1988,7 @@
   .chat-header,
   .chat-runtime-picker,
   .chat-tabs-list,
-  .chat-card > [data-slot="composer"] {
+  .chat-composer {
     padding-inline: var(--ad-space-6);
   }
 

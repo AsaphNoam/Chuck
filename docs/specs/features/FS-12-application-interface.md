@@ -407,9 +407,13 @@ Requirements are user-observable.
   identity header with a monogram tile carrying a state dot, the agent name with its existing
   live-state label (or Stopped / Archived · read-only), a role · project · speed line, and a
   labelled context meter at the right; a separate low runtime band; quiet underline tabs; a
-  centred reading column (the panel spans the page and the conversation and composer use about
-  70% of the window width, superseding R54's 680–840px measure on this page; operator request
-  2026-10-10) with right-aligned tinted user bubbles, softly tinted
+  centred reading column (the panel spans the page; prose uses about half the window width and
+  never less than about 700px, technical blocks and the composer a little more, superseding
+  R54's 680–840px measure on this page; operator requests 2026-10-10 and 2026-10-14). An open
+  file viewer and a docked annotation tray run the full height of the conversation region,
+  beside the composer rather than above it, and the reading column and composer narrow to the
+  space between them; an overlay tray never covers the composer. On other tabs the composer
+  stays below the tab content. The reading column has right-aligned tinted user bubbles, softly tinted
   assistant bubbles, a ruled quiet activity column, dark technical blocks and a structured
   permission card whose primary Approve sits after Deny; and an inset, softly raised composer box
   whose toolbar carries `@` (file) and `#` (command) insert buttons at the left and the existing
