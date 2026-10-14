@@ -4,15 +4,15 @@
    composer. Rules under .chat-panel stay off the dashboard pane
    and the phone, which share the transcript renderers. */
 .chat-panel {
-  /* Prose and activity use about 71% of the window (never under 44rem), the
-     composer about 81%, and the card about 92%, so the page keeps margins
-     about twice the shell's beside the card. Each is capped by its
-     container, so an open file or annotation tray beside the card narrows the
-     card and its content rather than covering them. */
-  --ad-reading-measure: min(100%, max(44rem, 71vw));
+  /* The card is about 80% of the window. The conversation and composer use 85%
+     of the card through a 7.5% inset on each side of the transcript and the
+     composer row, so the ratio holds when an open file or annotation tray
+     beside the card narrows it. */
+  --ad-conversation-inset: 7.5%;
+  --ad-reading-measure: 100%;
   --ad-technical-measure: 100%;
-  --ad-composer-measure: min(100%, max(48rem, 81vw));
-  --ad-card-measure: max(52rem, 92vw);
+  --ad-composer-measure: 100%;
+  --ad-card-measure: max(52rem, 80vw);
 
   display: grid;
   gap: var(--ad-space-4);
@@ -1805,7 +1805,7 @@
 /* Agent-page reading column (FS-12.R61): the measures are declared on .chat-panel. */
 .chat-panel .transcript-view {
   background: var(--ad-surface-raised);
-  padding: var(--ad-space-6) var(--ad-space-12) var(--ad-space-8);
+  padding: var(--ad-space-6) var(--ad-conversation-inset) var(--ad-space-8);
 }
 
 .chat-panel .transcript-view :is(.transcript-item, .tool-run, .runtime-child, .turn-activity-toggle, .turn-activity-content, .turn-outcome, .background-tasks, .transcript-pending, .transcript-held, .turn-end) {
@@ -1933,7 +1933,7 @@
 /* Inset composer box: the textarea above a toolbar of @/# inserts and actions. */
 .chat-composer {
   background: var(--ad-surface-raised);
-  padding: var(--ad-space-3) var(--ad-space-8) var(--ad-space-6);
+  padding: var(--ad-space-3) var(--ad-conversation-inset) var(--ad-space-6);
 }
 
 .chat-composer .composer {
@@ -2015,17 +2015,12 @@
 @media (max-width: 1100px) {
   .chat-header,
   .chat-runtime-picker,
-  .chat-tabs-list,
-  .chat-composer {
+  .chat-tabs-list {
     padding-inline: var(--ad-space-6);
   }
 
   .chat-card > .quota-banner {
     margin-inline: var(--ad-space-6);
-  }
-
-  .chat-panel .transcript-view {
-    padding-inline: var(--ad-space-8);
   }
 
   .chat-runtime-hint {

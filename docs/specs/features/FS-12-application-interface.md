@@ -407,10 +407,9 @@ Requirements are user-observable.
   identity header with a monogram tile carrying a state dot, the agent name with its existing
   live-state label (or Stopped / Archived · read-only), a role · project · speed line, and a
   labelled context meter at the right; a separate low runtime band; quiet underline tabs; a
-  centred reading column (prose uses about 71% of the window and never less than about 700px,
-  the composer about 81%, and the card about 92%, leaving page margins about twice the shell's
-  beside it; this supersedes R54's 680–840px measure on this page; operator requests
-  2026-10-10 and 2026-10-14). An open file viewer and the annotation tray sit outside the card,
+  centred reading column (the card is about 80% of the window and the conversation and composer
+  use about 85% of the card, including when side panels narrow it; this supersedes R54's
+  680–840px measure on this page; operator requests 2026-10-10 and 2026-10-14). An open file viewer and the annotation tray sit outside the card,
   to its left and right, at the card's full height; the card and its conversation and composer
   narrow to the space between them. The reading column has right-aligned tinted user bubbles, softly tinted
   assistant bubbles, a ruled quiet activity column, dark technical blocks and a structured

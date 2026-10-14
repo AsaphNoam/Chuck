@@ -1274,8 +1274,9 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   and annotation tray render there through React portals, keeping their state and handlers,
   while the dashboard pane, which passes no slots, keeps them in the transcript grid. The stage
   is the `transcript` query container, so the tray takes its docked form beside the card. Empty
-  slots take no space. Measures are `.chat-panel` viewport-relative custom properties capped by
-  `min(100%, …)`. Colors map onto semantic tokens (forest to `--ad-state-done`, coral to
+  slots take no space. The card is `max(52rem, 80vw)`; the transcript and composer row use a
+  `--ad-conversation-inset` of 7.5% per side, so their content stays 85% of the card's width.
+  Colors map onto semantic tokens (forest to `--ad-state-done`, coral to
   `--ad-action-primary`, blue tints to `--ad-action-secondary`, attention to
   `--ad-state-waiting`); no token, skin rule, motion or dependency is added. Verify with focused
   tests, the presentation checks, the development matrix and the A33 browser comparison.
