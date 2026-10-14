@@ -617,7 +617,8 @@ outcome, never a retryable response that could repeat consumption (INV §15).
 
 **R47 (implemented 2026-10-13) — Attachment ownership survives history operations.** Keep accepted attachment
 descriptors in the exact user event or assistant-image event that owns them. Archive, Stop, resume
-and runtime switch preserve blobs; conversation deletion removes its owned files. Clone copies
+and runtime switch preserve blobs; conversation deletion removes its owned files before its durable
+identity, so a failed byte cleanup leaves the conversation owned and the deletion retryable. Clone copies
 only blobs referenced by copied transcript events and gives the clone independent ownership, so
 deleting either conversation cannot break the other. Reindex projects message text and filenames
 through the canonical transcript projector; it never OCRs images, parses arbitrary binary files,
@@ -630,7 +631,10 @@ state and larger bounded recovery JSON. `prepared` means no provider frame was r
 offered for explicit recovery after restart; `unknown` after submission remains ambiguous and is
 never automatically redelivered. Provisional blobs have durable pending markers; startup prunes
 only unreferenced blobs that still carry a pending marker. Retained blobs remain untouched if an
-older transcript is corrupt, because ownership recovery fails closed. Withdrawal,
+older transcript is corrupt, because ownership recovery fails closed. Startup recovery is
+per conversation: an owned blob is retained without byte validation, and a conversation whose
+ownership cannot be enumerated keeps its copies and is logged, while other conversations and new
+attachment uploads proceed. Withdrawal,
 Stop, crash, archive and host restart release a held message for explicit recovery instead of
 deleting its bytes or automatically delivering it. Transfer to a transcript event retains the same
 immutable descriptors. Released/failed receipts keep their copies until conversation deletion;

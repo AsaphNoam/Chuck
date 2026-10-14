@@ -224,15 +224,17 @@ func (s *Store) RestoreAgentArchiveStates(states map[string]bool) error {
 	return nil
 }
 
-// DeleteAgent deletes an agent and cascades dependent state rows.
+// DeleteAgent removes conversation-owned attachment bytes, then deletes the
+// agent and cascades dependent state rows. The durable identity stays until
+// byte cleanup succeeds, so a failed cleanup remains owned and retryable.
 func (s *Store) DeleteAgent(id string) error {
-	if _, err := s.db.Exec(`DELETE FROM agents WHERE agent_id = ?`, id); err != nil {
-		return fmt.Errorf("state: delete agent: %w", err)
-	}
 	if s.home != "" {
 		if err := attachment.New(s.home).DeleteConversation(id); err != nil {
 			return fmt.Errorf("state: remove deleted conversation attachments: %w", err)
 		}
+	}
+	if _, err := s.db.Exec(`DELETE FROM agents WHERE agent_id = ?`, id); err != nil {
+		return fmt.Errorf("state: delete agent: %w", err)
 	}
 	return nil
 }

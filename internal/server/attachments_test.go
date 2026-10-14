@@ -190,6 +190,69 @@ func attachmentFiles(t *testing.T, srv *Server, agentID string) []os.DirEntry {
 	return files
 }
 
+// TS-02.R47 / FS-03.R85: a corrupt owned copy stays a per-item error after
+// restart; it neither loses ownership nor blocks healthy attachment delivery.
+func TestRestartWithCorruptOwnedAttachmentKeepsDeliveryAvailable(t *testing.T) {
+	srv, h, broken := attachmentTestServer(t, nil)
+	resp, body := postJSONHandler(t, h, "/api/sessions", map[string]any{"role": "attachrole", "project": "attachproj"})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("second launch = %d %s", resp.StatusCode, body)
+	}
+	var second sessionResponse
+	if err := json.Unmarshal(body, &second); err != nil {
+		t.Fatal(err)
+	}
+	healthy := second.Agent.AgentID
+	waitStatus(t, srv, healthy, "idle")
+
+	part := uploadPart{field: "asset1", name: "kept.txt", data: []byte("kept bytes")}
+	resp, body = postAttachmentMessage(t, h, "/api/sessions/"+broken+"/prompt", messageMetadata(t, "kept", "keep", part), part)
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("seed Send = %d %s", resp.StatusCode, body)
+	}
+	kept := decodeAttachmentAcceptance(t, body).Attachments[0]
+	waitStatus(t, srv, broken, "idle")
+	store := attachment.New(srv.configStore.Home())
+	orphan, err := store.Put(healthy, "orphan.txt", strings.NewReader("never accepted"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keptDir := filepath.Join(srv.configStore.Home(), "sessions", broken, "attachments", kept.ID)
+	if err = os.WriteFile(filepath.Join(keptDir, "pending"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(keptDir, "blob"), []byte("corrupt!!!"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restart recovery.
+	srv.attachmentStartupErr = srv.recoverAttachmentStorage()
+	if srv.attachmentStartupErr != nil {
+		t.Fatalf("corrupt owned copy disabled attachment recovery: %v", srv.attachmentStartupErr)
+	}
+	if _, err = os.Stat(filepath.Join(keptDir, "manifest.json")); err != nil {
+		t.Fatalf("corrupt owned copy lost its stored identity: %v", err)
+	}
+	if _, err = os.Stat(filepath.Join(keptDir, "pending")); !os.IsNotExist(err) {
+		t.Fatalf("durably owned copy stayed provisional: %v", err)
+	}
+	if f, _, err := store.Open(healthy, orphan.ID); err == nil {
+		f.Close()
+		t.Fatal("healthy conversation's unaccepted copy survived recovery")
+	}
+	if rec := serveLocal(t, h, http.MethodGet, "/api/sessions/"+broken+"/attachments/"+kept.ID, nil); rec.Code == http.StatusOK {
+		t.Fatalf("corrupt owned copy read = %d, want a per-item error", rec.Code)
+	}
+	for i, id := range []string{healthy, broken} {
+		fresh := uploadPart{field: "asset1", name: "fresh.txt", data: []byte("fresh bytes")}
+		resp, body = postAttachmentMessage(t, h, "/api/sessions/"+id+"/prompt", messageMetadata(t, "fresh-"+string(rune('a'+i)), "fresh", fresh), fresh)
+		if resp.StatusCode != http.StatusAccepted {
+			t.Fatalf("new upload after recovery in %s = %d %s", id, resp.StatusCode, body)
+		}
+		waitStatus(t, srv, id, "idle")
+	}
+}
+
 func TestMultipartSendPersistsBytesAndRetryIsIdempotent(t *testing.T) {
 	srv, h, id := attachmentTestServer(t, nil)
 	part := uploadPart{field: "asset1", name: "reference.txt", data: []byte("copied host file")}

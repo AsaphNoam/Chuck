@@ -236,7 +236,12 @@ func (s *Store) PruneUnowned(agentID string, keep map[string]bool) error {
 			continue
 		}
 		if keep[entry.Name()] {
-			if err := s.Retain(agentID, []string{entry.Name()}); err != nil {
+			// Durable ownership retains the item without validating its bytes;
+			// a missing or corrupt blob stays a per-item read error.
+			if err := checkDirChain(s.root, filepath.Join("sessions", agentID, "attachments", entry.Name())); err != nil {
+				return err
+			}
+			if err := clearPending(filepath.Join(dir, entry.Name())); err != nil {
 				return err
 			}
 			continue
@@ -279,15 +284,18 @@ func (s *Store) Retain(agentID string, ids []string) error {
 			return err
 		}
 		f.Close()
-		dir := filepath.Join(s.agentDir(agentID), id)
-		if err := os.Remove(filepath.Join(dir, "pending")); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err := syncDir(dir); err != nil {
+		if err := clearPending(filepath.Join(s.agentDir(agentID), id)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func clearPending(dir string) error {
+	if err := os.Remove(filepath.Join(dir, "pending")); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return syncDir(dir)
 }
 
 // DeleteConversation removes only conversation-owned copies. Original uploads
