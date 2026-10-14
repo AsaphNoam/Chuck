@@ -450,7 +450,8 @@ Requirements are user-observable.
 
 - **R63 — Think Tank room cards adopt the Figma room-summary composition.** The `RoomSummary`
   study in AgentDeck — Theme Exploration (`OykxmXqZnnyA67QA1lv3AU`), shown on its project
-  dashboard, governs the room cards before a project's agent grid and in Archive. The section
+  dashboard, governs the room cards after a project's agent grid and in Archive (FS-02.R71 places
+  and collapses the project section). The section
   opens with a mono uppercase "Shared rooms / Think Tank" eyebrow over "Thinking together"
   (Archive: "Retained room history") and a quiet "N rooms · separate from agent sessions" note.
   Each card is one softly raised, rounded three-column row: a room-symbol tile; the room content;

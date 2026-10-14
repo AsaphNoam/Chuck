@@ -352,9 +352,9 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
           <button type="button" onClick={() => setForkOpen(true)}>New worktree project</button>
         )}
       </div>
-      {/* Rooms precede the agent grid, one card per row (FS-02.R71). */}
-      <RoomList project={id} />
       <CardGrid projectID={id} fixedProject={project ? id : undefined} projectTitle={project?.title ?? id} openersRef={openersRef} />
+      {/* Rooms follow the agent grid, one card per row (FS-02.R71). */}
+      <RoomList project={id} />
       {bgMenu && createPortal(
         <div className="context-menu" data-ui="context-menu" role="menu" ref={bgMenuPlacement.ref} style={bgMenuPlacement.style}>
           <button type="button" role="menuitem" data-slot="item" onClick={() => choose("newAgent")}>New agent</button>

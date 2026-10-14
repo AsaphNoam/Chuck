@@ -240,7 +240,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   the full goal remains available in a subordinate disclosure rather than occupying the first
   conversation viewport. Title fallback neither rewrites history nor changes the goal.
 - **R44** — Originating-project room discovery follows FS-02.R71: one distinct wide
-  room card per row before the agent grid. Show every participant, phase/control, current speaker
+  room card per row after the agent grid. Show every participant, phase/control, current speaker
   or all active openings, per-member remaining allowance, the sum of non-departed participants'
   remaining allowances, judge state and attention/completion reason. Allowance is a maximum, not
   expected rounds or progress toward agreement. Judge budget is separate. Missing/deleted sources
@@ -520,7 +520,7 @@ completion; R37 defines partial opening publication and pending input on End.
 
 - **A33** (R43–R45, R47, R51) — Create a titled room with a long goal, dense roster and
   mixed existing/new cross-project agents. At 1024px and a wider desktop in Core, Sky & Grove and
-  Studio, inspect its card before the agent grid, all member identities/budgets, concurrent-opening
+  Studio, inspect its card after the agent grid, all member identities/budgets, concurrent-opening
   and attention/ended states, compact room/participant headers and stable speech tints. Navigate
   project → room → participant → Think Tank tab → another chat/room; multiple memberships and
   deleted sources stay intelligible. New agents/judge use the title group, existing agents retain

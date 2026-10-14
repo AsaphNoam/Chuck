@@ -1,6 +1,6 @@
 import React from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { http, HttpResponse } from "msw";
@@ -73,5 +73,26 @@ describe("RoomList cards", () => {
     renderList(null);
     const card = (await screen.findByRole("link", { name: "Cache choice" })).closest("li")!;
     expect((await within(card as HTMLElement).findByText(/project removed/)).textContent).toBe("Origin: ghost · project removed");
+  });
+
+  // FS-02.R71: the heading collapses the cards, keeps the count and
+  // remembers the choice for the next room list.
+  it("collapses the room cards and remembers the choice", async () => {
+    window.localStorage.clear();
+    rooms = [summary()];
+    renderList();
+    const toggle = await screen.findByRole("button", { name: "Thinking together" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("link", { name: "Cache choice" })).toBeNull();
+    expect(screen.getByText(/1 room · separate from agent sessions/)).toBeTruthy();
+
+    cleanup();
+    renderList();
+    expect((await screen.findByRole("button", { name: "Thinking together" })).getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Thinking together" }));
+    expect(await screen.findByRole("link", { name: "Cache choice" })).toBeTruthy();
+    expect(window.localStorage.getItem("chuck.think-tank-rooms-collapsed")).toBeNull();
   });
 });

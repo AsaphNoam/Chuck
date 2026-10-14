@@ -310,7 +310,6 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
       <section className="grid-view" data-ui="dashboard">
       <PageHeader
         className="grid-toolbar"
-        eyebrow="Live operations"
         title={projectTitle ?? "Agents"}
         actions={<><TaskAttentionLink projectID={projectID} />{hasExpandedOnGrid && <IconButton type="button" aria-label="Collapse all" title="Collapse all" onClick={collapseAll}><CollapseAllIcon /></IconButton>}<Button variant="primary" type="button" onClick={() => setShowNewAgent(true)}>New agent</Button>{thinkTankAction}<DensityControl /></>}
         data-slot="header"

@@ -312,7 +312,7 @@
 .think-tank-entries,
 .think-tank-members,
 .think-tank-source-rows,
-.think-tank-list > ul,
+.room-list-body > ul,
 .think-tank-setup-participants ol {
   display: grid;
   gap: var(--ad-space-3);
@@ -1008,6 +1008,40 @@ a.think-tank-author:hover {
 
 .room-list-note {
   font-size: 0.6875rem;
+}
+
+/* The heading text is the collapse control (FS-02.R71). */
+.room-list-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--ad-radius-small);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: var(--ad-space-2);
+  letter-spacing: inherit;
+  padding: 0;
+}
+
+.room-list-toggle > span {
+  color: var(--ad-text-muted);
+  font-size: 0.75rem;
+  inline-size: 1ch;
+}
+
+.room-list-toggle:hover > span {
+  color: var(--ad-text-primary);
+}
+
+.room-list-body {
+  display: grid;
+  gap: var(--ad-space-3);
+}
+
+.room-list-body[hidden] {
+  display: none;
 }
 
 .room-card {

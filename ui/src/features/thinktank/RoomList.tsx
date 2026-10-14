@@ -1,3 +1,4 @@
+import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { useThinkTanks } from "../../api/thinkTanks";
 import { useProjects } from "../../api/config";
@@ -12,25 +13,60 @@ import { endReasonText, judgeText, phaseLabel, roomTitle, thinkTankPath } from "
  *  (FS-12.R63, TS-08.R114). Rooms are not agent cards. */
 export function RoomList({ project, title = "Thinking together", emptyText }: { project?: string; title?: string; emptyText?: string }) {
   const rooms = useThinkTanks(project);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const bodyID = useId();
   if (rooms.isLoading) return null;
   const list = rooms.data ?? [];
   if (!rooms.isError && list.length === 0 && !emptyText) return null;
+  const toggle = () => {
+    setCollapsed(!collapsed);
+    writeCollapsed(!collapsed);
+  };
   return (
     <section className="think-tank-list" data-ui="think-tank" data-slot="list" aria-label="Think Tank rooms">
       <div className="room-list-heading">
         <div>
           <p className="room-list-eyebrow">Shared rooms <span>/ Think Tank</span></p>
-          <h2>{title}</h2>
+          {/* The heading toggles the cards; the count stays visible while
+              collapsed (FS-02.R71). */}
+          <h2>
+            <button type="button" className="room-list-toggle" aria-expanded={!collapsed} aria-controls={bodyID} onClick={toggle}>
+              <span aria-hidden="true">{collapsed ? "▸" : "▾"}</span>{title}
+            </button>
+          </h2>
         </div>
         {list.length > 0 && <span className="room-list-note">{list.length} {list.length === 1 ? "room" : "rooms"} · separate from agent sessions</span>}
       </div>
-      {rooms.isError && <p className="form-error">Could not load Think Tanks.</p>}
-      {!rooms.isError && list.length === 0 && <p>{emptyText}</p>}
-      <ul>
-        {list.map((room) => <RoomCard key={room.room_id} room={room} showOrigin={!project} />)}
-      </ul>
+      <div id={bodyID} className="room-list-body" hidden={collapsed}>
+        {rooms.isError && <p className="form-error">Could not load Think Tanks.</p>}
+        {!rooms.isError && list.length === 0 && <p>{emptyText}</p>}
+        <ul>
+          {list.map((room) => <RoomCard key={room.room_id} room={room} showOrigin={!project} />)}
+        </ul>
+      </div>
     </section>
   );
+}
+
+/** The collapsed choice is a browser-local preference shared by every room
+ *  list; unavailable storage falls back to expanded. */
+const COLLAPSED_KEY = "chuck.think-tank-rooms-collapsed";
+
+function readCollapsed() {
+  try {
+    return window.localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeCollapsed(collapsed: boolean) {
+  try {
+    if (collapsed) window.localStorage.setItem(COLLAPSED_KEY, "1");
+    else window.localStorage.removeItem(COLLAPSED_KEY);
+  } catch {
+    // Private modes can refuse storage; the toggle still works for this page.
+  }
 }
 
 type Tone = "active" | "attention" | "paused" | "ended" | "waiting";
