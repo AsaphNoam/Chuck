@@ -5,7 +5,7 @@ import { useAnnotationStore } from "../store/annotationStore";
 import { discardChatDraft } from "../components/chat/drafts";
 import { discardAttachmentDraft } from "../components/chat/attachments";
 import { useReasoningStore } from "../store/reasoningStore";
-import { checkPaired, MacUnreachableError, PhoneAPIError } from "./api";
+import { checkPaired, PhoneAPIError } from "./api";
 
 // The phone's view of its link to the Mac (FS-20 §3). A plain EventSource with
 // the device cookie; the desktop SharedWorker is not used (TS-13.R14).
@@ -48,64 +48,236 @@ export const wasPaired = () => localStorage.getItem(PAIRED_KEY) === "1";
 
 /** Events that can change what Home shows. */
 const homeEvents = ["state_update", "task_update", "pipeline_update", "notification"];
-const unreachableAfterMs = 5000;
+
+// Connection recovery (FS-20.R51–R53, TS-13.R27–R28). One owner per page: at
+// most one source, one health read and one deadline (liveness, opening,
+// hydration or retry). The server pings every 10 s; a hydrated stream with no
+// ping for livenessMs is stale. Every callback checks its generation, so work
+// from a replaced attempt can neither reopen access nor overwrite newer state.
+export const livenessMs = 25_000;
+const healthTimeoutMs = 5_000;
+export const retryDelaysMs = [5_000, 10_000, 20_000, 40_000, 60_000];
 
 let source: EventSource | null = null;
-let unreachableTimer: number | undefined;
+let generation = 0;
+let started = false;
+/** An attempt is between its health read and its completed hydration. */
+let attempting = false;
+let hydrated = false;
+let hydratingAgents: Record<string, AgentState> | null = null;
+let lastPing = 0;
+let timer: number | undefined;
+let health: AbortController | null = null;
+/** Consecutive attempts that failed to hydrate; reset only by hydration. */
+let failures = 0;
+let retryPending = false;
+/** A genuine hidden/offline → visible/online transition may advance one retry. */
+let mayAdvance = false;
 
-/** classify asks the Mac whether this phone is still paired. */
-export async function classify(): Promise<PhoneLink> {
+const visible = () => document.visibilityState !== "hidden";
+
+function setTimer(ms: number, gen: number, fire: () => void) {
+  window.clearTimeout(timer);
+  timer = window.setTimeout(() => {
+    timer = undefined;
+    if (gen === generation && started && visible()) fire();
+  }, ms);
+}
+
+function clearTimer() {
+  window.clearTimeout(timer);
+  timer = undefined;
+}
+
+function closeSource() {
+  source?.close();
+  source = null;
+  hydrated = false;
+  hydratingAgents = null;
+}
+
+/** start begins (or, once paired, restarts) the page's connection owner. */
+export function start() {
+  if (!started) {
+    started = true;
+    failures = 0;
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pageshow", onReturn);
+    window.addEventListener("online", onReturn);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("pagehide", onPageHide);
+  }
+  if (!attempting && !hydrated) void attempt();
+  return disconnect;
+}
+
+/** disconnect releases the owner's timers, source and health read (teardown, unpair). */
+export function disconnect() {
+  started = false;
+  generation++;
+  attempting = false;
+  retryPending = false;
+  clearTimer();
+  health?.abort();
+  health = null;
+  closeSource();
+  document.removeEventListener("visibilitychange", onVisibility);
+  window.removeEventListener("pageshow", onReturn);
+  window.removeEventListener("online", onReturn);
+  window.removeEventListener("offline", onOffline);
+  window.removeEventListener("pagehide", onPageHide);
+}
+
+function onVisibility() {
+  if (visible()) onReturn();
+  else pause(false);
+}
+
+function onOffline() {
+  mayAdvance = true;
+}
+
+function onPageHide() {
+  pause(true);
+}
+
+// Hidden: stop checks and retries, keep backoff and cached state. A healthy
+// hydrated stream may stay open; anything else is closed (TS-13.R28).
+function pause(closeHealthy: boolean) {
+  mayAdvance = true;
+  clearTimer();
+  if (attempting) {
+    generation++;
+    attempting = false;
+    health?.abort();
+    health = null;
+    retryPending = true;
+  }
+  if (closeHealthy || !hydrated) closeSource();
+}
+
+/** onReturn is the one liveness check for visible, pageshow and online signals. */
+function onReturn() {
+  if (!started || !visible()) return;
+  const advance = mayAdvance;
+  mayAdvance = false;
+  if (attempting) return; // an opening or hydration keeps its remaining deadline
+  if (source && hydrated) {
+    const left = livenessMs - (Date.now() - lastPing);
+    if (left > 0) armLiveness(left);
+    else lost();
+    return;
+  }
+  if (retryPending && timer !== undefined && !advance) return;
+  void attempt();
+}
+
+function armLiveness(ms = livenessMs) {
+  setTimer(ms, generation, () => {
+    if (Date.now() - lastPing >= livenessMs) lost();
+    else armLiveness(livenessMs - (Date.now() - lastPing));
+  });
+}
+
+/** lost replaces a stream that was live; the first attempt runs at once. */
+function lost() {
+  closeSource();
+  if (useConnection.getState().link === "connected") useConnection.getState().setLink("reconnecting");
+  void attempt();
+}
+
+/** failed ends an attempt that did not hydrate and schedules the next one. */
+function failed(gen: number) {
+  if (gen !== generation) return;
+  attempting = false;
+  health = null;
+  closeSource();
+  failures++;
+  retryPending = true;
+  if (visible()) setTimer(retryDelaysMs[Math.min(failures, retryDelaysMs.length) - 1], gen, () => void attempt());
+}
+
+// One serialized attempt: the pairing/reachability read, then a new stream
+// that must hydrate. Health success never marks the phone connected.
+async function attempt() {
+  if (!started || attempting || !visible()) return;
+  const gen = ++generation;
+  attempting = true;
+  retryPending = false;
+  clearTimer();
+  closeSource();
   const { setLink } = useConnection.getState();
+  const abort = new AbortController();
+  health = abort;
+  const timeout = window.setTimeout(() => abort.abort(), healthTimeoutMs);
   try {
-    await checkPaired();
-    setLink("connected");
-    return "connected";
+    await checkPaired(abort.signal);
   } catch (error) {
+    if (gen !== generation) return;
     if (error instanceof PhoneAPIError && error.status === 401) {
       disconnect();
       setLink("unpaired");
-      return "unpaired";
+      return;
     }
-    if (error instanceof MacUnreachableError) {
-      setLink("unreachable");
-      return "unreachable";
-    }
-    throw error;
+    setLink("unreachable");
+    failed(gen);
+    return;
+  } finally {
+    window.clearTimeout(timeout);
   }
+  if (gen !== generation) return;
+  health = null;
+  if (useConnection.getState().link === "unreachable") setLink("reconnecting");
+  open(gen);
 }
 
-export function connect() {
-  if (source) return;
+function open(gen: number) {
   const { setLink, bump } = useConnection.getState();
-  let hydratingAgents: Record<string, AgentState> | null = {};
-  source = new EventSource("/api/events", { withCredentials: true });
-  source.onopen = () => {
-    window.clearTimeout(unreachableTimer);
-    unreachableTimer = undefined;
+  const stream = new EventSource("/api/events", { withCredentials: true });
+  source = stream;
+  hydratingAgents = {};
+  setTimer(livenessMs, gen, () => failed(gen)); // opening budget
+  stream.onopen = () => {
+    if (gen !== generation) return;
     hydratingAgents = {};
+    hydrated = false;
     // Live-only reasoning and its live choices have no seq to recover (TS-08.R103).
     // No thought is admitted again until hydration ends and each open window
     // has re-read past what the disconnect may have missed.
     useReasoningStore.getState().clearAll();
     admitting = false;
-    setLink("reconnecting");
-  };
-  source.onerror = () => {
     if (useConnection.getState().link === "connected") setLink("reconnecting");
-    if (unreachableTimer === undefined) {
-      unreachableTimer = window.setTimeout(() => {
-        unreachableTimer = undefined;
-        if (useConnection.getState().link !== "connected") void classify().catch(() => setLink("unreachable"));
-      }, unreachableAfterMs);
-    }
+    // Hydration budget: pings cannot extend it; only completed hydration clears it.
+    setTimer(livenessMs, gen, () => failed(gen));
   };
-  for (const type of homeEvents) source.addEventListener(type, () => bump());
-  source.addEventListener("state_update", (event) => {
+  stream.onerror = () => {
+    if (gen !== generation) return;
+    // Close so the server's retry: 2000 cannot run a competing native loop.
+    if (attempting) return failed(gen);
+    closeSource();
+    clearTimer();
+    if (useConnection.getState().link === "connected") setLink("reconnecting");
+    if (visible()) void attempt();
+  };
+  // A ping only records receipt; the liveness deadline rearms from it on expiry.
+  stream.addEventListener("ping", () => {
+    if (gen === generation) lastPing = Date.now();
+  });
+  for (const type of homeEvents) stream.addEventListener(type, () => {
+    // A snapshot's rows coalesce into the one bump after hydration (TS-13.R29).
+    if (gen === generation && !hydratingAgents) bump();
+  });
+  stream.addEventListener("state_update", (event) => {
+    if (gen !== generation) return;
     const envelope = parse(event);
     // The server marks hydration on the envelope: {agent_id:"__hydrated__", data:{hydrated:true}}.
     if (envelope?.agent_id === "__hydrated__") {
       const agents = hydratingAgents ?? {};
       hydratingAgents = null;
+      hydrated = true;
+      attempting = false;
+      failures = 0;
+      lastPing = Date.now();
       useConnection.setState((state) => {
         const transcriptRev = Object.fromEntries(Object.entries(state.transcriptRev).filter(([id]) => agents[id]));
         for (const id of openTranscripts.keys()) {
@@ -115,6 +287,8 @@ export function connect() {
         return { agents, transcriptRev };
       });
       admitting = true;
+      if (visible()) armLiveness();
+      else clearTimer();
       setLink("connected");
       bump(); // catch up only after the authoritative snapshot is complete.
       return;
@@ -139,9 +313,9 @@ export function connect() {
       return { agents };
     });
   });
-  source.addEventListener("runtime_activity", admitReasoning);
-  source.addEventListener("new_message", (event) => {
-    if (hydratingAgents) return;
+  stream.addEventListener("runtime_activity", admitReasoning);
+  stream.addEventListener("new_message", (event) => {
+    if (gen !== generation || hydratingAgents) return;
     const id = parse(event)?.agent_id;
     if (!id) return;
     useConnection.setState((state) => ({ transcriptRev: { ...state.transcriptRev, [id]: (state.transcriptRev[id] ?? 0) + 1 } }));
@@ -192,20 +366,4 @@ function parse(event: Event): { agent_id?: string; data?: unknown } | null {
   } catch {
     return null;
   }
-}
-
-export function disconnect() {
-  window.clearTimeout(unreachableTimer);
-  unreachableTimer = undefined;
-  source?.close();
-  source = null;
-}
-
-/** onEvent lets a view refresh on specific stream events (for example its transcript). */
-export function onEvent(type: string, handler: (event: MessageEvent<string>) => void): () => void {
-  const current = source;
-  if (!current) return () => undefined;
-  const listener = (event: Event) => handler(event as MessageEvent<string>);
-  current.addEventListener(type, listener);
-  return () => current.removeEventListener(type, listener);
 }

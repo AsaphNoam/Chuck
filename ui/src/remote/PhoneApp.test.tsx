@@ -13,10 +13,16 @@ import { getChatDraft, setChatDraft } from "../components/chat/drafts";
 
 class FakeEventSource {
   static last: FakeEventSource | null = null;
+  static autoHydrate = true;
   onopen: (() => void) | null = null;
   onerror: (() => void) | null = null;
   constructor(public url: string) {
     FakeEventSource.last = this;
+    // The phone shows its screens once the first snapshot completes (TS-13.R29).
+    if (FakeEventSource.autoHydrate) queueMicrotask(() => {
+      this.onopen?.();
+      this.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+    });
   }
   private listeners = new Map<string, Array<(event: Event) => void>>();
   addEventListener(type: string, listener: (event: Event) => void) {
@@ -68,6 +74,8 @@ beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 });
 beforeEach(() => {
+  FakeEventSource.autoHydrate = true;
+  FakeEventSource.last = null;
   paired = true;
   claims = 0;
   waits = 0;
@@ -240,6 +248,7 @@ describe("phone conversation turns", () => {
   const wire = (seq: number, type: string, data: Record<string, unknown>) => ({ agent_id: "a1", seq, type, ts: "", data });
   let window_: Record<string, unknown>[] = [];
   beforeEach(() => {
+    FakeEventSource.autoHydrate = false;
     window_ = [
       wire(1, "user_text", { text: "Fix it" }),
       wire(2, "assistant_text", { delta: "Looking first." }),
@@ -257,7 +266,7 @@ describe("phone conversation turns", () => {
   it("collapses a completed turn, streams open live thoughts and drops them on reconnect", async () => {
     window.history.replaceState(null, "", "/agent/a1");
     renderApp();
-    const stream = await waitFor(() => FakeEventSource.last!);
+    const stream = await waitFor(() => FakeEventSource.last ?? Promise.reject(new Error("no stream yet")));
     act(() => {
       stream.onopen?.();
       stream.emit("state_update", { data: phoneAgent });
@@ -288,7 +297,7 @@ describe("phone conversation turns", () => {
     window_ = [wire(1, "user_text", { text: "Old ask" })];
     window.history.replaceState(null, "", "/agent/a1");
     renderApp();
-    const stream = await waitFor(() => FakeEventSource.last!);
+    const stream = await waitFor(() => FakeEventSource.last ?? Promise.reject(new Error("no stream yet")));
     const hydrate = () => act(() => {
       stream.onopen?.();
       stream.emit("state_update", { data: phoneAgent });
@@ -318,7 +327,7 @@ describe("phone conversation turns", () => {
     server.use(http.get("/api/sessions/a1/transcript", () => HttpResponse.json({ agent_id: "a1", events: window_, has_more: hasMore })));
     window.history.replaceState(null, "", "/agent/a1");
     renderApp();
-    const stream = await waitFor(() => FakeEventSource.last!);
+    const stream = await waitFor(() => FakeEventSource.last ?? Promise.reject(new Error("no stream yet")));
     act(() => {
       stream.onopen?.();
       stream.emit("state_update", { data: phoneAgent });

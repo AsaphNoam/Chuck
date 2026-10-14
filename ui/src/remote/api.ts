@@ -74,7 +74,7 @@ export interface RuntimeOptions {
 
 export const getRuntimeOptions = () => phoneFetch<RuntimeOptions>("/api/remote/runtime-options");
 export const getHome = () => phoneFetch<HomeLists>("/api/remote/home");
-export const checkPaired = () => phoneFetch<unknown>("/api/health");
+export const checkPaired = (signal?: AbortSignal) => phoneFetch<unknown>("/api/health", { signal });
 export const claimPairing = (code: string, name: string) =>
   phoneFetch<{ pending_id: string }>("/api/remote/pair", json("POST", { code, name }));
 export const waitPairing = (pendingID: string) =>

@@ -1449,7 +1449,6 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   `--ad-shadow-project-edge` core token is removed. No skin rule, motion or dependency is added.
   `ui/scripts/projects-render.mjs` renders the stubbed page in every appearance at 1024px and
   1440px for A39.
-
 - **R125 — Phone scroll memory is one bounded, page-lifetime module.** FS-20.R54 lives in
   `remote/scrollMemory`: a module-level map keyed by route path, capped at 50 entries with the
   least recently saved evicted, never persisted. Non-chat routes store window `scrollY` and
@@ -1458,6 +1457,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   message row below the sticky header plus its offset, or an at-newest flag, and restores once
   per mount after the first non-placeholder transcript renders; a missing key falls back to the
   top of the loaded list. Restoration never triggers older-history loading by itself.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

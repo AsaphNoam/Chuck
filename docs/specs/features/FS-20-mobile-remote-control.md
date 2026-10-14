@@ -385,7 +385,6 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   live connection may remain open while hidden; zero background traffic is not promised. A revoked
   pairing stops recovery until paired again. Recovery adds no recurring HTTP health polling to a
   healthy connection and does not alter desktop behavior.
-
 - **R54 — Leaving and reopening a screen returns to the same place.** Within one page session the
   phone remembers each conversation's reading position and each other screen's scroll position.
   Reopening a conversation returns to the message that was at the top of the screen; a
@@ -393,6 +392,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   message. If the remembered message is no longer in the loaded history, the conversation opens at
   the oldest loaded message. Home, project and run pages return to their previous scroll position
   when revisited. Positions are not kept across a reload or browser termination.
+
 ## 5. Acceptance criteria
 
 - **A1 (planned)** (R1–R4, R29) — Turning remote control on joins the tailnet, shows each connection
@@ -532,13 +532,13 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   competing streams or resetting backoff through duplicate signals. Verify fake-clock connection
   tests including initial connect/hydration timeouts, old callbacks after replacement and teardown;
   measure request counts in the phone-width browser journey. Real-device suspension remains A22's gate.
-
 - **A26** (R54) — Open a conversation for the first time: it shows its newest message. Scroll to an
   older message, go back to the project and open another conversation, then return: the same
   message is at the top. Leave a conversation at its newest message, let a new message arrive, and
   return: the newest message shows. Scroll a long project page, open a chat and go back: the
   project page keeps its position. Verify phone component tests plus a phone-width real-browser
   journey with rendered scroll.
+
 ## 6. Deviations & open decisions
 
 - R51–R53/A22–A25 are planned under

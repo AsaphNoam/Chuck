@@ -1,6 +1,6 @@
 import React from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -90,6 +90,29 @@ describe("RunScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
     fireEvent.click(screen.getByRole("dialog", { name: "Stop this pipeline?" }).querySelector(".btn-danger")!);
     await waitFor(() => expect(posts).toEqual(['retry {"revision":7}', 'stop {"revision":7}']));
+  });
+
+  // FS-20.R52, TS-13.R29 — a refresh after reconnecting keeps an entered form.
+  it("keeps the entered replacement when a refresh brings a newer run revision", async () => {
+    const replaceable = { ...detail, controls: { ...controls, replace: { eligible: true, reason: "" } } };
+    let current = replaceable;
+    let reads = 0;
+    server.use(
+      http.get("/api/pipeline-runs/run_1", () => { reads++; return HttpResponse.json(current); }),
+      http.get("/api/remote/runtime-options", () => HttpResponse.json({ backends: [{ id: "codex", name: "Codex", models: [{ id: "m", name: "M", efforts: [], fast: false }, { id: "n", name: "N", efforts: [], fast: false }] }] })),
+    );
+    renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: "Replace orchestrator" }));
+    const form = await screen.findByRole("form", { name: "Replace orchestrator" });
+    const modelSelect = form.querySelectorAll("select")[1];
+    await waitFor(() => expect(modelSelect.querySelector('option[value="n"]')).not.toBeNull());
+    fireEvent.change(modelSelect, { target: { value: "n" } });
+    current = { ...replaceable, run: { ...run, revision: 8 } };
+    act(() => useConnection.setState({ revision: 1 }));
+    await waitFor(() => expect(reads).toBe(2));
+    await screen.findByRole("form", { name: "Replace orchestrator" });
+    await waitFor(() => expect(form.querySelectorAll("select")[1]).toHaveValue("n"));
+    expect(screen.getByRole("form", { name: "Replace orchestrator" })).toBe(form);
   });
 
   it("opens the current stage's conversation", async () => {

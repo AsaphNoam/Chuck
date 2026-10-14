@@ -5,7 +5,7 @@ import { applyAppearance } from "../features/appearance/appearance";
 import { ChuckMark } from "../components/shell/ChuckMark";
 import { phoneFetch } from "./api";
 import { PhoneIcon } from "./PhoneIcon";
-import { classify, connect, useConnection, wasPaired } from "./connection";
+import { start, useConnection, wasPaired } from "./connection";
 import { HomeScreen } from "./HomeScreen";
 import { PairScreen, UnpairedScreen } from "./PairScreen";
 import { match, navigate, usePath } from "./router";
@@ -84,17 +84,12 @@ export function PhoneApp() {
     if (link === "unpaired") applyAppearance();
   }, [link]);
 
-  useEffect(() => {
-    void classify()
-      .then((result) => {
-        if (result !== "unpaired") connect();
-      })
-      .catch(() => setLink("unreachable"));
-  }, [setLink]);
+  // One connection owner for startup, pairing and recovery (TS-13.R27–R29).
+  useEffect(() => start(), []);
 
   const paired = () => {
     setLink("checking");
-    void classify().then((result) => result === "connected" && connect());
+    start();
   };
 
   if (link === "unpaired" || path === "/pair") {

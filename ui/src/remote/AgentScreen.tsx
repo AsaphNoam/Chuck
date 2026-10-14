@@ -438,6 +438,16 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     lastY.current = window.scrollY;
   }, [rows, tab, transcript.data, transcript.isPlaceholderData]);
 
+  // A refreshed window (new messages, a recovered connection) keeps the message
+  // the person was reading where it was on screen (FS-20.R52, TS-13.R29).
+  useLayoutEffect(() => {
+    const place = recallPlace(placePath);
+    if (!placeRestored.current || !listRef.current || !place || !("row" in place)) return;
+    const row = listRef.current.querySelector(`[data-place="${CSS.escape(place.row)}"]`);
+    const shift = row ? row.getBoundingClientRect().top - place.offset : 0;
+    if (shift) window.scrollTo(0, window.scrollY + shift);
+  }, [rows, placePath]);
+
   useEffect(() => {
     let frame = 0;
     const save = () => {

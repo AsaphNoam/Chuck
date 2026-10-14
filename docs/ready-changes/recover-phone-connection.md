@@ -1,6 +1,6 @@
 # Recover the phone connection without losing the person's place
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator report and design request, 2026-10-14: remote mobile sometimes looks disconnected
 after background/return and needs manual refresh. The operator subsequently asked for technical
 evaluation/selection, including foreground heartbeats, healthy-stream reuse and low-cost retries.
