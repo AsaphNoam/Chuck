@@ -1277,6 +1277,12 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   is the `transcript` query container, so the tray takes its docked form beside the card. Empty
   slots take no space. The card is `max(52rem, 80vw)`; the transcript and composer row use a
   `--ad-conversation-inset` of 7.5% per side, so their content stays 85% of the card's width.
+  The header uses wrapping flex layout with a flexible identity basis, allowing the context meter
+  or archive action to move below the identity when side panels narrow the card. The composer
+  toolbar likewise wraps its reference and action groups when necessary; these rules stay scoped
+  to the full workspace and preserve the dashboard pane and phone layouts.
+  At docked stage widths up to 1280px, the external file viewer uses 34cqi to leave room for the
+  narrowed card's runtime controls and readable transcript; wider stages retain the shared viewer width.
   Colors map onto semantic tokens (forest to `--ad-state-done`, coral to
   `--ad-action-primary`, blue tints to `--ad-action-secondary`, attention to
   `--ad-state-waiting`); no token, skin rule, motion or dependency is added. Verify with focused

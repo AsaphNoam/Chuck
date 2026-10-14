@@ -108,6 +108,12 @@
   margin: 0;
 }
 
+@container transcript (min-width: 860px) and (max-width: 1280px) {
+  .chat-side-start .file-viewer {
+    width: 34cqi;
+  }
+}
+
 .chat-card {
   background: var(--ad-surface-raised);
   border: var(--ad-border-thin) solid var(--ad-border-default);
@@ -129,6 +135,7 @@
 .chat-header {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--ad-space-6);
   justify-content: space-between;
   padding: var(--ad-space-6) var(--ad-space-8) calc(var(--ad-space-4) + var(--ad-space-1));
@@ -137,6 +144,7 @@
 .chat-header [data-slot="identity"] {
   align-items: center;
   display: flex;
+  flex: 1 1 20rem;
   gap: var(--ad-space-4);
   min-width: 0;
 }
@@ -1967,6 +1975,7 @@
 .chat-composer .composer-toolbar {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--ad-space-3);
   justify-content: space-between;
   padding: var(--ad-space-2) var(--ad-space-3) var(--ad-space-3);
@@ -1981,6 +1990,7 @@
   align-items: center;
   display: flex;
   gap: var(--ad-space-2);
+  margin-left: auto;
 }
 
 .chat-composer .composer-actions button {

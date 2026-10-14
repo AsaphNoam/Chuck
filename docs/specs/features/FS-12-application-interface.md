@@ -411,7 +411,9 @@ Requirements are user-observable.
   use about 85% of the card, including when side panels narrow it; this supersedes R54's
   680–840px measure on this page; operator requests 2026-10-10 and 2026-10-14). An open file viewer and the annotation tray sit outside the card,
   to its left and right, at the card's full height; the card and its conversation and composer
-  narrow to the space between them. The reading column has right-aligned tinted user bubbles, softly tinted
+  narrow to the space between them. The narrowed header reflows its identity, context meter and
+  archive action so the conversation and composer remain visible and usable with both panels open.
+  The reading column has right-aligned tinted user bubbles, softly tinted
   assistant bubbles, a ruled quiet activity column, dark technical blocks and a structured
   permission card whose primary Approve sits after Deny; and an inset, softly raised composer box
   whose toolbar carries `@` (file) and `#` (command) insert buttons at the left and the existing
@@ -801,7 +803,9 @@ Requirements are user-observable.
   Core, Sky & Grove and Studio: a completed turn with activity, a pending permission, a long agent
   name, a staged runtime change, a live turn and an archived session. Breadcrumb, header, runtime
   band, tabs, reading column, bubbles, permission card and composer match the study's hierarchy and
-  spacing without horizontal overflow; Discard restores the current runtime without a request;
+  spacing without horizontal overflow; with a long agent name and both side panels expanded,
+  the header, conversation, composer and archive action remain visible within the card;
+  Discard restores the current runtime without a request;
   `@`/`#` open the existing picker; Copy thread identity, file viewer, annotations, held
   follow-up, Steer/Cancel and Resume still work. The dashboard chat pane and phone are unchanged.
   *Verify:* focused component tests plus the working tree's real-browser comparison.

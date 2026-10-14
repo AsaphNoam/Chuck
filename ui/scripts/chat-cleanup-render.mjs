@@ -7,6 +7,7 @@
 // scripts/room-render.mjs).
 //
 //   node scripts/chat-cleanup-render.mjs [outDir]
+//   node scripts/chat-cleanup-render.mjs [outDir] --panels
 //
 // Writes one screenshot per check group, plus report.json, to outDir (default
 // os.tmpdir()/chat-cleanup-render-<ts>). Exits 1 if any check fails.
@@ -101,22 +102,29 @@ async function hydrate(context, agents) {
   }, [...agents.map((data) => ({ agent_id: data.agent_id, data })), { agent_id: "__hydrated__", data: { hydrated: true } }]);
 }
 
-function apiHandler(skin, { perRow = 2 } = {}) {
+function apiHandler(skin, { perRow = 2, sessionName, runtimeControls = false } = {}) {
   return (route) => {
     const req = route.request();
     const url = new URL(req.url());
     const path = url.pathname;
     if (path === "/api/config") return route.fulfill({ json: { appearance_skin: skin, onboarding_complete: true } });
-    if (path === "/api/backends") return route.fulfill({ json: { backends: {} } });
-    if (path === "/api/projects") return route.fulfill({ json: { demo: { title: "Demo", archived: false, color: [90, 130, 210] } } });
+    if (path === "/api/backends") return route.fulfill({ json: { backends: runtimeControls ? {
+      claude: { name: "Claude", type: "claude-acp", default_model: "m", models: {
+        m: { name: "Claude Haiku", model: "m", efforts: ["low", "medium", "high"], default_effort: "medium" },
+      } },
+    } : {} } });
+    if (path === "/api/projects") return route.fulfill({ json: { demo: { title: runtimeControls ? "Stress fixture" : "Demo", archived: false, color: [90, 130, 210] } } });
     if (path === "/api/layout") {
       if (req.method() === "PUT") return route.fulfill({ json: JSON.parse(req.postData() || "{}") });
       return route.fulfill({ json: { order: [], density: { perRow, gap: 16 }, expanded: ["a1"] } });
     }
     if (path === "/api/tasks") return route.fulfill({ json: { tasks: [] } });
     if (path === "/api/think-tanks") return route.fulfill({ json: { rooms: [], clipped: false } });
-    if (path === "/api/sessions/a1/transcript") return route.fulfill({ json: { agent_id: "a1", has_more: false, events: TRANSCRIPT } });
-    if (path === "/api/sessions/a2/transcript") return route.fulfill({ json: { agent_id: "a2", has_more: false, events: TRANSCRIPT } });
+    if (/^\/api\/sessions\/a[12]\/transcript$/.test(path)) {
+      const id = path.split("/")[3];
+      const events = sessionName ? [event(0, "session_meta", { name: sessionName, project: "demo", backend: "claude", model: "m", role: "implementer" }), ...TRANSCRIPT] : TRANSCRIPT;
+      return route.fulfill({ json: { agent_id: id, has_more: false, events } });
+    }
     if (path === "/api/sessions/a1/file") return route.fulfill({ json: fileContentFor("a1", url) });
     if (path === "/api/sessions/a2/file") return route.fulfill({ json: fileContentFor("a2", url) });
     if (path === "/api/sessions/a1/prompt") return route.fulfill({ status: 404, json: { error: { code: "not_found", message: "none" } } });
@@ -438,14 +446,70 @@ async function runPhone(browser) {
   await context.close();
 }
 
+// FS-12.A33: both external panels narrow the whole card, including its header.
+// Check actual clipping and control hit targets; DOM visibility alone would
+// pass even when the old tall header pushes everything below overflow:hidden.
+async function runSidePanels(browser, skin, width, archived) {
+  const label = `${skinLabel(skin)} panels ${archived ? "archive" : "active"}@${width}`;
+  const sessionName = "Review agent with a long descriptive name";
+  const id = archived ? "a2" : "a1";
+  const context = await browser.newContext({ viewport: { width, height: 900 } });
+  await hydrate(context, [makeAgent(id, { name: sessionName, effort: "medium", running: !archived, archived })]);
+  await context.route((u) => u.pathname.startsWith("/api/"), apiHandler(skin, { sessionName, runtimeControls: true }));
+  const page = await context.newPage();
+  try {
+    await page.goto(`${BASE}/${archived ? "archive" : "agent"}/${id}?file=docs%2Fnotes.md`);
+    await page.locator(".file-viewer").waitFor();
+    if (!archived) await page.locator(".chat-session-settings select").waitFor();
+    await page.locator(".assistant-message").first().click({ button: "right" });
+    await page.getByRole("button", { name: "Annotate whole event" }).click();
+    await page.locator(".annotation-tray").waitFor();
+    await page.evaluate(() => document.fonts.ready);
+    const metrics = await page.evaluate((readOnly) => {
+      const card = document.querySelector(".chat-card").getBoundingClientRect();
+      const visible = (selector) => {
+        const el = document.querySelector(selector);
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return r.width > 0 && r.height > 0 && r.x >= card.x && r.right <= card.right &&
+          r.y >= card.y && r.bottom <= card.bottom && !!hit && (el === hit || el.contains(hit));
+      };
+      const transcript = document.querySelector(".transcript-view").getBoundingClientRect();
+      return {
+        header: visible(".chat-header"),
+        transcript: transcript.height >= 100 && transcript.y >= card.y && transcript.bottom <= card.bottom,
+        ...(!readOnly ? { input: visible(".composer textarea") } : {}),
+        action: visible(readOnly ? ".resume-btn" : 'button[aria-label="Send"]'),
+        external: !document.querySelector(".file-viewer").closest(".chat-card") && !document.querySelector(".annotation-tray").closest(".chat-card"),
+      };
+    }, archived);
+    record(`${label}: long name is rendered`, await page.locator(".chat-header h1").innerText() === sessionName);
+    for (const [name, pass] of Object.entries(metrics)) record(`${label}: ${name} remains usable`, pass);
+    record(`${label}: no page overflow`, await noPageOverflow(page));
+    await page.screenshot({ path: join(OUT_DIR, `panels-${skinLabel(skin)}-${width}-${archived ? "archive" : "active"}.png`), fullPage: true });
+    await page.getByRole("button", { name: "Collapse pending annotations" }).click();
+    record(`${label}: tray collapses`, await page.locator('.annotation-tray[data-state="collapsed"]').count() === 1);
+    await page.getByRole("button", { name: "Expand pending annotations" }).click();
+    record(`${label}: tray expands`, await page.locator('.annotation-tray[data-state="expanded"]').count() === 1);
+  } finally {
+    await context.close();
+  }
+}
+
 // ---- Main -------------------------------------------------------------------
 
 async function main() {
-  const server = await createServer({ server: { port: PORT, strictPort: true }, logLevel: "error" });
+  const server = await createServer({ server: { host: "127.0.0.1", port: PORT, strictPort: true }, logLevel: "error" });
   await server.listen();
   const browser = await chromium.launch().catch(() => chromium.launch({ executablePath: "/opt/pw-browsers/chromium" }));
   try {
     for (const skin of SKINS) {
+      for (const width of [1024, 1280]) {
+        await runSidePanels(browser, skin, width, false);
+        await runSidePanels(browser, skin, width, true);
+      }
+      if (process.argv.includes("--panels")) continue;
       await runDesktopChat(browser, skin, 1024, 800);
       await runDesktopChat(browser, skin, 1440, 900);
       await runDashboard(browser, skin);

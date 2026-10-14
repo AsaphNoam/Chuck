@@ -98,7 +98,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+Fixing the agent-page side-panel finding below. The header and composer toolbar now wrap;
+the external viewer narrows to 34cqi at docked stage widths up to 1280px. The browser regression
+fails before the fix and passes after; all 277 chat browser checks and 12 rebuilt fake-ACP
+active/archive checks pass. `make dist` and the full UI suite (843/843 on retry) pass. The
+concurrent full UI run hit a phone-history timeout; the rerun without browser load passed.
+Both Go variants passed before the final file-width adjustment; `make test` against the final
+regenerated embed is running. Close this same unit and remove its finding after it passes.
 
 ## Acceptance gates still owed
 
