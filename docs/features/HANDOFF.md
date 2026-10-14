@@ -6,11 +6,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** `main` and tag `v0.15.0` pushed 2026-10-14 with user authorization, but release
-  CI run 38512698302 **failed**, so no `v0.15.0` GitHub Release exists. Latest published is
-  `v0.13.0`; `v0.14.0` stays local-only by user decision. Do not move the pushed tag; `v0.15.1`
-  follows, reusing [`RELEASE-v0.15.0-notes.md`](../archive/state/RELEASE-v0.15.0-notes.md)
-  (covers since `v0.13.0`).
+- **Release:** `v0.15.1` cut 2026-10-14 at the release commit and pushed with user
+  authorization; publication verification (workflow §16.6) follows. Pushed tag `v0.15.0` has no
+  GitHub Release: its release CI (run 38512698302) failed on the CLI journey test closed below;
+  leave that tag in place. `v0.14.0` stays local-only by user decision. `v0.15.1` notes cover
+  everything since the last published `v0.13.0`. Range `v0.15.0..v0.15.1` changes nothing
+  agent-facing.
 - **Closed — operator CLI journey hermeticity (2026-10-14):** `TestOperatorBuiltBinaryRealServerJourney`
   resolved the host's real Claude executable, failing CI and release CI on hosts without it. It now
   points `CLAUDE_CODE_EXECUTABLE`/`CODEX_PATH` at inert stand-ins like `internal/server/main_test.go`.
@@ -110,6 +111,6 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-See [`RELEASE-v0.15.0-notes.md`](../archive/state/RELEASE-v0.15.0-notes.md) (unpublished until
-pushed; supersedes the never-published v0.14.0 notes) and
+See [`RELEASE-v0.15.1-notes.md`](../archive/state/RELEASE-v0.15.1-notes.md) (supersedes the
+never-published v0.14.0 and v0.15.0 notes) and
 [`RELEASE-v0.13.0-notes.md`](../archive/state/RELEASE-v0.13.0-notes.md).
