@@ -6,6 +6,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Open investigation — model/provider continuity (2026-10-14):** diagnosed gaps are grouped under
+  **Review findings** below. Product code and specifications are unchanged; six failing reproduction
+  assertions are retained skipped. This record was originally local-only and was absent from the
+  shared fix queue and v0.16.0 release gate. Next: `/fix` this investigation unit.
+- **Recovered investigation — stopped-agent image refusal (2026-10-14):** the finding and skipped
+  reproduction existed only on `claude/awesome-gates-nxg67z`, outside the shared main fix queue and
+  v0.16.0 cut. Recovered locally under **Review findings**; publication still requires authorization.
 - **Release:** `v0.16.0` published 2026-10-14 (Latest): release CI run 38593397312 passed and
   the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from
   [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md). Manual provider gates
@@ -34,7 +41,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   (“reloaded transcript differs”, FTS5 variant) in the `v0.16.0` closure run; 40 isolated runs,
   30 `-race` runs and a full FTS5 package rerun pass. Range commit `9989fb88` touched ACP update
   routing; whether it relates is uninvestigated.
-- **Fix model:** trivial/easy — Claude Sonnet or Codex Luna (no open fixes).
 
 ## Active change
 
@@ -102,7 +108,196 @@ None.
 
 ## Review findings
 
-None.
+### Investigation — model/provider switching and conversation continuity (2026-10-14) — **Fix model:** difficult — Codex Sol.
+
+**Report (verbatim):** “Chuck supports switching models and provider mid agent chat, but I believe
+there are serious gaps in how well it actually does this and maintains all the relevant agent
+context, history, etc. figure out what the gaps are and in which cases they affect (continuing an
+agent that was stopped as well? Just switching providers or models as well?)”
+
+**Evidence scope:** No user logs, affected version, or provider/environment details were supplied.
+Investigated `main` at `d94320969dcccc57f9683a1f9b6acad3ffbade99`, following publication of v0.15.1,
+in an isolated Linux source checkout without provider credentials. Two independent read-only traces
+covered native providers and UI/configuration. Root verified primer and runtime paths, ran six
+failing assertions through temporary unskipped overlays, and inspected provider source. Exact npm
+lockfile versions/integrities were checked for Claude ACP 0.85.1, Claude SDK 0.3.286, Codex ACP 2.1.1;
+Codex source was read at `rust-v0.159.3` (`01fc69f4026735edfdf6789820549727a4867b11`). OpenCode source
+was current upstream `34d8ded0c58dd66808c1d60e081e8c66da12a896`, not a Chuck pin or proof of the
+operator's installed version. No live inference was attempted.
+
+- **Must fix** — **C1, confirmed code defect; fix complexity trivial/easy.** The primer discards
+  every accepted human prompt: `internal/server/primer.go:117` handles assistant/tool/diff/end events
+  but never `runtime.EvUserPrompt`. A short conversation such as “Use staging; never deploy” /
+  “Understood” transfers only “Understood.” Goals, constraints, corrections, and task inputs therefore
+  disappear on every cross-backend handoff, including different backend entries using the same CLI
+  type, and any future same-backend model switch assigned primer handoff. Ordinary successful native
+  resume does not use this builder. Violates FS-01.R13/R14 and INV §2/§11. Reproduced by
+  `primer_continuity_investigation_test.go` / `accepted user instructions`. Fix through the existing
+  canonical transcript projection, preserving human text with its role and turn boundary.
+- **Must fix** — **C2, confirmed code defect; fix complexity trivial/easy.** The same alternate
+  projection drops tool arguments/output and diff contents, retaining only title/status/path
+  (`primer.go:127–151`); it also trims and prefixes each streamed assistant delta independently
+  (`:118–123`). Even a tiny transcript within budget loses observed facts and edits, and
+  `staging-` / `only.json` becomes separate framed strings rather than `staging-only.json`. “Verbatim”
+  tail text is therefore inaccurate. Same primer-path scope as C1. FS-01.R14, TS-01.R22,
+  INV §2/§11. Reproduced by the tool-evidence and streamed-text subtests. Reuse typed text projection
+  and fold deltas before framing; preserve bounded relevant tool evidence rather than labels alone.
+- **Must fix** — **C3, confirmed code defect/coverage gap; fix complexity medium.** Production's
+  `defaultPrimerSummarizer` always errors (`primer.go:29–30`; installed at `server.go:339`), so older
+  context is an earliest-text prefix, not a semantic summary. The final prefix truncation (`:69–83`,
+  `:158–171`) spends the shared budget on older text before the advertised last six turns and can
+  drop the newest turn entirely. Reproduced with the default 8,000-token estimate and long turns;
+  the latest “migration failed; rollback next” is absent. History loss caused by a bounded handoff
+  is expected, but retaining stale history at the expense of current state and calling it a summary
+  needs an explicit corrected contract. FS-01.R14, INV §7/§16. Reserve recent context first; specify
+  deterministic older-context selection, honest truncation/summary labels, UTF-8-safe clipping and
+  the heuristic versus real-token bound. Stream input at the existing transcript reader seam rather
+  than retaining the whole unbounded file before truncating.
+- **Must fix** — **C4, confirmed code defect and observability gap; fix complexity medium.** Generic
+  `session/load` RPC rejection falls through to `session/new` (`internal/runtime/chat.go:1442–1474`),
+  with no transcript primer on ordinary Resume/wake. It returns a normal successful Resume while
+  replacing the native ID; only a server warning describes history loss. The old visible Chuck
+  transcript remains, and the new empty context reports the old token usage (`:1364`, `:1515–1518`).
+  A missing/unloadable native rollout can therefore affect stopped-agent Resume, prompt/mail wake,
+  server-restart continuation, automatic continuation that resumes, and same-backend model/interface/
+  effort switches. A same-backend switch can even report `history_handoff:native_resume` although
+  runtime fell back to a new session. Deadlines, transport closure and recognized Claude version
+  incompatibility already fail closed; successful load with no echoed ID is correctly retained.
+  FS-01.R10/R14/R33; INV §1/§8/§11. Reproduced with fake load rejection: fresh ID, successful return,
+  stale 0.73/146,000-of-200,000 reading, no fallback metadata. The failing expected-contract test is
+  `resume_continuity_investigation_test.go`; the fix may fail closed or expose an explicit recovered
+  history handoff, but must not claim full restoration after replacing context. Reset usage on a
+  fresh context and publish the actual handoff outcome. This generic fallback was deliberately
+  warning-logged in `a434ef0a1` (2026-08-18); it is not the old missing-ID bug returning.
+- **Must fix** — **C5, confirmed before the target's first prompt; later persistence undetermined;
+  fix complexity difficult.** A cross-backend primer exists only in `spec.RuntimeSystemPrompt`
+  (`switch.go:235–245`). Frozen snapshots intentionally exclude it, and later Resume/another native
+  model switch reconstructs only the clean base prompt (`resume.go:504`, `switch.go:450`,
+  `runtime/runtime.go:97–110`). If the target is stopped/restarted or switched again before sending
+  its first prompt, no provider conversation has yet recorded the bridge: pinned Codex explicitly
+  defers developer-context insertion until the first real turn (`core/src/session/mod.rs:1549–1555,
+  :4296–4322`); pinned Claude creates an empty SDK input stream and records system-prompt snapshots
+  only on the first request. The next native load succeeds but its first prompt lacks the
+  pre-switch context. Reproduced at the ACP wire boundary by
+  `switch_resume_continuity_investigation_test.go`, with no target prompt between switch and stop.
+  FS-01.R10/R13/R14, INV §1/§3/§11. Keep a durable, separately owned handoff bridge without polluting
+  or stacking primers in the frozen persona. Verify immediate stop/wake, model switch, restart,
+  post-target-turn resume, and compaction. Do not assert universal loss after a completed target
+  turn: Claude SDK snapshots may retain the primer (account rollout dependent, currently absent
+  on Bedrock/Vertex/Foundry), and Codex persists developer messages in turn history. A previous
+  investigative inference from Codex `base_instructions` precedence was rejected because Chuck
+  supplies `developer_instructions`; those are different fields.
+- **Worth fixing** — **C6, confirmed request-level defect; actual model reversion undetermined;
+  fix complexity medium.** An explicit model/backend switch from a native-inherited federation
+  launch keeps stale `launch_config.native_inherited=true` (`switch.go:471`; runtime metadata carries
+  it unchanged). The first switch sends the selected model, but later ordinary Resume or an
+  identity-preserving switch clears `ModelID` because of that old bit (`resume.go:322`,
+  `switch.go:231`). A fake-provider scenario captured `opus` on the switch load, no model on later
+  load, while identity still said `opus`. Native provider persistence can mask this; the absence
+  of a requested model alone is not proof of provider reversion. FS-01.R10/R30, FS-08.R17–R19,
+  TS-04.R47; INV §1/§11. Preserve source provenance while tracking the current explicit model
+  choice, and pin switch → stop → resume request delivery plus the effective-provider receipt.
+- **Worth fixing** — **C7, probable OpenCode model defect; OpenHands effective model/prompt
+  delivery undetermined; fix complexity difficult.** All four adapters claim
+  `CanSwitchModelOnResume=true` (`backend/adapter.go:195,253,311,358`), but OpenCode/OpenHands declare
+  no session config IDs, and `applySessionConfig` applies models only to Claude/Codex
+  (`runtime/chat.go:2952–2965`). OpenCode receives an out-of-schema top-level `model`; inspected
+  current upstream load ignores it and restores the persisted selection, while advertised model
+  options provide a real change route. OpenHands receives `LLM_MODEL` in its environment but loaded
+  session behavior is unverified. Both also receive a top-level `systemPrompt` whose consumption is
+  unverified, so their primer can be built successfully without reaching the model. This is already
+  a documented live gate in TS-04.R47/R54 and FS-09.A6, not a confirmed failure on an unspecified
+  installed version. INV §11/§12. Obtain versioned provider-side evidence, advertise verified model/
+  prompt capability, and correct delivery or refuse unsupported switches; do not infer effective
+  model from Chuck's selected identity or a permissive fake.
+- **Worth fixing** — **C8, probable concurrency consequence from confirmed stale-read ordering;
+  fix complexity medium.** `switch.go:52–100` reads identity/merges requested fields before taking
+  the exclusive lifecycle claim (`:130`). A second switch can finish in that gap; a later partial
+  request then overwrites its untouched fields from the old identity. Example: concurrent backend
+  change followed by `{interface:terminal}` derived from stale Claude state can revert the backend.
+  The counting archive lease is not exclusion. Applies to concurrent requests/tabs/API clients;
+  no barrier reproduction was run. FS-01.R13/R16, INV §5. Re-read and derive the target while owning
+  the claim; add a deterministic partial-update interleaving regression.
+- **Must fix** — **C9, confirmed API handoff bypass/coverage gap; fix complexity medium.** The
+  stopped-agent `/resume` handler accepts `backend`/`model` overrides (`resume.go:17–29,214–229`)
+  but always carries `snap.LastSessionID` to the target (`:524`), never invokes switch's compatible-ID
+  decision or primer builder, and reports no handoff kind. A backend override therefore tries the
+  old provider's native ID on the new provider, then normally hits C4's empty-session fallback.
+  The UI/CLI use empty-body Resume and cannot directly switch a stopped agent; ordinary UI usage
+  requires Resume then Switch. The accepted API override is nevertheless reachable and has no
+  equivalent history contract. FS-01.R10/R14 and INV §2/§11. Either reject unsupported resume
+  identity overrides explicitly or route them through the same handoff policy as runtime switch;
+  test stopped cross-backend and incompatible model overrides.
+
+**Case matrix / boundaries:** Every current adapter advertises model-on-resume support, so current
+same-backend model switches take native resume; the incompatible-model primer branch is presently
+future capability handling. Cross-backend is determined by configured backend ID, not just CLI
+type: two Claude entries also take primer handoff. Successful Claude/Codex native loading normally
+preserves native conversation and reapplies explicit model, effort and fast settings. Frozen cwd,
+persona/project prompt, added directories and Chuck permission policy are kept; current backend/
+model environment and provider executable are intentionally resolved for each new process (secret
+values are never snapshotted). The visible transcript remains append-only across these operations.
+Live effort/fast changes use session configuration without restart; header model/backend changes
+use the stop/load lifecycle. Permission mode deliberately resets on resume/switch (FS-03.R88),
+historical images are not automatically resent and multimodal context is not guaranteed
+(TS-04.R90), and native child activity is excluded from cross-backend primers by FS-03.R58.
+Native-load preservation does not keep an executing process/background command alive through Stop.
+
+**Verification:** Four primer assertions plus native-load fallback and switch-before-first-target-
+prompt assertions failed as predicted when temporarily enabled, then were retained skipped in
+three reproduction files. Additional observational fake-provider tests confirmed stale usage and
+native-inheritance request omission. Focused existing lifecycle/configuration tests passed for
+`internal/server` and `internal/runtime` both untagged and with `sqlite_fts5`; source runs unset
+`CHUCK_RUNTIME_ROOT`. Spec lint and diff checks passed. No product/spec changes or live
+provider receipt. **Next:** `/fix` this whole investigation unit; preserve the provider-dependent
+confidence limits and close behavior plus missing acceptance coverage together.
+
+**Queue correction (2026-10-14):** This investigation originally existed only in local commit
+`479c6188`; it was not pushed and was absent from the shared handoff, fix queue and v0.16.0 release
+range. The shared handoff at `c80dd5fd` correctly recorded no open findings visible to that checkout.
+Reconciled against that newer main without reverting its fixes or release record. Compared current
+provider continuity code against the investigation baseline: primer, switch, resume and adapter
+logic are unchanged; chat-runtime changes only optimize update routing, so the findings remain open.
+
+### Recovered investigation — stopped agent refuses an image (2026-10-14) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report (verbatim):** “Trying to send a message with an attached image when an agent is stopped
+gives an error that this provider doesn't support images.” No version, provider or logs supplied;
+the refusal is client-side, so nothing would be logged. Original investigation read current main
+at v0.15.1. Recovered from commit `1d4db58bd685e1c458d35bf1a8fe9ae1d0c4e53b` on remote branch
+`claude/awesome-gates-nxg67z`. Its finding and skipped reproduction were absent from main at
+`c80dd5fd`; this is an independent missing investigation, not another copy of the model/provider
+continuity unit. No product behavior is changed by this recovery.
+
+- **Must fix** — **Confirmed code defect and specification coverage gap; fix complexity medium.**
+  Stopped agents whose saved capability snapshot predates image negotiation project `image_input`
+  as false. `image_input` joined the snapshot in `395c1a8` (2026-10-13);
+  `state.DecodeRuntimeCapabilities` decodes an absent key as false, and both
+  `AttachmentCapabilitiesFor` projections (`internal/state/manager.go` and
+  `internal/server/launch.go`) publish that value. The desktop Composer and phone AgentScreen
+  reject attached images before Send can reach the otherwise-correct stopped-agent wake path.
+  Normal-use trigger: upgrade and attach an image to an agent not run since; manual Resume clears
+  the stale capability. FS-03.R83 and TS-04.R90 require wake-time revalidation. TS-01.R35/TS-03.R63
+  need a specified unknown-advertisement state rather than making old rows look like a genuine
+  provider refusal. INV §1/§11/§17. Suggested fix: preserve unknown versus a provider-advertised
+  false, let unknown capability reach server wake-time revalidation, and retain explicit refusal
+  for real false. Un-skip `internal/server/attachment_wake_repro_test.go`
+  `TestStoppedAgentWithPreImageSnapshotDoesNotRefuseImages`; add desktop/phone coverage for unknown
+  capability and genuine refusal. The recovered reproduction fails on the false projection while
+  its direct image wake succeeds with 202. Original author recorded it as reproduced; recovery
+  independently re-ran the unskipped test against current main through a temporary overlay and
+  observed the same projection failure with no wake-202 failure. The retained test stays skipped;
+  focused checks pass untagged and with `sqlite_fts5`, and spec/diff checks pass.
+
+**Cloud-work audit scope (2026-10-14):** Checked this cloud checkout's worktree, branches, reflog and
+unreachable commits; all five non-main remote branches; and all ten GitHub pull requests (all
+merged; none open or closed-unmerged). Besides the two investigation records above, no additional
+undelivered work was found in this scope. The August review/fix branches and July Learning Atlas
+branch have patch-equivalent changes on main. The July Skip setup branch's behavior is present as
+Set up later, with current spec and tests. Other chats' private/unpushed cloud workspaces and
+account-wide conversation history are not accessible to this session; those are not certified clear.
+Recovery is local-only until authorized publication. **Next:** publish the two recovered records to
+the shared queue, then fix them as separate units.
 
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
