@@ -28,16 +28,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
-- **Design ready — phone connection recovery (2026-10-14):**
-  [`recover-phone-connection.md`](../ready-changes/recover-phone-connection.md), Waiting to start.
-  FS-20.R51–R53/A22–A25 and TS-13.R27–R30 select existing 10-second pings, a foreground-only
-  25-second liveness deadline, healthy-stream reuse and one capped retry owner (5–60 seconds).
-  Recovery preserves route/tab/forms/reading position and unsent text/files, reuses snapshot and
-  bounded-history catch-up and never replays mutations. Hidden recovery pauses; healthy streams
-  may remain open. No product code; suspended/stalled EventSource remains a source-supported
-  hypothesis with real iPhone/Android receipts owed during implementation.
-  Changelog: ready phone heartbeat recovery (INV §1/§4/§5/§16); spec checks, twin-skill comparison
-  and whitespace check pass. Focused source/technical consistency check found no blocker.
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption.
@@ -88,7 +78,17 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+**Recover phone connection** — [`recover-phone-connection.md`](../ready-changes/recover-phone-connection.md),
+in progress (FS-20.R51–R53/A22–A25, TS-13.R27–R30).
+
+- Done: `ui/src/remote/connection.ts` is the one owner (`start`/`disconnect`, generation checks,
+  25 s opening/hydration/liveness deadline rearmed from the last ping, 5 s health abort,
+  5–60 s backoff, hidden pause, pagehide release, 401 stop); initial page stays `checking` until
+  hydration; snapshot rows coalesce into one bump. `ReplaceForm` is no longer keyed by run
+  revision; `AgentScreen` re-anchors the remembered top message after a refresh.
+  `connection.test.ts` (13, fake clock, mutation-checked) and phone suite pass.
+- Next: `phone-render.mjs --recovery-check` journey (anchor, text, route, request counts), specs
+  out of `(planned)`, closure matrix. Owed: real iPhone/Android background-return receipts (A22).
 
 ## Acceptance gates still owed
 
