@@ -161,6 +161,10 @@ orphaned processes.
   resumed agent's permission policy or accessible directories. The live identity row supplies
   backend/model/interface (kept current by switch-runtime), so a previously switched agent resumes
   under its current runtime, not a stale one.
+  Native-load rejection fails Resume/wake visibly without replacing the conversation with a fresh
+  session. A successful load without an echoed ID keeps the requested ID. Backend/model overrides
+  that differ from the current identity are rejected before starting; Resume then Switch is the
+  supported identity-change path. A genuinely fresh native context starts with unknown usage.
 - **R11** — **Resume from the CLI**: `chuck <role>@<project> --resume <id>` resumes that
   `agent_id` directly. The bare form (`chuck <role>@<project>`) resumes when exactly one inactive
   session matches that `role@project`; multiple matches list the candidates and require `--resume` or
@@ -195,15 +199,28 @@ orphaned processes.
 - **R14** — History is preserved one of two ways, reported in the response `history_handoff`:
   - **`native_resume`** — a **same-backend** switch (e.g. interface-only, or a model swap the backend
     supports on resume) keeps the CLI's own native session; only the changed argument differs.
-  - **`primer`** — a **cross-backend** switch (e.g. Claude ↔ Codex/OpenCode), or a model swap on a
+  - **`primer`** — a **cross-backend** switch (e.g. Claude ↔ Codex), or a model swap on a
     backend that cannot switch model on resume, starts a fresh native session and injects a bounded
     history primer synthesized from Chuck's transcript, appended to the launch composition for
-    that resume only (not persisted to the role). A `backend_switch` marker records the transition;
+    native conversation (not persisted to the role or frozen persona). The bounded bridge is stored
+    separately and reapplied on Stop/wake, restart, later native model/interface switches, and after
+    target turns or compaction. A new primer handoff replaces the bridge rather than stacking it.
+    A `backend_switch` marker records the transition;
     the logical session (same `agent_id`, same transcript) continues unbroken.
+    Primer text uses canonical transcript projection, preserves human roles and turn boundaries,
+    folds adjacent assistant deltas, and includes tool arguments/results and diff evidence. It
+    reserves space for the newest six turns first, clipping from the older end when necessary;
+    remaining space carries the most recent older excerpts. Deterministic excerpts and omissions
+    are labelled honestly, never called a semantic summary or verbatim when clipped. The default
+    8,000-token default and ceiling is a four-bytes-per-token heuristic, not a provider tokenizer guarantee.
+    Input streams through the transcript reader with bounded retained text and UTF-8-safe clipping.
 - **R15** — **Switch matrix.** The terminal interface is supported **only** on `claude-acp`; a switch
   (or launch, or resume) that would land the terminal interface on `codex-acp` or any additional
   backend is rejected with `422 terminal_unavailable` rather than producing a statusless agent.
-  Chat is supported on every backend. Cross-backend and cross-model switches within chat are allowed.
+  Chat is supported on every backend. A switch requiring primer delivery to OpenCode/OpenHands is
+  rejected before teardown until that delivery is verified; their same-backend model changes are
+  likewise refused. Identity-preserving native resume remains available. Switch merges partial
+  requests only while owning the exclusive lifecycle claim, using the then-current identity.
 - **R32** — The UI drives **Rename** (R8) and **Switch runtime** (R13) through core
   application dialogs rather than browser prompts (FS-12.R26). Rename opens a single-field form
   validated by R4. Switch runtime opens one form whose `interface`, `backend`, and `model` selects
@@ -369,14 +386,21 @@ transitions:
 - **A7** — Resume restores identity, model, system prompt, and add_dirs, observed from UI and process.
   *Verify:* `TestResumeAndSwitchCarryRoleAndProjectFields`, `TestResumeTerminalAgent`,
   `TestResumeFailureRemovesHookSettings`; journey **J7**.
+  Continuity regressions cover native-load failure without replacement, explicit model inheritance,
+  stopped identity override refusal, and durable bridge cold resume: `TestResumeNativeHistoryContinuityInvestigation`,
+  `TestExplicitSwitchModelSurvivesResume`, `TestResumeRejectsIdentityOverridesAndNativeLoadLoss`,
+  `TestSwitchPrimerSurvivesResumeBeforeTargetTurnInvestigation`.
 - **A8** — Same-backend switch uses native resume; cross-backend uses a primer and keeps one
   continuous session; codex/other-backend terminal is rejected. *Verify:*
   `TestSwitchRuntimeModelSwapSameBackend`, `TestSwitchRuntimeChatToTerminal`,
   `TestSwitchRuntimeBackendSwapUsesPrimer`, `TestSwitchClaudeToOpenCodePrimer`,
   `TestCodexTerminalRejected`, `TestNewBackendTerminalRejected`; journey **J7**.
+  Primer continuity and bounds: `TestHistoryPrimerConversationContinuityInvestigation`,
+  `TestHistoryPrimerRespectsBudget`, `TestHistoryPrimerUTF8AndStreaming`.
 - **A9** — Switch rejects a no-op and rolls back a failed resume without leaking registration.
   *Verify:* `TestSwitchRuntimeNoChange`, `TestSwitchRuntimeRollbackOnResumeFailure`,
   `TestSwitchRuntimeKeepsTargetRegistration`.
+  `TestSwitchClaimsBeforeReadingPartialTarget` proves claim-before-read ordering for partial requests.
 - **A10** — A crashing agent tears down registration and is reflected in the card. *Verify:*
   `TestCrashMidTurn`, `TestCrashTearsDownAgentRegistration`, `TestRegistryForgetsAgentAfterCrash`;
   journey **J11**.

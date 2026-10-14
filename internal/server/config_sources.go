@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -511,13 +512,14 @@ func (s *Server) readProjectOptional(projectID string) (config.Project, bool) {
 // the effective model/effort/provider are display-safe and fingerprints are only
 // path + hash + size.
 type launchConfigDoc struct {
-	Version         int                        `json:"version"`
-	Binding         launchConfigBinding        `json:"binding"`
-	RequestedModel  string                     `json:"requested_model"`
-	Resolved        launchConfigResolved       `json:"resolved"`
-	Generation      string                     `json:"generation"`
-	Fingerprints    []configsource.Fingerprint `json:"fingerprints"`
-	NativeInherited bool                       `json:"native_inherited"`
+	Version              int                        `json:"version"`
+	Binding              launchConfigBinding        `json:"binding"`
+	RequestedModel       string                     `json:"requested_model"`
+	Resolved             launchConfigResolved       `json:"resolved"`
+	Generation           string                     `json:"generation"`
+	Fingerprints         []configsource.Fingerprint `json:"fingerprints"`
+	NativeInherited      bool                       `json:"native_inherited"`
+	CurrentModelExplicit bool                       `json:"current_model_explicit,omitempty"`
 }
 
 type launchConfigBinding struct {
@@ -618,7 +620,23 @@ func frozenModelInherited(launchConfig json.RawMessage) bool {
 	if err := json.Unmarshal(launchConfig, &doc); err != nil {
 		return false
 	}
-	return doc.NativeInherited
+	return doc.NativeInherited && !doc.CurrentModelExplicit
+}
+
+// explicitModelConfig preserves source provenance while recording the current choice.
+func explicitModelConfig(raw json.RawMessage) (json.RawMessage, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, err
+	}
+	if doc == nil {
+		return nil, fmt.Errorf("invalid launch configuration")
+	}
+	doc["current_model_explicit"] = json.RawMessage(`true`)
+	return json.Marshal(doc)
 }
 
 // internalSourceError logs the underlying storage cause and returns a fixed,

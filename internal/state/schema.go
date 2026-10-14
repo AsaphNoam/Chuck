@@ -783,6 +783,11 @@ CREATE INDEX idx_attachment_recovery ON attachment_receipts(agent_id,updated_at)
 		version: 51,
 		apply:   migrateAttachmentReceipts,
 	},
+	{
+		version: 52,
+		sql: `ALTER TABLE sessions ADD COLUMN history_primer TEXT NOT NULL DEFAULT ''
+CHECK(length(CAST(history_primer AS BLOB)) <= 32000);`,
+	},
 }
 
 func migrateAttachmentReceipts(tx *sql.Tx) error {

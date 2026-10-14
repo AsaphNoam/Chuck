@@ -82,8 +82,8 @@ func (ix *Indexer) UpsertSessionMeta(agentID string, meta runtime.SessionMetaDat
 	}
 	defer tx.Rollback()
 	_, err = tx.Exec(`
-INSERT INTO sessions(agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware, env_keys, skip_permissions, add_dirs, launch_config_json, runtime_capabilities_json, forked_from_agent_id, forked_from_seq, last_session_id, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?)
+INSERT INTO sessions(agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware, env_keys, skip_permissions, add_dirs, launch_config_json, runtime_capabilities_json, forked_from_agent_id, forked_from_seq, last_session_id, created_at, updated_at, history_primer)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?)
 ON CONFLICT(agent_id) DO UPDATE SET
   name=excluded.name,
   role=excluded.role,
@@ -96,6 +96,7 @@ ON CONFLICT(agent_id) DO UPDATE SET
   grp=excluded.grp,
   cwd=excluded.cwd,
   system_prompt=excluded.system_prompt,
+  history_primer=excluded.history_primer,
   chuck_aware=excluded.chuck_aware,
   env_keys=excluded.env_keys,
   skip_permissions=excluded.skip_permissions,
@@ -105,9 +106,12 @@ ON CONFLICT(agent_id) DO UPDATE SET
   forked_from_agent_id=COALESCE(excluded.forked_from_agent_id, sessions.forked_from_agent_id),
   forked_from_seq=COALESCE(excluded.forked_from_seq, sessions.forked_from_seq),
   last_session_id=excluded.last_session_id,
+  last_context_pct=CASE WHEN ? THEN 0 ELSE sessions.last_context_pct END,
+  last_context_used=CASE WHEN ? THEN NULL ELSE sessions.last_context_used END,
+  last_context_size=CASE WHEN ? THEN NULL ELSE sessions.last_context_size END,
   updated_at=MAX(excluded.updated_at, sessions.updated_at)`,
 		agentID, meta.Name, meta.Role, meta.Project, meta.Backend, meta.Model, meta.Effort, meta.Fast, meta.Interface,
-		meta.Group, meta.Cwd, meta.SystemPrompt, chuckAware, string(envKeys), meta.SkipPermissions, string(addDirs), launchConfig, capabilities, meta.ForkedFromAgentID, meta.ForkedFromSeq, meta.SessionID, now, now)
+		meta.Group, meta.Cwd, meta.SystemPrompt, chuckAware, string(envKeys), meta.SkipPermissions, string(addDirs), launchConfig, capabilities, meta.ForkedFromAgentID, meta.ForkedFromSeq, meta.SessionID, now, now, meta.HistoryPrimer, meta.ResetContext, meta.ResetContext, meta.ResetContext)
 	if err != nil {
 		return fmt.Errorf("index: upsert session meta: %w", err)
 	}

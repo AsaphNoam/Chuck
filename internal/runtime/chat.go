@@ -1399,7 +1399,8 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	as.setSteering(decodeSteeringSupport(initRes))
 	as.setCapabilities(negotiateCapabilities(initRes, offered))
 
-	// Try session/load to restore native context; fall back to session/new.
+	// Restore native context when an identity exists. A failed load must not
+	// replace that conversation with a fresh session (FS-01.R10/R14).
 	// The load params must carry the current cwd + freshly-minted MCP servers
 	// (ACP loadSession takes the same registration shape as newSession), or an
 	// adapter where session/load succeeds would run without the in-process
@@ -1440,11 +1441,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 			as.shutdown()
 			return nil, fmt.Errorf("runtime: Claude session/load: %w", withProviderGuidance(claudeVersionTooOld(loadErr), spec))
 		default:
-			// A non-fatal load error (e.g. the adapter cannot find the prior
-			// rollout) degrades to a fresh session, but never silently: the
-			// resumed agent loses its native history, so record why.
-			slog.Warn("runtime: session/load failed; starting a new session",
-				"agent", as.agentID, "session", sessionID, "err", loadErr)
+			return nil, c.startupFailure(as, spec.BackendType, "session/load", loadErr)
 		}
 	}
 	// Load has returned, so any further session/update is new activity. The
@@ -1459,6 +1456,11 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 			"agent", as.agentID, "session", sessionID, "events", dropped)
 	}
 	if !loaded {
+		// An intentional fresh context (for example a cross-backend primer)
+		// cannot inherit the prior provider's context usage.
+		as.mu.Lock()
+		as.context = contextReading{}
+		as.mu.Unlock()
 		newRes, err := c.startupCall(ctx, as.transport, "session/new", sessionNewParams(spec))
 		if err != nil {
 			return nil, c.startupFailure(as, spec.BackendType, "session/new", err)
@@ -1487,6 +1489,8 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	}
 	spec.Agent.Fast = applied.Fast
 
+	// Record whether this restore actually created a fresh context, including in replayable metadata.
+	spec.LastSessionID = sessionID
 	// Re-open the existing transcript in append mode (Open skips seq:0 meta for existing files).
 	if err := c.openPersistence(as, spec, resolvedSessionID); err != nil {
 		as.shutdown()
@@ -1502,7 +1506,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	resumedMeta.RuntimeCapabilities = &resumedCaps
 	c.emit(as, EvSessionMeta, resumedMeta)
 
-	// Write fresh running row + status row with restored context_pct.
+	// Write fresh running and status rows with usage for the actual context.
 	now := time.Now().UTC()
 	if err := c.store.WriteRunning(state.RunningEntry{
 		AgentID: as.agentID, PID: pgid, SessionID: resolvedSessionID,
@@ -1512,9 +1516,10 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		as.shutdown()
 		return nil, fmt.Errorf("runtime: write running: %w", err)
 	}
+	reading := as.lastContext()
 	if err := c.writeStatus(as, state.Status{
 		AgentID: as.agentID, State: "idle", Detail: "resumed",
-		LastTrace: "SessionStart", ContextPct: spec.LastContextPct, ContextCounts: spec.LastContext,
+		LastTrace: "SessionStart", ContextPct: reading.pct, ContextCounts: reading.counts,
 	}); err != nil {
 		as.shutdown()
 		_ = c.store.DeleteRunning(as.agentID)
@@ -2268,6 +2273,8 @@ func runtimeMeta(spec LaunchSpec, sessionID string) SessionMetaData {
 		Group:           spec.Agent.Group,
 		Cwd:             spec.Cwd,
 		SystemPrompt:    spec.SystemPrompt,
+		HistoryPrimer:   spec.HistoryPrimer,
+		ResetContext:    spec.LastSessionID == "",
 		SystemPromptSHA: sha,
 		ChuckAware:      &aware,
 		EnvKeys:         envKeys(spec.Env),

@@ -77,6 +77,7 @@ func (s *Server) cloneAgent(ctx context.Context, sourceID string) (cloneResponse
 		Effort: source.Effort, Fast: source.Fast, Interface: source.Interface, Group: source.Group,
 	}, launchOptions{ChuckAware: &snap.ChuckAware, Fork: &runtime.ForkPlan{
 		SourceAgentID: sourceID, SourceSessionID: snap.LastSessionID, SourceSeq: boundary, Prefix: prefix,
+		HistoryPrimer: snap.HistoryPrimer,
 	}})
 	if ae != nil {
 		return cloneResponse{}, ae

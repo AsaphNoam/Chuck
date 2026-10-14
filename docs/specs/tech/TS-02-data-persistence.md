@@ -643,6 +643,15 @@ The latest released held attachment message is exposed for browser recovery unti
 recovered/dismissed; newer composer drafts are never overwritten. This adds no durable runnable
 queue. Recovery must not redeliver an ambiguously consumed provider request.
 
+**R48 — A history handoff bridge belongs to its native conversation.** A forward-only migration
+adds `sessions.history_primer` (default empty, at most 32,000 UTF-8 bytes), mirrored in optional
+`session_meta.history_primer` for reindex. Resume and native switches carry this bridge separately
+from frozen `system_prompt`; process-start composition appends it once. A new primer handoff
+replaces it, actual fresh session creation clears stale usage, and agent deletion releases it.
+Old snapshots decode as no bridge. Clone retains the source bridge with its native fork.
+`session_meta.reset_context` explicitly resets saved usage for fresh native contexts, including
+on transcript replay; a successful native load retains saved usage regardless of an echoed ID.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

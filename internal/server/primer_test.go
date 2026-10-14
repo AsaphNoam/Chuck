@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -47,8 +48,64 @@ func TestHistoryPrimerFallsBackWhenSummaryFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("synthesizeHistoryPrimer: %v", err)
 	}
-	if !strings.Contains(got, "Older context summary:") || !strings.Contains(got, "Last 6 transcript turns verbatim:") {
-		t.Fatalf("primer missing fallback summary or tail:\n%s", got)
+	if !strings.Contains(got, "Older context excerpts") || !strings.Contains(got, "Recent turns") || strings.Contains(got, "verbatim") || strings.Contains(got, "summary:") {
+		t.Fatalf("primer missing honest fallback excerpt or tail labels:\n%s", got)
+	}
+}
+
+func TestHistoryPrimerUTF8AndStreaming(t *testing.T) {
+	b := newPrimerBuilder(100)
+	for i := 0; i < 1000; i++ {
+		if err := b.visit(primerEvent(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: strings.Repeat("世界", 1000)})); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.visit(primerEvent(t, runtime.EvTurnEnd, runtime.TurnEndData{})); err != nil {
+			t.Fatal(err)
+		}
+		if len(b.tail) > 6 || len(b.current) > 400 || len(b.older) > 400 {
+			t.Fatal("unbounded retained transcript")
+		}
+		for _, turn := range b.tail {
+			if len(turn) > 400 || !utf8.ValidString(turn) {
+				t.Fatal("invalid bounded turn")
+			}
+		}
+	}
+	if err := b.visit(primerEvent(t, runtime.EvUserPrompt, runtime.UserPromptData{Text: "LATEST: keep staging"})); err != nil {
+		t.Fatal(err)
+	}
+	got := b.render(context.Background(), runtime.LaunchSpec{}, defaultPrimerSummarizer)
+	if !utf8.ValidString(got) || tokenEstimate(got) > 100 || !strings.Contains(got, "LATEST: keep staging") {
+		t.Fatalf("invalid newest bounded primer: %q", got)
+	}
+	for budget := 1; budget < 50; budget++ {
+		if got := truncateToBudget(strings.Repeat("界", 100), budget); !utf8.ValidString(got) || tokenEstimate(got) > budget {
+			t.Fatalf("invalid UTF-8 prefix for budget %d", budget)
+		}
+	}
+}
+
+func TestHistoryPrimerOmissionsAndRoles(t *testing.T) {
+	events := []runtime.Event{
+		primerEvent(t, runtime.EvUserPrompt, runtime.UserPromptData{Text: "Use staging"}),
+		{Type: runtime.EvToolResult, Data: []byte(`{"status":`)},
+		{Type: "future_event"},
+		primerEvent(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "Acknowledged"}),
+	}
+	child := primerEvent(t, runtime.EvUserPrompt, runtime.UserPromptData{Text: "PRIVATE_CHILD"})
+	child.ActivityID = "child"
+	events = append(events, child)
+	got, err := synthesizeHistoryPrimer(context.Background(), events, runtime.LaunchSpec{}, 8000, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"user prompt: Use staging", "assistant: Acknowledged", "malformed transcript event omitted", "unknown transcript event omitted"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %q", want, got)
+		}
+	}
+	if strings.Contains(got, "PRIVATE_CHILD") {
+		t.Fatal("child activity leaked into primer")
 	}
 }
 

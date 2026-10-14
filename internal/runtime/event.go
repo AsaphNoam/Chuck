@@ -251,6 +251,8 @@ type SessionMetaData struct {
 	Group           string   `json:"group,omitempty"`
 	Cwd             string   `json:"cwd"`
 	SystemPrompt    string   `json:"system_prompt,omitempty"`
+	HistoryPrimer   string   `json:"history_primer,omitempty"`
+	ResetContext    bool     `json:"reset_context,omitempty"`
 	SystemPromptSHA string   `json:"system_prompt_sha,omitempty"`
 	ChuckAware      *bool    `json:"chuck_aware"`
 	EnvKeys         []string `json:"env_keys,omitempty"`

@@ -324,7 +324,12 @@ provider-specific reader, or workflow engine.
 `internal/transcript.ProjectEvent` is the one Go seam that decodes a `runtime.Event` into typed,
 presentation-neutral text parts and an explicit disposition. The existing indexer derives its
 search bag from that projection, while the context renderer adds readable role/type framing and
-folds adjacent assistant deltas from the same projection; neither owns another event-type switch.
+folds adjacent assistant deltas from the same projection. The backend-switch primer also streams
+through the transcript reader and frames this projection, retaining at most six bounded recent
+turns, one bounded current turn, and a bounded rolling older excerpt; it prioritizes newest text
+before older context and preserves UTF-8 boundaries. Each retained text is at most four times the
+configured heuristic token budget in bytes (32,000 bytes at the default); the reader separately
+caps each physical record at 8 MiB. None owns another event decoding switch.
 `runtime.AllEventTypes` is the closed registry used by a table-driven projection test, so every
 current normalized `runtime.Ev*` is classified as rendered or deliberately metadata-only and an
 unknown type produces an explicit bounded marker rather than disappearing. The browser keeps its

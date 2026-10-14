@@ -237,6 +237,9 @@ still send an out-of-schema top-level `systemPrompt`, OpenCode's model depends o
 top-level `model`, and OpenHands' model already arrives through `LLM_MODEL` so its copy is redundant
 regardless. R54 records those members as unverified delivery paths and FS-09.A6 gates the claim until
 each CLI is installed and checked at the effective provider.
+Until verified, OpenCode/OpenHands advertise neither model replacement on native load nor history
+primer delivery. Switches requiring those capabilities fail before the old runtime is stopped;
+ordinary native restoration of the same identity remains supported (FS-01.R14–R15).
 
 Because effort now applies to a live session as well as at startup, the same helper serves the
 running-agent change in FS-03.R47 with no second spelling of the call (INV §2).

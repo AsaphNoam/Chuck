@@ -23,6 +23,9 @@ type LaunchSpec struct {
 	Cwd          string   // resolved absolute working dir (project.cwd, ~-expanded)
 	AddDirs      []string // project.add_dirs, ~-expanded
 	SystemPrompt string   // composed: context_prompt + role.system_prompt — the FROZEN, persisted snapshot
+	// HistoryPrimer is the durable bounded bridge owned by this native conversation.
+	// It survives resume independently of the frozen persona and is replaced on a new handoff.
+	HistoryPrimer string
 	// ChuckAware is the frozen shared-awareness choice. Nil is legacy/default on.
 	ChuckAware *bool
 	// RuntimeAddDirs are product-managed directories exposed to this process only.
@@ -32,13 +35,12 @@ type LaunchSpec struct {
 	// RuntimeSystemPrompt, when non-empty, is the system prompt fed to the backend
 	// process for THIS launch only (session/new + session/load). It is deliberately
 	// NOT persisted: runtimeMeta/UpsertSessionMeta always snapshot SystemPrompt, so
-	// the frozen sessions.system_prompt stays pre-primer. The switch backend-swap
-	// primer path sets this so the one-time history primer reaches the new backend
-	// without baking into (or stacking onto) the durable snapshot.
+	// the frozen sessions.system_prompt stays pristine. Durable conversation
+	// bridges use HistoryPrimer instead of this process-only override.
 	RuntimeSystemPrompt string
 	// RuntimeSystemPromptSuffix is appended only to the process-start prompt. It
-	// composes with RuntimeSystemPrompt so a switch primer and managed guidance do
-	// not overwrite each other, while neither enters the frozen snapshot.
+	// composes with the effective prompt and HistoryPrimer so managed guidance
+	// does not overwrite conversation context or enter the frozen snapshot.
 	RuntimeSystemPromptSuffix string
 	BackendType               string // "claude-acp" | "codex-acp"
 	ModelID                   string // provider model id, e.g. "claude-sonnet-4-6"
@@ -92,11 +94,12 @@ type ForkPlan struct {
 	SourceSessionID string
 	SourceSeq       int64
 	Prefix          []Event
+	HistoryPrimer   string
 }
 
 // StartSystemPrompt is the system prompt handed to the backend process for this
-// launch: the one-shot RuntimeSystemPrompt when set (e.g. the backend-swap
-// primer), otherwise the frozen SystemPrompt. Only the process-start params
+// launch: RuntimeSystemPrompt when set, otherwise the frozen SystemPrompt,
+// followed by the separately owned bridge and runtime guidance. Process-start params
 // (session/new, session/load) call this; persistence always snapshots the
 // pristine SystemPrompt so the frozen sessions.system_prompt never absorbs the
 // primer.
@@ -104,6 +107,12 @@ func (s LaunchSpec) StartSystemPrompt() string {
 	prompt := s.SystemPrompt
 	if s.RuntimeSystemPrompt != "" {
 		prompt = s.RuntimeSystemPrompt
+	}
+	if s.HistoryPrimer != "" {
+		if prompt != "" {
+			prompt += "\n\n"
+		}
+		prompt += s.HistoryPrimer
 	}
 	if s.RuntimeSystemPromptSuffix == "" {
 		return prompt

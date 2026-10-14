@@ -44,9 +44,20 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+Model/provider continuity fixes (C1–C9) are implemented and focused fake-provider, primer,
+persistence/reindex, cold-resume, clone and rollback regressions pass. C1–C5 skipped reproductions
+were enabled and their pre-fix failures confirmed (C5 via temporary switch/resume overlay).
+Next: focused lifecycle race checks and shared `make test` / `make build` closure with
+`CHUCK_RUNTIME_ROOT` unset and writable `GOCACHE=/private/tmp/chuck-go-build`; loopback integration
+tests need sandbox escalation. No UI change. Stopped-agent image refusal remains a separate unit.
 
 ## Acceptance gates still owed
+
+- **FS-01.A7/A8 / TS-02.R48:** live Claude/Codex cross-backend handoff → immediate Stop/wake,
+  explicit model → Stop/Resume, restart, completed target turn and native compaction. Regression
+  wire capture and fake compaction notice prove Chuck's bridge delivery/lifetime, not effective
+  live-provider context adoption. OpenCode/OpenHands handoffs now refuse before teardown pending
+  verified model/primer delivery; their existing FS-09.A6 gate remains owed.
 
 - **FS-20.A22–A24 / TS-13.R30:** paired iPhone Home Screen app and Android browser
   background-return journey (stalled stream, outage, revoked pairing). Simulated/browser proof

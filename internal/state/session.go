@@ -10,20 +10,21 @@ import (
 // SessionSnapshot holds the frozen launch config stored in the sessions table.
 // Resume rebuilds a LaunchSpec from this snapshot (not from current role/project files).
 type SessionSnapshot struct {
-	AgentID      string
-	Name         string
-	Role         string
-	Project      string
-	Backend      string
-	Model        string
-	Effort       string
-	Fast         bool
-	Interface    string
-	Group        string
-	Cwd          string
-	SystemPrompt string
-	ChuckAware   bool
-	EnvKeys      []string // key names only; values re-resolved at resume time
+	AgentID       string
+	Name          string
+	Role          string
+	Project       string
+	Backend       string
+	Model         string
+	Effort        string
+	Fast          bool
+	Interface     string
+	Group         string
+	Cwd           string
+	SystemPrompt  string
+	HistoryPrimer string // bounded bridge for the current native conversation, separate from persona
+	ChuckAware    bool
+	EnvKeys       []string // key names only; values re-resolved at resume time
 	// Frozen composed-config: resolved once at launch and read back verbatim on
 	// resume/switch (techspec §12.4). NOT re-derived from current role/project.
 	SkipPermissions bool
@@ -65,13 +66,13 @@ func (s *Store) ReadSession(agentID string) (SessionSnapshot, error) {
 	err := s.db.QueryRow(`
 SELECT agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware,
        env_keys, skip_permissions, add_dirs, launch_config_json, last_session_id, last_seq, last_context_pct,
-       last_context_used, last_context_size, created_at, runtime_capabilities_json
+       last_context_used, last_context_size, created_at, runtime_capabilities_json, history_primer
 FROM sessions WHERE agent_id = ?`, agentID).Scan(
 		&snap.AgentID, &snap.Name, &snap.Role, &snap.Project,
 		&snap.Backend, &snap.Model, &snap.Effort, &snap.Fast, &snap.Interface, &snap.Group,
 		&snap.Cwd, &snap.SystemPrompt, &snap.ChuckAware, &envKeysJSON, &snap.SkipPermissions, &addDirsJSON, &launchConfigJSON,
 		&snap.LastSessionID, &snap.LastSeq, &snap.LastContextPct, &lastUsed, &lastSize, &snap.CreatedAt,
-		&capabilitiesJSON,
+		&capabilitiesJSON, &snap.HistoryPrimer,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SessionSnapshot{}, ErrNotFound
@@ -97,7 +98,7 @@ func (s *Store) ListInactiveSessions(role, project string) ([]SessionSnapshot, e
 	q := `
 SELECT s.agent_id, s.name, s.role, s.project, s.backend, s.model, s.effort, s.fast, s.interface, s.grp,
        s.cwd, s.system_prompt, s.chuck_aware, s.env_keys, s.skip_permissions, s.add_dirs, s.launch_config_json,
-       s.last_session_id, s.last_seq, s.last_context_pct, s.last_context_used, s.last_context_size, s.created_at
+       s.last_session_id, s.last_seq, s.last_context_pct, s.last_context_used, s.last_context_size, s.created_at, s.history_primer
 FROM sessions s
 LEFT JOIN running r ON r.agent_id = s.agent_id
 WHERE r.agent_id IS NULL`
@@ -126,7 +127,7 @@ WHERE r.agent_id IS NULL`
 			&snap.AgentID, &snap.Name, &snap.Role, &snap.Project,
 			&snap.Backend, &snap.Model, &snap.Effort, &snap.Fast, &snap.Interface, &snap.Group,
 			&snap.Cwd, &snap.SystemPrompt, &snap.ChuckAware, &envKeysJSON, &snap.SkipPermissions, &addDirsJSON, &launchConfigJSON,
-			&snap.LastSessionID, &snap.LastSeq, &snap.LastContextPct, &lastUsed, &lastSize, &snap.CreatedAt,
+			&snap.LastSessionID, &snap.LastSeq, &snap.LastContextPct, &lastUsed, &lastSize, &snap.CreatedAt, &snap.HistoryPrimer,
 		); err != nil {
 			return nil, fmt.Errorf("state: scan inactive session: %w", err)
 		}

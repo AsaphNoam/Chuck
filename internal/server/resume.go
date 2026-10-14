@@ -206,6 +206,10 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 	if err != nil {
 		return apiError(runtime.CodeInternal, err.Error())
 	}
+	if (override.Backend != "" && override.Backend != agent.Backend) ||
+		(override.Model != "" && override.Model != agent.Model) {
+		return apiError(runtime.CodeValidation, "resume keeps the current backend and model; Resume then Switch runtime to change them")
+	}
 	// 4. Resolve the identity to resume. backend/model/interface come from the LIVE
 	// identity row (which switch-runtime keeps current), NOT the frozen snapshot:
 	// after a chat→terminal switch the snapshot's interface stays "chat" (no
@@ -509,6 +513,7 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 		Cwd:                snap.Cwd,
 		AddDirs:            snap.AddDirs,
 		SystemPrompt:       snap.SystemPrompt,
+		HistoryPrimer:      snap.HistoryPrimer,
 		ChuckAware:         &snap.ChuckAware,
 		BackendType:        be.Type,
 		ModelID:            model.Model,

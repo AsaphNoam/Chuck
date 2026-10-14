@@ -2,18 +2,17 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
-// FS-01.A7/A8: a generic native-load rejection currently produces an apparently successful
-// fresh session and retains the old usage reading. The observed behavior was
-// reproduced separately before recording this skipped regression (HANDOFF C4).
+// FS-01.A7/A8: native-load rejection must fail without replacing native history.
 func TestResumeNativeHistoryContinuityInvestigation(t *testing.T) {
-	t.Skip("continuity investigation C4: native-load rejection silently replaces the provider session")
 	c, spec := newChatTest(t, "stream_text")
 	ctx := context.Background()
 	newDump := filepath.Join(t.TempDir(), "new_params.json")
@@ -24,22 +23,40 @@ func TestResumeNativeHistoryContinuityInvestigation(t *testing.T) {
 	spec.LastContextPct = .73
 	spec.LastContext = &state.ContextCounts{ContextUsed: 146000, ContextSize: 200000}
 	h, err := c.Resume(ctx, spec, "prior-session-id")
-	if err != nil {
-		// Failing closed retains the saved native identity for an explicit retry.
-		return
+	if err == nil || h != nil || !strings.Contains(err.Error(), "session/load") {
+		t.Fatalf("Resume = %+v, %v; want native load failure", h, err)
 	}
-	t.Cleanup(func() { _ = c.Stop(ctx, h.AgentID) })
-	if _, err := os.Stat(newDump); err != nil {
-		t.Fatalf("fixture did not exercise session/new fallback: %v", err)
+	if _, err := os.Stat(newDump); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("session/new replaced rejected native history: %v", err)
 	}
-	if h.SessionID != "prior-session-id" {
-		t.Errorf("Resume reported success with replacement session %q and no history recovery result", h.SessionID)
+	if _, err := c.lookup(spec.Agent.AgentID); !errors.Is(err, ErrNoHandle) {
+		t.Fatalf("failed restore registered a runtime: %v", err)
 	}
-	status, err := c.store.ReadStatus(h.AgentID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if h.SessionID != "prior-session-id" && (status.ContextPct != 0 || status.ContextCounts != nil) {
-		t.Errorf("fresh session reports the old provider's usage: pct=%v counts=%+v", status.ContextPct, status.ContextCounts)
+}
+
+func TestResumeContextUsageMatchesRestoredOrFreshSession(t *testing.T) {
+	for _, sessionID := range []string{"prior-session-id", ""} {
+		t.Run(sessionID, func(t *testing.T) {
+			c, spec := newChatTest(t, "stream_text")
+			spec.Env = append(spec.Env, "FAKEACP_LOAD_EMPTY=1")
+			spec.LastContextPct = .73
+			spec.LastContext = &state.ContextCounts{ContextUsed: 146000, ContextSize: 200000}
+			h, err := c.Resume(context.Background(), spec, sessionID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = c.Stop(context.Background(), h.AgentID) })
+			status, err := c.store.ReadStatus(h.AgentID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if sessionID == "" {
+				if status.ContextPct != 0 || status.ContextCounts != nil {
+					t.Fatalf("fresh context retained usage: %+v", status)
+				}
+			} else if status.ContextPct != .73 || status.ContextCounts == nil || *status.ContextCounts != *spec.LastContext {
+				t.Fatalf("restored context lost usage: %+v", status)
+			}
+		})
 	}
 }

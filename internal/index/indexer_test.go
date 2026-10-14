@@ -620,6 +620,88 @@ func TestLaunchConfigRoundTrips(t *testing.T) {
 	}
 }
 
+// TS-02.R48/FS-01.A7: the bridge is independently durable and replayable.
+func TestHistoryPrimerRoundTripAndReindex(t *testing.T) {
+	st, home := openTestDB(t)
+	ix := New(st.DB())
+	m := meta()
+	m.SystemPrompt = "clean persona"
+	m.HistoryPrimer = "user: preserve staging constraints"
+	m.SessionID = "native-target"
+	w, err := transcript.Open(home, "a_bridge", &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ix.UpsertSessionMeta("a_bridge", m); err != nil {
+		t.Fatal(err)
+	}
+	for _, reindex := range []bool{false, true} {
+		if reindex {
+			if _, err := st.DB().Exec(`UPDATE sessions SET history_primer = '' WHERE agent_id = 'a_bridge'`); err != nil {
+				t.Fatal(err)
+			}
+			if err := Reindex(home, st.DB()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		snap, err := st.ReadSession("a_bridge")
+		if err != nil || snap.HistoryPrimer != m.HistoryPrimer || snap.SystemPrompt != "clean persona" || snap.LastSessionID != "native-target" {
+			t.Fatalf("reindex=%v: %+v, %v", reindex, snap, err)
+		}
+	}
+	m.HistoryPrimer = strings.Repeat("x", 32001)
+	if err := ix.UpsertSessionMeta("a_bridge", m); err == nil {
+		t.Fatal("unbounded bridge admitted")
+	}
+}
+
+// TS-02.R48: replay must not restore usage from a source turn after a fresh handoff.
+func TestFreshContextMetadataResetsUsageThroughReindex(t *testing.T) {
+	st, home := openTestDB(t)
+	ix := New(st.DB())
+	m := meta()
+	w, err := transcript.Open(home, "a_reset", &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldUsage, _ := json.Marshal(runtime.TurnEndData{ContextPct: .73, ContextCounts: &state.ContextCounts{ContextUsed: 146000, ContextSize: 200000}})
+	if err := w.Append(runtime.Event{Type: runtime.EvTurnEnd, Data: oldUsage, Ts: "2026-10-14T10:00:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	m.ResetContext = true
+	m.SessionID = "new-context"
+	reset, _ := json.Marshal(m)
+	if err := w.Append(runtime.Event{Type: runtime.EvSessionMeta, Data: reset, Ts: "2026-10-14T10:01:00Z"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ix.UpsertSessionMeta("a_reset", meta()); err != nil {
+		t.Fatal(err)
+	}
+	if err := ix.OnTurnEnd("a_reset", runtime.TurnRollup{LastContextPct: .73, LastContext: &state.ContextCounts{ContextUsed: 146000, ContextSize: 200000}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ix.UpsertSessionMeta("a_reset", m); err != nil {
+		t.Fatal(err)
+	}
+	for _, replay := range []bool{false, true} {
+		if replay {
+			if err := Reindex(home, st.DB()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		snap, err := st.ReadSession("a_reset")
+		if err != nil || snap.LastContextPct != 0 || snap.LastContext != nil || snap.LastSessionID != "new-context" {
+			t.Fatalf("replay=%v restored source usage: %+v %v", replay, snap, err)
+		}
+	}
+}
+
 // FS-18.A16: replay/reindex preserves legacy on and explicit opt-out metadata.
 func TestAwarenessDefaultsAndFalseRoundTripThroughReindex(t *testing.T) {
 	st, home := openTestDB(t)

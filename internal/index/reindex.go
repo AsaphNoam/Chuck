@@ -74,6 +74,15 @@ func reindexAgent(ix *Indexer, root, agentID string) error {
 			updatedAt = ev.Ts
 		}
 		pendingFlush = true
+		if ev.Type == runtime.EvSessionMeta {
+			var meta runtime.SessionMetaData
+			if err := json.Unmarshal(ev.Data, &meta); err != nil {
+				return fmt.Errorf("index: session metadata %s: %w", agentID, err)
+			}
+			if meta.ResetContext {
+				lastContext, lastCounts = 0, nil
+			}
+		}
 		if ev.Type == runtime.EvAnnotation {
 			if err := ix.OnEventAndFlushContent(agentID, ev, ev.Seq, ev.Ts); err != nil {
 				return fmt.Errorf("index: annotation flush %s seq %d: %w", agentID, ev.Seq, err)

@@ -40,6 +40,11 @@ type BackendAdapter interface {
 	// primer decision for same-backend model swaps.
 	CanSwitchModelOnResume() bool
 
+	// SupportsHistoryPrimer reports whether Chuck has verified delivery of the
+	// runtime system prompt used to carry conversation history into a fresh chat
+	// session. False means an unverified integration, not a provider failure.
+	SupportsHistoryPrimer() bool
+
 	// HookMap maps a Chuck lifecycle event (SessionStart, UserPromptSubmit,
 	// PreToolUse, PostToolUse, Stop) to the CLI's own hook key for registration
 	// (techspec §2.3, §6.3). Events the backend cannot emit are absent from the
@@ -193,6 +198,7 @@ func (claudeACP) ResolveResumeID(prevSessionID string, sameBackend bool) string 
 }
 
 func (claudeACP) CanSwitchModelOnResume() bool { return true }
+func (claudeACP) SupportsHistoryPrimer() bool  { return true }
 
 // Claude is the only backend with a verified interactive-CLI hook-registration
 // path, so it alone implements the terminal interface (FS-09.R13).
@@ -251,6 +257,7 @@ func (codexACP) ResolveResumeID(prevSessionID string, sameBackend bool) string {
 }
 
 func (codexACP) CanSwitchModelOnResume() bool          { return true }
+func (codexACP) SupportsHistoryPrimer() bool           { return true }
 func (codexACP) Implements(agentInterface string) bool { return agentInterface == "chat" }
 
 func (codexACP) HookMap() map[string]string {
@@ -308,7 +315,11 @@ func (opencodeACP) ResolveResumeID(prevSessionID string, sameBackend bool) strin
 	return prevSessionID
 }
 
-func (opencodeACP) CanSwitchModelOnResume() bool          { return true }
+// Chuck has not verified model replacement on load or runtime system-prompt
+// consumption for this provider. Keep native identity-preserving resume, but
+// do not advertise either continuity mechanism for a switch that needs it.
+func (opencodeACP) CanSwitchModelOnResume() bool          { return false }
+func (opencodeACP) SupportsHistoryPrimer() bool           { return false }
 func (opencodeACP) Implements(agentInterface string) bool { return agentInterface == "chat" }
 
 // OpenCode has no Chuck hook surface; chat status derives from the ACP
@@ -355,7 +366,10 @@ func (openhandsACP) ResolveResumeID(prevSessionID string, sameBackend bool) stri
 	return prevSessionID
 }
 
-func (openhandsACP) CanSwitchModelOnResume() bool          { return true }
+// LLM_MODEL reaches the spawned process; that alone does not prove it replaces
+// a loaded session's model. Runtime system-prompt consumption is also unverified.
+func (openhandsACP) CanSwitchModelOnResume() bool          { return false }
+func (openhandsACP) SupportsHistoryPrimer() bool           { return false }
 func (openhandsACP) Implements(agentInterface string) bool { return agentInterface == "chat" }
 
 func (openhandsACP) HookMap() map[string]string                 { return nil }

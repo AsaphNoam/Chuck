@@ -52,6 +52,27 @@ func readEvents(t *testing.T, srv *Server, id string) []runtime.Event {
 	return evs
 }
 
+// FS-01.A20/TS-02.R48: a native fork keeps the bridge owned by its source context.
+func TestCloneRetainsHistoryPrimer(t *testing.T) {
+	srv, ts, src := cloneServer(t, map[string]string{"FAKEACP_CAPS": "1"})
+	bridge := "Chuck backend-switch history primer.\nuser: retain staging constraints"
+	if _, err := srv.stateStore.DB().Exec(`UPDATE sessions SET history_primer = ? WHERE agent_id = ?`, bridge, src); err != nil {
+		t.Fatal(err)
+	}
+	resp, body := post(t, ts.URL+"/api/sessions/"+src+"/clone", map[string]string{})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("clone = %d %s", resp.StatusCode, body)
+	}
+	var out cloneResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := srv.stateStore.ReadSession(out.Agent.AgentID)
+	if err != nil || snap.HistoryPrimer != bridge || strings.Contains(snap.SystemPrompt, "history primer") {
+		t.Fatalf("fork lost or polluted bridge: %+v %v", snap, err)
+	}
+}
+
 // FS-18.A16: clone copies the source's frozen opt-out even after its persona
 // has been changed to enable awareness for future launches.
 func TestClonePreservesFrozenAwarenessAfterPersonaEdit(t *testing.T) {

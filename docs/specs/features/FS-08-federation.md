@@ -106,6 +106,9 @@ FS-04 and FS-09. OpenCode and OpenHands do not participate in federation.
 - **R19** — Resume and runtime switch use that frozen federation object by default. A resume request
   with `config_refresh:true` explicitly resolves the current source and freezes the new result.
   Source changes never hot-mutate an already running agent.
+  An explicit backend/model switch records `current_model_explicit:true` separately from the
+  original `native_inherited` provenance. Subsequent Resume and identity-preserving switches send
+  that explicit model; only explicit configuration refresh replaces this current-choice flag.
 - **R20** — Chuck passes the real project working directory and native user home through to the
   CLI, allowing provider-native project instructions and setup to remain discoverable without
   Chuck copying them. The isolated Codex child is the exception in R32: it receives a

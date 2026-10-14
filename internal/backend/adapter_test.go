@@ -90,15 +90,15 @@ func TestNewBackendAdapters(t *testing.T) {
 		if got := ad.ResolveResumeID("sess-1", false); got != "" {
 			t.Fatalf("%s cross-backend resolve = %q, want empty", tc.typ, got)
 		}
-		if !ad.CanSwitchModelOnResume() {
-			t.Fatalf("%s CanSwitchModelOnResume() = false, want true", tc.typ)
+		if ad.CanSwitchModelOnResume() {
+			t.Fatalf("%s claims unverified model replacement on resume", tc.typ)
 		}
 	}
 }
 
-// TestOpenHandsExtraEnvCarriesModel proves OpenHands selects its model via the
-// LLM_MODEL env var (not the ACP session param) and — with LLM_MODEL in
-// StripEnvKeys — never inherits the shell's model.
+// TestOpenHandsExtraEnvCarriesModel proves Chuck sends the requested model via
+// LLM_MODEL and strips an ambient value. It does not prove provider consumption
+// or replacement of the model persisted in a loaded session.
 func TestOpenHandsExtraEnvCarriesModel(t *testing.T) {
 	ad, _ := For("openhands-acp")
 	ep, ok := ad.(ExtraEnvProvider)
@@ -167,6 +167,33 @@ func TestResolveResumeID(t *testing.T) {
 		}
 		if !ad.CanSwitchModelOnResume() {
 			t.Fatalf("%s CanSwitchModelOnResume = false, want true", typ)
+		}
+	}
+}
+
+// Capability expectations deliberately stand apart from the implementations:
+// only Claude/Codex have verified Chuck model-on-resume and primer delivery.
+// Unverified providers retain native resume without claiming a new model or
+// fresh-session history delivery.
+func TestContinuityCapabilityMatrix(t *testing.T) {
+	want := map[string]bool{
+		"claude-acp": true, "codex-acp": true,
+		"opencode-acp": false, "openhands-acp": false,
+	}
+	for _, typ := range Types() {
+		verified, ok := want[typ]
+		if !ok {
+			t.Fatalf("%s lacks an explicit continuity capability expectation", typ)
+		}
+		ad, _ := For(typ)
+		if got := ad.CanSwitchModelOnResume(); got != verified {
+			t.Errorf("%s model-on-resume = %v, want %v", typ, got, verified)
+		}
+		if got := ad.SupportsHistoryPrimer(); got != verified {
+			t.Errorf("%s history primer = %v, want %v", typ, got, verified)
+		}
+		if got := ad.ResolveResumeID("native-session", true); got != "native-session" {
+			t.Errorf("%s identity-preserving resume = %q, want native-session", typ, got)
 		}
 	}
 }

@@ -240,34 +240,25 @@ func TestSwitchRuntimeBackendSwapUsesPrimer(t *testing.T) {
 	}
 }
 
-// TestSwitchClaudeToOpenCodePrimer proves the switch matrix widens to the Phase
-// 7 backends: claude → opencode is a cross-backend swap, so ResolveResumeID
-// yields no native id and the switch takes the history-primer path (§4, §5.3) —
-// the same mechanism as claude → codex, now reached for a new backend.
+// FS-01.A8: unverified history delivery is refused before stopping the source.
 func TestSwitchClaudeToOpenCodePrimer(t *testing.T) {
 	srv, ts := switchTestServer(t)
 	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	before := runningSessionID(t, srv, id)
 
 	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", map[string]string{"backend": "opencode", "model": "sonnet-4-5"})
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("switch status = %d: %s", resp.StatusCode, body)
 	}
-	var sr switchRuntimeResponse
-	if err := json.Unmarshal(body, &sr); err != nil {
-		t.Fatalf("switch body: %v", err)
-	}
-	if sr.AgentID != id || sr.Backend != "opencode" || sr.Model != "sonnet-4-5" || sr.HistoryHandoff != "primer" {
-		t.Fatalf("unexpected switch response: %+v (want opencode/sonnet-4-5/primer)", sr)
-	}
-	if a, _ := srv.stateStore.ReadAgent(id); a.Backend != "opencode" || a.Model != "sonnet-4-5" {
-		t.Fatalf("identity not switched: %+v", a)
+	if a, _ := srv.stateStore.ReadAgent(id); a.Backend != "claude" || a.Model != "sonnet" {
+		t.Fatalf("refused switch changed identity: %+v", a)
 	}
 	events, err := transcript.ReadFile(srv.configStore.Home(), id, transcript.ReadOptions{IncludeMeta: true})
 	if err != nil {
 		t.Fatalf("read transcript: %v", err)
 	}
-	if !hasBackendSwitchMarker(events, "claude/sonnet", "opencode/sonnet-4-5") {
-		t.Fatalf("missing backend_switch marker in transcript: %+v", events)
+	if hasBackendSwitchMarker(events, "claude/sonnet", "opencode/sonnet-4-5") || runningSessionID(t, srv, id) != before {
+		t.Fatal("refused switch changed native history")
 	}
 }
 

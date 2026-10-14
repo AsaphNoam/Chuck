@@ -57,6 +57,19 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Derive partial updates only under the exclusive claim: another completed
+	// switch must not be overwritten by fields read before this transition owns it.
+	if !s.acquireSwitch(id) {
+		writeAPIError(w, apiError(runtime.CodeSwitchInProgress, "a switch is already in progress for this agent"))
+		return
+	}
+	defer s.releaseSwitch(id)
+	if !s.claimLifecycle(id) {
+		writeAPIError(w, apiError(runtime.CodeConflict, "a lifecycle transition is already in progress"))
+		return
+	}
+	defer s.releaseLifecycle(id)
+
 	agent, err := s.stateStore.ReadAgent(id)
 	if err != nil {
 		writeAPIError(w, apiError(runtime.CodeNotFound, "no such agent: "+id))
@@ -113,26 +126,6 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Per-agent switch lock (§5.4).
-	if !s.acquireSwitch(id) {
-		writeAPIError(w, apiError(runtime.CodeSwitchInProgress, "a switch is already in progress for this agent"))
-		return
-	}
-	defer s.releaseSwitch(id)
-
-	// Take the shared exclusive lifecycle claim (TS-01.R16, INV §4/§5) across the
-	// whole stop→resume window. acquireSwitch above excludes only a second switch,
-	// and acquireAgentStart is a counting lease, not exclusive — so without this a
-	// mail wake (whose only re-entry guard is lifecycleInFlight) or an explicit
-	// stop/resume landing between the Stop below and the target Resume would mint a
-	// second registration for the same agent_id, and the loser's teardown would then
-	// revoke the winner's hook token, MCP session, and hook-settings file.
-	if !s.claimLifecycle(id) {
-		writeAPIError(w, apiError(runtime.CodeConflict, "a lifecycle transition is already in progress"))
-		return
-	}
-	defer s.releaseLifecycle(id)
-
 	// The switch operates on a live agent (cancel → stop → resume). No running row
 	// → nothing to switch.
 	prev, err := s.stateStore.ReadRunning(id)
@@ -142,6 +135,11 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
+		return
+	}
+	previousSnapshot, err := s.stateStore.ReadSession(id)
+	if err != nil {
+		writeAPIError(w, apiError(runtime.CodeInternal, "read previous session: "+err.Error()))
 		return
 	}
 
@@ -158,6 +156,10 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	usePrimer := !sameBackend || (target.Model != agent.Model && !ad.CanSwitchModelOnResume())
 	resumeID := ad.ResolveResumeID(prev.SessionID, sameBackend && !usePrimer)
 	if usePrimer {
+		if !ad.SupportsHistoryPrimer() {
+			writeAPIError(w, apiError(runtime.CodeValidation, "this provider has no verified history handoff; keep the current model or switch to Claude or Codex"))
+			return
+		}
 		resumeID = ""
 		handoff = "primer"
 	}
@@ -217,7 +219,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	var worktreeNotice worktreeStartNotice
 	spec, ae := s.composeSwitchSpecContext(r.Context(), target, resumeID, &worktreeNotice)
 	if ae != nil {
-		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, errors.New(ae.Message))
+		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, errors.New(ae.Message))
 		return
 	}
 	// Carry the requested terminal driver into the resume (validated above); chat
@@ -231,36 +233,41 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	if target.Backend == agent.Backend && target.Model == agent.Model && frozenModelInherited(spec.LaunchConfig) {
 		spec.ModelID = ""
 	}
+	if target.Backend != agent.Backend || target.Model != agent.Model {
+		var err error
+		spec.LaunchConfig, err = explicitModelConfig(spec.LaunchConfig)
+		if err != nil {
+			s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, fmt.Errorf("record model choice: %w", err))
+			return
+		}
+	}
 	if usePrimer {
 		primer, err := s.buildHistoryPrimer(r.Context(), spec, s.switchPrimerTokenBudget())
 		if err != nil {
-			s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, fmt.Errorf("build history primer: %w", err))
+			s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, fmt.Errorf("build history primer: %w", err))
 			return
 		}
-		// Feed the primer to the new backend for THIS resume only. spec.SystemPrompt
-		// stays pristine (the frozen snapshot), so persistence (runtimeMeta /
-		// UpsertSessionMeta / session_meta) keeps recording the pre-primer prompt and
-		// a later switch primes from that clean base rather than stacking primer on
-		// primer. RuntimeSystemPrompt is consumed only by the process-start params.
-		spec.RuntimeSystemPrompt = joinSystemPrompt(spec.SystemPrompt, primer)
+		// The current native context owns one bounded bridge. Replacing it keeps
+		// subsequent loads safe without modifying or stacking into the persona.
+		spec.HistoryPrimer = primer
 	}
 
 	// 4. Persist the new identity (agent_id UNCHANGED) so the resume composes the
 	//    new interface/backend/model and the card re-renders its badges.
 	if err := s.stateStore.WriteAgent(target); err != nil {
-		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, fmt.Errorf("persist identity: %w", err))
+		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, fmt.Errorf("persist identity: %w", err))
 		return
 	}
 
 	// 5. Resume under the target runtime (registry dispatches by target interface).
 	handle, err := s.registry.Resume(r.Context(), spec)
 	if err != nil {
-		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, err)
+		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, err)
 		return
 	}
 	target.Fast = handle.Fast
 	if err := s.stateStore.WriteAgent(target); err != nil {
-		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, err)
+		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, err)
 		return
 	}
 	if usePrimer {
@@ -287,7 +294,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 // rollbackSwitch re-launches the previous identity after a failed Resume (§5.4).
 // If rollback also fails, it leaves the status row at error and returns 500
 // switch_failed.
-func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAgent state.Agent, prevSessionID string, cause error) {
+func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAgent state.Agent, prevSessionID string, previousSnapshot state.SessionSnapshot, cause error) {
 	rollbackCtx, cancel := context.WithTimeout(context.Background(), switchRollbackTimeout)
 	defer cancel()
 	s.cleanupMessagingMCP(prevAgent.AgentID)
@@ -304,6 +311,14 @@ func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAg
 		s.teardownAgentRegistration(prevAgent.AgentID)
 		s.failSwitch(w, prevAgent.AgentID, "recompose previous: "+ae.Message)
 		return
+	}
+	// A target startup may have already written metadata before failing. Restore
+	// the bridge and model provenance owned by the previous native conversation.
+	spec.HistoryPrimer = previousSnapshot.HistoryPrimer
+	spec.LaunchConfig = previousSnapshot.LaunchConfig
+	spec.LastContextPct, spec.LastContext = previousSnapshot.LastContextPct, previousSnapshot.LastContext
+	if frozenModelInherited(spec.LaunchConfig) {
+		spec.ModelID = ""
 	}
 	if _, err := s.registry.Resume(rollbackCtx, spec); err != nil {
 		s.teardownAgentRegistration(prevAgent.AgentID)
@@ -451,6 +466,7 @@ func (s *Server) composeSwitchSpecContext(ctx context.Context, target state.Agen
 		Cwd:                snap.Cwd,
 		AddDirs:            snap.AddDirs,
 		SystemPrompt:       snap.SystemPrompt,
+		HistoryPrimer:      snap.HistoryPrimer,
 		ChuckAware:         &snap.ChuckAware,
 		BackendType:        be.Type,
 		ModelID:            model.Model,
@@ -503,7 +519,7 @@ func (s *Server) switchPrimerTokenBudget() int {
 	if fromDisk, err := s.configStore.ReadConfig(); err == nil {
 		cfg = fromDisk
 	}
-	if cfg.Switch.PrimerTokenBudget <= 0 {
+	if cfg.Switch.PrimerTokenBudget <= 0 || cfg.Switch.PrimerTokenBudget > defaultPrimerTokenBudget {
 		return defaultPrimerTokenBudget
 	}
 	return cfg.Switch.PrimerTokenBudget

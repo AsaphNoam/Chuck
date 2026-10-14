@@ -415,6 +415,9 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		LaunchConfig:       launchConfig,
 		Fork:               options.Fork,
 	}
+	if options.Fork != nil {
+		spec.HistoryPrimer = options.Fork.HistoryPrimer
+	}
 	return s.applyKnowledgeOverlay(spec), agent, nil
 }
 
