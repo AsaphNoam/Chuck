@@ -60,12 +60,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   JSON decode CPU for the 25 MiB frame fell from 1.17 s to 0.71 s and the subtest from ~2.4 s to
   ~1.9 s. `make test` (both variants, parallel packages) and runtime `-race` pass. Changelog:
   single-peek ACP update routing (INV §16); large-frame test budgets (no invariant class).
-- **Awaiting review — phone model and effort split (2026-10-14):** FS-20.R43, TS-08.R111. Above
-  the composer the model button sits left (opens Switch runtime) and a separate effort button
-  sits right, stepping through the live model's efforts on each tap and wrapping. 85 phone tests
-  (one new), presentation checks, spec check and embed pass; full UI suite fails only the flakes
-  above. `phone-render.mjs --details-check` verifies left/right placement in all appearances;
-  screenshots `/tmp/mobile-effort-20261014-*.png`.
+- **Closed — phone model and effort split (2026-10-14):** FS-20.R43, TS-08.R111 (`b1bc5284`).
+  Independent review found no findings: the effort button reuses Manage's live-model, chat-only
+  gating, the shared `runtime-options` query and the session-config request through `act`, so
+  refusals surface. `phone-render.mjs --details-check` re-run on `main` passes in Core, Sky &
+  Grove and Studio (model left, effort right, no overflow). Changelog: phone effort cycle review
+  (INV §2/§8/§10/§13 checked; §1, §3–§7, §9, §11, §12, §14–§17 no surface).
 - **Reviewed — phone scroll memory, finding open (2026-10-14):** FS-20.R54/A26, TS-08.R125. A bounded
   (50-entry) page-session map keeps each chat's top visible message row (`data-place`) or
   at-newest, and other routes' `scrollY`. First open and left-at-newest open at the newest message.
