@@ -65,8 +65,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   86 phone tests (scrollMemory bound test new), tsc, presentation checks, spec check and embed
   pass. `phone-render.mjs --scroll-check` passes (row restored within 0px, newest kept, project
   page restored) and fails with restoration disabled; `--details/--history/--parity-check` pass.
-  **Owed:** full UI suite. `ui/node_modules` was partly removed mid-run by a concurrent session
-  (no `.bin`); not reinstalled here. INV: §8/§13 no new class or message; §16 map capped at 50.
+  Full UI suite 823/823 after dependencies were restored. Under load one earlier run failed two
+  AgentScreen pagination tests that pass 42/42 alone with and without this change.
+  INV: §8/§13 no new class or message; §16 map capped at 50.
 
 ## Active change
 
