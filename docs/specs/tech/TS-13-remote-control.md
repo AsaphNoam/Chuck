@@ -273,7 +273,7 @@ Use shared error mapping and API schemas; no unauthenticated byte endpoint or br
 host-file access is introduced. Device revocation and remote disable block subsequent image reads
 and sends. Native phone picker/paste limitations report capability honestly without hiding Send.
 
-- **R27 (planned) — The phone observes existing SSE heartbeats for foreground liveness.**
+- **R27 — The phone observes existing SSE heartbeats for foreground liveness.**
   Extend the plain phone EventSource owner in `ui/src/remote/connection.ts` (R14), without a new
   transport, endpoint, heartbeat packet or desktop change. Observe the existing dispatched `ping`
   every 10 seconds (`internal/server/sse.go`, TS-03.R7); record receipt time without bumping view
@@ -289,7 +289,7 @@ and sends. Native phone picker/paste limitations report capability honestly with
   A source with expired liveness or a closed source enters R28 recovery. A replacement must hydrate
   even if a late ping arrives on the discarded stream. Browser suspension can delay JS execution;
   recovery is evaluated when execution resumes, not promised while the browser is frozen.
-- **R28 (planned) — One foreground owner controls phone recovery and retry.**
+- **R28 — One foreground owner controls phone recovery and retry.**
   Close a failed/stale EventSource before replacement so the server's `retry: 2000` cannot run a
   competing native retry loop. Serialize one recovery attempt (pairing check followed by stream
   opening/hydration); concurrently allow at most one source, one health request, and one
@@ -308,7 +308,7 @@ and sends. Native phone picker/paste limitations report capability honestly with
   Foreground resumes the owner; `pagehide`, app teardown, explicit disconnect and unpair release its
   timers, source and abort controller. Source callbacks, fetch completions and deadlines must match
   the current generation so old work cannot reopen access or replace newer state (INV §4/§5).
-- **R29 (planned) — Recovery refreshes server state without remounting phone screens.**
+- **R29 — Recovery refreshes server state without remounting phone screens.**
   Startup, post-pairing and recovery share R27/R28's connection owner; use `checking` only for the
   initial page, and `reconnecting`/`unreachable` during recovery so `PhoneApp` keeps its Shell and
   route mounted. Reuse the existing staged agent snapshot, `__hydrated__` replacement, open
@@ -376,9 +376,10 @@ INV §16 (bounded pairing attempts, push queue, and coalescing).
 
 ## 5. Deviations & open decisions
 
-- R27–R30 are planned under
-  [`recover-phone-connection.md`](../../ready-changes/recover-phone-connection.md); the operator
-  asked the designer to evaluate/select the smallest reliable recovery on 2026-10-14.
+- R27–R29 shipped 2026-10-14 (phone connection recovery). R30's
+  fake-clock connection tests and the phone-width `phone-render.mjs --recovery-check` journey
+  (with CSS scroll anchoring disabled, as on iOS Safari) pass; R30 stays planned until paired
+  iPhone/Android background-return receipts exist.
 
 - R26 was approved 2026-10-12 and implemented 2026-10-13. Rendered browser journeys verify picker,
   paste where supported and explicit recovery. The embedded-server authenticated TLS journey

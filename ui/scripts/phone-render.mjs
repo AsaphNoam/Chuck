@@ -20,6 +20,9 @@ const detailsCheck = process.argv.includes("--details-check");
 const spinnerCheck = process.argv.includes("--spinner-check");
 const parityCheck = process.argv.includes("--parity-check");
 const scrollCheck = process.argv.includes("--scroll-check");
+const recoveryCheck = process.argv.includes("--recovery-check");
+let healthCount = 0;
+let healthDown = false;
 let skin = "";
 
 const agent = {
@@ -29,7 +32,7 @@ const agent = {
 };
 const event = (seq, type, data) => ({ agent_id: "a1", seq, type, ts: "", data });
 const words = "Done. **All tests** pass now, and the build is `green` again after the fix.".split(/(?<= )/);
-const history = historyCheck || scrollCheck ? Array.from({ length: 1500 }, (_, index) => event(index + 1, "user_text", { text: `History ${index + 1}` })) : null;
+const history = historyCheck || scrollCheck || recoveryCheck ? Array.from({ length: 1500 }, (_, index) => event(index + 1, "user_text", { text: `History ${index + 1}` })) : null;
 const transcript = fixturePath
   ? JSON.parse(readFileSync(fixturePath, "utf8"))
   : {
@@ -54,6 +57,7 @@ try {
       constructor() {
         super();
         window.__phoneRenderSource = this;
+        window.__phoneRenderStreams = (window.__phoneRenderStreams ?? 0) + 1;
         setTimeout(() => {
           this.onopen?.();
           for (const data of hydrated) this.dispatchEvent(new MessageEvent("state_update", { data: JSON.stringify(data) }));
@@ -75,6 +79,10 @@ try {
     if (detailsCheck && path === "/api/remote/runtime-options") return route.fulfill({ json: { backends: [{ id: "claude", name: "Claude", default_model: "m", models: [{ id: "m", name: "Sonnet", efforts: ["low", "medium", "high"], default_effort: "medium" }] }] } });
     if (detailsCheck && path === "/api/sessions/a1/files") return route.fulfill({ json: { agent_id: "a1", files: ["src/main.go", "src/another-file-with-a-long-name.go"].map((path) => ({ path, edit_count: 2, last_ts: "2026-10-10T00:00:00Z", has_diff: false, diff_refs: [] })) } });
     if (detailsCheck && path === "/api/sessions/a1/file") return route.fulfill({ json: { path: new URL(route.request().url()).searchParams.get("path"), content: "package main\n\nfunc main() {\n    println(\"hello\")\n}\n", truncated: false } });
+    if (path === "/api/health") {
+      healthCount++;
+      if (healthDown) return route.abort();
+    }
     if (path === "/api/sessions/a1/transcript") {
       if (!history) return route.fulfill({ json: transcript });
       const url = new URL(route.request().url());
@@ -154,7 +162,62 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     console.log(`scroll memory: chat row ${before.key} within ${Math.abs(after.top - before.top)}px, newest kept, project at ${projectAfter}px`);
   }
-  await page.screenshot({ path: out, fullPage: !historyCheck && !scrollCheck });
+  if (shown && recoveryCheck) {
+    // FS-20.A23/A25 at phone width: a healthy stream survives return signals;
+    // a lost one recovers in place; an outage waits for capped backoff.
+    const settle = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const streams = () => page.evaluate(() => window.__phoneRenderStreams);
+    const topTurn = () => page.evaluate(() => {
+      const top = document.querySelector(".phone-header").getBoundingClientRect().bottom;
+      const turn = [...document.querySelectorAll("[data-place]")].find((item) => item.getBoundingClientRect().bottom > top);
+      return { key: turn.dataset.place, top: turn.getBoundingClientRect().top };
+    });
+    const draft = "Unsent while the Mac reconnects";
+    await page.getByText("History 1500", { exact: true }).waitFor();
+    // iOS Safari has no CSS scroll anchoring; without this Chromium hides a shift.
+    await page.addStyleTag({ content: "* { overflow-anchor: none !important; }" });
+    await page.getByRole("textbox").fill(draft);
+    await page.getByLabel("Choose files to attach").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("keep me") });
+    await page.getByText("notes.txt").first().waitFor();
+    await page.evaluate(() => { window.__samePage = true; window.scrollTo(0, document.documentElement.scrollHeight / 2); });
+    await settle();
+    await page.waitForTimeout(100);
+    const before = await topTurn();
+    const [healthy, healthyStreams] = [healthCount, await streams()];
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(() => {
+        for (const type of ["pageshow", "online"]) window.dispatchEvent(new Event(type));
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.__phoneRenderSource.dispatchEvent(new MessageEvent("ping", { data: "{}" }));
+      });
+    }
+    await page.waitForTimeout(500);
+    if (healthCount !== healthy || (await streams()) !== healthyStreams) throw new Error(`healthy stream was replaced: ${healthCount - healthy} health reads, ${(await streams()) - healthyStreams} streams`);
+    // New messages slide the window while the stream is lost.
+    for (let index = 1500; index < 1530; index++) history.push(event(index + 1, "user_text", { text: `History ${index + 1}` }));
+    await page.evaluate(() => window.__phoneRenderSource.onerror());
+    await page.getByText("History 1530", { exact: true }).waitFor({ state: "attached" });
+    await settle();
+    const after = await topTurn();
+    if (after.key !== before.key || Math.abs(after.top - before.top) > 2) throw new Error(`recovery moved the reading position to ${JSON.stringify(after)} from ${JSON.stringify(before)}`);
+    if (await page.getByRole("textbox").inputValue() !== draft) throw new Error("recovery lost the unsent text");
+    if (!(await page.evaluate(() => window.__samePage && location.pathname === "/agent/a1"))) throw new Error("recovery reloaded or navigated");
+    if ((await streams()) !== healthyStreams + 1 || healthCount !== healthy + 1) throw new Error("recovery did not use one health read and one stream");
+    // Outage: one immediate attempt, then nothing until the 5-second retry.
+    healthDown = true;
+    const [down, downStreams] = [healthCount, await streams()];
+    await page.evaluate(() => window.__phoneRenderSource.onerror());
+    await page.getByRole("alert").filter({ hasText: "Mac unreachable" }).waitFor();
+    await page.waitForTimeout(4500);
+    if (healthCount !== down + 1 || (await streams()) !== downStreams) throw new Error(`outage made ${healthCount - down} health reads and ${(await streams()) - downStreams} streams in 4.5s`);
+    healthDown = false;
+    await page.getByRole("alert").filter({ hasText: "Mac unreachable" }).waitFor({ state: "detached", timeout: 3000 });
+    if (healthCount !== down + 2 || (await streams()) !== downStreams + 1) throw new Error("outage retry was not a single attempt");
+    if (await page.getByRole("textbox").inputValue() !== draft) throw new Error("outage lost the unsent text");
+    if (!(await page.getByText("notes.txt").first().isVisible())) throw new Error("recovery lost the selected attachment");
+    console.log(`recovery: healthy stream kept, row ${after.key} within ${Math.abs(after.top - before.top)}px, text and attachment kept, outage retried once after 5s`);
+  }
+  await page.screenshot({ path: out, fullPage: !historyCheck && !scrollCheck && !recoveryCheck });
   if (shown && parityCheck) {
     const openAgent = async () => {
       await page.evaluate(() => {

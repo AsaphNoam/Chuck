@@ -28,6 +28,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
+- **Awaiting review — phone connection recovery (2026-10-14):** FS-20.R51–R53/A25, TS-13.R27–R29.
+  One owner in `ui/src/remote/connection.ts`: ping-fed 25 s deadline, serialized health+stream
+  attempts, 5–60 s backoff, hidden pause; initial page stays `checking` until hydration.
+  `ReplaceForm` unkeyed; chat re-anchors after refresh. `connection.test.ts` (13, fake clock),
+  `phone-render.mjs --recovery-check` (fails without the anchor fix), full UI suite (known
+  `NewAgentModal` flake only), `make test`, embed and build pass. Device gates owed below.
+  Changelog: phone heartbeat recovery (INV §1/§4/§5/§16).
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption.
@@ -78,19 +85,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-**Recover phone connection** — [`recover-phone-connection.md`](../ready-changes/recover-phone-connection.md),
-in progress (FS-20.R51–R53/A22–A25, TS-13.R27–R30).
-
-- Done: `ui/src/remote/connection.ts` is the one owner (`start`/`disconnect`, generation checks,
-  25 s opening/hydration/liveness deadline rearmed from the last ping, 5 s health abort,
-  5–60 s backoff, hidden pause, pagehide release, 401 stop); initial page stays `checking` until
-  hydration; snapshot rows coalesce into one bump. `ReplaceForm` is no longer keyed by run
-  revision; `AgentScreen` re-anchors the remembered top message after a refresh.
-  `connection.test.ts` (13, fake clock, mutation-checked) and phone suite pass.
-- Next: `phone-render.mjs --recovery-check` journey (anchor, text, route, request counts), specs
-  out of `(planned)`, closure matrix. Owed: real iPhone/Android background-return receipts (A22).
+None.
 
 ## Acceptance gates still owed
+
+- **FS-20.A22–A24 / TS-13.R30:** paired iPhone Home Screen app and Android browser
+  background-return journey (stalled stream, outage, revoked pairing). Simulated/browser proof
+  passes; the device suspension cause is still unreproduced.
 
 - **FS-03.A67 / TS-04.R92:** live Claude/Codex permission-mode receipt. Claude 0.59.0's mode
   option is source-checked only; the Codex mode shape is unverified.

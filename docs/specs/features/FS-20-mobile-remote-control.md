@@ -359,7 +359,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   The setting explicitly says it applies to all Chuck browsers. Saving is disabled offline;
   a failed save reports the refusal and leaves the previous appearance active. This supersedes
   R16's configuration/skins exclusion only for appearance selection.
-- **R51 (planned) — Returning to the open phone app recovers current state automatically.**
+- **R51 — Returning to the open phone app recovers current state automatically.**
   When an existing phone page returns from the background, including restoration from the browser's
   page cache, it recovers its live connection and catches up to the Mac without a manual refresh.
   Restoring network access while the page is visible also recovers automatically. The phone keeps
@@ -368,7 +368,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   replacing a stale connection requires a new snapshot. An unavailable Mac
   follows R23; a revoked pairing follows R8. Repeated foreground/network signals do not disrupt a
   recovery already in progress. No action or draft is queued, sent or replayed by recovery.
-- **R52 (planned) — Connection recovery preserves the person's place and unsent input.**
+- **R52 — Connection recovery preserves the person's place and unsent input.**
   Recovery happens within the existing page: retain its route, selected tab, open form and entered
   values, composer text and selected attachments, and transcript reading position rather than
   navigating Home, reloading the page or jumping to the newest message. Refreshed state follows the
@@ -377,7 +377,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   retention and deletion remain R49 and FS-03.R36/R86; recovery never overwrites newer input.
   Browser termination or a cold launch retains existing route/draft restoration behavior and adds
   no promise to restore transient forms or scroll position across page destruction.
-- **R53 (planned) — Recovery avoids unnecessary traffic and repeated failed attempts.**
+- **R53 — Recovery avoids unnecessary traffic and repeated failed attempts.**
   Returning to an already healthy phone connection does not replace it. A silently stalled
   connection is also detected and recovered while the app remains visible, without requiring a
   return event or manual refresh. Repeated failures retry at increasing, capped delays while the
@@ -524,7 +524,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   Revoke pairing while backgrounded, then return: show the existing unpaired screen and admit no
   further protected stream data or actions. Verify connection/component tests for failures,
   overlapping lifecycle events and revocation, plus the paired-device recovery journey.
-- **A25 (planned)** (R51, R53) — Keep a hydrated stream healthy with server heartbeats and
+- **A25** (R51, R53) — Keep a hydrated stream healthy with server heartbeats and
   send repeated return/network signals: no replacement stream or recovery health request is made.
   Stall the stream while the page stays visible and emit no lifecycle/error events: recover through
   a new snapshot. During a prolonged outage, request counts follow the capped backoff rather than
@@ -541,11 +541,11 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
 
 ## 6. Deviations & open decisions
 
-- R51–R53/A22–A25 are planned under
-  [`recover-phone-connection.md`](../../ready-changes/recover-phone-connection.md). The operator
-  requested technical evaluation/selection on 2026-10-14, prioritizing minimal battery/network
-  cost. No product code has changed. The stalled-stream background-suspension cause is inferred
-  from the missing recovery path, not yet reproduced on a paired device.
+- R51–R53 and A25 shipped 2026-10-14 (phone connection recovery). A23–A24's
+  component and phone-width browser parts pass (reading row, text, attachment, route, replacement
+  form, outage status and backoff); they and A22 stay planned until a paired iPhone Home Screen
+  app and Android browser complete the background-return journey. The stalled-stream suspension
+  cause remains inferred, not reproduced on a device.
 
 - R45–R46/A17–A18 are confirmed, including project-only bulk actions and mobile picker
   without drag and the narrow paired-phone route extension.
