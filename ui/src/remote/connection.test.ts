@@ -263,6 +263,27 @@ describe("phone connection recovery", () => {
     expect(streams()).toHaveLength(2);
   });
 
+  it("gates actions from pagehide through a delayed health read, opening and partial hydration", async () => {
+    await connected();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(link()).toBe("reconnecting");
+    let answer: (value: { status: string }) => void = () => undefined;
+    health.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    window.dispatchEvent(new Event("pageshow"));
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(link()).toBe("reconnecting");
+    answer({ status: "ok" });
+    await settle();
+    const replacement = last();
+    expect(streams()).toHaveLength(2);
+    expect(link()).toBe("reconnecting");
+    replacement.onopen?.();
+    replacement.emit("state_update", { data: { agent_id: "a1", state: "idle" } });
+    expect(link()).toBe("reconnecting");
+    replacement.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+    expect(link()).toBe("connected");
+  });
+
   it("ignores callbacks from a replaced or torn-down source", async () => {
     await connected();
     const old = last();

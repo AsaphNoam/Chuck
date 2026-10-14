@@ -153,7 +153,11 @@ function pause(closeHealthy: boolean) {
     health = null;
     retryPending = true;
   }
-  if (closeHealthy || !hydrated) closeSource();
+  if (closeHealthy || !hydrated) {
+    closeSource();
+    // Cached state is not live: actions stay gated until a replacement hydrates.
+    if (useConnection.getState().link === "connected") useConnection.getState().setLink("reconnecting");
+  }
 }
 
 /** onReturn is the one liveness check for visible, pageshow and online signals. */

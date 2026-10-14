@@ -306,7 +306,8 @@ and sends. Native phone picker/paste limitations report capability honestly with
   check, preserve backoff and cached state, and close a failed or not-yet-hydrated source; a healthy
   hydrated source may stay open. Errors on a hidden source close it without starting checks/retries.
   Foreground resumes the owner; `pagehide`, app teardown, explicit disconnect and unpair release its
-  timers, source and abort controller. Source callbacks, fetch completions and deadlines must match
+  timers, source and abort controller; closing a hydrated source there moves `connected` to
+  `reconnecting`, so cached state gates actions until a replacement hydrates. Source callbacks, fetch completions and deadlines must match
   the current generation so old work cannot reopen access or replace newer state (INV §4/§5).
 - **R29 — Recovery refreshes server state without remounting phone screens.**
   Startup, post-pairing and recovery share R27/R28's connection owner; use `checking` only for the
@@ -327,7 +328,8 @@ and sends. Native phone picker/paste limitations report capability honestly with
 - **R30 (planned) — Verify connection recovery and its resource bounds.**
   FS-20.A22–A25 cover healthy-return reuse, silent foreground/background stalls, complete and
   incomplete hydration, expired health checks, outage backoff, hidden pauses, duplicate signals,
-  revocation, obsolete callbacks and teardown with fake clocks/EventSources; stream tests retain
+  revocation, obsolete callbacks, teardown and page-cache restore behind a delayed health read
+  (actions gated until the replacement snapshot completes) with fake clocks/EventSources; stream tests retain
   snapshot pruning and transcript catch-up assertions. Screen/browser checks exercise route/tab,
   entered form, text/attachments and rendered message-anchor retention as current state changes.
   Request-count checks prove pings make no queries/reconnects and prolonged outages obey the retry
