@@ -121,14 +121,16 @@ capability; it is not by itself authority to remove the fallback or ship the def
   `_claude/rateLimit` change events; its full SDK usage data is available only through a queued
   `/usage` turn rendered as Markdown. Codex 2.1.1 holds `account/rateLimits/read`/`updated` privately
   and renders `/status` text; it forwards no typed snapshot/reset update. Map Codex windows by
-  verified duration, not assumed primary/secondary names. Recheck official adapter capability,
+  verified duration, not assumed primary/secondary names. Rechecked 2026-10-14 against Claude ACP
+  0.90.0 and Codex ACP 2.2.2: unchanged (Claude SDK adds only `overageEnabled`). Recheck official adapter capability,
   wire shape and provider evidence before completing TBD. Do not silently substitute command-text
   parsing, provider credential probes or an unrequested adapter patch.
 
 - **Steering.** The pinned Claude 0.85.1 and Codex 2.1.1 adapters advertise
   `_session/steering`, and AgentDeck uses it. Codex 2.1.1 still starts a detached turn when a steer
   arrives idle and ignores AgentDeck's `promptRequired` metadata, so the packaged steering patch
-  remains necessary until upstream advertises the same no-consumption contract.
+  remains necessary until upstream advertises the same no-consumption contract (still absent in
+  Codex ACP 2.2.2, rechecked 2026-10-14).
 - **Host-held queued Send.** AgentDeck holds a busy agent's next prompt because the pinned Claude
   adapter queues while the pinned Codex adapter supersedes and interrupts the active turn. Keep the
   host-side hold even after steering exists: Send must remain portable, withdrawable, and distinct
@@ -137,7 +139,9 @@ capability; it is not by itself authority to remove the fallback or ship the def
   authenticated HTTP MCP server. `migrate-internal-actions-from-mcp.md` is paused until packaged
   Codex/ACP exposes a narrowly scoped direct transport reachable under the default sandbox. The
   gate stays closed. Rechecked 2026-10-05 against Codex ACP 2.1.1 (`acp:false`) and Claude ACP
-  0.85.1 (`http`/`sse` only): still closed. Watch ACP's unstable MCP-over-ACP server type (now
+  0.85.1 (`http`/`sse` only): still closed. Rechecked 2026-10-14 against Codex ACP 2.2.2 (`acp:false`,
+  `type:"acp"` rejected) and Claude ACP 0.90.0 (`acp` servers silently dropped): still closed; ACP
+  SDK 1.8.0 keeps MCP-over-ACP unstable. Watch ACP's unstable MCP-over-ACP server type (now
   stateless `mcp/message` in ACP SDK 1.7.0); adopting it would change the migration's goal and
   needs design review (TS-04 §5).
 - **Semantic agent wake.** Mail and task activation use a short, host-generated `session/prompt`
