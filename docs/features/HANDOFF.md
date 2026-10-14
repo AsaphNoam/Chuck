@@ -6,10 +6,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** `v0.16.0` tagged 2026-10-14 at the release commit; push of `main` and the tag
-  authorized. Publication verification (release CI, GitHub Release assets, release body from
-  [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md)) follows the push.
-  Manual provider gates below remain owed. Range `v0.15.1..v0.16.0`: the shipped
+- **Release:** `v0.16.0` published 2026-10-14 (Latest): release CI run 38593397312 passed and
+  the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from
+  [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md). Manual provider gates
+  below remain owed.
+- **Main CI red on UI flakes:** CI runs 38514607452 and 38593397065 on `main` failed only in the
+  UI suite: `NewAgentModal` (1–2 cases) and the phone `AgentScreen` successive-gap test, all
+  listed as known flaky below. Every `main` push now risks a red CI until they are investigated. Range `v0.15.1..v0.16.0`: the shipped
   `operating-chuck` Think Tank reference now names the discussion `pass` disposition and the
   quiet-round ending; nothing else agent-facing.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
