@@ -6,8 +6,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** `v0.15.1` cut 2026-10-14 at the release commit and pushed with user
-  authorization; publication verification (workflow §16.6) follows. Pushed tag `v0.15.0` has no
+- **Release:** `v0.15.1` published 2026-10-14 (Latest): release CI run 38513998402 passed and
+  the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from the
+  notes file. Manual provider gates below remain owed. Pushed tag `v0.15.0` has no
   GitHub Release: its release CI (run 38512698302) failed on the CLI journey test closed below;
   leave that tag in place. `v0.14.0` stays local-only by user decision. `v0.15.1` notes cover
   everything since the last published `v0.13.0`. Range `v0.15.0..v0.15.1` changes nothing
@@ -37,7 +38,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Runtime `TestToolImageFrameBoundsAcrossActualWire` exceeded its unchanged three-second
   collector for 25-MiB frames during CLI closure on 2026-10-13. Isolated tests and full runtime
   retries passed, then the complete matrix passed with package execution serialized (`GOFLAGS=-p=1`).
-  No runtime code or test was changed; timing cause remains uninvestigated.
+  No runtime code or test was changed; timing cause remains uninvestigated. On GitHub CI
+  (parallel packages) it failed on both 2026-10-14 `main` runs (38512698255, 38513996157), so
+  `main` CI is red until it is investigated.
 
 ## Active change
 
