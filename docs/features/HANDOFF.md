@@ -139,11 +139,6 @@ Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-rev
 - **Worth fixing** — **J11 crash state unclear:** a crashed or killed agent reads “Stopped” on header and
   card while the API says `error`; the card carries no error text and nothing says a new message
   restarts it.
-- **Worth fixing** — **J11 invalid pipeline template save returns 500:** Validate lists slug errors but
-  Save stays enabled and `POST /api/pipelines` answers 500 “pipeline operation failed” (FS-14).
-  Test: invalid ids → 4xx validation with the same diagnostics.
-- **Worth fixing** — **J9 blank backend name persists:** clearing a backend display name in Settings →
-  Backends saves `"name": ""`; backend creation already requires it (FS-09).
 
 Spec drift for the fix pass: FS-14.R44 names a three-step Setup/Runtimes/Review dialog; a later FS-14
 requirement and the product use Setup/Review with a Customize runtimes disclosure. Matrix gap:
@@ -167,6 +162,13 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J9/J11 save validation fixes (INV §2/§3/§8):** a malformed pipeline template id now
+  reaches the shared validate-before-write path and returns 422 with Validate's diagnostics (new
+  FS-14.R90/A56); update with a malformed id is 404. Catalog save refuses a blank backend display
+  name through the create path's shared check, and the editor keeps the draft (new FS-09.R82/A51).
+  A catalog already holding a blank name still loads. Regressions failed before the fix; focused
+  Go (both variants) and UI tests pass. Full closure owed at run end.
 
 - **2026-10-15 — J2/J8/J13/J16 UI fixes (INV §7/§8):** the onboarding Project step holds on a
   `cwd_not_found` warning with Continue anyway; OpenCode/OpenHands guidance names the `opencode`/

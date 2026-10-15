@@ -178,6 +178,18 @@ var knownBackendTypes = map[string]bool{
 	"openhands-acp": true,
 }
 
+// BackendNameError refuses a blank or whitespace-only backend display name.
+// Backend create and catalog save share it so both reject the same input with
+// the same error (FS-09.R82, INV §2). It is not part of ValidateBackendsConfig
+// because that also gates reads, and a catalog saved before this rule must
+// still load.
+func BackendNameError(field, name string) *FieldError {
+	if strings.TrimSpace(name) != "" {
+		return nil
+	}
+	return &FieldError{Field: field, Code: "required", Message: "display name is required"}
+}
+
 // ValidateBackendsConfig validates the structural invariants for a BackendsConfig
 // document. It does NOT run credential checks (those are handled by the handler).
 // Returns nil on success, or a ValidationErrors listing every violation.

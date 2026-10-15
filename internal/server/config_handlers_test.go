@@ -762,6 +762,35 @@ func TestPutBackendsRejectsStaleCatalogAfterItemCreate(t *testing.T) {
 	}
 }
 
+// FS-09.R82/A51: editing an existing backend's display name to blank is refused
+// exactly as creation refuses it, and the saved catalog is unchanged.
+func TestPutBackendsRejectsBlankDisplayName(t *testing.T) {
+	srv := testServerWithCredCheck(t, credcheck.CredResult{Status: "ok"})
+	h := srv.routes()
+	if rec := doBackendsPut(t, h, validBackendsBody()); rec.Code != http.StatusOK {
+		t.Fatalf("seed PUT = %d body=%s", rec.Code, rec.Body)
+	}
+	for _, blank := range []string{"", "   "} {
+		body := validBackendsBody()
+		body["backends"].(map[string]any)["claude"].(map[string]any)["name"] = blank
+		rec := doBackendsPut(t, h, body)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("name=%q PUT = %d body=%s, want 400", blank, rec.Code, rec.Body)
+		}
+		var resp validationFailedBody
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		if len(resp.Errors) != 1 || resp.Errors[0] != (config.FieldError{Field: "backends.claude.name", Code: "required", Message: "display name is required"}) {
+			t.Fatalf("name=%q errors = %+v", blank, resp.Errors)
+		}
+		stored, err := srv.configStore.ReadBackends()
+		if err != nil || stored.Backends["claude"].Name != "Claude" {
+			t.Fatalf("name=%q stored = %+v err=%v, want unchanged", blank, stored.Backends["claude"], err)
+		}
+	}
+}
+
 func TestPutBackendsUnsupportedVersion400NothingWritten(t *testing.T) {
 	srv := testServerWithCredCheck(t, credcheck.CredResult{Status: "ok"})
 	h := srv.routes()

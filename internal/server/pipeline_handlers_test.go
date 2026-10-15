@@ -62,6 +62,50 @@ func TestPipelineTemplateAPICRUDAndValidation(t *testing.T) {
 	}
 }
 
+// FS-14.R76: Save refuses a malformed template id or stage id with the same
+// diagnostics Validate reports, never an internal error, and persists nothing.
+func TestPipelineTemplateCreateRefusesInvalidIDsWithValidateDiagnostics(t *testing.T) {
+	srv := testServer(t, true)
+	handler := srv.routes()
+	badStage := apiTemplate()
+	badStage.Stages[0].ID = "BAD"
+	for _, tc := range []struct {
+		name    string
+		request pipelineTemplateRequest
+	}{
+		{"template id", pipelineTemplateRequest{ID: "BAD ID", Template: apiTemplate()}},
+		{"stage id", pipelineTemplateRequest{ID: "good-id", Template: badStage}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := doRequest(t, handler, http.MethodPost, "/api/pipelines/validate", tc.request)
+			var validated pipeline.TemplateRecord
+			if err := json.Unmarshal(rec.Body.Bytes(), &validated); err != nil || validated.Valid || len(validated.Diagnostics) == 0 {
+				t.Fatalf("validate = %d %s", rec.Code, rec.Body.String())
+			}
+			rec = doRequest(t, handler, http.MethodPost, "/api/pipelines", tc.request)
+			if rec.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("create = %d %s, want 422", rec.Code, rec.Body.String())
+			}
+			var body struct {
+				Error struct {
+					Details struct {
+						Diagnostics []pipeline.Diagnostic `json:"diagnostics"`
+					} `json:"details"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if got := body.Error.Details.Diagnostics; fmt.Sprint(got) != fmt.Sprint(validated.Diagnostics) {
+				t.Fatalf("create diagnostics = %+v, want validate's %+v", got, validated.Diagnostics)
+			}
+			if list, err := srv.pipelineTemplates.List(); err != nil || len(list) != 0 {
+				t.Fatalf("templates after refused save = %+v err=%v", list, err)
+			}
+		})
+	}
+}
+
 func listProposals(t *testing.T, srv *Server) pipeline.ProposalCollections {
 	t.Helper()
 	rec := doGET(t, srv.routes(), "/api/pipeline-proposals")

@@ -66,10 +66,8 @@ func (s *Server) handleCreateBackend(w http.ResponseWriter, r *http.Request) {
 		}))
 		return
 	}
-	if req.Name == "" {
-		writeValidationError(w, fieldErrors(config.FieldError{
-			Field: "name", Code: "required", Message: "display name is required",
-		}))
+	if fe := config.BackendNameError("name", req.Name); fe != nil {
+		writeValidationError(w, fieldErrors(*fe))
 		return
 	}
 	starter, known := config.StarterBackend(req.Type)

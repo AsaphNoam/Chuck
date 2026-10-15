@@ -279,6 +279,12 @@ export function BackendsEditor() {
 
   const handleSave = () => {
     setError(null);
+    // Same rule and wording as creation (AddBackendDialog); the server refuses it too (FS-09.R82).
+    const unnamed = entries.find((e) => !e.backend.name.trim());
+    if (unnamed) {
+      setError(`Enter a name for backend ${unnamed.id}.`);
+      return;
+    }
     const config = { ...entriesToConfig(entries, defaultId), catalogEtag };
     putBackends.mutate(config, {
       onSuccess: (resp) => {

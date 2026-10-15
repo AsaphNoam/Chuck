@@ -448,6 +448,11 @@ Configuration-source federation for Claude/Codex is FS-08.
 - **R23** — Malformed version, multiple defaults, a backend with no models, an unknown default
   model, unknown type, or empty provider model string returns the shared field-error envelope; the
   server does not partially persist the invalid document.
+- **R82** — Saving the catalog with a blank or whitespace-only backend display name is refused
+  exactly as creating a backend without one is: `PUT /api/backends` returns the shared field-error
+  envelope naming `backends.<id>.name` ("display name is required") and persists nothing, and the
+  Backends editor shows that refusal without discarding the draft. A catalog already holding a
+  blank name still loads; only the next save requires a name.
 - **R24** — A missing executable fails launch rather than creating a running agent; a credential
   result of `skipped` is not proof that launch will work. Backend-specific recovery copy is a known
   deviation in §6.
@@ -775,6 +780,10 @@ Configuration-source federation for Claude/Codex is FS-08.
   it, verify actual paired-window identities, percentage units, reset instants, account scope and
   availability on packaged/installed Claude and Codex before closing TBD. *Verify:* captured
   pinned-adapter contract fixtures, fake-provider ownership tests and bounded live-provider receipts.
+- **A51** (R82) — Clear (or whitespace-fill) a seeded backend's display name and Save: the response
+  is a 400 field error on `backends.<id>.name`, `backends.json` is unchanged, the editor shows the
+  error and keeps the other edits. *Verify:* `internal/server` PUT-backends handler test and
+  `BackendsEditor.test.tsx`.
 
 ## 6. Deviations & open decisions
 

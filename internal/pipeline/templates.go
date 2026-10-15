@@ -77,6 +77,11 @@ func (s *TemplateStore) Validate(id string, template Template) TemplateRecord {
 func (s *TemplateStore) Create(id string, template Template) (TemplateRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !config.ValidSlug(id) {
+		// A malformed id names no file to probe; writeLocked refuses it with the
+		// same diagnostics Validate reports and writes nothing (FS-14.R90).
+		return s.writeLocked(id, template)
+	}
 	if _, err := s.config.ReadPipelineFile(id, MaxTemplateBytes); err == nil || !errors.Is(err, config.ErrNotFound) {
 		if err == nil || errors.Is(err, config.ErrTooLarge) {
 			return TemplateRecord{}, ErrTemplateExists
@@ -96,6 +101,9 @@ func (s *TemplateStore) Create(id string, template Template) (TemplateRecord, er
 func (s *TemplateStore) Update(id string, template Template) (TemplateRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !config.ValidSlug(id) {
+		return TemplateRecord{}, ErrTemplateNotFound // as Read: a malformed id names no template
+	}
 	if _, err := s.config.ReadPipelineFile(id, MaxTemplateBytes); err != nil {
 		if errors.Is(err, config.ErrNotFound) {
 			return TemplateRecord{}, ErrTemplateNotFound

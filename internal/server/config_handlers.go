@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -588,7 +589,21 @@ func (s *Server) handlePutBackends(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate + auto-promote defaults (mutates body in place for normalized form).
-	if ve := config.ValidateBackendsConfig(&body); ve != nil {
+	ve := config.ValidateBackendsConfig(&body)
+	ids := make([]string, 0, len(body.Backends))
+	for id := range body.Backends {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if fe := config.BackendNameError("backends."+id+".name", body.Backends[id].Name); fe != nil {
+			if ve == nil {
+				ve = &config.ValidationErrors{}
+			}
+			ve.Errors = append(ve.Errors, *fe)
+		}
+	}
+	if ve != nil {
 		writeValidationError(w, ve)
 		return
 	}

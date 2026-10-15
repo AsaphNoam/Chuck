@@ -73,6 +73,35 @@ describe("BackendsEditor", () => {
     expect(await screen.findByText("ok")).toBeInTheDocument();
   });
 
+  // FS-09.R82/A51 — a blank display name is refused on save as on create; the draft stays.
+  it("refuses to save a blank backend display name and keeps the draft", async () => {
+    let puts = 0;
+    server.use(http.put("/api/backends", () => { puts++; return HttpResponse.json({}); }));
+    renderWithQuery(<BackendsEditor />);
+    const name = await screen.findByDisplayValue(shown("Claude", "INPUT"));
+
+    fireEvent.change(name, { target: { value: "   " } });
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(await screen.findByText("Enter a name for backend claude.")).toBeInTheDocument();
+    expect(puts).toBe(0);
+    expect(name).toHaveValue("   ");
+  });
+
+  it("shows the server's field error when a save is refused", async () => {
+    server.use(
+      http.put("/api/backends", () =>
+        HttpResponse.json({ error: "validation_failed", errors: [{ field: "backends.claude.name", code: "required", message: "display name is required" }] }, { status: 400 }),
+      ),
+    );
+    renderWithQuery(<BackendsEditor />);
+    await screen.findByDisplayValue(shown("Claude", "INPUT"));
+
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(await screen.findByText("backends.claude.name: display name is required")).toBeInTheDocument();
+  });
+
   it("shows failed cred chip when credentials fail", async () => {
     server.use(
       http.put("/api/backends", () =>

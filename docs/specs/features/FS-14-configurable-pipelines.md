@@ -191,6 +191,10 @@ replacement; §6 identifies its supersessions and any remaining design decision.
 - **R17.** Template validation rejects missing/duplicate stage ids, unknown roles,
   empty instructions, invalid or unresolved input/output bindings, missing outcome routes, unbounded
   cycles, and routes to absent stages. Collection fields return arrays, not `null`.
+- **R90** — Saving a template Validate would reject — including a malformed template id or stage
+  id — is refused with the same diagnostics Validate reports (the TS-03 validation envelope with
+  `details.diagnostics`), never an internal error, and writes nothing. The editor lists those
+  diagnostics just as Validate does.
 - **R18.** Starting a run revalidates its effective stage selections. A template whose
   referenced role was removed remains editable but cannot start until the template is repaired; an
   unknown project/backend/model or missing required run input likewise prevents every agent launch.
@@ -1075,6 +1079,11 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   before. Invalid/missing runtime fields open and focus the appropriate controls while retaining
   the rest of the form. Shared-workspace refusal/confirmation and start retry remain intact.
   *Verify by* run-start component tests and FS-12.A24's rendered pass.
+
+- **A56** (R90) — Validate then Save a new template with id `BAD ID`, and one with stage id `BAD`:
+  each Save returns the validation envelope carrying exactly Validate's diagnostics, no template is
+  stored, and the editor lists them. *Verify by* the `internal/server` pipeline template handler
+  test and `TemplateEditor.test.tsx`'s refused-save diagnostics case.
 
 ## 6. Deviations & open decisions
 
