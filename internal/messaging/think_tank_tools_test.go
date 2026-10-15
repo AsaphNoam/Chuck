@@ -1,11 +1,13 @@
 package messaging
 
 import (
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
@@ -169,6 +171,73 @@ func TestThinkTankJudgeReadOmitsTurnCeiling(t *testing.T) {
 	}
 	if guidance, _ := obj["guidance"].(string); !strings.Contains(guidance, "Discussion has ended") {
 		t.Fatalf("guidance = %q", guidance)
+	}
+}
+
+// FS-21.A39: goal files reach every member's first read as readable copies;
+// synthesis instructions reach only the judge.
+func TestThinkTankReadCarriesGoalFilesAndJudgeInstructions(t *testing.T) {
+	home := t.TempDir()
+	store, err := state.Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	file, err := attachment.New(home).Put(state.ThinkTankAttachmentKey("c"), "brief.md", strings.NewReader("# Brief"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(store, nil)
+	srv.Register("tok-a", "a")
+	srv.Register("tok-j", "j")
+	d, err := store.CreateThinkTank(state.ThinkTankCreate{CommandID: "c", Goal: "Pick storage", OriginProject: "p",
+		JudgeConfig: `{"role":"impl","project":"p"}`, JudgeInstructions: "Answer as a ranked list.",
+		Attachments: []attachment.Descriptor{file}, Members: []state.ThinkTankMember{
+			{AgentID: "a", AgentName: "Ari", Project: "p", Cap: 1}, {AgentID: "b", AgentName: "Bea", Project: "p", Cap: 1}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	room := d.Room.RoomID
+	wantFile := func(obj map[string]any) {
+		t.Helper()
+		files, _ := obj["attachments"].([]any)
+		if len(files) != 1 {
+			t.Fatalf("attachments = %v", obj["attachments"])
+		}
+		f := files[0].(map[string]any)
+		raw, err := os.ReadFile(f["path"].(string))
+		if f["name"] != "brief.md" || err != nil || string(raw) != "# Brief" {
+			t.Fatalf("file = %v (%v)", f, err)
+		}
+	}
+	participant, isErr := callRoomTool(t, connect(t, srv, "tok-a"), "read_think_tank", map[string]any{"room_id": room})
+	if isErr {
+		t.Fatalf("participant read = %v", participant)
+	}
+	wantFile(participant)
+	if _, ok := participant["judge_instructions"]; ok {
+		t.Fatalf("participant read carries judge instructions: %v", participant)
+	}
+	if _, err := store.EndThinkTank(room); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ReserveThinkTankJudge(room, "j", "Judge", "p"); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = store.MarkThinkTankJudgeLaunched(room, "Judge", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BeginThinkTankAttempt(state.ThinkTankBegin{RoomID: room, Revision: d.Room.Revision,
+		AgentID: "j", Turn: state.ThinkTankTurnJudge, Generation: "g", TurnID: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	judge, isErr := callRoomTool(t, connect(t, srv, "tok-j"), "read_think_tank", map[string]any{})
+	if isErr || judge["judge_instructions"] != "Answer as a ranked list." {
+		t.Fatalf("judge read = %v", judge)
+	}
+	wantFile(judge)
+	if guidance, _ := judge["guidance"].(string); !strings.Contains(guidance, "judge_instructions") {
+		t.Fatalf("judge guidance = %q", guidance)
 	}
 }
 

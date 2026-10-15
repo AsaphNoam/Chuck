@@ -88,7 +88,18 @@ export interface CreateThinkTankInput {
   origin_project: string;
   openings: boolean;
   judge?: ThinkTankLaunch;
+  judge_instructions?: string;
   participants: ThinkTankParticipantInput[];
+  /** Goal files, sent as multipart parts after the `room` metadata (TS-14.R29). */
+  files?: { name: string; blob: Blob }[];
+}
+
+function createBody({ files = [], ...room }: CreateThinkTankInput): RequestInit {
+  if (!files.length) return post(room);
+  const form = new FormData();
+  form.append("room", JSON.stringify({ ...room, files: files.map((file, index) => ({ part: `file_${index}`, name: file.name })) }));
+  files.forEach((file, index) => form.append(`file_${index}`, file.blob, file.name));
+  return { method: "POST", body: form };
 }
 
 async function request<S extends z.ZodTypeAny>(url: string, schema: S, init?: RequestInit): Promise<z.output<S>> {
@@ -286,7 +297,7 @@ function useRoomMutation<Input, Output>(run: (input: Input) => Promise<Output>) 
 
 export function useCreateThinkTank() {
   return useRoomMutation((input: CreateThinkTankInput) =>
-    request("/api/think-tanks", thinkTankDetailSchema, post(input)));
+    request("/api/think-tanks", thinkTankDetailSchema, createBody(input)));
 }
 
 export function useThinkTankControl(id: string) {

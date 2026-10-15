@@ -9,7 +9,19 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 )
+
+// ThinkTankAttachmentKey is the room-owned attachment.Store conversation key
+// for a room's goal files (TS-14.R29). It derives from the command id, which
+// is known before the create transaction assigns a room id.
+func ThinkTankAttachmentKey(commandID string) string { return "tt-" + commandID }
+
+// ThinkTankAttachmentPath resolves a room goal file to its verified local copy.
+func (s *Store) ThinkTankAttachmentPath(room ThinkTank, id string) (string, error) {
+	return attachment.New(s.home).Path(ThinkTankAttachmentKey(room.CommandID), id)
+}
 
 // Think Tank room state (FS-21, TS-14). The store is the sole authority for
 // rooms, membership, attempts, published entries, queued input and retained
@@ -160,6 +172,10 @@ type ThinkTank struct {
 	JudgeStatus  string
 	JudgeAgentID string
 	JudgeError   string
+	// JudgeInstructions reach only the judge; Attachments are room-owned goal
+	// files under ThinkTankAttachmentKey (FS-21.R54–R55).
+	JudgeInstructions string
+	Attachments       []attachment.Descriptor
 	// Pipeline origin is trusted host data set only by the stage transaction;
 	// standalone rooms leave it empty (TS-14.R19).
 	PipelineRunID   string
@@ -437,6 +453,9 @@ type ThinkTankCreate struct {
 	Openings      bool
 	JudgeConfig   string
 	Members       []ThinkTankMember
+	// Omitted when empty so earlier replay intents keep matching (TS-14.R29).
+	JudgeInstructions string                  `json:",omitempty"`
+	Attachments       []attachment.Descriptor `json:",omitempty"`
 	// Pipeline origin and stage context; only the stage transaction sets them
 	// (TS-14.R19). Omitted from standalone intents so their replay is unchanged.
 	PipelineRunID   string `json:",omitempty"`
@@ -460,6 +479,15 @@ func validateThinkTankCreate(c ThinkTankCreate) error {
 	}
 	if strings.TrimSpace(c.OriginProject) == "" {
 		return thinkTankInvalid("origin project is required")
+	}
+	if c.JudgeInstructions != "" && c.JudgeConfig == "" {
+		return thinkTankInvalid("synthesis instructions need a judge")
+	}
+	if utf8.RuneCountInString(c.JudgeInstructions) > ThinkTankMaxGoalRunes {
+		return thinkTankInvalid("synthesis instructions exceed %d characters", ThinkTankMaxGoalRunes)
+	}
+	if len(c.Attachments) > attachment.MaxFiles {
+		return thinkTankInvalid("a think tank takes at most %d attachments", attachment.MaxFiles)
 	}
 	if n := len(c.Members); n < ThinkTankMinParticipants || n > ThinkTankMaxParticipants {
 		return thinkTankInvalid("a think tank needs %d to %d participants", ThinkTankMinParticipants, ThinkTankMaxParticipants)
@@ -548,6 +576,13 @@ func thinkTankCreateIntent(c ThinkTankCreate) string {
 		members[i] = ThinkTankMember{AgentID: id, Cap: m.Cap, MayLeave: m.MayLeave, SetupConfig: m.SetupConfig}
 	}
 	c.Members = members
+	// A multipart replay stores fresh opaque ids; content identity matches.
+	files := make([]attachment.Descriptor, len(c.Attachments))
+	for i, d := range c.Attachments {
+		d.ID = ""
+		files[i] = d
+	}
+	c.Attachments = files
 	raw, _ := json.Marshal(c)
 	return string(raw)
 }
@@ -640,14 +675,18 @@ func createThinkTankTx(tx *sql.Tx, c ThinkTankCreate) (ThinkTankDetail, error) {
 		title = ThinkTankFallbackTitle(c.Goal)
 	}
 	now := formatTime(timeNow())
+	files, err := json.Marshal(append([]attachment.Descriptor{}, c.Attachments...))
+	if err != nil {
+		return ThinkTankDetail{}, fmt.Errorf("state: encode think tank attachments: %w", err)
+	}
 	if _, err := tx.Exec(`
 INSERT INTO think_tanks(room_id, command_id, title, goal, origin_project, openings, phase, control,
   judge_config, judge_status, created_at, updated_at, create_intent,
-  pipeline_run_id, pipeline_stage_id, pipeline_task_id, stage_context)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  pipeline_run_id, pipeline_stage_id, pipeline_task_id, stage_context, judge_instructions, attachments)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		roomID, c.CommandID, title, c.Goal, c.OriginProject, c.Openings, phase, ThinkTankRunning,
 		c.JudgeConfig, judgeStatus, now, now, intent,
-		c.PipelineRunID, c.PipelineStageID, c.PipelineTaskID, c.StageContext); err != nil {
+		c.PipelineRunID, c.PipelineStageID, c.PipelineTaskID, c.StageContext, c.JudgeInstructions, string(files)); err != nil {
 		return ThinkTankDetail{}, fmt.Errorf("state: insert think tank: %w", err)
 	}
 	for i, m := range c.Members {
@@ -738,20 +777,25 @@ type thinkTankQueryer interface {
 
 const thinkTankColumns = `room_id, command_id, title, goal, origin_project, openings, phase, control, hold,
   end_reason, rotation, revision, judge_config, judge_status, judge_agent_id, judge_error,
-  created_at, updated_at, ended_at, pipeline_run_id, pipeline_stage_id, pipeline_task_id, stage_context`
+  created_at, updated_at, ended_at, pipeline_run_id, pipeline_stage_id, pipeline_task_id, stage_context,
+  judge_instructions, attachments`
 
 func scanThinkTank(row interface{ Scan(...any) error }) (ThinkTank, error) {
 	var r ThinkTank
-	var created, updated string
+	var created, updated, files string
 	var ended sql.NullString
 	if err := row.Scan(&r.RoomID, &r.CommandID, &r.Title, &r.Goal, &r.OriginProject, &r.Openings, &r.Phase,
 		&r.Control, &r.Hold, &r.EndReason, &r.Rotation, &r.Revision, &r.JudgeConfig, &r.JudgeStatus,
 		&r.JudgeAgentID, &r.JudgeError, &created, &updated, &ended,
-		&r.PipelineRunID, &r.PipelineStageID, &r.PipelineTaskID, &r.StageContext); err != nil {
+		&r.PipelineRunID, &r.PipelineStageID, &r.PipelineTaskID, &r.StageContext,
+		&r.JudgeInstructions, &files); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ThinkTank{}, ErrNotFound
 		}
 		return ThinkTank{}, fmt.Errorf("state: scan think tank: %w", err)
+	}
+	if err := json.Unmarshal([]byte(files), &r.Attachments); err != nil {
+		return ThinkTank{}, fmt.Errorf("state: decode think tank attachments: %w", err)
 	}
 	var err error
 	if r.CreatedAt, err = parseTime(created); err != nil {
@@ -1809,6 +1853,13 @@ func (s *Store) DeleteThinkTank(roomID string) error {
 	for _, m := range d.Members {
 		if m.SetupState == ThinkTankSetupLaunching {
 			return thinkTankConflict("a participant is starting")
+		}
+	}
+	// Room-owned goal files go first, so a failed cleanup keeps the room and
+	// its ownership retryable, as DeleteAgent does (FS-21.R54).
+	if s.home != "" && len(d.Room.Attachments) > 0 {
+		if err := attachment.New(s.home).DeleteConversation(ThinkTankAttachmentKey(d.Room.CommandID)); err != nil {
+			return fmt.Errorf("state: remove think tank attachments: %w", err)
 		}
 	}
 	if _, err := tx.Exec(`DELETE FROM think_tanks WHERE room_id = ?`, roomID); err != nil {

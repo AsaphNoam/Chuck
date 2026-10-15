@@ -207,6 +207,16 @@ describe("ThinkTankPage", () => {
     expect(screen.getByText("2 / 2 turns")).toBeTruthy();
   });
 
+  // FS-21.R54–R55: the goal disclosure names goal files and the judge's
+  // synthesis instructions.
+  it("lists goal files and synthesis instructions under the goal", async () => {
+    const base = room();
+    detail = { ...base, attachments: [{ name: "brief.md", mime_type: "text/markdown", size: 7 }], judge: { ...base.judge, instructions: "Rank them." } };
+    renderRoom();
+    expect(await screen.findByText("Attached: brief.md")).toBeTruthy();
+    expect(screen.getByText("Synthesis instructions: Rank them.")).toBeTruthy();
+  });
+
   // FS-21.A36, R49: a refused increase keeps the draft and its command id;
   // the saved increase sends the expected ceiling and acknowledges.
   it("raises a participant's turn limit and keeps the draft on refusal", async () => {

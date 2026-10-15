@@ -694,8 +694,8 @@
   position: relative;
 }
 
-/* The global ::selection highlight uses --ad-highlight, which is also the user
-   message's background — selecting your own message would be invisible. Give the
+/* The global ::selection highlight uses Core's highlight, which is also Core's user
+   message background — selecting your own message would be invisible. Give the
    user bubble a contrasting selection colour so the highlight actually shows. */
 .user-message::selection {
   background: var(--ad-action-secondary);

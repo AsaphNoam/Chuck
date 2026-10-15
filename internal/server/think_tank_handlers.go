@@ -3,10 +3,13 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
@@ -30,13 +33,97 @@ type thinkTankParticipantRequest struct {
 }
 
 type thinkTankCreateRequest struct {
-	CommandID     string                        `json:"command_id"`
-	Title         string                        `json:"title,omitempty"`
-	Goal          string                        `json:"goal"`
-	OriginProject string                        `json:"origin_project"`
-	Openings      bool                          `json:"openings"`
-	Judge         *launchRequest                `json:"judge,omitempty"`
-	Participants  []thinkTankParticipantRequest `json:"participants"`
+	CommandID         string                        `json:"command_id"`
+	Title             string                        `json:"title,omitempty"`
+	Goal              string                        `json:"goal"`
+	OriginProject     string                        `json:"origin_project"`
+	Openings          bool                          `json:"openings"`
+	Judge             *launchRequest                `json:"judge,omitempty"`
+	JudgeInstructions string                        `json:"judge_instructions,omitempty"`
+	Participants      []thinkTankParticipantRequest `json:"participants"`
+	// Files declares the multipart file parts that follow the `room` part, in
+	// order (TS-14.R29).
+	Files []thinkTankFilePart `json:"files,omitempty"`
+}
+
+type thinkTankFilePart struct {
+	Part string `json:"part"`
+	Name string `json:"name"`
+}
+
+// decodeThinkTankCreate reads either a JSON body or a multipart body whose
+// first part `room` is that JSON, then streams declared goal files into the
+// room-owned attachment key with the ordinary chat limits (FS-21.R54). The
+// returned descriptors are owned by the caller's rollback until committed.
+func (s *Server) decodeThinkTankCreate(w http.ResponseWriter, r *http.Request, req *thinkTankCreateRequest) ([]attachment.Descriptor, *runtime.APIError) {
+	media, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if media != "multipart/form-data" {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, thinkTankRequestLimit)).Decode(req); err != nil {
+			return nil, apiError(runtime.CodeValidation, "invalid JSON body")
+		}
+		if len(req.Files) > 0 {
+			return nil, apiError(runtime.CodeValidation, "files require multipart data")
+		}
+		return nil, nil
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, attachmentRequestLimit)
+	store := attachment.New(s.configStore.Home())
+	var created []attachment.Descriptor
+	fail := func(err error) ([]attachment.Descriptor, *runtime.APIError) {
+		s.removeThinkTankFiles(req.CommandID, created)
+		return nil, attachmentAdmissionError(err)
+	}
+	mr, err := r.MultipartReader()
+	if err != nil {
+		return fail(errors.New("invalid multipart body"))
+	}
+	part, err := mr.NextPart()
+	if err != nil || part.FormName() != "room" || part.FileName() != "" {
+		return fail(errors.New("first part must be room metadata"))
+	}
+	if err := json.NewDecoder(io.LimitReader(part, thinkTankRequestLimit)).Decode(req); err != nil {
+		return fail(errors.New("invalid room metadata"))
+	}
+	if len(req.Files) == 0 || len(req.Files) > attachment.MaxFiles {
+		return fail(attachment.ErrTooManyFiles)
+	}
+	if !validRequestID(req.CommandID) {
+		return fail(errors.New("invalid command id"))
+	}
+	key := state.ThinkTankAttachmentKey(req.CommandID)
+	seen := map[string]bool{}
+	var total int64
+	for _, decl := range req.Files {
+		if !validRequestID(decl.Part) || decl.Part == "room" || seen[decl.Part] {
+			return fail(errors.New("duplicate or invalid file part"))
+		}
+		seen[decl.Part] = true
+		if part, err = mr.NextPart(); err != nil || part.FormName() != decl.Part {
+			return fail(errors.New("missing or out-of-order file part"))
+		}
+		d, err := store.Put(key, decl.Name, io.LimitReader(part, attachment.MaxTotalBytes-total+1))
+		if err != nil {
+			return fail(err)
+		}
+		created = append(created, d)
+		if total += d.Size; total > attachment.MaxTotalBytes {
+			return fail(attachment.ErrTotalTooLarge)
+		}
+	}
+	if _, err = mr.NextPart(); err != io.EOF {
+		return fail(errors.New("undeclared or incomplete file part"))
+	}
+	return created, nil
+}
+
+// removeThinkTankFiles rolls back blobs a create request stored but no room owns.
+func (s *Server) removeThinkTankFiles(commandID string, files []attachment.Descriptor) {
+	store := attachment.New(s.configStore.Home())
+	for _, d := range files {
+		if err := store.Remove(state.ThinkTankAttachmentKey(commandID), d.ID); err != nil {
+			s.log.Warn("think tank: remove unowned attachment", "command", commandID, "err", err)
+		}
+	}
 }
 
 func decodeThinkTankBody(w http.ResponseWriter, r *http.Request, v any) bool {
@@ -93,14 +180,23 @@ func (s *Server) thinkTankLaunchConfig(req *launchRequest, what string) (string,
 // (FS-21.R34, TS-14.R2).
 func (s *Server) handleCreateThinkTank(w http.ResponseWriter, r *http.Request) {
 	var req thinkTankCreateRequest
-	if !decodeThinkTankBody(w, r, &req) {
+	files, ae := s.decodeThinkTankCreate(w, r, &req)
+	if ae != nil {
+		writeAPIError(w, ae)
 		return
 	}
+	committed := false
+	defer func() {
+		if !committed {
+			s.removeThinkTankFiles(req.CommandID, files)
+		}
+	}()
 	if ae := s.requireLiveProject(req.OriginProject, "origin"); ae != nil {
 		writeAPIError(w, ae)
 		return
 	}
-	create := state.ThinkTankCreate{CommandID: req.CommandID, Title: req.Title, Goal: req.Goal, OriginProject: req.OriginProject, Openings: req.Openings}
+	create := state.ThinkTankCreate{CommandID: req.CommandID, Title: req.Title, Goal: req.Goal, OriginProject: req.OriginProject,
+		Openings: req.Openings, JudgeInstructions: strings.TrimSpace(req.JudgeInstructions), Attachments: files}
 	if req.Judge != nil {
 		config, ae := s.thinkTankLaunchConfig(req.Judge, "the judge")
 		if ae != nil {
@@ -148,6 +244,18 @@ func (s *Server) handleCreateThinkTank(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.writeThinkTankError(w, err)
 		return
+	}
+	// A new room owns this request's blobs. An exact replay returns the
+	// original room and its first copies, so these stay with the rollback.
+	if len(files) > 0 && len(d.Room.Attachments) > 0 && d.Room.Attachments[0].ID == files[0].ID {
+		committed = true
+		ids := make([]string, len(files))
+		for i, f := range files {
+			ids[i] = f.ID
+		}
+		if err := attachment.New(s.configStore.Home()).Retain(state.ThinkTankAttachmentKey(req.CommandID), ids); err != nil {
+			s.log.Warn("think tank: retain attachments", "room", d.Room.RoomID, "err", err)
+		}
 	}
 	s.publishThinkTankUpdate(d)
 	s.kickThinkTanks()

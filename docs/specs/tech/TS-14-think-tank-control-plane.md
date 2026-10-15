@@ -305,6 +305,16 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   1024px and wider in all three appearances, including a side-by-side normal/room composer check.
   Existing credentialed Claude/Codex room-tool/approval/resume gates remain distinct from fake
   evidence; extend the finite probe to addressed input and the readable exact judge result.
+- **R29 (shipped 2026-10-15)** — FS-21.R54–R55 add two immutable room columns: `judge_instructions`
+  (≤ 8,000 runes, refused without a judge) and `attachments` (JSON descriptor array). Create accepts
+  either the JSON body or `multipart/form-data` whose first part `room` is that body plus
+  `files:[{part,name}]`, followed by the declared parts in order. Bytes stream into the shared
+  `attachment.Store` under the room-owned conversation key `tt-<command_id>` before the create
+  transaction, with the ordinary per-file/total/count limits; the intent records descriptors without
+  opaque ids so exact replay matches, and a replay or failed create removes the request's new blobs.
+  Committed blobs are retained; room deletion deletes the key. `read_think_tank`'s first page adds
+  `attachments:[{name,mime_type,size,path}]` for every member and `judge_instructions` for the judge
+  only, and the detail wire lists attachment names. Pipeline rooms carry neither.
 
 ## 3. Interfaces & data shapes
 

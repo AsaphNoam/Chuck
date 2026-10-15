@@ -62,6 +62,7 @@
     "total_remaining": 2,
     "judge_enabled": true,
     "openings": false,
+    "attachments": [],
     "members": [
       {
         "agent_id": "a_one",

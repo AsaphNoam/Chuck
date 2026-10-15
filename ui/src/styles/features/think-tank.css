@@ -277,6 +277,10 @@
   white-space: pre-wrap;
 }
 
+.think-tank-goal > p.think-tank-goal-files {
+  font-size: 0.9rem;
+}
+
 .think-tank-body {
   align-items: start;
   display: grid;
@@ -1474,6 +1478,33 @@ a.think-tank-author:hover {
 .think-tank-setup-name span {
   color: var(--ad-text-secondary);
   font-size: 0.85rem;
+}
+
+.think-tank-setup-name .think-tank-setup-runtime {
+  font-family: var(--ad-font-mono);
+}
+
+.think-tank-setup-new,
+.think-tank-setup-files > button {
+  justify-self: start;
+}
+
+.think-tank-setup-files ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.think-tank-setup-files li {
+  align-items: center;
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  border-radius: var(--ad-radius-medium);
+  display: inline-flex;
+  gap: var(--ad-space-1);
+  padding-left: var(--ad-space-2);
 }
 
 .think-tank-setup-order,

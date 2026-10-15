@@ -43,7 +43,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 - **R28.** Transcript text is selectable and copyable, and an active selection is visibly
   highlighted — including inside the user's own prompt bubble, whose highlight colour must differ
   from the bubble background so the selection remains visible there. This lets a reader copy any
-  message content out of the panel.
+  message content out of the panel. Every skin uses Chuck Core's highlight colour for selection.
 - **R87 (implemented 2026-10-13) — File changes stay out of the conversation stream.** **Supersedes
   R2's diff clause.** Desktop chat, expanded dashboard chat and the phone conversation do not
   render `diff` events inline; archived transcripts and Think Tank rooms, which have no Files tab,

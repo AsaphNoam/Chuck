@@ -311,6 +311,18 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   message or annotation). The room records its own reason — participants had nothing further to
   add — distinct from departure and exhaustion; unspent allowance stays unspent, no closing message
   is offered, and the optional judge step runs as after any other ending.
+- **R54 (shipped 2026-10-15)** — Setup accepts optional file attachments for the goal, within the
+  ordinary chat attachment limits (FS-03 composer: up to 10 files, 10 MiB each, 25 MiB total).
+  They are fixed with the goal, owned by the room, and offered to every participant and the judge
+  with the goal as readable copies; the room's goal disclosure lists them by name. Room deletion
+  removes them. Ordinary file permissions of each agent's provider still apply.
+- **R55 (shipped 2026-10-15)** — When final synthesis is enabled, setup accepts optional synthesis
+  instructions (at most 8,000 characters), fixed at start. Only the judge receives them, with the
+  goal, as the operator's direction for how to act and respond in its synthesis; they do not relax
+  R7/R13's preservation of unresolved material objections.
+- **R56 (shipped 2026-10-15)** — Setup shows each chosen participant's and the judge's model and
+  effort, and existing-agent choices carry the same. The **Add new agent** action is a distinct
+  button placed above the existing-agent picker; the picker lists only non-archived agents (R34).
 
 ## 3. States & transitions
 
@@ -562,6 +574,12 @@ completion; R37 defines partial opening publication and pending input on End.
   participant has passed since then, discussion ends with the nothing-further reason and unspent
   allowance. Pass with a message or on a non-discussion turn is refused. *Verify:* state and MCP
   tool tests plus the room page test.
+- **A39 (shipped 2026-10-15)** (R54–R56) — Create a room with two attached files, synthesis instructions
+  and a judge: participants' and the judge's first read lists both files with readable paths; only
+  the judge's read carries the instructions; an exact replay keeps the original files; an over-limit
+  upload is refused before any room exists; deletion removes the files. Setup shows each row's
+  model and effort, places Add new agent above the picker, and omits archived agents. *Verify:*
+  server handler and MCP tool tests plus the setup dialog test.
 
 ## 6. Deviations & open decisions
 
@@ -606,5 +624,6 @@ judge results live/reloaded/in Archive. Credentialed Claude/Codex smoke (TS-06.R
 - Adjacent coverage: FS-02.R65/A47, FS-03.R69–R70/A50–A51, FS-13.R26–R27/A17–A18,
   FS-05.R39/A22, FS-17.R21/A12 and FS-18.R19/A15. TS-14 owns the selected architecture.
 - Tests: `internal/state/think_tanks_test.go`, `internal/server/think_tank{s,_handlers,_capture}_test.go`,
-  `internal/messaging/think_tank_tools_test.go`, `ui/src/features/thinktank/ThinkTankPage.test.tsx`;
+  `internal/messaging/think_tank_tools_test.go`, `ui/src/features/thinktank/ThinkTankPage.test.tsx`,
+  `ui/src/features/thinktank/ThinkTankSetupDialog.test.tsx`;
   rendered review `ui/scripts/room-render.mjs`.

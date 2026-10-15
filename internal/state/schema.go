@@ -788,6 +788,13 @@ CREATE INDEX idx_attachment_recovery ON attachment_receipts(agent_id,updated_at)
 		sql: `ALTER TABLE sessions ADD COLUMN history_primer TEXT NOT NULL DEFAULT ''
 CHECK(length(CAST(history_primer AS BLOB)) <= 32000);`,
 	},
+	{
+		// Room-owned goal attachments and judge-only synthesis instructions
+		// (FS-21.R54–R55, TS-14.R29).
+		version: 53,
+		sql: `ALTER TABLE think_tanks ADD COLUMN judge_instructions TEXT NOT NULL DEFAULT '';
+ALTER TABLE think_tanks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';`,
+	},
 }
 
 func migrateAttachmentReceipts(tx *sql.Tx) error {

@@ -203,18 +203,28 @@ type thinkTankJudgeWire struct {
 	AgentID string          `json:"agent_id,omitempty"`
 	Error   string          `json:"error,omitempty"`
 	Config  json.RawMessage `json:"config,omitempty"`
+	// Instructions are the operator's synthesis direction (FS-21.R55).
+	Instructions string `json:"instructions,omitempty"`
+}
+
+type thinkTankAttachmentWire struct {
+	Name     string `json:"name"`
+	MIMEType string `json:"mime_type"`
+	Size     int64  `json:"size"`
 }
 
 type thinkTankDetailWire struct {
 	thinkTankSummaryWire
-	Openings  bool                   `json:"openings"`
-	Members   []thinkTankMemberWire  `json:"members"`
-	Active    *thinkTankAttemptWire  `json:"active,omitempty"`
-	Next      *thinkTankNextWire     `json:"next,omitempty"`
-	Pending   []thinkTankInputWire   `json:"pending"`
-	Failed    []thinkTankAttemptWire `json:"failed"`
-	Judge     thinkTankJudgeWire     `json:"judge"`
-	Deletable bool                   `json:"deletable"`
+	Openings bool `json:"openings"`
+	// Attachments name the room's goal files (FS-21.R54).
+	Attachments []thinkTankAttachmentWire `json:"attachments"`
+	Members     []thinkTankMemberWire     `json:"members"`
+	Active      *thinkTankAttemptWire     `json:"active,omitempty"`
+	Next        *thinkTankNextWire        `json:"next,omitempty"`
+	Pending     []thinkTankInputWire      `json:"pending"`
+	Failed      []thinkTankAttemptWire    `json:"failed"`
+	Judge       thinkTankJudgeWire        `json:"judge"`
+	Deletable   bool                      `json:"deletable"`
 }
 
 type thinkTankEntryWire struct {
@@ -259,7 +269,11 @@ func (s *Server) thinkTankDetailWire(d state.ThinkTankDetail) thinkTankDetailWir
 		thinkTankSummaryWire: thinkTankSummaryFor(d), Openings: r.Openings,
 		Members: []thinkTankMemberWire{}, Pending: []thinkTankInputWire{}, Failed: []thinkTankAttemptWire{},
 		Judge: thinkTankJudgeWire{Enabled: r.JudgeConfig != "", Status: r.JudgeStatus, AgentID: r.JudgeAgentID,
-			Error: r.JudgeError, Config: rawJSONOrNil(r.JudgeConfig)},
+			Error: r.JudgeError, Config: rawJSONOrNil(r.JudgeConfig), Instructions: r.JudgeInstructions},
+		Attachments: []thinkTankAttachmentWire{},
+	}
+	for _, f := range r.Attachments {
+		out.Attachments = append(out.Attachments, thinkTankAttachmentWire{Name: f.Name, MIMEType: f.MIMEType, Size: f.Size})
 	}
 	s.markRosterExists(out.Roster, map[string]bool{})
 	statuses := map[string]string{}

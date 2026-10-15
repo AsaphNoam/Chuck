@@ -6,6 +6,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Finished — Think Tank setup upgrade (2026-10-15), waiting for review:** goal attachments,
+  judge synthesis instructions, model/effort display, Add new agent placement and Core selection
+  highlight in every skin (changelog entry). Full UI suite (881), UI build, `make build` and the
+  serial FTS5 Go variant pass. The serial plain variant failed only the known
+  `TestQuotaDispatcherContinuesSameConversationOnce/stopped` flake; 20 isolated repeats pass.
+
 - **Finished — agent context continuity (2026-10-14):** C1–C9 closed locally. Instructions,
   tool evidence and bounded recent history survive handoffs; the separate bridge survives native
   resume/restart. Native-load failures refuse replacement; unverified provider handoffs refuse
@@ -143,6 +149,16 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — Think Tank setup upgrade (FS-21.R54–R56/A39, TS-14.R29, FS-03.R28):** setup
+  takes goal files (chat limits) stored under `attachment.Store` key `tt-<command_id>` and
+  offered on every member's first `read_think_tank` as `attachments` paths; judge-only
+  `judge_instructions` (migration 53 adds both columns); model · effort on rows, judge and picker
+  options; **+ Add new agent…** above the existing-agent picker. Text selection uses Core's
+  highlight in every skin. Archived agents were already excluded from the picker (verified
+  against live data; now under test). Review notes: a crash between upload and create commit
+  leaves pending room blobs nothing prunes; images reach agents as file paths, not inline image
+  blocks; the v47 migration fixture gained a stub `think_tanks` table.
 
 - **2026-10-15 — J3/J6/J11 transcript and stopped-state fixes; review closed (INV §8/§13):** the
   transcript stays pinned to the bottom while late rows (diagrams) settle, and only scrolling toward

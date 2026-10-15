@@ -99,7 +99,11 @@ export const thinkTankDetailSchema = thinkTankSummarySchema.extend({
     agent_id: z.string().optional().default(""),
     error: z.string().optional().default(""),
     config: z.record(z.string(), z.unknown()).optional(),
+    /** The operator's synthesis direction (FS-21.R55). */
+    instructions: z.string().optional().default(""),
   }),
+  /** Names of the room's goal files (FS-21.R54). */
+  attachments: z.array(z.object({ name: z.string(), mime_type: z.string(), size: z.number() })).optional().default([]),
   deletable: z.boolean(),
 });
 

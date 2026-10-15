@@ -3,12 +3,18 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
@@ -292,5 +298,103 @@ func TestThinkTankListByMemberWithRoster(t *testing.T) {
 	}
 	if none := doJSON(t, h, http.MethodGet, "/api/think-tanks?agent_id=a_nobody", ""); !strings.Contains(none.Body.String(), `"rooms":[]`) {
 		t.Fatalf("non-member list = %s", none.Body.String())
+	}
+}
+
+func roomMultipart(t *testing.T, h http.Handler, room string, files map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	decl := []string{}
+	for i, name := range names {
+		decl = append(decl, fmt.Sprintf(`{"part":"file_%d","name":%q}`, i, name))
+	}
+	meta, _ := w.CreateFormField("room")
+	_, _ = meta.Write([]byte(strings.TrimSuffix(room, "}") + `,"files":[` + strings.Join(decl, ",") + `]}`))
+	for i, name := range names {
+		part, _ := w.CreateFormFile(fmt.Sprintf("file_%d", i), name)
+		_, _ = part.Write([]byte(files[name]))
+	}
+	_ = w.Close()
+	req := newLocalRequest(http.MethodPost, "/api/think-tanks", &body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func roomFileCount(t *testing.T, srv *Server, commandID string) int {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(srv.configStore.Home(), "sessions", state.ThinkTankAttachmentKey(commandID), "attachments"))
+	if os.IsNotExist(err) {
+		return 0
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), ".") {
+			n++
+		}
+	}
+	return n
+}
+
+// FS-21.A39, TS-14.R29: multipart setup stores room-owned goal files and
+// judge-only instructions; replay keeps the first copies; refusals and
+// deletion leave no files behind.
+func TestThinkTankCreateWithGoalFilesAndJudgeInstructions(t *testing.T) {
+	srv, h := roomRESTServer(t)
+	files := map[string]string{"brief.md": "# Brief", "data.csv": "a,b"}
+	judged := `{"command_id":"cmd-files","goal":"Pick a cache","origin_project":"alpha","judge":{"project":"alpha","backend":"claude"},` +
+		`"judge_instructions":"Rank the options.","participants":[{"agent_id":"a_one","limit":2},{"agent_id":"a_two","limit":2}]}`
+	rec := roomMultipart(t, h, judged, files)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create = %d %s", rec.Code, rec.Body.String())
+	}
+	var room thinkTankDetailWire
+	if err := json.Unmarshal(rec.Body.Bytes(), &room); err != nil {
+		t.Fatal(err)
+	}
+	if len(room.Attachments) != 2 || room.Attachments[0].Name != "brief.md" || room.Judge.Instructions != "Rank the options." {
+		t.Fatalf("room = %+v", room)
+	}
+	if again := roomMultipart(t, h, judged, files); again.Code != http.StatusCreated || !strings.Contains(again.Body.String(), room.RoomID) {
+		t.Fatalf("replay = %d %s", again.Code, again.Body.String())
+	}
+	if n := roomFileCount(t, srv, "cmd-files"); n != 2 {
+		t.Fatalf("stored files after replay = %d, want 2", n)
+	}
+
+	noJudge := `{"command_id":"cmd-nojudge","goal":"Pick","origin_project":"alpha","judge_instructions":"x","participants":[{"agent_id":"a_one","limit":2},{"agent_id":"a_two","limit":2}]}`
+	if rec := roomMultipart(t, h, noJudge, files); rec.Code == http.StatusCreated || roomFileCount(t, srv, "cmd-nojudge") != 0 {
+		t.Fatalf("instructions without a judge = %d, files %d", rec.Code, roomFileCount(t, srv, "cmd-nojudge"))
+	}
+	big := `{"command_id":"cmd-big","goal":"Pick","origin_project":"alpha","participants":[{"agent_id":"a_one","limit":2},{"agent_id":"a_two","limit":2}]}`
+	if rec := roomMultipart(t, h, big, map[string]string{"huge.txt": strings.Repeat("x", attachment.MaxFileBytes+1)}); rec.Code == http.StatusCreated || roomFileCount(t, srv, "cmd-big") != 0 {
+		t.Fatalf("oversized file = %d, files %d", rec.Code, roomFileCount(t, srv, "cmd-big"))
+	}
+
+	plain := strings.Replace(big, "cmd-big", "cmd-plain", 1)
+	rec = roomMultipart(t, h, plain, files)
+	var deletable thinkTankDetailWire
+	_ = json.Unmarshal(rec.Body.Bytes(), &deletable)
+	if rec.Code != http.StatusCreated || roomFileCount(t, srv, "cmd-plain") != 2 {
+		t.Fatalf("plain create = %d %s", rec.Code, rec.Body.String())
+	}
+	if _, err := srv.stateStore.EndThinkTank(deletable.RoomID); err != nil {
+		t.Fatal(err)
+	}
+	if rec := doJSON(t, h, http.MethodDelete, "/api/think-tanks/"+deletable.RoomID, ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete = %d %s", rec.Code, rec.Body.String())
+	}
+	if n := roomFileCount(t, srv, "cmd-plain"); n != 0 {
+		t.Fatalf("files after delete = %d", n)
 	}
 }

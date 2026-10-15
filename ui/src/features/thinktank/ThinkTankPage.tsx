@@ -253,6 +253,8 @@ function Room({ room }: { room: ThinkTankDetail }) {
           <span className="think-tank-goal-toggle" aria-hidden="true"><span>View full goal</span><span>Collapse</span></span>
         </summary>
         <p>{room.goal}</p>
+        {room.attachments.length > 0 && <p className="think-tank-goal-files">Attached: {room.attachments.map((f) => f.name).join(", ")}</p>}
+        {room.judge.instructions && <p className="think-tank-goal-files">Synthesis instructions: {room.judge.instructions}</p>}
       </details>
       <div className="think-tank-body" data-slot="body">
         <div className="think-tank-discussion" data-slot="discussion">

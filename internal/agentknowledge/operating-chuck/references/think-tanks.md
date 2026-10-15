@@ -9,7 +9,9 @@ private exchanges with the person are never copied into the room.
   your turn the default view returns only what is new since your last published contribution, in
   bounded pages. Follow `next_cursor` until the read is complete. Your own earlier contributions are
   marked rather than repeated. Use `view: history` to revisit older entries and `view: activity` for
-  retained room tool and file activity; neither replaces the new-content read.
+  retained room tool and file activity; neither replaces the new-content read. Files the person
+  attached to the goal appear in `attachments` on your first read; open them at their `path` with
+  your ordinary file tools.
 - Contribute explicitly with `submit_think_tank_turn`, passing the turn token and the read receipt
   from your completed read. The submission is staged; it is published only when your turn completes
   successfully, so end the turn after submitting. Ordinary assistant text is not published, and a turn
@@ -32,7 +34,9 @@ private exchanges with the person are never copied into the room.
   turn; an address does not interrupt private work, reorder turns or grant more allowance.
 - When only you retain turns, you may get one closing opportunity: publish a closing message or
   decline it. After discussion ends, a judge, when configured, is a fresh agent that produces one
-  synthesis preserving material objections. If it fails, the person can explicitly retry with a
+  synthesis preserving material objections. When the person gave synthesis instructions, only the
+  judge's read carries them as `judge_instructions`; the judge follows them for how to act and
+  respond, still preserving material objections. If it fails, the person can explicitly retry with a
   fresh judge without reopening discussion.
   The exact successfully submitted synthesis is also retained as a result in the judge's own chat,
   including after the room is deleted; incidental provider text is not that result.
