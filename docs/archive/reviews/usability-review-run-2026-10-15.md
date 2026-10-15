@@ -31,6 +31,9 @@
 | J5 Grid & layout | PASS | Project title and zero meter, Resume only on stopped cards, drag/density/groups/collapse across reload and restart, archive of an ordered agent, empty project state, active-first ordering (live move on stop, in-block drag, refused cross-boundary drop), chat panes (fixed height, internal scroll, no collapse on Send/selection/right-click, Ctrl+Alt+Arrow focus cycling), and automatic pane opening with least-recently-used eviction restoring the draft. A load-time layout save is recorded below. | [cross-boundary drop](usability-review-2026-10-15-evidence/J5-5c-stop-over-run.png), [pane](usability-review-2026-10-15-evidence/J5-6b.png), [eviction](usability-review-2026-10-15-evidence/J5-7c-after.png) |
 | J6 Terminal runtime | PASS | Default PTY driver (tmux absent, not required) with a local `claude` stub: render, exact typing/backspace, resize, navigate/reload reattach, Stop/Resume, missing-CLI launch error. Stopped terminal page finding below. Real provider CLI not exercised. | [resize](usability-review-2026-10-15-evidence/J6-3.png), [stopped](usability-review-2026-10-15-evidence/J6-5e.png) |
 | J7 Stop / resume / switch | PASS | Resume, Stop → Resume and Switch (model and cross-backend) kept id, transcript, model, system-prompt marker, cwd and add_dirs, observed in the fake peer's load dumps; stopped-agent composer wake; repeated/concurrent stop/resume consistent with one process. Project edits do not reach existing agents (frozen at launch per FS-01). A stopped agent's model cannot be changed without resuming it (disabled with hover reason). | [switched](usability-review-2026-10-15-evidence/J7-switched.png), [resumed](usability-review-2026-10-15-evidence/J7-resumed1.png), [menu](usability-review-2026-10-15-evidence/J7-ctx.png) |
+| J8 Archive & search | PARTIAL | Tagged and untagged: empty state, both archived agents listed, metadata/name search, no-results, read-only transcript, Restore back to the project. Tagged: transcript search with snippets and 27 archived agents (pagination past 50 not reached). Untagged states metadata-only scope. Missing/bogus archived session shows a blank page (finding). | [search](usability-review-2026-10-15-evidence/J8-t-search-pelican.png), [fallback](usability-review-2026-10-15-evidence/J8-u-search-pelican.png), [restored](usability-review-2026-10-15-evidence/J8-t-restored.png), [bogus id](usability-review-2026-10-15-evidence/J8-t-err-bogus-id.png) |
+| J9 Settings & config | PASS with finding | All seven tabs round-trip; seeded backends/models and projects merge-preserved; most invalid input refused visibly; Core/Sky & Grove/Studio apply live and persist; role delete-in-use confirms and agent keeps working; config-source panel and Remote render on a fresh home (`devices: []`). Blank backend display name persists on edit (finding). | [Studio](usability-review-2026-10-15-evidence/J9-app-studio-dash.png), [role in use](usability-review-2026-10-15-evidence/J9-role-delete-inuse.png), [blank name](usability-review-2026-10-15-evidence/J9-be-emptyname.png) |
+| J10 Multi-agent + messaging | FAIL | Driven through the real `/mcp` `send_message` with an agent token (no UI path exists). Waking mail woke a stopped recipient exactly once; mail to a busy agent waited and was delivered once after the turn; restart rendered correct Mail N badges. Live Mail N / Sent never appear after a send (finding). The mail-triggered turn has no visible cause in the recipient transcript. No human inbox surface exists. | [cards](usability-review-2026-10-15-evidence/J10-3-cards-unread.png), [SSE capture](usability-review-2026-10-15-evidence/V10-sse-after-send.txt), [recipient](usability-review-2026-10-15-evidence/J10-4-D-transcript.png) |
 | J17 Browser-local drafts | PASS | Two drafts isolated through navigation and reload; sent draft cleared and never returned; stopping an agent leaked nothing and kept its own draft. | [drafts](usability-review-2026-10-15-evidence/J17-5-A.png), [stopped](usability-review-2026-10-15-evidence/J17-7-Bstopped.png) |
 
 ## Static sweeps
@@ -100,6 +103,42 @@ OBSERVED: Every page load sends PUT /api/layout ~0.4 s after the GET (four of fo
 EVIDENCE: Playwright request capture (work/V5/order.cjs); J5 server.log GET/PUT pairs
 ```
 
+```text
+SEVERITY: MAJOR
+WHERE: J10 steps 2/3 (homes J10 port 4610; replayed on V10 port 4652), FS-06.R13
+REPRO: Two running chat agents; from A's MCP session call send_message to B (wake:false or wake:true); watch /api/events and B's card.
+EXPECTED: B's next state_update carries unread_messages, card shows Mail N; A shows Sent for two seconds.
+OBSERVED: No state_update for either agent after the send; GET /api/sessions shows B unread_messages null while GET /api/sessions/B/messages reports unread_count 1. Badges stay absent or stale (A read Mail 1 with 3 unread) until a server restart. The 2026-09-26 run saw these badges live.
+EVIDENCE: usability-review-2026-10-15-evidence/V10-sse-after-send.txt, J10-3-cards-unread.png
+```
+
+```text
+SEVERITY: MINOR
+WHERE: J10 step 2/4 (V10 port 4652), FS-06.R31–R32 (possible missing requirement)
+REPRO: send_message wake:true to an idle agent; open its agent page / transcript.
+EXPECTED: The person supervising can see that peer mail started this turn (sender/subject).
+OBSERVED: Transcript holds only the assistant reply and turn_end — an unexplained turn; the mail is visible nowhere in the UI.
+EVIDENCE: usability-review-2026-10-15-evidence/J10-4-D-transcript.png
+```
+
+```text
+SEVERITY: MINOR
+WHERE: J8 step 6 (tagged 4608 and untagged 4618), FS-05
+REPRO: Open /archive/bogus-id, or an archived agent whose transcript file was removed.
+EXPECTED: A visible not-found / transcript-unavailable message.
+OBSERVED: Normal-looking "Archived session · read-only" header, empty body, active Resume/Restore; the 404 is swallowed (ArchiveAgentPage `.catch(() => settle(id))`). Resume then shows "no such agent".
+EVIDENCE: usability-review-2026-10-15-evidence/J8-t-err-bogus-id.png, J8-t-err-a_528c5a.png
+```
+
+```text
+SEVERITY: MINOR
+WHERE: J9 step 3 (port 4609), FS-09
+REPRO: Settings → Backends, clear the Codex display name, Save, reload.
+EXPECTED: "Display name is required" (as backend creation enforces); nothing persisted.
+OBSERVED: Saves silently; backends.json has codex "name": "".
+EVIDENCE: usability-review-2026-10-15-evidence/J9-be-emptyname.png; homes/J9/backends.json
+```
+
 Not promoted: a stale backend-check result after switching type (reproduced once only); the
 700 px narrow file-viewer check (1024 px is the specified desktop floor); a possible hidden
 “Timed out” label (unconfirmed); POLISH items (no wizard Back, Launch step returns to dashboard
@@ -107,6 +146,9 @@ instead of opening the agent, phantom last line number in the file viewer). Batc
 silent least-recently-used eviction with draft retention); a possibly clipped New Agent dialog with
 Advanced open (scrolling unverified); stop actions reachable only by right-click; “finished” toast on
 a user-initiated stop; console 404 on the pending-prompt fetch for stopped agents; two toasts per
-permission request; empty-project panel wording.
+permission request; empty-project panel wording. Batch 3: untagged no-results copy not tied to
+the metadata-only note; no upper bound on task concurrency or role prompt size; raw regex in the
+role id error; agent id instead of name in the role-in-use dialog. Settings → Projects shows the
+`cwd_not_found` warning that the onboarding wizard omits (J2 finding stands).
 
 ## Not exercised

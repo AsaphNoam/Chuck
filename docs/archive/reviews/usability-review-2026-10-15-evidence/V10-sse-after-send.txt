@@ -1,0 +1,94 @@
+retry: 2000
+
+id: 7
+event: state_update
+data: {"type":"state_update","seq":7,"ts":1792039405260,"agent_id":"a_7e9e5b","data":{"agent_id":"a_7e9e5b","name":"Agent-C","role":"default","project":"review","backend":"claude","model":"mb","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:40:31Z","running":false,"fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"done","detail":"resumed","last_trace":"SessionStart","context_pct":0,"updated_at":1792039401239,"archived":false}}
+
+id: 8
+event: state_update
+data: {"type":"state_update","seq":8,"ts":1792039405260,"agent_id":"a_bc9b9c","data":{"agent_id":"a_bc9b9c","name":"Agent-D","role":"default","project":"review","backend":"claude","model":"mh","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:42:07Z","running":false,"fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"done","detail":"","last_trace":"Stop","context_pct":0.22,"context_used":44000,"context_size":200000,"updated_at":1792039401239,"archived":false}}
+
+id: 9
+event: state_update
+data: {"type":"state_update","seq":9,"ts":1792039405260,"agent_id":"a_831214","data":{"agent_id":"a_831214","name":"VA","role":"implementer","project":"review","backend":"claude","model":"ma","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:24Z","running":true,"pid":28328,"session_id":"fake-sess-1","started_at":"2026-10-15T04:43:24Z","fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"idle","detail":"ready","last_trace":"SessionStart","context_pct":0,"updated_at":1792039404202,"archived":false}}
+
+id: 10
+event: state_update
+data: {"type":"state_update","seq":10,"ts":1792039405260,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","name":"VB","role":"implementer","project":"review","backend":"claude","model":"mb","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:25Z","running":true,"pid":28342,"session_id":"fake-sess-1","started_at":"2026-10-15T04:43:25Z","fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"idle","detail":"ready","last_trace":"SessionStart","context_pct":0,"updated_at":1792039405248,"archived":false}}
+
+id: 11
+event: state_update
+data: {"type":"state_update","seq":11,"ts":1792039405260,"agent_id":"a_109a6e","data":{"agent_id":"a_109a6e","name":"Agent-mb","role":"default","project":"review","backend":"claude","model":"mb","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:38:08Z","running":false,"fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"done","detail":"","last_trace":"Stop","context_pct":0,"unread_messages":4,"updated_at":1792039401239,"archived":false}}
+
+id: 12
+event: state_update
+data: {"type":"state_update","seq":12,"ts":1792039405260,"agent_id":"a_68d7c7","data":{"agent_id":"a_68d7c7","name":"Agent-ma","role":"default","project":"review","backend":"claude","model":"ma","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:38:08Z","running":false,"fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"done","detail":"resumed","last_trace":"SessionStart","context_pct":0,"unread_messages":3,"updated_at":1792039401239,"archived":false}}
+
+id: 13
+event: state_update
+data: {"type":"state_update","seq":13,"ts":1792039405260,"agent_id":"__hydrated__","data":{"hydrated":true}}
+
+id: 14
+event: ping
+data: {"type":"ping","seq":14,"ts":1792039415262,"agent_id":null,"data":{}}
+
+id: 15
+event: ping
+data: {"type":"ping","seq":15,"ts":1792039425262,"agent_id":null,"data":{}}
+
+id: 16
+event: state_update
+data: {"type":"state_update","seq":16,"ts":1792039431848,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","name":"VB","role":"implementer","project":"review","backend":"claude","model":"mb","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:25Z","running":true,"pid":28342,"session_id":"fake-sess-1","started_at":"2026-10-15T04:43:25Z","fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"idle","detail":"ready","last_trace":"SessionStart","context_pct":0,"unread_messages":2,"updated_at":1792039431848,"archived":false}}
+
+id: 17
+event: state_update
+data: {"type":"state_update","seq":17,"ts":1792039431848,"agent_id":"a_831214","data":{"agent_id":"a_831214","name":"VA","role":"implementer","project":"review","backend":"claude","model":"ma","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:24Z","running":true,"pid":28328,"session_id":"fake-sess-1","started_at":"2026-10-15T04:43:24Z","fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"idle","detail":"ready","last_trace":"SessionStart","context_pct":0,"updated_at":1792039431848,"archived":false}}
+
+id: 18
+event: state_update
+data: {"type":"state_update","seq":18,"ts":1792039431848,"agent_id":"a_831214","data":{"agent_id":"a_831214","name":"VA","role":"implementer","project":"review","backend":"claude","model":"ma","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:24Z","running":true,"pid":28328,"session_id":"fake-sess-1","started_at":"2026-10-15T04:43:24Z","fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"idle","detail":"ready","last_trace":"SessionStart","context_pct":0,"last_sent_at":"2026-10-15T04:43:51Z","updated_at":1792039431848,"archived":false}}
+
+id: 19
+event: state_update
+data: {"type":"state_update","seq":19,"ts":1792039431848,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","name":"VB","role":"implementer","project":"review","backend":"claude","model":"mb","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:25Z","running":true,"pid":28342,"session_id":"fake-sess-1","started_at":"2026-10-15T04:43:25Z","fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":false,"reason":"Cloning needs a completed conversation point. Wait for the current turn or permission to finish."},"state":"busy","detail":"checking messages","last_trace":"MailActivation","busy_since":"2026-10-15T04:43:51Z","context_pct":0,"unread_messages":2,"updated_at":1792039431848,"archived":false}}
+
+id: 20
+event: new_message
+data: {"type":"new_message","seq":20,"ts":1792039431849,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","seq":1,"type":"assistant_text","data":{"delta":"Sure, "},"ts":"2026-10-15T04:43:51Z"}}
+
+id: 21
+event: new_message
+data: {"type":"new_message","seq":21,"ts":1792039431850,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","seq":2,"type":"assistant_text","data":{"delta":"I'll "},"ts":"2026-10-15T04:43:51Z"}}
+
+id: 22
+event: new_message
+data: {"type":"new_message","seq":22,"ts":1792039431851,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","seq":3,"type":"assistant_text","data":{"delta":"do that."},"ts":"2026-10-15T04:43:51Z"}}
+
+id: 23
+event: state_update
+data: {"type":"state_update","seq":23,"ts":1792039431853,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","name":"VB","role":"implementer","project":"review","backend":"claude","model":"mb","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:25Z","running":true,"pid":28342,"session_id":"fake-sess-1","started_at":"2026-10-15T04:43:25Z","fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":false,"reason":"Cloning needs a completed conversation point. Wait for the current turn or permission to finish."},"state":"busy","detail":"checking messages","last_trace":"MailActivation","busy_since":"2026-10-15T04:43:51Z","context_pct":0.22,"context_used":44000,"context_size":200000,"unread_messages":2,"updated_at":1792039431853,"archived":false}}
+
+id: 24
+event: state_update
+data: {"type":"state_update","seq":24,"ts":1792039431853,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","name":"VB","role":"implementer","project":"review","backend":"claude","model":"mb","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:25Z","running":true,"pid":28342,"session_id":"fake-sess-1","started_at":"2026-10-15T04:43:25Z","fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"idle","detail":"","last_trace":"Stop","context_pct":0.22,"context_used":44000,"context_size":200000,"updated_at":1792039431853,"archived":false}}
+
+id: 25
+event: new_message
+data: {"type":"new_message","seq":25,"ts":1792039431858,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","seq":4,"type":"turn_end","data":{"stop_reason":"end_turn","context_pct":0.22,"context_used":44000,"context_size":200000},"ts":"2026-10-15T04:43:51Z"}}
+
+id: 26
+event: state_update
+data: {"type":"state_update","seq":26,"ts":1792039434902,"agent_id":"a_29ea34","data":{"agent_id":"a_29ea34","name":"VB","role":"implementer","project":"review","backend":"claude","model":"mb","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:25Z","running":false,"fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"done","detail":"","last_trace":"Stop","context_pct":0.22,"context_used":44000,"context_size":200000,"updated_at":1792039434902,"archived":false}}
+
+id: 27
+event: notification
+data: {"type":"notification","seq":27,"ts":1792039434902,"agent_id":"a_29ea34","data":{"address":"implementer@review","agent_id":"a_29ea34","agent_name":"VB","body":"","detail":{},"notification_type":"done","title":"VB finished","ts":"2026-10-15T04:43:54Z","type":"notification"}}
+
+id: 28
+event: state_update
+data: {"type":"state_update","seq":28,"ts":1792039434907,"agent_id":"a_831214","data":{"agent_id":"a_831214","name":"VA","role":"implementer","project":"review","backend":"claude","model":"ma","effort":"medium","fast":false,"interface":"chat","created_at":"2026-10-15T04:43:24Z","running":false,"fast_available":false,"steering_available":false,"runtime_capabilities":{"image_input":false,"fork":true,"subagents":true,"background_tasks":true,"background_task_stop":true,"file_change_reports":true,"session_failure":true},"attachment_capabilities":{"image_input":false,"files":true,"max_files":10,"max_file_bytes":10485760,"max_total_bytes":26214400,"max_pixels":40000000},"clone":{"available":true,"reason":""},"state":"done","detail":"ready","last_trace":"SessionStart","context_pct":0,"updated_at":1792039434907,"archived":false}}
+
+id: 29
+event: notification
+data: {"type":"notification","seq":29,"ts":1792039434907,"agent_id":"a_831214","data":{"address":"implementer@review","agent_id":"a_831214","agent_name":"VA","body":"ready","detail":{},"notification_type":"done","title":"VA finished","ts":"2026-10-15T04:43:54Z","type":"notification"}}
+
