@@ -34,6 +34,9 @@
 | J8 Archive & search | PARTIAL | Tagged and untagged: empty state, both archived agents listed, metadata/name search, no-results, read-only transcript, Restore back to the project. Tagged: transcript search with snippets and 27 archived agents (pagination past 50 not reached). Untagged states metadata-only scope. Missing/bogus archived session shows a blank page (finding). | [search](usability-review-2026-10-15-evidence/J8-t-search-pelican.png), [fallback](usability-review-2026-10-15-evidence/J8-u-search-pelican.png), [restored](usability-review-2026-10-15-evidence/J8-t-restored.png), [bogus id](usability-review-2026-10-15-evidence/J8-t-err-bogus-id.png) |
 | J9 Settings & config | PASS with finding | All seven tabs round-trip; seeded backends/models and projects merge-preserved; most invalid input refused visibly; Core/Sky & Grove/Studio apply live and persist; role delete-in-use confirms and agent keeps working; config-source panel and Remote render on a fresh home (`devices: []`). Blank backend display name persists on edit (finding). | [Studio](usability-review-2026-10-15-evidence/J9-app-studio-dash.png), [role in use](usability-review-2026-10-15-evidence/J9-role-delete-inuse.png), [blank name](usability-review-2026-10-15-evidence/J9-be-emptyname.png) |
 | J10 Multi-agent + messaging | FAIL | Driven through the real `/mcp` `send_message` with an agent token (no UI path exists). Waking mail woke a stopped recipient exactly once; mail to a busy agent waited and was delivered once after the turn; restart rendered correct Mail N badges. Live Mail N / Sent never appear after a send (finding). The mail-triggered turn has no visible cause in the recipient transcript. No human inbox surface exists. | [cards](usability-review-2026-10-15-evidence/J10-3-cards-unread.png), [SSE capture](usability-review-2026-10-15-evidence/V10-sse-after-send.txt), [recipient](usability-review-2026-10-15-evidence/J10-4-D-transcript.png) |
+| J11 Failure & recovery | PARTIAL | Server kill → “Reconnecting” within 4 s; send while down fails visibly and restores the draft; automatic reconnect with accurate stopped state and catch-up of changes made while disconnected; process kill reflected in under 1 s; crash survives reload and composer wake recovers; garbage in agent/project/role forms, archive search operators and a 100 KB composer paste handled. Pipeline template save with invalid ids returns 500 (finding). Reconnect does not heal the duplicate bubbles. Tasks has no create form. | [reconnecting](usability-review-2026-10-15-evidence/J11-1b-down4s.png), [send while down](usability-review-2026-10-15-evidence/J11-1c-send-down.png), [crash](usability-review-2026-10-15-evidence/J11-3a-crash-page.png) |
+| J13 Annotate & assign | FAIL | Live diff-line, whole-event and text-range annotations, tray edit/reload, archived-source annotation, send to self (one “Annotations assigned” card, no duplicate prompt), send to another agent, prefilled new launch with cancel preserving the tray, and archive search for annotation text passed. New-task launch happens before delivery is validated (finding). | [self](usability-review-2026-10-15-evidence/J13-3-self.png), [orphan launch](usability-review-2026-10-15-evidence/J13-7-a.png), [archived default](usability-review-2026-10-15-evidence/J13-2-sendself.png) |
+| J14 Configurable pipelines | PARTIAL | Runs/Templates split and empty states, four-stage template save/reload with one mounted stage form, start with mixed runtimes to the run page, run badge consistent with stage/attempt (the 2026-09-26 QUEUED finding is fixed), legacy `?run=` redirect, gone-run page, Stop and Delete passed. Restart leaves the run stuck (finding). Stage completion, routing, repair loop, approvals and delegated cards BLOCKED: the fake peer never calls `report_task_result`. Builder proposals SKIPPED (live model). Under reduced motion the Start-run dialog still fades (opacity only). | [run page](usability-review-2026-10-15-evidence/J14-3-runpage.png), [after restart](usability-review-2026-10-15-evidence/J14-6-after-restart.png) |
 | J17 Browser-local drafts | PASS | Two drafts isolated through navigation and reload; sent draft cleared and never returned; stopping an agent leaked nothing and kept its own draft. | [drafts](usability-review-2026-10-15-evidence/J17-5-A.png), [stopped](usability-review-2026-10-15-evidence/J17-7-Bstopped.png) |
 
 ## Static sweeps
@@ -139,6 +142,51 @@ OBSERVED: Saves silently; backends.json has codex "name": "".
 EVIDENCE: usability-review-2026-10-15-evidence/J9-be-emptyname.png; homes/J9/backends.json
 ```
 
+```text
+SEVERITY: MAJOR
+WHERE: J14 step 6 (home J14 port 4614; replayed on port 4654), FS-14.R14/R48/R66
+REPRO: Start a run; while stage 1 awaits its result, restart the dashboard; open the run page / GET /api/pipeline-runs/<id>.
+EXPECTED: The run pauses, the page says the stage agent was stopped by the restart, withholds Open agent, and offers Retry.
+OBSERVED: Stage task is `interrupted` but the run stays `running` with empty attention_reason; Continue/Retry/Replace all ineligible, Open agent still offered; only Stop run remains — a dead end.
+EVIDENCE: usability-review-2026-10-15-evidence/J14-6-after-restart.png
+```
+
+```text
+SEVERITY: MAJOR
+WHERE: J13 steps 5/7 (home J13, port 4613), FS-13.R9/R11
+REPRO: Tray with a draft whose instruction is empty (or delivery blocked), target New task → Continue to launch → Launch.
+EXPECTED: Validation before launch, or a clear "agent launched, delivery failed" with a retry that does not launch again.
+OBSERVED: POST /api/sessions 201 then POST …/annotations 422 3 ms later; the new agent has no annotations; tray shows only the validation text (or "Failed to fetch"); "Continue to launch" again creates another agent. After navigating away nothing indicates the orphan exists.
+EVIDENCE: usability-review-2026-10-15-evidence/J13-7-a.png, J13-7-b.png; J13 server.log lines 667–668
+```
+
+```text
+SEVERITY: MINOR
+WHERE: J11 step 5 (port 4611; replayed on 4653), FS-14
+REPRO: Pipelines → new template with id "BAD ID" (or stage id "BAD"); Validate, then Save template.
+EXPECTED: Save refused with the same diagnostics Validate shows (4xx), or disabled while invalid.
+OBSERVED: Validate lists the slug errors, Save stays enabled, POST /api/pipelines returns 500 "pipeline operation failed".
+EVIDENCE: usability-review-2026-10-15-evidence/J11-5-pipeline-saved.png; curl 500 replay
+```
+
+```text
+SEVERITY: MINOR
+WHERE: J11 step 3 (port 4611), FS-03 error states
+REPRO: Agent on the crash scenario, send a message; also kill an agent's process.
+EXPECTED: An understandable error that says what failed and how to continue.
+OBSERVED: Transcript shows "process exited" / "Failed"; header and card say "Stopped" while the API state is `error`; card carries no error text; nothing says sending a message restarts the agent.
+EVIDENCE: usability-review-2026-10-15-evidence/J11-3a-crash-page.png, J11-3b-crash-card.png
+```
+
+```text
+SEVERITY: MINOR
+WHERE: J13 step 2 (archived Delta, port 4613), FS-13.R15
+REPRO: Annotate in an archived agent, click Send annotations with the default target.
+EXPECTED: An available target is selected (current agent is unavailable).
+OBSERVED: The disabled "Current agent" radio stays checked; Send returns 409 and shows "the source agent is not running".
+EVIDENCE: usability-review-2026-10-15-evidence/J13-2-sendself.png
+```
+
 Not promoted: a stale backend-check result after switching type (reproduced once only); the
 700 px narrow file-viewer check (1024 px is the specified desktop floor); a possible hidden
 “Timed out” label (unconfirmed); POLISH items (no wizard Back, Launch step returns to dashboard
@@ -149,6 +197,13 @@ a user-initiated stop; console 404 on the pending-prompt fetch for stopped agent
 permission request; empty-project panel wording. Batch 3: untagged no-results copy not tied to
 the metadata-only note; no upper bound on task concurrency or role prompt size; raw regex in the
 role id error; agent id instead of name in the role-in-use dialog. Settings → Projects shows the
-`cwd_not_found` warning that the onboarding wizard omits (J2 finding stands).
+`cwd_not_found` warning that the onboarding wizard omits (J2 finding stands). Batch 4: agent
+header flips to "Stopped" while merely disconnected; console 409 on `/modes` for stopped agents;
+new stage not selected after "+" in the template editor; no confirmation on run Delete; no link
+to the agent a tray launch created; low-contrast diff "Annotate lines" trigger; a person-path
+`POST /api/tasks/<id>/result` on a stage task (API-only, low confidence). Annotation recipients
+also show an unexplained turn (same as the J10 finding). **Spec drift:** FS-14.R44 names a
+three-step Setup/Runtimes/Review dialog while a later FS-14 requirement and the product use
+Setup/Review with a Customize runtimes disclosure.
 
 ## Not exercised
