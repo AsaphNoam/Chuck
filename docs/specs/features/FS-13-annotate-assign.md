@@ -107,7 +107,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 - **R14.** There are no comment threads, replies, or resolve/re-open workflow. Once
   recorded, an annotation event is immutable like every other transcript event.
 - **R15.** From an archived (inactive) source session, the current-agent target is
-  unavailable; another-agent and new-task targets remain. The archived view stays composer-free
+  unavailable; another-agent and new-task targets remain, and the tray selects one by default
+  (another agent when a running chat agent exists, otherwise new task) rather than leaving the
+  disabled current-agent choice selected. The archived view stays composer-free
   (FS-05.R14); annotating never sends a prompt to the archived session itself.
 - **R16.** Pending trays are bounded browser-local drafts, not durable data. Deleting an
   agent discards its tray, because no target can accept a batch from a source that no longer exists

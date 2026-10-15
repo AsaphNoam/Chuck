@@ -1,5 +1,6 @@
 import type { AnnotationBatch, ArchiveProjectGroup, ArchiveResult, AvailableCommand, AttachmentDescriptor, Capabilities, FileContent, Layout, TrackedFile, TranscriptEvent } from "./types";
 import type { ProjectResponse, WorktreeStatus } from "../schemas/project";
+import { useUiStore } from "../store/uiStore";
 
 async function json<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
@@ -14,9 +15,34 @@ async function json<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
     } catch {
       /* non-JSON body — keep the status line */
     }
-    throw new Error(message);
+    // status lets a reader tell an unknown record (404) from a failed read.
+    throw Object.assign(new Error(message), { status: response.status });
   }
   return (await response.json()) as T;
+}
+
+// WorktreeStartNotice is present on a launch/resume/switch response only when
+// the start had to recreate the project's owned checkout (FS-19.R7).
+export interface WorktreeStartNotice {
+  recreated: boolean;
+  branch?: string;
+  warning?: string;
+}
+
+// reportWorktreeRecreated is the one place a start response's checkout
+// recreation reaches the person, so no start path re-materializes silently.
+export function reportWorktreeRecreated<T extends { worktree?: WorktreeStartNotice }>(agentId: string, resp: T): T {
+  const notice = resp.worktree;
+  if (notice?.recreated) {
+    const branch = notice.branch ? ` from branch ${notice.branch}` : "";
+    const setup = notice.warning ? ` Setup command warning: ${notice.warning}` : "";
+    useUiStore.getState().pushNotice(
+      "Worktree checkout recreated",
+      `The project's checkout was missing, so Chuck recreated it${branch} before starting.${setup}`,
+      agentId,
+    );
+  }
+  return resp;
 }
 
 export function getLayout() {
@@ -66,11 +92,11 @@ export function launchAgent(body: {
   name?: string;
   group?: string;
 }) {
-  return json<{ agent: { agent_id: string; name: string } }>("/api/sessions", {
+  return json<{ agent: { agent_id: string; name: string }; worktree?: WorktreeStartNotice }>("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }).then((resp) => reportWorktreeRecreated(resp.agent.agent_id, resp));
 }
 
 export function setSessionConfig(agentId: string, body: { effort?: string; fast?: boolean }) {
@@ -123,11 +149,11 @@ export function actOnGroup(project: string, group: string, action: "stop" | "arc
 }
 
 export function switchRuntime(agentId: string, body: { interface?: string; backend?: string; model?: string; effort?: string }) {
-  return json<{ history_handoff: "native_resume" | "primer" }>(`/api/sessions/${agentId}/switch-runtime`, {
+  return json<{ history_handoff: "native_resume" | "primer"; worktree?: WorktreeStartNotice }>(`/api/sessions/${agentId}/switch-runtime`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }).then((resp) => reportWorktreeRecreated(agentId, resp));
 }
 
 export function getCapabilities() {
@@ -324,10 +350,10 @@ export function forkWorktreeProject(project: string, body: { title: string; bran
 export function restoreProject(project: string) { return json<ProjectResponse>(`/api/projects/${encodeURIComponent(project)}/restore`, { method: "POST" }); }
 
 export function resumeAgent(agentId: string) {
-  return json<{ agent: unknown; running: unknown; status: unknown; resumed: boolean }>(
+  return json<{ agent: unknown; running: unknown; status: unknown; resumed: boolean; worktree?: WorktreeStartNotice }>(
     `/api/sessions/${agentId}/resume`,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
-  );
+  ).then((resp) => reportWorktreeRecreated(agentId, resp));
 }
 
 export function getTrackedFiles(agentId: string) {

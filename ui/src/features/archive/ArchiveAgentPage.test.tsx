@@ -1,6 +1,6 @@
 import React from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -126,5 +126,45 @@ describe("ArchiveAgentPage judge result", () => {
     renderArchive("a_judge");
     expect(await screen.findByText("Exact synthesis: keep LRU")).toBeInTheDocument();
     expect(screen.getByText("Its originating turn is not in this transcript.")).toBeInTheDocument();
+  });
+});
+
+// FS-05.R42/A25, INV §7/§8: a failed or empty transcript read is visible, and
+// an unknown id offers no Resume/Restore.
+describe("ArchiveAgentPage unavailable transcript", () => {
+  it("says an unknown id was not found and offers no lifecycle action", async () => {
+    server.use(http.get("/api/sessions/a_bogus/transcript", () =>
+      HttpResponse.json({ error: { code: "not_found", message: "no such agent: a_bogus" } }, { status: 404 })));
+
+    renderArchive("a_bogus");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No session with this id exists.");
+    expect(screen.getByRole("heading", { name: "Session not found" })).toBeInTheDocument();
+    expect(screen.queryByText(/Archived · read-only/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Resume|Restore/ })).toBeNull();
+  });
+
+  it("says a known session's transcript is unavailable and keeps Resume", async () => {
+    server.use(http.get("/api/sessions/a_missing/transcript", () => HttpResponse.json({ agent_id: "a_missing", events: [] })));
+
+    renderArchive("a_missing");
+
+    expect(await screen.findByRole("status")).toHaveTextContent("This session's transcript is unavailable");
+    expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled();
+  });
+
+  it("surfaces a failed read with a retry", async () => {
+    let fail = true;
+    server.use(http.get("/api/sessions/a_flaky/transcript", () => fail
+      ? HttpResponse.json({ error: { code: "internal", message: "disk unreadable" } }, { status: 500 })
+      : HttpResponse.json({ agent_id: "a_flaky", events: [{ seq: 1, type: "assistant_text", ts: "t1", data: { delta: "Recovered." } }] })));
+
+    renderArchive("a_flaky");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the transcript: disk unreadable");
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Recovered.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

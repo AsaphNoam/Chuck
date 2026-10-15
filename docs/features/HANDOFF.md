@@ -139,23 +139,11 @@ Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-rev
 - **Worth fixing** — **J11 crash state unclear:** a crashed or killed agent reads “Stopped” on header and
   card while the API says `error`; the card carries no error text and nothing says a new message
   restarts it.
-- **Worth fixing** — **J8 missing archived session renders blank:** `/archive/<unknown>` or an archived
-  agent without its transcript shows a normal header, empty body and active Resume/Restore; the 404
-  is swallowed at `ArchiveAgentPage.tsx` ~L43 (FS-05) (no invariant class).
 - **Worth fixing** — **J11 invalid pipeline template save returns 500:** Validate lists slug errors but
   Save stays enabled and `POST /api/pipelines` answers 500 “pipeline operation failed” (FS-14).
   Test: invalid ids → 4xx validation with the same diagnostics.
 - **Worth fixing** — **J9 blank backend name persists:** clearing a backend display name in Settings →
   Backends saves `"name": ""`; backend creation already requires it (FS-09).
-- **Worth fixing** — **J2 wizard hides `cwd_not_found`:** the onboarding Project step advances silently
-  on a relative/nonexistent working directory although the API returns the warning (FS-04.R30).
-- **Worth fixing** — **J2 OpenCode/OpenHands missing-adapter guidance:** only “Install it, then check
-  again” with no link or command, unlike Claude/Codex.
-- **Worth fixing** — **J13 archived tray default target:** from an archived source the disabled
-  “Current agent” stays selected; Send returns 409 “the source agent is not running” (FS-13.R15).
-- **Worth fixing** — **J16 worktree recreation unreported:** relaunch after the checkout was deleted
-  recreates it silently; the launch response’s `worktree.recreated` is never read by the UI
-  (FS-19.R7).
 
 Spec drift for the fix pass: FS-14.R44 names a three-step Setup/Runtimes/Review dialog; a later FS-14
 requirement and the product use Setup/Review with a Customize runtimes disclosure. Matrix gap:
@@ -179,6 +167,14 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J2/J8/J13/J16 UI fixes (INV §7/§8):** the onboarding Project step holds on a
+  `cwd_not_found` warning with Continue anyway; OpenCode/OpenHands guidance names the `opencode`/
+  `openhands` command that must be on PATH (the repo documents no install URL — supply one in
+  FS-09.R27 to link it); an inactive tray source defaults to an available target; launch, resume
+  and switch toast a recreated worktree checkout; the archive page distinguishes unknown id (no
+  Resume/Restore), empty transcript and failed read with Retry (new FS-05.R42/A25). Each
+  regression failed before its fix; focused UI tests pass. Full closure owed at run end.
 
 - **2026-10-15 — J5/J12 card order fix (INV §1/§3):** the agent stream no longer appends to or
   prunes the stored manual order, the grid saves only a layout that differs from what it read or

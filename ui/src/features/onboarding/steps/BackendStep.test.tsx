@@ -163,6 +163,35 @@ describe("BackendStep", () => {
     expect(screen.queryByText(/cli_not_installed/)).toBeNull();
   });
 
+  // J2: a missing OpenCode/OpenHands CLI names the command Chuck runs
+  // (FS-09.R11/R12) so the operator knows what must be on PATH.
+  it.each([
+    ["opencode-acp", "opencode", /OpenCode.*`opencode acp`.*`opencode`.*PATH/],
+    ["openhands-acp", "openhands", /OpenHands.*`openhands acp`.*`openhands`.*PATH/],
+  ])("names the missing %s command", async (type, id, expected) => {
+    const doc = {
+      ...seededBackendsDoc,
+      backends: {
+        ...seededBackendsDoc.backends,
+        [id]: { name: id, type, default: false, default_model: "m", models: { m: { name: "M", model: "p/m" } } },
+      },
+    };
+    server.use(
+      http.get("/api/backends", () => HttpResponse.json(doc)),
+      http.put("/api/backends", () =>
+        HttpResponse.json({
+          ...doc,
+          credentials: { [id]: { status: "skipped", detail: "cli_not_installed" } },
+        }),
+      ),
+    );
+    renderWithQuery(<BackendStep onDone={vi.fn()} />);
+    await waitForLoaded();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: type } });
+    fireEvent.click(screen.getByText("Validate & Continue"));
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+  });
+
   // J2 (FS-04.A14): an adapter that cannot answer the readiness check is a
   // compatibility problem, so the wizard must not send the operator to repair
   // credentials that are fine.

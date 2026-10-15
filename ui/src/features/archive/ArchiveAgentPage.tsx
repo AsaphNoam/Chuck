@@ -39,9 +39,30 @@ export function ArchiveAgentPage() {
   const { data: projects } = useProjects();
   const projectTitle = (project && projects?.[project]?.title) || project;
 
+  // The read outcome is surfaced, never swallowed: an unknown id offers no
+  // Resume/Restore, and a known session without a readable transcript says so
+  // (FS-05.R42, INV §7/§8).
+  const [load, setLoad] = useState<TranscriptLoad>({ state: "loading" });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    void getTranscript(id, true).then((r) => setTranscript(r.agent_id, r.events)).catch(() => settle(id));
-  }, [id, setTranscript, settle]);
+    let current = true;
+    setLoad({ state: "loading" });
+    getTranscript(id, true)
+      .then((r) => {
+        setTranscript(r.agent_id, r.events);
+        if (current) setLoad({ state: r.events.length ? "ready" : "empty" });
+      })
+      .catch((err: unknown) => {
+        settle(id);
+        if (!current) return;
+        if ((err as { status?: number }).status === 404) setLoad({ state: "unknown" });
+        else setLoad({ state: "failed", message: err instanceof Error ? err.message : "Could not load the transcript" });
+      });
+    return () => {
+      current = false;
+    };
+  }, [id, attempt, setTranscript, settle]);
+  const unknown = load.state === "unknown";
 
   const doResume = async () => {
     setResuming(true);
@@ -74,32 +95,50 @@ export function ArchiveAgentPage() {
       <div className="chat-card">
       <header className="chat-header" data-slot="header">
         <AgentIdentity
-          name={archivedName}
+          name={unknown ? "Session not found" : archivedName}
           state="archived"
           status={(
             <span className="archive-readonly-label">
-              Archived · read-only{createdAt && <> · <time dateTime={createdAt}>{formatTimestamp(createdAt)}</time></>}
+              {unknown ? "Not found" : "Archived · read-only"}{createdAt && <> · <time dateTime={createdAt}>{formatTimestamp(createdAt)}</time></>}
             </span>
           )}
           details={[projectTitle, backend, model, effort, (backend || model) && (fast ? "Fast mode" : "Normal speed")]}
         />
-        <button
-          type="button"
-          className="resume-btn ad-button-primary"
-          disabled={resuming}
-          onClick={() => void (agent?.archived ? doRestore() : doResume())}
-        >
-          {resuming ? (agent?.archived ? "Restoring…" : "Resuming…") : agent?.archived ? "Restore" : "Resume"}
-        </button>
+        {!unknown && (
+          <button
+            type="button"
+            className="resume-btn ad-button-primary"
+            disabled={resuming}
+            onClick={() => void (agent?.archived ? doRestore() : doResume())}
+          >
+            {resuming ? (agent?.archived ? "Restoring…" : "Resuming…") : agent?.archived ? "Restore" : "Resume"}
+          </button>
+        )}
       </header>
-      {error && <p className="archive-error">{error}</p>}
-      <div data-slot="content"><TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} openFile={openFile} onOpenFile={openFileInViewer} inlineDiffs panelSlots={panelSlots} /></div>
+      {error ? <p className="archive-error">{error}</p> : <LoadNotice load={load} onRetry={() => setAttempt((n) => n + 1)} />}
+      <div data-slot="content">{!unknown && <TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} openFile={openFile} onOpenFile={openFileInViewer} inlineDiffs panelSlots={panelSlots} />}</div>
       {/* No Composer — read-only view */}
       <div />
       </div>
       </AgentStage>
     </section>
   );
+}
+
+type TranscriptLoad = { state: "loading" | "ready" | "empty" | "unknown" } | { state: "failed"; message: string };
+
+function LoadNotice({ load, onRetry }: { load: TranscriptLoad; onRetry: () => void }) {
+  if (load.state === "unknown") return <p className="archive-error" role="alert">No session with this id exists. It may have been deleted.</p>;
+  if (load.state === "empty") return <p className="archive-error" role="status">This session's transcript is unavailable — no recorded history was found.</p>;
+  if (load.state === "failed") {
+    return (
+      <p className="archive-error" role="alert">
+        Could not load the transcript: {load.message}{" "}
+        <button type="button" className="ad-button-secondary" onClick={onRetry}>Retry</button>
+      </p>
+    );
+  }
+  return null;
 }
 
 // latestSessionMeta returns the newest session-metadata boundary in a transcript

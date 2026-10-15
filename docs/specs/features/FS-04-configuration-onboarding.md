@@ -361,7 +361,9 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   not silently claim completion).
 - **R30.** A `cwd` that does not exist yet is accepted on save with a `cwd_not_found` warning shown
   next to the field (R7); the seeded `my-app` project's missing `cwd` is only explained after a
-  launch against it fails (see Deviations).
+  launch against it fails (see Deviations). In the onboarding Project step the created project's
+  warning holds the step: the fields lock (the project already exists) and **Continue anyway**
+  advances, so the step never advances past an unseen warning nor creates a duplicate project.
 - **R32** — An unsatisfied onboarding wizard has an explicit **Set up later** action.
   It sets `onboarding_complete: true`, closes the wizard, and opens the dashboard without creating
   a project, changing a backend/model catalog, or launching an agent. The wizard remains modal and

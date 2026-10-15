@@ -6,7 +6,9 @@ export interface ToastItem {
   id: string;
   title: string;
   body?: string;
-  type: NotificationPayload["notification_type"] | "error";
+  // "notice" is client-side, success-adjacent feedback from a mutation response
+  // (e.g. a recreated worktree checkout, FS-19.R7).
+  type: NotificationPayload["notification_type"] | "error" | "notice";
   // The agent whose conversation the toast opens; absent on error toasts.
   agentId?: string;
 }
@@ -25,6 +27,7 @@ interface UiStoreState {
   closeContextMenu: () => void;
   pushToast: (notification: NotificationPayload) => void;
   pushError: (title: string, body?: string) => void;
+  pushNotice: (title: string, body?: string, agentId?: string) => void;
   dismissToast: (id: string) => void;
 }
 
@@ -69,6 +72,17 @@ export const useUiStore = create<UiStoreState>((set) => ({
         title,
         body,
         type: "error",
+      };
+      return { toasts: [...state.toasts, toast].slice(-4) };
+    }),
+  pushNotice: (title, body, agentId) =>
+    set((state) => {
+      const toast: ToastItem = {
+        id: `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        body,
+        type: "notice",
+        agentId,
       };
       return { toasts: [...state.toasts, toast].slice(-4) };
     }),

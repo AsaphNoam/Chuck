@@ -68,6 +68,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   transcript (user prompts, assistant text, tool calls, tool results, file diffs, permission requests) via
   `GET /api/sessions/{id}/transcript`, with no composer and no ability to send a prompt. The view
   exposes a Resume control (R11). An `active` session instead opens the live chat panel (FS-03).
+- **R42 — An unreadable archived transcript says so.** When the transcript read returns
+  `404 not_found`, the view states that no session with that id exists and offers no Resume or
+  Restore. When a known session's read returns no events, the view states that its transcript is
+  unavailable while keeping Resume/Restore. Any other read failure shows its message with Retry.
 
 ### 2.6 File & command tracking rollups
 
@@ -346,6 +350,11 @@ R22's `active` validation remain binding.
   in the tool call, output or edit finds nothing, while the edit and command stay tracked:
   `internal/transcript/project_test.go::TestProjectEventSearchText` and
   `internal/archive/archive_fts_test.go::TestArchiveSearchIgnoresToolActivity`.
+
+- **A25** (R14, R42) — Opening an unknown id shows not-found with no Resume/Restore; a known
+  session with an empty transcript read shows transcript-unavailable beside Resume; a failed read
+  shows its message and recovers through Retry: `ui/src/features/archive/ArchiveAgentPage.test.tsx`
+  ("ArchiveAgentPage unavailable transcript"); J8.
 
 ## 6. Deviations & open decisions
 

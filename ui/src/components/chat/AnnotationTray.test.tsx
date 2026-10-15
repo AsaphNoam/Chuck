@@ -42,9 +42,9 @@ function seedTray(count: number) {
   });
 }
 
-function renderTray() {
+function renderTray(sourceActive = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
-  return render(<QueryClientProvider client={client}><AnnotationTray sourceId="source" sourceActive /></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><AnnotationTray sourceId="source" sourceActive={sourceActive} /></QueryClientProvider>);
 }
 
 function agentStylesheet() {
@@ -93,6 +93,30 @@ describe("AnnotationTray", () => {
     await waitFor(() => expect(useAnnotationStore.getState().bySource.source).toBeUndefined());
     expect(launches).toBe(1);
     expect(recipientIds).toEqual(["new-agent", "new-agent"]);
+  });
+
+  // FS-13.R15: an archived source cannot be the target, so the tray defaults to
+  // an available target instead of a checked-but-disabled Current agent.
+  it("defaults an archived source to another running agent", () => {
+    seedTray(1);
+    useAgentStore.setState({ agents: {
+      source: { ...sourceAgent, running: false },
+      peer: { ...sourceAgent, agent_id: "peer", name: "Peer" },
+    } });
+    renderTray(false);
+    expect(screen.getByLabelText("Current agent")).toBeDisabled();
+    expect(screen.getByLabelText("Current agent")).not.toBeChecked();
+    expect(screen.getByLabelText("Another agent")).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Annotation recipient" })).toBeInTheDocument();
+  });
+
+  it("defaults an archived source with no running peers to a new task", () => {
+    seedTray(1);
+    useAgentStore.setState({ agents: { source: { ...sourceAgent, running: false } } });
+    renderTray(false);
+    expect(screen.getByLabelText("Current agent")).not.toBeChecked();
+    expect(screen.getByLabelText("New task")).toBeChecked();
+    expect(screen.getByRole("button", { name: "Continue to launch" })).toBeInTheDocument();
   });
 
   it("keeps delivery controls outside the scrolling multi-draft body", () => {

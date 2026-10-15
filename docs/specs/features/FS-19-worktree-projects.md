@@ -60,7 +60,9 @@ branch, commits, project, agent identities, and conversations are the durable th
 
 - **R7.** When a launch in a worktree project finds the owned checkout directory missing,
   Chuck recreates the worktree from the recorded branch, re-runs the project's `setup_command`
-  under R3's warning semantics, and proceeds with the launch, reporting that recreation happened.
+  under R3's warning semantics, and proceeds with the launch, reporting that recreation happened
+  (the start response's `worktree` notice, surfaced in the UI as a toast naming the branch and any
+  setup warning).
   It never silently substitutes the base branch: if the recorded branch no longer exists, the
   launch fails with an actionable error naming the branch and the recovery options.
 - **R8.** Archiving a worktree project with an owned checkout offers — never forces —
@@ -136,7 +138,8 @@ deletion, which leaves ownership intact.
 - Fork, checkout resolution, setup, status, and consented deletion: `internal/server/worktree.go`;
   routes in `internal/server/worktree_handlers.go`. Architecture in TS-12.
 - Start-path wiring (R5/R7): `composeLaunchWithOptions`, `composeResumeSpecWithGeneration`, and
-  `composeSwitchSpec`; the read-only pipeline pre-flight in `ValidateStage`.
+  `composeSwitchSpec`; the read-only pipeline pre-flight in `ValidateStage`. The UI report of R7
+  is `reportWorktreeRecreated` in `ui/src/api/client.ts`, applied by every launch/resume/switch call.
 - Creation form (R1): `ui/src/features/dashboard/WorktreeForkDialog.tsx`.
 - Entry points, branch display, and the archive consent (R6/R8): `ProjectDashboard`,
   `ScopedProjectView`, and `ProjectArchiveDialog` in

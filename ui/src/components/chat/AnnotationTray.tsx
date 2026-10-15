@@ -22,7 +22,12 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
   const agents = useAgentStore((state) => state.agents);
   const source = agents[sourceId];
   const recipients = Object.values(agents).filter((agent) => agent.agent_id !== sourceId && agent.running && agent.interface === "chat");
-  const [target, setTarget] = useState<"self" | "agent" | "new">("self");
+  const [chosenTarget, setTarget] = useState<"self" | "agent" | "new">("self");
+  // An inactive source cannot receive its own batch (FS-13.R15), so fall back
+  // to an available target rather than leaving a disabled radio selected.
+  const target = chosenTarget === "self" && !sourceActive
+    ? (recipients.length > 0 || !source ? "agent" : "new")
+    : chosenTarget;
   const [recipientId, setRecipientId] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);

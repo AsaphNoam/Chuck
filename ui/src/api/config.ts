@@ -14,6 +14,7 @@ import type {
 } from "../schemas/backends";
 import { editableBackendsConfig, refreshProviderResponseSchema, withBackendSupport } from "../schemas/backends";
 import { configSchema, type Config } from "../schemas/config";
+import { reportWorktreeRecreated, type WorktreeStartNotice } from "./client";
 
 // Query keys — used for cache invalidation.
 export const QUERY_KEYS = {
@@ -321,11 +322,11 @@ export interface LaunchParams {
 export function useLaunchAgent() {
   return useMutation({
     mutationFn: (params: LaunchParams) =>
-      json<{ agent: { agent_id: string; name: string } }>("/api/sessions", {
+      json<{ agent: { agent_id: string; name: string }; worktree?: WorktreeStartNotice }>("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
-      }),
+      }).then((resp) => reportWorktreeRecreated(resp.agent.agent_id, resp)),
   });
 }
 

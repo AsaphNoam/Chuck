@@ -19,6 +19,7 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
   const [color, setColor] = useState<ProjectColor>(DEFAULT_PROJECT_COLOR);
   const [warning, setWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   const handleCreate = () => {
     if (!title.trim() || !cwd.trim()) {
@@ -48,7 +49,11 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
         onSuccess: (resp) => {
           const cwdWarn = resp.warnings?.find((w) => w.code === "cwd_not_found");
           if (cwdWarn) {
+            // Hold the step so the warning stays beside the field (FS-04.R30);
+            // the project already exists, so only Continue remains.
             setWarning(cwdWarn.message);
+            setCreatedId(resp.project);
+            return;
           }
           onDone(resp.project);
         },
@@ -70,6 +75,7 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          disabled={createdId !== null}
           placeholder="e.g. My App"
         />
       </div>
@@ -80,11 +86,12 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
           <input
             value={cwd}
             onChange={(e) => setCwd(e.target.value)}
+            disabled={createdId !== null}
             placeholder="~/Projects/my-app"
           />
           <BrowseDirectoryButton
             label="Browse for working directory"
-            disabled={createProject.isPending}
+            disabled={createProject.isPending || createdId !== null}
             onPicked={(path) => {
               setError(null);
               setCwd(path);
@@ -92,6 +99,9 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
             onError={setError}
           />
         </div>
+        {warning && (
+          <span className="form-warning">⚠ {warning} (project created; fix it later in Settings → Projects)</span>
+        )}
       </div>
 
       <div className="form-field">
@@ -109,13 +119,18 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
         />
       </div>
 
-      {warning && <p className="form-warning">{warning}</p>}
       {error && <p className="form-error">{error}</p>}
 
       <div className="form-actions" data-slot="actions">
-        <button type="button" className="ad-button-primary" onClick={handleCreate} disabled={createProject.isPending}>
-          {createProject.isPending ? "Creating…" : "Create project"}
-        </button>
+        {createdId ? (
+          <button type="button" className="ad-button-primary" onClick={() => onDone(createdId)}>
+            Continue anyway
+          </button>
+        ) : (
+          <button type="button" className="ad-button-primary" onClick={handleCreate} disabled={createProject.isPending}>
+            {createProject.isPending ? "Creating…" : "Create project"}
+          </button>
+        )}
       </div>
     </div>
   );

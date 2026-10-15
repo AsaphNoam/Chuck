@@ -34,6 +34,34 @@ describe("ProjectStep", () => {
     await waitFor(() => expect(created).toMatchObject({ color: [34, 197, 94] }));
   });
 
+  // FS-04.R30 / INVARIANTS §8: a cwd_not_found warning stays visible beside
+  // the field; the step advances only after explicit acknowledgement and never
+  // re-creates the project.
+  it("holds on a cwd_not_found warning until the user continues", async () => {
+    let posts = 0;
+    server.use(http.post("/api/projects", () => {
+      posts += 1;
+      return HttpResponse.json({
+        project: "smoke",
+        warnings: [{ field: "cwd", code: "cwd_not_found", message: "Directory relative/path does not exist." }],
+      }, { status: 201 });
+    }));
+    const done: string[] = [];
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={queryClient}><ProjectStep onDone={(id) => done.push(id)} /></QueryClientProvider>);
+
+    fireEvent.change(screen.getByPlaceholderText("e.g. My App"), { target: { value: "Smoke" } });
+    fireEvent.change(screen.getByPlaceholderText("~/Projects/my-app"), { target: { value: "relative/path" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+
+    expect(await screen.findByText(/Directory relative\/path does not exist\./)).toBeInTheDocument();
+    expect(done).toEqual([]);
+    expect(screen.queryByRole("button", { name: "Create project" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue anyway" }));
+    expect(done).toEqual(["smoke"]);
+    expect(posts).toBe(1);
+  });
+
   // FS-04.A22: onboarding browses for its cwd and stays manually editable.
   it("fills the working directory from the folder panel and still accepts typing", async () => {
     let posts = 0;
