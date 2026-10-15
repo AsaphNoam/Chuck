@@ -202,7 +202,7 @@ func coordinatorContext(coordinator *state.Task, stage Stage) *coordinatorHandof
 
 // OnStageTaskInterrupted projects an unexpected standing-owner exit onto the
 // run without guessing an outcome. Retry remains an explicit operator action.
-func (m *Manager) OnStageTaskInterrupted(taskID string) error {
+func (m *Manager) OnStageTaskInterrupted(taskID, attentionReason string) error {
 	stage, err := m.store.ReadPipelineStageTaskByTask(taskID)
 	if errors.Is(err, state.ErrNotFound) {
 		return nil
@@ -219,7 +219,7 @@ func (m *Manager) OnStageTaskInterrupted(taskID string) error {
 	}
 	updated, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
 		State: "paused", PendingAction: "", CurrentStageID: stage.StageID,
-		CurrentAgentID: stage.StandingAgentID, AttentionReason: "interrupted",
+		CurrentAgentID: stage.StandingAgentID, AttentionReason: attentionReason,
 	})
 	if errors.Is(err, state.ErrPipelineConflict) {
 		return nil

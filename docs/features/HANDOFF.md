@@ -132,11 +132,6 @@ None.
 Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-review-run-2026-10-15.md)
 (fixtures, repro steps, evidence). Fake-ACP, real tagged/untagged binaries, Playwright Chromium.
 
-- **Must fix** — **J14 restart leaves a pipeline run stuck:** after a dashboard restart the stage task
-  is `interrupted` but the run stays `running` with empty `attention_reason`; Continue/Retry/Replace
-  all ineligible and Open agent still shown, so only Stop remains (FS-14.R14/R48/R66). Test: restart
-  with a stage awaiting its result → paused run, Retry eligible, Open agent withheld, restart cause
-  stated.
 - **Must fix** — **J13 tray “New task” orphans agents:** `AnnotationTray` launches the agent
   (`POST /api/sessions` 201) before the batch is validated/delivered; an empty instruction (422) or
   a failed delivery leaves an agent with no annotations, the tray shows only the validation text or
@@ -202,6 +197,13 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J14 pipeline restart fix (INV §1/§2/§17):** restart task recovery interrupted a
+  stage task without projecting that transition onto its run. It now uses the existing stage
+  interruption seam with a restart reason. The regression failed before the fix; afterward the
+  run pauses, offers an effective Retry, and the rendered page withholds Open agent and names the
+  restart cause. Full serial Go tests in both variants, all 854 UI tests, Go/UI builds, spec and
+  diff checks pass. The October 15 review remains open for its other findings.
 
 - **2026-10-15 — J10 mail state fix (INV §1/§11/§17):** the send callback that refreshes recipient
   unread mail and sender Sent pulse ran only for waking messages. It now runs after every successful

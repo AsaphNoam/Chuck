@@ -69,6 +69,20 @@ it("requires recovery input when blocked continuation is eligible", async () => 
   expect(screen.getByRole("button", { name: "Continue stage" })).toBeEnabled();
 });
 
+it("offers Retry and explains why a restart-paused stage cannot be opened", async () => {
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({
+    ...detail,
+    run: { ...run, state: "paused", pending_action: "", attention_reason: "restart_interrupted" },
+    stage_tasks: [{ ...stageTask, state: "interrupted" }],
+    controls: { ...controls, retry: { eligible: true, reason: "Retries the interrupted assignment." } },
+  })));
+  renderRun();
+  expect(await screen.findByRole("button", { name: "Retry stage" })).toBeEnabled();
+  expect(screen.queryByRole("link", { name: "Open agent" })).toBeNull();
+  expect(screen.getByText(/stage agent was stopped when Chuck restarted/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Continue stage" })).toBeNull();
+});
+
 it("surfaces retained stage cleanup and its repair action", async () => {
   server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({
     ...detail,

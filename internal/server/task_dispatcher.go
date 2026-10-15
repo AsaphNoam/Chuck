@@ -783,6 +783,11 @@ func (s *Server) interruptTask(task state.Task, reason string) {
 		s.log.Warn("interrupt task failed", "task", task.TaskID, "err", err)
 	} else if ok {
 		s.publishTaskUpdate(interrupted)
+		if s.pipelineMgr != nil {
+			if err := s.pipelineMgr.OnStageTaskInterrupted(interrupted.TaskID, "restart_interrupted"); err != nil {
+				s.log.Warn("pause pipeline after restart interrupted stage task", "task", interrupted.TaskID, "err", err)
+			}
+		}
 	}
 }
 
@@ -808,7 +813,7 @@ func (s *Server) interruptTaskOnExit(agentID, generation, cause string) {
 	} else if ok {
 		s.publishTaskUpdate(task)
 		if s.pipelineMgr != nil {
-			if err := s.pipelineMgr.OnStageTaskInterrupted(task.TaskID); err != nil {
+			if err := s.pipelineMgr.OnStageTaskInterrupted(task.TaskID, "interrupted"); err != nil {
 				s.log.Warn("pause pipeline after stage task exit", "task", task.TaskID, "err", err)
 			}
 		}

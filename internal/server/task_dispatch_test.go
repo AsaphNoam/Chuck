@@ -198,6 +198,68 @@ func TestRestartReevaluationPublishesAndPropagatesDependencyFailure(t *testing.T
 	assertDependencyChainParked(t, srv, first, second)
 }
 
+// FS-14.R14/R48: restart recovery must reconcile an interrupted standing task
+// with its run, leaving an explicit Retry instead of a running run with no agent.
+func TestRestartInterruptsStageAndPausesRunForRetry(t *testing.T) {
+	srv := testServer(t, true)
+	now := time.Now().UTC()
+	runID, err := srv.stateStore.NewPipelineRunID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskID, err := srv.stateStore.NewTaskID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := json.Marshal(apiTemplate())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = srv.stateStore.CreatePipelineRun(state.CreatePipelineRunParams{Run: state.PipelineRunRecord{
+		RunID: runID, TemplateID: "one-stage", TemplateSnapshot: snapshot,
+		DisplayName: "One stage", Project: "my-app", Goal: "ship", Inputs: json.RawMessage(`{}`),
+		Assignments: json.RawMessage(`{}`), State: "running", Revision: 1,
+		CurrentStageID: "work", CurrentAgentID: "a_owner", CreatedAt: now, UpdatedAt: now,
+	}, RequestID: "restart-stage", RequestHash: "hash", InitialStageTask: &state.CreatePipelineStageTaskParams{
+		RunID: runID, ExpectedRevision: 1, StageIndex: 0, AttemptNumber: 1, StageID: "work",
+		Task: state.Task{TaskID: taskID, Project: "my-app", DisplayName: "Work", Instruction: "Do the work",
+			TargetKind: state.TargetLaunch, Role: "implementer", CreatedByKind: "pipeline"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ? WHERE task_id = ?`,
+		state.TaskRunning, "a_owner", "gen-before-restart", taskID); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.stateStore.BindPipelineStageTaskStandingAgent(taskID, "a_owner"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := srv.recoverTasks(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	task, err := srv.stateStore.ReadTask(taskID)
+	if err != nil || task.State != state.TaskInterrupted {
+		t.Fatalf("recovered stage task = %+v, %v", task, err)
+	}
+	detail, err := srv.pipelineMgr.Detail(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Run.State != "paused" || detail.Run.AttentionReason != "restart_interrupted" {
+		t.Fatalf("recovered run = %+v, want restart pause", detail.Run)
+	}
+	_, controls, err := srv.pipelineTaskRunProjection(detail)
+	if err != nil || !controls.Retry.Eligible || controls.Continue.Eligible {
+		t.Fatalf("recovery controls = %+v, %v; want Retry only", controls, err)
+	}
+	retried, err := srv.pipelineMgr.Retry(context.Background(), runID, detail.Run.Revision)
+	if err != nil || retried.Run.State != "queued" {
+		t.Fatalf("Retry after restart = %+v, %v; want queued", retried.Run, err)
+	}
+}
+
 // FS-16.R6 / TS-10.R4 — ready work starts without a model in the loop: the host
 // launches the agent, sends the task's instruction as its assignment, and only
 // then calls the task running. Nothing polls, waits, or announces anything.
