@@ -760,13 +760,12 @@ describe("CardGrid", () => {
     });
     renderWithQuery(<CardGrid />);
     await waitFor(() => expect(renderedIDs()).toEqual(["a_2", "a_4", "a_1", "a_3"]));
-    await waitFor(() => expect(orders.length).toBe(1));
 
     // a_1 is stopped and a_2 is running: manual order cannot cross the boundary.
     act(() => dnd.onDragEnd?.({ active: { id: "a_1" }, over: { id: "a_2" } }));
 
     await new Promise((resolve) => setTimeout(resolve, 600));
-    expect(orders).toHaveLength(1);
+    expect(orders).toHaveLength(0);
     expect(renderedIDs()).toEqual(["a_2", "a_4", "a_1", "a_3"]);
   });
 
@@ -800,6 +799,30 @@ describe("CardGrid", () => {
     const refused = css.match(/([^{}]*)\{\s*cursor: not-allowed;\s*\}/)![1];
     expect(refused).toMatch(/\.group-stack\[data-drop="refused"\]\s*,/);
     expect(refused).toMatch(/\.group-stack\[data-drop="refused"\]\[data-slot="groups"\] \*/);
+  });
+
+  // FS-02.R78/A59 — a load is not a user action: reading the layout and the agent
+  // stream arriving (including an archived agent a drag had pruned from the stored
+  // order) write nothing, and agents without a stored position fall back to creation
+  // time then id, not whichever order the snapshot map happened to enumerate.
+  it("writes no layout on load and orders unstored agents by creation then id", async () => {
+    const orders = capturedLayoutOrders();
+    seedGrid(["a_1"], {
+      a_late: agent("a_late", { created_at: "2026-07-12T00:00:00Z" }),
+      a_1: agent("a_1"),
+      a_b: agent("a_b", { created_at: "2026-07-11T00:00:00Z" }),
+      a_a: agent("a_a", { created_at: "2026-07-11T00:00:00Z" }),
+    });
+    renderWithQuery(<CardGrid />);
+    await waitFor(() => expect(renderedIDs()).toEqual(["a_1", "a_a", "a_b", "a_late"]));
+
+    act(() => useAgentStore.getState().applyStateUpdate(agent("a_archived", { archived: true })));
+    act(() => useAgentStore.getState().applyStateUpdate(agent("a_new", { created_at: "2026-07-13T00:00:00Z" })));
+    await waitFor(() => expect(renderedIDs()).toEqual(["a_1", "a_a", "a_b", "a_late", "a_new"]));
+    expect(useAgentStore.getState().order).toEqual(["a_1"]);
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(orders).toEqual([]);
   });
 
   // A failed layout read once left saving disarmed for the rest of the session with

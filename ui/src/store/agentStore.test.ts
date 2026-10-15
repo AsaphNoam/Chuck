@@ -22,19 +22,20 @@ beforeEach(() => {
 });
 
 describe("agentStore", () => {
-  it("upserts agents and appends order once", () => {
+  it("upserts agents and leaves the stored manual order alone", () => {
     useAgentStore.getState().applyStateUpdate(agent);
     useAgentStore.getState().applyStateUpdate({ ...agent, state: "busy" });
     expect(useAgentStore.getState().agents.a_1.state).toBe("busy");
-    expect(useAgentStore.getState().order).toEqual(["a_1"]);
+    expect(useAgentStore.getState().order).toEqual([]);
   });
 
   it("removes stale agents after hydration completes", () => {
+    useAgentStore.setState({ order: ["a_1", "a_2"] });
     useAgentStore.getState().applyStateUpdate(agent);
     useAgentStore.getState().applyStateUpdate({ ...agent, agent_id: "a_2" });
     useAgentStore.getState().hydrateComplete(["a_2"]);
     expect(Object.keys(useAgentStore.getState().agents)).toEqual(["a_2"]);
-    expect(useAgentStore.getState().order).toEqual(["a_2"]);
+    expect(useAgentStore.getState().order).toEqual(["a_1", "a_2"]);
     expect(useAgentStore.getState().hydrated).toBe(true);
   });
 

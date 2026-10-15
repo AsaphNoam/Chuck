@@ -609,14 +609,22 @@ shows the **Think Tank** button (R65: active, non-archived project), **New think
 exactly what the matching header button opens. It reuses the `context-menu` portal presentation and
 click-outside/Escape dismissal of R41.
 
+**R78.** The stored `order` (R12/R14) changes only by a person's action: a page load, the agent
+stream, and a reconnect neither append to it nor prune it, and applying a loaded layout writes
+nothing back — `PUT /api/layout` follows only a drag, density change, collapse, pane change or
+another layout value that differs from what was read or last saved. An agent with no stored position
+renders after the stored ones, ordered by `created_at` then agent id, so its place is the same
+across reloads and server restarts rather than following stream arrival order.
+
 ## 5. Acceptance criteria
 
 **A1.** Launching an agent adds its card within ~1s with no manual refresh; a status change flips the
 badge live. — J3 (launch + status transitions), J5 (grid).
 
-**A2.** `applyStateUpdate` upserts an agent and appends its id to `order` exactly once; a single
-card's `state_update` re-renders only that card. — `agentStore.test.ts` "upserts agents and appends
-order once"; `sse.test.ts` state_update selector-isolation cases.
+**A2.** `applyStateUpdate` upserts an agent; a single card's `state_update` re-renders only that
+card. Its former clause that the update appends the id to `order` is superseded by R78/A59. —
+`agentStore.test.ts` "upserts agents and leaves the stored manual order alone"; `sse.test.ts`
+state_update selector-isolation cases.
 
 **A3.** After a reconnect, agents absent from the completed hydration burst are pruned (no stale
 cards). — `agentStore.test.ts` "removes stale agents after hydration completes"; `sse.test.ts`
@@ -970,6 +978,12 @@ actual JSON wire and confirm the old global release route is absent on both list
 **New think tank**; each opens the dialog its header button opens. Right-clicking an agent card,
 room card, form control (including header buttons and their nested content), dialog or open menu
 keeps its own behavior and opens no background menu. — `ScopedProjectDashboard.test.tsx`.
+
+**A59** (R78) — Load a layout whose stored order omits some agents, then deliver further agents
+(one archived) on the stream: unstored agents render by creation time then id, the stored order is
+unchanged, and no `PUT /api/layout` is sent. — `CardGrid.test.tsx` "writes no layout on load and
+orders unstored agents by creation then id"; `agentStore.test.ts` "upserts agents and leaves the
+stored manual order alone".
 
 ## 6. Deviations & open decisions
 

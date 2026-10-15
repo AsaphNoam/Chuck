@@ -76,19 +76,24 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const projects = useProjects();
 
   const loaded = useRef(false);
+  // The layout last read or written, serialized. Applying a load re-renders with the
+  // values just read, and a save of those is a write nobody asked for (FS-02.R78), so
+  // only a layout that differs from it is saved.
+  const stored = useRef<string | null>(null);
 
   // A failed read is reported and still arms saving: leaving `loaded` false swallowed
   // the error and silently disabled layout persistence for the whole session, so every
   // later expand, reorder, density, or collapse was lost with nothing on screen saying
-  // so (INV §7/§8). Saving what the person now sees keeps the screen and the stored
-  // layout in agreement.
+  // so (INV §7/§8).
   useEffect(() => {
     void getLayout()
       .then((layout) => {
-        setOrder(layout.order ?? []);
-        setDensity(layout.density);
-        setGroupLayout(layout.groups ?? {});
-        setExpanded((layout.expanded ?? []).slice(0, 4));
+        const next = { order: layout.order ?? [], density: layout.density, groups: layout.groups ?? {}, expanded: (layout.expanded ?? []).slice(0, 4) };
+        setOrder(next.order);
+        setDensity(next.density);
+        setGroupLayout(next.groups);
+        setExpanded(next.expanded);
+        stored.current = JSON.stringify(next);
         loaded.current = true;
       })
       .catch((err: unknown) => {
@@ -99,8 +104,12 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
 
   useEffect(() => {
     if (!loaded.current) return;
+    const layout = { order, density, groups: groupLayout, expanded };
+    const serialized = JSON.stringify(layout);
+    if (serialized === stored.current) return;
     const handle = window.setTimeout(() => {
-      putLayout({ order, density, groups: groupLayout, expanded }).catch((err: unknown) =>
+      stored.current = serialized;
+      putLayout(layout).catch((err: unknown) =>
         pushError("Saving layout failed", err instanceof Error ? err.message : String(err)),
       );
     }, 400);
@@ -118,7 +127,14 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const globalIds = useMemo(() => {
     const safeOrder = order ?? [];
     const known = new Set(Object.keys(agents));
-    return [...safeOrder.filter((id) => known.has(id)), ...Object.keys(agents).filter((id) => !safeOrder.includes(id))]
+    // An agent without a stored position falls back to creation time then id, not to
+    // the order the agent stream delivered it, which follows a server map and changes
+    // across loads and restarts (FS-02.R78).
+    const unplaced = Object.values(agents)
+      .filter((agent) => !safeOrder.includes(agent.agent_id))
+      .sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0) || a.agent_id.localeCompare(b.agent_id))
+      .map((agent) => agent.agent_id);
+    return [...safeOrder.filter((id) => known.has(id)), ...unplaced]
       .filter((id) => !agents[id].archived);
   }, [agents, order]);
 

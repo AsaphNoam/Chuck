@@ -132,10 +132,6 @@ None.
 Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-review-run-2026-10-15.md)
 (fixtures, repro steps, evidence). Fake-ACP, real tagged/untagged binaries, Playwright Chromium.
 
-- **Worth fixing** — **J5/J12 card order unstable:** agents with no stored layout position reorder across
-  server restarts (and J5/J7 saw it across loads), and every page load issues an unprompted
-  `PUT /api/layout`, once re-adding a pruned archived id (FS-02.R14). Test: deterministic fallback
-  order; no write on load.
 - **Worth fixing** — **J3 reload lands mid-transcript:** hard-reloading an agent with diagram turns stops
   above the latest reply with “Jump to latest” shown (diagram height settles after initial scroll).
 - **Worth fixing** — **J6 stopped terminal page:** a stopped terminal agent’s Terminal tab shows
@@ -183,6 +179,12 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J5/J12 card order fix (INV §1/§3):** the agent stream no longer appends to or
+  prunes the stored manual order, the grid saves only a layout that differs from what it read or
+  last saved, and unplaced agents sort by creation time then id (new FS-02.R78/A59). The new grid
+  regression failed before the fix; focused grid/store/SSE tests and the typecheck pass. A loaded
+  layout naming an unknown pane id still saves once (A32). Full closure is owed at run end.
 
 - **2026-10-15 — J10/J13 mail-turn visibility (INV §8):** decided under new FS-06.R38: any turn that
   receives mail in its prompt records one notice row naming each sender and subject (no body), so

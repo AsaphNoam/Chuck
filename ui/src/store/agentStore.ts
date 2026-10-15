@@ -10,6 +10,10 @@ interface AgentStoreState {
    *  so every path that drops an agent drops its index with it (INV §1). */
   observed: Record<string, number>;
   observedSeq: number;
+  /** order is the manual card order as `layout.json` stores it (FS-02.R78). An
+   *  update or a hydration burst neither appends to it nor prunes it, so a load writes
+   *  nothing back and an agent with no stored position takes the grid's deterministic
+   *  fallback instead of its arrival order; only a removal drops an id. */
   order: string[];
   hydrating: boolean;
   hydrated: boolean;
@@ -35,7 +39,6 @@ export const useAgentStore = create<AgentStoreState>((set) => ({
         agents: { ...state.agents, [agent.agent_id]: agent },
         observed: { ...state.observed, [agent.agent_id]: observedSeq },
         observedSeq,
-        order: state.order.includes(agent.agent_id) ? state.order : [...state.order, agent.agent_id],
       };
     }),
   hydrateBegin: () => set({ hydrating: true }),
@@ -47,7 +50,6 @@ export const useAgentStore = create<AgentStoreState>((set) => ({
       return {
         agents,
         observed,
-        order: (state.order ?? []).filter((id) => seen.has(id)),
         hydrating: false,
         hydrated: true,
       };
