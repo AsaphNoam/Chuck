@@ -132,11 +132,6 @@ None.
 Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-review-run-2026-10-15.md)
 (fixtures, repro steps, evidence). Fake-ACP, real tagged/untagged binaries, Playwright Chromium.
 
-- **Must fix** — **J10 Mail N / Sent never update live:** an MCP `send_message` (waking or deferred)
-  publishes no `state_update` for recipient or sender; `GET /api/sessions` shows `unread_messages`
-  null while `/messages` reports unread; badges appear only after a server restart. The 2026-09-26
-  run saw them live — likely regression (FS-06.R13/R14, A9). Test: send → recipient state_update
-  carries `unread_messages`, sender carries `last_sent_at`.
 - **Must fix** — **J14 restart leaves a pipeline run stuck:** after a dashboard restart the stage task
   is `interrupted` but the run stays `running` with empty `attention_reason`; Continue/Retry/Replace
   all ineligible and Open agent still shown, so only Stop remains (FS-14.R14/R48/R66). Test: restart
@@ -207,6 +202,13 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J10 mail state fix (INV §1/§11/§17):** the send callback that refreshes recipient
+  unread mail and sender Sent pulse ran only for waking messages. It now runs after every successful
+  insert and passes the wake choice so deferred mail does not queue activation. A real MCP-to-bus
+  test failed before the fix for deferred sends and passes for both waking and deferred sends; the
+  existing read/clear check also passes. Full serial Go tests in both variants, Go build, spec and
+  diff checks pass. The October 15 review remains open for its other findings.
 
 - **2026-10-15 — J3 live sent-message fix (INV §11/§17):** a prompt response can arrive after the
   durable user event, reply, and turn divider. The composer now checks for that delivered prompt

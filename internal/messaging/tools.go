@@ -208,9 +208,7 @@ func (s *Server) handleSendMessage(_ context.Context, req *mcp.CallToolRequest, 
 			"used":    budgetLimit,
 		})
 	}
-	if wake {
-		s.messageInserted(self, toID)
-	}
+	s.messageInserted(self, toID, wake)
 	return jsonResult(map[string]any{
 		"ok":         true,
 		"message_id": msgID,

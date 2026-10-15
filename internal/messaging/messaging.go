@@ -27,7 +27,7 @@ type Server struct {
 	log   *slog.Logger
 
 	onBudgetExceeded  func(agentID, turnID string, used int)
-	onMessageInserted func(fromAgentID, toAgentID string)
+	onMessageInserted func(fromAgentID, toAgentID string, wake bool)
 	onMessagesRead    func(agentID string)
 	onTaskResult      func(taskID string)
 	budgetProvider    func() int
@@ -96,20 +96,20 @@ func (s *Server) SetBudgetExceededSink(fn func(agentID, turnID string, used int)
 	s.mu.Unlock()
 }
 
-// SetMessageInsertedSink wires send_message inserts to the nudger's event-driven
-// wake check. The ticker remains the fallback if the signal is dropped.
-func (s *Server) SetMessageInsertedSink(fn func(fromAgentID, toAgentID string)) {
+// SetMessageInsertedSink reports every successful send for live state refresh.
+// Only waking sends need an event-driven activation check.
+func (s *Server) SetMessageInsertedSink(fn func(fromAgentID, toAgentID string, wake bool)) {
 	s.mu.Lock()
 	s.onMessageInserted = fn
 	s.mu.Unlock()
 }
 
-func (s *Server) messageInserted(fromAgentID, toAgentID string) {
+func (s *Server) messageInserted(fromAgentID, toAgentID string, wake bool) {
 	s.mu.RLock()
 	fn := s.onMessageInserted
 	s.mu.RUnlock()
 	if fn != nil {
-		fn(fromAgentID, toAgentID)
+		fn(fromAgentID, toAgentID, wake)
 	}
 }
 

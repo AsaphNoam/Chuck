@@ -267,10 +267,12 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		}, ix)
 		registry.SetTerminalRuntime(term)
 	}
-	msg.SetMessageInsertedSink(func(fromAgentID, toAgentID string) {
-		select {
-		case activationCh <- toAgentID:
-		default:
+	msg.SetMessageInsertedSink(func(fromAgentID, toAgentID string, wake bool) {
+		if wake {
+			select {
+			case activationCh <- toAgentID:
+			default:
+			}
 		}
 		// Touch publishes a state_update (via the manager's bus publisher) for
 		// both ends, carrying the recipient's recomputed unread_messages badge.

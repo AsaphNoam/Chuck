@@ -10,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/AsaphNoam/Chuck/internal/messaging"
+	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 // tokenRoundTripper injects the per-agent session token header on every request.
@@ -57,5 +58,72 @@ func TestMCPRouteMounted(t *testing.T) {
 	}
 	if _, ok := res.Content[0].(*mcp.TextContent); !ok {
 		t.Fatalf("list_agents content = %+v, want TextContent", res.Content[0])
+	}
+}
+
+func TestSendMessagePublishesMailStateForWakingAndDeferred(t *testing.T) {
+	for _, wake := range []bool{true, false} {
+		t.Run(map[bool]string{true: "waking", false: "deferred"}[wake], func(t *testing.T) {
+			srv := testServer(t, true)
+			for _, agent := range []state.Agent{
+				{AgentID: "a_sender", Name: "Atlas", Role: "implementer", Project: "my-app", Backend: "claude", Model: "sonnet", Interface: "chat", CreatedAt: time.Now().UTC()},
+				{AgentID: "a_recipient", Name: "Nova", Role: "reviewer", Project: "my-app", Backend: "claude", Model: "sonnet", Interface: "chat", CreatedAt: time.Now().UTC()},
+			} {
+				if err := srv.stateStore.WriteAgent(agent); err != nil {
+					t.Fatal(err)
+				}
+				if err := srv.stateStore.WriteRunning(state.RunningEntry{AgentID: agent.AgentID, PID: 1, SessionID: "s_" + agent.AgentID, Interface: "chat", StartedAt: time.Now().UTC()}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			srv.messaging.Register("tok-sender", "a_sender")
+			updates, unsubscribe := srv.eventBus.Subscribe()
+			defer unsubscribe()
+
+			ts := httptest.NewServer(srv.routes())
+			defer ts.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			transport := &mcp.StreamableClientTransport{Endpoint: ts.URL + "/mcp",
+				HTTPClient: &http.Client{Transport: tokenRoundTripper{token: "tok-sender", base: http.DefaultTransport}}}
+			client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0.0.1"}, nil)
+			cs, err := client.Connect(ctx, transport, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cs.Close()
+			result, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "send_message", Arguments: map[string]any{
+				"to": "a_recipient", "body": "Please review", "wake": wake,
+			}})
+			if err != nil || result.IsError {
+				t.Fatalf("send_message = %+v, %v", result, err)
+			}
+
+			gotRecipient, gotSender := false, false
+			for !gotRecipient || !gotSender {
+				select {
+				case event := <-updates:
+					if event.Type != "state_update" {
+						continue
+					}
+					update, ok := event.Data.(state.AgentStateUpdate)
+					if !ok {
+						t.Fatalf("state_update payload = %T", event.Data)
+					}
+					switch update.AgentID {
+					case "a_recipient":
+						if update.UnreadMessages == 1 {
+							gotRecipient = true
+						}
+					case "a_sender":
+						if update.LastSentAt != "" {
+							gotSender = true
+						}
+					}
+				case <-ctx.Done():
+					t.Fatalf("missing mail state_update: recipient=%v sender=%v", gotRecipient, gotSender)
+				}
+			}
+		})
 	}
 }
