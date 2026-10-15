@@ -127,17 +127,11 @@ None.
 
 ## Review findings
 
-### Usability review 2026-10-15 — top-to-bottom J1–J17
+### Usability review 2026-10-15 — top-to-bottom J1–J17 — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-review-run-2026-10-15.md)
 (fixtures, repro steps, evidence). Fake-ACP, real tagged/untagged binaries, Playwright Chromium.
-**Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** — **J3 duplicate sent message in live chat:** every send from an agent page or dashboard
-  pane renders a second `article.user-message` after the reply/turn divider; the server transcript
-  holds one `user_text`, a reload shows one, and SSE reconnect does not heal it. Live and reloaded
-  transcripts disagree on the most common action (FS-03 transcript). Test: send → reply → exactly
-  one user bubble in the live store.
 - **Must fix** — **J10 Mail N / Sent never update live:** an MCP `send_message` (waking or deferred)
   publishes no `state_update` for recipient or sender; `GET /api/sessions` shows `unread_messages`
   null while `/messages` reports unread; badges appear only after a server restart. The 2026-09-26
@@ -152,8 +146,8 @@ Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-rev
   (`POST /api/sessions` 201) before the batch is validated/delivered; an empty instruction (422) or
   a failed delivery leaves an agent with no annotations, the tray shows only the validation text or
   “Failed to fetch”, and “Continue to launch” launches another (FS-13.R9/R11; static lead
-  `AnnotationTray.tsx` ~L62; no invariant class). Test: invalid batch → no launch; delivery failure → “agent launched,
-  delivery failed” and retry delivers to the same agent.
+  `AnnotationTray.tsx` ~L62). Test: invalid batch → no launch; delivery failure → “agent launched,
+  delivery failed” and retry delivers to the same agent. (no invariant class)
 - **Worth fixing** — **J5/J12 card order unstable:** agents with no stored layout position reorder across
   server restarts (and J5/J7 saw it across loads), and every page load issues an unprompted
   `PUT /api/layout`, once re-adding a pruned archived id (FS-02.R14). Test: deterministic fallback
@@ -195,18 +189,17 @@ Spec drift for the fix pass: FS-14.R44 names a three-step Setup/Runtimes/Review 
 requirement and the product use Setup/Review with a Customize runtimes disclosure. Matrix gap:
 Think Tanks, phone remote control, project resources and config-source binding have no journey.
 
-### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64)
+### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
-**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-- **Worth fixing — J7/A64 stale Retry after a definite image refusal:** `ui/src/components/chat/Composer.tsx`
+- **Worth fixing** — **J7/A64 stale Retry after a definite image refusal:** `ui/src/components/chat/Composer.tsx`
   ~L140–168 sets the unconfirmed-send `retry` state for every failed send, so a stopped agent whose
   fresh peer refuses an image (422, nothing consumed) shows “Previous message was not confirmed.
   Retry previous send” beside the refusal. Retry repeats the same 422 with no visible change and the
   notice survives reload. It misstates delivery and invites a dead loop (FS-03.A64 “visibly
   refuses”). Test: a definite 4xx refusal keeps the draft and error but offers no unconfirmed-send
-  Retry.
+  Retry. (INV §8)
 
 The recovered stopped-agent image implementation unit itself remains closed; live
 provider/device acceptance gates and unrelated known risks above remain open.
@@ -214,6 +207,13 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J3 live sent-message fix (INV §11/§17):** a prompt response can arrive after the
+  durable user event, reply, and turn divider. The composer now checks for that delivered prompt
+  before adding a local echo; repeated identical sends remain distinct. The old behavior failed
+  the new late-response regression. Text and attachment send regressions pass. Full Go matrix
+  (serial, including `sqlite_fts5`), all 853 UI tests, Go/UI builds, and spec checks pass. The
+  2026-10-15 review stays open for its other findings, including the separate J3 reload-scroll issue.
 
 - **2026-10-14 — usability review (J1, FS-03.A64 desktop wake):** real tagged binary, fresh home,
   fake peer as `claude-agent-acp` on PATH, Chromium. J1 and the accept/explicit-refusal variants

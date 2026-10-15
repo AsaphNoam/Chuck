@@ -104,6 +104,27 @@ describe("Composer autocomplete", () => {
     expect(attachmentRequests[0]).toContain("multipart/form-data; boundary=");
   });
 
+  it("keeps one live user bubble when an attached send replies before acceptance returns", async () => {
+    server.use(http.post("/api/sessions/:id/prompt", () => {
+      const store = useTranscriptStore.getState();
+      store.appendMessage("a_1", { agent_id: "a_1", seq: 7, type: "user_text", ts: "t7", data: { text: "read this", request_id: "file-1" } });
+      store.appendMessage("a_1", { agent_id: "a_1", seq: 8, type: "assistant_text", ts: "t8", data: { delta: "Done." } });
+      store.appendMessage("a_1", { agent_id: "a_1", seq: 9, type: "turn_end", ts: "t9", data: { stop_reason: "end_turn" } });
+      return HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "sent", after_seq: 0,
+        request_id: "file-1", attachment_delivery: "submitted", attachments: [] }, { status: 202 });
+    }));
+    render(<Composer agentId="a_1" busy={false} />);
+    fireEvent.change(screen.getByLabelText("Choose files to attach"), { target: { files: [new File(["file"], "one.txt", { type: "text/plain" })] } });
+    type(screen.getByRole("textbox") as HTMLTextAreaElement, "read this");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(useTranscriptStore.getState().byAgent.a_1?.some((event) => event.kind === "turn_end")).toBe(true));
+    await waitFor(() => expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(""));
+    expect(useTranscriptStore.getState().byAgent.a_1.filter((event) => event.kind === "user_text"))
+      .toEqual([expect.objectContaining({ seq: 7, text: "read this" })]);
+  });
+
   // FS-03.A19: browser-local drafts follow the selected chat through navigation
   // and remounts, but never cross to another agent.
   it("restores distinct drafts for their matching chat after navigation and remount", async () => {
@@ -444,6 +465,49 @@ describe("Composer queued follow-up and steering", () => {
       expect(events).toHaveLength(1);
       expect(events[0]).toMatchObject({ kind: "user_text", seq: 7, text: "wait before answering" });
     });
+  });
+
+  it("keeps one live user bubble when the reply ends before the prompt response", async () => {
+    server.use(http.post("/api/sessions/:id/prompt", async ({ request }) => {
+      const text = String((await request.json() as { text: string }).text);
+      const store = useTranscriptStore.getState();
+      store.appendMessage("a_1", { agent_id: "a_1", seq: 7, type: "user_text", ts: "t7", data: { text } });
+      store.appendMessage("a_1", { agent_id: "a_1", seq: 8, type: "assistant_text", ts: "t8", data: { delta: "Done." } });
+      store.appendMessage("a_1", { agent_id: "a_1", seq: 9, type: "turn_end", ts: "t9", data: { stop_reason: "end_turn" } });
+      return HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "sent", after_seq: 0 }, { status: 202 });
+    }));
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+
+    type(ta, "finish before acknowledgement");
+    fireEvent.keyDown(ta, { key: "Enter" });
+
+    await waitFor(() => expect(ta.value).toBe(""));
+    expect(useTranscriptStore.getState().byAgent.a_1.filter((event) => event.kind === "user_text"))
+      .toEqual([expect.objectContaining({ seq: 7, text: "finish before acknowledgement" })]);
+  });
+
+  it("keeps a second identical prompt when it starts after the first turn", async () => {
+    let turn = 0;
+    server.use(http.post("/api/sessions/:id/prompt", async ({ request }) => {
+      const text = String((await request.json() as { text: string }).text);
+      const seq = 7 + turn++ * 3;
+      const store = useTranscriptStore.getState();
+      store.appendMessage("a_1", { agent_id: "a_1", seq, type: "user_text", ts: `t${seq}`, data: { text } });
+      store.appendMessage("a_1", { agent_id: "a_1", seq: seq + 1, type: "assistant_text", ts: `t${seq + 1}`, data: { delta: "Done." } });
+      store.appendMessage("a_1", { agent_id: "a_1", seq: seq + 2, type: "turn_end", ts: `t${seq + 2}`, data: { stop_reason: "end_turn" } });
+      return HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "sent", after_seq: 0 }, { status: 202 });
+    }));
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "repeat");
+    fireEvent.keyDown(ta, { key: "Enter" });
+    await waitFor(() => expect(useTranscriptStore.getState().byAgent.a_1?.filter((event) => event.kind === "turn_end")).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeDisabled());
+    type(ta, "repeat");
+    fireEvent.keyDown(ta, { key: "Enter" });
+    await waitFor(() => expect(useTranscriptStore.getState().byAgent.a_1?.filter((event) => event.kind === "turn_end")).toHaveLength(2));
+    expect(useTranscriptStore.getState().byAgent.a_1.filter((event) => event.kind === "user_text").map((event) => event.seq)).toEqual([7, 10]);
   });
 
   it("withdraws the held message through the prompt resource", async () => {

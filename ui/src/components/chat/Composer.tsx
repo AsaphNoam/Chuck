@@ -14,6 +14,17 @@ import type { AttachmentCapabilities } from "../../api/types";
 // Composer sends to one agent and owns its `@` file / `#` command picker through
 // the shared autocomplete hook (FS-03.R30–R34).
 
+function latestTranscriptSeq(agentId: string): number {
+  return (useTranscriptStore.getState().byAgent[agentId] ?? []).reduce((max, event) => Math.max(max, event.seq ?? 0), 0);
+}
+
+function alreadyDelivered(agentId: string, text: string, beforeSeq: number, requestId?: string): boolean {
+  return (useTranscriptStore.getState().byAgent[agentId] ?? []).some((event) =>
+    event.kind === "user_text" && (requestId && event.request_id
+      ? event.request_id === requestId
+      : event.seq != null && event.seq > beforeSeq && event.text === text));
+}
+
 export function Composer({ agentId, busy, running = true, steerable = false, variant, attachmentCapabilities }: {
   agentId: string;
   busy: boolean;
@@ -122,6 +133,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   const onSubmitFiles = async (prompt: string, selected: DraftAttachment[], requestId: string, steeringMessage = false, expectedRevision?: number) => {
     if (inFlight.current || !filesReady) return;
     inFlight.current = true;
+    const beforeSeq = latestTranscriptSeq(agentId);
     setSending(true);
     const submittedRevision = expectedRevision ?? chatDraftRevision(agentId);
     const pending = { text: prompt, files: selected, requestId, steer: steeringMessage, revision: submittedRevision };
@@ -138,7 +150,10 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       const acceptedRequestId = "request_id" in result ? result.request_id : undefined;
       if (!steeringMessage && "delivery" in result && result.delivery === "held") hold(agentId, prompt, result.after_seq, acceptedAttachments);
       const attachmentStatus = "attachment_delivery" in result ? result.attachment_delivery : undefined;
-      if (!steeringMessage && (!selected.length || attachmentStatus === "submitted")) append(agentId, { kind: "user_text", text: prompt, attachments: acceptedAttachments, message_id: acceptedRequestId ?? requestId });
+      if (!steeringMessage && (!selected.length || attachmentStatus === "submitted") &&
+          !alreadyDelivered(agentId, prompt, beforeSeq, acceptedRequestId ?? requestId)) {
+        append(agentId, { kind: "user_text", text: prompt, attachments: acceptedAttachments, message_id: acceptedRequestId ?? requestId });
+      }
       if (selected.length && attachmentStatus !== "submitted" && attachmentStatus !== "held") {
         setError(attachmentStatus === "released"
           ? "This message was released for recovery. Restore it from the conversation before sending again."
@@ -214,6 +229,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     // for this agent while the request is in flight, the completion must leave
     // that newer draft alone instead of discarding or overwriting it (INV §1/§5).
     const draftRev = chatDraftRevision(agentId);
+    const beforeSeq = latestTranscriptSeq(agentId);
     setText("");
     autocomplete.clearTrigger();
     try {
@@ -224,7 +240,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       // pending state is rendered from what happened rather than inferred from
       // agent status (TS-03.R38).
       if (result.delivery === "held") hold(agentId, prompt, result.after_seq);
-      else append(agentId, { kind: "user_text", text: prompt, message_id: `local-${Date.now()}` });
+      else if (!alreadyDelivered(agentId, prompt, beforeSeq)) append(agentId, { kind: "user_text", text: prompt, message_id: `local-${Date.now()}` });
       // Only clear the draft we actually sent; a newer same-agent draft survives.
       if (chatDraftRevision(agentId) === draftRev) discardChatDraft(agentId);
     } catch (err) {
