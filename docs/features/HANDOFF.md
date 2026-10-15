@@ -127,6 +127,74 @@ None.
 
 ## Review findings
 
+### Usability review 2026-10-15 — top-to-bottom J1–J17
+
+Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-review-run-2026-10-15.md)
+(fixtures, repro steps, evidence). Fake-ACP, real tagged/untagged binaries, Playwright Chromium.
+**Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — **J3 duplicate sent message in live chat:** every send from an agent page or dashboard
+  pane renders a second `article.user-message` after the reply/turn divider; the server transcript
+  holds one `user_text`, a reload shows one, and SSE reconnect does not heal it. Live and reloaded
+  transcripts disagree on the most common action (FS-03 transcript). Test: send → reply → exactly
+  one user bubble in the live store.
+- **Must fix** — **J10 Mail N / Sent never update live:** an MCP `send_message` (waking or deferred)
+  publishes no `state_update` for recipient or sender; `GET /api/sessions` shows `unread_messages`
+  null while `/messages` reports unread; badges appear only after a server restart. The 2026-09-26
+  run saw them live — likely regression (FS-06.R13/R14, A9). Test: send → recipient state_update
+  carries `unread_messages`, sender carries `last_sent_at`.
+- **Must fix** — **J14 restart leaves a pipeline run stuck:** after a dashboard restart the stage task
+  is `interrupted` but the run stays `running` with empty `attention_reason`; Continue/Retry/Replace
+  all ineligible and Open agent still shown, so only Stop remains (FS-14.R14/R48/R66). Test: restart
+  with a stage awaiting its result → paused run, Retry eligible, Open agent withheld, restart cause
+  stated.
+- **Must fix** — **J13 tray “New task” orphans agents:** `AnnotationTray` launches the agent
+  (`POST /api/sessions` 201) before the batch is validated/delivered; an empty instruction (422) or
+  a failed delivery leaves an agent with no annotations, the tray shows only the validation text or
+  “Failed to fetch”, and “Continue to launch” launches another (FS-13.R9/R11; static lead
+  `AnnotationTray.tsx` ~L62; no invariant class). Test: invalid batch → no launch; delivery failure → “agent launched,
+  delivery failed” and retry delivers to the same agent.
+- **Worth fixing** — **J5/J12 card order unstable:** agents with no stored layout position reorder across
+  server restarts (and J5/J7 saw it across loads), and every page load issues an unprompted
+  `PUT /api/layout`, once re-adding a pruned archived id (FS-02.R14). Test: deterministic fallback
+  order; no write on load.
+- **Worth fixing** — **J10/J13 mail-triggered turns have no visible cause:** waking peer mail or tray
+  delivery to another agent produces an assistant turn with no event in the recipient transcript
+  naming the sender or content. No requirement covers recipient visibility (FS-06.R31–R32, FS-13.R7);
+  the fix should decide behavior or specification.
+- **Worth fixing** — **J3 reload lands mid-transcript:** hard-reloading an agent with diagram turns stops
+  above the latest reply with “Jump to latest” shown (diagram height settles after initial scroll).
+- **Worth fixing** — **J6 stopped terminal page:** a stopped terminal agent’s Terminal tab shows
+  “[connection error] [closed]” (WebSocket 404) with no stopped state or Resume (FS-07).
+- **Worth fixing** — **J11 crash state unclear:** a crashed or killed agent reads “Stopped” on header and
+  card while the API says `error`; the card carries no error text and nothing says a new message
+  restarts it.
+- **Worth fixing** — **J8 missing archived session renders blank:** `/archive/<unknown>` or an archived
+  agent without its transcript shows a normal header, empty body and active Resume/Restore; the 404
+  is swallowed at `ArchiveAgentPage.tsx` ~L43 (FS-05) (no invariant class).
+- **Worth fixing** — **J11 invalid pipeline template save returns 500:** Validate lists slug errors but
+  Save stays enabled and `POST /api/pipelines` answers 500 “pipeline operation failed” (FS-14).
+  Test: invalid ids → 4xx validation with the same diagnostics.
+- **Worth fixing** — **J9 blank backend name persists:** clearing a backend display name in Settings →
+  Backends saves `"name": ""`; backend creation already requires it (FS-09).
+- **Worth fixing** — **J2 wizard hides `cwd_not_found`:** the onboarding Project step advances silently
+  on a relative/nonexistent working directory although the API returns the warning (FS-04.R30).
+- **Worth fixing** — **J2 OpenCode/OpenHands missing-adapter guidance:** only “Install it, then check
+  again” with no link or command, unlike Claude/Codex.
+- **Worth fixing** — **J13 archived tray default target:** from an archived source the disabled
+  “Current agent” stays selected; Send returns 409 “the source agent is not running” (FS-13.R15).
+- **Worth fixing** — **J16 worktree recreation unreported:** relaunch after the checkout was deleted
+  recreates it silently; the launch response’s `worktree.recreated` is never read by the UI
+  (FS-19.R7).
+- **Worth fixing** — **J16 attention count on delete:** deleting a parked task leaves the dashboard
+  needs-attention count stale until reload; cancel/create update live (FS-16.R14).
+- **Worth fixing** — **J15 cancelled task shows a live wait:** a cancelled signal-armed task still lists
+  “signal … (waiting)” in its detail.
+
+Spec drift for the fix pass: FS-14.R44 names a three-step Setup/Runtimes/Review dialog; a later FS-14
+requirement and the product use Setup/Review with a Customize runtimes disclosure. Matrix gap:
+Think Tanks, phone remote control, project resources and config-source binding have no journey.
+
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64)
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).

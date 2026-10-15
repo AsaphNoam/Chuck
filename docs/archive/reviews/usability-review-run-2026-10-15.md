@@ -4,8 +4,16 @@
 
 - **Scope:** full top-to-bottom J1–J17 journey regression and S1–S5 static sweeps.
 - **Baseline:** `317706c8` on `main`.
-- **Status:** in progress — journeys run in small batches; rows below are filled as each batch
-  returns.
+- **Outcome:** all seventeen journeys driven. Four confirmed **MAJOR / Must fix** findings: live
+  chat shows every sent message twice; agent-to-agent mail never updates the Mail/Sent card badges
+  live; a pipeline run left by a dashboard restart is stuck with no Retry; a tray “New task” launch
+  creates the agent before delivery is validated, orphaning it and duplicating it on retry. No
+  BLOCKER. Fourteen MINOR findings (Worth fixing). J1, J4, J5, J6, J7, J15 and J17 passed; the
+  rest are partial or failed as stated per row.
+- **Top 5:** (1) duplicate sent-message bubbles in every live chat; (2) Mail N / Sent badges absent
+  until restart; (3) restart-paused pipeline run is a dead end; (4) orphan/duplicate agents from a
+  failed tray launch; (5) agents without a dragged position reshuffle after a server restart.
+- **Interruptions:** the final batch hit a usage limit once and was rerun from fresh home copies.
 
 ## Setup
 
@@ -35,8 +43,11 @@
 | J9 Settings & config | PASS with finding | All seven tabs round-trip; seeded backends/models and projects merge-preserved; most invalid input refused visibly; Core/Sky & Grove/Studio apply live and persist; role delete-in-use confirms and agent keeps working; config-source panel and Remote render on a fresh home (`devices: []`). Blank backend display name persists on edit (finding). | [Studio](usability-review-2026-10-15-evidence/J9-app-studio-dash.png), [role in use](usability-review-2026-10-15-evidence/J9-role-delete-inuse.png), [blank name](usability-review-2026-10-15-evidence/J9-be-emptyname.png) |
 | J10 Multi-agent + messaging | FAIL | Driven through the real `/mcp` `send_message` with an agent token (no UI path exists). Waking mail woke a stopped recipient exactly once; mail to a busy agent waited and was delivered once after the turn; restart rendered correct Mail N badges. Live Mail N / Sent never appear after a send (finding). The mail-triggered turn has no visible cause in the recipient transcript. No human inbox surface exists. | [cards](usability-review-2026-10-15-evidence/J10-3-cards-unread.png), [SSE capture](usability-review-2026-10-15-evidence/V10-sse-after-send.txt), [recipient](usability-review-2026-10-15-evidence/J10-4-D-transcript.png) |
 | J11 Failure & recovery | PARTIAL | Server kill → “Reconnecting” within 4 s; send while down fails visibly and restores the draft; automatic reconnect with accurate stopped state and catch-up of changes made while disconnected; process kill reflected in under 1 s; crash survives reload and composer wake recovers; garbage in agent/project/role forms, archive search operators and a 100 KB composer paste handled. Pipeline template save with invalid ids returns 500 (finding). Reconnect does not heal the duplicate bubbles. Tasks has no create form. | [reconnecting](usability-review-2026-10-15-evidence/J11-1b-down4s.png), [send while down](usability-review-2026-10-15-evidence/J11-1c-send-down.png), [crash](usability-review-2026-10-15-evidence/J11-3a-crash-page.png) |
+| J12 Restart durability | FAIL | Homes left by J5, J7, J10 and J13 restarted twice (second without a browser): agents, statuses, models, layout file, density/groups/collapse/expanded panes, Mail badges, archive and transcripts unchanged; layout file not rewritten. Card order of agents without a stored position changed across restarts in two of four homes (folded into the layout finding). Running-agent-on-restart not exercised (all agents already stopped). | [before](usability-review-2026-10-15-evidence/J12-J13-before-project.png), [after](usability-review-2026-10-15-evidence/J12-J13-after1-project.png) |
 | J13 Annotate & assign | FAIL | Live diff-line, whole-event and text-range annotations, tray edit/reload, archived-source annotation, send to self (one “Annotations assigned” card, no duplicate prompt), send to another agent, prefilled new launch with cancel preserving the tray, and archive search for annotation text passed. New-task launch happens before delivery is validated (finding). | [self](usability-review-2026-10-15-evidence/J13-3-self.png), [orphan launch](usability-review-2026-10-15-evidence/J13-7-a.png), [archived default](usability-review-2026-10-15-evidence/J13-2-sendself.png) |
 | J14 Configurable pipelines | PARTIAL | Runs/Templates split and empty states, four-stage template save/reload with one mounted stage form, start with mixed runtimes to the run page, run badge consistent with stage/attempt (the 2026-09-26 QUEUED finding is fixed), legacy `?run=` redirect, gone-run page, Stop and Delete passed. Restart leaves the run stuck (finding). Stage completion, routing, repair loop, approvals and delegated cards BLOCKED: the fake peer never calls `report_task_result`. Builder proposals SKIPPED (live model). Under reduced motion the Start-run dialog still fades (opacity only). | [run page](usability-review-2026-10-15-evidence/J14-3-runpage.png), [after restart](usability-review-2026-10-15-evidence/J14-6-after-restart.png) |
+| J15 Dependent work | PASS | Empty state; create through the manual form; dependent row names its prerequisite by title; Record result moves the dependent ready → running live; cancel/failure park dependents; re-arm; Retry after restart; delete; restart keeps armed and marks running `interrupted`; garbage in form, CLI and API refused with errors. Cancelled task still lists its signal as waiting (finding). | [live start](usability-review-2026-10-15-evidence/J15-3.png), [restart](usability-review-2026-10-15-evidence/J15-6.png), [cancelled](usability-review-2026-10-15-evidence/J15-4a.png) |
+| J16 Task attention & worktrees | PARTIAL | Attention count increments live and links to filtered Tasks; budget default, refusal, round-trip and merge; budget 1 runs one of three; canvas right-click on every edge/corner; worktree offer only on repo projects and on the scoped header; branch tracks title; live card with branch; agent runs inside the checkout; archive dialog defaults to keep, states branch survival, discloses uncommitted work, removal keeps branch. Silent recreation and missing decrement on delete are findings. | [worktree](usability-review-2026-10-15-evidence/J16-5d.png), [archive dialog](usability-review-2026-10-15-evidence/J16-7b.png), [recreated](usability-review-2026-10-15-evidence/J16-6b.png) |
 | J17 Browser-local drafts | PASS | Two drafts isolated through navigation and reload; sent draft cleared and never returned; stopping an agent leaked nothing and kept its own draft. | [drafts](usability-review-2026-10-15-evidence/J17-5-A.png), [stopped](usability-review-2026-10-15-evidence/J17-7-Bstopped.png) |
 
 ## Static sweeps
@@ -101,9 +112,9 @@ EVIDENCE: usability-review-2026-10-15-evidence/J6-5e.png
 SEVERITY: MINOR
 WHERE: J5 step 3 (seeded/lived-in homes, ports 4605 and 4651), FS-02.R14
 REPRO: Load /project/review with no interaction; watch requests.
-EXPECTED: No layout write without a user action.
-OBSERVED: Every page load sends PUT /api/layout ~0.4 s after the GET (four of four loads). In J5's seven-agent run the first loads also reshuffled card order and one load-time write re-added an archived agent id an earlier drag had pruned; the reshuffle did not reproduce on the three-agent lived-in home.
-EVIDENCE: Playwright request capture (work/V5/order.cjs); J5 server.log GET/PUT pairs
+EXPECTED: Stable card order across loads and restarts; no layout write without a user action.
+OBSERVED: Every page load sends PUT /api/layout ~0.4 s after the GET (four of four loads). Agents with no stored position reorder across server restarts (J12: 13-card J13 home reordered on restart 1; J10 home swapped two cards on both restarts; layout.json unchanged), and J5/J7 saw the same reshuffle across page loads. One load-time write re-added an archived agent id an earlier drag had pruned.
+EVIDENCE: J12-J13-before-project.png vs J12-J13-after1-project.png; Playwright request capture (work/V5/order.cjs)
 ```
 
 ```text
@@ -187,6 +198,33 @@ OBSERVED: The disabled "Current agent" radio stays checked; Send returns 409 and
 EVIDENCE: usability-review-2026-10-15-evidence/J13-2-sendself.png
 ```
 
+```text
+SEVERITY: MINOR
+WHERE: J16 step 6 (home J16, port 4616), FS-19.R7
+REPRO: Worktree project with an agent; rm -rf its checkout; New agent → Launch.
+EXPECTED: The start reports that the checkout was recreated.
+OBSERVED: Checkout silently recreated on the same branch; POST /api/sessions returns worktree.recreated true but no UI code reads it.
+EVIDENCE: usability-review-2026-10-15-evidence/J16-6b.png
+```
+
+```text
+SEVERITY: MINOR
+WHERE: J16 step 1 (port 4616), FS-16.R14
+REPRO: Scoped dashboard showing "1 task needs attention"; delete the parked task.
+EXPECTED: Count drops to 0 live (cancel and create update live).
+OBSERVED: Count stays 1 until reload (two repeats).
+EVIDENCE: usability-review-2026-10-15-evidence/J16-1d.png
+```
+
+```text
+SEVERITY: MINOR
+WHERE: J15 step 4 (port 4615), FS-16
+REPRO: Cancel a task armed on a signal; expand its detail.
+EXPECTED: A finished task shows no live wait.
+OBSERVED: Detail still lists "signal hold (waiting)" under prerequisites.
+EVIDENCE: usability-review-2026-10-15-evidence/J15-4a.png
+```
+
 Not promoted: a stale backend-check result after switching type (reproduced once only); the
 700 px narrow file-viewer check (1024 px is the specified desktop floor); a possible hidden
 “Timed out” label (unconfirmed); POLISH items (no wizard Back, Launch step returns to dashboard
@@ -204,6 +242,15 @@ to the agent a tray launch created; low-contrast diff "Annotate lines" trigger; 
 `POST /api/tasks/<id>/result` on a stage task (API-only, low confidence). Annotation recipients
 also show an unexplained turn (same as the J10 finding). **Spec drift:** FS-14.R44 names a
 three-step Setup/Runtimes/Review dialog while a later FS-14 requirement and the product use
-Setup/Review with a Customize runtimes disclosure.
+Setup/Review with a Customize runtimes disclosure. Batch 5: generic parked-task reason; raw field
+keys and `state:` prefixes in task errors; project ids in the task form; no confirm on task Delete;
+waiting tasks under a full budget show no reason (permitted by FS-16.R44); a once-seen missing
+worktree menu item; one console 404 per stopped-agent page (the pending-prompt fetch).
 
 ## Not exercised
+
+Real provider login/model behavior (no credentials used); the logged-out/logged-in onboarding
+branches; real terminal provider CLIs and tmux/iTerm2 drivers; pipeline stage completion, routing,
+repair loops, approvals and Chucky builder proposals (the fake peer never reports task results);
+archive pagination past 50; running-agent state across restart in J12; Think Tanks, phone remote
+control, project resources and native config-source binding (no journey charter).
