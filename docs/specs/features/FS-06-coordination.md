@@ -254,6 +254,14 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   ordinary refusal; it never names a pipeline association or promises that Resume makes the call
   succeed. Supersedes R29.
 
+### 4.4 Recipient visibility
+
+- **R38** (shipped 2026-10-15) — When a turn receives mail directly in its prompt (R31–R32), the
+  recipient transcript records one notice row in that turn naming each supplied message's sender
+  and subject, so the person supervising can see why a mail-triggered turn started. Bodies stay out
+  of the row; the mailbox remains their surface. The notice follows TS-04.R80's bounds and
+  projection: it never changes unread counts, status or notifications.
+
 ## 5. Acceptance criteria
 
 - **A20** (shipped 2026-09-13; R30–R32, R35) — Serialized MCP/fake-provider tests send waking mail to an
@@ -280,6 +288,9 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 - **A25** (shipped 2026-09-13; R30, R34–R36) — A supervision journey distinguishes queued-deferred from
   waking mail and updates read/unread state after direct delivery. Run cancellation does not start
   completed tasks for FYIs. Deferred addressability bypasses no task admission/archive/closure gate.
+- **A27** (shipped 2026-10-15; R38) — A waking-mail activation emits one notice naming the sender and
+  subject without the body:
+  `internal/runtime/chat_test.go::TestStartActivationInjectsInlineMailTurn`.
 
 - **A1** (R2–R6) — Two token-bound agents discover, send, and read over the real HTTP MCP
   transport, with sender identity derived from session:

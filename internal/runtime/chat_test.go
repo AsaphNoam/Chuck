@@ -1489,9 +1489,21 @@ func TestStartActivationInjectsInlineMailTurn(t *testing.T) {
 	if budget, err := c.store.CurrentTurnBudget(h.AgentID, 15); err != nil || budget.TurnID != "t_000000000001" || budget.Inbound != 1 || budget.Remaining != 14 {
 		t.Fatalf("turn budget after inline mail = %+v err=%v, want one inbound charge", budget, err)
 	}
-	_ = drainTurn(t, ch)
+	events := drainTurn(t, ch)
 	if unread, err := c.store.UnreadCount(h.AgentID); err != nil || unread != 0 {
 		t.Fatalf("unread after confirmed inline receipt = %d, %v; want 0", unread, err)
+	}
+	// FS-06.R38 — the recipient transcript names the mail that caused the turn.
+	var notice NoticeData
+	for _, ev := range events {
+		if ev.Type == EvNotice {
+			if err := json.Unmarshal(ev.Data, &notice); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if notice.Title != "Mail from Nova" || notice.Description != "Nova: Review" || strings.Contains(notice.Description, "durable result") {
+		t.Fatalf("mail notice = %+v, want sender and subject without body", notice)
 	}
 
 	raw, err := os.ReadFile(dump)

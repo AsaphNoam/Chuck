@@ -136,10 +136,6 @@ Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-rev
   server restarts (and J5/J7 saw it across loads), and every page load issues an unprompted
   `PUT /api/layout`, once re-adding a pruned archived id (FS-02.R14). Test: deterministic fallback
   order; no write on load.
-- **Worth fixing** — **J10/J13 mail-triggered turns have no visible cause:** waking peer mail or tray
-  delivery to another agent produces an assistant turn with no event in the recipient transcript
-  naming the sender or content. No requirement covers recipient visibility (FS-06.R31–R32, FS-13.R7);
-  the fix should decide behavior or specification.
 - **Worth fixing** — **J3 reload lands mid-transcript:** hard-reloading an agent with diagram turns stops
   above the latest reply with “Jump to latest” shown (diagram height settles after initial scroll).
 - **Worth fixing** — **J6 stopped terminal page:** a stopped terminal agent’s Terminal tab shows
@@ -187,6 +183,11 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J10/J13 mail-turn visibility (INV §8):** decided under new FS-06.R38: any turn that
+  receives mail in its prompt records one notice row naming each sender and subject (no body), so
+  peer-mail and tray-to-agent turns show their cause. The extended activation test fails without
+  the notice; runtime package tests pass. Full closure is owed at the end of this fix run.
 
 - **2026-10-15 — J15/J16 task view fixes (INV §1):** deleting a task now publishes a `task_update`
   removal so every open view, including the dashboard attention count, refetches. A finished task

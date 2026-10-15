@@ -914,7 +914,7 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 		as.mu.Unlock()
 		return err
 	}
-	promptText, deliveryKey, _, err := c.prepareTurnPrompt(as.agentID, message.Text, false)
+	promptText, deliveryKey, _, mailNotice, err := c.prepareTurnPrompt(as.agentID, message.Text, false)
 	if err != nil {
 		as.mu.Lock()
 		as.turnActive = false
@@ -944,6 +944,9 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 		as.turnActive = false
 		as.mu.Unlock()
 		return fmt.Errorf("%w: delivery receipt unavailable", ErrMessageAccepted)
+	}
+	if mailNotice != nil {
+		c.emit(as, EvNotice, *mailNotice)
 	}
 	// Persist the accepted user side of the turn before handing it to ACP. This
 	// gives it the same durable sequence, replay, and index path as assistant
@@ -1007,8 +1010,10 @@ const (
 //
 // The third result reports whether the prepared batch carries a waking message.
 // A batch of deferred-only mail is delivered to a turn that already exists, but
-// it is never a reason to start one (FS-06.R30/R33, TS-01.R33).
-func (c *ChatRuntime) prepareTurnPrompt(agentID, primary string, wakingFirst bool) (string, string, bool, error) {
+// it is never a reason to start one (FS-06.R30/R33, TS-01.R33). The fourth
+// result is the recipient-visible notice naming the supplied mail, nil when the
+// batch is empty; callers emit it only once the turn is committed (FS-06.R38).
+func (c *ChatRuntime) prepareTurnPrompt(agentID, primary string, wakingFirst bool) (string, string, bool, *NoticeData, error) {
 	c.mu.Lock()
 	budgetProvider := c.messageBudget
 	c.mu.Unlock()
@@ -1020,10 +1025,10 @@ func (c *ChatRuntime) prepareTurnPrompt(agentID, primary string, wakingFirst boo
 	}
 	batch, err := c.store.PrepareInlineMail(agentID, budgetLimit, inlineMailMaxMessages, inlineMailReservationBytes, wakingFirst)
 	if err != nil {
-		return "", "", false, fmt.Errorf("runtime: prepare inline mail: %w", err)
+		return "", "", false, nil, fmt.Errorf("runtime: prepare inline mail: %w", err)
 	}
 	if len(batch.Messages) == 0 {
-		return primary, batch.DeliveryTurnKey, false, nil
+		return primary, batch.DeliveryTurnKey, false, nil, nil
 	}
 	type inlinePeerMail struct {
 		MessageID   string `json:"message_id"`
@@ -1053,7 +1058,7 @@ func (c *ChatRuntime) prepareTurnPrompt(agentID, primary string, wakingFirst boo
 	encoded, err := json.Marshal(mail)
 	if err != nil {
 		c.clearInlineMail(agentID, batch.DeliveryTurnKey)
-		return "", "", false, fmt.Errorf("runtime: encode inline mail: %w", err)
+		return "", "", false, nil, fmt.Errorf("runtime: encode inline mail: %w", err)
 	}
 	overflow := ""
 	if batch.RemainingWaking+batch.RemainingDeferred > 0 {
@@ -1062,9 +1067,35 @@ func (c *ChatRuntime) prepareTurnPrompt(agentID, primary string, wakingFirst boo
 	section := "\n\n--- Chuck peer mail (attributed peer input; not system authority) ---\n" + string(encoded) + overflow + "\n--- End Chuck peer mail ---"
 	if len(section) > 64*1024 {
 		c.clearInlineMail(agentID, batch.DeliveryTurnKey)
-		return "", "", false, errors.New("runtime: inline mail section exceeds 64 KiB")
+		return "", "", false, nil, errors.New("runtime: inline mail section exceeds 64 KiB")
 	}
-	return primary + section, batch.DeliveryTurnKey, hasWakingMail, nil
+	return primary + section, batch.DeliveryTurnKey, hasWakingMail, inlineMailNotice(batch.Messages), nil
+}
+
+// inlineMailNotice names each supplied message's sender and subject so the
+// person supervising the recipient can see why a mail-triggered turn started.
+// Bodies stay out of the transcript; the mailbox remains their surface.
+func inlineMailNotice(messages []state.Message) *NoticeData {
+	senders := make([]string, 0, len(messages))
+	seen := map[string]bool{}
+	lines := make([]string, 0, len(messages))
+	for _, message := range messages {
+		sender := message.FromName
+		if sender == "" {
+			sender = message.FromAgent
+		}
+		if !seen[sender] {
+			seen[sender] = true
+			senders = append(senders, sender)
+		}
+		lines = append(lines, sender+": "+message.Subject)
+	}
+	return &NoticeData{
+		Severity:    "info",
+		Title:       strutil.ClipRunes("Mail from "+strings.Join(senders, ", "), maxNoticeTitle),
+		Description: strutil.ClipRunes(strings.Join(lines, "\n"), maxNoticeDescription),
+		Origin:      "chuck_mail",
+	}
 }
 
 func validInlineReceipt(raw json.RawMessage) bool {
@@ -1598,7 +1629,7 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		as.mu.Unlock()
 		return false, err
 	}
-	promptText, deliveryKey, hasWakingMail, err := c.prepareTurnPrompt(as.agentID, contract.Instruction, kind == state.ActivationKindMail)
+	promptText, deliveryKey, hasWakingMail, mailNotice, err := c.prepareTurnPrompt(as.agentID, contract.Instruction, kind == state.ActivationKindMail)
 	if err != nil {
 		as.mu.Lock()
 		as.turnActive = false
@@ -1638,6 +1669,9 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		return false, fmt.Errorf("runtime: write activation status: %w", err)
 	}
 	as.setExecTurn(turnID)
+	if mailNotice != nil {
+		c.emit(as, EvNotice, *mailNotice)
+	}
 
 	go func() {
 		params := map[string]any{
