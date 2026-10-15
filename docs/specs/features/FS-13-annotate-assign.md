@@ -68,7 +68,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   agent's role and project (name auto-suggest per FS-01.R1/R4). When that launch succeeds, the batch
   is delivered to the new agent as reserved-sender mail (R7), whose idle-nudge wakes the fresh agent
   so processing the annotations is its first activity, and the source session's annotation event
-  (R5) records the new agent as target. Cancelling the modal preserves the tray.
+  (R5) records the new agent as target. Cancelling the modal preserves the tray. The batch is
+  validated for mail delivery before launch; an invalid batch leaves the tray open without creating
+  an agent. If delivery fails after launch, the tray names the launched agent and retries delivery
+  to that same agent without reopening the launch modal.
 
 ### 2.3 Structure and search
 
@@ -212,8 +215,10 @@ Each acceptance item names its delivered verification.
 - **A3** (R7–R8) — Assigning to a second agent inserts reserved-sender mail that raises
   the unread badge and nudges an idle recipient; an unfittable batch is rejected `422` with the tray
   preserved: `internal/server/annotations_test.go` and existing messaging/state nudge coverage.
-- **A4** (R9) — New task opens the prefilled New Agent modal and, after launch, the new
-  agent's first activity is processing the delivered annotations: `NewAgentModal.test.tsx` launch coverage and the annotation delivery integration test.
+- **A4** (R9) — New task opens the prefilled New Agent modal only for a valid batch and, after launch,
+  the new agent's first activity is processing the delivered annotations. A failed delivery leaves
+  the tray intact and retries against that same agent: `AnnotationTray.test.tsx`,
+  `NewAgentModal.test.tsx` launch coverage, and the annotation delivery integration test.
 - **A5** (R10) — An annotation instruction is findable through archive search on the FTS5
   build: `internal/index/indexer_test.go::TestAnnotationFlushesSearchableContent`.
 - **A6** (R1–R15) — A user annotates a diff and a message, sends to self, to a second

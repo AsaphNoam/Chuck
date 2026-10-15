@@ -123,6 +123,39 @@ func steerError(err error) *runtime.APIError {
 	}
 }
 
+// handleValidateAnnotations checks a new-task batch before the UI launches its
+// recipient, using the same content and mail-size checks as delivery.
+func (s *Server) handleValidateAnnotations(w http.ResponseWriter, r *http.Request) {
+	var body runtime.AnnotationData
+	r.Body = http.MaxBytesReader(w, r.Body, remoteBodyLimit)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIError(w, apiError(runtime.CodeValidation, "invalid JSON body"))
+		return
+	}
+	if err := validateAnnotations(&body); err != nil {
+		writeAPIError(w, apiError(runtime.CodeValidation, err.Error()))
+		return
+	}
+	if _, err := annotationMailBody(body); err != nil {
+		writeAPIError(w, apiError(runtime.CodeValidation, err.Error()))
+		return
+	}
+	source, err := s.stateStore.ReadAgent(r.PathValue("id"))
+	if err != nil {
+		if errors.Is(err, state.ErrNotFound) {
+			writeAPIError(w, apiError(runtime.CodeNotFound, "no such agent: "+r.PathValue("id")))
+		} else {
+			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read annotation source"))
+		}
+		return
+	}
+	if source.Interface != "chat" {
+		writeAPIError(w, apiError(runtime.CodeValidation, "terminal agents cannot be annotation sources"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"valid": true})
+}
+
 // handleAnnotations accepts one point-in-time review batch. New-task delivery
 // composes the existing launch endpoint with this same agent target, keeping one
 // delivery path for mail and one event shape for replay/search.

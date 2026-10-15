@@ -2,16 +2,31 @@ import React from "react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { AnnotationTray } from "./AnnotationTray";
+
+let launches = 0;
+vi.mock("../../features/launch/NewAgentModal", async () => {
+  const React = await import("react");
+  return { NewAgentModal: ({ open, onLaunched }: { open: boolean; onLaunched: (id: string) => void }) =>
+    open ? React.createElement("button", { onClick: () => { launches++; onLaunched("new-agent"); } }, "Launch agent") : null };
+});
+
+const server = setupServer();
+beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
+afterAll(() => server.close());
 
 afterEach(() => {
   cleanup();
   useAgentStore.setState({ agents: {} });
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
+  server.resetHandlers();
+  launches = 0;
 });
 
 const sourceAgent = {
@@ -37,6 +52,49 @@ function agentStylesheet() {
 }
 
 describe("AnnotationTray", () => {
+  it("validates the batch before opening launch, leaving an invalid tray intact", async () => {
+    seedTray(1);
+    useAnnotationStore.getState().updateInstruction("source", 0, "  ");
+    let preflights = 0;
+    server.use(http.post("/api/sessions/source/annotations/validate", () => {
+      preflights++;
+      return HttpResponse.json({ error: { code: "validation", message: "annotation 1 needs an anchor, excerpt, and instruction" } }, { status: 422 });
+    }));
+    renderTray();
+    fireEvent.click(screen.getByLabelText("New task"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
+    expect(await screen.findByText("annotation 1 needs an anchor, excerpt, and instruction")).toBeInTheDocument();
+    expect(preflights).toBe(1);
+    expect(launches).toBe(0);
+    expect(screen.queryByRole("button", { name: "Launch agent" })).toBeNull();
+    expect(useAnnotationStore.getState().bySource.source).toHaveLength(1);
+  });
+
+  it("retries failed post-launch delivery to the same agent without launching another", async () => {
+    seedTray(1);
+    const recipientIds: string[] = [];
+    server.use(
+      http.post("/api/sessions/source/annotations/validate", () => HttpResponse.json({ valid: true })),
+      http.post("/api/sessions/source/annotations", async ({ request }) => {
+        const body = await request.json() as { target: { agent_id: string } };
+        recipientIds.push(body.target.agent_id);
+        return recipientIds.length === 1
+          ? HttpResponse.json({ error: { code: "internal", message: "mail unavailable" } }, { status: 500 })
+          : HttpResponse.json({ accepted: true, seq: 1 }, { status: 202 });
+      }),
+    );
+    renderTray();
+    fireEvent.click(screen.getByLabelText("New task"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Launch agent" }));
+    expect(await screen.findByText(/Agent new-agent launched, but annotation delivery failed/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry delivery to new-agent" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry delivery to new-agent" }));
+    await waitFor(() => expect(useAnnotationStore.getState().bySource.source).toBeUndefined());
+    expect(launches).toBe(1);
+    expect(recipientIds).toEqual(["new-agent", "new-agent"]);
+  });
+
   it("keeps delivery controls outside the scrolling multi-draft body", () => {
     seedTray(3);
     const { container } = renderTray();

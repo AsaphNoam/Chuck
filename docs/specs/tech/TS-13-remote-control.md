@@ -163,8 +163,8 @@ the installed app on iOS.
   validator re-reads current configuration and rejects an unknown or unsupported
   backend/model/effort/fast combination before changing the run (FS-20.R31).
 - **R16 — Annotation delivery is allowlisted for paired phones.** The tailnet route table
-  includes the existing `POST /api/sessions/{id}/annotations` handler for FS-20.R32. The remote
-  chain bounds its body and admits only the shared request's top-level fields (`annotations`,
+  includes `POST /api/sessions/{id}/annotations` and its read-only validation preflight for
+  FS-20.R32. The remote chain bounds its body and admits only the shared request's top-level fields (`annotations`,
   `overall_instruction`, `target`) before the shared FS-13 validation and commit-before-delivery
   path; it adds no phone-only annotation representation or delivery mechanism.
 - **R17 — Remote Re-arm has the desktop's value authority.** A paired phone may submit

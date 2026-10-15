@@ -159,7 +159,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           Jump to latest
         </button>
       )}
-      {annotationsEnabled && inSlot(<AnnotationTray sourceId={agentId} sourceActive={sourceActive} />, panelSlots?.end)}
+      {annotationsEnabled && inSlot(<AnnotationTray key={agentId} sourceId={agentId} sourceActive={sourceActive} />, panelSlots?.end)}
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );

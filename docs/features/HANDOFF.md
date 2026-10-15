@@ -132,12 +132,6 @@ None.
 Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-review-run-2026-10-15.md)
 (fixtures, repro steps, evidence). Fake-ACP, real tagged/untagged binaries, Playwright Chromium.
 
-- **Must fix** — **J13 tray “New task” orphans agents:** `AnnotationTray` launches the agent
-  (`POST /api/sessions` 201) before the batch is validated/delivered; an empty instruction (422) or
-  a failed delivery leaves an agent with no annotations, the tray shows only the validation text or
-  “Failed to fetch”, and “Continue to launch” launches another (FS-13.R9/R11; static lead
-  `AnnotationTray.tsx` ~L62). Test: invalid batch → no launch; delivery failure → “agent launched,
-  delivery failed” and retry delivers to the same agent. (no invariant class)
 - **Worth fixing** — **J5/J12 card order unstable:** agents with no stored layout position reorder across
   server restarts (and J5/J7 saw it across loads), and every page load issues an unprompted
   `PUT /api/layout`, once re-adding a pruned archived id (FS-02.R14). Test: deterministic fallback
@@ -197,6 +191,14 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J13 new-task annotation delivery fix (INV §1/§8/§10/§11/§14/§15/§16/§17):** the tray now runs
+  the server's annotation and mail-size validators before opening launch. Once launched, a failed
+  delivery names that agent and retries to it instead of launching another; changing source agents
+  resets the retry state. The bounded preflight has no transcript or mail side effects and is
+  available through the same paired-phone route policy as annotation delivery. Full serial Go
+  tests in both variants, all 856 UI tests, Go/UI builds, spec and diff checks pass. The October 15
+  review remains open for its other findings.
 
 - **2026-10-15 — J14 pipeline restart fix (INV §1/§2/§17):** restart task recovery interrupted a
   stage task without projecting that transition onto its run. It now uses the existing stage

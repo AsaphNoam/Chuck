@@ -96,7 +96,11 @@ Settings copy stay in lockstep; no resource-content route or SSE event is added.
 **R14 — Annotation batch endpoint.** `POST /api/sessions/{id}/annotations` accepts one
 batch — annotations, optional overall instruction, and a target of kind `self` or `agent` (with
 `agent_id`); the new-task flow is UI composition over the existing launch route plus an `agent`
-target. Input is validated per FS-13.R11 before any disk or process work; the whole target is then
+target. The new-task flow first calls `POST /api/sessions/{id}/annotations/validate` with the same
+batch shape; this read-only preflight validates the batch and mail size with the delivery handler's
+validators and verifies the chat source, returning `200` or the ordinary structured error without
+creating an agent or annotation event. Input is validated per FS-13.R11 before any disk or process
+work; the whole target is then
 validated and its delivery payload composed before the durable source annotation event is appended,
 and only then is the batch delivered (INV §15, FS-13.R5) — a `500` therefore never reports a failure
 the retry would deliver twice. Success returns `202`

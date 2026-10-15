@@ -1,6 +1,6 @@
 import { AutoGrowTextarea } from "../ui";
 import { useState } from "react";
-import { sendAnnotations } from "../../api/client";
+import { sendAnnotations, validateAnnotations } from "../../api/client";
 import type { AnnotationDraft } from "../../api/types";
 import { annotationAnchor, annotationBatch } from "../../lib/annotations";
 import { useAgentStore } from "../../store/agentStore";
@@ -27,6 +27,7 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLaunch, setShowLaunch] = useState(false);
+  const [launchedAgentId, setLaunchedAgentId] = useState<string | null>(null);
 
   if (drafts.length === 0) return null;
 
@@ -35,8 +36,21 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
   const send = async () => {
     setError(null);
     if (target === "new") {
-      if (!source) setError("The source agent is no longer available for a prefilled launch.");
-      else setShowLaunch(true);
+      if (launchedAgentId) {
+        await deliverToLaunchedAgent(launchedAgentId);
+      } else if (!source) {
+        setError("The source agent is no longer available for a prefilled launch.");
+      } else {
+        setSending(true);
+        try {
+          await validateAnnotations(sourceId, batch());
+          setShowLaunch(true);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not validate annotations.");
+        } finally {
+          setSending(false);
+        }
+      }
       return;
     }
     const agentId = target === "agent" ? recipientId : undefined;
@@ -55,14 +69,24 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
     }
   };
 
-  const onLaunched = (agentId: string) => {
-    setShowLaunch(false);
+  const deliverToLaunchedAgent = async (agentId: string) => {
     setSending(true);
     setError(null);
-    void sendAnnotations(sourceId, batch(agentId))
-      .then(() => discard(sourceId))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "The new agent launched, but annotation delivery failed."))
-      .finally(() => setSending(false));
+    try {
+      await sendAnnotations(sourceId, batch(agentId));
+      discard(sourceId);
+    } catch (err) {
+      const reason = err instanceof Error ? ` ${err.message}` : "";
+      setError(`Agent ${agentId} launched, but annotation delivery failed.${reason} Retry to send to this agent.`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const onLaunched = (agentId: string) => {
+    setShowLaunch(false);
+    setLaunchedAgentId(agentId);
+    void deliverToLaunchedAgent(agentId);
   };
 
   return (
@@ -109,7 +133,7 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
           )}
         </div>
         {error && <p className="annotation-error">{error}</p>}
-        <button type="button" className="annotation-send ad-button-primary" onClick={() => void send()} disabled={sending}>{sending ? "Sending…" : target === "new" ? "Continue to launch" : "Send annotations"}</button>
+        <button type="button" className="annotation-send ad-button-primary" onClick={() => void send()} disabled={sending}>{sending ? "Sending…" : target === "new" ? launchedAgentId ? `Retry delivery to ${launchedAgentId}` : "Continue to launch" : "Send annotations"}</button>
       </footer>
       <NewAgentModal open={showLaunch} onClose={() => setShowLaunch(false)} initialRole={source?.role} initialProject={source?.project} onLaunched={onLaunched} />
     </aside>

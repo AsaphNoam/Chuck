@@ -60,6 +60,7 @@ var remoteAllowed = map[string][]string{
 	// Diff-line annotate-and-assign (FS-20.R32, TS-13.R16); nested anchors,
 	// limits, and targets are validated by the shared FS-13 handler.
 	"POST /api/sessions/{id}/annotations": {"annotations", "overall_instruction", "target"},
+	"POST /api/sessions/{id}/annotations/validate": {"annotations", "overall_instruction", "target"},
 
 	"GET /api/pipeline-runs":                      nil,
 	"POST /api/pipeline-runs":                     {"request_id", "template_id", "display_name", "project", "goal", "inputs", "orchestrator", "dedicated_assignments", "think_tank_assignments", "acknowledge_shared_workspace"},

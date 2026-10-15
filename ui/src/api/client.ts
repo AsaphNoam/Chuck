@@ -257,6 +257,14 @@ export function sendAnnotations(agentId: string, batch: AnnotationBatch) {
   });
 }
 
+export function validateAnnotations(agentId: string, batch: AnnotationBatch) {
+  return json<{ valid: true }>(`/api/sessions/${agentId}/annotations/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(batch),
+  });
+}
+
 export function searchArchive(q: string, limit = 50, offset = 0, signal?: AbortSignal) {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (q) params.set("q", q);

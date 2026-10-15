@@ -139,6 +139,7 @@ func (s *Server) routeTable() []routeEntry {
 	api("DELETE /api/sessions/{id}/prompt", s.handleWithdrawPrompt)
 	api("POST /api/sessions/{id}/steer", s.handleSteer)
 	api("POST /api/sessions/{id}/annotations", s.handleAnnotations)
+	api("POST /api/sessions/{id}/annotations/validate", s.handleValidateAnnotations)
 	api("POST /api/sessions/{id}/cancel", s.handleCancel)
 	api("POST /api/sessions/{id}/stop", s.handleStop)
 	api("POST /api/sessions/{id}/rename", s.handleRename)

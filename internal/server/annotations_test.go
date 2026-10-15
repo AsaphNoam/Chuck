@@ -107,6 +107,36 @@ func TestValidateAnnotationsAcceptsFileAnchorsAndRejectsMixedShapes(t *testing.T
 	}
 }
 
+func TestAnnotationPreflightRejectsInvalidBatchWithoutSideEffects(t *testing.T) {
+	srv := testServer(t, true)
+	source, target := writeAnnotationPair(t, srv)
+	path := "/api/sessions/" + source.AgentID + "/annotations/validate"
+	for _, tc := range []struct {
+		name, body string
+		status int
+	}{
+		{"empty instruction", `{"annotations":[{"seq":1,"excerpt":"selected","instruction":"  "}],"target":{"kind":"self"}}`, http.StatusUnprocessableEntity},
+		{"oversized request", `{"annotations":[{"seq":1,"excerpt":"` + strings.Repeat("x", remoteBodyLimit) + `","instruction":"review"}],"target":{"kind":"self"}}`, http.StatusUnprocessableEntity},
+		{"valid", `{"annotations":[{"seq":1,"excerpt":"selected","instruction":"review"}],"target":{"kind":"self"}}`, http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(rec, newLocalRequest(http.MethodPost, path, strings.NewReader(tc.body)))
+			if rec.Code != tc.status {
+				t.Fatalf("preflight = %d: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+	mail, err := srv.stateStore.ListMessages(target.AgentID, true, 10)
+	if err != nil || len(mail) != 0 {
+		t.Fatalf("preflight inserted mail: %d, %v", len(mail), err)
+	}
+	events, err := transcript.ReadFile(srv.configStore.Home(), source.AgentID, transcript.ReadOptions{})
+	if err != nil || len(events) != 0 {
+		t.Fatalf("preflight appended transcript: %d, %v", len(events), err)
+	}
+}
+
 // FS-13.A3/A5 and FS-06.A10: an inactive source can assign annotations to a
 // running chat agent; the source event is durable/indexed and user mail neither
 // impersonates an agent nor creates a turn-budget row.
