@@ -261,7 +261,8 @@
         "budget_exceeded",
         "pipeline_needs_attention",
         "pipeline_completed",
-        "error"
+        "error",
+        "notice"
       ],
       "variants": []
     },
