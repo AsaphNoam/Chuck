@@ -375,6 +375,8 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   terminal outcome, is parked, or is deleted. An arm never returns from `satisfied` to `unsatisfied`,
   and deleting a prerequisite whose result already satisfied an arm leaves that arm satisfied (R18).
   An `unsatisfiable` arm is never repaired in place; re-arming replaces the whole set (R23).
+  Cancellation leaves arm states as recorded; a `finished` task's `unsatisfied` arm is history and
+  is presented as not met (never fired, for a signal), not as a live wait with a signal control.
 - **Outcome:** absent in every non-terminal state — `armed`, `ready`, `starting`, `running`,
   `interrupted`, and `dependency_failed` — and exactly one value once `finished`. There is no state in
   which an outcome is partially recorded. An accepted outcome is immutable, and it records whether an

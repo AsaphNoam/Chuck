@@ -45,21 +45,21 @@ function assigneeID(task: Task) {
   return task.assigned_agent_id || (task.target_kind === "agent" ? task.target_agent_id : "");
 }
 
-function linkText(link: TaskLink): ReactNode {
+function linkText(link: TaskLink, ended: boolean): ReactNode {
   const name = link.source ? link.source.display_name : <span className="task-agent-unavailable">unavailable task {link.sourceID}</span>;
   if (link.kind === "delegation") return <>delegated by {name}</>;
-  const mark = link.state === "satisfied" ? "met" : link.state === "unsatisfiable" ? "cannot be met" : "pending";
+  const mark = link.state === "satisfied" ? "met" : link.state === "unsatisfiable" ? "cannot be met" : ended ? "not met" : "pending";
   return <>after {name} → {link.outcomes.join(" or ")} ({mark})</>;
 }
 
 /** LinkItem renders a recorded relationship, and — when it crosses a collapsed
  *  branch — the boundary the row's source sits behind plus a way to reveal
  *  just that ancestor path, never the whole tree (FS-16.R47, TS-08.R92). */
-function LinkItem({ link, hiddenBy, onReveal }: { link: TaskLink; hiddenBy: Map<string, HiddenBy>; onReveal: (path: string[]) => void }) {
+function LinkItem({ link, ended, hiddenBy, onReveal }: { link: TaskLink; ended: boolean; hiddenBy: Map<string, HiddenBy>; onReveal: (path: string[]) => void }) {
   const hidden = link.kind === "prerequisite" ? hiddenBy.get(link.sourceID) : undefined;
   return (
     <span data-variant={link.kind}>
-      {linkText(link)}
+      {linkText(link, ended)}
       {hidden && (
         <span className="task-link-boundary" data-slot="boundary">
           {" "}· hidden under a collapsed stage{" "}
@@ -137,7 +137,7 @@ function TaskRowView({ row, open, onToggle, onSignal, hidden, collapseInfo, hidd
       </div>
       {(row.links.length > 0 || row.next.length > 0) && (
         <p className="task-links" data-slot="links">
-          {row.links.map((link, index) => <LinkItem key={`${link.kind}:${link.sourceID}:${index}`} link={link} hiddenBy={hiddenBy} onReveal={onReveal} />)}
+          {row.links.map((link, index) => <LinkItem key={`${link.kind}:${link.sourceID}:${index}`} link={link} ended={row.task.state === "finished"} hiddenBy={hiddenBy} onReveal={onReveal} />)}
           {row.next.length > 0 && <span data-variant="next">leads to {row.next.map((item) => item.display_name).join(", ")}</span>}
         </p>
       )}
@@ -186,6 +186,9 @@ function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
     run().catch((err: unknown) => setError(errorMessage(err))).finally(() => onBusyChange(task.task_id, false));
   };
   const outputs = Object.entries(task.outputs);
+  // A finished task waits for nothing: an arm it never had met is history,
+  // not a live wait (FS-16.R42).
+  const ended = task.state === "finished";
 
   return (
     <div className="task-detail" id={id} data-slot="detail">
@@ -194,14 +197,14 @@ function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
         <div className="task-detail-section">
           <strong>Prerequisites and lineage</strong>
           <ul>
-            {row.links.map((link, index) => <li key={`l${index}`}><LinkItem link={link} hiddenBy={hiddenBy} onReveal={onReveal} /></li>)}
+            {row.links.map((link, index) => <li key={`l${index}`}><LinkItem link={link} ended={ended} hiddenBy={hiddenBy} onReveal={onReveal} /></li>)}
             {row.external.map((wait, index) => wait.kind === "signal" ? (
               <li key={`e${index}`}>
-                signal {wait.name} ({wait.state === "satisfied" ? "fired" : "waiting"})
-                {wait.state === "unsatisfied" && <Button onClick={() => onSignal(task.project, wait.name)}>Go to signal control</Button>}
+                signal {wait.name} ({wait.state === "satisfied" ? "fired" : ended ? "not fired" : "waiting"})
+                {wait.state === "unsatisfied" && !ended && <Button onClick={() => onSignal(task.project, wait.name)}>Go to signal control</Button>}
               </li>
             ) : (
-              <li key={`e${index}`}>pipeline run <Link to={`/pipelines/runs/${encodeURIComponent(wait.runID)}`}>{wait.runID}</Link> → {wait.outcomes.join(" or ")} ({wait.state})</li>
+              <li key={`e${index}`}>pipeline run <Link to={`/pipelines/runs/${encodeURIComponent(wait.runID)}`}>{wait.runID}</Link> → {wait.outcomes.join(" or ")} ({ended && wait.state === "unsatisfied" ? "not met" : wait.state})</li>
             ))}
           </ul>
         </div>

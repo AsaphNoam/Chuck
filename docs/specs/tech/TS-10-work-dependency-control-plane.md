@@ -113,7 +113,8 @@ parallel copy of them.
 - **R11** — **Publication follows the commit.** A `task_update` SSE event is published only
   after its authoritative commit (TS-03.R8, TS-01.R8). Its bounded payload carries the task id, the
   monotonic revision, the state, the outcome, and the attention reason; clients ignore stale revisions
-  and refetch detail over REST. Reconnect hydrates the Tasks view through REST rather than replaying
+  and refetch detail over REST. A committed deletion publishes `{task_id, deleted: true}` for the
+  removed task, so every open view (including the dashboard's attention count) refetches. Reconnect hydrates the Tasks view through REST rather than replaying
   an event log, following TS-03.R17.
 - **R12** — **Attachment authorization delegates to the context service.** A task
   attachment stores only the task id, the canonical reference id, and its bounded label and
@@ -561,7 +562,8 @@ object carries the derived boolean `retry_eligible` (R22) beside its stored fiel
 graph or task state carries a typed `error.details.code` — `dependency_cycle`, `unusable_source`,
 `invalid_state`, or `retry_requires_rearm` — that clients translate rather than showing the message.
 
-**SSE**: `task_update` with `{task_id, revision, state, outcome, attention_reason}`.
+**SSE**: `task_update` with `{task_id, revision, state, outcome, attention_reason}`, or
+`{task_id, deleted: true}` after a deletion (R11).
 
 ## 4. Invariants
 

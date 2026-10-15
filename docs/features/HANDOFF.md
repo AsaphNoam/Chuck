@@ -164,10 +164,6 @@ Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-rev
 - **Worth fixing** — **J16 worktree recreation unreported:** relaunch after the checkout was deleted
   recreates it silently; the launch response’s `worktree.recreated` is never read by the UI
   (FS-19.R7).
-- **Worth fixing** — **J16 attention count on delete:** deleting a parked task leaves the dashboard
-  needs-attention count stale until reload; cancel/create update live (FS-16.R14).
-- **Worth fixing** — **J15 cancelled task shows a live wait:** a cancelled signal-armed task still lists
-  “signal … (waiting)” in its detail.
 
 Spec drift for the fix pass: FS-14.R44 names a three-step Setup/Runtimes/Review dialog; a later FS-14
 requirement and the product use Setup/Review with a Customize runtimes disclosure. Matrix gap:
@@ -191,6 +187,12 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J15/J16 task view fixes (INV §1):** deleting a task now publishes a `task_update`
+  removal so every open view, including the dashboard attention count, refetches. A finished task
+  shows unmet prerequisites and unfired signals as history, without a live wait or signal control.
+  Both regressions failed before the fix; focused Go and Tasks UI tests pass. Full closure is owed
+  at the end of this review's fix run.
 
 - **2026-10-15 — J13 new-task annotation delivery fix (INV §1/§8/§10/§11/§14/§15/§16/§17):** the tray now runs
   the server's annotation and mail-size validators before opening launch. Once launched, a failed

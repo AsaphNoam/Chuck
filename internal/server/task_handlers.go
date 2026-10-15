@@ -619,6 +619,9 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		s.writeTaskError(w, err)
 		return
 	}
+	// The deleted task has no record left to carry a revision; its removal is
+	// still a change every open view must refetch (TS-10.R11, INV §1).
+	s.eventBus.Publish("task_update", nil, map[string]any{"task_id": r.PathValue("id"), "deleted": true})
 	for _, dependent := range parked {
 		s.publishTaskUpdate(dependent)
 		s.propagateTaskFailure(dependent)

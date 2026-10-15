@@ -526,6 +526,41 @@ func TestDeletionIsRefusedWhileATaskOwnsARuntime(t *testing.T) {
 	}
 }
 
+// FS-16.R14, FS-02.R44 / TS-10.R11 — deleting a parked task publishes a
+// task_update after the commit, so every open view (the dashboard's attention
+// count included) refetches instead of keeping the deleted task (INV §1).
+func TestDeletingATaskPublishesItsRemoval(t *testing.T) {
+	srv := testServer(t, true)
+	seedPipelineRun(t, srv, "pr_failed")
+	parked := newDependentTask(t, srv, "parked", state.SourcePipelineRun, "pr_failed")
+	if err := srv.stateStore.RegisterWorkResult(state.WorkResult{SourceKind: state.SourcePipelineRun,
+		SourceID: "pr_failed", Outcome: state.OutcomeFailure}); err != nil {
+		t.Fatal(err)
+	}
+	srv.PublishPipelineUpdate(pipeline.PipelineUpdate{RunID: "pr_failed", State: "completed"})
+	assertDependencyChainParked(t, srv, parked)
+
+	events, unsubscribe := srv.eventBus.Subscribe()
+	defer unsubscribe()
+	if rec := doJSON(t, srv.routes(), "DELETE", "/api/tasks/"+parked.TaskID, ``); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete = %d %s", rec.Code, rec.Body.String())
+	}
+	for {
+		select {
+		case event := <-events:
+			data, ok := event.Data.(map[string]any)
+			if event.Type == "task_update" && ok && data["task_id"] == parked.TaskID {
+				if data["deleted"] != true {
+					t.Fatalf("deletion event = %v, want deleted", data)
+				}
+				return
+			}
+		case <-time.After(time.Second):
+			t.Fatal("deleting a task published no task_update")
+		}
+	}
+}
+
 // FS-16.R24 / TS-10.R20, TS-05.R17 — creator provenance is server-derived and
 // durable. An agent may cancel work it created, still may after being stopped
 // and resumed, and may not cancel a peer's or a person's work.

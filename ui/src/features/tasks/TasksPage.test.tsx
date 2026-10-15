@@ -355,6 +355,20 @@ describe("Tasks work in motion", () => {
     expect(lastRequest?.body).toEqual({ project: "my-app", name: "ci-green" });
     expect(await signal.findByText(/Fired ci-green in my-app; 1 wait released/)).toBeInTheDocument();
   });
+
+  it("shows a cancelled task's unfired signal as history, not a live wait (FS-16.R42)", async () => {
+    const { client } = renderPage("/tasks?project=my-app");
+    await openTask("Ship release");
+    taskLists["my-app"] = wire("my-app").map((task) => task.task_id === "tk_t"
+      ? { ...task, state: "finished", outcome: "cancelled", finished_at: "2026-08-24T10:00:00Z" }
+      : task);
+    await client.invalidateQueries({ queryKey: ["tasks", "my-app"] });
+    const row = await rowOf("Ship release");
+    await within(row).findByText("Cancelled", { selector: "span *, span" });
+    expect(within(row).getByText(/signal ci-green \(not fired\)/)).toBeInTheDocument();
+    expect(within(row).queryByText(/waiting\)/)).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Go to signal control" })).not.toBeInTheDocument();
+  });
 });
 
 describe("Create task manually", () => {
