@@ -48,12 +48,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   (“reloaded transcript differs”, FTS5 variant) in the `v0.16.0` closure run; 40 isolated runs,
   30 `-race` runs and a full FTS5 package rerun pass. Range commit `9989fb88` touched ACP update
   routing; whether it relates is uninvestigated.
-- **Mail receipt assertion race (2026-10-14):**
-  `TestMailActivationStartsIdleAgentWithoutMutatingMailProvenance` waits for a fake-provider
-  prompt file, which appears before the asynchronous response and inline-receipt commit.
-  Concurrent closure variants failed the immediate receipt assertion; ten isolated repeats pass.
-  The activation path is unchanged by the continuity fixes. Waiting for eventual receipt is
-  separate test-maintenance work; no product delivery defect was observed.
+- **Mail receipt assertion race fixed (2026-10-15):**
+  `TestMailActivationStartsIdleAgentWithoutMutatingMailProvenance` now waits for the inline
+  receipt instead of reading it as soon as the prompt file appears (it failed 1/10 isolated before
+  the mail-notice change and 4/10 after; 30/30 pass across both variants now).
 
 ## Active change
 

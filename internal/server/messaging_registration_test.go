@@ -110,12 +110,22 @@ func TestMailActivationStartsIdleAgentWithoutMutatingMailProvenance(t *testing.T
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	msgs, err := srv.stateStore.ListMessages(agent.AgentID, false, 0)
-	if err != nil {
-		t.Fatalf("ListMessages: %v", err)
-	}
-	if len(msgs) != 1 || msgs[0].MessageID != msgID || !msgs[0].Read || msgs[0].DeliveredVia != state.DeliveryInline {
-		t.Fatalf("message after activation = %+v, want confirmed inline receipt", msgs)
+	// The prompt file appears before the asynchronous response commits the
+	// inline receipt, so the receipt is awaited rather than read immediately.
+	var msgs []state.Message
+	receiptDeadline := time.Now().Add(3 * time.Second)
+	for {
+		msgs, err = srv.stateStore.ListMessages(agent.AgentID, false, 0)
+		if err != nil {
+			t.Fatalf("ListMessages: %v", err)
+		}
+		if len(msgs) == 1 && msgs[0].MessageID == msgID && msgs[0].Read && msgs[0].DeliveredVia == state.DeliveryInline {
+			break
+		}
+		if time.Now().After(receiptDeadline) {
+			t.Fatalf("message after activation = %+v, want confirmed inline receipt", msgs)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
