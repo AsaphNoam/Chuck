@@ -30,7 +30,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   An unknown event remains inspectable as formatted JSON rather than disappearing.
 - **R3.** The transcript follows new events while the reader remains at the bottom. Scrolling away
   suspends auto-follow and exposes **Jump to latest**, so streaming output does not take control of
-  the reader's scroll position.
+  the reader's scroll position. Only scrolling toward older content leaves the bottom: a row whose
+  height settles after render (a diagram, an image) keeps a reader at the bottom there, so an
+  opened or reloaded transcript shows its latest content.
 - **R4.** Consecutive `assistant_text` deltas are folded into one rendered response both while they
   arrive live and when a durable transcript is replayed. A `permission_resolved` event is folded
   into its matching `permission_request`, which then renders an **Approved**, **Denied**,
@@ -335,6 +337,13 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   persisted: a resume, runtime switch or relaunch starts in the provider's default. A mode that
   skips provider prompts means Chuck receives no permission request to show (R15); Chuck's own
   `skip_permissions` gate is unchanged (TS-03.R70, TS-04.R92).
+- **R89 (implemented 2026-10-15) — A stopped agent's header offers Resume and names an error
+  stop.** Whenever the agent is not running, the chat header offers **Resume**, which calls the
+  same `POST /api/sessions/{id}/resume` as the card menu (FS-02.R28) and surfaces a rejection as
+  a toast. An agent stopped with status `error` (R8: crash, kill, failed switch) shows an **Error**
+  badge instead of **Stopped**, and below the header "Stopped on error: <status.detail>." followed
+  by "Send a message or Resume to restart it." ("Resume to restart it." for a terminal agent). A
+  fatal exit with no stderr records the detail `process exited`, so the error text is never blank.
 
 ### 2.6 Composer file and ACP command autocomplete
 
@@ -1217,6 +1226,16 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   an ignored selection; without a notification it accepts the requested mode. Config-option
   replies continue to follow the effective reported value.
   *Verify:* `session_mode_test.go` (runtime and server), `PermissionModeToggle.test.tsx`.
+- **A68 (implemented 2026-10-15)** (R3) — A transcript at the bottom whose content grows after
+  render, including growth the browser compensates with its own scroll, stays at the bottom with no
+  **Jump to latest**; a reader who scrolled up stays in place until choosing **Jump to latest**.
+  *Verify:* `TranscriptView.test.tsx` ("TranscriptView bottom follow"); J3 reload of a
+  diagram-bearing agent.
+- **A69 (implemented 2026-10-15)** (R89) — A non-running chat agent with status `error` and detail
+  `process exited` shows an **Error** badge, the stopped-on-error notice with its restart hint, and
+  **Resume**; a silent mid-turn crash records detail `process exited`.
+  *Verify:* `ChatPanel.test.tsx` ("distinguishes a chat agent stopped on error…", "surfaces a
+  rejected Resume"), `permission_test.go` `TestCrashMidTurn`; J11.
 
 ## 6. Deviations & open decisions
 

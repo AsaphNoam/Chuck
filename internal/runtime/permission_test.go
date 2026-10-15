@@ -439,8 +439,9 @@ func TestCrashMidTurn(t *testing.T) {
 	if _, err := c.store.ReadRunning(h.AgentID); err == nil {
 		t.Fatal("running row should be deleted after crash")
 	}
-	if status, _ := c.store.ReadStatus(h.AgentID); status.State != "error" {
-		t.Fatalf("status after crash = %q, want error", status.State)
+	// A silent exit (no stderr) still names its cause for the card and header (FS-03.R89).
+	if status, _ := c.store.ReadStatus(h.AgentID); status.State != "error" || status.Detail != "process exited" {
+		t.Fatalf("status after crash = %q/%q, want error/process exited", status.State, status.Detail)
 	}
 }
 

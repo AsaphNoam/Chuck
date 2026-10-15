@@ -1974,7 +1974,8 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 
 	tail := as.stderr.Tail()
 	errorMessage := strutil.FirstNonEmpty(tail, "process exited")
-	statusDetail := clip(tail, 120)
+	// A silent exit still names its cause on the card and header (FS-03.R89).
+	statusDetail := clip(errorMessage, 120)
 	lastTrace := "Error"
 	stopReason := "error"
 	if cancelEscalated {

@@ -1,10 +1,10 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router-dom";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "../../api/client";
 import type { TranscriptEvent } from "../../api/types";
 import { useAgentStore } from "../../store/agentStore";
@@ -579,6 +579,68 @@ describe("TranscriptView quiet completed turns (FS-03.A55–A57)", () => {
       { kind: "turn_end", seq: 3, stop_reason: "end_turn" },
     ]);
     expect(screen.queryByRole("button", { name: /activity/ })).toBeNull();
+  });
+});
+
+// FS-03.R3/A68: a row whose height settles after render (a Mermaid diagram, an
+// image) must not leave a reader who was at the bottom above the newest reply.
+describe("TranscriptView bottom follow", () => {
+  let resize: (() => void) | null = null;
+  beforeEach(() => {
+    resize = null;
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: () => void) { resize = callback; }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function geometry(list: HTMLElement, height: number) {
+    const box = { height, top: 0 };
+    Object.defineProperty(list, "scrollHeight", { configurable: true, get: () => box.height });
+    Object.defineProperty(list, "clientHeight", { configurable: true, get: () => 100 });
+    Object.defineProperty(list, "scrollTop", { configurable: true, get: () => box.top, set: (value: number) => { box.top = Math.min(value, box.height - 100); } });
+    list.scrollTop = height;
+    fireEvent.scroll(list);
+    return box;
+  }
+
+  it("keeps the latest content in view while late rows settle", () => {
+    const { container } = renderTranscript();
+    const list = container.querySelector(".transcript-view") as HTMLElement;
+    const box = geometry(list, 500);
+
+    box.height = 900;
+    act(() => resize?.());
+    expect(list.scrollTop).toBe(800);
+
+    // Growth the browser compensates with its own scroll (scroll anchoring)
+    // is not the reader scrolling away.
+    box.height = 1300;
+    box.top = 850;
+    fireEvent.scroll(list);
+    expect(list.scrollTop).toBe(1200);
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull();
+  });
+
+  it("leaves a reader who scrolled up in place until Jump to latest", () => {
+    const { container } = renderTranscript();
+    const list = container.querySelector(".transcript-view") as HTMLElement;
+    const box = geometry(list, 500);
+
+    list.scrollTop = 200;
+    fireEvent.scroll(list);
+    box.height = 900;
+    act(() => resize?.());
+    fireEvent.scroll(list);
+    expect(list.scrollTop).toBe(200);
+
+    fireEvent.click(screen.getByRole("button", { name: "Jump to latest" }));
+    fireEvent.scroll(list);
+    expect(list.scrollTop).toBe(800);
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull();
   });
 });
 

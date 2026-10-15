@@ -128,6 +128,10 @@ terminal agents from becoming statusless or unmessageable.
 - **R23** `(planned)` — A soft cap `config.terminal.max_tabs` (default 12) rejecting a terminal
   launch/switch beyond the cap with `429 terminal_tab_limit` is specified but **not implemented**
   (see §6).
+- **R24** — A stopped terminal agent's page opens no terminal WebSocket: its Terminal tab says the
+  session ended, the footer reads "This terminal agent is stopped. Resume to restart it.", and the
+  header offers **Resume** (FS-03.R89). Once the agent is running again the tab attaches a fresh
+  socket without a reload.
 
 ## 5. Acceptance criteria
 
@@ -149,6 +153,10 @@ terminal agents from becoming statusless or unmessageable.
   keystrokes intact. *Verified by* journey **J6** (credential/browser gate — see §6).
 - **A9** — iTerm2 AppleScript command/argv escaping is correct. *Verified by* `TestShellQuoteArgv`
   and the AppleScript escaping tests in `internal/runtime/terminal/applescript_test.go`.
+- **A10** (R24) — A stopped terminal agent's page mounts no terminal bridge, shows the stopped
+  footer and **Resume**, calls the resume endpoint, and mounts the bridge once the agent runs.
+  *Verified by* `ChatPanel.test.tsx` "shows a stopped terminal agent with Resume instead of a dead
+  terminal bridge"; journey **J6**.
 
 ## 6. Deviations & open decisions
 

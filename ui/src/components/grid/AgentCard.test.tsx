@@ -182,6 +182,25 @@ describe("AgentCard", () => {
     expect(screen.queryByRole("button", { name: "Expand" })).not.toBeInTheDocument();
   });
 
+  // FS-02.R79 — a process that died on error reads "Error", keeps its error text, and says how to restart.
+  it("distinguishes an agent stopped on error from a plain stop", () => {
+    const { container } = render(
+      <MemoryRouter><DndContext><SortableContext items={["a_1"]} strategy={rectSortingStrategy}>
+        <AgentCard agent={{
+          agent_id: "a_1", name: "Atlas", role: "implementer", project: "my-app",
+          backend: "claude", model: "sonnet", interface: "chat", state: "error",
+          detail: "process exited", running: false, context_pct: 0,
+        }} />
+      </SortableContext></DndContext></MemoryRouter>,
+    );
+
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.queryByText("Stopped")).not.toBeInTheDocument();
+    expect(container.querySelector(".agent-card")).toHaveAttribute("data-state", "error");
+    expect(screen.getByText("process exited")).toBeInTheDocument();
+    expect(screen.getByText("Send a message or Resume to restart it.")).toBeInTheDocument();
+  });
+
   // FS-02.R62/R63, A44/A45: the expanded card states the exact figure and the
   // same backend/model/effort runtime identity already shown collapsed.
   it("shows the exact context figure and runtime metadata while expanded", () => {

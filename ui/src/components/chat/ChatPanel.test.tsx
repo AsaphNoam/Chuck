@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   })),
   useBackends: vi.fn(),
   useProjects: vi.fn(),
+  resumeAgent: vi.fn(),
 }));
 
 vi.mock("../../api/client", () => ({
@@ -30,7 +31,11 @@ vi.mock("../../api/client", () => ({
   switchRuntime: mocks.switchRuntime,
   getFileContent: mocks.getFileContent,
   getTrackedFiles: vi.fn(async () => ({ files: [] })),
+  resumeAgent: mocks.resumeAgent,
 }));
+
+// xterm cannot run in jsdom; the stub records whether the live bridge mounted.
+vi.mock("./TerminalTab", () => ({ TerminalTab: () => <div data-testid="terminal-bridge" /> }));
 
 vi.mock("../../api/config", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../api/config")>(),
@@ -598,4 +603,51 @@ it("reports a clipped membership list in the Think Tank tab", async () => {
   fireEvent.click(tab);
   expect(await screen.findByText("Showing the 1 most recent Think Tanks; older ones are not listed here.")).toBeInTheDocument();
   fetchSpy.mockRestore();
+});
+
+describe("ChatPanel stopped states", () => {
+  afterEach(() => mocks.resumeAgent.mockReset());
+
+  // FS-07.R24: a stopped terminal agent opens no PTY bridge, says it is stopped,
+  // and offers Resume; the bridge mounts again once the agent is running.
+  it("shows a stopped terminal agent with Resume instead of a dead terminal bridge", async () => {
+    mocks.resumeAgent.mockResolvedValue({ resumed: true });
+    const stopped = { ...liveAgent("a_term"), interface: "terminal", running: false, state: "done" };
+    useAgentStore.setState({ agents: { a_term: stopped }, order: ["a_term"], hydrated: true, hydrating: false });
+
+    renderPanel("a_term");
+
+    expect(screen.queryByTestId("terminal-bridge")).not.toBeInTheDocument();
+    expect(screen.queryByText("Terminal agents receive input in the terminal tab.")).not.toBeInTheDocument();
+    expect(screen.getByText("This terminal agent is stopped. Resume to restart it.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    await waitFor(() => expect(mocks.resumeAgent).toHaveBeenCalledWith("a_term"));
+
+    useAgentStore.setState({ agents: { a_term: { ...stopped, running: true, state: "idle" } } });
+    expect(await screen.findByTestId("terminal-bridge")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+  });
+
+  it("surfaces a rejected Resume", async () => {
+    mocks.resumeAgent.mockRejectedValue(new Error("resume refused"));
+    useAgentStore.setState({ agents: { a_term: { ...liveAgent("a_term"), interface: "terminal", running: false, state: "done" } }, order: ["a_term"], hydrated: true, hydrating: false });
+
+    renderPanel("a_term");
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+
+    await waitFor(() => expect(useUiStore.getState().toasts.at(-1)).toMatchObject({ title: "Resume failed", body: "resume refused" }));
+  });
+
+  // FS-03.R89: a chat agent whose process died on error reads "Error" with its
+  // error text and says that a message or Resume restarts it.
+  it("distinguishes a chat agent stopped on error and says how to restart it", () => {
+    useAgentStore.setState({ agents: { a_err: { ...liveAgent("a_err"), running: false, state: "error", detail: "process exited" } }, order: ["a_err"], hydrated: true, hydrating: false });
+
+    renderPanel("a_err");
+
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.queryByText("Stopped")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Stopped on error: process exited. Send a message or Resume to restart it.");
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+  });
 });

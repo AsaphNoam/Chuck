@@ -349,7 +349,8 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   stages preserves the unsaved draft, and validation identifies the affected stage/field. Starting
   a run uses one three-step dialog — **Setup**, **Runtimes**, and **Review** — with a stable footer;
   Back/Next preserve every value, the runtime step uses compact per-stage rows, and a rejected start
-  returns to and focuses the owning step/field without losing the rest of the setup. These layouts
+  returns to and focuses the owning step/field without losing the rest of the setup. (R80 supersedes
+  the three-step start dialog: Setup → Review with a **Customize runtimes** disclosure.) These layouts
   use the available width without horizontal page overflow at the existing desktop floor and stack
   their secondary rail before reducing the primary timeline/editor to an unreadable measure.
 - **R45** — Pipelines motion communicates continuity and state, never decorates

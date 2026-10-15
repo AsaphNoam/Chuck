@@ -616,6 +616,12 @@ another layout value that differs from what was read or last saved. An agent wit
 renders after the stored ones, ordered by `created_at` then agent id, so its place is the same
 across reloads and server restarts rather than following stream arrival order.
 
+**R79.** A card whose agent is not running with status `error` (its process crashed, was killed, or
+a switch failed) reads **Error** in the error tone instead of **Stopped**, keeps the dimmed stopped
+placement of R6 without the grayscale, shows `status.detail` as its preview (R5), and adds the hint
+"Send a message or Resume to restart it." ("Resume to restart it." for a terminal agent). A plain
+stop keeps the **Stopped** marker.
+
 ## 5. Acceptance criteria
 
 **A1.** Launching an agent adds its card within ~1s with no manual refresh; a status change flips the
@@ -984,6 +990,10 @@ keeps its own behavior and opens no background menu. — `ScopedProjectDashboard
 unchanged, and no `PUT /api/layout` is sent. — `CardGrid.test.tsx` "writes no layout on load and
 orders unstored agents by creation then id"; `agentStore.test.ts` "upserts agents and leaves the
 stored manual order alone".
+
+**A60** (R79) — A non-running agent with status `error` and detail `process exited` renders an
+**Error** card (`data-state="error"`) with that detail and the restart hint, and no **Stopped**
+marker. — `AgentCard.test.tsx` "distinguishes an agent stopped on error from a plain stop"; J11.
 
 ## 6. Deviations & open decisions
 

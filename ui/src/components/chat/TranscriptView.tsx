@@ -49,7 +49,9 @@ import { useQueryClient } from "@tanstack/react-query";
 // reveal names an event the caller is about to scroll to; a fresh object per request.
 export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, openFile = null, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; openFile?: FileLink | null; onOpenFile?: (link: FileLink | null, options?: { replace?: boolean }) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
+  const lastTopRef = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
   const [menu, setMenu] = useState<AnnotationMenuState | null>(null);
   const addAnnotation = useAnnotationStore((state) => state.add);
@@ -79,18 +81,36 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     });
   };
 
+  // Only a move toward older content leaves the bottom. A row whose height
+  // settles after render (a diagram, an image) grows the list, and the browser's
+  // compensating scroll is not the reader scrolling away (FS-03.R3).
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const stuck = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-    atBottomRef.current = stuck;
-    setAtBottom(stuck);
+    const pinned = stuck || (atBottomRef.current && el.scrollTop >= lastTopRef.current);
+    lastTopRef.current = el.scrollTop;
+    atBottomRef.current = pinned;
+    setAtBottom(pinned);
+    if (pinned && !stuck) el.scrollTop = el.scrollHeight;
   };
 
   useEffect(() => {
     const el = scrollRef.current;
     if (el && atBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [events, busy, reasoning]);
+
+  // Late-settling rows change no event, so follow the content's own size.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const content = contentRef.current;
+    if (!el || !content || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => {
+      if (atBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   const renderEvents = eventRenderer({
     agentId,
@@ -142,17 +162,19 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
         panelSlots?.start,
       )}
       <div className="transcript-view" data-slot="list" ref={scrollRef} onScroll={onScroll} onFocus={trackFocus}>
-        <TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} />
-        {results.isError && (
-          <p className="form-error" role="status" data-ui="think-tank" data-slot="results-error">
-            Think Tank synthesis could not be loaded.{" "}
-            <Button type="button" variant="secondary" onClick={() => void results.refetch()}>Retry</Button>
-          </p>
-        )}
-        <BackgroundTaskList agentId={agentId} tasks={collectTasks(events)} controllable={taskControl} />
-        {busy && <WorkingIndicator />}
-        {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
-        {recovery && <RecoveryMessage agentId={agentId} recovery={recovery} />}
+        <div ref={contentRef}>
+          <TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} />
+          {results.isError && (
+            <p className="form-error" role="status" data-ui="think-tank" data-slot="results-error">
+              Think Tank synthesis could not be loaded.{" "}
+              <Button type="button" variant="secondary" onClick={() => void results.refetch()}>Retry</Button>
+            </p>
+          )}
+          <BackgroundTaskList agentId={agentId} tasks={collectTasks(events)} controllable={taskControl} />
+          {busy && <WorkingIndicator />}
+          {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
+          {recovery && <RecoveryMessage agentId={agentId} recovery={recovery} />}
+        </div>
       </div>
       {!atBottom && (
         <button type="button" className="jump-to-latest ad-button-secondary" onClick={jumpToLatest}>

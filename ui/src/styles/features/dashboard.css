@@ -151,6 +151,14 @@
   opacity: 0.6;
 }
 
+/* An agent stopped on error keeps the dimmed stopped block but its error tone, so
+   the failure reads apart from a deliberate stop (FS-02.R79). */
+.agent-card.stopped[data-state="error"] {
+  --ad-agent-card-tone: var(--ad-state-error);
+
+  filter: none;
+}
+
 .agent-card-head {
   padding: var(--ad-space-4);
 }
@@ -322,6 +330,12 @@
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.agent-card-hint {
+  color: var(--ad-text-muted);
+  font-size: 0.75rem;
+  margin: var(--ad-space-2) 0 0;
 }
 
 .agent-card-footer {

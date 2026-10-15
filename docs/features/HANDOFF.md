@@ -127,23 +127,6 @@ None.
 
 ## Review findings
 
-### Usability review 2026-10-15 — top-to-bottom J1–J17 — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Run report: [`usability-review-run-2026-10-15`](../archive/reviews/usability-review-run-2026-10-15.md)
-(fixtures, repro steps, evidence). Fake-ACP, real tagged/untagged binaries, Playwright Chromium.
-
-- **Worth fixing** — **J3 reload lands mid-transcript:** hard-reloading an agent with diagram turns stops
-  above the latest reply with “Jump to latest” shown (diagram height settles after initial scroll).
-- **Worth fixing** — **J6 stopped terminal page:** a stopped terminal agent’s Terminal tab shows
-  “[connection error] [closed]” (WebSocket 404) with no stopped state or Resume (FS-07).
-- **Worth fixing** — **J11 crash state unclear:** a crashed or killed agent reads “Stopped” on header and
-  card while the API says `error`; the card carries no error text and nothing says a new message
-  restarts it.
-
-Spec drift for the fix pass: FS-14.R44 names a three-step Setup/Runtimes/Review dialog; a later FS-14
-requirement and the product use Setup/Review with a Customize runtimes disclosure. Matrix gap:
-Think Tanks, phone remote control, project resources and config-source binding have no journey.
-
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
@@ -162,6 +145,16 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-15 — J3/J6/J11 transcript and stopped-state fixes; review closed (INV §8/§13):** the
+  transcript stays pinned to the bottom while late rows (diagrams) settle, and only scrolling toward
+  older content leaves it (FS-03.R3/A68). A stopped terminal agent opens no terminal socket, says it
+  is stopped and offers Resume in the header (FS-07.R24/A10). An agent stopped on error reads
+  “Error” on card and header with its detail (never blank) and a restart hint (FS-02.R79/A60,
+  FS-03.R89/A69). FS-14.R44 now records R80's Setup → Review supersession. This closes the
+  2026-10-15 review unit. Not covered: the phone agent screen still reads “Stopped” for an errored
+  agent; Think Tanks, phone remote control, project resources and config-source binding still
+  have no usability journey.
 
 - **2026-10-15 — J9/J11 save validation fixes (INV §2/§3/§8):** a malformed pipeline template id now
   reaches the shared validate-before-write path and returns 422 with Validate's diagnostics (new

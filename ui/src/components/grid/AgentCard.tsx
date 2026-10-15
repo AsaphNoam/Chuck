@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import type { AgentState } from "../../api/types";
 import { ContextBar } from "./ContextBar";
-import { StateBadge } from "./StateBadge";
+import { StateBadge, restartHint, stoppedOnError } from "./StateBadge";
 import { useUiStore } from "../../store/uiStore";
 import { IconButton } from "../ui";
 import { CollapseIcon, ExpandIcon, GripIcon } from "../ui/icons";
@@ -26,13 +26,14 @@ export function AgentCard({ agent, lastLine, projectTitle, roleLabel = agent.rol
     openContextMenu(agent.agent_id, event.clientX, event.clientY);
   };
   const stop = (event: MouseEvent) => event.stopPropagation();
+  const failed = stoppedOnError(agent);
 
   return (
     <article
       ref={setNodeRef}
       className={`agent-card ${agent.running ? "" : "stopped"} ${isDragging ? "dragging" : ""}`}
       data-ui="agent-card"
-      data-state={agent.running ? agent.state : "stopped"}
+      data-state={agent.running || failed ? agent.state : "stopped"}
       data-variant={expanded ? "expanded" : isDragging ? "dragging" : "default"}
       style={style}
       onClick={expanded ? undefined : () => expandable ? onToggle?.() : navigate(`/agent/${agent.agent_id}`)}
@@ -42,7 +43,7 @@ export function AgentCard({ agent, lastLine, projectTitle, roleLabel = agent.rol
     >
       <div className="agent-card-head" data-slot="header" onClick={expanded ? onToggle : undefined} onContextMenu={expanded ? menu : undefined}>
         <div className="agent-card-topline">
-          {agent.running ? <StateBadge state={agent.state} /> : <span className="stopped-label">Stopped</span>}
+          {agent.running ? <StateBadge state={agent.state} /> : <span className="stopped-label">{failed ? "Error" : "Stopped"}</span>}
           {!expanded && <button
             type="button"
             className="drag-handle"
@@ -84,6 +85,7 @@ export function AgentCard({ agent, lastLine, projectTitle, roleLabel = agent.rol
         </div>
         <div className="agent-card-context" data-slot="context"><ContextBar value={agent.context_pct} used={agent.context_used} size={agent.context_size} /></div>
         {preview && <p className="agent-preview" data-slot="preview">{preview}</p>}
+        {failed && <p className="agent-card-hint">{restartHint(agent.interface)}</p>}
         <div className="agent-card-footer">
           <span className="agent-subtitle">{showProject ? `${roleLabel} · ${projectLabel}` : roleLabel}</span>
           {agent.pipeline && (

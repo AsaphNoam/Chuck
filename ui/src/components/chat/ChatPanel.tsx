@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import * as Tabs from "@radix-ui/react-tabs";
-import { cancelTurn, getHeldPrompt, setSessionConfig, switchRuntime } from "../../api/client";
+import { cancelTurn, getHeldPrompt, resumeAgent, setSessionConfig, switchRuntime } from "../../api/client";
 import { useBackends, useProjects, useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
 import type { AgentState } from "../../api/types";
@@ -12,7 +12,7 @@ import { useHeldStore } from "../../store/heldStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { useUiStore } from "../../store/uiStore";
 import { ContextBar } from "../grid/ContextBar";
-import { StateBadge } from "../grid/StateBadge";
+import { StateBadge, restartHint, stoppedOnError } from "../grid/StateBadge";
 import { Badge, VisuallyHidden } from "../ui";
 import { BackIcon } from "../ui/icons";
 import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
@@ -83,6 +83,7 @@ export function ChatPanel() {
   const [panelSlots, setPanelSlots] = useState<PanelSlots | undefined>(undefined);
   const [quotaCancelPending, setQuotaCancelPending] = useState(false);
   const [quotaCancelError, setQuotaCancelError] = useState<string | undefined>();
+  const [resuming, setResuming] = useState(false);
 
   // The agent often isn't in the store yet at mount (it hydrates over SSE), so
   // the useState initializer above can't see its interface. Once it loads, apply
@@ -248,8 +249,23 @@ export function ChatPanel() {
 
   const projectTitle = (agent.project && projects?.[agent.project]?.title) || agent.project;
   const sessionSettings = (selectedModel?.efforts ?? []).length > 0 || !!currentModel?.fast;
+  const failed = stoppedOnError(agent);
+  // Resume reuses the card menu's endpoint and failure toast (FS-02.R27/R28).
+  const resume = async () => {
+    if (resuming) return;
+    setResuming(true);
+    try {
+      await resumeAgent(agent.agent_id);
+    } catch (error) {
+      pushError("Resume failed", runtimeErrorMessage(error));
+    } finally {
+      setResuming(false);
+    }
+  };
   const composer = agent.interface === "terminal" ? (
-    <p className="terminal-readonly chat-composer" data-slot="composer">Terminal agents receive input in the terminal tab.</p>
+    <p className="terminal-readonly chat-composer" data-slot="composer">
+      {agent.running ? "Terminal agents receive input in the terminal tab." : "This terminal agent is stopped. Resume to restart it."}
+    </p>
   ) : (
     <div className="chat-composer" data-slot="composer">
       <Composer
@@ -288,12 +304,22 @@ export function ChatPanel() {
       >
         <AgentIdentity
           name={agent.name}
-          state={agent.running ? agent.state : "stopped"}
-          status={agent.running ? <StateBadge state={agent.state} /> : <Badge>Stopped</Badge>}
+          state={agent.running || failed ? agent.state : "stopped"}
+          status={agent.running ? <StateBadge state={agent.state} /> : failed ? <Badge variant="danger">Error</Badge> : <Badge>Stopped</Badge>}
           details={[personaIdentityLabel(agent.role, roles?.[agent.role]), projectTitle, ...(editableRuntime ? [] : [agent.backend, agent.model, agent.effort]), agent.fast ? "Fast mode" : "Normal speed"]}
         />
         <div data-slot="context"><ContextBar detailed value={agent.context_pct} used={agent.context_used} size={agent.context_size} /></div>
+        {!agent.running && (
+          <button type="button" className="resume-btn ad-button-primary" disabled={resuming} onClick={() => void resume()}>
+            {resuming ? "Resuming…" : "Resume"}
+          </button>
+        )}
       </header>
+      {failed && (
+        <p className="archive-error" role="status">
+          Stopped on error{agent.detail ? `: ${agent.detail}` : ""}. {restartHint(agent.interface)}
+        </p>
+      )}
       <QuotaBanner value={quota} cancelPending={quotaCancelPending} cancelError={quotaCancelError} onCancel={() => void cancelQuotaContinuation()} />
       {editableRuntime && (
         // Two honest groups (FS-03.R47): backend/model stage a change behind
@@ -380,7 +406,9 @@ export function ChatPanel() {
         )}
         {agent.interface === "terminal" && (
           <Tabs.Content value="terminal" className="chat-tab-content" data-slot="content">
-            <TerminalTab agentId={id} />
+            {/* A stopped agent has no PTY bridge to attach to (FS-07.R21), so the
+                socket opens only while running and reattaches after Resume (FS-07.R24). */}
+            {agent.running ? <TerminalTab agentId={id} /> : <p className="terminal-readonly">The terminal session ended when the agent stopped.</p>}
           </Tabs.Content>
         )}
       </Tabs.Root>
