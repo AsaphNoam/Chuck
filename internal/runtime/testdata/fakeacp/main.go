@@ -199,6 +199,12 @@ func handle(msg *rpcMessage) {
 		if dump := os.Getenv("FAKEACP_NEW_DUMP"); dump != "" {
 			_ = os.WriteFile(dump, decodeSessionRequest(msg.Params, newSessionMembers), 0o600)
 		}
+		// Quota-check isolation tests inspect the raw request and the process
+		// CODEX_CONFIG overlay the check composed.
+		if dump := os.Getenv("FAKEACP_NEW_RAW_DUMP"); dump != "" {
+			_ = os.WriteFile(dump, msg.Params, 0o600)
+			_ = os.WriteFile(dump+".codex_config", []byte(os.Getenv("CODEX_CONFIG")), 0o600)
+		}
 		if hold := os.Getenv("FAKEACP_NEW_HOLD_FILE"); hold != "" {
 			deadline := time.Now().Add(15 * time.Second)
 			for time.Now().Before(deadline) {
@@ -329,6 +335,11 @@ func handle(msg *rpcMessage) {
 			_ = os.WriteFile(logPath, msg.Params, 0o600)
 		}
 		respond(*msg.ID, map[string]any{})
+	case "session/close":
+		if logPath := os.Getenv("FAKEACP_CLOSE_LOG"); logPath != "" {
+			_ = os.WriteFile(logPath, msg.Params, 0o600)
+		}
+		respond(*msg.ID, map[string]any{})
 	case "_session/async_task/stop":
 		// Upstream finishes the task (publishing its terminal update under the
 		// owning session) before answering {stopped:true}; unknown tasks and a
@@ -415,6 +426,20 @@ func handle(msg *rpcMessage) {
 				_, _ = f.Write(append(bytes.ReplaceAll(msg.Params, []byte("\n"), []byte(" ")), '\n'))
 				_ = f.Close()
 			}
+		}
+		// Pinned codex-acp handles `/rename <name>` locally (thread/name/set) and
+		// reports the explicit title as a session_info_update, with no model turn.
+		var renameParams struct {
+			Prompt []struct {
+				Text string `json:"text"`
+			} `json:"prompt"`
+		}
+		if json.Unmarshal(msg.Params, &renameParams) == nil && len(renameParams.Prompt) == 1 && strings.HasPrefix(renameParams.Prompt[0].Text, "/rename ") {
+			if os.Getenv("FAKEACP_RENAME_SILENT") == "" {
+				emitUpdate(map[string]any{"sessionUpdate": "session_info_update", "title": strings.TrimPrefix(renameParams.Prompt[0].Text, "/rename ")})
+			}
+			respond(id, map[string]any{"stopReason": "end_turn"})
+			return
 		}
 		// FAKEACP_PROMPT_REJECT_DATA fails the prompt the way the Claude adapter
 		// reports a provider error: a bare `Internal error` with provider data.

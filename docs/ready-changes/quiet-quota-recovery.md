@@ -64,12 +64,18 @@ unsupported versions/isolation remain manual, with no wake-probe fallback in the
    refuses while a cleanup reference exists), `RecordQuotaCheckSession`, `FinishQuotaCheck`,
    `ResolveQuotaCheckCleanup`, `PendingQuotaCheckCleanups`; restart makes a started check
    `check_interrupted`. Server still observes plain `unknown_reset` until slice 4 wires checks.
-3. Runtime isolated check (TS-04.R97): separate adapter process via `spawnCmd`/`startCmd`,
-   `clientCapabilitiesFor(offered)`, `applySessionConfig`; Claude `_meta.claudeCode.options`
-   `persistSession:false, tools:[], strictMcpConfig:true`; Codex `/rename Chuck quota check`
-   then `session/delete`, `CODEX_CONFIG` `mcp_servers.<name>.enabled:false`. Build the server
-   spec like `composeResumeSpecContext` (`internal/server/resume.go`) without
-   `composeResumeSpec`'s MCP/hook registration.
+3. **Done** — runtime isolated check (TS-04.R97): `internal/runtime/quota_check.go`
+   `RunQuotaCheck`/`CleanupQuotaCheckSession`. Separate adapter process (`spawnCmd`, temp cwd,
+   AIR-only capability offer), requires advertised `close` (Claude) / `delete` (Codex); Claude
+   `persistSession:false, tools:[], strictMcpConfig:true`, no system prompt; Codex disables every
+   server named in `CODEX_CONFIG` and `config.toml`/`managed_config.toml` (CODEX_HOME or
+   `~/.codex`, `/etc/codex`) via dotted `mcp_servers.<name>.enabled:false` keys, then
+   corroborates `/rename Chuck quota check` before the probe. Permissions are cancelled and
+   count as tool activity. Fake ACP gained `FAKEACP_NEW_RAW_DUMP`, `FAKEACP_CLOSE_LOG`,
+   `/rename` handling and `FAKEACP_RENAME_SILENT`. Reviewer notes: Claude keeps default
+   `settingSources` to preserve account routing; the dotted-key overlay semantics need A34's
+   live receipt. Next: build the server spec like `composeResumeSpecContext`
+   (`internal/server/resume.go`) without `composeResumeSpec`'s MCP/hook registration.
 4. Dispatcher wiring plus restart/cleanup recovery (TS-10.R45–R47).
 5. API/UI (TS-03.R72, FS-04.R59): projection `next_action`/`checks_remaining`, reason codes,
    banner/Settings copy, the FS-01.R50 notice sentence, CLI decoder.
