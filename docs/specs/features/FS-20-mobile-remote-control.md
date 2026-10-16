@@ -293,7 +293,10 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
 - **R46 — Group selection and actions work on the phone.** Phone New agent
   offers FS-02.R72–R73's optional Group picker. Manage offers the same picker for reassignment
   and blank removal. Group headers offer FS-02.R75–R76's Stop group and Archive group with their
-  confirmations and result feedback. Offline disables these actions under R23; a refused move or
+  confirmations and result feedback. Each group header, including the ungrouped one, also offers
+  a New agent in this group button: it opens the same New agent dialog with that group
+  preselected, the dialog still starts with Advanced collapsed and its other defaults, and the
+  collapsed summary names the group. Offline disables these actions under R23; a refused move or
   launch retains entered values. This supersedes R35's groups exclusion and extends phone
   management only for these group actions. Desktop uses drag and the picker; the phone uses
   the picker, with no mobile drag. These actions update desktop and other phones live.
@@ -483,7 +486,8 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   reassignment with a desktop session open.
   — phone component tests and a browser pass in all three appearances.
 
-- **A18** (R46) — Create in an existing/new/blank group, move through Manage,
+- **A18** (R46) — Create in an existing/new/blank group (including from a group header's New
+  agent button, which opens collapsed with that group preselected), move through Manage,
   Stop group and Archive group; verify desktop reflects each accepted change and each device
   reflects changes from the other. Offline permits no action; refusals preserve the form values.
   — focused remote route/form tests and FS-02.A57's two-device browser journey at 390px.

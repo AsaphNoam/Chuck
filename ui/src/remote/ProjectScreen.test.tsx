@@ -248,7 +248,7 @@ describe("ProjectScreen groups", () => {
     const sections = [...document.querySelectorAll<HTMLElement>(".phone-agent-group")];
     expect(sections.map((section) => section.querySelector("strong")?.textContent)).toEqual(["Alpha", "Beta", "Ungrouped"]);
     expect(within(sections[0]).getAllByRole("button").map((button) => button.textContent).join(" ")).toContain("a");
-    fireEvent.click(within(sections[0]).getByRole("button", { name: /Alpha/ }));
+    fireEvent.click(within(sections[0]).getByRole("button", { name: /^Alpha/ }));
     expect(within(sections[0]).queryByText("a")).toBeNull();
     act(() => useConnection.setState({ agents: { ...useConnection.getState().agents, d: phoneAgent("d", "Alpha", true) } }));
     expect(await within(sections[0]).findByText(/2 running/)).toBeInTheDocument();
@@ -280,6 +280,24 @@ describe("ProjectScreen groups", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create agent" }));
     await waitFor(() => expect(launches[2]).not.toHaveProperty("group"));
     expect(screen.getByRole("combobox", { name: "Group" })).toHaveValue("");
+  });
+
+  it("starts New agent from a group header with that group preselected and Advanced collapsed", async () => {
+    useConnection.setState({ agents: { existing: phoneAgent("existing", "Existing", true), loose: phoneAgent("loose", undefined, false) } });
+    renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: "New agent in Existing" }));
+    const dialog = await screen.findByRole("dialog", { name: "New agent" });
+    expect(dialog.querySelector("details")).not.toHaveAttribute("open");
+    expect(within(dialog).getByText(/· Existing$/)).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Create agent" })).toBeEnabled());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create agent" }));
+    await waitFor(() => expect(launches[0]).toEqual(expect.objectContaining({ group: "Existing" })));
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "New agent in Ungrouped" }));
+    const blank = await screen.findByRole("dialog", { name: "New agent" });
+    fireEvent.click(within(blank).getByText("Advanced"));
+    expect(within(blank).getByRole("combobox", { name: "Group" })).toHaveValue("");
   });
 
   it("keeps scoped group action feedback after members disappear", async () => {

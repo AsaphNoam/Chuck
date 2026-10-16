@@ -6,6 +6,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Awaiting review — phone New agent from a group header (2026-10-16):** FS-20.R46/A18. Each
+  group header (Ungrouped included) has a plus beside its name that opens the same centered New
+  agent dialog with that group preselected (blank for Ungrouped); Advanced stays collapsed and the
+  summary line names the group. 15 ProjectScreen tests (one new), all 890 UI tests, presentation
+  and spec checks pass. `phone-render.mjs --details-check` now gives its agent a named group and
+  checks the 44px button and collapsed dialog in all appearances at 360/390/430px; screenshots
+  `/tmp/mobile-groupnew-20261016-*-group-header-*.png`. INV §8/§13: new `.phone-group-new` defined.
+
 - **In progress — withdraw returns the held message (2026-10-16):** FS-03.R90/A70. Implementation
   `2cf48ba2` reviewed 2026-10-16; three findings below keep this unit open for fixes. Withdraw from
   the desktop composer, the pending tail, or the phone writes a text-only held message back into

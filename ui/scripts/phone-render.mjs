@@ -30,7 +30,7 @@ const activeRuns = Array.from({ length: 20 }, (_, i) => ({ kind: "run", id: `r${
 const agent = {
   agent_id: "a1", name: "phone-render", role: "implementer", project: "my-app", backend: "claude", model: "m",
   fast: false, fast_available: false, steering_available: true, interface: "chat", created_at: "", running: true,
-  state: "idle", detail: "", context_pct: detailsCheck ? 0.22 : 0, context_used: detailsCheck ? 44000 : undefined, context_size: detailsCheck ? 200000 : undefined, updated_at: 0, archived: false,
+  state: "idle", detail: "", group: detailsCheck ? "Feature Changes" : undefined, context_pct: detailsCheck ? 0.22 : 0, context_used: detailsCheck ? 44000 : undefined, context_size: detailsCheck ? 200000 : undefined, updated_at: 0, archived: false,
 };
 const event = (seq, type, data) => ({ agent_id: "a1", seq, type, ts: "", data });
 const words = "Done. **All tests** pass now, and the build is `green` again after the fix.".split(/(?<= )/);
@@ -385,6 +385,15 @@ try {
         });
         if (center.x > 1 || center.y > 1 || center.overflow) throw new Error(`${theme}/${width} dialog: ${JSON.stringify(center)}`);
         await page.screenshot({ path: `${prefix}-new-agent-${width}.png`, animations: "disabled" });
+        await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+        // FS-20.R46: a group header starts New agent collapsed, in that group.
+        const groupNew = page.getByRole("button", { name: "New agent in Feature Changes", exact: true });
+        const groupNewBox = await groupNew.boundingBox();
+        if (!groupNewBox || groupNewBox.width < 44 || groupNewBox.height < 44 || groupNewBox.x + groupNewBox.width > width) throw new Error(`${theme}/${width} group New agent button: ${JSON.stringify(groupNewBox)}`);
+        await page.screenshot({ path: `${prefix}-group-header-${width}.png`, animations: "disabled" });
+        await groupNew.click();
+        await dialog.waitFor();
+        if (await dialog.locator("details").evaluate((el) => el.open)) throw new Error(`${theme}/${width} group New agent opened Advanced`);
         await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
         await page.locator(".phone-agent-row").first().click({ button: "right" });
         const sheet = page.getByRole("dialog");
