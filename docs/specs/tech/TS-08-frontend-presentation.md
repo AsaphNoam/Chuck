@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1469,6 +1469,23 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   message row below the sticky header plus its offset, or an at-newest flag, and restores once
   per mount after the first non-placeholder transcript renders; a missing key falls back to the
   top of the loaded list. Restoration never triggers older-history loading by itself.
+
+- **R126 (planned) — Compact Think Tank chat navigation reuses existing presentation.**
+  FS-21.R57 replaces only R98's full-goal/explanatory-tab composition. Keep `ThinkTankTab` and
+  its existing `useAgentThinkTanks` query as the owner; derive other-member links from `roster`
+  and active emphasis from running `active_attempts` by agent id. Reuse `agentConversationPath`,
+  `thinkTankPath` and `roomTitle`; no new endpoint, store, persisted selection or polling loop.
+  Render semantic router links with the existing shared button classes/construction and tokens,
+  never nested anchors/buttons or a button click handler pretending to navigate. The current
+  `Button` is button-only; reuse its CSS construction rather than extending its API solely for
+  this view. Feature-owned layout in `think-tank.css` wraps links with shared spacing and radius,
+  without nested cards, a full roster table or first-row separators. The room-title link leads
+  each group; member links share one quiet secondary treatment. Active links use a modest existing
+  semantic surface/shadow and font-weight increase, with accessible active-turn text; do not use
+  lifecycle status colors, hover-only emphasis, animation, positional movement or a new token
+  system. Retain shared focus/hover affordances and truthful deleted-member/read feedback.
+  Verify FS-21.A40 in all three appearances, using the shared style/contract checks and a real
+  rendered view; source review alone cannot close visual acceptance. No phone room UI is added.
 
 ## 3. Interfaces & data shapes
 

@@ -221,6 +221,12 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-16 — Compact Think Tank chat navigation ready:** operator approved only links to other
+  members and the room, with subtle bold/raised active-room-speaker emphasis. FS-21.R57/A40 and
+  TS-08.R126 are planned in
+  [`compact-think-tank-chat-navigation.md`](../ready-changes/compact-think-tank-chat-navigation.md).
+  Reuse existing router/query/button styling; rendered all-appearance acceptance is owed during
+  implementation. No product edits; active peer transcript/Stop work remains independent.
 - **2026-10-16 — Peer transcript/Stop design ready:** the operator retained existing local-process
   trust. [`peer-transcripts-and-approved-stop.md`](../ready-changes/peer-transcripts-and-approved-stop.md)
   is Waiting to start: FS-06.R39–R44/A28–A32, FS-03.R91, FS-15.R18/A8, FS-17.R22/A13;

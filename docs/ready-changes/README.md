@@ -43,6 +43,9 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`compact-think-tank-chat-navigation.md`](compact-think-tank-chat-navigation.md) — other-member
+  and room links in agent chat, with subtle bold/raised active-speaker treatment using shared styling.
+
 - [`peer-transcripts-and-approved-stop.md`](peer-transcripts-and-approved-stop.md) — direct
   transcript reads across Chuck projects/archives and peer Stop gated by one explicit human
   approval; retain current local-process trust and ordinary lifecycle behavior.

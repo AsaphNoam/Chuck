@@ -324,6 +324,22 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
 - **R56 (shipped 2026-10-15)** — Setup shows each chosen participant's and the judge's model and
   effort, and existing-agent choices carry the same. The **Add new agent** action is a distinct
   button placed above the existing-agent picker; the picker lists only non-archived agents (R34).
+- **R57 (planned) — Agent-chat membership is compact navigation.** The Think Tank tab shows
+  one compact group per associated room: a link labelled with the room title and button-styled
+  links to the other surviving members' ordinary chats, including the judge when one exists.
+  Omit the agent whose chat is open. Use retained roster order and stable identities for routes;
+  disambiguate duplicate names with project/identity only when needed. Retained deleted members
+  remain plainly labelled unavailable text without a dead link. A member currently taking a room
+  turn has slightly heavier text and subtle raised depth; active means a running room attempt,
+  not merely eligible membership or the chat currently open. Concurrent opening speakers can all
+  be active; idle/ended rooms do not invent an active speaker. Preserve keyboard link behavior
+  and expose the active-turn meaning to assistive technology without relying on depth alone.
+  Goals, allowances, phase/hold summaries, explanatory prose and room management controls are
+  absent from this tab; the room remains their destination. Preserve loading/error/empty and
+  clipped-list feedback. Membership remains available between turns, after completion and across
+  multiple rooms. This supersedes R45/FS-03.R71's expanded tab contents, retaining their ordinary
+  header/cue, transcript, private composer and Send/Steer behavior. No room data, scheduling,
+  agent authority, retention or API behavior changes.
 
 ## 3. States & transitions
 
@@ -582,6 +598,15 @@ completion; R37 defines partial opening publication and pending input on End.
   the files. Setup shows each row's model and effort, places Add new agent above the picker, and
   omits archived agents. *Verify:* server handler and MCP tool tests, the setup dialog test, and
   the room page test for the operator disclosure.
+
+- **A40 (planned)** (R57) — Open a participant's Think Tank tab and follow each other member
+  and room link to its correct destination. Verify the current agent is omitted; active-turn
+  emphasis follows running attempts through speaker changes and concurrent openings, and clears
+  when settled. Cover multiple and ended rooms, a judge, duplicate/long names, removed members,
+  failed/empty reads and a clipped list. Verify the expanded report and management controls are
+  absent. *Verify:* focused ChatPanel/ThinkTankTab tests plus keyboard and rendered comparison
+  with adjacent Chuck controls at 1024px/wide desktop and a narrow expanded chat pane in Core,
+  Sky & Grove and Studio; no clipping, layout jump or motion is required for active emphasis.
 
 ## 6. Deviations & open decisions
 
