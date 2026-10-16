@@ -98,7 +98,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 **In progress — quiet quota recovery (2026-10-17):**
 [`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md); its **Implementation
 progress** section holds the slice plan, resume notes and checks. Slice 1 (verified reset
-evidence) is committed; next is slice 2 (state migration/check chain). Live A28/A34 receipts
+evidence) and slice 2 (state check chain) are committed; next is slice 3 (isolated runtime check). Live A28/A34 receipts
 remain gates. Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
 
 ## Acceptance gates still owed

@@ -18,6 +18,7 @@ type QuotaEvidence struct {
 	FailureID    string     `json:"failure_id"`
 	Revision     int64      `json:"revision"`
 	ResetAt      *time.Time `json:"-"`
+	ResetSource  string     `json:"-"` // structured or text when ResetAt is set
 	Intervention bool       `json:"-"`
 }
 

@@ -795,6 +795,72 @@ CHECK(length(CAST(history_primer AS BLOB)) <= 32000);`,
 		sql: `ALTER TABLE think_tanks ADD COLUMN judge_instructions TEXT NOT NULL DEFAULT '';
 ALTER TABLE think_tanks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';`,
 	},
+	{
+		// Quiet quota checks extend the single recovery row (TS-02.R50).
+		version: 54,
+		apply:   migrateQuotaChecks,
+	},
+}
+
+// migrateQuotaChecks rebuilds quota_intents for the check chain and its
+// closed reasons. Old rows keep their state, start with no allowance and are
+// never armed; a known-reset due is raised only to meet reset + 60 seconds.
+func migrateQuotaChecks(tx *sql.Tx) error {
+	var existing int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM quota_intents`).Scan(&existing); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`ALTER TABLE quota_intents RENAME TO quota_intents_v53;
+DROP INDEX idx_quota_intents_due;
+CREATE TABLE quota_intents (
+  agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
+  episode_id TEXT NOT NULL,
+  revision INTEGER NOT NULL CHECK (revision > 0),
+  source_generation TEXT NOT NULL,
+  executing_turn TEXT NOT NULL,
+  owner_json TEXT NOT NULL CHECK (length(CAST(owner_json AS BLOB)) <= 1024),
+  observed_at TEXT NOT NULL,
+  reset_at TEXT,
+  due_at TEXT,
+  state TEXT NOT NULL CHECK (state IN ('disabled','unknown_reset','scheduled','deferred','claimed','continued','cancelled','needs_attention')),
+  reason_code TEXT NOT NULL DEFAULT '' CHECK (reason_code IN ('','busy','capacity','store_failure','owner_unavailable','project_ineligible','archived','provider_start_failed','uncertain_delivery','non_quota_failure','invalid_owner',
+    'check_unsupported','check_failed','check_timeout','check_exhausted','check_interrupted','check_cleanup_failed','check_ready_but_quota')),
+  attempt_token TEXT NOT NULL DEFAULT '',
+  provider_started INTEGER NOT NULL DEFAULT 0 CHECK (provider_started IN (0, 1)),
+  continued_generation TEXT NOT NULL DEFAULT '',
+  continued_turn TEXT NOT NULL DEFAULT '',
+  notice_key TEXT NOT NULL DEFAULT '',
+  notice_confirmed INTEGER NOT NULL DEFAULT 0 CHECK (notice_confirmed IN (0, 1)),
+  success_confirmed INTEGER NOT NULL DEFAULT 0 CHECK (success_confirmed IN (0, 1)),
+  manual_generation TEXT NOT NULL DEFAULT '',
+  manual_turn TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  chain_id TEXT NOT NULL CHECK (length(CAST(chain_id AS BLOB)) BETWEEN 1 AND 256),
+  next_action TEXT NOT NULL DEFAULT 'continue' CHECK (next_action IN ('continue','check')),
+  checks_started INTEGER NOT NULL DEFAULT 0 CHECK (checks_started BETWEEN 0 AND 6),
+  reset_source TEXT NOT NULL DEFAULT '' CHECK (reset_source IN ('','structured','text')),
+  check_started INTEGER NOT NULL DEFAULT 0 CHECK (check_started IN (0, 1)),
+  check_ready INTEGER NOT NULL DEFAULT 0 CHECK (check_ready IN (0, 1)),
+  check_backend TEXT NOT NULL DEFAULT '' CHECK (check_backend IN ('','claude-acp','codex-acp')),
+  check_session TEXT NOT NULL DEFAULT '' CHECK (length(CAST(check_session AS BLOB)) <= 256),
+  CHECK (check_session = '' OR check_backend <> '')
+);`); err != nil {
+		return err
+	}
+	if existing > 0 {
+		if _, err := tx.Exec(`INSERT INTO quota_intents(agent_id, episode_id, revision, source_generation, executing_turn, owner_json, observed_at, reset_at, due_at, state, reason_code, attempt_token, provider_started, continued_generation, continued_turn, notice_key, notice_confirmed, success_confirmed, manual_generation, manual_turn, updated_at, chain_id)
+SELECT agent_id, episode_id, revision, source_generation, executing_turn, owner_json, observed_at, reset_at,
+  CASE WHEN reset_at IS NOT NULL AND due_at IS NOT NULL AND due_at < strftime('%Y-%m-%dT%H:%M:%SZ', reset_at, '+60 seconds')
+    THEN strftime('%Y-%m-%dT%H:%M:%SZ', reset_at, '+60 seconds') ELSE due_at END,
+  state, reason_code, attempt_token, provider_started, continued_generation, continued_turn, notice_key, notice_confirmed, success_confirmed, manual_generation, manual_turn, updated_at, episode_id
+FROM quota_intents_v53`); err != nil {
+			return err
+		}
+	}
+	_, err := tx.Exec(`DROP TABLE quota_intents_v53;
+CREATE INDEX idx_quota_intents_due ON quota_intents(due_at, agent_id)
+  WHERE state IN ('scheduled','deferred') AND due_at IS NOT NULL;`)
+	return err
 }
 
 func migrateAttachmentReceipts(tx *sql.Tx) error {

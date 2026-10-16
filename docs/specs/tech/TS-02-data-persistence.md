@@ -688,7 +688,7 @@ append retries by request id plus phase. Notices retain existing metadata-only s
 classification, replay and retention. A no-op never gets a stopped notice. FS-06.A29–A32 verify
 pre/post-effect storage failure, crash boundaries and truthful replay as well as normal execution.
 
-**R50 (planned) — Quiet quota checks extend the single bounded recovery row.** For FS-01.R48–R51
+**R50 (implemented 2026-10-17; migration 54, `internal/state/quota_checks.go`) — Quiet quota checks extend the single bounded recovery row.** For FS-01.R48–R51
 and TS-10.R45–R47, use a forward-only migration to extend TS-02.R45's existing `quota_intents` row
 with the recovery-chain identity, `next_action:continue|check`, `checks_started` (0..6), bounded
 normalized reset provenance and separate check-start/session/cleanup receipts. Bound opaque ids

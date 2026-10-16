@@ -55,9 +55,15 @@ unsupported versions/isolation remain manual, with no wake-probe fallback in the
    their message/`data.message` too. `settleQuotaTurn` schedules `reset + state.QuotaResetBuffer`
    (60 s); the state validator requires that buffer. Fixtures follow the pinned formatters
    (Claude `iu` logic re-run under TZ; Codex `error.rs` 676–836 at rust-v0.159.3).
-2. Next — state (TS-02.R50, TS-10.R45–R46): forward migration adding chain id, `next_action`,
-   `checks_started`, check token/session/cleanup receipts; check scheduling/charging/result
-   APIs; renewed-failure chain retention; migration raises a known due to reset + 60 s.
+2. **Done** — state (TS-02.R50): migration 54 rebuilds `quota_intents` with `chain_id`,
+   `next_action`, `checks_started` (0..6), `reset_source`, `check_started`/`check_ready`,
+   `check_backend`/`check_session`, and the seven `check_*` reasons; it raises a known due to
+   reset + 60 s and leaves old rows inert. `QuotaObservation.Check` turns an unknown reset into an
+   hourly check (or `check_exhausted`/`check_ready_but_quota` when renewal comes from the chain's
+   own admitted continuation). `internal/state/quota_checks.go`: `StartQuotaCheck` (charges,
+   refuses while a cleanup reference exists), `RecordQuotaCheckSession`, `FinishQuotaCheck`,
+   `ResolveQuotaCheckCleanup`, `PendingQuotaCheckCleanups`; restart makes a started check
+   `check_interrupted`. Server still observes plain `unknown_reset` until slice 4 wires checks.
 3. Runtime isolated check (TS-04.R97): separate adapter process via `spawnCmd`/`startCmd`,
    `clientCapabilitiesFor(offered)`, `applySessionConfig`; Claude `_meta.claudeCode.options`
    `persistSession:false, tools:[], strictMcpConfig:true`; Codex `/rename Chuck quota check`

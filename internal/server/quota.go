@@ -68,7 +68,7 @@ func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *r
 	q, err := s.stateStore.ObserveOwnedQuota(state.QuotaObservation{
 		AgentID: agentID, EpisodeID: "quota_" + hex.EncodeToString(sum[:]),
 		SourceGeneration: generation, ExecutingTurn: turnID, ObservedAt: observed, State: status,
-		ResetAt: resetAt, DueAt: dueAt,
+		ResetAt: resetAt, DueAt: dueAt, ResetSource: resetSource(resetAt, evidence.ResetSource),
 	})
 	if err != nil {
 		return err
@@ -81,6 +81,14 @@ func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *r
 		}
 	}
 	return nil
+}
+
+// resetSource keeps only the closed provenance enum of an accepted reset.
+func resetSource(resetAt *time.Time, source string) string {
+	if resetAt == nil || source != "structured" && source != "text" {
+		return ""
+	}
+	return source
 }
 
 func (s *Server) quotaBlocksAgent(agentID string) (bool, error) {

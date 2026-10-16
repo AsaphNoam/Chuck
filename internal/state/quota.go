@@ -45,6 +45,16 @@ type QuotaOwner struct {
 	Turn      string `json:"turn,omitempty"`
 }
 
+const (
+	QuotaActionContinue = "continue"
+	QuotaActionCheck    = "check"
+
+	// MaxQuotaChecks bounds isolated checks per recovery chain; QuotaCheckInterval
+	// separates them (FS-01.R49).
+	MaxQuotaChecks     = 6
+	QuotaCheckInterval = time.Hour
+)
+
 type QuotaObservation struct {
 	AgentID          string
 	EpisodeID        string
@@ -54,7 +64,11 @@ type QuotaObservation struct {
 	ObservedAt       time.Time
 	ResetAt          *time.Time
 	DueAt            *time.Time
+	ResetSource      string // "", structured or text
 	State            string // disabled, unknown_reset, or scheduled
+	// Check asks an unknown_reset observation to schedule the chain's next
+	// isolated check when allowance remains (TS-10.R45).
+	Check bool
 }
 
 type QuotaIntent struct {
@@ -79,6 +93,16 @@ type QuotaIntent struct {
 	ManualGeneration    string     `json:"manual_generation,omitempty"`
 	ManualTurn          string     `json:"manual_turn,omitempty"`
 	UpdatedAt           time.Time  `json:"updated_at"`
+	// The recovery chain survives renewed quota from its own admitted
+	// continuation; checks_started is its allowance (TS-02.R50).
+	ChainID       string `json:"chain_id"`
+	NextAction    string `json:"next_action"`
+	ChecksStarted int    `json:"checks_started"`
+	ResetSource   string `json:"reset_source,omitempty"`
+	CheckStarted  bool   `json:"check_started"`
+	CheckReady    bool   `json:"check_ready"`
+	CheckBackend  string `json:"check_backend,omitempty"`
+	CheckSession  string `json:"check_session,omitempty"`
 }
 
 func validateQuotaOwner(owner QuotaOwner) ([]byte, error) {
@@ -189,44 +213,67 @@ func observeQuotaTx(tx *sql.Tx, in QuotaObservation) (QuotaIntent, error) {
 	if in.State != QuotaScheduled && in.DueAt != nil {
 		return QuotaIntent{}, ErrQuotaConflict
 	}
-	if in.ObservedAt.IsZero() {
+	if in.ObservedAt.IsZero() || (in.Check && in.State != QuotaUnknownReset) ||
+		(in.ResetSource != "" && in.ResetSource != "structured" && in.ResetSource != "text") {
 		return QuotaIntent{}, ErrQuotaConflict
 	}
 	if err := validateQuotaOwnerTx(tx, in.Owner); err != nil {
 		return QuotaIntent{}, err
 	}
-	var oldEpisode string
-	var revision int64
-	err = tx.QueryRow(`SELECT episode_id, revision FROM quota_intents WHERE agent_id = ?`, in.AgentID).Scan(&oldEpisode, &revision)
+	old, err := scanQuota(tx.QueryRow(quotaSelect+` WHERE agent_id = ?`, in.AgentID))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return QuotaIntent{}, fmt.Errorf("state: read current quota episode: %w", err)
 	}
-	if err == nil && oldEpisode == in.EpisodeID {
-		// Later trustworthy evidence may fill an unknown reset for this exact
-		// interrupted turn. Cancellation/disable/attempt receipts are never
-		// resurrected by a duplicate observation.
+	exists := err == nil
+	if exists && old.EpisodeID == in.EpisodeID {
+		// Later trustworthy evidence may fill an unknown reset (or replace a
+		// pending check) for this exact interrupted turn. Cancellation/disable/
+		// attempt receipts are never resurrected by a duplicate observation.
 		if in.State == QuotaScheduled {
-			if _, err := tx.Exec(`UPDATE quota_intents SET state='scheduled', revision=revision+1, reset_at=?, due_at=?, updated_at=?
-WHERE agent_id=? AND episode_id=? AND revision=? AND state='unknown_reset' AND source_generation=? AND executing_turn=?`,
-				formatOptionalTime(in.ResetAt), formatOptionalTime(in.DueAt), formatTime(timeNow()), in.AgentID, in.EpisodeID, revision, in.SourceGeneration, in.ExecutingTurn); err != nil {
+			if _, err := tx.Exec(`UPDATE quota_intents SET state='scheduled', next_action='continue', revision=revision+1, reset_at=?, due_at=?, reset_source=?, updated_at=?
+WHERE agent_id=? AND episode_id=? AND revision=? AND (state='unknown_reset' OR state='scheduled' AND next_action='check') AND source_generation=? AND executing_turn=?`,
+				formatOptionalTime(in.ResetAt), formatOptionalTime(in.DueAt), in.ResetSource, formatTime(timeNow()), in.AgentID, in.EpisodeID, old.Revision, in.SourceGeneration, in.ExecutingTurn); err != nil {
 				return QuotaIntent{}, err
 			}
 		}
 		return scanQuota(tx.QueryRow(quotaSelect+` WHERE agent_id = ?`, in.AgentID))
 	}
-	if err == nil {
-		revision++
-	} else {
-		revision = 1
+	revision := int64(1)
+	if exists {
+		revision = old.Revision + 1
+	}
+	// Renewed quota from this chain's own admitted continuation keeps its
+	// identity and spent allowance; any other interruption starts a new chain.
+	chainID, checks, checkReady := in.EpisodeID, 0, false
+	if exists && old.State == QuotaClaimed && old.ProviderStarted && old.NextAction == QuotaActionContinue &&
+		old.ContinuedGeneration == in.SourceGeneration && old.ContinuedTurn == in.ExecutingTurn {
+		chainID, checks, checkReady = old.ChainID, old.ChecksStarted, old.CheckReady
+	}
+	state, action, reason, due := in.State, QuotaActionContinue, "", in.DueAt
+	if in.Check {
+		switch {
+		case checkReady:
+			// A successful small check was followed by quota on the real
+			// continuation: hold rather than loop checks and wake-ups (FS-01.R51).
+			state, reason = QuotaNeedsAttention, "check_ready_but_quota"
+		case checks >= MaxQuotaChecks:
+			state, reason = QuotaNeedsAttention, "check_exhausted"
+		default:
+			next := in.ObservedAt.Add(QuotaCheckInterval)
+			state, action, due = QuotaScheduled, QuotaActionCheck, &next
+		}
 	}
 	now := timeNow()
-	_, err = tx.Exec(`INSERT INTO quota_intents(agent_id, episode_id, revision, source_generation, executing_turn, owner_json, observed_at, reset_at, due_at, state, reason_code, attempt_token, provider_started, continued_generation, continued_turn, notice_key, notice_confirmed, success_confirmed, manual_generation, manual_turn, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', 0, '', '', '', 0, 0, '', '', ?)
+	_, err = tx.Exec(`INSERT INTO quota_intents(agent_id, episode_id, revision, source_generation, executing_turn, owner_json, observed_at, reset_at, due_at, state, reason_code, attempt_token, provider_started, continued_generation, continued_turn, notice_key, notice_confirmed, success_confirmed, manual_generation, manual_turn, updated_at, chain_id, next_action, checks_started, reset_source)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, '', '', '', 0, 0, '', '', ?, ?, ?, ?, ?)
 ON CONFLICT(agent_id) DO UPDATE SET episode_id=excluded.episode_id, revision=excluded.revision,
 source_generation=excluded.source_generation, executing_turn=excluded.executing_turn, owner_json=excluded.owner_json,
 observed_at=excluded.observed_at, reset_at=excluded.reset_at, due_at=excluded.due_at, state=excluded.state,
-reason_code='', attempt_token='', provider_started=0, continued_generation='', continued_turn='', notice_key='', notice_confirmed=0, success_confirmed=0, manual_generation='', manual_turn='', updated_at=excluded.updated_at`,
-		in.AgentID, in.EpisodeID, revision, in.SourceGeneration, in.ExecutingTurn, string(owner), formatTime(in.ObservedAt), formatOptionalTime(in.ResetAt), formatOptionalTime(in.DueAt), in.State, formatTime(now))
+reason_code=excluded.reason_code, attempt_token='', provider_started=0, continued_generation='', continued_turn='', notice_key='', notice_confirmed=0, success_confirmed=0, manual_generation='', manual_turn='', updated_at=excluded.updated_at,
+chain_id=excluded.chain_id, next_action=excluded.next_action, checks_started=excluded.checks_started, reset_source=excluded.reset_source,
+check_started=0, check_ready=0`,
+		in.AgentID, in.EpisodeID, revision, in.SourceGeneration, in.ExecutingTurn, string(owner), formatTime(in.ObservedAt), formatOptionalTime(in.ResetAt), formatOptionalTime(due), state, reason, formatTime(now),
+		chainID, action, checks, in.ResetSource)
 	if err != nil {
 		return QuotaIntent{}, fmt.Errorf("state: write quota observation: %w", err)
 	}
@@ -241,13 +288,14 @@ func (s *Store) GetQuota(agentID string) (QuotaIntent, error) {
 	return q, err
 }
 
-const quotaSelect = `SELECT agent_id, episode_id, revision, source_generation, executing_turn, owner_json, observed_at, reset_at, due_at, state, reason_code, attempt_token, provider_started, continued_generation, continued_turn, notice_key, notice_confirmed, success_confirmed, manual_generation, manual_turn, updated_at FROM quota_intents`
+const quotaSelect = `SELECT agent_id, episode_id, revision, source_generation, executing_turn, owner_json, observed_at, reset_at, due_at, state, reason_code, attempt_token, provider_started, continued_generation, continued_turn, notice_key, notice_confirmed, success_confirmed, manual_generation, manual_turn, updated_at, chain_id, next_action, checks_started, reset_source, check_started, check_ready, check_backend, check_session FROM quota_intents`
 
 func scanQuota(row interface{ Scan(...any) error }) (QuotaIntent, error) {
 	var q QuotaIntent
 	var owner, observed, updated string
 	var resetNull, dueNull sql.NullString
-	err := row.Scan(&q.AgentID, &q.EpisodeID, &q.Revision, &q.SourceGeneration, &q.ExecutingTurn, &owner, &observed, &resetNull, &dueNull, &q.State, &q.ReasonCode, &q.AttemptToken, &q.ProviderStarted, &q.ContinuedGeneration, &q.ContinuedTurn, &q.NoticeKey, &q.NoticeConfirmed, &q.SuccessConfirmed, &q.ManualGeneration, &q.ManualTurn, &updated)
+	err := row.Scan(&q.AgentID, &q.EpisodeID, &q.Revision, &q.SourceGeneration, &q.ExecutingTurn, &owner, &observed, &resetNull, &dueNull, &q.State, &q.ReasonCode, &q.AttemptToken, &q.ProviderStarted, &q.ContinuedGeneration, &q.ContinuedTurn, &q.NoticeKey, &q.NoticeConfirmed, &q.SuccessConfirmed, &q.ManualGeneration, &q.ManualTurn, &updated,
+		&q.ChainID, &q.NextAction, &q.ChecksStarted, &q.ResetSource, &q.CheckStarted, &q.CheckReady, &q.CheckBackend, &q.CheckSession)
 	if err != nil {
 		return QuotaIntent{}, err
 	}
@@ -351,7 +399,7 @@ func markQuotaProviderStartedTx(db execer, agentID, episode string, revision int
 	if generation == "" || turn == "" {
 		return ErrQuotaConflict
 	}
-	res, err := db.Exec(`UPDATE quota_intents SET revision=revision+1, provider_started=1, continued_generation=?, continued_turn=?, updated_at=? WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt_token=?`, generation, turn, formatTime(timeNow()), agentID, episode, revision, token)
+	res, err := db.Exec(`UPDATE quota_intents SET revision=revision+1, provider_started=1, continued_generation=?, continued_turn=?, updated_at=? WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt_token=? AND next_action='continue' AND check_started=0`, generation, turn, formatTime(timeNow()), agentID, episode, revision, token)
 	return quotaCASResult(res, err)
 }
 
@@ -540,6 +588,11 @@ func (s *Store) RecoverQuotaClaims() error {
 	}
 	defer tx.Rollback()
 	now := formatTime(timeNow())
+	// A started check spent its allowance and cannot authorize anything after
+	// restart; its recorded session stays for exact cleanup (TS-10.R47).
+	if _, err := tx.Exec(`UPDATE quota_intents SET state='needs_attention', revision=revision+1, due_at=NULL, attempt_token='', check_started=0, reason_code='check_interrupted', updated_at=? WHERE state='claimed' AND check_started=1`, now); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`UPDATE quota_intents SET state='scheduled', revision=revision+1, attempt_token='', reason_code='', updated_at=? WHERE state='claimed' AND provider_started=0`, now); err != nil {
 		return err
 	}
@@ -551,7 +604,8 @@ func (s *Store) RecoverQuotaClaims() error {
 
 func validQuotaReason(reason string) bool {
 	switch reason {
-	case "busy", "capacity", "store_failure", "owner_unavailable", "project_ineligible", "archived", "provider_start_failed", "uncertain_delivery", "non_quota_failure", "invalid_owner":
+	case "busy", "capacity", "store_failure", "owner_unavailable", "project_ineligible", "archived", "provider_start_failed", "uncertain_delivery", "non_quota_failure", "invalid_owner",
+		"check_unsupported", "check_failed", "check_timeout", "check_exhausted", "check_interrupted", "check_cleanup_failed", "check_ready_but_quota":
 		return true
 	}
 	return false

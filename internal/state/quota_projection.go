@@ -15,6 +15,10 @@ type QuotaProjection struct {
 	DueAt             *time.Time `json:"due_at"`
 	ContinuationState string     `json:"continuation_state"`
 	ReasonCode        string     `json:"reason_code,omitempty"`
+	// NextAction distinguishes an isolated check from continuing the work; a
+	// check due time never fills reset_at (TS-03.R72).
+	NextAction      string `json:"next_action"`
+	ChecksRemaining int    `json:"checks_remaining"`
 }
 
 func (s *Store) QuotaProjection(agentID string) (*QuotaProjection, error) {
@@ -32,5 +36,6 @@ func (s *Store) QuotaProjection(agentID string) (*QuotaProjection, error) {
 		state = "starting"
 	}
 	return &QuotaProjection{EpisodeID: q.EpisodeID, Revision: q.Revision, ObservedAt: q.ObservedAt,
-		ResetAt: q.ResetAt, DueAt: q.DueAt, ContinuationState: state, ReasonCode: q.ReasonCode}, nil
+		ResetAt: q.ResetAt, DueAt: q.DueAt, ContinuationState: state, ReasonCode: q.ReasonCode,
+		NextAction: q.NextAction, ChecksRemaining: MaxQuotaChecks - q.ChecksStarted}, nil
 }
