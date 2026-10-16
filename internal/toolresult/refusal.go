@@ -29,6 +29,12 @@ var retryClasses = map[string]RetryClass{
 	"message_budget_exceeded": RetryNextTurn,
 	"internal":                RetryTransient, "store_unavailable": RetryTransient,
 	"context_unavailable": RetryTransient, "pipeline_unavailable": RetryTransient,
+	// Peer reads and approved Stop (FS-17.R22). A terminal Stop refusal never
+	// invites a retry: another Stop needs a fresh operator decision.
+	"agent_not_found":        RetryAfterChange,
+	"transcript_unavailable": RetryTransient, "peer_control_busy": RetryTransient,
+	"peer_stop_denied": RetryNever, "peer_stop_cancelled": RetryNever,
+	"peer_stop_stale": RetryNever, "peer_stop_failed": RetryNever,
 }
 
 func Classify(code string) RetryClass {

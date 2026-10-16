@@ -1,6 +1,6 @@
 # Peer transcript reading and human-approved Stop
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-10-16 to expose peer transcript reading familiar
 from Codex/Claude within Chuck, and let agents stop peers. The operator confirmed cross-project
 reads including stopped/archived history and all peer target types, required explicit user approval

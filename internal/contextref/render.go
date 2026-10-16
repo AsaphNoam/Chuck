@@ -14,10 +14,14 @@ import (
 // itself, and folds adjacent assistant deltas the way every other transcript
 // consumer does (TS-01.R22, INV §2).
 type transcriptRenderer struct {
-	span    state.ContextSource
-	out     *pageWriter
-	pending strings.Builder // folded assistant deltas awaiting a boundary
+	span state.ContextSource
+	out  *pageWriter
+	// A folding reply streams through to out once it has visible text; only its
+	// leading whitespace waits in pending, so a long reply is never accumulated
+	// whole and a whitespace-only one still renders nothing (TS-04.R93).
+	pending strings.Builder
 	folding bool
+	opened  bool
 	// foldScope is the activity whose deltas are folding: a native child's
 	// text is its own passage, never merged into the root's (TS-02.R35).
 	foldScope string
@@ -78,8 +82,18 @@ func (r *transcriptRenderer) event(ev runtime.Event) error {
 			r.flush()
 		}
 		r.foldScope = ev.ActivityID
-		r.pending.WriteString(partText(p, transcript.PartAssistantDelta))
 		r.folding = true
+		delta := partText(p, transcript.PartAssistantDelta)
+		if r.opened {
+			r.emit(delta)
+			return nil
+		}
+		r.pending.WriteString(delta)
+		if strings.TrimSpace(delta) != "" || r.pending.Len() > MaxPageBytes {
+			r.opened = true
+			r.emit("assistant:\n" + r.pending.String())
+			r.pending.Reset()
+		}
 		return nil
 	}
 	r.flush()
@@ -114,13 +128,12 @@ func (r *transcriptRenderer) flush() {
 	if !r.folding {
 		return
 	}
-	text := r.pending.String()
 	r.pending.Reset()
 	r.folding = false
-	if strings.TrimSpace(text) == "" {
-		return
+	if r.opened {
+		r.opened = false
+		r.emit("\n\n")
 	}
-	r.emit("assistant:\n" + text + "\n\n")
 }
 
 func (r *transcriptRenderer) emit(s string) {

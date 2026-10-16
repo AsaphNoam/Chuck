@@ -46,6 +46,66 @@ func ForEachFile(home, agentID string, opts ReadOptions, visit func(runtime.Even
 	return NewReader(transcriptPath(home, agentID)).ForEach(opts, visit)
 }
 
+// ErrPrefixUnavailable reports that a transcript no longer holds a previously
+// captured complete prefix: it was truncated, replaced, or removed.
+var ErrPrefixUnavailable = errors.New("transcript: captured prefix is unavailable")
+
+// CompletePrefix returns the current byte length of agentID's transcript
+// through its last complete record, or 0 when it has none. The log is
+// append-only, so the bytes inside a captured prefix never change and a
+// reader bounded by it sees one fixed history while appends continue.
+func CompletePrefix(home, agentID string) (int64, error) {
+	f, err := os.Open(transcriptPath(home, agentID))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("transcript: open prefix: %w", err)
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("transcript: stat prefix: %w", err)
+	}
+	n, err := completeLength(f, fi.Size())
+	if err != nil {
+		return 0, fmt.Errorf("transcript: read prefix: %w", err)
+	}
+	return n, nil
+}
+
+// ForEachFilePrefix streams the first limit bytes of agentID's transcript,
+// which must end on a record boundary. It returns ErrPrefixUnavailable when
+// the file no longer holds that prefix.
+func ForEachFilePrefix(home, agentID string, limit int64, opts ReadOptions, visit func(runtime.Event) error) error {
+	if limit == 0 {
+		return nil
+	}
+	f, err := os.Open(transcriptPath(home, agentID))
+	if errors.Is(err, os.ErrNotExist) {
+		return ErrPrefixUnavailable
+	}
+	if err != nil {
+		return fmt.Errorf("transcript: open read: %w", err)
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("transcript: stat read: %w", err)
+	}
+	if fi.Size() < limit {
+		return ErrPrefixUnavailable
+	}
+	var last [1]byte
+	if _, err := f.ReadAt(last[:], limit-1); err != nil {
+		return fmt.Errorf("transcript: read prefix: %w", err)
+	}
+	if last[0] != '\n' {
+		return ErrPrefixUnavailable
+	}
+	return forEach(io.LimitReader(f, limit), opts, visit)
+}
+
 func (r *Reader) ReadAll(opts ReadOptions) ([]runtime.Event, error) {
 	out := make([]runtime.Event, 0)
 	if err := r.ForEach(opts, func(ev runtime.Event) error {

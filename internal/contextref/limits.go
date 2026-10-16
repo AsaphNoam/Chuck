@@ -24,8 +24,14 @@ const (
 	MinListLimit     = 1
 	MaxListLimit     = 50
 
-	// MaxPageBytes caps one read_context_link content page.
+	// MaxPageBytes caps one read_context_link or read_agent_transcript page.
 	MaxPageBytes = 32 * 1024
+
+	// MaxCursorBytes bounds every opaque cursor a peer read or history list
+	// accepts, and MaxPeerScans the server-wide concurrent peer transcript
+	// scans (TS-04.R93).
+	MaxCursorBytes = 1024
+	MaxPeerScans   = 8
 )
 
 // OversizedRecordMarker replaces a physical transcript record the tolerant

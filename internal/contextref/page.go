@@ -44,7 +44,9 @@ func (w *pageWriter) write(s string) {
 		s = s[need:]
 	}
 	room := w.limit - w.buf.Len()
-	if room <= 0 {
+	// Once a write was cut, nothing later may fill the room the rune-boundary
+	// cut left behind, or the page would skip text and its offset would drift.
+	if room <= 0 || w.overflow {
 		w.overflow = true
 		return
 	}

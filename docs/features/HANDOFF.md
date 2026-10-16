@@ -88,7 +88,19 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+**In progress — peer transcript reading and human-approved Stop (2026-10-16):**
+[`peer-transcripts-and-approved-stop.md`](../ready-changes/peer-transcripts-and-approved-stop.md).
+Slices (each closes with focused tests + commit):
+
+1. **Read (next):** pure range renderer split from grant authorization in `internal/contextref`
+   (incremental assistant folding), fixed-prefix transcript read in `internal/transcript`,
+   `read_agent_transcript` + `list_agents scope:"history"` in `internal/messaging`, FS-17 codes.
+2. **Host waiter:** `internal/runtime/permission.go` host-decision pending entry with
+   `origin:"chuck_peer_stop"`, `/permission` dispatch, replay folds ended-generation host prompts
+   to cancelled.
+3. **Stop:** `stop_agent` admission/claims through `stopAgentClaimed`, peer notices, outcomes.
+4. **UI:** desktop/phone permission presenters and notice rendering for the host origin.
+5. **Guidance + closure:** `operating-chuck` references, spec un-planning, full matrix.
 
 ## Acceptance gates still owed
 

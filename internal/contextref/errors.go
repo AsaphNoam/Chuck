@@ -20,6 +20,11 @@ const (
 	CodeValidation        = "validation"
 	// CodeUnavailable — the underlying store could not answer.
 	CodeUnavailable = "store_unavailable"
+
+	// Direct peer reads (FS-06.R39, FS-17.R22).
+	CodeAgentNotFound         = "agent_not_found"
+	CodeTranscriptUnavailable = "transcript_unavailable"
+	CodePeerBusy              = "peer_control_busy"
 )
 
 // Error is a typed context outcome. Message is product-safe: it never carries

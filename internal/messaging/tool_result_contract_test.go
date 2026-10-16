@@ -40,6 +40,14 @@ func TestRefusalRetryClasses(t *testing.T) {
 	for _, code := range []string{"assignment_unknown", "stale_assignment", "validation_failed"} {
 		emitted[code] = true
 	}
+	// contextToolError forwards every code the context service declares.
+	contextCodes, err := os.ReadFile(filepath.Join("..", "contextref", "errors.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, match := range regexp.MustCompile(`Code\w+\s*=\s*"([^"]+)"`).FindAllSubmatch(contextCodes, -1) {
+		emitted[string(match[1])] = true
+	}
 	for code := range emitted {
 		if _, ok := refusalRetryClasses[code]; !ok {
 			t.Errorf("emitted refusal %q has no retry classification", code)
@@ -142,6 +150,7 @@ func TestRegisteredToolsShareResultContract(t *testing.T) {
 		"read_context_link":           {"context_ref_id": "context_1"},
 		"set_context_link_visibility": {"grant_id": "grant_1", "hidden": true},
 		"revoke_context_grant":        {"grant_id": "grant_1"},
+		"read_agent_transcript":       {"agent_id": "agent_1"},
 		"read_think_tank":             {},
 		"submit_think_tank_turn":      {"turn_token": "ttk_1", "disposition": "reply", "message": "m", "read_receipt": "r"},
 	}

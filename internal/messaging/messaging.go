@@ -210,7 +210,7 @@ func New(store *state.Store, log *slog.Logger) *Server {
 	}, nil)
 	addTool(s, &mcp.Tool{
 		Name:        "list_agents",
-		Description: "List other agents you can message (by address role@project, name, or agent_id). Includes both running agents and stopped agents a message wakes; each entry's `availability` is \"running\" or \"stopped_wakeable\".",
+		Description: "List other agents you can message (by address role@project, name, or agent_id). Includes both running agents and stopped agents a message wakes; each entry's `availability` is \"running\" or \"stopped_wakeable\". With scope \"history\", instead pages every durable agent (running, stopped, archived) across projects, newest first, with its exact agent_id for read_agent_transcript; being listed there does not make an agent messageable.",
 	}, s.handleListAgents)
 	addTool(s, &mcp.Tool{
 		Name:        "send_message",
@@ -284,6 +284,10 @@ func New(store *state.Store, log *slog.Logger) *Server {
 		Name:        "revoke_context_grant",
 		Description: "Withdraw a context share you granted. The reference and any other grant are unaffected.",
 	}, s.handleRevokeContextGrant)
+	addTool(s, &mcp.Tool{
+		Name:        "read_agent_transcript",
+		Description: "Read one bounded page of another Chuck agent's recorded conversation by exact agent_id, across projects and including stopped or archived agents (find ids with list_agents scope \"history\"). The first page fixes the read at the current end of that history; follow next_cursor until complete, and read newer activity later with since_seq set to snapshot_last_seq. Reading never wakes or messages the agent.",
+	}, s.handleReadAgentTranscript)
 	addTool(s, &mcp.Tool{
 		Name:        "read_think_tank",
 		Description: "Read a Think Tank room you belong to: its goal, your role and any remaining turn ceiling, and the attributed discussion in bounded pages. During your turn the default view is what is new for you; follow next_cursor until complete to get your turn_token and read_receipt.",

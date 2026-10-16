@@ -32,10 +32,13 @@ type Caller struct {
 type Service struct {
 	store *state.Store
 	home  string
+	// peerScans admits at most MaxPeerScans direct transcript scans at once
+	// (TS-04.R93, INV §16).
+	peerScans chan struct{}
 }
 
 func New(store *state.Store, home string) *Service {
-	return &Service{store: store, home: home}
+	return &Service{store: store, home: home, peerScans: make(chan struct{}, MaxPeerScans)}
 }
 
 // SourceDescriptor is the intrinsic, content-free description of a reference's

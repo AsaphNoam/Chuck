@@ -99,12 +99,28 @@ func sessionUnknown() (*mcp.CallToolResult, any, error) {
 type listAgentsArgs struct {
 	IncludeSelf bool   `json:"include_self,omitempty" jsonschema:"include the caller in results"`
 	State       string `json:"state,omitempty" jsonschema:"filter by latest status state"`
+	Scope       string `json:"scope,omitempty" jsonschema:"omit for agents you can message; \"history\" lists every durable agent (running, stopped, archived) across projects for read_agent_transcript or stop_agent"`
+	Project     string `json:"project,omitempty" jsonschema:"history scope only: exact project"`
+	Limit       *int   `json:"limit,omitempty" jsonschema:"history scope only: max entries, 1..50 (default 20)"`
+	Cursor      string `json:"cursor,omitempty" jsonschema:"history scope only: next_cursor from a previous call"`
 }
 
 func (s *Server) handleListAgents(_ context.Context, req *mcp.CallToolRequest, in listAgentsArgs) (*mcp.CallToolResult, any, error) {
 	identity, ok := s.caller(req)
 	if !ok {
 		return sessionUnknown()
+	}
+	switch in.Scope {
+	case "history":
+		return s.listAgentHistory(identity, in)
+	case "":
+		if in.Project != "" || in.Limit != nil || in.Cursor != "" {
+			return errResult(map[string]any{"ok": false, "error": "validation",
+				"message": "project, limit and cursor require scope \"history\"."})
+		}
+	default:
+		return errResult(map[string]any{"ok": false, "error": "validation",
+			"message": "scope must be omitted or \"history\"."})
 	}
 	live, err := s.addressableAgents()
 	if err != nil {

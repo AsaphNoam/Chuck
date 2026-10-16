@@ -191,11 +191,24 @@ func truncateToLastNewline(path string) error {
 	if size == 0 {
 		return nil
 	}
+	validLen, err := completeLength(f, size)
+	if err != nil {
+		return fmt.Errorf("transcript: read truncate: %w", err)
+	}
+	if size > validLen {
+		if err := os.Truncate(path, validLen); err != nil {
+			return fmt.Errorf("transcript: truncate: %w", err)
+		}
+	}
+	return nil
+}
 
-	// Scan backward in chunks to find the offset of the last '\n'.
+// completeLength returns the length of the first size bytes of f through its
+// last '\n': the prefix made only of complete records. It is 0 when no newline
+// exists. The torn-tail repair and fixed-prefix readers share it.
+func completeLength(f *os.File, size int64) (int64, error) {
 	const chunk = 64 * 1024
 	buf := make([]byte, chunk)
-	lastNewline := int64(-1)
 	for off := size; off > 0; {
 		readLen := int64(chunk)
 		if off < readLen {
@@ -203,25 +216,14 @@ func truncateToLastNewline(path string) error {
 		}
 		start := off - readLen
 		if _, err := f.ReadAt(buf[:readLen], start); err != nil {
-			return fmt.Errorf("transcript: read truncate: %w", err)
+			return 0, err
 		}
 		for i := int(readLen) - 1; i >= 0; i-- {
 			if buf[i] == '\n' {
-				lastNewline = start + int64(i)
-				break
+				return start + int64(i) + 1, nil
 			}
-		}
-		if lastNewline >= 0 {
-			break
 		}
 		off = start
 	}
-
-	validLen := lastNewline + 1 // 0 when no '\n' found (lastNewline == -1)
-	if size > validLen {
-		if err := os.Truncate(path, validLen); err != nil {
-			return fmt.Errorf("transcript: truncate: %w", err)
-		}
-	}
-	return nil
+	return 0, nil
 }
