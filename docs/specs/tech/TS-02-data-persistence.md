@@ -654,6 +654,40 @@ Old snapshots decode as no bridge. Clone retains the source bridge with its nati
 `session_meta.reset_context` explicitly resets saved usage for fresh native contexts, including
 on transcript replay; a successful native load retains saved usage regardless of an echoed ID.
 
+**R49 (planned) — Peer reads copy no durable source; Stop approvals are process-lifetime state.**
+For FS-06.R39–R44/TS-04.R93–R95, read the existing append-only normalized transcript, using a
+fixed complete-file prefix and sequence boundary carried in the cursor. Allocate no copied
+transcript, context reference, grant, mailbox row, new config field or SQLite approval table.
+Source archive/Stop does not expire a cursor; missing/replaced/truncated prefixes are reported,
+never remapped to a provider-native source. Read results can enter the caller's ordinary recorded
+tool history; this is not a separate source snapshot or retention policy.
+
+Pending host Stop approvals live only in the current runtime's bounded permission registry.
+Normalized `permission_request` gains an optional `origin:"chuck_peer_stop"`; its id and
+server-derived target/requester metadata are persisted for presentation, never as executable
+approval. Existing events without origin retain their meaning. On restart or generation end,
+historical unresolved host prompts are non-actionable and explicitly cancelled through ordinary
+permission reconciliation; no restart sweep executes or replays a stop.
+
+Reuse normalized permission/resolution, tool result and `notice` records for audit, with no second
+journal. Before signaling the target, durably append/sync the user's approval and an attributed
+target notice saying a stop was approved/requested, without claiming completion. Reuse one
+notice-append helper through the owning transcript writer; stopped/terminal paths append only
+under the target lifecycle claim after ensuring there is no competing writer. After execution,
+append the confirmed completion or explicit failure/uncertainty before claiming success to the
+caller. If pre-effect persistence fails, do not stop; if post-effect persistence fails, return
+`peer_stop_failed` with the known/unknown effect and never offer automatic retry. An abrupt exit
+between intent and completion leaves an honest approved request, not a fabricated successful stop.
+
+Peer notices add optional `{peer_stop:{request_id, requester_id, target_id,
+phase:"approved"|"stopped"|"failed"}}` to the existing bounded notice shape. Request ids are
+opaque host ids of at most 128 bytes; ids are exact Chuck identities; title/description retain
+TS-04.R80's 256/2,000-rune bounds. All notice producers validate the optional metadata before
+serialization; provider payloads cannot mint host-origin approval/audit metadata. Deduplicate
+append retries by request id plus phase. Notices retain existing metadata-only search/preview
+classification, replay and retention. A no-op never gets a stopped notice. FS-06.A29–A32 verify
+pre/post-effect storage failure, crash boundaries and truthful replay as well as normal execution.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

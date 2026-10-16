@@ -277,7 +277,8 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   read state or consumes the mail budget. This covers Chuck's normalized history, including whatever
   a terminal agent recorded; it does not import provider-native conversations, hidden provider
   state, raw terminal scrollback, or files linked from a transcript. Existing transcript retention
-  applies; the read creates no saved copy or context-sharing grant.
+  applies; the read creates no separate saved source snapshot or context-sharing grant. The
+  returned content may be recorded in the requester's ordinary tool-result history.
 - **R40 (planned) — Discoverable durable targets.** Agent discovery gains an explicit bounded
   history scope for finding running, stopped and archived identities across projects, with project,
   interface, lifecycle state and stable agent id. Its existing default discovery and mail
@@ -296,12 +297,13 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   requesting permission or changing anything. Self-stop is excluded from this peer action.
 - **R42 (planned) — Approval has one target and one lifetime.** The pending request and its
   result are visible in the requester's conversation and survive browser reload while the server
-  and requesting turn remain live. Deny, configured permission timeout, requesting-turn
-  cancellation, requester stop/switch, or server restart ends the request without stopping its
+  and requesting turn remain live. Before stop admission, Deny, configured permission timeout,
+  requesting-turn cancellation, requester stop/switch, or server restart ends the request without stopping its
   target. Default waiting follows FS-03.R43, with no new deadline. Approval never transfers to a
   later target process or another requester turn; a stale request reports that a fresh request
   is needed. Concurrent or repeated decisions can produce at most one effective stop. Approval is
-  permission to attempt the operation, not a claim that it succeeded.
+  permission to attempt the operation, not a claim that it succeeded. Once admitted, Stop cannot
+  be undone by a later cancellation; its actual result remains visible.
 - **R43 (planned) — Approved Stop is ordinary Stop.** After approval, Chuck applies
   FS-01.R6/R34's process termination, teardown, idempotence and lifecycle conflict rules through
   the ordinary Stop path, with the same task, pipeline and Think Tank effects as operator Stop.
@@ -312,8 +314,11 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 - **R44 (planned) — Attribution and operating guidance.** The requester retains the request,
   human decision and actual result in its ordinary conversation history. An effective stop records
   a notice on the target identifying the requesting agent and that the operator approved it, so
-  live and replayed supervision explain why it stopped. A failed/no-op stop is never recorded as
-  effective. The release-matched operating guidance explains direct peer reads, their broad access,
+  live and replayed supervision explain why it stopped. A refusal/no-op is never recorded as
+  effective; partial effects are reported separately from cleanup or receipt failure. An
+  approved/requested notice is distinct from completion; an interrupted or failed
+  operation reports its known or unknown effect without claiming success or inviting automatic
+  retry. The release-matched operating guidance explains direct peer reads, their broad access,
   the per-request human Stop gate, and Stop versus Cancel and later wake. Shared-reference and
   mail semantics remain independent.
 
@@ -340,7 +345,9 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   teardown, target Stop/Resume/switch and a second decision. Restart with an unanswered request.
   Prove at most one stop, no stop of a later target generation, no replay after restart, explicit
   conflict/failure and no automatic retry. Unknown and self targets change nothing; already-stopped
-  targets are no-ops. *Verify:* server/runtime concurrency tests with controlled lifecycle barriers.
+  targets are no-ops. Inject persistence failure before approval/intent and after termination;
+  verify no pre-intent stop and truthful known/unknown effects without retry after a partial Stop.
+  *Verify:* server/runtime concurrency and failure-injection tests with controlled lifecycle barriers.
 - **A32 (planned)** (R40, R43–R44) — Default discovery/mail compatibility remains unchanged;
   history discovery includes archived targets without making them mail recipients. Approve Stop
   separately for chat, terminal, task, pipeline and Think Tank targets and compare final work/status
@@ -489,11 +496,10 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 
 - **Peer authority design, 2026-10-16.** R39–R44/A28–A32 are planned. The operator confirmed
   cross-project reads including stopped/archived history and requests to stop any peer, with
-  explicit user approval required for Stop. The remaining security decision is whether the gate
-  applies to Chuck's tool within TS-05.R3's existing local-process trust, or whether this feature
-  must also prevent shell/HTTP bypass. No implementation-ready change exists until that boundary
-  and the matching technical design are resolved. On shipping, these requirements extend only
-  R2's three-tool coordination inventory and R3/R22's optional discovery scope; existing mail
+  explicit user approval required for Stop. The operator retained TS-05.R3's local-process trust:
+  approval is enforced on the new Chuck tool, without preventing shell/HTTP bypass. Technical
+  contracts are TS-04.R93–R95, TS-05.R27, TS-02.R49 and TS-03.R71. On shipping, these
+  requirements extend only R2's three-tool coordination inventory and R3/R22's optional discovery scope; existing mail
   defaults and exclusions remain binding.
 
 - **Efficient durable mail extension, 2026-09-12.** R30–R36/A20–A25 are the requested feature

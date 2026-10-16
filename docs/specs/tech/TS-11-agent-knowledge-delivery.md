@@ -319,6 +319,18 @@ purge occurs. Focused FS-18.A16 tests cover both blocks, metadata/reindex legacy
 clone-after-persona-edit and every existing process-composition path, while proving tools,
 permissions, dirs/env and provider instructions are unchanged.
 
+**R23 (planned) — Peer guidance ships with the capability through the existing package.**
+For FS-06.R44, refresh the embedded `operating-chuck` skill and its existing
+`references/coordinate-work.md` / `references/operate-agents.md` when shipping peer inspection
+and Stop. Explain that direct transcript reads cross projects and archives, context-grant
+revocation controls only its reference path, reads do not wake agents, and a peer Stop request
+waits for one explicit operator decision. Distinguish approval from completed Stop, Stop from
+Cancel, later wake and stale-generation refusal; disclose TS-05.R27's retained local-process trust.
+Tool definitions own exact inputs, outputs, paging and refusal mechanics. Retain R1–R4's managed
+publication/discovery and existing awareness behavior; no new skill, persona migration or provider
+integration is added. Extend the producer-derived tool/permission inventories for the new tools,
+while verifying that native tool auto-approval never resolves the host gate (FS-06.A29/A32).
+
 ## 3. Interfaces & data shapes
 
 The new agent-facing delivery contracts are:

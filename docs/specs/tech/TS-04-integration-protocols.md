@@ -1207,6 +1207,95 @@ fall back to the requested mode. A response whose reported mode differs from the
 `ErrSettingIgnored`. Claude 0.59.0's mode option is source-checked; the Codex mode shape and live
 provider receipts remain unverified.
 
+### Peer transcript reads and human-approved Stop
+
+**R93 (planned) — Peer inspection extends the existing MCP authority.** For FS-06.R39–R40,
+register `read_agent_transcript(agent_id, since_seq?, cursor?)` on the same scoped `/mcp` server.
+`agent_id` must be an exact durable Chuck identity, never a name, path or provider session id.
+`since_seq` defaults to zero and is nonnegative; it selects later events and cannot accompany a
+cursor. The first read captures the source's highest complete normalized sequence and complete
+physical file prefix. Return `{agent_id, source, snapshot_last_seq, text, complete, next_cursor?}`;
+`source` contains bounded name/project/interface and running/archived identity metadata. Empty or
+never-recorded history returns empty text and `complete:true`; an unknown identity returns
+`agent_not_found`, and a real I/O failure returns `transcript_unavailable`, never empty success.
+Content is chronological through the fixed prefix; new activity is fetched by a new read, optionally
+using `since_seq:snapshot_last_seq`. No watch, provider call or native-history import is added.
+
+Reuse the context transcript renderer/page writer and `transcript.ProjectEvent`, separating the
+pure range renderer from reference/grant authorization rather than routing the peer read through
+`share_context` or manufacturing a grant. Both read surfaces retain the same semantic rendering,
+child-activity separation and malformed/unknown/oversized-record markers. Page text is at most
+32 KiB, UTF-8 safe; adjacent assistant deltas are emitted incrementally, never accumulated as a
+whole reply. Record decoding keeps the existing 8 MiB bound. Continuation cursors are at most
+1 KiB and carry only version, agent id, fixed sequence/file-prefix bounds and rendered byte offset;
+recheck identity and bounds on every page. Reject malformed, mismatched, impossible, past-end or
+mid-rune positions with `invalid_cursor`. A cursor is a position, not authority, and remains usable
+after restart while its append-only source prefix exists. No server-side snapshot cache is needed.
+Each scan checks request cancellation; admit at most eight peer transcript scans server-wide,
+refusing excess with `peer_control_busy` instead of queuing unbounded work.
+
+Extend `list_agents` with optional `scope:"history"`, exact `project`, `limit` (default 20,
+1..50) and opaque cursor (at most 1 KiB). History scope queries durable identities with bounded
+SQL/keyset pagination by creation time descending then agent id, including archived projects and
+agents; bind the cursor to caller and filters and check `rows.Err()`. Keep existing `include_self`
+and exact `state` filtering. Return bounded identity/lifecycle metadata and `next_cursor` when
+needed; never transcript content or credentials. Omitted scope preserves the existing addressable
+directory and output semantics; history-only paging arguments without history scope are invalid.
+Neither directory changes mail resolution or wake eligibility. Reads/discovery do not consume the
+mail budget. FS-06.A28/A32 and FS-15.A8 verify these boundaries.
+
+**R94 (planned) — Peer Stop is withheld by a host-owned permission.** Register
+`stop_agent(agent_id, reason)` on the same MCP authority. Require exact target id and a nonblank
+reason of at most 1,000 runes. Bind requester id/generation/current turn from the live session;
+reject self and unknown targets before creating a prompt. Resolve target execution identity from
+the registry and durable running row (generation, PID/start identity for an orphan), never from
+arguments. A genuinely stopped target returns `already_stopped` without a prompt; a missing runtime
+handle alone is not proof that it is stopped. Conflicting or unverifiable execution state refuses
+without killing anything.
+
+Extend the existing runtime pending-permission mechanism with a host-decision waiter, rather than
+adding another approval inbox, MCP elicitation dependency or fake ACP request. Mint an opaque
+host request id distinct from adapter tool-call ids. Emit ordinary `permission_request` with
+`origin:"chuck_peer_stop"`, `auto_approved:false`, bounded server-derived requester/target identity
+and the attributed reason. Its options are only `allow_once` and `reject_once`, labelled
+Approve once and Deny. Set the requester to `waiting_input`; the MCP handler awaits that decision
+without holding runtime, registry, lifecycle or quota locks. Admit one outstanding peer Stop per
+requester and at most 32 server-wide; excess returns `peer_control_busy`. Retain its admission slot
+through any stop execution, releasing it on completion, denial, request cancellation, turn end or
+generation teardown. Reuse the optional permission deadline and default-off timer.
+
+The existing `/permission` endpoint and `takePending` single-winner path resolve the host waiter;
+ordinary ACP option/response handling stays separate. Persist/publish the resolution and requester
+status before releasing the waiter. Provider `allow_once`, `allow_always`, native bypass mode,
+Chuck's registered-tool exemption and skip-permissions can at most admit the MCP invocation;
+none resolves this host record. MCP input has no approval, approver or target-generation field.
+Only the existing operator decision path can select approve. A browser reload retains a live
+pending record; server restart restores no waiter or executable approval. Replay folds unresolved
+host requests from an ended generation to cancelled before offering controls. FS-06.A29–A31 are
+the acceptance authority, including a real Claude/Codex manual receipt of the host gate.
+
+**R95 (planned) — Approved Stop reuses lifecycle admission and reports effects honestly.**
+At stop admission, atomically claim the approved request once and verify that the requester still
+has the captured generation/turn. Serialize that admission against pending-request cancellation;
+the winner determines whether Stop may proceed. Do not hold lifecycle claims while awaiting a
+human. Acquire the ordinary target quota/lifecycle claims, recheck captured target execution
+identity under those claims, then call the same `stopAgentClaimed` path as operator Stop.
+Never implement a separate process kill or cleanup path. A target that stopped meanwhile is an
+idempotent no-op; a replacement generation invalidates approval even under the same agent id.
+A lifecycle conflict refuses rather than waiting to stop a later process. Once Stop is admitted,
+later cancellation cannot undo an effect already in progress. The target's ordinary task,
+pipeline, room, quota and registration behavior stays authoritative.
+
+Return `{ok:true, agent_id, request_id?, outcome:"stopped"|"already_stopped"}` only for those
+confirmed outcomes. Denial, timeout or cancellation uses `peer_stop_denied`/`peer_stop_cancelled`;
+stale approval uses `peer_stop_stale`; execution or audit failure uses `peer_stop_failed` with
+`effect:"unchanged"|"stopped"|"unknown"`. Never describe a partial Stop as no effect or return a
+generic retryable error after process termination. Host audit records, described by TS-02.R49,
+retain the decision separately from execution success; a lost MCP response cannot authorize a
+new generation or replay a stop. All results follow FS-17, including text/structured parity and
+its planned refusal classes. No automatic retry, resume, group control or new public Stop route
+is added. FS-06.A30–A32 cover execution, uncertainty, managed-work parity and lifecycle races.
+
 ## 3. Interfaces & data shapes
 
 - ACP: JSON-RPC messages over newline-delimited child stdin/stdout; adapter determines exact

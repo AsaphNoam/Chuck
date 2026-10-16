@@ -166,6 +166,19 @@ remain supported.
   catalog/contract fixture for the added tools rather than preserving a literal fifteen-tool count.
   This adds room actions through released MCP; R20's paused migration stays separate.
 
+- **R22 (planned) — Peer operations keep the shared result contract.** FS-06.R39–R44's
+  tools and optional history discovery use R1–R8's text/structured parity and existing validation
+  and cursor outcomes. Extend R3's classifier with `agent_not_found` as `after_change`,
+  `transcript_unavailable` and `peer_control_busy` as `transient`, and `peer_stop_denied`,
+  `peer_stop_cancelled`, `peer_stop_stale` and `peer_stop_failed` as `never`. A terminal approval
+  refusal/failure does not invite an automatic retry; another desired Stop requires a fresh
+  explicit operator decision. `peer_stop_failed` reports the known effect independently of its
+  error, including `unknown` when termination or its receipt cannot be confirmed. For these peer
+  operations, R4's non-disclosure boundary is the caller's authorized peer scope under
+  TS-05.R27, rather than pre-existing task/context participation; unrelated work ids stay hidden.
+  No polling guidance, retry timer or automatic approval is added. The paused direct-action
+  migration remains separate and, if it later ships, must preserve these domain contracts.
+
 ## 3. States & transitions
 
 None. `retry` is derived per call from the refusal reason and is never persisted, replayed, or
@@ -193,6 +206,14 @@ counted. No row, migration, notification, activation, transcript event, or SSE p
 ## 5. Acceptance criteria
 
 Each names the verification that demonstrates it.
+
+- **A13 (planned)** (R22) — Invoke the actual registered peer tools and history discovery,
+  asserting matching text/structured success and refusal results, exact classes for every new
+  producer code and truthful partial/unknown Stop effects. Control/discovery results and
+  diagnostics disclose neither transport credentials nor unrelated work metadata; explicitly read
+  source text retains TS-05.R27's authorized transcript-content boundary.
+  The independent producer-derived registry includes the added tools and host permission origin.
+  *Verify:* messaging contract tests and FS-06.A28–A32's host/lifecycle tests.
 
 - **A1** (R1–R3, R5) — The classifier table maps every code in R3 to its declared class; a
   source-derived guard rejects unclassified handler refusal literals, and a real call to every

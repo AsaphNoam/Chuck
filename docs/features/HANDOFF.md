@@ -210,6 +210,17 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-16 — Peer transcript/Stop design ready:** the operator retained existing local-process
+  trust. [`peer-transcripts-and-approved-stop.md`](../ready-changes/peer-transcripts-and-approved-stop.md)
+  is Waiting to start: FS-06.R39–R44/A28–A32, FS-03.R91, FS-15.R18/A8, FS-17.R22/A13;
+  TS-04.R93–R95, TS-05.R27, TS-02.R49, TS-03.R71 and TS-11.R23. Direct reads use shared bounded
+  transcript rendering; Stop uses a host-owned, once-only human decision independent of provider
+  auto-approval, bound to requester turn/generation and target execution, through existing Stop
+  lifecycle claims. Audit distinguishes approval from actual/uncertain effect; pending approvals
+  never replay after restart. All new requirements remain planned. Selected idea portion promoted;
+  peer Resume/launch remains separate. No product code changed and no active change was selected.
+  Documentation closure: spec checks, launcher/twin-skill contract and whitespace checks pass.
+
 - **2026-10-16 — Peer authority scope confirmed:** direct transcript reads across projects,
   including stopped/archived history, and Stop requests for any peer. The operator requires
   explicit user approval for every effective peer Stop. Draft feature requirements are

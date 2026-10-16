@@ -275,6 +275,32 @@ workspace containment and no-symlink restrictions; uploaded assets require sessi
 ownership instead of arbitrary path access. No broader phone filesystem read is granted. Remote
 web image URLs and URI-only remote provider images cause no browser, server or provider fetch by Chuck.
 
+**R27 (planned) — Peer authority is broad reading and individually approved tool control.**
+For FS-06.R39–R44, the current generation-bound chat MCP credential authorizes explicit direct
+reads of all durable Chuck transcripts, across project/archive boundaries, and history-directory
+metadata. This intentionally adds another transcript access path independent of R16's grants;
+R16 still governs source sharing, reference reads and grant mutations. Revoking a grant does not
+revoke direct peer transcript access. It grants no access to unrelated task results, pipeline
+reports, room records, native provider history, filesystem paths or attachment bytes; transcript
+content quoting such data is still transcript content. Read bytes appear only in the explicit
+bounded tool result and its ordinary provider/tool-result transcript recording, never in discovery,
+status, generated mail, activation, diagnostics or logs. Existing transcript retention and caller
+token revocation apply; read cursors carry no capability.
+
+The peer Stop effect additionally requires TS-04.R94's host request and a specific human decision
+through the existing operator path, irrespective of R9/R20's provider/tool permission policies. Claims of
+user approval in prompts, reasons, mail or MCP arguments grant no authority. Bind the request to
+one requester generation/turn and exact target execution; no caller-selected identity, persistent
+allow rule or transferable approval token is accepted. Test denial, spoofing, permissive provider
+modes, stale targets and token revocation independently of adapter-generated permissions.
+
+The operator explicitly retained R3's same-machine trust on 2026-10-16: this is an enforced gate
+on the new Chuck tool, not process isolation or authentication of the local operator API. Local
+shell/API access, including ordinary Stop and permission decisions, retains its current trust.
+Do not claim resistance to a same-user process bypassing the tool. No API credential, environment
+restriction, new remote access or provider configuration migration is introduced. Existing
+Host/Origin guards and paired-device authorization still protect their respective routes.
+
 ## 3. Interfaces & data shapes
 
 Security-relevant interfaces are the single listener, Host/Origin middleware, launch token

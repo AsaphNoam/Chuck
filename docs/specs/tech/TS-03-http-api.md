@@ -982,6 +982,24 @@ agent. A missing `mode` is 422 `validation`; an unoffered mode or a provider ref
 are 404. Nothing is persisted. Both routes are loopback-only (phone-denied) and reachable from the
 CLI as `chuck agent modes` / `chuck agent mode --mode` (FS-22.R8).
 
+**R71 (planned) — Host peer-Stop approval reuses the operator permission route.** For
+FS-03.R91/TS-04.R94, keep `POST /api/sessions/{id}/permission` and its
+`{tool_call_id, decision:"approve"|"deny"}` body. Dispatch host ids through the same runtime
+permission authority, never through an MCP input or an ACP permission response. The route
+acknowledges the decision, not completion of the stop; the subsequent host audit/tool result is
+the execution receipt. Existing duplicate/unknown request status codes remain unchanged. A
+historical host id from an ended generation is not pending and cannot become actionable after
+restart. Ordinary agent Stop, Cancel, Resume and local API authentication remain unchanged.
+
+Add only TS-02.R49's optional permission origin and peer-notice metadata to current Go/TypeScript
+event schemas, live reducers, transcript-window pending projection and replay. Desktop and phone
+permission presenters show the bounded server-derived identities, reason and Stop consequences,
+with Approve once/Deny for the host origin; ordinary provider permission labels remain unchanged.
+Disable repeated submission while a decision is pending and surface failed/expired decisions
+without displaying success. The existing operator CLI permission command works with the same
+host id. The paired-phone permission route retains its current allowlist/device guard; no new
+remote route is introduced. FS-06.A30–A31 cover reload/restart, pending and failed decisions.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

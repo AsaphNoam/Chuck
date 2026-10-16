@@ -66,19 +66,11 @@ the relevant feature and technical specifications; it does not change product co
   running session can change policy safely, and how this relates to frozen role/global
   `skip_permissions` and per-request Approve/Deny.
 - **Broader agent authority.** Agents can already create, list, read, retry and re-arm their own
-  tasks (TS-10.R34). The operator selected **peer transcript reading and stopping** for
-  `/design-feature` on 2026-10-16: expose transcript reads already familiar from Codex/Claude
-  within Chuck, and let an agent stop another agent. Confirmed scope: direct reads across all
-  projects including stopped/archived histories; any peer may be a Stop target, including terminal
-  and managed-work agents, but every effective Stop requires explicit user approval. Planned
-  behavior and acceptance: FS-06.R39–R44/A28–A32, FS-03.R91, FS-15.R18/A8. The host gate must
-  not accept provider auto-approval, skip-permissions or an agent's claim of approval. Awaiting the
-  security boundary decision: retain TS-05.R3's local-process trust and gate the new tool, or also
-  prevent a local shell/HTTP bypass (broader authentication/isolation work). No ready change or
-  product code yet; Stop technical design waits on that decision.
-  Resuming or launching another agent without going through a task remains separate, as does
-  creating several related tasks as one unit, which TS-10 §5 excludes (multiple arms already
-  provide fan-in/join).
+  tasks (TS-10.R34). Resuming or launching another agent without going through a task remains
+  undefined and needs its own authority design, as does creating several related tasks as one
+  unit, which TS-10 §5 excludes (multiple arms already provide fan-in/join). The selected peer
+  transcript-reading and human-approved Stop portion was promoted on 2026-10-16 to
+  [`peer-transcripts-and-approved-stop.md`](ready-changes/peer-transcripts-and-approved-stop.md).
 - **Detached configuration import.** Define verified copyable fields/assets and provider injection
   paths before implementing detached import. The API still returns 501; FS-08.R35 removed the
   unavailable UI controls.

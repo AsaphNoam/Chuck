@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`peer-transcripts-and-approved-stop.md`](peer-transcripts-and-approved-stop.md) — direct
+  transcript reads across Chuck projects/archives and peer Stop gated by one explicit human
+  approval; retain current local-process trust and ordinary lifecycle behavior.
+
 - [`full-operator-cli-parity.md`](full-operator-cli-parity.md) — full nonvisual web operations
   through composable CLI commands; preserve existing syntax and server-owned semantics, with
   explicit consent, script output and reconnect-safe transcript follow.

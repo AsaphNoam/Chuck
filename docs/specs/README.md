@@ -55,10 +55,10 @@ operates on all of this is [`AGENT-WORKFLOW.md`](../features/AGENT-WORKFLOW.md).
 | ID | Spec | Status | Covers |
 |----|------|--------|--------|
 | TS-01 | [tech/TS-01-architecture.md](tech/TS-01-architecture.md) | Partial | Process model, package boundaries, runtime abstraction, source-of-truth rules, planned direct action gateway |
-| TS-02 | [tech/TS-02-data-persistence.md](tech/TS-02-data-persistence.md) | Partial | SQLite schema & migrations, activations, context references/grants, config files, transcripts, FTS index and attachment receipts |
-| TS-03 | [tech/TS-03-http-api.md](tech/TS-03-http-api.md) | Partial | REST surface, error envelope, SSE contract, status codes, attachment delivery and private action transport |
-| TS-04 | [tech/TS-04-integration-protocols.md](tech/TS-04-integration-protocols.md) | Partial | ACP, negotiated image input, attachment delivery, hooks, MCP messaging, PTY/WebSocket and external-CLI tolerance |
-| TS-05 | [tech/TS-05-security.md](tech/TS-05-security.md) | Partial | Loopback boundary, tokens, context authorization, attachment ownership and local-image reads |
+| TS-02 | [tech/TS-02-data-persistence.md](tech/TS-02-data-persistence.md) | Partial | SQLite schema, activations, context grants, transcripts, FTS and attachments; planned peer approval lifetime/audit |
+| TS-03 | [tech/TS-03-http-api.md](tech/TS-03-http-api.md) | Partial | REST, SSE, errors, attachments and private actions; planned host peer-Stop permission decisions |
+| TS-04 | [tech/TS-04-integration-protocols.md](tech/TS-04-integration-protocols.md) | Partial | ACP, images, hooks, MCP, PTY/WebSocket and CLI tolerance; planned peer reads and host-gated Stop |
+| TS-05 | [tech/TS-05-security.md](tech/TS-05-security.md) | Partial | Loopback/tokens, context authorization, attachments and images; planned broad peer reads and human-approved tool control |
 | TS-06 | [tech/TS-06-build-test.md](tech/TS-06-build-test.md) | Partial | Build tags, release runtime, action-client packaging, install, test strategy & conventions |
 | TS-07 | [tech/TS-07-federation.md](tech/TS-07-federation.md) | Partial | Native configuration authority, resolvers, consent, freshness, redaction, launch freezing |
 | TS-08 | [tech/TS-08-frontend-presentation.md](tech/TS-08-frontend-presentation.md) | Current | Presentation contracts, built-in skins, shared layout/control polish, turn activity, mobile companion overhaul and attachment drafts/thumbnails/image modal |
