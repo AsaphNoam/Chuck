@@ -13,10 +13,12 @@ type StoredDrafts = Record<string, Draft>;
 // request cannot outlive a page reload, so a fresh process starting at zero is
 // correct.
 const revisions: Record<string, number> = {};
-const listeners = new Map<string, Set<() => void>>();
+const listeners = new Map<string, Set<(text: string) => void>>();
 
-export function subscribeChatDraft(agentId: string, listener: () => void) {
-  const subscribers = listeners.get(agentId) ?? new Set<() => void>();
+// Listeners hear drafts written outside their own composer: a clear after send,
+// or a withdrawn held message coming back (FS-03.R90).
+export function subscribeChatDraft(agentId: string, listener: (text: string) => void) {
+  const subscribers = listeners.get(agentId) ?? new Set<(text: string) => void>();
   subscribers.add(listener);
   listeners.set(agentId, subscribers);
   return () => {
@@ -25,8 +27,8 @@ export function subscribeChatDraft(agentId: string, listener: () => void) {
   };
 }
 
-function notifyDraftCleared(agentId: string) {
-  listeners.get(agentId)?.forEach((listener) => listener());
+function notifyDraft(agentId: string, text: string) {
+  listeners.get(agentId)?.forEach((listener) => listener(text));
 }
 
 export function chatDraftRevision(agentId: string): number {
@@ -70,7 +72,16 @@ export function discardChatDraft(agentId: string) {
   delete drafts[agentId];
   bumpChatDraftRevision(agentId);
   writeDrafts(drafts);
-  notifyDraftCleared(agentId);
+  notifyDraft(agentId, "");
+}
+
+// A withdrawn held message returns as the person's own text. Anything typed
+// since stays after it, so neither is lost (FS-03.R90).
+export function restoreChatDraft(agentId: string, text: string) {
+  const current = getChatDraft(agentId);
+  const next = current ? `${text}\n\n${current}` : text;
+  setChatDraft(agentId, next);
+  notifyDraft(agentId, next);
 }
 
 

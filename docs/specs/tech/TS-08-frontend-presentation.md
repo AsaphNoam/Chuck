@@ -566,7 +566,8 @@ primitive seam; the rejected alternatives are recorded in §5.
   person believing the agent has already seen it — and it carries its own withdraw affordance
   (INV §8). Release on stop reuses the existing per-agent draft store rather than a second text
   store, and applies R36's newer-draft rule: write the released text only into an empty composer for
-  that agent, never over text typed since (INV §2).
+  that agent, never over text typed since (INV §2). Withdrawal (FS-03.R90) writes through the same
+  draft store, which notifies every open composer for that agent of the new text.
 
 ### 2.9 File viewer beside the transcript
 

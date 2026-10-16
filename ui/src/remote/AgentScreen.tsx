@@ -45,7 +45,7 @@ import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
 import { recallPlace, rememberPlace } from "./scrollMemory";
-import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
+import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, restoreChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
 import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
@@ -299,7 +299,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     return () => { current = false; };
   }, [agentId]);
 
-  useEffect(() => subscribeChatDraft(agentId, () => setText("")), [agentId]);
+  useEffect(() => subscribeChatDraft(agentId, setText), [agentId]);
   useEffect(() => subscribeAttachmentDraft(agentId, setAttachments), [agentId]);
 
   const saveAttachments = (next: DraftAttachment[]) => {
@@ -746,7 +746,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
                     Send now
                   </button>
                 )}
-                <button type="button" disabled={offline || busy} onClick={() => void act(() => withdrawPrompt(agentId))}>
+                <button type="button" disabled={offline || busy} onClick={() => void act(() => withdrawPrompt(agentId), false, () => { if (heldText && heldAttachments.length === 0) restoreChatDraft(agentId, heldText); })}>
                   Withdraw
                 </button>
               </div>

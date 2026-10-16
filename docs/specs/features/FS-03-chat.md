@@ -125,6 +125,12 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   message and Withdraw remain available and a later stop can still release it to the composer.
   R84's implemented attachment-bearing exception retains an explicitly recoverable released copy;
   it never turns restart into automatic delivery or replaces a newer composer draft.
+- **R90 (implemented 2026-10-16) — Withdraw returns the message for editing.** Withdrawing a
+  text-only held message — from the desktop composer, the transcript's pending tail, or the phone —
+  writes its text back into that agent's composer draft. An empty composer receives it unchanged;
+  text typed since is kept after the withdrawn text and a blank line, so neither is lost. An
+  attachment-bearing hold keeps R84's recovery offer instead, shown as soon as the withdrawal
+  succeeds. A failed withdrawal changes no draft.
 
 - **R50.** **Steer the turn that is running.** Beside Send, a chat agent
   whose runtime advertises steering offers **Steer**, which delivers the message into the in-flight
@@ -1236,6 +1242,13 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   **Resume**; a silent mid-turn crash records detail `process exited`.
   *Verify:* `ChatPanel.test.tsx` ("distinguishes a chat agent stopped on error…", "surfaces a
   rejected Resume"), `permission_test.go` `TestCrashMidTurn`; J11.
+- **A70 (implemented 2026-10-16)** (R90) — Withdrawing a held text message from the desktop
+  composer, the pending tail, or the phone leaves its text in the composer; with text already
+  typed, both remain, withdrawn text first. A rejected withdrawal leaves the composer unchanged.
+  An attachment-bearing withdrawal shows the recovery offer instead.
+  *Verify:* `Composer.test.tsx` ("withdraws the held message…", "puts the withdrawn text ahead…",
+  "turns a withdrawn attachment hold…", "leaves the composer unchanged…"), `AgentScreen.test.tsx`
+  ("withdraw returns the held text…").
 
 ## 6. Deviations & open decisions
 

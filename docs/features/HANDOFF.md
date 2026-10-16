@@ -6,6 +6,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Finished — withdraw returns the held message (2026-10-16):** FS-03.R90/A70. Withdraw from
+  the desktop composer, the pending tail, or the phone writes a text-only held message back into
+  that agent's draft (`restoreChatDraft` in `ui/src/components/chat/drafts.ts`; withdrawn text
+  first, then any draft typed since). Attachment holds refresh R84's recovery offer instead.
+  Review note: the join-with-blank-line rule for a non-empty composer is a reversible local choice.
+  All 885 UI tests, UI build and the serial Go matrix (`make test`, both variants) pass. Embedded
+  `dist` was not refreshed; no rendered check (no visual change).
+
 - **Finished — Think Tank setup upgrade (2026-10-15):** goal attachments, judge synthesis
   instructions, model/effort display, Add new agent placement and Core selection highlight in every
   skin. Review 2026-10-16's four findings are closed: startup recovery resolves committed room
@@ -150,6 +158,8 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-16 — Withdraw returns the held message (FS-03.R90/A70):** desktop and phone Withdraw
+  now put a text-only held message back in the composer; attachment holds show the recovery offer.
 - **2026-10-16 — Think Tank setup review fixes (INV §7/§8/§10/§15):** startup recovery now
   resolves committed room attachments by command identity while pruning unknown provisional blobs;
   long names remain bounded in setup chips, setup actions use ordinary buttons, and the operator

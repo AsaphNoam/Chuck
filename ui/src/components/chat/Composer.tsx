@@ -93,7 +93,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
 
-  useEffect(() => subscribeChatDraft(agentId, () => setText("")), [agentId]);
+  useEffect(() => subscribeChatDraft(agentId, setText), [agentId]);
   useEffect(() => subscribeAttachmentDraft(agentId, setFiles), [agentId]);
 
   const saveFiles = (next: DraftAttachment[]) => {

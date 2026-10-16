@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw";
 import { Composer } from "./Composer";
 import { getChatDraft } from "./drafts";
 import { useHeldStore } from "../../store/heldStore";
+import type { AttachmentDescriptor } from "../../api/types";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { clearAttachmentDraftCacheForTests } from "./attachments";
 
@@ -529,6 +530,59 @@ describe("Composer queued follow-up and steering", () => {
     fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
     await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBeUndefined());
     expect(withdrawn).toBe(1);
+    // FS-03.A70 — the withdrawn text comes back for editing.
+    await waitFor(() => expect(ta.value).toBe("never mind"));
+  });
+
+  it("puts the withdrawn text ahead of a draft typed since", async () => {
+    server.use(
+      http.post("/api/sessions/:id/prompt", () =>
+        HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held" }, { status: 202 })),
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1" })),
+    );
+    render(<Composer agentId="a_1" busy />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "first thought");
+    fireEvent.keyDown(ta, { key: "Enter" });
+    await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBe("first thought"));
+    type(ta, "second thought");
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
+    await waitFor(() => expect(ta.value).toBe("first thought\n\nsecond thought"));
+  });
+
+  it("turns a withdrawn attachment hold into the recovery offer instead of a draft", async () => {
+    const attachment: AttachmentDescriptor = { id: "att_1", name: "shot.png", kind: "image", mime_type: "image/png", size: 4, sha256: "abcd" };
+    const recovery = { text: "see image", request_id: "req_1", attachments: [attachment] };
+    server.use(
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1" })),
+      http.get("/api/sessions/:id/prompt", () => HttpResponse.json({ agent_id: "a_1", text: "", after_seq: 0, recovery })),
+    );
+    useHeldStore.getState().hold("a_1", "see image", 0, [attachment]);
+    render(<Composer agentId="a_1" busy />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
+    await waitFor(() => expect(useHeldStore.getState().recoveryByAgent.a_1).toEqual(recovery));
+    expect(ta.value).toBe("");
+  });
+
+  it("leaves the composer unchanged when the withdrawal is refused", async () => {
+    server.use(
+      http.post("/api/sessions/:id/prompt", () =>
+        HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held" }, { status: 202 })),
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ error: "gone" }, { status: 409 })),
+    );
+    render(<Composer agentId="a_1" busy />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "keep queued");
+    fireEvent.keyDown(ta, { key: "Enter" });
+    await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBe("keep queued"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
+    expect(await screen.findByText(/Could not withdraw/)).toBeInTheDocument();
+    expect(ta.value).toBe("");
+    expect(useHeldStore.getState().byAgent.a_1).toBe("keep queued");
   });
 
   it("offers Steer only where the live session advertises it", () => {
