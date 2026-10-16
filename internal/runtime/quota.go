@@ -1,6 +1,34 @@
 package runtime
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+	"time"
+)
+
+// promptErrorText is the bounded reset-evidence text of a session/prompt RPC
+// error: its message and a string data.message (legacy non-AIR carriers).
+func promptErrorText(err error) string {
+	var rpcErr *rpcError
+	if !errors.As(err, &rpcErr) {
+		return ""
+	}
+	text := boundRunes(rpcErr.Message, maxSessionFailureText)
+	var data struct {
+		Message string `json:"message"`
+	}
+	if len(rpcErr.Data) <= maxSessionFailureBytes && json.Unmarshal(rpcErr.Data, &data) == nil && data.Message != "" {
+		text += "\n" + boundRunes(data.Message, maxSessionFailureText)
+	}
+	return text
+}
+
+func boundRunes(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n])
+	}
+	return s
+}
 
 // SetQuotaSettlement commits quota state before owner settlement and successor
 // admission. The server resolves ownership; the runtime owns the exact turn.
@@ -32,7 +60,7 @@ func (r *Registry) SetQuotaManualBind(fn func(string, string, string) error) {
 
 // completePromptTurn is shared by user prompts and every owned activation.
 // Streaming failure metadata becomes terminal evidence only at completion.
-func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey string, result json.RawMessage) {
+func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey string, result json.RawMessage, promptErr error) {
 	as.mu.Lock()
 	current := !as.stopped && as.turnActive && as.execTurnID == turnID
 	as.mu.Unlock()
@@ -51,6 +79,9 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 		(as.turnFailure == nil ||
 			resultFailure.ID == as.turnFailure.ID && resultFailure.Revision >= as.turnFailure.Revision ||
 			resultFailure.ID != as.turnFailure.ID && resultFailure.Quota && !as.turnFailure.Quota) {
+		if as.turnFailure != nil && as.turnFailure.ID == resultFailure.ID && as.turnFailure.Revision == resultFailure.Revision {
+			resultFailure.ObservedAt = as.turnFailure.ObservedAt // first frame of this revision
+		}
 		as.turnFailure = &resultFailure
 		as.turnQuota = nil
 		if resultFailure.Quota {
@@ -72,6 +103,15 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 		td.Quota = nil
 	}
 	if td.Quota != nil {
+		text, observed := promptErrorText(promptErr), time.Now().UTC()
+		if as.turnFailure != nil {
+			text, observed = as.turnFailure.Text+"\n"+text, as.turnFailure.ObservedAt
+		}
+		backendType := ""
+		if as.adapter != nil {
+			backendType = as.adapter.Type()
+		}
+		td.Quota.ResetAt, td.Quota.Intervention = resolveQuotaReset(backendType, text, as.turnRateLimitReset, observed, as.processZone)
 		td.StopReason = "error"
 		as.quotaBlocked = true
 		as.quotaBlockedGeneration = as.generation

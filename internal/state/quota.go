@@ -14,6 +14,10 @@ import (
 const MaxQuotaOwnerBytes = 1024
 const MaxQuotaDueBatch = 8
 
+// QuotaResetBuffer separates a provider reset from its continuation so a retry
+// never lands inside the rounded reset minute (FS-01.R48, TS-10.R45).
+const QuotaResetBuffer = 60 * time.Second
+
 const (
 	QuotaDisabled       = "disabled"
 	QuotaUnknownReset   = "unknown_reset"
@@ -179,7 +183,7 @@ func observeQuotaTx(tx *sql.Tx, in QuotaObservation) (QuotaIntent, error) {
 	if in.State == QuotaScheduled && (in.ResetAt == nil || in.DueAt == nil) {
 		return QuotaIntent{}, ErrQuotaConflict
 	}
-	if in.State == QuotaScheduled && (!in.ResetAt.After(in.ObservedAt) || in.DueAt.Before(*in.ResetAt)) {
+	if in.State == QuotaScheduled && (!in.ResetAt.After(in.ObservedAt) || in.DueAt.Before(in.ResetAt.Add(QuotaResetBuffer))) {
 		return QuotaIntent{}, ErrQuotaConflict
 	}
 	if in.State != QuotaScheduled && in.DueAt != nil {

@@ -75,7 +75,7 @@ func TestGroupBrowserFixture(t *testing.T) {
 		q, err := s.stateStore.ObserveQuota(state.QuotaObservation{
 			AgentID: quotaAgent, EpisodeID: "browser-known-reset", SourceGeneration: generation,
 			ExecutingTurn: "browser-interrupted-turn", Owner: state.QuotaOwner{Kind: "ordinary"},
-			ObservedAt: reset.Add(-time.Minute), ResetAt: &reset, DueAt: &reset, State: state.QuotaScheduled,
+			ObservedAt: reset.Add(-2 * time.Minute), ResetAt: quotaResetFor(reset), DueAt: &reset, State: state.QuotaScheduled,
 		})
 		if err != nil {
 			t.Fatal(err)

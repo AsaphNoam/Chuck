@@ -238,6 +238,8 @@ type agentState struct {
 	execTurnID             string
 	turnQuota              *QuotaEvidence
 	turnFailure            *SessionFailureRecord
+	turnRateLimitReset     *time.Time     // latest applicable rejected Claude window this turn
+	processZone            *time.Location // effective provider process timezone; nil when unknown
 	quotaBlocked           bool
 	quotaBlockedGeneration string
 	quotaBlockedTurnID     string
@@ -379,6 +381,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		pending:          map[string]*pendingPerm{},
 		resolved:         map[string]struct{}{},
 		adapter:          ad,
+		processZone:      processZone(cmd.Env),
 	}
 	as.transport = NewTransport(stdin,
 		func(method string, params json.RawMessage) { c.onNotification(as, method, params) },
@@ -990,10 +993,10 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 			}
 			c.clearInlineMail(as.agentID, deliveryKey)
 			c.emit(as, EvError, ErrorData{Scope: "protocol", Message: promptFailureMessage(as, err), Fatal: false})
-			c.completePromptTurn(as, turnID, deliveryKey, json.RawMessage(`{"stopReason":"error"}`))
+			c.completePromptTurn(as, turnID, deliveryKey, json.RawMessage(`{"stopReason":"error"}`), err)
 			return
 		}
-		c.completePromptTurn(as, turnID, deliveryKey, res)
+		c.completePromptTurn(as, turnID, deliveryKey, res, nil)
 	}()
 
 	return nil
@@ -1164,6 +1167,7 @@ func (as *agentState) setExecTurn(turnID string) {
 	as.execTurnID = turnID
 	as.turnQuota = nil
 	as.turnFailure = nil
+	as.turnRateLimitReset = nil
 	as.mu.Unlock()
 }
 
@@ -1398,6 +1402,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		resolved:         map[string]struct{}{},
 		context:          contextReading{pct: spec.LastContextPct, counts: spec.LastContext},
 		adapter:          ad,
+		processZone:      processZone(cmd.Env),
 		// The notification callback is installed before session/load runs, so the
 		// replay gate has to be closed from construction — a provider that starts
 		// replaying immediately must not race an assignment made later.
@@ -1690,10 +1695,10 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 			}
 			c.clearInlineMail(as.agentID, deliveryKey)
 			c.emit(as, EvError, ErrorData{Scope: "protocol", Message: promptFailureMessage(as, err), Fatal: false})
-			c.completePromptTurn(as, turnID, deliveryKey, json.RawMessage(`{"stopReason":"error"}`))
+			c.completePromptTurn(as, turnID, deliveryKey, json.RawMessage(`{"stopReason":"error"}`), err)
 			return
 		}
-		c.completePromptTurn(as, turnID, deliveryKey, res)
+		c.completePromptTurn(as, turnID, deliveryKey, res, nil)
 	}()
 	return true, nil
 }
@@ -1841,6 +1846,16 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	// turn's dashboard meter does not go stale waiting for the next
 	// tool/status event or turn_end (TS-04.R25, INV §1).
 	if kind == "usage_update" {
+		// A rejected subscription window is reset evidence for this executing
+		// root turn only; it never classifies quota itself (TS-04.R96).
+		if reset, ok := claudeRateLimitReset(params); ok {
+			as.mu.Lock()
+			if !as.loadReplay && as.turnActive && as.execTurnID != "" &&
+				(as.turnRateLimitReset == nil || reset.After(*as.turnRateLimitReset)) {
+				as.turnRateLimitReset = &reset
+			}
+			as.mu.Unlock()
+		}
 		if reading, ok := decodeContextUsage(params); ok {
 			as.mu.Lock()
 			as.context = reading

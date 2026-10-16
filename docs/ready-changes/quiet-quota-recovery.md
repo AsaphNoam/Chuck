@@ -1,6 +1,6 @@
 # Recover quota-interrupted work without noisy wake-ups
 
-**State:** Waiting to start
+**State:** In progress (2026-10-17; slice plan in the handoff's Active change)
 **Why:** Direct `/design-feature` request on 2026-10-16. The operator confirmed reset extraction
 and bounded recovery, requested checks outside the interrupted conversation, and approved named
 Codex native archive records for isolated probes.
@@ -44,6 +44,31 @@ actual negotiated AIR/RPC carriers, Chuck's discarded text/data, independent Cla
 receipt, different Claude/Codex date rules, lack of a common passive ACP check, Codex archive-only
 deletion and the supported process config override. Reverify profiles on adapter/native updates;
 unsupported versions/isolation remain manual, with no wake-probe fallback in the original chat.
+
+## Implementation progress
+
+1. **Done** — reset evidence (FS-01.R48, TS-04.R96): `internal/runtime/quota_reset.go` parses
+   the pinned Claude `· resets … (Zone)` clause and Codex `try again at …` suffix (process zone
+   from the child env `TZ`, else Chuck's local zone), decodes rejected `_claude/rateLimit` epoch
+   seconds, corroborates text/structured within the displayed minute, and flags
+   credit/spend-cap text without a reset as `QuotaEvidence.Intervention`. RPC prompt errors pass
+   their message/`data.message` too. `settleQuotaTurn` schedules `reset + state.QuotaResetBuffer`
+   (60 s); the state validator requires that buffer. Fixtures follow the pinned formatters
+   (Claude `iu` logic re-run under TZ; Codex `error.rs` 676–836 at rust-v0.159.3).
+2. Next — state (TS-02.R50, TS-10.R45–R46): forward migration adding chain id, `next_action`,
+   `checks_started`, check token/session/cleanup receipts; check scheduling/charging/result
+   APIs; renewed-failure chain retention; migration raises a known due to reset + 60 s.
+3. Runtime isolated check (TS-04.R97): separate adapter process via `spawnCmd`/`startCmd`,
+   `clientCapabilitiesFor(offered)`, `applySessionConfig`; Claude `_meta.claudeCode.options`
+   `persistSession:false, tools:[], strictMcpConfig:true`; Codex `/rename Chuck quota check`
+   then `session/delete`, `CODEX_CONFIG` `mcp_servers.<name>.enabled:false`. Build the server
+   spec like `composeResumeSpecContext` (`internal/server/resume.go`) without
+   `composeResumeSpec`'s MCP/hook registration.
+4. Dispatcher wiring plus restart/cleanup recovery (TS-10.R45–R47).
+5. API/UI (TS-03.R72, FS-04.R59): projection `next_action`/`checks_remaining`, reason codes,
+   banner/Settings copy, the FS-01.R50 notice sentence, CLI decoder.
+
+Owed at closure: full serial Go matrix (`GOFLAGS=-p=1 make test`), tagged build, UI tests/build.
 
 ## Waiting on
 

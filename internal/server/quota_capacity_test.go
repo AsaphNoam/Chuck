@@ -49,7 +49,7 @@ func TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity(t *testing.T) {
 	q, err := s.stateStore.ObserveQuota(state.QuotaObservation{
 		AgentID: quotaAgent, EpisodeID: "known-reset-capacity-fixture", SourceGeneration: quotaGeneration,
 		ExecutingTurn: "interrupted-turn", Owner: state.QuotaOwner{Kind: "task", TaskID: quotaTask.TaskID},
-		ObservedAt: reset.Add(-time.Minute), ResetAt: &reset, DueAt: &reset, State: state.QuotaScheduled,
+		ObservedAt: reset.Add(-2 * time.Minute), ResetAt: quotaResetFor(reset), DueAt: &reset, State: state.QuotaScheduled,
 	})
 	if err != nil {
 		t.Fatal(err)

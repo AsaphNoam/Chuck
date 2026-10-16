@@ -52,14 +52,23 @@ func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *r
 	if err != nil {
 		return err
 	}
+	observed := time.Now().UTC()
 	status := state.QuotaUnknownReset
+	var resetAt, dueAt *time.Time
+	if evidence.ResetAt != nil && evidence.ResetAt.After(observed) {
+		// Continuation waits past the displayed (rounded) reset minute (FS-01.R48).
+		reset, due := evidence.ResetAt.UTC(), evidence.ResetAt.UTC().Add(state.QuotaResetBuffer)
+		resetAt, dueAt = &reset, &due
+		status = state.QuotaScheduled
+	}
 	if !cfg.AutoContinue {
-		status = state.QuotaDisabled
+		status, dueAt = state.QuotaDisabled, nil
 	}
 	sum := sha256.Sum256([]byte(generation + "\x00" + turnID + "\x00" + evidence.FailureID))
 	q, err := s.stateStore.ObserveOwnedQuota(state.QuotaObservation{
 		AgentID: agentID, EpisodeID: "quota_" + hex.EncodeToString(sum[:]),
-		SourceGeneration: generation, ExecutingTurn: turnID, ObservedAt: time.Now().UTC(), State: status,
+		SourceGeneration: generation, ExecutingTurn: turnID, ObservedAt: observed, State: status,
+		ResetAt: resetAt, DueAt: dueAt,
 	})
 	if err != nil {
 		return err

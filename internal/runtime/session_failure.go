@@ -1,6 +1,9 @@
 package runtime
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 const (
 	maxSessionFailureBytes = 16 * 1024
@@ -9,19 +12,25 @@ const (
 )
 
 // QuotaEvidence is the bounded, typed evidence attached to a provider turn end.
-// It deliberately carries no reset time: neither pinned producer gives a
-// verified reset timestamp in this failure surface.
+// ResetAt is a verified applicable reset (TS-04.R96); it and Intervention are
+// server-side recovery inputs, never part of the turn_end wire shape.
 type QuotaEvidence struct {
-	FailureID string `json:"failure_id"`
-	Revision  int64  `json:"revision"`
+	FailureID    string     `json:"failure_id"`
+	Revision     int64      `json:"revision"`
+	ResetAt      *time.Time `json:"-"`
+	Intervention bool       `json:"-"`
 }
 
 // SessionFailureRecord is the safe correlation subset of an AIR failure. A
 // later revision with the same ID can supersede an earlier quota failure.
+// Text is the bounded title/details pair, used only for reset extraction after
+// independent quota classification; ObservedAt is when its frame arrived.
 type SessionFailureRecord struct {
-	ID       string
-	Revision int64
-	Quota    bool
+	ID         string
+	Revision   int64
+	Quota      bool
+	Text       string
+	ObservedAt time.Time
 }
 
 type airSessionFailurePayload struct {
@@ -85,7 +94,12 @@ func decodeSessionFailureRecord(raw json.RawMessage) (SessionFailureRecord, bool
 			return SessionFailureRecord{}, false
 		}
 	}
-	return SessionFailureRecord{ID: f.ID, Revision: f.Revision, Quota: f.Category == "limit" && f.Severity == "error" && len(f.Actions) == 0}, true
+	text := f.Title
+	if f.Details != nil {
+		text += "\n" + *f.Details
+	}
+	return SessionFailureRecord{ID: f.ID, Revision: f.Revision, Quota: f.Category == "limit" && f.Severity == "error" && len(f.Actions) == 0,
+		Text: text, ObservedAt: time.Now().UTC()}, true
 }
 
 func validSessionFailureCategory(category string) bool {

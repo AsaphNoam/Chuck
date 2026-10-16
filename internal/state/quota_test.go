@@ -7,13 +7,19 @@ import (
 	"time"
 )
 
+// quotaResetFor is the latest reset a continuation due at due may follow.
+func quotaResetFor(due time.Time) *time.Time {
+	reset := due.Add(-QuotaResetBuffer)
+	return &reset
+}
+
 func quotaFixture(t *testing.T, st *Store, id, episode string, due time.Time) QuotaIntent {
 	t.Helper()
-	now := due.Add(-time.Minute)
+	now := due.Add(-2 * time.Minute)
 	if err := st.WriteAgent(testAgent(id, now)); err != nil {
 		t.Fatal(err)
 	}
-	got, err := st.ObserveQuota(QuotaObservation{AgentID: id, EpisodeID: episode, SourceGeneration: "generation-1", ExecutingTurn: "turn-1", Owner: QuotaOwner{Kind: "ordinary"}, ObservedAt: now, ResetAt: &due, DueAt: &due, State: QuotaScheduled})
+	got, err := st.ObserveQuota(QuotaObservation{AgentID: id, EpisodeID: episode, SourceGeneration: "generation-1", ExecutingTurn: "turn-1", Owner: QuotaOwner{Kind: "ordinary"}, ObservedAt: now, ResetAt: quotaResetFor(due), DueAt: &due, State: QuotaScheduled})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +83,7 @@ func TestQuotaManualTurnReassignsActiveTaskAndResolvesCancelledEpisode(t *testin
 	if _, err := st.DB().Exec(`UPDATE tasks SET assigned_agent_id=?, assigned_generation=?, state=? WHERE task_id=?`, q.AgentID, "generation-1", TaskRunning, task.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	owned, err := st.ObserveQuota(QuotaObservation{AgentID: q.AgentID, EpisodeID: "episode-task-owned", SourceGeneration: "generation-1", ExecutingTurn: "source-task-turn", Owner: QuotaOwner{Kind: "task", TaskID: task.TaskID}, ObservedAt: due.Add(-time.Minute), ResetAt: &due, DueAt: &due, State: QuotaScheduled})
+	owned, err := st.ObserveQuota(QuotaObservation{AgentID: q.AgentID, EpisodeID: "episode-task-owned", SourceGeneration: "generation-1", ExecutingTurn: "source-task-turn", Owner: QuotaOwner{Kind: "task", TaskID: task.TaskID}, ObservedAt: due.Add(-2 * time.Minute), ResetAt: quotaResetFor(due), DueAt: &due, State: QuotaScheduled})
 	if err != nil {
 		t.Fatal(err)
 	}

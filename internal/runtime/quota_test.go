@@ -194,7 +194,7 @@ func TestQuotaStaleCompletionCannotSettleAfterTurnChanges(t *testing.T) {
 	as.turnActive = true
 	as.execTurnID = "new-turn"
 	as.mu.Unlock()
-	c.completePromptTurn(as, "old-turn", "", json.RawMessage(`{"stopReason":"end_turn"}`))
+	c.completePromptTurn(as, "old-turn", "", json.RawMessage(`{"stopReason":"end_turn"}`), nil)
 	mu.Lock()
 	defer mu.Unlock()
 	if len(*calls) != 0 {
@@ -375,5 +375,33 @@ func TestQuotaEvidenceCarriesNoProviderText(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), `"failure_id":"quota-1"`) || !strings.Contains(string(raw), `"revision":3`) {
 		t.Fatalf("turn quota evidence missing correlation fields: %s", raw)
+	}
+}
+
+func TestQuotaSettlementCarriesCorroboratedProviderReset(t *testing.T) {
+	reset := time.Now().UTC().Add(48 * time.Hour).Truncate(time.Minute)
+	if reset.Minute() == 0 {
+		reset = reset.Add(time.Minute) // the pinned formatter omits ":00"
+	}
+	text := "You've hit your weekly limit · resets " + strings.Replace(reset.Format("Jan 2, 2006, 3:04PM"), "PM", "pm", 1)
+	text = strings.Replace(text, "AM", "am", 1) + " (UTC)"
+	failure, _ := json.Marshal(map[string]any{"id": "weekly:error", "revision": 1, "category": "limit", "severity": "error", "title": text, "actions": []string{}})
+	structured := reset.Add(17 * time.Second)
+	rateLimit, _ := json.Marshal(map[string]any{"status": "rejected", "rateLimitType": "seven_day", "resetsAt": structured.Unix()})
+	c, h, ch, _ := startQuotaTestAgent(t, "stream_text",
+		"FAKEACP_RATE_LIMIT="+string(rateLimit), "FAKEACP_FAILURE_UPDATE="+string(failure), "FAKEACP_FAILURE_RESULT="+string(failure))
+	mu, calls := recordQuotaSettlement(c)
+	if err := c.SendPrompt(context.Background(), h.AgentID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range drainTurn(t, ch) {
+		if ev.Type == EvTurnEnd && strings.Contains(string(ev.Data), "reset") {
+			t.Fatalf("turn_end exposes reset provenance: %s", ev.Data)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(*calls) != 1 || (*calls)[0].quota == nil || (*calls)[0].quota.ResetAt == nil || !(*calls)[0].quota.ResetAt.Equal(structured) {
+		t.Fatalf("settlement = %+v, want structured reset %s corroborated by text %q", *calls, structured, text)
 	}
 }

@@ -299,7 +299,7 @@ orphaned processes.
   Reconnect/restart cannot duplicate it. Existing transcript retention and search treatment of
   system notices remain unchanged.
 
-- **R48 (planned; scope confirmed 2026-10-16)** — **Recover from verified provider reset evidence.**
+- **R48 (implemented 2026-10-17; scope confirmed 2026-10-16; live provider gate A28/A33 owed)** — **Recover from verified provider reset evidence.**
   After R40 independently establishes terminal quota exhaustion, Chuck prefers an applicable,
   verified structured reset, then may use a reset stated in that same provider failure's text.
   A supported provider format must establish a future instant, its date and its timezone;
@@ -602,7 +602,7 @@ transitions:
   the internal Default role as a selectable persona. *Verify:* focused form/component tests and
   a rendered keyboard journey at the desktop floor and phone widths in all three appearances.
 
-- **A31 (planned)** (R48) — Replay supported pinned Claude/Codex terminal failures with structured
+- **A31 (implemented 2026-10-17; pinned-formatter parser and runtime/server contract coverage; live receipt owed)** (R48) — Replay supported pinned Claude/Codex terminal failures with structured
   resets, provider-text resets, missing/conflicting times and non-quota controls through ordinary
   prompts and owned activations. Cover provider/browser timezone differences, effective provider
   timezone overrides, explicit dates, Claude's next-24-hours versus Codex's same-day time-only
@@ -611,7 +611,9 @@ transitions:
   unambiguous applicable reset schedules after the buffer. Quoted reset text, transient rate
   limits, warnings, child/history events and unrelated windows cannot schedule. *Verify:* pinned
   native-source/adapter receipts independent of parser fixtures, runtime/server contract tests,
-  and the provider coverage gate in A28/A33.
+  and the provider coverage gate in A28/A33. Implemented coverage:
+  `internal/runtime/quota_reset_test.go`, `internal/runtime/quota_test.go` and
+  `internal/server/quota_http_test.go`; the live receipt remains owed.
 - **A32 (planned)** (R49–R51) — Interrupt an ordinary chat and each existing task/pipeline/room
   recovery path with unknown-reset quota. Observe one hourly isolated check, renewed quota with
   a different failure identity, no more than six check requests, and needs-attention

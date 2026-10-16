@@ -1296,7 +1296,7 @@ new generation or replay a stop. All results follow FS-17, including text/struct
 its planned refusal classes. No automatic retry, resume, group control or new public Stop route
 is added. FS-06.A30–A32 cover execution, uncertainty, managed-work parity and lifecycle races.
 
-**R96 (planned) — Normalize reset provenance after independent terminal quota classification.** For
+**R96 (implemented 2026-10-17; live receipt owed under FS-01.A28/A31) — Normalize reset provenance after independent terminal quota classification.** For
 FS-01.R48, extend R86's shared result/update/RPC settlement decoder with bounded reset evidence;
 do not infer quota from a date, HTTP 429 or generic RPC error. Retain the existing 16 KiB failure
 envelope and 2,048-rune text limits. Examine only the classified provider failure's title/details

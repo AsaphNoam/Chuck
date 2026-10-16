@@ -132,6 +132,32 @@ func TestQuotaUnknownResetProjection(t *testing.T) {
 	}
 }
 
+// FS-01.A31: verified provider reset evidence schedules continuation one
+// minute after the displayed reset; the projection keeps the two distinct.
+func TestQuotaVerifiedResetSchedulesAfterBuffer(t *testing.T) {
+	s := testServer(t, true)
+	q := seedQuotaHTTP(t, s, "quota-known-reset")
+	reset := time.Now().UTC().Add(3 * time.Hour).Truncate(time.Minute)
+	if err := s.settleQuotaTurn(q.AgentID, "generation", "known-turn", &runtime.QuotaEvidence{FailureID: "typed-failure", Revision: 1, ResetAt: &reset}, false); err != nil {
+		t.Fatal(err)
+	}
+	u, err := s.stateMgr.Touch(q.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Quota == nil || u.Quota.ContinuationState != state.QuotaScheduled || u.Quota.ResetAt == nil || !u.Quota.ResetAt.Equal(reset) ||
+		u.Quota.DueAt == nil || !u.Quota.DueAt.Equal(reset.Add(time.Minute)) {
+		t.Fatalf("projection = %+v, want reset %s and continuation one minute later", u.Quota, reset)
+	}
+	stale := time.Now().UTC().Add(-time.Minute)
+	if err := s.settleQuotaTurn(q.AgentID, "generation", "stale-turn", &runtime.QuotaEvidence{FailureID: "typed-failure", Revision: 1, ResetAt: &stale}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.stateStore.GetQuota(q.AgentID); got.State != state.QuotaUnknownReset || got.ResetAt != nil || got.DueAt != nil {
+		t.Fatalf("stale reset = %+v, want unknown", got)
+	}
+}
+
 // FS-04.A33: partial cancellation failure reports the policy already saved to
 // disk; automatic admission still refuses the disabled policy.
 func TestQuotaConfigReportsSavedFalseWhenCancellationFails(t *testing.T) {

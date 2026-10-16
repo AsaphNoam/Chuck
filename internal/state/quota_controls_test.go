@@ -51,7 +51,7 @@ VALUES('task_quota_control','my-app','task','instruction','role','running','user
 		t.Fatal(err)
 	}
 	q, err := st.ObserveQuota(QuotaObservation{AgentID: agent, EpisodeID: "episode-task", SourceGeneration: "generation-task", ExecutingTurn: "turn-task",
-		Owner: QuotaOwner{Kind: "task", TaskID: "task_quota_control"}, ObservedAt: now, ResetAt: &due, DueAt: &due, State: QuotaScheduled})
+		Owner: QuotaOwner{Kind: "task", TaskID: "task_quota_control"}, ObservedAt: now, ResetAt: quotaResetFor(due), DueAt: &due, State: QuotaScheduled})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ VALUES('pipeline-task','my-app','task','instruction','role','running','user',?,?
 		t.Fatal(err)
 	}
 	taskQuota, err := st.ObserveQuota(QuotaObservation{AgentID: "quota_pipeline_task", EpisodeID: "pipeline-task-episode", SourceGeneration: "g", ExecutingTurn: "t",
-		Owner: QuotaOwner{Kind: "task", TaskID: "pipeline-task"}, ObservedAt: now, ResetAt: &due, DueAt: &due, State: QuotaScheduled})
+		Owner: QuotaOwner{Kind: "task", TaskID: "pipeline-task"}, ObservedAt: now, ResetAt: quotaResetFor(due), DueAt: &due, State: QuotaScheduled})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ VALUES('pipeline-room-attempt',?,?,'discussion','pipeline-room-token','rg','rt',
 		t.Fatal(err)
 	}
 	roomQuota, err := st.ObserveQuota(QuotaObservation{AgentID: "quota_pipeline_room", EpisodeID: "pipeline-room-episode", SourceGeneration: "rg", ExecutingTurn: "rt",
-		Owner: QuotaOwner{Kind: "room", RoomID: roomID, AttemptID: "pipeline-room-attempt", Turn: ThinkTankTurnDiscussion}, ObservedAt: now, ResetAt: &due, DueAt: &due, State: QuotaScheduled})
+		Owner: QuotaOwner{Kind: "room", RoomID: roomID, AttemptID: "pipeline-room-attempt", Turn: ThinkTankTurnDiscussion}, ObservedAt: now, ResetAt: quotaResetFor(due), DueAt: &due, State: QuotaScheduled})
 	if err != nil {
 		t.Fatal(err)
 	}

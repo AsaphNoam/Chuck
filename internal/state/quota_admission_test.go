@@ -30,8 +30,8 @@ func TestQuotaTaskResumeUpgradeRespectsRuntimeBudget(t *testing.T) {
 	reset := now.Add(-time.Second)
 	q, err := st.ObserveQuota(QuotaObservation{AgentID: quotaAgent, EpisodeID: "quota-resume-episode",
 		SourceGeneration: "source-generation", ExecutingTurn: "source-turn",
-		Owner: QuotaOwner{Kind: "task", TaskID: quotaTask.TaskID}, ObservedAt: reset.Add(-time.Minute),
-		ResetAt: &reset, DueAt: &reset, State: QuotaScheduled})
+		Owner: QuotaOwner{Kind: "task", TaskID: quotaTask.TaskID}, ObservedAt: reset.Add(-2 * time.Minute),
+		ResetAt: quotaResetFor(reset), DueAt: &reset, State: QuotaScheduled})
 	if err != nil {
 		t.Fatal(err)
 	}

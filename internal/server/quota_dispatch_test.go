@@ -27,7 +27,7 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 				}
 			}
 			due := time.Now().UTC().Add(-time.Second)
-			q, err := s.stateStore.ObserveQuota(state.QuotaObservation{AgentID: id, EpisodeID: "known-reset-fixture", SourceGeneration: generation, ExecutingTurn: "interrupted-turn", Owner: state.QuotaOwner{Kind: "ordinary"}, ObservedAt: due.Add(-time.Minute), ResetAt: &due, DueAt: &due, State: state.QuotaScheduled})
+			q, err := s.stateStore.ObserveQuota(state.QuotaObservation{AgentID: id, EpisodeID: "known-reset-fixture", SourceGeneration: generation, ExecutingTurn: "interrupted-turn", Owner: state.QuotaOwner{Kind: "ordinary"}, ObservedAt: due.Add(-2 * time.Minute), ResetAt: quotaResetFor(due), DueAt: &due, State: state.QuotaScheduled})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -155,8 +155,13 @@ func TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart(t *testing.T)
 		t.Fatalf("restart changed assignment: %+v %v", task, err)
 	}
 	reset := time.Now().UTC().Add(40 * time.Millisecond)
-	q, err = s.stateStore.ObserveQuota(state.QuotaObservation{AgentID: q.AgentID, EpisodeID: q.EpisodeID, SourceGeneration: q.SourceGeneration, ExecutingTurn: q.ExecutingTurn, Owner: q.Owner, ObservedAt: q.ObservedAt, ResetAt: &reset, DueAt: &reset, State: state.QuotaScheduled})
+	due := reset.Add(state.QuotaResetBuffer)
+	q, err = s.stateStore.ObserveQuota(state.QuotaObservation{AgentID: q.AgentID, EpisodeID: q.EpisodeID, SourceGeneration: q.SourceGeneration, ExecutingTurn: q.ExecutingTurn, Owner: q.Owner, ObservedAt: q.ObservedAt, ResetAt: &reset, DueAt: &due, State: state.QuotaScheduled})
 	if err != nil {
+		t.Fatal(err)
+	}
+	// Fast-forward past the reset buffer rather than sleeping a real minute.
+	if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET due_at=? WHERE agent_id=?`, reset.UTC().Format(time.RFC3339), q.AgentID); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(time.Until(reset) + time.Millisecond)
@@ -166,4 +171,10 @@ func TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart(t *testing.T)
 	if err != nil || task.State != state.TaskRunning || task.Outcome != "" || task.AssignedAgentID != q.AgentID {
 		t.Fatalf("continuation replaced assignment: %+v %v", task, err)
 	}
+}
+
+// quotaResetFor is the latest reset a continuation due at due may follow.
+func quotaResetFor(due time.Time) *time.Time {
+	reset := due.Add(-state.QuotaResetBuffer)
+	return &reset
 }

@@ -49,8 +49,8 @@ func seedQuotaNoticeClaim(t *testing.T, s *Server, id string, confirmed bool) st
 	now := time.Now().UTC()
 	// Claims are admitted through due schedules; due follows the known reset,
 	// which has elapsed since the observation.
-	observed := now.Add(-time.Minute)
-	reset := now.Add(-30 * time.Second)
+	observed := now.Add(-2 * time.Minute)
+	reset := now.Add(-90 * time.Second)
 	due := now.Add(-time.Second)
 	q, err := s.stateStore.ObserveQuota(state.QuotaObservation{AgentID: id, EpisodeID: "notice-episode", SourceGeneration: "source-gen", ExecutingTurn: "source-turn", Owner: state.QuotaOwner{Kind: "ordinary"}, ObservedAt: observed, ResetAt: &reset, DueAt: &due, State: state.QuotaScheduled})
 	if err != nil {

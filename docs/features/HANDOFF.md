@@ -75,18 +75,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
-- **Design ready — quiet quota recovery (2026-10-16):**
-  [`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md), FS-01.R48–R51/A31–A34,
-  FS-04.R59/A38, TS-04.R96–R97, TS-10.R45–R47, TS-02.R50, TS-03.R72. Prefer applicable structured
-  resets, then verified provider text; otherwise up to six hourly isolated same-account/model
-  checks through the existing quota intent/dispatcher. No failed wake probes in the original
-  conversation. Operator approved non-persistent Claude and explicitly named/archived Codex
-  provider sessions. Only check success plus revalidated normal owner admission can continue work;
-  a larger-turn quota mismatch holds. [Pinned evidence](QUOTA-RESET-FALLBACK-2026-10-16.md) covers
-  reset units/date/timezone, AIR/RPC text loss, no common passive ACP read, native archive limits,
-  naming/title suppression and Codex process-overlay MCP exclusion. No product edits or live
-  provider receipts; A28/A34 remain implementation acceptance gates. Subscription views remain
-  separate. No active change was selected.
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption. Prefer `GOFLAGS=-p=1` for full closure:
@@ -107,7 +95,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+**In progress — quiet quota recovery (2026-10-17):**
+[`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md); its **Implementation
+progress** section holds the slice plan, resume notes and checks. Slice 1 (verified reset
+evidence) is committed; next is slice 2 (state migration/check chain). Live A28/A34 receipts
+remain gates. Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
 
 ## Acceptance gates still owed
 
