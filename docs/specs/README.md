@@ -32,7 +32,7 @@ operates on all of this is [`AGENT-WORKFLOW.md`](../features/AGENT-WORKFLOW.md).
 | FS-03 | [features/FS-03-chat.md](features/FS-03-chat.md) | Partial | Streaming chat, tools/diffs, permissions, runtime picker, file/skill mentions, drafts, queued follow-up, steering, image display and file attachments |
 | FS-04 | [features/FS-04-configuration-onboarding.md](features/FS-04-configuration-onboarding.md) | Current | Roles/projects/backends CRUD, settings/onboarding, seed-prompt migration, No persona defaults, persona awareness and quota auto-continuation setting |
 | FS-05 | [features/FS-05-archive-tracking.md](features/FS-05-archive-tracking.md) | Current | Session archive, full-text search, resume from archive, file/command tracking and Think Tank discovery; command history stays tracked without a Commands tab |
-| FS-06 | [features/FS-06-coordination.md](features/FS-06-coordination.md) | Current | Agent mail with waking/deferred delivery and bounded inline content |
+| FS-06 | [features/FS-06-coordination.md](features/FS-06-coordination.md) | Partial | Agent mail with waking/deferred delivery; planned direct peer transcript reads and human-approved peer Stop |
 | FS-07 | [features/FS-07-terminal.md](features/FS-07-terminal.md) | Partial | Terminal interface, drivers (xterm/tmux/iTerm2), terminal-agent boundaries |
 | FS-08 | [features/FS-08-federation.md](features/FS-08-federation.md) | Partial | Claude/Codex configuration federation: sources, binding modes, effective view |
 | FS-09 | [features/FS-09-backends.md](features/FS-09-backends.md) | Partial | Backend/model catalog, credential checks, capability matrix and installed-default/explicit-bundle provider selection |
@@ -41,7 +41,7 @@ operates on all of this is [`AGENT-WORKFLOW.md`](../features/AGENT-WORKFLOW.md).
 | FS-12 | [features/FS-12-application-interface.md](features/FS-12-application-interface.md) | Current | Core, Sky & Grove and Studio share creative-workspace composition, polish and chat link/table/tab cleanup |
 | FS-13 | [features/FS-13-annotate-assign.md](features/FS-13-annotate-assign.md) | Current | Annotate and assign: select diff lines/transcript events/files, instruct, route to an agent or new task; Think Tank room sources |
 | FS-14 | [features/FS-14-configurable-pipelines.md](features/FS-14-configurable-pipelines.md) | Partial | Standing orchestration, durable stage tasks, managed coordinators, automatic cleanup, Think Tank stages and readable workspace consent; planned shared standing instructions |
-| FS-15 | [features/FS-15-context-links.md](features/FS-15-context-links.md) | Current | Target-neutral durable context references, direct grants, personal discovery state, and bounded pull retrieval |
+| FS-15 | [features/FS-15-context-links.md](features/FS-15-context-links.md) | Partial | Target-neutral context references, grants and bounded retrieval; planned independent peer transcript access |
 | FS-16 | [features/FS-16-dependent-work.md](features/FS-16-dependent-work.md) | Current | Durable tasks, armed starts, lineage, scoped repair, descendant collapse and room-backed stage tasks |
 | FS-17 | [features/FS-17-agent-tool-results.md](features/FS-17-agent-tool-results.md) | Partial | Agent-facing action contract: shipped MCP retry/result behavior and planned direct command delivery |
 | FS-18 | [features/FS-18-agent-facing-knowledge.md](features/FS-18-agent-facing-knowledge.md) | Partial | Shared operating skill, progressive references, exact prompt migration, and planned lean personas with standing context and native-prompt preservation |

@@ -210,6 +210,15 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-16 — Peer authority scope confirmed:** direct transcript reads across projects,
+  including stopped/archived history, and Stop requests for any peer. The operator requires
+  explicit user approval for every effective peer Stop. Draft feature requirements are
+  FS-06.R39–R44/A28–A32, FS-03.R91, FS-15.R18/A8; no product code changed. Current native
+  permissions auto-approve registered Chuck tools, so this needs a host-owned gate independent of
+  provider permission behavior. TS-05.R3 still trusts local processes, which can call the existing
+  Stop API; awaiting whether to retain that boundary or require shell/API bypass prevention before
+  completing technical design and creating a ready change. Idea remains under Ideas being defined.
+
 - **2026-10-16 — Peer transcript reading and stopping design:** selected the read/stop portion of
   `ideas.md`'s broader-agent-authority entry. Current Chuck tools have grant-based context reads
   and agent discovery, but no direct peer transcript read or Stop action. Proposed explicit,

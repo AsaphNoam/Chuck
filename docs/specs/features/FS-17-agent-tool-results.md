@@ -284,6 +284,10 @@ are planned and the migration is paused behind R20.
 - Agent-callable re-arm and retry, task or agent state inspection, and agent-callable stop, resume,
   or launch remain out of scope and remain recorded in `../../ideas.md`. The exclusion of a
   task-graph query (FS-16 §6, TS-04.R29) is deliberately upheld by R4.
+- Peer transcript reads and human-approved peer Stop are planned under FS-06.R39–R44 and use
+  this specification's common result contract. This supersedes only the peer inspection/Stop
+  portion of the preceding exclusion when that feature ships; direct Resume and launch remain
+  outside that feature.
 - Output schemas are not declared. The pinned Claude and Codex adapters' handling of a tool
   `outputSchema` is unverified, and declaring one later is additive.
 - Argument shapes rejected by the pinned MCP SDK before a Chuck handler runs are outside

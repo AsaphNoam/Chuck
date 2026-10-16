@@ -243,6 +243,15 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   it still pending with Approve and Deny live — and ends on server restart or agent stop exactly as
   it does today; holding it longer does not make it durable across a process end.
 
+- **R91 (planned) — Peer Stop has a host-owned human gate.** FS-06.R41–R42's peer Stop
+  request uses the familiar permission presentation and single-decision behavior, but Chuck owns
+  the actual approval independently of any ACP request. R18's skip policy and R40's automatic
+  Chuck-action approval never authorize the stop effect. The pending prompt identifies both agents
+  and offers Approve once or Deny; no provider approval or agent assertion can resolve it. Its
+  request, decision and actual operation result remain distinguishable on live and replayed
+  transcripts. Verification is FS-06.A29–A31. This is the planned exception to R40's blanket
+  wording; existing actions retain their current policy.
+
 ### 2.5 Switching runtime from the chat header
 
 - **R23.** For a running chat-interface agent, the header presents backend, model, and

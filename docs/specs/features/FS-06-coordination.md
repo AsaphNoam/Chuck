@@ -1,6 +1,6 @@
 # FS-06 — Agent coordination & notifications
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/messaging/`, `internal/state/messages.go`, `internal/server/` (`messaging_registration.go`, `messaging_loops.go`, `sessions.go`), `internal/bus/`, `ui/src/api/sse.ts`, `ui/src/components/grid/AgentCard.tsx`, `ui/src/components/shell/NotificationCenter.tsx`, `ui/src/features/settings/NotificationsEditor.tsx` · **Journeys:** J10, J11, J12
 **Absorbed:** [`agent-dashboard-prd.md`](../../archive/agent-dashboard-prd.md) F8/F11 and the [phase archive manifest](../../archive/phases/README.md)
 
@@ -13,6 +13,9 @@ so a tight loop cannot run away. This spec owns unread/sent indicators and produ
 coordination-specific `budget_exceeded` event. FS-02 owns notification preferences and presentation
 for all notification types. The underlying data/protocol shapes belong to TS-02, TS-03, and TS-04,
 and terminal agents' messaging boundary belongs to FS-07.
+
+Planned peer inspection and control (R39–R44) add direct reads of Chuck-recorded conversations
+and explicit human approval before one agent may stop another.
 
 ## 2. Behavior
 
@@ -262,7 +265,88 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   of the row; the mailbox remains their surface. The notice follows TS-04.R80's bounds and
   projection: it never changes unread counts, status or notifications.
 
+### 4.5 Peer transcripts and approved Stop
+
+- **R39 (planned) — Direct peer transcript reading.** A token-bound Chuck chat agent may
+  explicitly read another Chuck agent's recorded conversation across projects, including stopped
+  and archived agents and archived projects, without a context-sharing grant. Reads return
+  attributed user/assistant messages and recorded tool activity, in bounded pages with continuation
+  through the selected history. They identify the source agent and the boundary of the read;
+  later activity requires a new read. Empty history, an unknown agent, and a failed read have
+  distinct, truthful outcomes. Reading never wakes the target, starts a turn, sends mail, changes
+  read state or consumes the mail budget. This covers Chuck's normalized history, including whatever
+  a terminal agent recorded; it does not import provider-native conversations, hidden provider
+  state, raw terminal scrollback, or files linked from a transcript. Existing transcript retention
+  applies; the read creates no saved copy or context-sharing grant.
+- **R40 (planned) — Discoverable durable targets.** Agent discovery gains an explicit bounded
+  history scope for finding running, stopped and archived identities across projects, with project,
+  interface, lifecycle state and stable agent id. Its existing default discovery and mail
+  addressability stay compatible. Being listed or having a readable transcript never implies
+  mail eligibility or authority to stop the target. Peer operations select one exact agent id,
+  so duplicate names cannot silently choose a different conversation.
+- **R41 (planned) — Every effective peer Stop requires explicit user approval.** Any
+  token-bound Chuck chat agent may request Stop for one other agent across projects, including
+  terminal, task, pipeline and Think Tank agents. Chuck itself withholds the effect until the
+  operator approves that specific request. The approval prompt identifies the requester and target
+  by display name, project and stable id, includes the requester's bounded reason, and explains
+  that Stop ends the process while preserving history and permitting later wake. It offers only
+  Approve once and Deny: neither provider permission mode, skip-permissions, Chuck-tool automatic
+  approval, a role, a task relationship, nor agent-supplied claims of prior user approval can
+  substitute for the user's decision. A stopped target can report already stopped without
+  requesting permission or changing anything. Self-stop is excluded from this peer action.
+- **R42 (planned) — Approval has one target and one lifetime.** The pending request and its
+  result are visible in the requester's conversation and survive browser reload while the server
+  and requesting turn remain live. Deny, configured permission timeout, requesting-turn
+  cancellation, requester stop/switch, or server restart ends the request without stopping its
+  target. Default waiting follows FS-03.R43, with no new deadline. Approval never transfers to a
+  later target process or another requester turn; a stale request reports that a fresh request
+  is needed. Concurrent or repeated decisions can produce at most one effective stop. Approval is
+  permission to attempt the operation, not a claim that it succeeded.
+- **R43 (planned) — Approved Stop is ordinary Stop.** After approval, Chuck applies
+  FS-01.R6/R34's process termination, teardown, idempotence and lifecycle conflict rules through
+  the ordinary Stop path, with the same task, pipeline and Think Tank effects as operator Stop.
+  It does not become Cancel turn, archive, delete, Resume, launch, or a group operation. Unknown,
+  invalid, stale and conflicting targets produce an explicit refusal or failure; neither the tool
+  nor a later restart automatically retries the stop. The result identifies the exact target and
+  distinguishes stopped, already stopped, denied/cancelled and failed outcomes.
+- **R44 (planned) — Attribution and operating guidance.** The requester retains the request,
+  human decision and actual result in its ordinary conversation history. An effective stop records
+  a notice on the target identifying the requesting agent and that the operator approved it, so
+  live and replayed supervision explain why it stopped. A failed/no-op stop is never recorded as
+  effective. The release-matched operating guidance explains direct peer reads, their broad access,
+  the per-request human Stop gate, and Stop versus Cancel and later wake. Shared-reference and
+  mail semantics remain independent.
+
 ## 5. Acceptance criteria
+
+- **A28 (planned)** (R39–R40) — Via serialized MCP, a chat caller discovers and reads another
+  project's live, stopped and archived histories, including a terminal target with limited
+  recorded history. Verify identity/attribution, deterministic bounded traversal, a fixed read
+  boundary during concurrent append, empty/unknown/read-failure outcomes, and zero target prompt,
+  activation, mail or grant side effects. Repeat after server restart. *Verify:* messaging/server
+  integration tests using real normalized transcript fixtures and independent event projections.
+- **A29 (planned)** (R41–R42) — With each provider's most permissive mode, Chuck automatic
+  action approval and skip-permissions enabled, request Stop and prove the target remains live
+  until the user chooses Approve once. Spoofed approval arguments, another MCP server's permission
+  result and a Deny decision cannot stop it. *Verify:* host-gate integration tests independent of
+  adapter-generated permission requests; a bounded live Claude/Codex receipt is a manual gate.
+- **A30 (planned)** (R41–R44) — From the requester's chat, inspect both agent identities,
+  projects, reason and consequences; reload while pending, Deny once, then request and approve a
+  new Stop. The target stops with history retained, both conversations explain the outcome, and
+  a later ordinary Resume/wake still works. *Verify:* focused desktop and paired-phone journeys
+  through the existing permission presentation, plus transcript replay tests. These are planned
+  journeys, not evidence that rendered or device checks have already passed.
+- **A31 (planned)** (R42–R43) — Race approval with denial, cancellation, timeout, requester
+  teardown, target Stop/Resume/switch and a second decision. Restart with an unanswered request.
+  Prove at most one stop, no stop of a later target generation, no replay after restart, explicit
+  conflict/failure and no automatic retry. Unknown and self targets change nothing; already-stopped
+  targets are no-ops. *Verify:* server/runtime concurrency tests with controlled lifecycle barriers.
+- **A32 (planned)** (R40, R43–R44) — Default discovery/mail compatibility remains unchanged;
+  history discovery includes archived targets without making them mail recipients. Approve Stop
+  separately for chat, terminal, task, pipeline and Think Tank targets and compare final work/status
+  effects to the ordinary operator Stop path. Existing granted context reads and revocation remain
+  correct under FS-15.R18. *Verify:* messaging, lifecycle and managed-work integration tests plus
+  release operating-guidance checks.
 
 - **A20** (shipped 2026-09-13; R30–R32, R35) — Serialized MCP/fake-provider tests send waking mail to an
   eligible stopped agent and observe one turn containing its body without `check_messages`. Send
@@ -402,6 +486,15 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   `internal/messaging/pipeline_agent_task_target_test.go`.
 
 ## 6. Deviations & open decisions
+
+- **Peer authority design, 2026-10-16.** R39–R44/A28–A32 are planned. The operator confirmed
+  cross-project reads including stopped/archived history and requests to stop any peer, with
+  explicit user approval required for Stop. The remaining security decision is whether the gate
+  applies to Chuck's tool within TS-05.R3's existing local-process trust, or whether this feature
+  must also prevent shell/HTTP bypass. No implementation-ready change exists until that boundary
+  and the matching technical design are resolved. On shipping, these requirements extend only
+  R2's three-tool coordination inventory and R3/R22's optional discovery scope; existing mail
+  defaults and exclusions remain binding.
 
 - **Efficient durable mail extension, 2026-09-12.** R30–R36/A20–A25 are the requested feature
   scope confirmed within the pipeline refactor. On shipping they supersede conflicting parts of R4/R8/R22/R27
