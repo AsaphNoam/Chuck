@@ -437,8 +437,8 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 		if limit > 0 {
 			tw.limit = int(min(limit, transcriptWindowMax))
 		}
-		if row, err := s.stateStore.ReadRunning(id); err == nil {
-			tw.liveGeneration = row.Generation
+		if chat := s.registry.Chat(); chat != nil {
+			tw.hostPending = func(toolCallID string) bool { return chat.PermissionPending(id, toolCallID) }
 		}
 		if err := transcript.ForEachFile(s.configStore.Home(), id, transcript.ReadOptions{IncludeMeta: includeMeta}, tw.visit); err != nil {
 			writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))

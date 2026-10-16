@@ -55,6 +55,7 @@ import { personaIdentityLabel } from "../lib/personas";
 import type { RoleResponse } from "../schemas/role";
 import { decodeQuotaState } from "../lib/quota";
 import { QuotaBanner } from "../components/agent/QuotaBanner";
+import { PEER_STOP_CONSEQUENCE, peerLabel, peerStopRequest } from "../lib/peerStop";
 
 // The phone reads a bounded window and keeps at most EARLIER_PAGES older ones
 // (FS-20.R13).
@@ -151,13 +152,23 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
       onSettled();
     }
   };
-  const summary = requestSummary(event);
+  const peerStop = peerStopRequest(event);
+  const summary = peerStop ? "" : requestSummary(event);
   return (
     <section className="phone-card phone-decision" aria-label="Permission request">
       <p className="phone-card-kicker">{agentTitle(agent, roles?.[agent.role])} needs permission</p>
-      <h2>{String(event.name ?? "Tool")}</h2>
+      <h2>{peerStop ? `Stop ${peerStop.target.name || peerStop.target.agent_id}` : String(event.name ?? "Tool")}</h2>
+      {peerStop && (
+        <dl className="phone-peer-stop">
+          <dt>Requested by</dt>
+          <dd>{peerLabel(peerStop.requester)}</dd>
+          <dt>Agent to stop</dt>
+          <dd>{peerLabel(peerStop.target)}</dd>
+        </dl>
+      )}
       {summary && <pre className="phone-pre">{clip(summary, 1200)}</pre>}
       {event.reason ? <p>{String(event.reason)}</p> : null}
+      {peerStop && <p className="phone-meta">{PEER_STOP_CONSEQUENCE}</p>}
       {latest && (
         <blockquote className="phone-quote">
           <span>Latest message</span>
@@ -170,7 +181,7 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
           Deny
         </button>
         <button type="button" className="ad-button-primary" disabled={disabled || busy} onClick={() => void decide("approve")}>
-          Approve
+          {peerStop ? "Approve once" : "Approve"}
         </button>
       </div>
     </section>

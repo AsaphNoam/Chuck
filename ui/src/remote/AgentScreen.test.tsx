@@ -357,6 +357,27 @@ describe("AgentScreen", () => {
     expect(reads[0]).toContain("limit=750");
   });
 
+  it("presents a peer Stop request with both agents and Approve once", async () => {
+    const request = {
+      agent_id: "a1", seq: 5, type: "permission_request", ts: "",
+      data: {
+        tool_call_id: "chuck_peer_stop_9", name: "Stop Nova", reason: "it is looping", origin: "chuck_peer_stop",
+        args: { agent_id: "a_tgt", reason: "it is looping" },
+        peer_stop: { requester: { agent_id: "a1", name: "Atlas", project: "my-app" }, target: { agent_id: "a_tgt", name: "Nova", project: "beta" } },
+      },
+    };
+    live = { agent_id: "a1", events: [request], has_more: false, pending_permission: request, latest_assistant: "" };
+    renderScreen();
+    const card = await screen.findByRole("region", { name: "Permission request" });
+    expect(card).toHaveTextContent("Stop Nova");
+    expect(card).toHaveTextContent("Atlas · my-app · a1");
+    expect(card).toHaveTextContent("Nova · beta · a_tgt");
+    expect(card).toHaveTextContent("history is kept");
+    expect(card).not.toHaveTextContent("\"agent_id\"");
+    fireEvent.click(within(card).getByRole("button", { name: "Approve once" }));
+    await waitFor(() => expect(posts).toContain(`permission ${JSON.stringify({ tool_call_id: "chuck_peer_stop_9", decision: "approve" })}`));
+  });
+
   it("folds tool results into their collapsed tool line", async () => {
     live = {
       agent_id: "a1",

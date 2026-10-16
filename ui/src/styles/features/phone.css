@@ -108,6 +108,9 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-pre { background: var(--ad-surface-subtle); border-radius: var(--ad-radius-small); font-family: var(--ad-font-mono); font-size: 0.6875rem; line-height: 1.8; margin: 0; max-height: 40vh; overflow: auto; padding: var(--ad-space-3); white-space: pre-wrap; overflow-wrap: anywhere; }
 .phone-quote { border-left: var(--ad-border-thick) solid var(--ad-border-default); color: var(--ad-text-secondary); display: grid; font-size: 0.75rem; gap: var(--ad-space-1); margin: 0; padding-left: var(--ad-space-3); white-space: pre-wrap; }
 .phone-quote span { color: var(--ad-text-muted); font-size: 0.625rem; }
+.phone-peer-stop { display: grid; font-size: 0.75rem; gap: var(--ad-space-1); margin: 0; overflow-wrap: anywhere; }
+.phone-peer-stop dt { color: var(--ad-text-muted); font-size: 0.625rem; }
+.phone-peer-stop dd { color: var(--ad-text-primary); margin: 0 0 var(--ad-space-1); }
 .phone-composer { display: grid; gap: var(--ad-space-2); border-top: var(--ad-border-thin) solid var(--ad-border-default); padding-top: var(--ad-space-4); }
 .phone-composer.is-file-drop-target { outline: var(--ad-border-thick) solid var(--ad-highlight); outline-offset: 2px; }
 .phone-app .chat-attachment { grid-template-columns: 64px minmax(0, 1fr); }

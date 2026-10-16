@@ -96,6 +96,20 @@ func (c *ChatRuntime) RequestHostPermission(agentID string, req HostPermissionRe
 	return h, nil
 }
 
+// PermissionPending reports whether toolCallID is still awaiting a decision
+// in agentID's live runtime. Durable events cannot answer this: a request
+// from an ended generation has no record of its end (TS-04.R94).
+func (c *ChatRuntime) PermissionPending(agentID, toolCallID string) bool {
+	as, err := c.lookup(agentID)
+	if err != nil {
+		return false
+	}
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	_, ok := as.pending[toolCallID]
+	return ok
+}
+
 // Wait blocks until the operator decides, the request times out or is
 // cancelled, or ctx ends. A ctx end withdraws the request as cancelled through
 // the same single-winner path, so it cannot later be approved.

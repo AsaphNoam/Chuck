@@ -35,10 +35,10 @@ type transcriptWindow struct {
 
 	pending            []pendingPermission
 	current, completed string
-	// liveGeneration is the agent's running generation, or empty when stopped.
-	// A host-owned request from any other generation is not actionable
-	// (TS-04.R94, TS-03.R71).
-	liveGeneration string
+	// hostPending reports whether a host-owned request is still live in the
+	// runtime; one from an ended generation is never actionable (TS-04.R94,
+	// TS-03.R71). Nil treats every host request as ended.
+	hostPending func(toolCallID string) bool
 }
 
 type pendingPermission struct {
@@ -108,7 +108,7 @@ func (tw *transcriptWindow) track(ev runtime.Event) {
 func (tw *transcriptWindow) response(agentID string) map[string]any {
 	var pending *runtime.Event
 	for i := len(tw.pending) - 1; i >= 0; i-- {
-		if tw.pending[i].host && tw.pending[i].event.Generation != tw.liveGeneration {
+		if tw.pending[i].host && (tw.hostPending == nil || !tw.hostPending(tw.pending[i].toolCallID)) {
 			continue
 		}
 		pending = &tw.pending[i].event

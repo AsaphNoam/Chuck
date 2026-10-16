@@ -989,11 +989,33 @@
 }
 
 .permission-prompt [data-slot="reason"],
+.permission-prompt [data-slot="consequence"],
+.permission-prompt [data-slot="peers"],
 .permission-prompt [data-slot="error"] {
   grid-column: 2;
   line-height: 1.7;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* A peer Stop names both agents before its reason (FS-03.R91). */
+.permission-prompt [data-slot="peers"] {
+  column-gap: var(--ad-space-3);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.permission-prompt [data-slot="peers"] dt {
+  color: var(--ad-text-muted);
+}
+
+.permission-prompt [data-slot="peers"] dd {
+  color: var(--ad-text-primary);
+  margin: 0;
+}
+
+.permission-prompt [data-slot="consequence"] {
+  color: var(--ad-text-muted);
 }
 
 .permission-prompt [data-slot="actions"] {
