@@ -9,6 +9,9 @@ import { useTranscriptStore } from "../../store/transcriptStore";
 import { ArchiveAgentPage } from "./ArchiveAgentPage";
 
 const server = setupServer(
+  http.get("/api/sessions/:id/think-tank-results", () => HttpResponse.json({
+    version: 1, complete: true, results: [],
+  })),
   http.get("/api/sessions/a_archive/transcript", ({ request }) => {
     expect(new URL(request.url).searchParams.get("include_meta")).toBe("true");
     return HttpResponse.json({

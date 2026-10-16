@@ -166,11 +166,10 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
   display/detail wire coverage for synthesis instructions is explicit. The four findings from the
   2026-10-16 review are fixed. Focused recovery and UI checks, tagged build and UI build pass.
   Rendered long-name checks pass in all skins at 1024/1440; final outlined action treatment is
-  confirmed in Core at 1024. Full UI closure has 879 passing tests and two failures in
-  `ArchiveAgentPage.test.tsx`, reproduced in isolation: the missing Think Tank results fixture
-  introduces extra status/Retry elements. No archive code changed in this fix. Full Go matrix
-  passes in both variants (`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test`); final UI
-  verification closure remains pending the archive fixture decision.
+  confirmed in Core at 1024. The authorized archive test-fixture repair (INV §17) supplies an
+  empty Think Tank results response by default; judge-result tests retain their explicit overrides.
+  All 885 UI tests pass, including all eight archive-page tests. Full Go matrix passes in both
+  variants (`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test`). Verification closure is complete.
 
 - **2026-10-15 — Think Tank setup upgrade (FS-21.R54–R56/A39, TS-14.R29, FS-03.R28):** setup
   takes goal files (chat limits) stored under `attachment.Store` key `tt-<command_id>` and
@@ -270,11 +269,6 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
   Live provider verification and the mail-test assertion race remain.
 
 ## Blocked on human
-
-Think Tank fix verification: authorize a small test-only repair to the archive-page fixtures
-(about 10–20 lines), or leave the two unrelated UI failures documented. The fixture currently
-omits the Think Tank results response, so transcript tests see an additional status and Retry.
-Asked during `/fix` on 2026-10-16; no unrelated repair is authorized yet.
 
 The published `v0.11.0` release body remains empty; its notes are in
 [`RELEASE-v0.11.0-notes.md`](../archive/state/RELEASE-v0.11.0-notes.md).
