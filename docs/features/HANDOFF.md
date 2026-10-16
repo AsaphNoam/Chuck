@@ -6,6 +6,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Awaiting review — desktop default-persona toggle (2026-10-16):** `33226f23`,
+  FS-04.R58/A37. Settings → Roles offers a Default persona checkbox per visible role;
+  selecting another replaces the saved preference and clearing selects canonical No persona.
+  Read/save errors remain visible; pending saves disable controls. Customized Default content
+  cannot silently become the fallback. Focused Settings/New Agent tests (45), full UI suite
+  (889), UI build/style checks, tagged Go build and both serial Go test variants pass.
+  Real-browser keyboard/select/clear/reload and 1024px layout checks pass in all three appearances;
+  screenshots and evidence are in shared project resources `default-persona/`.
+  This unit did not refresh the pre-existing dirty embedded UI index or change the phone work.
+
 - **Awaiting review — phone New agent from a group header (2026-10-16):** FS-20.R46/A18. Each
   group header (Ungrouped included) has a plus beside its name that opens the same centered New
   agent dialog with that group preselected (blank for Ungrouped); Advanced stays collapsed and the
@@ -78,14 +88,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-**In progress — desktop default-persona toggle (2026-10-16):** FS-04.R58/A37.
-Settings → Roles now offers one default-persona checkbox per visible role via the existing
-partial config update. Clearing selects canonical No persona; occupied custom Default cannot
-silently become that fallback. Focused Settings/New Agent tests (45), full UI suite (889),
-UI build, tagged Go build and style checks pass. Browser keyboard/select/clear/reload checks and
-1024px screenshots pass in Core, Sky & Grove and Studio (shared project resources: `default-persona/`).
-The Go test matrix is running; next finish it and record review availability. Preserve the
-pre-existing embedded index and concurrent phone-project edits.
+None.
 
 ## Acceptance gates still owed
 
@@ -206,6 +209,10 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-16 — Desktop default persona:** added the Settings → Roles toggle through existing
+  partial config updates; no checked persona selects No persona. Implementation `33226f23` is
+  available for review. Full UI and both Go variants, builds and three-appearance browser checks pass.
 
 - **2026-10-16 — Withdrawal review:** `2cf48ba2` remains open for live-draft loss on storage
   failure, hidden attachment recovery after a failed read, and duplicated text from overlapping
