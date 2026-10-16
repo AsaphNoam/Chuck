@@ -6,11 +6,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Finished — Think Tank setup upgrade (2026-10-15), waiting for review:** goal attachments,
+- **Reviewed — Think Tank setup upgrade (2026-10-15), findings open:** goal attachments,
   judge synthesis instructions, model/effort display, Add new agent placement and Core selection
-  highlight in every skin (changelog entry). Full UI suite (881), UI build, `make build` and the
-  serial FTS5 Go variant pass. The serial plain variant failed only the known
-  `TestQuotaDispatcherContinuesSameConversationOnce/stopped` flake; 20 isolated repeats pass.
+  highlight in every skin (changelog entry). Review 2026-10-16 left four findings below (one
+  **Must fix**); the unit stays open until `/fix` closes them.
 
 - **Finished — agent context continuity (2026-10-14):** C1–C9 closed locally. Instructions,
   tool evidence and bounded recent history survive handoffs; the separate bridge survives native
@@ -131,6 +130,40 @@ None.
 
 ## Review findings
 
+### Review 2026-10-16 — Think Tank setup upgrade (`f7842b81`; FS-21.R54–R56, TS-14.R29, FS-03.R28) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Rendered evidence (Core, Sky & Grove, Studio at 1024/1440; stubbed API):
+`~/.chuck/project-resources/agentdeck-20261007t221535z/review-tt-setup/` (`render.mjs`, run from `ui/`).
+
+- **Must fix** — **Startup attachment recovery deletes a committed room's goal files:**
+  `internal/server/attachment_recovery.go` `recoverConversationAttachments` treats every
+  `sessions/<key>` directory as an agent; for `tt-<command_id>` `ReadAgent` is not found, so `keep`
+  is empty and `PruneUnowned` removes every blob still carrying its `pending` marker.
+  `handleCreateThinkTank` clears the markers only after the create commit, and a `Retain` failure is
+  merely logged (`think_tank_handlers.go` ~L248–258). A crash between commit and `Retain`, or any
+  `Retain` error, makes the next restart delete files the room still lists; every member then reads
+  "stored copy is unavailable" (FS-21.R54 "owned by the room"; TS-14.R29 "Committed blobs are
+  retained"). The changelog note "a crash … leaves pending room blobs nothing prunes" is also wrong:
+  startup does prune uncommitted ones, which is the desired half. Fix: for `tt-` keys, keep the
+  descriptor ids of the room whose `command_id` matches (unknown key → prune pending as today).
+  Test: create a room with files, re-add the `pending` marker, run recovery, files remain; an
+  orphan `tt-` key's pending blob is removed. (INV §7, §15)
+- **Worth fixing** — **Long unbroken attachment name breaks the setup dialog:**
+  `ui/src/styles/features/think-tank.css` `.think-tank-setup-files li` (~L1501) and its name span
+  have no `min-width: 0`/`overflow-wrap`/ellipsis. Attaching a 180-character unbroken filename
+  makes the dialog scroll horizontally (scrollWidth 1685 vs 718) and pushes the goal, row controls
+  and chip × off-screen (`a-setup-longname-core-1024.png`). Fix: truncate or wrap the chip name,
+  keep × visible. (INV §8)
+- **Worth fixing** — **The new setup actions read as captions, not buttons:** “Attach files…” and
+  “+ Add new agent…” use `.ad-button-secondary` (borderless ~11px muted text) and render smaller and
+  lighter than the picker below them (`a-setup-core-1024.png`); FS-21.R56 calls Add new agent “a
+  distinct button”. Fix: use the ordinary button treatment the dialog's Add/Cancel use. (INV §8)
+- **Worth fixing** — **Synthesis instructions shown to the operator are unspecified:** the room's
+  goal disclosure renders “Synthesis instructions: …” (`ThinkTankPage.tsx` ~L257) and the detail
+  wire carries `judge.instructions`, but FS-21.R55/A39 and TS-14.R29 describe only judge delivery
+  and attachment names on the wire. Fix: add the operator display and wire field to R55/R29
+  (spec-only), with the existing page test cited. (INV §10)
+
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
@@ -156,9 +189,9 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
   `judge_instructions` (migration 53 adds both columns); model · effort on rows, judge and picker
   options; **+ Add new agent…** above the existing-agent picker. Text selection uses Core's
   highlight in every skin. Archived agents were already excluded from the picker (verified
-  against live data; now under test). Review notes: a crash between upload and create commit
-  leaves pending room blobs nothing prunes; images reach agents as file paths, not inline image
-  blocks; the v47 migration fixture gained a stub `think_tanks` table.
+  against live data; now under test). Review 2026-10-16: the crash-pruning note was wrong and
+  became a **Must fix**; images-as-paths (R54 “readable copies”) and the v47 fixture stub table are
+  sound and closed. Classes 1–6, 9, 11–14, 16–17: no violation found.
 
 - **2026-10-15 — J3/J6/J11 transcript and stopped-state fixes; review closed (INV §8/§13):** the
   transcript stays pinned to the bottom while late rows (diagrams) settle, and only scrolling toward
