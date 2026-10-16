@@ -109,6 +109,11 @@ func (c *ChatRuntime) Permission(ctx context.Context, agentID, toolCallID, decis
 	}
 
 	c.markResolved(as, toolCallID)
+	if p.host != nil && decision == "approve" {
+		// Hold the approval where requester cancellation can still void it
+		// until the stop is admitted (TS-04.R95).
+		p.host.approved(as)
+	}
 	// Write the resolved-but-active state before releasing the ACP peer. A peer
 	// may finish session/prompt as soon as it receives this response; writing busy
 	// afterwards could then overwrite the prompt goroutine's final idle status.
@@ -131,6 +136,10 @@ func (c *ChatRuntime) onPermissionTimeout(as *agentState, toolCallID string) {
 	c.updateStatus(as, "busy", "thinking", "PermissionResolved", keepBusySince)
 	c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "timeout"})
 	c.emit(as, EvError, ErrorData{Scope: "tool", Message: "permission timed out"})
+	if p.host != nil {
+		p.host.settle(HostTimeout)
+		return
+	}
 	if found {
 		p.resolve("selected", optID)
 	} else {
@@ -175,6 +184,7 @@ func (c *ChatRuntime) cancel(as *agentState, expectedGeneration, expectedTurn st
 	for id := range as.pending {
 		ids = append(ids, id)
 	}
+	as.voidHostApprovalsLocked()
 	active := as.turnActive
 	armedTurn := as.turnSeq
 	cancelled := active || len(ids) > 0
@@ -283,6 +293,10 @@ func (c *ChatRuntime) markResolved(as *agentState, toolCallID string) {
 func (p *pendingPerm) resolve(outcome, optionID string) {
 	if p.timer != nil {
 		p.timer.Stop()
+	}
+	if p.host != nil {
+		p.host.settle(hostDecision(outcome, optionID))
+		return
 	}
 	if outcome == "selected" {
 		_ = p.req.Respond(selectedOutcome(optionID))

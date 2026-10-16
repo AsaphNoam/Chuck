@@ -244,9 +244,10 @@ type agentState struct {
 	context                contextReading
 	turnActive             bool
 	stopping               bool
-	toolNames              map[string]string       // toolCallID -> normalized name (for status detail)
-	pending                map[string]*pendingPerm // toolCallID -> withheld permission request
-	resolved               map[string]struct{}     // toolCallIDs already settled this turn
+	toolNames              map[string]string          // toolCallID -> normalized name (for status detail)
+	pending                map[string]*pendingPerm    // toolCallID -> withheld permission request
+	resolved               map[string]struct{}        // toolCallIDs already settled this turn
+	hostApproved           map[string]*HostPermission // approved host requests not yet admitted
 	transcript             []Event
 	writer                 TranscriptWriter
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
@@ -321,6 +322,9 @@ type pendingPerm struct {
 	// permission_resolved for this request must reuse it, so a native child's
 	// request/resolution pair stays together under durable replay (TS-04.R63).
 	scope activityScope
+	// host is set for a Chuck-owned request with no ACP peer to answer; its
+	// decision goes to the waiting host operation instead (TS-04.R94).
+	host *HostPermission
 }
 
 func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, error) {
@@ -1964,9 +1968,13 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 	as.mu.Unlock()
 
 	// Abandon any held permission (the process is gone; the request can't be answered).
+	// A host waiter has no peer to abandon, so it learns the request is dead.
 	for _, p := range pend {
 		if p.timer != nil {
 			p.timer.Stop()
+		}
+		if p.host != nil {
+			p.host.settle(HostCancelled)
 		}
 	}
 

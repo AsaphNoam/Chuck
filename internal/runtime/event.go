@@ -116,6 +116,28 @@ type PermissionRequestData struct {
 	Options      []PermOption    `json:"options"`       // ACP-offered options
 	AutoApproved bool            `json:"auto_approved"` // true when skip_permissions bypassed the gate
 	ExpiresAt    string          `json:"expires_at"`    // RFC3339; after this we auto-deny
+	// Origin is set only for a Chuck-owned host request, never from a provider
+	// payload; absent means an ordinary ACP permission (TS-02.R49).
+	Origin   string           `json:"origin,omitempty"`
+	PeerStop *PeerStopSubject `json:"peer_stop,omitempty"`
+}
+
+// PermissionOriginPeerStop marks the host-owned peer Stop approval
+// (FS-03.R91, TS-04.R94).
+const PermissionOriginPeerStop = "chuck_peer_stop"
+
+// PeerStopSubject is the server-derived presentation of one peer Stop request.
+// It is display data, never executable approval.
+type PeerStopSubject struct {
+	Requester PeerIdentity `json:"requester"`
+	Target    PeerIdentity `json:"target"`
+}
+
+// PeerIdentity names one Chuck agent by stable id, display name and project.
+type PeerIdentity struct {
+	AgentID string `json:"agent_id"`
+	Name    string `json:"name"`
+	Project string `json:"project"`
 }
 
 // PermissionResolvedData records the terminal outcome for a previously emitted

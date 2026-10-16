@@ -92,10 +92,10 @@ Slices (each closes with focused tests + commit):
    deltas incrementally), `transcript.CompletePrefix`/`ForEachFilePrefix`, `state.AgentHistory`,
    tools in `internal/messaging/peer_tools.go`, codes in `internal/toolresult`. Fixed a latent
    `pageWriter` cut-room bug. Tests: `go test ./internal/{messaging,contextref,transcript}/`.
-2. **Host waiter (next):** `internal/runtime/permission.go` host-decision pending entry with
-   `origin:"chuck_peer_stop"`, `/permission` dispatch, replay folds ended-generation host prompts
-   to cancelled.
-3. **Stop:** `stop_agent` admission/claims through `stopAgentClaimed`, peer notices, outcomes.
+2. **Host waiter — done:** `internal/runtime/host_permission.go` (`RequestHostPermission`,
+   `Wait`, `Admit` voided by requester cancel/stop); `/permission` route unchanged; transcript
+   window hides host prompts from ended generations. Tests: `-run HostPermission` (runtime, race).
+3. **Stop (next):** `stop_agent` admission/claims through `stopAgentClaimed`, peer notices, outcomes.
 4. **UI:** desktop/phone permission presenters and notice rendering for the host origin.
 5. **Guidance + closure:** `operating-chuck` references, spec un-planning, full matrix.
 

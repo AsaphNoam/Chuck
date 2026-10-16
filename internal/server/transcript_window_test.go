@@ -151,3 +151,33 @@ func TestRemoteTranscriptIsAlwaysWindowed(t *testing.T) {
 		t.Fatalf("phone read = %d events, has_more %v; want the default window", len(page.Events), page.HasMore)
 	}
 }
+
+// TS-04.R94: a host-owned peer Stop request from an ended generation is never
+// offered as actionable, while an ordinary request keeps its existing shape.
+func TestTranscriptWindowFoldsEndedHostRequests(t *testing.T) {
+	request := func(id, origin, generation string) runtime.Event {
+		raw, _ := json.Marshal(runtime.PermissionRequestData{ToolCallID: id, Name: "x", Origin: origin})
+		return runtime.Event{Type: runtime.EvPermissionRequest, Generation: generation, Data: raw}
+	}
+	tw := &transcriptWindow{limit: 10, liveGeneration: "g2"}
+	for i, ev := range []runtime.Event{
+		request("acp-1", "", "g1"),
+		request("chuck_peer_stop_old", runtime.PermissionOriginPeerStop, "g1"),
+	} {
+		ev.Seq = int64(i + 1)
+		_ = tw.visit(ev)
+	}
+	got := tw.response("a")["pending_permission"].(*runtime.Event)
+	if got == nil || !strings.Contains(string(got.Data), "acp-1") {
+		t.Fatalf("pending = %v, want the ordinary request", got)
+	}
+	_ = tw.visit(request("chuck_peer_stop_live", runtime.PermissionOriginPeerStop, "g2"))
+	got = tw.response("a")["pending_permission"].(*runtime.Event)
+	if got == nil || !strings.Contains(string(got.Data), "chuck_peer_stop_live") {
+		t.Fatalf("pending = %v, want the live host request", got)
+	}
+	tw.liveGeneration = ""
+	if got := tw.response("a")["pending_permission"].(*runtime.Event); got != nil && strings.Contains(string(got.Data), "peer_stop") {
+		t.Fatalf("stopped requester still offers a host request: %s", got.Data)
+	}
+}

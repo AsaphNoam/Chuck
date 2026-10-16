@@ -35,11 +35,16 @@ type transcriptWindow struct {
 
 	pending            []pendingPermission
 	current, completed string
+	// liveGeneration is the agent's running generation, or empty when stopped.
+	// A host-owned request from any other generation is not actionable
+	// (TS-04.R94, TS-03.R71).
+	liveGeneration string
 }
 
 type pendingPermission struct {
 	toolCallID string
 	event      runtime.Event
+	host       bool
 }
 
 func (tw *transcriptWindow) visit(ev runtime.Event) error {
@@ -69,13 +74,15 @@ func (tw *transcriptWindow) track(ev runtime.Event) {
 	case runtime.EvPermissionRequest, runtime.EvPermissionResolved:
 		var d struct {
 			ToolCallID string `json:"tool_call_id"`
+			Origin     string `json:"origin"`
 		}
 		if json.Unmarshal(ev.Data, &d) != nil {
 			return
 		}
 		tw.pending = slices.DeleteFunc(tw.pending, func(p pendingPermission) bool { return p.toolCallID == d.ToolCallID })
 		if ev.Type == runtime.EvPermissionRequest {
-			tw.pending = append(tw.pending, pendingPermission{toolCallID: d.ToolCallID, event: ev})
+			tw.pending = append(tw.pending, pendingPermission{toolCallID: d.ToolCallID, event: ev,
+				host: d.Origin == runtime.PermissionOriginPeerStop})
 			if len(tw.pending) > transcriptPendingKeep {
 				tw.pending = slices.Delete(tw.pending, 0, 1)
 			}
@@ -100,8 +107,12 @@ func (tw *transcriptWindow) track(ev runtime.Event) {
 // response keeps the loopback transcript shape and adds the window fields.
 func (tw *transcriptWindow) response(agentID string) map[string]any {
 	var pending *runtime.Event
-	if n := len(tw.pending); n > 0 {
-		pending = &tw.pending[n-1].event
+	for i := len(tw.pending) - 1; i >= 0; i-- {
+		if tw.pending[i].host && tw.pending[i].event.Generation != tw.liveGeneration {
+			continue
+		}
+		pending = &tw.pending[i].event
+		break
 	}
 	latest := tw.current
 	if strings.TrimSpace(latest) == "" {
