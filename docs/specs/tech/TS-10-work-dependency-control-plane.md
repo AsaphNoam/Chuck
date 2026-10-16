@@ -1,6 +1,6 @@
 # TS-10 — Work dependency control plane
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks`
 **Absorbed:** —
 
@@ -483,6 +483,53 @@ activation kinds are registered in `internal/state/activations.go` and
 `internal/state/quota_test.go`, `quota_room_test.go`, `quota_controls_test.go`,
 `quota_notices_test.go`, and `internal/runtime/quota_test.go`. Current providers do not
 supply a verified reset time, so due-time dispatch has no provider-driven schedule until FS-01.A28.
+
+- **R45 (planned) — Reset waits and quiet checks share the quota intent and dispatcher.** For
+  FS-01.R48–R51, extend R39–R44's existing due query, eight-slot cap and claim path with an internal
+  `next_action:continue|check`. A verified reset schedules `continue` at reset plus 60 seconds;
+  an unknown reset schedules `check` at observation/completion plus one hour with `reset_at` null.
+  Never fabricate a reset to pass scheduled-state validation. Apply Auto continue, same-work owner,
+  archive/project and lifecycle eligibility before either effect. A busy or unavailable-capacity
+  deferral creates no provider check and spends no allowance. Explicit non-renewing credit/plan/
+  spend-cap errors hold for manual action; promotional upgrade alternatives alongside a valid
+  reset do not become false intervention requirements. Do not activate pre-upgrade unknown rows,
+  reuse cancelled records, create replacement tasks/agents, coalesce accounts heuristically or add
+  a separate scheduler. Preserve held follow-ups and owner quota markers throughout checking.
+- **R46 (planned) — A check grants one current continuation, never owner completion.** Persist a
+  check attempt token and increment `checks_started` once, before spawning its isolated provider
+  process; allow at most six per recovery chain. Startup/model/configuration failure, timeout or
+  unsupported isolation holds with a declared reason; terminal quota without a reset schedules one
+  later check, while applicable future reset evidence can switch to `continue`. Same-profile probe
+  evidence is explicitly authorized evidence for this recovery chain under TS-04.R97, not an
+  observation from an arbitrary different agent. A renewed terminal quota failure from the exact
+  admitted continuation retains the chain and remaining allowance even if its failure ID, episode
+  ID or runtime generation changes. Accepted human supersession or successful actual continuation
+  ends the chain; partial progress, fresh failure IDs and restart do not replenish it.
+
+  Do not hold global config/owner/lifecycle locks during the isolated model check. Cancellation,
+  disable and owner controls must remain responsive and invalidate its token/context. After a
+  successful check and cleanup, reacquire the existing admission guards and revalidate policy,
+  exact chain/episode/revision/token, original work and source selection before calling R41–R42's
+  ordinary continuation path. No other pending work may consume this authorization, and no
+  continuation is admitted from a stale or failed check. Check success alone neither clears the
+  quota block nor writes notices, results or room/task allowance. Keep it distinguishable from
+  `provider_started`, which continues to mean the original-work provider boundary. If the checked
+  continuation immediately returns quota with no new reliable reset, hold `check_ready_but_quota`
+  rather than run repeated probes and failed wakes. Actual continuation progress still uses R44's
+  receipt/notice path with FS-01.R50's honest wording for new notices.
+- **R47 (planned) — Recover checks without confusing them with work delivery.** Keep a check's
+  process/session/cwd cleanup under one owner, bounded by TS-04.R97. Persist its session reference
+  before prompting, and retain at most one pending cleanup reference per conversation. A failed
+  cleanup holds further checks/continuation and exposes `check_cleanup_failed`; cleanup only
+  closes/deletes that recorded probe, never loads it or scans unrelated native histories. On
+  restart, an unstarted claim is readmittable under R43; a started check consumes its recorded
+  allowance, cannot supply a recovered positive authorization, and becomes `check_interrupted`
+  after bounded exact-session cleanup. A lost session-create response has no guessed cleanup id
+  and remains needs-attention. Existing uncertain original-work delivery remains `uncertain_delivery`
+  with no automatic replay. Child-process stdin closure and normal adapter disposal plus the
+  active check's cancellation/timeout teardown close process resources; never equate bare PID
+  existence with ownership. Cleanup references remain after cancellation until resolved, without
+  reviving the cancelled intent. Independent records continue dispatching when one cleanup fails.
 
 ## 3. Interfaces & data shapes
 

@@ -1296,7 +1296,107 @@ new generation or replay a stop. All results follow FS-17, including text/struct
 its planned refusal classes. No automatic retry, resume, group control or new public Stop route
 is added. FS-06.A30–A32 cover execution, uncertainty, managed-work parity and lifecycle races.
 
+**R96 (planned) — Normalize reset provenance after independent terminal quota classification.** For
+FS-01.R48, extend R86's shared result/update/RPC settlement decoder with bounded reset evidence;
+do not infer quota from a date, HTTP 429 or generic RPC error. Retain the existing 16 KiB failure
+envelope and 2,048-rune text limits. Examine only the classified provider failure's title/details
+and recognized RPC message/data fields for that exact executing root session/turn; do not search
+transcripts, stderr, children or load replay. Carry RPC evidence through both ordinary and
+activation error completions rather than completing only a synthetic error result. Match negotiated
+failure revisions before combining text with earlier failure observations.
+
+Prefer applicable structured evidence, then a verified provider-specific text grammar. Claude
+ACP 0.85.1 forwards native 2.1.286 epoch seconds in `_claude/rateLimit`; the hashed producer/schema
+receipt in [the investigation](../../features/QUOTA-RESET-FALLBACK-2026-10-16.md) establishes units
+independently of SDK declarations. Decode it separately from context usage and retain R87's
+rejected-window/model/overage applicability checks. Do not infer a complete snapshot or pick an
+unrelated future window. A conflict within applicable evidence remains unknown rather than
+silently choosing whichever source gives a convenient future time. R96 replaces R87's no-text-parser
+and unverified-pinned-unit exclusions when implemented; unrelated subscription-view R89 stays deferred.
+
+Claude rejected-error reset clauses use English local hour/minute, optional month/day/year and
+an IANA timezone suffix. Time-only means a unique future candidate within 24 elapsed hours, including
+tomorrow; missing year means the observation year. Capture observation time when the provider
+frame arrives, not when a later server settlement runs. Codex 0.159.3's terminal `try again at` suffix
+uses process-local hour/minute/AM-PM for today, otherwise month/ordinal-day/year/time. It supplies
+no zone: resolve only from the effective provider process timezone captured for that turn. Never
+use the browser zone or roll a past Codex time into tomorrow. Reject unsupported zones/formats,
+multiple candidate instants, DST gaps/folds, stale values and midnight-boundary uncertainty. A
+provider version/format whose semantics lack a receipt stays unknown; do not guess epoch units,
+locale order or year rollover. Preserve UTC reset separately from due time; due is reset plus
+60 seconds. Text represents minute precision: a structured second-resolution instant inside that
+same displayed minute is consistent, not a conflict. Source-version, observation-time and scope evidence are internal, bounded provenance,
+not raw provider payloads exposed to clients. FS-01.A31/A28 verify the producer and delivery contract.
+
+**R97 (planned) — Quota checks use isolated sessions on the existing ACP integration.** For
+FS-01.R49–R51, add a narrowly scoped runtime check operation, reusing adapter executable selection,
+process/environment composition, ACP transport, negotiation, session configuration and failure
+decoders. Do not call normal agent Start/Resume, load/fork the original session, register a Chuck
+agent/hook/MCP identity, or install the ordinary event sink. Derive the check from frozen provider
+selection and quota-relevant model/routing/profile options; omit work instructions, additional
+roots, attachments, task/room payload and coordination credentials. Use a temporary minimal cwd
+and a fixed request to reply `OK` without tools, then require a real model response plus successful
+terminal completion without typed failure. Local command success, login status, usage percentages,
+empty `end_turn` or an automatic fallback to another model/auth route are not admission proof.
+If removing work context changes provider/account routing and equivalence cannot be established,
+return unsupported rather than checking another quota. No quota/readiness result enters transcript,
+preview, notification, owner-settlement or inline-mail paths.
+
+Use a separate short-lived adapter process, not another session multiplexed into the working
+agent's configured process: its global instruction/MCP overlay and notification routing belong to
+that agent. Reuse the existing launch helpers without copying their ordinary registration side
+effects. Advertise only needed ACP capabilities (including AIR failure); deny permission/elicitation
+requests, supply no host file/terminal capability or Chuck MCP server, and reject unexpected tool
+activity as an inconclusive check. An empty ACP MCP list alone does not disable ambient configured
+servers in pinned Codex (`createSessionConfig` returns its existing config when the list is empty);
+the check's process overlay must exclude those servers and original Chuck hook/token delivery while
+preserving authentication/routing. The existing JSON `CODEX_CONFIG` overlay can disable each known
+effective server with `mcp_servers.<name>.enabled:false` (pinned native `config/src/mcp_types.rs`);
+do not mutate the shared profile or replace its authentication home. Unknown effective configuration
+layers make isolation unsupported rather than permission to assume servers are absent.
+Profile tests verify this boundary; unsupported isolation stays
+manual rather than broadening permissions. Claude supports explicit `persistSession:false`,
+`tools:[]`, `strictMcpConfig:true` and an empty work instruction source through its existing
+`_meta.claudeCode.options`; do not use `--bare` or a fresh auth home as an account-preserving shortcut.
+
+Codex uses ordinary ACP `session/new`, not invented ephemeral metadata. Before its one real probe
+prompt, use the advertised local `/rename Chuck quota check` command and corroborate the explicit
+name update; otherwise refuse the probe rather than permit an extra automatic title-model turn.
+The operator accepts native archive retention: delete/archive the exact probe session, then close
+the process. Claude closes/disposes its non-persistent session. Bound each entire check to 60 seconds
+plus a separate 5-second cleanup grace; cap retained reply text at 4 KiB and failure/stderr tails at
+16 KiB each. Cancel then close/terminate the owned process group on timeout/disable/Stop; one common
+cleanup owns session/cwd/pipes/process release on all exits. Record exact probe session identity
+before prompting so cleanup can be retried without loading or prompting it. A lost create response
+or failed cleanup is explicit uncertainty, never permission to delete guessed provider sessions.
+No new authenticated side client, native prompt CLI path, adapter patch or subscription scraper is
+introduced. FS-01.A34 requires real same-profile, isolation, naming and retention receipts.
+
 ## 3. Interfaces & data shapes
+
+R97's internal check operation accepts a sanitized frozen provider selection (backend type,
+resolved executable/source, authentication/profile environment and model/effort/service tier),
+the recovery chain/episode/attempt identity for correlation, a cancellation context and an
+`onSessionCreated(sessionID)` persistence callback. Work instructions, hook-registration args,
+MCP credentials, additional work roots and original provider session id are excluded from the
+operation's session/prompt input. The original identity is server-side attribution only. Charge
+the check before calling the operation; invoke and successfully commit `onSessionCreated` before
+any probe prompt, including its local rename. A stale callback refuses further effects and routes
+through exact-session cleanup. This is one provider-specific runtime helper for the two existing
+backend types, not a new public provider interface or a patch to the upstream adapters.
+
+Return only a typed `ready|quota|unsupported|failed|timeout` outcome, optional R96 normalized reset
+evidence, and bounded cleanup status/session reference. `ready` requires the fixed model reply
+and completed error-free prompt plus successful disposal; it is not returned before cleanup or
+after an uncorroborated configuration/model fallback. `quota` requires the same independent terminal
+failure classification as ordinary turns. Unrecognized output is inconclusive/failed, never ready.
+The helper negotiates supported session methods/options, applies the selected model through the
+same configuration helper as normal sessions, and chooses Claude non-persistent close versus
+Codex explicit-name/delete/archive using R97's pinned profiles. Verify method/option support and
+effective configuration; unsupported installed profiles return unsupported rather than guessed
+flags or a different auth path. Cleanup outcomes are independent of model outcomes so a successful
+reply with failed cleanup still holds. No raw reply or diagnostic data is part of this result's
+durable/public contract. FS-01.A34 verifies these callbacks at the actual ACP frame boundary.
 
 - ACP: JSON-RPC messages over newline-delimited child stdin/stdout; adapter determines exact
   `session/new`, `session/load`, prompt, cancel, and permission option shapes. The Codex prompt

@@ -299,7 +299,7 @@ orphaned processes.
   Reconnect/restart cannot duplicate it. Existing transcript retention and search treatment of
   system notices remain unchanged.
 
-- **R48 (planned; scope awaiting confirmation)** — **Recover from verified provider reset evidence.**
+- **R48 (planned; scope confirmed 2026-10-16)** — **Recover from verified provider reset evidence.**
   After R40 independently establishes terminal quota exhaustion, Chuck prefers an applicable,
   verified structured reset, then may use a reset stated in that same provider failure's text.
   A supported provider format must establish a future instant, its date and its timezone;
@@ -311,25 +311,35 @@ orphaned processes.
   retrying within a rounded reset minute. Multiple known blocking windows retain R40–R44's
   applicability and ownership rules. This extends R41's available reset evidence when shipped;
   it does not claim live provider coverage before A28/A33.
-- **R49 (planned; scope awaiting confirmation)** — **Bound retries when the reset stays unknown.**
+- **R49 (planned; confirmed 2026-10-16)** —
+  **Check outside the interrupted conversation when the reset stays unknown.**
   With Auto continue enabled, a newly observed quota interruption with no reliable reset may
-  schedule the same unfinished work one hour later, up to six automatic attempts without a known
-  reset. Explicit provider errors requiring credits, a plan change or spend-cap intervention stay
-  manual. The conversation continues to say **Reset time unknown**, shows **Will retry at …** and
-  the remaining attempt allowance, and offers the existing cancellation control. A retry is an
-  ordinary provider continuation and can consume usage once access is available; it is not a
-  passive quota check. Repeated quota failures retain the remaining allowance across changed
-  provider failure identities, runtime resumption and server restarts; partial output alone does
-  not replenish it. Busy/capacity deferrals consume no attempt. Each still-quota result schedules
-  at most one next attempt an hour after completion; newly trustworthy future reset evidence
-  takes priority without replenishing the unknown-reset allowance. Exhaustion leaves a readable
-  needs-attention state and manual recovery. Restart admits at most one overdue attempt per chat,
-  never a burst of missed retries. Non-quota failures and uncertain delivery retain R44's hold.
+  check access one hour later, up to six bounded checks. Each check uses an isolated provider
+  session under the same provider/account/model and relevant quota scope; it does not wake,
+  prompt, steer, load, fork or append to the interrupted provider conversation or Chuck transcript.
+  Failed checks update the existing quota indicator rather than adding messages, previews,
+  notifications or room/task activity. Only a successful target-model request can authorize the
+  existing same-work continuation; login success, a healthy process or usage percentages alone
+  cannot. A small successful check does not guarantee that the original larger request fits the
+  available quota. Checks can consume normal provider usage and are not free passive reads.
+  Explicit provider errors requiring credits, a plan change or spend-cap intervention stay manual.
+  The conversation continues to say **Reset time unknown**, shows **Will check again at …** and
+  the remaining check allowance, and offers the existing cancellation control. Repeated quota
+  failures retain the allowance across changed failure identities and server restarts; partial
+  output alone does not replenish it. Busy/capacity deferrals consume no check. Each still-quota
+  result schedules at most one next check an hour after completion; newly trustworthy future reset
+  evidence takes priority without replenishing the allowance. Exhaustion leaves a readable
+  needs-attention state and manual recovery. Restart admits at most one overdue check per chat,
+  never a burst of missed checks. Non-quota failures and uncertain actual continuation delivery
+  retain R44's hold. If isolated verification is unsupported or cannot use the same quota scope,
+  leave an actionable unknown/unsupported state; do not fall back to testing in the original chat.
   This replaces R41's unknown-reset scheduling exclusion only when shipped.
-- **R50 (planned; scope awaiting confirmation)** — **Fallback recovery preserves control and honest
-  history.** R42–R44's same-conversation, owner, exclusivity, cancellation, eligibility and restart
-  rules apply equally to reset schedules and unknown-reset retries. Desktop, phone and existing
-  API/stream clients distinguish a provider reset from the next retry; no retry time is presented
+- **R50 (planned; scope confirmed 2026-10-16)** — **Fallback recovery preserves control and honest
+  history.** R42–R44's source Chuck conversation/work identity, owner, exclusivity, cancellation,
+  eligibility and restart rules apply equally to reset schedules and unknown-reset checks. The
+  separate check never reuses the original provider session; actual continuation alone returns
+  to that session under R42. Desktop, phone and existing
+  API/stream clients distinguish a provider reset from the next check; no check time is presented
   as a quota reset. On corroborated automatic continuation, the durable Chuck notice reads
   **Chuck automatically continued this conversation after a quota interruption**, replacing
   R45's reset-specific sentence for new notices when shipped. Historical notices remain intact;
@@ -337,8 +347,24 @@ orphaned processes.
   existing local recovery state with its existing conversation lifetime; raw provider error
   payloads are not added to that retained state. Existing unscheduled interruptions are not
   automatically armed by upgrade, and cancelled/disabled records are never resurrected. There is
-  no extra setting, new conversation, hidden usage prompt, provider login client, adapter patch,
+  no extra setting, new Chuck conversation, prompt in the interrupted conversation, provider login client, adapter patch,
   subscription dashboard or change to frozen permissions.
+- **R51 (planned; Codex archive retention confirmed 2026-10-16)** — **Probe sessions have a separate,
+  bounded lifetime.** A check carries only a fixed minimal request, with no interrupted transcript,
+  attachments, persona, task payload or coordination authority. It creates no Chuck agent or
+  task, is never shown as a conversation, and cannot mark owned work completed or clear its quota
+  block. It does not silently switch model, authentication mode or account to obtain a successful
+  answer. The check ends and its provider session is disposed on success, quota refusal, failure,
+  cancellation or timeout; only a bounded attempt/result summary belongs in the existing recovery
+  record. Native provider history is separate: use Claude's supported non-persistent session option.
+  Pinned Codex's ordinary ACP check session is persisted, and its delete operation archives it.
+  The operator accepts those explicitly named native Codex archive records. Cleanup failures
+  remain visible as a bounded recovery reason; Chuck never claims permanent Codex deletion or
+  scans/deletes unrelated provider history. No new provider client or adapter patch
+  is assumed to remove that difference. A successful probe is not a continuation notice; only the
+  actual interrupted-work continuation qualifies under R50. If that continuation immediately
+  reports quota again without a new reliable reset, hold for attention rather than repeating
+  successful probes and failed wake-ups in the original conversation.
 
 ## 3. States & transitions
 
@@ -586,27 +612,39 @@ transitions:
   limits, warnings, child/history events and unrelated windows cannot schedule. *Verify:* pinned
   native-source/adapter receipts independent of parser fixtures, runtime/server contract tests,
   and the provider coverage gate in A28/A33.
-- **A32 (planned)** (R49–R50) — Interrupt an ordinary chat and each existing task/pipeline/room
-  recovery path with unknown-reset quota. Observe one hourly same-work retry, renewed quota with
-  a different failure identity, no more than six unknown-reset provider starts, and needs-attention
+- **A32 (planned)** (R49–R51) — Interrupt an ordinary chat and each existing task/pipeline/room
+  recovery path with unknown-reset quota. Observe one hourly isolated check, renewed quota with
+  a different failure identity, no more than six check requests, and needs-attention
   on exhaustion. Exercise success, later known reset, non-quota failure, manual cancellation,
   global disable, owner closure, busy/capacity deferral and crashes before/after provider delivery.
+  Capture both Chuck and native-session traffic: failed checks leave the interrupted transcript,
+  native session, preview, notifications and owner history untouched. A successful check alone
+  does not clear quota or settle owned work; only the correctly admitted continuation can do so.
   No duplicate work, allowance reset, catch-up burst or uncertain-delivery replay occurs. Explicit
   credit/spend-cap errors and pre-upgrade unknown records remain manual. *Verify:* deterministic
   clock/state/dispatcher and owner-path tests plus restart/cancellation race coverage.
-- **A33 (planned)** (R48–R50) — On desktop and phone, distinguish known reset, unknown-reset next
-  retry, remaining allowance, cancelled and exhausted states; reload, cancel and disable while
+- **A33 (planned)** (R48–R51) — On desktop and phone, distinguish known reset, unknown-reset next
+  check, remaining allowance, cancelled and exhausted states; reload, cancel and disable while
   waiting. API/stream state agrees. Corroborated continuation appends one honest Chuck notice;
   quota-only refusals append none. *Verify:* focused rendered recovery journeys, projection and
   notice tests, plus bounded packaged/supported-installed Claude/Codex terminal-wire and actual
   continuation receipts. Source inspection and synthetic helpers do not substitute for a live
   receipt; unsupported producer versions/formats remain explicitly unknown.
+- **A34 (planned)** (R51) — Execute isolated checks against each supported pinned provider profile:
+  prove the effective account/provider/model remains the original target, no original session is
+  loaded or prompted, no work context is copied and no auto-title turn or coordination action is
+  generated. Verify Claude non-persistence and the chosen Codex native-history policy, cleanup
+  after every exit, cancellation while checking, and a successful small probe followed by a quota
+  refusal on the real continuation. The last case becomes needs-attention without another wake.
+  *Verify:* adapter contract captures, disposable-home history/cleanup tests and bounded live
+  provider receipts. Source flags alone do not establish live same-account admission or retention.
 
 ## 6. Deviations & open decisions
 
-- **Quota reset fallback (design 2026-10-16):** R48–R50/A31–A33 are a proposed scope, awaiting
-  operator confirmation before technical design. The main decision is verified reset extraction
-  alone versus also allowing six hourly unknown-reset continuations under the existing setting.
+- **Quota reset fallback (design 2026-10-16):** R48–R51/A31–A34 extend the confirmed reset extraction
+  and bounded recovery direction with the operator's preference for checks outside the interrupted
+  conversation. The operator approved native archived Codex probe sessions under R51. Technical
+  and acceptance scope is in [the ready change](../../ready-changes/quiet-quota-recovery.md).
   Investigation: [quota reset evidence](../../features/QUOTA-RESET-FALLBACK-2026-10-16.md).
 
 - **Persona-free launch (implemented 2026-10-10):** R46–R47/A29–A30 are implemented by

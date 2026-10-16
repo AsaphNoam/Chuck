@@ -75,16 +75,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
-- **Design awaiting scope — quota reset fallback (2026-10-16):** proposed FS-01.R48–R50/A31–A33,
-  FS-04.R59/A38; [evidence](QUOTA-RESET-FALLBACK-2026-10-16.md). Pinned AIR failure titles can
-  contain reset prose that Chuck drops; the pinned Claude executable independently establishes
-  epoch-second reset units and rejected-error IANA timezone suffixes. Claude omits the date within
-  24 hours (including tomorrow), whereas Codex omits only today's date and carries no zone; a
-  strict parser needs provider-specific observation/date provenance. Recommend
-  verified structured evidence first, verified text second, then six hourly unknown-reset attempts
-  through existing recovery if approved. Await extraction-only versus bounded-retry scope; no TS
-  or ready change until confirmation, no product edits, no live provider receipt. Subscription
-  views and their passive-snapshot gate remain separate.
+- **Design ready — quiet quota recovery (2026-10-16):**
+  [`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md), FS-01.R48–R51/A31–A34,
+  FS-04.R59/A38, TS-04.R96–R97, TS-10.R45–R47, TS-02.R50, TS-03.R72. Prefer applicable structured
+  resets, then verified provider text; otherwise up to six hourly isolated same-account/model
+  checks through the existing quota intent/dispatcher. No failed wake probes in the original
+  conversation. Operator approved non-persistent Claude and explicitly named/archived Codex
+  provider sessions. Only check success plus revalidated normal owner admission can continue work;
+  a larger-turn quota mismatch holds. [Pinned evidence](QUOTA-RESET-FALLBACK-2026-10-16.md) covers
+  reset units/date/timezone, AIR/RPC text loss, no common passive ACP read, native archive limits,
+  naming/title suppression and Codex process-overlay MCP exclusion. No product edits or live
+  provider receipts; A28/A34 remain implementation acceptance gates. Subscription views remain
+  separate. No active change was selected.
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption. Prefer `GOFLAGS=-p=1` for full closure:
@@ -230,6 +232,19 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-16 — Quiet quota recovery design ready:** operator confirmed the direction, requested
+  checks outside the interrupted conversation and accepted native Codex archive probe records.
+  [`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md) is Waiting to start;
+  FS-01.R48–R51/A31–A34, FS-04.R59/A38, TS-04.R96–R97, TS-10.R45–R47, TS-02.R50, TS-03.R72 remain
+  planned. Existing quota scheduling/claims/owner recovery gain structured/text reset evidence
+  and at most six isolated hourly checks, without failed chat wake-ups or a second native
+  integration. [Evidence](QUOTA-RESET-FALLBACK-2026-10-16.md) records passive-read limits, exact
+  provider lifetime semantics, title suppression and the pinned native MCP-disable contract.
+  A small successful check cannot guarantee the larger continuation fits; that mismatch holds.
+  Source idea promoted; no product code, no active change, no live provider receipt.
+  Spec, twin-skill/launcher and whitespace checks pass; a focused independent consistency check
+  found no remaining material blocker after the helper contract and source/provider identity were clarified.
 
 - **2026-10-16 — Quota reset fallback investigated:** recorded pinned adapter AIR/RPC carriers,
   Chuck's text/data loss, native Claude timestamp-unit evidence and Codex local-date formatting

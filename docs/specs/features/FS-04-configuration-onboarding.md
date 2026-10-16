@@ -180,10 +180,11 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   an applying/failed save reports the actual saved state and a readable error. It changes no
   permissions or onboarding gate and adds no per-agent override.
 
-- **R59 (planned; scope awaiting confirmation)** — If FS-01.R49's bounded unknown-reset recovery
-  is approved, R53's existing Auto continue setting also controls those attempts. Settings help
+- **R59 (planned; direction confirmed 2026-10-16)** — R53's existing Auto continue setting also
+  controls FS-01.R49's bounded unknown-reset checks. Settings help
   explains that a reliable reset schedules continuation after that reset; otherwise Chuck may
-  retry hourly up to six times, and a successful attempt uses the provider normally. No second
+  check hourly up to six times outside the interrupted conversation, and checks can use normal
+  provider usage before actual continuation. Unsupported checking stays manual. No second
   toggle is introduced. Existing false values, immediate cancellation and failed-save behavior
   remain authoritative. The setting does not retroactively arm old unscheduled interruptions.
 

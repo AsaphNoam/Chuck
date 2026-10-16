@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`quiet-quota-recovery.md`](quiet-quota-recovery.md) — verified structured/text reset scheduling
+  and bounded isolated quota checks; preserve the original conversation, with non-persistent
+  Claude sessions and approved named Codex native archive records.
+
 - [`compact-think-tank-chat-navigation.md`](compact-think-tank-chat-navigation.md) — other-member
   and room links in agent chat, with subtle bold/raised active-speaker treatment using shared styling.
 

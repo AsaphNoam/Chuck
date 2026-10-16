@@ -688,6 +688,33 @@ append retries by request id plus phase. Notices retain existing metadata-only s
 classification, replay and retention. A no-op never gets a stopped notice. FS-06.A29–A32 verify
 pre/post-effect storage failure, crash boundaries and truthful replay as well as normal execution.
 
+**R50 (planned) — Quiet quota checks extend the single bounded recovery row.** For FS-01.R48–R51
+and TS-10.R45–R47, use a forward-only migration to extend TS-02.R45's existing `quota_intents` row
+with the recovery-chain identity, `next_action:continue|check`, `checks_started` (0..6), bounded
+normalized reset provenance and separate check-start/session/cleanup receipts. Bound opaque ids
+to 256 bytes and provenance to closed enums plus UTC instants; store neither credentials, raw
+error data, check prompts/replies nor a history of attempts. Existing source-owner/continuation
+receipts keep their meaning. A check receipt cannot satisfy an original-work `provider_started`
+or successful-continuation receipt. Compare chain, episode, revision and attempt token in the same
+transaction when claiming, charging allowance, recording results or accepting renewal from the
+admitted continuation tuple. The new scheduled-state validator permits a future check due time
+without a reset; actual reset schedules still require reset plus the safety buffer.
+
+Migration preserves old quota states, initializes allowance to zero, and leaves
+unknown/cancelled/disabled records inert. It never arms old rows. An existing known-reset due
+time is raised only if needed to meet reset plus 60 seconds; later due times remain unchanged.
+Keep the indexed due query and
+one active obligation per conversation; check failure replaces its bounded summary, not a new
+task/history table. Enforce new reason/action/count constraints in SQLite and state APIs. Retain
+the latest record until conversation deletion as before. New episodes and cancellation preserve
+an outstanding exact check-cleanup reference until resolved, without carrying its authorization
+into new work. Deletion/cancellation arrange exact
+pending probe cleanup before dropping its reference; an in-flight ephemeral cleanup context may
+outlive removal of the UI entry but cannot authorize continuation. Claude sessions use native
+non-persistence; the operator accepts explicitly named Codex native archived probe sessions under
+FS-01.R51. Do not purge those archives or promise permanent deletion. Existing transcript notice
+retention is unchanged. FS-01.A32/A34 exercise migration, no budget reset, teardown and crash gaps.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

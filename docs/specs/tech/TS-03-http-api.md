@@ -1000,6 +1000,27 @@ without displaying success. The existing operator CLI permission command works w
 host id. The paired-phone permission route retains its current allowlist/device guard; no new
 remote route is introduced. FS-06.A30–A31 cover reload/restart, pending and failed decisions.
 
+**R72 (planned) — Quota projections distinguish checking from continuing.** For FS-01.R48–R51 and
+FS-04.R59, extend R60's existing `quota` object additively with `next_action:"continue"|"check"`
+and integer `checks_remaining` (0..6). Existing continuation-state values remain unchanged:
+`scheduled`/`waiting` with `check` display **Will check again at …**; `starting` with `check`
+displays **Checking quota…**, while actual original-work admission projects `continue`. An absent
+action on old records means `continue`. A check due time never fills `reset_at`, which remains
+nullable; clients retain **Reset time unknown**. Reconnect/refetch restores the committed allowance,
+phase and due time. Extend closed reason codes with `check_unsupported`, `check_failed`,
+`check_timeout`, `check_exhausted`, `check_interrupted`, `check_cleanup_failed` and
+`check_ready_but_quota`, each with a bounded human recovery explanation. No probe session id,
+provider output, credential or routing data reaches API/SSE clients.
+
+Reuse R60's explicit quota cancellation and live Auto continue save semantics for either pending
+action and in-flight checks. Do not hold these requests behind a model check or introduce a probe
+endpoint, agent row or chat stream. Publish state-only quota updates; failed probes cannot update
+assistant preview/recency, emit ordinary agent-error notifications or append a transcript event.
+Update current desktop/phone/CLI decoders and Settings/banner copy together; no new setting or
+pairing scope is added. Original-work notices remain the only transcript change and use the new
+FS-01.R50 sentence only on corroborated continuation. Verify serialized projections plus rendered
+cancel/reload/disable and quiet-failure journeys under FS-01.A33–A34.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and
