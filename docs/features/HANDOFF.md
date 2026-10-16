@@ -45,12 +45,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   before teardown. Full serial tests, tagged build and focused race checks pass. Live provider
   receipts remain gates below. Original evidence and closure are in
   [`INVESTIGATION-agent-continuity-2026-10-14`](../archive/state/INVESTIGATION-agent-continuity-2026-10-14.md).
-- **Finished — stopped-agent image refusal (2026-10-14):** old snapshots preserve unknown image
-  capability instead of advertising refusal; desktop wake reaches fresh runtime validation.
-  Explicit false still blocks image Send with a visible reason and preserves the draft. Both read
-  projections, desktop/phone composers, fresh acceptance and refusal have regression coverage.
-  Full Go matrix passes with `GOFLAGS=-p=1`, all 850 UI tests pass, and `make dist` passes.
-  Phone stopped agents retain their existing Resume flow. The originating fix unit is closed.
+- **Finished — stopped-agent image refusal (2026-10-14):** unknown image capability survives old
+  snapshots; explicit false blocks image Send with a visible reason. Fix unit closed.
 - **Release:** `v0.16.0` published 2026-10-14 (Latest): release CI run 38593397312 passed and
   the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from
   [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md). Manual provider gates
@@ -92,10 +88,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 [`peer-transcripts-and-approved-stop.md`](../ready-changes/peer-transcripts-and-approved-stop.md).
 Slices (each closes with focused tests + commit):
 
-1. **Read (next):** pure range renderer split from grant authorization in `internal/contextref`
-   (incremental assistant folding), fixed-prefix transcript read in `internal/transcript`,
-   `read_agent_transcript` + `list_agents scope:"history"` in `internal/messaging`, FS-17 codes.
-2. **Host waiter:** `internal/runtime/permission.go` host-decision pending entry with
+1. **Read — done (`953aeb31`):** `contextref.ReadPeerTranscript` (`peer.go`; renderer folds
+   deltas incrementally), `transcript.CompletePrefix`/`ForEachFilePrefix`, `state.AgentHistory`,
+   tools in `internal/messaging/peer_tools.go`, codes in `internal/toolresult`. Fixed a latent
+   `pageWriter` cut-room bug. Tests: `go test ./internal/{messaging,contextref,transcript}/`.
+2. **Host waiter (next):** `internal/runtime/permission.go` host-decision pending entry with
    `origin:"chuck_peer_stop"`, `/permission` dispatch, replay folds ended-generation host prompts
    to cancelled.
 3. **Stop:** `stop_agent` admission/claims through `stopAgentClaimed`, peer notices, outcomes.
