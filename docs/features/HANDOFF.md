@@ -210,6 +210,14 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-16 — Peer transcript reading and stopping design:** selected the read/stop portion of
+  `ideas.md`'s broader-agent-authority entry. Current Chuck tools have grant-based context reads
+  and agent discovery, but no direct peer transcript read or Stop action. Proposed explicit,
+  bounded reads of Chuck's recorded conversation and attributed Stop through existing lifecycle
+  behavior. Awaiting the operator's read scope (cross-project/stopped/archived) and stop scope
+  (cross-project/managed/terminal versus narrower authority). Feature scope is unconfirmed;
+  technical design has not started, no ready change exists, and no product code changed.
+
 - **2026-10-16 — Desktop default persona:** added the Settings → Roles toggle through existing
   partial config updates; no checked persona selects No persona. Implementation `33226f23` is
   available for review. Full UI and both Go variants, builds and three-appearance browser checks pass.

@@ -66,9 +66,15 @@ the relevant feature and technical specifications; it does not change product co
   running session can change policy safely, and how this relates to frozen role/global
   `skip_permissions` and per-request Approve/Deny.
 - **Broader agent authority.** Agents can already create, list, read, retry and re-arm their own
-  tasks (TS-10.R34). Two further powers remain undefined: stopping, resuming or launching another
-  agent without going through a task, which is a new authority surface and needs a threat model;
-  and creating several related tasks as one unit, which TS-10 §5 excludes (multiple arms already
+  tasks (TS-10.R34). The operator selected **peer transcript reading and stopping** for
+  `/design-feature` on 2026-10-16: expose transcript reads already familiar from Codex/Claude
+  within Chuck, and let an agent stop another agent. Existing Chuck context links require a grant;
+  direct peer reading therefore needs an explicit access-scope decision. Define eligible callers
+  and targets, project/archive scope, discovery, bounded transcript reads, Stop versus Cancel,
+  attribution and managed-work consequences before technical design. Product scope is awaiting
+  operator confirmation; no ready change or product code yet.
+  Resuming or launching another agent without going through a task remains separate, as does
+  creating several related tasks as one unit, which TS-10 §5 excludes (multiple arms already
   provide fan-in/join).
 - **Detached configuration import.** Define verified copyable fields/assets and provider injection
   paths before implementing detached import. The API still returns 501; FS-08.R35 removed the
