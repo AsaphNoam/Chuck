@@ -33,6 +33,7 @@ type Server struct {
 	budgetProvider    func() int
 	budgetByAgent     map[string]turnBudgetLimit
 	tasks             TaskControl
+	peers             PeerControl
 	addressable       func() ([]state.LiveAgent, error)
 	projectAvailable  func(project string) (bool, error)
 	pipelines         *pipeline.Manager
@@ -288,6 +289,10 @@ func New(store *state.Store, log *slog.Logger) *Server {
 		Name:        "read_agent_transcript",
 		Description: "Read one bounded page of another Chuck agent's recorded conversation by exact agent_id, across projects and including stopped or archived agents (find ids with list_agents scope \"history\"). The first page fixes the read at the current end of that history; follow next_cursor until complete, and read newer activity later with since_seq set to snapshot_last_seq. Reading never wakes or messages the agent.",
 	}, s.handleReadAgentTranscript)
+	addTool(s, &mcp.Tool{
+		Name:        "stop_agent",
+		Description: "Ask the user to stop another Chuck agent by exact agent_id, with your reason. Nothing happens until the user approves this specific request in Chuck; this call waits for that decision. Stop ends the agent's process but keeps its history, and it can be woken later; it is not Cancel. A denied, cancelled or stale request is final: do not retry it automatically.",
+	}, s.handleStopAgent)
 	addTool(s, &mcp.Tool{
 		Name:        "read_think_tank",
 		Description: "Read a Think Tank room you belong to: its goal, your role and any remaining turn ceiling, and the attributed discussion in bounded pages. During your turn the default view is what is new for you; follow next_cursor until complete to get your turn_token and read_receipt.",

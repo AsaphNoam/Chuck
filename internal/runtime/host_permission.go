@@ -133,13 +133,6 @@ func (h *HostPermission) Admit() error {
 	return nil
 }
 
-// Release drops an approval that will not be admitted.
-func (h *HostPermission) Release() {
-	h.as.mu.Lock()
-	delete(h.as.hostApproved, h.ID)
-	h.as.mu.Unlock()
-}
-
 // approved parks an approval where requester cancellation can void it until
 // Admit. It runs before the decision is published to the waiter.
 func (h *HostPermission) approved(as *agentState) {

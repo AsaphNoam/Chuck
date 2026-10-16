@@ -2196,6 +2196,57 @@ func (c *ChatRuntime) AppendQuotaNoticeAndSync(agentID string, data NoticeData) 
 	return ev, nil
 }
 
+// AppendPeerStopNoticeAndSync appends one peer Stop audit notice through the
+// agent's owning transcript writer, synced and indexed before it returns, and
+// publishes it live. A retry of the same request id and phase returns the
+// existing notice (TS-02.R49).
+func (c *ChatRuntime) AppendPeerStopNoticeAndSync(agentID string, data NoticeData) (Event, error) {
+	if data.PeerStop == nil || !data.PeerStop.Valid() {
+		return Event{}, fmt.Errorf("invalid peer stop notice")
+	}
+	as, err := c.lookup(agentID)
+	if err != nil {
+		return Event{}, err
+	}
+	as.noticeMu.Lock()
+	defer as.noticeMu.Unlock()
+	as.mu.Lock()
+	for _, old := range as.transcript {
+		if old.Type != EvNotice {
+			continue
+		}
+		var notice NoticeData
+		if json.Unmarshal(old.Data, &notice) == nil && notice.PeerStop != nil &&
+			notice.PeerStop.RequestID == data.PeerStop.RequestID && notice.PeerStop.Phase == data.PeerStop.Phase {
+			as.mu.Unlock()
+			return old, nil
+		}
+	}
+	if as.writer == nil {
+		as.mu.Unlock()
+		return Event{}, fmt.Errorf("peer stop notice requires an active durable transcript")
+	}
+	as.seq++
+	ev := Event{
+		AgentID: as.agentID, Generation: as.generation, TurnID: as.execTurnID,
+		Seq: as.seq, Type: EvNotice, Ts: time.Now().UTC().Format(time.RFC3339),
+	}
+	var marshalErr error
+	ev.Data, marshalErr = json.Marshal(data)
+	as.mu.Unlock()
+	if marshalErr != nil {
+		return Event{}, marshalErr
+	}
+	if !c.persistEvent(as, ev) {
+		return Event{}, fmt.Errorf("persist peer stop notice: transcript or index sync failed")
+	}
+	as.mu.Lock()
+	as.transcript = append(as.transcript, ev)
+	as.mu.Unlock()
+	as.hub.Publish(ev)
+	return ev, nil
+}
+
 func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID string) error {
 	c.mu.Lock()
 	home := c.transcriptHome

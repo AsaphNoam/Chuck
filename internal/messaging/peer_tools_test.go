@@ -1,12 +1,15 @@
 package messaging
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/AsaphNoam/Chuck/internal/contextref"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
@@ -255,4 +258,66 @@ func mustAddressable(t *testing.T, st *state.Store) []state.LiveAgent {
 		t.Fatal(err)
 	}
 	return agents
+}
+
+type stubPeerControl struct {
+	got    []string
+	result PeerStopResult
+}
+
+func (s *stubPeerControl) StopPeer(_ context.Context, requester SessionIdentity, targetID, reason string) PeerStopResult {
+	s.got = append(s.got, requester.AgentID+"|"+requester.Generation+"|"+targetID+"|"+reason)
+	return s.result
+}
+
+// FS-17.A13: stop_agent binds the requester from the session token, refuses
+// self and malformed requests before the lifecycle plane, and keeps text and
+// structured results equal for confirmed and failed outcomes.
+func TestStopAgentToolContract(t *testing.T) {
+	f := newContextFixture(t)
+	stub := &stubPeerControl{}
+	f.srv.SetPeerControl(stub)
+	f.srv.RegisterSession("tok", "a_caller", "gen-1")
+	cs := connect(t, f.srv, "tok")
+
+	for _, args := range []map[string]any{
+		{"agent_id": "a_caller", "reason": "x"},
+		{"agent_id": "a_peer", "reason": "  "},
+		{"agent_id": "a_peer", "reason": strings.Repeat("r", MaxStopReasonRunes+1)},
+		{"agent_id": "", "reason": "x"},
+	} {
+		res, isErr := call(t, cs, "stop_agent", args)
+		if !isErr || res["error"] != "validation" {
+			t.Errorf("%v = %v", args, res)
+		}
+	}
+	if len(stub.got) != 0 {
+		t.Fatalf("refused requests reached the lifecycle plane: %v", stub.got)
+	}
+
+	stub.result = PeerStopResult{Outcome: "stopped", RequestID: "chuck_peer_stop_1"}
+	raw, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: "stop_agent", Arguments: map[string]any{"agent_id": "a_peer", "reason": " looping "}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertWireChannelsEqual(t, "stop_agent", raw)
+	ok := raw.StructuredContent.(map[string]any)
+	if raw.IsError || ok["outcome"] != "stopped" || ok["request_id"] != "chuck_peer_stop_1" {
+		t.Fatalf("stopped = %v", ok)
+	}
+	if stub.got[0] != "a_caller|gen-1|a_peer|looping" {
+		t.Fatalf("lifecycle plane got %q", stub.got[0])
+	}
+
+	stub.result = PeerStopResult{Code: "peer_stop_failed", RequestID: "chuck_peer_stop_2", Effect: "unknown", Message: "m"}
+	raw, err = cs.CallTool(t.Context(), &mcp.CallToolParams{Name: "stop_agent", Arguments: map[string]any{"agent_id": "a_peer", "reason": "x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertWireChannelsEqual(t, "stop_agent", raw)
+	failed := raw.StructuredContent.(map[string]any)
+	retry := failed["retry"].(map[string]any)
+	if !raw.IsError || failed["effect"] != "unknown" || retry["class"] != "never" {
+		t.Fatalf("failed = %v", failed)
+	}
 }

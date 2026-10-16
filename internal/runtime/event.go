@@ -187,6 +187,32 @@ type NoticeData struct {
 	Description         string `json:"description,omitempty"`
 	Origin              string `json:"origin,omitempty"`
 	ContinuationAttempt string `json:"continuation_attempt,omitempty"`
+	// PeerStop attributes a host-approved peer Stop. Only Chuck's peer Stop
+	// path writes it (TS-02.R49).
+	PeerStop *PeerStopNotice `json:"peer_stop,omitempty"`
+}
+
+// PeerStopNotice is the audit metadata of one approved peer Stop. Phase
+// "approved" precedes the effect and never claims completion.
+type PeerStopNotice struct {
+	RequestID   string `json:"request_id"`
+	RequesterID string `json:"requester_id"`
+	TargetID    string `json:"target_id"`
+	Phase       string `json:"phase"` // "approved" | "stopped" | "failed"
+}
+
+// Valid bounds peer notice metadata before it is serialized.
+func (p *PeerStopNotice) Valid() bool {
+	if p == nil {
+		return true
+	}
+	switch p.Phase {
+	case "approved", "stopped", "failed":
+	default:
+		return false
+	}
+	return p.RequestID != "" && len(p.RequestID) <= 128 && p.RequesterID != "" && p.TargetID != "" &&
+		len(p.RequesterID) <= 128 && len(p.TargetID) <= 128
 }
 
 const QuotaContinuationNoticeTitle = "Chuck continued this conversation when the quota reset"

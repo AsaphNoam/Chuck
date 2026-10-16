@@ -59,6 +59,8 @@ type Server struct {
 	knowledge            agentknowledge.Installation
 	permissionMu         sync.Mutex
 	permissionTools      map[string]string
+	peerStopMu           sync.Mutex
+	peerStopRequesters   map[string]bool // requesters with an outstanding peer Stop (TS-04.R94)
 	attachmentMu         sync.Mutex
 	attachmentBusy       map[string]bool
 	attachmentStartupErr error
@@ -322,6 +324,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		log:                       log,
 		knowledge:                 installedKnowledge,
 		permissionTools:           map[string]string{},
+		peerStopRequesters:        map[string]bool{},
 		hookTokens:                map[string]string{},
 		mcpCleanups:               map[string]func(){},
 		switching:                 map[string]bool{},
@@ -380,6 +383,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 	// The task tools own identity, resolution, and shape; validating a target and
 	// committing the record stay here, with the plane that owns them (TS-10.R13).
 	msg.SetTaskControl(s)
+	msg.SetPeerControl(s)
 	if registry != nil {
 		registry.SetQuotaSettlement(s.settleQuotaTurn)
 		registry.SetMessageOutcomeHandler(s.stateStore.SetAttachmentDelivery)

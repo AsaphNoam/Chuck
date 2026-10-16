@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -104,6 +105,82 @@ func (s *Server) handleReadAgentTranscript(ctx context.Context, req *mcp.CallToo
 	}
 	if res.NextCursor != "" {
 		out["next_cursor"] = res.NextCursor
+	}
+	return jsonResult(out)
+}
+
+// --- stop_agent (FS-06.R41–R44, TS-04.R94–R95) ---
+
+// MaxStopReasonRunes bounds the requester's attributed reason.
+const MaxStopReasonRunes = 1000
+
+// PeerStopResult is the control plane's answer to one peer Stop request.
+// Code is empty for a confirmed outcome ("stopped" or "already_stopped").
+// Effect accompanies peer_stop_failed: "unchanged", "stopped" or "unknown".
+type PeerStopResult struct {
+	Outcome   string
+	RequestID string
+	Code      string
+	Message   string
+	Effect    string
+}
+
+// PeerControl is the lifecycle plane behind stop_agent. This package owns the
+// token-bound identity and tool shape; target identity, the host approval and
+// the ordinary Stop path stay with the plane that owns them.
+type PeerControl interface {
+	StopPeer(ctx context.Context, requester SessionIdentity, targetID, reason string) PeerStopResult
+}
+
+// SetPeerControl wires stop_agent to the lifecycle plane.
+func (s *Server) SetPeerControl(control PeerControl) {
+	s.mu.Lock()
+	s.peers = control
+	s.mu.Unlock()
+}
+
+type stopAgentArgs struct {
+	AgentID string `json:"agent_id" jsonschema:"exact agent_id of the other agent to stop"`
+	Reason  string `json:"reason" jsonschema:"why it should stop, shown to the user who decides; 1..1000 characters"`
+}
+
+func (s *Server) handleStopAgent(ctx context.Context, req *mcp.CallToolRequest, in stopAgentArgs) (*mcp.CallToolResult, any, error) {
+	identity, ok := s.caller(req)
+	if !ok {
+		return sessionUnknown()
+	}
+	reason := strings.TrimSpace(in.Reason)
+	switch {
+	case strings.TrimSpace(in.AgentID) == "":
+		return errResult(map[string]any{"ok": false, "error": "validation", "message": "agent_id is required."})
+	case in.AgentID == identity.AgentID:
+		return errResult(map[string]any{"ok": false, "error": "validation",
+			"message": "stop_agent stops another agent; it cannot stop you."})
+	case reason == "" || utf8.RuneCountInString(reason) > MaxStopReasonRunes:
+		return errResult(map[string]any{"ok": false, "error": "validation",
+			"message": "reason is required and must be at most 1000 characters."})
+	}
+	s.mu.RLock()
+	control := s.peers
+	s.mu.RUnlock()
+	if control == nil {
+		return errResult(map[string]any{"ok": false, "error": "peer_stop_failed", "effect": "unchanged",
+			"message": "Peer Stop is unavailable."})
+	}
+	res := control.StopPeer(ctx, identity, in.AgentID, reason)
+	if res.Code != "" {
+		out := map[string]any{"ok": false, "error": res.Code, "agent_id": in.AgentID, "message": res.Message}
+		if res.RequestID != "" {
+			out["request_id"] = res.RequestID
+		}
+		if res.Effect != "" {
+			out["effect"] = res.Effect
+		}
+		return errResult(out)
+	}
+	out := map[string]any{"ok": true, "agent_id": in.AgentID, "outcome": res.Outcome}
+	if res.RequestID != "" {
+		out["request_id"] = res.RequestID
 	}
 	return jsonResult(out)
 }

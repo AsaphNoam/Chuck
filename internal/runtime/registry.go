@@ -624,3 +624,18 @@ var (
 	_ Runtime = notImplementedRuntime{}
 	_ Runtime = (*ChatRuntime)(nil)
 )
+
+// AppendPeerStopNoticeAndSync appends through the owning chat runtime's
+// durable transcript writer. A terminal owner yields ErrNotImplemented and an
+// unowned agent ErrNoHandle; the server then appends under its lifecycle claim.
+func (r *Registry) AppendPeerStopNoticeAndSync(agentID string, data NoticeData) (Event, error) {
+	rt, err := r.ownerFor(agentID)
+	if err != nil {
+		return Event{}, err
+	}
+	chat, ok := rt.(*ChatRuntime)
+	if !ok {
+		return Event{}, ErrNotImplemented
+	}
+	return chat.AppendPeerStopNoticeAndSync(agentID, data)
+}

@@ -95,8 +95,10 @@ Slices (each closes with focused tests + commit):
 2. **Host waiter — done:** `internal/runtime/host_permission.go` (`RequestHostPermission`,
    `Wait`, `Admit` voided by requester cancel/stop); `/permission` route unchanged; transcript
    window hides host prompts from ended generations. Tests: `-run HostPermission` (runtime, race).
-3. **Stop (next):** `stop_agent` admission/claims through `stopAgentClaimed`, peer notices, outcomes.
-4. **UI:** desktop/phone permission presenters and notice rendering for the host origin.
+3. **Stop — done:** `stop_agent` → `Server.StopPeer` (`internal/server/peer_stop.go`): host
+   approval, `Admit`, target claims + execution recheck, `stopAgentClaimed`; "approved" notice on
+   the target before the effect, "stopped" notice on the requester after. Tests: `-run PeerStop`.
+4. **UI (next):** desktop/phone permission presenters and notice rendering for the host origin.
 5. **Guidance + closure:** `operating-chuck` references, spec un-planning, full matrix.
 
 ## Acceptance gates still owed
