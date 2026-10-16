@@ -131,18 +131,6 @@ None.
 
 ## Review findings
 
-### Review 2026-10-16 — Think Tank setup upgrade (`f7842b81`; FS-21.R54–R56, TS-14.R29, FS-03.R28) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna. **closed by fix**
-
-Rendered evidence (Core, Sky & Grove, Studio at 1024/1440; stubbed API):
-`~/.chuck/project-resources/agentdeck-20261007t221535z/review-tt-setup/` (`render.mjs`, run from `ui/`).
-
-- **Must fix** — **Closed:** startup recovery resolves committed room blobs by `tt-<command_id>` and prunes
-  pending blobs only for unknown room keys; a focused regression covers both paths (INV §7, §15).
-- **Worth fixing** — **Closed:** long attachment names wrap inside bounded chips while the remove control stays visible
-  (INV §8).
-- **Worth fixing** — **Closed:** Attach files and Add new agent use the dialog's ordinary button treatment (INV §8).
-- **Worth fixing** — **Closed:** FS-21.R55 and TS-14.R29 specify the operator disclosure and detail-wire field (INV §10).
-
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
@@ -166,7 +154,13 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
   resolves committed room attachments by command identity while pruning unknown provisional blobs;
   long names remain bounded in setup chips, setup actions use ordinary buttons, and the operator
   display/detail wire coverage for synthesis instructions is explicit. The four findings from the
-  2026-10-16 review are closed. Focused recovery and UI checks pass; full closure remains owed.
+  2026-10-16 review are fixed. Focused recovery and UI checks, tagged build and UI build pass.
+  Rendered long-name checks pass in all skins at 1024/1440; final outlined action treatment is
+  confirmed in Core at 1024. Full UI closure has 879 passing tests and two failures in
+  `ArchiveAgentPage.test.tsx`, reproduced in isolation: the missing Think Tank results fixture
+  introduces extra status/Retry elements. No archive code changed in this fix. Full Go matrix
+  passes in both variants (`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test`); final UI
+  verification closure remains pending the archive fixture decision.
 
 - **2026-10-15 — Think Tank setup upgrade (FS-21.R54–R56/A39, TS-14.R29, FS-03.R28):** setup
   takes goal files (chat limits) stored under `attachment.Store` key `tt-<command_id>` and
@@ -266,6 +260,11 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
   Live provider verification and the mail-test assertion race remain.
 
 ## Blocked on human
+
+Think Tank fix verification: authorize a small test-only repair to the archive-page fixtures
+(about 10–20 lines), or leave the two unrelated UI failures documented. The fixture currently
+omits the Think Tank results response, so transcript tests see an additional status and Retry.
+Asked during `/fix` on 2026-10-16; no unrelated repair is authorized yet.
 
 The published `v0.11.0` release body remains empty; its notes are in
 [`RELEASE-v0.11.0-notes.md`](../archive/state/RELEASE-v0.11.0-notes.md).
