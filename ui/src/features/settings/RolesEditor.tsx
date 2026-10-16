@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, configErrorMessage } from "../../api/config";
+import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useConfig, usePutConfig, configErrorMessage } from "../../api/config";
 import { useUiStore } from "../../store/uiStore";
 import type { RoleResponse } from "../../schemas/role";
 import { ConfirmDialog } from "../../components/ui";
@@ -15,12 +15,22 @@ export function RolesEditor() {
   const createRole = useCreateRole();
   const updateRole = useUpdateRole();
   const deleteRole = useDeleteRole();
+  const config = useConfig();
+  const putConfig = usePutConfig();
   const pushError = useUiStore((state) => state.pushError);
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RoleResponse | null>(null);
   const [formError, setFormError] = useState("");
   const [deleting, setDeleting] = useState<DeleteDialog | null>(null);
+  const [defaultError, setDefaultError] = useState("");
+
+  function setDefaultPersona(id: string, checked: boolean) {
+    setDefaultError("");
+    putConfig.mutate({ default_role: checked ? id : "default" }, {
+      onError: (error) => setDefaultError(`Default persona was not saved: ${configErrorMessage(error)}`),
+    });
+  }
 
   function openCreate() {
     setEditing(null);
@@ -78,12 +88,19 @@ export function RolesEditor() {
   if (isLoading) return <p data-ui="config-editor" data-state="loading" data-variant="roles">Loading roles…</p>;
 
   const entries = Object.entries(roles ?? {}).filter(([id, role]) => !isCanonicalNoPersona(id, role));
+  const hasNoPersona = isCanonicalNoPersona("default", roles?.default);
 
   return (
     <div className="config-editor" data-ui="config-editor" data-state={formError ? "error" : entries.length === 0 ? "empty" : undefined} data-variant="roles">
       <SettingsHeader eyebrow="Roles" title="Roles">
         <button className="ad-button-primary" onClick={openCreate}>New role</button>
       </SettingsHeader>
+
+      <p className="form-hint">Choose a default for new agents. When none is checked, new agents use No persona.</p>
+      {!hasNoPersona && <p className="form-hint">Restore the empty Default role to enable No persona before clearing the selected default.</p>}
+      {config.isError && <p className="form-error" role="alert">Default persona could not be loaded: {configErrorMessage(config.error)}</p>}
+      {defaultError && <p className="form-error" role="alert">{defaultError}</p>}
+      {putConfig.isPending && <p role="status">Saving default persona…</p>}
 
       {entries.length === 0 && (
         <p className="config-empty">No roles defined. Create one to get started.</p>
@@ -104,6 +121,16 @@ export function RolesEditor() {
               )}
             </div>
             <div className="config-list-item-actions" data-slot="actions">
+              <label className="toggle-row">
+                <input
+                  type="checkbox"
+                  aria-label={`Use ${role.title} as default persona`}
+                  checked={config.data?.default_role === id}
+                  disabled={!config.data || config.isError || putConfig.isPending || (config.data.default_role === id && !hasNoPersona)}
+                  onChange={(event) => setDefaultPersona(id, event.target.checked)}
+                />
+                Default persona
+              </label>
               <button className="ad-button-secondary" onClick={() => openEdit(id, role)}>Edit</button>
               <button onClick={() => setDeleting({ id })} className="config-text-action-danger ad-button-danger">
                 Delete

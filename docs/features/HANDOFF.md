@@ -70,7 +70,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+**In progress — desktop default-persona toggle (2026-10-16):** FS-04.R58/A37.
+Settings → Roles now offers one default-persona checkbox per visible role via the existing
+partial config update. Clearing selects canonical No persona; occupied custom Default cannot
+silently become that fallback. Focused Settings/New Agent tests (45), full UI suite (889),
+UI build, tagged Go build and style checks pass. Browser keyboard/select/clear/reload checks and
+1024px screenshots pass in Core, Sky & Grove and Studio (shared project resources: `default-persona/`).
+The Go test matrix is running; next finish it and record review availability. Preserve the
+pre-existing embedded index and concurrent phone-project edits.
 
 ## Acceptance gates still owed
 

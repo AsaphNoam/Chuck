@@ -3,12 +3,13 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { render, renderHook, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { setupServer } from "msw/node";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { RolesEditor } from "./RolesEditor";
 import { useDeleteRole } from "../../api/config";
 
 // Minimal MSW server for roles API.
 const server = setupServer(
+  http.get("/api/config", () => HttpResponse.json({ default_role: "default" })),
   http.get("/api/roles", () =>
     HttpResponse.json({
       implementer: { title: "Implementer", system_prompt: "", skip_permissions: null },
@@ -34,6 +35,96 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 describe("RolesEditor", () => {
+  function defaultPersonaFixture() {
+    server.use(http.get("/api/roles", () => HttpResponse.json({
+      default: { title: "Default", system_prompt: "", skip_permissions: null },
+      implementer: { title: "Implementer", system_prompt: "implement" },
+      reviewer: { title: "Reviewer", system_prompt: "review" },
+    })));
+  }
+
+  it("saves one default at a time, clears to No persona and retains the choice on remount", async () => {
+    defaultPersonaFixture();
+    let saved = { default_role: "default" };
+    const writes: unknown[] = [];
+    server.use(
+      http.get("/api/config", () => HttpResponse.json(saved)),
+      http.put("/api/config", async ({ request }) => {
+        const body = await request.json() as typeof saved;
+        writes.push(body);
+        saved = { ...saved, ...body };
+        await delay(50);
+        return HttpResponse.json(saved);
+      }),
+    );
+    const view = renderWithQuery(<RolesEditor />);
+    let implementer = await screen.findByRole("checkbox", { name: "Use Implementer as default persona" });
+    const reviewer = screen.getByRole("checkbox", { name: "Use Reviewer as default persona" });
+    await waitFor(() => expect(implementer).toBeEnabled());
+    expect(implementer).not.toBeChecked();
+    expect(reviewer).not.toBeChecked();
+    fireEvent.click(implementer);
+    await waitFor(() => expect(reviewer).toBeDisabled());
+    expect(screen.getByRole("status")).toHaveTextContent("Saving default persona");
+    await waitFor(() => expect(implementer).toBeChecked());
+    await waitFor(() => expect(reviewer).toBeEnabled());
+    fireEvent.click(reviewer);
+    await waitFor(() => expect(reviewer).toBeChecked());
+    expect(implementer).not.toBeChecked();
+    await waitFor(() => expect(reviewer).toBeEnabled());
+    fireEvent.click(reviewer);
+    await waitFor(() => expect(reviewer).not.toBeChecked());
+    expect(implementer).not.toBeChecked();
+    expect(writes).toEqual([{ default_role: "implementer" }, { default_role: "reviewer" }, { default_role: "default" }]);
+    view.unmount();
+    renderWithQuery(<RolesEditor />);
+    implementer = await screen.findByRole("checkbox", { name: "Use Implementer as default persona" });
+    await waitFor(() => expect(implementer).toBeEnabled());
+    expect(implementer).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Use Reviewer as default persona" })).not.toBeChecked();
+  });
+
+  it("keeps the saved selection on failure and allows a retry", async () => {
+    defaultPersonaFixture();
+    server.use(
+      http.get("/api/config", () => HttpResponse.json({ default_role: "implementer" })),
+      http.put("/api/config", () => HttpResponse.json({ message: "disk is read-only" }, { status: 500 })),
+    );
+    renderWithQuery(<RolesEditor />);
+    const toggle = await screen.findByRole("checkbox", { name: "Use Implementer as default persona" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    fireEvent.click(toggle);
+    expect(await screen.findByRole("alert")).toHaveTextContent("disk is read-only");
+    expect(toggle).toBeChecked();
+    expect(toggle).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "Use Reviewer as default persona" })).not.toBeChecked();
+  });
+
+  it("disables defaults until config loads and explains a failed read", async () => {
+    defaultPersonaFixture();
+    server.use(http.get("/api/config", async () => {
+      await delay(100);
+      return HttpResponse.json({ message: "configuration unavailable" }, { status: 500 });
+    }));
+    renderWithQuery(<RolesEditor />);
+    const toggle = await screen.findByRole("checkbox", { name: "Use Implementer as default persona" });
+    expect(toggle).toBeDisabled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("configuration unavailable");
+    expect(toggle).toBeDisabled();
+  });
+
+  it("does not clear a selected persona into customized Default content", async () => {
+    server.use(
+      http.get("/api/roles", () => HttpResponse.json({ default: { title: "Custom default", system_prompt: "custom" } })),
+      http.get("/api/config", () => HttpResponse.json({ default_role: "default" })),
+    );
+    renderWithQuery(<RolesEditor />);
+    const toggle = await screen.findByRole("checkbox", { name: "Use Custom default as default persona" });
+    await waitFor(() => expect(toggle).toBeChecked());
+    expect(toggle).toBeDisabled();
+    expect(screen.getByText(/Restore the empty Default role/)).toBeInTheDocument();
+  });
+
   it("renders existing roles from GET /api/roles", async () => {
     renderWithQuery(<RolesEditor />);
     expect(await screen.findByText("Implementer")).toBeInTheDocument();

@@ -135,6 +135,17 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 
 ### 2.4 Layout & global config
 
+- **R58 — Desktop default-persona toggle.** Settings → Roles offers a
+  **Default persona** checkbox for each visible persona. At most one is checked, reflecting
+  the saved `default_role`; selecting another replaces that preference through the existing
+  partial configuration update. Clearing the checked persona saves the canonical internal
+  `default` role, so no checked persona means No persona for ordinary new launches. Existing
+  agents and explicit launch/automation choices remain unchanged. Show a short explanation of
+  that fallback, saving feedback and read/save errors; disable controls until configuration is
+  loaded and while saving. Failed writes retain the saved selection and permit retry. If the
+  canonical empty role is unavailable, explain that it must be restored before clearing the
+  selected persona; never silently substitute customized `default` content for No persona.
+
 - **R10.** `config.json` holds `default_project`, `default_role`, the global `skip_permissions`
   boolean, `notifications`, and non-user-editable `version`/`port`. `GET /api/config` returns the
   config plus a computed `onboarding` block (§3); `PUT /api/config` is a partial merge of the
@@ -549,6 +560,14 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   awareness control or override, including Advanced. A customized occupied default id remains
   named user content rather than a silently substituted No persona choice. *Verify:* role/configuration API fixtures,
   persona-editor component tests and the FS-01.A30 rendered journey.
+
+- **A37** (R58) — In desktop Settings → Roles, select a default persona, select another,
+  and clear the selected checkbox. Only the saved persona is checked; clearing saves the
+  canonical `default` choice and a newly opened New Agent setup selects No persona. Reloading
+  retains the preference. Pending/loading reads prevent writes; failed reads/saves explain the
+  error, retain the saved selection and allow retry. Config updates contain only `default_role`.
+  A customized occupied `default` remains visible and cannot be used as the No persona fallback.
+  *Verify:* focused Settings component and New Agent selection tests.
 
 ## 6. Deviations & open decisions
 
