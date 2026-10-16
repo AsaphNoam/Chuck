@@ -15,15 +15,17 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Review notes: completion notice lands on the requester (target writer may still be closing);
   a host prompt is offered only while its requester is `waiting_input`/runtime-pending.
 
-- **Awaiting review — desktop default-persona toggle (2026-10-16):** `33226f23`,
-  FS-04.R58/A37. Settings → Roles offers a Default persona checkbox per visible role;
-  selecting another replaces the saved preference and clearing selects canonical No persona.
-  Read/save errors remain visible; pending saves disable controls. Customized Default content
-  cannot silently become the fallback. Focused Settings/New Agent tests (45), full UI suite
-  (889), UI build/style checks, tagged Go build and both serial Go test variants pass.
-  Real-browser keyboard/select/clear/reload and 1024px layout checks pass in all three appearances;
-  screenshots and evidence are in shared project resources `default-persona/`.
-  This unit did not refresh the pre-existing dirty embedded UI index or change the phone work.
+- **Finished — desktop default-persona toggle (2026-10-16):** `33226f23`, FS-04.R58/A37,
+  independently reviewed with no findings. Accepted the existing partial-config mutation and
+  canonical No persona helper: saved selection remains authoritative, failed saves preserve it,
+  and customized Default content cannot become the empty fallback. Review reran all 45 focused
+  Settings/New Agent tests and presentation checks; browser keyboard/select/replace, pending,
+  failed-save/retry, clear/reload and 1024px layout checks passed in all three appearances.
+  Evidence: `/tmp/persona-review-20261016.mjs` and `/tmp/persona-review-20261016/` (including the
+  development matrix). INV §2/§3/§8/§10/§11/§13/§17 passed; §1/§4–§7/§9/§12/§14–§16 have no
+  applicable surface in this diff. The existing delete-role/dangling-default behavior predates
+  this unit and is outside R11's PUT validation contract; it is not a finding on this change.
+  **Fix model:** none — no open fixes. Other review units and acceptance gates remain unchanged.
 
 - **Awaiting review — phone New agent from a group header (2026-10-16):** FS-20.R46/A18. Each
   group header (Ungrouped included) has a plus beside its name that opens the same centered New
