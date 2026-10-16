@@ -965,6 +965,19 @@ func (s *Store) ReadThinkTank(roomID string) (ThinkTankDetail, error) {
 	return readThinkTankDetail(s.db, roomID)
 }
 
+// ReadThinkTankByCommandID resolves the durable room identity used by
+// attachment storage during startup recovery.
+func (s *Store) ReadThinkTankByCommandID(commandID string) (ThinkTankDetail, error) {
+	var roomID string
+	if err := s.db.QueryRow(`SELECT room_id FROM think_tanks WHERE command_id = ?`, commandID).Scan(&roomID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ThinkTankDetail{}, ErrNotFound
+		}
+		return ThinkTankDetail{}, fmt.Errorf("state: read think tank command: %w", err)
+	}
+	return readThinkTankDetail(s.db, roomID)
+}
+
 // ListThinkTanks lists rooms newest first, optionally only those originating
 // in one project. The limit is required (INV §16).
 func (s *Store) ListThinkTanks(project, agentID string, limit int) ([]ThinkTank, error) {

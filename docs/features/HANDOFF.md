@@ -6,10 +6,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Reviewed — Think Tank setup upgrade (2026-10-15), findings open:** goal attachments,
-  judge synthesis instructions, model/effort display, Add new agent placement and Core selection
-  highlight in every skin (changelog entry). Review 2026-10-16 left four findings below (one
-  **Must fix**); the unit stays open until `/fix` closes them.
+- **Finished — Think Tank setup upgrade (2026-10-15):** goal attachments, judge synthesis
+  instructions, model/effort display, Add new agent placement and Core selection highlight in every
+  skin. Review 2026-10-16's four findings are closed: startup recovery resolves committed room
+  blobs by command identity, long names stay within the setup dialog, setup actions use ordinary
+  buttons, and synthesis instructions are documented on the operator display and detail wire.
 
 - **Finished — agent context continuity (2026-10-14):** C1–C9 closed locally. Instructions,
   tool evidence and bounded recent history survive handoffs; the separate bridge survives native
@@ -130,39 +131,17 @@ None.
 
 ## Review findings
 
-### Review 2026-10-16 — Think Tank setup upgrade (`f7842b81`; FS-21.R54–R56, TS-14.R29, FS-03.R28) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+### Review 2026-10-16 — Think Tank setup upgrade (`f7842b81`; FS-21.R54–R56, TS-14.R29, FS-03.R28) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna. **closed by fix**
 
 Rendered evidence (Core, Sky & Grove, Studio at 1024/1440; stubbed API):
 `~/.chuck/project-resources/agentdeck-20261007t221535z/review-tt-setup/` (`render.mjs`, run from `ui/`).
 
-- **Must fix** — **Startup attachment recovery deletes a committed room's goal files:**
-  `internal/server/attachment_recovery.go` `recoverConversationAttachments` treats every
-  `sessions/<key>` directory as an agent; for `tt-<command_id>` `ReadAgent` is not found, so `keep`
-  is empty and `PruneUnowned` removes every blob still carrying its `pending` marker.
-  `handleCreateThinkTank` clears the markers only after the create commit, and a `Retain` failure is
-  merely logged (`think_tank_handlers.go` ~L248–258). A crash between commit and `Retain`, or any
-  `Retain` error, makes the next restart delete files the room still lists; every member then reads
-  "stored copy is unavailable" (FS-21.R54 "owned by the room"; TS-14.R29 "Committed blobs are
-  retained"). The changelog note "a crash … leaves pending room blobs nothing prunes" is also wrong:
-  startup does prune uncommitted ones, which is the desired half. Fix: for `tt-` keys, keep the
-  descriptor ids of the room whose `command_id` matches (unknown key → prune pending as today).
-  Test: create a room with files, re-add the `pending` marker, run recovery, files remain; an
-  orphan `tt-` key's pending blob is removed. (INV §7, §15)
-- **Worth fixing** — **Long unbroken attachment name breaks the setup dialog:**
-  `ui/src/styles/features/think-tank.css` `.think-tank-setup-files li` (~L1501) and its name span
-  have no `min-width: 0`/`overflow-wrap`/ellipsis. Attaching a 180-character unbroken filename
-  makes the dialog scroll horizontally (scrollWidth 1685 vs 718) and pushes the goal, row controls
-  and chip × off-screen (`a-setup-longname-core-1024.png`). Fix: truncate or wrap the chip name,
-  keep × visible. (INV §8)
-- **Worth fixing** — **The new setup actions read as captions, not buttons:** “Attach files…” and
-  “+ Add new agent…” use `.ad-button-secondary` (borderless ~11px muted text) and render smaller and
-  lighter than the picker below them (`a-setup-core-1024.png`); FS-21.R56 calls Add new agent “a
-  distinct button”. Fix: use the ordinary button treatment the dialog's Add/Cancel use. (INV §8)
-- **Worth fixing** — **Synthesis instructions shown to the operator are unspecified:** the room's
-  goal disclosure renders “Synthesis instructions: …” (`ThinkTankPage.tsx` ~L257) and the detail
-  wire carries `judge.instructions`, but FS-21.R55/A39 and TS-14.R29 describe only judge delivery
-  and attachment names on the wire. Fix: add the operator display and wire field to R55/R29
-  (spec-only), with the existing page test cited. (INV §10)
+- **Must fix** — **Closed:** startup recovery resolves committed room blobs by `tt-<command_id>` and prunes
+  pending blobs only for unknown room keys; a focused regression covers both paths (INV §7, §15).
+- **Worth fixing** — **Closed:** long attachment names wrap inside bounded chips while the remove control stays visible
+  (INV §8).
+- **Worth fixing** — **Closed:** Attach files and Add new agent use the dialog's ordinary button treatment (INV §8).
+- **Worth fixing** — **Closed:** FS-21.R55 and TS-14.R29 specify the operator disclosure and detail-wire field (INV §10).
 
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -182,6 +161,12 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-16 — Think Tank setup review fixes (INV §7/§8/§10/§15):** startup recovery now
+  resolves committed room attachments by command identity while pruning unknown provisional blobs;
+  long names remain bounded in setup chips, setup actions use ordinary buttons, and the operator
+  display/detail wire coverage for synthesis instructions is explicit. The four findings from the
+  2026-10-16 review are closed. Focused recovery and UI checks pass; full closure remains owed.
 
 - **2026-10-15 — Think Tank setup upgrade (FS-21.R54–R56/A39, TS-14.R29, FS-03.R28):** setup
   takes goal files (chat limits) stored under `attachment.Store` key `tt-<command_id>` and

@@ -127,7 +127,7 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
               </div>
               <div className="form-field think-tank-setup-files">
                 <input ref={picker} className="ad-visually-hidden" type="file" multiple aria-label="Choose files to attach" onChange={(e) => { if (e.target.files) attach(e.target.files); e.target.value = ""; }} />
-                <button type="button" className="ad-button-secondary" onClick={() => picker.current?.click()}>Attach files…</button>
+                <button type="button" onClick={() => picker.current?.click()}>Attach files…</button>
                 {files.length > 0 && (
                   <ul aria-label="Attached files">
                     {files.map((f) => (
@@ -159,7 +159,7 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
                 </ol>
                 {rows.length < MAX_PARTICIPANTS && (
                   <>
-                    <button type="button" className="ad-button-secondary think-tank-setup-new" onClick={() => setLaunchFor("participant")}>+ Add new agent…</button>
+                    <button type="button" className="think-tank-setup-new" onClick={() => setLaunchFor("participant")}>+ Add new agent…</button>
                     <div className="think-tank-setup-add">
                       <select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Existing agent">
                         <option value="">Or choose an existing agent</option>

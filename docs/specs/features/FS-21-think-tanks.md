@@ -318,8 +318,9 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   removes them. Ordinary file permissions of each agent's provider still apply.
 - **R55 (shipped 2026-10-15)** — When final synthesis is enabled, setup accepts optional synthesis
   instructions (at most 8,000 characters), fixed at start. Only the judge receives them, with the
-  goal, as the operator's direction for how to act and respond in its synthesis; they do not relax
-  R7/R13's preservation of unresolved material objections.
+  goal, as the operator's direction for how to act and respond in its synthesis; the room's goal
+  disclosure shows the retained instructions to the operator; they do not relax R7/R13's
+  preservation of unresolved material objections.
 - **R56 (shipped 2026-10-15)** — Setup shows each chosen participant's and the judge's model and
   effort, and existing-agent choices carry the same. The **Add new agent** action is a distinct
   button placed above the existing-agent picker; the picker lists only non-archived agents (R34).
@@ -576,10 +577,11 @@ completion; R37 defines partial opening publication and pending input on End.
   tool tests plus the room page test.
 - **A39 (shipped 2026-10-15)** (R54–R56) — Create a room with two attached files, synthesis instructions
   and a judge: participants' and the judge's first read lists both files with readable paths; only
-  the judge's read carries the instructions; an exact replay keeps the original files; an over-limit
-  upload is refused before any room exists; deletion removes the files. Setup shows each row's
-  model and effort, places Add new agent above the picker, and omits archived agents. *Verify:*
-  server handler and MCP tool tests plus the setup dialog test.
+  the judge's read carries the instructions and the room goal disclosure shows them; an exact replay
+  keeps the original files; an over-limit upload is refused before any room exists; deletion removes
+  the files. Setup shows each row's model and effort, places Add new agent above the picker, and
+  omits archived agents. *Verify:* server handler and MCP tool tests, the setup dialog test, and
+  the room page test for the operator disclosure.
 
 ## 6. Deviations & open decisions
 

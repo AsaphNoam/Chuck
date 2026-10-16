@@ -314,7 +314,8 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   opaque ids so exact replay matches, and a replay or failed create removes the request's new blobs.
   Committed blobs are retained; room deletion deletes the key. `read_think_tank`'s first page adds
   `attachments:[{name,mime_type,size,path}]` for every member and `judge_instructions` for the judge
-  only, and the detail wire lists attachment names. Pipeline rooms carry neither.
+  only, and the detail wire lists attachment names plus the retained `judge.instructions` field for
+  operator display. Pipeline rooms carry neither.
 
 ## 3. Interfaces & data shapes
 

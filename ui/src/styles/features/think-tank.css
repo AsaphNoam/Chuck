@@ -1504,7 +1504,18 @@ a.think-tank-author:hover {
   border-radius: var(--ad-radius-medium);
   display: inline-flex;
   gap: var(--ad-space-1);
+  max-width: 100%;
+  min-width: 0;
   padding-left: var(--ad-space-2);
+}
+
+.think-tank-setup-files li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.think-tank-setup-files li > button {
+  flex: 0 0 auto;
 }
 
 .think-tank-setup-order,

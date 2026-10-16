@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
@@ -40,6 +41,19 @@ func (s *Server) recoverAttachmentStorage() error {
 
 func (s *Server) recoverConversationAttachments(store *attachment.Store, id string) error {
 	keep := map[string]bool{}
+	if strings.HasPrefix(id, "tt-") {
+		room, err := s.stateStore.ReadThinkTankByCommandID(strings.TrimPrefix(id, "tt-"))
+		if err != nil {
+			if !errors.Is(err, state.ErrNotFound) {
+				return err
+			}
+			return store.PruneUnowned(id, keep)
+		}
+		for _, descriptor := range room.Room.Attachments {
+			keep[descriptor.ID] = true
+		}
+		return store.PruneUnowned(id, keep)
+	}
 	collect := func(raw []byte) error {
 		var value any
 		if err := json.Unmarshal(raw, &value); err != nil {
