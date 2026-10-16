@@ -6,11 +6,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Finished — withdraw returns the held message (2026-10-16):** FS-03.R90/A70. Withdraw from
+- **In progress — withdraw returns the held message (2026-10-16):** FS-03.R90/A70. Implementation
+  `2cf48ba2` reviewed 2026-10-16; three findings below keep this unit open for fixes. Withdraw from
   the desktop composer, the pending tail, or the phone writes a text-only held message back into
   that agent's draft (`restoreChatDraft` in `ui/src/components/chat/drafts.ts`; withdrawn text
   first, then any draft typed since). Attachment holds refresh R84's recovery offer instead.
-  Review note: the join-with-blank-line rule for a non-empty composer is a reversible local choice.
+  Review accepted the join-with-blank-line rule for a non-empty composer as specified and reversible.
   All 885 UI tests, UI build and the serial Go matrix (`make test`, both variants) pass. Embedded
   `dist` was not refreshed; no rendered check (no visual change).
 
@@ -139,6 +140,39 @@ None.
 
 ## Review findings
 
+### Review 2026-10-16 — withdraw returns the held message (`2cf48ba2`, FS-03.R90/A70) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — **W1: Withdrawal can erase a newer live draft when browser storage fails.**
+  `ui/src/components/chat/drafts.ts:80–84` merges only `getChatDraft`'s persisted value, then
+  notifies every composer with that result. When a quota/unavailable-storage error prevents typing
+  from being persisted, the textarea still holds the newer text, but withdrawal replaces it with
+  only the held text (or a stale persisted draft). This loses text despite FS-03.R90/A70's
+  preservation contract and R84's live-draft storage-failure rule. Reproduced against the real
+  draft and withdrawal helpers with throwing storage writes. Keep the live draft authoritative
+  across persistence failures; test both desktop and phone subscriptions with newer visible text
+  and failed writes. Fix complexity: medium. (INV §1/§8)
+- **Must fix** — **W2: A failed recovery read silently hides a withdrawn attachment message.**
+  `ui/src/lib/heldMessage.ts:18–21` removes the pending hold after DELETE, then swallows a failed
+  recovery GET and resolves successfully. Neither the pending tail nor the recovery offer remains;
+  `ChatPanel.tsx:114–124` does not refetch it until a lifecycle/remount change. FS-03.R90/A70
+  promises the recovery offer after successful withdrawal. Reproduced with successful DELETE and
+  rejected GET: the helper resolves with neither held nor recovery state. Surface the recovery
+  read failure with a retry/refetch path that does not repeat the completed withdrawal; cover it
+  from composer and pending-tail actions. Fix complexity: easy. (INV §7/§8/§10)
+- **Worth fixing** — **W3: Overlapping desktop withdrawals duplicate the restored text.**
+  `ui/src/lib/heldMessage.ts:14–23` snapshots the held text before awaiting DELETE. Two quick clicks
+  on either desktop Withdraw control, or clicks on both controls, can both snapshot the same hold.
+  DELETE intentionally succeeds when nothing remains held (`TS-03.R38`), so both calls prepend it.
+  Reproduced result: `held text\n\nheld text`. Share an in-flight guard or ensure only one caller
+  restores each held message; a local button guard alone does not cover both surfaces. Test delayed
+  DELETE responses and assert exactly one restored copy. Fix complexity: easy. (INV §11/§15)
+
+Verification: all 117 focused tests pass across Composer, drafts, TranscriptView and AgentScreen;
+the three helper-level failure probes above reproduce independently of their fixtures. No product
+code or specs changed. The blank-line merge choice is accepted. Invariant sweep: applicable
+classes 1–3, 7–8, 10–11, 13, 15–17 were checked; no additional violation found. Classes 4–6, 9,
+12 and 14 have no applicable changed surface. No material visual change requires rendered review.
+
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
@@ -158,6 +192,9 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-16 — Withdrawal review:** `2cf48ba2` remains open for live-draft loss on storage
+  failure, hidden attachment recovery after a failed read, and duplicated text from overlapping
+  withdrawals. Focused UI tests pass; all three failure paths reproduce. Blank-line merge accepted.
 - **2026-10-16 — Withdraw returns the held message (FS-03.R90/A70):** desktop and phone Withdraw
   now put a text-only held message back in the composer; attachment holds show the recovery offer.
 - **2026-10-16 — Think Tank setup review fixes (INV §7/§8/§10/§15):** startup recovery now
