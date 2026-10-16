@@ -75,6 +75,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
   parser, login side client or new adapter patch.
+- **Design awaiting scope — quota reset fallback (2026-10-16):** proposed FS-01.R48–R50/A31–A33,
+  FS-04.R59/A38; [evidence](QUOTA-RESET-FALLBACK-2026-10-16.md). Pinned AIR failure titles can
+  contain reset prose that Chuck drops; the pinned Claude executable independently establishes
+  epoch-second reset units and rejected-error IANA timezone suffixes. Claude omits the date within
+  24 hours (including tomorrow), whereas Codex omits only today's date and carries no zone; a
+  strict parser needs provider-specific observation/date provenance. Recommend
+  verified structured evidence first, verified text second, then six hourly unknown-reset attempts
+  through existing recovery if approved. Await extraction-only versus bounded-retry scope; no TS
+  or ready change until confirmation, no product edits, no live provider receipt. Subscription
+  views and their passive-snapshot gate remain separate.
 - **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
 - **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
   violates a credential test's source-build assumption. Prefer `GOFLAGS=-p=1` for full closure:
@@ -220,6 +230,15 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-16 — Quota reset fallback investigated:** recorded pinned adapter AIR/RPC carriers,
+  Chuck's text/data loss, native Claude timestamp-unit evidence and Codex local-date formatting
+  in [the evidence note](QUOTA-RESET-FALLBACK-2026-10-16.md). Drafted planned FS-01.R48–R50/A31–A33
+  and FS-04.R59/A38; scope awaits confirmation before TS/ready-change work. Recommended existing
+  recovery with structured → verified-text → bounded unknown-reset retries; no product code.
+  Synthetic helper/source receipts are distinct from FS-01.A28/A33's owed live-provider gate.
+  Spec checks, twin-skill/launcher checks, whitespace checks, actual pinned helper serialization
+  replay and six extracted-native-formatter assertions pass.
 
 - **2026-10-16 — Peer transcript reads and approved Stop implemented:** five slices from the
   ready change; FS-06.R39–R44, FS-03.R91, FS-15.R18/A8, FS-17.R22/A13 and TS-04.R93–R95,

@@ -299,6 +299,47 @@ orphaned processes.
   Reconnect/restart cannot duplicate it. Existing transcript retention and search treatment of
   system notices remain unchanged.
 
+- **R48 (planned; scope awaiting confirmation)** — **Recover from verified provider reset evidence.**
+  After R40 independently establishes terminal quota exhaustion, Chuck prefers an applicable,
+  verified structured reset, then may use a reset stated in that same provider failure's text.
+  A supported provider format must establish a future instant, its date and its timezone;
+  unsupported, conflicting, stale or ambiguous evidence remains unknown. User, assistant and tool
+  prose cannot authorize a schedule. Time-only provider errors use the verified provider's date
+  convention and effective process timezone, never the viewing browser's timezone or a generic
+  next-day rollover. Ambiguous daylight-saving times remain unknown. The displayed reset and scheduled
+  continuation remain distinct: continuation waits at least one minute after the reset to avoid
+  retrying within a rounded reset minute. Multiple known blocking windows retain R40–R44's
+  applicability and ownership rules. This extends R41's available reset evidence when shipped;
+  it does not claim live provider coverage before A28/A33.
+- **R49 (planned; scope awaiting confirmation)** — **Bound retries when the reset stays unknown.**
+  With Auto continue enabled, a newly observed quota interruption with no reliable reset may
+  schedule the same unfinished work one hour later, up to six automatic attempts without a known
+  reset. Explicit provider errors requiring credits, a plan change or spend-cap intervention stay
+  manual. The conversation continues to say **Reset time unknown**, shows **Will retry at …** and
+  the remaining attempt allowance, and offers the existing cancellation control. A retry is an
+  ordinary provider continuation and can consume usage once access is available; it is not a
+  passive quota check. Repeated quota failures retain the remaining allowance across changed
+  provider failure identities, runtime resumption and server restarts; partial output alone does
+  not replenish it. Busy/capacity deferrals consume no attempt. Each still-quota result schedules
+  at most one next attempt an hour after completion; newly trustworthy future reset evidence
+  takes priority without replenishing the unknown-reset allowance. Exhaustion leaves a readable
+  needs-attention state and manual recovery. Restart admits at most one overdue attempt per chat,
+  never a burst of missed retries. Non-quota failures and uncertain delivery retain R44's hold.
+  This replaces R41's unknown-reset scheduling exclusion only when shipped.
+- **R50 (planned; scope awaiting confirmation)** — **Fallback recovery preserves control and honest
+  history.** R42–R44's same-conversation, owner, exclusivity, cancellation, eligibility and restart
+  rules apply equally to reset schedules and unknown-reset retries. Desktop, phone and existing
+  API/stream clients distinguish a provider reset from the next retry; no retry time is presented
+  as a quota reset. On corroborated automatic continuation, the durable Chuck notice reads
+  **Chuck automatically continued this conversation after a quota interruption**, replacing
+  R45's reset-specific sentence for new notices when shipped. Historical notices remain intact;
+  a quota-only refusal or mere admission emits no continuation notice. Scheduling and allowance live in the
+  existing local recovery state with its existing conversation lifetime; raw provider error
+  payloads are not added to that retained state. Existing unscheduled interruptions are not
+  automatically armed by upgrade, and cancelled/disabled records are never resurrected. There is
+  no extra setting, new conversation, hidden usage prompt, provider login client, adapter patch,
+  subscription dashboard or change to frozen permissions.
+
 ## 3. States & transitions
 
 Live status is one of `busy | idle | waiting_input | done | error` (FS-00.R4). Lifecycle-relevant
@@ -535,7 +576,38 @@ transitions:
   the internal Default role as a selectable persona. *Verify:* focused form/component tests and
   a rendered keyboard journey at the desktop floor and phone widths in all three appearances.
 
+- **A31 (planned)** (R48) — Replay supported pinned Claude/Codex terminal failures with structured
+  resets, provider-text resets, missing/conflicting times and non-quota controls through ordinary
+  prompts and owned activations. Cover provider/browser timezone differences, effective provider
+  timezone overrides, explicit dates, Claude's next-24-hours versus Codex's same-day time-only
+  convention across midnight, daylight-saving
+  gaps/folds, minute precision and stale times. Only independently classified quota with an
+  unambiguous applicable reset schedules after the buffer. Quoted reset text, transient rate
+  limits, warnings, child/history events and unrelated windows cannot schedule. *Verify:* pinned
+  native-source/adapter receipts independent of parser fixtures, runtime/server contract tests,
+  and the provider coverage gate in A28/A33.
+- **A32 (planned)** (R49–R50) — Interrupt an ordinary chat and each existing task/pipeline/room
+  recovery path with unknown-reset quota. Observe one hourly same-work retry, renewed quota with
+  a different failure identity, no more than six unknown-reset provider starts, and needs-attention
+  on exhaustion. Exercise success, later known reset, non-quota failure, manual cancellation,
+  global disable, owner closure, busy/capacity deferral and crashes before/after provider delivery.
+  No duplicate work, allowance reset, catch-up burst or uncertain-delivery replay occurs. Explicit
+  credit/spend-cap errors and pre-upgrade unknown records remain manual. *Verify:* deterministic
+  clock/state/dispatcher and owner-path tests plus restart/cancellation race coverage.
+- **A33 (planned)** (R48–R50) — On desktop and phone, distinguish known reset, unknown-reset next
+  retry, remaining allowance, cancelled and exhausted states; reload, cancel and disable while
+  waiting. API/stream state agrees. Corroborated continuation appends one honest Chuck notice;
+  quota-only refusals append none. *Verify:* focused rendered recovery journeys, projection and
+  notice tests, plus bounded packaged/supported-installed Claude/Codex terminal-wire and actual
+  continuation receipts. Source inspection and synthetic helpers do not substitute for a live
+  receipt; unsupported producer versions/formats remain explicitly unknown.
+
 ## 6. Deviations & open decisions
+
+- **Quota reset fallback (design 2026-10-16):** R48–R50/A31–A33 are a proposed scope, awaiting
+  operator confirmation before technical design. The main decision is verified reset extraction
+  alone versus also allowing six hourly unknown-reset continuations under the existing setting.
+  Investigation: [quota reset evidence](../../features/QUOTA-RESET-FALLBACK-2026-10-16.md).
 
 - **Persona-free launch (implemented 2026-10-10):** R46–R47/A29–A30 are implemented by
   [`agents-without-a-persona-by-default.md`](../../ready-changes/agents-without-a-persona-by-default.md).

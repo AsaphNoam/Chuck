@@ -33,6 +33,16 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Quota continuation without structured reset metadata.** Direct `/design-feature` request on
+  2026-10-16. Investigate pinned Claude/Codex ACP terminal failures, RPC error messages/data and
+  provider reset text already received by Chuck. Consider a conservative provider-text reset
+  fallback only after independent quota classification, then bounded periodic retries if the
+  reset remains unknown. Reuse the existing durable quota intent, dispatcher and owner recovery;
+  verify timestamps/timezones and provider differences before recommending scope. Separate from
+  passive subscription-window views below. [Pinned evidence](features/QUOTA-RESET-FALLBACK-2026-10-16.md)
+  proves AIR title text is dropped and establishes Claude native reset units. Proposed behavior:
+  FS-01.R48–R50/A31–A33 and FS-04.R59/A38. Awaiting scope confirmation: extraction alone or also
+  six hourly unknown-reset retries. No technical specification or ready change yet.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;

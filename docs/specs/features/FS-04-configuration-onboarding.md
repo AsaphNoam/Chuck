@@ -1,6 +1,6 @@
 # FS-04 — Configuration & Onboarding
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/config/`, `internal/server/config_handlers.go`, `internal/server/directory_picker.go`, `ui/src/features/settings/`, `ui/src/features/onboarding/` · **Journeys:** J2, J9
 **Absorbed:** [`phase-3-config-onboarding.md`](../../archive/phases/phase-3-config-onboarding.md)
 
@@ -179,6 +179,13 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   A change applies immediately under FS-01.R43, rather than only to new launches under R13;
   an applying/failed save reports the actual saved state and a readable error. It changes no
   permissions or onboarding gate and adds no per-agent override.
+
+- **R59 (planned; scope awaiting confirmation)** — If FS-01.R49's bounded unknown-reset recovery
+  is approved, R53's existing Auto continue setting also controls those attempts. Settings help
+  explains that a reliable reset schedules continuation after that reset; otherwise Chuck may
+  retry hourly up to six times, and a successful attempt uses the provider normally. No second
+  toggle is introduced. Existing false values, immediate cancellation and failed-save behavior
+  remain authoritative. The setting does not retroactively arm old unscheduled interruptions.
 
 - **R13.** Editing a role, project, backend, or the global config affects **new launches only**.
   A running agent and its ordinary resume/switch paths keep the frozen launch snapshot; an explicit
@@ -568,6 +575,12 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   error, retain the saved selection and allow retry. Config updates contain only `default_role`.
   A customized occupied `default` remains visible and cannot be used as the No persona fallback.
   *Verify:* focused Settings component and New Agent selection tests.
+
+- **A38 (planned)** (R59, FS-01.R49–R50) — Existing enabled/disabled configurations retain their
+  value; Settings describes both known-reset schedules and the bounded unknown-reset policy.
+  Disabling cancels either pending kind on desktop and phone, while a failed save reports the
+  actual saved policy. *Verify:* configuration/API and focused Settings/recovery component tests,
+  plus FS-01.A33's rendered journey.
 
 ## 6. Deviations & open decisions
 
