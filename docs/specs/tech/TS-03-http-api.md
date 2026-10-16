@@ -982,7 +982,7 @@ agent. A missing `mode` is 422 `validation`; an unoffered mode or a provider ref
 are 404. Nothing is persisted. Both routes are loopback-only (phone-denied) and reachable from the
 CLI as `chuck agent modes` / `chuck agent mode --mode` (FS-22.R8).
 
-**R71 (planned) — Host peer-Stop approval reuses the operator permission route.** For
+**R71 — Host peer-Stop approval reuses the operator permission route.** For
 FS-03.R91/TS-04.R94, keep `POST /api/sessions/{id}/permission` and its
 `{tool_call_id, decision:"approve"|"deny"}` body. Dispatch host ids through the same runtime
 permission authority, never through an MCP input or an ACP permission response. The route

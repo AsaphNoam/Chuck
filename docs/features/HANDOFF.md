@@ -6,6 +6,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Awaiting review — peer transcript reads and approved Stop (2026-10-16):** `953aeb31`..HEAD,
+  FS-06.R39–R44. `read_agent_transcript`/`list_agents scope:"history"`; `stop_agent` waits on a
+  host permission (`internal/runtime/host_permission.go`) only the operator route resolves, then
+  runs `stopAgentClaimed` (`internal/server/peer_stop.go`). Desktop/phone prompts show both
+  agents and Approve once. Full serial Go matrix, tagged build, 893 UI tests and UI build pass.
+  Still planned: FS-06.A30 rendered desktop/phone journeys, A32 per-kind Stop parity tests.
+  Review notes: completion notice lands on the requester (target writer may still be closing);
+  a host prompt is offered only while its requester is `waiting_input`/runtime-pending.
+
 - **Awaiting review — desktop default-persona toggle (2026-10-16):** `33226f23`,
   FS-04.R58/A37. Settings → Roles offers a Default persona checkbox per visible role;
   selecting another replaces the saved preference and clearing selects canonical No persona.
@@ -84,24 +93,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-**In progress — peer transcript reading and human-approved Stop (2026-10-16):**
-[`peer-transcripts-and-approved-stop.md`](../ready-changes/peer-transcripts-and-approved-stop.md).
-Slices (each closes with focused tests + commit):
-
-1. **Read — done (`953aeb31`):** `contextref.ReadPeerTranscript` (`peer.go`; renderer folds
-   deltas incrementally), `transcript.CompletePrefix`/`ForEachFilePrefix`, `state.AgentHistory`,
-   tools in `internal/messaging/peer_tools.go`, codes in `internal/toolresult`. Fixed a latent
-   `pageWriter` cut-room bug. Tests: `go test ./internal/{messaging,contextref,transcript}/`.
-2. **Host waiter — done:** `internal/runtime/host_permission.go` (`RequestHostPermission`,
-   `Wait`, `Admit` voided by requester cancel/stop); `/permission` route unchanged; transcript
-   window hides host prompts from ended generations. Tests: `-run HostPermission` (runtime, race).
-3. **Stop — done:** `stop_agent` → `Server.StopPeer` (`internal/server/peer_stop.go`): host
-   approval, `Admit`, target claims + execution recheck, `stopAgentClaimed`; "approved" notice on
-   the target before the effect, "stopped" notice on the requester after. Tests: `-run PeerStop`.
-4. **UI (next):** desktop/phone permission presenters and notice rendering for the host origin.
-5. **Guidance + closure:** `operating-chuck` references, spec un-planning, full matrix.
+None.
 
 ## Acceptance gates still owed
+
+- **FS-06.A29 / TS-04.R94:** bounded credentialed Claude and Codex receipt that `stop_agent`
+  waits for Approve once under each provider's most permissive mode. **FS-06.A30:** real-browser
+  desktop and paired-phone peer Stop journeys (reload while pending, Deny, Approve, later Resume).
 
 - **FS-01.A7/A8 / TS-02.R48:** live Claude/Codex cross-backend handoff → immediate Stop/wake,
   explicit model → Stop/Resume, restart, completed target turn and native compaction. Regression
@@ -221,6 +219,11 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-16 — Peer transcript reads and approved Stop implemented:** five slices from the
+  ready change; FS-06.R39–R44, FS-03.R91, FS-15.R18/A8, FS-17.R22/A13 and TS-04.R93–R95,
+  TS-05.R27, TS-02.R49, TS-03.R71, TS-11.R23 shipped; FS-15 is now Current. Ready-change file
+  removed; FS-06.A30/A32 and the live provider receipt remain owed.
+
 - **2026-10-16 — Compact Think Tank chat navigation ready:** operator approved only links to other
   members and the room, with subtle bold/raised active-room-speaker emphasis. FS-21.R57/A40 and
   TS-08.R126 are planned in
@@ -228,8 +231,8 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
   Reuse existing router/query/button styling; rendered all-appearance acceptance is owed during
   implementation. No product edits; active peer transcript/Stop work remains independent.
 - **2026-10-16 — Peer transcript/Stop design ready:** the operator retained existing local-process
-  trust. [`peer-transcripts-and-approved-stop.md`](../ready-changes/peer-transcripts-and-approved-stop.md)
-  is Waiting to start: FS-06.R39–R44/A28–A32, FS-03.R91, FS-15.R18/A8, FS-17.R22/A13;
+  trust. `peer-transcripts-and-approved-stop.md` (since implemented and removed)
+  was Waiting to start: FS-06.R39–R44/A28–A32, FS-03.R91, FS-15.R18/A8, FS-17.R22/A13;
   TS-04.R93–R95, TS-05.R27, TS-02.R49, TS-03.R71 and TS-11.R23. Direct reads use shared bounded
   transcript rendering; Stop uses a host-owned, once-only human decision independent of provider
   auto-approval, bound to requester turn/generation and target execution, through existing Stop

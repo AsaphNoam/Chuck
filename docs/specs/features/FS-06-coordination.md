@@ -267,7 +267,7 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 
 ### 4.5 Peer transcripts and approved Stop
 
-- **R39 (planned) — Direct peer transcript reading.** A token-bound Chuck chat agent may
+- **R39 — Direct peer transcript reading.** A token-bound Chuck chat agent may
   explicitly read another Chuck agent's recorded conversation across projects, including stopped
   and archived agents and archived projects, without a context-sharing grant. Reads return
   attributed user/assistant messages and recorded tool activity, in bounded pages with continuation
@@ -279,13 +279,13 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   state, raw terminal scrollback, or files linked from a transcript. Existing transcript retention
   applies; the read creates no separate saved source snapshot or context-sharing grant. The
   returned content may be recorded in the requester's ordinary tool-result history.
-- **R40 (planned) — Discoverable durable targets.** Agent discovery gains an explicit bounded
+- **R40 — Discoverable durable targets.** Agent discovery gains an explicit bounded
   history scope for finding running, stopped and archived identities across projects, with project,
   interface, lifecycle state and stable agent id. Its existing default discovery and mail
   addressability stay compatible. Being listed or having a readable transcript never implies
   mail eligibility or authority to stop the target. Peer operations select one exact agent id,
   so duplicate names cannot silently choose a different conversation.
-- **R41 (planned) — Every effective peer Stop requires explicit user approval.** Any
+- **R41 — Every effective peer Stop requires explicit user approval.** Any
   token-bound Chuck chat agent may request Stop for one other agent across projects, including
   terminal, task, pipeline and Think Tank agents. Chuck itself withholds the effect until the
   operator approves that specific request. The approval prompt identifies the requester and target
@@ -295,7 +295,7 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   approval, a role, a task relationship, nor agent-supplied claims of prior user approval can
   substitute for the user's decision. A stopped target can report already stopped without
   requesting permission or changing anything. Self-stop is excluded from this peer action.
-- **R42 (planned) — Approval has one target and one lifetime.** The pending request and its
+- **R42 — Approval has one target and one lifetime.** The pending request and its
   result are visible in the requester's conversation and survive browser reload while the server
   and requesting turn remain live. Before stop admission, Deny, configured permission timeout,
   requesting-turn cancellation, requester stop/switch, or server restart ends the request without stopping its
@@ -304,14 +304,14 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   is needed. Concurrent or repeated decisions can produce at most one effective stop. Approval is
   permission to attempt the operation, not a claim that it succeeded. Once admitted, Stop cannot
   be undone by a later cancellation; its actual result remains visible.
-- **R43 (planned) — Approved Stop is ordinary Stop.** After approval, Chuck applies
+- **R43 — Approved Stop is ordinary Stop.** After approval, Chuck applies
   FS-01.R6/R34's process termination, teardown, idempotence and lifecycle conflict rules through
   the ordinary Stop path, with the same task, pipeline and Think Tank effects as operator Stop.
   It does not become Cancel turn, archive, delete, Resume, launch, or a group operation. Unknown,
   invalid, stale and conflicting targets produce an explicit refusal or failure; neither the tool
   nor a later restart automatically retries the stop. The result identifies the exact target and
   distinguishes stopped, already stopped, denied/cancelled and failed outcomes.
-- **R44 (planned) — Attribution and operating guidance.** The requester retains the request,
+- **R44 — Attribution and operating guidance.** The requester retains the request,
   human decision and actual result in its ordinary conversation history. An effective stop records
   a notice on the target identifying the requesting agent and that the operator approved it, so
   live and replayed supervision explain why it stopped. A refusal/no-op is never recorded as
@@ -324,13 +324,13 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 
 ## 5. Acceptance criteria
 
-- **A28 (planned)** (R39–R40) — Via serialized MCP, a chat caller discovers and reads another
+- **A28** (R39–R40) — Via serialized MCP, a chat caller discovers and reads another
   project's live, stopped and archived histories, including a terminal target with limited
   recorded history. Verify identity/attribution, deterministic bounded traversal, a fixed read
   boundary during concurrent append, empty/unknown/read-failure outcomes, and zero target prompt,
   activation, mail or grant side effects. Repeat after server restart. *Verify:* messaging/server
   integration tests using real normalized transcript fixtures and independent event projections.
-- **A29 (planned)** (R41–R42) — With each provider's most permissive mode, Chuck automatic
+- **A29** (R41–R42) — With each provider's most permissive mode, Chuck automatic
   action approval and skip-permissions enabled, request Stop and prove the target remains live
   until the user chooses Approve once. Spoofed approval arguments, another MCP server's permission
   result and a Deny decision cannot stop it. *Verify:* host-gate integration tests independent of
@@ -341,7 +341,7 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   a later ordinary Resume/wake still works. *Verify:* focused desktop and paired-phone journeys
   through the existing permission presentation, plus transcript replay tests. These are planned
   journeys, not evidence that rendered or device checks have already passed.
-- **A31 (planned)** (R42–R43) — Race approval with denial, cancellation, timeout, requester
+- **A31** (R42–R43) — Race approval with denial, cancellation, timeout, requester
   teardown, target Stop/Resume/switch and a second decision. Restart with an unanswered request.
   Prove at most one stop, no stop of a later target generation, no replay after restart, explicit
   conflict/failure and no automatic retry. Unknown and self targets change nothing; already-stopped

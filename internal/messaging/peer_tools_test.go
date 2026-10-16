@@ -321,3 +321,37 @@ func TestStopAgentToolContract(t *testing.T) {
 		t.Fatalf("failed = %v", failed)
 	}
 }
+
+// FS-15.A8: revoking a grant ends only the reference path; the same caller can
+// still read the source conversation directly, and direct reads add no way to
+// share another agent's source.
+func TestDirectReadIsIndependentOfGrantRevocation(t *testing.T) {
+	f := newContextFixture(t)
+	liveAgent(t, f.store, "a_impl", "Atlas", "implementer", "my-app")
+	liveAgent(t, f.store, "a_rev", "Nova", "reviewer", "my-app")
+	f.transcriptEvents(t, "a_impl",
+		contextEvent(t, runtime.EvUserPrompt, runtime.UserPromptData{Text: "assess the migration"}),
+		contextEvent(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "forward-only"}))
+	f.srv.RegisterSession("tok-impl", "a_impl", "gen-impl")
+	f.srv.RegisterSession("tok-rev", "a_rev", "gen-rev")
+	impl := connect(t, f.srv, "tok-impl")
+	rev := connect(t, f.srv, "tok-rev")
+
+	shared, isErr := call(t, impl, "share_context", map[string]any{"to": "a_rev", "source": "current_turn"})
+	if isErr {
+		t.Fatalf("share: %v", shared)
+	}
+	if res, isErr := call(t, impl, "revoke_context_grant", map[string]any{"grant_id": shared["grant_id"]}); isErr {
+		t.Fatalf("revoke: %v", res)
+	}
+	if res, isErr := call(t, rev, "read_context_link", map[string]any{"context_ref_id": shared["context_ref_id"]}); !isErr || res["error"] != contextref.CodeNotFound {
+		t.Fatalf("revoked reference read = %v", res)
+	}
+	direct, isErr := call(t, rev, "read_agent_transcript", map[string]any{"agent_id": "a_impl"})
+	if isErr || !strings.Contains(direct["text"].(string), "forward-only") {
+		t.Fatalf("direct read after revocation = %v", direct)
+	}
+	if res, isErr := call(t, rev, "share_context", map[string]any{"to": "a_impl", "source": "a_impl"}); !isErr || res["error"] != contextref.CodeValidation {
+		t.Fatalf("sharing another agent's source = %v", res)
+	}
+}

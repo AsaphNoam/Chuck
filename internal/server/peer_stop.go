@@ -122,6 +122,12 @@ func (s *Server) executePeerStop(ctx context.Context, requestID string, from sta
 	}
 	if ae := s.stopAgentClaimed(ctx, target.AgentID); ae != nil {
 		s.log.Warn("peer stop", "target", target.AgentID, "err", ae.Message)
+		failed := notice("failed", "Stop of "+clipPreview(target.Name, 80)+" may not have completed",
+			fmt.Sprintf("Chuck could not confirm the Stop of %s (%s, %s). Check it before asking again.",
+				clipPreview(target.Name, 80), target.Project, target.AgentID))
+		if _, err := s.registry.AppendPeerStopNoticeAndSync(from.AgentID, failed); err != nil {
+			s.log.Warn("peer stop failure notice", "requester", from.AgentID, "err", err)
+		}
 		return messaging.PeerStopResult{Code: "peer_stop_failed", RequestID: requestID, Effect: "unknown",
 			Message: "Stop started but Chuck could not confirm its result. Check the target before asking again."}
 	}

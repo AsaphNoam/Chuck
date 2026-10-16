@@ -69,8 +69,8 @@ the relevant feature and technical specifications; it does not change product co
   tasks (TS-10.R34). Resuming or launching another agent without going through a task remains
   undefined and needs its own authority design, as does creating several related tasks as one
   unit, which TS-10 §5 excludes (multiple arms already provide fan-in/join). The selected peer
-  transcript-reading and human-approved Stop portion was promoted on 2026-10-16 to
-  [`peer-transcripts-and-approved-stop.md`](ready-changes/peer-transcripts-and-approved-stop.md).
+  transcript-reading and human-approved Stop portion was promoted and implemented on 2026-10-16
+  (FS-06.R39–R44).
 - **Detached configuration import.** Define verified copyable fields/assets and provider injection
   paths before implementing detached import. The API still returns 501; FS-08.R35 removed the
   unavailable UI controls.

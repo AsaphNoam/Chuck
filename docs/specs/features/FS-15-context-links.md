@@ -1,6 +1,6 @@
 # FS-15 — Pull-based context links
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/contextref`, `internal/state`, `internal/messaging` · **Journeys:** —
 **Absorbed:** —
 
@@ -95,7 +95,7 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   not name a position inside the fixed source is rejected rather than answered with damaged text or
   a false completion.
 
-- **R18 (planned) — Direct peer inspection is independent of reference grants.**
+- **R18 — Direct peer inspection is independent of reference grants.**
   FS-06.R39's direct transcript read intentionally allows a Chuck chat agent to inspect another
   Chuck conversation without a grant. R4 continues to restrict which sources a caller may share;
   R9 continues to require an authorization path when reading a context reference. Hiding or revoking
@@ -161,7 +161,7 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
 
 Each names the verification that demonstrates it.
 
-- **A8 (planned)** (R18) — Revoke a recipient's only direct grant to a transcript span:
+- **A8** (R18) — Revoke a recipient's only direct grant to a transcript span:
   `read_context_link` refuses as before, while the same token-bound caller can explicitly read that
   source conversation through FS-06.R39. Attempts to share another agent's source or inspect an
   unrelated pipeline/task report remain refused. *Verify:* context/messaging authorization tests.

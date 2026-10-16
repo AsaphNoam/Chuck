@@ -275,7 +275,7 @@ workspace containment and no-symlink restrictions; uploaded assets require sessi
 ownership instead of arbitrary path access. No broader phone filesystem read is granted. Remote
 web image URLs and URI-only remote provider images cause no browser, server or provider fetch by Chuck.
 
-**R27 (planned) — Peer authority is broad reading and individually approved tool control.**
+**R27 — Peer authority is broad reading and individually approved tool control.**
 For FS-06.R39–R44, the current generation-bound chat MCP credential authorizes explicit direct
 reads of all durable Chuck transcripts, across project/archive boundaries, and history-directory
 metadata. This intentionally adds another transcript access path independent of R16's grants;

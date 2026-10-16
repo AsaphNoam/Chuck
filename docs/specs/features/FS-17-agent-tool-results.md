@@ -166,7 +166,7 @@ remain supported.
   catalog/contract fixture for the added tools rather than preserving a literal fifteen-tool count.
   This adds room actions through released MCP; R20's paused migration stays separate.
 
-- **R22 (planned) — Peer operations keep the shared result contract.** FS-06.R39–R44's
+- **R22 — Peer operations keep the shared result contract.** FS-06.R39–R44's
   tools and optional history discovery use R1–R8's text/structured parity and existing validation
   and cursor outcomes. Extend R3's classifier with `agent_not_found` as `after_change`,
   `transcript_unavailable` and `peer_control_busy` as `transient`, and `peer_stop_denied`,
@@ -207,7 +207,7 @@ counted. No row, migration, notification, activation, transcript event, or SSE p
 
 Each names the verification that demonstrates it.
 
-- **A13 (planned)** (R22) — Invoke the actual registered peer tools and history discovery,
+- **A13** (R22) — Invoke the actual registered peer tools and history discovery,
   asserting matching text/structured success and refusal results, exact classes for every new
   producer code and truthful partial/unknown Stop effects. Control/discovery results and
   diagnostics disclose neither transport credentials nor unrelated work metadata; explicitly read

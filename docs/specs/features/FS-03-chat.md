@@ -195,8 +195,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   `send_message`, `check_messages`, `report_pipeline_stage_result`, `propose_pipeline_template`,
   `propose_pipeline_run`, `get_assigned_task`, `create_task`, `cancel_task`, `report_task_result`,
   `share_context`, `list_context_links`, `read_context_link`, `set_context_link_visibility`,
-  `revoke_context_grant`, `read_think_tank`, or `submit_think_tank_turn` — the call proceeds
-  immediately. The agent does not enter `waiting_input`
+  `revoke_context_grant`, `read_agent_transcript`, `stop_agent`, `read_think_tank`, or
+  `submit_think_tank_turn` — the call proceeds immediately; `stop_agent`'s effect then waits on
+  R91's separate host decision. The agent does not enter `waiting_input`
   for it, no approval is asked for, and no approval deadline can apply to it. This holds for every
   chat agent, whatever role or global `skip_permissions` policy was frozen at its launch, and it is
   the only category of tool that gains the treatment. Every other tool keeps R14's gate exactly as
@@ -243,13 +244,13 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   it still pending with Approve and Deny live — and ends on server restart or agent stop exactly as
   it does today; holding it longer does not make it durable across a process end.
 
-- **R91 (planned) — Peer Stop has a host-owned human gate.** FS-06.R41–R42's peer Stop
+- **R91 — Peer Stop has a host-owned human gate.** FS-06.R41–R42's peer Stop
   request uses the familiar permission presentation and single-decision behavior, but Chuck owns
   the actual approval independently of any ACP request. R18's skip policy and R40's automatic
   Chuck-action approval never authorize the stop effect. The pending prompt identifies both agents
   and offers Approve once or Deny; no provider approval or agent assertion can resolve it. Its
   request, decision and actual operation result remain distinguishable on live and replayed
-  transcripts. Verification is FS-06.A29–A31. This is the planned exception to R40's blanket
+  transcripts. Verification is FS-06.A29–A31. This is the one exception to R40's blanket
   wording; existing actions retain their current policy.
 
 ### 2.5 Switching runtime from the chat header

@@ -654,7 +654,7 @@ Old snapshots decode as no bridge. Clone retains the source bridge with its nati
 `session_meta.reset_context` explicitly resets saved usage for fresh native contexts, including
 on transcript replay; a successful native load retains saved usage regardless of an echoed ID.
 
-**R49 (planned) — Peer reads copy no durable source; Stop approvals are process-lifetime state.**
+**R49 — Peer reads copy no durable source; Stop approvals are process-lifetime state.**
 For FS-06.R39–R44/TS-04.R93–R95, read the existing append-only normalized transcript, using a
 fixed complete-file prefix and sequence boundary carried in the cursor. Allocate no copied
 transcript, context reference, grant, mailbox row, new config field or SQLite approval table.

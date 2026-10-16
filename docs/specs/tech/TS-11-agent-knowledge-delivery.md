@@ -319,7 +319,7 @@ purge occurs. Focused FS-18.A16 tests cover both blocks, metadata/reindex legacy
 clone-after-persona-edit and every existing process-composition path, while proving tools,
 permissions, dirs/env and provider instructions are unchanged.
 
-**R23 (planned) — Peer guidance ships with the capability through the existing package.**
+**R23 — Peer guidance ships with the capability through the existing package.**
 For FS-06.R44, refresh the embedded `operating-chuck` skill and its existing
 `references/coordinate-work.md` / `references/operate-agents.md` when shipping peer inspection
 and Stop. Explain that direct transcript reads cross projects and archives, context-grant

@@ -1209,7 +1209,7 @@ provider receipts remain unverified.
 
 ### Peer transcript reads and human-approved Stop
 
-**R93 (planned) — Peer inspection extends the existing MCP authority.** For FS-06.R39–R40,
+**R93 — Peer inspection extends the existing MCP authority.** For FS-06.R39–R40,
 register `read_agent_transcript(agent_id, since_seq?, cursor?)` on the same scoped `/mcp` server.
 `agent_id` must be an exact durable Chuck identity, never a name, path or provider session id.
 `since_seq` defaults to zero and is nonnegative; it selects later events and cannot accompany a
@@ -1244,7 +1244,7 @@ directory and output semantics; history-only paging arguments without history sc
 Neither directory changes mail resolution or wake eligibility. Reads/discovery do not consume the
 mail budget. FS-06.A28/A32 and FS-15.A8 verify these boundaries.
 
-**R94 (planned) — Peer Stop is withheld by a host-owned permission.** Register
+**R94 — Peer Stop is withheld by a host-owned permission.** Register
 `stop_agent(agent_id, reason)` on the same MCP authority. Require exact target id and a nonblank
 reason of at most 1,000 runes. Bind requester id/generation/current turn from the live session;
 reject self and unknown targets before creating a prompt. Resolve target execution identity from
@@ -1274,7 +1274,7 @@ pending record; server restart restores no waiter or executable approval. Replay
 host requests from an ended generation to cancelled before offering controls. FS-06.A29–A31 are
 the acceptance authority, including a real Claude/Codex manual receipt of the host gate.
 
-**R95 (planned) — Approved Stop reuses lifecycle admission and reports effects honestly.**
+**R95 — Approved Stop reuses lifecycle admission and reports effects honestly.**
 At stop admission, atomically claim the approved request once and verify that the requester still
 has the captured generation/turn. Serialize that admission against pending-request cancellation;
 the winner determines whether Stop may proceed. Do not hold lifecycle claims while awaiting a
