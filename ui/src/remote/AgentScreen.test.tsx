@@ -848,6 +848,156 @@ describe("AgentScreen management and views", () => {
   });
 });
 
+function selectRange(startNode: Node, startOffset: number, endNode: Node, endOffset: number) {
+  const range = document.createRange();
+  range.setStart(startNode, startOffset);
+  range.setEnd(endNode, endOffset);
+  const selection = window.getSelection()!;
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function textNodeWith(text: string) {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) if (node.textContent?.includes(text)) return node;
+  throw new Error(`no text node with ${text}`);
+}
+
+// FS-13.R28/R31, TS-08.R133/R136 — phone capture from conversation events and
+// tracked files, and recorded annotation cards.
+describe("AgentScreen annotation capture", () => {
+  const idle = { ...agent, state: "idle" as const, detail: "" };
+  afterEach(() => window.getSelection()?.removeAllRanges());
+
+  it("captures a selection inside an event, else the whole event, and offers no action on cards", async () => {
+    useConnection.setState({ agents: { a1: idle } });
+    renderScreen();
+    const conversation = await screen.findByRole("list", { name: "Conversation" });
+    await waitFor(() => expect(conversation).toHaveTextContent("I will remove the dist folder."));
+    const reply = textNodeWith("I will remove the dist folder.");
+    selectRange(reply, 7, reply, 22);
+    const replyRow = reply.parentElement!.closest<HTMLElement>(".phone-annotatable")!;
+    const replyAction = within(replyRow).getByRole("button", { name: "Annotate" });
+    fireEvent.pointerDown(replyAction);
+    fireEvent.click(replyAction);
+    expect(useAnnotationStore.getState().bySource.a1).toEqual([{ seq: 2, excerpt: "remove the dist", instruction: "" }]);
+    const tray = await screen.findByRole("dialog", { name: "Pending annotations · 1/20" });
+    expect(tray).toHaveTextContent("Event 2");
+    fireEvent.click(within(tray).getByRole("button", { name: "Close dialog" }));
+    // Text spanning two events is not a selected excerpt; the action takes its whole event.
+    selectRange(reply, 0, textNodeWith("Clean the build"), 5);
+    const userRow = textNodeWith("Clean the build").parentElement!.closest<HTMLElement>(".phone-annotatable")!;
+    fireEvent.click(within(userRow).getByRole("button", { name: "Annotate" }));
+    expect(useAnnotationStore.getState().bySource.a1?.[1]).toEqual({ seq: 1, excerpt: "Clean the build", instruction: "" });
+  });
+
+  it("renders recorded annotation cards live and hides their machine prompts, including legacy ones", async () => {
+    const recorded = (seq: number, overall: string) => ({
+      agent_id: "a1", seq, type: "annotation", ts: "",
+      data: {
+        annotations: [
+          { seq: 2, excerpt: "remove the dist", instruction: "keep dist" },
+          { seq: 4, path: "main.go", side: "new", start_line: 1, end_line: 1, excerpt: "replacement", instruction: "rename" },
+          { anchor_kind: "file", path: "docs/a.md", start_line: 3, end_line: 4, excerpt: "lines", instruction: "tighten" },
+          { anchor_kind: "file", path: "docs/r.md", excerpt: "rendered words", instruction: "reword" },
+        ],
+        overall_instruction: overall,
+        target: { kind: "self" },
+      },
+    });
+    live = {
+      agent_id: "a1", has_more: false,
+      events: [
+        events[0], events[1],
+        recorded(5, "be brief"),
+        { agent_id: "a1", seq: 6, type: "user_text", ts: "", data: { text: "[Chuck annotations]\nTranscript event 2\nmachine body" } },
+        recorded(7, "legacy pass"),
+        { agent_id: "a1", seq: 8, type: "user_text", ts: "", data: { text: "[AgentDeck annotations]\nTranscript event 2\nlegacy body" } },
+      ],
+    };
+    useConnection.setState({ agents: { a1: idle } });
+    renderScreen();
+    const conversation = await screen.findByRole("list", { name: "Conversation" });
+    await waitFor(() => expect(conversation.querySelectorAll(".annotation-card")).toHaveLength(2));
+    const card = conversation.querySelector<HTMLElement>(".annotation-card")!;
+    expect(card).toHaveTextContent("Event 2");
+    expect(card).toHaveTextContent("main.go:1");
+    expect(card).toHaveTextContent("File docs/a.md:3–4");
+    expect(card).toHaveTextContent("File docs/r.md");
+    expect(card).toHaveTextContent("Overall: be brief");
+    expect(conversation).toHaveTextContent("Overall: legacy pass");
+    expect(conversation).not.toHaveTextContent("machine body");
+    expect(conversation).not.toHaveTextContent("legacy body");
+    expect(card.closest(".phone-message")!.querySelector(".phone-annotate-event")).toBeNull();
+  });
+
+  it("captures rendered and source tracked-file selections and sends them with an event in one batch", async () => {
+    const paths: string[] = [];
+    server.use(
+      http.get("/api/sessions/a1/files", () => HttpResponse.json({ agent_id: "a1", files: [{ path: "./docs/guide.md", edit_count: 1, last_ts: "2026-10-02T00:00:00Z", has_diff: false, diff_refs: [] }] })),
+      http.get("/api/sessions/a1/file", ({ request }) => {
+        paths.push(new URL(request.url).searchParams.get("path") ?? "");
+        return HttpResponse.json({ agent_id: "a1", path: "docs/guide.md", size: 1, mod_time: "", line_count: 4, content: "# Title\n\nFirst line\nSecond line", truncated: false, language: "markdown" });
+      }),
+    );
+    useConnection.setState({ agents: { a1: idle } });
+    renderScreen();
+    fireEvent.click(screen.getByRole("tab", { name: /^Files/ }));
+    const row = (await screen.findByText("./docs/guide.md")).closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Open file" }));
+    const preview = await within(row).findByRole("region", { name: "File content" });
+    // Nothing selected names what the action needs.
+    const annotateFile = await within(preview).findByRole("button", { name: "Annotate selection" });
+    fireEvent.click(annotateFile);
+    expect(within(preview).getByRole("status")).toHaveTextContent("Select text in the file to annotate it.");
+    // Rendered Markdown captures the normalized path only.
+    const words = textNodeWith("First line");
+    selectRange(words, 0, words, 10);
+    fireEvent.pointerDown(annotateFile);
+    fireEvent.click(annotateFile);
+    let tray = await screen.findByRole("dialog", { name: "Pending annotations · 1/20" });
+    fireEvent.change(within(tray).getByLabelText("Instruction"), { target: { value: "expand" } });
+    fireEvent.click(within(tray).getByRole("button", { name: "Close dialog" }));
+    // Source captures its line range.
+    fireEvent.click(within(preview).getByRole("button", { name: "Source" }));
+    await waitFor(() => expect(preview.querySelector('[data-file-line="4"]')).not.toBeNull());
+    const third = textNodeWith("First line");
+    const fourth = textNodeWith("Second line");
+    expect(third.parentElement!.closest("[data-file-line]")).toHaveAttribute("data-file-line", "3");
+    selectRange(third, third.textContent!.indexOf("First"), fourth, fourth.textContent!.length);
+    fireEvent.pointerDown(within(preview).getByRole("button", { name: "Annotate selection" }));
+    fireEvent.click(within(preview).getByRole("button", { name: "Annotate selection" }));
+    tray = await screen.findByRole("dialog", { name: "Pending annotations · 2/20" });
+    expect(tray).toHaveTextContent("File docs/guide.md:3–4");
+    const fields = within(tray).getAllByLabelText("Instruction");
+    fireEvent.change(fields[1], { target: { value: "merge" } });
+    fireEvent.click(within(tray).getByRole("button", { name: "Close dialog" }));
+    // Reload asks for the exact tracked path, never the normalized one.
+    fireEvent.click(within(preview).getByRole("button", { name: "Reload" }));
+    await waitFor(() => expect(paths).toEqual(["./docs/guide.md", "./docs/guide.md"]));
+    // A conversation event joins the same batch.
+    fireEvent.click(screen.getByRole("tab", { name: "Chat" }));
+    const userRow = (await screen.findByText("Clean the build")).closest<HTMLElement>(".phone-annotatable")!;
+    fireEvent.click(within(userRow).getByRole("button", { name: "Annotate" }));
+    tray = await screen.findByRole("dialog", { name: "Pending annotations · 3/20" });
+    fireEvent.change(within(tray).getAllByLabelText("Instruction")[2], { target: { value: "explain" } });
+    fireEvent.change(within(tray).getByLabelText("Overall instruction (optional)"), { target: { value: "one pass" } });
+    fireEvent.click(within(tray).getByRole("button", { name: "Send annotations" }));
+    expect(await screen.findByText("Annotations sent to this agent.")).toBeInTheDocument();
+    const sent = posts.filter((post) => post.startsWith("annotations ")).map((post) => JSON.parse(post.slice("annotations ".length)));
+    // jsdom's selection text includes the gutter's line number; browsers do not.
+    expect(sent).toEqual([{
+      annotations: [
+        { anchor_kind: "file", path: "docs/guide.md", excerpt: "First line", instruction: "expand" },
+        { anchor_kind: "file", path: "docs/guide.md", excerpt: expect.stringMatching(/^First line\n\d*Second line$/), instruction: "merge", start_line: 3, end_line: 4 },
+        { seq: 1, excerpt: "Clean the build", instruction: "explain" },
+      ],
+      overall_instruction: "one pass",
+      target: { kind: "self" },
+    }]);
+  });
+});
+
 // FS-20.R32 — the phone's diff-line annotate-and-assign form over the shared
 // FS-13 tray and batch request.
 describe("AgentScreen diff annotations", () => {

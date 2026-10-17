@@ -6,7 +6,6 @@ import {
   archiveAgent,
   cloneAgent,
   decidePermission,
-  getFileContent,
   getHeldPrompt,
   dismissPromptRecovery,
   getTrackedFiles,
@@ -29,6 +28,9 @@ import { foldTranscript, normalizeEvent } from "../store/transcriptStore";
 import { WorkingIndicator } from "../components/chat/WorkingIndicator";
 import { AssistantText } from "../components/chat/renderers/AssistantText";
 import { DiffBlock } from "../components/chat/renderers/DiffBlock";
+import { AnnotationCard } from "../components/chat/renderers/AnnotationCard";
+import { FileViewerView, useFileReader } from "../components/chat/FileViewer";
+import { canAnnotate, eventDraft, selectionWithin } from "../lib/annotations";
 import { NoticeRow } from "../components/chat/renderers/NoticeRow";
 import { ToolCall } from "../components/chat/renderers/ToolCall";
 import { ToolResult } from "../components/chat/renderers/ToolResult";
@@ -210,9 +212,44 @@ function EventRow({ agentId, event, onAnnotate }: { agentId: string; event: Tran
       return <NoticeRow event={event} />;
     case "reasoning":
       return <ThinkingDisclosure text={String(event.text ?? "")} activityId={event.activity_id} />;
+    case "annotation":
+      return <AnnotationCard event={event} />;
     default:
       return null;
   }
+}
+
+// Rows the phone draws with text worth pointing at; recorded annotation cards
+// and status-only rows are not capture sources (FS-13.R28, R31).
+const annotatableKinds = new Set(["user_text", "assistant_text", "tool_call", "tool_result", "diff", "error", "notice", "reasoning"]);
+
+// AnnotatableEvent adds the quiet Annotate action: it takes the selection inside
+// this event, read on press because a tap can collapse it before click, and
+// otherwise the whole event (TS-08.R133). Native long-press selection, link taps
+// and scrolling are left alone.
+function AnnotatableEvent({ agentId, event, onAnnotate }: { agentId: string; event: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
+  const host = useRef<HTMLDivElement>(null);
+  const pressed = useRef<string | null | undefined>(undefined);
+  const row = <EventRow agentId={agentId} event={event} onAnnotate={onAnnotate} />;
+  if (!canAnnotate(event) || !annotatableKinds.has(String(event.kind))) return row;
+  const selected = () => (host.current ? selectionWithin(host.current) : null);
+  return (
+    <div ref={host} className="phone-annotatable">
+      {row}
+      <button
+        type="button"
+        className="phone-annotate-event"
+        onPointerDown={() => { pressed.current = selected(); }}
+        onClick={() => {
+          const text = pressed.current !== undefined ? pressed.current : selected();
+          pressed.current = undefined;
+          onAnnotate(eventDraft(event, text));
+        }}
+      >
+        Annotate
+      </button>
+    </div>
+  );
 }
 
 // renderRows is the phone's row renderer inside the shared turn list: tool runs,
@@ -223,7 +260,7 @@ function renderRows(agentId: string, list: TranscriptEvent[], onAnnotate: (draft
     if (row.kind === "tool-run") {
       return (
         <div className="phone-message" role="listitem" key={`run:${row.events[0].seq ?? index}`} data-place={`run:${row.events[0].seq ?? index}`}>
-          <ToolRun events={row.events} renderEvent={(event) => <EventRow key={`${event.seq}:${event.kind}`} agentId={agentId} event={event} onAnnotate={onAnnotate} />} />
+          <ToolRun events={row.events} renderEvent={(event) => <AnnotatableEvent key={`${event.seq}:${event.kind}`} agentId={agentId} event={event} onAnnotate={onAnnotate} />} />
         </div>
       );
     }
@@ -233,7 +270,7 @@ function renderRows(agentId: string, list: TranscriptEvent[], onAnnotate: (draft
         {event.kind === "activity" ? (
           <ChildActivity node={event.node as ChildNode} ancestry={ancestry} depth={depth} renderEvents={nested} />
         ) : (
-          <EventRow agentId={agentId} event={event} onAnnotate={onAnnotate} />
+          <AnnotatableEvent agentId={agentId} event={event} onAnnotate={onAnnotate} />
         )}
       </div>
     );
@@ -274,7 +311,9 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const [diffSeq, setDiffSeq] = useState<number | null>(null);
   const chat = agent?.interface !== "terminal";
   const files = useQuery({ queryKey: ["tracked-files", agentId, rev], queryFn: () => getTrackedFiles(agentId), enabled: tab === "files" });
-  const file = useQuery({ queryKey: ["tracked-file", agentId, filePath], queryFn: () => getFileContent(agentId, filePath!), enabled: !!filePath });
+  // The shared reader keeps the tracked path as its read key, so Reload asks for
+  // exactly that path even when the response names a normalized one (TS-13.R31).
+  const fileReader = useFileReader({ agentId, link: filePath ? { path: filePath } : null });
   // Open diff reads exactly the requested event, wherever it falls (FS-20.R37).
   const focusedDiff = useQuery({
     queryKey: ["focused-diff", agentId, diffSeq],
@@ -731,7 +770,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
                 <button type="button" aria-expanded={filePath === tracked.path} onClick={() => setFilePath(filePath === tracked.path ? null : tracked.path)}>{filePath === tracked.path ? "Close" : "Open file"}</button>
               </div>
               {filePath === tracked.path && <section className="phone-file-preview" aria-label="File content">
-                {file.isError ? <p className="phone-error">{errorText(file.error)}</p> : file.isPending ? <p className="phone-meta">Loading…</p> : <pre className="phone-pre">{file.data?.content}</pre>}
+                <FileViewerView reader={fileReader} onAnnotateSelection={chat ? annotate : undefined} />
               </section>}
             </div>
           </li>)}

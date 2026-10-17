@@ -214,6 +214,14 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-annotate-draft .phone-pre { max-height: 12rem; overflow: auto; }
 .phone-annotate-footer { position: sticky; bottom: 0; display: grid; gap: var(--ad-space-3); margin: 0 calc(-1 * var(--ad-space-6)); padding: var(--ad-space-4) var(--ad-space-6) calc(var(--ad-space-4) + env(safe-area-inset-bottom)); background: var(--ad-surface-panel); border-top: var(--ad-border-thin) solid var(--ad-border-default); }
 .phone-annotate-send { min-height: 44px; }
+/* A quiet per-event action: muted text, but a full-height touch target. */
+.phone-annotatable { display: grid; min-width: 0; }
+.phone-annotate-event { justify-self: end; min-height: 44px; border: 0; background: transparent; color: var(--ad-text-muted); font-size: 0.75rem; padding: 0 var(--ad-space-2); }
+.phone-message .annotation-card { min-width: 0; overflow-wrap: anywhere; }
+.phone-message .annotation-card header { flex-wrap: wrap; }
+/* The shared reader inside a tracked-file row: bounded, its body scrolls. */
+.phone-file-preview .file-viewer { width: auto; height: auto; max-height: 70dvh; margin-right: 0; border-radius: var(--ad-radius-medium); }
+.phone-file-preview .file-viewer-actions button { min-height: 44px; }
 /* The "Send to" picker is a control (role=radio), not the primary construction: its selected cue
    is foreground text over a subtle surface with an underline (FS-12.R68). */
 .phone-target-selected { background: var(--ad-surface-subtle); color: var(--ad-text-primary); text-decoration: underline; text-underline-offset: var(--ad-space-1); }

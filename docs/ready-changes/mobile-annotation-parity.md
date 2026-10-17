@@ -66,7 +66,7 @@ No provider capability limitation or workaround is assumed.
    buttons opening a `PhoneSheet`; New task preflights then opens the `ProjectScreen` New agent
    form (extracted, source-prefilled, project chooser, launch callback); same-agent retry;
    navigate only after delivery.
-3. Phone capture: event **Annotate** action, `AnnotationCard` rows, tracked-file preview through
+3. (Done) Phone capture: event **Annotate** action, `AnnotationCard` rows, tracked-file preview through
    `FileViewerView` with Source/Rendered selection capture.
 4. CSS, `phone-render.mjs` journey at 360/390/430 in three appearances, closure + `make embed`.
 

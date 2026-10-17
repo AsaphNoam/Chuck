@@ -137,13 +137,16 @@ export function FileViewer({ agentId, link, onClose, onOpenFile, onPathResolved,
 
 /** The one reader view. The agent workspace shows it docked beside the
  *  conversation or inside Focus file; the room shows it alone. */
-export function FileViewerView({ reader, variant, onClose, closeLabel = "Close", onOpenFile, onSelectionMenu, actions }: {
+export function FileViewerView({ reader, variant, onClose, closeLabel = "Close", onOpenFile, onSelectionMenu, onAnnotateSelection, actions }: {
   reader: FileReader;
   variant?: "docked" | "focused";
-  onClose: () => void;
+  /** Omitted where the surrounding surface owns closing, as on the phone. */
+  onClose?: () => void;
   closeLabel?: string;
   onOpenFile?: (link: FileLink) => void;
   onSelectionMenu?: (selection: { x: number; y: number; text: string; draft: AnnotationDraft; link?: string }) => void;
+  /** An explicit Annotate selection action for touch and keyboard (FS-13.R28). */
+  onAnnotateSelection?: (draft: AnnotationDraft) => void;
   /** Presentation controls placed before Close, such as Focus file. */
   actions?: ReactNode;
 }) {
@@ -163,29 +166,27 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
     ? (target: FileLink) => onOpenFile({ ...target, path: resolveFromFile(view.file.path, target.path) })
     : onOpenFile;
 
+  // The one mapping from a selection to a file draft, for the context menu and
+  // the touch action alike (TS-08.R133): Source captures its line range,
+  // Rendered only the path (FS-13.R25).
+  const currentSelection = () => view.status === "loaded" ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
+
   const openSelectionMenu = (event: MouseEvent<HTMLDivElement>) => {
-    if (!onSelectionMenu || view.status !== "loaded") return;
-    const selection = window.getSelection();
-    const host = bodyRef.current;
-    if (!selection || selection.rangeCount === 0 || !host || !selection.anchorNode || !selection.focusNode ||
-      !host.contains(selection.anchorNode) || !host.contains(selection.focusNode)) return;
-    const text = selection.toString();
-    if (!text.trim()) return;
-    const draft: AnnotationDraft = {
-      anchor_kind: "file",
-      path: view.file.path,
-      excerpt: clipAnnotationExcerpt(text.trim()),
-      instruction: "",
-    };
-    if (!showRendered) {
-      const start = fileLineForNode(selection.getRangeAt(0).startContainer, host);
-      const end = fileLineForNode(selection.getRangeAt(0).endContainer, host);
-      if (!start || !end) return;
-      draft.start_line = Math.min(start, end);
-      draft.end_line = Math.max(start, end);
-    }
+    if (!onSelectionMenu) return;
+    const selected = currentSelection();
+    if (!selected) return;
     event.preventDefault();
-    onSelectionMenu({ x: event.clientX, y: event.clientY, text, draft, link: claimWebLink(event) });
+    onSelectionMenu({ x: event.clientX, y: event.clientY, text: selected.text, draft: selected.draft, link: claimWebLink(event) });
+  };
+
+  // A tap can collapse the selection before click, so it is read on press.
+  const pressed = useRef<AnnotationDraft | null>(null);
+  const [selectionHint, setSelectionHint] = useState(false);
+  const annotateSelection = () => {
+    const draft = pressed.current ?? currentSelection()?.draft ?? null;
+    pressed.current = null;
+    setSelectionHint(!draft);
+    if (draft) onAnnotateSelection?.(draft);
   };
 
   return (
@@ -200,10 +201,14 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
             </div>
           )}
           <button type="button" className="ad-button-secondary" onClick={reader.reload}>Reload</button>
+          {onAnnotateSelection && view.status === "loaded" && (
+            <button type="button" className="ad-button-secondary" onPointerDown={() => { pressed.current = currentSelection()?.draft ?? null; }} onClick={annotateSelection}>Annotate selection</button>
+          )}
           {actions}
-          <button type="button" className="ad-button-secondary" onClick={onClose}>{closeLabel}</button>
+          {onClose && <button type="button" className="ad-button-secondary" onClick={onClose}>{closeLabel}</button>}
         </div>
       </header>
+      {selectionHint && view.status === "loaded" && <p className="file-viewer-meta" role="status">Select text in the file to annotate it.</p>}
       {view.status === "loaded" && (
         <p className="file-viewer-meta" data-slot="metadata">
           {view.file.truncated
@@ -297,6 +302,23 @@ function restoreAnchor(body: HTMLElement, mode: DisplayMode, anchor: ReadingAnch
   }
   const delta = target.getBoundingClientRect().top - body.getBoundingClientRect().top - anchor.offset;
   if (Math.abs(delta) >= 1) body.scrollTop += delta;
+}
+
+function selectionDraft(host: HTMLElement | null, path: string, rendered: boolean): { text: string; draft: AnnotationDraft } | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !host || !selection.anchorNode || !selection.focusNode ||
+    !host.contains(selection.anchorNode) || !host.contains(selection.focusNode)) return null;
+  const text = selection.toString();
+  if (!text.trim()) return null;
+  const draft: AnnotationDraft = { anchor_kind: "file", path, excerpt: clipAnnotationExcerpt(text.trim()), instruction: "" };
+  if (!rendered) {
+    const start = fileLineForNode(selection.getRangeAt(0).startContainer, host);
+    const end = fileLineForNode(selection.getRangeAt(0).endContainer, host);
+    if (!start || !end) return null;
+    draft.start_line = Math.min(start, end);
+    draft.end_line = Math.max(start, end);
+  }
+  return { text, draft };
 }
 
 function fileLineForNode(node: Node, host: HTMLElement): number | null {
