@@ -7,7 +7,7 @@ import { useUiStore } from "../../store/uiStore";
 import { MenuPortalContext } from "../ui/PointerContextMenu";
 import type { PanelSlots } from "./AgentStage";
 import { AnnotationContextMenu, type AnnotationMenuState } from "./AnnotationContextMenu";
-import { AnnotationTrayView, useAnnotationDelivery } from "./AnnotationTray";
+import { AnnotationTrayView, useDesktopAnnotationDelivery } from "./AnnotationTray";
 import { FileViewerView, useFileReader } from "./FileViewer";
 import type { FileLink } from "./renderers/filePath";
 
@@ -32,7 +32,7 @@ export function ReaderWorkspace({ agentId, openFile, onOpenFile, annotationsEnab
     link: file,
     onPathResolved: (path) => { if (file && onOpenFile) onOpenFile({ ...file, path }, { replace: true }); },
   });
-  const delivery = useAnnotationDelivery(agentId, sourceActive);
+  const delivery = useDesktopAnnotationDelivery(agentId, sourceActive);
   const drafts = useAnnotationStore((state) => state.bySource[agentId]?.length ?? 0);
   const collapsed = useAnnotationStore((state) => state.collapsedBySource[agentId] ?? false);
   const addAnnotation = useAnnotationStore((state) => state.add);

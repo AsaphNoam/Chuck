@@ -1,6 +1,6 @@
 # Mobile annotation parity
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator request on 2026-10-17, `/design-feature add annotation functionality to mobile
 as well`, confirmed as “essentially it should have the same functionality as annotations do on Mac.”
 **Relevant requirements:** FS-13.R28–R31/A19–A21, FS-20.R55/A27, TS-08.R133–R136, TS-13.R31;
@@ -57,6 +57,19 @@ admit shared batch validation/delivery; R22 remains the read boundary. Incumbent
 was inspected in `/tmp/mobile-effort-20261014-core-files.png`; actual new rendering is still owed.
 No provider capability limitation or workaround is assumed.
 
+## Slices
+
+1. (Done) Shared event-capture helpers in `ui/src/lib/annotations.ts`; `useAnnotationDelivery`
+   (`components/chat/AnnotationTray.tsx`) takes a source/recipient projection so desktop and phone
+   share validate/send/launch/retry. Desktop tests unchanged.
+2. Phone tray: one delivery owner above Chat/Files in `remote/AgentScreen.tsx`, pending-count
+   buttons opening a `PhoneSheet`; New task preflights then opens the `ProjectScreen` New agent
+   form (extracted, source-prefilled, project chooser, launch callback); same-agent retry;
+   navigate only after delivery.
+3. Phone capture: event **Annotate** action, `AnnotationCard` rows, tracked-file preview through
+   `FileViewerView` with Source/Rendered selection capture.
+4. CSS, `phone-render.mjs` journey at 360/390/430 in three appearances, closure + `make embed`.
+
 ## Waiting on
 
-Nothing; confirmed design is ready for implementation.
+Nothing.

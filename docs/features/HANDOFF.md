@@ -99,7 +99,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+**In progress — mobile annotation parity:** see
+[`mobile-annotation-parity.md`](../ready-changes/mobile-annotation-parity.md) §Slices.
 
 ## Acceptance gates still owed
 

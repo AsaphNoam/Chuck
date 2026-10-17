@@ -113,7 +113,7 @@ func TestAnnotationPreflightRejectsInvalidBatchWithoutSideEffects(t *testing.T) 
 	path := "/api/sessions/" + source.AgentID + "/annotations/validate"
 	for _, tc := range []struct {
 		name, body string
-		status int
+		status     int
 	}{
 		{"empty instruction", `{"annotations":[{"seq":1,"excerpt":"selected","instruction":"  "}],"target":{"kind":"self"}}`, http.StatusUnprocessableEntity},
 		{"oversized request", `{"annotations":[{"seq":1,"excerpt":"` + strings.Repeat("x", remoteBodyLimit) + `","instruction":"review"}],"target":{"kind":"self"}}`, http.StatusUnprocessableEntity},
@@ -210,6 +210,105 @@ func TestRemoteAnnotationUsesSharedDelivery(t *testing.T) {
 	events, err := transcript.ReadFile(srv.configStore.Home(), source.AgentID, transcript.ReadOptions{})
 	if err != nil || len(events) != 1 || events[0].Type != runtime.EvAnnotation {
 		t.Fatalf("source annotation event = %#v, %v", events, err)
+	}
+}
+
+// TS-13.R31 / FS-13.A20: phone annotation parity exercises every anchor variant
+// and the preflight failures through the authenticated remote chain, comparing
+// the actual source event and recipient mail rather than only HTTP status.
+func TestRemoteAnnotationParityCoversAnchorsPreflightAndContent(t *testing.T) {
+	srv := testServer(t, true)
+	source, target := writeAnnotationPair(t, srv)
+	h := srv.remoteRoutes(testDomain, testWhoIs(map[string]string{"100.64.0.2:5000": "n"}))
+	token := pairTestDevice(t, srv, "d1", "n")
+	base := "/api/sessions/" + source.AgentID + "/annotations"
+	tgt := `"target":{"kind":"agent","agent_id":"` + target.AgentID + `"}`
+
+	assertNoSideEffects := func() {
+		t.Helper()
+		mail, err := srv.stateStore.ListMessages(target.AgentID, true, 10)
+		if err != nil || len(mail) != 0 {
+			t.Fatalf("mail = %d, %v; want none", len(mail), err)
+		}
+		events, err := transcript.ReadFile(srv.configStore.Home(), source.AgentID, transcript.ReadOptions{})
+		if err != nil || len(events) != 0 {
+			t.Fatalf("source events = %d, %v; want none", len(events), err)
+		}
+	}
+
+	for name, annotation := range map[string]string{
+		"blank instruction":      `{"seq":1,"excerpt":"x","instruction":" "}`,
+		"file anchor with seq":   `{"anchor_kind":"file","seq":1,"path":"note.md","excerpt":"x","instruction":"y"}`,
+		"file anchor with side":  `{"anchor_kind":"file","path":"note.md","side":"new","excerpt":"x","instruction":"y"}`,
+		"file start without end": `{"anchor_kind":"file","path":"note.md","start_line":2,"excerpt":"x","instruction":"y"}`,
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, phoneRequest(http.MethodPost, base+"/validate", `{"annotations":[`+annotation+`],`+tgt+`}`, token))
+		if rec.Code != http.StatusUnprocessableEntity || errorCode(t, rec) != "validation" {
+			t.Fatalf("%s preflight = %d %s", name, rec.Code, rec.Body)
+		}
+	}
+	assertNoSideEffects()
+
+	annotations := `[
+		{"seq":2,"excerpt":"whole event text","instruction":"whole instruction"},
+		{"seq":3,"excerpt":"selected excerpt","instruction":"selected instruction"},
+		{"seq":4,"path":"main.go","side":"new","start_line":9,"end_line":10,"excerpt":"diff excerpt","instruction":"diff instruction"},
+		{"anchor_kind":"file","path":"docs/notes.md","start_line":5,"end_line":7,"excerpt":"file range excerpt","instruction":"file range instruction"},
+		{"anchor_kind":"file","path":"docs/rendered.md","excerpt":"rendered capture","instruction":"path only instruction"}
+	]`
+	body := `{"annotations":` + annotations + `,"overall_instruction":"overall please",` + tgt + `}`
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, phoneRequest(http.MethodPost, base+"/validate", body, token))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("valid preflight = %d %s", rec.Code, rec.Body)
+	}
+	assertNoSideEffects()
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, phoneRequest(http.MethodPost, base, body, token))
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("phone annotation = %d %s", rec.Code, rec.Body)
+	}
+
+	mail, err := srv.stateStore.ListMessages(target.AgentID, true, 10)
+	if err != nil || len(mail) != 1 || mail[0].FromAgent != "user" {
+		t.Fatalf("delivered mail = %+v, %v", mail, err)
+	}
+	for _, want := range []string{
+		"Transcript event 2", "whole event text", "whole instruction",
+		"Transcript event 3", "selected excerpt", "selected instruction",
+		"Transcript event 4 — main.go (new lines 9–10)", "diff excerpt", "diff instruction",
+		"File docs/notes.md (lines 5–7)", "file range excerpt", "file range instruction",
+		"File docs/rendered.md\n", "rendered capture", "path only instruction",
+		"Overall instruction: overall please",
+	} {
+		if !strings.Contains(mail[0].Body, want) {
+			t.Fatalf("mail body missing %q:\n%s", want, mail[0].Body)
+		}
+	}
+	if strings.Contains(mail[0].Body, "File docs/rendered.md (") {
+		t.Fatalf("path-only file anchor rendered a line range:\n%s", mail[0].Body)
+	}
+
+	events, err := transcript.ReadFile(srv.configStore.Home(), source.AgentID, transcript.ReadOptions{})
+	if err != nil || len(events) != 1 || events[0].Type != runtime.EvAnnotation {
+		t.Fatalf("source annotation event = %#v, %v", events, err)
+	}
+	var got runtime.AnnotationData
+	if err := json.Unmarshal(events[0].Data, &got); err != nil {
+		t.Fatalf("decode annotation event: %v", err)
+	}
+	want := []runtime.Annotation{
+		{Seq: 2, Excerpt: "whole event text", Instruction: "whole instruction"},
+		{Seq: 3, Excerpt: "selected excerpt", Instruction: "selected instruction"},
+		{Seq: 4, Path: "main.go", Side: "new", StartLine: 9, EndLine: 10, Excerpt: "diff excerpt", Instruction: "diff instruction"},
+		{AnchorKind: "file", Path: "docs/notes.md", StartLine: 5, EndLine: 7, Excerpt: "file range excerpt", Instruction: "file range instruction"},
+		{AnchorKind: "file", Path: "docs/rendered.md", Excerpt: "rendered capture", Instruction: "path only instruction"},
+	}
+	if !reflect.DeepEqual(got.Annotations, want) || got.OverallInstruction != "overall please" || got.Target.AgentID != target.AgentID {
+		t.Fatalf("source event data = %+v", got)
 	}
 }
 

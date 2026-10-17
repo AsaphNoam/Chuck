@@ -2,7 +2,7 @@ import React from "react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -93,6 +93,9 @@ describe("AnnotationTray", () => {
     await waitFor(() => expect(useAnnotationStore.getState().bySource.source).toBeUndefined());
     expect(launches).toBe(1);
     expect(recipientIds).toEqual(["new-agent", "new-agent"]);
+    // Acknowledged delivery ends the retry: the next batch's New task launches again.
+    act(() => { useAnnotationStore.getState().add("source", { seq: 9, excerpt: "Next", instruction: "Again" }); });
+    expect(await screen.findByRole("button", { name: "Continue to launch" })).toBeInTheDocument();
   });
 
   // FS-13.R15: an archived source cannot be the target, so the tray defaults to

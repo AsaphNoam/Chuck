@@ -1,103 +1,24 @@
 import { AutoGrowTextarea } from "../ui";
-import { useState } from "react";
-import { sendAnnotations, validateAnnotations } from "../../api/client";
 import type { AnnotationDraft } from "../../api/types";
-import { annotationAnchor, annotationBatch } from "../../lib/annotations";
+import { annotationAnchor } from "../../lib/annotations";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { NewAgentModal } from "../../features/launch/NewAgentModal";
 import { useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
+import { useAnnotationDelivery, type AnnotationDelivery } from "./annotationDelivery";
+
+export type { AnnotationDelivery } from "./annotationDelivery";
 
 export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; sourceActive: boolean }) {
-  return <AnnotationTrayView delivery={useAnnotationDelivery(sourceId, sourceActive)} />;
+  return <AnnotationTrayView delivery={useDesktopAnnotationDelivery(sourceId, sourceActive)} />;
 }
 
-export type AnnotationDelivery = ReturnType<typeof useAnnotationDelivery>;
-
-// The tray's transient delivery state: target, recipient, pending request,
-// error and launch progress. It lives with whoever keeps it mounted, so moving
-// the tray between the docked column and Focus file does not reset a send in
-// flight or a launched recipient awaiting retry (TS-08.R129). Drafts stay in
-// annotationStore.
-export function useAnnotationDelivery(sourceId: string, sourceActive: boolean) {
-  const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
-  const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
-  const discard = useAnnotationStore((state) => state.discard);
+// The desktop's projection for the shared delivery state machine.
+export function useDesktopAnnotationDelivery(sourceId: string, sourceActive: boolean) {
   const agents = useAgentStore((state) => state.agents);
-  const source = agents[sourceId];
   const recipients = Object.values(agents).filter((agent) => agent.agent_id !== sourceId && agent.running && agent.interface === "chat");
-  const [chosenTarget, setTarget] = useState<"self" | "agent" | "new">("self");
-  // An inactive source cannot receive its own batch (FS-13.R15), so fall back
-  // to an available target rather than leaving a disabled radio selected.
-  const target = chosenTarget === "self" && !sourceActive
-    ? (recipients.length > 0 || !source ? "agent" : "new")
-    : chosenTarget;
-  const [recipientId, setRecipientId] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showLaunch, setShowLaunch] = useState(false);
-  const [launchedAgentId, setLaunchedAgentId] = useState<string | null>(null);
-
-  const batch = (agentId?: string) => annotationBatch(drafts, overall, agentId);
-
-  const send = async () => {
-    setError(null);
-    if (target === "new") {
-      if (launchedAgentId) {
-        await deliverToLaunchedAgent(launchedAgentId);
-      } else if (!source) {
-        setError("The source agent is no longer available for a prefilled launch.");
-      } else {
-        setSending(true);
-        try {
-          await validateAnnotations(sourceId, batch());
-          setShowLaunch(true);
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Could not validate annotations.");
-        } finally {
-          setSending(false);
-        }
-      }
-      return;
-    }
-    const agentId = target === "agent" ? recipientId : undefined;
-    if (target === "agent" && !agentId) {
-      setError("Choose a running chat agent.");
-      return;
-    }
-    setSending(true);
-    try {
-      await sendAnnotations(sourceId, batch(agentId));
-      discard(sourceId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sending annotations failed.");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const deliverToLaunchedAgent = async (agentId: string) => {
-    setSending(true);
-    setError(null);
-    try {
-      await sendAnnotations(sourceId, batch(agentId));
-      discard(sourceId);
-    } catch (err) {
-      const reason = err instanceof Error ? ` ${err.message}` : "";
-      setError(`Agent ${agentId} launched, but annotation delivery failed.${reason} Retry to send to this agent.`);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const onLaunched = (agentId: string) => {
-    setShowLaunch(false);
-    setLaunchedAgentId(agentId);
-    void deliverToLaunchedAgent(agentId);
-  };
-
-  return { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, sending, error, showLaunch, setShowLaunch, launchedAgentId, send, onLaunched };
+  return useAnnotationDelivery({ sourceId, sourceActive, source: agents[sourceId], recipients });
 }
 
 export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery }) {

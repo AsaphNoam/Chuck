@@ -1,4 +1,4 @@
-import type { AnnotationBatch, AnnotationDraft } from "../api/types";
+import type { AnnotationBatch, AnnotationDraft, TranscriptEvent } from "../api/types";
 
 // Annotation capture limits shared by every surface that builds a draft
 // (FS-13.R2). Two components clipped excerpts with their own copy of this
@@ -13,6 +13,32 @@ export function clipAnnotationExcerpt(value: string, limit = annotationExcerptLi
   if (chars.length <= limit) return value;
   const marker = [...annotationClippedMarker];
   return chars.slice(0, limit - marker.length).join("") + annotationClippedMarker;
+}
+
+// Event capture shared by the desktop context menu, the Think Tank room and the
+// phone's Annotate action (TS-08.R133): which events can be annotated, the
+// selection that lies inside one event, and the draft built from either.
+export function canAnnotate(event: TranscriptEvent) {
+  const kind = String(event.kind ?? event.type ?? "");
+  return event.seq != null && !["session_meta", "permission_resolved", "turn_end", "annotation"].includes(kind);
+}
+
+// The highlighted text, but only when the highlight lives inside the event's host.
+export function selectionWithin(host: HTMLElement): string | null {
+  const selection = typeof window.getSelection === "function" ? window.getSelection() : null;
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
+  if (!host.contains(selection.getRangeAt(0).commonAncestorContainer)) return null;
+  const text = selection.toString();
+  return text.trim() ? text : null;
+}
+
+// eventDraft captures the selected text when there is one, otherwise the whole
+// event. Copy keeps the exact selection; the excerpt stays trimmed (FS-03.R63).
+export function eventDraft(event: TranscriptEvent, selected?: string | null): AnnotationDraft {
+  if (selected) return { seq: Number(event.seq), excerpt: clipAnnotationExcerpt(selected.trim()), instruction: "" };
+  const raw = event.text ?? event.delta ?? event.new_text ?? event.content ?? JSON.stringify(event, null, 2);
+  const excerpt = clipAnnotationExcerpt(typeof raw === "string" ? raw : JSON.stringify(raw, null, 2));
+  return { seq: Number(event.seq), excerpt, instruction: "" };
 }
 
 // annotationAnchor is the label a pending draft shows for where it points

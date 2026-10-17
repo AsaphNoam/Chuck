@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../../api/types";
-import { clipAnnotationExcerpt } from "../../lib/annotations";
+import { canAnnotate, eventDraft, selectionWithin } from "../../lib/annotations";
 import { copyText } from "../../lib/copyText";
 import { claimWebLink } from "../../lib/linkActions";
 import { ErrorBoundary } from "../ErrorBoundary";
@@ -69,8 +69,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     if (!annotationsEnabled || !canAnnotate(event)) return;
     const selected = selectionWithin(mouse.currentTarget);
     mouse.preventDefault();
-    // Copy keeps the exact selection; the annotation excerpt stays trimmed (FS-03.R63).
-    const draft = selected ? { seq: Number(event.seq), excerpt: clipAnnotationExcerpt(selected.trim()), instruction: "" } : eventDraft(event);
+    const draft = eventDraft(event, selected);
     setMenu({
       x: mouse.clientX,
       y: mouse.clientY,
@@ -388,22 +387,3 @@ function ForkBoundary({ sourceId }: { sourceId: string }) {
   return <div className="backend-switch-divider">Cloned from {source || "another agent"}</div>;
 }
 
-export function canAnnotate(event: TranscriptEvent) {
-  const kind = String(event.kind ?? event.type ?? "");
-  return event.seq != null && !["session_meta", "permission_resolved", "turn_end", "annotation"].includes(kind);
-}
-
-// The highlighted text, but only when the highlight lives inside the right-clicked event.
-export function selectionWithin(host: HTMLElement): string | null {
-  const selection = typeof window.getSelection === "function" ? window.getSelection() : null;
-  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
-  if (!host.contains(selection.getRangeAt(0).commonAncestorContainer)) return null;
-  const text = selection.toString();
-  return text.trim() ? text : null;
-}
-
-export function eventDraft(event: TranscriptEvent): AnnotationDraft {
-  const raw = event.text ?? event.delta ?? event.new_text ?? event.content ?? JSON.stringify(event, null, 2);
-  const excerpt = clipAnnotationExcerpt(typeof raw === "string" ? raw : JSON.stringify(raw, null, 2));
-  return { seq: Number(event.seq), excerpt, instruction: "" };
-}

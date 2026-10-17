@@ -22,7 +22,8 @@ import { AnnotationContextMenu, type AnnotationMenuState } from "../../component
 import { FileViewer } from "../../components/chat/FileViewer";
 import { SanitizedMarkdown } from "../../components/chat/renderers/SanitizedMarkdown";
 import type { FileLink } from "../../components/chat/renderers/filePath";
-import { canAnnotate, eventDraft, eventRenderer, selectionWithin } from "../../components/chat/TranscriptView";
+import { eventRenderer } from "../../components/chat/TranscriptView";
+import { canAnnotate, eventDraft, selectionWithin } from "../../lib/annotations";
 import { markBackgrounded, nestActivities } from "../../components/chat/runtimeActivity";
 import { TurnList, useTurnChoices } from "../../components/chat/TurnList";
 import { foldTranscript } from "../../store/transcriptStore";
@@ -185,7 +186,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
         if (!canAnnotate(event)) return;
         const selected = selectionWithin(mouse.currentTarget);
         mouse.preventDefault();
-        const draft = selected ? { seq: Number(event.seq), excerpt: clipAnnotationExcerpt(selected.trim()), instruction: "" } : eventDraft(event);
+        const draft = eventDraft(event, selected);
         setMenu({
           x: mouse.clientX,
           y: mouse.clientY,
