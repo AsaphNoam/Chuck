@@ -6,12 +6,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Awaiting review — quiet quota recovery (2026-10-17):** `d3ea0f8f`..HEAD,
-  [`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md) (its Implementation
-  progress lists files and reviewer notes). Verified resets schedule at reset + 60 s; unknown
-  resets get ≤6 hourly isolated checks (`internal/runtime/quota_check.go`,
-  `internal/server/quota_check.go`, migration 54). Review notes: Claude probes keep default
-  `settingSources`; deleting an agent with a pending failed Codex cleanup drops its reference.
+- **Awaiting fixes — quiet quota recovery (reviewed 2026-10-17):** original unit
+  `d3ea0f8f^..9fa9bc81` (includes d3ea0f8f),
+  [`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md). Review stage complete;
+  fix unit `quiet-quota-recovery-2026-10-17`, Q1–Q9 below: **7 Must fix, 2 Worth fixing**.
+  Existing focused Go tests pass in both variants, 13 focused UI tests and 26 rendered checks
+  pass; eight independent overlay probes reproduce defects. Detailed report and probe sources:
+  `/Users/mcnoam/.chuck/project-resources/agentdeck-20261007t221535z/quiet-quota-review-2026-10-17.md`.
+  Live FS-01.A28/A31/A33/A34 receipts remain owed. No product code/spec changes or next stage.
 
 - **Awaiting review — peer transcript reads and approved Stop (2026-10-16):** `953aeb31`..HEAD,
   FS-06.R39–R44. `read_agent_transcript`/`list_agents scope:"history"`; `stop_agent` waits on a
@@ -177,6 +179,86 @@ None.
 
 ## Review findings
 
+### Review 2026-10-17 — quiet quota recovery (`d3ea0f8f^..9fa9bc81`, fix unit `quiet-quota-recovery-2026-10-17`) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — **Q1: Claude checks retain ambient settings/work instructions.**
+  `internal/runtime/quota_check.go:218–224` omits `settingSources`; pinned ACP
+  `dist/acp-agent.js:6826` defaults to user/project/local sources. SDK `sdk.d.ts:2241–2250`
+  documents filesystem settings and CLAUDE.md loading. Global instructions/lifecycle hooks can
+  enter the fixed minimal check despite its temporary cwd and empty tools. Violates
+  FS-01.R51/TS-04.R97. The note accepting defaults is rejected: preserve a verified sanitized
+  routing selection or refuse unsupported. Test ambient instructions/hooks at the real adapter
+  option boundary plus account equivalence. Fix complexity: medium. (INV §2/§12/§17)
+- **Must fix** — **Q2: Dotted Codex MCP configuration evades isolation.**
+  `internal/runtime/quota_check.go:409–414` enumerates only nested JSON `mcp_servers` entries.
+  A valid `CODEX_CONFIG` with `mcp_servers.docs.command` and
+  `mcp_servers.docs.enabled:true` passes through unchanged; pinned ACP forwards that config and
+  an empty ACP MCP list preserves it. Configured servers can initialize during the check,
+  violating FS-01.R51/TS-04.R97. Reproduced by the overlay probe; enumerate supported dotted
+  entries too or refuse ambiguous configuration, and cover both shapes independently.
+  Fix complexity: easy. (INV §11/§12/§17)
+- **Must fix** — **Q3: Checks follow mutable catalog selection instead of the interrupted source.**
+  `internal/server/quota_check.go:24–44` rebuilds model/provider/env from current backend settings,
+  without comparing the original effective selection or revalidating it at readiness. Editing
+  a model mapping/account/profile during the hourly wait can check another quota while the live
+  original process keeps its old selection. Cleanup retry also uses the mutable profile.
+  Reproduced: original model `sonnet`, check model `another-model-for-new-launches` after one
+  catalog mapping edit. FS-01.R49/R51, TS-04.R97/TS-10.R46 require equivalence. Reuse/compare
+  existing effective selection under admission; hold unsupported when unprovable. Test changes
+  before/during checks and cleanup. Fix complexity: medium. (INV §1/§2/§5/§12/§15)
+- **Must fix** — **Q4: A rounded current-minute Claude reset schedules tomorrow.**
+  `internal/runtime/quota_reset.go:134–149` excludes today's minute-start once observation is
+  inside that minute, then picks tomorrow. The independently extracted native formatter drops
+  seconds: a 09:00:50 reset observed at 09:00:30 prints `9am (UTC)`; the parser returns tomorrow
+  09:00, delaying work almost a day. FS-01.R48/TS-04.R96 require ambiguous evidence to stay
+  unknown. Reproduced; test same-minute rounding, valid tomorrow text and structured
+  corroboration together. Fix complexity: easy. (INV §11/§12/§17)
+- **Must fix** — **Q5: Structured reset decoding discards model/overage applicability.**
+  `internal/runtime/quota_reset.go:228–257` reduces all listed rejected windows to timestamps;
+  the ordinary/check collectors keep the maximum without model/overage scope or unknown
+  blockers. Reproduced a Sonnet quota scheduled from `seven_day_opus`. TS-04.R87/R96 preserve
+  applicability and require unknown when any applicable blocker has no time. Keep bounded scope
+  evidence and combine only proven blockers; cover mismatched model stamps, model/overage
+  windows and a second untimed blocker in both paths. Fix complexity: medium. (INV §1/§11/§12/§17)
+- **Must fix** — **Q6: Conflicting text is ignored when structured reset data exists.**
+  `internal/runtime/quota_reset.go:263–283` treats text-parser refusal as absent evidence, then
+  takes structured-only fallback. Two distinct 9am/10am clauses plus structured 09:00:10
+  reproduce an authorized schedule. FS-01.R48/TS-04.R96 require conflict to remain unknown.
+  Distinguish absent from conflicting text; test the combined evidence through settlement.
+  Fix complexity: easy. (INV §11/§12/§17)
+- **Must fix** — **Q7: An intervention-only probe error schedules more checks.**
+  `internal/runtime/quota_check.go:291–301` discards the reset resolver's intervention flag;
+  result types cannot carry it and `internal/state/quota_checks.go:96–101` schedules another
+  hourly check. After an initial unknown interruption, an explicit spend-limit/out-of-credits
+  check thus keeps polling contrary to FS-01.R49/TS-10.R45. Reproduced at dispatcher level with
+  monthly spend-cap text and a new check due time. Carry intervention to state and hold without
+  a due time; cover both providers' branches. Fix complexity: medium. (INV §2/§10/§11/§17)
+- **Worth fixing** — **Q8: Agent deletion drops unresolved exact probe cleanup.**
+  Migration 54's cascade (`internal/state/schema.go:816`) and `internal/state/agents.go:230–238`
+  erase `check_session` without arranging exact cleanup, contrary to TS-02.R50. Reproduced failed
+  Codex cleanup → DeleteAgent → no pending reference. The implementation note is rejected.
+  Current ordinary UI/API has no conversation-delete path; production deletion is failed-launch
+  rollback, so this is a storage-lifetime gap with limited present reachability. Refuse deletion
+  while cleanup is pending or transfer cleanup ownership first; cover concurrent check creation.
+  Fix complexity: medium. (INV §4/§5/§9/§15)
+- **Worth fixing** — **Q9: Reply capture exceeds its byte cap for multibyte text.**
+  `internal/runtime/quota_check.go:106–107` applies a rune limiter to remaining byte capacity.
+  Reproduced 4,096 CJK characters retaining 12,288 bytes against TS-04.R97's 4 KiB cap. It is
+  still bounded, so practical severity is low. Clip bytes on a valid UTF-8 boundary at capture;
+  test multibyte chunks crossing the remaining limit. Fix complexity: easy. (INV §16/§17)
+
+Verification: focused Quota/Reset Go suites pass untagged and FTS5; 13 focused UI tests and an
+independent real-Chromium 26-check render pass (three appearances, 1024px/390px). Render receipt:
+`/tmp/quiet-quota-review-render-20261017/receipt.json`. Eight external Go-overlay requirement
+probes reproduce Q2–Q9; Q1 is independently traced through pinned adapter/SDK source. Report,
+overlay, sources and complete probe log are in the shared project-resources directory named above.
+The reported full implementation closure was not repeated. Full A32 owner/race cases and A33
+cancel/reload/disable interaction coverage are not established by ordinary-owner tests or static
+fixtures; live FS-01.A28/A31/A33/A34 packaged/installed receipts remain owed. No live provider prompts
+ran. No blocker prevents review closure; the originating unit stays open for its fixes.
+INV §1–§5/§7–§13/§15–§17 assessed; §6/§14 have no applicable changed surface. Existing selectors
+are defined, notice history is preserved, and no unnecessary parallel scheduler was found.
+
 ### Review 2026-10-16 — withdraw returns the held message (`2cf48ba2`, FS-03.R90/A70) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Must fix** — **W1: Withdrawal can erase a newer live draft when browser storage fails.**
@@ -228,6 +310,12 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-17 — Quiet quota recovery reviewed:** `d3ea0f8f^..9fa9bc81`, including the first
+  implementation commit. Review stage complete; Q1–Q9 (7 Must fix, 2 Worth fixing) keep the same
+  unit open for fixes. Both documented local choices were assessed. Focused Go/UI/render checks
+  pass; eight independent overlay probes fail on the confirmed defects. Report/evidence are in
+  shared project resources. Live receipts remain owed; no product/spec changes or next stage.
 
 - **2026-10-17 — Quiet quota recovery implemented:** FS-01.R48–R51/A31–A33 (A32 deterministic),
   FS-04.R59/A38, TS-04.R96–R97, TS-10.R45–R47, TS-02.R50, TS-03.R72 in five slices
