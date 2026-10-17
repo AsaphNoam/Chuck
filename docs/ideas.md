@@ -33,6 +33,12 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Mobile annotation parity.** Requested with `/design-feature add annotation functionality to
+  mobile as well` on 2026-10-17. Phone diff-line annotation already exists. Draft FS-13.R28–R29/
+  A19–A20 and FS-20.R55/A27 extend it to transcript excerpts/whole events, opened tracked-file
+  selections, and the optional overall instruction, using the existing targets and draft lifetime.
+  Awaiting product-scope confirmation before technical design. Proposed scope retains the current
+  phone file-read boundary and excludes new archive/Think Tank phone surfaces.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;

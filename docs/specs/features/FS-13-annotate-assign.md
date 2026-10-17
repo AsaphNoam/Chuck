@@ -1,6 +1,6 @@
 # FS-13 — Annotate and assign
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src/components/chat/`, `ui/src/features/archive/`, `internal/server/`, `internal/runtime/`, `internal/state/` · **Journeys:** J13
 **Absorbed:** —
 
@@ -12,8 +12,8 @@ current agent, another running chat agent, or a newly launched agent. Chuck pres
 annotation as structured, located context — captured excerpt, anchor, instruction, target — never as
 hand-pasted chat text. The chat surface belongs to FS-03, the archived view to FS-05, mail delivery
 to FS-06, and launch to FS-01; this spec owns the annotation interaction, its records, and its
-delivery behavior. Agent-session requirements are shipped; R26–R27/A17–A18 add a planned room-source
-extension for Think tanks.
+delivery behavior. Agent-session and room-source requirements through R27 are shipped;
+R28–R29/A19–A20 propose extending phone capture and batch controls.
 
 ## 2. Behavior
 
@@ -204,6 +204,28 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   tray. After discussion ends, selected-agent and New task delivery remain available; Room delivery
   is unavailable and cannot silently resume the room.
 
+- **R28 (planned) — Phone selection supports the existing agent-session sources.** On a
+  chat-interface agent's phone screen, a touch-accessible **Annotate** action captures highlighted
+  text within one eligible transcript event, or the whole event when that event has no highlighted
+  text. The same event eligibility and derived event anchor as R1/R19 apply. This supersedes
+  R1/R19's right-click-only entry on the phone; desktop entry is unchanged. Native text selection,
+  ordinary link taps, and transcript scrolling remain usable. Existing diff-line selection keeps
+  its current interaction. A selection in the phone's loaded tracked-file text captures the shown
+  file path and contiguous 1-based line range under R25, without whole-file capture or a fabricated
+  event sequence. Selection text and its anchor are captured before moving focus to an instruction
+  field; subsequent transcript updates, file changes, or closing the preview do not change them.
+- **R29 (planned) — Phone sources share one reachable batch.** Transcript, diff, and file drafts
+  from the same agent accumulate in its existing browser-local tray, with the same entry and text
+  limits, instruction editing, removal, discard, reload survival, expiry and source-deletion rules.
+  Both Chat and Files expose the pending count and a way to open that batch without losing the
+  person's reading place. The phone also offers R4's optional overall instruction. The draft list
+  can scroll while target selection, errors and send remain reachable with the phone keyboard open.
+  Sending uses the existing current-agent, another-agent and new-task destinations, availability
+  rules, source recording and prompt/mail content; no new agent/API record shape or retention is
+  introduced. Acknowledged success clears the batch and names the destination; a rejected or failed
+  send preserves all drafts and the overall instruction. Disconnection disables delivery without
+  discarding drafts or sending automatically on reconnect.
+
 ## 5. Acceptance criteria
 
 Each acceptance item names its delivered verification.
@@ -287,7 +309,27 @@ Each acceptance item names its delivered verification.
   are unchanged. *Verified by:* room annotation/launch integration tests and FS-21.A20's rendered
   three-destination journey.
 
+- **A19 (planned)** (R28–R29) — At 360/390/430px, capture selected text and a whole eligible phone
+  transcript event, a diff range, and text in an opened tracked file into one batch. Verify exact
+  excerpts and event/file/line anchors, exclusion of ineligible events, continued native selection,
+  link taps and scrolling, editing/removal and overall instruction, Chat/Files access with reading
+  position preserved, reload survival and point-in-time capture after new events or changed files.
+  Check that keyboard-open editing leaves delivery and errors reachable. *Verify by:* phone
+  component/store tests and a rendered touch-input journey in all three appearances; real paired
+  iPhone and Android selection/keyboard checks remain explicit device gates.
+- **A20 (planned)** (R28–R29) — Send a mixed phone batch to the current idle agent, another running
+  chat agent and a newly launched agent; check the same structured source cards and target
+  prompt/mail as desktop, including after replay. Exercise current-agent refusal for busy/stopped
+  sources, invalid
+  recipient, validation failure, source-append failure, offline/reconnect and failed delivery after
+  launch. Drafts and overall instruction survive failures, reconnect sends nothing automatically,
+  and a post-launch retry targets the same launched agent. *Verify by:* phone delivery component
+  tests, annotation endpoint/formatter regression tests and a fake-provider phone browser journey.
+
 ## 6. Deviations & open decisions
+
+- R28–R29/A19–A20 are a mobile-parity proposal awaiting product confirmation; technical design has
+  not started. It adds no phone archive or Think Tank surface and does not widen remote file reads.
 
 - R26–R27/A17–A18 shipped 2026-10-06 (`ui/src/features/thinktank/RoomAnnotationTray.tsx`,
   `internal/server/think_tank_annotations.go`); FS-21.R35/R39 and TS-14 govern boundary input and retained room sources.

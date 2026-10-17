@@ -280,6 +280,13 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-17 — Mobile annotation scope drafted:** phone diff annotations already exist. Planned
+  FS-13.R28–R29/A19–A20 and FS-20.R55/A27 add transcript excerpt/whole-event capture,
+  tracked-file text selections, a shared reachable batch and overall instruction, retaining existing
+  targets, browser-local draft lifetime and remote file limits. Source idea is under Ideas being
+  defined. Awaiting product confirmation before technical design; no ready change or product edits.
+  Spec, twin-skill/launcher and whitespace checks pass.
+
 - **2026-10-17 — Roomier file reader fixes (RFR-1–RFR-5 closed):** unit
   `roomier-file-reader-2026-10-17` closed. RFR-1 (INV §8/§17): `allocateReader` counts the
   dividers its own allocation shows, so docking near ~992px no longer loops; TS-08.R128
