@@ -198,16 +198,17 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
-- **2026-10-17 — File reader feature design, scope pending:** proposed FS-03.R92–R96/A71–A74
-  cover contained Markdown, adjustable file/chat/annotation widths and an optional Focus file
-  modal sharing the existing annotation tray. Incumbent browser inspection reproduced long
-  inline-code overflow and cramped Markdown spacing; official VS Code/Obsidian/GitHub references
-  informed the proposal. The idea stays under `Ideas being defined` pending the operator's
-  confirmation of behavior and page-lifetime sizing, before technical design. No product code or
-  ready change; unrelated working-tree work is preserved. Spec, twin-skill/launcher and whitespace
-  checks pass. Interactive composition sketch (not product implementation):
-  `.chuck-dev/design/file-reader.html`; focus/return, keyboard resizing and annotation collapse
-  were exercised in the browser.
+- **2026-10-17 — File reader design ready:** operator approved the resizable split reader,
+  optional Focus file modal, shared annotations and page-lifetime sizing, adding an explicit
+  requirement against accidental Chinese characters in authored English UI. Waiting unit:
+  `docs/ready-changes/roomier-file-reader.md`; FS-03.R92–R97/A71–A75 and TS-08.R127–R132.
+  Technical design extends existing workspace/reader/tray/Radix seams, retaining read and
+  delivery owners across presentation changes and containing nested menus inside the modal.
+  The idea was promoted; implementation has not started and Active change remains None.
+  Incumbent overflow/spacing evidence and official reference links are preserved in the unit.
+  Composition sketch: `.chuck-dev/design/file-reader.html` (not product code or an acceptance
+  receipt). Spec, twin-skill/launcher and whitespace checks pass; added authored text contains no
+  Chinese characters. No product-code change; implementation acceptance and rendered gates remain owed.
 
 - **2026-10-17 — TOOLRUN-03 closed (investigation unit closed):** (INV §1/§6/§11/§16) installed
   `claude-agent-acp` starts a streamed call with `{}` and sends `rawInput`/`title` later in

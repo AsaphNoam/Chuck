@@ -33,25 +33,6 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
-- **Roomier file reading, resizable panes and a focus modal.** Operator request, 2026-10-17:
-  files lack space and rendered Markdown escapes its box; investigate other tools, keep the
-  current adjacent reader, consider a modal, and let file/transcript/annotation widths flex.
-  Proposed behavior: FS-03.R92–R96/A71–A74; awaiting the operator's scope confirmation before
-  technical design. Recommendation: resizable adjacent panes plus an optional **Focus file**
-  modal with the same pending annotations; wrap prose/inline code, scroll wide technical blocks
-  locally, improve Markdown spacing, and retain position when entering/leaving focus. Proposed
-  sizing/focus state lasts only for the open workspace; no new stored preference. No editor,
-  tabs, outline/search subsystem, phone reader or room-layout redesign in this unit.
-  Browser evidence: the incumbent at 2137px allocates 640px to the file and about 1418px to chat;
-  a 639px file body has 716px scroll width from long inline code, and rendered Markdown uses
-  13.76px text with normal line height instead of chat's paragraph rhythm. Source confirms
-  fixed container-relative capped widths and Markdown spacing scoped to assistant messages.
-  References: [VS Code layout](https://code.visualstudio.com/docs/configure/custom-layout),
-  [Markdown preview](https://code.visualstudio.com/docs/languages/markdown),
-  [Obsidian tabs](https://help.obsidian.md/tabs), and
-  [GitHub file views](https://docs.github.com/en/repositories/working-with-files/using-files/viewing-and-understanding-files).
-  These support split/focus and rendered/source patterns; the Chuck composition is a proposal.
-  Remaining decision: approve or revise the combined split/focus behavior and page-lifetime sizing.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;

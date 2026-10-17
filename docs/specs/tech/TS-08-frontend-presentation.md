@@ -1487,6 +1487,117 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   Verify FS-21.A40 in all three appearances, using the shared style/contract checks and a real
   rendered view; source review alone cannot close visual acceptance. No phone room UI is added.
 
+### 2.14 Resizable file reader and focused reading
+
+- **R127 (planned) — Extend the existing workspace and retain one read owner.**
+  FS-03.R92–R97 extends `AgentStage`, `TranscriptView`, `FileViewer` and `AnnotationTray` on live
+  and archived desktop agent pages. A feature-owned reader workspace under `TranscriptView`
+  keeps the file controller and layout state mounted across adjacent/focused presentation changes;
+  the route's `file`/`fileLine` values remain the sole open-file identity. Split the existing
+  `FileViewer` state from its view only as needed to share that controller; its existing export
+  remains usable by `ThinkTankPage`, including the `load` callback. Both presentations use one
+  view and one set of read/selection handlers, not parallel reader implementations. Keep the
+  existing read token and normalized-path publication guard; invalidate outstanding reads when
+  the file closes or its source changes. Only opening/replacing a file and explicit Reload
+  initiate reads. Closing releases the current snapshot; layout state survives until the
+  workspace unmounts. Source change/unmount drops it all. No global map, new storage key, query
+  cache, polling, endpoint, wire field or persistence migration is introduced (INV §1/§2/§16).
+
+- **R128 (planned) — The workspace owns bounded proportions and accessible dividers.**
+  Replace only R53/R57/R112's automatic width allocation and no-measurement clauses for the
+  full desktop agent workspace. Use the existing `AgentStage` slots and one feature-owned
+  allocation calculation for file, conversation and annotations. Keep requested file share
+  separately from the currently clamped widths, initially 50% of the space remaining after
+  a docked tray; the tray initially requests its existing `min(30cqi, 460px)` width. Useful
+  minimums are 320px for the file, 360px for the conversation and 280px for an expanded tray.
+  Subtract actual separator/gap widths before allocation. A collapsed tray uses its existing
+  strip width. Dock an expanded tray only when those minimums fit; otherwise constrain its
+  existing overlay to the conversation's box, leaving the reader unobscured. A workspace narrower
+  than the two reading minimums uses a clamped adjacent split with contained content and the
+  explicit Focus file escape; the supported desktop floor remains 1024px. The phone and dashboard
+  pane retain their existing layouts and do not acquire these dividers.
+
+  One workspace `ResizeObserver` supplies available width; no observer per paragraph or draft
+  participates in allocation. Keep two requested values, not copies of every pane width;
+  collapse, constrained resize and window narrowing must not overwrite a user's requested
+  split. Pointer capture handles dragging and cancellation; release capture/listeners on cancel
+  or unmount. Each divider is a named focusable `role="separator"` with vertical orientation,
+  `aria-controls` and truthful current/min/max values. Left/Right move the separator in the
+  indicated physical direction, Shift increases the step, and Home or double-click resets its
+  allocation. Focus remains on the divider at a limit. Register the exact layout-owner file's
+  inline custom-property assignment in `presentation-exceptions.json`; it may set only measured
+  allocation values. Colors, spacing, radii and other static presentation stay in CSS/tokens.
+
+- **R129 (planned) — Focus uses existing Radix dialog behavior and the same tray controller.**
+  Use the installed `@radix-ui/react-dialog` with the shared `dialog` overlay/content hooks and
+  stylesheet construction already used by image viewing. Focus is local boolean state, not a
+  route or history entry. Leave the transcript, composer and read/tray controllers mounted.
+  Render the controlled reader and the one shared tray either in adjacent slots or within
+  dialog content, never as two active copies. Move the existing tray's transient delivery state
+  above that presentation branch: target, recipient, pending request, error, launch dialog and
+  already-launched recipient identity survive focus/return. Keep `annotationStore` authoritative
+  for drafts/instructions and its existing collapsed flag, expiry and cap; do not introduce
+  another annotation store or turn layout changes into collapse-preference writes. Narrow focus
+  uses a local count/reveal control for the same tray. Sending/discarding the last draft leaves
+  the reader open and returns its space. New task still uses the existing `NewAgentModal`.
+
+  File/annotation/web-link menus opened in focus must mount inside its dialog content. Extend
+  the existing `PointerContextMenu` portal destination through a narrowly scoped optional React
+  context, defaulting to its current `document.body` destination outside focus; nested Markdown
+  link menus inherit the same destination. This supersedes R57's no-context clause solely for
+  menu placement; open-file identity remains route-owned. Preserve viewport clamping and ensure
+  transformed dialog ancestors do not alter its coordinate space. An open inner menu/dialog
+  consumes Escape before the file dialog, and interacting with a menu must not trigger backdrop
+  dismissal. Use Radix focus trapping/background inertness and close autofocus, returning to
+  Focus file or the conversation when its trigger no longer exists. Include the annotation
+  New task launch/delivery/failure path in nested-dialog verification. Do not force-mount an
+  inactive modal over the adjacent workspace or implement a second focus-trap system.
+
+- **R130 (planned) — Reading continuity is bounded to the current document.**
+  Retain one loaded `FileContent`/read timestamp and one position per Rendered/Source mode for
+  the current file. Before presentation/width changes, capture the first visible source line
+  or rendered top-level block and its viewport offset; restore that location after reflow,
+  clamping if needed. Block identity is derived from the already-rendered document, with no
+  second Markdown parser or cross-file position cache. A new file resets the two positions;
+  publishing its normalized path does not. Explicit new line navigation takes priority over
+  stored position and uses the existing line marker. Reload replaces the snapshot and safely
+  clamps its position; stale replies cannot resurrect a closed/replaced file. Preserve the
+  transcript's existing at-bottom flag and visible `data-seq`/`data-turn` anchor during reflow:
+  followers continue following, while a reader above the tail remains at the same content.
+  Restoration must not itself flip follow state or fight later user scrolling. Layout switches
+  do not change composer ownership, durable events or point-in-time annotation excerpts.
+
+- **R131 (planned) — Readable Markdown extends the shared sanitized renderer.**
+  Keep `SanitizedMarkdown`, `CodeBlock` and Mermaid as the only existing rendering paths.
+  Apply the paragraph/list/heading/blockquote rhythm and ordinary chat body size to the
+  file-reader content without importing assistant-bubble chrome. Prose in focus is centered
+  and capped at 76ch; technical blocks may use the full allocated width. All shrinkable layout
+  tracks and children have a zero intrinsic minimum; prose, inline code and paths wrap, while
+  tables, source lines and fences retain local horizontal scrolling. Bound diagram dimensions
+  through the existing renderer rules. Reflow the header without hiding actions and retain
+  access to the full path. Keep all authored labels, accessible names and messages intentional
+  English (FS-03.R97), and reuse repository icons instead of arbitrary text glyphs. Do not
+  modify source text, normalize away Unicode, alter sanitization/link handling, load new remote
+  assets, or change the existing 512 KiB read bound or R64 read authority. Shared document
+  styling reaches the existing room viewer; resize/focus orchestration does not.
+
+- **R132 (planned) — Presentation and verification extend existing contracts.**
+  Add `docked`/`focused` variants to the existing `file-viewer` hook and register one
+  `workspace-divider` hook with file/conversation and annotation/conversation variants; retain
+  the reader's loading/loaded/error states and the tray's existing expanded/collapsed meanings.
+  Core, Sky & Grove and Studio inherit the same structure through existing semantic tokens.
+  No new skin, panel framework, resize dependency, motion library or layout animation is added.
+  Extend the deterministic development matrix for both reading forms and the three-column,
+  collapsed and constrained-overlay states. Focused tests cover allocation limits/reset,
+  request counts/stale reads, mode/scroll state, tray delivery continuity, nested menus/dialogs,
+  English copy and unchanged Unicode content under FS-03.A71–A75. Real-browser checks cover
+  pointer/keyboard resizing, focus/return, actual overflow and source/Markdown selection in live
+  and archived chat at 1024px, 1440px and wider widths in every desktop appearance, plus the
+  shared room viewer and unchanged dashboard/phone navigation. Test delayed diagram growth,
+  loading/refusal/partial results and streaming transcript reflow. Source or jsdom checks alone
+  cannot close the rendered items. Implementation closure follows TS-06.R3–R6 and workflow §2;
+  generated `internal/server/ui/dist` is never edited directly.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract
@@ -1660,6 +1771,13 @@ boundary; the manifest remains the visual contract and arbitrary ids never becom
   explicitly identified as a browser-only visual check.
 
 ## 5. Deviations & open decisions
+
+- **File reader, approved 2026-10-17:** R127–R132 implement the approved FS-03.R92–R97 scope
+  when built. They replace R53/R57/R112's automatic sizing/no-measurement constraints only in
+  the full desktop workspace, and R57's no-context constraint only for focused menu placement.
+  The existing room file loader, dashboard navigation, phone composition, server read authority,
+  sanitization and annotation retention remain governed by their existing requirements. See
+  `docs/ready-changes/roomier-file-reader.md`; all implementation acceptance remains owed.
 
 - R123 was approved 2026-10-12 and implemented 2026-10-13. Verification: the full UI suite passes
   (805 tests in 88 files); rendered desktop checks cover Core, Sky & Grove and Studio and Core phone

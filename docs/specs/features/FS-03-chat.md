@@ -750,6 +750,12 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   is added. R64's actual local read authority and explicit read semantics remain authoritative.
   Editing, file tabs/history, directory browsing, outline, in-file search, a new phone reader,
   and changes to the Think Tank room layout are excluded.
+- **R97 (planned) — Reader controls use intentional English copy.** New reader labels,
+  accessible names, tooltips and authored status/error messages follow the application's English
+  vocabulary. Do not introduce stray Chinese characters or use arbitrary text glyphs as action
+  icons; reuse the existing icon construction with English accessible names. This governs
+  Chuck-authored interface text, not file contents, paths, agent names or captured excerpts,
+  whose original Unicode text remains intact.
 
 ## 3. States & transitions
 
@@ -1357,12 +1363,20 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   layout changes add no file read, durable event, prompt or browser-storage write. *Verify:*
   focused viewer/workspace tests and the A73 browser journey.
 
+- **A75 (planned)** (R97) — Inspect the new reader controls, resize announcements, tooltips,
+  loading/refusal/partial states and accessible names in both presentations. All Chuck-authored
+  copy is intentional English, with no accidental Chinese characters; source contents, paths
+  and captured excerpts remain unchanged. *Verify:* component assertions against the specified
+  English labels, a review of added UI literals and A71–A73's rendered journeys. Do not implement
+  character stripping or reject legitimate non-English file content to satisfy this check.
+
 ## 6. Deviations & open decisions
 
-- **File reader design, 2026-10-17:** R92–R96/A71–A74 are proposed behavior awaiting the
-  operator's confirmation of combined resizable split/focus modal and page-lifetime sizing.
-  They are not approved implementation scope. Technical design has not begun; there is no
-  ready change. See the matching entry in `docs/ideas.md` for incumbent evidence and research.
+- **File reader design approved, 2026-10-17:** the operator confirmed the resizable split reader,
+  optional Focus file modal, shared annotations and page-lifetime sizing, and explicitly required
+  avoiding accidental Chinese characters in authored UI. R92–R97/A71–A75 remain planned until
+  implemented. TS-08.R127–R132 defines the technical contract; the waiting unit is
+  `docs/ready-changes/roomier-file-reader.md`.
 
 - R81–R86/A62–A65 were approved 2026-10-12 and implemented 2026-10-13. Verification: all 805 UI
   tests in 88 files pass; rendered desktop checks cover Core, Sky & Grove and Studio, and Core
