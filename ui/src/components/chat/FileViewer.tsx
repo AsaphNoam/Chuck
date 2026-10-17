@@ -202,7 +202,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
           )}
           <button type="button" className="ad-button-secondary" onClick={reader.reload}>Reload</button>
           {onAnnotateSelection && view.status === "loaded" && (
-            <button type="button" className="ad-button-secondary" onPointerDown={() => { pressed.current = currentSelection()?.draft ?? null; }} onClick={annotateSelection}>Annotate selection</button>
+            <button type="button" className="ad-button-secondary" onPointerDown={() => { pressed.current = currentSelection()?.draft ?? null; }} onClick={(click) => { click.currentTarget.focus(); annotateSelection(); }}>Annotate selection</button>
           )}
           {actions}
           {onClose && <button type="button" className="ad-button-secondary" onClick={onClose}>{closeLabel}</button>}

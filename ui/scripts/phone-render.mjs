@@ -21,6 +21,12 @@ const spinnerCheck = process.argv.includes("--spinner-check");
 const parityCheck = process.argv.includes("--parity-check");
 const scrollCheck = process.argv.includes("--scroll-check");
 const recoveryCheck = process.argv.includes("--recovery-check");
+// FS-13.A19–A21/FS-20.A27: phone capture, tray, launch and cards (stubbed API).
+const annotationCheck = process.argv.includes("--annotation-check");
+const longPath = "docs/features/a-very-long-directory-name/with-nested-folders/release-notes-for-the-phone.md";
+const fileReads = [];
+const annotationPosts = [];
+const launches = [];
 let healthCount = 0;
 let healthDown = false;
 let skin = "";
@@ -45,6 +51,18 @@ const transcript = fixturePath
         event(2, "tool_call", { tool_call_id: "t1", name: "Bash", args: { command: "make test" } }),
         event(3, "tool_result", { tool_call_id: "t1", output: "ok  github.com/AsaphNoam/Chuck/internal/server" }),
         ...words.map((text, i) => event(4 + i, "assistant_text", { delta: text })),
+        ...(annotationCheck ? [
+          event(40, "annotation", {
+            annotations: [
+              { seq: 1, excerpt: "Run the tests", instruction: "Also run the race tests." },
+              { anchor_kind: "file", path: longPath, start_line: 3, end_line: 4, excerpt: "The phone can now annotate files.\nEach selection keeps its lines.", instruction: "Shorten this." },
+              { anchor_kind: "file", path: longPath, excerpt: "Release notes", instruction: "Rename the heading." },
+            ],
+            overall_instruction: "Keep it to one commit.",
+            target: { kind: "self" },
+          }),
+          event(41, "user_text", { text: "[Chuck annotations]\nTranscript event 1\nmachine prompt that must stay hidden" }),
+        ] : []),
       ],
     };
 
@@ -81,7 +99,29 @@ try {
     if (parityCheck && path === "/api/remote/self") return route.fulfill({ json: { id: "d1", name: "iPhone", notifications: "off", vapid_public_key: "" } });
     if (detailsCheck && path === "/api/remote/runtime-options") return route.fulfill({ json: { backends: [{ id: "claude", name: "Claude", default_model: "m", models: [{ id: "m", name: "Sonnet", efforts: ["low", "medium", "high"], default_effort: "medium" }] }] } });
     if (detailsCheck && path === "/api/sessions/a1/files") return route.fulfill({ json: { agent_id: "a1", files: ["src/main.go", "src/another-file-with-a-long-name.go"].map((path) => ({ path, edit_count: 2, last_ts: "2026-10-10T00:00:00Z", has_diff: false, diff_refs: [] })) } });
-    if (detailsCheck && path === "/api/sessions/a1/file") return route.fulfill({ json: { path: new URL(route.request().url()).searchParams.get("path"), content: "package main\n\nfunc main() {\n    println(\"hello\")\n}\n", truncated: false } });
+    if (detailsCheck && path === "/api/sessions/a1/file") return route.fulfill({ json: { path: new URL(route.request().url()).searchParams.get("path"), content: "package main\n\nfunc main() {\n    println(\"hello\")\n}\n", truncated: false, line_count: 5, language: "go" } });
+    if (annotationCheck) {
+      const method = route.request().method();
+      if (path === "/api/projects") return route.fulfill({ json: { "my-app": { title: "My App", color: [50, 120, 180] }, other: { title: "Other App", color: [180, 120, 50] } } });
+      if (path === "/api/roles") return route.fulfill({ json: { implementer: { title: "Implementer" }, reviewer: { title: "Reviewer" } } });
+      if (path === "/api/config") return route.fulfill({ json: { appearance_skin: skin } });
+      if (path === "/api/remote/runtime-options") return route.fulfill({ json: { backends: [{ id: "claude", name: "Claude", default: true, default_model: "m", models: [{ id: "m", name: "Sonnet", efforts: [], default_effort: "" }] }] } });
+      if (path === "/api/sessions/a1/files") return route.fulfill({ json: { agent_id: "a1", files: [{ path: longPath, edit_count: 3, last_ts: "2026-10-10T00:00:00Z", has_diff: false, diff_refs: [] }] } });
+      if (path === "/api/sessions/a1/file") {
+        fileReads.push(new URL(route.request().url()).searchParams.get("path"));
+        return route.fulfill({ json: { agent_id: "a1", path: longPath, size: 1, mod_time: "", line_count: 6, truncated: false, language: "markdown", content: "# Release notes\n\nThe phone can now annotate files.\nEach selection keeps its lines.\n\nDone." } });
+      }
+      if (path === "/api/sessions/a3/transcript") return route.fulfill({ json: { agent_id: "a3", events: [], has_more: false } });
+      if (path === "/api/sessions/a1/annotations/validate") return route.fulfill({ json: { valid: true } });
+      if (path === "/api/sessions/a1/annotations" && method === "POST") {
+        annotationPosts.push(route.request().postDataJSON());
+        return route.fulfill({ status: 202, json: { accepted: true, seq: 99 } });
+      }
+      if (path === "/api/sessions" && method === "POST") {
+        launches.push(route.request().postDataJSON());
+        return route.fulfill({ status: 201, json: { agent: { ...agent, agent_id: "a3", name: "fresh" } } });
+      }
+    }
     if (path === "/api/health") {
       healthCount++;
       if (healthDown) return route.abort();
@@ -411,6 +451,147 @@ try {
       }
       await page.setViewportSize({ width: 390, height: 844 });
       console.log(`${theme || "core"} details: ${JSON.stringify(metrics)}`);
+    }
+  }
+  if (shown && annotationCheck) {
+    const openAgent = async () => {
+      await page.evaluate(() => { history.pushState(null, "", "/agent/a1"); window.dispatchEvent(new PopStateEvent("popstate")); });
+      await page.getByRole("list", { name: "Conversation" }).waitFor();
+    };
+    // A programmatic range stands in for native long-press selection; paired
+    // devices remain the gate for the real gesture (FS-13.A19).
+    const select = (selector, text, length) => page.evaluate(({ selector, text, length }) => {
+      const scope = document.querySelector(selector);
+      const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node && !node.textContent.includes(text)) node = walker.nextNode();
+      if (!node) throw new Error(`no text ${text}`);
+      const start = node.textContent.indexOf(text);
+      const range = document.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, start + (length ?? text.length));
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }, { selector, text, length });
+    const tray = (count) => page.getByRole("dialog", { name: `Pending annotations · ${count}/20`, exact: true });
+    const sheetMetrics = (count) => tray(count).evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const send = el.querySelector(".phone-annotate-send").getBoundingClientRect();
+      const discard = el.querySelector(".phone-annotate-discard").getBoundingClientRect();
+      const targets = [...el.querySelectorAll("[role=radio], .phone-annotate-send, .phone-annotate-discard, .phone-sheet-close")].map((item) => item.getBoundingClientRect().height);
+      return { top: box.top, bottom: box.bottom, height: innerHeight, sendVisible: send.top >= box.top && send.bottom <= Math.min(box.bottom, innerHeight), discardVisible: discard.top >= Math.max(box.top, 0) && discard.bottom <= innerHeight, minTarget: Math.min(...targets), overflow: document.documentElement.scrollWidth > innerWidth || el.scrollWidth > el.clientWidth, focused: document.activeElement?.tagName };
+    });
+    const check = (label, metrics) => {
+      if (metrics.top < 0 || metrics.bottom > metrics.height + 1 || !metrics.sendVisible || !metrics.discardVisible || metrics.minTarget < 44 || metrics.overflow) throw new Error(`${label}: ${JSON.stringify(metrics)}`);
+    };
+    for (const theme of ["", "sky-grove", "studio"]) {
+      skin = theme;
+      for (const width of [360, 390, 430]) {
+        const label = `${theme || "core"}/${width}`;
+        const prefix = out.replace(/\.png$/, `-annotate-${theme || "core"}-${width}`);
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto("http://localhost:5199/remote.html", { waitUntil: "domcontentloaded" });
+        await page.evaluate(() => localStorage.removeItem("chuck-annotation-tray"));
+        await openAgent();
+        await page.waitForFunction((theme) => (document.documentElement.dataset.skin || "") === theme, theme);
+        // Recorded card renders; its machine prompt does not.
+        const card = page.locator(".phone-message .annotation-card");
+        await card.waitFor();
+        if (await page.getByText("machine prompt that must stay hidden").count()) throw new Error(`${label}: machine prompt shown`);
+        const cardFit = await card.evaluate((el) => ({ overflow: el.scrollWidth > el.clientWidth + 1 || document.documentElement.scrollWidth > innerWidth }));
+        if (cardFit.overflow) throw new Error(`${label} card overflow`);
+        await card.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${prefix}-card.png`, animations: "disabled" });
+        // Capture a selected excerpt from the first message.
+        const userRow = page.locator(".phone-annotatable").filter({ hasText: "Run the tests and tell me the status." });
+        await userRow.scrollIntoViewIfNeeded();
+        const scrollBefore = await page.evaluate(() => scrollY);
+        await select(".phone-transcript", "Run the tests");
+        await userRow.getByRole("button", { name: "Annotate", exact: true }).click();
+        await tray(1).waitFor();
+        if (await page.evaluate(() => document.activeElement?.tagName) !== "TEXTAREA") throw new Error(`${label}: capture did not focus the instruction`);
+        await page.keyboard.type("Run the race tests too.");
+        check(`${label} one`, await sheetMetrics(1));
+        // Keyboard-open stand-in: a shorter viewport keeps delivery reachable.
+        await page.setViewportSize({ width, height: 520 });
+        check(`${label} keyboard`, await sheetMetrics(1));
+        await page.screenshot({ path: `${prefix}-keyboard.png`, animations: "disabled" });
+        await page.setViewportSize({ width, height: 844 });
+        await tray(1).getByRole("button", { name: "Close dialog", exact: true }).click();
+        const returned = await page.waitForFunction(() => document.activeElement?.textContent === "Annotate", null, { timeout: 2000 }).then(() => true, () => false);
+        if (!returned) throw new Error(`${label}: focus returned to ${await page.evaluate(() => document.activeElement?.tagName)}`);
+        if (Math.abs(await page.evaluate(() => scrollY) - scrollBefore) > 2) throw new Error(`${label}: reading place moved`);
+        // Tracked file: Rendered path-only and Source line-range capture.
+        await page.getByRole("tab", { name: /^Files/ }).click();
+        await page.getByRole("button", { name: "Open file", exact: true }).click();
+        const preview = page.getByRole("region", { name: "File content" });
+        await preview.getByText("The phone can now annotate files.").waitFor();
+        await select(".phone-file-preview", "Release notes");
+        await preview.getByRole("button", { name: "Annotate selection", exact: true }).click();
+        await tray(2).waitFor();
+        await page.keyboard.type("Rename the heading.");
+        await tray(2).getByRole("button", { name: "Close dialog", exact: true }).click();
+        await preview.getByRole("button", { name: "Source", exact: true }).click();
+        await preview.locator('[data-file-line="4"]').waitFor();
+        await page.evaluate(() => {
+          const start = document.querySelector('[data-file-line="3"]');
+          const end = document.querySelector('[data-file-line="4"]');
+          const text = (line) => { const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT); let node = walker.nextNode(); let last = null; const nodes = []; while (node) { nodes.push(node); last = node; node = walker.nextNode(); } return { first: nodes.find((item) => /\S/.test(item.textContent) && !/^\d+$/.test(item.textContent.trim())), last }; };
+          const range = document.createRange();
+          range.setStart(text(start).first, 0);
+          range.setEnd(text(end).last, text(end).last.textContent.length);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+        });
+        await preview.getByRole("button", { name: "Annotate selection", exact: true }).click();
+        await tray(3).waitFor();
+        await page.keyboard.type("Shorten these lines.");
+        const anchors = await tray(3).locator(".phone-annotate-head h3").allTextContents();
+        if (anchors[1] !== `File ${longPath}` || anchors[2] !== `File ${longPath}:3–4`) throw new Error(`${label} anchors: ${JSON.stringify(anchors)}`);
+        // Dense batch with long paths stays bounded and scrolls locally.
+        await tray(3).getByRole("button", { name: "Close dialog", exact: true }).click();
+        await page.getByRole("tab", { name: "Chat", exact: true }).click();
+        const annotateButtons = page.locator(".phone-annotate-event");
+        for (let index = 0; index < 3; index++) {
+          await annotateButtons.nth(1).click();
+          await tray(4 + index).waitFor();
+          await page.keyboard.type(`Follow up ${index + 1}.`);
+          await tray(4 + index).getByRole("button", { name: "Close dialog", exact: true }).click();
+        }
+        const open = page.locator(".phone-annotate-open");
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        const pinned = await open.evaluate((el) => { const box = el.getBoundingClientRect(); return box.top >= 0 && box.bottom <= innerHeight && box.height >= 44; });
+        if (!pinned) throw new Error(`${label}: pending count not reachable while scrolled`);
+        await open.click();
+        await tray(6).getByLabel("Overall instruction (optional)").fill("Keep it to one commit.");
+        check(`${label} dense`, await sheetMetrics(6));
+        await page.screenshot({ path: `${prefix}-dense.png`, animations: "disabled" });
+        if (width === 390) {
+          // New task: preflight, reviewable launch, cancel back to the tray.
+          await tray(6).getByRole("radio", { name: "New task", exact: true }).click();
+          await tray(6).getByRole("button", { name: "Continue to launch", exact: true }).click();
+          const launch = page.getByRole("dialog", { name: "New agent", exact: true });
+          await launch.waitFor();
+          await launch.getByText("Advanced").click();
+          await launch.getByRole("combobox", { name: "Project" }).selectOption("other");
+          await page.screenshot({ path: `${prefix}-launch.png`, animations: "disabled" });
+          await launch.getByRole("button", { name: "Cancel", exact: true }).click();
+          await tray(6).waitFor();
+          await tray(6).getByRole("button", { name: "Continue to launch", exact: true }).click();
+          await launch.waitFor();
+          await launch.getByRole("button", { name: "Launch and send", exact: true }).click();
+          await page.waitForFunction(() => location.pathname === "/agent/a3");
+          const sent = annotationPosts.at(-1);
+          if (!sent || sent.target?.agent_id !== "a3" || sent.annotations.length !== 6 || sent.overall_instruction !== "Keep it to one commit." || launches.at(-1)?.project !== "my-app") throw new Error(`${label} delivery: ${JSON.stringify({ sent, launch: launches.at(-1) })}`);
+        } else {
+          await tray(6).getByRole("button", { name: "Send annotations", exact: true }).click();
+          await page.getByText("Annotations sent to this agent.").waitFor();
+          const sent = annotationPosts.at(-1);
+          if (sent.target?.kind !== "self" || sent.annotations[2]?.start_line !== 3 || sent.annotations[1]?.start_line !== undefined) throw new Error(`${label} self delivery: ${JSON.stringify(sent)}`);
+        }
+        if (fileReads.some((read) => read !== longPath)) throw new Error(`file read key changed: ${JSON.stringify(fileReads)}`);
+        console.log(`${label} annotations: capture, focus, keyboard, Files, dense tray and ${width === 390 ? "new-task" : "self"} delivery pass`);
+      }
     }
   }
   console.log(`wrote ${out}`);

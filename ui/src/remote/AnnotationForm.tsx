@@ -1,5 +1,5 @@
 import { AutoGrowTextarea } from "../components/ui";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { AgentState, AnnotationDraft } from "../api/types";
 import { annotationAnchor } from "../lib/annotations";
 import { useAnnotationStore } from "../store/annotationStore";
@@ -94,15 +94,12 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
   const discard = useAnnotationStore((state) => state.discard);
   const list = useRef<HTMLOListElement>(null);
 
-  // A new capture brings its instruction into reach once the sheet has opened.
-  useEffect(() => {
-    if (!focusNewest) return undefined;
-    const frame = requestAnimationFrame(() => {
-      const fields = list.current?.querySelectorAll("textarea");
-      fields?.[fields.length - 1]?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [focusNewest]);
+  // A new capture opens the sheet at its instruction, never on Discard.
+  const newestField = () => {
+    if (!focusNewest) return null;
+    const fields = list.current?.querySelectorAll("textarea");
+    return fields?.[fields.length - 1];
+  };
 
   const launched = launchedAgentId ? recipients.find((agent) => agent.agent_id === launchedAgentId)?.name || launchedAgentId : null;
   const sendLabel = sending ? "Sending…" : target === "new" ? launched ? `Retry delivery to ${launched}` : "Continue to launch" : "Send annotations";
@@ -112,6 +109,7 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
       title={`Pending annotations · ${drafts.length}/20`}
       className="phone-annotate-sheet"
       onClose={onClose}
+      initialFocus={newestField}
       actions={<button type="button" className="phone-annotate-discard ad-button-danger" disabled={sending} onClick={() => discard(sourceId)}>Discard</button>}
     >
       <div className="phone-annotate-body">

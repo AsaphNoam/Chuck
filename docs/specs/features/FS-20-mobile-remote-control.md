@@ -396,7 +396,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   the oldest loaded message. Home, project and run pages return to their previous scroll position
   when revisited. Positions are not kept across a reload or browser termination.
 
-- **R55 (planned) — Phone annotations cover conversation events and tracked-file text.**
+- **R55 — Phone annotations cover conversation events and tracked-file text.**
   FS-13.R28–R31 extend the existing diff annotation flow to selected text or a whole eligible
   transcript event and selected text in an already permitted tracked-file preview, with one
   source-agent batch accessible from Chat and Files and an optional overall instruction. This
@@ -567,8 +567,9 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
 
 ## 6. Deviations & open decisions
 
-- R55/A27 were confirmed 2026-10-17 as annotation parity with Mac within existing phone surfaces;
-  implementation and rendered/device acceptance remain owed.
+- R55 shipped 2026-10-17 (annotation parity within existing phone surfaces). A27 stays planned
+  until FS-13.A19–A21's paired-device selection/keyboard gates pass; component, remote-chain and
+  stubbed phone-browser checks pass.
 
 - R51–R53 and A25 shipped 2026-10-14 (phone connection recovery). A23–A24's
   component and phone-width browser parts pass (reading row, text, attachment, route, replacement

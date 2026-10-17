@@ -240,9 +240,11 @@ function AnnotatableEvent({ agentId, event, onAnnotate }: { agentId: string; eve
         type="button"
         className="phone-annotate-event"
         onPointerDown={() => { pressed.current = selected(); }}
-        onClick={() => {
+        onClick={(click) => {
           const text = pressed.current !== undefined ? pressed.current : selected();
           pressed.current = undefined;
+          // A tap does not focus a button on phones; the tray returns focus here.
+          click.currentTarget.focus();
           onAnnotate(eventDraft(event, text));
         }}
       >

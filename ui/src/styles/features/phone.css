@@ -208,6 +208,7 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-annotate-count { color: var(--ad-action-primary); font-variant-numeric: tabular-nums; font-weight: 600; }
 /* Count/close, then scrolling anchored drafts, then a footer that stays in reach. */
 .phone-annotate-sheet { display: flex; flex-direction: column; gap: var(--ad-space-4); padding-bottom: 0; }
+.phone-annotate-sheet .phone-section-title { position: sticky; top: calc(-1 * var(--ad-space-6)); z-index: 1; margin: calc(-1 * var(--ad-space-6)) calc(-1 * var(--ad-space-6)) 0; padding: var(--ad-space-6) var(--ad-space-6) var(--ad-space-3); background: var(--ad-surface-panel); border-bottom: var(--ad-border-thin) solid var(--ad-border-default); }
 .phone-annotate-sheet .phone-section-title h2 { flex: 1; min-width: 0; font-size: 1.0625rem; }
 .phone-annotate-discard { min-height: 44px; }
 .phone-annotate-body { display: grid; gap: var(--ad-space-4); min-width: 0; }

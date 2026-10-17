@@ -6,6 +6,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Awaiting review — mobile annotation parity (2026-10-17):** `be1dd80d`..HEAD, FS-13.R28–R31,
+  FS-20.R55, TS-08.R133–R136, TS-13.R31; see changelog. Device gates under Acceptance gates.
+
 - **Finished — roomier file reader fixes (2026-10-17):** fix unit
   `roomier-file-reader-2026-10-17` (RFR-1–RFR-5) closed; see changelog. FS-03.R92–R97/A71–A75,
   TS-08.R127–R132. Owed: independent rendered review (Acceptance gates still owed).
@@ -99,10 +102,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-**In progress — mobile annotation parity:** see
-[`mobile-annotation-parity.md`](../ready-changes/mobile-annotation-parity.md) §Slices.
+None.
 
 ## Acceptance gates still owed
+
+- **FS-13.A19–A21 / FS-20.A27 (mobile annotation parity):** paired iPhone and Android native
+  long-press selection inside events and tracked files, then Annotate, with the keyboard open
+  over the tray (delivery/errors reachable). The stubbed `phone-render.mjs --annotation-check`
+  journey uses programmatic ranges and a short viewport, so it cannot close these.
 
 - **FS-03.A71–A75 (workflow §14.4):** independent real-browser review of the file reader; the
   review's loopback harness was sandbox-blocked and the implementer's rendered checks do not
@@ -281,8 +288,24 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-17 — Mobile annotation parity implemented:** phone rows get a quiet Annotate action
+  (in-event selection read on press, else whole event); tracked files open in the shared
+  `FileViewerView` with Annotate selection (Source line range, Rendered path only; Reload keeps
+  the tracked path key); one tray owner above Chat/Files opens a `PhoneSheet` with sticky
+  header/footer; New task preflights then opens the extracted `remote/NewAgentForm.tsx`
+  (source-prefilled, active-project chooser), retries delivery to the same launched agent and
+  navigates only after acknowledgement; phone rows render `AnnotationCard`. Desktop and phone
+  share `components/chat/annotationDelivery.ts`; acknowledged delivery now also ends a desktop
+  launched-agent retry. `PhoneSheet` restores focus when unmounted. Checks: 936 UI tests,
+  typecheck, `check:styles`, `phone-render.mjs --annotation-check` (9 theme×width journeys,
+  screenshots `/tmp/mobile-annot-20261017-annotate-*.png`) and `--details-check`, new remote
+  chain Go test, full serial `make test` (both variants) and `make dist`. Review notes: the browser
+  journey stubs the API rather than running a fake provider; INV §13 — new `.phone-annotate-*`
+  and `.phone-annotatable` selectors defined, `.phone-annotate` removed. Pre-existing:
+  `gofmt -l` flags `internal/server/remote_routes.go`.
+
 - **2026-10-17 — Mobile annotation parity ready:** operator confirmed the draft and requested the
-  same functionality as Mac. [`mobile-annotation-parity.md`](../ready-changes/mobile-annotation-parity.md)
+  same functionality as Mac. `mobile-annotation-parity.md` (since finished)
   is Waiting to start; FS-13.R28–R31/A19–A21, FS-20.R55/A27, TS-08.R133–R136 and TS-13.R31
   remain planned. Shared capture/delivery, a phone tray accessible from Chat/Files, overall
   instruction, configurable preflighted launch with same-agent retry, and live/replayed cards

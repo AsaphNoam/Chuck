@@ -13,7 +13,7 @@ annotation as structured, located context — captured excerpt, anchor, instruct
 hand-pasted chat text. The chat surface belongs to FS-03, the archived view to FS-05, mail delivery
 to FS-06, and launch to FS-01; this spec owns the annotation interaction, its records, and its
 delivery behavior. Agent-session and room-source requirements through R27 are shipped;
-R28–R31/A19–A21 extend phone capture, batch controls and delivery presentation (planned).
+R28–R31/A19–A21 extend phone capture, batch controls and delivery presentation; they shipped 2026-10-17.
 
 ## 2. Behavior
 
@@ -204,7 +204,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   tray. After discussion ends, selected-agent and New task delivery remain available; Room delivery
   is unavailable and cannot silently resume the room.
 
-- **R28 (planned) — Phone selection supports the existing agent-session sources.** On a
+- **R28 — Phone selection supports the existing agent-session sources.** On a
   chat-interface agent's phone screen, a touch-accessible **Annotate** action captures highlighted
   text within one eligible transcript event, or the whole event when that event has no highlighted
   text. The same event eligibility and derived event anchor as R1/R19 apply. This supersedes
@@ -216,7 +216,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   line-range and path-only anchors respectively. Selection text and its anchor are captured before
   moving focus to an instruction field; subsequent transcript updates, file changes, or closing the
   preview do not change them.
-- **R29 (planned) — Phone sources share one reachable batch.** Transcript, diff, and file drafts
+- **R29 — Phone sources share one reachable batch.** Transcript, diff, and file drafts
   from the same agent accumulate in its existing browser-local tray, with the same entry and text
   limits, instruction editing, removal, discard, reload survival, expiry and source-deletion rules.
   Both Chat and Files expose the pending count and a way to open that batch without losing the
@@ -227,7 +227,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   introduced. Acknowledged success clears the batch and names the destination; a rejected or failed
   send preserves all drafts and the overall instruction. Disconnection disables delivery without
   discarding drafts or sending automatically on reconnect.
-- **R30 (planned) — Phone New task has the Mac's reviewable launch step.** A phone batch's
+- **R30 — Phone New task has the Mac's reviewable launch step.** A phone batch's
   **New task** destination follows R9: validate the batch and mail size before opening New agent,
   prefill the source's persona and project, and let the person review or change name, persona,
   existing project, group and the phone-supported backend/model/effort/fast choices before launch.
@@ -236,7 +236,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   preserves both batch and entered launch values. After launch, delivery failure names the created
   agent and offers retry to that same agent without another launch. Only acknowledged delivery
   clears the batch and opens the new agent's conversation.
-- **R31 (planned) — Phone conversations show recorded annotation cards.** Annotation events in
+- **R31 — Phone conversations show recorded annotation cards.** Annotation events in
   a phone conversation render the same structured target, anchor, quoted excerpt, individual
   instructions and overall instruction as Mac live/replay under R5. R23–R24's display-only
   suppression of a self-targeted machine prompt applies unchanged, including legacy blocks.
@@ -352,8 +352,12 @@ Each acceptance item names its delivered verification.
 
 ## 6. Deviations & open decisions
 
-- R28–R31/A19–A21 are confirmed mobile parity (2026-10-17), pending implementation. It adds no
-  phone archive or Think Tank surface and does not widen remote file reads.
+- R28–R31 shipped 2026-10-17 (`ui/src/remote/AnnotationForm.tsx`, `remote/NewAgentForm.tsx`,
+  `components/chat/annotationDelivery.ts`). A19–A21's component tests and the stubbed-API
+  `phone-render.mjs --annotation-check` journey (360/390/430px, three appearances) pass; that
+  journey uses programmatic selection ranges and a short viewport for the keyboard, so paired
+  iPhone/Android selection and keyboard checks keep A19–A21 planned. No phone archive or Think
+  Tank surface; remote file reads are not widened.
 
 - R26–R27/A17–A18 shipped 2026-10-06 (`ui/src/features/thinktank/RoomAnnotationTray.tsx`,
   `internal/server/think_tank_annotations.go`); FS-21.R35/R39 and TS-14 govern boundary input and retained room sources.

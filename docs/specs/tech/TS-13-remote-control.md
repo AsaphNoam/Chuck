@@ -337,7 +337,7 @@ and sends. Native phone picker/paste limitations report capability honestly with
   iPhone/Android background testing remains required by A22. Closure uses the applicable TS-06
   frontend/remote matrix, including generated embed output, after implementation.
 
-- **R31 (planned) — Annotation parity reuses the existing paired-phone authority.** FS-20.R55
+- **R31 — Annotation parity reuses the existing paired-phone authority.** FS-20.R55
   uses R16's existing delivery/preflight endpoints with the same `annotations`,
   `overall_instruction` and `target` fields, TS-03.R14/R49 validation, commit-before-delivery,
   structured errors, and TS-02.R14/R38 transcript records. No phone-only representation, route,
@@ -393,8 +393,9 @@ INV §16 (bounded pairing attempts, push queue, and coalescing).
 
 ## 5. Deviations & open decisions
 
-- R31 is planned mobile annotation parity within existing paired-phone authority; implementation
-  and FS-20.A27's verification remain owed.
+- R31 shipped 2026-10-17; `TestRemoteAnnotationParityCoversAnchorsPreflightAndContent` covers
+  every anchor kind, preflight refusal and recipient/source content through the remote chain.
+  FS-20.A27's paired-device gates remain owed.
 
 - R27–R29 shipped 2026-10-14 (phone connection recovery). R30's
   fake-clock connection tests and the phone-width `phone-render.mjs --recovery-check` journey

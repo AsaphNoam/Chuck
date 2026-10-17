@@ -1602,7 +1602,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
 
 ### 2.15 Phone annotation parity
 
-- **R133 (planned) — Touch capture shares the existing anchor builders.** FS-13.R28 extends
+- **R133 — Touch capture shares the existing anchor builders.** FS-13.R28 extends
   `remote/AgentScreen`'s eligible event rows and tracked-file preview, retaining `DiffBlock`'s
   line-number selection. Move the small event eligibility, within-event selection and event-draft
   builders currently in `TranscriptView` into a shared annotation helper used by both entries;
@@ -1623,7 +1623,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   inside the loaded snapshot; loading/error/refusal states and whole-file capture offer no action.
   Closing/reloading/replacing the preview cannot rewrite captured drafts. Opening another file
   still uses the Files list; no arbitrary-path navigation or automatic file-link reads are enabled.
-- **R134 (planned) — One phone tray owner survives tab and sheet changes.** Keep the source-scoped
+- **R134 — One phone tray owner survives tab and sheet changes.** Keep the source-scoped
   annotation draft store and transient delivery owner above the Chat/Files tab branches in
   `AgentScreen`; do not mount a second tray/controller in the file preview. Each tab exposes a
   pending-count button that opens one existing `PhoneSheet`, and successful capture opens that
@@ -1636,7 +1636,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   position. A source change clears transient selection/menu/launch state and prevents a late
   callback from mutating another source. R3/R16 of FS-13 continue to own draft retention; sheet
   openness does not persist or change the desktop's stored dock-collapse flag.
-- **R135 (planned) — Desktop and phone share annotation delivery orchestration.** Extend/factor
+- **R135 — Desktop and phone share annotation delivery orchestration.** Extend/factor
   the existing `useAnnotationDelivery` rather than adding another validation/send/retry state
   machine. Let each entry supply its hydrated source/recipient projection and availability; the
   desktop wrapper keeps `useAgentStore`, and the phone wrapper keeps `useConnection` and its
@@ -1658,7 +1658,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   source-owned success callback to navigate to the new agent; the launch callback never navigates.
   Offline/recovery state disables new mutations and never replays them automatically. In-flight
   sending prevents edits/discard or a second send from changing the submitted batch.
-- **R136 (planned) — Phone replay and verification use the same annotation contract.** Add
+- **R136 — Phone replay and verification use the same annotation contract.** Add
   `annotation` handling to the phone event renderer using the existing `AnnotationCard`, with
   phone-scoped wrapping/overflow rules. The shared transcript reducer continues suppressing the
   immediately paired self-targeted machine prompt under R54, including the legacy sentinel;
@@ -1846,9 +1846,10 @@ boundary; the manifest remains the visual contract and arbitrary ids never becom
 
 ## 5. Deviations & open decisions
 
-- R133–R136 specify confirmed mobile annotation parity, pending implementation and
-  FS-13.A19–A21/FS-20.A27 verification. The phone's archive/room scope and remote file authority
-  remain unchanged.
+- R133–R136 shipped 2026-10-17. `PhoneSheet` gained `actions`/`initialFocus` and restores focus
+  when its owner unmounts it (Radix skips close-focus handling then). The browser journey uses a
+  stubbed API rather than a fake-provider server; server behavior is covered by the remote-chain
+  Go test. Paired-device selection/keyboard gates remain owed (FS-13.A19–A21).
 
 - **File reader, implemented 2026-10-17:** R127–R132 implement FS-03.R92–R97. They replace
   R53/R57/R112's automatic sizing/no-measurement constraints only in the full desktop workspace,
