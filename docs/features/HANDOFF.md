@@ -104,8 +104,11 @@ None.
 ## Acceptance gates still owed
 
 - **FS-03.A71–A75 (workflow §14.4):** independent real-browser review of the file reader; the
-  review's loopback harness was sandbox-blocked and the implementer's 957 rendered checks do not
-  count. Check live/archive/room surfaces, the dashboard overlay and unchanged phone/dashboard
+  review's loopback harness was sandbox-blocked and the implementer's rendered checks do not
+  count. The fixer's run binds loopback fine: `file-reader-journey.mjs` (now with a
+  review-regression journey: boundary sweep, slow Reload, tab leave/return, agent change) passes
+  963/963 post-fix, and its boundary sweep crashes the pre-fix stage (evidence in shared
+  resources `roomier-file-reader-review-2026-10-17/render-postfix/`). Check live/archive/room surfaces, the dashboard overlay and unchanged phone/dashboard
   navigation across widths/appearances, including slow Reload, resizing across the ~992px
   docking boundary, late diagrams, nested launch failure/retry, focus return and transcript
   visible-event/follow continuity through width reflow (native anchoring is unproven there).
@@ -180,6 +183,25 @@ None.
   switch shows it above the composer.
 
 ## Review findings
+
+### Investigation 2026-10-17 — reviewer completion reporting — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Investigation artifact: `/Users/mcnoam/.chuck/project-resources/agentdeck-20261007t221535z/investigation-reviewer-completion-2026-10-17/INVESTIGATION.md`.
+The initial `get_assigned_task` and `report_task_result` calls from reviewer `a_123a8f` were
+rejected by the MCP approval layer with `MCP tool call requires approval, but approval policy is
+never` (runtime evidence in
+`/Users/mcnoam/.chuck/codex/sessions/2026/10/17/rollout-2026-10-17T19-06-00-01a14a9c-ec83-7973-be81-5331824c479d.jsonl:29,220,222`). The reviewer transcript records only generic failures
+(`a_123a8f/transcript.ndjson:79`), so the report's sandbox-denial explanation was not independently
+supported. After supervisor prompting, the reviewer obtained its assignment and successfully
+submitted `report_task_result` with execution handle `ta_3883d971803f0416163a4fd03749745a`,
+approved and completed at 2026-10-17T17:01:09Z (`a_123a8f/transcript.ndjson:143-150`).
+
+- **Must fix** — **P1 / confirmed:** approval-blocked required task-control calls can strand a completed
+  reviewer with no accepted result, leaving supervision waiting until a later prompt. Route required
+  reviewer task-control calls through an approval-capable path or provide deterministic recovery.
+- **Worth fixing** — **P2 / confirmed:** the MCP boundary returned no actionable denial payload to the
+  reviewer transcript, hiding whether the failure was approval, sandbox, or task validation. Preserve
+  a bounded denial reason at that boundary.
 
 ### Review 2026-10-17 — late tool input event — **Fix model:** medium — Codex Terra or Claude Opus.
 

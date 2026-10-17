@@ -121,6 +121,8 @@ function apiHandler(skin, reads) {
     }
     if (/\/prompt$/.test(path)) return route.fulfill({ status: 404, json: { error: { code: "not_found", message: "none" } } });
     if (/\/available-commands$/.test(path)) return route.fulfill({ json: { commands: [] } });
+    const tracked = path.match(/^\/api\/sessions\/(a[12])\/files$/);
+    if (tracked) return route.fulfill({ json: { agent_id: tracked[1], files: [] } });
     return route.fulfill({ json: {} });
   };
 }
@@ -493,6 +495,98 @@ async function runNestedLaunch(browser) {
   }
 }
 
+// Review RFR-1/2/4/5 in the real browser: resizing through the tray's docking
+// boundary settles (docked only from a 992px stage), leaving Transcript gives
+// the space back, a slow Reload keeps the reading place, and the same page
+// showing another agent restores the initial split.
+async function runReviewRegressions(browser) {
+  const label = "core regressions";
+  const reads = [];
+  const errors = [];
+  let slow = false;
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await hydrate(context, [makeAgent("a1"), makeAgent("a2")]);
+  await context.route((u) => u.pathname.startsWith("/api/"), apiHandler("", reads));
+  await context.route((u) => /\/api\/sessions\/a[12]\/file$/.test(u.pathname), async (route) => {
+    if (slow) await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.fallback();
+  });
+  const page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
+  const navigate = (path) => page.evaluate((to) => { history.pushState(null, "", to); dispatchEvent(new PopStateEvent("popstate")); }, path);
+  const separators = () => page.getByRole("separator").count();
+  try {
+    await page.goto(`${BASE}/agent/a1?file=${encodeURIComponent(FILE_PATH)}`);
+    await page.locator(".file-viewer-rendered").waitFor();
+    await page.locator(".transcript-item .message").first().click({ button: "right" });
+    await page.getByRole("button", { name: "Annotate whole event" }).click();
+    await page.locator(".annotation-tray").waitFor();
+
+    // RFR-1: sweep the viewport through the boundary both ways.
+    const wrong = [];
+    for (const widths of [[1100, 1000, -2], [1000, 1100, 2]]) {
+      for (let width = widths[0]; widths[2] < 0 ? width >= widths[1] : width <= widths[1]; width += widths[2]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.waitForTimeout(60);
+        const { stage, mode } = await page.evaluate(() => {
+          const el = document.querySelector(".chat-stage");
+          return { stage: el.clientWidth, mode: el.getAttribute("data-tray") };
+        });
+        const expected = stage >= 992 ? "docked" : "overlay";
+        if (mode !== expected || await separators() !== (expected === "docked" ? 2 : 1)) wrong.push(`${width}:${stage}:${mode}`);
+      }
+    }
+    record(`${label}: tray form settles through the docking boundary`, wrong.length === 0 && errors.length === 0, [...wrong, ...errors].join(", ") || undefined);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForTimeout(100);
+
+    // RFR-4: a slow Reload's placeholder does not erase the reading place.
+    const body = page.locator(".chat-side-start .file-viewer-body");
+    await body.evaluate((el) => { el.scrollTop = 600; el.dispatchEvent(new Event("scroll")); });
+    await page.waitForTimeout(100);
+    const before = await body.evaluate((el) => el.scrollTop);
+    slow = true;
+    await page.getByRole("button", { name: "Reload" }).click();
+    await page.getByText("Reading…").waitFor();
+    await page.waitForTimeout(300);
+    await page.locator(".file-viewer-rendered").waitFor({ timeout: 5000 });
+    slow = false;
+    await page.waitForTimeout(200);
+    const after = await body.evaluate((el) => el.scrollTop);
+    record(`${label}: slow Reload keeps the reading place`, before > 0 && Math.abs(after - before) <= 2, `${before} → ${after}`);
+
+    // RFR-2: another tab gives the space back; Transcript restores it.
+    await page.getByRole("tab", { name: "Files" }).click();
+    await page.waitForTimeout(200);
+    const away = await page.evaluate(() => ({ file: document.querySelector(".chat-stage")?.getAttribute("data-file"), tray: document.querySelector(".chat-stage")?.getAttribute("data-tray") }));
+    record(`${label}: leaving Transcript removes dividers`, await separators() === 0 && !away.file && !away.tray, JSON.stringify(away));
+    await page.getByRole("tab", { name: "Transcript" }).click();
+    await page.locator(".chat-side-start .file-viewer").waitFor();
+    await page.waitForTimeout(200);
+    record(`${label}: returning to Transcript restores dividers`, await separators() === 2);
+
+    // RFR-5: a chosen split does not follow the page to another agent.
+    const fileDivider = page.getByRole("separator", { name: "Resize file and conversation" });
+    const initial = await fileDivider.getAttribute("aria-valuenow");
+    await fileDivider.focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    const chosen = await fileDivider.getAttribute("aria-valuenow");
+    await navigate(`/agent/a2?file=${encodeURIComponent(FILE_PATH)}`);
+    await page.waitForFunction(() => location.pathname === "/agent/a2");
+    await page.locator(".chat-side-start .file-viewer-rendered").waitFor();
+    await page.waitForTimeout(200);
+    // a2 has no drafts, so its initial split is half the space without a tray.
+    const r = await rects(page);
+    record(`${label}: another agent opens at the initial split`, chosen !== initial && Math.abs(r.file.width - r.card.width) <= 4, `${initial} → ${chosen}; a2 ${r.file.width} vs ${r.card.width}`);
+    record(`${label}: no page errors`, errors.length === 0, errors.join(", ") || undefined);
+  } catch (error) {
+    await page.screenshot({ path: join(OUT_DIR, "core-regressions-failure.png") }).catch(() => {});
+    record(`${label}: journey completed`, false, error.message.split("\n").slice(0, 8).join(" | "));
+  } finally {
+    await context.close();
+  }
+}
+
 async function main() {
   const server = await createServer({ server: { host: "127.0.0.1", port: PORT, strictPort: true }, logLevel: "error" });
   await server.listen();
@@ -507,6 +601,7 @@ async function main() {
       }
     }
     await runNestedLaunch(browser);
+    await runReviewRegressions(browser);
   } finally {
     await browser.close();
     await server.close();
