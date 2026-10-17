@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`mobile-annotation-parity.md`](mobile-annotation-parity.md) — Mac annotation functionality on
+  existing phone conversation/tracked-file surfaces, with touch capture, a shared batch,
+  configurable launch, retry and recorded cards.
+
 - [`quiet-quota-recovery.md`](quiet-quota-recovery.md) — verified structured/text reset scheduling
   and bounded isolated quota checks; preserve the original conversation, with non-persistent
   Claude sessions and approved named Codex native archive records.

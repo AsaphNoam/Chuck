@@ -280,6 +280,17 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-17 — Mobile annotation parity ready:** operator confirmed the draft and requested the
+  same functionality as Mac. [`mobile-annotation-parity.md`](../ready-changes/mobile-annotation-parity.md)
+  is Waiting to start; FS-13.R28–R31/A19–A21, FS-20.R55/A27, TS-08.R133–R136 and TS-13.R31
+  remain planned. Shared capture/delivery, a phone tray accessible from Chat/Files, overall
+  instruction, configurable preflighted launch with same-agent retry, and live/replayed cards
+  extend existing seams. Source idea promoted; remote file authority/lifetime unchanged; no phone
+  archive/room surface. Implementation and browser/device acceptance remain owed; no product code
+  changed or active change selected. Independent source/contract consistency check found no scope
+  conflict; documented the launch form's optional project chooser and post-delivery navigation seam.
+  Spec, twin-skill/launcher and whitespace checks pass.
+
 - **2026-10-17 — Mobile annotation scope drafted:** phone diff annotations already exist. Planned
   FS-13.R28–R29/A19–A20 and FS-20.R55/A27 add transcript excerpt/whole-event capture,
   tracked-file text selections, a shared reachable batch and overall instruction, retaining existing

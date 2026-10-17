@@ -337,6 +337,21 @@ and sends. Native phone picker/paste limitations report capability honestly with
   iPhone/Android background testing remains required by A22. Closure uses the applicable TS-06
   frontend/remote matrix, including generated embed output, after implementation.
 
+- **R31 (planned) — Annotation parity reuses the existing paired-phone authority.** FS-20.R55
+  uses R16's existing delivery/preflight endpoints with the same `annotations`,
+  `overall_instruction` and `target` fields, TS-03.R14/R49 validation, commit-before-delivery,
+  structured errors, and TS-02.R14/R38 transcript records. No phone-only representation, route,
+  body-limit change or migration is introduced. File capture consumes only a successful R22
+  tracked-file response; sending its point-in-time excerpt/path does not reread that file or confer
+  new read authority. Preserve the exact tracked-path query on Reload even when the response path
+  is normalized. New-task configuration uses the already allowlisted normal chat launch fields
+  and R15/R23's secret-free runtime projection, without terminal/worktree/config access. Maintain
+  device attribution and the independent route-inventory/field-filter tests, including denied
+  untracked, cross-agent tracked-only and final-component-symlink reads; all anchor variants and
+  preflight failures are exercised through the authenticated remote chain. Remote record and
+  formatter checks compare actual source events and recipient prompt/mail content, not only
+  successful HTTP status. TS-08.R133–R136 own the shared UI orchestration and browser/device gates.
+
 ## 3. Interfaces & data shapes
 
 Loopback-only: `GET /api/remote`, `PUT /api/remote` `{enabled, keep_awake}`, `POST
@@ -377,6 +392,9 @@ listener by R4's guard), INV §15 (commit device rows before releasing cookies o
 INV §16 (bounded pairing attempts, push queue, and coalescing).
 
 ## 5. Deviations & open decisions
+
+- R31 is planned mobile annotation parity within existing paired-phone authority; implementation
+  and FS-20.A27's verification remain owed.
 
 - R27–R29 shipped 2026-10-14 (phone connection recovery). R30's
   fake-clock connection tests and the phone-width `phone-render.mjs --recovery-check` journey

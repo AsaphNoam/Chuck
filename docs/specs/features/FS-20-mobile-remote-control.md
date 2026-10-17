@@ -397,15 +397,17 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   when revisited. Positions are not kept across a reload or browser termination.
 
 - **R55 (planned) — Phone annotations cover conversation events and tracked-file text.**
-  FS-13.R28–R29 extend the existing diff annotation flow to selected text or a whole eligible
+  FS-13.R28–R31 extend the existing diff annotation flow to selected text or a whole eligible
   transcript event and selected text in an already permitted tracked-file preview, with one
   source-agent batch accessible from Chat and Files and an optional overall instruction. This
   supersedes R16/R32's transcript-event exclusion, R32's desktop-only overall instruction, and
   R37's opened-file annotation exclusion. All existing remote file-read limits remain: only that
   agent's tracked files, no arbitrary path or symbolic-link access, and no new file-reading route.
-  The existing new-task destination retains R32/R40's normal-agent launch behavior and introduces
-  no phone task page. Terminal agents remain ineligible; archive and Think Tank annotation phone
-  surfaces are outside this change. Stopped sources can still assign captured context to another
+  New task follows FS-13.R30's preflight and configurable, source-prefilled New agent form instead
+  of R32's immediate default-only launch; R40's exclusion of a phone task page remains. Tracked
+  Markdown previews support Source/Rendered capture under FS-13.R25/R28. Recorded annotation cards
+  and duplicate-prompt suppression follow FS-13.R31. Terminal agents remain ineligible; archive and
+  Think Tank annotation phone surfaces are outside this change. Stopped sources can still assign captured context to another
   running chat agent or a new task; current-agent delivery retains FS-13.R6's idle/running rule.
 
 ## 5. Acceptance criteria
@@ -555,7 +557,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   project page keeps its position. Verify phone component tests plus a phone-width real-browser
   journey with rendered scroll.
 
-- **A27 (planned)** (R55) — Complete FS-13.A19–A20's phone capture and delivery journeys from Chat
+- **A27 (planned)** (R55) — Complete FS-13.A19–A21's phone capture, delivery and card journeys from Chat
   and Files. Verify that stopped-source routing preserves the batch, new-task success opens the
   launched agent, and terminal sources remain unavailable. Retain server rejection tests for
   untracked paths, another agent's tracked-only path and symbolic links, plus the remote route
@@ -565,7 +567,8 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
 
 ## 6. Deviations & open decisions
 
-- R55/A27 await confirmation of the mobile annotation scope before technical design.
+- R55/A27 were confirmed 2026-10-17 as annotation parity with Mac within existing phone surfaces;
+  implementation and rendered/device acceptance remain owed.
 
 - R51–R53 and A25 shipped 2026-10-14 (phone connection recovery). A23–A24's
   component and phone-width browser parts pass (reading row, text, attachment, route, replacement

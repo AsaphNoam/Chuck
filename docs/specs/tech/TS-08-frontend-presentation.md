@@ -1600,6 +1600,78 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   cannot close the rendered items. Implementation closure follows TS-06.R3–R6 and workflow §2;
   generated `internal/server/ui/dist` is never edited directly.
 
+### 2.15 Phone annotation parity
+
+- **R133 (planned) — Touch capture shares the existing anchor builders.** FS-13.R28 extends
+  `remote/AgentScreen`'s eligible event rows and tracked-file preview, retaining `DiffBlock`'s
+  line-number selection. Move the small event eligibility, within-event selection and event-draft
+  builders currently in `TranscriptView` into a shared annotation helper used by both entries;
+  reuse `AnnotationDraft`, `clipAnnotationExcerpt` and `annotationAnchor`. A quiet, labelled
+  **Annotate** action on an eligible event must be reachable by touch and keyboard without hover
+  or right-click. It captures that event's non-empty selection, otherwise its whole-event draft,
+  before action focus can collapse the selection. Text spanning different events is not a valid
+  selected excerpt. Keep browser-native long-press selection, link taps and scrolling; add no
+  competing long-press gesture or blanket prevention of touch/context-menu defaults.
+
+  Extend the shared file-reader capture seam for the same explicit touch action. Use
+  `FileViewerView`/`useFileReader` in the existing selected tracked-file row with its bounded
+  `getFileContent` loader; retain the original tracked-path request key independently from the
+  normalized response path shown and captured. Source mode uses `CodeBlock`'s `data-file-line`
+  mapping; Rendered Markdown uses the same sanitization and path-only capture as R80. Factor the
+  existing valid-selection-to-draft mapping once for mouse and touch rather than deriving line
+  offsets from a second plain-text renderer. File capture requires a non-empty selection wholly
+  inside the loaded snapshot; loading/error/refusal states and whole-file capture offer no action.
+  Closing/reloading/replacing the preview cannot rewrite captured drafts. Opening another file
+  still uses the Files list; no arbitrary-path navigation or automatic file-link reads are enabled.
+- **R134 (planned) — One phone tray owner survives tab and sheet changes.** Keep the source-scoped
+  annotation draft store and transient delivery owner above the Chat/Files tab branches in
+  `AgentScreen`; do not mount a second tray/controller in the file preview. Each tab exposes a
+  pending-count button that opens one existing `PhoneSheet`, and successful capture opens that
+  sheet at the new instruction. Its header names the count and offers Close/Discard; its body
+  scrolls the anchored excerpts, editable instructions and optional overall instruction; its
+  footer contains targets, recipient, error and send. Bound the sheet to the usable phone viewport
+  with safe-area/keyboard clearance and local overflow, keeping controls reachable at 360–430px.
+  Closing the sheet or switching tabs preserves drafts, overall text, target, launched-recipient
+  identity and in-flight delivery; return focus to the trigger and retain transcript/file reading
+  position. A source change clears transient selection/menu/launch state and prevents a late
+  callback from mutating another source. R3/R16 of FS-13 continue to own draft retention; sheet
+  openness does not persist or change the desktop's stored dock-collapse flag.
+- **R135 (planned) — Desktop and phone share annotation delivery orchestration.** Extend/factor
+  the existing `useAnnotationDelivery` rather than adding another validation/send/retry state
+  machine. Let each entry supply its hydrated source/recipient projection and availability; the
+  desktop wrapper keeps `useAgentStore`, and the phone wrapper keeps `useConnection` and its
+  connected gate. Preserve one `annotationBatch` builder and the existing API client. Selection of
+  an unavailable current target falls back to another running chat agent or New task as under
+  FS-13.R15; server-side current-idle/recipient checks remain authoritative and errors stay visible.
+
+  New task runs `validateAnnotations` before opening launch. Reuse the phone New agent form
+  currently in `ProjectScreen`, extending its props for source persona/project initial values,
+  an optional existing-project chooser from the already allowed `/api/projects` projection, and
+  a launch-result callback instead of immediate navigation. Offer only active configured projects;
+  preserve entered choices through launch refusal. Ordinary
+  project-page creation keeps its fixed project and normal navigation. Reuse its configured runtime
+  options, persona/name/group controls and centered `PhoneSheet`; do not import the desktop's
+  unrestricted backend/config queries or terminal interface controls. Cancelling restores the tray;
+  launch refusal retains entered values. A successful launch records its agent id in the existing
+  source delivery owner before attempting delivery; failure retains that id and retries mail to it
+  without relaunch. After delivery acknowledgement, clear the batch and invoke an explicit
+  source-owned success callback to navigate to the new agent; the launch callback never navigates.
+  Offline/recovery state disables new mutations and never replays them automatically. In-flight
+  sending prevents edits/discard or a second send from changing the submitted batch.
+- **R136 (planned) — Phone replay and verification use the same annotation contract.** Add
+  `annotation` handling to the phone event renderer using the existing `AnnotationCard`, with
+  phone-scoped wrapping/overflow rules. The shared transcript reducer continues suppressing the
+  immediately paired self-targeted machine prompt under R54, including the legacy sentinel;
+  rendering a card never adds another draft. No event/wire/index/storage migration is added.
+  Keep presentation in `phone.css` using existing semantic tokens, button targets, PhoneSheet and
+  registered hooks, with no skin-specific behavior, new dependency, desktop layout changes or
+  decorative motion. Cover FS-13.A19–A21 and FS-20.A27 with selection ranges, request bodies,
+  preflight-before-launch ordering, failures, live/replayed server-shaped cards and Mac regressions.
+  Actual phone-entry browser checks at 360/390/430px in all three appearances exercise native
+  selection, dense batches, long paths, keyboard clearance, tab/focus return and delivery. Device
+  selection/keyboard gates remain separate from emulated browser proof. Run applicable TS-06
+  closure, style/presentation checks and `make embed` after implementation, never editing dist.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract
@@ -1773,6 +1845,10 @@ boundary; the manifest remains the visual contract and arbitrary ids never becom
   explicitly identified as a browser-only visual check.
 
 ## 5. Deviations & open decisions
+
+- R133–R136 specify confirmed mobile annotation parity, pending implementation and
+  FS-13.A19–A21/FS-20.A27 verification. The phone's archive/room scope and remote file authority
+  remain unchanged.
 
 - **File reader, implemented 2026-10-17:** R127–R132 implement FS-03.R92–R97. They replace
   R53/R57/R112's automatic sizing/no-measurement constraints only in the full desktop workspace,
