@@ -175,6 +175,42 @@ None.
 
 ## Review findings
 
+### Investigation 2026-10-17 — tool activity shows outside "Ran n tools" — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Report (verbatim): "tool calls always show up in the transcript", with a phone screenshot of a
+Claude agent at `d6d80f6f` (no logs). It shows "Ran 2 tools" (expanded: "Tool call: edit {}",
+"Tool call: execute {}"), then "Edit docs/features/HANDOFF.md · approve", then a raw
+`[{"type":"content","content":{"type":"text","text":"```console…"}}]` block; later
+"mcp__chuck-messaging__get_assigned_task · approve" and "…report_task_result · approve" each
+followed by the same raw JSON outside any run. Classification: specification gap plus defect;
+the desktop transcript shares the grouping and is affected the same way.
+
+- **Must fix** — **TOOLRUN-01 (confirmed, spec gap): an approved tool's result renders outside
+  its run.** `ui/src/components/chat/toolRun.tsx` `groupTranscriptRows` ends a run at any non-tool
+  event, and FS-03.R26 says so literally. Every permission-gated call has a `permission_request`
+  between `tool_call` and `tool_result`, so the run closes after the call and the non-empty result
+  renders alone, visibly, on desktop and phone. That conflicts with FS-20.R13 ("tool calls
+  collapsed to one line") and FS-12.R35's subdued run. Reproduced by the skipped
+  `ui/src/components/chat/toolRun.test.ts`. Fix: amend FS-03.R26/A11 so a resolved permission
+  folds into the run of the call it belongs to (matched by `tool_call_id`) and does not end it; an
+  unresolved request still renders as the actionable prompt. Un-skip the test; add a
+  TranscriptView/phone render case. (INV §2/§8)
+- **Worth fixing** — **TOOLRUN-02 (confirmed from code, spec gap): results print the ACP content
+  envelope as JSON.** `internal/runtime/acpmap.go:511–524` stores a `tool_call_update`'s
+  `content` array verbatim. `ToolResult.tsx` `formatResult` then `JSON.stringify`s it, so ordinary
+  text output appears as `[{"type":"content","content":{"type":"text",…}}]`. FS-03.R2 does not
+  define result text. Fix: show the concatenated text of `content`-type text blocks when every
+  block is text, and keep formatted JSON for anything else. Test with a Claude-shaped update.
+  (INV §8/§11)
+- **Worth fixing** — **TOOLRUN-03 (probable): tool-call rows keep the initial empty input and kind
+  name.** `acpmap.go`'s `tool_call_update` branch ignores `rawInput` and `title`; only the initial
+  `tool_call` sets `Args`/`Title`. The screenshot shows "Tool call: edit {}" while the
+  permission row for the same call already names "Edit docs/features/HANDOFF.md". So the adapter
+  fills input/title after the first frame, and Chuck never records it. Not reproduced against the
+  live adapter; first capture a Claude ACP frame sequence (fake ACP fixture) to confirm. Fix:
+  carry later non-empty `rawInput`/`title` into the displayed call, e.g. a call-update event or a
+  UI fold by `tool_call_id`, without rewriting durable events. (INV §1/§11)
+
 ### Review 2026-10-16 — withdraw returns the held message (`2cf48ba2`, FS-03.R90/A70) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Must fix** — **W1: Withdrawal can erase a newer live draft when browser storage fails.**
