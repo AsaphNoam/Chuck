@@ -62,7 +62,7 @@ No provider capability limitation or workaround is assumed.
 1. (Done) Shared event-capture helpers in `ui/src/lib/annotations.ts`; `useAnnotationDelivery`
    (`components/chat/AnnotationTray.tsx`) takes a source/recipient projection so desktop and phone
    share validate/send/launch/retry. Desktop tests unchanged.
-2. Phone tray: one delivery owner above Chat/Files in `remote/AgentScreen.tsx`, pending-count
+2. (Done) Phone tray: one delivery owner above Chat/Files in `remote/AgentScreen.tsx`, pending-count
    buttons opening a `PhoneSheet`; New task preflights then opens the `ProjectScreen` New agent
    form (extracted, source-prefilled, project chooser, launch callback); same-agent retry;
    navigate only after delivery.

@@ -867,23 +867,52 @@ describe("AgentScreen diff annotations", () => {
     expect(await screen.findByText("Tap line numbers to select a range.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Old line 2" }));
     fireEvent.click(screen.getByRole("button", { name: "Annotate lines 2–2" }));
-    const form = await screen.findByRole("region", { name: "Annotate and assign" });
-    expect(form).toHaveTextContent("main.go:2");
-    expect(screen.getByRole("button", { name: "Send annotations" })).toBeDisabled();
-    const instruction = screen.getByLabelText("Instruction");
+    const tray = await screen.findByRole("dialog", { name: "Pending annotations · 1/20" });
+    expect(tray).toHaveTextContent("main.go:2");
+    const instruction = within(tray).getByLabelText("Instruction");
     await waitFor(() => expect(instruction).toHaveFocus());
     fireEvent.change(instruction, { target: { value: "rename this" } });
     return instruction;
   }
 
-  it("sends a selected range to this agent and clears the draft", async () => {
+  it("sends a selected range to this agent and names it", async () => {
     useConnection.setState({ agents: { a1: idle } });
     await annotateLine();
     fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Annotations sent.");
+    expect(await screen.findByText("Annotations sent to this agent.")).toBeInTheDocument();
     expect(posts).toContain(`annotations ${JSON.stringify({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "self" } })}`);
     expect(useAnnotationStore.getState().bySource.a1).toBeUndefined();
-    expect(screen.queryByRole("region", { name: "Annotate and assign" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // TS-08.R134: closing the sheet and switching tabs keeps drafts, overall
+  // instruction and the chosen target; the count opens it from Chat and Files.
+  it("keeps one tray across close and Chat/Files", async () => {
+    const other: AgentState = { ...idle, agent_id: "a2", name: "reviewer-1", role: "reviewer" };
+    useConnection.setState({ agents: { a1: idle, a2: other } });
+    await annotateLine();
+    fireEvent.change(screen.getByLabelText("Overall instruction (optional)"), { target: { value: "be brief" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Another agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /^Files/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Pending annotations/ }));
+    const tray = await screen.findByRole("dialog", { name: "Pending annotations · 1/20" });
+    expect(within(tray).getByLabelText("Instruction")).toHaveValue("rename this");
+    expect(within(tray).getByLabelText("Overall instruction (optional)")).toHaveValue("be brief");
+    expect(within(tray).getByRole("radio", { name: "Another agent" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  // FS-13.R29: disconnection disables delivery and keeps the batch.
+  it("refuses to send while offline and keeps the drafts", async () => {
+    useConnection.setState({ agents: { a1: idle } });
+    await annotateLine();
+    act(() => useConnection.setState({ link: "reconnecting" }));
+    expect(screen.getByRole("button", { name: "Send annotations" })).toBeDisabled();
+    expect(screen.getByText("Reconnect to send. Your annotations stay here.")).toBeInTheDocument();
+    act(() => useConnection.setState({ link: "connected" }));
+    expect(posts.filter((post) => post.startsWith("annotations"))).toHaveLength(0);
+    expect(useAnnotationStore.getState().bySource.a1).toHaveLength(1);
   });
 
   it("keeps the draft and shows the Mac's reason when delivery fails", async () => {
@@ -900,17 +929,97 @@ describe("AgentScreen diff annotations", () => {
     expect(useAnnotationStore.getState().bySource.a1).toEqual([{ ...draft, instruction: "rename this" }]);
   });
 
-  it("launches a new task with the source's role and project, then assigns to it", async () => {
-    useConnection.setState({ agents: { a1: idle } });
-    await annotateLine();
-    fireEvent.click(screen.getByRole("radio", { name: "New task" }));
-    expect(screen.getByText(/Launches a new implementer agent in my-app/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Annotations sent.");
-    expect(posts).toEqual([
-      `launch ${JSON.stringify({ role: "implementer", project: "my-app" })}`,
-      `annotations ${JSON.stringify({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "agent", agent_id: "a3" } })}`,
-    ]);
+  // FS-13.R30/A21: New task preflights, then opens the source-prefilled launch
+  // form; cancel keeps the tray, and only acknowledged delivery opens the agent.
+  describe("New task", () => {
+    let validateStatus = 200;
+    let launchStatus = 201;
+    let deliveryFailures = 0;
+    beforeEach(() => {
+      validateStatus = 200;
+      launchStatus = 201;
+      deliveryFailures = 0;
+      window.history.replaceState(null, "", "/agent/a1");
+      server.use(
+        http.get("/api/roles", () => HttpResponse.json({ implementer: { title: "Implementer" }, reviewer: { title: "Reviewer" } })),
+        http.get("/api/config", () => HttpResponse.json({})),
+        http.get("/api/projects", () => HttpResponse.json({ "my-app": { title: "My app" }, other: { title: "Other app" }, old: { title: "Old", archived: true } })),
+        http.post("/api/sessions/a1/annotations/validate", async ({ request }) => {
+          posts.push(`validate ${JSON.stringify(await request.json())}`);
+          return validateStatus === 422
+            ? HttpResponse.json({ error: { code: "validation", message: "annotation 1 needs an anchor, excerpt, and instruction" } }, { status: 422 })
+            : HttpResponse.json({ valid: true });
+        }),
+        http.post("/api/sessions", async ({ request }) => {
+          posts.push(`launch ${JSON.stringify(await request.json())}`);
+          return launchStatus === 400
+            ? HttpResponse.json({ error: { code: "invalid_request", message: "unknown model" } }, { status: 400 })
+            : HttpResponse.json({ agent: { agent_id: "a3", name: "fresh" } }, { status: 201 });
+        }),
+        http.post("/api/sessions/a1/annotations", async ({ request }) => {
+          posts.push(`annotations ${JSON.stringify(await request.json())}`);
+          if (deliveryFailures > 0) {
+            deliveryFailures--;
+            return HttpResponse.json({ error: { code: "internal", message: "mail unavailable" } }, { status: 500 });
+          }
+          return HttpResponse.json({ accepted: true, seq: 5 }, { status: 202 });
+        }),
+      );
+    });
+
+    it("refuses an invalid batch without opening launch", async () => {
+      validateStatus = 422;
+      useConnection.setState({ agents: { a1: idle } });
+      await annotateLine();
+      fireEvent.click(screen.getByRole("radio", { name: "New task" }));
+      fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
+      expect(await screen.findByText("annotation 1 needs an anchor, excerpt, and instruction")).toBeInTheDocument();
+      expect(screen.queryByRole("form", { name: "New agent" })).toBeNull();
+      expect(posts.some((post) => post.startsWith("launch"))).toBe(false);
+      expect(useAnnotationStore.getState().bySource.a1).toHaveLength(1);
+    });
+
+    it("prefills the source, survives cancel and launch refusal, retries delivery to the same agent, then opens it", async () => {
+      useConnection.setState({ agents: { a1: idle } });
+      await annotateLine();
+      fireEvent.click(screen.getByRole("radio", { name: "New task" }));
+      fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
+      let form = await screen.findByRole("form", { name: "New agent" });
+      await waitFor(() => expect(within(form).getByLabelText("Persona")).toHaveValue("implementer"));
+      expect(within(form).getByLabelText("Project")).toHaveValue("my-app");
+      expect(within(form).queryByRole("option", { name: /Old/ })).toBeNull();
+      // Cancel returns to the intact tray.
+      fireEvent.click(within(form).getByRole("button", { name: "Cancel" }));
+      const tray = await screen.findByRole("dialog", { name: "Pending annotations · 1/20" });
+      expect(within(tray).getByLabelText("Instruction")).toHaveValue("rename this");
+      fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
+      form = await screen.findByRole("form", { name: "New agent" });
+      await waitFor(() => expect(within(form).getByLabelText("Persona")).toHaveValue("implementer"));
+      fireEvent.change(within(form).getByLabelText("Project"), { target: { value: "other" } });
+      fireEvent.change(within(form).getByLabelText("Persona"), { target: { value: "reviewer" } });
+      fireEvent.change(within(form).getByLabelText(/Name/), { target: { value: "Fixer" } });
+      // A refused launch keeps the entered values and the batch.
+      launchStatus = 400;
+      fireEvent.click(within(form).getByRole("button", { name: "Launch and send" }));
+      expect(await within(form).findByText("unknown model")).toBeInTheDocument();
+      expect(within(form).getByLabelText("Project")).toHaveValue("other");
+      expect(within(form).getByLabelText(/Name/)).toHaveValue("Fixer");
+      // Launch succeeds; the first delivery fails and retry targets the same agent.
+      launchStatus = 201;
+      deliveryFailures = 1;
+      fireEvent.click(within(form).getByRole("button", { name: "Launch and send" }));
+      expect(await screen.findByText(/Agent a3 launched, but annotation delivery failed/)).toBeInTheDocument();
+      expect(window.location.pathname).toBe("/agent/a1");
+      expect(useAnnotationStore.getState().bySource.a1).toHaveLength(1);
+      fireEvent.click(screen.getByRole("button", { name: "Retry delivery to a3" }));
+      await waitFor(() => expect(window.location.pathname).toBe("/agent/a3"));
+      const launches = posts.filter((post) => post.startsWith("launch"));
+      expect(launches).toHaveLength(2);
+      expect(launches[1]).toBe(`launch ${JSON.stringify({ project: "other", role: "reviewer", name: "Fixer", backend: "", model: "", effort: "", fast: false })}`);
+      const deliveries = posts.filter((post) => post.startsWith("annotations"));
+      expect(deliveries).toEqual([0, 1].map(() => `annotations ${JSON.stringify({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "agent", agent_id: "a3" } })}`));
+      expect(useAnnotationStore.getState().bySource.a1).toBeUndefined();
+    });
   });
 
   // The server stores a streamed reply as one assistant_text delta per chunk; the phone must

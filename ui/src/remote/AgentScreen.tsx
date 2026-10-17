@@ -38,7 +38,7 @@ import { carryLeadKey } from "../components/chat/turnActivity";
 import { ChildActivity } from "../components/chat/renderers/ChildActivity";
 import { ThinkingDisclosure } from "../components/chat/renderers/ThinkingDisclosure";
 import { TurnList, useFocusReturn, useTurnChoices } from "../components/chat/TurnList";
-import { PhoneAnnotationForm } from "./AnnotationForm";
+import { PhoneAnnotationButton, PhoneAnnotations, PhoneAnnotationSent, usePhoneAnnotationDelivery } from "./AnnotationForm";
 import { useConnection, watchReasoning, type OpenTranscript } from "./connection";
 import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
@@ -286,6 +286,10 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     if (tab === "chat" && focusedDiff.data) diffCard.current?.scrollIntoView?.({ block: "start" });
   }, [tab, focusedDiff.data]);
   const addAnnotation = useAnnotationStore((state) => state.add);
+  // One tray owner above the Chat/Files branches (TS-08.R134).
+  const delivery = usePhoneAnnotationDelivery(agentId, agent);
+  const [trayOpen, setTrayOpen] = useState(false);
+  const [focusNewest, setFocusNewest] = useState(0);
 
   useEffect(() => {
     let current = true;
@@ -533,6 +537,8 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     setError(null);
     loadingEarlierRef.current = false;
     scrollAnchor.current = null;
+    setTrayOpen(false);
+    setFocusNewest(0);
   }, [agentId]);
 
   if (!agent) return <p className="phone-empty">This agent is not on the Mac any more. <button type="button" className="phone-link ad-button-secondary" onClick={() => navigate("/")}>Home</button></p>;
@@ -655,9 +661,16 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       refresh();
     }
   };
+  // A capture opens the tray at its new instruction.
   const annotate = (draft: AnnotationDraft) => {
-    if (!addAnnotation(agentId, draft)) setError("At most 20 annotations can wait at once. Send or discard them first.");
+    if (!addAnnotation(agentId, draft)) {
+      setError("At most 20 annotations can wait at once. Send or discard them first.");
+      return;
+    }
+    setTrayOpen(true);
+    setFocusNewest((value) => value + 1);
   };
+  const closeTray = () => { setTrayOpen(false); setFocusNewest(0); };
   const heldText = held.data && typeof held.data === "object" && "text" in held.data ? String((held.data as { text?: string }).text ?? "") : "";
   const heldAttachments = held.data && typeof held.data === "object" && Array.isArray((held.data as { attachments?: unknown }).attachments) ? (held.data as { attachments: AttachmentDescriptor[] }).attachments : [];
   const recovery = held.data && typeof held.data === "object" && "recovery" in held.data ? (held.data as { recovery?: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }).recovery : undefined;
@@ -702,6 +715,9 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           <button type="button" className="ad-button-secondary" disabled={offline || busy} onClick={() => void act(() => resumeAgent(agentId))}>Resume</button>
         )}
       </div>
+      {chat && tab !== "manage" && <PhoneAnnotationButton sourceId={agentId} onOpen={() => setTrayOpen(true)} />}
+      {tab !== "manage" && <PhoneAnnotationSent delivery={delivery} />}
+      <PhoneAnnotations delivery={delivery} open={trayOpen} focusNewest={focusNewest} onClose={closeTray} />
       {!agent.running && tab !== "manage" && error && <p className="phone-error" role="alert">{error}</p>}
       {tab === "files" && <section className="phone-section phone-files" aria-label="Files">
         <h2>Files</h2>
@@ -745,7 +761,6 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             {!offline && agent.running && agent.state === "busy" && <WorkingIndicator />}
           </div>
           {pending && <PermissionCard agent={agent} event={pending} latest={latest} disabled={offline} onSettled={refresh} />}
-          <PhoneAnnotationForm agent={agent} />
           {(heldText || heldAttachments.length > 0) && (
             <div className="phone-card">
               <p className="phone-card-kicker">Held until the current turn ends</p>

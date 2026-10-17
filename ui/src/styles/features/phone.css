@@ -203,7 +203,17 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-details summary { cursor: pointer; }
 .phone-details p { margin: var(--ad-space-3) 0; }
 .phone-details-body { display: grid; gap: var(--ad-space-3); }
-.phone-annotate { border-color: var(--ad-action-primary); }
+/* The pending-annotation count stays reachable while Chat or Files scrolls (TS-08.R134). */
+.phone-annotate-open { align-self: flex-end; position: sticky; top: calc(65px + var(--ad-space-2)); z-index: 1; display: inline-flex; align-items: center; gap: var(--ad-space-2); min-height: 44px; border: var(--ad-border-thin) solid var(--ad-action-primary); border-radius: var(--ad-radius-round); background: var(--ad-surface-panel); box-shadow: var(--ad-shadow-offset); }
+.phone-annotate-count { color: var(--ad-action-primary); font-variant-numeric: tabular-nums; font-weight: 600; }
+/* Count/close, then scrolling anchored drafts, then a footer that stays in reach. */
+.phone-annotate-sheet { display: flex; flex-direction: column; gap: var(--ad-space-4); padding-bottom: 0; }
+.phone-annotate-sheet .phone-section-title h2 { flex: 1; min-width: 0; font-size: 1.0625rem; }
+.phone-annotate-discard { min-height: 44px; }
+.phone-annotate-body { display: grid; gap: var(--ad-space-4); min-width: 0; }
+.phone-annotate-draft .phone-pre { max-height: 12rem; overflow: auto; }
+.phone-annotate-footer { position: sticky; bottom: 0; display: grid; gap: var(--ad-space-3); margin: 0 calc(-1 * var(--ad-space-6)); padding: var(--ad-space-4) var(--ad-space-6) calc(var(--ad-space-4) + env(safe-area-inset-bottom)); background: var(--ad-surface-panel); border-top: var(--ad-border-thin) solid var(--ad-border-default); }
+.phone-annotate-send { min-height: 44px; }
 /* The "Send to" picker is a control (role=radio), not the primary construction: its selected cue
    is foreground text over a subtle surface with an underline (FS-12.R68). */
 .phone-target-selected { background: var(--ad-surface-subtle); color: var(--ad-text-primary); text-decoration: underline; text-underline-offset: var(--ad-space-1); }

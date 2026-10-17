@@ -2,13 +2,13 @@ import type { ReactNode } from "react";
 import { useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 
-export function PhoneSheet({ title, onClose, children, centered = false }: { title: string; onClose: () => void; children: ReactNode; centered?: boolean }) {
+export function PhoneSheet({ title, onClose, children, centered = false, actions, className = "" }: { title: string; onClose: () => void; children: ReactNode; centered?: boolean; /** Placed beside Close in the title row. */ actions?: ReactNode; className?: string }) {
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   return <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="dialog-overlay" data-ui="dialog" data-slot="overlay" />
       <Dialog.Content
-        className={`dialog-content phone-sheet${centered ? " phone-sheet-centered" : ""}`}
+        className={`dialog-content phone-sheet${centered ? " phone-sheet-centered" : ""}${className ? ` ${className}` : ""}`}
         data-ui="dialog"
         data-slot="content"
         data-variant="default"
@@ -22,7 +22,7 @@ export function PhoneSheet({ title, onClose, children, centered = false }: { tit
           restoreFocusRef.current = null;
         }}
       >
-        <div className="phone-section-title"><Dialog.Title data-slot="title">{title}</Dialog.Title><Dialog.Close className="phone-sheet-close ad-button-icon" aria-label="Close dialog">×</Dialog.Close></div>
+        <div className="phone-section-title"><Dialog.Title data-slot="title">{title}</Dialog.Title>{actions}<Dialog.Close className="phone-sheet-close ad-button-icon" aria-label="Close dialog">×</Dialog.Close></div>
         {children}
       </Dialog.Content>
     </Dialog.Portal>
