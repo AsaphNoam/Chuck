@@ -9,7 +9,7 @@ import { chromium } from "playwright";
 
 const fixture = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const out = process.argv[3] || "/tmp/chuck-quota-notice-journey";
-const title = "Chuck continued this conversation when the quota reset";
+const title = "Chuck automatically continued this conversation after a quota interruption";
 const agentID = fixture.quota_agent;
 if (!agentID) throw new Error("fixture has no quota_agent; enable CHUCK_QUOTA_BROWSER_KNOWN=1");
 mkdirSync(out, { recursive: true });

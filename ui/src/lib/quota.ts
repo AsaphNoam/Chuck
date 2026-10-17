@@ -16,6 +16,10 @@ export const quotaStateSchema = z.object({
     "needs_attention",
   ]),
   reason_code: z.string().max(64).optional(),
+  // An isolated check is distinct from continuing the work; old records omit
+  // the action and mean continue (TS-03.R72).
+  next_action: z.enum(["continue", "check"]).optional().default("continue"),
+  checks_remaining: z.number().int().min(0).max(6).optional(),
 });
 
 export type QuotaState = z.infer<typeof quotaStateSchema>;

@@ -39,7 +39,8 @@ try {
     await page.getByLabel("Fixture appearance").selectOption(skin);
     await page.waitForTimeout(100);
 
-    const banner = page.locator(".chat-card > .quota-banner");
+    const banner = page.locator(".chat-card > .quota-banner").first();
+    const checkBanner = page.locator(".chat-card > .quota-banner").nth(1);
     await banner.waitFor();
     const state = await page.evaluate(() => {
       const banners = [...document.querySelectorAll(".quota-banner")];
@@ -52,9 +53,16 @@ try {
     const prefix = `${label} 1024px`;
     check(`${prefix}: viewport exact`, state.viewport === 1024, `${state.viewport}px`);
     check(`${prefix}: scheduled and unknown reset states visible`,
-      await page.getByText("Reset time unknown", { exact: true }).isVisible()
+      await page.getByText("Reset time unknown", { exact: true }).first().isVisible()
       && await banner.getByText(/^Reset /).isVisible()
       && await banner.getByRole("button", { name: "Cancel continuation" }).isVisible());
+    // FS-01.R50: a check time is never presented as a reset.
+    check(`${prefix}: pending check distinct from reset`,
+      await checkBanner.getByText("Reset time unknown", { exact: true }).isVisible()
+      && await checkBanner.getByText(/^Will check again at /).isVisible()
+      && await checkBanner.getByText("5 checks left", { exact: true }).isVisible()
+      && await checkBanner.getByRole("button", { name: "Cancel continuation" }).isVisible()
+      && !(await checkBanner.getByText(/^Will continue at /).count()));
     check(`${prefix}: quota banners fit viewport`,
       state.banners.every(rect => rect.left >= -1 && rect.right <= 1025 && rect.scrollWidth <= rect.width + 1),
       JSON.stringify(state.banners));

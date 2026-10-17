@@ -12,7 +12,15 @@ const validQuota = {
 
 describe("quota projection", () => {
   it("accepts a complete quota episode with an unknown reset", () => {
-    expect(decodeQuotaState(validQuota)).toEqual(validQuota);
+    // Records without an action predate checks and mean continue.
+    expect(decodeQuotaState(validQuota)).toEqual({ ...validQuota, next_action: "continue" });
+  });
+
+  it("decodes a pending check and bounds its allowance", () => {
+    const check = { ...validQuota, continuation_state: "scheduled", due_at: "2026-10-11T13:00:00Z", next_action: "check", checks_remaining: 6 };
+    expect(decodeQuotaState(check)).toEqual(check);
+    expect(decodeQuotaState({ ...check, checks_remaining: 7 })).toBeUndefined();
+    expect(decodeQuotaState({ ...check, next_action: "probe" })).toBeUndefined();
   });
 
   it("rejects malformed projection data", () => {

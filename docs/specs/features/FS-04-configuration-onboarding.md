@@ -1,6 +1,6 @@
 # FS-04 — Configuration & Onboarding
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/config/`, `internal/server/config_handlers.go`, `internal/server/directory_picker.go`, `ui/src/features/settings/`, `ui/src/features/onboarding/` · **Journeys:** J2, J9
 **Absorbed:** [`phase-3-config-onboarding.md`](../../archive/phases/phase-3-config-onboarding.md)
 
@@ -180,7 +180,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   an applying/failed save reports the actual saved state and a readable error. It changes no
   permissions or onboarding gate and adds no per-agent override.
 
-- **R59 (planned; direction confirmed 2026-10-16)** — R53's existing Auto continue setting also
+- **R59 (implemented 2026-10-17; direction confirmed 2026-10-16)** — R53's existing Auto continue setting also
   controls FS-01.R49's bounded unknown-reset checks. Settings help
   explains that a reliable reset schedules continuation after that reset; otherwise Chuck may
   check hourly up to six times outside the interrupted conversation, and checks can use normal
@@ -577,7 +577,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   A customized occupied `default` remains visible and cannot be used as the No persona fallback.
   *Verify:* focused Settings component and New Agent selection tests.
 
-- **A38 (planned)** (R59, FS-01.R49–R50) — Existing enabled/disabled configurations retain their
+- **A38 (implemented 2026-10-17)** (R59, FS-01.R49–R50) — Existing enabled/disabled configurations retain their
   value; Settings describes both known-reset schedules and the bounded unknown-reset policy.
   Disabling cancels either pending kind on desktop and phone, while a failed save reports the
   actual saved policy. *Verify:* configuration/API and focused Settings/recovery component tests,

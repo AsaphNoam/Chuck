@@ -65,7 +65,7 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 				if err := json.Unmarshal(ev.Data, &n); err != nil {
 					t.Fatal(err)
 				}
-				if n.Title == "Chuck continued this conversation when the quota reset" {
+				if n.Title == "Chuck automatically continued this conversation after a quota interruption" {
 					notices++
 				}
 			}

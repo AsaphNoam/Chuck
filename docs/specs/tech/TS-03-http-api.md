@@ -1000,7 +1000,7 @@ without displaying success. The existing operator CLI permission command works w
 host id. The paired-phone permission route retains its current allowlist/device guard; no new
 remote route is introduced. FS-06.A30–A31 cover reload/restart, pending and failed decisions.
 
-**R72 (planned) — Quota projections distinguish checking from continuing.** For FS-01.R48–R51 and
+**R72 (implemented 2026-10-17) — Quota projections distinguish checking from continuing.** For FS-01.R48–R51 and
 FS-04.R59, extend R60's existing `quota` object additively with `next_action:"continue"|"check"`
 and integer `checks_remaining` (0..6). Existing continuation-state values remain unchanged:
 `scheduled`/`waiting` with `check` display **Will check again at …**; `starting` with `check`

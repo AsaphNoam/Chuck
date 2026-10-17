@@ -334,7 +334,7 @@ orphaned processes.
   retain R44's hold. If isolated verification is unsupported or cannot use the same quota scope,
   leave an actionable unknown/unsupported state; do not fall back to testing in the original chat.
   This replaces R41's unknown-reset scheduling exclusion only when shipped.
-- **R50 (planned; scope confirmed 2026-10-16)** — **Fallback recovery preserves control and honest
+- **R50 (implemented 2026-10-17; scope confirmed 2026-10-16)** — **Fallback recovery preserves control and honest
   history.** R42–R44's source Chuck conversation/work identity, owner, exclusivity, cancellation,
   eligibility and restart rules apply equally to reset schedules and unknown-reset checks. The
   separate check never reuses the original provider session; actual continuation alone returns
@@ -628,7 +628,7 @@ transitions:
   Implemented coverage: `internal/state/quota_checks_test.go`,
   `internal/runtime/quota_check_test.go` and `internal/server/quota_check_test.go` (ordinary
   owner; task/pipeline/room checks reuse the same claim and continuation admission).
-- **A33 (planned)** (R48–R51) — On desktop and phone, distinguish known reset, unknown-reset next
+- **A33 (implemented 2026-10-17 for rendered fixtures and projections; live provider receipts owed)** (R48–R51) — On desktop and phone, distinguish known reset, unknown-reset next
   check, remaining allowance, cancelled and exhausted states; reload, cancel and disable while
   waiting. API/stream state agrees. Corroborated continuation appends one honest Chuck notice;
   quota-only refusals append none. *Verify:* focused rendered recovery journeys, projection and

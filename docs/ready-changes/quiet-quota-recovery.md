@@ -84,8 +84,15 @@ unsupported versions/isolation remain manual, with no wake-probe fallback in the
    `cleanupQuotaChecks` retries exact references at most every 10 min. Reviewer note: deleting
    an agent while a failed Codex cleanup reference is pending drops that reference with the row
    (the archived/unarchived probe thread may remain); no pre-delete cleanup hook was added.
-5. API/UI (TS-03.R72, FS-04.R59): projection `next_action`/`checks_remaining`, reason codes,
-   banner/Settings copy, the FS-01.R50 notice sentence, CLI decoder.
+5. **Done** — API/UI (TS-03.R72, FS-04.R59): projection `next_action`/`checks_remaining`;
+   `ui/src/lib/quota.ts` defaults an absent action to continue; `QuotaBanner` shows **Will check
+   again at …**, **Checking quota…**, checks left, the seven `check_*` reasons and keeps Cancel for
+   pending and in-flight checks (desktop, card and phone share it). Settings help explains both
+   policies. New notices use the FS-01.R50 sentence (matching is by continuation key, so history
+   is untouched); the quota activation status reads "continuing after quota interruption". No
+   Go CLI decodes the quota projection. `ui/scripts/quota-render.mjs` now checks the pending
+   check banner; receipt `/tmp/quota-checks-render-20261017/receipt.json` (all PASS, three
+   appearances, 1024 px and 390 px).
 
 Owed at closure: full serial Go matrix (`GOFLAGS=-p=1 make test`), tagged build, UI tests/build.
 

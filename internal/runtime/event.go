@@ -215,7 +215,7 @@ func (p *PeerStopNotice) Valid() bool {
 		len(p.RequesterID) <= 128 && len(p.TargetID) <= 128
 }
 
-const QuotaContinuationNoticeTitle = "Chuck continued this conversation when the quota reset"
+const QuotaContinuationNoticeTitle = "Chuck automatically continued this conversation after a quota interruption"
 
 // AnnotationData is a point-in-time capture that a dashboard user has assigned
 // to an agent. It deliberately stores the excerpt, rather than a live file

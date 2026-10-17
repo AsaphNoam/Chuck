@@ -42,7 +42,7 @@ export function QuotaContinuationEditor() {
       <SettingsHeader
         eyebrow="Quota recovery"
         title="Automatic continuation"
-        description="Continue quota-interrupted chats at the provider’s known reset time, including task, pipeline, and Think Tank agents. The next turn uses the provider normally."
+        description="Continue quota-interrupted chats, including task, pipeline, and Think Tank agents. When the provider reports a reliable reset, Chuck continues a minute after it. Otherwise Chuck checks access hourly, up to six times, in a separate session outside the conversation; checks use normal provider usage. If checks aren’t supported, continue manually."
       >
         {putConfig.isPending && <span role="status">Saving…</span>}
       </SettingsHeader>

@@ -29,7 +29,7 @@ var activationKinds = map[string]ActivationKind{
 	},
 	state.ActivationKindQuotaContinue: {
 		Instruction:  "Continue the work interrupted by the provider quota from this conversation's existing history. Read the current state of any owned work first. Do not replay already executed operations or repeat accepted results.",
-		StatusDetail: "continuing after quota reset", LastTrace: "QuotaContinuation",
+		StatusDetail: "continuing after quota interruption", LastTrace: "QuotaContinuation",
 	},
 	state.ActivationKindMail: {
 		Instruction:  "Handle the attributed peer mail supplied with this turn.",

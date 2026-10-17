@@ -135,7 +135,8 @@ export function VisualMatrix() {
             <AgentIdentity name="Nova orchestration reviewer" state="busy" status={<StateBadge state="busy" />} details={["reviewer", "Chuck", "Fast mode"]} />
             <div data-slot="context"><ContextBar detailed value={0.34} used={68000} size={200000} /></div>
           </header>
-          <QuotaBanner value={{ episode_id: "fixture-episode", revision: 3, observed_at: "2026-10-10T10:00:00Z", reset_at: "2026-10-10T12:00:00Z", due_at: "2026-10-10T12:00:00Z", continuation_state: "scheduled" }} onCancel={() => undefined} />
+          <QuotaBanner value={{ episode_id: "fixture-episode", revision: 3, observed_at: "2026-10-10T10:00:00Z", reset_at: "2026-10-10T12:00:00Z", due_at: "2026-10-10T12:01:00Z", continuation_state: "scheduled" }} onCancel={() => undefined} />
+          <QuotaBanner value={{ episode_id: "fixture-check", revision: 2, observed_at: "2026-10-10T10:00:00Z", reset_at: null, due_at: "2026-10-10T11:00:00Z", continuation_state: "scheduled", next_action: "check", checks_remaining: 5 }} onCancel={() => undefined} />
           <div className="chat-runtime-picker">
             <fieldset className="chat-runtime-staged">
               <legend>Runtime</legend>
@@ -238,7 +239,7 @@ export function VisualMatrix() {
           <AssistantText event={{ seq: 17, kind: "assistant_text", text: "```ts\nconst appearance = 'sky-grove';\n```" }} />
           <AssistantText event={{ seq: 19, kind: "assistant_text", text: "```mermaid\ngraph TD;\n  Deck-->Agent;\n  Agent-->Task;\n```" }} />
           <AssistantText event={{ seq: 20, kind: "assistant_text", text: "```mermaid\ngraph LR;\n  Intake-->Plan-->Implement-->Verify-->Release;\n```" }} />
-          <NoticeRow event={{ seq: 21, kind: "notice", origin: "chuck", continuation_attempt: "fixture-attempt", severity: "info", title: "Chuck continued this conversation when the quota reset" }} />
+          <NoticeRow event={{ seq: 21, kind: "notice", origin: "chuck", continuation_attempt: "fixture-attempt", severity: "info", title: "Chuck automatically continued this conversation after a quota interruption" }} />
           <DiffBlock
             event={{ seq: 18, kind: "diff", path: "ui/src/styles/skins/sky-grove.css", old_text: "--surface: core;", new_text: "--surface: sky;" }}
             onAnnotate={() => undefined}
