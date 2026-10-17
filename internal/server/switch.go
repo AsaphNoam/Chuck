@@ -477,6 +477,7 @@ func (s *Server) composeSwitchSpecContext(ctx context.Context, target state.Agen
 		Effort:             target.Effort,
 		Fast:               target.Fast,
 		Env:                composeChildEnv(be.Type, s.configStore.Home(), be.Env, model.Env, s.hookEnv(target, token), projectResourcesEnv(resourceDir), providerEnv),
+		QuotaCheckEnv:      s.quotaCheckEnv(be, model, providerEnv),
 		ProviderExecutable: provider.Path,
 		ProviderSource:     provider.Source,
 		SkipPerms:          snap.SkipPermissions,

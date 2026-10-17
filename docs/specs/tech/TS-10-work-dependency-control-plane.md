@@ -491,7 +491,8 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   Never fabricate a reset to pass scheduled-state validation. Apply Auto continue, same-work owner,
   archive/project and lifecycle eligibility before either effect. A busy or unavailable-capacity
   deferral creates no provider check and spends no allowance. Explicit non-renewing credit/plan/
-  spend-cap errors hold for manual action; promotional upgrade alternatives alongside a valid
+  spend-cap errors hold for manual action, whether first observed on the interrupted turn or on a
+  later check (`unknown_reset`, `continue`, no due time); promotional upgrade alternatives alongside a valid
   reset do not become false intervention requirements. Do not activate pre-upgrade unknown rows,
   reuse cancelled records, create replacement tasks/agents, coalesce accounts heuristically or add
   a separate scheduler. Preserve held follow-ups and owner quota markers throughout checking.

@@ -476,8 +476,11 @@ func handle(msg *rpcMessage) {
 			if raw := os.Getenv("FAKEACP_RATE_LIMIT"); raw != "" {
 				var info map[string]any
 				if json.Unmarshal([]byte(raw), &info) == nil {
-					emitUpdate(map[string]any{"sessionUpdate": "usage_update", "used": 44000, "size": 200000,
-						"_meta": map[string]any{"_claude/rateLimit": info}})
+					meta := map[string]any{"_claude/rateLimit": info}
+					if model := os.Getenv("FAKEACP_RATE_MODEL"); model != "" {
+						meta["_claude/model"] = model // attachUsageModel (acp-agent.js:2455-2465)
+					}
+					emitUpdate(map[string]any{"sessionUpdate": "usage_update", "used": 44000, "size": 200000, "_meta": meta})
 				}
 			}
 			if failure := sessionFailureEnv("FAKEACP_FAILURE_UPDATE"); failure != nil {

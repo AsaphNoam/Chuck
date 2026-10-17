@@ -145,6 +145,12 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		hold("project_ineligible")
 		return
 	}
+	if q.CheckReady && !s.quotaCheckStillMatches(q) {
+		// A check authorizes only the provider/account/model selection it
+		// tested; an edited or unprovable selection stays manual (TS-10.R46).
+		hold("check_unsupported")
+		return
+	}
 	started := false
 	start := func() error {
 		kind := state.ActivationKindQuotaContinue

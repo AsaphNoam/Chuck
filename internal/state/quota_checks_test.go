@@ -250,3 +250,84 @@ VALUES(?,?,1,'g','t','{"kind":"ordinary"}',?,?,?,?,?)`
 		t.Fatalf("projection = %+v", p)
 	}
 }
+
+// Q7 / FS-01.R49: a resetless check result naming a credit or spend-cap
+// requirement holds for manual action with no further check due.
+func TestQuotaCheckInterventionHoldsWithoutDue(t *testing.T) {
+	st, _ := newTestStore(t)
+	id := "quota_check_intervention"
+	now := timeNow()
+	if err := st.WriteAgent(testAgent(id, now)); err != nil {
+		t.Fatal(err)
+	}
+	observeCheck(t, st, id, "episode", "g", "t", now)
+	q := claimCheck(t, st, id)
+	if err := st.FinishQuotaCheck(id, q.EpisodeID, q.Revision, q.AttemptToken, QuotaCheckResult{Outcome: QuotaCheckQuota, Intervention: true, Cleaned: true}); err != nil {
+		t.Fatal(err)
+	}
+	q, _ = st.GetQuota(id)
+	if q.State != QuotaUnknownReset || q.NextAction != QuotaActionContinue || q.DueAt != nil || q.ChecksStarted != 1 {
+		t.Fatalf("intervention result = %+v", q)
+	}
+	if due, _ := st.DueQuotaIntents(timeNow().Add(2*time.Hour), MaxQuotaDueBatch); len(due) != 0 {
+		t.Fatalf("intervention left due work: %+v", due)
+	}
+}
+
+// Q8 / TS-02.R50: deleting a conversation never drops its only exact probe
+// cleanup reference; deletion proceeds once that cleanup resolves.
+func TestDeleteAgentKeepsPendingProbeCleanup(t *testing.T) {
+	st, _ := newTestStore(t)
+	id := "quota_check_delete"
+	now := timeNow()
+	if err := st.WriteAgent(testAgent(id, now)); err != nil {
+		t.Fatal(err)
+	}
+	observeCheck(t, st, id, "episode", "g", "t", now)
+	q := claimCheck(t, st, id)
+	if err := st.RecordQuotaCheckSession(id, q.EpisodeID, q.Revision, q.AttemptToken, "probe"); err != nil {
+		t.Fatal(err)
+	}
+	q, _ = st.GetQuota(id)
+	if err := st.FinishQuotaCheck(id, q.EpisodeID, q.Revision, q.AttemptToken, QuotaCheckResult{Outcome: QuotaCheckFailed}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteAgent(id); !errors.Is(err, ErrQuotaCleanupPending) {
+		t.Fatalf("delete with pending cleanup = %v", err)
+	}
+	if refs, _ := st.PendingQuotaCheckCleanups(MaxQuotaDueBatch); len(refs) != 1 || refs[0].CheckSession != "probe" {
+		t.Fatalf("pending cleanups = %+v", refs)
+	}
+	if err := st.ResolveQuotaCheckCleanup(id, "probe"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteAgent(id); err != nil {
+		t.Fatalf("delete after cleanup = %v", err)
+	}
+}
+
+// A probe session recorded concurrently with deletion is either recorded
+// against a surviving agent or refused before any cleanup reference exists.
+func TestDeleteAgentRacesProbeRecording(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		st, _ := newTestStore(t)
+		id := "quota_check_delete_race"
+		now := timeNow()
+		if err := st.WriteAgent(testAgent(id, now)); err != nil {
+			t.Fatal(err)
+		}
+		observeCheck(t, st, id, "episode", "g", "t", now)
+		q := claimCheck(t, st, id)
+		recorded, deleted := make(chan error, 1), make(chan error, 1)
+		go func() { recorded <- st.RecordQuotaCheckSession(id, q.EpisodeID, q.Revision, q.AttemptToken, "probe") }()
+		go func() { deleted <- st.DeleteAgent(id) }()
+		recErr, delErr := <-recorded, <-deleted
+		_, readErr := st.ReadAgent(id)
+		switch {
+		case recErr == nil && (delErr == nil || readErr != nil):
+			t.Fatalf("recorded probe lost its owner: delete=%v read=%v", delErr, readErr)
+		case recErr != nil && delErr != nil:
+			t.Fatalf("record=%v and delete=%v both refused", recErr, delErr)
+		}
+	}
+}

@@ -128,10 +128,10 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 		if as.adapter != nil {
 			backendType = as.adapter.Type()
 		}
-		td.Quota.ResetAt, td.Quota.Intervention = resolveQuotaReset(backendType, text, as.turnRateLimitReset, observed, as.processZone)
+		td.Quota.ResetAt, td.Quota.Intervention = resolveQuotaReset(backendType, text, as.turnRateLimit, observed, as.processZone)
 		if td.Quota.ResetAt != nil {
 			td.Quota.ResetSource = "text"
-			if backendType == "claude-acp" && as.turnRateLimitReset != nil {
+			if backendType == "claude-acp" && as.turnRateLimit.reset != nil {
 				td.Quota.ResetSource = "structured"
 			}
 		}

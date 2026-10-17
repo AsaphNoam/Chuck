@@ -709,7 +709,9 @@ task/history table. Enforce new reason/action/count constraints in SQLite and st
 the latest record until conversation deletion as before. New episodes and cancellation preserve
 an outstanding exact check-cleanup reference until resolved, without carrying its authorization
 into new work. Deletion/cancellation arrange exact
-pending probe cleanup before dropping its reference; an in-flight ephemeral cleanup context may
+pending probe cleanup before dropping its reference: conversation deletion refuses
+(`ErrQuotaCleanupPending`) while an unresolved reference exists, rechecked inside the delete so a
+concurrently recorded probe keeps its owner; an in-flight ephemeral cleanup context may
 outlive removal of the UI entry but cannot authorize continuation. Claude sessions use native
 non-persistence; the operator accepts explicitly named Codex native archived probe sessions under
 FS-01.R51. Do not purge those archives or promise permanent deletion. Existing transcript notice

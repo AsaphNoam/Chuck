@@ -1309,7 +1309,11 @@ Prefer applicable structured evidence, then a verified provider-specific text gr
 ACP 0.85.1 forwards native 2.1.286 epoch seconds in `_claude/rateLimit`; the hashed producer/schema
 receipt in [the investigation](../../features/QUOTA-RESET-FALLBACK-2026-10-16.md) establishes units
 independently of SDK declarations. Decode it separately from context usage and retain R87's
-rejected-window/model/overage applicability checks. Do not infer a complete snapshot or pick an
+rejected-window/model/overage applicability checks: rejected `five_hour`/`seven_day` windows apply
+to every model; `seven_day_opus`/`seven_day_sonnet` apply only when the same update's
+`_claude/model` is that family (another family's window is ignored, an unstamped one is unknown);
+overage and unrecognized rejected windows, or an applicable window without a valid time, make the
+turn's combined reset unknown. Do not infer a complete snapshot or pick an
 unrelated future window. A conflict within applicable evidence remains unknown rather than
 silently choosing whichever source gives a convenient future time. R96 replaces R87's no-text-parser
 and unverified-pinned-unit exclusions when implemented; unrelated subscription-view R89 stays deferred.
@@ -1325,7 +1329,11 @@ multiple candidate instants, DST gaps/folds, stale values and midnight-boundary 
 provider version/format whose semantics lack a receipt stays unknown; do not guess epoch units,
 locale order or year rollover. Preserve UTC reset separately from due time; due is reset plus
 60 seconds. Text represents minute precision: a structured second-resolution instant inside that
-same displayed minute is consistent, not a conflict. Source-version, observation-time and scope evidence are internal, bounded provenance,
+same displayed minute is consistent, not a conflict. Claude's producer truncates seconds, so a
+time-only clause observed inside its displayed minute also fits tomorrow and stays unknown unless
+structured evidence falls inside one candidate minute. Present-but-unusable text (several distinct
+clauses, unparseable or stale) is conflicting evidence, never treated as absent beside a structured
+reset. Source-version, observation-time and scope evidence are internal, bounded provenance,
 not raw provider payloads exposed to clients. FS-01.A31/A28 verify the producer and delivery contract.
 
 **R97 (implemented 2026-10-17; live receipts owed under FS-01.A34) — Quota checks use isolated sessions on the existing ACP integration.** For
@@ -1352,12 +1360,28 @@ servers in pinned Codex (`createSessionConfig` returns its existing config when 
 the check's process overlay must exclude those servers and original Chuck hook/token delivery while
 preserving authentication/routing. The existing JSON `CODEX_CONFIG` overlay can disable each known
 effective server with `mcp_servers.<name>.enabled:false` (pinned native `config/src/mcp_types.rs`);
-do not mutate the shared profile or replace its authentication home. Unknown effective configuration
+servers named in the overlay itself count in both its nested and dotted override shapes
+(`mcp_servers.<name>.<field>`), and a quoted/dotted or non-object server entry is ambiguous.
+Do not mutate the shared profile or replace its authentication home. Unknown effective configuration
 layers make isolation unsupported rather than permission to assume servers are absent.
 Profile tests verify this boundary; unsupported isolation stays
 manual rather than broadening permissions. Claude supports explicit `persistSession:false`,
-`tools:[]`, `strictMcpConfig:true` and an empty work instruction source through its existing
-`_meta.claudeCode.options`; do not use `--bare` or a fresh auth home as an account-preserving shortcut.
+`tools:[]`, `strictMcpConfig:true` and `settingSources:[]` through its existing
+`_meta.claudeCode.options`: pinned ACP 0.85.1 defaults to user/project/local settings, which carry
+CLAUDE.md instructions, hooks, plugins and MCP. The routing keys those layers would have applied to
+the interrupted work (`env`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`,
+`forceLoginMethod`, `forceLoginOrgUUID`, `modelOverrides`, `availableModels`; user settings, then
+the work cwd's project and local settings) travel as the check's programmatic `settings`. An
+unreadable layer, or routing that would replace the adapter's own `CLAUDE_MODEL_CONFIG` settings
+tier, is unsupported. Do not use `--bare` or a fresh auth home as an account-preserving shortcut.
+
+The checked selection is the one the continuation would use: while the original process lives,
+its launch-frozen provider environment and model (Backend Settings edits never retarget a running
+process); otherwise the resume derivation from the current catalog and session snapshot. A
+continuation authorized by a ready check revalidates that selection under admission and holds
+`check_unsupported` when it changed or cannot be proved (the checked fingerprint is process
+memory, so a restart between check and continuation holds). Cleanup retries use the selection
+that created the probe, or the current derivation after a restart.
 
 Codex uses ordinary ACP `session/new`, not invented ephemeral metadata. Before its one real probe
 prompt, use the advertised local `/rename Chuck quota check` command and corroborate the explicit

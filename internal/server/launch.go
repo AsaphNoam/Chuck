@@ -403,6 +403,7 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		Fast:               req.Fast,
 		Driver:             driver,
 		Env:                composeChildEnv(backend.Type, s.configStore.Home(), backend.Env, model.Env, hookEnv, projectResourcesEnv(resourceDir), providerEnv),
+		QuotaCheckEnv:      s.quotaCheckEnv(backend, model, providerEnv),
 		ProviderExecutable: provider.Path,
 		ProviderSource:     provider.Source,
 		SkipPerms:          resolveSkip(s.cfg.SkipPermissions, role.SkipPermissions),

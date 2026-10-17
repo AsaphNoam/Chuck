@@ -238,8 +238,9 @@ type agentState struct {
 	execTurnID             string
 	turnQuota              *QuotaEvidence
 	turnFailure            *SessionFailureRecord
-	turnRateLimitReset     *time.Time     // latest applicable rejected Claude window this turn
-	processZone            *time.Location // effective provider process timezone; nil when unknown
+	turnRateLimit          rateLimitEvidence // applicable rejected Claude windows this turn
+	processZone            *time.Location    // effective provider process timezone; nil when unknown
+	quotaSelection         QuotaCheckSpec    // frozen sanitized selection for isolated checks
 	quotaBlocked           bool
 	quotaBlockedGeneration string
 	quotaBlockedTurnID     string
@@ -382,6 +383,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		resolved:         map[string]struct{}{},
 		adapter:          ad,
 		processZone:      processZone(cmd.Env),
+		quotaSelection:   quotaSelectionOf(spec),
 	}
 	as.transport = NewTransport(stdin,
 		func(method string, params json.RawMessage) { c.onNotification(as, method, params) },
@@ -1167,7 +1169,7 @@ func (as *agentState) setExecTurn(turnID string) {
 	as.execTurnID = turnID
 	as.turnQuota = nil
 	as.turnFailure = nil
-	as.turnRateLimitReset = nil
+	as.turnRateLimit = rateLimitEvidence{}
 	as.mu.Unlock()
 }
 
@@ -1403,6 +1405,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		context:          contextReading{pct: spec.LastContextPct, counts: spec.LastContext},
 		adapter:          ad,
 		processZone:      processZone(cmd.Env),
+		quotaSelection:   quotaSelectionOf(spec),
 		// The notification callback is installed before session/load runs, so the
 		// replay gate has to be closed from construction — a provider that starts
 		// replaying immediately must not race an assignment made later.
@@ -1848,14 +1851,11 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	if kind == "usage_update" {
 		// A rejected subscription window is reset evidence for this executing
 		// root turn only; it never classifies quota itself (TS-04.R96).
-		if reset, ok := claudeRateLimitReset(params); ok {
-			as.mu.Lock()
-			if !as.loadReplay && as.turnActive && as.execTurnID != "" &&
-				(as.turnRateLimitReset == nil || reset.After(*as.turnRateLimitReset)) {
-				as.turnRateLimitReset = &reset
-			}
-			as.mu.Unlock()
+		as.mu.Lock()
+		if !as.loadReplay && as.turnActive && as.execTurnID != "" {
+			as.turnRateLimit.observe(params)
 		}
+		as.mu.Unlock()
 		if reading, ok := decodeContextUsage(params); ok {
 			as.mu.Lock()
 			as.context = reading

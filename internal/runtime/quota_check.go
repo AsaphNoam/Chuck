@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	toml "github.com/pelletier/go-toml/v2"
 
@@ -33,25 +34,53 @@ const (
 
 // QuotaCheckSpec is the sanitized frozen provider selection for one check.
 // Env is the composed provider environment without hook, resource or
-// coordination layers. OnSessionCreated must durably record the probe
-// session before any prompt; an error refuses further effects.
+// coordination layers. SourceCwd is the interrupted work's directory, read only
+// for its routing settings; the check itself runs in an empty temporary cwd.
+// OnSessionCreated must durably record the probe session before any prompt;
+// an error refuses further effects.
 type QuotaCheckSpec struct {
 	BackendType      string
 	ModelID          string
 	Effort           string
 	Fast             bool
 	Env              []string
+	SourceCwd        string
 	OnSessionCreated func(sessionID string) error
 }
 
+func quotaSelectionOf(spec LaunchSpec) QuotaCheckSpec {
+	return QuotaCheckSpec{BackendType: spec.BackendType, ModelID: spec.ModelID,
+		Env: append([]string(nil), spec.QuotaCheckEnv...), SourceCwd: spec.Cwd}
+}
+
+// QuotaCheckSelection returns the live process's frozen check selection, so a
+// check tests the quota the still-running original uses rather than a catalog
+// edited since launch (TS-04.R97). ok is false when the agent has no live chat
+// process or its launch recorded no sanitized selection.
+func (r *Registry) QuotaCheckSelection(agentID string) (QuotaCheckSpec, bool) {
+	if r == nil || r.chat == nil {
+		return QuotaCheckSpec{}, false
+	}
+	as, err := r.chat.lookup(agentID)
+	if err != nil || len(as.quotaSelection.Env) == 0 {
+		return QuotaCheckSpec{}, false
+	}
+	sel := as.quotaSelection
+	sel.Env = append([]string(nil), sel.Env...)
+	return sel, true
+}
+
 // QuotaCheckOutcome is the typed check result. Outcome is ready, quota,
-// unsupported, failed or timeout; Cleaned is independent of it.
+// unsupported, failed or timeout; Cleaned is independent of it. Intervention
+// marks a resetless quota result that explicitly needs credits, a plan change
+// or a spend-cap change: it stays manual rather than checking again.
 type QuotaCheckOutcome struct {
-	Outcome     string
-	ResetAt     *time.Time
-	ResetSource string
-	SessionID   string
-	Cleaned     bool
+	Outcome      string
+	ResetAt      *time.Time
+	ResetSource  string
+	Intervention bool
+	SessionID    string
+	Cleaned      bool
 }
 
 type quotaCheckProbe struct {
@@ -61,7 +90,7 @@ type quotaCheckProbe struct {
 	tool      bool
 	titled    bool
 	failure   *SessionFailureRecord
-	rateLimit *time.Time
+	rateLimit rateLimitEvidence
 }
 
 func (p *quotaCheckProbe) onNotification(method string, params json.RawMessage) {
@@ -82,9 +111,7 @@ func (p *quotaCheckProbe) onNotification(method string, params json.RawMessage) 
 	}
 	switch kind {
 	case "usage_update":
-		if reset, ok := claudeRateLimitReset(params); ok && (p.rateLimit == nil || reset.After(*p.rateLimit)) {
-			p.rateLimit = &reset
-		}
+		p.rateLimit.observe(params)
 	case "session_info_update":
 		var su struct {
 			Update struct {
@@ -104,7 +131,15 @@ func (p *quotaCheckProbe) onNotification(method string, params json.RawMessage) 
 			} `json:"update"`
 		}
 		if json.Unmarshal(params, &su) == nil && su.Update.Content.Type == "text" && p.reply.Len() < maxQuotaCheckReply {
-			p.reply.WriteString(boundRunes(su.Update.Content.Text, maxQuotaCheckReply-p.reply.Len()))
+			text := su.Update.Content.Text
+			if cut := maxQuotaCheckReply - p.reply.Len(); len(text) > cut {
+				// Clip on a UTF-8 boundary so the byte cap holds for multibyte text.
+				for cut > 0 && !utf8.RuneStart(text[cut]) {
+					cut--
+				}
+				text = text[:cut]
+			}
+			p.reply.WriteString(text)
 		}
 	case "tool_call", "tool_call_update":
 		p.tool = true
@@ -217,7 +252,16 @@ func (c *ChatRuntime) driveQuotaCheck(ctx context.Context, as *agentState, ad ba
 	}
 	params := map[string]any{"cwd": cwd, "mcpServers": []any{}}
 	if spec.BackendType == "claude-acp" {
-		options := map[string]any{"persistSession": false, "tools": []any{}, "strictMcpConfig": true}
+		// No filesystem settings layer: those carry work instructions, hooks,
+		// plugins and MCP. Only their routing keys are carried, as flag settings.
+		options := map[string]any{"persistSession": false, "tools": []any{}, "strictMcpConfig": true, "settingSources": []any{}}
+		routing, err := claudeCheckSettings(as.cmd.Env, spec.SourceCwd)
+		if err != nil {
+			return QuotaCheckOutcome{Outcome: "unsupported"}
+		}
+		if routing != nil {
+			options["settings"] = routing
+		}
 		if spec.ModelID != "" {
 			options["model"] = spec.ModelID
 		}
@@ -290,11 +334,11 @@ func (c *ChatRuntime) driveQuotaCheck(ctx context.Context, as *agentState, ad ba
 	}
 	if failure != nil && failure.Quota {
 		text := failure.Text + "\n" + promptErrorText(err)
-		reset, _ := resolveQuotaReset(spec.BackendType, text, probe.rateLimit, failure.ObservedAt, processZone(as.cmd.Env))
-		out.Outcome, out.ResetAt = "quota", reset
+		reset, intervention := resolveQuotaReset(spec.BackendType, text, probe.rateLimit, failure.ObservedAt, processZone(as.cmd.Env))
+		out.Outcome, out.ResetAt, out.Intervention = "quota", reset, intervention
 		if reset != nil {
 			out.ResetSource = "text"
-			if spec.BackendType == "claude-acp" && probe.rateLimit != nil {
+			if spec.BackendType == "claude-acp" && probe.rateLimit.reset != nil {
 				out.ResetSource = "structured"
 			}
 		}
@@ -387,6 +431,70 @@ func (c *ChatRuntime) CleanupQuotaCheckSession(ctx context.Context, spec QuotaCh
 	return err
 }
 
+// claudeCheckRoutingKeys are the Claude settings that select the account, auth
+// route or model mapping. A check copies only these from the settings layers
+// the original process loads; hooks, instructions, plugins, permissions and
+// MCP stay out (FS-01.R51).
+var claudeCheckRoutingKeys = []string{"env", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport",
+	"forceLoginMethod", "forceLoginOrgUUID", "modelOverrides", "availableModels"}
+
+// claudeCheckSettings reads the user, project and local settings layers of the
+// interrupted work and returns their merged routing keys, nil when there are
+// none. Unreadable layers, or routing that would replace the adapter's own
+// programmatic model configuration, cannot be shown equivalent: unsupported.
+func claudeCheckSettings(env []string, sourceCwd string) (map[string]any, error) {
+	dir := envValue(env, "CLAUDE_CONFIG_DIR")
+	if dir == "" {
+		if home := envValue(env, "HOME"); home != "" {
+			dir = filepath.Join(home, ".claude")
+		}
+	}
+	if dir == "" || sourceCwd == "" {
+		return nil, errQuotaCheckUnsupported
+	}
+	routing, routeEnv := map[string]any{}, map[string]any{}
+	for _, path := range []string{filepath.Join(dir, "settings.json"),
+		filepath.Join(sourceCwd, ".claude", "settings.json"), filepath.Join(sourceCwd, ".claude", "settings.local.json")} {
+		raw, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		var layer map[string]any
+		if err != nil || json.Unmarshal(raw, &layer) != nil {
+			return nil, errQuotaCheckUnsupported
+		}
+		for _, key := range claudeCheckRoutingKeys {
+			v, ok := layer[key]
+			if !ok {
+				continue
+			}
+			if key != "env" {
+				routing[key] = v
+				continue
+			}
+			vars, ok := v.(map[string]any)
+			if !ok {
+				return nil, errQuotaCheckUnsupported
+			}
+			for k, val := range vars {
+				routeEnv[k] = val
+			}
+		}
+	}
+	if len(routeEnv) > 0 {
+		routing["env"] = routeEnv
+	}
+	if len(routing) == 0 {
+		return nil, nil
+	}
+	if envValue(env, "CLAUDE_MODEL_CONFIG") != "" {
+		// The adapter's model configuration is that same settings tier; a
+		// check's routing settings would replace it rather than merge.
+		return nil, errQuotaCheckUnsupported
+	}
+	return routing, nil
+}
+
 // withCodexCheckIsolation disables every MCP server known to the effective
 // Codex configuration layers through the process CODEX_CONFIG overlay, without
 // touching the shared profile or its authentication.
@@ -407,8 +515,22 @@ func withCodexCheckIsolation(env []string) ([]string, error) {
 		}
 	}
 	names := map[string]bool{}
-	if servers, ok := overlay["mcp_servers"].(map[string]any); ok {
-		for name := range servers {
+	if raw, present := overlay["mcp_servers"]; present {
+		servers, ok := raw.(map[string]any)
+		if !ok {
+			return nil, errQuotaCheckUnsupported
+		}
+		for name, server := range servers {
+			names[name] = true
+			if fields, ok := server.(map[string]any); ok {
+				fields["enabled"] = false
+			}
+		}
+	}
+	// The overlay also accepts dotted override keys (`mcp_servers.<name>.command`).
+	for key := range overlay {
+		if rest, ok := strings.CutPrefix(key, "mcp_servers."); ok {
+			name, _, _ := strings.Cut(rest, ".")
 			names[name] = true
 		}
 	}

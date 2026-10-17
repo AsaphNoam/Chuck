@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 type quotaCheckHarness struct {
@@ -32,7 +33,7 @@ func (h quotaCheckHarness) spec(backendType string, env ...string) (QuotaCheckSp
 	recorded := &[]string{}
 	base := []string{"HOME=" + h.dir, "FAKEACP_SCENARIO=stream_text", "FAKEACP_CAPS=1", "FAKEACP_PROMPT_LOG=" + h.prompts,
 		"FAKEACP_NEW_RAW_DUMP=" + h.newDump, "FAKEACP_CLOSE_LOG=" + h.closeLog, "FAKEACP_DELETE_LOG=" + h.delLog}
-	return QuotaCheckSpec{BackendType: backendType, ModelID: "claude-sonnet-4-6", Env: append(base, env...),
+	return QuotaCheckSpec{BackendType: backendType, ModelID: "claude-sonnet-4-6", Env: append(base, env...), SourceCwd: h.dir,
 		OnSessionCreated: func(id string) error {
 			// The probe session is durable before any prompt crosses the wire.
 			if _, err := os.Stat(h.prompts); err == nil {
@@ -68,7 +69,8 @@ func TestQuotaCheckClaudeIsolatedReadyAndClosed(t *testing.T) {
 	}
 	opts := params.Meta.ClaudeCode.Options
 	if string(params.MCPServers) != "[]" || params.Meta.SystemPrompt != nil || opts["persistSession"] != false ||
-		opts["strictMcpConfig"] != true || opts["model"] != "claude-sonnet-4-6" || len(opts["tools"].([]any)) != 0 || opts["additionalDirectories"] != nil {
+		opts["strictMcpConfig"] != true || opts["model"] != "claude-sonnet-4-6" || len(opts["tools"].([]any)) != 0 || opts["additionalDirectories"] != nil ||
+		opts["settingSources"] == nil || len(opts["settingSources"].([]any)) != 0 || opts["settings"] != nil {
 		t.Fatalf("session/new = %s", raw)
 	}
 	if _, err := os.Stat(params.Cwd); !os.IsNotExist(err) {
@@ -80,6 +82,107 @@ func TestQuotaCheckClaudeIsolatedReadyAndClosed(t *testing.T) {
 	prompts, _ := os.ReadFile(h.prompts)
 	if strings.Count(string(prompts), "\n") != 1 || !strings.Contains(string(prompts), quotaCheckPrompt) {
 		t.Fatalf("prompts = %s", prompts)
+	}
+}
+
+// FS-01.R51: the pinned adapter loads user/project/local settings unless the
+// caller's settingSources replaces them, and those layers carry instructions
+// and lifecycle hooks. A check loads none of them and carries only the routing
+// keys the original process would have applied.
+func TestQuotaCheckClaudeExcludesAmbientSettingsButKeepsRouting(t *testing.T) {
+	h := newQuotaCheckHarness(t)
+	project := filepath.Join(h.dir, "project")
+	write := func(path, body string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(h.dir, ".claude", "CLAUDE.md"), "Always greet the user in French.")
+	write(filepath.Join(h.dir, ".claude", "settings.json"), `{"env":{"ANTHROPIC_BASE_URL":"https://gateway.example","SHARED":"user"},
+"apiKeyHelper":"~/bin/key","hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"touch /tmp/hooked"}]}]},"enabledPlugins":{"x":true}}`)
+	write(filepath.Join(project, "CLAUDE.md"), "Project instructions.")
+	write(filepath.Join(project, ".claude", "settings.local.json"), `{"env":{"SHARED":"local"},"permissions":{"allow":["Bash"]}}`)
+	spec, _ := h.spec("claude-acp")
+	spec.SourceCwd = project
+	if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != "ready" {
+		t.Fatalf("outcome = %+v", out)
+	}
+	var params struct {
+		Meta struct {
+			ClaudeCode struct {
+				Options map[string]any `json:"options"`
+			} `json:"claudeCode"`
+		} `json:"_meta"`
+	}
+	raw, _ := os.ReadFile(h.newDump)
+	if err := json.Unmarshal(raw, &params); err != nil {
+		t.Fatal(err)
+	}
+	opts := params.Meta.ClaudeCode.Options
+	settings, _ := json.Marshal(opts["settings"])
+	if sources, ok := opts["settingSources"].([]any); !ok || len(sources) != 0 ||
+		string(settings) != `{"apiKeyHelper":"~/bin/key","env":{"ANTHROPIC_BASE_URL":"https://gateway.example","SHARED":"local"}}` {
+		t.Fatalf("session/new options = %s", raw)
+	}
+
+	// Routing that would replace the adapter's programmatic model
+	// configuration, or an unreadable layer, cannot be shown equivalent.
+	h = newQuotaCheckHarness(t)
+	write(filepath.Join(h.dir, ".claude", "settings.json"), `{"env":{"ANTHROPIC_BASE_URL":"https://gateway.example"}}`)
+	spec, recorded := h.spec("claude-acp", `CLAUDE_MODEL_CONFIG={"availableModels":["sonnet"]}`)
+	if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != "unsupported" || len(*recorded) != 0 {
+		t.Fatalf("model config conflict = %+v", out)
+	}
+	write(filepath.Join(h.dir, ".claude", "settings.json"), `{not json`)
+	spec, recorded = h.spec("claude-acp")
+	if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != "unsupported" || len(*recorded) != 0 {
+		t.Fatalf("unreadable settings = %+v", out)
+	}
+}
+
+// Q5: a Sonnet turn's quota is not scheduled from an Opus-only window.
+func TestQuotaCheckIgnoresAnotherModelsWindow(t *testing.T) {
+	h := newQuotaCheckHarness(t)
+	rate, _ := json.Marshal(map[string]any{"status": "rejected", "rateLimitType": "seven_day_opus",
+		"resetsAt": time.Now().UTC().Add(3 * time.Hour).Unix()})
+	failure := `{"id":"check:error","revision":1,"category":"limit","severity":"error","title":"You've hit your limit","actions":[]}`
+	spec, _ := h.spec("claude-acp", "FAKEACP_RATE_LIMIT="+string(rate), "FAKEACP_FAILURE_RESULT="+failure)
+	if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != "quota" || out.ResetAt != nil {
+		t.Fatalf("outcome = %+v, want resetless quota", out)
+	}
+}
+
+// Q7: an explicit spend-cap/credit refusal is an intervention result.
+func TestQuotaCheckReportsIntervention(t *testing.T) {
+	for backend, title := range map[string]string{
+		"claude-acp": "You've hit your monthly spend limit · ask your admin to raise it at claude.ai/admin-settings/usage",
+		"codex-acp":  "Your workspace is out of credits. Add credits to continue.",
+	} {
+		h := newQuotaCheckHarness(t)
+		failure, _ := json.Marshal(map[string]any{"id": "check:error", "revision": 1, "category": "limit", "severity": "error", "title": title, "actions": []string{}})
+		spec, _ := h.spec(backend, "FAKEACP_FAILURE_RESULT="+string(failure))
+		if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != "quota" || out.ResetAt != nil || !out.Intervention {
+			t.Fatalf("%s outcome = %+v, want intervention", backend, out)
+		}
+	}
+}
+
+// Q9: the reply capture is a byte cap, clipped on a UTF-8 boundary.
+func TestQuotaCheckReplyRespectsByteBound(t *testing.T) {
+	p := &quotaCheckProbe{sessionID: "probe"}
+	chunk := func(text string) {
+		frame, _ := json.Marshal(map[string]any{"sessionId": "probe", "update": map[string]any{"sessionUpdate": "agent_message_chunk",
+			"content": map[string]any{"type": "text", "text": text}}})
+		p.onNotification("session/update", frame)
+	}
+	chunk("a")
+	chunk(strings.Repeat("界", 4096))
+	if got := p.reply.String(); len(got) > maxQuotaCheckReply || len(got) < maxQuotaCheckReply-3 || !utf8.ValidString(got) {
+		t.Fatalf("reply retained %d bytes (valid UTF-8: %v)", len(got), utf8.ValidString(got))
 	}
 }
 
@@ -127,6 +230,33 @@ func TestQuotaCheckCodexRenamesDisablesMCPAndArchives(t *testing.T) {
 	}
 	if deleted, _ := os.ReadFile(h.delLog); !strings.Contains(string(deleted), out.SessionID) {
 		t.Fatalf("session/delete = %s", deleted)
+	}
+}
+
+// Q2: servers named only through the overlay, in either the nested or the
+// dotted override shape, are disabled; ambiguous names refuse isolation.
+func TestCodexCheckIsolationDisablesOverlayServers(t *testing.T) {
+	for name, raw := range map[string]string{
+		"dotted": `{"mcp_servers.docs.command":"docs-mcp","mcp_servers.docs.enabled":true}`,
+		"nested": `{"mcp_servers":{"docs":{"command":"docs-mcp","enabled":true}}}`,
+	} {
+		env, err := withCodexCheckIsolation([]string{"HOME=" + t.TempDir(), "CODEX_CONFIG=" + raw})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		var overlay map[string]any
+		if err := json.Unmarshal([]byte(envValue(env, "CODEX_CONFIG")), &overlay); err != nil {
+			t.Fatal(err)
+		}
+		nested, _ := overlay["mcp_servers"].(map[string]any)
+		if docs, ok := nested["docs"].(map[string]any); overlay["mcp_servers.docs.enabled"] != false || ok && docs["enabled"] != false {
+			t.Fatalf("%s overlay keeps docs enabled: %s", name, envValue(env, "CODEX_CONFIG"))
+		}
+	}
+	for _, raw := range []string{`{"mcp_servers.\"a.b\".enabled":true}`, `{"mcp_servers":"docs"}`} {
+		if _, err := withCodexCheckIsolation([]string{"HOME=" + t.TempDir(), "CODEX_CONFIG=" + raw}); err == nil {
+			t.Fatalf("ambiguous overlay %s was accepted", raw)
+		}
 	}
 }
 

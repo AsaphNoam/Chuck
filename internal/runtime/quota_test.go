@@ -405,3 +405,51 @@ func TestQuotaSettlementCarriesCorroboratedProviderReset(t *testing.T) {
 		t.Fatalf("settlement = %+v, want structured reset %s corroborated by text %q", *calls, structured, text)
 	}
 }
+
+// Q5/Q6 through ordinary settlement: windows that do not apply to this turn's
+// model, an applicable window without a time, and conflicting text beside a
+// structured reset all leave the reset unknown; a matching model window is used.
+func TestQuotaSettlementKeepsResetApplicability(t *testing.T) {
+	future := time.Now().UTC().Add(3 * time.Hour).Truncate(time.Second)
+	window := func(kind string, at *time.Time) string {
+		info := map[string]any{"status": "rejected", "rateLimitType": kind}
+		if at != nil {
+			info["resetsAt"] = at.Unix()
+		}
+		b, _ := json.Marshal(info)
+		return string(b)
+	}
+	clauses := "You've hit your limit · resets " + strings.ToLower(future.Format("3PM")) + " (UTC) · resets " +
+		strings.ToLower(future.Add(time.Hour).Format("3PM")) + " (UTC)"
+	conflicting, _ := json.Marshal(map[string]any{"id": "c:error", "revision": 1, "category": "limit", "severity": "error", "title": clauses, "actions": []string{}})
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want *time.Time
+	}{
+		{"unstamped opus window", []string{"FAKEACP_RATE_LIMIT=" + window("seven_day_opus", &future)}, nil},
+		{"another model's window", []string{"FAKEACP_RATE_LIMIT=" + window("seven_day_opus", &future), "FAKEACP_RATE_MODEL=claude-sonnet-4-6"}, nil},
+		{"matching model window", []string{"FAKEACP_RATE_LIMIT=" + window("seven_day_sonnet", &future), "FAKEACP_RATE_MODEL=claude-sonnet-4-6"}, &future},
+		{"untimed blocker", []string{"FAKEACP_RATE_LIMIT=" + window("seven_day", nil)}, nil},
+		{"conflicting text", []string{"FAKEACP_RATE_LIMIT=" + window("five_hour", &future), "FAKEACP_FAILURE_RESULT=" + string(conflicting)}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := append([]string{"FAKEACP_FAILURE_RESULT=" + quotaFailure("sonnet:error", 1, "limit", "error")}, tc.env...)
+			c, h, ch, _ := startQuotaTestAgent(t, "stream_text", env...)
+			mu, calls := recordQuotaSettlement(c)
+			if err := c.SendPrompt(context.Background(), h.AgentID, "hello"); err != nil {
+				t.Fatal(err)
+			}
+			drainTurn(t, ch)
+			mu.Lock()
+			defer mu.Unlock()
+			if len(*calls) != 1 || (*calls)[0].quota == nil {
+				t.Fatalf("settlement = %+v", *calls)
+			}
+			got := (*calls)[0].quota.ResetAt
+			if tc.want == nil && got != nil || tc.want != nil && (got == nil || !got.Equal(*tc.want)) {
+				t.Fatalf("reset = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

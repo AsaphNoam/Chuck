@@ -32,6 +32,9 @@ const (
 var (
 	ErrQuotaConflict = errors.New("state: quota episode conflict")
 	ErrQuotaOwner    = errors.New("state: invalid quota owner")
+	// ErrQuotaCleanupPending refuses deleting a conversation that still owns
+	// an unresolved exact quota-check cleanup reference.
+	ErrQuotaCleanupPending = errors.New("state: quota check cleanup pending")
 )
 
 // QuotaOwner is a closed reference to work that already exists. Fields are

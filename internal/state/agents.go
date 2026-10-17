@@ -227,14 +227,35 @@ func (s *Store) RestoreAgentArchiveStates(states map[string]bool) error {
 // DeleteAgent removes conversation-owned attachment bytes, then deletes the
 // agent and cascades dependent state rows. The durable identity stays until
 // byte cleanup succeeds, so a failed cleanup remains owned and retryable.
+// An unresolved exact quota-check cleanup reference refuses deletion: the
+// cascade would drop the only record of that provider session (TS-02.R50).
 func (s *Store) DeleteAgent(id string) error {
+	pending := func() error {
+		var n int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM quota_intents WHERE agent_id = ? AND check_session <> ''`, id).Scan(&n); err != nil {
+			return fmt.Errorf("state: read quota check cleanup: %w", err)
+		}
+		if n > 0 {
+			return ErrQuotaCleanupPending
+		}
+		return nil
+	}
+	if err := pending(); err != nil {
+		return err
+	}
 	if s.home != "" {
 		if err := attachment.New(s.home).DeleteConversation(id); err != nil {
 			return fmt.Errorf("state: remove deleted conversation attachments: %w", err)
 		}
 	}
-	if _, err := s.db.Exec(`DELETE FROM agents WHERE agent_id = ?`, id); err != nil {
+	// The guard repeats in the delete itself so a session recorded meanwhile
+	// keeps its owner.
+	res, err := s.db.Exec(`DELETE FROM agents WHERE agent_id = ? AND NOT EXISTS (SELECT 1 FROM quota_intents WHERE agent_id = ? AND check_session <> '')`, id, id)
+	if err != nil {
 		return fmt.Errorf("state: delete agent: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return pending()
 	}
 	return nil
 }

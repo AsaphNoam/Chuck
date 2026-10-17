@@ -109,58 +109,74 @@ func uniqueMatch(re *regexp.Regexp, text string) ([]string, bool) {
 	return all[0], true
 }
 
-// claudeTextReset parses the rejected-error reset clause. Time-only means the
-// unique future occurrence within the producer's 24-hour horizon.
-func claudeTextReset(text string, observed time.Time) (time.Time, bool) {
+// claudeTextCandidates parses the rejected-error reset clause into the
+// minute-starts it can denote. The producer truncates seconds, so a candidate
+// whose displayed minute is still running is plausible. Time-only text may
+// mean today or tomorrow within the producer's 24-hour horizon; two plausible
+// days are ambiguous. present reports that the text carried reset evidence at
+// all, so a conflicting or unparseable clause is never mistaken for absence.
+func claudeTextCandidates(text string, observed time.Time) (cands []time.Time, present bool) {
+	if !claudeResetClause.MatchString(text) {
+		return nil, false
+	}
 	m, ok := uniqueMatch(claudeResetClause, text)
 	if !ok {
-		return time.Time{}, false
+		return nil, true
 	}
 	loc, err := time.LoadLocation(m[7])
 	if err != nil {
-		return time.Time{}, false
+		return nil, true
 	}
 	hh, ok := hour12(atoi(m[4]), m[6])
 	if !ok {
-		return time.Time{}, false
+		return nil, true
 	}
 	mm := 0
 	if m[5] != "" {
 		if mm = atoi(m[5]); mm < 1 || mm > 59 { // the producer omits ":00"
-			return time.Time{}, false
+			return nil, true
 		}
+	}
+	plausible := func(t time.Time) bool {
+		return t.Add(time.Minute).After(observed) && !t.After(observed.Add(24*time.Hour))
 	}
 	local := observed.In(loc)
 	if m[1] == "" {
-		var found []time.Time
 		for day := 0; day <= 1; day++ {
 			y, mo, d := local.AddDate(0, 0, day).Date()
 			t, ok := localWall(loc, y, mo, d, hh, mm)
 			if !ok {
-				return time.Time{}, false
+				return nil, true
 			}
-			if t.After(observed) && !t.After(observed.Add(24*time.Hour)) {
-				found = append(found, t)
+			if plausible(t) {
+				cands = append(cands, t.UTC())
 			}
 		}
-		if len(found) != 1 {
-			return time.Time{}, false
-		}
-		return found[0].UTC(), true
+		return cands, true
 	}
 	mo, known := monthAbbrev[m[1]]
 	if !known {
-		return time.Time{}, false
+		return nil, true
 	}
 	y := local.Year()
 	if m[3] != "" {
 		y = atoi(m[3])
 	}
 	t, ok := localWall(loc, y, mo, atoi(m[2]), hh, mm)
-	if !ok || !t.After(observed) {
+	if !ok || !t.Add(time.Minute).After(observed) {
+		return nil, true
+	}
+	return []time.Time{t.UTC()}, true
+}
+
+// claudeTextReset is the text-only reading: exactly one plausible candidate,
+// which must lie in the future.
+func claudeTextReset(text string, observed time.Time) (time.Time, bool) {
+	cands, _ := claudeTextCandidates(text, observed)
+	if len(cands) != 1 || !cands[0].After(observed) {
 		return time.Time{}, false
 	}
-	return t.UTC(), true
+	return cands[0], true
 }
 
 // codexTextReset parses the `try again at` suffix in the provider process's
@@ -222,10 +238,21 @@ func atoi(s string) int {
 	return n
 }
 
-// claudeRateLimitReset decodes `usage_update._meta["_claude/rateLimit"]`.
-// Pinned native 2.1.286 states resetsAt is Unix epoch seconds; only a rejected
-// ordinary subscription window applies, never an overage/allowed window.
-func claudeRateLimitReset(params json.RawMessage) (time.Time, bool) {
+// rateLimitEvidence accumulates one turn's rejected Claude windows
+// (TS-04.R87/R96): the latest reset among applicable blockers, and whether any
+// blocker lacked a usable time or provable applicability.
+type rateLimitEvidence struct {
+	reset   *time.Time
+	unknown bool
+}
+
+// observe folds one `usage_update._meta["_claude/rateLimit"]` frame into e.
+// Pinned native 2.1.286 states resetsAt is Unix epoch seconds. Ordinary
+// five-hour/seven-day windows apply to every model; a model-specific window
+// applies only when the frame's `_claude/model` is that family. Overage and
+// unrecognized rejected windows cannot be shown applicable, and an applicable
+// window without a valid time makes the combined reset unknown.
+func (e *rateLimitEvidence) observe(params json.RawMessage) {
 	var su struct {
 		Update struct {
 			SessionUpdate string `json:"sessionUpdate"`
@@ -235,61 +262,84 @@ func claudeRateLimitReset(params json.RawMessage) (time.Time, bool) {
 					ResetsAt      *float64 `json:"resetsAt"`
 					RateLimitType string   `json:"rateLimitType"`
 				} `json:"_claude/rateLimit"`
+				Model string `json:"_claude/model"`
 			} `json:"_meta"`
 		} `json:"update"`
 	}
 	if len(params) > maxSessionFailureBytes || json.Unmarshal(params, &su) != nil || su.Update.SessionUpdate != "usage_update" {
-		return time.Time{}, false
+		return
 	}
 	rl := su.Update.Meta.RateLimit
-	if rl == nil || rl.Status != "rejected" || rl.ResetsAt == nil {
-		return time.Time{}, false
+	if rl == nil || rl.Status != "rejected" {
+		return
 	}
 	switch rl.RateLimitType {
-	case "five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet", "seven_day_overage_included":
+	case "five_hour", "seven_day":
+	case "seven_day_opus", "seven_day_sonnet":
+		model := strings.ToLower(su.Update.Meta.Model)
+		if model == "" {
+			e.unknown = true
+			return
+		}
+		if !strings.Contains(model, strings.TrimPrefix(rl.RateLimitType, "seven_day_")) {
+			return // another model's window does not block this one
+		}
 	default:
-		return time.Time{}, false
+		e.unknown = true
+		return
+	}
+	if rl.ResetsAt == nil {
+		e.unknown = true
+		return
 	}
 	secs := *rl.ResetsAt
 	if math.IsNaN(secs) || math.IsInf(secs, 0) || secs <= 0 || secs > 1<<40 || secs != math.Trunc(secs) {
-		return time.Time{}, false
+		e.unknown = true
+		return
 	}
-	return time.Unix(int64(secs), 0).UTC(), true
+	if t := time.Unix(int64(secs), 0).UTC(); e.reset == nil || t.After(*e.reset) {
+		e.reset = &t
+	}
 }
 
 // resolveQuotaReset combines structured evidence (second precision) with
-// provider text (minute precision). A structured instant inside the displayed
-// minute corroborates it; any other disagreement is unknown.
-func resolveQuotaReset(backendType, text string, structured *time.Time, observed time.Time, zone *time.Location) (*time.Time, bool) {
-	var parsed time.Time
+// provider text (minute precision). A structured instant inside a candidate's
+// displayed minute corroborates it; conflicting, ambiguous or incomplete
+// evidence is unknown. Intervention reports explicit credit/plan/spend-cap
+// text, counted only when no reset was established.
+func resolveQuotaReset(backendType, text string, structured rateLimitEvidence, observed time.Time, zone *time.Location) (*time.Time, bool) {
+	var cands []time.Time
 	var hasText bool
 	switch backendType {
 	case "claude-acp":
-		parsed, hasText = claudeTextReset(text, observed)
+		cands, hasText = claudeTextCandidates(text, observed)
 	case "codex-acp":
-		parsed, hasText = codexTextReset(text, observed, zone)
-		structured = nil // no verified structured carrier
+		hasText = codexResetClause.MatchString(text)
+		if t, ok := codexTextReset(text, observed, zone); ok {
+			cands = []time.Time{t}
+		}
+		structured = rateLimitEvidence{} // no verified structured carrier
 	default:
 		return nil, false
 	}
-	var reset time.Time
+	var reset *time.Time
 	switch {
-	case structured != nil && hasText:
-		if structured.Before(parsed) || !structured.Before(parsed.Add(time.Minute)) {
-			return nil, false
+	case structured.unknown:
+	case structured.reset != nil && hasText:
+		for _, c := range cands {
+			if !structured.reset.Before(c) && structured.reset.Before(c.Add(time.Minute)) {
+				reset = structured.reset
+			}
 		}
-		reset = *structured
-	case structured != nil:
-		reset = *structured
-	case hasText:
-		reset = parsed
-	default:
+	case structured.reset != nil:
+		reset = structured.reset
+	case len(cands) == 1:
+		reset = &cands[0]
+	}
+	if reset == nil || !reset.After(observed) {
 		return nil, quotaInterventionText(backendType, text)
 	}
-	if !reset.After(observed) {
-		return nil, false
-	}
-	return &reset, false
+	return reset, false
 }
 
 func quotaInterventionText(backendType, text string) bool {

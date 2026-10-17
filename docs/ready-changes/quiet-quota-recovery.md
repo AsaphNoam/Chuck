@@ -1,6 +1,6 @@
 # Recover quota-interrupted work without noisy wake-ups
 
-**State:** Finished (2026-10-17); awaiting review
+**State:** Finished (2026-10-17); reviewed 2026-10-17, findings Q1–Q9 fixed 2026-10-17; live gates owed
 **Why:** Direct `/design-feature` request on 2026-10-16. The operator confirmed reset extraction
 and bounded recovery, requested checks outside the interrupted conversation, and approved named
 Codex native archive records for isolated probes.
@@ -72,18 +72,17 @@ unsupported versions/isolation remain manual, with no wake-probe fallback in the
    `~/.codex`, `/etc/codex`) via dotted `mcp_servers.<name>.enabled:false` keys, then
    corroborates `/rename Chuck quota check` before the probe. Permissions are cancelled and
    count as tool activity. Fake ACP gained `FAKEACP_NEW_RAW_DUMP`, `FAKEACP_CLOSE_LOG`,
-   `/rename` handling and `FAKEACP_RENAME_SILENT`. Reviewer notes: Claude keeps default
-   `settingSources` to preserve account routing; the dotted-key overlay semantics need A34's
-   live receipt. Next: build the server spec like `composeResumeSpecContext`
+   `/rename` handling and `FAKEACP_RENAME_SILENT`. Review Q1 rejected keeping default
+   `settingSources`: checks now pass `settingSources:[]` with routing-only `settings` (TS-04.R97).
+   The dotted-key overlay semantics still need A34's live receipt. Next: build the server spec like `composeResumeSpecContext`
    (`internal/server/resume.go`) without `composeResumeSpec`'s MCP/hook registration.
 4. **Done** — dispatcher wiring (TS-10.R45–R47): `settleQuotaTurn` sets `Check` for an
    unknown reset unless the text demands intervention; `dispatchQuotaContinuations` routes
    `next_action:check` claims to `runQuotaCheck` (`internal/server/quota_check.go`), which
    charges under the admission locks, runs the check after releasing them, and cancels it when
    a 500 ms watcher sees the row leave its claim (covers every cancel/disable/delete path).
-   `cleanupQuotaChecks` retries exact references at most every 10 min. Reviewer note: deleting
-   an agent while a failed Codex cleanup reference is pending drops that reference with the row
-   (the archived/unarchived probe thread may remain); no pre-delete cleanup hook was added.
+   `cleanupQuotaChecks` retries exact references at most every 10 min. Review Q8: deletion now
+   refuses while a cleanup reference is pending (`ErrQuotaCleanupPending`, TS-02.R50).
 5. **Done** — API/UI (TS-03.R72, FS-04.R59): projection `next_action`/`checks_remaining`;
    `ui/src/lib/quota.ts` defaults an absent action to continue; `QuotaBanner` shows **Will check
    again at …**, **Checking quota…**, checks left, the seven `check_*` reasons and keeps Cancel for

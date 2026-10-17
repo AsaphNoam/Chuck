@@ -18,12 +18,14 @@ const (
 )
 
 // QuotaCheckResult is the bounded outcome of one check. Cleaned reports that
-// the exact probe session/process was disposed.
+// the exact probe session/process was disposed. Intervention marks a resetless
+// quota result naming a credit, plan or spend-cap requirement.
 type QuotaCheckResult struct {
-	Outcome     string
-	ResetAt     *time.Time
-	ResetSource string
-	Cleaned     bool
+	Outcome      string
+	ResetAt      *time.Time
+	ResetSource  string
+	Intervention bool
+	Cleaned      bool
 }
 
 // StartQuotaCheck charges the chain's allowance once, before the provider
@@ -87,6 +89,11 @@ func (s *Store) FinishQuotaCheck(agentID, episode string, revision int64, token 
 	case r.Outcome == QuotaCheckQuota && r.ResetAt != nil && r.ResetAt.After(now) && (r.ResetSource == "structured" || r.ResetSource == "text"):
 		d := r.ResetAt.Add(QuotaResetBuffer)
 		state, action, resetAt, due, source = QuotaScheduled, QuotaActionContinue, r.ResetAt, &d, r.ResetSource
+	case r.Outcome == QuotaCheckQuota && r.Intervention:
+		// Explicit credit/plan/spend-cap errors stay manual, exactly like an
+		// interruption first observed with that text (FS-01.R49).
+		state = QuotaUnknownReset
+		action = QuotaActionContinue
 	case r.Outcome == QuotaCheckQuota && q.ChecksStarted >= MaxQuotaChecks:
 		reason = "check_exhausted"
 	case r.Outcome == QuotaCheckQuota:

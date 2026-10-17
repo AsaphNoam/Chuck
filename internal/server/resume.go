@@ -520,6 +520,7 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 		Effort:             agent.Effort,
 		Fast:               agent.Fast,
 		Env:                composeChildEnv(be.Type, s.configStore.Home(), be.Env, model.Env, s.hookEnv(agent, token), projectResourcesEnv(resourceDir), providerEnv),
+		QuotaCheckEnv:      s.quotaCheckEnv(be, model, providerEnv),
 		ProviderExecutable: provider.Path,
 		ProviderSource:     provider.Source,
 		SkipPerms:          snap.SkipPermissions,

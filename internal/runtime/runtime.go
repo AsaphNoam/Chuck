@@ -53,6 +53,10 @@ type LaunchSpec struct {
 	Driver     string
 	Env        []string // composed env layering (backend then per-model override), "K=V"
 	RuntimeEnv []string // process-only final env; empty means use the frozen Env
+	// QuotaCheckEnv is this process's provider environment without hook,
+	// resource or coordination layers: the frozen selection an isolated quota
+	// check reuses while the process lives (TS-04.R97). Empty means unknown.
+	QuotaCheckEnv []string
 	// ProviderExecutable is the Claude/Codex executable the shared resolver
 	// selected for this process start (TS-04.R75). The terminal runtime runs it
 	// directly; chat receives it through the adapter's override key in Env.
