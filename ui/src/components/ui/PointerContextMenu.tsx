@@ -1,6 +1,11 @@
-import { useEffect } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useMenuPlacement } from "../../lib/menuPlacement";
+
+/** Where pointer menus mount. A modal provides its own content element so its
+ *  menus stay inside its focus trap and outside its dismissal area; everywhere
+ *  else menus mount on the document body (TS-08.R129). */
+export const MenuPortalContext = createContext<HTMLElement | null>(null);
 
 export type PointerMenuState = {
   x: number;
@@ -10,6 +15,7 @@ export type PointerMenuState = {
 
 export function PointerContextMenu({ menu, onClose }: { menu: PointerMenuState | null; onClose: () => void }) {
   const placement = useMenuPlacement(menu);
+  const destination = useContext(MenuPortalContext);
 
   useEffect(() => {
     if (!menu) return;
@@ -45,6 +51,6 @@ export function PointerContextMenu({ menu, onClose }: { menu: PointerMenuState |
         </button>
       ))}
     </div>,
-    document.body,
+    destination ?? document.body,
   );
 }

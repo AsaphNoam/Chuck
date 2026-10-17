@@ -153,7 +153,11 @@ describe("AnnotationTray", () => {
     // out of flow — giving the jump button a grid area of its own displaced the
     // transcript into the tray's column, invisible to jsdom and obvious in Chrome.
     expect(css).toMatch(/\.transcript-view \{[^}]*grid-column: 2/);
-    expect(css).toMatch(/\.annotation-tray \{[^}]*grid-column: 3/);
+    // The overlay is placed against the whole region: the trailing track is
+    // zero wide while the tray floats, and a containing block of that track
+    // squeezed the overlay to a sliver. Only the docked form takes it.
+    expect(css).toMatch(/\.annotation-tray \{[^}]*grid-column: 1 \/ -1/);
+    expect(docked![1]).toMatch(/\.annotation-tray \{[^}]*grid-column: 3/);
     expect(css).toMatch(/\.jump-to-latest \{[^}]*position: absolute/);
     expect(css).not.toMatch(/\.jump-to-latest \{[^}]*grid-area/);
     // The collapse control belongs to the docked form only (FS-13.R21).

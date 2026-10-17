@@ -20,6 +20,11 @@
     "reason": "Coordinates are live pointer position data"
   },
   {
+    "file": "src/components/chat/AgentStage.tsx",
+    "rule": "inline-style",
+    "reason": "Reader workspace file, tray and conversation widths are measured allocation values (TS-08.R128)"
+  },
+  {
     "file": "src/components/ui/PointerContextMenu.tsx",
     "rule": "inline-style",
     "reason": "Shared pointer-menu coordinates are live pointer position data"

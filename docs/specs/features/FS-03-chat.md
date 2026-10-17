@@ -700,7 +700,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   remains inspectable in transcript activity; FS-05.R40 preserves capture, tracking endpoints,
   archive counts and stored history. No replacement command-history screen is added.
 
-- **R92 (planned) — Files have a contained, readable document surface.** Rendered Markdown in
+- **R92 — Files have a contained, readable document surface.** Rendered Markdown in
   the shared file viewer has clear paragraph, heading, list and blockquote spacing, with body
   text at the ordinary chat reading size. Prose, links and inline code wrap within the available
   document width. Wide tables, fenced code and diagrams stay within their own bounded surfaces;
@@ -708,7 +708,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Focused prose uses a comfortable reading measure while technical blocks may use the reader's
   available width. The file path remains discoverable in full and actions remain reachable at
   narrow widths. These treatments apply in the shared viewer, including its existing room use.
-- **R93 (planned) — Adjacent file, conversation and annotations share adjustable space.** On
+- **R93 — Adjacent file, conversation and annotations share adjustable space.** On
   desktop live and archived agent pages, the reader remains left of the conversation and pending
   annotations remain right. Opening a file initially gives it roughly half of the space left
   after a docked annotation tray. A visible divider resizes file versus conversation; a second
@@ -722,7 +722,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   This supersedes R53/R65 and FS-12.R61 only for width allocation, and refines FS-13.R20's docking
   threshold to require room for the visible reading surfaces. Dashboard links still open the
   full agent page rather than adding a viewer to its embedded pane.
-- **R94 (planned) — Focus file temporarily gives the document the workspace.** The adjacent
+- **R94 — Focus file temporarily gives the document the workspace.** The adjacent
   reader offers **Focus file**, opening a viewport-fitted modal with the current file, path,
   Rendered/Source choice, read timestamp, partial-read notice and Reload. The conversation remains
   mounted and continues receiving events underneath; its controls are inert while the modal is
@@ -733,7 +733,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   backdrop click restores the adjacent reader; **Close file** closes the reader entirely. An
   inner menu consumes Escape before the modal. Focus stays inside the modal and returns to its
   invoking control (or the conversation if the file was closed).
-- **R95 (planned) — Resizing and focus preserve the reading task.** Entering/leaving focus,
+- **R95 — Resizing and focus preserve the reading task.** Entering/leaving focus,
   resizing or collapsing annotations retains the same loaded file snapshot, selected display
   mode, approximate reading location, transcript scroll/follow state, composer draft and pending
   annotation instructions. Those actions do not read the file again, send a prompt or create an
@@ -742,7 +742,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   source-to-rendered scroll synchronization. A different file replaces the current file in the
   chosen presentation, resets its positions, and keeps point-in-time annotation drafts. Reload
   remains explicit and loading/refusal/partial states remain readable in either presentation.
-- **R96 (planned) — Reader layout changes stay local and bounded.** Divider choices last for
+- **R96 — Reader layout changes stay local and bounded.** Divider choices last for
   the open workspace and carry across file replacements there; a reload or leaving that workspace
   restores default sizing and the adjacent form. Existing file/line URL parameters retain R54's
   open-file behavior, and focus adds no history entry. No new browser-stored preference, durable
@@ -750,7 +750,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   is added. R64's actual local read authority and explicit read semantics remain authoritative.
   Editing, file tabs/history, directory browsing, outline, in-file search, a new phone reader,
   and changes to the Think Tank room layout are excluded.
-- **R97 (planned) — Reader controls use intentional English copy.** New reader labels,
+- **R97 — Reader controls use intentional English copy.** New reader labels,
   accessible names, tooltips and authored status/error messages follow the application's English
   vocabulary. Do not introduce stray Chinese characters or use arbitrary text glyphs as action
   icons; reuse the existing icon construction with English accessible names. This governs
@@ -1334,21 +1334,21 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   ("withdraw returns the held text…", "withdraw keeps text typed…"), `TranscriptView.test.tsx`
   ("offers to load a withdrawn attachment message…").
 
-- **A71 (planned)** (R92) — Read representative Markdown with long paths/URLs/inline code,
+- **A71** (R92) — Read representative Markdown with long paths/URLs/inline code,
   nested lists, blockquotes, wide tables, long fenced lines, diagrams and a long filename.
   At 1024px and wider desktop widths in Core, Sky & Grove and Studio, prose remains contained
   and legible, document/page horizontal overflow is absent, needed technical scrolling stays
   local, and header actions remain reachable. Check both adjacent and focus forms plus the
   existing room file viewer. *Verify:* real-browser geometry and visual inspection, shared
   Markdown/viewer component cases and presentation checks.
-- **A72 (planned)** (R93, R96) — From a file link in live and archived chat, resize both
+- **A72** (R93, R96) — From a file link in live and archived chat, resize both
   boundaries by pointer and keyboard, reset, open/collapse/remove annotations, and narrow/widen
   the window. Check initial file priority, minimum widths, proportional recovery, overlay fallback
   leaving the file unobscured, and no page overflow. Replace the file and retain sizing; reload
   and restore default sizing with the same URL-addressed file. A dashboard link still opens the
   agent page. *Verify:* layout state/component tests and a real-browser journey at 1024px,
   1440px and a wider viewport in every desktop appearance.
-- **A73 (planned)** (R94–R95) — Scroll a loaded file and transcript away from their starts,
+- **A73** (R94–R95) — Scroll a loaded file and transcript away from their starts,
   type a composer draft, and create both file and transcript annotation drafts. Focus the file,
   edit an annotation, open a different relative file link, Reload, then return by button,
   Escape and backdrop in separate passes. The same tray works inside focus, no layout action
@@ -1356,27 +1356,33 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   inner-menu Escape, focus restoration and Close file. Repeat with an archived source, a refusal
   and a partial file; let transcript events arrive underneath the modal. *Verify:* viewer/tray
   integration tests and a real-browser task journey in all desktop appearances.
-- **A74 (planned)** (R95–R96) — Switch Rendered/Source after scrolling each, enter/leave focus,
+- **A74** (R95–R96) — Switch Rendered/Source after scrolling each, enter/leave focus,
   replace the file, and open a cited source line. Check independent display positions, retained
   read timestamp across layout changes, explicit Reload, stale-read suppression, default docked
   reopening from a copied/reloaded address, and unchanged point-in-time annotations. Assert that
   layout changes add no file read, durable event, prompt or browser-storage write. *Verify:*
   focused viewer/workspace tests and the A73 browser journey.
 
-- **A75 (planned)** (R97) — Inspect the new reader controls, resize announcements, tooltips,
+- **A75** (R97) — Inspect the new reader controls, resize announcements, tooltips,
   loading/refusal/partial states and accessible names in both presentations. All Chuck-authored
   copy is intentional English, with no accidental Chinese characters; source contents, paths
   and captured excerpts remain unchanged. *Verify:* component assertions against the specified
   English labels, a review of added UI literals and A71–A73's rendered journeys. Do not implement
   character stripping or reject legitimate non-English file content to satisfy this check.
 
+A71–A75 are covered by `readerLayout.test.ts`, `ReaderWorkspace.test.tsx` and the existing
+`FileViewer`/`AnnotationTray` tests, plus `ui/scripts/file-reader-journey.mjs` (live and archived
+pages, Core/Sky & Grove/Studio at 1024, 1440 and 2137px, nested New task launch) and
+`ui/scripts/room-render.mjs <out> file` for the room viewer.
+
 ## 6. Deviations & open decisions
 
-- **File reader design approved, 2026-10-17:** the operator confirmed the resizable split reader,
-  optional Focus file modal, shared annotations and page-lifetime sizing, and explicitly required
-  avoiding accidental Chinese characters in authored UI. R92–R97/A71–A75 remain planned until
-  implemented. TS-08.R127–R132 defines the technical contract; the waiting unit is
-  `docs/ready-changes/roomier-file-reader.md`.
+- **File reader shipped, 2026-10-17:** the operator approved the resizable split reader, optional
+  Focus file modal, shared annotations and page-lifetime sizing, and required avoiding
+  accidental Chinese characters in authored UI. TS-08.R127–R132 is the technical contract.
+  Where three useful columns do not fit, the tray uses the transcript region's existing overlay,
+  so it covers neither the file nor the composer; in a short transcript region that overlay may
+  leave little height for drafts, and Focus file is the roomier path.
 
 - R81–R86/A62–A65 were approved 2026-10-12 and implemented 2026-10-13. Verification: all 805 UI
   tests in 88 files pass; rendered desktop checks cover Core, Sky & Grove and Studio, and Core

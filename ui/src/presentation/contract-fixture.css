@@ -65,6 +65,27 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  /* Reader workspace fixtures: fixed heights and allocated widths stand in for
+     the stage's measured values. */
+  .visual-matrix-reader > .chat-stage {
+    --ad-reader-file-width: 440px;
+    --ad-reader-tray-width: 300px;
+
+    height: 420px;
+  }
+
+  .visual-matrix-reader > .visual-matrix-reader-narrow {
+    --ad-reader-file-width: 360px;
+
+    max-width: 960px;
+  }
+
+  .visual-matrix-reader > .visual-matrix-focus {
+    height: 520px;
+    position: relative;
+    inset: auto;
+  }
+
   .visual-matrix-transcript {
     background: var(--ad-surface-raised);
     border: var(--ad-border-thin) solid var(--ad-border-strong);

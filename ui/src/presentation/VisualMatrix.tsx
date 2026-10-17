@@ -10,6 +10,7 @@ import { DiffBlock } from "../components/chat/renderers/DiffBlock";
 import { ToolCall } from "../components/chat/renderers/ToolCall";
 import { ToolResult } from "../components/chat/renderers/ToolResult";
 import { Composer } from "../components/chat/Composer";
+import { FileViewerView, type FileReader } from "../components/chat/FileViewer";
 import { QuotaBanner } from "../components/agent/QuotaBanner";
 import { NoticeRow } from "../components/chat/renderers/NoticeRow";
 import type { AgentState, AgentStatus } from "../api/types";
@@ -277,6 +278,8 @@ export function VisualMatrix() {
         </div>
       </section>
 
+      <ReaderFixtures />
+
       <section className="visual-matrix-section visual-matrix-columns">
         <article className="pipeline-run-page" data-ui="pipeline-run">
           <section className="pipeline-run-hero" data-slot="live">
@@ -332,6 +335,100 @@ export function VisualMatrix() {
         </div>
       </section>
     </div>
+  );
+}
+
+const readerMarkdown = [
+  "# Reader fixture",
+  "",
+  "Prose wraps `internal/server/deeply/nested/directory/with/a/long/path/handler_with_a_long_name.go` inside the document.",
+  "",
+  "| Column | A deliberately wide value |",
+  "|---|---|",
+  `| alpha | ${"wide-value-".repeat(12)} |`,
+  "",
+  "```go",
+  `func Handler() { log.Printf("${"a long log line ".repeat(8)}") }`,
+  "```",
+  "",
+  "> A quoted note keeps the document rhythm.",
+].join("\n");
+
+// One static reader per presentation the workspace can take (TS-08.R132): the
+// fixture shares the real view; widths come from the fixture stylesheet.
+function matrixReader(): FileReader {
+  return {
+    link: { path: "docs/reader-fixture-with-a-deliberately-long-file-name.md" },
+    view: { status: "loaded", readAt: new Date("2026-10-17T09:00:00Z"), file: { agent_id: "fixture", path: "docs/reader-fixture-with-a-deliberately-long-file-name.md", size: readerMarkdown.length, mod_time: "", line_count: 13, content: readerMarkdown, truncated: false, language: "markdown" } },
+    rendered: true,
+    setRendered: () => undefined,
+    reload: () => undefined,
+    positions: { current: { rendered: null, source: null } },
+    pendingLine: { current: null },
+  };
+}
+
+function MatrixTray({ collapsed = false }: { collapsed?: boolean }) {
+  return (
+    <aside className="annotation-tray" data-ui="annotation-tray" data-state={collapsed ? "collapsed" : "expanded"} aria-label="Pending annotations">
+      <header className="annotation-tray-header">
+        <div><strong className="annotation-tray-title">Pending annotations</strong><span>2/20</span></div>
+        <div><button type="button" className="annotation-tray-collapse ad-button-icon" aria-label={collapsed ? "Expand pending annotations" : "Collapse pending annotations"}>{collapsed ? "‹" : "›"}</button><button type="button" className="annotation-tray-discard ad-button-danger">Discard all</button></div>
+      </header>
+      <div className="annotation-tray-body">
+        <ol className="annotation-drafts"><li className="annotation-draft"><div className="annotation-draft-head"><h3 className="annotation-draft-anchor">File docs/reader-fixture.md</h3></div><blockquote>Prose wraps inside the document.</blockquote></li></ol>
+      </div>
+      <footer className="annotation-tray-footer"><button type="button" className="annotation-send ad-button-primary">Send annotations</button></footer>
+    </aside>
+  );
+}
+
+function MatrixDivider({ variant }: { variant: "file" | "annotations" }) {
+  return <div className="workspace-divider" data-ui="workspace-divider" data-variant={variant} role="separator" aria-orientation="vertical" aria-label={variant === "file" ? "Resize file and conversation" : "Resize annotations and conversation"} tabIndex={0} />;
+}
+
+function MatrixConversation({ overlay = false }: { overlay?: boolean }) {
+  return (
+    <div className="chat-card">
+      <div className="transcript-wrap">
+        <div className="transcript-view" data-slot="list">
+          <AssistantText event={{ kind: "assistant_text", text: "The conversation keeps its own reading column beside the file." }} />
+        </div>
+        {overlay && <MatrixTray />}
+      </div>
+    </div>
+  );
+}
+
+function ReaderFixtures() {
+  return (
+    <section className="visual-matrix-section visual-matrix-reader">
+      <h2>File reader workspace</h2>
+      <div className="chat-stage" data-file="open" data-tray="docked">
+        <div className="chat-side chat-side-start"><FileViewerView reader={matrixReader()} variant="docked" onClose={() => undefined} actions={<button type="button" className="ad-button-secondary">Focus file</button>} /></div>
+        <MatrixDivider variant="file" />
+        <MatrixConversation />
+        <MatrixDivider variant="annotations" />
+        <div className="chat-side chat-side-end"><MatrixTray /></div>
+      </div>
+      <div className="chat-stage" data-file="open" data-tray="collapsed">
+        <div className="chat-side chat-side-start"><FileViewerView reader={matrixReader()} variant="docked" onClose={() => undefined} /></div>
+        <MatrixDivider variant="file" />
+        <MatrixConversation />
+        <div className="chat-side chat-side-end"><MatrixTray collapsed /></div>
+      </div>
+      <div className="chat-stage visual-matrix-reader-narrow" data-file="open" data-tray="overlay">
+        <div className="chat-side chat-side-start"><FileViewerView reader={matrixReader()} variant="docked" onClose={() => undefined} /></div>
+        <MatrixDivider variant="file" />
+        <MatrixConversation overlay />
+      </div>
+      <div className="dialog-content file-focus visual-matrix-focus">
+        <div className="file-focus-body" data-tray="closed">
+          <FileViewerView reader={matrixReader()} variant="focused" onClose={() => undefined} closeLabel="Close file" actions={<button type="button" className="ad-button-secondary">Return to chat</button>} />
+          <MatrixTray />
+        </div>
+      </div>
+    </section>
   );
 }
 

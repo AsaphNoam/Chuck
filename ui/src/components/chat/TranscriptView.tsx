@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import type { AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../../api/types";
 import { clipAnnotationExcerpt } from "../../lib/annotations";
 import { copyText } from "../../lib/copyText";
@@ -24,9 +23,9 @@ import { useReasoningStore } from "../../store/reasoningStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { projectTurns } from "./turnActivity";
 import { TurnList, useFocusReturn, useTurnChoices } from "./TurnList";
-import { AnnotationTray } from "./AnnotationTray";
 import { AnnotationContextMenu, type AnnotationMenuState } from "./AnnotationContextMenu";
-import { FileViewer } from "./FileViewer";
+import { ReaderWorkspace } from "./ReaderWorkspace";
+import type { PanelSlots } from "./AgentStage";
 import { mergeThinkTankResults, THINK_TANK_RESULT_KIND, ThinkTankResultRow } from "./thinkTankResults";
 import { useThinkTankResults } from "../../api/thinkTanks";
 import type { FileLink } from "./renderers/filePath";
@@ -144,24 +143,6 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
 
   return (
     <div className="transcript-wrap" data-ui="transcript">
-      {openFile && onOpenFile && inSlot(
-        <FileViewer
-          agentId={agentId}
-          link={openFile}
-          onClose={() => onOpenFile(null)}
-          onOpenFile={onOpenFile}
-          onPathResolved={(path) => onOpenFile({ ...openFile, path }, { replace: true })}
-          onSelectionMenu={annotationsEnabled ? ({ x, y, text, draft, link }) => setMenu({
-            x,
-            y,
-            label: "Annotate selection",
-            copy: () => copyText(text, pushError),
-            annotate: () => addAnnotation(agentId, draft),
-            link,
-          }) : undefined}
-        />,
-        panelSlots?.start,
-      )}
       <div className="transcript-view" data-slot="list" ref={scrollRef} onScroll={onScroll} onFocus={trackFocus}>
         <div ref={contentRef}>
           <TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} />
@@ -188,21 +169,19 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           Jump to latest
         </button>
       )}
-      {annotationsEnabled && inSlot(<AnnotationTray key={agentId} sourceId={agentId} sourceActive={sourceActive} />, panelSlots?.end)}
+      <ReaderWorkspace
+        key={agentId}
+        agentId={agentId}
+        openFile={openFile}
+        onOpenFile={onOpenFile}
+        annotationsEnabled={annotationsEnabled}
+        sourceActive={sourceActive}
+        panelSlots={panelSlots}
+        onReturnFocus={() => scrollRef.current?.focus()}
+      />
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
-}
-
-/** Elements beside the full agent page's card that host the file viewer (start)
- *  and annotation tray (end) outside it (FS-12.R61). Without them both stay in
- *  the transcript's own grid, as the dashboard pane needs. */
-export type PanelSlots = { start: HTMLElement | null; end: HTMLElement | null };
-
-// A portal keeps the panel's React state, context and handlers while placing its
-// box outside the card.
-function inSlot(node: ReactNode, slot: HTMLElement | null | undefined) {
-  return slot ? createPortal(node, slot) : node;
 }
 
 function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }) {

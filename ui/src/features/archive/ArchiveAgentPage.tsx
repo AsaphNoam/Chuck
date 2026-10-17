@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getTranscript, restoreAgent, resumeAgent } from "../../api/client";
 import { useProjects } from "../../api/config";
-import { AgentBreadcrumb, AgentIdentity, AgentStage } from "../../components/chat/ChatPanel";
+import { AgentBreadcrumb, AgentIdentity } from "../../components/chat/ChatPanel";
+import { AgentStage, type PanelSlots } from "../../components/chat/AgentStage";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { useAgentStore } from "../../store/agentStore";
-import { TranscriptView, type PanelSlots } from "../../components/chat/TranscriptView";
+import { TranscriptView } from "../../components/chat/TranscriptView";
 import type { FileLink } from "../../components/chat/renderers/filePath";
 import { fileLinkFromParams, writeFileLinkParams } from "../../lib/fileLinkParams";
 

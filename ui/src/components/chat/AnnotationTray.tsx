@@ -10,15 +10,20 @@ import { useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
 
 export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; sourceActive: boolean }) {
-  const { data: roles } = useRoles();
+  return <AnnotationTrayView delivery={useAnnotationDelivery(sourceId, sourceActive)} />;
+}
+
+export type AnnotationDelivery = ReturnType<typeof useAnnotationDelivery>;
+
+// The tray's transient delivery state: target, recipient, pending request,
+// error and launch progress. It lives with whoever keeps it mounted, so moving
+// the tray between the docked column and Focus file does not reset a send in
+// flight or a launched recipient awaiting retry (TS-08.R129). Drafts stay in
+// annotationStore.
+export function useAnnotationDelivery(sourceId: string, sourceActive: boolean) {
   const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
-  const updateInstruction = useAnnotationStore((state) => state.updateInstruction);
-  const remove = useAnnotationStore((state) => state.remove);
   const discard = useAnnotationStore((state) => state.discard);
-  const setOverall = useAnnotationStore((state) => state.setOverall);
-  const collapsed = useAnnotationStore((state) => state.collapsedBySource[sourceId] ?? false);
-  const setCollapsed = useAnnotationStore((state) => state.setCollapsed);
   const agents = useAgentStore((state) => state.agents);
   const source = agents[sourceId];
   const recipients = Object.values(agents).filter((agent) => agent.agent_id !== sourceId && agent.running && agent.interface === "chat");
@@ -33,8 +38,6 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
   const [error, setError] = useState<string | null>(null);
   const [showLaunch, setShowLaunch] = useState(false);
   const [launchedAgentId, setLaunchedAgentId] = useState<string | null>(null);
-
-  if (drafts.length === 0) return null;
 
   const batch = (agentId?: string) => annotationBatch(drafts, overall, agentId);
 
@@ -94,9 +97,26 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
     void deliverToLaunchedAgent(agentId);
   };
 
+  return { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, sending, error, showLaunch, setShowLaunch, launchedAgentId, send, onLaunched };
+}
+
+export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery }) {
+  const { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, sending, error, showLaunch, setShowLaunch, launchedAgentId, send, onLaunched } = delivery;
+  const { data: roles } = useRoles();
+  const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
+  const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
+  const updateInstruction = useAnnotationStore((state) => state.updateInstruction);
+  const remove = useAnnotationStore((state) => state.remove);
+  const discard = useAnnotationStore((state) => state.discard);
+  const setOverall = useAnnotationStore((state) => state.setOverall);
+  const collapsed = useAnnotationStore((state) => state.collapsedBySource[sourceId] ?? false);
+  const setCollapsed = useAnnotationStore((state) => state.setCollapsed);
+
+  if (drafts.length === 0) return null;
+
   return (
-    // Docked column or floating overlay is decided by the transcript region's own
-    // width in CSS, so this renders one tray in one shape either way. The collapse
+    // Docked column or floating overlay is decided by the space around the
+    // conversation, so this renders one tray in one shape either way. The collapse
     // control and the collapsed strip are likewise CSS states of that same markup:
     // the overlay hides the control, so narrowing the window can never strand a
     // person with a collapsed tray and no way to open it (FS-13.R20–R21).

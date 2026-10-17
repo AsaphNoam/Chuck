@@ -1489,7 +1489,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
 
 ### 2.14 Resizable file reader and focused reading
 
-- **R127 (planned) — Extend the existing workspace and retain one read owner.**
+- **R127 — Extend the existing workspace and retain one read owner.**
   FS-03.R92–R97 extends `AgentStage`, `TranscriptView`, `FileViewer` and `AnnotationTray` on live
   and archived desktop agent pages. A feature-owned reader workspace under `TranscriptView`
   keeps the file controller and layout state mounted across adjacent/focused presentation changes;
@@ -1503,7 +1503,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   workspace unmounts. Source change/unmount drops it all. No global map, new storage key, query
   cache, polling, endpoint, wire field or persistence migration is introduced (INV §1/§2/§16).
 
-- **R128 (planned) — The workspace owns bounded proportions and accessible dividers.**
+- **R128 — The workspace owns bounded proportions and accessible dividers.**
   Replace only R53/R57/R112's automatic width allocation and no-measurement clauses for the
   full desktop agent workspace. Use the existing `AgentStage` slots and one feature-owned
   allocation calculation for file, conversation and annotations. Keep requested file share
@@ -1528,7 +1528,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   inline custom-property assignment in `presentation-exceptions.json`; it may set only measured
   allocation values. Colors, spacing, radii and other static presentation stay in CSS/tokens.
 
-- **R129 (planned) — Focus uses existing Radix dialog behavior and the same tray controller.**
+- **R129 — Focus uses existing Radix dialog behavior and the same tray controller.**
   Use the installed `@radix-ui/react-dialog` with the shared `dialog` overlay/content hooks and
   stylesheet construction already used by image viewing. Focus is local boolean state, not a
   route or history entry. Leave the transcript, composer and read/tray controllers mounted.
@@ -1553,7 +1553,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   New task launch/delivery/failure path in nested-dialog verification. Do not force-mount an
   inactive modal over the adjacent workspace or implement a second focus-trap system.
 
-- **R130 (planned) — Reading continuity is bounded to the current document.**
+- **R130 — Reading continuity is bounded to the current document.**
   Retain one loaded `FileContent`/read timestamp and one position per Rendered/Source mode for
   the current file. Before presentation/width changes, capture the first visible source line
   or rendered top-level block and its viewport offset; restore that location after reflow,
@@ -1567,7 +1567,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   Restoration must not itself flip follow state or fight later user scrolling. Layout switches
   do not change composer ownership, durable events or point-in-time annotation excerpts.
 
-- **R131 (planned) — Readable Markdown extends the shared sanitized renderer.**
+- **R131 — Readable Markdown extends the shared sanitized renderer.**
   Keep `SanitizedMarkdown`, `CodeBlock` and Mermaid as the only existing rendering paths.
   Apply the paragraph/list/heading/blockquote rhythm and ordinary chat body size to the
   file-reader content without importing assistant-bubble chrome. Prose in focus is centered
@@ -1581,7 +1581,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   assets, or change the existing 512 KiB read bound or R64 read authority. Shared document
   styling reaches the existing room viewer; resize/focus orchestration does not.
 
-- **R132 (planned) — Presentation and verification extend existing contracts.**
+- **R132 — Presentation and verification extend existing contracts.**
   Add `docked`/`focused` variants to the existing `file-viewer` hook and register one
   `workspace-divider` hook with file/conversation and annotation/conversation variants; retain
   the reader's loading/loaded/error states and the tray's existing expanded/collapsed meanings.
@@ -1772,12 +1772,16 @@ boundary; the manifest remains the visual contract and arbitrary ids never becom
 
 ## 5. Deviations & open decisions
 
-- **File reader, approved 2026-10-17:** R127–R132 implement the approved FS-03.R92–R97 scope
-  when built. They replace R53/R57/R112's automatic sizing/no-measurement constraints only in
-  the full desktop workspace, and R57's no-context constraint only for focused menu placement.
-  The existing room file loader, dashboard navigation, phone composition, server read authority,
-  sanitization and annotation retention remain governed by their existing requirements. See
-  `docs/ready-changes/roomier-file-reader.md`; all implementation acceptance remains owed.
+- **File reader, implemented 2026-10-17:** R127–R132 implement FS-03.R92–R97. They replace
+  R53/R57/R112's automatic sizing/no-measurement constraints only in the full desktop workspace,
+  and R57's no-context constraint only for focused menu placement (`MenuPortalContext`). The
+  existing room file loader, dashboard navigation, phone composition, server read authority,
+  sanitization and annotation retention remain governed by their existing requirements.
+  Seams: `AgentStage.tsx` (allocation, dividers, the only inline-style exception),
+  `readerLayout.ts` (allocation), `ReaderWorkspace.tsx` (read/tray owners, Focus file),
+  `useFileReader`/`FileViewerView` and `useAnnotationDelivery`/`AnnotationTrayView`. When the
+  stage overlays the tray it renders in the transcript region's existing overlay (stage
+  `trayOverlay`), which also spans that region instead of its zero-width trailing track.
 
 - R123 was approved 2026-10-12 and implemented 2026-10-13. Verification: the full UI suite passes
   (805 tests in 88 files); rendered desktop checks cover Core, Sky & Grove and Studio and Core phone

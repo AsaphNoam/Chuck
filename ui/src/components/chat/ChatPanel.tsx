@@ -17,7 +17,8 @@ import { Badge, VisuallyHidden } from "../ui";
 import { BackIcon } from "../ui/icons";
 import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
 import { Composer } from "./Composer";
-import { TranscriptView, type PanelSlots } from "./TranscriptView";
+import { TranscriptView } from "./TranscriptView";
+import { AgentStage, type PanelSlots } from "./AgentStage";
 import { FilesTab } from "./FilesTab";
 import { PermissionModeToggle } from "./PermissionModeToggle";
 import { TerminalTab } from "./TerminalTab";
@@ -416,22 +417,6 @@ export function ChatPanel() {
       </div>
       </AgentStage>
     </section>
-  );
-}
-
-// The card between two slots that host the file viewer and annotation tray
-// outside it (FS-12.R61), so opening either narrows the card rather than the
-// conversation inside an unchanged card. The archived page shares it.
-export function AgentStage({ onSlots, children }: { onSlots: (slots: PanelSlots) => void; children: ReactNode }) {
-  const [start, setStart] = useState<HTMLDivElement | null>(null);
-  const [end, setEnd] = useState<HTMLDivElement | null>(null);
-  useEffect(() => onSlots({ start, end }), [start, end, onSlots]);
-  return (
-    <div className="chat-stage">
-      <div className="chat-side chat-side-start" ref={setStart} />
-      {children}
-      <div className="chat-side chat-side-end" ref={setEnd} />
-    </div>
   );
 }
 

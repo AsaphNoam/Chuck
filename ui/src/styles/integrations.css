@@ -1,6 +1,8 @@
 @layer ad-integrations {
 .assistant-message pre,
-.assistant-message div[class*="language-"] {
+.assistant-message div[class*="language-"],
+.file-viewer-rendered pre,
+.file-viewer-rendered div[class*="language-"] {
   background: var(--ad-technical-background);
   border: var(--ad-border-thin) solid var(--ad-technical-muted);
   border-radius: var(--ad-radius-small) var(--ad-radius-large) var(--ad-radius-large) var(--ad-radius-large);
@@ -24,7 +26,8 @@
 }
 
 /* A diagram supplies its own frame, so the Markdown `pre` around it drops the code-block chrome. */
-.assistant-message pre:has(.mermaid-diagram) {
+.assistant-message pre:has(.mermaid-diagram),
+.file-viewer-rendered pre:has(.mermaid-diagram) {
   background: none;
   border: 0;
   border-radius: 0;

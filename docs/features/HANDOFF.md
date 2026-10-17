@@ -6,6 +6,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Awaiting review — roomier file reader (2026-10-17):** commit after `efbf9d03`;
+  FS-03.R92–R97/A71–A75, TS-08.R127–R132. Review notes and evidence in the changelog entry.
+
 - **Awaiting review — late tool input event (2026-10-17):** `a77bb3b6`, TS-04.R98 (see
   changelog). Focus: INV §6 consumers, §16 bounds, Chuck-tool input leaks. Owed: live receipt.
 
@@ -24,16 +27,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   a host prompt is offered only while its requester is `waiting_input`/runtime-pending.
 
 - **Finished — desktop default-persona toggle (2026-10-16):** `33226f23`, FS-04.R58/A37,
-  independently reviewed with no findings. Accepted the existing partial-config mutation and
-  canonical No persona helper: saved selection remains authoritative, failed saves preserve it,
-  and customized Default content cannot become the empty fallback. Review reran all 45 focused
-  Settings/New Agent tests and presentation checks; browser keyboard/select/replace, pending,
-  failed-save/retry, clear/reload and 1024px layout checks passed in all three appearances.
-  Evidence: `/tmp/persona-review-20261016.mjs` and `/tmp/persona-review-20261016/` (including the
-  development matrix). INV §2/§3/§8/§10/§11/§13/§17 passed; §1/§4–§7/§9/§12/§14–§16 have no
-  applicable surface in this diff. The existing delete-role/dangling-default behavior predates
-  this unit and is outside R11's PUT validation contract; it is not a finding on this change.
-  **Fix model:** none — no open fixes. Other review units and acceptance gates remain unchanged.
+  reviewed with no findings; no open fixes (evidence in `/tmp/persona-review-20261016/`).
 
 - **Awaiting review — phone New agent from a group header (2026-10-16):** FS-20.R46/A18. Each
   group header (Ungrouped included) has a plus beside its name that opens the same centered New
@@ -196,6 +190,22 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-17 — Roomier file reader implemented (awaiting review):** FS-03.R92–R97/A71–A75,
+  TS-08.R127–R132; ready-change file removed. Contained file Markdown (shared with the room
+  viewer); `AgentStage.tsx` allocates file/conversation/tray widths from one `ResizeObserver`
+  with two accessible dividers (`readerLayout.ts`); `ReaderWorkspace.tsx` keeps `useFileReader`
+  and `useAnnotationDelivery` above the adjacent/Focus file branch; focused menus mount through
+  `MenuPortalContext`. Evidence: 921 UI tests, UI build, presentation checks,
+  `ui/scripts/file-reader-journey.mjs` (957 checks: 3 appearances × 1024/1440/2137 ×
+  live/archived + nested launch), `chat-cleanup-render.mjs --panels`, `room-render.mjs <out>
+  file`. Review notes: (1) below the three-column minimums the tray renders in the transcript's
+  existing overlay, which previously positioned against the zero-width trailing grid track (a
+  sliver, dashboard pane included) and now spans the region — check the dashboard pane
+  visually; in a short region drafts get little height. (2) Transcript reflow relies on native
+  scroll anchoring rather than an explicit `data-seq` anchor (journey confirms position kept).
+  (3) Window resizes apply allocation one frame late (ResizeObserver → React state). Embedded
+  `dist` not refreshed.
 
 - **2026-10-17 — File reader design ready:** operator approved the resizable split reader,
   optional Focus file modal, shared annotations and page-lifetime sizing, adding an explicit

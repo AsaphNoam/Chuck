@@ -328,7 +328,18 @@
         "loaded",
         "error"
       ],
-      "variants": []
+      "variants": [
+        "docked",
+        "focused"
+      ]
+    },
+    "workspace-divider": {
+      "slots": [],
+      "states": [],
+      "variants": [
+        "file",
+        "annotations"
+      ]
     },
     "annotation-tray": {
       "slots": [],

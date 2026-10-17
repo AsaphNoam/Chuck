@@ -43,10 +43,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
-- [`roomier-file-reader.md`](roomier-file-reader.md) — contained, readable Markdown, adjustable
-  file/chat/annotation widths and an optional focus modal preserving the shared tray and reading
-  context; intentional English interface copy.
-
 - [`quiet-quota-recovery.md`](quiet-quota-recovery.md) — verified structured/text reset scheduling
   and bounded isolated quota checks; preserve the original conversation, with non-persistent
   Claude sessions and approved named Codex native archive records.

@@ -137,6 +137,10 @@ try {
         const path = new URL(route.request().url()).pathname;
         if (path === "/api/think-tanks") return route.fulfill({ json: { version: 1, rooms: cards, clipped: false } });
         if (path === "/api/think-tanks/tt_demo") return route.fulfill({ json: room });
+        if (path.startsWith("/api/think-tanks/tt_demo/sources/")) {
+          const content = "# Shared reader\n\nRoom text with `internal/server/a/very/long/path/that/must/wrap/inside/the/room/viewer/handler.go` and a table:\n\n| Column | Value |\n|---|---|\n| alpha | " + "wide-".repeat(30) + " |\n\n```go\nfunc Example() { log.Printf(\"" + "long line ".repeat(20) + "\") }\n```\n";
+          return route.fulfill({ json: { agent_id: "a_ari", path: "docs/notes.md", size: content.length, mod_time: at, line_count: content.split("\n").length, content, truncated: false, language: "markdown" } });
+        }
         if (path === "/api/think-tanks/tt_demo/entries") return route.fulfill({ json: { version: 1, entries: openings ? entries.filter((e) => e.input_id) : entries, complete: true } });
         if (path === "/api/think-tanks/tt_demo/activity") return route.fulfill({ json: { version: 1, activity: openings ? [] : activity, complete: true } });
         if (path === "/api/projects") return route.fulfill({ json: { alpha: { title: "Alpha", cwd: "/tmp", color: [80, 120, 200] }, beta: { title: "Beta", cwd: "/tmp", color: [60, 160, 120] } } });
@@ -150,7 +154,20 @@ try {
       page.on("pageerror", (error) => { failed = true; console.error(`page error: ${error.stack}`); });
       const project = state === "project";
       const matrix = state === "matrix";
-      await page.goto(matrix ? "http://localhost:5198/__visual-matrix" : project ? "http://localhost:5198/project/alpha" : "http://localhost:5198/think-tank/tt_demo");
+      // "file" opens a participant's file in the room's shared viewer (FS-03.A71).
+      const file = state === "file" ? "?file=docs%2Fnotes.md&source=a_ari" : "";
+      await page.goto(matrix ? "http://localhost:5198/__visual-matrix" : project ? "http://localhost:5198/project/alpha" : `http://localhost:5198/think-tank/tt_demo${file}`);
+      if (file) {
+        await page.locator(".file-viewer-rendered").waitFor({ timeout: 15_000 });
+        const overflow = await page.evaluate(() => {
+          const body = document.querySelector(".file-viewer-body");
+          return { body: body.scrollWidth - body.clientWidth, page: document.documentElement.scrollWidth - window.innerWidth };
+        });
+        if (overflow.body > 0 || overflow.page > 0) {
+          failed = true;
+          console.error(`room file viewer overflows (${skin || "core"} ${width}): ${JSON.stringify(overflow)}`);
+        }
+      }
       const ready = matrix ? page.getByRole("heading", { name: "Presentation matrix" }) : project ? page.getByRole("region", { name: "Think Tank rooms" }) : page.getByRole("list", { name: "Discussion" });
       const shown = await ready.waitFor({ timeout: 15_000 }).then(() => true, () => false);
       if (matrix && shown) await page.getByLabel("Fixture appearance").selectOption(skin || "core");

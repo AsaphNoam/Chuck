@@ -481,17 +481,22 @@ async function runSidePanels(browser, skin, width, archived) {
         transcript: transcript.height >= 100 && transcript.y >= card.y && transcript.bottom <= card.bottom,
         ...(!readOnly ? { input: visible(".composer textarea") } : {}),
         action: visible(readOnly ? ".resume-btn" : 'button[aria-label="Send"]'),
-        external: !document.querySelector(".file-viewer").closest(".chat-card") && !document.querySelector(".annotation-tray").closest(".chat-card"),
+        external: !document.querySelector(".file-viewer").closest(".chat-card") &&
+          (document.querySelector(".chat-stage")?.dataset.tray !== "docked" || !document.querySelector(".annotation-tray").closest(".chat-card")),
       };
     }, archived);
     record(`${label}: long name is rendered`, await page.locator(".chat-header h1").innerText() === sessionName);
     for (const [name, pass] of Object.entries(metrics)) record(`${label}: ${name} remains usable`, pass);
     record(`${label}: no page overflow`, await noPageOverflow(page));
     await page.screenshot({ path: join(OUT_DIR, `panels-${skinLabel(skin)}-${width}-${archived ? "archive" : "active"}.png`), fullPage: true });
-    await page.getByRole("button", { name: "Collapse pending annotations" }).click();
-    record(`${label}: tray collapses`, await page.locator('.annotation-tray[data-state="collapsed"]').count() === 1);
-    await page.getByRole("button", { name: "Expand pending annotations" }).click();
-    record(`${label}: tray expands`, await page.locator('.annotation-tray[data-state="expanded"]').count() === 1);
+    // Where three useful columns do not fit, the tray keeps its overlay inside
+    // the transcript and has no collapse control (FS-03.R93, FS-13.R21).
+    if (await page.locator('.chat-stage[data-tray="docked"]').count() === 1) {
+      await page.getByRole("button", { name: "Collapse pending annotations" }).click();
+      record(`${label}: tray collapses`, await page.locator('.annotation-tray[data-state="collapsed"]').count() === 1);
+      await page.getByRole("button", { name: "Expand pending annotations" }).click();
+      record(`${label}: tray expands`, await page.locator('.annotation-tray[data-state="expanded"]').count() === 1);
+    }
   } finally {
     await context.close();
   }

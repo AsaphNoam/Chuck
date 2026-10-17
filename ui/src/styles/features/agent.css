@@ -72,18 +72,26 @@
 }
 
 /* The card between two slots hosting the file viewer and annotation tray outside
-   it (FS-12.R61). The stage is the tray's query container here, so the tray
-   takes its docked form beside the card. Empty slots take no space. */
+   it (FS-12.R61). The stage allocates their widths and sets only those measured
+   values (--ad-reader-*-width); the shapes below are static (FS-03.R93,
+   TS-08.R128). Empty slots take no space. */
 .chat-stage {
-  container: transcript / inline-size;
+  --ad-reader-file-width: 40%;
+  --ad-reader-tray-width: 30%;
+
   display: flex;
   justify-content: center;
   min-height: 0;
   min-width: 0;
+  position: relative;
 }
 
 .chat-stage > .chat-card {
   flex: 0 1 var(--ad-card-measure);
+}
+
+.chat-stage:is([data-file], [data-tray="docked"], [data-tray="collapsed"]) > .chat-card {
+  flex: 1 1 0;
 }
 
 .chat-side {
@@ -96,21 +104,161 @@
   display: none;
 }
 
-.chat-side-start {
-  margin-right: var(--ad-space-4);
-}
-
-.chat-side-end {
-  margin-left: var(--ad-space-4);
-}
-
 .chat-side > :is(.file-viewer, .annotation-tray) {
   margin: 0;
 }
 
-@container transcript (min-width: 860px) and (max-width: 1280px) {
-  .chat-side-start .file-viewer {
-    width: 34cqi;
+.chat-side-start > .file-viewer {
+  height: auto;
+  width: var(--ad-reader-file-width);
+}
+
+/* A divider fills the gap it replaces; its keyline shows on hover, focus and
+   drag. */
+.workspace-divider {
+  cursor: col-resize;
+  flex: none;
+  position: relative;
+  touch-action: none;
+  width: var(--ad-space-4);
+}
+
+.workspace-divider::after {
+  background: var(--ad-border-default);
+  border-radius: var(--ad-radius-round);
+  content: "";
+  inset: 30% calc(50% - 1px);
+  position: absolute;
+}
+
+.workspace-divider:hover::after,
+.workspace-divider:focus-visible::after,
+.workspace-divider:active::after {
+  background: var(--ad-action-secondary);
+  inset-block: 0;
+}
+
+/* Docked and collapsed trays sit beside the card. */
+.chat-stage[data-tray="docked"] .chat-side-end > .annotation-tray,
+.chat-stage[data-tray="collapsed"] .chat-side-end > .annotation-tray {
+  bottom: auto;
+  height: auto;
+  max-height: none;
+  position: static;
+  right: auto;
+}
+
+.chat-stage[data-tray="docked"] .chat-side-end > .annotation-tray {
+  width: var(--ad-reader-tray-width);
+}
+
+.chat-stage[data-tray="collapsed"] .chat-side-end {
+  padding-left: var(--ad-space-4);
+}
+
+.chat-stage[data-tray="collapsed"] .chat-side-end > .annotation-tray {
+  width: auto;
+}
+
+.chat-stage:is([data-tray="docked"], [data-tray="collapsed"]) .annotation-tray-collapse {
+  display: block;
+}
+
+.chat-stage[data-tray="docked"] .annotation-draft {
+  padding: var(--ad-space-3);
+}
+
+.chat-stage[data-tray="docked"] .annotation-draft blockquote {
+  overflow-wrap: anywhere;
+}
+
+.chat-stage[data-tray="docked"] .annotation-draft textarea {
+  min-height: 96px;
+}
+
+.chat-stage[data-tray="collapsed"] .annotation-tray-header {
+  flex-direction: column;
+  gap: var(--ad-space-3);
+}
+
+.chat-stage[data-tray="collapsed"] :is(.annotation-tray-body, .annotation-tray-footer, .annotation-tray-title, .annotation-tray-discard) {
+  display: none;
+}
+
+/* Focus file: a viewport-fitted modal, positioned without a transform so the
+   pointer menus mounted inside it keep viewport coordinates (TS-08.R129). */
+.dialog-content.file-focus {
+  container: file-focus / inline-size;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--ad-space-12));
+  inset: var(--ad-space-6);
+  max-height: none;
+  max-width: none;
+  overflow: hidden;
+  padding: var(--ad-space-4);
+  transform: none;
+  width: auto;
+}
+
+.file-focus-body {
+  display: grid;
+  flex: 1;
+  gap: var(--ad-space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  position: relative;
+}
+
+.file-focus .file-viewer {
+  grid-column: 1;
+  grid-row: 1;
+  height: auto;
+  margin: 0;
+  width: auto;
+}
+
+.file-focus .annotation-tray {
+  bottom: auto;
+  grid-column: 2;
+  grid-row: 1;
+  max-height: none;
+  position: static;
+  right: auto;
+  width: clamp(280px, 30cqi, 460px);
+}
+
+.file-focus-tray-toggle {
+  display: none;
+}
+
+/* Too narrow for both: a count control reveals the same tray over the file. */
+@container file-focus (max-width: 759px) {
+  .file-focus-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .file-focus .file-viewer {
+    grid-row: 2;
+  }
+
+  .file-focus-tray-toggle {
+    display: block;
+    justify-self: end;
+  }
+
+  .file-focus .annotation-tray {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+    max-width: 100%;
+    z-index: 1;
+  }
+
+  .file-focus-body[data-tray="closed"] .annotation-tray {
+    display: none;
   }
 }
 
@@ -826,7 +974,8 @@
   padding-left: var(--ad-space-6);
 }
 
-.assistant-message code:not([class*="language-"]) {
+.assistant-message code:not([class*="language-"]),
+.file-viewer-rendered code:not([class*="language-"]) {
   background: var(--ad-surface-subtle);
   border: var(--ad-border-thin) solid var(--ad-border-default);
   border-radius: var(--ad-radius-small);
@@ -1147,9 +1296,12 @@
   padding-top: var(--ad-space-3);
 }
 
+/* The overlay is positioned against the whole transcript region; only the
+   docked form below takes the trailing track, which is zero wide while the
+   tray floats. */
 .annotation-tray {
   bottom: var(--ad-space-4);
-  grid-column: 3;
+  grid-column: 1 / -1;
   grid-row: 1;
   box-shadow: var(--ad-shadow-keyline);
   display: flex;
@@ -1269,20 +1421,26 @@
   width: min(46cqi, 520px);
 }
 
+/* The header wraps its actions under the path rather than pushing them out of a
+   narrow reader; the path keeps its tail visible and its full text in the
+   tooltip (FS-03.R92). */
 .file-viewer-header {
   align-items: center;
   border-bottom: var(--ad-border-thin) solid var(--ad-border-default);
   display: flex;
   flex: none;
-  gap: var(--ad-space-3);
+  flex-wrap: wrap;
+  gap: var(--ad-space-2) var(--ad-space-3);
   justify-content: space-between;
   padding: var(--ad-space-3);
 }
 
 .file-viewer-path {
   direction: rtl;
+  flex: 1 1 10rem;
   font-family: var(--ad-font-mono);
   font-size: 0.72rem;
+  min-width: 0;
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
@@ -1293,8 +1451,13 @@
 .file-viewer-form {
   align-items: center;
   display: flex;
-  flex: none;
+  flex-wrap: wrap;
   gap: var(--ad-space-2);
+}
+
+.file-viewer-actions {
+  justify-content: flex-end;
+  margin-left: auto;
 }
 
 .file-viewer-form button[aria-pressed="true"] {
@@ -1314,15 +1477,85 @@
   padding: var(--ad-space-2) var(--ad-space-3);
 }
 
+/* The document scrolls vertically; only a table, fence, diagram or source
+   listing that needs it scrolls sideways, inside its own box (FS-03.R92,
+   TS-08.R131). */
 .file-viewer-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow: hidden auto;
   padding: var(--ad-space-3);
 }
 
+.file-viewer-body > div[class*="language-"] {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Rendered Markdown reads as a document at the ordinary chat size, without the
+   assistant bubble's chrome. Prose, links and inline code wrap; technical
+   blocks keep their own horizontal scroll. */
 .file-viewer-rendered {
-  font-size: 0.86rem;
+  color: var(--ad-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-viewer-rendered > * {
+  margin-block: 0;
+  min-width: 0;
+}
+
+.file-viewer-rendered > * + * {
+  margin-top: var(--ad-space-3);
+}
+
+.file-viewer-rendered :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--ad-text-primary);
+  line-height: 1.25;
+}
+
+.file-viewer-rendered > :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
+  margin-top: var(--ad-space-6);
+}
+
+.file-viewer-rendered :is(ul, ol) {
+  padding-left: var(--ad-space-6);
+}
+
+.file-viewer-rendered li + li,
+.file-viewer-rendered li > :is(ul, ol) {
+  margin-top: var(--ad-space-1);
+}
+
+.file-viewer-rendered blockquote {
+  border-left: var(--ad-border-thick) solid var(--ad-border-strong);
+  color: var(--ad-text-muted);
+  margin-inline: 0;
+  padding-left: var(--ad-space-3);
+}
+
+.file-viewer-rendered pre {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Focus gives prose a comfortable measure while technical blocks keep the
+   whole width (TS-08.R131). */
+.file-viewer[data-variant="focused"] .file-viewer-rendered {
+  display: grid;
+  grid-template-columns: [full-start] minmax(0, 1fr) [prose-start] minmax(0, 76ch) [prose-end] minmax(0, 1fr) [full-end];
+}
+
+.file-viewer[data-variant="focused"] .file-viewer-rendered > * {
+  grid-column: full;
+}
+
+.file-viewer[data-variant="focused"] .file-viewer-rendered > :is(p, ul, ol, h1, h2, h3, h4, h5, h6, blockquote, hr) {
+  grid-column: prose;
 }
 
 /* Every refusal names its reason here and leaves the transcript readable
@@ -1368,6 +1601,7 @@
 
   .annotation-tray {
     bottom: auto;
+    grid-column: 3;
     grid-row: 1 / -1;
     height: 100%;
     margin-left: var(--ad-space-4);
