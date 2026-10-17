@@ -225,6 +225,17 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-17 — File reader feature design, scope pending:** proposed FS-03.R92–R96/A71–A74
+  cover contained Markdown, adjustable file/chat/annotation widths and an optional Focus file
+  modal sharing the existing annotation tray. Incumbent browser inspection reproduced long
+  inline-code overflow and cramped Markdown spacing; official VS Code/Obsidian/GitHub references
+  informed the proposal. The idea stays under `Ideas being defined` pending the operator's
+  confirmation of behavior and page-lifetime sizing, before technical design. No product code or
+  ready change; unrelated working-tree work is preserved. Spec, twin-skill/launcher and whitespace
+  checks pass. Interactive composition sketch (not product implementation):
+  `.chuck-dev/design/file-reader.html`; focus/return, keyboard resizing and annotation collapse
+  were exercised in the browser.
+
 - **2026-10-17 — Tool-run fixes (TOOLRUN-01/02 closed; 03 open):** TOOLRUN-01 (INV §2/§8)
   `groupTranscriptRows` keeps an answered `permission_request` whose `tool_call_id` matches a call
   in the run inside that run, so the approved result no longer renders alone on desktop or phone;

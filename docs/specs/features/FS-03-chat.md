@@ -698,6 +698,57 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   remains inspectable in transcript activity; FS-05.R40 preserves capture, tracking endpoints,
   archive counts and stored history. No replacement command-history screen is added.
 
+- **R92 (planned) — Files have a contained, readable document surface.** Rendered Markdown in
+  the shared file viewer has clear paragraph, heading, list and blockquote spacing, with body
+  text at the ordinary chat reading size. Prose, links and inline code wrap within the available
+  document width. Wide tables, fenced code and diagrams stay within their own bounded surfaces;
+  horizontal scrolling is local to content that needs it, never the whole document or page.
+  Focused prose uses a comfortable reading measure while technical blocks may use the reader's
+  available width. The file path remains discoverable in full and actions remain reachable at
+  narrow widths. These treatments apply in the shared viewer, including its existing room use.
+- **R93 (planned) — Adjacent file, conversation and annotations share adjustable space.** On
+  desktop live and archived agent pages, the reader remains left of the conversation and pending
+  annotations remain right. Opening a file initially gives it roughly half of the space left
+  after a docked annotation tray. A visible divider resizes file versus conversation; a second
+  divider resizes an expanded docked tray versus conversation. Both support pointer dragging
+  and keyboard adjustment, enforce useful minimum widths, and offer reset to the initial split.
+  Collapsing or removing annotations gives space back to file and conversation without losing
+  the chosen split between them. Resizing the window clamps the displayed widths to available
+  space without changing the requested proportions. When all three useful minimums cannot fit,
+  the tray uses its bounded overlay over the conversation, leaving the file unobscured, rather
+  than squeezing three unusable columns. Opening a file never automatically opens a modal.
+  This supersedes R53/R65 and FS-12.R61 only for width allocation, and refines FS-13.R20's docking
+  threshold to require room for the visible reading surfaces. Dashboard links still open the
+  full agent page rather than adding a viewer to its embedded pane.
+- **R94 (planned) — Focus file temporarily gives the document the workspace.** The adjacent
+  reader offers **Focus file**, opening a viewport-fitted modal with the current file, path,
+  Rendered/Source choice, read timestamp, partial-read notice and Reload. The conversation remains
+  mounted and continues receiving events underneath; its controls are inert while the modal is
+  open. The same session's pending annotations are accessible in the modal, alongside the file
+  when there is room and through a collapsed count control otherwise. Creating, editing and
+  sending annotations works there through the existing shared tray, including archived-session
+  target restrictions; no second draft collection is created. **Return to chat**, Escape, or a
+  backdrop click restores the adjacent reader; **Close file** closes the reader entirely. An
+  inner menu consumes Escape before the modal. Focus stays inside the modal and returns to its
+  invoking control (or the conversation if the file was closed).
+- **R95 (planned) — Resizing and focus preserve the reading task.** Entering/leaving focus,
+  resizing or collapsing annotations retains the same loaded file snapshot, selected display
+  mode, approximate reading location, transcript scroll/follow state, composer draft and pending
+  annotation instructions. Those actions do not read the file again, send a prompt or create an
+  event. Each Rendered/Source mode retains its own reading position for the current file; initial
+  source navigation still honors a cited line. Switching display modes does not promise mapped
+  source-to-rendered scroll synchronization. A different file replaces the current file in the
+  chosen presentation, resets its positions, and keeps point-in-time annotation drafts. Reload
+  remains explicit and loading/refusal/partial states remain readable in either presentation.
+- **R96 (planned) — Reader layout changes stay local and bounded.** Divider choices last for
+  the open workspace and carry across file replacements there; a reload or leaving that workspace
+  restores default sizing and the adjacent form. Existing file/line URL parameters retain R54's
+  open-file behavior, and focus adds no history entry. No new browser-stored preference, durable
+  file contents, access history, agent/API surface, file-reading authority or annotation retention
+  is added. R64's actual local read authority and explicit read semantics remain authoritative.
+  Editing, file tabs/history, directory browsing, outline, in-file search, a new phone reader,
+  and changes to the Think Tank room layout are excluded.
+
 ## 3. States & transitions
 
 - **Open/reload:** panel fetches durable events → normalizes/folds them → subscribes to live SSE
@@ -1275,7 +1326,41 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   ("withdraw returns the held text…", "withdraw keeps text typed…"), `TranscriptView.test.tsx`
   ("offers to load a withdrawn attachment message…").
 
+- **A71 (planned)** (R92) — Read representative Markdown with long paths/URLs/inline code,
+  nested lists, blockquotes, wide tables, long fenced lines, diagrams and a long filename.
+  At 1024px and wider desktop widths in Core, Sky & Grove and Studio, prose remains contained
+  and legible, document/page horizontal overflow is absent, needed technical scrolling stays
+  local, and header actions remain reachable. Check both adjacent and focus forms plus the
+  existing room file viewer. *Verify:* real-browser geometry and visual inspection, shared
+  Markdown/viewer component cases and presentation checks.
+- **A72 (planned)** (R93, R96) — From a file link in live and archived chat, resize both
+  boundaries by pointer and keyboard, reset, open/collapse/remove annotations, and narrow/widen
+  the window. Check initial file priority, minimum widths, proportional recovery, overlay fallback
+  leaving the file unobscured, and no page overflow. Replace the file and retain sizing; reload
+  and restore default sizing with the same URL-addressed file. A dashboard link still opens the
+  agent page. *Verify:* layout state/component tests and a real-browser journey at 1024px,
+  1440px and a wider viewport in every desktop appearance.
+- **A73 (planned)** (R94–R95) — Scroll a loaded file and transcript away from their starts,
+  type a composer draft, and create both file and transcript annotation drafts. Focus the file,
+  edit an annotation, open a different relative file link, Reload, then return by button,
+  Escape and backdrop in separate passes. The same tray works inside focus, no layout action
+  refetches the file or loses a draft, and returning preserves context. Check keyboard trapping,
+  inner-menu Escape, focus restoration and Close file. Repeat with an archived source, a refusal
+  and a partial file; let transcript events arrive underneath the modal. *Verify:* viewer/tray
+  integration tests and a real-browser task journey in all desktop appearances.
+- **A74 (planned)** (R95–R96) — Switch Rendered/Source after scrolling each, enter/leave focus,
+  replace the file, and open a cited source line. Check independent display positions, retained
+  read timestamp across layout changes, explicit Reload, stale-read suppression, default docked
+  reopening from a copied/reloaded address, and unchanged point-in-time annotations. Assert that
+  layout changes add no file read, durable event, prompt or browser-storage write. *Verify:*
+  focused viewer/workspace tests and the A73 browser journey.
+
 ## 6. Deviations & open decisions
+
+- **File reader design, 2026-10-17:** R92–R96/A71–A74 are proposed behavior awaiting the
+  operator's confirmation of combined resizable split/focus modal and page-lifetime sizing.
+  They are not approved implementation scope. Technical design has not begun; there is no
+  ready change. See the matching entry in `docs/ideas.md` for incumbent evidence and research.
 
 - R81–R86/A62–A65 were approved 2026-10-12 and implemented 2026-10-13. Verification: all 805 UI
   tests in 88 files pass; rendered desktop checks cover Core, Sky & Grove and Studio, and Core
