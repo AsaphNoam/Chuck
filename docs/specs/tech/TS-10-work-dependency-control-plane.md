@@ -1,6 +1,6 @@
 # TS-10 — Work dependency control plane
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks`
 **Absorbed:** —
 
