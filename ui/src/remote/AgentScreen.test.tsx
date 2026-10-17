@@ -417,6 +417,28 @@ describe("AgentScreen", () => {
     expect(screen.getByText(/second-result/)).toBeInTheDocument();
   });
 
+  it("keeps an approved tool's result inside its collapsed tool line (FS-03.A11)", async () => {
+    live = {
+      agent_id: "a1",
+      events: [
+        { agent_id: "a1", seq: 40, type: "tool_call", ts: "", data: { tool_call_id: "c1", name: "Edit" } },
+        { agent_id: "a1", seq: 41, type: "permission_request", ts: "", data: { tool_call_id: "c1", name: "Edit HANDOFF.md" } },
+        { agent_id: "a1", seq: 42, type: "permission_resolved", ts: "", data: { tool_call_id: "c1", decision: "approve" } },
+        { agent_id: "a1", seq: 43, type: "tool_result", ts: "", data: { tool_call_id: "c1", content: "approved-result" } },
+      ],
+      has_more: false,
+      pending_permission: null,
+      latest_assistant: "",
+    };
+    renderScreen();
+    const toggle = await screen.findByRole("button", { name: "Ran 1 tool" });
+    expect(screen.getByRole("list", { name: "Conversation" })).not.toHaveTextContent("approved-result");
+    expect(screen.queryByText(/Edit HANDOFF\.md/)).toBeNull();
+    fireEvent.click(toggle);
+    expect(await screen.findByText(/approved-result/)).toBeInTheDocument();
+    expect(screen.getByText(/Edit HANDOFF\.md · approve/)).toBeInTheDocument();
+  });
+
   it("replays notices as compact rows in their original order (FS-03.A49)", async () => {
     live = {
       agent_id: "a1",

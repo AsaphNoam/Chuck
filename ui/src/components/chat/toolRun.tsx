@@ -18,7 +18,7 @@ export function groupTranscriptRows(events: TranscriptEvent[]): TranscriptRow[] 
       continue;
     }
     const run: TranscriptEvent[] = [];
-    while (index < events.length && isToolEvent(events[index])) run.push(events[index++]);
+    while (index < events.length && (isToolEvent(events[index]) || isResolvedPermissionFor(run, events[index]))) run.push(events[index++]);
     if (run.some((item) => kindOf(item) === "tool_call")) rows.push({ kind: "tool-run", events: run });
     else run.filter(shouldRenderToolEvent).forEach((item) => rows.push({ kind: "event", event: item }));
   }
@@ -45,6 +45,15 @@ export function kindOf(event: TranscriptEvent) {
 function isToolEvent(event: TranscriptEvent) {
   const kind = kindOf(event);
   return kind === "tool_call" || kind === "tool_result";
+}
+
+// A permission-gated call records its request between the call and its result.
+// Once answered, the request belongs to that call's run instead of ending it; an
+// unanswered request stays outside as the actionable prompt (FS-03.R26).
+function isResolvedPermissionFor(run: TranscriptEvent[], event: TranscriptEvent) {
+  if (kindOf(event) !== "permission_request" || !event.resolved) return false;
+  const id = String(event.tool_call_id ?? "");
+  return id !== "" && run.some((item) => kindOf(item) === "tool_call" && String(item.tool_call_id ?? "") === id);
 }
 
 function shouldRenderToolEvent(event: TranscriptEvent) {

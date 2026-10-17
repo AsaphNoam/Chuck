@@ -25,7 +25,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Files and Commands tabs (FS-05).
 - **R2.** The Transcript renders normalized events in sequence: user prompts; assistant text as sanitized
   GitHub-flavored Markdown with syntax-highlighted fenced code; tool calls with expandable JSON
-  arguments; tool results with error styling and expandable content after the first 600 characters;
+  arguments; tool results with error styling and expandable content after the first 600 characters
+  (a result whose content blocks are all ACP-wrapped text shows that text joined by newlines; any
+  other structured result shows formatted JSON);
   unified file diffs; permission prompts; turn errors; turn boundaries; and backend-switch dividers.
   An unknown event remains inspectable as formatted JSON rather than disappearing.
 - **R3.** The transcript follows new events while the reader remains at the bottom. Scrolling away
@@ -749,7 +751,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 - **R26.** The transcript locally groups each uninterrupted run of normalized
   `tool_call` and `tool_result` events into a collapsed **Ran _n_ tools** row, where _n_ is the
   number of calls. Activating that row reveals the original calls and every non-empty or failed
-  result for inspection; any non-tool event ends the run. A successful result with no displayable
+  result for inspection; any non-tool event ends the run, except that an answered permission request
+  whose `tool_call_id` matches a call already in the run joins that run (revealed with it, showing
+  its outcome chip) so the approved call's result stays inside. An unanswered request still ends
+  the run and renders as the actionable prompt. A successful result with no displayable
   payload is omitted whether it is in a run or arrives alone. This supersedes R25. Grouping changes
   neither durable events, sequence order, live/replay behavior, nor the individual event's
   right-click annotation target.
@@ -862,8 +867,11 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 
 - **A11** (R26) — Two uninterrupted calls and their results initially render one
   **Ran 2 tools** control. Opening it reveals the calls and non-empty/failed results but no
-  successful no-payload outcome; intervening assistant text starts a new run. *Verify:*
-  `ui/src/components/chat/TranscriptView.test.tsx`.
+  successful no-payload outcome; intervening assistant text starts a new run. A call whose
+  answered permission request sits between it and its result renders as one collapsed run on
+  desktop and phone, revealing the call, the outcome chip and the result; an unanswered or
+  unrelated request stays outside. *Verify:* `ui/src/components/chat/TranscriptView.test.tsx`,
+  `ui/src/components/chat/toolRun.test.ts`, `ui/src/remote/AgentScreen.test.tsx`.
 
 - **A12** (R27) — The chat header **Back** link points at `/project/<project>` for an agent
   whose project is a current, non-archived catalog member, and at `/` for an agent whose project is

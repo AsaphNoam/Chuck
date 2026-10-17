@@ -37,6 +37,21 @@ function firstDisplayable(...values: unknown[]) {
 function formatResult(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
+  const text = contentText(value);
+  if (text != null) return text;
   const json = JSON.stringify(value, null, 2);
   return json ?? "";
+}
+
+// ACP stores a result as its content blocks. When every block is wrapped text,
+// show that text rather than the envelope; anything else stays formatted JSON (FS-03.R2).
+function contentText(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const texts: string[] = [];
+  for (const block of value) {
+    const inner = (block as { type?: unknown; content?: { type?: unknown; text?: unknown } } | null);
+    if (inner?.type !== "content" || inner.content?.type !== "text" || typeof inner.content.text !== "string") return null;
+    texts.push(inner.content.text);
+  }
+  return texts.join("\n");
 }

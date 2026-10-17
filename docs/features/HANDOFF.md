@@ -6,6 +6,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Partly fixed — tool activity outside "Ran n tools" (2026-10-17):** TOOLRUN-01/02 closed;
+  TOOLRUN-03 (empty tool-call input) awaits the user's go-ahead on a new durable event type; see
+  Review findings.
+
 - **Finished — quiet quota recovery fixes (2026-10-17):** fix unit
   `quiet-quota-recovery-2026-10-17` (Q1–Q9) closed on `d3ea0f8f^..9fa9bc81`; see changelog.
   Owed: live FS-01.A28/A31/A33/A34 receipts, A32 full owner/race matrix, A33 real-browser
@@ -185,31 +189,22 @@ Claude agent at `d6d80f6f` (no logs). It shows "Ran 2 tools" (expanded: "Tool ca
 followed by the same raw JSON outside any run. Classification: specification gap plus defect;
 the desktop transcript shares the grouping and is affected the same way.
 
-- **Must fix** — **TOOLRUN-01 (confirmed, spec gap): an approved tool's result renders outside
-  its run.** `ui/src/components/chat/toolRun.tsx` `groupTranscriptRows` ends a run at any non-tool
-  event, and FS-03.R26 says so literally. Every permission-gated call has a `permission_request`
-  between `tool_call` and `tool_result`, so the run closes after the call and the non-empty result
-  renders alone, visibly, on desktop and phone. That conflicts with FS-20.R13 ("tool calls
-  collapsed to one line") and FS-12.R35's subdued run. Reproduced by the skipped
-  `ui/src/components/chat/toolRun.test.ts`. Fix: amend FS-03.R26/A11 so a resolved permission
-  folds into the run of the call it belongs to (matched by `tool_call_id`) and does not end it; an
-  unresolved request still renders as the actionable prompt. Un-skip the test; add a
-  TranscriptView/phone render case. (INV §2/§8)
-- **Worth fixing** — **TOOLRUN-02 (confirmed from code, spec gap): results print the ACP content
-  envelope as JSON.** `internal/runtime/acpmap.go:511–524` stores a `tool_call_update`'s
-  `content` array verbatim. `ToolResult.tsx` `formatResult` then `JSON.stringify`s it, so ordinary
-  text output appears as `[{"type":"content","content":{"type":"text",…}}]`. FS-03.R2 does not
-  define result text. Fix: show the concatenated text of `content`-type text blocks when every
-  block is text, and keep formatted JSON for anything else. Test with a Claude-shaped update.
-  (INV §8/§11)
-- **Worth fixing** — **TOOLRUN-03 (probable): tool-call rows keep the initial empty input and kind
-  name.** `acpmap.go`'s `tool_call_update` branch ignores `rawInput` and `title`; only the initial
-  `tool_call` sets `Args`/`Title`. The screenshot shows "Tool call: edit {}" while the
-  permission row for the same call already names "Edit docs/features/HANDOFF.md". So the adapter
-  fills input/title after the first frame, and Chuck never records it. Not reproduced against the
-  live adapter; first capture a Claude ACP frame sequence (fake ACP fixture) to confirm. Fix:
-  carry later non-empty `rawInput`/`title` into the displayed call, e.g. a call-update event or a
-  UI fold by `tool_call_id`, without rewriting durable events. (INV §1/§11)
+TOOLRUN-01/02 closed 2026-10-17 (changelog). Remaining:
+
+- **Worth fixing** — **TOOLRUN-03 (confirmed from adapter source; awaiting user go-ahead on
+  scope): tool-call rows keep the initial empty input and kind name.** `acpmap.go`'s
+  `tool_call_update` branch ignores `rawInput` and `title`; only the initial `tool_call` sets
+  `Args`/`Title`. Installed `claude-agent-acp` (Chuck 0.15.1 runtime, `dist/acp-agent.js` ~L8060
+  and `dist/tool-calls/renderer.js` `refinement`/`partialRefinement`) first surfaces a streamed
+  tool_use as `tool_call` with empty input, then sends status-less `tool_call_update`s carrying
+  `rawInput`, `title`, `kind` (partial ones per completed top-level field, then the complete one).
+  Proposed fix: a new durable `tool_call_update` event (call id, title, args) emitted only when
+  either changed (per-call dedupe in `agentState`, cleared with `toolNames`, INV §4/§16); UI
+  `appendRenderedEvent`/`foldTranscript` merge it into the matching call and never render it
+  alone; walk INV §6 for `transcript/project.go`, `index/indexer.go`, `contextref`, Think Tank
+  capture/activity, `quota_notice.go`; TS event vocabulary + FS-03.R2. Paused because it adds a
+  durable event type across ~7 consumers (CLAUDE.md velocity rule: propose before building).
+  (INV §1/§6/§11/§16)
 
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -229,6 +224,15 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-17 — Tool-run fixes (TOOLRUN-01/02 closed; 03 open):** TOOLRUN-01 (INV §2/§8)
+  `groupTranscriptRows` keeps an answered `permission_request` whose `tool_call_id` matches a call
+  in the run inside that run, so the approved result no longer renders alone on desktop or phone;
+  unanswered/unrelated requests still end it (FS-03.R26/A11 amended; un-skipped `toolRun.test.ts`
+  plus TranscriptView and AgentScreen cases, all failing before the fix). TOOLRUN-02 (INV §8/§11)
+  `ToolResult` shows joined text when every block is ACP-wrapped text, JSON otherwise (FS-03.R2
+  amended). 907 UI tests, UI build, spec check pass; no Go changed, Go matrix not rerun; embedded
+  `dist` not refreshed.
 
 - **2026-10-17 — Withdraw fixes (W1–W3 closed):** closes the FS-03.R90 unit. W1 (INV §1/§8)
   `drafts.ts` keeps the page's last composer text in memory and `restoreChatDraft` merges with it,

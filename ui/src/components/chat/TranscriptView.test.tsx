@@ -142,6 +142,23 @@ describe("TranscriptView annotation entry point", () => {
     expect(screen.queryByText("Completed")).toBeNull();
   });
 
+  it("keeps an approved tool's permission and result inside its run (FS-03.A11)", () => {
+    renderTranscript(false, [
+      { kind: "tool_call", seq: 1, tool_call_id: "t1", name: "Edit" },
+      { kind: "permission_request", seq: 2, tool_call_id: "t1", name: "Edit HANDOFF.md", resolved: "approve" },
+      { kind: "tool_result", seq: 3, tool_call_id: "t1", status: "completed", content: "Edited." },
+    ]);
+
+    const summary = screen.getByRole("button", { name: "Ran 1 tool" });
+    expect(screen.queryByText("Edited.")).toBeNull();
+    expect(screen.queryByText(/Edit HANDOFF\.md/)).toBeNull();
+
+    fireEvent.click(summary);
+
+    expect(screen.getByText(/Edit HANDOFF\.md/)).toBeInTheDocument();
+    expect(screen.getByText("Edited.")).toBeInTheDocument();
+  });
+
   // FS-03.A66: file changes stay out of the stream; a Files-tab reveal shows only its diff.
   it("hides diffs unless one is revealed or the view keeps them inline", () => {
     const withDiffs = [
