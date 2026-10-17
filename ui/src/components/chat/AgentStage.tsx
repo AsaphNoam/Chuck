@@ -24,16 +24,25 @@ const LARGE_STEP = 64;
 // outside it (FS-12.R61). The stage owns the reader workspace's proportions:
 // the person's requested split, kept apart from the widths that fit right now,
 // and the two dividers that change it (FS-03.R93/R96, TS-08.R128). The request
-// lives as long as this page does and is never stored. The archived page
-// shares it.
-export function AgentStage({ onSlots, children }: { onSlots: (slots: PanelSlots) => void; children: ReactNode }) {
+// lives as long as this page shows the same source workspace and is never
+// stored; navigating to another agent restores the initial split. The archived
+// page shares it.
+export function AgentStage({ source, onSlots, children }: { source: string; onSlots: (slots: PanelSlots) => void; children: ReactNode }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [start, setStart] = useState<HTMLDivElement | null>(null);
   const [end, setEnd] = useState<HTMLDivElement | null>(null);
   const [occupancy, setOccupancy] = useState<ReaderOccupancy>({ file: false, tray: "none" });
   const [request, setRequest] = useState<ReaderRequest>({ fileShare: null, trayWidth: null });
-  const [space, setSpace] = useState<{ stage: number; available: number } | null>(null);
+  const [requestSource, setRequestSource] = useState(source);
+  if (requestSource !== source) {
+    setRequestSource(source);
+    setRequest({ fileShare: null, trayWidth: null });
+  }
+  const [space, setSpace] = useState<{ stage: number; available: number; divider: number } | null>(null);
   const spaceRef = useRef(space);
+  // A divider's width, remembered while none is mounted so docking can count
+  // the dividers it would add.
+  const dividerWidth = useRef(0);
   const ids = useId();
   const fileId = `${ids}-file`;
   const trayId = `${ids}-tray`;
@@ -42,21 +51,24 @@ export function AgentStage({ onSlots, children }: { onSlots: (slots: PanelSlots)
     setOccupancy((current) => current.file === next.file && current.tray === next.tray ? current : next);
   }, []);
 
-  // Available width is the stage less its dividers and any collapsed strip;
-  // one observer on the stage (and the strip) is the only measurement.
+  // Available width is the stage less any collapsed strip; the allocation
+  // subtracts the dividers it would show, so mounting one never changes the
+  // decision that mounted it. One observer on the stage (and the strip) is the
+  // only measurement.
   const measure = useCallback(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    let fixed = 0;
-    for (const divider of stage.querySelectorAll<HTMLElement>(":scope > .workspace-divider")) fixed += divider.getBoundingClientRect().width;
-    if (stage.dataset.tray === "collapsed" && end) fixed += end.getBoundingClientRect().width;
+    const mounted = stage.querySelector<HTMLElement>(":scope > .workspace-divider");
+    if (mounted) dividerWidth.current = mounted.getBoundingClientRect().width;
+    const fixed = stage.dataset.tray === "collapsed" && end ? end.getBoundingClientRect().width : 0;
     const stageWidth = stage.clientWidth;
     const available = Math.floor(stageWidth - fixed);
+    const divider = dividerWidth.current;
     // Compared outside the updater: this runs after every commit, and only a
     // real change may schedule another render.
     const current = spaceRef.current;
-    if (current && current.stage === stageWidth && current.available === available) return;
-    spaceRef.current = { stage: stageWidth, available };
+    if (current && current.stage === stageWidth && current.available === available && current.divider === divider) return;
+    spaceRef.current = { stage: stageWidth, available, divider };
     setSpace(spaceRef.current);
   }, [end]);
 
@@ -71,7 +83,7 @@ export function AgentStage({ onSlots, children }: { onSlots: (slots: PanelSlots)
   }, [measure, end]);
 
   const active = occupancy.file || occupancy.tray !== "none";
-  const allocation = active && space ? allocateReader({ available: space.available, stage: space.stage, file: occupancy.file, tray: occupancy.tray, request }) : null;
+  const allocation = active && space ? allocateReader({ available: space.available, divider: space.divider, stage: space.stage, file: occupancy.file, tray: occupancy.tray, request }) : null;
   const tray = allocation?.tray ?? occupancy.tray;
   const fileRange = occupancy.file ? allocation?.file : null;
   const trayRange = allocation?.tray === "docked" ? allocation.trayWidth : null;

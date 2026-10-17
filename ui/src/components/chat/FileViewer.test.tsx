@@ -25,6 +25,11 @@ function fileBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** A plain-text snapshot of `count` numbered lines. */
+function numbered(count: number) {
+  return { line_count: count, content: Array.from({ length: count }, (_, i) => `line ${i + 1}`).join("\n") };
+}
+
 let reads: string[] = [];
 
 const server = setupServer(
@@ -83,6 +88,102 @@ describe("FileViewer", () => {
     expect(screen.queryByText("internal/state/messages.go")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Close" })).toHaveLength(1);
     expect(reads).toEqual(["internal/state/messages.go", "ui/src/routes.tsx"]);
+  });
+
+  it("applies a cited line to the file it names, not the shorter file it replaces", async () => {
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this.getAttribute("data-file-line") ?? ""); };
+    const load = async (path: string) => fileBody({ path, ...numbered(path === "a.txt" ? 2 : 100), language: "text" });
+    const view = render(<FileViewer agentId="a_1" link={{ path: "a.txt" }} load={load} onClose={vi.fn()} />);
+    await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(2));
+    view.rerender(<FileViewer agentId="a_1" link={{ path: "b.txt", line: 80 }} load={load} onClose={vi.fn()} />);
+    await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(100));
+    expect(scrolled).toEqual(["80"]);
+  });
+
+  // A slow Reload shows its short placeholder, which clamps the body to its top
+  // and scrolls; that is not the reader moving (FS-03.R95, TS-08.R130).
+  describe("keeps the reading place through a slow Reload", () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    function readerAt(snapshots: Array<Record<string, unknown> | Error | "pending">) {
+      let release: (() => void) | null = null;
+      const load = vi.fn((path: string) => {
+        const next = snapshots.shift();
+        if (next === "pending") {
+          const reply = snapshots.shift() as Record<string, unknown>;
+          return new Promise<ReturnType<typeof fileBody>>((resolve) => { release = () => resolve(fileBody({ path, ...reply })); });
+        }
+        return next instanceof Error ? Promise.reject(next) : Promise.resolve(fileBody({ path, ...next }));
+      });
+      // Every source line and rendered block is 20px tall, laid out from the body's top.
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        const body = this.closest<HTMLElement>(".file-viewer-body");
+        const blocks = this.parentElement?.classList.contains("file-viewer-rendered") ? [...this.parentElement.children] : null;
+        const index = this.dataset.fileLine ? Number(this.dataset.fileLine) - 1 : blocks ? blocks.indexOf(this) : -1;
+        const top = index < 0 || !body ? 0 : index * 20 - body.scrollTop;
+        return { x: 0, y: top, top, left: 0, right: 500, bottom: top + 20, width: 500, height: 20, toJSON() {} } as DOMRect;
+      });
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(999);
+      render(<FileViewer agentId="a_1" link={{ path: "notes.md" }} load={load} onClose={vi.fn()} />);
+      return { release: () => release?.() };
+    }
+    const body = () => document.querySelector(".file-viewer-body") as HTMLElement;
+    const scrollTo = (top: number) => { body().scrollTop = top; fireEvent.scroll(body()); };
+    const reloadToPlaceholder = async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+      await screen.findByText("Reading…");
+      scrollTo(0);
+    };
+    const markdown = (count: number) => ({ language: "markdown", content: Array.from({ length: count }, (_, i) => `Paragraph ${i + 1}`).join("\n\n") });
+
+    it("in Source", async () => {
+      const reader = readerAt([numbered(100), "pending", numbered(100)]);
+      await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(100));
+      scrollTo(400);
+      await reloadToPlaceholder();
+      reader.release();
+      await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(100));
+      expect(body().scrollTop).toBe(400);
+    });
+
+    // The placeholder is not Markdown, so it must not count as Source either.
+    it("in Rendered, keeping Source's own place too", async () => {
+      const reader = readerAt([markdown(100), "pending", markdown(100)]);
+      await waitFor(() => expect(document.querySelectorAll(".file-viewer-rendered > p")).toHaveLength(100));
+      fireEvent.click(screen.getByRole("button", { name: "Source" }));
+      scrollTo(200);
+      fireEvent.click(screen.getByRole("button", { name: "Rendered" }));
+      scrollTo(400);
+      await reloadToPlaceholder();
+      reader.release();
+      await waitFor(() => expect(document.querySelectorAll(".file-viewer-rendered > p")).toHaveLength(100));
+      expect(body().scrollTop).toBe(400);
+      fireEvent.click(screen.getByRole("button", { name: "Source" }));
+      expect(body().scrollTop).toBe(200);
+    });
+
+    it("clamps to the end of a shortened snapshot", async () => {
+      const reader = readerAt([numbered(100), "pending", numbered(5)]);
+      await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(100));
+      scrollTo(400);
+      await reloadToPlaceholder();
+      reader.release();
+      await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(5));
+      expect(body().scrollTop).toBe(999);
+    });
+
+    it("after a failed Reload and a retry", async () => {
+      readerAt([numbered(100), new Error("That file could not be read."), numbered(100)]);
+      await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(100));
+      scrollTo(400);
+      fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+      await screen.findByRole("alert");
+      scrollTo(0);
+      fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+      await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(100));
+      expect(body().scrollTop).toBe(400);
+    });
   });
 
   it("re-reads only on Reload, never by watching or polling", async () => {

@@ -1510,8 +1510,10 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   separately from the currently clamped widths, initially 50% of the space remaining after
   a docked tray; the tray initially requests its existing `min(30cqi, 460px)` width. Useful
   minimums are 320px for the file, 360px for the conversation and 280px for an expanded tray.
-  Subtract actual separator/gap widths before allocation. A collapsed tray uses its existing
-  strip width. Dock an expanded tray only when those minimums fit; otherwise constrain its
+  Subtract actual separator/gap widths before allocation, counting the separators that the
+  resulting allocation shows rather than those currently mounted, so docking cannot undo itself.
+  A collapsed tray uses its existing strip width. Dock an expanded tray only when those minimums
+  fit beside its own separator; otherwise constrain its
   existing overlay to the conversation's box, leaving the reader unobscured. A workspace narrower
   than the two reading minimums uses a clamped adjacent split with contained content and the
   explicit Focus file escape; the supported desktop floor remains 1024px. The phone and dashboard

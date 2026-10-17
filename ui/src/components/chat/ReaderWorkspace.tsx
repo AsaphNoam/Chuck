@@ -49,6 +49,9 @@ export function ReaderWorkspace({ agentId, openFile, onOpenFile, annotationsEnab
   useLayoutEffect(() => {
     report?.({ file: file !== null && !focused, tray: !tray || focused ? "none" : collapsed ? "collapsed" : "expanded" });
   }, [report, file, focused, tray, collapsed]);
+  // Leaving the transcript (another agent tab, or the page) gives the stage
+  // its space back; Focus file keeps this workspace mounted.
+  useLayoutEffect(() => () => report?.({ file: false, tray: "none" }), [report]);
 
   const viewer = file && onOpenFile && (
     <FileViewerView

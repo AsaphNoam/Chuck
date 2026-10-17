@@ -64,10 +64,13 @@ export function useFileReader({ agentId, link, load, onPathResolved }: {
   // Tracked during render so the view's layout effect already sees them: a
   // different file starts at its top, and a newly cited line takes priority
   // over any stored position. Republishing the same file's spelling is neither.
+  // The previous file's snapshot is dropped in the same render, so neither the
+  // cited line nor a scroll is ever applied to the file being replaced.
   const seen = useRef<{ path: string | null; line: number | null }>({ path: null, line: null });
   if (path !== seen.current.path && path !== republished.current) {
     positions.current = { rendered: null, source: null };
     pendingLine.current = line;
+    if (view.status !== "loading") setView({ status: "loading" });
   } else if (line !== seen.current.line && line !== null) {
     pendingLine.current = line;
   }
@@ -215,7 +218,9 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
         data-slot="content"
         ref={bodyRef}
         onContextMenu={openSelectionMenu}
-        onScroll={() => { if (bodyRef.current) positions.current[mode] = captureAnchor(bodyRef.current, mode); }}
+        // Only the loaded document records a position: the Reading… or error
+        // placeholder's own scroll (clamped to its top) must not replace it.
+        onScroll={() => { if (bodyRef.current && view.status === "loaded") positions.current[mode] = captureAnchor(bodyRef.current, mode); }}
       >
         {view.status === "loading" && <p className="tab-placeholder">Reading…</p>}
         {view.status === "error" && <p className="file-viewer-error" role="alert">{view.reason}</p>}

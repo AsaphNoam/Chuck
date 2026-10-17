@@ -28,24 +28,28 @@ export type ReaderAllocation = {
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
 
 /**
- * allocateReader divides `available` pixels (the stage minus its dividers and
- * any collapsed strip, which `fixed` names) between file, conversation and tray.
- * An expanded tray docks only when every visible surface keeps its useful
- * minimum; otherwise it overlays the conversation and leaves the file alone.
+ * allocateReader divides `available` pixels (the stage minus any collapsed
+ * strip), less the dividers this allocation shows, between file, conversation
+ * and tray. An expanded tray docks only when every visible surface keeps its
+ * useful minimum beside its own divider; otherwise it overlays the conversation
+ * and leaves the file alone.
  */
-export function allocateReader({ available, stage, file, tray, request }: {
+export function allocateReader({ available, divider = 0, stage, file, tray, request }: {
   available: number;
+  /** Width of one divider; the file and a docked tray each add one. */
+  divider?: number;
   /** Full stage width, the base of the tray's initial min(30%, 460px). */
   stage: number;
   file: boolean;
   tray: TrayPresence;
   request: ReaderRequest;
 }): ReaderAllocation {
-  const space = Math.max(0, available);
+  let space = Math.max(0, available - (file ? divider : 0));
   const fileMin = file ? MIN_FILE : 0;
   const trayMode: ReaderAllocation["tray"] = tray === "expanded"
-    ? space >= fileMin + MIN_CHAT + MIN_TRAY ? "docked" : "overlay"
+    ? space - divider >= fileMin + MIN_CHAT + MIN_TRAY ? "docked" : "overlay"
     : tray;
+  if (trayMode === "docked") space -= divider;
   let trayWidth: Range | null = null;
   let rest = space;
   if (trayMode === "docked") {

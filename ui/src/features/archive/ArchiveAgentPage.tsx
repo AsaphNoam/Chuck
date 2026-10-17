@@ -92,7 +92,7 @@ export function ArchiveAgentPage() {
   return (
     <section className="chat-panel" data-ui="agent-workspace" data-state="archived" data-file-open={openFile ? "true" : undefined} data-variant="chat">
       <AgentBreadcrumb backTarget="/archive" backLabel="Back to Archive" project={projectTitle} name={archivedName} agentId={id} />
-      <AgentStage onSlots={setPanelSlots}>
+      <AgentStage source={id} onSlots={setPanelSlots}>
       <div className="chat-card">
       <header className="chat-header" data-slot="header">
         <AgentIdentity

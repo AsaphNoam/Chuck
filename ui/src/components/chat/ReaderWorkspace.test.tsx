@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { AgentStage, type PanelSlots } from "./AgentStage";
@@ -46,14 +46,16 @@ const events = [{ kind: "assistant_text", seq: 7, text: "Reply" }];
 
 // The full agent page's composition: the stage around a card holding the
 // transcript, with the route's open file owned above both (FS-03.R54).
-function Page({ initial }: { initial: FileLink | null }) {
+// `shown` false stands for another agent tab replacing the transcript.
+function Page({ initial, agentId = "a1", shown = true }: { initial: FileLink | null; agentId?: string; shown?: boolean }) {
   const [file, setFile] = useState<FileLink | null>(initial);
   const [slots, setSlots] = useState<PanelSlots | undefined>(undefined);
+  const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 0 } } }));
   return (
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: 0 } } })}>
-      <AgentStage onSlots={setSlots}>
+    <QueryClientProvider client={client}>
+      <AgentStage source={agentId} onSlots={setSlots}>
         <div className="chat-card">
-          <TranscriptView agentId="a1" events={events} sourceActive annotationsEnabled openFile={file} onOpenFile={setFile} panelSlots={slots} />
+          {shown && <TranscriptView agentId={agentId} events={events} sourceActive annotationsEnabled openFile={file} onOpenFile={setFile} panelSlots={slots} />}
         </div>
       </AgentStage>
     </QueryClientProvider>
@@ -139,6 +141,72 @@ describe("reader workspace", () => {
     const labels = within(dialog).getAllByRole("button").map((button) => button.textContent ?? "");
     expect(labels).toEqual(expect.arrayContaining(["Rendered", "Source", "Reload", "Return to chat", "Close file"]));
     for (const label of labels) expect(label).not.toMatch(/[㐀-鿿]/);
+  });
+});
+
+// jsdom has no layout: the stage reports `width` and each divider its 16px.
+function stageWidth(width: () => number) {
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(width);
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    const size = this.classList.contains("workspace-divider") ? 16 : 0;
+    return { x: 0, y: 0, top: 0, left: 0, right: size, bottom: 0, width: size, height: 0, toJSON() {} } as DOMRect;
+  });
+}
+
+// FS-03.R93/R96/A72, TS-08.R127/R128.
+describe("reader workspace proportions", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const stage = () => document.querySelector(".chat-stage") as HTMLElement;
+  const sourceShown = () => waitFor(() => expect(document.querySelector("[data-file-line]")).not.toBeNull());
+
+  // Docking adds the tray's own divider, so it docks only when the three
+  // minimums (960px) fit beside both dividers: from a 992px stage.
+  it("settles on one tray form around the docking threshold, opened there or resized through it", async () => {
+    let width = 975;
+    stageWidth(() => width);
+    seedDraft();
+    for (; width <= 993; width += 1) {
+      const { unmount } = render(<Page initial={{ path: "main.go" }} />);
+      await sourceShown();
+      expect(stage()).toHaveAttribute("data-tray", width >= 992 ? "docked" : "overlay");
+      unmount();
+    }
+    const { rerender } = render(<Page initial={{ path: "main.go" }} />);
+    await sourceShown();
+    for (width = 993; width >= 975; width -= 1) {
+      rerender(<Page initial={{ path: "main.go" }} />);
+      expect(stage()).toHaveAttribute("data-tray", width >= 992 ? "docked" : "overlay");
+      expect(screen.getAllByRole("separator")).toHaveLength(width >= 992 ? 2 : 1);
+    }
+  });
+
+  it("gives the space back when another tab replaces the transcript, and restores it on return", async () => {
+    stageWidth(() => 1400);
+    seedDraft();
+    const { rerender } = render(<Page initial={{ path: "main.go" }} />);
+    await sourceShown();
+    expect(screen.getAllByRole("separator")).toHaveLength(2);
+    rerender(<Page initial={{ path: "main.go" }} shown={false} />);
+    expect(screen.queryAllByRole("separator")).toHaveLength(0);
+    expect(stage()).not.toHaveAttribute("data-file");
+    expect(stage()).not.toHaveAttribute("data-tray");
+    rerender(<Page initial={{ path: "main.go" }} />);
+    await sourceShown();
+    expect(screen.getAllByRole("separator")).toHaveLength(2);
+  });
+
+  it("restores the initial split when the same page shows another agent", async () => {
+    stageWidth(() => 1400);
+    const { rerender } = render(<Page initial={{ path: "main.go" }} />);
+    await sourceShown();
+    const divider = () => screen.getByRole("separator", { name: "Resize file and conversation" });
+    const initial = divider().getAttribute("aria-valuenow");
+    fireEvent.keyDown(divider(), { key: "ArrowRight", shiftKey: true });
+    const chosen = divider().getAttribute("aria-valuenow");
+    expect(chosen).not.toBe(initial);
+    rerender(<Page initial={{ path: "main.go" }} agentId="a2" />);
+    await sourceShown();
+    expect(divider()).toHaveAttribute("aria-valuenow", initial);
   });
 });
 

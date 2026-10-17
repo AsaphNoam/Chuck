@@ -6,11 +6,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Awaiting fixes — roomier file reader (2026-10-17):** review unit
-  `roomier-file-reader-2026-10-17`, `efbf9d03..ad8fb87e`; review complete, RFR-1–RFR-5 open
-  (one P1, four P2). Findings, fix routing and the independent-render permission gate are below.
-  FS-03.R92–R97/A71–A75, TS-08.R127–R132; no other review unit was selected. Required review
-  state commit is sandbox-blocked; the handoff edit is preserved (see Blocked on human).
+- **Finished — roomier file reader fixes (2026-10-17):** fix unit
+  `roomier-file-reader-2026-10-17` (RFR-1–RFR-5) closed; see changelog. FS-03.R92–R97/A71–A75,
+  TS-08.R127–R132. Owed: independent rendered review (Acceptance gates still owed).
 
 - **Awaiting fixes — late tool input event (2026-10-17):** unit
   `late-tool-input-2026-10-17`, `a77bb3b6`; review complete, LTI-1/LTI-2 open (two P2).
@@ -104,6 +102,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 None.
 
 ## Acceptance gates still owed
+
+- **FS-03.A71–A75 (workflow §14.4):** independent real-browser review of the file reader; the
+  review's loopback harness was sandbox-blocked and the implementer's 957 rendered checks do not
+  count. Check live/archive/room surfaces, the dashboard overlay and unchanged phone/dashboard
+  navigation across widths/appearances, including slow Reload, resizing across the ~992px
+  docking boundary, late diagrams, nested launch failure/retry, focus return and transcript
+  visible-event/follow continuity through width reflow (native anchoring is unproven there).
 
 - **FS-06.A29 / TS-04.R94:** bounded credentialed Claude and Codex receipt that `stop_agent`
   waits for Approve once under each provider's most permissive mode. **FS-06.A30:** real-browser
@@ -224,76 +229,6 @@ call recovers its retained update. Chuck-tool input remains withheld in the exer
 paths. No speculative multi-path-per-call finding was recorded.
 
 
-### Review 2026-10-17 — roomier file reader — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Select this exact fix unit: `roomier-file-reader-2026-10-17`, implementation
-`efbf9d03..ad8fb87e`. Review completed; five findings remain, no fixes implemented.
-Report and six independent failing probes are in shared project resources:
-`roomier-file-reader-review-2026-10-17/REVIEW.md`, `probes.test.tsx`, `probes.log` and
-`vitest.config.mjs` (under `/Users/mcnoam/.chuck/project-resources/agentdeck-20261007t221535z/`).
-
-- **Must fix** — **RFR-1 / P1 (INV §8/§17): docking-threshold render loop.**
-  `ui/src/components/chat/AgentStage.tsx:51–54` subtracts only the dividers currently mounted,
-  but docking itself adds a divider. With a file and expanded annotations at a 984px stage,
-  one 16px divider leaves 968px (dock), two leave 952px (overlay), around the 960px minimum.
-  The layout effect repeats until React throws “Maximum update depth exceeded”. Account for
-  the prospective divider before deciding docking; test all widths around 976–991px, including
-  an actual window resize. TS-08.R128, FS-03.R93/A72. Independent stage probe reproduces.
-- **Must fix** — **RFR-2 / P2 (INV §1/§8): stale dividers after leaving Transcript.**
-  `ui/src/components/chat/ReaderWorkspace.tsx:48–51` never clears its occupancy report on
-  unmount. Switching to Files/Think Tank/Terminal unmounts the Transcript content, but the stage
-  retains file/tray dividers controlling empty slots and stale expanded-card layout. Clear
-  occupancy with its owner's lifecycle, without resetting it for Focus file; test file/tray →
-  other tab → Transcript. Actual ReaderWorkspace integration probe leaves a ghost separator.
-  TS-08.R127/R128 and INV §1's agent-tab boundary rule.
-- **Must fix** — **RFR-3 / P2 (INV §1/§8): cited replacement consumed against the old file.**
-  `ui/src/components/chat/FileViewer.tsx:244–251` consumes `pendingLine` while the old snapshot
-  is still loaded, before the passive read effect enters loading. From a two-line `a.txt`,
-  opening `b.txt:80` consumes the citation against a file without that line, so the new file
-  opens at the top. Consume navigation only for its matching loaded identity; test short source
-  → longer cited source. The independent test fails here and passes with the pre-change
-  FileViewer. FS-03.R95/A74, TS-08.R130.
-- **Must fix** — **RFR-4 / P2 (INV §1/§8): slow Reload erases the reading anchor.**
-  `ui/src/components/chat/FileViewer.tsx:218` records scroll positions even for the short
-  loading/error placeholder. The clamp-to-zero scroll after Reload overwrites the retained
-  anchor; the new snapshot restores the top (400px → 0px in the delayed-read/event probe).
-  Loading also counts as Source when reloading Rendered. Capture only from the matching loaded
-  document and preserve anchors through placeholders; test delayed Reload in both modes,
-  shortened snapshots and failure/retry. TS-08.R130 requires safe position clamping. This is a
-  simulated browser-event reproduction, not a completed real-browser receipt.
-- **Must fix** — **RFR-5 / P2 (INV §1): split requests survive source-workspace navigation.**
-  `ui/src/components/chat/AgentStage.tsx:33–35` retains requests without source identity/reset.
-  Same-route agent navigation reuses ChatPanel/ArchiveAgentPage and the unkeyed stage, even
-  though the keyed reader resets. A 64px file adjustment on a1 remains on a2 (756px instead
-  of the default 692px in the integration probe). Scope/reset both requests to the source
-  workspace while preserving file-replacement/focus continuity. Test live and archived
-  same-route id changes. FS-03.R96, TS-08.R127.
-
-**Verification:** UI build, presentation/style checks (46 checker tests) pass. Focused UI tests:
-114/115; full UI suite: 920/921. Both fail the same unrelated TranscriptView attachment-recovery
-assertion because it matches “Think Tank synthesis could not be loaded”; the pre-change
-TranscriptView reproduces it too (`baseline-transcript.log`). No test was weakened or fixed.
-No Go changes; Go matrix not rerun. Embedded `dist` unchanged. All 17 invariant classes were
-swept; applicability/results and local-choice outcomes are in the report. Final spec lint and
-whitespace results are retained in shared resources. The mandatory state-only review commit
-could not be created: `.git/index.lock` creation is denied by the sandbox. No other repository
-file was changed, and this handoff edit is intentionally left intact for an authorized commit.
-
-**Open verification gate:** independent workflow §14.4 / FS-03.A71–A75 browser review cannot
-run here: the loopback harness fails with sandbox `EPERM` on `127.0.0.1:5199`, and no
-approval-capable delegate is exposed. Do not treat the implementer's 957 rendered checks as
-independent review. An approved reviewer must check live/archive/room surfaces, the dashboard
-overlay and unchanged phone/dashboard navigation across the required widths/appearances,
-including slow Reload, boundary resizing, late diagrams, nested launch failure/retry, focus
-return and transcript visible-event/follow continuity. The overlay/one-frame allocation choices
-need no separate fix absent an observed defect; native transcript anchoring remains unproven
-through width reflow, not rejected solely for lacking custom machinery.
-
-Task coordination read and the attempted `report_task_result` write were both denied by the MCP
-approval policy. The supervisor/operator must relay completion and the administrative blocker;
-no task result was recorded. The attempted blocked outcome reflected the missing mandatory commit,
-not the presence of findings.
-
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
@@ -312,6 +247,20 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-17 — Roomier file reader fixes (RFR-1–RFR-5 closed):** unit
+  `roomier-file-reader-2026-10-17` closed. RFR-1 (INV §8/§17): `allocateReader` counts the
+  dividers its own allocation shows, so docking near ~992px no longer loops; TS-08.R128
+  clarified. RFR-2 (INV §1/§8): `ReaderWorkspace` clears its stage occupancy on unmount.
+  RFR-3 (INV §1/§8): a new file drops the old snapshot in the same render, so its cited line
+  waits for it. RFR-4 (INV §1/§8): only a loaded document records scroll positions. RFR-5
+  (INV §1): `AgentStage` takes a `source` (agent id) and resets requests when it changes. New
+  regressions in `readerLayout.test.ts`, `ReaderWorkspace.test.tsx` (975–993px open and
+  resize, tab leave/return, agent change) and `FileViewer.test.tsx` (short→cited file, slow
+  Reload Source/Rendered, shortened snapshot, failure/retry) fail before and pass after. Full UI
+  930/930 (the review's TranscriptView failure did not recur), UI build, style/presentation
+  checks, serial `make test` and `make build` pass. The review's state commit was made first
+  (`6f13725a`). Embedded `dist` not refreshed; independent rendered review still owed.
 
 - **2026-10-17 — Late tool input reviewed:** only `a77bb3b6`; LTI-1/LTI-2 keep
   `late-tool-input-2026-10-17` open for fixes. Canceled calls retain unbounded input bodies;
@@ -592,15 +541,6 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
   Live provider verification and the mail-test assertion race remain.
 
 ## Blocked on human
-
-- **Roomier file reader review administrative closure (2026-10-17):** substantive review of
-  `efbf9d03..ad8fb87e` is complete and its five findings are recorded above, but `git add --
-  docs/features/HANDOFF.md` fails with “Unable to create …/.git/index.lock: Operation not
-  permitted”. An approval-capable supervisor/operator must commit only this handoff edit;
-  suggested message: `review: record roomier file reader findings (RFR-1–RFR-5)`. No review
-  commit exists yet; the product remains at `ad8fb87e`. The separate independent-render gate
-  also remains open because the same execution cannot bind the loopback harness. Do not discard
-  the handoff edit or count these permission failures as product defects.
 
 The published `v0.11.0` release body remains empty; its notes are in
 [`RELEASE-v0.11.0-notes.md`](../archive/state/RELEASE-v0.11.0-notes.md).

@@ -41,6 +41,16 @@ describe("allocateReader", () => {
     expect(allocateReader({ available: tight + 1, stage: tight + 1, file: true, tray: "expanded", request: initial }).tray).toBe("docked");
   });
 
+  it("counts the dividers it would show before docking, so docking cannot undo itself", () => {
+    const fits = MIN_FILE + MIN_CHAT + MIN_TRAY + 32;
+    const docked = allocateReader({ available: fits, divider: 16, stage: fits, file: true, tray: "expanded", request: initial });
+    expect(docked.tray).toBe("docked");
+    expect((docked.file?.now ?? 0) + docked.chat + (docked.trayWidth?.now ?? 0)).toBe(fits - 32);
+    const short = allocateReader({ available: fits - 1, divider: 16, stage: fits - 1, file: true, tray: "expanded", request: initial });
+    expect(short.tray).toBe("overlay");
+    expect((short.file?.now ?? 0) + short.chat).toBe(fits - 1 - 16);
+  });
+
   it("keeps the chosen split when the tray collapses or goes away", () => {
     const request = { fileShare: 0.6, trayWidth: null };
     const docked = allocateReader({ available: 1600, stage: 1600, file: true, tray: "expanded", request });

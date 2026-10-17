@@ -286,7 +286,7 @@ export function ChatPanel() {
     // annotation tray already carries, not a measurement (FS-03.R53, TS-08.R57).
     <section className="chat-panel" data-ui="agent-workspace" data-state="active" data-file-open={openFile ? "true" : undefined} data-variant={agent.interface === "terminal" ? "terminal" : "chat"}>
       <AgentBreadcrumb backTarget={backTarget} backLabel={projectActive ? "Back to project" : "Back"} project={projectTitle} name={agent.name} agentId={agent.agent_id} />
-      <AgentStage onSlots={setPanelSlots}>
+      <AgentStage source={agent.agent_id} onSlots={setPanelSlots}>
       <div className="chat-card">
       <header
         className="chat-header"
