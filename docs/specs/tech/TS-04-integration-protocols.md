@@ -1409,6 +1409,17 @@ never search text, FS-05.R41),
 the indexer tracks files and commands from it, the UI folds it into the matching `tool_call` and
 never renders it alone, and Think Tank capture records it, withholding Chuck's own tool input.
 
+**R99 (implemented 2026-10-17) — A failed tool call keeps its reason from `rawOutput`.** Codex ACP
+(1.1.2 and the pinned 2.1.1) completes an MCP call with no `content` and
+`rawOutput: {result, error: {message}}`, so a refused call (for example "MCP tool call requires
+approval, but approval policy is never") otherwise reaches the transcript as a failed result with
+null content. When a terminal `failed` `tool_call_update` carries no content blocks and its
+`rawOutput.error.message` is a string, the runtime records the trimmed message, clipped to 2,000
+runes, as the tool result's `error`; the status and content stay as the adapter sent them. That is
+the only decoded shape: any other `rawOutput` (absent, a string, a string `error`, a `result` only)
+leaves `error` empty, and `rawOutput` is never copied into user-facing text as raw JSON
+(INV §8/§11/§12). The existing tool-result renderer shows `error` when content is empty.
+
 ## 3. Interfaces & data shapes
 
 R97's internal check operation accepts a sanitized frozen provider selection (backend type,

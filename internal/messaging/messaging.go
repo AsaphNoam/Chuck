@@ -235,7 +235,7 @@ func New(store *state.Store, log *slog.Logger) *Server {
 	}, s.handleGetAssignedTask)
 	addTool(s, &mcp.Tool{
 		Name:        "create_task",
-		Description: "Create durable work that Chuck starts when its prerequisites are satisfied. Assign it to an existing agent by role@project, name, or agent_id, or omit the target to have a new agent launched.",
+		Description: "Create durable work that Chuck starts when its prerequisites are satisfied. Assign it to an existing agent by role@project, name, or agent_id, or omit the target to have a new agent launched. A new agent receives the instruction verbatim, so a leading /name is its provider's native command; invoke a Codex skill as $name (for example $review), because native /review cannot call Chuck tools or report.",
 	}, s.handleCreateTask)
 	addTool(s, &mcp.Tool{
 		Name:        "cancel_task",

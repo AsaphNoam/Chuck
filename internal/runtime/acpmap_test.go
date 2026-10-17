@@ -39,6 +39,49 @@ func TestMapToolCallUpdateOnlyTerminalStatusEmitsResult(t *testing.T) {
 	}
 }
 
+// TC-4 regression (TS-04.R99): Codex ACP reports a failed MCP call with no
+// content and the reason in rawOutput.error.message. The reason must reach the
+// tool result's Error, bounded; absent or unknown rawOutput keeps Error empty.
+func TestMapFailedToolCallUpdateKeepsRawOutputReason(t *testing.T) {
+	resultOf := func(t *testing.T, raw string) ToolResultData {
+		t.Helper()
+		for _, e := range mapSessionUpdate(json.RawMessage(raw)) {
+			if e.Type == EvToolResult {
+				return e.Data.(ToolResultData)
+			}
+		}
+		t.Fatalf("no tool_result for %s", raw)
+		return ToolResultData{}
+	}
+	const reason = "MCP tool call requires approval, but approval policy is never"
+	denied := `{"update":{"sessionUpdate":"tool_call_update","toolCallId":"tc1","status":"failed",
+	  "rawInput":{"server":"chuck","tool":"report_task_result","arguments":{}},
+	  "rawOutput":{"result":null,"error":{"message":" ` + reason + ` "}}}}`
+	got := resultOf(t, denied)
+	if got.Error != reason || string(got.Content) != "null" || got.Status != "failed" {
+		t.Fatalf("denied MCP call = %+v, want Error %q and null content", got, reason)
+	}
+
+	long := `{"update":{"sessionUpdate":"tool_call_update","toolCallId":"tc1","status":"failed",
+	  "rawOutput":{"result":null,"error":{"message":"` + strings.Repeat("é", maxToolFailureReason+50) + `"}}}}`
+	if n := len([]rune(resultOf(t, long).Error)); n != maxToolFailureReason {
+		t.Fatalf("long reason = %d runes, want %d", n, maxToolFailureReason)
+	}
+
+	for name, raw := range map[string]string{
+		"absent":          `{"update":{"sessionUpdate":"tool_call_update","toolCallId":"tc1","status":"failed"}}`,
+		"string":          `{"update":{"sessionUpdate":"tool_call_update","toolCallId":"tc1","status":"failed","rawOutput":"boom"}}`,
+		"error_string":    `{"update":{"sessionUpdate":"tool_call_update","toolCallId":"tc1","status":"failed","rawOutput":{"error":"boom"}}}`,
+		"result_no_err":   `{"update":{"sessionUpdate":"tool_call_update","toolCallId":"tc1","status":"failed","rawOutput":{"result":{"content":[]},"error":null}}}`,
+		"completed_err":   `{"update":{"sessionUpdate":"tool_call_update","toolCallId":"tc1","status":"completed","rawOutput":{"error":{"message":"x"}}}}`,
+		"content_present": `{"update":{"sessionUpdate":"tool_call_update","toolCallId":"tc1","status":"failed","content":[{"type":"content","content":{"type":"text","text":"out"}}],"rawOutput":{"error":{"message":"x"}}}}`,
+	} {
+		if got := resultOf(t, raw); got.Error != "" {
+			t.Errorf("%s: Error = %q, want empty (unchanged behavior)", name, got.Error)
+		}
+	}
+}
+
 // A diff block still streams on an in-progress update even though no tool_result
 // is emitted for it.
 func TestMapToolCallUpdateEmitsDiffOnInProgress(t *testing.T) {

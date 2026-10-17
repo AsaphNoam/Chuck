@@ -220,8 +220,9 @@ func (s *Server) startLaunchedTask(ctx context.Context, task state.Task) {
 		return
 	}
 	// The task's instruction is the assignment input FS-00.R14–R15 permits, sent
-	// as an ordinary turn exactly as a pipeline stage's assignment is.
-	if err := s.registry.SendPrompt(ctx, task.AssignedAgentID, task.Instruction); err != nil {
+	// as an ordinary turn exactly as a pipeline stage's assignment is, with the
+	// shared reporting paragraph after it (FS-16.R49).
+	if err := s.registry.SendPrompt(ctx, task.AssignedAgentID, runtime.LaunchedTaskPrompt(task.Instruction)); err != nil {
 		// The claim is already held, so use the unclaimed stop core.
 		if stopErr := s.stopStageLocked(ctx, task.AssignedAgentID); stopErr != nil {
 			s.log.Debug("stop failed task runtime failed", "agent", task.AssignedAgentID, "err", stopErr)

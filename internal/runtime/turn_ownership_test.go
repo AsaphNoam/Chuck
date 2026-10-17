@@ -100,3 +100,75 @@ func TestLateChildActivityRetainsOriginTurn(t *testing.T) {
 		t.Fatalf("root owner = %q", ev.TurnID)
 	}
 }
+
+// FS-01.R52: a native background continuation streams root tools after the
+// owned turn settled. The tools are transcribed, but busy cannot reopen without
+// a turn: nothing would restore idle and Cancel has no turn to interrupt.
+func TestLateRootToolsAfterTurnEndKeepIdle(t *testing.T) {
+	c, spec := newChatTest(t, "tool_flow")
+	ctx := context.Background()
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Stop(ctx, h.AgentID) })
+	ch, unsubscribe, err := c.Subscribe(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
+	if err := c.SendPrompt(ctx, h.AgentID, "edit the file"); err != nil {
+		t.Fatal(err)
+	}
+	drainTurn(t, ch)
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		as.mu.Lock()
+		active := as.turnActive
+		as.mu.Unlock()
+		if !active {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the initial turn has not settled")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	wantIdle := func(after string) {
+		t.Helper()
+		status, err := c.store.ReadStatus(h.AgentID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.State != "idle" {
+			t.Fatalf("settled runtime became %q (%s) after a late %s; want idle", status.State, status.Detail, after)
+		}
+	}
+	wantEvent := func(typ string) {
+		t.Helper()
+		timeout := time.After(time.Second)
+		for {
+			select {
+			case ev := <-ch:
+				if ev.Type == typ {
+					return
+				}
+			case <-timeout:
+				t.Fatalf("late %s was not transcribed", typ)
+			}
+		}
+	}
+	c.onNotification(as, "session/update", json.RawMessage(`{"sessionId":"fake-sess-1","update":{"sessionUpdate":"tool_call","toolCallId":"tc_late","title":"Bash","kind":"execute","status":"in_progress"}}`))
+	wantEvent(EvToolCall)
+	wantIdle("tool call")
+	if cancelled, err := c.Cancel(ctx, h.AgentID); err != nil || cancelled {
+		t.Fatalf("Cancel without a turn = %v, %v; want false", cancelled, err)
+	}
+	c.onNotification(as, "session/update", json.RawMessage(`{"sessionId":"fake-sess-1","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc_late","status":"completed"}}`))
+	wantEvent(EvToolResult)
+	wantIdle("tool result")
+}

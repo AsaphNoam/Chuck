@@ -19,6 +19,18 @@ type ActivationKind struct {
 	LastTrace    string
 }
 
+// taskReportContract is how every assignment ends, for a new agent and an
+// existing one alike (FS-16.R49). An assignee that only answers in chat records
+// nothing, because Chuck never infers an outcome (FS-16.R3).
+const taskReportContract = "When the work is finished or cannot continue, call report_task_result with outcome success, failure, or blocked and a short summary; a final chat message records no result."
+
+// LaunchedTaskPrompt is the first prompt of an agent launched for a task. The
+// instruction stays first and verbatim, so a leading command or skill the author
+// chose still reaches the provider as written (FS-16.R49).
+func LaunchedTaskPrompt(instruction string) string {
+	return instruction + "\n\nThis is your Chuck task; get_assigned_task returns it with any attached context. " + taskReportContract
+}
+
 // activationKinds is the closed registry. An activation whose kind is absent
 // here cannot start, so an unregistered kind fails loudly at its first use
 // rather than prompting a model with another kind's instruction.
@@ -41,7 +53,7 @@ var activationKinds = map[string]ActivationKind{
 	// carries no task id, arm set, or assignment text: the agent reads all of that
 	// through get_assigned_task (FS-16.R26, R11).
 	state.ActivationKindDependency: {
-		Instruction:  "You have been assigned a task. Call the get_assigned_task tool to read your assignment, then carry it out.",
+		Instruction:  "You have been assigned a task. Call the get_assigned_task tool to read your assignment, then carry it out. " + taskReportContract,
 		StatusDetail: "starting assigned task",
 		LastTrace:    "TaskActivation",
 	},

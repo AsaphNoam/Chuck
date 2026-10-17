@@ -2411,13 +2411,24 @@ func envKeys(env []string) []string {
 }
 
 // applyEventStatus writes the §4.4 status transition implied by a streamed event.
+// Busy belongs to an owned turn: tool activity the provider streams after the
+// turn settled (a native background continuation) is still transcribed, but it
+// cannot reopen busy, because only a turn end restores idle and Cancel has no
+// turn to interrupt (FS-01.R52, INV §1/§11).
 func (c *ChatRuntime) applyEventStatus(as *agentState, m mappedEvent) {
+	as.mu.Lock()
+	if m.Type == EvToolCall {
+		d := m.Data.(ToolCallData)
+		as.toolNames[d.ToolCallID] = d.Name
+	}
+	active := as.turnActive
+	as.mu.Unlock()
+	if !active {
+		return
+	}
 	switch m.Type {
 	case EvToolCall:
 		d := m.Data.(ToolCallData)
-		as.mu.Lock()
-		as.toolNames[d.ToolCallID] = d.Name
-		as.mu.Unlock()
 		c.updateStatus(as, "busy", "Running "+d.Name, "PreToolUse: "+d.Name, keepBusySince)
 	case EvToolResult:
 		d := m.Data.(ToolResultData)

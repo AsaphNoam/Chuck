@@ -70,8 +70,8 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
 - **R6** — **Ready work starts without a model in the loop.** Chuck observes its own
   durable records, and when a task's last arm is satisfied it starts that task itself. A task
   targeting a launch specification is started by launching its agent with the task's instruction as
-  the intentional assignment input permitted by FS-00.R14–R15. A task targeting an existing agent
-  crosses into that agent's existing conversation through a host-owned activation (FS-00.R15,
+  the intentional assignment input permitted by FS-00.R14–R15, followed by R49's reporting
+  paragraph. A task targeting an existing agent crosses into that agent's existing conversation through a host-owned activation (FS-00.R15,
   TS-01.R19); a running agent is given one bounded turn and a stopped agent is resumed first on the
   same wake terms as mail (FS-01.R33). A task is `running` only once its assignment has crossed into
   a confirmed runtime; until then it is `starting` and its start is still owned by Chuck, not by
@@ -352,6 +352,17 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   and explicit failure shows interrupted/needs attention. Completed synthesis awaiting acceptance
   shows FS-14.R86's output-acceptance state and recovery. No task success appears before that
   acceptance. This specializes R2–R4/R7/R16/R22 only for the room-backed stage; ordinary tasks are unchanged.
+- **R49 (shipped 2026-10-17) — Every assignment says how it ends.** The first prompt a new task
+  agent receives is the task's instruction exactly as authored, followed by one code-owned paragraph;
+  R26's activation for an existing, woken, retried or continued assignee carries the same paragraph.
+  It says the message is a Chuck task readable through R11 and that the work ends only when the
+  agent calls `report_task_result` with `success`, `failure` or `blocked` — a final chat message
+  records nothing. One shared helper composes both, and it adds no task id or payload. Keeping the
+  instruction first preserves a deliberately authored leading command; because that command is the
+  assignee provider's own, the agent-facing task guidance tells authors to invoke a project skill in
+  the assignee's skill form (Codex `$name`), since a provider-native mode such as Codex `/review`
+  may be unable to call Chuck tools and so can never report. R3 is unchanged: idle or final text
+  still records no outcome.
 
 ## 3. States & transitions
 
@@ -695,6 +706,11 @@ Each names the verification that demonstrates it.
   source, room/run links and published result. No standing-agent activation or task-runtime slot is
   consumed; ordinary create/report/repair cannot impersonate that authority. *Verify:* serialized
   task HTTP/MCP refusal tests, Go-produced UI fixture and FS-14.A48's integration journey.
+- **A33** (R49) — A launch-spec task's first prompt begins with its verbatim instruction and ends
+  with the reporting paragraph; borrowed, woken and continued assignees receive the same paragraph
+  in their activation. *Verify:* `internal/server/task_dispatch_test.go`. A credentialed Codex
+  assignee given a `$review` skill instruction reads its task and records a result under the real
+  provider approval policy (live receipt owed).
 
 ## 6. Deviations & open decisions
 

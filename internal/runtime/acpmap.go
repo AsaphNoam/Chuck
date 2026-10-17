@@ -23,6 +23,25 @@ const (
 	maxNoticeDescription = 2000
 )
 
+// Bound on a failed tool call's reason taken from rawOutput (TS-04.R99, INV §8).
+const maxToolFailureReason = 2000
+
+// toolFailureReason returns the bounded reason a failed tool_call_update carries
+// in rawOutput when it has no content (TS-04.R99). The only evidenced shape is
+// Codex ACP's MCP completion, {"result": ..., "error": {"message": "..."}}; any
+// other shape yields "" so the result stays as before (INV §12).
+func toolFailureReason(raw json.RawMessage) string {
+	var out struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(raw, &out) != nil || out.Error == nil {
+		return ""
+	}
+	return strutil.ClipRunes(strings.TrimSpace(out.Error.Message), maxToolFailureReason)
+}
+
 type acpSessionConfigOption struct {
 	ID           string          `json:"id"`
 	ConfigID     string          `json:"configId"`
@@ -302,6 +321,7 @@ type acpUpdate struct {
 	Kind       string          `json:"kind"`
 	Status     string          `json:"status"`
 	RawInput   json.RawMessage `json:"rawInput"`
+	RawOutput  json.RawMessage `json:"rawOutput"`
 
 	// usage_update: the current context usage and its window size.
 	Used *int64 `json:"used"`
@@ -527,11 +547,15 @@ func mapSessionUpdateImages(params json.RawMessage, image func(acpContentBlock, 
 		// omits status — must not be mapped to a completed result, or the status
 		// flips to done prematurely and the transcript repeats tool_results.
 		if u.Status == "completed" || u.Status == "failed" {
-			evs = append(evs, mappedEvent{Type: EvToolResult, Data: ToolResultData{
+			result := ToolResultData{
 				ToolCallID: u.ToolCallID,
 				Status:     u.Status,
 				Content:    nonNullRaw(content),
-			}})
+			}
+			if u.Status == "failed" && len(safe) == 0 {
+				result.Error = toolFailureReason(u.RawOutput)
+			}
+			evs = append(evs, mappedEvent{Type: EvToolResult, Data: result})
 		}
 		// A tool_call_update may carry one or more diff blocks (one per file); diffs
 		// can stream on in-progress updates, so emit them regardless of status.

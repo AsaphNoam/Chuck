@@ -6,10 +6,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Awaiting fixes — task completion in sequential skill workflows (2026-10-17):** unit
-  `task-completion-workflows-2026-10-17`; TC-1–TC-4 open (two P1, two P2). Covers native
-  review interception, missing report guidance, stale busy status, and hidden denial reasons;
-  see Review findings. Fix model: medium — Codex Terra or Claude Opus.
+- **Finished — task completion in sequential skill workflows fixes (2026-10-17):** fix unit
+  `task-completion-workflows-2026-10-17` (TC-1–TC-4) closed; see changelog. FS-16.R49/A33,
+  FS-01.R52, TS-04.R99. Owed: FS-16.A33 credentialed Codex `$review` assignee that reads and
+  reports its task under real provider policy (Acceptance gates still owed).
 
 - **Finished — mobile annotation parity fixes (2026-10-17):** fix unit
   `mobile-annotation-parity-2026-10-17` (MA-1–MA-3) closed; see changelog. FS-13.R28–R31,
@@ -108,6 +108,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 None.
 
 ## Acceptance gates still owed
+
+- **FS-16.A33 — task reporting under real provider policy:** run a credentialed sequential
+  workflow (Claude `/work` → Codex `$review` → Claude `/fix` as tasks); each assignee must read
+  its task and record `report_task_result` without supervisor prompting, and a late native
+  background continuation must leave the card idle (FS-01.R52).
 
 - **FS-20.A18 — phone group-header New agent:** independent phone-entry browser rendering
   passes, but the stubbed API journey does not prove accepted launches propagate to desktop and
@@ -338,95 +343,6 @@ errors (four malformed finding prefixes, a superseded unit missing its model rec
 and its absolute report link); all offending text is present in the starting HEAD. Concurrent
 task-completion product/spec edits were preserved and excluded from this review commit.
 
-### Investigation 2026-10-17 — task completion in sequential skill workflows — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Unit: `task-completion-workflows-2026-10-17`. Expands and supersedes the earlier
-reviewer-completion unit below; its two findings are TC-1 and TC-4 here, not separate fix work.
-Verbatim report, timeline, exact provider-log locations, source trace, and bounded routing probe:
-[INVESTIGATION.md](/Users/mcnoam/.chuck/project-resources/agentdeck-20261007t221535z/investigation-task-completion-2026-10-17/INVESTIGATION.md).
-
-Report: “$investigate-bug why did both these agent have this issue, another chuck agent in this
-project doing the same 3 step workflow for the file reader had the same issue with agents not
-reporting done”. Mobile agents `a_2b9442` and `a_a57394`; tasks
-`tk_80efd68981095cfa` / `tk_126c21b7ec7c990e`. Local macOS, source HEAD `9c2206e6` at
-start; CLI says 0.15.1/a5d429b, service health says 0.1.0, so service revision is unverified.
-
-- **Must fix — TC-1 / P1 / confirmed (workflow integration gap; medium): native /review
-  intercepts the intended project skill.** `task_dispatcher.go:240–243` forwards the leading
-  slash unchanged; Codex's adapter handles it as native review. Both reviewers' raw provider logs
-  show EnteredReviewMode, then task-control calls refused with “MCP tool call requires approval,
-  but approval policy is never”. Mobile fails get_assigned_task; file reader fails that and
-  report_task_result. A later ordinary parent turn succeeds. Chuck's own-tool auto-approval is
-  downstream and cannot rescue a call rejected inside the native review child. This resolves the
-  earlier policy-selection uncertainty. Use the existing ordinary skill-invocation route for
-  skill work, preserving intentional native commands; prove assigned review can read/report its
-  task under real provider policy. Native command forwarding itself follows FS-03.R33; the
-  correction belongs to skill/task invocation, not interception of deliberate native commands.
-  FS-03.R40, FS-16.R3/R11, TS-04.R29/R41–R42; INV §11/§12.
-- **Must fix — TC-2 / P1 / confirmed omission, probable cause of implementer non-report
-  (specification gap; medium): launched tasks lack an explicit reporting contract.**
-  `internal/server/task_dispatcher.go:240–243` sends only the task instruction; standing
-  guidance (`launch.go:425–431`) never tells assignees to report_task_result. Existing-agent
-  activation (`internal/runtime/activation_kinds.go:39–45`) says read/execute but omits report.
-  Before recovery, the implementer made no task-read/report call and ended with prose. Define
-  assignment-read and explicit result-report instructions for new/existing/continued assignees,
-  then share composition and test all paths. FS-16.R26 only names existing-agent awareness;
-  preserve R3's prohibition on inferring outcomes from idle/done or final text.
-- **Must fix — TC-3 / P2 / confirmed host defect, probable complete native-cycle explanation
-  (code defect; medium): late root tools resurrect busy with no active turn.**
-  `internal/runtime/chat.go:1922–1947,2413–2440` maps root tool results to busy even after the
-  owned prompt settled; only finishTurn restores idle. In the live Claude run, normalized
-  end_turn at 18:15:54 is followed by a native background-task continuation and final answer at
-  18:20:58 without another normalized turn_end; Cancel reports false. The native adapter excludes
-  autonomous task-notification results from user-turn settlement. Balance/fence derived status
-  at the existing boundary, without inventing user turns or task outcomes. FS-01.R19; TS-04.R64/R81;
-  INV §1/§11. Skipped reproduction:
-  `internal/runtime/task_completion_investigation_test.go`; unskipped it fails “completed runtime
-  became busy (edit done)”. It isolates stale status, not a full provider continuation.
-- **Worth fixing — TC-4 / P2 / confirmed (observability defect; trivial/easy): denial reason
-  disappears from Chuck's transcript.** Mobile seq6–7 and file-reader seq79 retain failure with
-  null content; provider logs retain the decisive approval-policy reason. `acpmap.go:291–314,525–535`
-  has no rawOutput decoding; installed adapter 1.1.2 puts the MCP error there. Check the selected
-  adapter renderer and preserve a bounded safe reason through the existing result/error seam.
-  TS-04.R29/R30; INV §8/§11/§12. This is the earlier observability finding with its boundary traced.
-
-Verification: executed actual pinned 2.1.1 and installed 1.1.2 Codex command parsers with the provider
-effect stubbed: /review is intercepted; $review is not. The host status reproduction fails on
-unchanged product code and now passes as SKIP. No product code/specs changed; no full closure or
-credentialed provider rerun. Do not generalize this diagnosis to every file-reader agent failure.
-The earlier not_assigned response came after supervisor stop/retry replaced the original assignee,
-so it is recovery evidence, not proof of the initial failure.
-
-### Superseded investigation evidence 2026-10-17 — reviewer completion reporting
-
-Historical evidence retained; open fix routing is the single task-completion unit above.
-
-Investigation artifact: `/Users/mcnoam/.chuck/project-resources/agentdeck-20261007t221535z/investigation-reviewer-completion-2026-10-17/INVESTIGATION.md`.
-The initial `get_assigned_task` and `report_task_result` calls from reviewer `a_123a8f` were
-rejected at the Codex provider boundary with `MCP tool call requires approval, but approval policy is
-never` (runtime evidence in
-`/Users/mcnoam/.chuck/codex/sessions/2026/10/17/rollout-2026-10-17T19-06-00-01a14a9c-ec83-7973-be81-5331824c479d.jsonl:29,220,222`). The reviewer transcript records only generic failures
-(`a_123a8f/transcript.ndjson:79`), so the report's sandbox-denial explanation was not independently
-supported. Chuck did compose the reviewer with role `skip_permissions: true` and all Chuck MCP
-identities in `AutoApproveTools` (`/Users/mcnoam/.chuck/roles/reviewer.json:4`,
-`internal/server/launch.go:438-441`), but those controls apply inside Chuck's runtime after the
-provider request arrives; Codex `approval_policy: never` rejected the MCP call first. The initial
-Codex turn context records `never` at 16:06:02.818Z, while the later reviewer turn context records
-`on-request` at 17:00:44.521Z (`...ec83...jsonl:5`, `...ebdf...jsonl:90`). Guardian approvals then
-allowed the successful calls. The prompt preceded the later turn, but evidence does not show that
-supervisor messaging changed approval policy. The exact launcher/provider component selecting these
-per-turn Codex policies remains unresolved. After supervisor prompting, the reviewer obtained its
-assignment and successfully submitted `report_task_result` with execution handle
-`ta_3883d971803f0416163a4fd03749745a`, approved and completed at 2026-10-17T17:01:09Z
-(`a_123a8f/transcript.ndjson:143-150`).
-
-- **Must fix** — **P1 / confirmed:** approval-blocked required task-control calls can strand a completed
-  reviewer with no accepted result, leaving supervision waiting until a later prompt. Route required
-  reviewer task-control calls through an approval-capable path or provide deterministic recovery.
-- **Worth fixing** — **P2 / confirmed:** the MCP boundary returned no actionable denial payload to the
-  reviewer transcript, hiding whether the failure was approval, sandbox, or task validation. Preserve
-  a bounded denial reason at that boundary.
-
 ### Review 2026-10-17 — late tool input event — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Selected unit: `late-tool-input-2026-10-17`, implementation `a77bb3b6`; reviewed against
@@ -494,6 +410,24 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-17 — Task completion in sequential skill workflows fixes (TC-1–TC-4) closed:**
+  TC-2 (INV §2, one shared composition): `runtime.LaunchedTaskPrompt` sends a launched task's
+  instruction verbatim, then a code-owned paragraph naming `get_assigned_task` and requiring
+  `report_task_result`; the dependency activation (existing/woken/retried/continued assignees)
+  carries the same `taskReportContract`. TC-1 (INV §12, provider command variance): keeping the
+  instruction first preserves deliberate commands, so `create_task`'s description and
+  `coordinate-work.md` tell authors to invoke Codex skills as `$name`, never native `/review`
+  (whose review mode cannot call Chuck tools). Pinned codex-acp `parseCommand` intercepts only a
+  leading `/name` in the first block and passes `$`-names through; the investigation's
+  `command-routing.cjs` probe confirmed it. TC-3 (INV §1, derived state across turn end):
+  `applyEventStatus` writes tool busy/done status only while `turnActive`; late root tools are
+  still transcribed (FS-01.R52). `finishTurn`'s idle-before-release window is unchanged and
+  pre-existing. Regression `TestLateRootToolsAfterTurnEndKeepIdle` replaces the skipped
+  investigation test. TC-4 (INV §8/§11, bounded protocol error): a contentless `failed`
+  `tool_call_update` takes `rawOutput.error.message`, trimmed and clipped to 2,000 runes, as the
+  result `error` the shared ToolResult renderer already shows (TS-04.R99,
+  `TestMapFailedToolCallUpdateKeepsRawOutputReason`). Investigation artifact:
+  `~/.chuck/project-resources/agentdeck-20261007t221535z/investigation-task-completion-2026-10-17/`.
 - **2026-10-17 — Mobile annotation parity fixes (MA-1–MA-3) closed:** review of
   `be1dd80d^..9c2206e6` found three P2s, all fixed. MA-1 (INV §5, check-then-act): the phone
   launch sheet ignores Close/Escape/Cancel while `NewAgentForm` reports a pending launch

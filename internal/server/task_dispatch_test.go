@@ -295,8 +295,13 @@ func TestALaunchSpecTaskStartsItselfAndBecomesRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read prompt log: %v", err)
 	}
-	if !strings.Contains(string(raw), "build the thing") {
-		t.Fatalf("the assignment prompt did not carry the instruction: %s", raw)
+	// FS-16.R49 — the instruction leads verbatim and the reporting paragraph follows.
+	want, _ := json.Marshal(runtime.LaunchedTaskPrompt("please do build the thing"))
+	if !strings.Contains(string(raw), `"text":`+string(want)) {
+		t.Fatalf("the assignment prompt did not carry the instruction and reporting contract: %s", raw)
+	}
+	if !strings.Contains(string(raw), "report_task_result") {
+		t.Fatalf("the assignment prompt never says how to report: %s", raw)
 	}
 	// No mail row was created to carry the assignment: this plane is control
 	// state, not conversation (FS-16.R6).
@@ -474,8 +479,8 @@ func TestATaskForARunningAgentActivatesThatConversation(t *testing.T) {
 	if !ok {
 		t.Fatal("the dependency activation kind has no registered contract")
 	}
-	if !strings.Contains(string(raw), dependency.Instruction) {
-		t.Fatalf("prompt = %s, want the task instruction %q", raw, dependency.Instruction)
+	if !strings.Contains(string(raw), dependency.Instruction) || !strings.Contains(dependency.Instruction, "report_task_result") {
+		t.Fatalf("prompt = %s, want the task instruction with its reporting contract %q", raw, dependency.Instruction)
 	}
 	mail, _ := runtime.LookupActivationKind(state.ActivationKindMail)
 	if strings.Contains(string(raw), mail.Instruction) {

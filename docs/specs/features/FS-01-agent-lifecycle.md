@@ -387,6 +387,11 @@ transitions:
   the registry has no handle, the server checks the running row, SIGKILLs the live PID, and deletes
   the row — so Stop/Release report success only after the process is actually gone, and Switch cannot
   spawn a second process under the same `agent_id`.
+- **R52** — **Busy belongs to an owned turn.** Tool calls and results a chat provider streams after
+  Chuck's turn has settled (for example a native background-task continuation after `end_turn`) are
+  still transcribed, but they do not move status to `busy`: with no turn there is no turn end to
+  restore `idle` and nothing for Cancel to interrupt (R19). Chuck does not invent a user turn or a
+  task outcome for that activity.
 
 ## 4. Edge cases & errors
 
