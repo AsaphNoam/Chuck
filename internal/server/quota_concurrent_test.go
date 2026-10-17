@@ -84,8 +84,10 @@ func TestConcurrentQuotaFailuresStayScopedPerAgent(t *testing.T) {
 			t.Fatalf("agents shared quota episode %q", q.EpisodeID)
 		}
 		episodes[q.EpisodeID] = true
-		if q.State != state.QuotaUnknownReset || q.ResetAt != nil || q.DueAt != nil {
-			t.Fatalf("unknown provider reset was scheduled for %s: %+v", id, q)
+		// An unknown reset schedules only an isolated check, never a fabricated
+		// reset or a continuation (FS-01.R49).
+		if q.State != state.QuotaScheduled || q.NextAction != state.QuotaActionCheck || q.ResetAt != nil || q.DueAt == nil {
+			t.Fatalf("unknown provider reset for %s: %+v, want a pending check", id, q)
 		}
 	}
 
@@ -145,8 +147,9 @@ func TestConcurrentQuotaFailuresStayScopedPerAgent(t *testing.T) {
 
 func assertQuotaProjection(t *testing.T, id string, q state.QuotaIntent, got *state.QuotaProjection) {
 	t.Helper()
-	if got == nil || got.EpisodeID != q.EpisodeID || got.Revision != q.Revision || got.ContinuationState != state.QuotaUnknownReset || got.ResetAt != nil || got.DueAt != nil {
-		t.Fatalf("projection for %s = %+v, want episode=%s revision=%d unknown reset", id, got, q.EpisodeID, q.Revision)
+	if got == nil || got.EpisodeID != q.EpisodeID || got.Revision != q.Revision || got.ContinuationState != state.QuotaScheduled ||
+		got.NextAction != "check" || got.ResetAt != nil || got.DueAt == nil || !got.DueAt.Equal(*q.DueAt) {
+		t.Fatalf("projection for %s = %+v, want episode=%s revision=%d unknown reset with a pending check", id, got, q.EpisodeID, q.Revision)
 	}
 }
 

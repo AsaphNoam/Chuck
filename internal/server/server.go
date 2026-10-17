@@ -80,6 +80,11 @@ type Server struct {
 	quotaControlMu  sync.Mutex
 	quotaActionMu   sync.Mutex
 	quotaActions    map[string]bool
+	// quotaChecks marks agents with an isolated check running in this process;
+	// quotaCleanupTried rate-limits exact probe cleanup retries (TS-10.R47).
+	quotaCheckMu      sync.Mutex
+	quotaChecks       map[string]bool
+	quotaCleanupTried map[string]time.Time
 	// thinkTankKick nudges the Think Tank progression dispatcher.
 	thinkTankKick chan struct{}
 	// thinkTankSlots bounds rooms progressing at once; thinkTankRooms keeps

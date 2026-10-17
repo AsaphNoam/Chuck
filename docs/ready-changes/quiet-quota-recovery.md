@@ -76,7 +76,14 @@ unsupported versions/isolation remain manual, with no wake-probe fallback in the
    `settingSources` to preserve account routing; the dotted-key overlay semantics need A34's
    live receipt. Next: build the server spec like `composeResumeSpecContext`
    (`internal/server/resume.go`) without `composeResumeSpec`'s MCP/hook registration.
-4. Dispatcher wiring plus restart/cleanup recovery (TS-10.R45–R47).
+4. **Done** — dispatcher wiring (TS-10.R45–R47): `settleQuotaTurn` sets `Check` for an
+   unknown reset unless the text demands intervention; `dispatchQuotaContinuations` routes
+   `next_action:check` claims to `runQuotaCheck` (`internal/server/quota_check.go`), which
+   charges under the admission locks, runs the check after releasing them, and cancels it when
+   a 500 ms watcher sees the row leave its claim (covers every cancel/disable/delete path).
+   `cleanupQuotaChecks` retries exact references at most every 10 min. Reviewer note: deleting
+   an agent while a failed Codex cleanup reference is pending drops that reference with the row
+   (the archived/unarchived probe thread may remain); no pre-delete cleanup hook was added.
 5. API/UI (TS-03.R72, FS-04.R59): projection `next_action`/`checks_remaining`, reason codes,
    banner/Settings copy, the FS-01.R50 notice sentence, CLI decoder.
 

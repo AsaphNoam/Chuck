@@ -484,7 +484,7 @@ activation kinds are registered in `internal/state/activations.go` and
 `quota_notices_test.go`, and `internal/runtime/quota_test.go`. Current providers do not
 supply a verified reset time, so due-time dispatch has no provider-driven schedule until FS-01.A28.
 
-- **R45 (planned) — Reset waits and quiet checks share the quota intent and dispatcher.** For
+- **R45 (implemented 2026-10-17) — Reset waits and quiet checks share the quota intent and dispatcher.** For
   FS-01.R48–R51, extend R39–R44's existing due query, eight-slot cap and claim path with an internal
   `next_action:continue|check`. A verified reset schedules `continue` at reset plus 60 seconds;
   an unknown reset schedules `check` at observation/completion plus one hour with `reset_at` null.
@@ -495,7 +495,7 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   reset do not become false intervention requirements. Do not activate pre-upgrade unknown rows,
   reuse cancelled records, create replacement tasks/agents, coalesce accounts heuristically or add
   a separate scheduler. Preserve held follow-ups and owner quota markers throughout checking.
-- **R46 (planned) — A check grants one current continuation, never owner completion.** Persist a
+- **R46 (implemented 2026-10-17) — A check grants one current continuation, never owner completion.** Persist a
   check attempt token and increment `checks_started` once, before spawning its isolated provider
   process; allow at most six per recovery chain. Startup/model/configuration failure, timeout or
   unsupported isolation holds with a declared reason; terminal quota without a reset schedules one
@@ -517,7 +517,7 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   continuation immediately returns quota with no new reliable reset, hold `check_ready_but_quota`
   rather than run repeated probes and failed wakes. Actual continuation progress still uses R44's
   receipt/notice path with FS-01.R50's honest wording for new notices.
-- **R47 (planned) — Recover checks without confusing them with work delivery.** Keep a check's
+- **R47 (implemented 2026-10-17) — Recover checks without confusing them with work delivery.** Keep a check's
   process/session/cwd cleanup under one owner, bounded by TS-04.R97. Persist its session reference
   before prompting, and retain at most one pending cleanup reference per conversation. A failed
   cleanup holds further checks/continuation and exposes `check_cleanup_failed`; cleanup only

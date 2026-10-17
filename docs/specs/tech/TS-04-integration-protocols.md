@@ -1328,7 +1328,7 @@ locale order or year rollover. Preserve UTC reset separately from due time; due 
 same displayed minute is consistent, not a conflict. Source-version, observation-time and scope evidence are internal, bounded provenance,
 not raw provider payloads exposed to clients. FS-01.A31/A28 verify the producer and delivery contract.
 
-**R97 (planned) — Quota checks use isolated sessions on the existing ACP integration.** For
+**R97 (implemented 2026-10-17; live receipts owed under FS-01.A34) — Quota checks use isolated sessions on the existing ACP integration.** For
 FS-01.R49–R51, add a narrowly scoped runtime check operation, reusing adapter executable selection,
 process/environment composition, ACP transport, negotiation, session configuration and failure
 decoders. Do not call normal agent Start/Resume, load/fork the original session, register a Chuck

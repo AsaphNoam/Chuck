@@ -124,7 +124,9 @@ func TestQuotaUnknownResetProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if u.Quota == nil || u.Quota.ContinuationState != state.QuotaUnknownReset || u.Quota.ResetAt != nil || u.Quota.DueAt != nil {
+	// The next check time never fills reset_at (TS-03.R72).
+	if u.Quota == nil || u.Quota.ContinuationState != state.QuotaScheduled || u.Quota.NextAction != "check" || u.Quota.ChecksRemaining != 6 ||
+		u.Quota.ResetAt != nil || u.Quota.DueAt == nil || !strings.Contains(string(raw), `"reset_at":null`) {
 		t.Fatalf("projection: %s", raw)
 	}
 	if strings.Contains(string(raw), "typed-failure") || strings.Contains(string(raw), "source_generation") || strings.Contains(string(raw), "attempt_token") {
@@ -153,8 +155,15 @@ func TestQuotaVerifiedResetSchedulesAfterBuffer(t *testing.T) {
 	if err := s.settleQuotaTurn(q.AgentID, "generation", "stale-turn", &runtime.QuotaEvidence{FailureID: "typed-failure", Revision: 1, ResetAt: &stale}, false); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.stateStore.GetQuota(q.AgentID); got.State != state.QuotaUnknownReset || got.ResetAt != nil || got.DueAt != nil {
-		t.Fatalf("stale reset = %+v, want unknown", got)
+	if got, _ := s.stateStore.GetQuota(q.AgentID); got.NextAction != state.QuotaActionCheck || got.ResetAt != nil {
+		t.Fatalf("stale reset = %+v, want unknown (a check, never a continuation)", got)
+	}
+	// Explicit credit/plan/spend-cap errors stay manual: no check is scheduled.
+	if err := s.settleQuotaTurn(q.AgentID, "generation", "credit-turn", &runtime.QuotaEvidence{FailureID: "credits", Revision: 1, Intervention: true}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.stateStore.GetQuota(q.AgentID); got.State != state.QuotaUnknownReset || got.DueAt != nil {
+		t.Fatalf("intervention = %+v, want unscheduled", got)
 	}
 }
 

@@ -13,6 +13,7 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 	if s.registry == nil {
 		return
 	}
+	s.cleanupQuotaChecks(ctx)
 	due, err := s.stateStore.DueQuotaIntents(time.Now().UTC(), taskDispatchBatch)
 	if err != nil {
 		s.log.Error("read due quota continuations", "err", err)
@@ -31,6 +32,10 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 		}
 		go func(q state.QuotaIntent) {
 			defer func() { <-s.quotaStartSlots }()
+			if q.NextAction == state.QuotaActionCheck {
+				s.runQuotaCheck(ctx, q)
+				return
+			}
 			s.startQuotaContinuation(ctx, q)
 		}(claimed)
 	}
@@ -69,6 +74,9 @@ func (s *Server) claimDueQuota(q state.QuotaIntent) (state.QuotaIntent, bool) {
 }
 
 func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent) {
+	if q.NextAction == state.QuotaActionCheck {
+		return // a check never wakes the interrupted conversation
+	}
 	keys, err := s.quotaAdmissionKeys(q)
 	if err != nil {
 		s.log.Error("read quota admission owner", "err", err)

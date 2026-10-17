@@ -144,7 +144,7 @@ func TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart(t *testing.T)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if q.Owner.Kind != "task" || q.Owner.TaskID != task.TaskID || q.State != state.QuotaUnknownReset {
+	if q.Owner.Kind != "task" || q.Owner.TaskID != task.TaskID || q.NextAction != state.QuotaActionCheck || q.ResetAt != nil {
 		t.Fatalf("lost owner: %+v", q)
 	}
 	if err := s.recoverTasks(context.Background()); err != nil {

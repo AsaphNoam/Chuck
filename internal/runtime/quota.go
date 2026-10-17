@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -42,6 +43,22 @@ func (r *Registry) SetQuotaSettlement(fn func(string, string, string, *QuotaEvid
 	if r != nil && r.chat != nil {
 		r.chat.SetQuotaSettlement(fn)
 	}
+}
+
+// RunQuotaCheck runs one isolated check on the chat runtime (TS-04.R97).
+func (r *Registry) RunQuotaCheck(ctx context.Context, spec QuotaCheckSpec) QuotaCheckOutcome {
+	if r == nil || r.chat == nil {
+		return QuotaCheckOutcome{Outcome: "unsupported", Cleaned: true}
+	}
+	return r.chat.RunQuotaCheck(ctx, spec)
+}
+
+// CleanupQuotaCheckSession retries exact disposal of a recorded probe.
+func (r *Registry) CleanupQuotaCheckSession(ctx context.Context, spec QuotaCheckSpec, sessionID string) error {
+	if r == nil || r.chat == nil {
+		return errQuotaCheckUnsupported
+	}
+	return r.chat.CleanupQuotaCheckSession(ctx, spec, sessionID)
 }
 
 // SetQuotaManualBind binds ordinary prompt turns to the current active quota

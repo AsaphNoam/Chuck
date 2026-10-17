@@ -69,6 +69,9 @@ func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *r
 		AgentID: agentID, EpisodeID: "quota_" + hex.EncodeToString(sum[:]),
 		SourceGeneration: generation, ExecutingTurn: turnID, ObservedAt: observed, State: status,
 		ResetAt: resetAt, DueAt: dueAt, ResetSource: resetSource(resetAt, evidence.ResetSource),
+		// Without a reliable reset, bounded isolated checks may authorize the
+		// continuation; explicit credit/plan/spend-cap errors stay manual.
+		Check: status == state.QuotaUnknownReset && !evidence.Intervention,
 	})
 	if err != nil {
 		return err

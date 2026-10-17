@@ -1,0 +1,215 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/config"
+	"github.com/AsaphNoam/Chuck/internal/runtime"
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+// quotaCleanupRetry bounds how often an unresolved exact probe cleanup spawns
+// another short-lived adapter process.
+const quotaCleanupRetry = 10 * time.Minute
+
+// quotaCheckSpec derives the isolated check's provider selection the way a
+// resume does, without hook, MCP, resource or instruction layers (TS-04.R97).
+func (s *Server) quotaCheckSpec(agentID string) (runtime.QuotaCheckSpec, error) {
+	a, err := s.stateStore.ReadAgent(agentID)
+	if err != nil {
+		return runtime.QuotaCheckSpec{}, err
+	}
+	backends, err := s.configStore.ReadBackends()
+	if errors.Is(err, config.ErrNotFound) || errors.Is(err, config.ErrCorrupt) {
+		backends, err = config.DefaultBackends(), nil
+	}
+	if err != nil {
+		return runtime.QuotaCheckSpec{}, err
+	}
+	be, ok := backends.Backends[a.Backend]
+	if !ok {
+		return runtime.QuotaCheckSpec{}, errors.New("quota check: unknown backend")
+	}
+	model, ok := be.Models[a.Model]
+	if !ok {
+		return runtime.QuotaCheckSpec{}, errors.New("quota check: unknown model")
+	}
+	providerEnv, _, ae := providerLaunchLayer(be, model)
+	if ae != nil {
+		return runtime.QuotaCheckSpec{}, ae
+	}
+	return runtime.QuotaCheckSpec{BackendType: be.Type, ModelID: model.Model, Effort: a.Effort, Fast: a.Fast,
+		Env: composeChildEnv(be.Type, s.configStore.Home(), be.Env, model.Env, nil, nil, providerEnv)}, nil
+}
+
+func (s *Server) markQuotaCheck(agentID string, running bool) {
+	s.quotaCheckMu.Lock()
+	defer s.quotaCheckMu.Unlock()
+	if s.quotaChecks == nil {
+		s.quotaChecks = map[string]bool{}
+	}
+	if running {
+		s.quotaChecks[agentID] = true
+	} else {
+		delete(s.quotaChecks, agentID)
+	}
+}
+
+// runQuotaCheck admits and runs one claimed check outside the interrupted
+// conversation. Eligibility and the allowance charge commit under the same
+// locks as continuation admission; the provider check runs after release.
+func (s *Server) runQuotaCheck(ctx context.Context, q state.QuotaIntent) {
+	defer func() { _, _ = s.stateMgr.Touch(q.AgentID) }()
+	spec, specErr := s.quotaCheckSpec(q.AgentID)
+	started, ok := s.admitQuotaCheck(q, spec, specErr)
+	if !ok {
+		return
+	}
+	s.markQuotaCheck(q.AgentID, true)
+	defer s.markQuotaCheck(q.AgentID, false)
+	checkCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// Any accepted cancellation, disable, supersession or deletion moves the
+	// row off this exact claim; stop the provider check promptly when it does.
+	go func() {
+		tick := time.NewTicker(500 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-checkCtx.Done():
+				return
+			case <-tick.C:
+				fresh, err := s.stateStore.GetQuota(q.AgentID)
+				if errors.Is(err, state.ErrNotFound) || err == nil && (fresh.State != state.QuotaClaimed || fresh.AttemptToken != started.AttemptToken) {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	spec.OnSessionCreated = func(sessionID string) error {
+		fresh, err := s.stateStore.GetQuota(q.AgentID)
+		if err != nil || fresh.AttemptToken != started.AttemptToken || fresh.State != state.QuotaClaimed {
+			return state.ErrQuotaConflict
+		}
+		return s.stateStore.RecordQuotaCheckSession(q.AgentID, fresh.EpisodeID, fresh.Revision, fresh.AttemptToken, sessionID)
+	}
+	out := s.registry.RunQuotaCheck(checkCtx, spec)
+	fresh, err := s.stateStore.GetQuota(q.AgentID)
+	if err == nil && fresh.AttemptToken == started.AttemptToken {
+		if err := s.stateStore.FinishQuotaCheck(q.AgentID, fresh.EpisodeID, fresh.Revision, fresh.AttemptToken, state.QuotaCheckResult{
+			Outcome: out.Outcome, ResetAt: out.ResetAt, ResetSource: out.ResetSource, Cleaned: out.Cleaned,
+		}); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
+			s.log.Error("record quota check", "err", err)
+		}
+	}
+	if out.Cleaned && out.SessionID != "" {
+		if err := s.stateStore.ResolveQuotaCheckCleanup(q.AgentID, out.SessionID); err != nil {
+			s.log.Error("resolve quota check cleanup", "err", err)
+		}
+	}
+}
+
+func (s *Server) admitQuotaCheck(q state.QuotaIntent, spec runtime.QuotaCheckSpec, specErr error) (state.QuotaIntent, bool) {
+	keys, err := s.quotaAdmissionKeys(q)
+	if err != nil {
+		_ = s.stateStore.HoldQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, "owner_unavailable")
+		return state.QuotaIntent{}, false
+	}
+	release, ok := s.claimQuotaActions(keys)
+	if !ok {
+		// A busy deferral creates no provider check and spends no allowance.
+		if err := s.stateStore.DeferQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, time.Now().UTC().Add(taskDispatchInterval), "busy"); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
+			s.log.Error("defer quota check behind manual action", "err", err)
+		}
+		return state.QuotaIntent{}, false
+	}
+	defer release()
+	s.quotaControlMu.Lock()
+	defer s.quotaControlMu.Unlock()
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+	cfg, err := s.configStore.ReadConfig()
+	if err != nil || !cfg.AutoContinue {
+		return state.QuotaIntent{}, false
+	}
+	fresh, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil || fresh.State != state.QuotaClaimed || fresh.EpisodeID != q.EpisodeID || fresh.AttemptToken != q.AttemptToken || fresh.NextAction != state.QuotaActionCheck {
+		return state.QuotaIntent{}, false
+	}
+	hold := func(reason string) (state.QuotaIntent, bool) {
+		if err := s.stateStore.HoldQuota(fresh.AgentID, fresh.EpisodeID, fresh.Revision, fresh.AttemptToken, reason); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
+			s.log.Error("hold quota check", "err", err)
+		}
+		return state.QuotaIntent{}, false
+	}
+	a, err := s.stateStore.ReadAgent(q.AgentID)
+	if err != nil || a.Archived || a.Interface != "chat" {
+		return hold("archived")
+	}
+	if ae := s.projectArchiveGate(a.Project, "project is archived"); ae != nil {
+		return hold("project_ineligible")
+	}
+	if specErr != nil || spec.BackendType != "claude-acp" && spec.BackendType != "codex-acp" {
+		return hold("check_unsupported")
+	}
+	if fresh.CheckSession != "" {
+		// One exact cleanup reference at a time; the cleanup pass resolves it.
+		if err := s.stateStore.DeferQuota(fresh.AgentID, fresh.EpisodeID, fresh.Revision, fresh.AttemptToken, time.Now().UTC().Add(quotaCleanupRetry), "busy"); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
+			s.log.Error("defer quota check behind cleanup", "err", err)
+		}
+		return state.QuotaIntent{}, false
+	}
+	if err := s.stateStore.StartQuotaCheck(fresh.AgentID, fresh.EpisodeID, fresh.Revision, fresh.AttemptToken, spec.BackendType); err != nil {
+		return state.QuotaIntent{}, false
+	}
+	started, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil {
+		return state.QuotaIntent{}, false
+	}
+	return started, true
+}
+
+// cleanupQuotaChecks retries exact disposal of recorded probe sessions that no
+// running check owns, never loading, prompting or scanning other history.
+func (s *Server) cleanupQuotaChecks(ctx context.Context) {
+	pending, err := s.stateStore.PendingQuotaCheckCleanups(state.MaxQuotaDueBatch)
+	if err != nil {
+		s.log.Error("read pending quota check cleanups", "err", err)
+		return
+	}
+	now := time.Now()
+	for _, q := range pending {
+		s.quotaCheckMu.Lock()
+		if s.quotaCleanupTried == nil {
+			s.quotaCleanupTried = map[string]time.Time{}
+		}
+		skip := s.quotaChecks[q.AgentID] || now.Sub(s.quotaCleanupTried[q.AgentID+"\x00"+q.CheckSession]) < quotaCleanupRetry
+		if !skip {
+			s.quotaCleanupTried[q.AgentID+"\x00"+q.CheckSession] = now
+		}
+		s.quotaCheckMu.Unlock()
+		if skip {
+			continue
+		}
+		spec, err := s.quotaCheckSpec(q.AgentID)
+		if err != nil {
+			continue
+		}
+		spec.BackendType = q.CheckBackend
+		if err := s.registry.CleanupQuotaCheckSession(ctx, spec, q.CheckSession); err != nil {
+			s.log.Warn("quota check cleanup failed; will retry", "agent", q.AgentID, "err", err)
+			continue
+		}
+		if err := s.stateStore.ResolveQuotaCheckCleanup(q.AgentID, q.CheckSession); err != nil {
+			s.log.Error("resolve quota check cleanup", "err", err)
+			continue
+		}
+		s.quotaCheckMu.Lock()
+		delete(s.quotaCleanupTried, q.AgentID+"\x00"+q.CheckSession)
+		s.quotaCheckMu.Unlock()
+		_, _ = s.stateMgr.Touch(q.AgentID)
+	}
+}

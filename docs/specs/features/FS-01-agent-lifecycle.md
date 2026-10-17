@@ -311,7 +311,7 @@ orphaned processes.
   retrying within a rounded reset minute. Multiple known blocking windows retain R40–R44's
   applicability and ownership rules. This extends R41's available reset evidence when shipped;
   it does not claim live provider coverage before A28/A33.
-- **R49 (planned; confirmed 2026-10-16)** —
+- **R49 (implemented 2026-10-17; confirmed 2026-10-16; live gate A34 owed)** —
   **Check outside the interrupted conversation when the reset stays unknown.**
   With Auto continue enabled, a newly observed quota interruption with no reliable reset may
   check access one hour later, up to six bounded checks. Each check uses an isolated provider
@@ -349,7 +349,7 @@ orphaned processes.
   automatically armed by upgrade, and cancelled/disabled records are never resurrected. There is
   no extra setting, new Chuck conversation, prompt in the interrupted conversation, provider login client, adapter patch,
   subscription dashboard or change to frozen permissions.
-- **R51 (planned; Codex archive retention confirmed 2026-10-16)** — **Probe sessions have a separate,
+- **R51 (implemented 2026-10-17; Codex archive retention confirmed 2026-10-16; live gate A34 owed)** — **Probe sessions have a separate,
   bounded lifetime.** A check carries only a fixed minimal request, with no interrupted transcript,
   attachments, persona, task payload or coordination authority. It creates no Chuck agent or
   task, is never shown as a conversation, and cannot mark owned work completed or clear its quota
@@ -614,7 +614,7 @@ transitions:
   and the provider coverage gate in A28/A33. Implemented coverage:
   `internal/runtime/quota_reset_test.go`, `internal/runtime/quota_test.go` and
   `internal/server/quota_http_test.go`; the live receipt remains owed.
-- **A32 (planned)** (R49–R51) — Interrupt an ordinary chat and each existing task/pipeline/room
+- **A32 (implemented 2026-10-17; deterministic state/dispatcher coverage)** (R49–R51) — Interrupt an ordinary chat and each existing task/pipeline/room
   recovery path with unknown-reset quota. Observe one hourly isolated check, renewed quota with
   a different failure identity, no more than six check requests, and needs-attention
   on exhaustion. Exercise success, later known reset, non-quota failure, manual cancellation,
@@ -625,6 +625,9 @@ transitions:
   No duplicate work, allowance reset, catch-up burst or uncertain-delivery replay occurs. Explicit
   credit/spend-cap errors and pre-upgrade unknown records remain manual. *Verify:* deterministic
   clock/state/dispatcher and owner-path tests plus restart/cancellation race coverage.
+  Implemented coverage: `internal/state/quota_checks_test.go`,
+  `internal/runtime/quota_check_test.go` and `internal/server/quota_check_test.go` (ordinary
+  owner; task/pipeline/room checks reuse the same claim and continuation admission).
 - **A33 (planned)** (R48–R51) — On desktop and phone, distinguish known reset, unknown-reset next
   check, remaining allowance, cancelled and exhausted states; reload, cancel and disable while
   waiting. API/stream state agrees. Corroborated continuation appends one honest Chuck notice;
