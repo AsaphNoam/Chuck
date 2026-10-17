@@ -130,7 +130,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   writes its text back into that agent's composer draft. An empty composer receives it unchanged;
   text typed since is kept after the withdrawn text and a blank line, so neither is lost. An
   attachment-bearing hold keeps R84's recovery offer instead, shown as soon as the withdrawal
-  succeeds. A failed withdrawal changes no draft.
+  succeeds. A failed withdrawal changes no draft. The text kept is what the composer shows, even
+  when browser storage could not save it. Overlapping withdrawals of one hold restore it once. If
+  the recovery offer cannot be read after a successful withdrawal, the transcript says so and
+  offers to load it again without repeating the withdrawal.
 
 - **R50.** **Steer the turn that is running.** Beside Send, a chat agent
   whose runtime advertises steering offers **Steer**, which delivers the message into the in-flight
@@ -1255,10 +1258,14 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 - **A70 (implemented 2026-10-16)** (R90) — Withdrawing a held text message from the desktop
   composer, the pending tail, or the phone leaves its text in the composer; with text already
   typed, both remain, withdrawn text first. A rejected withdrawal leaves the composer unchanged.
-  An attachment-bearing withdrawal shows the recovery offer instead.
+  An attachment-bearing withdrawal shows the recovery offer instead. Unsaved typed text survives a
+  storage failure on desktop and phone; overlapping withdrawals restore one copy; a failed recovery
+  read offers a load retry that does not withdraw again.
   *Verify:* `Composer.test.tsx` ("withdraws the held message…", "puts the withdrawn text ahead…",
-  "turns a withdrawn attachment hold…", "leaves the composer unchanged…"), `AgentScreen.test.tsx`
-  ("withdraw returns the held text…").
+  "turns a withdrawn attachment hold…", "leaves the composer unchanged…", "keeps newer typed
+  text…", "reports a recovery read…", "restores the held text once…"), `AgentScreen.test.tsx`
+  ("withdraw returns the held text…", "withdraw keeps text typed…"), `TranscriptView.test.tsx`
+  ("offers to load a withdrawn attachment message…").
 
 ## 6. Deviations & open decisions
 

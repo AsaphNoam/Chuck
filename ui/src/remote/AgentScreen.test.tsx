@@ -323,6 +323,22 @@ describe("AgentScreen", () => {
     await waitFor(() => expect(screen.queryByText("Held until the current turn ends")).not.toBeInTheDocument());
   });
 
+  it("withdraw keeps text typed while browser storage refuses to save it (FS-03.A70)", async () => {
+    let held = "rerun the linter";
+    server.use(
+      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, after_seq: 0 })),
+      http.delete("/api/sessions/a1/prompt", () => { held = ""; return HttpResponse.json({ accepted: true, agent_id: "a1" }); }),
+    );
+    useConnection.setState({ agents: { a1: { ...agent, state: "busy", detail: "" } } });
+    renderScreen();
+    const box = await screen.findByLabelText("Message");
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    fireEvent.change(box, { target: { value: "unsaved since" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Withdraw" }));
+    await waitFor(() => expect(box).toHaveValue("rerun the linter\n\nunsaved since"));
+    blocked.mockRestore();
+  });
+
   it("disables every action while the Mac is unreachable", async () => {
     renderScreen();
     await screen.findByRole("region", { name: "Permission request" });

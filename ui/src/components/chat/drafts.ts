@@ -13,6 +13,10 @@ type StoredDrafts = Record<string, Draft>;
 // request cannot outlive a page reload, so a fresh process starting at zero is
 // correct.
 const revisions: Record<string, number> = {};
+// The text this page last gave each agent's composer. Storage is best-effort,
+// so a restore merges with this rather than a possibly stale or missing
+// persisted copy (FS-03.R90, INV §1).
+const live: Record<string, string> = {};
 const listeners = new Map<string, Set<(text: string) => void>>();
 
 // Listeners hear drafts written outside their own composer: a clear after send,
@@ -25,6 +29,10 @@ export function subscribeChatDraft(agentId: string, listener: (text: string) => 
     subscribers.delete(listener);
     if (!subscribers.size) listeners.delete(agentId);
   };
+}
+
+export function clearChatDraftCacheForTests() {
+  for (const agentId of Object.keys(live)) delete live[agentId];
 }
 
 function notifyDraft(agentId: string, text: string) {
@@ -46,6 +54,7 @@ export function getChatDraft(agentId: string): string {
 }
 
 export function setChatDraft(agentId: string, text: string) {
+  live[agentId] = text;
   try {
     noteDraftChange(agentId, { text: text !== "" });
   } catch {
@@ -63,6 +72,7 @@ export function setChatDraft(agentId: string, text: string) {
 }
 
 export function discardChatDraft(agentId: string) {
+  live[agentId] = "";
   try {
     noteDraftChange(agentId, { text: false });
   } catch {
@@ -78,7 +88,7 @@ export function discardChatDraft(agentId: string) {
 // A withdrawn held message returns as the person's own text. Anything typed
 // since stays after it, so neither is lost (FS-03.R90).
 export function restoreChatDraft(agentId: string, text: string) {
-  const current = getChatDraft(agentId);
+  const current = live[agentId] ?? getChatDraft(agentId);
   const next = current ? `${text}\n\n${current}` : text;
   setChatDraft(agentId, next);
   notifyDraft(agentId, next);

@@ -15,9 +15,13 @@ interface HeldStoreState {
   afterSeqByAgent: Record<string, number>;
   attachmentsByAgent: Record<string, AttachmentDescriptor[]>;
   recoveryByAgent: Record<string, { text: string; request_id: string; attachments: AttachmentDescriptor[] }>;
+  // A withdrawal succeeded but its recovery offer could not be read yet; the tail
+  // says so and offers to read it again rather than showing nothing (FS-03.R90).
+  recoveryUnreadByAgent: Record<string, true>;
   hold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[]) => void;
   release: (agentId: string) => void;
   setRecovery: (agentId: string, recovery: { text: string; request_id: string; attachments: AttachmentDescriptor[] } | null) => void;
+  markRecoveryUnread: (agentId: string) => void;
 }
 
 export const useHeldStore = create<HeldStoreState>((set) => ({
@@ -25,6 +29,7 @@ export const useHeldStore = create<HeldStoreState>((set) => ({
   afterSeqByAgent: {},
   attachmentsByAgent: {},
   recoveryByAgent: {},
+  recoveryUnreadByAgent: {},
   hold: (agentId, text, afterSeq = 0, attachments = []) =>
     set((state) => ({
       byAgent: { ...state.byAgent, [agentId]: text },
@@ -46,6 +51,9 @@ export const useHeldStore = create<HeldStoreState>((set) => ({
     const recoveryByAgent = { ...state.recoveryByAgent };
     if (recovery) recoveryByAgent[agentId] = recovery;
     else delete recoveryByAgent[agentId];
-    return { recoveryByAgent };
+    const recoveryUnreadByAgent = { ...state.recoveryUnreadByAgent };
+    delete recoveryUnreadByAgent[agentId];
+    return { recoveryByAgent, recoveryUnreadByAgent };
   }),
+  markRecoveryUnread: (agentId) => set((state) => ({ recoveryUnreadByAgent: { ...state.recoveryUnreadByAgent, [agentId]: true } })),
 }));

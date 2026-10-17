@@ -23,7 +23,7 @@ afterEach(() => {
   window.getSelection()?.removeAllRanges();
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
   useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, settled: {} });
-  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {} });
+  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {} });
   useAgentStore.setState({ agents: {} });
   mswServer.resetHandlers();
 });
@@ -306,6 +306,31 @@ describe("TranscriptView pending follow-up", () => {
     expect(await screen.findByText("Could not withdraw — it may already have been sent.")).toBeInTheDocument();
     expect(useHeldStore.getState().byAgent.a1).toBe("still queued");
     failing.mockRestore();
+  });
+
+  // FS-03.A70 — a completed attachment withdrawal whose recovery read fails says
+  // so and reads again without withdrawing twice.
+  it("offers to load a withdrawn attachment message when its recovery read fails", async () => {
+    const attachment = { id: "att_1", name: "shot.png", kind: "image", mime_type: "image/png", size: 4, sha256: "abcd" } as const;
+    const recovery = { text: "see image", request_id: "req_1", attachments: [attachment] };
+    let withdrawn = 0;
+    let reads = 0;
+    mswServer.use(
+      http.delete("/api/sessions/a1/prompt", () => { withdrawn++; return HttpResponse.json({ accepted: true, agent_id: "a1" }); }),
+      http.get("/api/sessions/a1/prompt", () => {
+        reads++;
+        return reads === 1 ? HttpResponse.json({ error: "down" }, { status: 503 }) : HttpResponse.json({ agent_id: "a1", text: "", after_seq: 0, recovery });
+      }),
+    );
+    useHeldStore.getState().hold("a1", "see image", 0, [attachment]);
+    renderTranscript(true, events, true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw" }));
+    expect(await screen.findByText("Withdrawn, but the message and its attachments could not be loaded.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Load withdrawn message" }));
+    expect(await screen.findByText("Message not delivered — choose whether to send it again")).toBeInTheDocument();
+    expect(screen.queryByText(/could not be loaded/)).toBeNull();
+    expect(withdrawn).toBe(1);
   });
 });
 

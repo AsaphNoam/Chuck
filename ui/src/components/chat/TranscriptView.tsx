@@ -33,7 +33,7 @@ import type { FileLink } from "./renderers/filePath";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { useAgentStore } from "../../store/agentStore";
 import { useHeldStore } from "../../store/heldStore";
-import { withdrawHeldMessage } from "../../lib/heldMessage";
+import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { WorkingIndicator } from "./WorkingIndicator";
 import { useUiStore } from "../../store/uiStore";
 import { dismissPromptRecovery, sendRecoveredPrompt } from "../../api/client";
@@ -61,6 +61,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   const held = useHeldStore((state) => state.byAgent[agentId]);
   const heldAttachments = useHeldStore((state) => state.attachmentsByAgent[agentId] ?? []);
   const recovery = useHeldStore((state) => state.recoveryByAgent[agentId]);
+  const recoveryUnread = useHeldStore((state) => state.recoveryUnreadByAgent[agentId]);
   const reasoning = useReasoningStore((state) => state.byAgent[agentId]?.spans);
 
   // Annotating is a right-click action on the event under the pointer: it captures the
@@ -174,6 +175,12 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           {busy && <WorkingIndicator />}
           {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
           {recovery && <RecoveryMessage agentId={agentId} recovery={recovery} />}
+          {!recovery && recoveryUnread && (
+            <div className="transcript-held" data-ui="transcript" data-variant="held">
+              <p className="transcript-held-error" role="alert">Withdrawn, but the message and its attachments could not be loaded.</p>
+              <div className="transcript-held-actions"><button type="button" className="ad-button-secondary" onClick={() => void readHeldRecovery(agentId)}>Load withdrawn message</button></div>
+            </div>
+          )}
         </div>
       </div>
       {!atBottom && (

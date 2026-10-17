@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw";
 import { Composer } from "./Composer";
 import { getChatDraft } from "./drafts";
 import { useHeldStore } from "../../store/heldStore";
+import { withdrawHeldMessage } from "../../lib/heldMessage";
 import type { AttachmentDescriptor } from "../../api/types";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { clearAttachmentDraftCacheForTests } from "./attachments";
@@ -50,7 +51,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   clearAttachmentDraftCacheForTests();
-  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {} });
+  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {} });
   useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {} });
   server.resetHandlers();
   promptBodies = [];
@@ -565,6 +566,62 @@ describe("Composer queued follow-up and steering", () => {
     fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
     await waitFor(() => expect(useHeldStore.getState().recoveryByAgent.a_1).toEqual(recovery));
     expect(ta.value).toBe("");
+  });
+
+  it("keeps newer typed text when browser storage refuses to save it", async () => {
+    server.use(
+      http.post("/api/sessions/:id/prompt", () =>
+        HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held" }, { status: 202 })),
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1" })),
+    );
+    render(<Composer agentId="a_1" busy />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "first thought");
+    fireEvent.keyDown(ta, { key: "Enter" });
+    await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBe("first thought"));
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    type(ta, "unsaved thought");
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
+    await waitFor(() => expect(ta.value).toBe("first thought\n\nunsaved thought"));
+  });
+
+  it("reports a recovery read that fails after the withdrawal succeeded", async () => {
+    const attachment: AttachmentDescriptor = { id: "att_1", name: "shot.png", kind: "image", mime_type: "image/png", size: 4, sha256: "abcd" };
+    server.use(
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1" })),
+      http.get("/api/sessions/:id/prompt", () => HttpResponse.json({ error: "down" }, { status: 503 })),
+    );
+    useHeldStore.getState().hold("a_1", "see image", 0, [attachment]);
+    render(<Composer agentId="a_1" busy />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
+    await waitFor(() => expect(useHeldStore.getState().recoveryUnreadByAgent.a_1).toBe(true));
+    expect(useHeldStore.getState().byAgent.a_1).toBeUndefined();
+    expect(screen.queryByText(/Could not withdraw/)).toBeNull();
+  });
+
+  it("restores the held text once when withdrawals overlap across both controls", async () => {
+    let withdrawn = 0;
+    let finish: (() => void) | null = null;
+    server.use(http.delete("/api/sessions/:id/prompt", async () => {
+      withdrawn++;
+      await new Promise<void>((resolve) => { finish = resolve; });
+      return HttpResponse.json({ accepted: true, agent_id: "a_1" });
+    }));
+    useHeldStore.getState().hold("a_1", "held text");
+    render(<Composer agentId="a_1" busy />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
+    // The pending tail's Withdraw uses the same helper.
+    const second = withdrawHeldMessage("a_1");
+    await waitFor(() => expect(finish).not.toBeNull());
+    finish!();
+    await second;
+    await waitFor(() => expect(ta.value).toBe("held text"));
+    expect(withdrawn).toBe(1);
   });
 
   it("leaves the composer unchanged when the withdrawal is refused", async () => {

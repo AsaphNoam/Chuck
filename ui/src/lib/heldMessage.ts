@@ -10,16 +10,35 @@ import { useHeldStore } from "../store/heldStore";
 // disappearing from a chat that is still going to send it (INV §8).
 // A withdrawn text message returns to the composer; an attachment-bearing one
 // becomes the server's recovery offer instead (FS-03.R84, R90).
-export async function withdrawHeldMessage(agentId: string): Promise<void> {
+// Overlapping withdrawals of one agent's hold, from either surface, share one
+// call so the held text is restored exactly once (INV §11).
+const withdrawing = new Map<string, Promise<void>>();
+
+export function withdrawHeldMessage(agentId: string): Promise<void> {
+  const existing = withdrawing.get(agentId);
+  if (existing) return existing;
+  const run = withdrawOnce(agentId).finally(() => withdrawing.delete(agentId));
+  withdrawing.set(agentId, run);
+  return run;
+}
+
+async function withdrawOnce(agentId: string): Promise<void> {
   const store = useHeldStore.getState();
   const text = store.byAgent[agentId] ?? "";
   const hadAttachments = (store.attachmentsByAgent[agentId] ?? []).length > 0;
   await withdrawPrompt(agentId);
   useHeldStore.getState().release(agentId);
-  if (hadAttachments) {
-    const snapshot = await getHeldPrompt(agentId).catch(() => null);
-    if (snapshot) useHeldStore.getState().setRecovery(agentId, snapshot.recovery ?? null);
-  } else if (text) {
-    restoreChatDraft(agentId, text);
+  if (hadAttachments) await readHeldRecovery(agentId);
+  else if (text) restoreChatDraft(agentId, text);
+}
+
+// Reads the recovery offer after a completed withdrawal. A failed read is shown
+// with a retry that only reads again; the withdrawal is never repeated (INV §8).
+export async function readHeldRecovery(agentId: string): Promise<void> {
+  try {
+    const snapshot = await getHeldPrompt(agentId);
+    useHeldStore.getState().setRecovery(agentId, snapshot.recovery ?? null);
+  } catch {
+    useHeldStore.getState().markRecoveryUnread(agentId);
   }
 }
