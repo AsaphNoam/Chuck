@@ -1,4 +1,4 @@
-import type { QuotaState } from "../lib/quota";
+import type { QuotaWireState } from "../lib/quota";
 
 export type AgentStatus = "busy" | "idle" | "waiting_input" | "done" | "error" | "unknown";
 
@@ -65,7 +65,7 @@ export interface AgentState {
   driver?: string;
   state: AgentStatus;
   detail: string;
-  quota?: QuotaState;
+  quota?: QuotaWireState;
   last_trace?: string;
   busy_since?: string;
   context_pct: number;

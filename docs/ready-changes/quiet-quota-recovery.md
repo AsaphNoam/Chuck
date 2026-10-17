@@ -1,6 +1,6 @@
 # Recover quota-interrupted work without noisy wake-ups
 
-**State:** In progress (2026-10-17; slice plan in the handoff's Active change)
+**State:** Finished (2026-10-17); awaiting review
 **Why:** Direct `/design-feature` request on 2026-10-16. The operator confirmed reset extraction
 and bounded recovery, requested checks outside the interrupted conversation, and approved named
 Codex native archive records for isolated probes.

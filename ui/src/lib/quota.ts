@@ -23,6 +23,8 @@ export const quotaStateSchema = z.object({
 });
 
 export type QuotaState = z.infer<typeof quotaStateSchema>;
+/** The wire shape, where pre-check records may omit next_action. */
+export type QuotaWireState = z.input<typeof quotaStateSchema>;
 
 /** Malformed or partial wire data must not present a false quota interruption. */
 export function decodeQuotaState(value: unknown): QuotaState | undefined {

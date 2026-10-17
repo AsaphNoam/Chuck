@@ -6,6 +6,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Awaiting review — quiet quota recovery (2026-10-17):** `d3ea0f8f`..HEAD,
+  [`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md) (its Implementation
+  progress lists files and reviewer notes). Verified resets schedule at reset + 60 s; unknown
+  resets get ≤6 hourly isolated checks (`internal/runtime/quota_check.go`,
+  `internal/server/quota_check.go`, migration 54). Review notes: Claude probes keep default
+  `settingSources`; deleting an agent with a pending failed Codex cleanup drops its reference.
+
 - **Awaiting review — peer transcript reads and approved Stop (2026-10-16):** `953aeb31`..HEAD,
   FS-06.R39–R44. `read_agent_transcript`/`list_agents scope:"history"`; `stop_agent` waits on a
   host permission (`internal/runtime/host_permission.go`) only the operator route resolves, then
@@ -95,11 +102,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-**In progress — quiet quota recovery (2026-10-17):**
-[`quiet-quota-recovery.md`](../ready-changes/quiet-quota-recovery.md); its **Implementation
-progress** section holds the slice plan, resume notes and checks. Slice 1 (verified reset
-evidence) , slice 2 (state check chain) slice 3 (isolated runtime check) and slice 4 (dispatcher wiring) are committed; next is slice 5 (API/UI copy and notice). Live A28/A34 receipts
-remain gates. Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
+None.
 
 ## Acceptance gates still owed
 
@@ -120,10 +123,11 @@ remain gates. Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
 - **FS-03.A67 / TS-04.R92:** live Claude/Codex permission-mode receipt. Claude 0.59.0's mode
   option is source-checked only; the Codex mode shape is unverified.
 
-- **FS-01.A28:** bounded packaged/installed Claude/Codex terminal-quota and owner-activation
-  provider receipt. Current Claude SDK 0.3.286's bare numeric reset declaration has no verified
-  producer-unit receipt; Codex forwards no typed reset. Both remain unknown and unscheduled.
-  Known-reset state/fake-provider/browser proof is not live-provider reset or delivery evidence.
+- **FS-01.A28/A31/A33/A34:** bounded packaged/installed Claude/Codex terminal-quota receipts:
+  real reset text/`_claude/rateLimit` wire, actual continuation, and isolated checks proving
+  same account/model, Claude non-persistence, Codex `/rename` + archive, the dotted
+  `CODEX_CONFIG` `mcp_servers.<name>.enabled:false` overlay and no auto-title turn. Parsers follow
+  pinned formatter source; fake-provider/browser proof is not live delivery evidence.
 - **FS-14.A50 / FS-21.A31:** bounded packaged Claude/Codex Think Tank stage probe (start → fresh
   participants → judge → accepted output → next stage). Fake-provider E2E and the 318-check render
   pass are not live receipts. **FS-14.A49** restart/race matrix and **FS-21.A32** live Stop-cancel
@@ -224,6 +228,11 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-17 — Quiet quota recovery implemented:** FS-01.R48–R51/A31–A33 (A32 deterministic),
+  FS-04.R59/A38, TS-04.R96–R97, TS-10.R45–R47, TS-02.R50, TS-03.R72 in five slices
+  (`d3ea0f8f`..HEAD). TS-10 and FS-04 are now Current. Serial `make test` (both variants), `make build`, 897 UI tests, UI build, focused `-race` and the quota render journey pass. Live A28/A31/A33/A34
+  receipts remain owed.
 
 - **2026-10-16 — Quiet quota recovery design ready:** operator confirmed the direction, requested
   checks outside the interrupted conversation and accepted native Codex archive probe records.
