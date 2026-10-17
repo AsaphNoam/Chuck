@@ -224,7 +224,8 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   can scroll while target selection, errors and send remain reachable with the phone keyboard open.
   Sending uses the existing current-agent, another-agent and new-task destinations, availability
   rules, source recording and prompt/mail content; no new agent/API record shape or retention is
-  introduced. Acknowledged success clears the batch and names the destination; a rejected or failed
+  introduced. Acknowledged success clears the submitted batch and names the destination; a draft
+  captured while that send was pending stays in the tray. A rejected or failed
   send preserves all drafts and the overall instruction. Disconnection disables delivery without
   discarding drafts or sending automatically on reconnect.
 - **R30 — Phone New task has the Mac's reviewable launch step.** A phone batch's
@@ -232,7 +233,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   prefill the source's persona and project, and let the person review or change name, persona,
   existing project, group and the phone-supported backend/model/effort/fast choices before launch.
   This supersedes FS-20.R32's immediate default-only launch. It remains a normal chat-agent launch,
-  with no terminal or worktree controls. Cancelling returns to the intact tray; launch failure
+  with no terminal or worktree controls. While a launch request is pending, the launch step cannot
+  be cancelled or dismissed, so one batch never starts two launches. Cancelling returns to the
+  intact tray; launch failure
   preserves both batch and entered launch values. After launch, delivery failure names the created
   agent and offers retry to that same agent without another launch. Only acknowledged delivery
   clears the batch and opens the new agent's conversation.

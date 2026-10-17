@@ -11,8 +11,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   review interception, missing report guidance, stale busy status, and hidden denial reasons;
   see Review findings. Fix model: medium — Codex Terra or Claude Opus.
 
-- **Awaiting review — mobile annotation parity (2026-10-17):** `be1dd80d`..HEAD, FS-13.R28–R31,
-  FS-20.R55, TS-08.R133–R136, TS-13.R31; see changelog. Device gates under Acceptance gates.
+- **Finished — mobile annotation parity fixes (2026-10-17):** fix unit
+  `mobile-annotation-parity-2026-10-17` (MA-1–MA-3) closed; see changelog. FS-13.R28–R31,
+  FS-20.R55, TS-08.R133–R136, TS-13.R31. Owed: independent rendered review and device gates
+  (Acceptance gates still owed).
 
 - **Finished — roomier file reader fixes (2026-10-17):** fix unit
   `roomier-file-reader-2026-10-17` (RFR-1–RFR-5) closed; see changelog. FS-03.R92–R97/A71–A75,
@@ -110,6 +112,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 None.
 
 ## Acceptance gates still owed
+
+- **Mobile annotation parity independent rendered review (workflow §14.4):** the review's
+  `phone-render.mjs --annotation-check` attempt failed to bind `::1:5199` with `EPERM`.
+  Approval-capable independent browser execution remains required; the implementer's stubbed
+  browser journey does not close this review gate.
 
 - **FS-13.A19–A21 / FS-20.A27 (mobile annotation parity):** paired iPhone and Android native
   long-press selection inside events and tracked files, then Annotate, with the keyboard open
@@ -353,6 +360,19 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-17 — Mobile annotation parity fixes (MA-1–MA-3) closed:** review of
+  `be1dd80d^..9c2206e6` found three P2s, all fixed. MA-1 (INV §5, check-then-act): the phone
+  launch sheet ignores Close/Escape/Cancel while `NewAgentForm` reports a pending launch
+  (`onBusyChange`), so one batch cannot launch twice. MA-2 (INV §1, derived state across a send):
+  acknowledgement calls the new `annotationStore.discardSent`, removing only the submitted draft
+  snapshot, so a capture made mid-send survives (desktop shares the fix). MA-3 (INV §1):
+  `useAnnotationDelivery` binds callbacks to a per-source token that is live only while that
+  owner is mounted; a late launch from a changed/unmounted owner sends nothing, a late delivery
+  still clears its acknowledged snapshot but neither updates state nor navigates. FS-13.R29/R30
+  and TS-08.R135 updated. New `ui/src/remote/AnnotationDelivery.test.tsx` (6 tests, from the
+  review probes; 5 fail on the pre-fix code). Checks: 942 UI tests, UI build, full serial
+  `make test` and `make build`. Embedded `dist` not refreshed.
 
 - **2026-10-17 — Mobile annotation parity implemented:** phone rows get a quiet Annotate action
   (in-event selection read on press, else whole event); tracked files open in the shared

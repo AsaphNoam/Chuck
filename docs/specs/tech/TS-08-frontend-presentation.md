@@ -1658,6 +1658,12 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   source-owned success callback to navigate to the new agent; the launch callback never navigates.
   Offline/recovery state disables new mutations and never replays them automatically. In-flight
   sending prevents edits/discard or a second send from changing the submitted batch.
+  Acknowledgement removes only the submitted draft snapshot (and the overall instruction), so a
+  capture made during the send survives. The phone launch sheet ignores Close/Escape/Cancel while
+  `NewAgentForm` reports a pending launch. Launch and delivery callbacks are bound to the source
+  owner that rendered them: a source change or owner unmount drops a late launch result without
+  sending, and suppresses a late delivery's state updates and navigation while still clearing the
+  acknowledged snapshot.
 - **R136 — Phone replay and verification use the same annotation contract.** Add
   `annotation` handling to the phone event renderer using the existing `AnnotationCard`, with
   phone-scoped wrapping/overflow rules. The shared transcript reducer continues suppressing the

@@ -39,13 +39,15 @@ function RuntimeFields({ value, onChange }: { value: Runtime; onChange: (value: 
  *  project and opens the new agent. An annotation New task prefills the
  *  source's persona and project, lets the person choose another active project,
  *  and hands the launched id back instead of navigating (FS-13.R30). */
-export function NewAgentForm({ project: initialProject, initialGroup = "", initialRole, chooseProject = false, onClose, onLaunched, summary }: {
+export function NewAgentForm({ project: initialProject, initialGroup = "", initialRole, chooseProject = false, onClose, onLaunched, onBusyChange, summary }: {
   project: string;
   initialGroup?: string;
   initialRole?: string;
   chooseProject?: boolean;
   onClose: () => void;
   onLaunched?: (agentId: string) => void;
+  /** Reports a pending launch so the owner can keep the form open through it. */
+  onBusyChange?: (busy: boolean) => void;
   /** What happens after launch, shown under the heading. */
   summary?: string;
 }) {
@@ -84,13 +86,13 @@ export function NewAgentForm({ project: initialProject, initialGroup = "", initi
   }, [config.data, config.isError, role, roleEntries, roles.data]);
   const submit = async () => {
     if (!roleID || roleInvalid || projectInvalid) return;
-    setBusy(true); setError("");
+    setBusy(true); setError(""); onBusyChange?.(true);
     try {
       const result = await launchAgent({ project, role: roleID, name: name.trim() || undefined, group: group.trim() || undefined, ...runtime });
       if (onLaunched) onLaunched(result.agent.agent_id);
       else navigate(`/agent/${encodeURIComponent(result.agent.agent_id)}`);
     } catch (err) { setError(errorText(err)); setAdvancedOpen(true); }
-    finally { setBusy(false); }
+    finally { setBusy(false); onBusyChange?.(false); }
   };
   const projectLabel = projects.data?.[project]?.title || project;
   return <form className="phone-card phone-form" aria-label="New agent" onSubmit={(event) => { event.preventDefault(); void submit(); }}>

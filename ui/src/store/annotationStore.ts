@@ -26,6 +26,7 @@ interface AnnotationStoreState extends PersistedTrays {
   updateInstruction: (sourceId: string, index: number, instruction: string) => void;
   remove: (sourceId: string, index: number) => void;
   discard: (sourceId: string) => void;
+  discardSent: (sourceId: string, sent: AnnotationDraft[]) => void;
   setOverall: (sourceId: string, instruction: string) => void;
   setCollapsed: (sourceId: string, collapsed: boolean) => void;
 }
@@ -83,6 +84,16 @@ export const useAnnotationStore = create<AnnotationStoreState>()(
           return { bySource: { ...state.bySource, [sourceId]: remaining }, editedAt: touch(state.editedAt, sourceId) };
         }),
       discard: (sourceId) => set((state) => dropSource(state, sourceId)),
+      // An acknowledged send clears only the drafts it submitted (by identity;
+      // sending disables edits), so a capture made while it was pending stays.
+      // The overall instruction went with the batch.
+      discardSent: (sourceId, sent) =>
+        set((state) => {
+          const remaining = (state.bySource[sourceId] ?? []).filter((draft) => !sent.includes(draft));
+          if (remaining.length === 0) return dropSource(state, sourceId);
+          const { [sourceId]: _overall, ...overallBySource } = state.overallBySource;
+          return { bySource: { ...state.bySource, [sourceId]: remaining }, overallBySource };
+        }),
       setOverall: (sourceId, overall) =>
         set((state) => ({ overallBySource: { ...state.overallBySource, [sourceId]: overall }, editedAt: touch(state.editedAt, sourceId) })),
       // Collapsing hides drafts; it does not edit them, so it deliberately

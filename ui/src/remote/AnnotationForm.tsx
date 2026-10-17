@@ -1,5 +1,5 @@
 import { AutoGrowTextarea } from "../components/ui";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { AgentState, AnnotationDraft } from "../api/types";
 import { annotationAnchor } from "../lib/annotations";
 import { useAnnotationStore } from "../store/annotationStore";
@@ -65,15 +65,20 @@ export function PhoneAnnotations({ delivery, open, focusNewest, onClose }: {
   const { sourceId, source, showLaunch, setShowLaunch, onLaunched } = delivery;
   const { data: roles } = useRoles();
   const count = useAnnotationStore((state) => state.bySource[sourceId]?.length ?? 0);
+  // A pending launch keeps its form open: dismissing it would return to a tray
+  // that could launch the same batch again (FS-13.R30).
+  const [launching, setLaunching] = useState(false);
+  const dismissLaunch = () => { if (!launching) setShowLaunch(false); };
   if (showLaunch && source) {
     return (
-      <PhoneSheet title="New agent" centered onClose={() => setShowLaunch(false)}>
+      <PhoneSheet title="New agent" centered onClose={dismissLaunch}>
         <NewAgentForm
           project={source.project}
           initialRole={source.role}
           chooseProject
-          onClose={() => setShowLaunch(false)}
+          onClose={dismissLaunch}
           onLaunched={onLaunched}
+          onBusyChange={setLaunching}
           summary={`Launches a chat agent, then sends these annotations from ${source.name || personaIdentityLabel(source.role, roles?.[source.role])} to it.`}
         />
       </PhoneSheet>
