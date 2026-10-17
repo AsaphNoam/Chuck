@@ -189,13 +189,22 @@ None.
 
 Investigation artifact: `/Users/mcnoam/.chuck/project-resources/agentdeck-20261007t221535z/investigation-reviewer-completion-2026-10-17/INVESTIGATION.md`.
 The initial `get_assigned_task` and `report_task_result` calls from reviewer `a_123a8f` were
-rejected by the MCP approval layer with `MCP tool call requires approval, but approval policy is
+rejected at the Codex provider boundary with `MCP tool call requires approval, but approval policy is
 never` (runtime evidence in
 `/Users/mcnoam/.chuck/codex/sessions/2026/10/17/rollout-2026-10-17T19-06-00-01a14a9c-ec83-7973-be81-5331824c479d.jsonl:29,220,222`). The reviewer transcript records only generic failures
 (`a_123a8f/transcript.ndjson:79`), so the report's sandbox-denial explanation was not independently
-supported. After supervisor prompting, the reviewer obtained its assignment and successfully
-submitted `report_task_result` with execution handle `ta_3883d971803f0416163a4fd03749745a`,
-approved and completed at 2026-10-17T17:01:09Z (`a_123a8f/transcript.ndjson:143-150`).
+supported. Chuck did compose the reviewer with role `skip_permissions: true` and all Chuck MCP
+identities in `AutoApproveTools` (`/Users/mcnoam/.chuck/roles/reviewer.json:4`,
+`internal/server/launch.go:438-441`), but those controls apply inside Chuck's runtime after the
+provider request arrives; Codex `approval_policy: never` rejected the MCP call first. The initial
+Codex turn context records `never` at 16:06:02.818Z, while the later reviewer turn context records
+`on-request` at 17:00:44.521Z (`...ec83...jsonl:5`, `...ebdf...jsonl:90`). Guardian approvals then
+allowed the successful calls. The prompt preceded the later turn, but evidence does not show that
+supervisor messaging changed approval policy. The exact launcher/provider component selecting these
+per-turn Codex policies remains unresolved. After supervisor prompting, the reviewer obtained its
+assignment and successfully submitted `report_task_result` with execution handle
+`ta_3883d971803f0416163a4fd03749745a`, approved and completed at 2026-10-17T17:01:09Z
+(`a_123a8f/transcript.ndjson:143-150`).
 
 - **Must fix** — **P1 / confirmed:** approval-blocked required task-control calls can strand a completed
   reviewer with no accepted result, leaving supervision waiting until a later prompt. Route required
