@@ -108,7 +108,8 @@ None.
   count. The fixer's run binds loopback fine: `file-reader-journey.mjs` (now with a
   review-regression journey: boundary sweep, slow Reload, tab leave/return, agent change) passes
   963/963 post-fix, and its boundary sweep crashes the pre-fix stage (evidence in shared
-  resources `roomier-file-reader-review-2026-10-17/render-postfix/`). Check live/archive/room surfaces, the dashboard overlay and unchanged phone/dashboard
+  resources `roomier-file-reader-review-2026-10-17/render-postfix/`). Check live/archive/room
+  surfaces, the dashboard overlay and unchanged phone/dashboard
   navigation across widths/appearances, including slow Reload, resizing across the ~992px
   docking boundary, late diagrams, nested launch failure/retry, focus return and transcript
   visible-event/follow continuity through width reflow (native anchoring is unproven there).
