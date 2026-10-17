@@ -6,9 +6,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Finished — tool activity outside "Ran n tools" (2026-10-17):** TOOLRUN-01–03 closed; see
-  changelog. Owed: a live Claude receipt that a streamed call's row and Commands list show its
-  real input.
+- **Awaiting review — late tool input event (2026-10-17):** `a77bb3b6`, TS-04.R98 (see
+  changelog). Focus: INV §6 consumers, §16 bounds, Chuck-tool input leaks. Owed: live receipt.
 
 - **Finished — quiet quota recovery fixes (2026-10-17):** fix unit
   `quiet-quota-recovery-2026-10-17` (Q1–Q9) closed on `d3ea0f8f^..9fa9bc81`; see changelog.
