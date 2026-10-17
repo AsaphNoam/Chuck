@@ -152,6 +152,8 @@ func renderProjection(p transcript.Projection) string {
 	case runtime.EvToolCall:
 		header := "tool call " + partText(p, transcript.PartToolName)
 		return section(header, partText(p, transcript.PartToolArgs))
+	case runtime.EvToolCallUpdate:
+		return section("tool input "+partText(p, transcript.PartToolName), partText(p, transcript.PartToolArgs))
 	case runtime.EvToolResult:
 		header := "tool result"
 		if status := partText(p, transcript.PartToolResultStatus); status != "" {

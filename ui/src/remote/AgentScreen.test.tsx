@@ -421,7 +421,8 @@ describe("AgentScreen", () => {
     live = {
       agent_id: "a1",
       events: [
-        { agent_id: "a1", seq: 40, type: "tool_call", ts: "", data: { tool_call_id: "c1", name: "Edit" } },
+        { agent_id: "a1", seq: 39, type: "tool_call", ts: "", data: { tool_call_id: "c1", name: "edit", title: "edit", args: {} } },
+        { agent_id: "a1", seq: 40, type: "tool_call_update", ts: "", data: { tool_call_id: "c1", name: "edit", title: "Edit HANDOFF.md", args: { file_path: "HANDOFF.md" } } },
         { agent_id: "a1", seq: 41, type: "permission_request", ts: "", data: { tool_call_id: "c1", name: "Edit HANDOFF.md" } },
         { agent_id: "a1", seq: 42, type: "permission_resolved", ts: "", data: { tool_call_id: "c1", decision: "approve" } },
         { agent_id: "a1", seq: 43, type: "tool_result", ts: "", data: { tool_call_id: "c1", content: "approved-result" } },
@@ -437,6 +438,9 @@ describe("AgentScreen", () => {
     fireEvent.click(toggle);
     expect(await screen.findByText(/approved-result/)).toBeInTheDocument();
     expect(screen.getByText(/Edit HANDOFF\.md · approve/)).toBeInTheDocument();
+    // TS-04.R98: the call row shows the streamed title and input, not "edit {}".
+    fireEvent.click(screen.getByRole("button", { name: /Tool call: Edit HANDOFF\.md/ }));
+    expect(screen.getByText(/"file_path": "HANDOFF\.md"/)).toBeInTheDocument();
   });
 
   it("replays notices as compact rows in their original order (FS-03.A49)", async () => {

@@ -44,6 +44,8 @@ func sampleEvents(t *testing.T) map[string]runtime.Event {
 		runtime.EvAssistantImage: projectionEvent(t, runtime.EvAssistantImage, runtime.AssistantImageData{Name: "generated-image.png"}),
 		runtime.EvToolCall: projectionEvent(t, runtime.EvToolCall, runtime.ToolCallData{
 			ToolCallID: "tc1", Name: "Bash", Args: json.RawMessage(`{"command":"ls"}`), Status: "pending"}),
+		runtime.EvToolCallUpdate: projectionEvent(t, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{
+			ToolCallID: "tc1", Name: "execute", Title: "ls", Args: json.RawMessage(`{"command":"ls"}`)}),
 		runtime.EvToolResult: projectionEvent(t, runtime.EvToolResult, runtime.ToolResultData{
 			ToolCallID: "tc1", Status: "completed", Content: json.RawMessage(`"file.go"`), Error: "boom"}),
 		runtime.EvDiff: projectionEvent(t, runtime.EvDiff, runtime.DiffData{
@@ -138,6 +140,7 @@ func TestProjectEventSearchText(t *testing.T) {
 		runtime.EvUserPrompt:         "ship it",
 		runtime.EvAssistantText:      "on it",
 		runtime.EvToolCall:           "",
+		runtime.EvToolCallUpdate:     "",
 		runtime.EvToolResult:         "",
 		runtime.EvDiff:               "",
 		runtime.EvPermissionRequest:  "",

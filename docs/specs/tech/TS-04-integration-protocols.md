@@ -1396,6 +1396,19 @@ or failed cleanup is explicit uncertainty, never permission to delete guessed pr
 No new authenticated side client, native prompt CLI path, adapter patch or subscription scraper is
 introduced. FS-01.A34 requires real same-profile, isolation, naming and retention receipts.
 
+**R98 (implemented 2026-10-17) — Later tool input is recorded as a call update.** An adapter may
+surface a call before its input exists (Claude's streamed `tool_use` starts as a `tool_call` with
+`{}`) and refine it with status-less `tool_call_update` frames carrying `rawInput` and `title`.
+A frame with a non-empty object `rawInput` or a non-empty `title` emits a durable
+`tool_call_update` event `{tool_call_id, name, title, args}`; earlier events are never rewritten.
+The runtime fills `name` from the call it already saw and drops an update whose title and args
+equal the last recorded pair for that call, so repeated in-progress frames add nothing; that
+per-call memory ends with the call's result. Consumers treat the update as the call's current
+input: transcript projection exposes its args like a call's (recent-history primer, context links;
+never search text, FS-05.R41),
+the indexer tracks files and commands from it, the UI folds it into the matching `tool_call` and
+never renders it alone, and Think Tank capture records it, withholding Chuck's own tool input.
+
 ## 3. Interfaces & data shapes
 
 R97's internal check operation accepts a sanitized frozen provider selection (backend type,

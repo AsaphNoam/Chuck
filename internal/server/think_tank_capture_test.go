@@ -125,6 +125,24 @@ func TestThinkTankCaptureProjectsRoomActivity(t *testing.T) {
 	if !strings.Contains(cmds, `"command":"go test ./..."`) || !strings.Contains(cmds, `"status":"completed"`) || strings.Contains(cmds, "private") {
 		t.Fatalf("commands = %s", cmds)
 	}
+	// TS-04.R98: a streamed call's later input is captured; Chuck's own stays a
+	// receipt even when only the title names the tool. a_two's turn t2 is open.
+	for _, ev := range []runtime.Event{
+		roomEvent(t, "a_two", "g1", "t2", 2, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "s1", Name: "other", Title: "mcp__chuck-messaging__read_think_tank", Args: json.RawMessage(`{}`)}),
+		roomEvent(t, "a_two", "g1", "t2", 3, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "s1", Name: "other", Args: json.RawMessage(`{"cursor":"streamed-secret"}`)}),
+		roomEvent(t, "a_two", "g1", "t2", 4, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "s2", Name: "execute", Args: json.RawMessage(`{}`)}),
+		roomEvent(t, "a_two", "g1", "t2", 5, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "s2", Name: "execute", Args: json.RawMessage(`{"command":"make"}`)}),
+		roomEvent(t, "a_two", "g1", "t2", 6, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "s2", Name: "execute", Args: json.RawMessage(`{"command":"make test"}`)}),
+	} {
+		srv.captureThinkTankEvent(ev)
+	}
+	if body := doJSON(t, h, http.MethodGet, base+"/activity", "").Body.String(); strings.Contains(body, "streamed-secret") {
+		t.Fatalf("activity leaked streamed Chuck input: %s", body)
+	}
+	streamed := doJSON(t, h, http.MethodGet, base+"/commands", "").Body.String()
+	if !strings.Contains(streamed, `"command":"make test"`) || strings.Contains(streamed, `"command":"make"`) {
+		t.Fatalf("streamed commands = %s", streamed)
+	}
 	// Retained activity survives the source agent's deletion.
 	if err := srv.stateStore.DeleteAgent("a_one"); err != nil {
 		t.Fatal(err)

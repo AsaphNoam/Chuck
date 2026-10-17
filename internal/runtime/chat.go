@@ -248,6 +248,7 @@ type agentState struct {
 	turnActive             bool
 	stopping               bool
 	toolNames              map[string]string          // toolCallID -> normalized name (for status detail)
+	toolInputs             map[string]string          // open toolCallID -> last recorded title+args (TS-04.R98)
 	pending                map[string]*pendingPerm    // toolCallID -> withheld permission request
 	resolved               map[string]struct{}        // toolCallIDs already settled this turn
 	hostApproved           map[string]*HostPermission // approved host requests not yet admitted
@@ -1935,6 +1936,10 @@ func (c *ChatRuntime) mapScoped(as *agentState, scope activityScope, kind string
 	}
 	for _, m := range mapSessionUpdateImages(params, func(b acpContentBlock, toolID string) AssistantImageData { return c.persistImage(as, b, toolID) }) {
 		m = scopeMapped(scope, m)
+		var ok bool
+		if m, ok = as.admitToolInput(m); !ok {
+			continue
+		}
 		c.emitIn(as, scope, m.Type, m.Data)
 		c.applyEventStatus(as, m)
 	}
@@ -2612,6 +2617,46 @@ func (as *agentState) lastContext() contextReading {
 func (as *agentState) nextTurnIDLocked() string {
 	as.turnSeq++
 	return fmt.Sprintf("t_%012d", as.turnSeq)
+}
+
+// admitToolInput tracks each open call's last recorded title and input. A
+// tool_call_update for no open call, or one that changes neither, is dropped;
+// one that does gets the call's known name and carries the full current pair.
+// A result ends the call's memory (TS-04.R98, INV §16).
+func (as *agentState) admitToolInput(m mappedEvent) (mappedEvent, bool) {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	switch d := m.Data.(type) {
+	case ToolCallData:
+		if as.toolInputs == nil {
+			as.toolInputs = map[string]string{}
+		}
+		as.toolInputs[d.ToolCallID] = d.Title + "\x00" + string(d.Args)
+	case ToolCallUpdateData:
+		prev, open := as.toolInputs[d.ToolCallID]
+		if !open {
+			return m, false
+		}
+		title, args, _ := strings.Cut(prev, "\x00")
+		if d.Title == "" {
+			d.Title = title
+		}
+		if toolInput(d.Args) == nil && args != "" {
+			d.Args = json.RawMessage(args)
+		}
+		next := d.Title + "\x00" + string(d.Args)
+		if next == prev {
+			return m, false
+		}
+		as.toolInputs[d.ToolCallID] = next
+		if n := as.toolNames[d.ToolCallID]; n != "" {
+			d.Name = n
+		}
+		m.Data = d
+	case ToolResultData:
+		delete(as.toolInputs, d.ToolCallID)
+	}
+	return m, true
 }
 
 func (as *agentState) toolNameFor(id string) string {

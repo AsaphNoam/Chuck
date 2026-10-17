@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useTranscriptStore } from "./transcriptStore";
+import { foldTranscript, useTranscriptStore } from "./transcriptStore";
 
 beforeEach(() => {
   useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {} });
@@ -69,6 +69,28 @@ describe("notices and the card preview", () => {
     ]);
     expect(useTranscriptStore.getState().previewByAgent.a_n).toBe("Done.");
     expect(useTranscriptStore.getState().previewKindByAgent.a_n).toBe("assistant_text");
+  });
+});
+
+describe("tool call updates (TS-04.R98)", () => {
+  const wire = [
+    { agent_id: "a", seq: 1, type: "tool_call", ts: "", data: { tool_call_id: "t1", name: "edit", title: "edit", args: {} } },
+    { agent_id: "a", seq: 2, type: "tool_call_update", ts: "", data: { tool_call_id: "t1", name: "edit", title: "Edit a.go", args: { file_path: "a.go" } } },
+    { agent_id: "a", seq: 3, type: "tool_call_update", ts: "", data: { tool_call_id: "t9", title: "Orphan", args: { x: 1 } } },
+    { agent_id: "a", seq: 4, type: "tool_call_update", ts: "", data: { tool_call_id: "t1", title: "", args: {} } },
+  ];
+  const expectFolded = (events: Record<string, unknown>[]) => {
+    expect(events.map((event) => event.kind)).toEqual(["tool_call"]);
+    expect(events[0]).toMatchObject({ seq: 1, title: "Edit a.go", args: { file_path: "a.go" } });
+  };
+
+  it("folds live updates into the matching call and never renders them alone", () => {
+    for (const event of wire) useTranscriptStore.getState().appendMessage("a", event);
+    expectFolded(useTranscriptStore.getState().byAgent.a);
+  });
+
+  it("folds the same way on replay", () => {
+    expectFolded(foldTranscript(wire));
   });
 });
 

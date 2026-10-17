@@ -18,6 +18,7 @@ const (
 	EvAssistantText      = "assistant_text"
 	EvAssistantImage     = "assistant_image"
 	EvToolCall           = "tool_call"
+	EvToolCallUpdate     = "tool_call_update"
 	EvToolResult         = "tool_result"
 	EvDiff               = "diff"
 	EvPermissionRequest  = "permission_request"
@@ -88,6 +89,16 @@ type ToolCallData struct {
 	Title      string          `json:"title"`        // human label from ACP if present, else Name
 	Args       json.RawMessage `json:"args"`         // raw tool arguments object
 	Status     string          `json:"status"`       // "pending" | "in_progress"
+}
+
+// ToolCallUpdateData — later input or title for an earlier tool_call with the
+// same id (TS-04.R98). Consumers read it as the call's current input; the
+// original tool_call is never rewritten.
+type ToolCallUpdateData struct {
+	ToolCallID string          `json:"tool_call_id"`
+	Name       string          `json:"name"`
+	Title      string          `json:"title"`
+	Args       json.RawMessage `json:"args"`
 }
 
 // ToolResultData — outcome of a tool call.
@@ -344,6 +355,7 @@ var AllEventTypes = []string{
 	EvAssistantText,
 	EvAssistantImage,
 	EvToolCall,
+	EvToolCallUpdate,
 	EvToolResult,
 	EvDiff,
 	EvPermissionRequest,

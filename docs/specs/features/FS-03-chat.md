@@ -24,8 +24,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   identity is an inline picker that can switch it (R23). The same surface also exposes the session's
   Files and Commands tabs (FS-05).
 - **R2.** The Transcript renders normalized events in sequence: user prompts; assistant text as sanitized
-  GitHub-flavored Markdown with syntax-highlighted fenced code; tool calls with expandable JSON
-  arguments; tool results with error styling and expandable content after the first 600 characters
+  GitHub-flavored Markdown with syntax-highlighted fenced code; tool calls labelled by the
+  adapter's title (falling back to the tool name) with expandable JSON arguments, where input or a
+  title the adapter supplies after the call first appears updates that call's row (TS-04.R98);
+  tool results with error styling and expandable content after the first 600 characters
   (a result whose content blocks are all ACP-wrapped text shows that text joined by newlines; any
   other structured result shows formatted JSON);
   unified file diffs; permission prompts; turn errors; turn boundaries; and backend-switch dividers.

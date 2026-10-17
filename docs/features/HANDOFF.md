@@ -6,9 +6,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Partly fixed — tool activity outside "Ran n tools" (2026-10-17):** TOOLRUN-01/02 closed;
-  TOOLRUN-03 (empty tool-call input) awaits the user's go-ahead on a new durable event type; see
-  Review findings.
+- **Finished — tool activity outside "Ran n tools" (2026-10-17):** TOOLRUN-01–03 closed; see
+  changelog. Owed: a live Claude receipt that a streamed call's row and Commands list show its
+  real input.
 
 - **Finished — quiet quota recovery fixes (2026-10-17):** fix unit
   `quiet-quota-recovery-2026-10-17` (Q1–Q9) closed on `d3ea0f8f^..9fa9bc81`; see changelog.
@@ -179,33 +179,6 @@ None.
 
 ## Review findings
 
-### Investigation 2026-10-17 — tool activity shows outside "Ran n tools" — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Report (verbatim): "tool calls always show up in the transcript", with a phone screenshot of a
-Claude agent at `d6d80f6f` (no logs). It shows "Ran 2 tools" (expanded: "Tool call: edit {}",
-"Tool call: execute {}"), then "Edit docs/features/HANDOFF.md · approve", then a raw
-`[{"type":"content","content":{"type":"text","text":"```console…"}}]` block; later
-"mcp__chuck-messaging__get_assigned_task · approve" and "…report_task_result · approve" each
-followed by the same raw JSON outside any run. Classification: specification gap plus defect;
-the desktop transcript shares the grouping and is affected the same way.
-
-TOOLRUN-01/02 closed 2026-10-17 (changelog). Remaining:
-
-- **Worth fixing** — **TOOLRUN-03 (confirmed from adapter source; awaiting user go-ahead on
-  scope): tool-call rows keep the initial empty input and kind name.** `acpmap.go`'s
-  `tool_call_update` branch ignores `rawInput` and `title`; only the initial `tool_call` sets
-  `Args`/`Title`. Installed `claude-agent-acp` (Chuck 0.15.1 runtime, `dist/acp-agent.js` ~L8060
-  and `dist/tool-calls/renderer.js` `refinement`/`partialRefinement`) first surfaces a streamed
-  tool_use as `tool_call` with empty input, then sends status-less `tool_call_update`s carrying
-  `rawInput`, `title`, `kind` (partial ones per completed top-level field, then the complete one).
-  Proposed fix: a new durable `tool_call_update` event (call id, title, args) emitted only when
-  either changed (per-call dedupe in `agentState`, cleared with `toolNames`, INV §4/§16); UI
-  `appendRenderedEvent`/`foldTranscript` merge it into the matching call and never render it
-  alone; walk INV §6 for `transcript/project.go`, `index/indexer.go`, `contextref`, Think Tank
-  capture/activity, `quota_notice.go`; TS event vocabulary + FS-03.R2. Paused because it adds a
-  durable event type across ~7 consumers (CLAUDE.md velocity rule: propose before building).
-  (INV §1/§6/§11/§16)
-
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
@@ -235,6 +208,19 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
   checks pass. Interactive composition sketch (not product implementation):
   `.chuck-dev/design/file-reader.html`; focus/return, keyboard resizing and annotation collapse
   were exercised in the browser.
+
+- **2026-10-17 — TOOLRUN-03 closed (investigation unit closed):** (INV §1/§6/§11/§16) installed
+  `claude-agent-acp` starts a streamed call with `{}` and sends `rawInput`/`title` later in
+  status-less `tool_call_update`s. New durable `tool_call_update` event (TS-04.R98):
+  `acpmap.go` emits it for non-empty input/title; `agentState.admitToolInput` fills the call's
+  name, drops repeats and updates for no open call, and forgets the call at its result. Consumers:
+  `transcript.ProjectEvent` (primer/context links; still no search text), contextref render and
+  share-span skip (own share input never enters its span), indexer files (no double count) and one
+  command row per call, plus the ACP `execute` kind as a command (FS-05.R38), Think Tank capture
+  (Chuck tool input withheld, now also when only the title names the tool) and command list. UI
+  `appendRenderedEvent` folds it into the call; the call row shows the adapter title (FS-03.R2).
+  Full `make test` (both variants, `-p=1`), `make build`, `-race ./internal/runtime`, 909 UI tests
+  and UI build pass. Embedded `dist` not refreshed; no live Claude receipt.
 
 - **2026-10-17 — Tool-run fixes (TOOLRUN-01/02 closed; 03 open):** TOOLRUN-01 (INV §2/§8)
   `groupTranscriptRows` keeps an answered `permission_request` whose `tool_call_id` matches a call

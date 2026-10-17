@@ -923,6 +923,47 @@ func TestCanonicalExecCommandIsTracked(t *testing.T) {
 	}
 }
 
+// TS-04.R98, FS-05.R38: a streamed Claude call starts with empty input; its
+// later update names the file and command once, however often it repeats.
+func TestToolCallUpdateTracksLaterInputOnce(t *testing.T) {
+	st, _ := openTestDB(t)
+	ix := New(st.DB())
+	m := meta()
+	if err := ix.UpsertSessionMeta("a_upd", m); err != nil {
+		t.Fatalf("UpsertSessionMeta: %v", err)
+	}
+	event := func(seq int64, typ string, data any) runtime.Event {
+		raw, _ := json.Marshal(data)
+		return runtime.Event{AgentID: "a_upd", Seq: seq, Type: typ, Data: raw, Ts: "2026-10-17T10:00:00Z"}
+	}
+	for _, ev := range []runtime.Event{
+		event(1, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "c1", Name: "execute", Args: json.RawMessage(`{}`)}),
+		event(2, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "c1", Name: "execute", Args: json.RawMessage(`{"command":"go"}`)}),
+		event(3, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "c1", Name: "execute", Args: json.RawMessage(`{"command":"go test","description":"t"}`)}),
+		event(4, runtime.EvToolResult, runtime.ToolResultData{ToolCallID: "c1", Status: "completed"}),
+		event(5, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "c2", Name: "edit", Args: json.RawMessage(`{}`)}),
+		event(6, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "c2", Name: "edit", Args: json.RawMessage(`{"file_path":"` + m.Cwd + `/a.go"}`)}),
+		event(7, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "c2", Name: "edit", Title: "Edit a.go", Args: json.RawMessage(`{"file_path":"` + m.Cwd + `/a.go","new_string":"x"}`)}),
+	} {
+		if err := ix.OnEvent("a_upd", ev); err != nil {
+			t.Fatalf("OnEvent %d: %v", ev.Seq, err)
+		}
+	}
+	var commands int
+	var command, status string
+	if err := st.DB().QueryRow(`SELECT COUNT(*), MAX(command), MAX(exit_status) FROM tracked_commands WHERE agent_id = 'a_upd'`).Scan(&commands, &command, &status); err != nil {
+		t.Fatalf("commands: %v", err)
+	}
+	if commands != 1 || command != "go test" || status != "completed" {
+		t.Fatalf("commands = %d %q %q, want one completed %q", commands, command, status, "go test")
+	}
+	var path string
+	var edits int
+	if err := st.DB().QueryRow(`SELECT path, edit_count FROM tracked_files WHERE agent_id = 'a_upd'`).Scan(&path, &edits); err != nil || path != "a.go" || edits != 1 {
+		t.Fatalf("tracked file = %q %d, %v", path, edits, err)
+	}
+}
+
 // A native child's file and command events roll up under the parent agent,
 // and its lifecycle records stay out of prose search (FS-05.A21, TS-02.R35).
 func TestChildActivityRollsUpUnderTheParent(t *testing.T) {

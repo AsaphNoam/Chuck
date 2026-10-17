@@ -30,7 +30,7 @@ type thinkTankCapture struct {
 }
 
 var thinkTankCapturedTypes = map[string]bool{
-	runtime.EvToolCall: true, runtime.EvToolResult: true, runtime.EvDiff: true,
+	runtime.EvToolCall: true, runtime.EvToolCallUpdate: true, runtime.EvToolResult: true, runtime.EvDiff: true,
 	runtime.EvPermissionRequest: true, runtime.EvPermissionResolved: true, runtime.EvError: true,
 	runtime.EvActivityStarted: true, runtime.EvActivityState: true,
 }
@@ -119,6 +119,17 @@ func (s *Server) isChuckTool(name string) bool {
 	return false
 }
 
+// chuckToolOf returns whichever of a call's name or title names a Chuck tool.
+// ACP adapters that report only a kind as the name put the tool in the title.
+func (s *Server) chuckToolOf(name, title string) string {
+	for _, candidate := range []string{name, title} {
+		if s.isChuckTool(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
 // projectThinkTankData is the shared public projector for Chuck's own tool
 // calls: action and outcome only. Their raw arguments and results can carry
 // turn tokens, read receipts, repeated peer bodies or private mail, context
@@ -127,10 +138,26 @@ func (s *Server) projectThinkTankData(c *thinkTankCapture, ev runtime.Event) any
 	switch ev.Type {
 	case runtime.EvToolCall:
 		var d runtime.ToolCallData
-		if json.Unmarshal(ev.Data, &d) == nil && s.isChuckTool(d.Name) {
-			c.internal[d.ToolCallID] = true
-			return runtime.ToolCallData{ToolCallID: d.ToolCallID, Name: d.Name, Title: chuckToolReceipt(d.Name),
-				Args: json.RawMessage(`{}`), Status: d.Status}
+		if json.Unmarshal(ev.Data, &d) == nil {
+			if tool := s.chuckToolOf(d.Name, d.Title); tool != "" {
+				c.internal[d.ToolCallID] = true
+				return runtime.ToolCallData{ToolCallID: d.ToolCallID, Name: d.Name, Title: chuckToolReceipt(tool),
+					Args: json.RawMessage(`{}`), Status: d.Status}
+			}
+		}
+	case runtime.EvToolCallUpdate:
+		// A streamed call's input arrives here (TS-04.R98); Chuck's own stays withheld.
+		var d runtime.ToolCallUpdateData
+		if json.Unmarshal(ev.Data, &d) == nil {
+			tool := s.chuckToolOf(d.Name, d.Title)
+			if tool != "" || c.internal[d.ToolCallID] {
+				c.internal[d.ToolCallID] = true
+				receipt := "" // empty keeps the call's receipt title
+				if tool != "" {
+					receipt = chuckToolReceipt(tool)
+				}
+				return runtime.ToolCallUpdateData{ToolCallID: d.ToolCallID, Name: d.Name, Title: receipt, Args: json.RawMessage(`{}`)}
+			}
 		}
 	case runtime.EvToolResult:
 		var d runtime.ToolResultData

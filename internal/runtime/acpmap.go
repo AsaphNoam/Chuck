@@ -478,8 +478,18 @@ func mapSessionUpdateImages(params json.RawMessage, image func(acpContentBlock, 
 	case "tool_call_update":
 		var safe []json.RawMessage
 		_ = json.Unmarshal(u.Content, &safe)
-		evs := make([]mappedEvent, 0, 1+maxImagesPerFrame)
+		evs := make([]mappedEvent, 0, 2+maxImagesPerFrame)
 		contentEvents := make([]mappedEvent, 0, maxImagesPerFrame)
+		// Input or title the adapter supplies after the first tool_call frame
+		// (TS-04.R98). The runtime fills the name and drops unchanged repeats.
+		if args := toolInput(u.RawInput); args != nil || strings.TrimSpace(u.Title) != "" {
+			evs = append(evs, mappedEvent{Type: EvToolCallUpdate, Data: ToolCallUpdateData{
+				ToolCallID: u.ToolCallID,
+				Name:       strutil.FirstNonEmpty(u.Name, u.Kind),
+				Title:      strings.TrimSpace(u.Title),
+				Args:       nonNullRaw(args),
+			}})
+		}
 		budget := imageFrameBudget{}
 		for i, raw := range safe {
 			var b acpContentBlock
@@ -622,6 +632,15 @@ func defaultStr(v, def string) string {
 		return def
 	}
 	return v
+}
+
+// toolInput returns raw only when it is a JSON object with at least one field.
+func toolInput(raw json.RawMessage) json.RawMessage {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil || len(fields) == 0 {
+		return nil
+	}
+	return raw
 }
 
 func nonNullRaw(raw json.RawMessage) json.RawMessage {

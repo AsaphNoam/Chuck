@@ -201,7 +201,8 @@ func (s *Service) resolveTranscriptSpan(agentID, selector string) (state.Context
 		// the same on both, and costs nothing: a trailing tool_call has no result
 		// in the span either way, while one that did complete is an interior
 		// record its own result keeps (FS-15.R1/R3/R4, TS-04.R28, INV §1/§2).
-		if ev.Type == runtime.EvToolCall {
+		// A call's later input (TS-04.R98) is part of the same call record.
+		if ev.Type == runtime.EvToolCall || ev.Type == runtime.EvToolCallUpdate {
 			return nil
 		}
 		scan.openLast = ev.Seq

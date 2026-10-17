@@ -190,6 +190,9 @@ func scopeMapped(scope activityScope, m mappedEvent) mappedEvent {
 	case ToolCallData:
 		d.ToolCallID = scope.toolCallID(d.ToolCallID)
 		m.Data = d
+	case ToolCallUpdateData:
+		d.ToolCallID = scope.toolCallID(d.ToolCallID)
+		m.Data = d
 	case ToolResultData:
 		d.ToolCallID = scope.toolCallID(d.ToolCallID)
 		m.Data = d

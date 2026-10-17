@@ -110,7 +110,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   was not supplied. Replayed load/fork pages and reconstructed background-task lifecycle are
   de-duplicated by their stable session/tool/task identity so one provider event produces at most
   one tracked edit or command. Reasoning and ignored plan updates contribute nothing to tracking,
-  rollups or search.
+  rollups or search. A call whose input arrives later (TS-04.R98) is classified from that input: it
+  names a file not yet tracked without counting a second edit, and records or corrects that call's
+  single command row; the ACP `execute` kind with a `command` input counts as a command.
 
 
 - **R40 — Command tracking survives tab removal.** FS-03.R80 and FS-20.R42 supersede

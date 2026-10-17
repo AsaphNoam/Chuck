@@ -133,6 +133,17 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 			{Kind: PartToolName, Text: d.Name},
 			{Kind: PartToolArgs, Text: string(d.Args)},
 		}
+	case runtime.EvToolCallUpdate:
+		// The call's later input supersedes the earlier record (TS-04.R98).
+		var d runtime.ToolCallUpdateData
+		if err := decode(ev, &d); err != nil {
+			return Projection{}, err
+		}
+		p.Role = "assistant"
+		p.Parts = []Part{
+			{Kind: PartToolName, Text: d.Name},
+			{Kind: PartToolArgs, Text: string(d.Args)},
+		}
 	case runtime.EvToolResult:
 		var d runtime.ToolResultData
 		if err := decode(ev, &d); err != nil {

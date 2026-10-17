@@ -3,7 +3,9 @@ import type { TranscriptEvent } from "../../../api/types";
 
 export function ToolCall({ event }: { event: TranscriptEvent }) {
   const [open, setOpen] = useState(false);
-  const name = String(event.name ?? event.tool ?? "tool");
+  // The adapter's title names what the call does ("Edit a.go"); the name may be
+  // only its kind ("edit") (FS-03.R2).
+  const name = String(event.title || event.name || event.tool || "tool");
   const args = event.args;
   const hasArgs = args !== undefined && args !== null;
   const background = event.background_state === "running" ? "Continues in background" : event.background_state ? "Ran in background" : null;

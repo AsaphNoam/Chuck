@@ -123,6 +123,18 @@ function appendRenderedEvent(events: TranscriptEvent[], event: TranscriptEvent) 
   // Because the decision is made here, on the seam replay and live append share,
   // transcripts recorded before this shipped are quieted the same way.
   if (suppressedAnnotationPrompt(events, event)) return;
+  // A call's later input and title update its tool_call row; the update never
+  // renders alone, and one without a loaded call is dropped (TS-04.R98).
+  if (kindOf(event) === "tool_call_update") {
+    const id = String(event.tool_call_id ?? "");
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (kindOf(events[i]) !== "tool_call" || String(events[i].tool_call_id ?? "") !== id) continue;
+      const args = event.args != null && typeof event.args === "object" && Object.keys(event.args).length > 0 ? event.args : events[i].args;
+      events[i] = { ...events[i], args, title: event.title || events[i].title };
+      break;
+    }
+    return;
+  }
   const last = events[events.length - 1];
   // A native child's text is its own passage, never merged into the root's.
   if (kindOf(event) === "assistant_text" && last && kindOf(last) === "assistant_text" && last.activity_id === event.activity_id) {

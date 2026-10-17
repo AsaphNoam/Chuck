@@ -229,6 +229,56 @@ func TestAvailableCommandsSnapshotReplaceOnly(t *testing.T) {
 	}
 }
 
+// TS-04.R98: Claude surfaces a streamed call with `{}` and refines it with
+// status-less updates. Each changed input becomes one update carrying the
+// call's known name; a repeat, a frame without input, and an update after the
+// result add nothing.
+func TestToolCallUpdateRecordsLaterInputOnce(t *testing.T) {
+	frame := func(update string) []mappedEvent {
+		return mapSessionUpdate(json.RawMessage(`{"sessionId":"s","update":` + update + `}`))
+	}
+	as := &agentState{toolNames: map[string]string{"t1": "edit"}}
+	admitted := func(ms []mappedEvent) []mappedEvent {
+		var out []mappedEvent
+		for _, m := range ms {
+			if m, ok := as.admitToolInput(m); ok {
+				out = append(out, m)
+			}
+		}
+		return out
+	}
+	if got := admitted(frame(`{"sessionUpdate":"tool_call","toolCallId":"t1","kind":"edit","rawInput":{}}`)); len(got) != 1 || got[0].Type != EvToolCall {
+		t.Fatalf("call = %+v", got)
+	}
+	if got := admitted(frame(`{"sessionUpdate":"tool_call_update","toolCallId":"t1","rawInput":{}}`)); len(got) != 0 {
+		t.Fatalf("empty input frame = %+v, want nothing", got)
+	}
+	refined := `{"sessionUpdate":"tool_call_update","toolCallId":"t1","kind":"edit","title":"Edit a.go","rawInput":{"file_path":"a.go"}}`
+	got := admitted(frame(refined))
+	if len(got) != 1 || got[0].Type != EvToolCallUpdate {
+		t.Fatalf("refinement = %+v", got)
+	}
+	if d := got[0].Data.(ToolCallUpdateData); d.Name != "edit" || d.Title != "Edit a.go" || string(d.Args) != `{"file_path":"a.go"}` {
+		t.Fatalf("update data = %+v", d)
+	}
+	if got := admitted(frame(refined)); len(got) != 0 {
+		t.Fatalf("repeat = %+v, want nothing", got)
+	}
+	// A title-only frame keeps the recorded input, so it is a repeat too.
+	if got := admitted(frame(`{"sessionUpdate":"tool_call_update","toolCallId":"t1","title":"Edit a.go","status":"in_progress"}`)); len(got) != 0 {
+		t.Fatalf("title-only repeat = %+v, want nothing", got)
+	}
+	if got := admitted(frame(`{"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"completed"}`)); len(got) != 1 || got[0].Type != EvToolResult {
+		t.Fatalf("result = %+v", got)
+	}
+	if got := admitted(frame(`{"sessionUpdate":"tool_call_update","toolCallId":"t1","title":"Late","rawInput":{"x":1}}`)); len(got) != 0 {
+		t.Fatalf("update after result = %+v, want nothing", got)
+	}
+	if len(as.toolInputs) != 0 {
+		t.Fatalf("call memory retained after result: %v", as.toolInputs)
+	}
+}
+
 // A canonical name wins over a misleading title while an unnamed event keeps
 // the kind/title fallback; the permission's display name follows the same rule
 // but its auto-approve identity stays the title (TS-04.R66, FS-03.A42).

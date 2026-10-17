@@ -440,6 +440,35 @@ VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID
 				return fmt.Errorf("index: insert command: %w", err)
 			}
 		}
+	case runtime.EvToolCallUpdate:
+		// Later input for a call (TS-04.R98): name a file the call did not, without
+		// counting the edit twice, and record or correct the call's one command row.
+		var d runtime.ToolCallUpdateData
+		if err := json.Unmarshal(ev.Data, &d); err != nil {
+			return fmt.Errorf("index: track tool_call_update: %w", err)
+		}
+		if p := pathFromArgs(d.Args); p != "" && isFileTool(d.Name) {
+			display, abs := ix.normalizePath(agentID, p)
+			if _, err := ix.db.Exec(`
+INSERT INTO tracked_files(agent_id, path, abs_path, edit_count, first_seq, last_seq, first_ts, last_ts, has_diff, diff_refs)
+VALUES (?, ?, ?, 1, ?, ?, ?, ?, 0, '[]')
+ON CONFLICT(agent_id, path) DO NOTHING`, agentID, display, abs, ev.Seq, ev.Seq, ev.Ts, ev.Ts); err != nil {
+				return fmt.Errorf("index: track updated file: %w", err)
+			}
+		}
+		if cmd := commandFromArgs(d.Args); cmd != "" && isCommandTool(d.Name) {
+			res, err := ix.db.Exec(`UPDATE tracked_commands SET command = ? WHERE agent_id = ? AND tool_call_id = ?`, cmd, agentID, d.ToolCallID)
+			if err != nil {
+				return fmt.Errorf("index: update command: %w", err)
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				if _, err := ix.db.Exec(`
+INSERT OR REPLACE INTO tracked_commands(agent_id, seq, ts, tool_call_id, command, exit_status, exit_error)
+VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID, cmd); err != nil {
+					return fmt.Errorf("index: insert command: %w", err)
+				}
+			}
+		}
 	case runtime.EvToolResult:
 		var d runtime.ToolResultData
 		if err := json.Unmarshal(ev.Data, &d); err != nil {
@@ -567,7 +596,7 @@ func isFileTool(name string) bool {
 
 func isCommandTool(name string) bool {
 	switch strings.ToLower(name) {
-	case "bash", "shell", "run", "terminal", "exec_command":
+	case "bash", "shell", "run", "terminal", "exec_command", "execute": // execute: ACP tool kind
 		return true
 	default:
 		return false

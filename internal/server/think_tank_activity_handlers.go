@@ -169,10 +169,15 @@ func (s *Server) handleThinkTankCommands(w http.ResponseWriter, r *http.Request)
 		d := eventData(ev)
 		id, _ := d["tool_call_id"].(string)
 		switch ev["type"] {
-		case runtime.EvToolCall:
+		case runtime.EvToolCall, runtime.EvToolCallUpdate:
 			args, _ := d["args"].(map[string]any)
 			command, _ := args["command"].(string)
 			if command == "" {
+				return
+			}
+			// A call's later input (TS-04.R98) corrects its one command row.
+			if i, ok := index[a.AttemptID+"\x00"+id]; ok {
+				commands[i].Command = command
 				return
 			}
 			index[a.AttemptID+"\x00"+id] = len(commands)

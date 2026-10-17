@@ -201,6 +201,27 @@ func TestCurrentTurnSpanExcludesTheInFlightShareCall(t *testing.T) {
 		}
 	}
 
+	// Streamed Claude order (TS-04.R98): an empty call, then its input as an update.
+	streamed := newFixture(t)
+	streamed.agent(t, "a_src", "src")
+	streamed.agent(t, "a_dst", "dst")
+	streamed.conversation(t, "a_src")
+	streamed.appendEvents(t, "a_src",
+		ev(t, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "tc_1", Name: "other", Title: "other", Args: json.RawMessage(`{}`), Status: "in_progress"}),
+		ev(t, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "tc_1", Name: "other", Title: "share_context",
+			Args: json.RawMessage(`{"to":"reviewer@proj","label":"secret label"}`)}))
+	streamedShare := mustShare(t, streamed, Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst")
+	if streamedShare.Source.LastSeq != codexShare.Source.LastSeq {
+		t.Fatalf("streamed span ends at %d, want %d", streamedShare.Source.LastSeq, codexShare.Source.LastSeq)
+	}
+	streamedPage, err := streamed.svc.Read(Caller{AgentID: "a_dst"}, streamedShare.ContextRefID, "")
+	if err != nil {
+		t.Fatalf("read streamed: %v", err)
+	}
+	if strings.Contains(streamedPage.Text, "reviewer@proj") {
+		t.Fatalf("shared span absorbed its own streamed share input: %q", streamedPage.Text)
+	}
+
 	// A turn whose only record so far is that unresolved call has nothing to hand
 	// over, and says so rather than producing a reversed or empty range.
 	empty := newFixture(t)
