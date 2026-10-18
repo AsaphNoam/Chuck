@@ -212,12 +212,37 @@ Invariant sweep: applicable classes §1, §2, §4, §8, §10, §11, §13, §14, 
 
 ### Phone groups, Jump to latest, runtime buttons — commit “phone: collapsed groups, Jump to latest, Send-shaped runtime buttons” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-Awaiting review.
+Implementation `fe572fcc`; independent source and rendered review completed 2026-10-19 against
+FS-20.R43/R47/R54, A15/A19/A26 and TS-08.R73/R121/R125. The unit remains open for PHONE-1 below.
 
-FS-20.R47/R54/R43. `groupChoices.ts` now stores expansion (absent = collapsed). `AgentScreen`'s
-scroll saver drives a fixed `.phone-jump-latest` using R54's 48px newest threshold. Model/effort
-buttons draw their surface on `::before` inset 4px (36px visible in the 44px target), shared with the
-jump button. Rendered phone check owed.
+Verification: 87 focused tests pass (`PhoneApp`, `ProjectScreen`, `AgentScreen`), along with
+style/presentation checks. Approved loopback Chromium execution of the actual phone entry with
+stubbed API data verifies collapsed named/Ungrouped defaults, retained project-scoped expansion,
+first-open newest position, scroll-away/Jump/hide, 44px targets and no horizontal overflow at
+360/390/430px in Core, Sky & Grove and Studio. Development presentation matrix renders in all
+three appearances at 1024px. Representative screenshots independently inspected for group
+hierarchy, compact runtime surfaces and the floating action. Evidence and the failing live-growth
+receipt: `/tmp/chuck-phone-polish-review-20261019/` (`report.json`, `stream-growth.png`,
+`stream-growth-after-scroll.png`, width/theme screenshots); harness:
+`/tmp/chuck-phone-polish-review.mjs` (use `--growth-only` for the focused reproduction). This does
+not claim paired-device, native keyboard or live-provider acceptance.
+
+Local choices accepted: reuse the existing bounded page-session group store (256 identities),
+existing scroll saver and 48px newest threshold; key the agent screen per id; share runtime/jump
+inset styling without a new component or persistence mechanism. No new motion.
+Invariant sweep: applicable §1, §2, §4, §8, §10, §13, §16 and §17 checked; §8 has PHONE-1 below.
+No applicable surface for §3, §5, §6, §7, §9, §11, §12, §14 or §15.
+
+- **Must fix** — PHONE-1 — **Jump to latest misses live transcript growth** (INV §8):
+  `ui/src/remote/AgentScreen.tsx:508–523` updates `awayFromLatest` only on a window scroll event.
+  A normal incoming reply can grow a short conversation beyond the viewport without moving
+  `scrollY`, leaving the person far from the newest message with no Jump action (FS-20.R54).
+  Independent browser reproduction: a new-message notification/refetched reply grows document
+  height from 844px to 6324px at `scrollY=0`, while the button stays absent; scrolling just 1px
+  makes it appear. Recompute visibility after relevant transcript/layout changes as well as
+  scrolling, preserving reading-position restoration. Add a regression that receives a reply
+  without dispatching a synthetic scroll, checks the button appears, and verifies jumping hides it.
+  This is a localized visibility-state fix at the existing scroll seam.
 
 ### Phone header slimmed — commit “phone: unframed header, none on agent chats” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -380,6 +405,10 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed phone groups, Jump to latest and runtime buttons:** focused tests and
+  the three-appearance phone-width browser checks pass; recorded PHONE-1 because live reply growth
+  leaves Jump hidden until the person scrolls (INV §8). Unit remains open.
 
 - **2026-10-19 — Reviewed file reader formats and path copying:** no new functional defect;
   37 focused UI tests, focused server image/text tests and 987 browser checks pass. Recorded
