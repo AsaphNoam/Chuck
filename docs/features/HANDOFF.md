@@ -19,6 +19,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   rule; live Claude receipt
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
+- **Prompt/harness investigation:** the Review findings unit below records confirmed native Codex
+  instruction loss (PROMPT-1), a prompt-composition diagnostic gap (PROMPT-2), and separate
+  process-policy recommendations. General output-quality regression remains unproven.
 - **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
   provider call while `onNotification` takes `as.mu` for unmatched frames on the synchronous read
   loop, so an adapter notification sent before that reply could stall it.
@@ -162,8 +165,108 @@ The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 3
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
 
+### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Report received 2026-10-18, verbatim:
+
+> I have a suspicion that the chuck system prompts and other harnesses are deteriorating agent performance. This shows up in two forms
+> 1. Generally worse output
+> 2. Overly instructs every task
+>
+> The former is harder to judge, the latter is likely easier to just look at the system prompts and see if they encourage this kind of behavior. Look into this and get back to me regarding both matters and what can be done about it
+
+Inspected source at `f54ce47a` after the `v0.17.0` release. The report supplies no affected
+backend/persona, installed version, representative task/transcript, comparative outputs or logs;
+none were captured from live user sessions. General quality regression and the specific intended
+meaning of "overly instructs" remain **undetermined**. Findings below separate proven instruction
+loss from plausible behavioral effects.
+
+- **Must fix** — PROMPT-1 — **confirmed**: Codex loses native `config.toml`
+  `developer_instructions` when Chuck adds its prompt. `internal/runtime/chat.go:149–155,2565–2601`
+  preserves only a prior `CODEX_CONFIG.developer_instructions`; it does not preserve the field
+  from the native config mirrored by `internal/config/codexprofile.go:36–55`. Normal trigger: a
+  user saves developer guidance in native configuration and launches/resumes/switches a Codex
+  Chuck agent. Even No persona or awareness off normally still adds the shared-resources prompt,
+  making the override nonempty. The 2.1.1 adapter spreads the overlay into `thread/start.config`
+  (`scripts/release/node_modules/@agentclientprotocol/codex-acp/dist/index.js:34087–34091,34187–34206`).
+  An isolated 0.159.3 app-server check used separate temporary profiles, an ephemeral thread and a
+  loopback mock Responses endpoint, with no credentials or real inference: the baseline request
+  contained `NATIVE_CONFIG_SENTINEL`; the same native config plus the adapter-equivalent
+  `thread/start.config.developer_instructions` contained only `CHUCK_OVERLAY_SENTINEL`.
+  This is loss of configured additional instructions, not proof of native base-prompt loss or of
+  the reported quality decline. FS-09.R44/A17 and FS-18.R17/R20/A13 require native setup/guidance
+  preservation; TS-04.R14/R69 currently specify only the environment-overlay merge, leaving the
+  native-config precedence case uncovered (INV §11–§12/§17). Preserve the effective native value,
+  including applicable project/profile precedence, before adding Chuck guidance; keep the current
+  malformed-overlay refusal and unrelated-key preservation. Do not grow an independent TOML
+  resolver from a guessed subset of provider config. Reproduction:
+  `internal/runtime/native_prompt_investigation_test.go`, observed failing on current code and
+  committed skipped under this finding. Extend the provider-boundary check with native config,
+  environment overlay, empty prompt, resume, and refreshed-profile cases when fixing.
+- **Worth fixing** — PROMPT-2 — **confirmed diagnostic gap**, behavioral causality
+  **undetermined** (no invariant class): `internal/runtime/chat.go:2387–2418` records/hashes only frozen
+  `SystemPrompt`; the deliberately runtime-only operating suffix and installed knowledge/tool
+  revisions are not identified in that prompt fingerprint. Consequently an archived task cannot
+  establish which complete Chuck instruction set accompanied it, or prove provider adoption from
+  that hash. This limits diagnosis of this report across releases/resumes (FS-18.R8/R17,
+  TS-11.R5/R15/R17; no existing requirement for a complete diagnostic manifest). Add a bounded
+  diagnostic manifest of requested layer identities/hashes/sizes, source and provider versions,
+  distinguishing requested delivery from verified adoption; preserve frozen snapshot semantics and
+  avoid automatic raw prompt/config logging. Pair it with the already-owed FS-18.A12/A13 evidence.
+
+Other conclusions and recommendations (no additional confirmed product defect):
+
+**Confirmed historical defect, already fixed:** before `12a76571` (2026-10-03), Claude chat sent
+  a string `_meta.systemPrompt`, replacing Claude Code's coding preset. Current
+  `claudeSystemPrompt` sends `{type:preset,preset:claude_code,append:...}` for both new/load;
+  the pinned 0.85.1 adapter forwards it additively. Claude terminal uses
+  `--append-system-prompt`; Codex uses additional developer instructions, not a base-prompt
+  replacement. Fresh/resumed live adoption remains the explicitly open FS-18.A13 gate. Existing
+  frozen persona snapshots/customizations are not refreshed by role migration; a fresh conversation
+  is needed to compare current defaults without old conversation effects.
+**Works as specified; probable pressure toward excess process:** current seeded personas are
+  approximately 100–115 words each (`internal/config/seed.go:143–169`); Chucky explicitly asks for
+  bounded assignments/context/completion criteria. Shared context/pointer
+  (`internal/server/launch.go:426–451`) adds capability/assignment/reporting instructions, with no
+  per-turn repetition. The 348-word operating skill is loaded on demand, not inlined; its four
+  references total about 4,096 words, also not all automatically loaded. No source evidence of an
+  automatic complete-manual injection or duplicated overlay accumulation was found. These rules
+  may influence process/style, but word count alone does not establish degraded reasoning.
+Repository-specific harness pressure is stronger and independent of the Chuck persona:
+  `AGENTS.md:7–19,85–95` mandates role preflight and an explicit delegation assessment;
+  `.agents/skills/work/SKILL.md:8–16` requires workflow sections in full; workflow §5–§6 requires
+  state commits and a fixed human-update shape; TS-06.R5 applies the full Go closure matrix to
+  every product-code change. This is intentional current policy, not an accidental runtime bug.
+  A separate policy simplification should scope preflight/testing/reporting to task consequence,
+  keep project-specific invariants, and let a small task remain small. Delegated briefs should state
+  outcome, needed context, constraints and completion evidence without prescribing routine methods.
+Recommend a small repeated, blind comparison on representative question, small-fix, review and
+  coordination tasks: native provider; Chuck with an empty custom persona and awareness off; same
+  persona with awareness on; relevant seeded persona. Hold executable/model/effort, repository
+  guidance, tools where possible, task and fresh checkout fixed; compare correctness, scope creep,
+  unnecessary calls/delegation, elapsed work and answer/brief length. No persona omits only persona
+  text; awareness off omits only the two shared prompt additions, retaining tool registration,
+  installed skills, project/resource/task instructions and history. These are not clean native
+  baselines. Repeat a second comparison with repository workflow guidance reduced to isolate that
+  layer. FS-18.A12 is qualitative role acceptance, not a general quality benchmark.
+Official OpenAI guidance supports this audit direction, but is not evidence of a Chuck-specific
+  regression: [Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)
+  recommends narrow skill triggers, progressive disclosure, contextual document reads and revisiting
+  procedural scaffolding. Improvements remain hypotheses until measured on the affected workload.
+
+Verification: config migration/no-polling, embedded progressive-reference, Claude additive-preset,
+Codex environment-overlay, and server knowledge/awareness lifecycle tests pass. Server tests required
+local loopback permission after the sandbox rejected `httptest`'s listener. The new regression
+failed for the missing native instruction before being skipped; the separate pinned-native mock
+capture proves actual provider precedence. Spec lint, formatting and diff checks pass. Product code
+and specifications are unchanged.
+
 ## Changelog
 
+- **2026-10-18 — Investigated prompt/harness performance:** confirmed native Codex configured
+  instruction loss (PROMPT-1), recorded the diagnostic gap (PROMPT-2), separated the historical
+  Claude replacement defect and current process-policy hypotheses from unproven quality effects,
+  and preserved a skipped reproduction. Fix unit is above; native role/adoption gates remain owed.
 - **2026-10-18 — Release `v0.17.0`:** refreshed the shipped `operating-chuck` quota-recovery,
   resume/switch-history and pipeline-interruption guidance; `env -u CHUCK_RUNTIME_ROOT
   GOFLAGS=-p=1 make test`, 944 UI tests and `make dist VERSION=0.17.0` (embedded UI refreshed)
