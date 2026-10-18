@@ -300,6 +300,26 @@ describe("ProjectScreen groups", () => {
     expect(within(blank).getByRole("combobox", { name: "Group" })).toHaveValue("");
   });
 
+  it("disables group-header New agent while offline and restores it with preselection on reconnect", async () => {
+    useConnection.setState({ agents: { existing: phoneAgent("existing", "Existing", true), loose: phoneAgent("loose", undefined, false) } });
+    renderScreen();
+    const named = await screen.findByRole("button", { name: "New agent in Existing" });
+    const ungrouped = screen.getByRole("button", { name: "New agent in Ungrouped" });
+    act(() => useConnection.setState({ link: "unreachable" }));
+    expect(named).toBeDisabled();
+    expect(ungrouped).toBeDisabled();
+    fireEvent.click(named);
+    fireEvent.click(ungrouped);
+    expect(screen.queryByRole("dialog", { name: "New agent" })).toBeNull();
+
+    act(() => useConnection.setState({ link: "connected" }));
+    expect(named).toBeEnabled();
+    expect(ungrouped).toBeEnabled();
+    fireEvent.click(named);
+    const dialog = await screen.findByRole("dialog", { name: "New agent" });
+    expect(within(dialog).getByText(/· Existing$/)).toBeInTheDocument();
+  });
+
   it("keeps scoped group action feedback after members disappear", async () => {
     useConnection.setState({ agents: { a: phoneAgent("a", "Alpha", true), b: phoneAgent("b", "Alpha", false) } });
     renderScreen();

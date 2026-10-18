@@ -37,11 +37,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Finished — desktop default-persona toggle (2026-10-16):** `33226f23`, FS-04.R58/A37,
   reviewed with no findings; no open fixes (evidence in `/tmp/persona-review-20261016/`).
 
-- **Awaiting fixes — phone New agent from a group header (reviewed 2026-10-17):** unit
-  `phone-group-new-agent-2026-10-16`, implementation `7ff852ac`; PGN-1 open (P2).
-  FS-20.R46/A18. Independent rendered review passed all appearances at 360/390/430px;
-  the group-header plus remains enabled offline. See Review findings for evidence and the
-  remaining two-device acceptance gate. Fix model: trivial/easy — Claude Sonnet or Codex Luna.
+- **Finished — phone New agent from a group header fixes (2026-10-18):** fix unit
+  `phone-group-new-agent-2026-10-16` (PGN-1) closed; see changelog. FS-20.R46/A18. Owed:
+  FS-20.A18 two-device browser journey (Acceptance gates still owed).
 
 - **Finished — withdraw returns the held message (2026-10-16, fixes 2026-10-17):** FS-03.R90/A70.
   Implementation `2cf48ba2`; review findings W1–W3 closed (see changelog). Withdraw from
@@ -114,7 +112,8 @@ None.
 
 - **FS-20.A18 — phone group-header New agent:** independent phone-entry browser rendering
   passes, but the stubbed API journey does not prove accepted launches propagate to desktop and
-  another phone. Retain the two-device 390px journey for this entry point after PGN-1 is fixed.
+  another phone. The two-device 390px journey for this entry point (including offline disable) is
+  owed.
 
 - **Mobile annotation parity independent rendered review (workflow §14.4):** the review's
   `phone-render.mjs --annotation-check` attempt failed to bind `::1:5199` with `EPERM`.
@@ -208,45 +207,6 @@ None.
 
 ## Review findings
 
-### Review 2026-10-17 — phone New agent from a group header — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Selected unit: `phone-group-new-agent-2026-10-16`, implementation `7ff852ac`; checked the
-current form extraction in `041fa5c1` for preservation of this behavior. Governing requirements:
-FS-20.R23/R35/R43/R46/A18, FS-12.R68 and TS-08.R111. No product code or specs changed.
-
-- **Must fix** — **PGN-1 / P2 (INV §8/§10): disable the group-header launch entry offline.**
-  `ui/src/remote/ProjectScreen.tsx:54` renders `.phone-group-new` without `disabled={offline}`.
-  With the phone in `unreachable`, the banner says actions are off and Stop/Archive are disabled,
-  but the plus still opens New agent. Create itself is disabled, so no launch is sent; the new
-  entry still violates FS-20.R46/A18's explicit offline contract. Add the existing offline guard
-  to this button and cover named/Ungrouped buttons while disconnected (disabled, no dialog),
-  then reconnect (enabled, correct preselection). Fix complexity: trivial/easy, localized UI guard
-  and regression test. Browser probe `/tmp/phone-group-review-20261017.mjs` explicitly sets the
-  connection store to `unreachable` and reports `plusDisabled:false,stopDisabled:true,
-  opensOffline:true,createDisabled:true`; screenshot
-  `/tmp/groupnew-review-20261017-offline-dialog.png`.
-
-Checks: 15/15 `ProjectScreen.test.tsx` tests; `npm run check:styles` (46 script tests and
-presentation contract) passed. Approved loopback/Chromium execution of
-`phone-render.mjs '' /tmp/groupnew-review-20261017.png --details-check` passed all three
-appearances at 360/390/430px, including 44px plus targets and collapsed dialogs; inspected
-group-header screenshots for Core, Sky & Grove and Studio and the settled named-group dialog.
-Evidence `/tmp/groupnew-review-20261017-*-group-header-*.png` and
-`/tmp/groupnew-review-20261017-group-dialog.png`. Initial sandbox `::1:5199` EPERM was resolved
-by approved bounded execution. Stubbed API/browser state is not a two-device receipt (gate above).
-
-Local choice accepted: the header passes only an initial group to the same launch form;
-ordinary New agent resets it to blank, and Advanced still starts collapsed. Invariant sweep:
-§1/§2 satisfied by fresh form state/shared builder; §8/§10 have PGN-1; §13 selector exists and
-rendered sizing passes; §17 tests use explicit group/launch expectations. No applicable diff
-surface for §3–§7, §9, §11–§12 or §14–§16. Other role queues are unchanged.
-
-State validation: the isolated new review entry passes `check-specs.sh --file`; `git diff
---check` passes. Full `make check-specs` fails on six pre-existing task-completion investigation
-errors (four malformed finding prefixes, a superseded unit missing its model recommendation,
-and its absolute report link); all offending text is present in the starting HEAD. Concurrent
-task-completion product/spec edits were preserved and excluded from this review commit.
-
 ### Review 2026-10-17 — late tool input event — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Selected unit: `late-tool-input-2026-10-17`, implementation `a77bb3b6`; reviewed against
@@ -314,6 +274,12 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-18 — Phone group-header New agent fix (PGN-1) closed:** PGN-1 (INV §8/§10, offline
+  disables every phone action): `.phone-group-new` in `ui/src/remote/ProjectScreen.tsx` now takes
+  the screen's existing `offline` guard. New `ProjectScreen.test.tsx` case: named and Ungrouped
+  plus buttons are disabled and open no dialog while `unreachable`, then re-enable on reconnect
+  with the group preselected (fails without the guard). Restores specified FS-20.R46/A18; no spec
+  change. Embedded `dist` not refreshed. Remaining: FS-20.A18 two-device journey.
 - **2026-10-18 — Reviewer completion investigation (2026-10-17) closed:** the continued trace
   confirms the cause. Reviewer `a_123a8f`'s `/review` instruction put Codex into native review
   mode, and its review child thread (`source: subagent "review"`) ran with
