@@ -70,9 +70,11 @@ function Shell({ children, back }: { children: ReactNode; back?: boolean }) {
     };
   }, [path]);
   const go = (route: string) => { setMenuOpen(false); navigate(route); };
+  // An agent chat has its own back chevron and needs the full height (FS-20.R43).
+  const chat = Boolean(match(path, "agent"));
   return (
     <div className="phone-app">
-      <header className="phone-header">
+      {!chat && <header className="phone-header">
         <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
           <Dialog.Trigger className="phone-menu-trigger ad-button-icon" aria-label="Open navigation"><PhoneIcon name="menu" size={21} /></Dialog.Trigger>
           <Dialog.Portal>
@@ -86,11 +88,11 @@ function Shell({ children, back }: { children: ReactNode; back?: boolean }) {
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-        <button type="button" className="phone-brand" aria-label="Chuck Home" onClick={() => navigate("/")}><ChuckMark compact /><strong>Chuck</strong><span className="phone-companion">companion</span></button>
-      </header>
+        <button type="button" className="phone-brand" aria-label="Chuck Home" onClick={() => navigate("/")}><ChuckMark compact /><strong>Chuck</strong></button>
+      </header>}
       <Banner />
       <main className="phone-screen" aria-busy={link === "checking"} data-stale={link === "unreachable" ? "true" : undefined}>
-        {back && !match(path, "agent") && !match(path, "run") && <button type="button" className="phone-back ad-button-secondary" onClick={() => navigate("/")}><PhoneIcon name="back" size={16} />Home</button>}
+        {back && !chat && !match(path, "run") && <button type="button" className="phone-back ad-button-secondary" onClick={() => navigate("/")}><PhoneIcon name="back" size={16} />Home</button>}
         {children}
       </main>
     </div>

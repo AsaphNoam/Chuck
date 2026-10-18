@@ -6,11 +6,10 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-app svg, .phone-navigation svg { flex-shrink: 0; }
 /* FS-12.R68 "Just enough": every phone action button is a 44px touch target with an 8px visible-surface inset. */
 .phone-app button, .phone-navigation button { --ad-button-height: 44px; --ad-button-inset: var(--ad-space-2); }
-.phone-header { align-items: center; background: var(--ad-surface-panel); border-bottom: var(--ad-border-thin) solid var(--ad-border-default); display: flex; gap: var(--ad-space-3); min-height: 65px; padding: 0 calc(var(--ad-space-6) - var(--ad-border-thick)); position: sticky; top: 0; z-index: 2; }
+.phone-header { align-items: center; display: flex; gap: var(--ad-space-3); min-height: 65px; padding: 0 calc(var(--ad-space-6) - var(--ad-border-thick)); }
 .phone-brand { align-items: center; background: transparent; border: 0; color: var(--ad-text-primary); display: flex; gap: var(--ad-space-2); padding: 0; font-size: 1.0625rem; letter-spacing: -0.035em; }
 .phone-brand .app-mark { display: flex; width: 27px; height: 27px; }
 .phone-brand .app-mark svg { width: 100%; height: 100%; }
-.phone-companion { border-left: var(--ad-border-thin) solid var(--ad-border-default); color: var(--ad-text-muted); font-size: 0.625rem; font-weight: 400; letter-spacing: 0; padding-left: var(--ad-space-2); }
 .phone-menu-trigger { background: transparent; border: 0; display: grid; place-items: center; color: var(--ad-text-muted); }
 .phone-navigation-overlay { position: fixed; inset: 65px 0 0; background: color-mix(in srgb, var(--ad-text-primary) 15%, transparent); z-index: 10; }
 .phone-navigation { position: fixed; top: calc(65px + var(--ad-space-2)); left: max(var(--ad-space-4), calc((100vw - 480px) / 2 + var(--ad-space-4))); width: min(280px, calc(100vw - var(--ad-space-8))); background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-large); box-shadow: var(--ad-shadow-offset); padding: var(--ad-space-4); z-index: 11; }
@@ -204,7 +203,7 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-details p { margin: var(--ad-space-3) 0; }
 .phone-details-body { display: grid; gap: var(--ad-space-3); }
 /* The pending-annotation count stays reachable while Chat or Files scrolls (TS-08.R134). */
-.phone-annotate-open { align-self: flex-end; position: sticky; top: calc(65px + var(--ad-space-2)); z-index: 1; display: inline-flex; align-items: center; gap: var(--ad-space-2); min-height: 44px; border: var(--ad-border-thin) solid var(--ad-action-primary); border-radius: var(--ad-radius-round); background: var(--ad-surface-panel); box-shadow: var(--ad-shadow-offset); }
+.phone-annotate-open { align-self: flex-end; position: sticky; top: var(--ad-space-2); z-index: 1; display: inline-flex; align-items: center; gap: var(--ad-space-2); min-height: 44px; border: var(--ad-border-thin) solid var(--ad-action-primary); border-radius: var(--ad-radius-round); background: var(--ad-surface-panel); box-shadow: var(--ad-shadow-offset); }
 .phone-annotate-count { color: var(--ad-action-primary); font-variant-numeric: tabular-nums; font-weight: 600; }
 /* Count/close, then scrolling anchored drafts, then a footer that stays in reach. */
 .phone-annotate-sheet { display: flex; flex-direction: column; gap: var(--ad-space-4); padding-bottom: 0; }

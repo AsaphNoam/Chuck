@@ -143,6 +143,7 @@ describe("PhoneApp", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(window.location.pathname).toBe("/");
+    expect(screen.getByRole("button", { name: "Chuck Home" })).toHaveTextContent(/^Chuck$/);
   });
   it("opens Home on what needs the person", async () => {
     renderApp();
@@ -261,6 +262,20 @@ describe("phone conversation turns", () => {
       http.get("/api/sessions/a1/transcript", () => HttpResponse.json({ agent_id: "a1", events: window_, has_more: false })),
       http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ error: { code: "not_found", message: "none" } }, { status: 404 })),
     );
+  });
+
+  it("shows no header on an agent chat", async () => {
+    window.history.replaceState(null, "", "/agent/a1");
+    renderApp();
+    const stream = await waitFor(() => FakeEventSource.last ?? Promise.reject(new Error("no stream yet")));
+    act(() => {
+      stream.onopen?.();
+      stream.emit("state_update", { data: phoneAgent });
+      stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+    });
+    await screen.findByText("Fixed.");
+    expect(screen.queryByRole("button", { name: "Open navigation" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Chuck Home" })).toBeNull();
   });
 
   it("collapses a completed turn, streams open live thoughts and drops them on reconnect", async () => {

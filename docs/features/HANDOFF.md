@@ -156,7 +156,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Review findings
 
-### Phone header slimmed — commit “phone: unframed header, none on agent chats” — **Fix model:** low — Codex Luna or Claude Sonnet.
+### Phone header slimmed — commit “phone: unframed header, none on agent chats” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Awaiting review.
 
