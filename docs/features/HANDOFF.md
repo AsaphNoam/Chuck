@@ -148,13 +148,17 @@ None.
 
 ## Review findings
 
-- **CI-1 (Worth fixing, late tool input unit LTI) — `TestCanceledTurnsReleaseToolInput` flakes
-  in CI:** main CI run 39100833712 failed at `internal/runtime/tool_input_test.go:37` (“turn 2:
-  open inputs = 0, want the live call”) after the turn-1 cancel; 60/60 local repeats pass.
-  Uninvestigated whether the test injects its frame before turn 2's `setExecTurn` release or a
-  late turn-1 `finishTurn` drops a live turn-2 call (product ordering). Route through
-  `/investigate-bug` → `/fix`. (`NewAgentModal`/phone gap-test race fix is confirmed remotely:
-  main CI run 39007164597 passed.)
+### Late tool input CI flake — `bbc8c89c` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Worth fixing** — CI-1: `TestCanceledTurnsReleaseToolInput` flakes in CI (TS-04.R98; INV §17). Main
+  CI run 39100833712 failed at `internal/runtime/tool_input_test.go:37` (“turn 2: open inputs =
+  0, want the live call”) after the turn-1 cancel; 60/60 local repeats pass. It matters because
+  it either reddens main CI or hides a late turn-1 `finishTurn` dropping a live turn-2 call.
+  Uninvestigated whether the test injects its frame before turn 2's `setExecTurn` release or the
+  product ordering is wrong; route through `/investigate-bug`, then fix with a deterministic
+  ordering test.
+
+The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
 
