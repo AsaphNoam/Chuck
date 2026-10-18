@@ -48,7 +48,7 @@ import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
 import { recallPlace, rememberPlace } from "./scrollMemory";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, restoreChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
-import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
+import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
 import { GroupPicker } from "../components/ui/GroupPicker";
@@ -675,9 +675,16 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       try { await persistPendingAttachmentSend(agentId, { text: messageText, files: selected, requestId: request, steer: steeringMessage, revision: submittedRevision }); }
       catch { setAttachmentError(attachmentErrorForStorage()); }
       await act(
-        () => (matchingRetry?.steer ?? steeringMessage)
+        () => ((matchingRetry?.steer ?? steeringMessage)
           ? steerPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
-          : sendPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request),
+          : sendPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
+        ).catch(async (err: unknown) => {
+          if (isDefiniteSendRefusal(err)) {
+            setRetryPhoneSend(null);
+            try { await clearPendingAttachmentSend(agentId, request); } catch { setAttachmentError(attachmentErrorForStorage()); }
+          }
+          throw err;
+        }),
         false,
         (result) => finishPhoneAttachmentSend(result, selected, messageText, request, matchingRetry?.steer ?? steeringMessage, submittedRevision),
       );

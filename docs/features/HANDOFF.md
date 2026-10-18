@@ -6,6 +6,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
+- **Finished — stopped-agent image wake usability fix (2026-10-18):** usability review
+  2026-10-14 J7/A64 closed; see changelog. FS-03.R83. Owed: no phone component test for the
+  shared refusal rule; live provider/device gates unchanged.
+
 - **Finished — task completion in sequential skill workflows fixes (2026-10-17):** fix unit
   `task-completion-workflows-2026-10-17` (TC-1–TC-4) closed; see changelog. FS-16.R49/A33,
   FS-01.R52, TS-04.R99. Owed: FS-16.A33 credentialed Codex `$review` assignee that reads and
@@ -207,24 +211,21 @@ None.
 
 ## Review findings
 
-### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
-
-- **Worth fixing** — **J7/A64 stale Retry after a definite image refusal:** `ui/src/components/chat/Composer.tsx`
-  ~L140–168 sets the unconfirmed-send `retry` state for every failed send, so a stopped agent whose
-  fresh peer refuses an image (422, nothing consumed) shows “Previous message was not confirmed.
-  Retry previous send” beside the refusal. Retry repeats the same 422 with no visible change and the
-  notice survives reload. It misstates delivery and invites a dead loop (FS-03.A64 “visibly
-  refuses”). Test: a definite 4xx refusal keeps the draft and error but offers no unconfirmed-send
-  Retry. (INV §8)
-
-The recovered stopped-agent image implementation unit itself remains closed; live
-provider/device acceptance gates and unrelated known risks above remain open.
+None open.
 
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-18 — Usability review 2026-10-14 J7/A64 closed:** (INV §8, errors surface in
+  vocabulary) a definite 4xx send refusal other than 408 (`isDefiniteSendRefusal` in
+  `ui/src/components/chat/attachments.ts`) now keeps the draft and error but clears the
+  unconfirmed-send Retry and its receipt on desktop (`Composer.tsx`) and phone
+  (`AgentScreen.tsx`); unknown outcomes still offer Retry. `clearPendingAttachmentSend` clears a
+  matching in-memory receipt before the storage write, so the storage-unavailable path no longer
+  resurrects a settled receipt on remount. FS-03.R83 states the rule. Regression test in
+  `Composer.test.tsx` (422 then remount, then 503 still retries). 944 UI tests and UI build pass;
+  embedded `dist` not refreshed.
 
 - **2026-10-18 — Late tool input fixes (LTI-1/LTI-2) closed:** LTI-1 (INV §16, bounded
   lifetime): runtime open-call input memory (`openToolInput` in `internal/runtime/chat.go`)

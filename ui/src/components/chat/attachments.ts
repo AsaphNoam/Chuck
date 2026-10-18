@@ -231,6 +231,13 @@ export function attachmentErrorForStorage() {
 export type AttachmentMessage = { text: string; attachments: AttachmentDescriptor[] };
 export type PendingAttachmentSend = { text: string; files: DraftAttachment[]; requestId: string; steer: boolean; revision: number; retryable?: boolean };
 
+// A 4xx answer (other than a timeout) means the server refused the send before
+// consuming it, so the draft stays but there is no unconfirmed send to retry.
+export function isDefiniteSendRefusal(error: unknown) {
+  const status = error && typeof error === "object" && "status" in error ? (error as { status?: unknown }).status : undefined;
+  return typeof status === "number" && status >= 400 && status < 500 && status !== 408;
+}
+
 export async function persistPendingAttachmentSend(agentId: string, pending: PendingAttachmentSend) {
   pendingInMemory.set(agentId, pending);
   await queueDraftWrite(agentId, (store) => store.put({
@@ -266,6 +273,8 @@ export async function restorePendingAttachmentSend(agentId: string): Promise<Pen
 export async function clearPendingAttachmentSend(agentId: string, requestId?: string) {
   const current = pendingInMemory.get(agentId);
   if (requestId && current && current.requestId !== requestId) return;
+  // This page knows the receipt is settled even when storage cannot be written.
+  if (current) pendingInMemory.set(agentId, null);
   let cleared = !requestId;
   await queueDraftWrite(agentId, (store) => {
     if (!requestId) { store.delete(`pending:${agentId}`); return; }

@@ -127,6 +127,38 @@ describe("Composer autocomplete", () => {
       .toEqual([expect.objectContaining({ seq: 7, text: "read this" })]);
   });
 
+  // FS-03.A64: a definite refusal consumed nothing, so it keeps the draft and
+  // error but must not claim an unconfirmed send; an unknown outcome still does.
+  it("offers no unconfirmed-send Retry after a definite image refusal", async () => {
+    let status = 422;
+    let posts = 0;
+    server.use(http.post("/api/sessions/:id/prompt", () => {
+      posts++;
+      return HttpResponse.json({ error: { code: "validation", message: "this runtime does not accept image input" } }, { status });
+    }));
+    render(<Composer agentId="a_1" busy={false} />);
+    fireEvent.change(screen.getByLabelText("Choose files to attach"), { target: { files: [new File(["image"], "image.png", { type: "image/png" })] } });
+    type(screen.getByRole("textbox") as HTMLTextAreaElement, "see this");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(/this runtime does not accept image input/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+    expect(screen.queryByText("Previous message was not confirmed.")).not.toBeInTheDocument();
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("see this");
+    expect(screen.getByText("image.png")).toBeInTheDocument();
+    cleanup();
+
+    render(<Composer agentId="a_1" busy={false} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+    expect(screen.queryByText("Previous message was not confirmed.")).not.toBeInTheDocument();
+
+    status = 503;
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByRole("button", { name: "Retry previous send" })).toBeInTheDocument();
+    expect(posts).toBe(2);
+  });
+
   // FS-03.A19: browser-local drafts follow the selected chat through navigation
   // and remounts, but never cross to another agent.
   it("restores distinct drafts for their matching chat after navigation and remount", async () => {

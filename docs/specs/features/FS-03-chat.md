@@ -846,7 +846,8 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   apply. Acceptance means the message was accepted, not that the model has read every file.
   Unsupported content
   or runtime capabilities produce an actionable error before consumption, preserving the draft;
-  Chuck never silently drops an attachment or reports a path-only message as delivered contents.
+  such a definite refusal (a 4xx other than a timeout) offers no unconfirmed-send Retry on
+  desktop or phone, now or after reload, because nothing was consumed. Chuck never silently drops an attachment or reports a path-only message as delivered contents.
   Busy Send, stopped-agent wake, failed-send recovery and withdrawal retain the same message and
   attachment order. Attachment-bearing Steer retains R50's current-turn meaning when the runtime
   supports the input; unavailable Steer explains its capability limit and leaves Send usable.

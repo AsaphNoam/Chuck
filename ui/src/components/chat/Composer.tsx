@@ -7,7 +7,7 @@ import { useHeldStore } from "../../store/heldStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
 import { useAutocomplete } from "./autocomplete";
-import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "./attachments";
+import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "./attachments";
 import { DraftAttachments } from "./AttachmentView";
 import type { AttachmentCapabilities } from "../../api/types";
 
@@ -179,6 +179,12 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       if (steeringMessage) setNotice("Delivered into the running turn.");
     } catch (err) {
       const reason = err instanceof Error && err.message ? err.message : "the agent may have stopped";
+      if (isDefiniteSendRefusal(err)) {
+        setError(`Could not send — ${reason}.`);
+        setRetry(null);
+        try { await clearPendingAttachmentSend(agentId, requestId); } catch { setAttachmentError(attachmentErrorForStorage()); }
+        return;
+      }
       setError(`Could not send — ${reason}. Your message is still available to retry.`);
       setRetry({ text: prompt, files: selected, requestId, steer: steeringMessage, revision: submittedRevision });
     } finally {
