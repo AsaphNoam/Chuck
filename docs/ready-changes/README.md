@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`breadcrumb-sibling-agent-switching.md`](breadcrumb-sibling-agent-switching.md) — one-click
+  mini agent cards for the project's running agents in the agent-page breadcrumb, with `+n`
+  overflow and no new row.
+
 - [`quiet-quota-recovery.md`](quiet-quota-recovery.md) — verified structured/text reset scheduling
   and bounded isolated quota checks; preserve the original conversation, with non-persistent
   Claude sessions and approved named Codex native archive records.

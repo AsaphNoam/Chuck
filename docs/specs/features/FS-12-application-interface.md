@@ -1,6 +1,6 @@
 # FS-12 — Core interface design
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src` · **Journeys:** J2–J9, J11, J14
 **Absorbed:** —
 
@@ -588,6 +588,18 @@ Requirements are user-observable.
   All three appearances express the composition through their semantic palettes. Navigation,
   right-click menus, New project and every project action are unchanged.
 
+- **R70 (planned) — Sibling agents read as miniature agent cards in the breadcrumb.** When
+  FS-03.R98's sibling entries are present, they replace R61's "project / agent" path text in the
+  breadcrumb row, between Back and the stable agent id, preceded by the project title as a quiet
+  label. Each entry is a single-line, softly rounded mini card with a small monogram tile carrying
+  the state dot (as in the agent header) and the agent name; it shows no preview, meter, role or
+  runtime. The current entry is raised/outlined with a non-color current indicator; other entries
+  stay quiet until hover/focus. Attention entries use R37/R59's waiting and error tones at
+  mini-card scale, and busy keeps the pulsing dot under the existing reduced-motion rule. Names
+  truncate visually with their full accessible name retained. The row stays one line at the
+  1024px floor with five entries plus `+n`, never wraps or pushes the agent panel down, and keeps
+  Back and the agent id visible. All three appearances use their semantic palettes.
+
 ## 3. States & transitions
 
 - **Route change:** the persistent shell remains visually stable while the current-route
@@ -859,6 +871,12 @@ Requirements are user-observable.
   empty project and an unavailable project: the header, larger cards, state counts and footer
   read without horizontal overflow; right-click menus and New project are unchanged.
   *Verify:* focused `ProjectDashboard` tests, presentation checks and `ui/scripts/projects-render.mjs`.
+- **A40 (planned)** (R70) — Render an agent page at 1024px and 1440px in Core, Sky & Grove and
+  Studio with two, five and seven running siblings, a long agent name and a long project title,
+  covering busy, idle, waiting, error and done states: the mini cards stay on one breadcrumb line
+  with Back and the agent id visible, the current entry is identifiable without color, attention
+  tones match the dashboard cards, and the panel below does not move compared with the unchanged
+  single-agent breadcrumb. *Verify:* presentation checks and the A76 rendered pass.
 
 ## 6. Deviations & open decisions
 

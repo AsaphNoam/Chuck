@@ -1678,6 +1678,34 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   selection/keyboard gates remain separate from emulated browser proof. Run applicable TS-06
   closure, style/presentation checks and `make embed` after implementation, never editing dist.
 
+### 2.16 Breadcrumb sibling-agent switching
+
+- **R137 (planned) — Siblings are a pure projection of the hydrated agent store.** FS-03.R98's
+  entries come from one pure helper over `useAgentStore`'s `agents` record and the current agent
+  id: same `project`, not `archived`, and `running` or current. Order it with the existing
+  `orderProjectAgents` (FS-02.R45) rather than a second sort (INV §2). Factor the "first five,
+  current replaces the fifth, the rest overflow" cap that `deriveActiveProjects` already
+  implements into one shared helper used by both the project links and the siblings (INV §2).
+  `ChatPanel` subscribes through a narrow selector with shallow equality over each entry's id,
+  name and state so streaming and context updates for unrelated fields do not re-render the
+  page. No fetch, endpoint, SSE event, server change, browser storage or persisted order is
+  added; an empty or not-yet-hydrated store simply yields the unchanged breadcrumb.
+- **R138 (planned) — The breadcrumb renders siblings through existing seams.** `AgentBreadcrumb`
+  gains an optional sibling list; `ArchiveAgentPage` passes none and keeps R61's path text. Other
+  entries are router `Link`s to `agentConversationPath(id)` — the route the dashboard card opens,
+  without carrying the current page's file-viewer query; the current entry is a non-link with
+  `aria-current="page"`. Each mini card reuses the header's `agent-monogram` tile and state-dot
+  classes at a smaller size rather than a new state palette. The `+n` disclosure is factored out of
+  `ProjectNav` (count label, keyboard-accessible menu, outside-pointer and Escape dismissal, and
+  closing when the route's agent changes, INV §1) and shared by both navs. Styles live in
+  `features/agent.css` with existing semantic tokens; no public `data-ui` hook, skin state,
+  dependency or motion is added, and every new literal class has a selector (INV §13). Width
+  safety is CSS-only (truncation, no wrap); presentation does not measure available width. Cover
+  FS-03.A76 with helper unit tests (membership, order stability, current-stopped, cap) and
+  `ChatPanel`/breadcrumb component tests including live join/leave and keyboard overflow, and
+  FS-12.A40 with a real-browser pass using `fakeacp` agents at 1024px and 1440px in all three
+  appearances. Run TS-06 UI closure, style/presentation checks and `make embed`; never edit dist.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

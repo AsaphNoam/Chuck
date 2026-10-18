@@ -271,6 +271,11 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-18 — Designed breadcrumb sibling-agent switching:** ready change
+  `breadcrumb-sibling-agent-switching.md` (FS-03.R98/A76, FS-12.R70/A40, TS-08.R137–R138, all
+  planned); FS-12 is now Partial. Same-project, running-only, one-click mini cards in the
+  agent-page breadcrumb; no server change.
+
 - **2026-10-18 — Chucky group placement:** `create_task` can name a (new or existing) project group
   for the agent it launches; operating guidance tells agents to use it instead of the CLI.
 

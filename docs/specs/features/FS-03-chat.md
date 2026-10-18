@@ -757,6 +757,26 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Chuck-authored interface text, not file contents, paths, agent names or captured excerpts,
   whose original Unicode text remains intact.
 
+### 2.12 Moving between a project's agents
+
+- **R98 (planned) — The agent page switches directly to the project's running agents.** On a
+  live `/agent/:id` page, the breadcrumb row lists the agent's project siblings as one-click
+  entries: every non-archived agent with the same project id whose `running` value is true,
+  plus the current agent, which is always present and marked current even when it has stopped.
+  Each entry shows the agent's name and its FS-02.R3 live state; `waiting_input` and `error`
+  entries carry the same attention emphasis as their dashboard cards. Entries follow the project
+  dashboard's card order (FS-02.R45) and never re-sort while the page is open except when
+  membership changes; a state change alone moves nothing. Membership and state update from the
+  existing hydrated projection without a refresh: an agent that starts joins, and one that stops
+  or is archived leaves. Selecting an entry opens that agent's page exactly as opening its
+  dashboard card does; the current entry is not a link. At most five entries are directly
+  visible; the current agent is always among them, replacing the fifth when it would fall
+  outside, and the rest sit under a `+n` control that names the hidden count and opens
+  keyboard-accessible navigation to each hidden agent. When no other running agent shares the
+  project, the breadcrumb is unchanged. Back (R27), the stable agent id, archived pages, Think
+  Tank rooms, the dashboard, the phone companion and every API are unchanged; stopped siblings
+  are reached through the project dashboard as before (operator decision 2026-10-18).
+
 ## 3. States & transitions
 
 - **Open/reload:** panel fetches durable events → normalizes/folds them → subscribes to live SSE
@@ -1370,6 +1390,17 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   and captured excerpts remain unchanged. *Verify:* component assertions against the specified
   English labels, a review of added UI literals and A71–A73's rendered journeys. Do not implement
   character stripping or reject legitimate non-English file content to satisfy this check.
+
+- **A76 (planned)** (R98) — With a project holding three running agents (one `busy`, one
+  `waiting_input`, one `idle`), a stopped agent and an archived agent, plus a running agent in
+  another project: the busy agent's page lists exactly the three running siblings in dashboard
+  order, the current one marked and not a link, the waiting one emphasized. One click opens the
+  waiting agent's page with its own transcript and draft. Starting the stopped agent adds it and
+  stopping one removes it without a refresh; a state change reorders nothing. Viewing the stopped
+  agent shows it as current among the running siblings. Seven running agents show five entries
+  (including the current one) and a keyboard-operable `+2`. A project's only running agent shows
+  the unchanged breadcrumb; archived pages are unchanged. *Verify:* focused breadcrumb/ChatPanel
+  component tests and one rendered pass with `fakeacp` agents at 1024px.
 
 A71–A75 are covered by `readerLayout.test.ts`, `ReaderWorkspace.test.tsx` and the existing
 `FileViewer`/`AnnotationTray` tests, plus `ui/scripts/file-reader-journey.mjs` (live and archived
