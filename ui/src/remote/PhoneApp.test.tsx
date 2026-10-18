@@ -1,7 +1,7 @@
 import React from "react";
 import fs from "node:fs";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
@@ -262,6 +262,29 @@ describe("phone conversation turns", () => {
       http.get("/api/sessions/a1/transcript", () => HttpResponse.json({ agent_id: "a1", events: window_, has_more: false })),
       http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ error: { code: "not_found", message: "none" } }, { status: 404 })),
     );
+  });
+
+  it("offers Jump to latest only while scrolled away from the newest message", async () => {
+    window.history.replaceState(null, "", "/agent/a1");
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    renderApp();
+    const stream = await waitFor(() => FakeEventSource.last ?? Promise.reject(new Error("no stream yet")));
+    act(() => {
+      stream.onopen?.();
+      stream.emit("state_update", { data: phoneAgent });
+      stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+    });
+    await screen.findByText("Fixed.");
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull();
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 5000 });
+    try {
+      fireEvent.scroll(window);
+      fireEvent.click(await screen.findByRole("button", { name: "Jump to latest" }));
+      expect(scrollTo).toHaveBeenLastCalledWith(0, 5000);
+    } finally {
+      delete (document.documentElement as { scrollHeight?: number }).scrollHeight;
+      scrollTo.mockRestore();
+    }
   });
 
   it("shows no header on an agent chat", async () => {

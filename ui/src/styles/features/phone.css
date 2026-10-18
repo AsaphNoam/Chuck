@@ -122,7 +122,11 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-composer-actions { align-items: center; justify-content: flex-end; display: flex; gap: var(--ad-space-2); border: 0; background: transparent; padding: 0; }
 .phone-runtime-controls { align-items: center; display: flex; gap: var(--ad-space-2); justify-content: space-between; min-width: 0; }
 .phone-effort-cycle { flex-shrink: 0; }
-.phone-model-switch { align-items: center; display: inline-flex; gap: var(--ad-space-1); min-width: 0; max-width: 100%; min-height: 44px; padding: 0 var(--ad-space-3); background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-strong); border-radius: var(--ad-radius-round); box-shadow: var(--ad-shadow-keyline), var(--ad-shadow-offset); color: var(--ad-text-secondary); font-size: 0.6875rem; overflow-wrap: anywhere; text-align: right; }
+/* Send's shape: a 44px touch target whose visible surface is inset and small-radius. */
+.phone-model-switch { align-items: center; display: inline-flex; gap: var(--ad-space-1); min-width: 0; max-width: 100%; min-height: 44px; padding: 0 var(--ad-space-2); background: transparent; border: 0; color: var(--ad-text-secondary); font-size: 0.6875rem; overflow-wrap: anywhere; position: relative; text-align: right; z-index: 0; }
+.phone-model-switch::before, .phone-jump-latest::before { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-strong); border-radius: var(--ad-radius-small); box-shadow: var(--ad-shadow-keyline), var(--ad-shadow-offset); content: ""; inset: var(--ad-space-1) 0; pointer-events: none; position: absolute; z-index: -1; }
+/* The desktop transcript's Jump to latest, floating over the page-scrolled chat. */
+.phone-jump-latest { background: transparent; border: 0; color: var(--ad-state-done); font-size: 0.75rem; padding: 0 var(--ad-space-3); position: fixed; bottom: calc(var(--ad-space-4) + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 3; }
 .phone-composer-actions.phone-actions > button { flex: 0 0 auto; }
 /* Fill/shape/size now come from .ad-button-icon-primary; the button is already a 44px touch target. */
 .phone-send-icon { flex-shrink: 0; }

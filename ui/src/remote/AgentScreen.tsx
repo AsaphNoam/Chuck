@@ -504,13 +504,16 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     if (shift) window.scrollTo(0, window.scrollY + shift);
   }, [rows, placePath]);
 
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
   useEffect(() => {
     let frame = 0;
     const save = () => {
       frame = 0;
+      const atLatest = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 48;
+      setAwayFromLatest(!atLatest);
       const list = listRef.current;
       if (!placeRestored.current || !list) return;
-      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 48) return rememberPlace(placePath, { newest: true });
+      if (atLatest) return rememberPlace(placePath, { newest: true });
       const top = document.querySelector(".phone-header")?.getBoundingClientRect().bottom ?? 0;
       const row = [...list.querySelectorAll<HTMLElement>("[data-place]")].find((item) => item.getBoundingClientRect().bottom > top);
       if (row) rememberPlace(placePath, { row: row.dataset.place!, offset: row.getBoundingClientRect().top });
@@ -827,6 +830,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             </div>
           )}
           {recovery && <PhoneRecovery agentId={agentId} recovery={recovery} offline={offline} />}
+          {awayFromLatest && <button type="button" className="phone-jump-latest ad-button-secondary" onClick={() => window.scrollTo(0, document.documentElement.scrollHeight)}>Jump to latest</button>}
           {agent.running && (
             <div className="phone-runtime-controls">
               <button type="button" className="phone-model-switch" aria-label={`Switch model, current ${runtimeLabel}`} disabled={offline || busy} onClick={() => setRuntimeOpen(true)}>

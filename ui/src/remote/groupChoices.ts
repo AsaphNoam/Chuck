@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-// Page-session choices only. Cap retained identities so removed projects/groups cannot accumulate.
+// Page-session choices only; a stored true means expanded (groups start collapsed, FS-20.R47). Cap retained identities so removed projects/groups cannot accumulate.
 export const usePhoneGroupChoices = create<{
   choices: Record<string, boolean>;
   toggle: (project: string, group: string) => void;

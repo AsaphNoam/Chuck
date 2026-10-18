@@ -173,23 +173,25 @@ describe("ProjectScreen archival", () => {
 });
 
 describe("ProjectScreen groups", () => {
-  it("retains collapse across screen remounts, independently for each project", async () => {
+  it("starts groups collapsed and retains expansion across screen remounts, independently for each project", async () => {
     server.use(http.get("/api/projects", () => HttpResponse.json({ app: { title: "App" }, other: { title: "Other" } })));
     useConnection.setState({ agents: { a: phoneAgent("a", "Alpha", true), b: { ...phoneAgent("b", "Alpha", true), project: "other" } } });
     renderScreen();
     fireEvent.click(await screen.findByRole("button", { name: /Alpha.*1 agents/ }));
     cleanup();
     render(<QueryClientProvider client={new QueryClient()}><ProjectScreen projectID="other" /></QueryClientProvider>);
-    expect(await screen.findByRole("button", { name: /Alpha.*1 agents/ })).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByRole("button", { name: /Alpha.*1 agents/ })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("b")).toBeNull();
     cleanup();
     renderScreen();
-    expect(await screen.findByRole("button", { name: /Alpha.*1 agents/ })).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("a")).toBeNull();
+    expect(await screen.findByRole("button", { name: /Alpha.*1 agents/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("a")).toBeInTheDocument();
   });
 
   it("opens actions on a held press without navigating and cancels movement and early release", async () => {
     useConnection.setState({ agents: { a: phoneAgent("a", "Alpha", true) } });
     renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: /^Alpha/ }));
     const row = (await screen.findByText("a")).closest("button")!;
     const touch = { touches: [{ clientX: 20, clientY: 30 }] };
     fireEvent.touchStart(row, touch);
@@ -222,6 +224,7 @@ describe("ProjectScreen groups", () => {
     server.use(http.post("/api/sessions/:id/rename", () => HttpResponse.json({ error: { message: "Rename refused" } }, { status: 409 })));
     useConnection.setState({ agents: { a: phoneAgent("a", "Alpha", false) } });
     renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: /^Alpha/ }));
     const row = (await screen.findByText("a")).closest("button")!;
     fireEvent.keyDown(row, { key: "F10", shiftKey: true });
     expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled();
@@ -247,9 +250,9 @@ describe("ProjectScreen groups", () => {
     expect([...document.querySelectorAll(".phone-agent-group")].map((node) => node.textContent?.split(" agents")[0])).toHaveLength(3);
     const sections = [...document.querySelectorAll<HTMLElement>(".phone-agent-group")];
     expect(sections.map((section) => section.querySelector("strong")?.textContent)).toEqual(["Alpha", "Beta", "Ungrouped"]);
-    expect(within(sections[0]).getAllByRole("button").map((button) => button.textContent).join(" ")).toContain("a");
-    fireEvent.click(within(sections[0]).getByRole("button", { name: /^Alpha/ }));
     expect(within(sections[0]).queryByText("a")).toBeNull();
+    fireEvent.click(within(sections[0]).getByRole("button", { name: /^Alpha/ }));
+    expect(within(sections[0]).getByText("a")).toBeInTheDocument();
     act(() => useConnection.setState({ agents: { ...useConnection.getState().agents, d: phoneAgent("d", "Alpha", true) } }));
     expect(await within(sections[0]).findByText(/2 running/)).toBeInTheDocument();
   });

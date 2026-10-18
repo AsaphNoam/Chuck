@@ -271,7 +271,8 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   Manage uses quiet, compact fields and actions separated by rules rather than stacked cards.
   Files has compact text actions. The chat composer has one outline enclosing the textbox and
   Send inside at the bottom right. Above the composer, outside it, sit two outlined,
-  slightly raised buttons: the model at the left opens the Switch runtime sheet; the effort at
+  slightly raised buttons with Send's small-radius inset surface and compact horizontal padding:
+  the model at the left opens the Switch runtime sheet; the effort at
   the right, shown only when the live model declares efforts, changes the running agent's effort
   to the next one in the model's order on each tap, wrapping after the last (model default
   counts as the model's default effort). Typing adds no blue
@@ -306,7 +307,8 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
 - **R47 — Phone group choices survive navigation.** Each project's expanded and
   collapsed agent groups, including Ungrouped, retain their choices while moving between phone
   screens in the same page session. Choices are device-local and project-scoped; a reload may reset
-  them and they never write the desktop layout.
+  them and they never write the desktop layout. Every group, including Ungrouped, starts collapsed
+  until the person expands it.
 
 - **R48 — Long pressing a phone agent row opens its actions.** A stationary
   half-second press opens a dismissible action sheet instead of navigating. A tap still opens chat;
@@ -396,7 +398,9 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   conversation left at its newest message, or opened for the first time, opens at its newest
   message. If the remembered message is no longer in the loaded history, the conversation opens at
   the oldest loaded message. Home, project and run pages return to their previous scroll position
-  when revisited. Positions are not kept across a reload or browser termination.
+  when revisited. Positions are not kept across a reload or browser termination. While a
+  conversation is scrolled away from its newest message, a floating **Jump to latest** button,
+  matching the desktop transcript's, returns it there.
 
 - **R55 — Phone annotations cover conversation events and tracked-file text.**
   FS-13.R28–R31 extend the existing diff annotation flow to selected text or a whole eligible
