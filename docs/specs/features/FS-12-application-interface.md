@@ -1,6 +1,6 @@
 # FS-12 — Core interface design
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src` · **Journeys:** J2–J9, J11, J14
 **Absorbed:** —
 
@@ -588,7 +588,7 @@ Requirements are user-observable.
   All three appearances express the composition through their semantic palettes. Navigation,
   right-click menus, New project and every project action are unchanged.
 
-- **R70 (planned) — Sibling agents read as miniature agent cards in the breadcrumb.** When
+- **R70 — Sibling agents read as miniature agent cards in the breadcrumb.** When
   FS-03.R98's sibling entries are present, they replace R61's "project / agent" path text in the
   breadcrumb row, between Back and the stable agent id, preceded by the project title as a quiet
   label. Each entry is a single-line, softly rounded mini card with a small monogram tile carrying
@@ -871,12 +871,14 @@ Requirements are user-observable.
   empty project and an unavailable project: the header, larger cards, state counts and footer
   read without horizontal overflow; right-click menus and New project are unchanged.
   *Verify:* focused `ProjectDashboard` tests, presentation checks and `ui/scripts/projects-render.mjs`.
-- **A40 (planned)** (R70) — Render an agent page at 1024px and 1440px in Core, Sky & Grove and
+- **A40** (R70) — Render an agent page at 1024px and 1440px in Core, Sky & Grove and
   Studio with two, five and seven running siblings, a long agent name and a long project title,
   covering busy, idle, waiting, error and done states: the mini cards stay on one breadcrumb line
   with Back and the agent id visible, the current entry is identifiable without color, attention
   tones match the dashboard cards, and the panel below does not move compared with the unchanged
-  single-agent breadcrumb. *Verify:* presentation checks and the A76 rendered pass.
+  single-agent breadcrumb. *Verify:* presentation checks and the A76 rendered pass; covered by
+  `ui/scripts/breadcrumb-render.mjs` (stubbed stream, all listed cases) and
+  `ui/scripts/breadcrumb-live-check.mjs`.
 
 ## 6. Deviations & open decisions
 

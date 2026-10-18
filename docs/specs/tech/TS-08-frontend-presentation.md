@@ -1680,7 +1680,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
 
 ### 2.16 Breadcrumb sibling-agent switching
 
-- **R137 (planned) — Siblings are a pure projection of the hydrated agent store.** FS-03.R98's
+- **R137 — Siblings are a pure projection of the hydrated agent store.** FS-03.R98's
   entries come from one pure helper over `useAgentStore`'s `agents` record and the current agent
   id: same `project`, not `archived`, and `running` or current. Order it with the existing
   `orderProjectAgents` (FS-02.R45) rather than a second sort (INV §2). Factor the "first five,
@@ -1690,7 +1690,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   name and state so streaming and context updates for unrelated fields do not re-render the
   page. No fetch, endpoint, SSE event, server change, browser storage or persisted order is
   added; an empty or not-yet-hydrated store simply yields the unchanged breadcrumb.
-- **R138 (planned) — The breadcrumb renders siblings through existing seams.** `AgentBreadcrumb`
+- **R138 — The breadcrumb renders siblings through existing seams.** `AgentBreadcrumb`
   gains an optional sibling list; `ArchiveAgentPage` passes none and keeps R61's path text. Other
   entries are router `Link`s to `agentConversationPath(id)` — the route the dashboard card opens,
   without carrying the current page's file-viewer query; the current entry is a non-link with

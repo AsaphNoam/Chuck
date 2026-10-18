@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
@@ -284,6 +284,104 @@ describe("ChatPanel back target", () => {
     renderPanel("a_live");
 
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/");
+  });
+});
+
+// FS-03.A76 — the breadcrumb switches directly to the project's running agents.
+describe("ChatPanel sibling agents", () => {
+  function sibling(id: string, name: string, patch: Record<string, unknown> = {}) {
+    return { ...(liveAgent(id) as object), name, ...patch } as never;
+  }
+
+  function seed(agents: Record<string, never>) {
+    useAgentStore.setState({ agents, order: Object.keys(agents), hydrated: true, hydrating: false });
+    mocks.useProjects.mockReturnValue({ data: { app: { title: "App", archived: false } } });
+  }
+
+  function crumb() {
+    return screen.getByRole("navigation", { name: "Agent location" });
+  }
+
+  function entryNames() {
+    return [...crumb().querySelectorAll(".chat-breadcrumb-siblings > .agent-mini-card")].map((entry) => entry.textContent);
+  }
+
+  it("lists running siblings in dashboard order and opens one in a click", async () => {
+    seed({
+      busy: sibling("busy", "Busy", { state: "busy" }),
+      stopped: sibling("stopped", "Stopped", { running: false }),
+      waiting: sibling("waiting", "Waiting", { state: "waiting_input" }),
+      archived: sibling("archived", "Archived", { archived: true }),
+      idle: sibling("idle", "Idle"),
+      other: sibling("other", "Other", { project: "elsewhere" }),
+    });
+    renderPanel("busy");
+
+    expect(entryNames()).toEqual(["BBusy", "WWaiting", "IIdle"]);
+    const current = crumb().querySelector("[aria-current='page']");
+    expect(current).toHaveTextContent("Busy");
+    expect(current?.tagName).toBe("SPAN");
+    const waiting = screen.getByRole("link", { name: "Waiting" });
+    expect(waiting).toHaveAttribute("href", "/agent/waiting");
+    expect(waiting).toHaveClass("waiting_input");
+
+    fireEvent.click(waiting);
+    await waitFor(() => expect(crumb()).toHaveTextContent("waiting"));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Waiting");
+    expect(crumb().querySelector("[aria-current='page']")).toHaveTextContent("Waiting");
+  });
+
+  it("joins and leaves live without reordering on a state change", () => {
+    seed({
+      a: sibling("a", "Ada"),
+      b: sibling("b", "Bo", { running: false }),
+      c: sibling("c", "Cy"),
+    });
+    renderPanel("a");
+    expect(entryNames()).toEqual(["AAda", "CCy"]);
+
+    act(() => useAgentStore.setState((state) => ({ agents: { ...state.agents, b: { ...state.agents.b, running: true } } })));
+    expect(entryNames()).toEqual(["AAda", "BBo", "CCy"]);
+
+    act(() => useAgentStore.setState((state) => ({ agents: { ...state.agents, a: { ...state.agents.a, state: "busy" } } })));
+    expect(entryNames()).toEqual(["AAda", "BBo", "CCy"]);
+
+    act(() => useAgentStore.setState((state) => ({ agents: { ...state.agents, c: { ...state.agents.c, running: false } } })));
+    expect(entryNames()).toEqual(["AAda", "BBo"]);
+
+    act(() => useAgentStore.setState((state) => ({ agents: { ...state.agents, b: { ...state.agents.b, running: false } } })));
+    expect(crumb()).toHaveTextContent("App/Ada");
+    expect(crumb().querySelector(".agent-mini-card")).toBeNull();
+  });
+
+  it("shows a stopped current agent among the running siblings", () => {
+    seed({ a: sibling("a", "Ada"), s: sibling("s", "Sol", { running: false }) });
+    renderPanel("s");
+
+    expect(entryNames()).toEqual(["AAda", "SSol"]);
+    expect(crumb().querySelector("[aria-current='page']")).toHaveClass("stopped");
+  });
+
+  it("caps at five with the current agent visible and a keyboard-operable overflow", async () => {
+    const agents = Object.fromEntries(["one", "two", "three", "four", "five", "six", "seven"]
+      .map((id) => [id, sibling(id, id[0].toUpperCase() + id.slice(1))]));
+    seed(agents as Record<string, never>);
+    renderPanel("seven");
+
+    expect(entryNames()).toEqual(["OOne", "TTwo", "TThree", "FFour", "SSeven"]);
+    const more = screen.getByRole("button", { name: "2 more running agents" });
+    expect(more).toHaveTextContent("+2");
+    more.focus();
+    fireEvent.click(more);
+    const menu = screen.getByRole("menu");
+    expect([...menu.querySelectorAll("[role='menuitem']")].map((item) => item.getAttribute("href"))).toEqual(["/agent/five", "/agent/six"]);
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    fireEvent.click(more);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Six" }));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Six"));
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });
 

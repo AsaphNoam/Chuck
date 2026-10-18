@@ -759,7 +759,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 
 ### 2.12 Moving between a project's agents
 
-- **R98 (planned) — The agent page switches directly to the project's running agents.** On a
+- **R98 — The agent page switches directly to the project's running agents.** On a
   live `/agent/:id` page, the breadcrumb row lists the agent's project siblings as one-click
   entries: every non-archived agent with the same project id whose `running` value is true,
   plus the current agent, which is always present and marked current even when it has stopped.
@@ -1391,7 +1391,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   English labels, a review of added UI literals and A71–A73's rendered journeys. Do not implement
   character stripping or reject legitimate non-English file content to satisfy this check.
 
-- **A76 (planned)** (R98) — With a project holding three running agents (one `busy`, one
+- **A76** (R98) — With a project holding three running agents (one `busy`, one
   `waiting_input`, one `idle`), a stopped agent and an archived agent, plus a running agent in
   another project: the busy agent's page lists exactly the three running siblings in dashboard
   order, the current one marked and not a link, the waiting one emphasized. One click opens the
@@ -1401,6 +1401,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   (including the current one) and a keyboard-operable `+2`. A project's only running agent shows
   the unchanged breadcrumb; archived pages are unchanged. *Verify:* focused breadcrumb/ChatPanel
   component tests and one rendered pass with `fakeacp` agents at 1024px.
+
+A76 is covered by `ui/src/lib/agentSiblings.test.ts`, the `ChatPanel sibling agents` tests and
+`ui/scripts/breadcrumb-live-check.mjs` against the stress fixture's seven `fakeacp` agents.
 
 A71–A75 are covered by `readerLayout.test.ts`, `ReaderWorkspace.test.tsx` and the existing
 `FileViewer`/`AnnotationTray` tests, plus `ui/scripts/file-reader-journey.mjs` (live and archived

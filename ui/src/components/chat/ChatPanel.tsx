@@ -31,6 +31,10 @@ import type { FileLink } from "./renderers/filePath";
 import { displayLabels } from "../../lib/labels";
 import { decodeQuotaState } from "../../lib/quota";
 import { QuotaBanner } from "../agent/QuotaBanner";
+import { OverflowMenu } from "../shell/OverflowMenu";
+import { capVisible } from "../../lib/navCap";
+import { deriveAgentSiblings, sameSiblings, type AgentSibling } from "../../lib/agentSiblings";
+import { agentConversationPath } from "../../lib/agentConversation";
 
 function runtimeSelection(agent: AgentState): RuntimeSelection {
   return { backend: agent.backend, model: agent.model, effort: agent.effort ?? "" };
@@ -59,6 +63,14 @@ export function ChatPanel() {
   const [params, setParams] = useSearchParams();
   const agent = useAgentStore((state) => state.agents[id]);
   const agentsHydrated = useAgentStore((state) => state.hydrated);
+  // Keep the previous list while id/name/state are unchanged so other agents'
+  // streaming does not re-render the page (TS-08.R137).
+  const siblingsRef = useRef<AgentSibling[]>([]);
+  const siblings = useAgentStore((state) => {
+    const next = deriveAgentSiblings(state.agents, id);
+    if (!sameSiblings(siblingsRef.current, next)) siblingsRef.current = next;
+    return siblingsRef.current;
+  });
   const pendingAnnotations = useAnnotationStore((state) => state.bySource[id]?.length ?? 0);
   const discardAnnotations = useAnnotationStore((state) => state.discard);
   const events = useTranscriptStore((state) => state.byAgent[id] ?? []);
@@ -285,7 +297,7 @@ export function ChatPanel() {
     // a container query cannot reach it; this is a state attribute of the kind the
     // annotation tray already carries, not a measurement (FS-03.R53, TS-08.R57).
     <section className="chat-panel" data-ui="agent-workspace" data-state="active" data-file-open={openFile ? "true" : undefined} data-variant={agent.interface === "terminal" ? "terminal" : "chat"}>
-      <AgentBreadcrumb backTarget={backTarget} backLabel={projectActive ? "Back to project" : "Back"} project={projectTitle} name={agent.name} agentId={agent.agent_id} />
+      <AgentBreadcrumb backTarget={backTarget} backLabel={projectActive ? "Back to project" : "Back"} project={projectTitle} name={agent.name} agentId={agent.agent_id} siblings={siblings} />
       <AgentStage source={agent.agent_id} onSlots={setPanelSlots}>
       <div className="chat-card">
       <header
@@ -422,16 +434,58 @@ export function ChatPanel() {
 
 // The quiet row above the agent card: Back first, where the agent lives, and its
 // stable id (FS-12.R61). The archived page shares it.
-export function AgentBreadcrumb({ backTarget, backLabel, project, name, agentId }: { backTarget: string; backLabel: string; project?: string; name: string; agentId: string }) {
+// A live page with running siblings swaps the path text for one-click mini
+// agent cards (FS-03.R98, FS-12.R70); the archived page passes none.
+export function AgentBreadcrumb({ backTarget, backLabel, project, name, agentId, siblings }: { backTarget: string; backLabel: string; project?: string; name: string; agentId: string; siblings?: AgentSibling[] }) {
+  const { visible, overflow } = capVisible(siblings ?? [], (entry) => entry.id === agentId);
   return (
     <nav className="chat-breadcrumb" aria-label="Agent location">
       <Link to={backTarget}><BackIcon />{backLabel}</Link>
-      <span className="chat-breadcrumb-path">
-        {project && <>{project}<span className="chat-breadcrumb-slash" aria-hidden="true">/</span></>}
-        {name}
-      </span>
+      {visible.length > 0 ? (
+        <div className="chat-breadcrumb-siblings">
+          {project && <span className="chat-breadcrumb-project" title={project}>{project}</span>}
+          {visible.map((entry) => <AgentMiniCard key={entry.id} entry={entry} current={entry.id === agentId} />)}
+          {overflow.length > 0 && (
+            <OverflowMenu
+              count={overflow.length}
+              label={`${overflow.length} more running ${overflow.length === 1 ? "agent" : "agents"}`}
+              closeKey={agentId}
+              className="chat-breadcrumb-overflow"
+              menuClassName="chat-breadcrumb-menu"
+            >
+              {overflow.map((entry) => <AgentMiniCard key={entry.id} entry={entry} menu />)}
+            </OverflowMenu>
+          )}
+        </div>
+      ) : (
+        <span className="chat-breadcrumb-path">
+          {project && <>{project}<span className="chat-breadcrumb-slash" aria-hidden="true">/</span></>}
+          {name}
+        </span>
+      )}
       <code className="chat-breadcrumb-id">{agentId}</code>
     </nav>
+  );
+}
+
+function AgentMiniCard({ entry, current = false, menu = false }: { entry: AgentSibling; current?: boolean; menu?: boolean }) {
+  const content = <><AgentMonogram name={entry.name} state={entry.state} /><span className="agent-mini-card-name">{entry.name}</span></>;
+  if (current) {
+    return <span className={`agent-mini-card ${entry.state}`} aria-current="page" title={entry.name}>{content}</span>;
+  }
+  return (
+    <Link className={`agent-mini-card ${entry.state}`} to={agentConversationPath(entry.id)} title={entry.name} role={menu ? "menuitem" : undefined}>
+      {content}
+    </Link>
+  );
+}
+
+function AgentMonogram({ name, state }: { name: string; state: string }) {
+  return (
+    <span className={`agent-monogram ${state}`} aria-hidden="true">
+      {(name.match(/[\p{L}\p{N}]/u)?.[0] ?? "·").toUpperCase()}
+      <span className="agent-monogram-dot" />
+    </span>
   );
 }
 
@@ -440,10 +494,7 @@ export function AgentIdentity({ name, state, status, details }: { name: string; 
   const parts = details.filter((part): part is string => !!part);
   return (
     <div data-slot="identity">
-      <span className={`agent-monogram ${state}`} aria-hidden="true">
-        {(name.match(/[\p{L}\p{N}]/u)?.[0] ?? "·").toUpperCase()}
-        <span className="agent-monogram-dot" />
-      </span>
+      <AgentMonogram name={name} state={state} />
       <div className="agent-heading">
         <div className="agent-heading-line">
           <h1>{name}</h1>
