@@ -195,6 +195,15 @@ is still owed for FS-03.R52/A77, TS-03.R40 and TS-08 §2.14. Browser evidence is
   alone and in the full two-worker run. No phone gap code was changed. Diagnose timing or fixture
   isolation before changing production behavior or weakening the test.
 
+### Phone groups, Jump to latest, runtime buttons — commit “phone: collapsed groups, Jump to latest, Send-shaped runtime buttons” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Awaiting review.
+
+FS-20.R47/R54/R43. `groupChoices.ts` now stores expansion (absent = collapsed). `AgentScreen`'s
+scroll saver drives a fixed `.phone-jump-latest` using R54's 48px newest threshold. Model/effort
+buttons draw their surface on `::before` inset 4px (36px visible in the 44px target), shared with the
+jump button. Rendered phone check owed.
+
 ### Phone header slimmed — commit “phone: unframed header, none on agent chats” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Awaiting review.
@@ -356,6 +365,9 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-18 — Phone polish:** groups start collapsed, chats gain Jump to latest, and the
+  model/effort buttons match Send's shape.
 
 - **2026-10-18 — File reader formats and path copying:** JSON Formatted/Source with literal
   preservation, content-sized code backgrounds, validated PNG/JPEG/WebP/GIF previews and Copy
