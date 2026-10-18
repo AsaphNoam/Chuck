@@ -314,6 +314,16 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-18 — Reviewer completion investigation (2026-10-17) closed:** the continued trace
+  confirms the cause. Reviewer `a_123a8f`'s `/review` instruction put Codex into native review
+  mode, and its review child thread (`source: subagent "review"`) ran with
+  `approval_policy: never`. The reviewer's parent thread stayed `on-request`/`auto_review`, from
+  the user's Codex config mirrored by `codexprofile.go`. Chuck sets no approval policy. The
+  17:00Z success came from an ordinary parent turn, not from a policy change. The earlier
+  "never → on-request" reading was wrong. Both findings are already closed as TC-1/TC-4
+  (`4ddedff1`); no fix is open. Residual: the FS-16.A33 live `$review` receipt is still owed, and
+  Codex source for the `never` child was not read. Artifact:
+  `~/.chuck/project-resources/agentdeck-20261007t221535z/investigation-reviewer-completion-2026-10-17/INVESTIGATION.md`.
 - **2026-10-18 — Peer transcript reads and approved Stop fixes (PS-1–PS-6) closed:**
   PS-1 (INV §9, PID liveness is not identity): `peerExecution` refuses a live orphan unless
   `runtime.ProcessIsRecorded` shows its OS start time (darwin sysctl / linux `/proc`) predates the
