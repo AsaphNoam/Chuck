@@ -252,13 +252,43 @@ FS-20.R43. `Shell` in `ui/src/remote/PhoneApp.tsx` omits the header on `/agent/*
 the menu trigger, logo and “Chuck” with no fill, rule, sticky position or “companion” label. The
 annotation pill's sticky offset dropped the 65px header allowance. Rendered phone check owed.
 
-### Agent-created task group placement — commit “tasks: let create_task place its launched agent in a group” — **Fix model:** medium — Codex Terra or Claude Opus.
+### Agent-created task group placement — commit “tasks: let create_task place its launched agent in a group” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-Awaiting review.
+Implementation `2b7dcb24`; independent source review completed 2026-10-19 against FS-16.R50/A34
+and TS-02.R51 (migration 55). New-group launch, trimming, reserved-label refusal and refusal for
+an existing target work through the existing task/launch seams. The unit remains open for TG-1
+and TG-2 below. Live Chucky receipt (asks for a new group, agent lands in it) remains owed; fake
+runtime and tool tests do not claim real-provider adoption.
 
-FS-16.R50/A34, TS-02.R51 (migration 55). `create_task` gains `group`; stored on `tasks.group_name`
-and passed to the dispatcher launch. Task HTTP API and Tasks view deliberately not extended. Live
-Chucky receipt (asks for a new group, agent lands in it) owed.
+Verification: `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 go test ./internal/state ./internal/messaging`
+passes, as do the focused server tests `TestAnAgentCreatedLaunchTaskPlacesItsAgentInANewGroup`
+and `TestAgentCreatedTaskChecksItsLaunchSpecification`. Loopback escalation was needed for the
+HTTP test listeners. A temporary Go overlay test, without repository edits, confirms a 64 KiB
+group is accepted and reread unchanged from SQLite; source:
+`/tmp/chuck-group-review.itGomY/task_http_test.go`.
+
+Local choices accepted: reuse `normalizeGroup`, `insertTaskRowTx`, the durable task launch inputs
+and the existing dispatcher/launch request; leave HTTP authoring and Tasks controls unchanged.
+Invariant sweep: applicable §1, §2, §3, §7, §8, §9, §10, §11, §14, §15, §16 and §17 checked;
+§8/§16 have TG-1 and §10/§11 have TG-2. No applicable surface for §4, §5, §6, §12 or §13.
+
+- **Worth fixing** — TG-1 — **The new group input has no size bound** (INV §8/§16):
+  `internal/server/task_handlers.go:742–748` accepts `create_task.group` through
+  `normalizeGroup` (`internal/server/groups.go:41–49`), which only trims and rejects the reserved
+  label. A tool call containing an oversized label stores it intact in `tasks.group_name`; the
+  dispatcher then copies it into the agent identity published to dashboard clients and group
+  headings. The temporary test confirms acceptance and durable round-trip of 65,536 characters.
+  Existing launch paths share this validation gap, but this change adds an agent-authored ingress.
+  Give group labels a documented bound at the shared validator, reject over-limit values with the
+  typed validation outcome before task insertion, and test the limit and no-write refusal.
+
+- **Worth fixing** — TG-2 — **HTTP read shape contradicts the specified field exclusion**
+  (FS-16.R50; INV §10/§11): `internal/state/tasks.go:130–132` serializes `Group` as `group`, and
+  `internal/server/task_handlers.go:332–335,349–358` embeds that task in detail/list responses.
+  Reading a grouped task therefore adds `group` to the task HTTP API, despite R50 saying that
+  API does not gain the field. HTTP creation and Tasks controls are correctly unchanged. Clarify
+  R50 to exclude only HTTP authoring if the read field is intentional, or omit the field from
+  the HTTP response projection; cover the chosen serialized contract with a focused test.
 
 ### Late tool input CI flake — `bbc8c89c` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -405,6 +435,10 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed agent-created task group placement:** normal launch/refusal paths and
+  focused checks pass. Recorded the unbounded group input (TG-1, INV §8/§16) and the HTTP read
+  contract/spec mismatch (TG-2, INV §10/§11); both are worth fixing. Unit remains open.
 
 - **2026-10-19 — Reviewed phone groups, Jump to latest and runtime buttons:** focused tests and
   the three-appearance phone-width browser checks pass; recorded PHONE-1 because live reply growth
