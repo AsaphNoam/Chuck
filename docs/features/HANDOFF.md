@@ -54,13 +54,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   failure below. Approval for its separate one-line correction is pending; product implementation
   is committed in `8857beb3` and ready for independent review.
 
-- **Breadcrumb sibling-agent switching** —
-  [`breadcrumb-sibling-agent-switching.md`](../ready-changes/breadcrumb-sibling-agent-switching.md)
-  (FS-03.R98/A76, FS-12.R70/A40, TS-08.R137–R138). In progress. Plan: (1) shared cap helper
-  `ui/src/lib/navCap.ts` and `OverflowMenu` disclosure factored from `ProjectNav`; sibling
-  projection `ui/src/lib/agentSiblings.ts`; (2) `AgentBreadcrumb` mini cards + `agent.css`;
-  (3) rendered `fakeacp` pass at 1024/1440 in three appearances, UI closure and `make embed`.
-
 ## Acceptance gates still owed
 
 - **FS-16.A33 — task reporting under real provider policy:** run a credentialed sequential
@@ -164,6 +157,23 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   switch shows it above the composer.
 
 ## Review findings
+
+### Breadcrumb sibling-agent switching — commit “ui: switch between a project's running agents from the breadcrumb” — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Awaiting review.
+
+FS-03.R98/A76, FS-12.R70/A40, TS-08.R137–R138. `AgentBreadcrumb` in `ChatPanel.tsx` renders
+mini cards from `deriveAgentSiblings` (`ui/src/lib/agentSiblings.ts`); `capVisible`
+(`ui/src/lib/navCap.ts`) and `OverflowMenu` (`components/shell/OverflowMenu.tsx`) are now shared
+with `ProjectNav`. Entry state is a class (`agent-mini-card <state>`), not `data-state`, because
+`data-state` is a contracted presentation hook R138 excludes. A −4px block margin keeps the row at
+the text breadcrumb's height. Evidence: `breadcrumb-render.mjs` (210 checks, three appearances at
+1024/1440) and `breadcrumb-live-check.mjs` against the stress fixture. Reviewer note: at 1024px
+names sharing a long prefix (“Stress Worker 0…”) truncate to identical labels; full names stay in
+the tooltip and accessible name as specified. Closure ran on the staged tree: UI suite (956),
+styles and build pass; both Go variants passed; `check-specs` failed then only on PERM-1's missing
+class tag, which a concurrent session has since committed. `make embed` output was left to the
+concurrent file-reader closure sharing the tree.
 
 ### File reader formats and path copying — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -351,6 +361,9 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   preservation, content-sized code backgrounds, validated PNG/JPEG/WebP/GIF previews and Copy
   path. Implementation, focused tests, browser checks, both Go variants and build pass;
   full UI closure is limited by the unchanged transcript assertion above.
+
+- **2026-10-18 — Breadcrumb sibling-agent switching:** the agent page's breadcrumb lists the
+  project's running agents as one-click mini cards with a `+n` menu.
 
 - **2026-10-18 — Phone header slimmed:** no header on agent chats; elsewhere just menu, logo and
   “Chuck” over the background.
