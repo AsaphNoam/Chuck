@@ -254,7 +254,9 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
 
 - **R43 — The companion adopts the Figma mobile composition.** The `/mobile`
   study in AgentDeck — Theme Exploration (`OykxmXqZnnyA67QA1lv3AU`) governs the phone's
-  visual overhaul: a quiet Chuck companion header with a Home/This phone navigation menu,
+  visual overhaul: a quiet unframed header — only the navigation menu trigger, Chuck logo and
+  “Chuck” over the page background, with no bar fill, rule or label — opening a Home/This phone
+  navigation menu, omitted entirely on an agent chat,
   a connected-workspace introduction, separated attention cards, compact project and agent rows,
   clear page identity, quiet Chat/Files/Manage tabs, readable conversation and inset composer,
   pipeline stage summary and progress timeline, phone connection/notification panels, and

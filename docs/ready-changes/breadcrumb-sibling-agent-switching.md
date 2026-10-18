@@ -1,6 +1,6 @@
 # Switch between a project's running agents from the agent page
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request 2026-10-18: navigate between agent chats without going
 through the project page. The operator chose same-project scope, single-click entries, running
 agents only, a `+n` overflow, and a compact card-like look that keeps the page uncluttered.

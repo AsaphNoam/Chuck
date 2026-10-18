@@ -45,7 +45,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-None.
+- **Breadcrumb sibling-agent switching** —
+  [`breadcrumb-sibling-agent-switching.md`](../ready-changes/breadcrumb-sibling-agent-switching.md)
+  (FS-03.R98/A76, FS-12.R70/A40, TS-08.R137–R138). In progress. Plan: (1) shared cap helper
+  `ui/src/lib/navCap.ts` and `OverflowMenu` disclosure factored from `ProjectNav`; sibling
+  projection `ui/src/lib/agentSiblings.ts`; (2) `AgentBreadcrumb` mini cards + `agent.css`;
+  (3) rendered `fakeacp` pass at 1024/1440 in three appearances, UI closure and `make embed`.
 
 ## Acceptance gates still owed
 
@@ -150,6 +155,14 @@ None.
   switch shows it above the composer.
 
 ## Review findings
+
+### Phone header slimmed — commit “phone: unframed header, none on agent chats” — **Fix model:** low — Codex Luna or Claude Sonnet.
+
+Awaiting review.
+
+FS-20.R43. `Shell` in `ui/src/remote/PhoneApp.tsx` omits the header on `/agent/*`; elsewhere it is
+the menu trigger, logo and “Chuck” with no fill, rule, sticky position or “companion” label. The
+annotation pill's sticky offset dropped the 65px header allowance. Rendered phone check owed.
 
 ### Agent-created task group placement — commit “tasks: let create_task place its launched agent in a group” — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -270,6 +283,9 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-18 — Phone header slimmed:** no header on agent chats; elsewhere just menu, logo and
+  “Chuck” over the background.
 
 - **2026-10-18 — Designed breadcrumb sibling-agent switching:** ready change
   `breadcrumb-sibling-agent-switching.md` (FS-03.R98/A76, FS-12.R70/A40, TS-08.R137–R138, all
