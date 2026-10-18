@@ -49,8 +49,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   code backgrounds, PNG/JPEG/WebP/GIF previews and right-click Copy path (FS-03.R52/A77,
   TS-03.R40, TS-08 §2.14). Implementation, 45 focused UI tests, 981 browser checks plus 117
   after the reader-only styling adjustment, the presentation matrix and embedded build pass.
-  Untagged Go closure passes; FTS5 closure is running. Full UI suite has one unchanged-baseline
-  failure below; approval for its separate one-line assertion correction was requested.
+  Both Go closure variants, spec checks and embedded build pass. In progress only for full-suite
+  closure: bounded UI concurrency passes 965/966 tests, with the unchanged-baseline assertion
+  failure below. Approval for its separate one-line correction is pending; product implementation
+  is committed in `8857beb3` and ready for independent review.
 
 - **Breadcrumb sibling-agent switching** —
   [`breadcrumb-sibling-agent-switching.md`](../ready-changes/breadcrumb-sibling-agent-switching.md)
@@ -165,17 +167,23 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ### File reader formats and path copying — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-Implementation checkpoint; final Go closure is running. Independent implementation/rendered review
+Implementation `8857beb3`; Go closure and embedded build pass. Independent implementation/rendered review
 is still owed for FS-03.R52/A77, TS-03.R40 and TS-08 §2.14. Browser evidence is in shared resources
 `file-reader-formats-2026-10-18/` and `file-reader-formats-final-core/`.
 
 - **Worth fixing** — **confirmed pre-existing closure blocker** (INV §17):
   `ui/src/components/chat/TranscriptView.test.tsx:349` asserts that no text matches
   `/could not be loaded/` after withdrawal recovery; the unrelated Think Tank synthesis failure
-  also matches, so the full UI suite fails (964 passing, one failure). The same test fails on an
+  also matches, so the full UI suite fails (965 passing, one failure with two workers). The same test fails on an
   unchanged `6ee5f646` archive. Scope the assertion to the exact withdrawal recovery error while
   preserving the successful-recovery and single-withdraw assertions. No product behavior change
   is needed. User approval for this unrelated one-line test repair is pending; no edit made.
+
+- **Worth fixing** — **intermittent test failure, cause uninvestigated** (INV §17):
+  `ui/src/remote/AgentScreen.test.tsx` “recovers two successive live gaps without losing the
+  loaded history” failed once in the default full UI run on “Gap question 4700”; it passes
+  alone and in the full two-worker run. No phone gap code was changed. Diagnose timing or fixture
+  isolation before changing production behavior or weakening the test.
 
 ### Phone header slimmed — commit “phone: unframed header, none on agent chats” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -339,6 +347,11 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
 
 ## Changelog
 
+- **2026-10-18 — File reader formats and path copying:** JSON Formatted/Source with literal
+  preservation, content-sized code backgrounds, validated PNG/JPEG/WebP/GIF previews and Copy
+  path. Implementation, focused tests, browser checks, both Go variants and build pass;
+  full UI closure is limited by the unchanged transcript assertion above.
+
 - **2026-10-18 — Phone header slimmed:** no header on agent chats; elsewhere just menu, logo and
   “Chuck” over the background.
 
@@ -360,6 +373,11 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   pass. Handoff epoch archived.
 
 ## Blocked on human
+
+- **File reader full UI closure:** permission requested through the asynchronous question to
+  scope the pre-existing withdrawal test assertion to its exact error message (one test line).
+  The four requested product changes are committed and independently reviewable. No unrelated
+  test correction has been made without approval (repository instruction on separate fixes).
 
 The published `v0.11.0` release body remains empty; its notes are in
 [`RELEASE-v0.11.0-notes.md`](../archive/state/RELEASE-v0.11.0-notes.md).

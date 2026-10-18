@@ -205,8 +205,11 @@ sensitive-context sharing is a practical problem.
   authorization for an absolute target.
 
   The widened authority changes none of the content-safety or network boundaries. The response is
-  still bounded UTF-8 JSON for a verified regular descriptor, never caller-typed file bytes;
-  directories and special files are refused without a content read, and no listing, browsing,
+  still bounded UTF-8 JSON for a verified regular descriptor, never caller-typed file bytes.
+  FS-03.R52 image previews carry only attachment-validated raster bytes as base64 inside that JSON,
+  under TS-03.R40's image size/pixel bounds. Other binary files remain refused. SVG remains source
+  text, and no unvalidated image bytes or active document content render inline.
+  Directories and special files are refused without a content read, and no listing, browsing,
   writing, execution, durable access history, or automatic agent-visible content is added. The
   whole loopback mux remains behind `localOnly`, so R2 still rejects DNS-rebinding Host values and
   cross-origin browser requests, while TS-13.R5's separately authenticated tailnet chain keeps the

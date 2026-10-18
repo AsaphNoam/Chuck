@@ -509,7 +509,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   clicking. The viewer names the reason for each refusal in its own surface, leaving the transcript
   readable: a path outside the working directory, a file that no longer exists, a recorded working
   directory that is gone (as a long-archived session's may be), a directory rather than a file,
-  content that is not text, and a file whose beginning is shown because it exceeds the read limit —
+  content that is neither text nor an R52-supported image, and a file whose beginning is shown because it exceeds the read limit —
   labelled as a partial read rather than presented as the whole file. A stopped or archived agent
   reads from its recorded working directory exactly as a running one does, because reading back
   through what an agent did is when these links matter most. Nothing here is durable: no database
@@ -518,15 +518,15 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 
 - **R64 (shipped 2026-09-30) — Conversation file reads are unrestricted by project roots.** This supersedes
   R55's working-directory and `.git` containment when it ships. A local filesystem link may name
-  any regular UTF-8 file the Chuck process can read, including a file outside every configured
+  any regular UTF-8 file or R52-supported image the Chuck process can read, including a file outside every configured
   project or `add_dirs`, a path reached through a symlink, and a file inside `.git`. Relative paths
   still resolve from the session's recorded working directory; absolute and local `file://` paths need no
   session-root authorization. The viewer shows the normalized path spelling used for the read —
   absolute for an absolute or local `file://` link and workspace-relative for a relative link — and keeps it in
   `?file=` so reload and browser history still work, and reads only on open or explicit **Reload**.
   A hand-edited local request has the same reach as a clicked agent-authored link: no confirmation
-  or transcript-origin check is added. The read stays bounded, read-only, and text-only; missing or
-  unreadable files, directories, sockets, FIFOs, other non-regular files, and non-UTF-8 content keep
+  or transcript-origin check is added. The read stays bounded and read-only; missing or
+  unreadable files, directories, sockets, FIFOs, other non-regular files, and unsupported binary content keep
   their stated refusals, while an oversized text file keeps its labelled partial result. Composer
   file search remains working-directory-confined under R34, no directory browsing or path
   discovery is added, no remote-control route gains file-reading authority, and no file content or

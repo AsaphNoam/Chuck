@@ -602,9 +602,10 @@ links resolve from that returned spelling.
 
 The route follows symlinks and admits `.git` exactly like any other path. It classifies the target
 before opening so an already-known directory, socket, FIFO, or other non-regular file is never
-opened, then verifies the opened descriptor is still regular before reading it. The explicit
+opened, then verifies the opened descriptor is still regular before reading it. For text, the explicit
 `fileReadLimit+1` admission bound, UTF-8 validation, truncation label, metadata source, JSON-only
 response, language-by-extension hint, and per-refusal local log stay unchanged (INV §8/§16).
+Supported images use R40's validated image payload and attachment bounds instead of the text bound.
 `path_refused` is no longer an outside-workspace or `.git` outcome; missing, unreadable,
 non-regular, non-text, malformed, and relative-without-workspace cases retain R40's typed errors.
 No directory listing, browsing, writing, download, watch, polling, origin proof, or per-read
