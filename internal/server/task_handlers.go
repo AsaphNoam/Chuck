@@ -723,6 +723,9 @@ func (s *Server) CreateAgentTask(req messaging.AgentTaskRequest) (state.Task, er
 		if ae := rejectLiveSettingsOnExistingTarget(req.Effort, req.Fast); ae != nil {
 			return state.Task{}, &messaging.ToolError{Code: "validation", Message: ae.Message}
 		}
+		if strings.TrimSpace(req.Group) != "" {
+			return state.Task{}, &messaging.ToolError{Code: "validation", Message: "group applies only to a newly launched agent"}
+		}
 		task.TargetKind, task.TargetAgentID = state.TargetAgent, agent.AgentID
 	} else {
 		role := strings.TrimSpace(req.Role)
@@ -736,8 +739,13 @@ func (s *Server) CreateAgentTask(req messaging.AgentTaskRequest) (state.Task, er
 			return state.Task{}, taskSpecToolError(ae)
 		}
 		task.TargetKind, task.Role, task.Backend, task.Model = state.TargetLaunch, role, req.Backend, req.Model
+		group, ae := normalizeGroup(req.Group)
+		if ae != nil {
+			return state.Task{}, &messaging.ToolError{Code: "validation", Message: ae.Message}
+		}
 		task.Effort = req.Effort
 		task.Fast = req.Fast
+		task.Group = group
 	}
 	if len(req.Attachments) > maxTaskAttachments {
 		return state.Task{}, &messaging.ToolError{Code: "validation", Message: "too many attachments"}

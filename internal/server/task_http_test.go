@@ -1020,6 +1020,11 @@ func TestAgentCreatedTaskChecksItsLaunchSpecification(t *testing.T) {
 		{"effort with an existing target", func(r *messaging.AgentTaskRequest) {
 			r.TargetAgentID, r.Effort = creator, "high"
 		}, "effort"},
+		// FS-16.A34 (R50) — a group only places a newly launched agent.
+		{"group with an existing target", func(r *messaging.AgentTaskRequest) {
+			r.TargetAgentID, r.Group = creator, "reviewers"
+		}, "group"},
+		{"reserved group label", func(r *messaging.AgentTaskRequest) { r.Group = "_ungrouped" }, "group"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := base()

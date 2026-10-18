@@ -800,6 +800,12 @@ ALTER TABLE think_tanks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';`,
 		version: 54,
 		apply:   migrateQuotaChecks,
 	},
+	{
+		// A launch-spec task names the dashboard group of the agent it starts
+		// (FS-16.R50). Empty is ungrouped, so existing rows launch as before.
+		version: 55,
+		sql:     `ALTER TABLE tasks ADD COLUMN group_name TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // migrateQuotaChecks rebuilds quota_intents for the check chain and its

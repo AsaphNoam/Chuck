@@ -718,6 +718,11 @@ non-persistence; the operator accepts explicitly named Codex native archived pro
 FS-01.R51. Do not purge those archives or promise permanent deletion. Existing transcript notice
 retention is unchanged. FS-01.A32/A34 exercise migration, no budget reset, teardown and crash gaps.
 
+**R51 (implemented 2026-10-18; migration 55) — A launch task stores its requested group.** For
+FS-16.R50, `tasks.group_name TEXT NOT NULL DEFAULT ''` holds the normalized project group beside the
+other durable launch inputs (R30), so a task admitted after restart launches into the group it was
+created with. Empty is ungrouped; existing rows adopt it unchanged.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

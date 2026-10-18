@@ -12,6 +12,7 @@ import (
 
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/configsource"
+	"github.com/AsaphNoam/Chuck/internal/messaging"
 	"github.com/AsaphNoam/Chuck/internal/pipeline"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -1010,6 +1011,32 @@ func TestALaunchTaskStartsItsAgentAtTheStoredEffort(t *testing.T) {
 				t.Fatalf("task agent effort = %q, want %q", agent.Effort, tt.want)
 			}
 		})
+	}
+}
+
+// FS-16.A34 (R50) — an agent-created launch task naming a group no agent carries
+// yet launches its agent into that new group, with the label trimmed.
+func TestAnAgentCreatedLaunchTaskPlacesItsAgentInANewGroup(t *testing.T) {
+	srv, _, _ := activationTestServer(t)
+	task, err := srv.CreateAgentTask(messaging.AgentTaskRequest{
+		CreatorAgentID: "creator", Project: "tmpproj", DisplayName: "grouped work",
+		Instruction: "do it", Role: "impl", Group: "  reviewers ",
+	})
+	if err != nil {
+		t.Fatalf("CreateAgentTask: %v", err)
+	}
+	if task.Group != "reviewers" {
+		t.Fatalf("stored group = %q, want %q", task.Group, "reviewers")
+	}
+
+	srv.dispatchReadyTasks(context.Background())
+	running := waitTaskState(t, srv, task.TaskID, state.TaskRunning)
+	agent, err := srv.stateStore.ReadAgent(running.AssignedAgentID)
+	if err != nil {
+		t.Fatalf("ReadAgent: %v", err)
+	}
+	if agent.Group != "reviewers" {
+		t.Fatalf("task agent group = %q, want %q", agent.Group, "reviewers")
 	}
 }
 

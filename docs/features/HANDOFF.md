@@ -151,6 +151,14 @@ None.
 
 ## Review findings
 
+### Agent-created task group placement — commit “tasks: let create_task place its launched agent in a group” — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Awaiting review.
+
+FS-16.R50/A34, TS-02.R51 (migration 55). `create_task` gains `group`; stored on `tasks.group_name`
+and passed to the dispatcher launch. Task HTTP API and Tasks view deliberately not extended. Live
+Chucky receipt (asks for a new group, agent lands in it) owed.
+
 ### Late tool input CI flake — `bbc8c89c` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Worth fixing** — CI-1: `TestCanceledTurnsReleaseToolInput` flakes in CI (TS-04.R98; INV §17). Main
@@ -262,6 +270,9 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-18 — Chucky group placement:** `create_task` can name a (new or existing) project group
+  for the agent it launches; operating guidance tells agents to use it instead of the CLI.
 
 - **2026-10-18 — Investigated prompt/harness performance:** confirmed native Codex configured
   instruction loss (PROMPT-1), recorded the diagnostic gap (PROMPT-2), separated the historical

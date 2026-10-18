@@ -536,11 +536,16 @@ func TestCreateTaskCarriesTheRequestedEffort(t *testing.T) {
 	res, isErr := call(t, impl, "create_task", map[string]any{
 		"display_name": "think hard", "instruction": "reason about it",
 		"role": "implementer", "backend": "claude", "model": "opus", "effort": "high",
+		"group": "reviewers",
 	})
 	if isErr || res["ok"] != true {
 		t.Fatalf("create_task = %v", res)
 	}
 	if got := control.created; got.Effort != "high" || got.Backend != "claude" || got.Model != "opus" {
 		t.Fatalf("launch specification = %q/%q/%q, want claude/opus/high", got.Backend, got.Model, got.Effort)
+	}
+	// FS-16.A34 (R50) — the dashboard group reaches the task control plane.
+	if got := control.created.Group; got != "reviewers" {
+		t.Fatalf("group = %q, want reviewers", got)
 	}
 }

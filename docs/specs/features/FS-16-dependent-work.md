@@ -363,6 +363,16 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   the assignee's skill form (Codex `$name`), since a provider-native mode such as Codex `/review`
   may be unable to call Chuck tools and so can never report. R3 is unchanged: idle or final text
   still records no outcome.
+- **R50 (shipped 2026-10-18) — A launch specification names its dashboard group.** The scoped `create_task`
+  tool accepts an optional group for the agent a launch-spec task starts, so an orchestrating agent
+  such as Chucky places the work it delegates into a project group itself instead of telling the
+  user to use the CLI. The label is the same project-scoped group FS-01's launch `--group` sets:
+  naming a label no agent carries yet creates that group, and surrounding whitespace is trimmed.
+  It is chosen once, stored on the durable task row, and applied when Chuck launches the task's
+  agent; an empty group launches ungrouped exactly as today. The reserved ungrouped label is
+  rejected at creation with R20's validation error, and naming a group together with an existing
+  agent target is rejected under R20 rather than silently dropped — regrouping an existing agent
+  stays an identity edit. The task HTTP API and Tasks view do not gain this field.
 
 ## 3. States & transitions
 
@@ -711,6 +721,9 @@ Each names the verification that demonstrates it.
   in their activation. *Verify:* `internal/server/task_dispatch_test.go`. A credentialed Codex
   assignee given a `$review` skill instruction reads its task and records a result under the real
   provider approval policy (live receipt owed).
+- **A34 (shipped 2026-10-18)** (R50) — An agent's `create_task` naming a new group launches its agent inside that group;
+  the reserved label and a group on an existing-agent target are refused without creating a task.
+  *Verify:* `internal/server/task_dispatch_test.go` and `internal/messaging/task_tools_test.go`.
 
 ## 6. Deviations & open decisions
 
