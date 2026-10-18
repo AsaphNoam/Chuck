@@ -244,14 +244,6 @@ No applicable surface for §3, §5, §6, §7, §9, §11, §12, §14 or §15.
   without dispatching a synthetic scroll, checks the button appears, and verifies jumping hides it.
   This is a localized visibility-state fix at the existing scroll seam.
 
-### Phone header slimmed — commit “phone: unframed header, none on agent chats” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Awaiting review.
-
-FS-20.R43. `Shell` in `ui/src/remote/PhoneApp.tsx` omits the header on `/agent/*`; elsewhere it is
-the menu trigger, logo and “Chuck” with no fill, rule, sticky position or “companion” label. The
-annotation pill's sticky offset dropped the 65px header allowance. Rendered phone check owed.
-
 ### Agent-created task group placement — commit “tasks: let create_task place its launched agent in a group” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Implementation `2b7dcb24`; independent source review completed 2026-10-19 against FS-16.R50/A34
@@ -435,6 +427,20 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed phone header slimmed; unit closed:** implementation `caf4a008`
+  matches FS-20.R43 and TS-08.R111/R134; no findings. **Fix model:** trivial/easy — Claude
+  Sonnet or Codex Luna (no open fixes). Independent source review, 16 `PhoneApp` tests,
+  46 style/presentation checks and 66 approved loopback Chromium checks pass. Actual phone entry
+  at 360/390/430px in Core, Sky & Grove and Studio verifies transparent/unframed header,
+  Home/This phone navigation, agent-route omission, back navigation and the pending-annotation
+  pill sticking at 8px and reopening its sheet. Representative screenshots inspected; development
+  matrix renders at 1024px in all appearances. Evidence:
+  `/tmp/chuck-header-review-20261019/{report.json,*.png}`; harness:
+  `/tmp/chuck-header-review.mjs`. API data is stubbed; no native-device acceptance claim.
+  Local choices accepted: route-match reuse, existing agent back chevron and local sticky spacing;
+  no new mechanism or motion. Invariant sweep: §8, §10, §13 and §17 checked; no applicable surface
+  for §1–§7, §9, §11–§12 or §14–§16. Other units and acceptance gates are unchanged.
 
 - **2026-10-19 — Reviewed agent-created task group placement:** normal launch/refusal paths and
   focused checks pass. Recorded the unbounded group input (TG-1, INV §8/§16) and the HTTP read
