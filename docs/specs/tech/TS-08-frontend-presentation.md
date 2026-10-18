@@ -1489,6 +1489,16 @@ only existing state-color/typographic feedback changes, and reduced motion loses
 
 ### 2.14 Resizable file reader and focused reading
 
+The shared reader formats complete valid JSON for display only, retaining exact Source text and
+source line numbers for citations and annotations. Formatted JSON has no source-line annotation
+mapping; whitespace-only formatting preserves literal numbers and escapes, falls back to Source
+above 128 nesting levels or 2 MiB of formatted text, and retains its scroll offset across display
+changes. Supported image payloads use host-validated bytes and an owned Blob URL, revoked when the
+snapshot changes or unmounts; previews fit the document width and preserve aspect ratio. Code
+surfaces use content width bounded by the reader, with local horizontal scrolling. The existing
+Markdown offer/claim context-menu seam composes Copy path with annotation actions, resolving
+rendered-document-relative file targets through `resolveFromFile` before opening or copying.
+
 - **R127 — Extend the existing workspace and retain one read owner.**
   FS-03.R92–R97 extends `AgentStage`, `TranscriptView`, `FileViewer` and `AnnotationTray` on live
   and archived desktop agent pages. A feature-owned reader workspace under `TranscriptView`

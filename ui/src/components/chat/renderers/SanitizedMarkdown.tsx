@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ComponentProps } from "react";
+import { useMemo, useRef, useState, type ComponentProps, type MouseEvent as ReactMouseEvent } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import type { Components } from "react-markdown";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import type { Element } from "hast";
 import { CodeBlock } from "./CodeBlock";
 import { MermaidDiagram } from "./MermaidDiagram";
-import { classifyFileLink, type FileLink } from "./filePath";
+import { classifyFileLink, resolveFromFile, type FileLink } from "./filePath";
 import { PointerContextMenu, type PointerMenuState } from "../../ui/PointerContextMenu";
 import { offerWebLink, webLinkActions } from "../../../lib/linkActions";
 import { useUiStore } from "../../../store/uiStore";
@@ -75,7 +75,7 @@ function WebLink({ href, children, ...rest }: ComponentProps<"a"> & { href: stri
   );
 }
 
-export function SanitizedMarkdown({ text, onOpenFile, agentId }: { text: string; onOpenFile?: (link: FileLink) => void; agentId?: string }) {
+export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath }: { text: string; onOpenFile?: (link: FileLink) => void; agentId?: string; sourcePath?: string }) {
   // The component map must stay referentially stable for the life of the message: a new map
   // remounts every block under it, so rebuilding it per streamed delta drops a settled diagram
   // back to source and repeats main-thread Mermaid work (FS-03.R37, TS-08.R40). The fence check
@@ -86,6 +86,14 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId }: { text: string;
   openRef.current = onOpenFile;
   const agentRef = useRef(agentId);
   agentRef.current = agentId;
+  const sourcePathRef = useRef(sourcePath);
+  sourcePathRef.current = sourcePath;
+  const [menu, setMenu] = useState<PointerMenuState | null>(null);
+  const pushError = useUiStore((state) => state.pushError);
+  const onPathContextMenu = (mouse: ReactMouseEvent<HTMLButtonElement | HTMLSpanElement>) => {
+    const { clientX: x, clientY: y } = mouse;
+    offerWebLink(mouse, (path) => setMenu({ x, y, actions: webLinkActions(path, pushError) }));
+  };
   const components = useMemo<Components>(() => ({
     code({ className, children, node }) {
       const match = /language-(\w+)/.exec(className ?? "");
@@ -111,15 +119,19 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId }: { text: string;
     // and rejected URLs keep plain anchor behavior.
     a({ href, children, node, ...rest }) {
       void node;
-      const link = classifyFileLink(href);
+      const classified = classifyFileLink(href);
+      const link = classified && sourcePathRef.current
+        ? { ...classified, path: resolveFromFile(sourcePathRef.current, classified.path) }
+        : classified;
       if (!link && href && WEB_LINK.test(href)) return <WebLink href={href} {...rest}>{children}</WebLink>;
       if (!link) return <a href={href} {...rest}>{children}</a>;
-      if (!openRef.current) return <span className="file-link">{children}</span>;
+      if (!openRef.current) return <span className="file-link" data-file-path={link.path} onContextMenu={onPathContextMenu}>{children}</span>;
       return (
         <button
           type="button"
           className="file-link"
           data-file-path={link.path}
+          onContextMenu={onPathContextMenu}
           onClick={() => openRef.current?.(link)}
         >
           {children}
@@ -128,13 +140,16 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId }: { text: string;
     },
   }), []);
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[[rehypeSanitize, IMAGE_SCHEMA]]}
-      urlTransform={transformUrl}
-      components={components}
-    >
-      {text}
-    </ReactMarkdown>
+    <>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[[rehypeSanitize, IMAGE_SCHEMA]]}
+        urlTransform={transformUrl}
+        components={components}
+      >
+        {text}
+      </ReactMarkdown>
+      <PointerContextMenu menu={menu} onClose={() => setMenu(null)} />
+    </>
   );
 }

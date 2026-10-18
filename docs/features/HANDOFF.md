@@ -45,6 +45,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
+- **File reader formats and path copying** — user-requested JSON formatting, content-sized
+  code backgrounds, PNG/JPEG/WebP/GIF previews and right-click Copy path (FS-03.R52/A77,
+  TS-03.R40, TS-08 §2.14). Implementation, 45 focused UI tests, 981 browser checks plus 117
+  after the reader-only styling adjustment, the presentation matrix and embedded build pass.
+  Untagged Go closure passes; FTS5 closure is running. Full UI suite has one unchanged-baseline
+  failure below; approval for its separate one-line assertion correction was requested.
+
 - **Breadcrumb sibling-agent switching** —
   [`breadcrumb-sibling-agent-switching.md`](../ready-changes/breadcrumb-sibling-agent-switching.md)
   (FS-03.R98/A76, FS-12.R70/A40, TS-08.R137–R138). In progress. Plan: (1) shared cap helper
@@ -155,6 +162,20 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   switch shows it above the composer.
 
 ## Review findings
+
+### File reader formats and path copying — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Implementation checkpoint; final Go closure is running. Independent implementation/rendered review
+is still owed for FS-03.R52/A77, TS-03.R40 and TS-08 §2.14. Browser evidence is in shared resources
+`file-reader-formats-2026-10-18/` and `file-reader-formats-final-core/`.
+
+- **Worth fixing** — **confirmed pre-existing closure blocker** (INV §17):
+  `ui/src/components/chat/TranscriptView.test.tsx:349` asserts that no text matches
+  `/could not be loaded/` after withdrawal recovery; the unrelated Think Tank synthesis failure
+  also matches, so the full UI suite fails (964 passing, one failure). The same test fails on an
+  unchanged `6ee5f646` archive. Scope the assertion to the exact withdrawal recovery error while
+  preserving the successful-recovery and single-withdraw assertions. No product behavior change
+  is needed. User approval for this unrelated one-line test repair is pending; no edit made.
 
 ### Phone header slimmed — commit “phone: unframed header, none on agent chats” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -304,7 +325,7 @@ permission request to the operator. The reporter's other five personas each carr
 Chuck-owned `CODEX_HOME`, but approval requests still arrive at Chuck's gate). Whether
 codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once Chuck's gate applies.
 
-- **Worth fixing** — PERM-1 — **confirmed spec gap**: the inherited global policy has no
+- **Worth fixing** — PERM-1 — **confirmed spec gap** (no invariant class): the inherited global policy has no
   first-party control. `PUT /api/config` accepts `skip_permissions`
   (`internal/server/config_handlers.go:83`), but no Settings surface edits it, and FS-04.R57
   hides the canonical Default from persona management, so No persona's effective policy can only

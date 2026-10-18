@@ -468,6 +468,14 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   file — so the panel states when its content was read, and a file the agent rewrites afterwards
   keeps showing the earlier read until it is reloaded. The viewer never writes, creates, renames,
   deletes, downloads, or runs anything, and offers no directory browsing.
+  Valid, complete JSON additionally opens in a two-space **Formatted** view, with **Source**
+  preserving exact text and source line citations; malformed or truncated JSON stays Source.
+  Code backgrounds fit short listings and scroll locally for wide listings. PNG, JPEG, WebP
+  and GIF files display an aspect-preserving image preview instead of source text, with Reload
+  and a readable failure state. Image validation and limits are the existing attachment rules.
+  Local file links offer **Copy path** on right-click alongside applicable selection and
+  annotation actions. It copies the path without a line suffix, resolved relative to the open
+  document for rendered-file links; clipboard failures use the existing Copy failed feedback.
 - **R53** — **The viewer sits beside the transcript, never inside it.**
   While a file is open on the agent screen or the archived-agent screen, the viewer is a full-height
   column along the **left** edge of the transcript region and the transcript reflows into the
@@ -1401,6 +1409,16 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   (including the current one) and a keyboard-operable `+2`. A project's only running agent shows
   the unchanged breadcrumb; archived pages are unchanged. *Verify:* focused breadcrumb/ChatPanel
   component tests and one rendered pass with `fakeacp` agents at 1024px.
+
+- **A77** (R52) — Open compact JSON and switch Formatted/Source; Source preserves the exact
+  text and a cited source line still scrolls and marks correctly. Invalid and truncated JSON
+  remain source. Short code has a content-sized background and long code scrolls locally. Open
+  a supported raster image, Reload it, and replace/close it; verify fitted aspect ratio, decode
+  failure feedback and Blob URL cleanup. Corrupt/oversized images are refused. Right-click a
+  file link with and without a selection: Copy path copies its target without a line suffix,
+  rendered-file-relative targets resolve against that file, and annotation and Copy failed
+  feedback remain usable. *Verify:* `FileViewer.test.tsx`, `webLinks.test.tsx`,
+  `internal/server/fileread_test.go`, and `file-reader-journey.mjs` across desktop appearances.
 
 A76 is covered by `ui/src/lib/agentSiblings.test.ts`, the `ChatPanel sibling agents` tests and
 `ui/scripts/breadcrumb-live-check.mjs` against the stress fixture's seven `fakeacp` agents.

@@ -114,6 +114,8 @@ function apiHandler(skin, reads) {
       reads.push(requested);
       if (requested.endsWith("refused.md")) return route.fulfill({ status: 422, json: { error: { code: "path_refused", message: "that path is outside this agent's working directory" } } });
       const content = requested.endsWith("other.md") ? OTHER_MD : FILE_MD;
+      if (requested.endsWith("short.go")) return route.fulfill({ json: { agent_id: file[1], path: requested, size: 12, mod_time: AT, line_count: 1, content: "func Read() {}", truncated: false, language: "go" } });
+      if (requested.endsWith("data.json")) return route.fulfill({ json: { agent_id: file[1], path: requested, size: 40, mod_time: AT, line_count: 1, content: '{"name":"Chuck","items":[1,2,3]}', truncated: false, language: "json" } });
       return route.fulfill({ json: {
         agent_id: file[1], path: requested, size: content.length, mod_time: AT, line_count: content.split("\n").length,
         content, truncated: requested.endsWith("partial.md"), language: "markdown",
@@ -595,6 +597,7 @@ async function main() {
   try {
     for (const skin of SKINS) {
       if (only && skinLabel(skin) !== only) continue;
+      await runFormats(browser, skin);
       for (const width of (process.argv[4] ? [Number(process.argv[4])] : [1024, 1440, 2137])) {
         await run(browser, skin, width, false);
         await run(browser, skin, width, true);
@@ -610,6 +613,52 @@ async function main() {
   console.log(`\nwrote ${checks.length} checks, ${checks.filter((c) => !c.pass).length} failing`);
   console.log(`out dir: ${OUT_DIR}`);
   if (checks.some((c) => !c.pass)) process.exitCode = 1;
+}
+
+async function runFormats(browser, skin) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 900 } });
+  await hydrate(context, [makeAgent("a1")]);
+  const reads = [];
+  await context.route((u) => u.pathname.startsWith("/api/"), apiHandler(skin, reads));
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await page.goto(`${BASE}/agent/a1?file=docs/data.json`);
+    await page.getByRole("button", { name: "Formatted", exact: true }).waitFor();
+    record(`${skinLabel(skin)}: JSON formatted`, (await page.locator(".file-viewer-body code").textContent()).includes('\n  "name": "Chuck"'));
+    await page.getByRole("button", { name: "Source", exact: true }).click();
+    record(`${skinLabel(skin)}: JSON exact source`, (await page.locator(".file-viewer-body code").textContent()).includes('{"name":"Chuck","items":[1,2,3]}'));
+    await page.goto(`${BASE}/agent/a1?file=short.go`);
+    await page.locator('[data-file-line="1"]').waitFor();
+    const compact = await page.evaluate(() => {
+      const body = document.querySelector(".file-viewer-body");
+      const code = body.querySelector('div[class*="language-"]');
+      return code.getBoundingClientRect().width < body.clientWidth - 20;
+    });
+    record(`${skinLabel(skin)}: short code background fits content`, compact);
+    await page.screenshot({ path: join(OUT_DIR, `${skinLabel(skin)}-compact-code.png`) });
+    const data = await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 800; canvas.height = 300;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#c6dfd2"; ctx.fillRect(0, 0, 800, 300);
+      ctx.fillStyle = "#163b2c"; ctx.font = "48px sans-serif"; ctx.fillText("Image reader preview", 50, 165);
+      return canvas.toDataURL("image/png").split(",")[1];
+    });
+    await context.route((u) => u.pathname.endsWith("/file") && u.searchParams.get("path") === "preview.png", (route) => route.fulfill({ json: { agent_id: "a1", path: "preview.png", size: 1000, mod_time: AT, line_count: 0, content: "", truncated: false, language: "", image: { mime_type: "image/png", data } } }));
+    await page.goto(`${BASE}/agent/a1?file=preview.png`);
+    const image = page.getByRole("img", { name: "preview.png" });
+    await image.waitFor();
+    await page.waitForFunction(() => document.querySelector(".file-viewer-image")?.naturalWidth === 800);
+    const fits = await image.evaluate((img) => img.width <= img.parentElement.clientWidth && Math.abs(img.width / img.height - 8 / 3) < 0.05);
+    record(`${skinLabel(skin)}: image fits and preserves aspect ratio`, fits);
+    await page.screenshot({ path: join(OUT_DIR, `${skinLabel(skin)}-image-preview.png`) });
+    await page.getByRole("button", { name: "Reload", exact: true }).click();
+    await image.waitFor();
+    record(`${skinLabel(skin)}: image reload`, reads.length >= 2 && await image.count() === 1);
+    record(`${skinLabel(skin)}: format journeys no browser errors`, errors.length === 0, errors.join("; "));
+  } finally { await context.close(); }
 }
 
 main().catch((err) => {

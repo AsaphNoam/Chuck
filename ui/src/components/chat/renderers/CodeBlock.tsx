@@ -4,15 +4,17 @@ import { syntaxTheme } from "../../../presentation/integrations";
 // The one highlighter call in the product. A transcript fence uses its bare form;
 // the file viewer adds line numbers and marks a cited line through the same
 // component rather than a second highlighter (FS-03.R52, TS-08.R57, INV §2).
-export function CodeBlock({ language, children, showLineNumbers = false, markedLine }: {
+export function CodeBlock({ language, children, showLineNumbers = false, markedLine, className }: {
   language: string;
   children: string;
   showLineNumbers?: boolean;
   markedLine?: number;
+  className?: string;
 }) {
   return (
     <SyntaxHighlighter
       language={language}
+      className={className}
       PreTag="div"
       style={syntaxTheme}
       showLineNumbers={showLineNumbers}

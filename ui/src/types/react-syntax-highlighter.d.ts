@@ -7,6 +7,7 @@ declare module "react-syntax-highlighter" {
     children?: ReactNode;
     language?: string;
     PreTag?: string;
+    className?: string;
     style?: Record<string, CSSProperties>;
     // Line numbering and per-line props back the file viewer's line-numbered,
     // line-marked body (FS-03.R52). wrapLines must be on for lineProps to apply.

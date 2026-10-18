@@ -1628,8 +1628,15 @@ a.agent-mini-card:focus-visible {
 }
 
 .file-viewer-body > div[class*="language-"] {
+  width: fit-content;
   max-width: 100%;
   overflow-x: auto;
+}
+
+.file-viewer-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }
 
 /* Rendered Markdown reads as a document at the ordinary chat size, without the
@@ -1678,6 +1685,7 @@ a.agent-mini-card:focus-visible {
 }
 
 .file-viewer-rendered pre {
+  width: fit-content;
   max-width: 100%;
   min-width: 0;
 }

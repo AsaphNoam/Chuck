@@ -260,7 +260,8 @@ export interface TrackedFile {
 // FileContent is GET /api/sessions/{id}/file's success payload (TS-03.R40).
 // `path` is the relative form the viewer displays, `truncated` marks a bounded
 // partial read of a larger file, and `language` is an extension-derived
-// highlighting hint — empty when the extension is unknown.
+// highlighting hint — empty when the extension is unknown. A validated raster
+// image instead has empty text and an optional base64 image snapshot.
 export interface FileContent {
   agent_id: string;
   path: string;
@@ -270,6 +271,7 @@ export interface FileContent {
   content: string;
   truncated: boolean;
   language: string;
+  image?: { mime_type: string; data: string };
 }
 
 // AvailableCommand is one entry of the composer `#` command picker: an ACP

@@ -53,6 +53,68 @@ function refuse(code: string, message: string, status = 422) {
 }
 
 describe("FileViewer", () => {
+  it("formats complete JSON and keeps exact Source and cited line numbering", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const content = '{"name":"Chuck","items":[1,2]}';
+    server.use(http.get("/api/sessions/:id/file", () => HttpResponse.json(fileBody({ path: "data.json", content, language: "json" }))));
+    const view = render(<FileViewer agentId="a_1" link={{ path: "data.json" }} onClose={vi.fn()} />);
+    await screen.findByRole("group", { name: "JSON display" });
+    expect(document.querySelector(".file-viewer-body code")?.textContent).toBe('{\n  "name": "Chuck",\n  "items": [\n    1,\n    2\n  ]\n}');
+    expect(document.querySelector("[data-file-line]")).toBeNull();
+    const body = document.querySelector<HTMLElement>(".file-viewer-body")!;
+    body.scrollTop = 40;
+    fireEvent.scroll(body);
+    fireEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(document.querySelector(".file-viewer-body code")?.textContent).toContain(content);
+    fireEvent.click(screen.getByRole("button", { name: "Formatted" }));
+    expect(body.scrollTop).toBe(40);
+    view.rerender(<FileViewer agentId="a_1" link={{ path: "data.json", line: 1 }} onClose={vi.fn()} />);
+    expect(document.querySelector('[data-file-marked="true"]')).not.toBeNull();
+  });
+
+  it.each([{ content: '{"incomplete":', truncated: false }, { content: '{"valid":true}', truncated: true }, { content: "[".repeat(129) + "0" + "]".repeat(129), truncated: false }])("keeps unformattable JSON as source: %j", async (partial) => {
+    server.use(http.get("/api/sessions/:id/file", () => HttpResponse.json(fileBody({ path: "data.json", language: "json", ...partial }))));
+    render(<FileViewer agentId="a_1" link={{ path: "data.json" }} onClose={vi.fn()} />);
+    await screen.findByText("data.json");
+    await waitFor(() => expect(document.querySelector("[data-file-line]")).not.toBeNull());
+    expect(screen.queryByRole("button", { name: "Formatted" })).not.toBeInTheDocument();
+  });
+
+  it("preserves large numbers, duplicate keys and string escapes while formatting JSON", async () => {
+    const content = '{"id":12345678901234567890,"id":1e999,"text":"[a,b]\\u0020"}';
+    server.use(http.get("/api/sessions/:id/file", () => HttpResponse.json(fileBody({ path: "ids.json", content, language: "json" }))));
+    render(<FileViewer agentId="a_1" link={{ path: "ids.json" }} onClose={vi.fn()} />);
+    await screen.findByRole("button", { name: "Formatted" });
+    expect(document.querySelector(".file-viewer-body code")?.textContent).toBe('{\n  "id": 12345678901234567890,\n  "id": 1e999,\n  "text": "[a,b]\\u0020"\n}');
+  });
+
+  it("previews image snapshots, reports decode failures, and releases their object URLs", async () => {
+    const create = vi.fn(() => "blob:reader-image");
+    const revoke = vi.fn();
+    const oldCreate = URL.createObjectURL;
+    const oldRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = create;
+    URL.revokeObjectURL = revoke;
+    try {
+      server.use(http.get("/api/sessions/:id/file", () => HttpResponse.json(fileBody({ path: "image.png", content: "", line_count: 0, image: { mime_type: "image/png", data: "aW1hZ2U=" } }))));
+      const view = render(<FileViewer agentId="a_1" link={{ path: "image.png" }} onClose={vi.fn()} />);
+      const image = await screen.findByRole("img", { name: "image.png" });
+      await waitFor(() => expect(image).toHaveAttribute("src", "blob:reader-image"));
+      expect(screen.getByText(/Image preview/)).toBeInTheDocument();
+      expect(document.querySelector("[data-file-line]")).toBeNull();
+      fireEvent.error(image);
+      expect(screen.getByRole("alert")).toHaveTextContent("Choose Reload");
+      fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+      await screen.findByRole("img");
+      expect(revoke).toHaveBeenCalledWith("blob:reader-image");
+      view.unmount();
+      expect(revoke).toHaveBeenCalledTimes(2);
+    } finally {
+      URL.createObjectURL = oldCreate;
+      URL.revokeObjectURL = oldRevoke;
+    }
+  });
+
   // FS-03.A35 (R52) — the viewer's content, its line anchor, replace-on-open,
   // Reload, and the Markdown toggle.
   it("renders the file's text with line numbers and names the file it read", async () => {

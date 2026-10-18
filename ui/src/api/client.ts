@@ -369,7 +369,7 @@ export function searchSessionFiles(agentId: string, query: string) {
   );
 }
 
-// getFileContent backs the chat file viewer: one bounded, read-only text read
+// getFileContent backs the chat file viewer: one bounded, read-only file snapshot
 // confined server-side to the session's own working directory (TS-03.R40,
 // FS-03.R52/R55). The caller supplies a path and never a root, and the response
 // is JSON — no route serves file bytes under a caller-influenced content type.

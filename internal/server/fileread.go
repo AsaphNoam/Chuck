@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"io"
 	"io/fs"
@@ -12,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -27,14 +30,20 @@ const fileReadLimit = 512 * 1024
 // Path is the normalized requested spelling the viewer displays; Language is a
 // highlighting hint derived from the extension alone, never from sniffing.
 type fileContent struct {
-	AgentID   string `json:"agent_id"`
-	Path      string `json:"path"`
-	Size      int64  `json:"size"`
-	ModTime   string `json:"mod_time"`
-	LineCount int    `json:"line_count"`
-	Content   string `json:"content"`
-	Truncated bool   `json:"truncated"`
-	Language  string `json:"language"`
+	AgentID   string     `json:"agent_id"`
+	Path      string     `json:"path"`
+	Size      int64      `json:"size"`
+	ModTime   string     `json:"mod_time"`
+	LineCount int        `json:"line_count"`
+	Content   string     `json:"content"`
+	Truncated bool       `json:"truncated"`
+	Language  string     `json:"language"`
+	Image     *fileImage `json:"image,omitempty"`
+}
+
+type fileImage struct {
+	MIMEType string `json:"mime_type"`
+	Data     string `json:"data"`
 }
 
 // handleFileRead serves GET /api/sessions/{id}/file?path=<p> for the chat file
@@ -223,18 +232,36 @@ func readLocalFileAfterClassificationWithOptions(path, display string, afterClas
 	if !info.Mode().IsRegular() {
 		return fileContent{}, apiError(runtime.CodeNotAFile, "that path does not name a regular file")
 	}
-	// One byte past the limit distinguishes "exactly at the limit" from "larger",
-	// so the partial read is labelled only when content was actually cut.
-	buf := make([]byte, fileReadLimit+1)
+	imageFile := isImageFilePath(display)
+	limit := fileReadLimit
+	if imageFile {
+		limit = attachment.MaxFileBytes
+	}
+	// One byte past the limit distinguishes "exactly at the limit" from "larger".
+	buf := make([]byte, limit+1)
 	n, err := io.ReadFull(f, buf)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return fileContent{}, apiError(runtime.CodeFileUnreadable, "that file could not be read")
 	}
-	truncated := n > fileReadLimit
+	truncated := n > limit
 	if truncated {
-		n = fileReadLimit
+		n = limit
 	}
 	body := buf[:n]
+	if imageFile {
+		if truncated {
+			return fileContent{}, apiError(runtime.CodeValidation, "that image exceeds the size limit")
+		}
+		descriptor, inspectErr := attachment.Inspect(bytes.NewReader(body), filepath.Base(display))
+		if inspectErr != nil || descriptor.Kind != attachment.KindImage {
+			return fileContent{}, apiError(runtime.CodeValidation, "that image is invalid or unsupported")
+		}
+		return fileContent{
+			Path: display, Size: info.Size(), ModTime: info.ModTime().UTC().Format(time.RFC3339),
+			Content: "", LineCount: 0, Language: languageForPath(display),
+			Image: &fileImage{MIMEType: descriptor.MIMEType, Data: base64.StdEncoding.EncodeToString(body)},
+		}, nil
+	}
 	if truncated {
 		// Do not split a multi-byte rune at the limit: trim the trailing partial
 		// rune rather than reporting valid text as invalid.
@@ -253,6 +280,15 @@ func readLocalFileAfterClassificationWithOptions(path, display string, afterClas
 		Truncated: truncated,
 		Language:  languageForPath(display),
 	}, nil
+}
+
+func isImageFilePath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+		return true
+	default:
+		return false
+	}
 }
 
 // trimPartialRune drops a trailing incomplete UTF-8 sequence left by cutting a

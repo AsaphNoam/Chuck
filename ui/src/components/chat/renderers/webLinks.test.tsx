@@ -81,6 +81,40 @@ describe("web link rendering", () => {
     expect(open).toHaveBeenCalledWith("https://example.com/docs", "_blank", "noopener,noreferrer");
   });
 
+  it("copies a local file path without its line suffix", async () => {
+    const writeText = stubClipboard();
+    const openFile = vi.fn();
+    render(<SanitizedMarkdown text="[file](src/main.go:12)" onOpenFile={openFile} />);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "file" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy path" }));
+    expect(writeText).toHaveBeenCalledWith("src/main.go");
+
+    fireEvent.click(screen.getByRole("button", { name: "file" }));
+    expect(openFile).toHaveBeenCalledWith({ path: "src/main.go", line: 12 });
+  });
+
+  it("copies nested file links resolved against their rendered source", async () => {
+    const writeText = stubClipboard();
+    const openFile = vi.fn();
+    render(<SanitizedMarkdown text="[file](../archive/state/x.md:8)" sourcePath="docs/features/HANDOFF.md" onOpenFile={openFile} />);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "file" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy path" }));
+    expect(writeText).toHaveBeenCalledWith("docs/archive/state/x.md");
+    fireEvent.click(screen.getByRole("button", { name: "file" }));
+    expect(openFile).toHaveBeenCalledWith({ path: "docs/archive/state/x.md", line: 8 });
+  });
+
+  it("reports a refused Copy path through the existing error feedback", async () => {
+    stubClipboard(vi.fn().mockRejectedValue(new Error("denied")));
+    render(<SanitizedMarkdown text="[file](src/main.go)" onOpenFile={() => {}} />);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "file" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy path" }));
+    await waitFor(() => expect(useUiStore.getState().toasts.map((toast) => toast.title)).toContain("Copy failed"));
+  });
+
   it("reports a refused clipboard with the existing Copy failed feedback", async () => {
     stubClipboard(vi.fn().mockRejectedValue(new Error("denied")));
     render(<SanitizedMarkdown text={LINKS} />);
@@ -101,6 +135,22 @@ describe("web link rendering", () => {
 });
 
 describe("web links in an annotated transcript", () => {
+  it("composes Copy path and selection actions in one menu", async () => {
+    const writeText = stubClipboard();
+    renderTranscript("See [file](src/main.go) now");
+    const link = document.querySelector("[data-file-path='src/main.go']")!;
+    const range = document.createRange();
+    range.selectNodeContents(link);
+    window.getSelection()?.addRange(range);
+
+    fireEvent.contextMenu(link);
+    await Promise.resolve();
+
+    expect(menuLabels()).toEqual([["Copy path", "Copy selection", "Annotate selection"]]);
+    fireEvent.click(screen.getByRole("button", { name: "Copy path" }));
+    expect(writeText).toHaveBeenCalledWith("src/main.go");
+  });
+
   it("composes link actions with annotation in one menu, including inside a table", async () => {
     stubClipboard();
     renderTranscript("| Ref |\n| --- |\n| [docs](https://example.com/docs) |");

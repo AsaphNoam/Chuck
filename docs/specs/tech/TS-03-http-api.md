@@ -580,6 +580,13 @@ reloads the collections through this route rather than reconstructing them from 
   already refuses one. No route is added for directory listing, writing, or downloading, and the
   existing tracking and search routes are unchanged.
 
+For FS-03.R52 image previews, R40 also returns optional `image: {mime_type, data}` where `data`
+is base64 of host-validated PNG/JPEG/WebP/GIF bytes. Images use attachment inspection and its
+10 MiB/40 million pixel bounds, are never truncated, and have empty text and zero lines. The
+existing safe regular-file open and phone/retained-context authorization apply unchanged. The
+response remains JSON; the UI owns and revokes a Blob URL for the loaded snapshot. Text retains
+the 512 KiB bound. Unsupported or corrupt image-extension files return a typed validation error.
+
 **R48 (shipped 2026-09-30) — The existing file read deliberately accepts unrestricted local paths.** This
 supersedes R40's working-directory containment when it ships without adding or renaming a route.
 `GET /api/sessions/{id}/file?path=<p>` still requires a known chat session, still serves archived

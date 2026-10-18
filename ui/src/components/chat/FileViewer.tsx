@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { getFileContent } from "../../api/client";
 import type { FileContent } from "../../api/types";
 import { CodeBlock } from "./renderers/CodeBlock";
 import { SanitizedMarkdown } from "./renderers/SanitizedMarkdown";
-import { resolveFromFile, type FileLink } from "./renderers/filePath";
+import type { FileLink } from "./renderers/filePath";
 import type { AnnotationDraft } from "../../api/types";
 import { clipAnnotationExcerpt } from "../../lib/annotations";
 import { claimWebLink } from "../../lib/linkActions";
@@ -20,7 +20,7 @@ type ViewState =
   | { status: "error"; reason: string }
   | { status: "loaded"; file: FileContent; readAt: Date };
 
-type DisplayMode = "rendered" | "source";
+type DisplayMode = "rendered" | "formatted" | "source";
 /** A reading location: the first visible source line or rendered top-level
  *  block, and how far its top sits below the body's top edge (TS-08.R130). */
 type ReadingAnchor = { key: number; offset: number };
@@ -52,7 +52,7 @@ export function useFileReader({ agentId, link, load, onPathResolved }: {
   resolvedRef.current = onPathResolved;
   // One position per display mode for the current file, and a cited line still
   // waiting to be shown (FS-03.R95).
-  const positions = useRef<Record<DisplayMode, ReadingAnchor | null>>({ rendered: null, source: null });
+  const positions = useRef<Record<DisplayMode, ReadingAnchor | null>>({ rendered: null, formatted: null, source: null });
   const pendingLine = useRef<number | null>(null);
 
   // The server returns the normalized path it actually read. Publishing that
@@ -68,7 +68,7 @@ export function useFileReader({ agentId, link, load, onPathResolved }: {
   // cited line nor a scroll is ever applied to the file being replaced.
   const seen = useRef<{ path: string | null; line: number | null }>({ path: null, line: null });
   if (path !== seen.current.path && path !== republished.current) {
-    positions.current = { rendered: null, source: null };
+    positions.current = { rendered: null, formatted: null, source: null };
     pendingLine.current = line;
     if (view.status !== "loading") setView({ status: "loading" });
   } else if (line !== seen.current.line && line !== null) {
@@ -156,20 +156,21 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
 
   const shownPath = view.status === "loaded" ? view.file.path : link.path;
   const isMarkdown = view.status === "loaded" && MARKDOWN_LANGUAGES.has(view.file.language);
+  const formattedJSON = useMemo(() => {
+    if (view.status !== "loaded" || view.file.language !== "json" || view.file.truncated) return null;
+    try { return formatJSON(view.file.content); }
+    catch { return null; }
+  }, [view]);
+  // A source citation always wins over the presentation preference.
+  const showFormatted = formattedJSON !== null && rendered && link.line === undefined;
   const showRendered = isMarkdown && rendered;
-  const mode: DisplayMode = showRendered ? "rendered" : "source";
+  const mode: DisplayMode = showRendered ? "rendered" : showFormatted ? "formatted" : "source";
   useReadingPosition(bodyRef, reader, mode);
-
-  // A rendered file's own links are relative to that file, not to the working
-  // directory the server resolves against (FS-03.R52).
-  const openFromFile = onOpenFile && view.status === "loaded"
-    ? (target: FileLink) => onOpenFile({ ...target, path: resolveFromFile(view.file.path, target.path) })
-    : onOpenFile;
 
   // The one mapping from a selection to a file draft, for the context menu and
   // the touch action alike (TS-08.R133): Source captures its line range,
   // Rendered only the path (FS-13.R25).
-  const currentSelection = () => view.status === "loaded" ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
+  const currentSelection = () => view.status === "loaded" && !view.file.image && !showFormatted ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
 
   const openSelectionMenu = (event: MouseEvent<HTMLDivElement>) => {
     if (!onSelectionMenu) return;
@@ -194,14 +195,14 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
       <header className="file-viewer-header" data-slot="header">
         <span className="file-viewer-path" title={shownPath}>{shownPath}</span>
         <div className="file-viewer-actions" data-slot="actions">
-          {isMarkdown && (
-            <div className="file-viewer-form" role="group" aria-label="Markdown display">
-              <button type="button" aria-pressed={rendered} onClick={() => setRendered(true)}>Rendered</button>
-              <button type="button" aria-pressed={!rendered} onClick={() => setRendered(false)}>Source</button>
+          {(isMarkdown || formattedJSON !== null) && (
+            <div className="file-viewer-form" role="group" aria-label={isMarkdown ? "Markdown display" : "JSON display"}>
+              <button type="button" aria-pressed={showRendered || showFormatted} disabled={!isMarkdown && link.line !== undefined} title={!isMarkdown && link.line !== undefined ? "Showing the cited source line; open this file without a line citation to format it." : undefined} onClick={() => setRendered(true)}>{isMarkdown ? "Rendered" : "Formatted"}</button>
+              <button type="button" aria-pressed={!showRendered && !showFormatted} onClick={() => setRendered(false)}>Source</button>
             </div>
           )}
           <button type="button" className="ad-button-secondary" onClick={reader.reload}>Reload</button>
-          {onAnnotateSelection && view.status === "loaded" && (
+          {onAnnotateSelection && view.status === "loaded" && !view.file.image && !showFormatted && (
             <button type="button" className="ad-button-secondary" onPointerDown={() => { pressed.current = currentSelection()?.draft ?? null; }} onClick={(click) => { click.currentTarget.focus(); annotateSelection(); }}>Annotate selection</button>
           )}
           {actions}
@@ -211,7 +212,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
       {selectionHint && view.status === "loaded" && <p className="file-viewer-meta" role="status">Select text in the file to annotate it.</p>}
       {view.status === "loaded" && (
         <p className="file-viewer-meta" data-slot="metadata">
-          {view.file.truncated
+          {view.file.image ? "Image preview" : view.file.truncated
             ? `Showing the first ${view.file.line_count} lines — this file is larger than the viewer reads.`
             : `${view.file.line_count} line${view.file.line_count === 1 ? "" : "s"}`}
           {" · read "}
@@ -229,18 +230,66 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
       >
         {view.status === "loading" && <p className="tab-placeholder">Reading…</p>}
         {view.status === "error" && <p className="file-viewer-error" role="alert">{view.reason}</p>}
-        {view.status === "loaded" && (showRendered ? (
+        {view.status === "loaded" && (view.file.image ? (
+          <FileImage key={view.readAt.getTime()} image={view.file.image} path={view.file.path} />
+        ) : showRendered ? (
           <div className="file-viewer-rendered">
-            <SanitizedMarkdown text={view.file.content} onOpenFile={openFromFile} />
+            <SanitizedMarkdown text={view.file.content} onOpenFile={onOpenFile} sourcePath={view.file.path} />
           </div>
         ) : (
-          <CodeBlock language={view.file.language || "text"} showLineNumbers markedLine={link.line}>
-            {view.file.content}
+          <CodeBlock language={view.file.language || "text"} className={`language-${view.file.language || "text"}`} showLineNumbers={!showFormatted} markedLine={link.line}>
+            {showFormatted ? formattedJSON! : view.file.content}
           </CodeBlock>
         ))}
       </div>
     </aside>
   );
+}
+
+function FileImage({ image, path }: { image: NonNullable<FileContent["image"]>; path: string }) {
+  const [src, setSrc] = useState("");
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(image.mime_type)) {
+      setFailed(true);
+      return;
+    }
+    try {
+      const bytes = Uint8Array.from(atob(image.data), (char) => char.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: image.mime_type }));
+      setSrc(url);
+      return () => URL.revokeObjectURL(url);
+    } catch { setFailed(true); }
+  }, [image]);
+  return failed ? <p className="file-viewer-error" role="alert">This image could not be displayed. Choose Reload to try again.</p>
+    : <img className="file-viewer-image" src={src || undefined} alt={path} onError={() => setFailed(true)} />;
+}
+
+// Validate first, then change whitespace only: parsing and reserializing would
+// round large integer IDs and could change escaped strings in the displayed file.
+function formatJSON(source: string): string {
+  JSON.parse(source);
+  const tokens = source.match(/"(?:\\.|[^"\\])*"|[^\s]/g) ?? [];
+  let depth = 0;
+  let output = "";
+  const newline = () => `\n${"  ".repeat(depth)}`;
+  tokens.forEach((token, index) => {
+    if (token === "{" || token === "[") {
+      output += token;
+      depth += 1;
+      if (tokens[index + 1] !== "}" && tokens[index + 1] !== "]") output += newline();
+    } else if (token === "}" || token === "]") {
+      depth -= 1;
+      if (tokens[index - 1] !== "{" && tokens[index - 1] !== "[") output += newline();
+      output += token;
+    } else if (token === ",") output += `,${newline()}`;
+    else if (token === ":") output += ": ";
+    else output += token;
+    // Deeply nested input can expand quadratically through indentation.
+    // Keep formatting bounded and fall back to Source when it becomes too large.
+    if (depth > 128 || output.length > 2 * 1024 * 1024) throw new Error("JSON formatting limit");
+  });
+  return output;
 }
 
 // useReadingPosition shows a cited line once, otherwise puts the reader back
@@ -272,6 +321,7 @@ function useReadingPosition(bodyRef: RefObject<HTMLDivElement | null>, reader: F
 
 function anchorTargets(body: HTMLElement, mode: DisplayMode): HTMLElement[] {
   if (mode === "source") return [...body.querySelectorAll<HTMLElement>("[data-file-line]")];
+  if (mode === "formatted") return [];
   return [...(body.querySelector(".file-viewer-rendered")?.children ?? [])] as HTMLElement[];
 }
 
@@ -281,6 +331,7 @@ function anchorKey(element: HTMLElement, index: number, mode: DisplayMode) {
 
 function captureAnchor(body: HTMLElement, mode: DisplayMode): ReadingAnchor | null {
   if (body.scrollTop <= 0) return null;
+  if (mode === "formatted") return { key: 0, offset: -body.scrollTop };
   const top = body.getBoundingClientRect().top;
   const targets = anchorTargets(body, mode);
   const index = targets.findIndex((element) => element.getBoundingClientRect().bottom > top);
@@ -291,6 +342,10 @@ function captureAnchor(body: HTMLElement, mode: DisplayMode): ReadingAnchor | nu
 function restoreAnchor(body: HTMLElement, mode: DisplayMode, anchor: ReadingAnchor | null) {
   if (!anchor) {
     body.scrollTop = 0;
+    return;
+  }
+  if (mode === "formatted") {
+    body.scrollTop = -anchor.offset;
     return;
   }
   const targets = anchorTargets(body, mode);

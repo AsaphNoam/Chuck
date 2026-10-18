@@ -2,7 +2,11 @@ package server
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/index"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -327,12 +332,56 @@ func TestFileReadRefusesUnreadableFileInsideRoot(t *testing.T) {
 func TestFileReadRefusesNonText(t *testing.T) {
 	srv := testServer(t, false)
 	root := seedReadableWorkspace(t, srv, "a_binary")
-	if err := os.WriteFile(filepath.Join(root, "logo.png"), []byte{0x89, 'P', 'N', 'G', 0xff, 0xfe, 0x00, 0x01}, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "payload.bin"), []byte{0x89, 'P', 'N', 'G', 0xff, 0xfe, 0x00, 0x01}, 0o644); err != nil {
 		t.Fatalf("write binary: %v", err)
 	}
 	h := srv.routes()
 
-	readFileRefused(t, h, "a_binary", "logo.png", runtime.CodeNotText, http.StatusUnprocessableEntity)
+	readFileRefused(t, h, "a_binary", "payload.bin", runtime.CodeNotText, http.StatusUnprocessableEntity)
+}
+
+func TestFileReadServesValidatedImagePayload(t *testing.T) {
+	srv := testServer(t, false)
+	root := seedReadableWorkspace(t, srv, "a_image")
+	var encoded bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.RGBA{R: 20, G: 40, B: 60, A: 255})
+	if err := png.Encode(&encoded, img); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pixel.PNG"), encoded.Bytes(), 0o644); err != nil {
+		t.Fatalf("write png: %v", err)
+	}
+	h := srv.routes()
+	rec := readFileResponse(t, h, "a_image", "pixel.PNG")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s, want 200", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal JSON: %v", err)
+	}
+	imagePayload, ok := payload["image"].(map[string]any)
+	if !ok || imagePayload["mime_type"] != "image/png" || imagePayload["data"] != base64.StdEncoding.EncodeToString(encoded.Bytes()) {
+		t.Fatalf("image payload = %#v", payload["image"])
+	}
+	if payload["content"] != "" || payload["line_count"] != float64(0) || payload["truncated"] != false {
+		t.Fatalf("text fields for image = content:%#v lines:%#v truncated:%#v", payload["content"], payload["line_count"], payload["truncated"])
+	}
+}
+
+func TestFileReadRejectsInvalidAndOversizedImages(t *testing.T) {
+	srv := testServer(t, false)
+	root := seedReadableWorkspace(t, srv, "a_bad_image")
+	if err := os.WriteFile(filepath.Join(root, "broken.gif"), []byte("not an image"), 0o644); err != nil {
+		t.Fatalf("write corrupt image: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "large.webp"), make([]byte, attachment.MaxFileBytes+1), 0o644); err != nil {
+		t.Fatalf("write oversized image: %v", err)
+	}
+	h := srv.routes()
+	readFileRefused(t, h, "a_bad_image", "broken.gif", runtime.CodeValidation, http.StatusUnprocessableEntity)
+	readFileRefused(t, h, "a_bad_image", "large.webp", runtime.CodeValidation, http.StatusUnprocessableEntity)
 }
 
 // TestFileReadLabelsPartialRead proves the read is bounded by the explicit byte
