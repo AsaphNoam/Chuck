@@ -20,9 +20,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   `roomier-file-reader-2026-10-17` (RFR-1–RFR-5) closed; see changelog. FS-03.R92–R97/A71–A75,
   TS-08.R127–R132. Owed: independent rendered review (Acceptance gates still owed).
 
-- **Awaiting fixes — late tool input event (2026-10-17):** unit
-  `late-tool-input-2026-10-17`, `a77bb3b6`; review complete, LTI-1/LTI-2 open (two P2).
-  Findings and fix routing below. TS-04.R98; live Claude receipt remains owed.
+- **Finished — late tool input event fixes (2026-10-18):** fix unit
+  `late-tool-input-2026-10-17` (LTI-1/LTI-2) closed; see changelog. TS-04.R98. Owed: live
+  Claude receipt.
 
 - **Finished — quiet quota recovery fixes (2026-10-17):** fix unit
   `quiet-quota-recovery-2026-10-17` (Q1–Q9) closed on `d3ea0f8f^..9fa9bc81`; see changelog.
@@ -207,54 +207,6 @@ None.
 
 ## Review findings
 
-### Review 2026-10-17 — late tool input event — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Selected unit: `late-tool-input-2026-10-17`, implementation `a77bb3b6`; reviewed against
-TS-04.R98, FS-03.R2, FS-05.R15/R17/R38/R41 and TS-14.R10. Two findings remain; no product
-code or specifications changed.
-
-- **Must fix** — **LTI-1 / P2 (INV §1/§16/§17): canceled calls retain full input bodies.**
-  `internal/runtime/chat.go:2630–2634,2656–2657` retains each call's title plus complete args
-  with no item/byte cap and deletes it only on a tool result. A streamed call interrupted by
-  Cancel can end its turn without a terminal tool update; neither turn completion nor the next
-  turn releases that entry. A probe through the real cancellation path retains 1, then 2, then
-  3 bodies after three canceled turns. Long-lived sessions can accumulate large edit bodies.
-  Bound admission and release calls when their owning execution ends, preserving valid late
-  child/background ownership rather than indiscriminately clearing live calls. Cover canceled
-  and failed turns, repeated turns, normal result cleanup, and bounded active input retention.
-  TS-04.R98 / INV §16. Probe: `/tmp/late-tool-review-probe_test.go`, run via
-  `/tmp/late-tool-review-overlay.json`; all three zero-retention assertions fail.
-- **Must fix** — **LTI-2 / P2 (INV §2/§8/§17): later edits to an already tracked file disappear.**
-  `internal/index/indexer.go:450–456` deduplicates late file input by file path rather than
-  call identity: `ON CONFLICT(agent_id, path) DO NOTHING`. Two distinct calls, each initially
-  empty and later naming `a.go`, leave `edit_count=1,last_seq=2` instead of `2,4`;
-  `last_ts` also stays stale, so Files ordering is wrong. This is normal streamed Claude
-  edit traffic when no separate diff updates the row. Preserve one edit per distinct call
-  while deduplicating that call's subsequent input updates, using the existing tracking seam
-  where possible. Test distinct calls to the same path alongside repeated updates of one call.
-  FS-05.R15/R17/R38 and TS-04.R98. Independent observational probe:
-  `/private/tmp/late_update_probe_test.go` via `/private/tmp/late_update_overlay.json`.
-
-**Verification:** complete untagged index/transcript/contextref package suites pass; focused
-runtime/Think Tank/update tests pass, and the focused five-package check passes with
-`sqlite_fts5`. Transcript-store and phone AgentScreen suites pass (71 tests). The runtime
-lifetime probe fails as described; the independent index probe confirms the incorrect stored row.
-The full Go/UI matrix and live Claude receipt were not run; the live receipt remains owed.
-No material layout or styling changed in this unit, so workflow §14.4 is not triggered.
-
-**Invariant sweep / local choices:** §1 and §16 fail on LTI-1; §2/§8 expose LTI-2, with §17
-regression gaps recorded for both. §5 locking, §7 read/error handling, §9 SQLite behavior,
-§10 consumer wiring, §11 event identity/scoping/search exclusion, §13 existing selectors,
-§14 existing route guards and §15 capture-before-publication have no additional finding.
-§6's event-consumer sweep covers durable projection, context links/share boundaries, index,
-Think Tank capture/commands, desktop/phone folding and CLI permission-only status; the runtime
-checklist has no new runtime to admit. Classes §3/§4/§12 have no applicable changed surface.
-Accepted local choices: append-only updates, byte-identical pair deduplication, title/name fallback,
-and dropping orphan UI updates. Bounded phone windows re-fold joined pages, so loading an older
-call recovers its retained update. Chuck-tool input remains withheld in the exercised room/share
-paths. No speculative multi-path-per-call finding was recorded.
-
-
 ### Usability review 2026-10-14 — stopped-agent image wake (FS-03.A64) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Run report: [`usability-review-run-2026-10-14`](../archive/reviews/usability-review-run-2026-10-14.md).
@@ -274,6 +226,19 @@ Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
 
+- **2026-10-18 — Late tool input fixes (LTI-1/LTI-2) closed:** LTI-1 (INV §16, bounded
+  lifetime): runtime open-call input memory (`openToolInput` in `internal/runtime/chat.go`)
+  records its owner: root calls are released when their turn settles (`finishTurn`) or the next
+  turn starts (`setExecTurn`, covering failed turns), child calls when their activity reaches a
+  terminal state, and background continuations at their result. A 64-call / 4 MiB bound evicts
+  the oldest. Tests: `internal/runtime/tool_input_test.go` covers three real canceled turns,
+  failed-turn/background/child ownership, child end through `onSubagentUpdate`, and the
+  bounds. LTI-2 (INV §2/§8, per-call identity): the indexer keeps each open call's counted
+  file (`fileCalls`), so an update counts one edit unless that call already counted the file;
+  released on result, turn end (root) or terminal activity state, bounded at 64 per agent.
+  `TestToolCallUpdateCountsOneEditPerCall`: two calls → `edit_count=2,last_seq=4`, last_ts
+  advanced. TS-04.R98 now states release and bounds. Serial `make test` (both Go variants),
+  `make build` and focused `-race` runtime/index runs pass. Remaining: live Claude receipt.
 - **2026-10-18 — Phone group-header New agent fix (PGN-1) closed:** PGN-1 (INV §8/§10, offline
   disables every phone action): `.phone-group-new` in `ui/src/remote/ProjectScreen.tsx` now takes
   the screen's existing `offline` guard. New `ProjectScreen.test.tsx` case: named and Ungrouped

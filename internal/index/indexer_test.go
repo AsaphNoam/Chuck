@@ -964,6 +964,60 @@ func TestToolCallUpdateTracksLaterInputOnce(t *testing.T) {
 	}
 }
 
+// TS-04.R98, FS-05.R15/R17: distinct streamed calls that each name the same
+// file later count one edit apiece and move its recency; one call's repeated
+// updates do not. A turn end releases an unfinished call's memory, and a
+// later call reusing that id counts again.
+func TestToolCallUpdateCountsOneEditPerCall(t *testing.T) {
+	st, _ := openTestDB(t)
+	ix := New(st.DB())
+	m := meta()
+	if err := ix.UpsertSessionMeta("a_calls", m); err != nil {
+		t.Fatalf("UpsertSessionMeta: %v", err)
+	}
+	event := func(seq int64, typ string, data any) runtime.Event {
+		raw, _ := json.Marshal(data)
+		return runtime.Event{AgentID: "a_calls", Seq: seq, Type: typ, Data: raw, Ts: "2026-10-17T10:00:0" + strconv.FormatInt(seq, 10) + "Z"}
+	}
+	edit := func(seq int64, id, args string) runtime.Event {
+		return event(seq, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: id, Name: "edit", Args: json.RawMessage(args)})
+	}
+	file := func() (edits int, lastSeq int64, lastTs string) {
+		t.Helper()
+		if err := st.DB().QueryRow(`SELECT edit_count, last_seq, last_ts FROM tracked_files WHERE agent_id = 'a_calls' AND path = 'a.go'`).Scan(&edits, &lastSeq, &lastTs); err != nil {
+			t.Fatalf("tracked file: %v", err)
+		}
+		return
+	}
+	for _, ev := range []runtime.Event{
+		event(1, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "c1", Name: "edit", Args: json.RawMessage(`{}`)}),
+		edit(2, "c1", `{"file_path":"a.go"}`),
+		event(3, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "c2", Name: "edit", Args: json.RawMessage(`{}`)}),
+		edit(4, "c2", `{"file_path":"a.go"}`),
+		edit(5, "c2", `{"file_path":"`+m.Cwd+`/a.go","new_string":"x"}`),
+	} {
+		if err := ix.OnEvent("a_calls", ev); err != nil {
+			t.Fatalf("OnEvent %d: %v", ev.Seq, err)
+		}
+	}
+	if edits, lastSeq, lastTs := file(); edits != 2 || lastSeq != 4 || lastTs != "2026-10-17T10:00:04Z" {
+		t.Fatalf("a.go = %d edits, last_seq %d, last_ts %s; want 2, 4, :04", edits, lastSeq, lastTs)
+	}
+	if err := ix.OnEvent("a_calls", event(6, runtime.EvToolResult, runtime.ToolResultData{ToolCallID: "c1", Status: "completed"})); err != nil {
+		t.Fatalf("OnEvent 6: %v", err)
+	}
+	if _, open := ix.fileCalls["a_calls"]["c1"]; open || len(ix.fileCalls["a_calls"]) != 1 {
+		t.Fatalf("open file calls after c1 result = %v, want only c2", ix.fileCalls)
+	}
+	// c2 was canceled without a result; its turn ending releases it.
+	if err := ix.OnEventAndTurnEnd("a_calls", event(7, runtime.EvTurnEnd, runtime.TurnEndData{}), runtime.TurnRollup{LastSeq: 7}); err != nil {
+		t.Fatalf("turn end: %v", err)
+	}
+	if len(ix.fileCalls) != 0 {
+		t.Fatalf("open file calls after turn end = %v, want none", ix.fileCalls)
+	}
+}
+
 // A native child's file and command events roll up under the parent agent,
 // and its lifecycle records stay out of prose search (FS-05.A21, TS-02.R35).
 func TestChildActivityRollsUpUnderTheParent(t *testing.T) {

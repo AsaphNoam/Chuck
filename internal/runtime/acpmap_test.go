@@ -284,7 +284,7 @@ func TestToolCallUpdateRecordsLaterInputOnce(t *testing.T) {
 	admitted := func(ms []mappedEvent) []mappedEvent {
 		var out []mappedEvent
 		for _, m := range ms {
-			if m, ok := as.admitToolInput(m); ok {
+			if m, ok := as.admitToolInput(activityScope{}, m); ok {
 				out = append(out, m)
 			}
 		}

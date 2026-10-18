@@ -175,6 +175,11 @@ func (c *ChatRuntime) onSubagentUpdate(as *agentState, params json.RawMessage) b
 			as.noteUnknownChild(u.SubagentSessionID)
 			return true
 		}
+		if state != "disconnected" {
+			as.mu.Lock()
+			as.releaseActivityToolInputsLocked(scope.ActivityID)
+			as.mu.Unlock()
+		}
 		c.emitIn(as, scope, EvActivityState, ActivityStateData{State: state})
 		return true
 	}

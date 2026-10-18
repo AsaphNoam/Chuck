@@ -1408,10 +1408,17 @@ A frame with a non-empty object `rawInput` or a non-empty `title` emits a durabl
 `tool_call_update` event `{tool_call_id, name, title, args}`; earlier events are never rewritten.
 The runtime fills `name` from the call it already saw and drops an update whose title and args
 equal the last recorded pair for that call, so repeated in-progress frames add nothing; that
-per-call memory ends with the call's result. Consumers treat the update as the call's current
-input: transcript projection exposes its args like a call's (recent-history primer, context links;
-never search text, FS-05.R41),
-the indexer tracks files and commands from it, the UI folds it into the matching `tool_call` and
+per-call memory ends with the call's result or its owner's end: a root call's turn settling (or
+the next turn starting), or a child call's activity reaching a terminal state. A call that started
+with no owning turn (a native background continuation) keeps its memory until its result. The
+memory is bounded (64 open calls, 4 MiB of title+args); past either bound the oldest call is
+forgotten and its later updates drop like an unknown call's. Consumers treat the update as the
+call's current input: transcript projection exposes its args like a call's (recent-history primer,
+context links; never search text, FS-05.R41),
+the indexer tracks files and commands from it (an update counts one edit for the file it names
+unless the same call already counted that file, so distinct calls to one file each count and move
+its recency; its per-call memory ends at the call's result, a turn end for root calls, or a
+terminal activity state), the UI folds it into the matching `tool_call` and
 never renders it alone, and Think Tank capture records it, withholding Chuck's own tool input.
 
 **R99 (implemented 2026-10-17) — A failed tool call keeps its reason from `rawOutput`.** Codex ACP

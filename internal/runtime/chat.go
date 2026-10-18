@@ -247,8 +247,10 @@ type agentState struct {
 	context                contextReading
 	turnActive             bool
 	stopping               bool
-	toolNames              map[string]string          // toolCallID -> normalized name (for status detail)
-	toolInputs             map[string]string          // open toolCallID -> last recorded title+args (TS-04.R98)
+	toolNames              map[string]string         // toolCallID -> normalized name (for status detail)
+	toolInputs             map[string]*openToolInput // open toolCallID -> last recorded input (TS-04.R98)
+	toolInputSeq           uint64
+	toolInputBytes         int
 	pending                map[string]*pendingPerm    // toolCallID -> withheld permission request
 	resolved               map[string]struct{}        // toolCallIDs already settled this turn
 	hostApproved           map[string]*HostPermission // approved host requests not yet admitted
@@ -1156,6 +1158,7 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) 
 	c.emitIn(as, activityScope{TurnID: turnID}, EvTurnEnd, td)
 	as.mu.Lock()
 	as.execTurnID = ""
+	as.releaseTurnToolInputsLocked("")
 	if as.quotaBlocked {
 		as.turnActive = false
 		as.mu.Unlock()
@@ -1169,6 +1172,7 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) 
 func (as *agentState) setExecTurn(turnID string) {
 	as.mu.Lock()
 	as.execTurnID = turnID
+	as.releaseTurnToolInputsLocked(turnID)
 	as.turnQuota = nil
 	as.turnFailure = nil
 	as.turnRateLimit = rateLimitEvidence{}
@@ -1938,7 +1942,7 @@ func (c *ChatRuntime) mapScoped(as *agentState, scope activityScope, kind string
 	for _, m := range mapSessionUpdateImages(params, func(b acpContentBlock, toolID string) AssistantImageData { return c.persistImage(as, b, toolID) }) {
 		m = scopeMapped(scope, m)
 		var ok bool
-		if m, ok = as.admitToolInput(m); !ok {
+		if m, ok = as.admitToolInput(scope, m); !ok {
 			continue
 		}
 		c.emitIn(as, scope, m.Type, m.Data)
@@ -2642,44 +2646,114 @@ func (as *agentState) nextTurnIDLocked() string {
 	return fmt.Sprintf("t_%012d", as.turnSeq)
 }
 
+// Open-call input memory is bounded: past either limit the oldest call is
+// forgotten, and its later input updates drop like any unknown call's
+// (TS-04.R98, INV §16).
+const (
+	maxOpenToolInputs     = 64
+	maxOpenToolInputBytes = 4 << 20
+)
+
+// openToolInput is one open call's last recorded title and input, and the
+// execution that owns it: the root turn that started it, its child activity,
+// or neither for a native background continuation.
+type openToolInput struct {
+	title, args string
+	turnID      string
+	activityID  string
+	seq         uint64
+}
+
 // admitToolInput tracks each open call's last recorded title and input. A
 // tool_call_update for no open call, or one that changes neither, is dropped;
 // one that does gets the call's known name and carries the full current pair.
-// A result ends the call's memory (TS-04.R98, INV §16).
-func (as *agentState) admitToolInput(m mappedEvent) (mappedEvent, bool) {
+// A result, or the end of the owning turn or child activity, ends the call's
+// memory (TS-04.R98, INV §16).
+func (as *agentState) admitToolInput(scope activityScope, m mappedEvent) (mappedEvent, bool) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 	switch d := m.Data.(type) {
 	case ToolCallData:
 		if as.toolInputs == nil {
-			as.toolInputs = map[string]string{}
+			as.toolInputs = map[string]*openToolInput{}
 		}
-		as.toolInputs[d.ToolCallID] = d.Title + "\x00" + string(d.Args)
+		in := &openToolInput{title: d.Title, args: string(d.Args), activityID: scope.ActivityID}
+		if scope.ActivityID == "" {
+			in.turnID = as.execTurnID
+		}
+		as.forgetToolInputLocked(d.ToolCallID)
+		as.toolInputSeq++
+		in.seq = as.toolInputSeq
+		as.toolInputs[d.ToolCallID] = in
+		as.toolInputBytes += len(in.title) + len(in.args)
+		as.boundToolInputsLocked(d.ToolCallID)
 	case ToolCallUpdateData:
-		prev, open := as.toolInputs[d.ToolCallID]
+		in, open := as.toolInputs[d.ToolCallID]
 		if !open {
 			return m, false
 		}
-		title, args, _ := strings.Cut(prev, "\x00")
 		if d.Title == "" {
-			d.Title = title
+			d.Title = in.title
 		}
-		if toolInput(d.Args) == nil && args != "" {
-			d.Args = json.RawMessage(args)
+		if toolInput(d.Args) == nil && in.args != "" {
+			d.Args = json.RawMessage(in.args)
 		}
-		next := d.Title + "\x00" + string(d.Args)
-		if next == prev {
+		if d.Title == in.title && string(d.Args) == in.args {
 			return m, false
 		}
-		as.toolInputs[d.ToolCallID] = next
+		as.toolInputBytes += len(d.Title) + len(d.Args) - len(in.title) - len(in.args)
+		in.title, in.args = d.Title, string(d.Args)
+		as.boundToolInputsLocked(d.ToolCallID)
 		if n := as.toolNames[d.ToolCallID]; n != "" {
 			d.Name = n
 		}
 		m.Data = d
 	case ToolResultData:
-		delete(as.toolInputs, d.ToolCallID)
+		as.forgetToolInputLocked(d.ToolCallID)
 	}
 	return m, true
+}
+
+func (as *agentState) forgetToolInputLocked(id string) {
+	if in, ok := as.toolInputs[id]; ok {
+		as.toolInputBytes -= len(in.title) + len(in.args)
+		delete(as.toolInputs, id)
+	}
+}
+
+// boundToolInputsLocked forgets the oldest other calls until both limits hold;
+// the call just written is kept even when it alone exceeds the byte limit.
+func (as *agentState) boundToolInputsLocked(keep string) {
+	for len(as.toolInputs) > maxOpenToolInputs || (as.toolInputBytes > maxOpenToolInputBytes && len(as.toolInputs) > 1) {
+		oldest := ""
+		for id, in := range as.toolInputs {
+			if id != keep && (oldest == "" || in.seq < as.toolInputs[oldest].seq) {
+				oldest = id
+			}
+		}
+		as.forgetToolInputLocked(oldest)
+	}
+}
+
+// releaseTurnToolInputsLocked forgets the root calls of every turn other than
+// keep (all turns when keep is empty). A canceled or failed call may end
+// without a result; its turn ending releases it. Background continuations (no
+// turn) and child activities' calls are untouched.
+func (as *agentState) releaseTurnToolInputsLocked(keep string) {
+	for id, in := range as.toolInputs {
+		if in.activityID == "" && in.turnID != "" && in.turnID != keep {
+			as.forgetToolInputLocked(id)
+		}
+	}
+}
+
+// releaseActivityToolInputsLocked forgets one ended child activity's calls.
+func (as *agentState) releaseActivityToolInputsLocked(activityID string) {
+	for id, in := range as.toolInputs {
+		if in.activityID == activityID {
+			as.forgetToolInputLocked(id)
+		}
+	}
 }
 
 func (as *agentState) toolNameFor(id string) string {

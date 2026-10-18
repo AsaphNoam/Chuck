@@ -26,6 +26,7 @@ type Indexer struct {
 	db          *sql.DB
 	mu          sync.Mutex
 	content     map[string][]bufferedText
+	fileCalls   map[string]map[string]fileCall // agent -> open toolCallID -> counted file
 	ftsWritable func(*sql.Tx) (bool, error)
 
 	// Tests use this hook to prove that a later event cannot enter between a
@@ -38,8 +39,20 @@ type bufferedText struct {
 	text string
 }
 
+// fileCall is the file an open tool call already counted as one edit, so that
+// call's later input updates do not count it again (TS-04.R98, FS-05.R15).
+type fileCall struct {
+	path       string
+	activityID string
+	seq        int64
+}
+
+// maxOpenFileCalls bounds one agent's open-call memory; past it the oldest
+// call is forgotten (INV §16).
+const maxOpenFileCalls = 64
+
 func New(db *sql.DB) *Indexer {
-	return &Indexer{db: db, content: map[string][]bufferedText{}, ftsWritable: ftsWritesAvailable}
+	return &Indexer{db: db, content: map[string][]bufferedText{}, fileCalls: map[string]map[string]fileCall{}, ftsWritable: ftsWritesAvailable}
 }
 
 func (ix *Indexer) UpsertSessionMeta(agentID string, meta runtime.SessionMetaData) error {
@@ -429,9 +442,11 @@ func (ix *Indexer) trackEvent(agentID string, ev runtime.Event) error {
 			return fmt.Errorf("index: track tool_call: %w", err)
 		}
 		if p := pathFromArgs(d.Args); p != "" && isFileTool(d.Name) {
-			if err := ix.upsertFile(agentID, p, ev, d.ToolCallID, false); err != nil {
+			display, err := ix.upsertFile(agentID, p, ev, d.ToolCallID, false)
+			if err != nil {
 				return err
 			}
+			ix.noteFileCallLocked(agentID, d.ToolCallID, display, ev)
 		}
 		if cmd := commandFromArgs(d.Args); cmd != "" && isCommandTool(d.Name) {
 			if _, err := ix.db.Exec(`
@@ -441,19 +456,19 @@ VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID
 			}
 		}
 	case runtime.EvToolCallUpdate:
-		// Later input for a call (TS-04.R98): name a file the call did not, without
-		// counting the edit twice, and record or correct the call's one command row.
+		// Later input for a call (TS-04.R98): count the file it names as that
+		// call's one edit unless the call already counted it, and record or
+		// correct the call's one command row.
 		var d runtime.ToolCallUpdateData
 		if err := json.Unmarshal(ev.Data, &d); err != nil {
 			return fmt.Errorf("index: track tool_call_update: %w", err)
 		}
 		if p := pathFromArgs(d.Args); p != "" && isFileTool(d.Name) {
-			display, abs := ix.normalizePath(agentID, p)
-			if _, err := ix.db.Exec(`
-INSERT INTO tracked_files(agent_id, path, abs_path, edit_count, first_seq, last_seq, first_ts, last_ts, has_diff, diff_refs)
-VALUES (?, ?, ?, 1, ?, ?, ?, ?, 0, '[]')
-ON CONFLICT(agent_id, path) DO NOTHING`, agentID, display, abs, ev.Seq, ev.Seq, ev.Ts, ev.Ts); err != nil {
-				return fmt.Errorf("index: track updated file: %w", err)
+			if display, _ := ix.normalizePath(agentID, p); ix.fileCalls[agentID][d.ToolCallID].path != display {
+				if _, err := ix.upsertFile(agentID, p, ev, d.ToolCallID, false); err != nil {
+					return err
+				}
+				ix.noteFileCallLocked(agentID, d.ToolCallID, display, ev)
 			}
 		}
 		if cmd := commandFromArgs(d.Args); cmd != "" && isCommandTool(d.Name) {
@@ -474,6 +489,7 @@ VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID
 		if err := json.Unmarshal(ev.Data, &d); err != nil {
 			return fmt.Errorf("index: track tool_result: %w", err)
 		}
+		ix.releaseFileCallsLocked(agentID, func(id string, _ fileCall) bool { return id == d.ToolCallID })
 		if _, err := ix.db.Exec(`
 UPDATE tracked_commands
 SET exit_status = ?, exit_error = ?
@@ -503,15 +519,55 @@ ON CONFLICT(agent_id, path) DO NOTHING`, agentID, display, abs, ev.Seq, ev.Seq, 
 			return fmt.Errorf("index: track diff: %w", err)
 		}
 		if d.Path != "" {
-			if err := ix.upsertFile(agentID, d.Path, ev, d.ToolCallID, true); err != nil {
+			if _, err := ix.upsertFile(agentID, d.Path, ev, d.ToolCallID, true); err != nil {
 				return err
 			}
+		}
+	case runtime.EvTurnEnd:
+		// A canceled or failed call may end without a result; its turn ending
+		// releases it. Child activities' calls wait for their own end.
+		ix.releaseFileCallsLocked(agentID, func(_ string, c fileCall) bool { return c.activityID == "" })
+	case runtime.EvActivityState:
+		var d runtime.ActivityStateData
+		if err := json.Unmarshal(ev.Data, &d); err == nil && d.State != "disconnected" {
+			ix.releaseFileCallsLocked(agentID, func(_ string, c fileCall) bool { return c.activityID == ev.ActivityID })
 		}
 	}
 	return nil
 }
 
-func (ix *Indexer) upsertFile(agentID, p string, ev runtime.Event, toolCallID string, hasDiff bool) error {
+func (ix *Indexer) noteFileCallLocked(agentID, toolCallID, display string, ev runtime.Event) {
+	calls := ix.fileCalls[agentID]
+	if calls == nil {
+		calls = map[string]fileCall{}
+		ix.fileCalls[agentID] = calls
+	}
+	calls[toolCallID] = fileCall{path: display, activityID: ev.ActivityID, seq: ev.Seq}
+	for len(calls) > maxOpenFileCalls {
+		oldest := ""
+		for id, c := range calls {
+			if oldest == "" || c.seq < calls[oldest].seq {
+				oldest = id
+			}
+		}
+		delete(calls, oldest)
+	}
+}
+
+func (ix *Indexer) releaseFileCallsLocked(agentID string, release func(string, fileCall) bool) {
+	calls := ix.fileCalls[agentID]
+	for id, c := range calls {
+		if release(id, c) {
+			delete(calls, id)
+		}
+	}
+	if len(calls) == 0 {
+		delete(ix.fileCalls, agentID)
+	}
+}
+
+// upsertFile counts one edit of p and returns its display path.
+func (ix *Indexer) upsertFile(agentID, p string, ev runtime.Event, toolCallID string, hasDiff bool) (string, error) {
 	display, abs := ix.normalizePath(agentID, p)
 	diffRefs := "[]"
 	if hasDiff {
@@ -533,9 +589,9 @@ ON CONFLICT(agent_id, path) DO UPDATE SET
   END`,
 		agentID, display, abs, ev.Seq, ev.Seq, ev.Ts, ev.Ts, boolInt(hasDiff), diffRefs)
 	if err != nil {
-		return fmt.Errorf("index: upsert file: %w", err)
+		return "", fmt.Errorf("index: upsert file: %w", err)
 	}
-	return nil
+	return display, nil
 }
 
 func (ix *Indexer) normalizePath(agentID, p string) (display, abs string) {
@@ -610,7 +666,7 @@ func (ix *Indexer) CaptureHookFile(agentID, path, ts string, seq int64) error {
 		return fmt.Errorf("index: agent_id and path are required")
 	}
 	ev := runtime.Event{AgentID: agentID, Seq: seq, Ts: ts}
-	if err := ix.upsertFile(agentID, path, ev, "", false); err != nil {
+	if _, err := ix.upsertFile(agentID, path, ev, "", false); err != nil {
 		return err
 	}
 	return bumpRollups(ix.db, agentID)

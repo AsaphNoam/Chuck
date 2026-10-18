@@ -122,6 +122,7 @@ func (ix *Indexer) RemoveAgent(agentID string) error {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	delete(ix.content, agentID)
+	delete(ix.fileCalls, agentID)
 	tx, err := ix.db.Begin()
 	if err != nil {
 		return fmt.Errorf("index: begin remove: %w", err)
