@@ -5,7 +5,7 @@
 //   go run -tags sqlite_fts5 ./scripts/stress-fixture -port 4411 -chunks 400 -delay-ms 20
 //   node ui/scripts/breadcrumb-live-check.mjs [baseURL] [outDir]
 //
-// Checks five entries plus +2 with the current agent visible, entries that do not
+// Checks five entries plus +2 with the current agent visible by id, entries that do not
 // reorder while agents stream, one-click switching, and a stopped sibling leaving
 // without a refresh. Exits 1 if any check fails.
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -39,7 +39,13 @@ try {
   const names = async () => entries.evaluateAll((items) => items.map((item) => item.textContent));
   const first = await names();
   record("five entries with +2", first.length === 5 && await page.locator(".chat-breadcrumb-overflow > button").textContent() === "+2", first.join(" | "));
-  record("current agent visible", await page.locator(".agent-mini-card[aria-current='page']").textContent() === first.at(-1), first.at(-1));
+  // REST order need not match the hydrated dashboard order, so check the current
+  // agent by identity rather than slot; breadcrumb-render.mjs covers fifth-slot
+  // replacement with a controlled fixture.
+  const current = page.locator(".chat-breadcrumb-siblings > .agent-mini-card[aria-current='page']");
+  record("current agent visible", await current.count() === 1 && (await current.textContent()).endsWith(last.name)
+    && await page.locator(".chat-breadcrumb-id").textContent() === last.agent_id
+    && await page.locator(`.chat-breadcrumb a[href="/agent/${last.agent_id}"]`).count() === 0, last.agent_id);
   await page.waitForTimeout(2000);
   record("no reorder while streaming", JSON.stringify(await names()) === JSON.stringify(first));
   await page.screenshot({ path: join(OUT, "live-1024.png"), clip: { x: 0, y: 0, width: 1024, height: 260 } });

@@ -158,66 +158,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Review findings
 
-### Breadcrumb sibling-agent switching — commit “ui: switch between a project's running agents from the breadcrumb” — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Independent review of `26894562` completed 2026-10-18 (queued by `9ed668ba`); this same unit
-remains open for the findings below. Scope: FS-03.R98/A76, FS-12.R70/A40, TS-08.R137–R138,
-including the shared project-navigation cap/disclosure and surrounding callers.
-
-- **Must fix** — **BREAD-1** (P2; medium fix; INV §1): reset agent-local panel state at sibling
-  navigation. `ui/src/components/chat/ChatPanel.tsx:477` adds same-route sibling links, but
-  `ui/src/routes.tsx:39` preserves the same `ChatPanel` instance. Its tab initializer and
-  terminal-default ref (`ChatPanel.tsx:88,105–111`) never reset for a new id. Open a terminal
-  agent, then click a chat sibling: the old `terminal` tab survives although the target has no
-  terminal tab, leaving no selected tab or visible transcript panel. Clicking a sibling from
-  Files also retains Files rather than opening as its dashboard card does. This violates
-  FS-03.R98's dashboard-open semantics. The runtime-form synchronization at `:116–123` likewise
-  omits id, so a staged choice can survive between siblings with identical runtime settings.
-  Reset/remount at the agent boundary and cover terminal → chat, Files → sibling and staged
-  runtime isolation. Browser evidence: `inspection.json`, `terminal-to-chat.png`, and the live
-  Files-switch receipt in `live-matrix.json` under the shared evidence directory below.
-- **Must fix** — **BREAD-2** (P2; trivial/easy fix; INV §8): honor reduced motion for busy dots.
-  `ui/src/styles/features/agent.css:127–134`: the busy animation selector has three classes,
-  while the reduced-motion override has two, so `animation: none` loses. With the real fakeacp
-  agent busy and `prefers-reduced-motion: reduce` true, computed `animationName` remains
-  `ad-state-pulse`. This violates FS-12.R70's reduced-motion rule. Match the override's
-  specificity and assert computed animation is absent under reduced motion, including a live
-  transition into busy. Evidence: `inspection.json` and `live-matrix.json`.
-- **Worth fixing** — **BREAD-3** (P2; trivial/easy fix; INV §8): keep the overflow menu inside the
-  desktop viewport. `ui/src/styles/features/agent.css:169–182` anchors its 192px minimum-width
-  menu with `left: 0` beside the rightmost breadcrumb control. At 1024px the real fixture menu
-  spans x=880–1072 in all three appearances; the long-name fixture spans x=923–1115. The right
-  edge and agent labels are clipped, making the overflow choices harder to identify. Use a
-  viewport-safe alignment and check the opened menu's bounds, not only the closed breadcrumb.
-  Evidence: `live-*-1024-menu.png`, `long-menu-1024.png`, and their JSON measurements.
-- **Worth fixing** — **BREAD-4** (P2; trivial/easy fix; INV §17): remove the live check's false
-  positional oracle. `ui/scripts/breadcrumb-live-check.mjs:34–42` selects the last REST session
-  and asserts its current entry equals the fifth visible entry. REST order need not match the
-  hydrated projection's order, and a current agent already in the first five must keep its
-  position. The independent seven-agent run exited 1 although `a_c069e3` was correctly marked
-  current in slot three (`live/live-1024.png`, `live/report.json`). Check visibility/current
-  identity by id or link target; use a controlled fixture when asserting fifth-slot replacement.
-
-Verification: 54 focused tests pass (`agentSiblings`, `ChatPanel`, `ActiveProjectNav`);
-`npm run check:styles` passes (46 checker tests plus contract audit), as does `make check-specs`; independent
-`breadcrumb-render.mjs` passes 210 checks at 1024/1440 in Core, Sky & Grove and Studio.
-Approved browser execution succeeded after the sandbox's initial loopback bind refusal.
-Independent real-server/embedded-UI fakeacp checks covered all three appearances at both widths,
-live join/leave, one-click switching, keyboard overflow and reduced motion; the failures above
-remain open. The development presentation matrix also rendered. No product code/specs changed;
-full implementation closure was not repeated. Evidence and review-only harnesses live in shared
-project resources `breadcrumb-review-2026-10-18/`.
-
-Local choices accepted: state classes avoid an uncontracted `data-state` hook; the negative block
-margin preserves panel position across the rendered matrix; long-prefix truncation retains full
-tooltips and accessible names as required. No human decision is needed for these choices.
-Invariant sweep: §§1, 2, 4, 8, 10, 13, 16 and 17 assessed (boundary reset, shared builders,
-listener cleanup, rendered data, wiring, selectors, retained projection, and tests); findings are
-tagged above, with no additional defects in the remaining applicable classes. §§3, 5, 6, 7, 9,
-11, 12, 14 and 15 have no applicable changed product surface: no persisted fields, concurrent
-claims, runtime contracts, record recovery, durability primitives, wire protocols, CLI execution,
-HTTP/security handlers or external-effect ordering changed.
-
 ### File reader formats and path copying — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Implementation `8857beb3`; Go closure and embedded build pass. Independent implementation/rendered review
@@ -409,10 +349,13 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
 
 ## Changelog
 
-- **2026-10-18 — Reviewed breadcrumb sibling-agent switching:** found agent-local state leaking
-  across sibling navigation, ignored reduced motion, a clipped overflow menu and a false live-test
-  oracle. Independent focused and rendered verification completed; the same unit remains open
-  for fixes.
+- **2026-10-18 — Fixed breadcrumb sibling-agent switching; unit closed:** each agent page now
+  remounts per id so tab and staged runtime start fresh (BREAD-1, INV §1); reduced motion stops
+  busy dots (BREAD-2, INV §8); the `+n` menu right-aligns inside the viewport (BREAD-3, INV §8);
+  the live check identifies the current agent by id (BREAD-4, INV §17). FS-03.A76, FS-12.A40 and
+  TS-08.R138 extended. Three new `ChatPanel` tests and the new render checks fail pre-fix;
+  970 UI tests, `breadcrumb-render.mjs` and the real-server `breadcrumb-live-check.mjs` pass
+  (evidence: shared resources `breadcrumb-fix-2026-10-18/`).
 
 - **2026-10-18 — Phone polish:** groups start collapsed, chats gain Jump to latest, and the
   model/effort buttons match Send's shape.

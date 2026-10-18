@@ -129,7 +129,7 @@ a.agent-mini-card:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .agent-mini-card .agent-monogram-dot {
+  .agent-mini-card.busy .agent-monogram-dot {
     animation: none;
   }
 }
@@ -173,11 +173,13 @@ a.agent-mini-card:focus-visible {
   box-shadow: var(--ad-shadow-offset);
   display: grid;
   gap: var(--ad-space-1);
-  left: 0;
   max-width: 18rem;
   min-width: 12rem;
   padding: var(--ad-space-2);
   position: absolute;
+  /* The +n control sits at the breadcrumb's right end; grow leftward so the
+     menu stays inside the viewport. */
+  right: 0;
   top: calc(100% + var(--ad-space-2));
   z-index: 25;
 }

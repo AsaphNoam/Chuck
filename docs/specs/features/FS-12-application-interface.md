@@ -876,7 +876,8 @@ Requirements are user-observable.
   covering busy, idle, waiting, error and done states: the mini cards stay on one breadcrumb line
   with Back and the agent id visible, the current entry is identifiable without color, attention
   tones match the dashboard cards, and the panel below does not move compared with the unchanged
-  single-agent breadcrumb. *Verify:* presentation checks and the A76 rendered pass; covered by
+  single-agent breadcrumb. The opened `+n` menu lies inside the viewport, and under reduced
+  motion no busy dot animates, including one that turns busy while the page is open. *Verify:* presentation checks and the A76 rendered pass; covered by
   `ui/scripts/breadcrumb-render.mjs` (stubbed stream, all listed cases) and
   `ui/scripts/breadcrumb-live-check.mjs`.
 

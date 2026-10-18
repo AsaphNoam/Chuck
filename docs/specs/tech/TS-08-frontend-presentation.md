@@ -1707,7 +1707,10 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   `aria-current="page"`. Each mini card reuses the header's `agent-monogram` tile and state-dot
   classes at a smaller size rather than a new state palette. The `+n` disclosure is factored out of
   `ProjectNav` (count label, keyboard-accessible menu, outside-pointer and Escape dismissal, and
-  closing when the route's agent changes, INV §1) and shared by both navs. Styles live in
+  closing when the route's agent changes, INV §1) and shared by both navs. Because a sibling link
+  keeps the same route element, `ChatPanel` keys its agent page on the route id so tab, staged
+  runtime choice and other agent-local panel state start fresh for each agent (INV §1). The
+  overflow menu aligns to the `+n` control's right edge so it opens inside the viewport. Styles live in
   `features/agent.css` with existing semantic tokens; no public `data-ui` hook, skin state,
   dependency or motion is added, and every new literal class has a selector (INV §13). Width
   safety is CSS-only (truncation, no wrap); presentation does not measure available width. Cover

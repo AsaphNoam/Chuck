@@ -58,8 +58,14 @@ export function initialTab(tabParam: string | null, agentInterface?: string): st
   return "transcript";
 }
 
+// A sibling link keeps the same route, so remount per agent: tab, staged
+// runtime and other panel state belong to one agent (FS-03.R98, INV §1).
 export function ChatPanel() {
   const { id = "" } = useParams();
+  return <AgentPanel key={id} id={id} />;
+}
+
+function AgentPanel({ id }: { id: string }) {
   const [params, setParams] = useSearchParams();
   const agent = useAgentStore((state) => state.agents[id]);
   const agentsHydrated = useAgentStore((state) => state.hydrated);

@@ -383,6 +383,43 @@ describe("ChatPanel sibling agents", () => {
     await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Six"));
     expect(screen.queryByRole("menu")).toBeNull();
   });
+
+  // FS-03.R98: a sibling opens as its dashboard card would, not with the
+  // previous agent's tab or staged runtime choice.
+  it("opens a chat sibling of a terminal agent on its Transcript", async () => {
+    seed({ term: sibling("term", "Term", { interface: "terminal" }), chat: sibling("chat", "Chat") });
+    renderPanel("term");
+    expect(screen.getByTestId("terminal-bridge")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: "Chat" }));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Chat"));
+    expect(screen.getByRole("tab", { name: "Transcript" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toBeInTheDocument();
+  });
+
+  it("opens a sibling from Files on its Transcript", async () => {
+    seed({ a: sibling("a", "Ada"), b: sibling("b", "Bo") });
+    renderPanel("a");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Files" }));
+    expect(screen.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(screen.getByRole("link", { name: "Bo" }));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Bo"));
+    expect(screen.getByRole("tab", { name: "Transcript" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("does not carry a staged runtime choice to a sibling with the same runtime", async () => {
+    mocks.useBackends.mockReturnValue({ data: backends });
+    seed({ a: sibling("a", "Ada"), b: sibling("b", "Bo") });
+    renderPanel("a");
+    fireEvent.change(await screen.findByLabelText("Backend"), { target: { value: "codex" } });
+    expect(screen.getByRole("button", { name: "Switch" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: "Bo" }));
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Bo"));
+    expect((screen.getByLabelText("Backend") as HTMLSelectElement).value).toBe("claude");
+    expect(screen.queryByRole("button", { name: "Switch" })).not.toBeInTheDocument();
+  });
 });
 
 // FS-03.A9 — the chat header is a second, explicit entry point to the existing

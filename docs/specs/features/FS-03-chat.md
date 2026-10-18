@@ -1403,7 +1403,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   `waiting_input`, one `idle`), a stopped agent and an archived agent, plus a running agent in
   another project: the busy agent's page lists exactly the three running siblings in dashboard
   order, the current one marked and not a link, the waiting one emphasized. One click opens the
-  waiting agent's page with its own transcript and draft. Starting the stopped agent adds it and
+  waiting agent's page with its own transcript and draft. Switching from a terminal agent, or
+  from the Files tab, opens a chat sibling on Transcript, and a staged unswitched runtime choice
+  does not carry to a sibling with the same runtime. Starting the stopped agent adds it and
   stopping one removes it without a refresh; a state change reorders nothing. Viewing the stopped
   agent shows it as current among the running siblings. Seven running agents show five entries
   (including the current one) and a keyboard-operable `+2`. A project's only running agent shows

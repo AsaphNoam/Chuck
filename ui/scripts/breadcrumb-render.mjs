@@ -60,6 +60,7 @@ try {
           window.EventSource = class extends EventTarget {
             constructor() {
               super();
+              window.__stream = this;
               setTimeout(() => {
                 this.onopen?.();
                 for (const data of hydrated) this.dispatchEvent(new MessageEvent("state_update", { data: JSON.stringify(data) }));
@@ -126,6 +127,16 @@ try {
           if (m.busyAnimation !== null) record(`${label}: busy dot pulses`, m.busyAnimation === "ad-state-pulse", m.busyAnimation);
           record(`${label}: one line`, Math.abs(m.nav.height - baseline.nav.height) <= 1, `${m.nav.height} vs ${baseline.nav.height}`);
           record(`${label}: panel does not move`, Math.abs(m.card.top - baseline.card.top) <= 1, `${m.card.top} vs ${baseline.card.top}`);
+
+          // FS-12.R70: no pulse under reduced motion, including a sibling that
+          // turns busy while the page is open.
+          await page.emulateMedia({ reducedMotion: "reduce" });
+          const idle = agents.find((data) => data.state === "idle" && data.running && data.agent_id !== scenario.current) ?? agents.find((data) => data.agent_id !== scenario.current);
+          await page.evaluate((data) => window.__stream.dispatchEvent(new MessageEvent("state_update", { data: JSON.stringify({ agent_id: data.agent_id, data: { ...data, state: "busy" } }) })), idle);
+          await page.locator(`.chat-breadcrumb .agent-mini-card.busy[href$="/${idle.agent_id}"]`).waitFor({ timeout: 4000 }).catch(() => {});
+          const reduced = await page.evaluate(() => [...document.querySelectorAll(".chat-breadcrumb .agent-mini-card.busy .agent-monogram-dot")].map((dot) => getComputedStyle(dot).animationName));
+          record(`${label}: reduced motion stops busy pulses`, reduced.length > 0 && reduced.every((name) => name === "none"), reduced.join(","));
+          await page.emulateMedia({ reducedMotion: "no-preference" });
         }
         record(`${label}: no breadcrumb overflow`, m.navScroll <= m.navClient + 1, `${m.navScroll}/${m.navClient}`);
         record(`${label}: Back and id visible`, m.back.left >= m.nav.left - 1 && m.back.width > 0 && m.id.right <= m.nav.right + 1
@@ -137,6 +148,8 @@ try {
         if (scenario.count > 5) {
           await page.locator(".chat-breadcrumb-overflow > button").click();
           await page.locator(".chat-breadcrumb-menu").waitFor();
+          const menu = await page.locator(".chat-breadcrumb-menu").boundingBox();
+          record(`${label}: open menu inside the viewport`, menu.x >= 0 && menu.x + menu.width <= width, `${menu.x}–${menu.x + menu.width}`);
           await page.screenshot({ path: join(outDir, `${base}-menu.png`), clip: { x: 0, y: 0, width, height: 320 }, animations: "disabled" });
           await page.keyboard.press("Escape");
           record(`${label}: Escape closes the menu`, await page.locator(".chat-breadcrumb-menu").count() === 0);
