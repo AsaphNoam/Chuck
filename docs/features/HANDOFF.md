@@ -29,12 +29,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Owed: live FS-01.A28/A31/A33/A34 receipts, A32 full owner/race matrix, A33 real-browser
   cancel/reload/disable journeys.
 
-- **Awaiting fixes — peer transcript reads and approved Stop (reviewed 2026-10-17):** unit
-  `peer-transcripts-approved-stop-2026-10-16`; PS-1–PS-6 open (one P1, five P2).
-  Reviewed the peer implementation commits `953aeb31`, `d272c5e1`, `78d419b0`, `c52373bb`,
-  `d33ebefb` against current code; unrelated later units remain independent. FS-06.R39–R44,
-  TS-04.R93–R95. Ordinary desktop/paired-phone approval journeys pass; provider/device and
-  per-kind Stop parity gates remain owed. See Review findings.
+- **Finished — peer transcript reads and approved Stop fixes (2026-10-18):** fix unit
+  `peer-transcripts-approved-stop-2026-10-16` (PS-1–PS-6) closed; see changelog. FS-06.R39–R44,
+  TS-04.R93–R95, TS-02.R49. Owed: real Claude/Codex host-gate receipt, physical-device and
+  per-kind (task/pipeline/Think Tank/terminal) Stop parity gates (Acceptance gates still owed).
 
 - **Finished — desktop default-persona toggle (2026-10-16):** `33226f23`, FS-04.R58/A37,
   reviewed with no findings; no open fixes (evidence in `/tmp/persona-review-20261016/`).
@@ -210,100 +208,6 @@ None.
 
 ## Review findings
 
-### Review 2026-10-17 — peer transcript reads and approved Stop — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Selected unit: `peer-transcripts-approved-stop-2026-10-16`, the five peer implementation
-commits named above, including their shipped specifications/guidance. Requirements checked:
-FS-06.R39–R44/A28–A32, FS-03.R91, FS-15.R18, FS-17.R22, TS-02.R49, TS-03.R71,
-TS-04.R93–R95, TS-05.R27 and TS-11.R23. No product code or specs changed.
-
-- **Must fix** — **PS-1 / P1 (INV §5/§9): verify an orphan's actual process identity before Stop.**
-  `internal/server/peer_stop.go:148–163` accepts a running row without a registry owner and
-  compares only that row's generation/PID/StartedAt again at execution. It never verifies the
-  live process's start identity. After a server crash and PID reuse, approval can therefore kill
-  an unrelated process through `reapOrphanRuntime` (`internal/server/launch.go:863`). A controlled
-  probe created only its own sleep child, wrote a stale orphan row with that PID and a start time
-  one day earlier, then approved Stop: the child was killed and the result claimed `stopped`.
-  TS-04.R94–R95 and FS-06.R42 require refusal for unverifiable or replacement execution. Verify
-  actual identity before admission/signaling, or refuse unverifiable orphan execution; retain the
-  ordinary Stop path. Fix complexity: medium, bounded lifecycle/process verification. Regression
-  source `/tmp/peer_stop_identity_review_test.go`, overlay `/tmp/peer-stop-identity-overlay.json`;
-  `go test -overlay /tmp/peer-stop-identity-overlay.json ./internal/server -run
-  TestReviewPeerStopRejectsUnverifiedOrphan -count=1 -v` fails with replacement process killed.
-- **Must fix** — **PS-2 / P2 (INV §15): require durable approval before releasing the host waiter.**
-  `internal/runtime/permission.go:111–122` makes approval admissible and calls best-effort
-  `emitIn`; `chat.go:2302–2351` neither syncs permission resolutions nor propagates their append
-  failure through `emitIn`. An approval can stop the target even when its decision record failed
-  to persist. A failing-writer probe logs the failed append, then observes `HostApprove` and a
-  successful `Admit`. TS-02.R49/TS-04.R94 require the user's resolution durably recorded before
-  the effect. Use a checked, synced host-resolution boundary and refuse admission on failure;
-  verify append/sync failure prevents Stop. Fix complexity: medium, coordinated permission/audit
-  handling. `/tmp/host_permission_overlay_test.go`, `/tmp/overlay.json`;
-  `go test -overlay=/tmp/overlay.json ./internal/runtime -run
-  OverlayHostPermissionApprovalDurability -count=1` fails: "Admit succeeded after durable
-  approval failure".
-- **Must fix** — **PS-3 / P2 (INV §5/§8): serialize request publication with cancellation.**
-  `internal/runtime/host_permission.go:83–95` exposes `as.pending`, unlocks, and later publishes
-  waiting status/request. Cancel/Stop can settle it in that gap, after which the opener emits
-  a fresh-looking request for a cancelled operation. A `SetStateTouch` barrier after waiting
-  publication, followed by Cancel, observes `permission_resolved` before `permission_request`;
-  late approval is correctly refused, but transcript ordering resurrects an unresolved prompt
-  and the later status write can overwrite settled state. FS-06.R42 and TS-04.R94 require one
-  request lifetime and truthful replay. Serialize admission/publication/settlement and cover
-  Cancel/Stop/timeout at the boundary. Fix complexity: medium, bounded concurrency.
-  `/tmp/host_permission_overlay_test.go`: `OverlayHostPermissionCancelBeforeRequestEmit`
-  passes by explicitly asserting the defective event order.
-- **Must fix** — **PS-4 / P2 (INV §4/§11/§15): record host cancellation when the requester crashes.**
-  `internal/runtime/chat.go:1984–1998` clears pending host requests and settles `HostCancelled`
-  without a `permission_resolved` event. Phone filtering and desktop status guards suppress dead
-  controls, but ordinary recorded history lacks the cancellation result. This violates
-  FS-06.R42/R44 and TS-02.R49's explicit cancelled reconciliation. Resolve host records through
-  an audit-preserving teardown path; do not release a provider request to a dead transport.
-  Fix complexity: medium, teardown/audit ordering. The overlay
-  `OverlayHostPermissionCrashHasNoResolution` kills only its fake ACP child, observes cancellation
-  and fatal turn completion, and confirms no resolution event for the request.
-- **Must fix** — **PS-5 / P2 (INV §7/§11): preserve the trailing oversized-record warning on incremental reads.**
-  `internal/contextref/peer.go:99` emits a deferred trailing warning only for `since_seq:0`.
-  A complete `turn_end(seq=2)` followed by a record exceeding 8 MiB, read with `since_seq:2`,
-  returns empty text and `complete:true`. The caller sees "nothing new" instead of an omitted
-  record, contrary to FS-06.R39/TS-04.R93's shared omission markers. Cover this incremental
-  trailing edge without marking records before the selected range. Fix complexity: trivial/easy,
-  localized renderer boundary and regression. Executed `TestOverlayPeerSinceSeqReportsTrailingOversized`
-  fails with `SnapshotLastSeq:2 Text:"" Complete:true`. Source and executable overlay:
-  `/tmp/peer-read-review/peer_overlay_test.go`, `/tmp/peer-read-review/overlay.json`.
-- **Must fix** — **PS-6 / P2 (INV §9/§11): reject cursors whose source prefix was replaced.**
-  `internal/transcript/reader.go:77–108` checks only size and a newline; peer continuation also
-  checks maximum sequence (`internal/contextref/peer.go:104`). Replacing a transcript with
-  same-length different text and the same maximum sequence is accepted, mixing two histories
-  across pages. TS-02.R49 explicitly requires replaced prefixes to be reported. Check stable
-  prefix identity across continuation/restart, reconciling the cursor contract in TS-04.R93 as
-  needed; keep its bounds and avoid a source-copy cache. Fix complexity: medium, cursor/reader
-  contract and regression. Executed `TestOverlayPeerCursorRejectsSameBoundaryReplacement`
-  fails with error `<nil>` instead of `transcript_unavailable`; same peer-read overlay above.
-
-Checks: contextref/messaging/transcript suites and focused runtime host-permission tests pass;
-focused server peer-Stop/window tests pass after approved loopback execution; 62 permission/phone
-UI tests and style/presentation checks (46 script tests) pass. Probes above deliberately expose
-failures outside the passing suite. Browser evidence `/tmp/peer-stop-render/`: actual embedded
-UI/fake ACP, 1024px desktop and authenticated 390px phone route; pending identities/reason/
-consequences, reload, Deny, a fresh request, phone Approve once, Stop and later Resume pass with
-no page errors. Sky & Grove and Studio pending prompts also pass at both sizes; inspected
-screenshots under `/tmp/peer-stop-render/{sky-grove,studio}/` and receipt `skin-receipt.txt`.
-Reproducible fixture/script sources are retained in `/tmp/peer-stop-render/source/`. This is a
-local paired-route browser receipt, not physical-device or live-provider proof.
-
-Invariant sweep: §1 lifecycle/pending replay checked; §2 shared renderer/ordinary Stop seams
-reused; §4/§5/§7/§9/§11/§15 have findings above; §8 bounded identity/reason and mutation error
-surfaces checked; §10 tools/guidance/permission catalogs wired; §13 selectors and all appearances
-checked; §14 existing operator/paired-device guards retained; §16 scan/request admission and
-page/reason bounds checked; §17 independent failure probes supplement fixtures. No applicable
-surface for §3 (persisted launch/form fields), §6 (new runtime/driver checklist), or §12 (new
-external CLI protocol). Accepted local choices: completion notice on the requester after target
-Stop, broad peer reads independent of context grants, no-op already-stopped targets without a
-prompt, and refusing lifecycle contention rather than waiting for a different run. Other queues
-and concurrent task-completion edits are preserved. State validation: handoff spec check,
-`make check-specs` and `git diff --check` pass.
-
 ### Review 2026-10-17 — phone New agent from a group header — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Selected unit: `phone-group-new-agent-2026-10-16`, implementation `7ff852ac`; checked the
@@ -409,6 +313,22 @@ provider/device acceptance gates and unrelated known risks above remain open.
 Closed reviews through the `v0.16.0` cut are in the archive above.
 
 ## Changelog
+
+- **2026-10-18 — Peer transcript reads and approved Stop fixes (PS-1–PS-6) closed:**
+  PS-1 (INV §9, PID liveness is not identity): `peerExecution` refuses a live orphan unless
+  `runtime.ProcessIsRecorded` shows its OS start time (darwin sysctl / linux `/proc`) predates the
+  running row's `started_at` + 2 s; unknown start refuses. PS-2 (INV §15): host decisions resolve
+  through `emitChecked(required)`, and `permission_resolved` now syncs; an unrecorded decision
+  publishes cancelled, settles the waiter cancelled and returns `ErrPermissionNotRecorded`.
+  PS-3 (INV §5, generation token + ordered publication): settlers of a host request wait on its
+  `published` channel; `hostVoidSeq` (bumped by Cancel) replaces per-approval `voided`, closing
+  the take-then-park window too. PS-4 (INV §4/§15): requester crash records cancelled for each
+  open host request before the fatal turn end. PS-5 (INV §7): the trailing omitted-record marker
+  applies whenever it follows `since_seq`. PS-6 (INV §9/§11): peer cursors `p2` carry a 128-bit
+  SHA-256 fingerprint of the prefix, computed in the same scan via `ReadOptions.Tee`; old `p1`
+  cursors read as `invalid_cursor`. TS-04.R93/R94, TS-02.R49 updated. Regressions in
+  `host_permission_test.go`, `contextref/peer_test.go`, `peer_stop_test.go`, each confirmed
+  failing on the prior code; focused `-race` runtime/server passes.
 
 - **2026-10-17 — Task completion in sequential skill workflows fixes (TC-1–TC-4) closed:**
   TC-2 (INV §2, one shared composition): `runtime.LaunchedTaskPrompt` sends a launched task's

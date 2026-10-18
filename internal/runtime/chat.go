@@ -252,6 +252,7 @@ type agentState struct {
 	pending                map[string]*pendingPerm    // toolCallID -> withheld permission request
 	resolved               map[string]struct{}        // toolCallIDs already settled this turn
 	hostApproved           map[string]*HostPermission // approved host requests not yet admitted
+	hostVoidSeq            uint64                     // bumped by requester cancellation; voids open host requests
 	transcript             []Event
 	writer                 TranscriptWriter
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
@@ -1988,12 +1989,16 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 	as.mu.Unlock()
 
 	// Abandon any held permission (the process is gone; the request can't be answered).
-	// A host waiter has no peer to abandon, so it learns the request is dead.
-	for _, p := range pend {
+	// A host waiter has no peer to abandon: record its cancellation, then tell
+	// the waiter the request is dead (TS-02.R49).
+	for id, p := range pend {
 		if p.timer != nil {
 			p.timer.Stop()
 		}
 		if p.host != nil {
+			p.awaitPublished()
+			c.markResolved(as, id)
+			c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: id, Decision: "cancelled"})
 			p.host.settle(HostCancelled)
 		}
 	}
@@ -2052,10 +2057,17 @@ func (c *ChatRuntime) emit(as *agentState, typ string, data any) Event {
 
 // emitIn is emit for an event scoped to a native child activity.
 func (c *ChatRuntime) emitIn(as *agentState, scope activityScope, typ string, data any) Event {
+	ev, _ := c.emitChecked(as, scope, typ, data, typ == EvUserPrompt)
+	return ev
+}
+
+// emitChecked is emitIn reporting durability. A required event that fails to
+// persist is withdrawn and never published.
+func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ string, data any, required bool) (Event, bool) {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		slog.Error("runtime: marshal event payload", "type", typ, "err", err)
-		return Event{}
+		return Event{}, false
 	}
 	as.mu.Lock()
 	as.seq++
@@ -2078,7 +2090,7 @@ func (c *ChatRuntime) emitIn(as *agentState, scope activityScope, typ string, da
 	// persistEvent but must NOT suppress live delivery, or subscribers' in-memory
 	// view would silently diverge from Transcript() on a disk error.
 	persisted := c.persistEvent(as, ev)
-	if !persisted && typ == EvUserPrompt {
+	if !persisted && required {
 		as.mu.Lock()
 		for i := range as.transcript {
 			if as.transcript[i].Seq == ev.Seq {
@@ -2087,7 +2099,7 @@ func (c *ChatRuntime) emitIn(as *agentState, scope activityScope, typ string, da
 			}
 		}
 		as.mu.Unlock()
-		return Event{}
+		return Event{}, false
 	}
 	if persisted && typ == EvAssistantImage {
 		var image AssistantImageData
@@ -2107,7 +2119,7 @@ func (c *ChatRuntime) emitIn(as *agentState, scope activityScope, typ string, da
 	if sink != nil {
 		sink(ev)
 	}
-	return ev
+	return ev, persisted
 }
 
 // AppendAnnotation records and publishes a dashboard annotation through the
@@ -2326,7 +2338,7 @@ func (c *ChatRuntime) persistEvent(as *agentState, ev Event) bool {
 		}
 		return true
 	}
-	if ev.Type == EvAnnotation || ev.Type == EvNotice || ev.Type == EvUserPrompt {
+	if ev.Type == EvAnnotation || ev.Type == EvNotice || ev.Type == EvUserPrompt || ev.Type == EvPermissionResolved {
 		if err := w.Sync(); err != nil {
 			slog.Error("runtime: sync transcript event", "agent", as.agentID, "seq", ev.Seq, "type", ev.Type, "err", err)
 			return false

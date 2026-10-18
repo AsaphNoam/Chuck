@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -195,5 +196,134 @@ func TestHostPermissionRequiresCurrentTurn(t *testing.T) {
 	if _, err := c.RequestHostPermission(h.AgentID, HostPermissionRequest{Generation: gen + "-old",
 		Origin: PermissionOriginPeerStop, Name: "Stop"}); !errors.Is(err, ErrHostPermissionStale) {
 		t.Fatalf("stale generation = %v", err)
+	}
+}
+
+// FS-06.R42: a settler that claims the request while the opener is still
+// publishing it waits, so the request and its waiting status always precede
+// the resolution (INV §5).
+func TestHostPermissionSettlementFollowsPublication(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		timeout string
+		settle  func(c *ChatRuntime, agentID string)
+	}{
+		{name: "cancel", settle: func(c *ChatRuntime, id string) { _, _ = c.Cancel(context.Background(), id) }},
+		{name: "stop", settle: func(c *ChatRuntime, id string) { _ = c.Stop(context.Background(), id) }},
+		{name: "timeout", timeout: "20ms", settle: func(*ChatRuntime, string) { time.Sleep(100 * time.Millisecond) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.timeout != "" {
+				t.Setenv("PERMISSION_TIMEOUT", tc.timeout)
+			}
+			c, h, ch, gen := hostBusyAgent(t)
+			entered, release := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			c.SetStateTouch(func(string) {
+				once.Do(func() {
+					close(entered)
+					<-release
+				})
+			})
+			opened := make(chan *HostPermission, 1)
+			go func() { opened <- openPeerStop(t, c, h.AgentID, gen) }()
+			<-entered
+			settled := make(chan struct{})
+			go func() { tc.settle(c, h.AgentID); close(settled) }()
+			time.Sleep(50 * time.Millisecond)
+			close(release)
+			hp := <-opened
+			if d := waitDecision(t, hp, context.Background()); d == HostApprove {
+				t.Fatalf("decision = %q", d)
+			}
+			<-settled
+			var order []string
+			for len(order) < 2 {
+				select {
+				case ev := <-ch:
+					if ev.Type == EvPermissionRequest || ev.Type == EvPermissionResolved {
+						order = append(order, ev.Type)
+					}
+				case <-time.After(3 * time.Second):
+					t.Fatalf("events = %v", order)
+				}
+			}
+			if order[0] != EvPermissionRequest || order[1] != EvPermissionResolved {
+				t.Fatalf("event order = %v, want request then resolution", order)
+			}
+			if err := c.Permission(context.Background(), h.AgentID, hp.ID, "approve"); err == nil {
+				t.Fatal("late approval succeeded")
+			}
+		})
+	}
+}
+
+// TS-02.R49: the waiter is released only after the decision is durably
+// recorded; an approval that cannot be recorded ends the request unapproved.
+func TestHostPermissionApprovalRequiresDurableRecord(t *testing.T) {
+	c, h, ch, gen := hostBusyAgent(t)
+	hp := openPeerStop(t, c, h.AgentID, gen)
+	c.SetPersistence(t.TempDir(), nil, &removalIndexer{})
+	c.mu.Lock()
+	as := c.agents[h.AgentID]
+	c.mu.Unlock()
+	as.mu.Lock()
+	as.writer = &failingForkWriter{}
+	as.mu.Unlock()
+	if err := c.Permission(context.Background(), h.AgentID, hp.ID, "approve"); !errors.Is(err, ErrPermissionNotRecorded) {
+		t.Fatalf("approve with failed record = %v", err)
+	}
+	if d := waitDecision(t, hp, context.Background()); d != HostCancelled {
+		t.Fatalf("decision = %q", d)
+	}
+	if err := hp.Admit(); !errors.Is(err, ErrHostPermissionStale) {
+		t.Fatalf("Admit after unrecorded approval = %v", err)
+	}
+	for {
+		ev := waitForEvent(t, ch, EvPermissionResolved)
+		var rd PermissionResolvedData
+		_ = json.Unmarshal(ev.Data, &rd)
+		if rd.ToolCallID != hp.ID {
+			continue
+		}
+		if rd.Decision != "cancelled" {
+			t.Fatalf("published resolution = %+v, want cancelled", rd)
+		}
+		return
+	}
+}
+
+// FS-06.R42/R44: a requester crash records the host request's cancellation in
+// ordinary history before the turn ends.
+func TestHostPermissionRequesterCrashRecordsCancellation(t *testing.T) {
+	c, h, ch, gen := hostBusyAgent(t)
+	hp := openPeerStop(t, c, h.AgentID, gen)
+	c.mu.Lock()
+	proc := c.agents[h.AgentID].cmd.Process
+	c.mu.Unlock()
+	if err := proc.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	if d := waitDecision(t, hp, context.Background()); d != HostCancelled {
+		t.Fatalf("decision = %q", d)
+	}
+	resolved := false
+	for {
+		select {
+		case ev := <-ch:
+			switch ev.Type {
+			case EvPermissionResolved:
+				var rd PermissionResolvedData
+				_ = json.Unmarshal(ev.Data, &rd)
+				resolved = resolved || (rd.ToolCallID == hp.ID && rd.Decision == "cancelled")
+			case EvTurnEnd:
+				if !resolved {
+					t.Fatal("crashed host request has no recorded cancellation")
+				}
+				return
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("transport did not finish after child kill")
+		}
 	}
 }

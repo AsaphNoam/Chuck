@@ -44,8 +44,17 @@ type HostPermission struct {
 	as         *agentState
 	generation string
 	turnID     string
-	decision   chan string // buffered: the single settled decision
-	voided     bool        // guarded by as.mu: requester cancellation won
+	decision   chan string   // buffered: the single settled decision
+	voidSeq    uint64        // as.hostVoidSeq at open; a later cancellation voids it
+	published  chan struct{} // closed once the request and waiting status are published
+}
+
+// awaitPublished holds a settler until the opener has published the request,
+// so a resolution never precedes its request or its waiting status (INV §5).
+func (p *pendingPerm) awaitPublished() {
+	if p.host != nil {
+		<-p.host.published
+	}
 }
 
 // RequestHostPermission opens a host decision on the requester's live turn,
@@ -60,7 +69,7 @@ func (c *ChatRuntime) RequestHostPermission(agentID string, req HostPermissionRe
 		return nil, err
 	}
 	h := &HostPermission{ID: req.Origin + "_" + hex.EncodeToString(raw[:]), c: c, as: as,
-		generation: req.Generation, decision: make(chan string, 1)}
+		generation: req.Generation, decision: make(chan string, 1), published: make(chan struct{})}
 	timeout := permissionTimeout()
 	expiresAt := ""
 	if timeout > 0 {
@@ -86,13 +95,17 @@ func (c *ChatRuntime) RequestHostPermission(agentID string, req HostPermissionRe
 		return nil, ErrHostPermissionStale
 	}
 	h.turnID = as.execTurnID
+	h.voidSeq = as.hostVoidSeq
 	as.pending[h.ID] = p
 	as.mu.Unlock()
 	if timeout > 0 {
 		p.timer = time.AfterFunc(timeout, func() { c.onPermissionTimeout(as, h.ID) })
 	}
+	// A settler that claims the request in this gap waits on published, so the
+	// request, then its waiting status, precede any resolution.
 	c.updateStatus(as, "waiting_input", "Permission: "+req.Name, "PermissionRequest: "+req.Name, keepBusySince)
 	c.emit(as, EvPermissionRequest, data)
+	close(h.published)
 	return h, nil
 }
 
@@ -137,11 +150,12 @@ func (h *HostPermission) Admit() error {
 	as := h.as
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	if _, held := as.hostApproved[h.ID]; !held || h.voided {
+	if _, held := as.hostApproved[h.ID]; !held {
 		return ErrHostPermissionStale
 	}
 	delete(as.hostApproved, h.ID)
-	if as.stopped || as.stopping || as.generation != h.generation || !as.turnActive || as.execTurnID != h.turnID {
+	if as.hostVoidSeq != h.voidSeq || as.stopped || as.stopping || as.generation != h.generation ||
+		!as.turnActive || as.execTurnID != h.turnID {
 		return ErrHostPermissionStale
 	}
 	return nil
@@ -159,12 +173,11 @@ func (h *HostPermission) approved(as *agentState) {
 }
 
 // voidHostApprovalsLocked is requester cancellation's side of the admission
-// race. Caller holds as.mu.
+// race: every host request opened before it, approved yet or not, can no
+// longer be admitted. Caller holds as.mu.
 func (as *agentState) voidHostApprovalsLocked() {
-	for id, h := range as.hostApproved {
-		h.voided = true
-		delete(as.hostApproved, id)
-	}
+	as.hostVoidSeq++
+	clear(as.hostApproved)
 }
 
 func (h *HostPermission) settle(decision string) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -212,4 +213,61 @@ func TestPeerStopRefusesStaleOrSettledTargets(t *testing.T) {
 			t.Fatalf("result = %+v", res)
 		}
 	})
+}
+
+// TS-04.R94/FS-06.R42: an orphan row is stopped only while its live PID is
+// still the recorded process; a later process that reused the PID refuses
+// without a prompt or kill (INV §9). Only children this test started are used.
+func TestPeerStopVerifiesOrphanProcessIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		recorded func(started time.Time) time.Time
+		want     string
+	}{
+		{name: "reused pid", recorded: func(started time.Time) time.Time { return started.Add(-24 * time.Hour) }},
+		{name: "recorded orphan", recorded: func(started time.Time) time.Time { return started.Add(time.Second) }, want: "stopped"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, ts, requester, target := peerStopFixture(t)
+			if err := srv.stopAgent(context.Background(), target); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command("sleep", "60")
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			started := time.Now()
+			t.Cleanup(func() { _ = cmd.Process.Kill() })
+			exited := make(chan error, 1)
+			go func() { exited <- cmd.Wait() }()
+			if err := srv.stateStore.WriteRunning(state.RunningEntry{AgentID: target, Generation: "orphan",
+				PID: cmd.Process.Pid, Interface: "chat", StartedAt: tc.recorded(started)}); err != nil {
+				t.Fatal(err)
+			}
+			ch, cancel := startPeerStop(srv, requester, target)
+			defer cancel()
+			if tc.want == "" {
+				result := awaitResult(t, ch)
+				if result.Code != "peer_stop_failed" || result.Effect != "unchanged" {
+					t.Fatalf("reused pid = %+v, want unchanged refusal", result)
+				}
+				select {
+				case err := <-exited:
+					t.Fatalf("refusal killed the unrelated process: %v", err)
+				case <-time.After(100 * time.Millisecond):
+				}
+				return
+			}
+			req := waitHostRequest(t, srv, requester.AgentID)
+			decide(t, ts, requester.AgentID, req.ToolCallID, "approve")
+			if result := awaitResult(t, ch); result.Outcome != tc.want {
+				t.Fatalf("result = %+v, want %s", result, tc.want)
+			}
+			select {
+			case <-exited:
+			case <-time.After(3 * time.Second):
+				t.Fatal("approved Stop left the recorded orphan running")
+			}
+		})
+	}
 }

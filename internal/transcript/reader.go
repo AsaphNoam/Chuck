@@ -25,6 +25,9 @@ type ReadOptions struct {
 	// omission marker at that stream position instead of returning a clean page
 	// that silently implies the record was rendered (TS-01.R22, INV §7).
 	OnOversized func(afterSeq int64) error
+	// Tee, when set, receives every byte ForEachFilePrefix scans, so a caller
+	// can fingerprint the prefix in the same pass (TS-02.R49).
+	Tee io.Writer
 }
 
 // Reader replays one transcript.ndjson file.
@@ -103,7 +106,11 @@ func ForEachFilePrefix(home, agentID string, limit int64, opts ReadOptions, visi
 	if last[0] != '\n' {
 		return ErrPrefixUnavailable
 	}
-	return forEach(io.LimitReader(f, limit), opts, visit)
+	var rd io.Reader = io.LimitReader(f, limit)
+	if opts.Tee != nil {
+		rd = io.TeeReader(rd, opts.Tee)
+	}
+	return forEach(rd, opts, visit)
 }
 
 func (r *Reader) ReadAll(opts ReadOptions) ([]runtime.Event, error) {

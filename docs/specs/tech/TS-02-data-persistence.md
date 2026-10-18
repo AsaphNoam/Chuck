@@ -667,7 +667,8 @@ Normalized `permission_request` gains an optional `origin:"chuck_peer_stop"`; it
 server-derived target/requester metadata are persisted for presentation, never as executable
 approval. Existing events without origin retain their meaning. On restart or generation end,
 historical unresolved host prompts are non-actionable and explicitly cancelled through ordinary
-permission reconciliation; no restart sweep executes or replays a stop.
+permission reconciliation; no restart sweep executes or replays a stop. A requester crash records
+`permission_resolved:"cancelled"` for each open host request before its fatal turn end.
 
 Reuse normalized permission/resolution, tool result and `notice` records for audit, with no second
 journal. Before signaling the target, durably append/sync the user's approval and an attributed

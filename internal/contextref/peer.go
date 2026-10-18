@@ -2,6 +2,8 @@ package contextref
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"math"
 	"strconv"
@@ -31,9 +33,12 @@ type peerPosition struct {
 	lastSeq int64
 	prefix  int64
 	offset  int
+	// digest fingerprints the prefix bytes, so a same-length replacement with
+	// the same last sequence is reported rather than mixed in (TS-02.R49).
+	digest string
 }
 
-const peerCursorVersion = "p1"
+const peerCursorVersion = "p2"
 
 // ReadPeerTranscript renders one page of another agent's recorded
 // conversation. Authority is the caller's live MCP session (TS-05.R27): no
@@ -83,7 +88,8 @@ func (s *Service) ReadPeerTranscript(ctx context.Context, agentID string, sinceS
 	// the identical stream and offsets stay stable while the source grows.
 	renderer := newTranscriptRenderer(state.ContextSource{FirstSeq: pos.since + 1, LastSeq: math.MaxInt64}, out)
 	var maxSeq int64
-	opts := transcript.ReadOptions{IncludeMeta: true, OnOversized: renderer.oversized}
+	hash := sha256.New()
+	opts := transcript.ReadOptions{IncludeMeta: true, OnOversized: renderer.oversized, Tee: hash}
 	err = transcript.ForEachFilePrefix(s.home, agentID, pos.prefix, opts, func(ev runtime.Event) error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -97,12 +103,13 @@ func (s *Service) ReadPeerTranscript(ctx context.Context, agentID string, sinceS
 		return PeerReadResult{}, transcriptUnavailable()
 	}
 	renderer.done()
-	if pos.since == 0 && renderer.adjacent {
-		// A skipped record at the very end of a whole-history read has no later
-		// record to anchor it, but it is still inside the read (INV §7).
+	if renderer.adjacent && maxSeq >= pos.since {
+		// A skipped record after the last readable one has no later record to
+		// anchor it, but it follows since_seq, so it is inside the read (INV §7).
 		renderer.emit(OversizedRecordMarker + "\n\n")
 	}
-	if pos.lastSeq >= 0 && maxSeq != pos.lastSeq {
+	digest := hex.EncodeToString(hash.Sum(nil)[:16])
+	if pos.lastSeq >= 0 && (maxSeq != pos.lastSeq || digest != pos.digest) {
 		return PeerReadResult{}, transcriptUnavailable()
 	}
 	if !out.validOffset() {
@@ -117,7 +124,7 @@ func (s *Service) ReadPeerTranscript(ctx context.Context, agentID string, sinceS
 		Complete:        complete,
 	}
 	if !complete {
-		pos.lastSeq, pos.offset = maxSeq, next
+		pos.lastSeq, pos.offset, pos.digest = maxSeq, next, digest
 		result.NextCursor = encodePeerCursor(agentID, pos)
 	}
 	return result, nil
@@ -131,7 +138,7 @@ func transcriptUnavailable() *Error {
 func encodePeerCursor(agentID string, p peerPosition) string {
 	return encodeOpaque(strings.Join([]string{peerCursorVersion, agentID,
 		strconv.FormatInt(p.since, 10), strconv.FormatInt(p.lastSeq, 10),
-		strconv.FormatInt(p.prefix, 10), strconv.Itoa(p.offset)}, "\x00"))
+		strconv.FormatInt(p.prefix, 10), strconv.Itoa(p.offset), p.digest}, "\x00"))
 }
 
 func decodePeerCursor(agentID, cursor string) (peerPosition, *Error) {
@@ -144,14 +151,14 @@ func decodePeerCursor(agentID, cursor string) (peerPosition, *Error) {
 		return peerPosition{}, malformed
 	}
 	parts := strings.Split(raw, "\x00")
-	if len(parts) != 6 || parts[0] != peerCursorVersion {
+	if len(parts) != 7 || parts[0] != peerCursorVersion || len(parts[6]) != 32 {
 		return peerPosition{}, malformed
 	}
 	if parts[1] != agentID {
 		return peerPosition{}, failf(CodeInvalidCursor, "Cursor does not belong to this agent's transcript.")
 	}
 	var nums [4]int64
-	for i, part := range parts[2:] {
+	for i, part := range parts[2:6] {
 		n, err := strconv.ParseInt(part, 10, 64)
 		if err != nil || n < 0 {
 			return peerPosition{}, malformed
@@ -163,5 +170,5 @@ func decodePeerCursor(agentID, cursor string) (peerPosition, *Error) {
 	if nums[2] == 0 || nums[3] == 0 || nums[3] > math.MaxInt32 {
 		return peerPosition{}, malformed
 	}
-	return peerPosition{since: nums[0], lastSeq: nums[1], prefix: nums[2], offset: int(nums[3])}, nil
+	return peerPosition{since: nums[0], lastSeq: nums[1], prefix: nums[2], offset: int(nums[3]), digest: parts[6]}, nil
 }

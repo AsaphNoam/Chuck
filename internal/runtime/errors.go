@@ -29,6 +29,9 @@ var (
 	ErrPermissionAlreadyResolved = errors.New("runtime: permission request already resolved")
 	// ErrInvalidDecision: a permission decision other than approve/deny.
 	ErrInvalidDecision = errors.New("runtime: invalid permission decision")
+	// ErrPermissionNotRecorded: a host decision could not be durably recorded,
+	// so the request ended without its effect (TS-02.R49).
+	ErrPermissionNotRecorded = errors.New("runtime: permission decision could not be recorded; the request was cancelled")
 	// ErrProtocolVersion: the adapter negotiated an ACP protocol version outside
 	// the pinned [minACPVersion, maxACPVersion] range (techspec §12.1).
 	ErrProtocolVersion = errors.New("runtime: incompatible ACP protocol version")

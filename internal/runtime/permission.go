@@ -94,6 +94,7 @@ func (c *ChatRuntime) Permission(ctx context.Context, agentID, toolCallID, decis
 	if err != nil {
 		return err
 	}
+	p.awaitPublished()
 
 	optID, ok := selectOption(p.optByKind, decision)
 	if !ok {
@@ -109,16 +110,29 @@ func (c *ChatRuntime) Permission(ctx context.Context, agentID, toolCallID, decis
 	}
 
 	c.markResolved(as, toolCallID)
-	if p.host != nil && decision == "approve" {
-		// Hold the approval where requester cancellation can still void it
-		// until the stop is admitted (TS-04.R95).
-		p.host.approved(as)
-	}
 	// Write the resolved-but-active state before releasing the ACP peer. A peer
 	// may finish session/prompt as soon as it receives this response; writing busy
 	// afterwards could then overwrite the prompt goroutine's final idle status.
 	c.updateStatus(as, "busy", "thinking", "PermissionResolved", keepBusySince)
-	c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: decision})
+	resolved := PermissionResolvedData{ToolCallID: toolCallID, Decision: decision}
+	if p.host != nil {
+		// The host waiter acts on this decision, so it is released only after the
+		// decision is durably recorded; an unrecorded decision ends the request
+		// without effect (TS-02.R49, INV §15).
+		if _, ok := c.emitChecked(as, p.scope, EvPermissionResolved, resolved, true); !ok {
+			c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "cancelled"})
+			p.resolve("cancelled", "")
+			return ErrPermissionNotRecorded
+		}
+		if decision == "approve" {
+			// Hold the approval where requester cancellation can still void it
+			// until the stop is admitted (TS-04.R95).
+			p.host.approved(as)
+		}
+		p.resolve("selected", optID)
+		return nil
+	}
+	c.emitIn(as, p.scope, EvPermissionResolved, resolved)
 	p.resolve("selected", optID)
 	return nil
 }
@@ -129,6 +143,7 @@ func (c *ChatRuntime) onPermissionTimeout(as *agentState, toolCallID string) {
 	if err != nil {
 		return
 	}
+	p.awaitPublished()
 	optID, found := selectOption(p.optByKind, "deny")
 	c.markResolved(as, toolCallID)
 	// As with a user decision, write busy before answering the peer so a fast
@@ -252,6 +267,7 @@ func (c *ChatRuntime) resolvePending(as *agentState, toolCallID, outcome, option
 	if err != nil {
 		return false
 	}
+	p.awaitPublished()
 	c.markResolved(as, toolCallID)
 	c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "cancelled"})
 	p.resolve(outcome, optionID)

@@ -1227,8 +1227,10 @@ pure range renderer from reference/grant authorization rather than routing the p
 child-activity separation and malformed/unknown/oversized-record markers. Page text is at most
 32 KiB, UTF-8 safe; adjacent assistant deltas are emitted incrementally, never accumulated as a
 whole reply. Record decoding keeps the existing 8 MiB bound. Continuation cursors are at most
-1 KiB and carry only version, agent id, fixed sequence/file-prefix bounds and rendered byte offset;
-recheck identity and bounds on every page. Reject malformed, mismatched, impossible, past-end or
+1 KiB and carry only version, agent id, fixed sequence/file-prefix bounds, a fingerprint of the
+prefix bytes and rendered byte offset; recheck identity, bounds and fingerprint on every page, so a
+replaced prefix of the same length and maximum sequence returns `transcript_unavailable`. A record
+skipped after the last readable event of the prefix is marked whenever it follows `since_seq`. Reject malformed, mismatched, impossible, past-end or
 mid-rune positions with `invalid_cursor`. A cursor is a position, not authority, and remains usable
 after restart while its append-only source prefix exists. No server-side snapshot cache is needed.
 Each scan checks request cancellation; admit at most eight peer transcript scans server-wide,
@@ -1251,7 +1253,8 @@ reject self and unknown targets before creating a prompt. Resolve target executi
 the registry and durable running row (generation, PID/start identity for an orphan), never from
 arguments. A genuinely stopped target returns `already_stopped` without a prompt; a missing runtime
 handle alone is not proof that it is stopped. Conflicting or unverifiable execution state refuses
-without killing anything.
+without killing anything; a live orphan PID whose operating-system start time is unknown or later
+than its running row's `started_at` (beyond small timestamp slack) is unverifiable.
 
 Extend the existing runtime pending-permission mechanism with a host-decision waiter, rather than
 adding another approval inbox, MCP elicitation dependency or fake ACP request. Mint an opaque
@@ -1266,7 +1269,9 @@ generation teardown. Reuse the optional permission deadline and default-off time
 
 The existing `/permission` endpoint and `takePending` single-winner path resolve the host waiter;
 ordinary ACP option/response handling stays separate. Persist/publish the resolution and requester
-status before releasing the waiter. Provider `allow_once`, `allow_always`, native bypass mode,
+status before releasing the waiter; a decision whose resolution cannot be appended and synced ends
+the request as cancelled and returns an error to the decider. A settler that claims the request
+before it is published waits, so the request and waiting status always precede its resolution. Provider `allow_once`, `allow_always`, native bypass mode,
 Chuck's registered-tool exemption and skip-permissions can at most admit the MCP invocation;
 none resolves this host record. MCP input has no approval, approver or target-generation field.
 Only the existing operator decision path can select approve. A browser reload retains a live
