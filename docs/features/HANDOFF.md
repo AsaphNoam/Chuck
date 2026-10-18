@@ -6,15 +6,17 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** `v0.17.0` cut 2026-10-18 from `v0.16.0..main`; publication verification
-  (workflow §16.6) follows the push. Notes:
+- **Release:** `v0.17.0` published 2026-10-18 (Latest): release CI run 39100834882 passed and
+  the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from the
+  notes. Main CI run 39100833712 on the release commit failed once on
+  `TestCanceledTurnsReleaseToolInput` (see Review findings). Notes:
   [`RELEASE-v0.17.0-notes.md`](../archive/state/RELEASE-v0.17.0-notes.md). Everything it settled
   is archived in [`HANDOFF-through-2026-10-18`](../archive/state/HANDOFF-through-2026-10-18.md).
   The shipped `operating-chuck` package now covers peer transcript reads, approved peer Stop,
   task reporting/`$name` skills, Think Tank goal attachments and judge instructions, quota
   reset/check recovery, the provider-handoff history bridge and restart-paused pipeline stages.
 - **Smaller owed checks carried over:** no phone component test for the definite-refusal Retry
-  rule; remote CI confirmation of the `NewAgentModal`/phone gap-test race fix; live Claude receipt
+  rule; live Claude receipt
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
 - **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
@@ -146,7 +148,13 @@ None.
 
 ## Review findings
 
-None open.
+- **CI-1 (Worth fixing, late tool input unit LTI) — `TestCanceledTurnsReleaseToolInput` flakes
+  in CI:** main CI run 39100833712 failed at `internal/runtime/tool_input_test.go:37` (“turn 2:
+  open inputs = 0, want the live call”) after the turn-1 cancel; 60/60 local repeats pass.
+  Uninvestigated whether the test injects its frame before turn 2's `setExecTurn` release or a
+  late turn-1 `finishTurn` drops a live turn-2 call (product ordering). Route through
+  `/investigate-bug` → `/fix`. (`NewAgentModal`/phone gap-test race fix is confirmed remotely:
+  main CI run 39007164597 passed.)
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
 
