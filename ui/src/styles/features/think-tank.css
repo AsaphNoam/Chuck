@@ -1357,42 +1357,6 @@ a.think-tank-author:hover {
   }
 }
 
-/* The agent-header room cue keeps the compact pill roster (FS-21.R45). */
-.think-tank-card-roster {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ad-space-2);
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.think-tank-card-roster > li {
-  align-items: baseline;
-  border: var(--ad-border-thin) solid var(--ad-border-default);
-  border-radius: var(--ad-radius-small);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--ad-space-2);
-  min-width: 0;
-  overflow-wrap: anywhere;
-  padding: var(--ad-space-1) var(--ad-space-2);
-}
-
-.think-tank-card-roster > li > span {
-  color: var(--ad-text-secondary);
-  font-size: 0.85rem;
-}
-
-.think-tank-card-roster > li[data-state="speaking"] {
-  border-color: var(--ad-state-busy);
-}
-
-.think-tank-card-roster > li[data-state="departed"],
-.think-tank-card-roster > li[data-state="exhausted"] {
-  color: var(--ad-text-muted);
-}
-
 /* Compact room cue under an agent's ordinary header (FS-21.R45): one line,
    accented only while this agent takes a room turn. */
 .room-turn-notice {

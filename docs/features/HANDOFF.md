@@ -210,42 +210,6 @@ Invariant sweep: applicable classes §1, §2, §4, §8, §10, §11, §13, §14, 
   alone and in the full two-worker run. No phone gap code was changed. Diagnose timing or fixture
   isolation before changing production behavior or weakening the test.
 
-### Compact Think Tank chat navigation — commit “think tank: compact chat-tab navigation to room and members” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Implementation `48e7d223`; independent source and rendered review completed 2026-10-19 against
-FS-21.R57/A40 and TS-08.R126. No functional, accessibility or requirement defect found; the unit
-remains open for the finding below.
-
-Verification: 51 focused tests pass (`ThinkTankTab.test.tsx`, `ChatPanel.test.tsx`), covering
-current-agent omission, judge, concurrent openings, speaker change/clear, ended/multiple rooms,
-duplicate/long names, unavailable members, failed/empty reads and the clipped list. Independent
-approved loopback Chromium run of the stubbed harness passes 42/42 checks (Core, Sky & Grove,
-Studio at 1024/1600px and a 360px pane: no overflow/clipping, two concurrent actives heavier with
-keyline and no motion, settled links match the shared secondary button, goal absent, keyboard
-order/focus ring, Enter navigation). Screenshots inspected. Evidence:
-`/tmp/chuck-ttnav-indep/`. Every `active_attempts` entry is a running attempt
-(`think_tank_wire.go`), so no state filter is needed.
-Invariant sweep: §8, §10, §13 and §17 checked; §10 has the finding below. No applicable surface
-for §1–§7, §9, §11, §12 or §14–§16.
-
-- **Worth fixing** — **dead roster CSS with a false comment** (INV §10/§13):
-  `ui/src/styles/features/think-tank.css:1360–1395` keeps `.think-tank-card-roster` rules under a
-  comment saying the agent-header room cue still uses the pill roster. The tab was its only
-  markup user and `RoomCue` never used it; no `ui/src` markup references it now. A later edit
-  would maintain or extend styles for a surface that no longer exists. Delete the rule block and
-  comment; confirm with `grep -rn think-tank-card-roster ui/src` and the style/presentation checks.
-
-FS-21.R57/A40, TS-08.R126 (TS-08 now Current). `ThinkTankTab` in `RoomTurnNotice.tsx` renders
-one `<nav>` per room: room link, then other roster members as `ad-button ad-button-secondary`
-router links (`data-state` active/settled; active = running `active_attempts`, aria-label adds
-“taking a room turn”); deleted members are “(unavailable)” text; duplicate names add project.
-Adopted an interrupted uncommitted implementation; removed its translateY and busy-colour label.
-`ThinkTankTab.test.tsx` covers speaker change/clear on refetch. Closure: UI 975/975 (including
-the file-reader withdrawal assertion, which passed this run), `GOFLAGS=-p=1 make test`,
-`make build`, UI build. 42 Chromium checks pass at 1024/1600/360px-pane in Core, Sky & Grove and
-Studio; screenshots inspected. Evidence: `/tmp/chuck-ttnav-review-20261019/`; harness
-`/tmp/chuck-ttnav-review.mjs` (stubbed API; needs `delete window.SharedWorker`).
-
 ### Agent-created task group placement — commit “tasks: let create_task place its launched agent in a group” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Implementation `2b7dcb24`; independent source review completed 2026-10-19 against FS-16.R50/A34
@@ -429,6 +393,11 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-19 — Fixed dead Think Tank roster CSS; compact chat navigation unit closed**
+  (INV §10/§13): deleted the unreferenced `.think-tank-card-roster` rules and their false
+  room-cue comment; no `ui/src` reference remains. CSS-only, no spec change. Closure: style and
+  presentation checks, UI 976/976, UI build, spec check. No open findings remain for this unit.
 
 - **2026-10-19 — Fixed PHONE-1; phone groups/Jump/runtime-buttons unit closed** (INV §8): the
   phone chat now re-checks Jump to latest whenever transcript rows change, so a live reply that
