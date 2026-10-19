@@ -30,6 +30,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   evidence and findings are below; all 25 topics and seven joins have been reconciled, with
   native/device adoption and comparative performance still unproved. Other findings and live gates
   remain independent.
+- **Systemic fix assessment:** [AGENT-SURFACE-FIX-STRATEGY.md](AGENT-SURFACE-FIX-STRATEGY.md)
+  proposes three structural refactors (event commit, frozen native execution, process/driver
+  ownership) plus coordinated turn-settlement, command-receipt and recovery fixes. Prioritize unsafe process
+  control, ambiguous automatic replay and the config read-loop stall. Existing ASR findings retain
+  their identity; this is analysis/proposed scope, with no product/spec fix selected or implemented.
 - **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
   loss; its earlier fix covers user/exact-cwd configuration. The original unit below retains the
   prompt-composition diagnostic gap (PROMPT-2) and separate process-policy recommendations.
@@ -650,6 +655,11 @@ Tree clean at entry. Source mode: repository source at
   Regress append and sync failures against both live subscribers and durable replay. Evidence for
   ASRD-2/3: `/tmp/asrd_persist_overlay.json`, `TestASRDConcurrentEmitReordersDurableEvents` and
   `TestASRDAppendFailureStillPublishes`; both reproduce the defects.
+  Systemic follow-up (same finding, source-backed): `internal/server/server.go:412–435` routes
+  that external sink to quota progress, room capture/finalization and task release, so this is
+  also a control-consumer boundary. Do not globally suppress cleanup of an independently committed
+  task result when transcript persistence fails. Make event durability/authority explicit to each
+  consumer; the [fix strategy](AGENT-SURFACE-FIX-STRATEGY.md) records the distinction and limits.
 - **Must fix** — ASRD-4 — **Retrying an annotation after a lost response delivers it twice**
   (INV §2/§11/§15). `ui/src/components/chat/annotationDelivery.ts:76–94`,
   `ui/src/lib/annotations.ts:69–76`, `internal/server/sessions.go:232–262`: delivery inserts
@@ -1301,6 +1311,16 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Assessed systemic fix strategy:** compared all completed ASR findings and
+  inspected the linked execution, process-control, event-sink and recovery seams. Identified three
+  structural refactor candidates and three coordinated fix areas, prioritized process-control,
+  replay and liveness risks, and strengthened ASRD-3's control-consumer impact without a duplicate
+  finding. Rejected an invalid
+  same-stage wait composition; retained the valid broader workflow as unprobed. Recommendations
+  are in [AGENT-SURFACE-FIX-STRATEGY.md](AGENT-SURFACE-FIX-STRATEGY.md). No product/spec edits,
+  provider turns or new end-to-end failure reproduction; existing review evidence remains explicit.
+  Spec lint, report/handoff link/anchor/source/finding references and diff checks pass.
 
 - **2026-10-19 — Reviewed whole-system synthesis and agent performance (ASR-I).** Reconciled
   all 25 topics and J1–J7 against unchanged source, resolved conflicting ordering/receipt/isolation
