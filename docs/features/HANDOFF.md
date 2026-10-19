@@ -20,9 +20,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
 - **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`), and
-  ASR-D (`c12c4251`), ASR-E (`5eb574d9`) and ASR-F (`b8157f13`) have been audited
-  and have open findings; the remaining integrated Codex/Claude reviews are listed under
-  [Review queue](#review-queue), sized for frontier reviewers. The
+  ASR-D (`c12c4251`), ASR-E (`5eb574d9`), ASR-F (`b8157f13`) and ASR-G (`fa092f63`)
+  have been audited and have open findings; the remaining integrated Codex/Claude reviews are
+  listed under [Review queue](#review-queue), sized for frontier reviewers. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
   joins plus a final synthesis/performance review. All original 25 research areas remain in the
   [search catalogue](AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. Their
@@ -189,7 +189,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | reviewed — findings open (`c12c4251`) |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
-| [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | waiting to start |
+| [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | reviewed — findings open (`fa092f63`) |
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | waiting to start |
 | [ASR-I](AGENT-SURFACE-REVIEW.md#asr-i--whole-system-synthesis-and-agent-performance) | Whole-system synthesis and agent performance | waiting to start |
 
@@ -892,6 +892,124 @@ authority, bounded capture and verification; all were checked, with findings tag
 §13 has no selected markup/style change. No local implementation choice or human decision was
 introduced; sibling review/fix queues remain unchanged.
 
+### ASR-G — Failure, quota and continuation recovery — reviewed `fa092f63` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Audit complete; findings keep this same unit open. The fixes extend existing admission,
+turn-ownership, room-abandonment and bounded-sweep seams; coordinated state/regression work is
+needed, without a new scheduler or provider client. Source snapshot `fa092f63`; tree clean at
+entry. Profiles: lockfile-pinned Claude ACP 0.85.1, Agent SDK 0.3.286/native 2.1.286, Codex ACP
+2.1.1 and Codex 0.159.3. Two bounded read-only audits were independently integrated; no product
+code or specification changed.
+
+- **Must fix** — ASRG-1 — **Quota room startup failure leaves a phantom running opportunity**
+  (INV §2/§4/§15). `internal/server/quota_dispatch.go:154–180,216–236`,
+  `internal/runtime/chat.go:1644–1696`: the quota activation's `before` callback commits a linked
+  room attempt and starts capture, then prompt preparation or busy-status persistence can fail
+  before any provider prompt. The quota caller only holds the quota row; it never abandons that
+  exact attempt/capture. The room retains a running turn with no provider to finish it, obstructing
+  further recovery (FS-01.R42/R44, TS-10.R42, TS-14.R6). Ordinary room dispatch already has the
+  compensating `abandon` path (`think_tanks.go:262–297`); extend that seam to quota continuation
+  for running and resumed agents. The temporary server probe injects a failure only into the
+  activation's status write: zero provider prompts, quota needs-attention, one running room attempt.
+  Regress prompt-preparation/status/start failure and assert exact attempt/capture cleanup with
+  no published contribution, charged allowance or replacement work.
+- **Must fix** — ASRG-2 — **Unknown-reset checks spend allowance before task capacity is available**
+  (INV §2/§5/§15). `internal/server/quota_check.go:194–251`,
+  `quota_dispatch.go:24–38`, `internal/state/quota_checks.go:31–45`: check admission validates
+  policy, the episode, agent/project and provider, then charges a check without the original
+  work's lifecycle/owner/capacity admission. Mutex keys are serialization, not eligibility.
+  A stopped borrowed task with a full task runtime budget therefore spends one of its six
+  checks and can issue a paid probe even though its continuation must defer. The deterministic
+  server probe observes `admitted=true, checks_started=1` at a budget of one already occupied
+  by another assignment. This violates FS-01.R49/R50 and TS-10.R45/R46's no-check-on-capacity
+  rule. Share a side-effect-free eligibility check with continuation, revalidate under admission,
+  and defer without charging/reserving a runtime or changing owner state. Regress this capacity
+  case plus lifecycle contention and current task/room ownership; accepted owner controls must
+  still cancel the exact episode. Do not infer extra paused-room failures from source alone:
+  successful existing controls normally invalidate those schedules.
+- **Must fix** — ASRG-3 — **Cancel can settle a late result as successful quota recovery**
+  (INV §5/§11/§15). `internal/runtime/permission.go:190–220`, `quota.go:80–90,147–174`:
+  Cancel claims an active turn and sends the native notification without retaining a cancelled
+  marker. A same-turn `end_turn` result arriving afterward still qualifies as success, calls
+  successful quota settlement and clears the runtime quota block. FS-03.R9 requires the claimed
+  cancellation to terminate with `cancelled`; provider completion/cancel races must not falsely
+  confirm continuation success. The temporary runtime probe calls Cancel, then supplies the
+  same turn's late completion, and observes `successful:true`. This proves host state behavior,
+  not a captured native race. Record/fence cancellation under the turn gate and revalidate at
+  settlement; test the terminal reason, quota receipt/block and inline-mail behavior. Held
+  follow-ups remain allowed after a cancelled turn under FS-03.R49. This is separate from
+  ASRC-2's late status writes and CI-1's already-fixed sticky fake cancellation.
+- **Must fix** — ASRG-4 — **An isolated Codex check retains explicit work instructions**
+  (INV §2/§10/§12). `internal/runtime/quota_check.go:501–575`: isolation reads the inherited
+  `CODEX_CONFIG` but changes only MCP entries; with no servers it returns the environment
+  unchanged. A backend/model overlay containing `developer_instructions` therefore carries
+  that work guidance into the supposedly minimal check process. The sentinel overlay probe
+  confirms preservation. This violates FS-01.R51 and TS-04.R97's omission of work instructions;
+  a check can be steered away from its fixed request and needlessly consume allowance/usage.
+  Sanitize instruction-bearing configuration while retaining proved authentication/routing,
+  or refuse unsupported isolation. Regress existing overlay and native-config instruction
+  sources with routing preserved and MCP disabled. The current test only asserts no generated
+  instruction key for a fixture that supplied none; no live provider adoption is claimed here.
+- **Worth fixing** — ASRG-5 — **Older cleanup failures starve later probe cleanup indefinitely**
+  (INV §7/§9/§16). `internal/state/quota_checks.go:122–139`,
+  `internal/server/quota_check.go:256–289`: the database always selects the oldest eight
+  references, then the server skips in-flight/cooldown entries or leaves failed attempts at the
+  same ordering position. Eight persistently unresolved references can therefore prevent a ninth
+  healthy cleanup from ever being selected, keeping its conversation undeletable and further
+  checking blocked (TS-02.R50, TS-10.R47). The nine-reference probe repeats three sweeps and
+  leaves the ninth untouched; freeing one earlier batch slot lets the same cleanup succeed.
+  Keep bounded work but advance fairly over skipped/failed rows, with per-reference backoff and
+  no unrelated-history scan. Regress more than one batch with permanent failures/cooldowns
+  ahead of a cleanable session.
+
+Failure/admission/retry ownership map and catalogue 22 evidence ledger:
+
+| Boundary | Authority, durable state and recovery result |
+|---|---|
+| Provider/startup/model/transport failure | Shared selected-source launch/resume/switch composition and typed provider errors own preflight; no automatic model/source/permission substitution or prompt replay. Ordinary and activation prompt completions share terminal failure decoding and settlement. Crash/Stop teardown and restart reconciliation own process loss. Existing ASRA-1/3, ASRB provider/terminal findings and ASRC-1/2/3 remain applicable. |
+| Terminal quota → automatic work | Complete bounded AIR policy plus executing root generation/turn establishes quota; warnings/retry/new-session/context limits and arbitrary prose/429 do not. Source-owned observation and owner pause commit before turn-end consumers; held input, mail/task activations and room scheduling stay blocked. Reset parsing uses only applicable failure/rate-limit evidence; reset and due are distinct, with a 60-second buffer. |
+| Due intent → isolated check | Indexed due order, revision/token CAS and eight shared slots; unknown resets use one-hour checks with a six-check chain allowance, intervention errors remain manual. Probe uses temporary cwd, separate ACP process, fixed request, no Chuck identity/event sink or work payload. Claude supplies only routing settings with non-persistence; Codex renames before its model request and archives the exact native session. ASRG-2/4 break admission/isolation; same-account/model adoption and retention remain live gates. |
+| Check → original-work continuation | Session reference commits before prompting; result follows cleanup. A ready check only authorizes the same chain and selection, never a result, notice or quota clearance. Token invalidation cancels the check context; stale completion cannot authorize continuation. Ready-selection mismatch/restart holds; unknown renewed quota after a ready check holds instead of looping. ASRG-5 affects cleanup fairness. |
+| Continuation → task/stage/room | Ordinary activation or native-session resume preserves logical agent/history; task assignment/capacity and pipeline lineage remain authoritative. Room admission creates a linked attempt with fresh read/submission authority and preserves the failed staged disposition as history. Accepted results/opportunities are not replayed. ASRG-1 breaks pre-provider room compensation; ASRG-3 breaks cancellation settlement. |
+| Human control / crash / storage | Successful Send/Steer/Stop/lifecycle and owner controls serialize with quota admission and cancel only captured episodes; refused controls retain them. Global disable cancels unstarted checks/continuations, and startup holds uncertain delivery or interrupted checks without replay. Source progress/success receipts precede an idempotent fsynced Chuck notice; repair never re-prompts, and storage failure holds. Temporary fault probes cover the new gaps; existing quota control/notice/restart tests pass. |
+
+J4 lead conclusion: quota preserves the same task/stage/room owner before generic failure/restart
+handling, then uses existing activation/resume and exact execution tuples. ASRG-1/2/3 qualify that
+conclusion; ASRF-1's accepted-result transition recovery retains its identity. Stop, provider
+refusal and transport loss do not synthesize success or release a successor from an accepted stale
+task report. Parent run controls include borrowed-task and room lineage. Claude terminal/viewer
+detach uses the PTY lifetime, not chat quota automation; terminal quota checks/owned room-task
+activation are unsupported. The previously recorded terminal native-id/driver recovery defects
+under ASR-B remain open. Fresh/ordinary/wake launch, task activation, pipeline and room paths were
+traced; clone/fork creates no quota-owned task/room assignment, and switch/rollback uses the
+shared explicit lifecycle path rather than quota replay.
+
+J1/J6 challenge: check fingerprints cover the live frozen or stopped resume-derived selection;
+accepted manual supersession invalidates the pending source episode. ASRA-1/3's continuation
+configuration defects retain their identities, and native account/config adoption is not proved
+by a fingerprint. TS-04.R96 supersedes R87's earlier no-parser/unverified-unit exclusions: the
+existing pinned producer/formatter receipt establishes supported semantics, not a live reset or
+continuation. Missing, ambiguous, stale and unsupported windows remain unknown; passive paired
+quota views remain planned. PROMPT-2's diagnostic limit and CI-1's closure are unchanged. No
+agent-quality/performance inference is made.
+
+Verification: focused server quota, room-stage and resume-failure tests pass; runtime/state quota
+and CI-1 regressions pass under `-race` (`CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1`). The five
+required-behavior probes intentionally fail on current source; the cleanup batch-slot control
+passes. Probe files are `/private/tmp/chuck_asrg_server_probe_test.go` with
+`chuck_asrg_server_overlay.json`, and `/private/tmp/chuck_asrg_probe_test.go` with
+`chuck_asrg_overlay.json`; Go overlays leave repository tests unchanged. Server probes ran with
+approved isolated loopback listeners after the sandbox bind denial. Focused server/state quota
+tests also pass under `-race -tags sqlite_fts5`. No live provider, device or browser journey was run:
+FS-01.A28/A31/A33/A34 and existing terminal/handoff/native-adoption gates remain owed.
+
+Invariant sweep: §1–5, §7–12 and §14–17 apply to lifecycle, composition, persistence, teardown,
+admission, recovery reads, projections, protocols, CLI isolation, authority, effects, bounds and
+tests; all were checked, with findings tagged above. §6 has no new runtime/driver interface;
+the existing chat/terminal/check capability boundaries were traced. §13 has no selected
+markup/style change; quota banner selectors exist. No visual gate is closed, no new local
+implementation choice or human decision was introduced, and sibling queues are unchanged.
+
 ### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Report received 2026-10-18, verbatim:
@@ -970,6 +1088,15 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed failure, quota and continuation recovery (ASR-G):** audited current
+  implementation at `fa092f63` across provider failures, isolated checks, owner admission,
+  interrupted task/stage/room recovery and manual controls. Four Must-fix findings cover phantom
+  room attempts, premature check charging, cancelled-turn success and retained Codex check
+  instructions; one Worth-fixing finding covers cleanup starvation. Five temporary overlay probes
+  reproduce the gaps; the cleanup control, focused quota/recovery tests, race checks, SQLite FTS
+  variant and specification checks pass. Live provider/device evidence remains owed. Product
+  code/specs unchanged.
 
 - **2026-10-19 — Reviewed pipelines, Think Tanks and orchestration (ASR-F):** audited current
   implementation at `b8157f13`, including task/room authority, Stop/quota/restart and private-context
