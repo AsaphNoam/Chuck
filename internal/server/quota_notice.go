@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	persistindex "github.com/AsaphNoam/Chuck/internal/index"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
@@ -73,10 +72,8 @@ func quotaNoticeKey(q state.QuotaIntent) string {
 func (s *Server) commitQuotaNotice(q state.QuotaIntent) error {
 	quotaNoticeAppendMu.Lock()
 	defer quotaNoticeAppendMu.Unlock()
-	ev, _, confirmedNow, err := s.ensureQuotaNoticeLocked(q)
-	if err == nil && confirmedNow && ev.AgentID != "" && s.eventBus != nil {
-		s.eventBus.PublishRuntimeEvent(ev)
-	}
+	// The conversation journal published the notice when it committed.
+	_, _, _, err := s.ensureQuotaNoticeLocked(q)
 	return err
 }
 
@@ -166,7 +163,7 @@ func (s *Server) confirmQuotaSuccess(agentID, generation, turn string) error {
 			return err
 		}
 	}
-	ev, q, confirmedNow, err := s.ensureQuotaNoticeLocked(q)
+	_, q, _, err = s.ensureQuotaNoticeLocked(q)
 	if err != nil {
 		return err
 	}
@@ -178,9 +175,6 @@ func (s *Server) confirmQuotaSuccess(agentID, generation, turn string) error {
 		if readErr != nil || latest.State != state.QuotaContinued || latest.NoticeKey == "" {
 			return err
 		}
-	}
-	if confirmedNow && ev.AgentID != "" && s.eventBus != nil {
-		s.eventBus.PublishRuntimeEvent(ev)
 	}
 	return nil
 }
@@ -237,25 +231,22 @@ func (s *Server) appendStoppedQuotaNotice(q state.QuotaIntent, data runtime.Noti
 		return runtime.Event{}, err
 	}
 	if !found {
-		w, err := transcript.Open(s.configStore.Home(), q.AgentID, nil)
-		if err != nil {
-			return runtime.Event{}, err
-		}
-		defer w.Close()
 		raw, err := json.Marshal(data)
 		if err != nil {
 			return runtime.Event{}, err
 		}
-		ev = runtime.Event{
-			AgentID: q.AgentID, Generation: q.ContinuedGeneration, TurnID: q.ContinuedTurn,
-			Seq: w.NextSeq(), Type: runtime.EvNotice, Data: raw, Ts: time.Now().UTC().Format(time.RFC3339),
+		if s.registry == nil {
+			return runtime.Event{}, fmt.Errorf("quota notice journal is unavailable")
 		}
-		if err := w.Append(ev); err != nil {
+		// The receipt transaction below indexes it with the transcript counters.
+		obs, err := s.registry.CommitInactive(q.AgentID, runtime.CommitRequest{
+			Event:           runtime.Event{Generation: q.ContinuedGeneration, TurnID: q.ContinuedTurn, Type: runtime.EvNotice, Data: raw},
+			IndexedByCaller: true,
+		})
+		if err != nil {
 			return runtime.Event{}, err
 		}
-		if err := w.Sync(); err != nil {
-			return runtime.Event{}, err
-		}
+		ev = obs.Event
 	}
 	counters, err := quotaTranscriptCounters(s.configStore.Home(), q.AgentID)
 	if err != nil {

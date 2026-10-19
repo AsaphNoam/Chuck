@@ -62,23 +62,19 @@ func synthesizeHistoryPrimer(ctx context.Context, events []runtime.Event, target
 	return b.render(ctx, target, summarize), nil
 }
 
-func appendBackendSwitchMarker(home string, agentID, from, to string, at time.Time) error {
-	w, err := transcript.Open(home, agentID, nil)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
+// appendBackendSwitchMarker records a backend handoff through the target's one
+// conversation journal, which the target generation already owns after
+// Resume, so the marker and the first prompt cannot share a sequence (TS-01.R39).
+func appendBackendSwitchMarker(registry *runtime.Registry, agentID, from, to string, at time.Time) error {
 	when := at.UTC().Format(time.RFC3339)
 	data, err := json.Marshal(runtime.BackendSwitchData{From: from, To: to, At: when})
 	if err != nil {
 		return err
 	}
-	return w.Append(runtime.Event{
-		AgentID: agentID,
-		Type:    runtime.EvBackendSwitch,
-		Data:    data,
-		Ts:      when,
-	})
+	_, err = registry.AppendHistory(agentID, runtime.CommitRequest{Event: runtime.Event{
+		Type: runtime.EvBackendSwitch, Data: data, Ts: when,
+	}})
+	return err
 }
 
 // Each retained turn and older excerpt is capped independently while ingesting.

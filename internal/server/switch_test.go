@@ -239,6 +239,37 @@ func TestSwitchRuntimeBackendSwapUsesPrimer(t *testing.T) {
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("post-switch prompt status = %d: %s", resp.StatusCode, body)
 	}
+	waitForStatus(t, srv, id, "idle")
+	assertUniqueIncreasingSeqs(t, srv, id)
+
+	// ASRD-1: the reverse handoff followed by a first prompt keeps one sequence space.
+	resp, body = post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", map[string]string{"backend": "claude", "model": "sonnet"})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("reverse switch status = %d: %s", resp.StatusCode, body)
+	}
+	resp, body = post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "and back"})
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("post-reverse prompt status = %d: %s", resp.StatusCode, body)
+	}
+	waitForStatus(t, srv, id, "idle")
+	assertUniqueIncreasingSeqs(t, srv, id)
+}
+
+// assertUniqueIncreasingSeqs pins TS-02.R8's monotonic identity in the durable
+// log: every sequenced record is unique and in increasing file order.
+func assertUniqueIncreasingSeqs(t *testing.T, srv *Server, id string) {
+	t.Helper()
+	events, err := transcript.ReadFile(srv.configStore.Home(), id, transcript.ReadOptions{})
+	if err != nil {
+		t.Fatalf("read transcript: %v", err)
+	}
+	var last int64
+	for _, ev := range events {
+		if ev.Seq <= last {
+			t.Fatalf("seq %d (%s) after %d: durable sequences must be unique and increasing", ev.Seq, ev.Type, last)
+		}
+		last = ev.Seq
+	}
 }
 
 // FS-01.A8: unverified history delivery is refused before stopping the source.

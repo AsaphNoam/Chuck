@@ -277,8 +277,13 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if usePrimer {
-		if err := appendBackendSwitchMarker(s.configStore.Home(), id, agent.Backend+"/"+agent.Model, target.Backend+"/"+target.Model, time.Now().UTC()); err != nil {
-			writeAPIError(w, apiError(runtime.CodeInternal, "append backend switch marker: "+err.Error()))
+		if err := appendBackendSwitchMarker(s.registry, id, agent.Backend+"/"+agent.Model, target.Backend+"/"+target.Model, time.Now().UTC()); err != nil {
+			// The target is already active: keep it, and say exactly that
+			// rather than implying no switch happened (TS-03.R73). No raw
+			// storage error crosses the API.
+			s.log.Error("append backend switch marker", "agent", id, "err", err)
+			writeAPIError(w, apiError(runtime.CodeInternal, "Switched to "+target.Backend+"/"+target.Model+
+				", but the switch could not be recorded in the conversation history. Refresh before taking another action."))
 			return
 		}
 	}

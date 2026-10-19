@@ -309,8 +309,10 @@ func TestQuotaNoticeRepairRetriesFailedIndexTransaction(t *testing.T) {
 	if got.NoticeConfirmed {
 		t.Fatal("notice receipt acknowledged without session metadata")
 	}
-	if count := countPublishedNotices(); count != 0 {
-		t.Fatalf("notices published before index repair=%d, want zero", count)
+	// The canonical record committed, so it is history and published once;
+	// only its receipt waits for the index (TS-01.R39, TS-02.R52).
+	if count := countPublishedNotices(); count != 1 {
+		t.Fatalf("notices published at canonical commit=%d, want one", count)
 	}
 	if _, err := s.stateStore.DB().Exec(`DROP TRIGGER fail_notice_index`); err != nil {
 		t.Fatal(err)
@@ -322,8 +324,8 @@ func TestQuotaNoticeRepairRetriesFailedIndexTransaction(t *testing.T) {
 	if err != nil || !got.NoticeConfirmed || got.State != state.QuotaContinued {
 		t.Fatalf("recovered notice receipt: %+v err=%v", got, err)
 	}
-	if count := countPublishedNotices(); count != 1 {
-		t.Fatalf("notices published after index repair=%d, want one", count)
+	if count := countPublishedNotices(); count != 0 {
+		t.Fatalf("index repair republished the notice %d times, want zero", count)
 	}
 	if err := s.repairQuotaNotices(context.Background()); err != nil {
 		t.Fatal(err)

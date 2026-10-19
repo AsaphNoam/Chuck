@@ -48,6 +48,8 @@ type Runtime struct {
 	transcriptHome string
 	openTranscript rt.TranscriptOpener
 	indexer        rt.PersistenceIndexer
+	// journals is the Registry's shared conversation journal set (TS-01.R39).
+	journals *rt.Journals
 }
 
 // termAgent is the live state for one terminal agent.
@@ -57,8 +59,7 @@ type termAgent struct {
 	tab        *Tab
 	driver     TerminalDriver // the driver that launched this tab; WriteText/CloseTab dispatch here
 	hub        *rt.Hub
-	ptyHub     *ptyHub             // per-agent PTY broadcast hub (nil for non-PTY drivers, e.g. tmux)
-	writer     rt.TranscriptWriter // durable transcript handle; nil when persistence is off
+	ptyHub     *ptyHub // per-agent PTY broadcast hub (nil for non-PTY drivers, e.g. tmux)
 
 	mu      sync.Mutex
 	stopped bool
@@ -85,16 +86,6 @@ func (a *termAgent) closePTYHub() {
 	}
 }
 
-func (a *termAgent) closePersistence() {
-	a.mu.Lock()
-	w := a.writer
-	a.writer = nil
-	a.mu.Unlock()
-	if w != nil {
-		_ = w.Close()
-	}
-}
-
 func (a *termAgent) isStopped() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -109,6 +100,7 @@ func New(s *state.Store) *Runtime {
 		store:            s,
 		initialIdleDelay: defaultInitialIdleDelay,
 		agents:           map[string]*termAgent{},
+		journals:         rt.NewJournals(nil),
 	}
 }
 
@@ -175,21 +167,31 @@ func (r *Runtime) openPersistence(a *termAgent, spec rt.LaunchSpec, sessionID st
 	home := r.transcriptHome
 	open := r.openTranscript
 	ix := r.indexer
+	journals := r.journals
 	r.mu.Unlock()
 	if home == "" || open == nil || ix == nil {
 		return nil
 	}
 	meta := rt.NewSessionMeta(spec, sessionID)
-	w, err := open(home, spec.Agent.AgentID, &meta)
-	if err != nil {
+	// A terminal runtime appends nothing after its session record, so it holds
+	// no writer: later notices for this conversation commit through the shared
+	// journal like any inactive append (TS-01.R39).
+	if err := journals.Record(spec.Agent.AgentID, func() (rt.TranscriptWriter, error) {
+		return open(home, spec.Agent.AgentID, &meta)
+	}); err != nil {
 		return fmt.Errorf("terminal: open transcript: %w", err)
 	}
 	if err := ix.UpsertSessionMeta(spec.Agent.AgentID, meta); err != nil {
-		_ = w.Close()
 		return fmt.Errorf("terminal: index session meta: %w", err)
 	}
-	a.writer = w
 	return nil
+}
+
+// SetJournals shares the Registry's conversation journal set.
+func (r *Runtime) SetJournals(j *rt.Journals) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.journals = j
 }
 
 // exitPollInterval bounds exit detection for drivers without a waitable child
@@ -267,7 +269,6 @@ func (r *Runtime) Start(ctx context.Context, spec rt.LaunchSpec) (*rt.Handle, er
 		HookToken: spec.HookToken, StartedAt: time.Now().UTC(), Generation: spec.Generation,
 	}); err != nil {
 		a.closePTYHub()
-		a.closePersistence()
 		_ = drv.CloseTab(tab)
 		return nil, fmt.Errorf("terminal: write running: %w", err)
 	}
@@ -317,7 +318,6 @@ func (r *Runtime) Resume(ctx context.Context, spec rt.LaunchSpec, sessionID stri
 		HookToken: spec.HookToken, StartedAt: time.Now().UTC(), Generation: spec.Generation,
 	}); err != nil {
 		a.closePTYHub()
-		a.closePersistence()
 		_ = drv.CloseTab(tab)
 		return nil, fmt.Errorf("terminal: write running: %w", err)
 	}
@@ -400,7 +400,6 @@ func (r *Runtime) Stop(ctx context.Context, agentID string) error {
 	// tears down its subscribers with no leak.
 	a.closePTYHub()
 	_ = a.driver.CloseTab(a.tab)
-	a.closePersistence()
 	_ = r.store.DeleteRunningRetainingSession(agentID)
 	r.setDone(agentID)
 	r.touchState(agentID)
@@ -518,7 +517,6 @@ func (r *Runtime) startWatcher(a *termAgent) {
 		a.mu.Unlock()
 
 		a.closePTYHub()
-		a.closePersistence()
 		_ = r.store.DeleteRunningRetainingSession(a.agentID)
 		r.setDone(a.agentID)
 		r.touchState(a.agentID)

@@ -145,7 +145,8 @@ func (c *ChatRuntime) discardForkPersistence(as *agentState) {
 	c.mu.Lock()
 	ix := c.indexer
 	c.mu.Unlock()
-	if w := as.journal.Detach(); w != nil {
+	defer as.releaseJournal()
+	if w := as.detachJournal(); w != nil {
 		if err := w.Discard(); err != nil {
 			slog.Warn("runtime: discard clone transcript", "agent", as.agentID, "err", err)
 		}

@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
@@ -344,68 +343,24 @@ func annotationMailBody(data runtime.AnnotationData) (string, error) {
 	return body, nil
 }
 
+// appendAnnotation validates a batch and commits it to the source's history
+// through its one conversation journal — the live generation's when one is
+// running, otherwise the inactive path — before any delivery happens. A failed
+// append returns an error first; the journal publishes only a committed record
+// (FS-13.R5, TS-01.R39, TS-03.R14, INV §15).
 func (s *Server) appendAnnotation(sourceID string, data runtime.AnnotationData) (runtime.Event, error) {
-	if _, err := s.stateStore.ReadRunning(sourceID); err == nil {
-		// For live agents: validate and append durably to the runtime transcript,
-		// then flush the index, and only then deliver through the event bus.
-		// This ordering ensures a failed append returns an error before any
-		// delivery happens, and a delivery failure after the append does not drop
-		// the annotation from the local source (FS-13.R5, TS-03.R14, INV §15).
-		if err := validateAnnotations(&data); err != nil {
-			return runtime.Event{}, err
-		}
-		// Verify the mail body will fit before persisting.
-		_, err := annotationMailBody(data)
-		if err != nil {
-			return runtime.Event{}, err
-		}
-
-		// AppendAnnotationAndSync appends to the runtime transcript and returns
-		// the event WITHOUT publishing. The caller is responsible for publishing
-		// after durability is confirmed.
-		ev, err := s.registry.AppendAnnotationAndSync(sourceID, data)
-		if err != nil {
-			return runtime.Event{}, err
-		}
-
-		// Only after durability is confirmed, publish through the event bus.
-		s.eventBus.PublishRuntimeEvent(ev)
-
-		return ev, nil
-	} else if !errors.Is(err, state.ErrNotFound) {
-		return runtime.Event{}, err
-	}
-
-	// For archived/inactive agents: append durably to the frozen transcript.
 	if err := validateAnnotations(&data); err != nil {
 		return runtime.Event{}, err
 	}
-	_, err := annotationMailBody(data)
-	if err != nil {
+	// Verify the mail body will fit before persisting.
+	if _, err := annotationMailBody(data); err != nil {
 		return runtime.Event{}, err
 	}
-
-	w, err := transcript.Open(s.configStore.Home(), sourceID, nil)
-	if err != nil {
-		return runtime.Event{}, err
-	}
-	defer w.Close()
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return runtime.Event{}, err
 	}
-	ev := runtime.Event{AgentID: sourceID, Seq: w.NextSeq(), Type: runtime.EvAnnotation, Data: raw, Ts: time.Now().UTC().Format(time.RFC3339)}
-	if err := w.Append(ev); err != nil {
-		return runtime.Event{}, err
-	}
-	if err := w.Sync(); err != nil {
-		return runtime.Event{}, err
-	}
-	if err := s.indexer.OnEventAndFlushContent(sourceID, ev, ev.Seq, ev.Ts); err != nil {
-		return runtime.Event{}, err
-	}
-	s.eventBus.PublishRuntimeEvent(ev)
-	return ev, nil
+	return s.registry.AppendHistory(sourceID, runtime.CommitRequest{Event: runtime.Event{Type: runtime.EvAnnotation, Data: raw}})
 }
 
 func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {

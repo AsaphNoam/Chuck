@@ -10,7 +10,6 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/messaging"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
-	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
 // maxPeerStops bounds outstanding peer Stop requests server-wide; each
@@ -169,9 +168,9 @@ func (s *Server) peerExecution(agentID string) (peerExecution, bool, error) {
 }
 
 // appendPeerNotice records a peer Stop notice on the target before any effect.
-// A chat owner appends through its own writer. Otherwise no event writer is
-// active — a terminal runtime appends nothing after its session record, and an
-// orphan or stopped agent has none — and the caller holds the lifecycle claim.
+// A chat owner appends (deduplicated) through its live journal. Otherwise the
+// conversation journal commits it inactively — a terminal runtime holds no
+// writer, nor does an orphan or stopped agent — under the caller's lifecycle claim.
 func (s *Server) appendPeerNotice(agentID, generation string, data runtime.NoticeData) error {
 	_, err := s.registry.AppendPeerStopNoticeAndSync(agentID, data)
 	if err == nil || (!errors.Is(err, runtime.ErrNoHandle) && !errors.Is(err, runtime.ErrNotImplemented)) {
@@ -184,23 +183,8 @@ func (s *Server) appendPeerNotice(agentID, generation string, data runtime.Notic
 	if err != nil {
 		return err
 	}
-	w, err := transcript.Open(s.configStore.Home(), agentID, nil)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-	ev := runtime.Event{AgentID: agentID, Generation: generation, Seq: w.NextSeq(), Type: runtime.EvNotice,
-		Data: raw, Ts: time.Now().UTC().Format(time.RFC3339)}
-	if err := w.Append(ev); err != nil {
-		return err
-	}
-	if err := w.Sync(); err != nil {
-		return err
-	}
-	if s.indexer != nil {
-		return s.indexer.OnEvent(agentID, ev)
-	}
-	return nil
+	_, err = s.registry.AppendHistory(agentID, runtime.CommitRequest{Event: runtime.Event{Generation: generation, Type: runtime.EvNotice, Data: raw}})
+	return err
 }
 
 func (s *Server) admitPeerStop(requesterID string) bool {

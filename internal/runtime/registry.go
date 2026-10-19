@@ -136,6 +136,37 @@ func (r *Registry) SetTerminalRuntime(rt Runtime) {
 	if en, ok := rt.(exitNotifier); ok {
 		en.SetOnExit(r.handleAgentExit)
 	}
+	if js, ok := rt.(interface{ SetJournals(*Journals) }); ok {
+		js.SetJournals(r.chat.Journals())
+	}
+}
+
+// CommitInactive appends one event to a conversation that no live generation
+// is writing, through its shared journal (TS-01.R39). It returns
+// ErrJournalLive while a live chat writer owns the conversation.
+func (r *Registry) CommitInactive(agentID string, req CommitRequest) (Observation, error) {
+	return r.chat.CommitInactive(agentID, req)
+}
+
+// AppendHistory commits one synced, history-only record (an inactive
+// annotation, a notice or a backend-switch marker) through the conversation's
+// one journal: the live chat generation's when it has one, otherwise the
+// inactive path. No server handler opens its own writer (TS-01.R39). It never
+// invokes the control sink. A record whose journal attaches between the two
+// attempts is retried once on the live path.
+func (r *Registry) AppendHistory(agentID string, req CommitRequest) (Event, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		ev, err := r.chat.AppendHistoryAndSync(agentID, req)
+		if !errors.Is(err, ErrNoHandle) {
+			return ev, err
+		}
+		obs, err := r.chat.CommitInactive(agentID, req)
+		if errors.Is(err, ErrJournalLive) {
+			continue
+		}
+		return obs.Event, err
+	}
+	return Event{}, ErrJournalLive
 }
 
 // SetEventSink installs the control observer of runtime commit attempts.
@@ -407,34 +438,6 @@ func (r *Registry) SetSessionMode(ctx context.Context, agentID, mode string) (Se
 		return SessionModes{}, ErrNotImplemented
 	}
 	return chat.SetSessionMode(ctx, agentID, mode)
-}
-
-// AppendAnnotation dispatches a structured dashboard annotation through the
-// live chat runtime. Terminal runtimes are intentionally excluded.
-func (r *Registry) AppendAnnotation(agentID string, data AnnotationData) (Event, error) {
-	rt, err := r.ownerFor(agentID)
-	if err != nil {
-		return Event{}, err
-	}
-	chat, ok := rt.(*ChatRuntime)
-	if !ok {
-		return Event{}, ErrNotImplemented
-	}
-	return chat.AppendAnnotation(agentID, data)
-}
-
-// AppendAnnotationAndSync appends a dashboard annotation without publishing;
-// the caller is responsible for publishing after durability is confirmed.
-func (r *Registry) AppendAnnotationAndSync(agentID string, data AnnotationData) (Event, error) {
-	rt, err := r.ownerFor(agentID)
-	if err != nil {
-		return Event{}, err
-	}
-	chat, ok := rt.(*ChatRuntime)
-	if !ok {
-		return Event{}, ErrNotImplemented
-	}
-	return chat.AppendAnnotationAndSync(agentID, data)
 }
 
 // AppendQuotaNoticeAndSync appends through the currently owning chat runtime's

@@ -65,33 +65,22 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 ## Active change
 
 - **ASW-1 — [serialize conversation event commits](../ready-changes/serialize-conversation-event-commits.md)
-  — in progress (started 2026-10-19).** Owns ASRD-1/2/3/5. Slices:
-  1. *Done:* ASRD-5 — reconcile admits only `sessions/{a_id}/transcript.ndjson`, streams it with
-     the tolerant reader and keeps a 4 KiB reply tail (`internal/server/reconcile.go`).
-  2. *Done:* `runtime.Journal` (`internal/runtime/journal.go`) serializes seq allocation →
-     append/required sync → index → in-memory/hub (`retainCommitted`) → `SetHistoryPublisher`
-     (bus `new_message`), all under `Journal.mu` (lock order `Journal.mu` → `as.mu`). Outcomes
-     `not_written|uncertain|committed` + `IndexOK`; uncertain latches `broken` and refuses later
-     appends; sequences never reused. `SetEventSink` is now `func(Observation)` (control, outside
-     the lock); the server sink fails room capture on any uncommitted source of its turn and still
-     raises permission notifications. Every chat append (emit, annotation, quota/peer notices,
-     fork prefix — unpublished) goes through it; `persistEvent`/`as.writer` are gone. The journal
-     is still per `agentState` (per generation) — slice 3 moves it to a registry-owned per-agent set.
-  3. *Next:* ASRD-1 — registry-owned journal per agent ID shared by chat/terminal/server inactive appends:
-     route `appendBackendSwitchMarker` (`primer.go:65`), inactive `appendAnnotation`
-     (`sessions.go:388`, no lifecycle claim today), `appendStoppedQuotaNotice`, peer notice fallback
-     through it; switch-marker failure after activation returns the truthful TS-03.R73 envelope.
-  4. Split sink (`server.go` ~409–433) into history publication + bounded ordered control
-     dispatcher (TS-01.R39/TS-04.R100); room capture needs committed source; task release keeps its
-     SQLite authority.
-  5. History health/gap recovery: SQLite forward migration, `history_state`, open-writer marker,
-     admission latch (FS-03.R99, TS-02.R52, TS-03.R73).
-  Slice 5 must also repair a latched `broken` journal (tail validation + gap notice) and surface
-  `Journal.Health`; until then a broken journal recovers only on the next generation's reopen,
-  and an uncommitted permission resolution is not in history (its prompt may linger in the UI).
-  Server notice paths still republish to the bus after the journal does (idempotent by seq; remove
-  in slice 3). Checks so far: `go test ./internal/runtime ./internal/server ./internal/bus
-  ./internal/transcript ./internal/index` and `-race -run TestJournal ./internal/runtime`.
+  — in progress (started 2026-10-19).** Owns ASRD-1/2/3/5. Done: (1) reconcile reads only the
+  canonical log, bounded; (2) `runtime.Journal` (`internal/runtime/journal.go`) serializes seq
+  allocation → append/required sync → index → in-memory/hub → bus (`SetHistoryPublisher`) under
+  `Journal.mu` (order `Journal.mu` → `as.mu`); `not_written|uncertain|committed` + `IndexOK`;
+  uncertain latches `broken`; `SetEventSink(func(Observation))` is control-only; room capture
+  fails on an uncommitted source; (3) `runtime.Journals` is per agent ID and shared with terminal
+  (`Journals.Record`); server writers use `Registry.AppendHistory`/`CommitInactive` only; switch
+  marker failure after activation returns the applied-but-unrecorded message. Review note:
+  inactive annotation is fenced by the journal lock, not `claimLifecycle`.
+  *Next:* (4) bounded ordered control dispatcher (≤256 pending + 1 per conversation; terminal ack
+  before held successor) — control now runs in the emitting goroutine after unlock. (5) health/gap
+  recovery: forward migration, `history_state`, open-writer marker, admission latch, repair of a
+  latched journal with a gap notice (today `Journal.Open` just clears it), uncommitted permission
+  resolutions surfaced (FS-03.R99, TS-02.R52, TS-03.R73). Checks so far: `go test
+  ./internal/runtime/... ./internal/server ./internal/bus ./internal/transcript ./internal/index`
+  and `-race` on journal/annotation/switch/room tests.
 - ASW-3 (process and terminal-driver ownership) closed 2026-10-19 and awaits its substantive
   review (Review queue); FS-07.A12 real tmux/iTerm2 receipts are owed.
 
@@ -272,7 +261,8 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 **Implementation review units (independent of the table above):**
 
 - **ASW-3 — process and terminal-driver ownership** (`2609e903`, `3e7df682`, `e2cf34f8`,
-  `9a0bf119` and the closure commit) — **waiting**. Substantive architecture review of the orphan
+  `9a0bf119` and the closure commit) — **in progress (2026-10-19)**. Review snapshot:
+  `a3bd6015..3618df3e`; ongoing ASW-1 edits are outside this unit. Substantive architecture review of the orphan
   proof (`runtime/procstart.go`, `reconcile.go`, migration 56), setup containment, registry launch
   fence, terminal native-ID persistence and the tmux/iTerm2 bootstrap (`runtime/terminal/bootstrap.go`).
   Confirm each fixed finding (ASRA-4, ASRB-1, ASRB-4–7, ASRC-3/4/7) against its original evidence
@@ -746,6 +736,9 @@ Tree clean at entry. Source mode: repository source at
   plus marker append/sync failure after activation. Evidence: the independent fake-ACP overlay
   `/tmp/asr07_overlay.json` fails `TestASR07SwitchMarkerSequenceCollision` on the duplicate;
   `/tmp/transcript_race_overlay.json` confirms two independent writers append the same sequence.
+  *Fixed in ASW-1 slice 3 (2026-10-19), pending review:* one ref-counted journal per agent ID;
+  no server writer of its own; marker failure after activation is reported truthfully
+  (`TestSwitchRuntimeBackendSwapUsesPrimer` both directions, `TestConcurrentInactiveAnnotationsGetUniqueSequences`).
 - **Must fix** — ASRD-2 — **Concurrent live events are persisted and published out of sequence**
   (INV §2/§5/§11/§15). `internal/runtime/chat.go:2080–2100,2123–2128,2158–2175`:
   sequence allocation/in-memory insertion release `as.mu` before persistence and publication.

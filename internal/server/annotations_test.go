@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -573,5 +575,46 @@ func TestLegacyTranscriptOnlyAnnotationSerializesUnchanged(t *testing.T) {
 	want := `{"annotations":[{"seq":5,"excerpt":"legacy excerpt","instruction":"legacy instruction"}],"target":{"kind":"agent","agent_id":"` + target.AgentID + `"}}`
 	if string(raw) != want {
 		t.Fatalf("legacy annotation serialized as %s, want %s", raw, want)
+	}
+}
+
+// ASRD-1 / TS-01.R39: concurrent annotations of a stopped source commit through
+// its one conversation journal, never through independent writers that would
+// reuse the next sequence.
+func TestConcurrentInactiveAnnotationsGetUniqueSequences(t *testing.T) {
+	srv := testServer(t, true)
+	source, target := writeAnnotationPair(t, srv)
+	const n = 12
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			_, err := srv.appendAnnotation(source.AgentID, runtime.AnnotationData{
+				Annotations: []runtime.Annotation{{Seq: 1, Excerpt: "x", Instruction: fmt.Sprintf("note %d", i)}},
+				Target:      runtime.AnnotationTarget{Kind: "agent", AgentID: target.AgentID},
+			})
+			errs <- err
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("appendAnnotation: %v", err)
+		}
+	}
+	events, err := transcript.ReadFile(srv.configStore.Home(), source.AgentID, transcript.ReadOptions{})
+	if err != nil || len(events) != n {
+		t.Fatalf("durable annotations = %d, %v; want %d", len(events), err, n)
+	}
+	for i, ev := range events {
+		if ev.Seq != int64(i+1) {
+			t.Fatalf("annotation %d has seq %d; want unique increasing sequences", i, ev.Seq)
+		}
 	}
 }

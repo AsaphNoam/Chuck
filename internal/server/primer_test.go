@@ -133,8 +133,9 @@ func TestHistoryPrimerUsesSummarizerForOlderTurns(t *testing.T) {
 }
 
 func TestAppendBackendSwitchMarker(t *testing.T) {
-	home := t.TempDir()
-	if err := appendBackendSwitchMarker(home, "a_1", "claude/sonnet", "codex/gpt", time.Unix(123, 0).UTC()); err != nil {
+	srv := testServer(t, true)
+	home := srv.configStore.Home()
+	if err := appendBackendSwitchMarker(srv.registry, "a_1", "claude/sonnet", "codex/gpt", time.Unix(123, 0).UTC()); err != nil {
 		t.Fatalf("appendBackendSwitchMarker: %v", err)
 	}
 	events, err := transcript.ReadFile(home, "a_1", transcript.ReadOptions{})

@@ -64,6 +64,8 @@ type ChatRuntime struct {
 	mu     sync.Mutex
 	agents map[string]*agentState
 	sink   func(Observation)
+	// journals is the per-agent conversation journal set (TS-01.R39).
+	journals *Journals
 	// history receives committed events in commit order (TS-01.R39).
 	history func(Event)
 	// activitySink receives live-only reasoning (TS-03.R44).
@@ -81,14 +83,20 @@ type ChatRuntime struct {
 // binary is resolved per agent from the backend.BackendAdapter unless overridden
 // via SetCommand (or c.command) — e.g. tests pointing at the fake ACP CLI.
 func NewChatRuntime(s *state.Store) *ChatRuntime {
-	return &ChatRuntime{
+	c := &ChatRuntime{
 		store:              s,
 		messageBudget:      func() int { return 50 },
 		agents:             map[string]*agentState{},
 		cancelGrace:        defaultCancelGrace,
 		startupCallTimeout: defaultStartupCallTimeout,
 	}
+	c.journals = NewJournals(c.publishHistory)
+	return c
 }
+
+// Journals is the conversation journal set the Registry shares with the
+// terminal runtime and server-side inactive appends (TS-01.R39).
+func (c *ChatRuntime) Journals() *Journals { return c.journals }
 
 // SetMessageBudgetProvider supplies the configured combined inbound/outbound
 // limit used when a turn reserves inline mail. The value is sampled once during
@@ -274,6 +282,9 @@ type agentState struct {
 	hostVoidSeq            uint64                     // bumped by requester cancellation; voids open host requests
 	transcript             []Event
 	journal                *Journal
+	journals               *Journals
+	journalAttachment      uint64 // this generation's writer attachment, guarded by mu
+	journalRelease         sync.Once
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
 	// replace-only live state, not a transcript event: each update overwrites it,
 	// an empty update clears it, and it dies with this agentState on stop/crash.
@@ -407,7 +418,8 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		processZone:      processZone(cmd.Env),
 		quotaSelection:   quotaSelectionOf(spec),
 	}
-	as.journal = NewJournal(as.agentID, c.publishHistory)
+	as.journals = c.journals
+	as.journal = c.journals.Acquire(as.agentID)
 	as.transport = NewTransport(stdin,
 		func(method string, params json.RawMessage) { c.onNotification(as, method, params) },
 		func(req *IncomingRequest) { c.onRequest(as, req) },
@@ -1421,7 +1433,8 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		// replaying immediately must not race an assignment made later.
 		loadReplay: true,
 	}
-	as.journal = NewJournal(as.agentID, c.publishHistory)
+	as.journals = c.journals
+	as.journal = c.journals.Acquire(as.agentID)
 	as.transport = NewTransport(stdin,
 		func(method string, params json.RawMessage) { c.onNotification(as, method, params) },
 		func(req *IncomingRequest) { c.onRequest(as, req) },
@@ -2154,39 +2167,6 @@ func (c *ChatRuntime) publishHistory(ev Event) {
 	}
 }
 
-// AppendAnnotation records and publishes a dashboard annotation through the
-// live runtime's writer and sequence allocator. This keeps it ordered with ACP
-// events and avoids a second writer racing the active transcript.
-func (c *ChatRuntime) AppendAnnotation(agentID string, data AnnotationData) (Event, error) {
-	as, err := c.lookup(agentID)
-	if err != nil {
-		return Event{}, err
-	}
-	return c.emit(as, EvAnnotation, data), nil
-}
-
-// AppendAnnotationAndSync records a dashboard annotation without publishing;
-// the caller is responsible for publishing after durability is confirmed
-// (FS-13.R5, TS-03.R14, INV §15).
-func (c *ChatRuntime) AppendAnnotationAndSync(agentID string, data AnnotationData) (Event, error) {
-	as, err := c.lookup(agentID)
-	if err != nil {
-		return Event{}, err
-	}
-
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return Event{}, fmt.Errorf("marshal annotation data: %w", err)
-	}
-	// The journal publishes only after the append and its sync succeed; the
-	// control sink is not invoked for an annotation.
-	obs := as.journal.Commit(CommitRequest{Event: Event{Type: EvAnnotation, Data: raw}, Committed: as.retainCommitted})
-	if !obs.Committed() {
-		return Event{}, fmt.Errorf("persist annotation: transcript %s", obs.Outcome)
-	}
-	return obs.Event, nil
-}
-
 // AppendQuotaNoticeAndSync appends one idempotent quota-continuation notice
 // through the active transcript writer. The server persists its receipt first;
 // this method only reports success after the transcript and its file contents
@@ -2285,31 +2265,96 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 	if spec.Fork != nil {
 		meta.ForkedFromAgentID, meta.ForkedFromSeq = spec.Fork.SourceAgentID, spec.Fork.SourceSeq
 	}
-	w, err := open(home, spec.Agent.AgentID, &meta)
+	attachment, w, err := as.journal.Open(func() (TranscriptWriter, error) {
+		return open(home, spec.Agent.AgentID, &meta)
+	}, ix)
 	if err != nil {
 		return fmt.Errorf("runtime: open transcript: %w", err)
 	}
 	if err := ix.UpsertSessionMeta(spec.Agent.AgentID, meta); err != nil {
-		if spec.Fork != nil {
-			_ = w.Discard() // a failed clone leaves no transcript (INV §15)
-		} else {
-			_ = w.Close()
+		if w := as.journal.Detach(attachment); w != nil {
+			if spec.Fork != nil {
+				_ = w.Discard() // a failed clone leaves no transcript (INV §15)
+			} else {
+				_ = w.Close()
+			}
 		}
 		return fmt.Errorf("runtime: index session meta: %w", err)
 	}
-	as.journal.Attach(w, ix)
 	as.mu.Lock()
+	as.journalAttachment = attachment
 	as.seq = w.NextSeq() - 1
 	as.mu.Unlock()
 	return nil
 }
 
+// detachJournal detaches this generation's writer, if it still owns it.
+func (as *agentState) detachJournal() TranscriptWriter {
+	as.mu.Lock()
+	attachment := as.journalAttachment
+	as.mu.Unlock()
+	if attachment == 0 {
+		return nil
+	}
+	return as.journal.Detach(attachment)
+}
+
 func (as *agentState) closePersistence() {
-	if w := as.journal.Detach(); w != nil {
+	if w := as.detachJournal(); w != nil {
 		if err := w.Close(); err != nil {
 			slog.Error("runtime: close transcript", "agent", as.agentID, "err", err)
 		}
 	}
+	as.releaseJournal()
+}
+
+// releaseJournal drops this generation's journal reference exactly once, on
+// whichever teardown path runs first, then reclaims the journal if nothing
+// else holds it.
+func (as *agentState) releaseJournal() {
+	as.journalRelease.Do(func() { as.journals.Release(as.journal) })
+	as.journals.reclaim(as.journal)
+}
+
+// AppendHistoryAndSync commits one history-only record through the live
+// generation's journal, synced before publication and without invoking the
+// control sink. It returns ErrNoHandle when no chat generation is live.
+func (c *ChatRuntime) AppendHistoryAndSync(agentID string, req CommitRequest) (Event, error) {
+	as, err := c.lookup(agentID)
+	if err != nil {
+		return Event{}, err
+	}
+	if !as.journal.Durable() {
+		return Event{}, fmt.Errorf("runtime: %s requires an active durable transcript", req.Event.Type)
+	}
+	if req.Event.Generation == "" {
+		as.mu.Lock()
+		req.Event.Generation = as.generation
+		as.mu.Unlock()
+	}
+	req.Committed, req.requireSync = as.retainCommitted, true
+	obs := as.journal.Commit(req)
+	if !obs.Committed() {
+		return Event{}, fmt.Errorf("runtime: persist %s: transcript %s", req.Event.Type, obs.Outcome)
+	}
+	return obs.Event, nil
+}
+
+// CommitInactive appends one event to a stopped conversation through its
+// shared journal (TS-01.R39): an inactive annotation, notice or switch marker
+// can no longer race another writer for a sequence. It returns ErrJournalLive
+// while a live generation owns the writer, and an error when persistence is
+// not configured.
+func (c *ChatRuntime) CommitInactive(agentID string, req CommitRequest) (Observation, error) {
+	c.mu.Lock()
+	home, open, ix := c.transcriptHome, c.openTranscript, c.indexer
+	c.mu.Unlock()
+	if home == "" || open == nil || ix == nil {
+		return Observation{}, fmt.Errorf("runtime: transcript persistence is not configured")
+	}
+	return c.journals.CommitDetached(agentID, func() (TranscriptWriter, error) {
+		return open(home, agentID, nil)
+	}, ix, req)
 }
 
 // NewSessionMeta builds the SessionMetaData for a launch/resume. Exported so the
@@ -2739,6 +2784,9 @@ func (as *agentState) shutdown() {
 	}
 	as.stopped = true
 	as.mu.Unlock()
+	// The reference only guards reclaim; an attached writer keeps the
+	// journal alive until this generation detaches it.
+	as.releaseJournal()
 
 	as.cancel()
 	_ = as.stdin.Close()
