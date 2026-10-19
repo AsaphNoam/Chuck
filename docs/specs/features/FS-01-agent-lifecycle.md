@@ -366,6 +366,27 @@ orphaned processes.
   reports quota again without a new reliable reset, hold for attention rather than repeating
   successful probes and failed wake-ups in the original conversation.
 
+**R53 (planned) — Native operation intent is preserved.** Fresh launch, ordinary/wake resume,
+same-provider switch/rollback, native fork and quota check use TS-01.R40's explicit purpose and
+frozen execution contract. Ordinary continuation preserves the effective provider model choice
+(including native inheritance), selected supported setup and permissions rather than rebuilding
+them from the display/catalogue key. Fork inherits its source's native instructions without a new
+persona/history primer; a check carries no work instructions or coordination authority. Unsupported
+or ambiguous source/legacy selection fails before registration, native work or source-runtime
+teardown; explicit refresh remains the existing opt-in way to select a new contract.
+
+**R54 (planned) — Lifecycle control proves execution ownership.** Extending R20–R21, a live PID
+alone never authorizes Stop, Switch, Archive, pruning or orphan destruction. A new execution has
+a generation-bound corroborated process/group and driver identity and an observed exit path before
+launch reports success. Unknown/mismatched legacy identity causes a bounded actionable refusal and
+retains the record; it never kills another process or silently starts a replacement. Confirmed-dead
+rows retain R20's `done` / `process exited` outcome. The current native conversation ID is retained
+before deleting its running row; Resume never silently creates a fresh native conversation when
+that required identity is unavailable. A failed start/old exit cannot claim or tear down a newer
+generation. This planned rule replaces R21's bare-PID signaling with corroborated owned-group
+teardown and qualifies R20's live-orphan interpretation; unknown/mismatched proof remains retained.
+See TS-01.R41 and TS-02.R54.
+
 ## 3. States & transitions
 
 Live status is one of `busy | idle | waiting_input | done | error` (FS-00.R4). Lifecycle-relevant
@@ -387,6 +408,8 @@ transitions:
   the registry has no handle, the server checks the running row, SIGKILLs the live PID, and deletes
   the row — so Stop/Release report success only after the process is actually gone, and Switch cannot
   spawn a second process under the same `agent_id`.
+  **Planned replacement:** R54 requires current process/group proof before destruction; unknown or
+  mismatched proof refuses and retains the orphan instead of signaling that PID.
 - **R52** — **Busy belongs to an owned turn.** Tool calls and results a chat provider streams after
   Chuck's turn has settled (for example a native background-task continuation after `end_turn`) are
   still transcribed, but they do not move status to `busy`: with no turn there is no turn end to
@@ -648,6 +671,17 @@ transitions:
   refusal on the real continuation. The last case becomes needs-attention without another wake.
   *Verify:* adapter contract captures, disposable-home history/cleanup tests and bounded live
   provider receipts. Source flags alone do not establish live same-account admission or retention.
+
+**A35 (planned)** (R53) — Fixture and pinned-native contract tests compare actual child/model/
+instruction choices with the frozen snapshot through launch, Stop/wake/resume, explicit model
+switch, rollback, both handoff directions, Claude/Codex fork and isolated quota check. Empty/inherit
+and nested native project layers are covered; unsupported custom roots/profiles and ambiguous old
+snapshots refuse without side effects. Credentialed adoption remains a separately recorded gate.
+
+**A36 (planned)** (R54) — Isolated subprocess/driver tests cover exit before registry commit,
+late prior-generation exit, reused PID, unknown legacy proof, dedicated-group descendants,
+terminal SessionStart → Stop/crash/restart → Resume and false-prune prevention. Confirmed-dead
+restart writes R20's outcome. Real driver/provider receipts are required by FS-07.A11–A12.
 
 ## 6. Deviations & open decisions
 

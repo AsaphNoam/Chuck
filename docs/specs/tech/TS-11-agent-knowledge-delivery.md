@@ -331,6 +331,23 @@ publication/discovery and existing awareness behavior; no new skill, persona mig
 integration is added. Extend the producer-derived tool/permission inventories for the new tools,
 while verifying that native tool auto-approval never resolves the host gate (FS-06.A29/A32).
 
+**R24 (planned) — Execution manifests identify requested delivery, not model knowledge.**
+Add a version-1 optional execution manifest to each process's normalized session metadata.
+Bound it to 16 KiB, at most 16 instruction-layer entries and existing bounded IDs. Retain purpose,
+catalogue/effective model choice, effort/permissions, supported setup selector, provider source,
+observed executable/adapter version plus reviewed artifact digest where available, and each
+requested layer's kind/hash/byte size. Retain the installed operating-package digest and current
+tool-inventory digest separately from prompt layers; neither proves that a skill/reference/tool
+was read or used. Distinguish assembled request, adapter confirmation and actual native signals;
+unknown values remain unknown. No extra provider turn or version-equality feature gate is created.
+
+Persist only hashes/sizes/revisions and already-permitted metadata, with no new raw prompt/native
+config/env/auth/token contents. Old session records stay without a manifest rather than being
+retrofitted from current files. Resume appends a new process record while retaining the frozen
+persona and conversation contract. Bounds cause explicit bounded unknown/truncation metadata,
+not a second instruction source or startup failure. Use the existing transcript/archive metadata
+path; no telemetry service, benchmark framework or prompt hot-rewrite is introduced.
+
 ## 3. Interfaces & data shapes
 
 The new agent-facing delivery contracts are:

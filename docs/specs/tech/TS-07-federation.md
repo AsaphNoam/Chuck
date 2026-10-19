@@ -132,6 +132,23 @@ successful item-create response supplies the validator for the resulting catalog
 draft can still save. A source failure after creation returns the saved backend as unbound rather
 than compensating away the successful create.
 
+**R19 (planned) — Frozen selection and executable setup are separate from inventory provenance.**
+TS-02.R53's explicit/native model choice is the single continuation authority; normalize empty
+override resets before existing precedence, retaining effective provider model IDs separately from
+catalogue keys. Pure resolution may inspect an approved root/profile, but execution support must
+be preflighted before registration or switch teardown. The currently proven matrix is: Claude's
+existing personal native config path and real project cwd; Codex's existing personal setup mirrored
+into the owned private session home; documented model/effort overrides through native requests.
+A distinct source root or nonempty selected profile without an independently verified setup-only
+delivery route returns `source_invalid`, leaving the inspectable binding intact.
+
+This refactor does not expand arbitrary-root execution support: do not point CLAUDE_CONFIG_DIR or
+CODEX_HOME at the bound source, adopt its auth.json, stage an unapproved config tree, or invent an
+ACP profile field. Personal authentication origin and Chuck-owned native session storage retain
+TS-04.R20/R21/R71 ownership. Legacy ambiguous contracts require explicit refresh rather than
+current-catalogue reconstruction. Any later broader root/profile capability is a separate verified
+feature; a resolver preview alone is never evidence of native adoption.
+
 ## 3. Interfaces & data shapes
 
 `config-sources.json` version 1 stores one binding per backend: provider/root/profile/mode, claims,

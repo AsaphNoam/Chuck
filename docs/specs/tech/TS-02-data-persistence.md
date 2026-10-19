@@ -723,6 +723,74 @@ FS-16.R50, `tasks.group_name TEXT NOT NULL DEFAULT ''` holds the normalized proj
 other durable launch inputs (R30), so a task admitted after restart launches into the group it was
 created with. Empty is ungrouped; existing rows adopt it unchanged.
 
+**R52 (planned) — Canonical journal outcomes are explicit.** TS-01.R39 keeps the normalized
+NDJSON format and event vocabulary; no rewrite/renumber of historical records is authorized.
+Internal commit result distinguishes `not_written|uncertain|committed` (complete append and
+required sync) and independently `index_ok|index_degraded`. Uncertain partial/sync outcomes
+reserve their in-process identity and prohibit automatic re-emission/provider replay. Repair uses
+the existing complete-record/torn-tail reader; missing output is represented by a durable bounded
+history-gap notice, never invented deltas. Latch uncertainty before another commit; repair validates
+the complete tail, truncates only a torn suffix and records one gap notice using the reserved next
+identity without reusing an accepted sequence. Persist bounded history health/reason and reserved
+sequence in SQLite session metadata through a forward migration, independently of the failing log.
+Before a writer can admit native work or an inactive mutation, persist an open-writer generation/
+operation marker; clear it only after clean final flush. A surviving open marker after restart
+requires tail validation and explicit gap recovery even if recording the later failure also failed.
+Failure to persist that initial marker refuses admission. Absence of legacy health is unknown;
+validate rather than assume a clean shutdown. No raw filesystem/provider
+error crosses the API. Successful canonical append is not downgraded by derived-index failure;
+retain bounded repair eligibility until projection succeeds. Room source references are accepted
+only for committed canonical records; task/room/result authority remains in its existing tables.
+
+**R53 (planned) — Sessions retain a versioned effective execution contract.** Add a nullable
+`execution_contract_json` to session snapshots through a forward migration. Version 1 records:
+catalogue backend/model key; provider/backend type; `model_choice:{kind:native|explicit,id?}`;
+resolved effort and applied fast; effective permission choice; supported setup root/profile and
+provenance; personal auth-origin selector (never credentials); and owned native session-home
+reference. Ordinary continuation copies it unchanged except existing explicitly applied controls.
+Record requested fast separately from applied identity using current semantics. Frozen prompt,
+history bridge and process-only guidance retain their current distinct fields/lifetimes.
+
+Old rows remain null/unknown. Derive a contract only when the old frozen metadata unambiguously
+proves the original selection; a catalogue's current value cannot prove it. Ambiguous legacy resume
+requires the existing explicit configuration-refresh path or a new conversation; never silently
+relabel/rewrite native history or choose another model/account. New native fork copies its source
+contract; a transient fork/check plan is not stored as user configuration. No raw native config,
+auth file, token or full environment is added to the contract.
+
+**R54 (planned) — Persist process proof and terminal native identity at their owning boundary.**
+Extend running rows forward-only with a versioned process proof: actual process birth value at
+platform precision, positive PID/PGID, existing generation and bounded driver IDs/machine handle.
+Keep process birth distinct from row `started_at`; capture it from the owned native process, not
+a clock guess. New orphan signals compare that exact current proof immediately before each
+destructive action. No claim of atomic identity-and-signal is made on platforms lacking that
+primitive; unknown/mismatch fails closed. Do not manufacture proof for legacy rows.
+
+In the authenticated SessionStart transaction, update both the current running native ID/TTY and
+`sessions.last_session_id` when nonempty, conditional on the current token-bound running generation;
+do not trust a generation supplied by the hook payload. Before matching-generation
+teardown deletes running, preserve that current ID defensively; never overwrite a newer generation
+or replace a known ID with empty. Legacy missing proof/ID stays recoverable as an explicit refusal,
+not a fresh conversation. Bootstrap secrets live only in the one-use owner-only files/pipe, never
+in running rows, driver IDs or process arguments; cleanup of those files is generation-owned.
+
+**R55 (planned) — Retryable input commands retain authoritative acceptance and recovery.**
+Extend existing input/attachment receipts to text as well as media; use one bounded annotation
+command record with caller/source, command ID, canonical payload hash, exact target, source event
+reference and effect/result references. States distinguish prepared/recorded, submitted, accepted,
+definitely rejected and unknown consumption. Same key/hash returns the stored outcome; a changed
+hash conflicts without mutation. Native submission uncertainty never becomes an automatically
+deliverable held message. Room annotation command IDs remain the same authority, not another copy.
+
+Command reservation, mail/task effects and receipt state use existing SQLite transactions where
+they share this database. Canonical log append and native provider work are not falsely treated as
+one SQL transaction: record stable identity before either effect, advance receipts after confirmed
+boundaries, and reconcile a known canonical event/reference before retry. If the exact effect cannot
+be proved, retain explicit uncertainty instead of another append or delivery. Keep authorized
+canonical payload/result sizes within existing input limits and avoid retaining secret side data.
+Receipts follow the owning conversation's existing retention/permanent-deletion lifecycle;
+archival/reload does not erase the acceptance needed for harmless retry.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

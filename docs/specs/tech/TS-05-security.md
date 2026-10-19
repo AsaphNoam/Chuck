@@ -304,6 +304,22 @@ Do not claim resistance to a same-user process bypassing the tool. No API creden
 restriction, new remote access or provider configuration migration is introduced. Existing
 Host/Origin guards and paired-device authorization still protect their respective routes.
 
+**R28 (planned) — Process control proof and bootstrap material are scoped to one generation.**
+TS-01.R41/TS-02.R54 require actual process-birth and dedicated group/driver corroboration before
+signals or destructive cleanup. Unknown/mismatched legacy proof never authorizes a kill or cleanup
+of another generation. Bootstrap input/handshake paths stay within a Chuck-owned 0700 temporary
+launch directory with 0600 one-use files or equivalent private pipes; reject symlink substitution,
+mismatched nonce/owner/generation and path escape before consuming secrets. Limit the record to
+1 MiB total, 4096 combined argv/env entries and 128 KiB per entry; stricter platform exec limits
+remain actionable launch failures. Open without following links, verify regular-file ownership
+and mode, atomically consume once and reject nonce replay before exec.
+Only the bootstrap path appears in external-driver command text; environment/nonce/token values
+do not. Remove artifacts on success, failure and cancelled launch through the same generation owner.
+
+Native configuration-source consent is not authentication consent. TS-07.R19 retains existing
+personal-auth and private-session-home ownership; selected setup roots cannot silently replace
+them. No new source credentials enter snapshots, manifests or driver IDs.
+
 ## 3. Interfaces & data shapes
 
 Security-relevant interfaces are the single listener, Host/Origin middleware, launch token

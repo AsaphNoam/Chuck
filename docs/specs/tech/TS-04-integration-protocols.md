@@ -1437,6 +1437,64 @@ the only decoded shape: any other `rawOutput` (absent, a string, a string `error
 leaves `error` empty, and `rawOutput` is never copied into user-facing text as raw JSON
 (INV §8/§11/§12). The existing tool-result renderer shows `error` when content is empty.
 
+**R100 (planned) — Native observations carry independent history/control authority.** Replace
+the combined history/control event sink with TS-01.R39's committed-history publisher and typed
+control observer. History publication remains the same runtime.Event/SSE shape; an internal
+observation adds canonical/index outcome and captured generation/turn. Provider progress is not
+native adoption evidence merely because the adapter acknowledged configuration. Run controllers
+outside runtime/journal locks and check current task/room/quota authority. A room capture with a
+failed canonical source marks its exact attempt failed/held or retains a retryable recovery
+obligation if that database write fails. Retry the idempotent exact-attempt failure transition,
+never its activity append (whose commit may already have happened). That attempt cannot later
+finalize as accepted. Already
+committed task-result cleanup still runs. TS-01.R39's ordered, reentrant-safe control dispatcher
+settles turn-end before admitting its held successor. Load replay remains
+excluded from both new history and new control effects under R50.
+
+**R101 (planned) — Provider preparation follows a concrete purpose/delivery table.** For TS-01.R40:
+fresh/resume preserve the provider's native guidance and append the applicable frozen persona,
+bridge and runtime suffix; native fork omits those newly composed instruction/primer layers,
+retaining the source contract and installing only required generation-scoped directories/MCP.
+Pinned Claude fork returns an ID without registering it, so fork must then load that ID with the
+supported new generation's MCP/directories before configuration or first prompt, with compensating
+delete on failure. Codex fork process config must not replace inherited instructions.
+
+Quota checks keep R97's authentication home, routing, no-work, bounded lifetime and named archival
+rules. Project every effective config layer/overlay into proven routing/auth/model settings and
+explicitly suppress work instruction/MCP/tool sources by a supported override; unknown inseparable
+sources return unsupported. An empty ACP server list or empty generated prompt does not prove
+native setup isolation. Do not copy authentication into a new home or mutate shared work config.
+
+Resolve the actual trusted Codex project chain from repository root through nested cwd with native
+precedence before additive guidance, using bounded approved reads and pinned-native independent
+fixtures. Unsupported selected roots/profiles obey TS-07.R19, without a new home/auth loader.
+Steer requires reviewed artifact capability evidence for `idleBehavior:promptRequired`: accept
+the release's exact verified patched artifact or an equivalently reviewed source artifact. A
+version string or steering advertisement alone is insufficient. Source artifacts lacking proof
+withhold/refuse Steer; ordinary Send continues. No unowned detached turn or automatic resubmission
+is an acceptable fallback. Native adoption/live gates remain independent of artifact proof.
+
+**R102 (planned) — External terminal bootstrap and control use exact owned handles.** Extend
+TabSpec with stable agent/generation machine identity. tmux/iTerm2 call the same hidden bootstrap
+with only an owner-only launch-record path in argv; the record contains bounded exact argv/env/cwd,
+generation and a random one-use nonce. Resolve the hidden command through the current Chuck
+executable/bundle, including installed packaging tests. Shell `exec` in the newly owned view
+preserves its dedicated foreground process group/TTY; the bootstrap validates that ownership,
+writes an owner-only nonce-bound PID/PGID/birth/TTY handshake, closes/removes consumed
+secret input, and execs the selected provider with that environment, not tmux server globals.
+The parent independently verifies OS proof/driver handle and bounded handshake before success; failure
+terminates only that owned launch and removes its artifacts. Never put secret env values into
+tmux `-e` args, AppleScript command text or persisted driver IDs.
+
+Use agent/generation-derived bounded tmux session names and exact driver session IDs; titles are
+cosmetic. Close only the owned process group/session, never an unrelated window/tab. A driver that
+is statically unsupported returns `terminal_unavailable` before source teardown, with no fallback.
+Dynamic handshake failure after a switch has stopped its source uses existing truthful rollback
+and compensation; preflight cannot prove a target process that has not started. No successful
+operation may lack identity, observation or orphan control. Bootstrap invocation is internal only and not an agent tool
+or public operator workflow. Validate actual iTerm foreground/exec and tmux environment semantics
+through FS-07.A12; fixtures cannot claim native support.
+
 ## 3. Interfaces & data shapes
 
 R97's internal check operation accepts a sanitized frozen provider selection (backend type,

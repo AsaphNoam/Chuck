@@ -43,6 +43,13 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`serialize-conversation-event-commits.md`](serialize-conversation-event-commits.md) — ASW-1:
+  one conversation journal/ordered publication boundary, with independent task/room control authority.
+- [`preserve-native-execution-contract.md`](preserve-native-execution-contract.md) — ASW-2:
+  preserve effective native selection by fresh/resume/fork/check purpose and record bounded requested evidence.
+- [`enforce-process-and-driver-ownership.md`](enforce-process-and-driver-ownership.md) — ASW-3:
+  verified process/driver lifecycle, per-child environment, safe orphan control and durable terminal session IDs.
+
 - [`quiet-quota-recovery.md`](quiet-quota-recovery.md) — verified structured/text reset scheduling
   and bounded isolated quota checks; preserve the original conversation, with non-persistent
   Claude sessions and approved named Codex native archive records.

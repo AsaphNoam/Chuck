@@ -1,6 +1,6 @@
 # TS-12 — Worktree lifecycle
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/worktree/`, `internal/server/worktree.go`, `internal/server/worktree_handlers.go`, `internal/config/worktrees.go`, `internal/state/worktrees.go`
 **Absorbed:** —
 
@@ -118,6 +118,15 @@ branch automation beyond creating the fork branch.
   Chuck; branch-ref creation is the atomic claim (INV §5), so the second identical fork fails
   on the existing branch and rolls back per R3. Server-derived project ids make checkout-path
   collisions unreachable; the path is still pre-checked and fails closed.
+
+**R11 (planned) — Setup cancellation contains the owned process tree and pipe drain.** Extend
+the existing bounded setup-command helper with a dedicated process group, whole-group cancellation/
+deadline termination, owned-child reaping and a one-second maximum post-termination pipe-drain wait.
+Retain R5's ten-minute execution limit, 64 KiB captured tail, 2,000-rune warning and normal
+setup-failure warning semantics; no uncancelled descendant may hold the recreation request open.
+Reuse TS-01.R41's owned-command containment primitive, not a separate setup scheduler. This does
+not change R4's per-project readiness authority or authorize shell/Git operations outside the
+existing checkout/setup boundary.
 
 ## 3. Interfaces & data shapes
 

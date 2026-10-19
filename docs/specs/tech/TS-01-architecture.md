@@ -524,6 +524,92 @@ commands retain their separately specified behavior. Human transcript text uses
 Reuse server validation, composition, ownership, lifecycle claims and receipt seams rather than
 reimplementing them in command handlers. No direct-action/MCP migration work is included.
 
+**R39 (planned) — One registry-owned conversation journal serializes history.** Extend the
+existing runtime persistence seam with one ref-counted owner per stable agent ID, shared by chat,
+terminal and server-side inactive append. It owns the writer, next sequence and generation attachment
+for every normalized event, marker, annotation and notice. Inactive operations join the existing
+agent lifecycle claim and recheck ownership; active producers supply the captured generation.
+No server handler opens an independent writer for the same conversation. Attach/detach/close is
+generation-fenced and returns required-sync errors. Reclaim/close only after inactive appends,
+fork-prefix transactions and generation attachments release their references. The owner supports
+non-live fork-prefix creation and discards the new prefix on failed fork.
+
+A commit serializes sequence allocation, canonical append/required sync and ordered publication to
+the existing per-agent `Hub.Publish` and `eventBus.PublishRuntimeEvent` adapters. This closed list
+may take its own bus locks but cannot wait on subscribers or call controllers/runtime state.
+No provider call, controller callback or general sink may hold the journal or agent-state mutex.
+Capture runtime scope and release `as.mu` before entering the journal; post-commit bookkeeping
+may take `as.mu` under the journal, never the reverse. Preserve existing required-sync fences;
+do not add an fsync to every streaming delta.
+Index projection failure is separately repairable and cannot change whether the log accepted the
+event. Failed/uncertain appends do not enter the retained in-memory/live history; allocated sequence
+identities are not reused within that owner. Restart recovers from the canonical complete tail.
+
+Split history publication from a typed runtime/control observation carrying generation, turn,
+provider terminal reason and canonical/index outcome. A bounded per-conversation FIFO is enqueued
+in reserved-sequence/commit-attempt order, including `not_written` and `uncertain` outcomes, and drained by one dispatcher
+outside these locks. A failed terminal append must not suppress independently durable cleanup.
+Keep at most 256 pending observations plus one in flight per conversation, one dispatcher, and
+at most 4 KiB of scope/outcome metadata per observation; reference already bounded event data
+without copying it. Capacity is reserved with
+cancellable backpressure before entering the journal; observations retain event references rather
+than duplicate text buffers. Reentrant history-only notice appends neither enqueue control work
+nor wait for this dispatcher. Callbacks cannot await a future observation; turn settlement awaits
+its terminal observation outside locks before releasing a held successor. Cancelled admission
+retains the exact durable cleanup obligation and latches recovery, never acknowledges it as settled.
+The generation-owned cancellation context releases reservations and terminal waiters on shutdown;
+pending FIFO entries are not restart authority and cannot be mistaken for completed cleanup.
+Task release may proceed from its independently
+committed SQLite result/pending-release record; quota settlement uses its own episode/attempt row.
+Room capture requires a committed canonical source sequence: a failed/uncertain source event fails
+that capture and its current attempt rather than publishing unsupported output. Record failure
+atomically in room state or retain its exact recovery obligation when that write fails. Failure
+is monotonic: a later successful terminal observation cannot accept that attempt. Do not replay
+room activity after a failed/ambiguous capture write; retry only the exact idempotent failure/hold
+transition. Retain pending capture-failure references on the existing room attempt for recovery;
+the FIFO itself is not restart authority. Existing task/quota/room rows own restart recovery.
+Terminal callbacks
+still settle/fail the exact room and cleanup obligations before a held successor is released.
+A generic suppress-all-sinks-on-disk-error rule is prohibited. Non-transcript bounded health
+notification and FS-03.R99 recovery are outside the failing journal path, so errors cannot recurse.
+Use the current hubs, index repair and control services; do not add another workflow/event database.
+
+**R40 (planned) — Freeze native selection once; realize it by operation purpose.** A versioned
+execution contract (TS-02.R53) separates catalogue/display identity from the effective provider
+model choice, effort/applied fast, permissions, native setup selector, personal authentication
+origin and private native session-home reference. Existing composers select it; ordinary resume,
+wake and rollback consume it without re-resolving catalogue/source defaults. Explicit model switch
+or configuration refresh derives a new contract using existing precedence and consent.
+Provider preparation receives an ephemeral purpose `fresh|resume|fork|quota_check`; purpose is
+execution intent, not persisted user configuration. A cross-backend handoff chooses fresh with its
+bounded bridge; compatible native load chooses resume. Fork uses its source contract and native
+context, without new persona/primer. A quota check uses an allowlisted no-work projection or refuses
+when equivalent routing/isolation cannot be proved. The real provider setup must satisfy TS-07.R19
+before registrations or source teardown. Reuse adapters/resolvers/LaunchSpec; do not create a
+parallel configuration manager or treat one set of prompt injections as valid for every purpose.
+
+**R41 (planned) — Execution handles prove identity, control and finalization.** Registry launch
+and resume use an explicit generation claim `launching -> committed|exited`; a runtime exit wins
+against a later commit of that same claim. The current driver/child result must carry corroborated
+PID, dedicated PGID, actual process birth identity, unique machine handle and wait/exit observation.
+Late-generation teardown cannot delete a new claim. Installation/advertisement is not this proof.
+Driver capabilities are requirements of a successful result, not optimistic booleans beside a
+partially populated Tab. Viewer lifetime stays separate from process lifetime.
+
+Extend existing owned-child/process helpers and TerminalDriver. For external drivers, use one
+short-lived hidden command of the current Chuck executable (resolved without PATH lookup). The
+new owned terminal view uses shell `exec` to replace its launch shell with this bootstrap, which
+validates/reports the dedicated foreground process group/TTY before execing the provider with
+exact argv, cwd and composed env. Preserve PID/birth and controlling-terminal semantics across
+both execs; do not assume `setsid` can reacquire an existing terminal. Unprovable group/TTY ownership
+refuses that operation. xterm may keep its direct equivalent.
+No new long-lived supervisor or provider-auth service is introduced. The parent validates a
+nonce-bound handshake within ten seconds and the driver's existing launch deadline before
+acceptance, independently corroborating OS birth/group/foreground TTY and the exact driver view.
+xterm wait or bounded OS-identity monitoring (at most one-second detection interval)
+feeds the same generation-fenced exit path. Native session identity and process proof persist per
+TS-02.R54; native ID never derives from display title or process ID.
+
 ## 3. Interfaces & data shapes
 
 **Runtime interface** (`internal/runtime/runtime.go`, minimum surface):

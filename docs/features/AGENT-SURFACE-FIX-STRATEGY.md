@@ -6,6 +6,12 @@ The range `4fbeb316..678beec0` changes only that handoff, so intervening product
 invalidate the reviews' source evidence. This assessment adds targeted source traces and fix
 recommendations; it does not claim a new provider/device run or an implemented refactor.
 
+**Formalized 2026-10-19:** the human requested implementation-ready refactor designs and consolidated
+fix batches. [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md) now assigns all 41 findings
+to three ready architectural changes and six fix units, with normative planned requirements,
+acceptance and closure rules. The assessment below records the reasoning that led to those scopes;
+its proposal language is historical. No implementation or finding closure has occurred.
+
 ## Main conclusion
 
 Several findings are symptoms of shared ownership defects and should be fixed as coordinated,

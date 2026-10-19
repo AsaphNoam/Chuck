@@ -1030,6 +1030,36 @@ pairing scope is added. Original-work notices remain the only transcript change 
 FS-01.R50 sentence only on corroborated continuation. Verify serialized projections plus rendered
 cancel/reload/disable and quiet-failure journeys under FS-01.A33–A34.
 
+**R73 (planned) — History health and applied lifecycle state are truthful.** Add bounded
+`history_state:ok|degraded` and optional sanitized `history_reason` to the existing conversation/
+session projection; absence means legacy unknown, not verified healthy. FS-03.R99's storage latch
+blocks new/automatic work without hiding Stop or approvals. Health errors travel via the existing
+non-transcript notification/error surface, avoiding recursive append. Successful canonical recovery
+and a durable gap notice permit future work without claiming missing output was recovered.
+
+If a backend-switch marker fails after the target is already active, preserve the actual active
+target and return the existing error envelope with an actionable message that the switch applied
+but history recording failed; refresh the current-state query before offering another action.
+Do not generically report that no switch occurred, automatically repeat it, or restart the native
+session solely to repair its marker. Before target activation, normal failure/rollback semantics
+remain unchanged. This adds no second mutation endpoint or silent replay policy.
+
+**R74 (planned) — Input command and withdrawal responses identify the authoritative operation.**
+Desktop/phone annotation requests add stable `command_id`; input Send/Steer reuse `request_id`
+for text and attachments. Same ID/hash returns the retained receipt; different payload conflicts
+using a structured 409 with no effect. Legacy requests without an ID remain accepted as deliberate
+new commands but receive no lost-response replay guarantee; bundled clients always retain IDs for
+retryable commands. Native unknown consumption uses typed `delivery_uncertain` (409 when a reply
+can still be sent) plus the existing recoverable-input reference. GET recovery survives reload;
+CLI uncertainty remains a non-success outcome with no implicit resend.
+
+Held projections include `held_id`. DELETE held accepts optional `held_id` and atomically returns
+200 `{withdrawn:true,message:{held_id,text,attachments,request_id?}}` for the exact removed input,
+or existing 204 for no hold; an expected-ID mismatch returns 409 `held_changed` without removal.
+Bundled clients use the returned content, never cached content. Fields are additive; legacy callers
+omitting the expectation can still withdraw the current hold but must use the authoritative reply.
+No-hold is idempotent and cannot revive already delivered content.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

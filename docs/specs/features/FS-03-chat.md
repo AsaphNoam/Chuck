@@ -785,6 +785,29 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Tank rooms, the dashboard, the phone companion and every API are unchanged; stopped siblings
   are reached through the project dashboard as before (operator decision 2026-10-18).
 
+**R99 (planned) — Conversation history has one commit boundary.** TS-01.R39 orders live,
+annotation, notice and lifecycle-marker events through one conversation owner. Only complete
+canonical records with their required sync are presented as retained history; derived indexing
+failure is reported separately and cannot make a committed native delivery look unaccepted.
+An append/sync failure produces a bounded non-transcript health error, preserves submitted/draft
+ownership, and prevents automatic held/activation successors until storage recovery. It does not
+automatically repeat or undo already consumed native work. The current native turn and independently
+durable task/room cleanup can settle under their own authority; room publication cannot claim a
+missing canonical source record. Recovery validates the canonical log and records a durable gap
+notice before admitting new work if output was lost; it never fabricates that output or claims
+complete history after a later successful append. The latch does not silently discard a deliberate
+manual Send: storage refusal preserves recoverable input and explains it. Stop and permission
+controls remain reachable.
+
+**R100 (planned) — Ambiguous delivery and withdrawal preserve the actual input.** Extending
+R36/R48–R50/R90, request timeout/lost response is not definite provider refusal. Possibly consumed
+Steer is retained for explicit recovery and is never restored to an automatically sent hold.
+Recovery uses the existing composer/recoverable-input treatment and requires a deliberate new Send;
+no new automatic retry policy is introduced. Held messages have authoritative identity; withdrawal
+returns the exact message atomically removed or no message, never the caller's stale copy.
+A successful reply clears only the submitted draft revision. TS-03.R74 defines the additive wire
+contract; attachment descriptors and receipt ownership follow the same message as its text.
+
 ## 3. States & transitions
 
 - **Open/reload:** panel fetches durable events → normalizes/folds them → subscribes to live SSE
@@ -1429,6 +1452,19 @@ A71–A75 are covered by `readerLayout.test.ts`, `ReaderWorkspace.test.tsx` and 
 `FileViewer`/`AnnotationTray` tests, plus `ui/scripts/file-reader-journey.mjs` (live and archived
 pages, Core/Sky & Grove/Studio at 1024, 1440 and 2137px, nested New task launch) and
 `ui/scripts/room-render.mjs <out> file` for the room viewer.
+
+**A78 (planned)** (R99) — Barrier-driven tests interleave provider output, active/inactive
+annotation, notices, switch markers and resume, asserting unique increasing durable and observed
+sequences for history publication. Control observations assert per-domain ordered settlement,
+reentrant notice safety and no successor before terminal acknowledgement. Inject append,
+required-sync and index failures separately; verify truthful health/gap recovery, no ambiguous
+input replay and correctly authorized task/room/quota cleanup, including failed room-state writes.
+
+**A79 (planned)** (R100) — Delayed/lost Steer replies, turn completion and two-device hold
+replacement preserve newer drafts and actual withdrawn text/attachments. A promoted Steer applied
+before timeout is not followed by an automatic duplicate prompt. Definite pre-consumption refusal
+can restore its original hold; unknown consumption requires explicit recovery. Test desktop,
+phone and CLI callers with actual provider-submission counts in controlled fixtures.
 
 ## 6. Deviations & open decisions
 

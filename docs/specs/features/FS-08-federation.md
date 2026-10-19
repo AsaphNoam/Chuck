@@ -184,6 +184,17 @@ FS-04 and FS-09. OpenCode and OpenHands do not participate in federation.
   Settings retains its full editor. FS-04.R49 replaces R22's unsupported-provider explanation step
   with direct advancement to Launch. No connection is made merely by entering or skipping the step.
 
+**R37 (planned) — Resolution provenance must match a realizable child setup.** TS-07.R19
+separates the selected setup, existing personal authentication origin and private native session
+home. Binding/preview remains read-only; it does not grant a new authentication or native-home
+migration. A launch supports the current native personal setup path and documented overrides;
+distinct arbitrary roots/nonempty selected profiles without a verified setup-only delivery contract
+fail `422 source_invalid` before registration or teardown, while the binding remains inspectable
+and repairable. Do not copy a selected root's credentials or silently substitute the ambient setup.
+Normal resume uses a persisted effective model choice, not the catalogue label; explicit empty
+model reset means native inheritance for a bound source, and empty effort reset falls through
+the existing effort precedence/default. This correction does not implement arbitrary setup mirroring.
+
 ## 3. States & transitions
 
 - **R25** — An unbound backend uses `backends.json`. Preview leaves it unbound. A successful token
@@ -276,6 +287,11 @@ FS-04 and FS-09. OpenCode and OpenHands do not participate in federation.
   discovery/bind failure, consent, retry and collapse during a pending operation; they assert the
   same requests as Settings, no duplicate mutation, no hidden repair state and no write when skipped.
   *Verify by* source-panel/onboarding tests and FS-12.A24's rendered pass.
+
+**A14 (planned)** (R37) — Fixture roots with distinct personal/bound model and instruction
+sentinels prove actual supported setup or preflight refusal, never misleading success. Exercise
+empty/nonempty/absent model and effort overrides, edited catalogue defaults, legacy snapshots,
+resume/switch/rollback and native ancestor project layers. Credentialed adoption remains separate.
 
 ## 6. Deviations & open decisions
 

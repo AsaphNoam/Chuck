@@ -79,6 +79,15 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   FTS5 build they are searchable from the archive (FS-05.R25-R27); the untagged fallback build limits
   search per FS-05.R6.
 
+**R32 (planned) — Annotation delivery retries reuse one command.** Desktop and phone allocate
+one stable command ID for an attempted batch before its first request and keep it through lost
+responses, reload and launched-recipient recovery. TS-03.R74 binds it to the exact canonical source,
+target and payload hash; the same ID returns the retained result without duplicate source event,
+mail, self prompt or task. Changed payload under the same ID conflicts without effects; a deliberate
+new delivery gets a new ID. Temporary derived-index failure is an explicit degraded projection of
+the committed command, not permission to redeliver. Room annotations retain their existing command
+identity and authority; no common receipt grants broader target/source access.
+
 ## 3. States & transitions
 
 - **Tray:** empty → drafting (add/edit/remove entries) → sending → cleared on acknowledged send. A
@@ -352,6 +361,11 @@ Each acceptance item names its delivered verification.
   self-targeted blocks, with no duplicate machine prompt. Existing Mac launch and card behavior
   remains covered. *Verify by:* shared delivery and phone launch/card component tests plus the
   rendered fake-provider phone journey.
+
+**A22 (planned)** (R32) — Discard a successful response, reload/retry the same batch and verify
+one canonical annotation plus one target effect for peer mail, self, new-task and launched targets,
+desktop and phone. Test payload mismatch, target refusal before effects, index repair and caller
+authorization; use real handler/receipt paths rather than a mock that deduplicates only requests.
 
 ## 6. Deviations & open decisions
 

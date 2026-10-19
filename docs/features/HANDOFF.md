@@ -30,11 +30,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   evidence and findings are below; all 25 topics and seven joins have been reconciled, with
   native/device adoption and comparative performance still unproved. Other findings and live gates
   remain independent.
-- **Systemic fix assessment:** [AGENT-SURFACE-FIX-STRATEGY.md](AGENT-SURFACE-FIX-STRATEGY.md)
-  proposes three structural refactors (event commit, frozen native execution, process/driver
-  ownership) plus coordinated turn-settlement, command-receipt and recovery fixes. Prioritize unsafe process
-  control, ambiguous automatic replay and the config read-loop stall. Existing ASR findings retain
-  their identity; this is analysis/proposed scope, with no product/spec fix selected or implemented.
+- **Designed agent-surface work/fix units:** [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md)
+  assigns all 41 open findings once: three ready `/work` refactors (ASW-1 event commit, ASW-2 frozen
+  native execution, ASW-3 process/driver ownership) and six consolidated `/fix` batches below.
+  The human explicitly authorized these cross-review batches; for this campaign select the new
+  unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
+  migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
+  control, ambiguous replay and the config read-loop stall. No unit is started and no product fix
+  is implemented. The [systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
 - **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
   loss; its earlier fix covers user/exact-cwd configuration. The original unit below retains the
   prompt-composition diagnostic gap (PROMPT-2) and separate process-policy recommendations.
@@ -174,11 +177,40 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - The phone agent header still repeats the model as text under the name now that the model
   switch shows it above the composer.
 
+## Agent-surface work and fix queue
+
+**All waiting; none selected.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+are the selection authority for this campaign. Three substantive refactors are ready in
+[`docs/ready-changes/`](../ready-changes/README.md):
+
+| Unit | Invocation | Outcome |
+|---|---|---|
+| ASW-1 | `/work serialize-conversation-event-commits` | One canonical commit boundary, ordered control observations and truthful history failure |
+| ASW-2 | `/work preserve-native-execution-contract` | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
+| ASW-3 | `/work enforce-process-and-driver-ownership` | Verified process/terminal ownership, safe control and durable native terminal identity |
+
+The following cross-review §8 batches are explicitly authorized by the human's consolidation
+request. Their exact scope, required specs, regressions and closure rules are in the linked design.
+Keep original finding IDs and evidence until each closes; do not close an originating review just
+because one new batch finished. Original review aliases must respect this map and must not
+reimplement an ASW refactor as a local fix. The existing launcher/workflow remain otherwise unchanged.
+
+| Fix unit | Invocation / responsibility | Owned findings | Status / fix model |
+|---|---|---|---|
+| [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | `/fix ASF-5` — checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-6](AGENT-SURFACE-FIX-UNITS.md#asf-6--cli-archive-selection) | `/fix ASF-6` — certain CLI resume/new selection | ASRH-3 | Waiting — medium, Codex Terra or Claude Opus |
+
 ## Review queue
 
 Nine integrated reviews are sized for frontier reviewers to follow interacting mechanisms and
 whole workflows. These are explicitly requested subsystem audits, not reviews of queue commits.
 ASR-I's source synthesis is complete; the eight domain units below remain open on their findings.
+Their remediation is now assigned to the work/fix units above; these rows retain review provenance,
+not a second competing implementation queue.
 Read the selected [charter and mandatory joins](AGENT-SURFACE-REVIEW.md), then its retained
 [search topics](AGENT-SURFACE-SEARCH-CATALOGUE.md); inspect the complete current implementation and
 callers, not only a commit diff. Numeric ASR-01–ASR-25 aliases now select their whole containing
@@ -1311,6 +1343,14 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Designed agent-surface remediation:** formalized three bounded structural
+  refactors as ready changes with planned FS/TS requirements, forward migration, security,
+  native-proof and acceptance obligations. Consolidated the other 19 findings into six explicitly
+  authorized cross-review fix batches; all 41 open IDs have exactly one primary owner in
+  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md). Preserved original review evidence,
+  native/device gates and closure identities. No product code, provider turn or fix closure.
+  Spec/launcher lint, finding assignment, document links/anchors and diff checks pass.
 
 - **2026-10-19 — Assessed systemic fix strategy:** compared all completed ASR findings and
   inspected the linked execution, process-control, event-sink and recovery seams. Identified three

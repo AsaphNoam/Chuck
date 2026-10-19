@@ -100,6 +100,19 @@ terminal agents from becoming statusless or unmessageable.
   `send_message`/`check_messages` and is not a messaging peer. This is a deliberate boundary (see
   §6) rather than a bug.
 
+**R25 (planned) — Driver availability includes safe control.** In addition to R9–R11's
+installation checks, TS-01.R41's driver contract requires per-child composed environment, unique
+machine identity, corroborated dedicated process-group identity, bounded exit observation and
+restart-safe exact ownership. Missing proof fails `terminal_unavailable` before accepting a
+launch/switch, with no silent fallback. A viewer detach is not process exit. Native SessionStart
+updates durable conversation identity under the current hook generation; later Stop/crash cannot
+lose the ID required by R16–R17. Legacy missing native identity refuses Resume with a repair message
+rather than opening a different conversation. External drivers retain supported behavior through
+a bounded owned bootstrap; successful real-platform verification is required before claiming support.
+This planned rule supersedes the bare-PID post-restart reap described below: only corroborated
+current group ownership permits teardown; unknown/mismatched proof refuses and retains the orphan,
+and confirmed death uses FS-01.R20's `done` / `process exited` outcome.
+
 ## 3. States & transitions
 
 - **Launch → idle:** driver starts the tab, PTY reader starts, running row written, race-guarded
@@ -157,6 +170,17 @@ terminal agents from becoming statusless or unmessageable.
   footer and **Resume**, calls the resume endpoint, and mounts the bridge once the agent runs.
   *Verified by* `ChatPanel.test.tsx` "shows a stopped terminal agent with Resume instead of a dead
   terminal bridge"; journey **J6**.
+
+**A11 (planned)** (R25) — Real-state/subprocess tests give two same-title agents distinct
+machine handles and exact composed child environments, verify exit-driven teardown and persisted
+native identity across Stop/restart, and reject PID reuse, missing proof and old-generation events.
+Fixtures independently cover xterm, tmux and iTerm2 driver results and startup handshake failures.
+
+**A12 (planned)** (R25) — Bounded supported-platform receipts run two terminal agents against an
+already running tmux server and a real iTerm2 launch: verify child environment/hook identity, native
+SessionStart, Cancel, Stop, viewer detach versus process exit, descendants and crash → Stop/Switch.
+Installation, AppleScript quoting and fake PGIDs do not close this gate; an unprovable operation
+must refuse success for that operation rather than advertise successful control.
 
 ## 6. Deviations & open decisions
 
