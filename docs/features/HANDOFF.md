@@ -19,15 +19,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   rule; live Claude receipt
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
-- **Agent-surface review backlog:** nine integrated Codex/Claude reviews are **waiting to start**
-  under [Review queue](#review-queue), sized for frontier reviewers. The
+- **Agent-surface review backlog:** ASR-A has been audited at `4fbeb316` and has open findings;
+  eight integrated Codex/Claude reviews are **waiting to start** under
+  [Review queue](#review-queue), sized for frontier reviewers. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
   joins plus a final synthesis/performance review. All original 25 research areas remain in the
-  [search catalogue](AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. Planning only;
-  no substantive reviews have been performed. Existing findings and live gates remain independent.
-- **Prompt/harness investigation:** native Codex instruction loss (PROMPT-1) is fixed; the
-  Review findings unit below still records a prompt-composition diagnostic gap (PROMPT-2) and
-  separate process-policy recommendations. General output-quality regression remains unproven.
+  [search catalogue](AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. ASR-A's evidence
+  and findings are below; the campaign as a whole is not reviewed. Other findings and live gates
+  remain independent.
+- **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
+  loss; its earlier fix covers user/exact-cwd configuration. The original unit below retains the
+  prompt-composition diagnostic gap (PROMPT-2) and separate process-policy recommendations.
+  General output-quality regression remains unproven.
 - **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
   provider call while `onNotification` takes `as.mu` for unmatched frames on the synchronous read
   loop, so an adapter notification sent before that reply could stall it.
@@ -180,7 +183,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 
 | Unit | Responsibility | Status |
 |---|---|---|
-| [ASR-A](AGENT-SURFACE-REVIEW.md#asr-a--instructions-configuration-and-execution-environment) | Instructions, configuration and execution environment | waiting to start |
+| [ASR-A](AGENT-SURFACE-REVIEW.md#asr-a--instructions-configuration-and-execution-environment) | Instructions, configuration and execution environment | reviewed — findings open (`4fbeb316`) |
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | waiting to start |
 | [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | waiting to start |
 | [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | waiting to start |
@@ -195,6 +198,145 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### ASR-A — Instructions, configuration and execution environment — reviewed `4fbeb316` — **Fix model:** difficult — Codex Sol.
+
+Source/profile delivery must agree with native authentication,
+session isolation and frozen continuation choices; the other fixes mostly extend existing seams.
+Audit complete; findings keep this same unit open. No product code or specifications changed.
+Source mode: repository source plus installed, lockfile-pinned packages: Claude ACP 0.85.1,
+Claude Agent SDK 0.3.286, Codex ACP 2.1.1 and Codex CLI 0.159.3. Tree was clean at entry.
+
+- **Must fix** — ASRA-1 — **Source model overrides are lost on continuation** (INV §1/§2/§3/§11).
+  `internal/server/config_sources.go:586–605`, `resume.go:321–328,519`,
+  `switch.go:237–239,478`: a bound launch with `overrides.model:"native-sentinel"` sends that
+  model, but stores the catalog key (`sonnet`) on the identity. Ordinary/wake resume and an
+  identity-preserving switch rebuild `ModelID` from the catalog; their only federation correction
+  handles native inheritance, so the override silently becomes `sonnet`. An explicit empty model
+  override also emits no model initially but records `native_inherited:false`, causing the same
+  change on continuation. This violates FS-08.R10/R18/R19 and TS-07.R5/R6. Restore the frozen
+  effective choice through a shared resolver, preserving later explicit model switches and explicit
+  refresh. Regress nonempty and empty overrides through fresh → Stop/wake/Resume, same-identity
+  switch and rollback with changed catalog/source defaults. Temporary composer probes confirm
+  both mechanisms; `/tmp/asr02_nonempty_test.go` captures the actual fresh/resume mismatch.
+- **Must fix** — ASRA-2 — **Empty effort overrides bypass the declared default** (INV §2/§11).
+  `internal/server/config_sources.go:604–605`, `launch.go:550–560`: a binding with
+  `overrides.effort:""` reaches `resolveEffort` as a present override and returns empty instead
+  of falling through to the model's `default_effort`. This changes reset-to-inherit behavior and
+  freezes a different effort from the documented precedence (FS-08.R10/R31, TS-01.R12,
+  TS-07.R14). Normalize empty resets consistently at the existing source/resolution seam; test
+  empty versus absent versus nonempty override, with a declared default and explicit request.
+  The isolated resolver probe observes empty with a `medium` model default.
+- **Must fix** — PROMPT-1 **reopened, ancestor-project variant** — **Codex guidance is still
+  replaced from nested working directories** (INV §2/§10/§12/§17).
+  `internal/configsource/codex.go:200–221`, `internal/runtime/chat.go:2610–2620`: the merge reads
+  only `<cwd>/.codex/config.toml`; pinned Codex also loads ancestor project layers between a
+  nested cwd and repository root. With native user text `USER_SENTINEL`, repository-root text
+  `PROJECT_SENTINEL` and cwd `repo/packages/app`, native `config/read` selects the project text;
+  Chuck instead emits `USER_SENTINEL\n\nCHUCK_SENTINEL`, replacing and losing the project text.
+  This violates FS-09.R32/FS-18.R17's preservation contract and TS-07.R2/TS-04.R14. Resolve the
+  actual supported native layer chain before adding Chuck's text, retaining bounded reads and
+  native precedence. Regress a nested cwd with ancestor and nearer overrides against the pinned
+  native boundary, beyond the existing exact-cwd fixture. Evidence: synthetic, credential-free
+  `/tmp/chuck-asra-native-config.mjs` and `/tmp/chuck-asra-native-config_test.go`; no model turn.
+  The earlier user/exact-cwd correction remains valid; this is the same finding identity.
+- **Must fix** — ASRA-3 — **An accepted custom source/profile does not select the child's setup**
+  (INV §2/§10/§11/§12). `internal/server/config_sources.go:569–605`, `launch.go:724–737`,
+  `internal/config/codexprofile.go:83–92,180–202`: the supported source API can bind a distinct
+  Codex root and named profile, resolve/freeze `bound-profile-sentinel`, and omit ACP model as
+  native-inherited. Child composition transfers neither root nor profile, and the private home
+  refresh copies the ambient personal source (`personal-sentinel`) instead. The agent therefore
+  receives another setup/model while its provenance describes the selected binding (FS-08.R3,
+  R12/R16–R20/R32, TS-07.R2/R5/R6). The same missing transfer seam affects custom Claude roots;
+  the deterministic end-to-end composer/mirror probe covers Codex. Align supported source
+  selection with native launch and isolated-home ownership, or explicitly refuse unsupported
+  selections before accepting a launch; do not claim success from resolver bytes alone. Test
+  distinct personal/bound roots and named profiles across both providers and continuation, with
+  native payload verification. Evidence: `/tmp/asr02_codex_root_test.go`, using only fixtures.
+- **Must fix** — ASRA-4 — **Setup cancellation/timeout does not contain descendants**
+  (INV §4/§9/§12/§16). `internal/server/worktree.go:254–280`: `exec.CommandContext` kills only
+  `/bin/sh`, with no descendant cleanup or bounded pipe-drain wait. A setup command whose child
+  retains stdout/stderr keeps `cmd.Run` waiting after caller cancellation or the ten-minute
+  deadline, holding recreation and its start request until that child exits. Probe
+  `sleep 0.6 & wait` with cancellation at 50 ms returns after about 615 ms, when the descendant
+  exits; a long-running descendant defeats the execution bound (TS-12.R4/R5). Use the existing
+  process-containment patterns to terminate/reap the setup tree and bound drain on cancellation;
+  regress inherited output descriptors plus cancellation/deadline and concurrent start cleanup.
+  Reusable probe: `/tmp/chuck-asr-probe/setup_timeout_probe_test.go`.
+- **Worth fixing** — ASRA-5 — **Resource validation widens existing owner permissions**
+  (INV §10/§14). `internal/config/resources.go:53–89`: an existing resource directory set to
+  `0500` is chmodded to `0700` before its writability probe and launch is allowed. FS-11.R9
+  requires an existing unreadable/unwritable target to fail actionably. Tightening group/world
+  access under TS-02.R13/TS-05.R13 does not require adding owner write permission. Preserve that
+  distinction at the shared helper and test restrictive owner modes as well as permissive umasks;
+  `/tmp/chuck-asra-resource-mode_test.go` confirms the mode change. No resource contents were read.
+- **Must fix** — ASRA-6 — **A second start bypasses unfinished checkout setup**
+  (INV §1/§5/§15). `internal/server/worktree.go:164–189,215`: after one caller recreates a
+  missing owned checkout and enters setup, another caller sees the newly existing directory and
+  returns before taking the recreation claim. Its agent can start while dependencies/bootstrap
+  work is still being installed, despite the first caller holding that claim (FS-19.R3/R7,
+  TS-12.R4/R5). A real temporary Git-worktree probe with a 600 ms setup returns the second
+  success in about 120 microseconds while the first setup is unfinished. Extend the existing
+  per-project readiness seam so every start encountering an in-progress recreation observes its
+  completion/warning, including when the directory has already appeared. Regress two starts
+  arriving on opposite sides of directory creation, with setup success/failure/cancellation;
+  `/tmp/chuck-asr-probe/recreate_setup_race_probe_test.go` preserves the reproduction.
+
+Effective contract and lifetime map (J1, including J5's execution context):
+
+| Layer/choice | Fresh process and native delivery | Continuation/lifetime |
+|---|---|---|
+| Project/persona/resources and operator-authored pipeline guidance | One base composer freezes ordered prompt, cwd, user/resource add-dirs and resolved permissions/awareness | Resume/switch retain the base; new manual/task/pipeline/room identities use the same launch service |
+| Shared Chuck context and installed skill | One runtime-only suffix; conditional verified skill path/env/root; awareness off omits shared text; installation failure suppresses skill advertisement | Rebuilt once per process from frozen base and current startup availability; never added to session prompt/add-dirs metadata |
+| Native Claude guidance | Chat new/load request native `claude_code` preset plus append; terminal uses append argv; cwd and directory grants reach SDK/CLI | Native fork deliberately sends no new prompt (TS-04.R65); provider-owned prompt snapshots remain the live FS-18.A13 gate |
+| Native Codex guidance/setup | Private-home refresh, then developer-instruction merge into `CODEX_CONFIG`; ACP new/load omit unsupported systemPrompt | New/load share the path; ancestor guidance and selected custom root/profile fail as recorded above |
+| Model/effort/fast | Explicit → binding override → documented native/catalog fallback; chat applies model then effort then fast, checking advertisement/readback | Model override/reset defects above; frozen effort and applied fast normally reused; explicit model switch remains explicit until refresh |
+| Environment and registrations | Ambient → backend → model → hook/resources → reserved private Codex home/provider executable; skill env is runtime-only | Environment values are recomposed, only key names persisted; hook/MCP identity is fresh and generation-scoped, provider executable reselected per start |
+| Checkout and setup | Selected expanded cwd; ownership-based recreation and setup before start; setup failure is intentionally a warning | Resume/switch keep frozen cwd; stable resources follow project id; task/pipeline/room launches and pipeline continuation use the shared composers |
+| Isolated quota check | Separate temporary cwd, no work prompt/resources/coordination; explicit settings/MCP isolation | Existing check-selection and isolation tests prove Chuck payloads, not account/model adoption |
+
+Coverage ledger: catalogue **01** — all three prompt composers/callers, knowledge publication and
+degradation, exact role migrations, awareness opt-out, orchestration/task/room additions and both
+provider prompt seams inspected. Current seeds are about 100–115 words each; the 348-word operating
+skill progressively routes four references. Shared standing text encourages reporting/dependencies;
+repository `AGENTS.md`/role skills add separate mandatory process. No prompt-size→quality causal
+claim, duplicated overlay accumulation or new installation/migration defect established.
+Catalogue **02** — selection/federation/freshness/false-empty handling, source manager, native
+home/profile and fresh/resume/wake/refresh/clone/switch/rollback paths inspected. Source-invalid
+launches fail closed; mirrored generations remain display state. Source override and native delivery
+failures are above. Legacy profile-table helper fixtures alone do not prove pinned native validity:
+Codex 0.159.3 rejects legacy `profile`/`[profiles.*]` selection and directs callers to named config
+files/`--profile`. Catalogue **25** — cwd/resource/grant parity, owned checkout fork/recreation,
+Git errors/dirty deletion checks, setup warnings/output bounds and process cancellation inspected;
+setup containment and concurrent readiness are defective as above. No external checkout deletion
+was established.
+
+Local-choice outcomes: retain runtime-only versus frozen prompt fields, progressive knowledge,
+warning-only failed setup, and explicit ownership/consented deletion. An edited owned project's cwd
+can diverge from its retained ownership row; the probe confirms this, but ownership intentionally
+identifies the old managed checkout and deletion revalidates it and requires explicit consent.
+No unconsented-deletion finding is asserted. Terminal `SkipPerms` currently produces identical
+argv/env for true/false; FS-07 does not specify that mapping and retains its native-flag acceptance
+gate, so terminal policy application remains an explicit evidence/spec limitation rather than a
+claimed pass. No new prompt on native fork is required by TS-04.R65.
+
+Existing evidence reconciled: PROMPT-2 remains under its original unit below; the frozen-only
+fingerprint limitation is unchanged. CI-1's per-prompt fake cancellation and three repeats of both
+late-tool/cancel regressions pass. `SetSessionConfig` still holds `as.mu` over a provider call;
+the existing notification-lock hypothesis is not closed or duplicated here. Live persona/native
+prompt, federation, terminal, worktree usability and provider/device gates remain owed; no actual
+Claude/Codex model call, credentialed acceptance, rendered UI or measured quality comparison ran.
+
+Verification: focused server federation/knowledge/orchestration/resources/worktree tests pass with
+approved loopback execution after the sandbox rejected `httptest` binding. Focused runtime new/load,
+native-instruction merge, terminal argv and quota isolation tests pass; config, agentknowledge,
+configsource and Git-worktree packages pass. Temporary Go overlays preserve product/spec files;
+their probes observe defects rather than claim acceptance. Consolidated reproduction:
+`GOCACHE=/tmp/chuck-gocache-asr02 GOFLAGS=-p=1 go test -overlay=/tmp/chuck-asra-review-overlay.json
+./internal/server ./internal/config ./internal/runtime -run '^(TestASR02.*|TestASRA.*|TestProbeSetupCancellationWaitsForDescendant|TestProbeRecreateSecondStartBypassesSetup)$' -count=1 -v`;
+log: `/tmp/chuck-asra-review-probes.log`. The native fixture probe separately uses stdio-only
+`config/read`. Invariant sweep: §1–§5, §7–§12 and §14–§17 checked; §6 (new interface/runtime) and
+§13 (UI selectors) have no applicable new surface. Fixes and sibling reviews were not selected.
 
 ### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -212,7 +354,8 @@ none were captured from live user sessions. General quality regression and the s
 meaning of "overly instructs" remain **undetermined**. Findings below separate proven instruction
 loss from plausible behavioral effects.
 
-PROMPT-1 (native Codex developer instructions lost) is fixed; see Changelog.
+PROMPT-1's user/exact-cwd correction is shipped; ASR-A above reopens the same identity for
+ancestor-project guidance. PROMPT-2 remains owned here.
 
 - **Worth fixing** — PROMPT-2 — **confirmed diagnostic gap**, behavioral causality
   **undetermined** (no invariant class): `internal/runtime/chat.go:2387–2418` records/hashes only frozen
@@ -273,6 +416,14 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed instructions, configuration and execution environment (ASR-A):**
+  audited current implementation at `4fbeb316`, including native delivery and checkout readiness.
+  Six Must-fix findings (including reopened PROMPT-1) and one Worth-fixing permission/spec mismatch
+  remain on this unit; eight sibling audits remain waiting.
+  Deterministic fixture/Go-overlay probes, pinned native stdio configuration reads, focused server
+  lifecycle tests with approved loopback execution, and relevant package tests pass as scoped above;
+  live model adoption and performance comparison are unclaimed. Product code/specs unchanged.
 
 - **2026-10-19 — Consolidated agent-surface reviews:** replaced 25 boundary-level queue items
   with nine integrated reviews for frontier agents. Preserved every original search topic and
