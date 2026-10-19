@@ -346,7 +346,7 @@ describe("TranscriptView pending follow-up", () => {
     expect(await screen.findByText("Withdrawn, but the message and its attachments could not be loaded.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Load withdrawn message" }));
     expect(await screen.findByText("Message not delivered — choose whether to send it again")).toBeInTheDocument();
-    expect(screen.queryByText(/could not be loaded/)).toBeNull();
+    expect(screen.queryByText("Withdrawn, but the message and its attachments could not be loaded.")).toBeNull();
     expect(withdrawn).toBe(1);
   });
 });

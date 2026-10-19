@@ -45,16 +45,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- **File reader formats and path copying** — user-requested JSON formatting, content-sized
-  code backgrounds, PNG/JPEG/WebP/GIF previews and right-click Copy path (FS-03.R52/A77,
-  TS-03.R40, TS-08 §2.14). Implementation, 45 focused UI tests, 981 browser checks plus 117
-  after the reader-only styling adjustment, the presentation matrix and embedded build pass.
-  Both Go closure variants, spec checks and embedded build pass. In progress only for full-suite
-  closure: bounded UI concurrency passes 965/966 tests, with the unchanged-baseline assertion
-  failure below. Approval for its separate one-line correction is pending; product implementation
-  is committed in `8857beb3`. Independent source and rendered review completed 2026-10-19:
-  no new functional defect; one pre-existing API-comment drift recorded below. Full-suite
-  closure and its separate test correction remain open.
+- None. File reader formats and path copying closed 2026-10-19 (see Changelog); its
+  real-device/room/native-anchoring gates were not claimed by the stubbed browser review.
 
 ## Acceptance gates still owed
 
@@ -162,53 +154,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   switch shows it above the composer.
 
 ## Review findings
-
-### File reader formats and path copying — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Implementation `8857beb3`; independent source/rendered review completed 2026-10-19 against
-FS-03.R52/A77, TS-03.R40/R48 and TS-08 §2.14. No new functional or security defect found.
-The unit remains open for the findings below; other review units are unchanged.
-
-Verification: 37 focused UI tests pass (`FileViewer.test.tsx`, `webLinks.test.tsx`); focused Go
-image/text/limit tests pass with `CHUCK_RUNTIME_ROOT` unset. Approved loopback Chromium execution
-passes all 981 `file-reader-journey.mjs` checks across Core, Sky & Grove and Studio and
-live/archive at 1024/1440/2137px. Six additional browser checks pass for document-relative Copy
-path without a citation suffix, one composed selection menu, focused-menu containment/copy,
-JSON citation marking and exact large numeric literals. Screenshots were independently inspected
-for compact code, fitted images, formatted JSON and selection menus. New review evidence:
-`/tmp/chuck-reader-review-20261019/{report.json,extra-report.json,*.png}`; its bounded extra harness
-is `/tmp/chuck-reader-review-extra.mjs`. Browser API responses are stubbed; this does not close
-the remaining real-device/room/native-anchoring gates. Earlier implementation evidence remains in
-shared resources `file-reader-formats-2026-10-18/` and `file-reader-formats-final-core/`.
-
-Local choices accepted: JSON formatting changes whitespace only, preserves numeric/escape
-spelling, and falls back within the specified depth/output bounds; a cited JSON line stays in
-Source, and Formatted has no annotation mapping. Images reuse attachment inspection and release
-their owned Blob URLs. Copy path extends the existing offer/claim menu and clipboard-error helper.
-Invariant sweep: applicable classes §1, §2, §4, §8, §10, §11, §13, §14, §16 and §17 checked;
-§10 has the comment drift below. No applicable surface for §3, §5, §6, §7, §9, §12 or §15.
-
-- **Worth fixing** — **pre-existing API-comment drift** (INV §10):
-  `ui/src/api/client.ts:373–374` still says file reads are confined to the session working
-  directory and cites the superseded containment contract. An engineer using this comment when
-  extending the reader would infer a security boundary the route deliberately removed under
-  TS-03.R48 / FS-03.R64. Update the comment to say relative paths resolve from the recorded cwd,
-  while absolute paths use local process authority; the JSON-only response claim remains valid.
-  Comment-only correction; verify against the current route and R48. No runtime change needed.
-
-- **Worth fixing** — **confirmed pre-existing closure blocker** (INV §17):
-  `ui/src/components/chat/TranscriptView.test.tsx:349` asserts that no text matches
-  `/could not be loaded/` after withdrawal recovery; the unrelated Think Tank synthesis failure
-  also matches, so the full UI suite fails (965 passing, one failure with two workers). The same test fails on an
-  unchanged `6ee5f646` archive. Scope the assertion to the exact withdrawal recovery error while
-  preserving the successful-recovery and single-withdraw assertions. No product behavior change
-  is needed. User approval for this unrelated one-line test repair is pending; no edit made.
-
-- **Worth fixing** — **intermittent test failure, cause uninvestigated** (INV §17):
-  `ui/src/remote/AgentScreen.test.tsx` “recovers two successive live gaps without losing the
-  loaded history” failed once in the default full UI run on “Gap question 4700”; it passes
-  alone and in the full two-worker run. No phone gap code was changed. Diagnose timing or fixture
-  isolation before changing production behavior or weakening the test.
 
 ### Agent-created task group placement — commit “tasks: let create_task place its launched agent in a group” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -393,6 +338,14 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-19 — Fixed file-reader review findings; file reader formats unit closed** (INV §10,
+  §17): the file-read API comment now says relative paths resolve from the recorded cwd and
+  absolute paths use local process authority (TS-03.R48). The withdrawal-recovery test asserts
+  the exact recovery error, not any `could not be loaded` text. The phone two-gap test's flake
+  is CPU-load timing: 16 concurrent copies fail 16/16 at the 5 s wait for “Gap question 4700”
+  and pass 16/16 with a 20 s wait (test bound 60 s); no product change. Test/comment only, no
+  spec change. Closure: UI 976/976, UI build. No open findings remain for this unit.
 
 - **2026-10-19 — Fixed dead Think Tank roster CSS; compact chat navigation unit closed**
   (INV §10/§13): deleted the unreferenced `.think-tank-card-roster` rules and their false

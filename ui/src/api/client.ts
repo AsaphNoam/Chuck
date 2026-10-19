@@ -370,9 +370,10 @@ export function searchSessionFiles(agentId: string, query: string) {
 }
 
 // getFileContent backs the chat file viewer: one bounded, read-only file snapshot
-// confined server-side to the session's own working directory (TS-03.R40,
-// FS-03.R52/R55). The caller supplies a path and never a root, and the response
-// is JSON — no route serves file bytes under a caller-influenced content type.
+// (TS-03.R40, FS-03.R52/R55). A relative path resolves from the session's recorded
+// working directory; an absolute path is read with local process authority and is
+// not confined to it (TS-03.R48, FS-03.R64). The response is JSON — no route
+// serves file bytes under a caller-influenced content type.
 export function getFileContent(agentId: string, path: string) {
   return json<FileContent>(
     `/api/sessions/${agentId}/file?path=${encodeURIComponent(path)}`,
