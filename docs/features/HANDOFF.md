@@ -72,8 +72,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
      by chat/terminal orphan Stop, server `reapOrphanRuntime` (Stop/Switch/Archive/pipeline), peer
      Stop, startup and the 30 s sweep. Unproved live PID → 409 `conflict` naming the PID, row kept,
      Switch starts nothing. Group swept after leader exit. Fixes ASRC-3, ASRC-7.
-  2. Setup containment (ASRA-4, TS-12.R11): dedicated group + group kill + ≤1 s drain in
-     `internal/server/worktree.go` `runProjectSetup`; regress inherited stdout + cancel/deadline.
+  2. **Done** — setup containment (ASRA-4, TS-12.R11): `runtime.ContainCommand` (dedicated group,
+     context → group SIGKILL, 1 s `WaitDelay`) in `runProjectSetup`; tests
+     `TestProjectSetupContainsDescendantsOnCancelAndDeadline`/`...BoundsInheritedOutputDrain`
+     (each hung 30 s before the fix).
   3. Launch claim (ASRC-4, TS-01.R41): `registry.go` Launch/Resume `launching→committed|exited`;
      exit during Start wins; manual `handleLaunch` under the lifecycle claim; fail launch without proof.
   4. Terminal native ID (ASRB-1, TS-02.R54): SessionStart writes `sessions.last_session_id` under
@@ -321,6 +323,8 @@ Claude Agent SDK 0.3.286, Codex ACP 2.1.1 and Codex CLI 0.159.3. Tree was clean 
   process-containment patterns to terminate/reap the setup tree and bound drain on cancellation;
   regress inherited output descriptors plus cancellation/deadline and concurrent start cleanup.
   Reusable probe: `/tmp/chuck-asr-probe/setup_timeout_probe_test.go`.
+  *Fixed in ASW-3 slice 2 (2026-10-19), pending ASW-3's substantive review:* `runtime.ContainCommand`
+  (TS-12.R11); regressions in `internal/server/worktree_projects_test.go`.
 - **Worth fixing** — ASRA-5 — **Resource validation widens existing owner permissions**
   (INV §10/§14). `internal/config/resources.go:53–89`: an existing resource directory set to
   `0500` is chmodded to `0700` before its writability probe and launch is allowed. FS-11.R9

@@ -23,9 +23,11 @@ import (
 // one Git boundary in internal/worktree; no other file in this package shells
 // out to Git.
 
+// setupTimeout bounds the project bootstrap command (TS-12.R5). A variable
+// only so a test can exercise the deadline.
+var setupTimeout = 10 * time.Minute
+
 const (
-	// setupTimeout bounds the project bootstrap command (TS-12.R5).
-	setupTimeout = 10 * time.Minute
 	// setupWarningLimit clamps the captured setup output on its way to a human
 	// surface. The 64 KiB stored tail is a storage bound; a warning banner needs
 	// a display bound too (INV §8).
@@ -260,6 +262,9 @@ func (s *Server) runProjectSetup(ctx context.Context, projectID, checkout string
 	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", project.SetupCommand)
 	cmd.Dir = checkout
 	cmd.Stdin = nil
+	// Cancellation or the deadline kills the whole setup tree, and a
+	// descendant holding the output pipes cannot keep Run waiting (TS-12.R11).
+	runtime.ContainCommand(cmd)
 	outputTail := newSetupOutputTail(setupOutputLimit)
 	cmd.Stdout = outputTail
 	cmd.Stderr = outputTail

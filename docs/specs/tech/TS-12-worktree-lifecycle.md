@@ -1,6 +1,6 @@
 # TS-12 — Worktree lifecycle
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/worktree/`, `internal/server/worktree.go`, `internal/server/worktree_handlers.go`, `internal/config/worktrees.go`, `internal/state/worktrees.go`
 **Absorbed:** —
 
@@ -119,7 +119,7 @@ branch automation beyond creating the fork branch.
   on the existing branch and rolls back per R3. Server-derived project ids make checkout-path
   collisions unreachable; the path is still pre-checked and fails closed.
 
-**R11 (planned) — Setup cancellation contains the owned process tree and pipe drain.** Extend
+**R11 — Setup cancellation contains the owned process tree and pipe drain.** Extend
 the existing bounded setup-command helper with a dedicated process group, whole-group cancellation/
 deadline termination, owned-child reaping and a one-second maximum post-termination pipe-drain wait.
 Retain R5's ten-minute execution limit, 64 KiB captured tail, 2,000-rune warning and normal

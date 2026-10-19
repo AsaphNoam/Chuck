@@ -8,9 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/AsaphNoam/Chuck/internal/config"
@@ -784,5 +787,81 @@ func TestConcurrentCheckoutRecreationClaimsOnce(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(checkout, "README.md")); err != nil {
 		t.Fatalf("checkout missing after the race: %v", err)
+	}
+}
+
+// TS-12.R11 (ASRA-4): cancellation or the deadline ends the whole setup tree,
+// and a descendant holding the inherited output pipes cannot keep the setup
+// (and the recreation request waiting on it) open beyond the drain bound.
+func TestProjectSetupContainsDescendantsOnCancelAndDeadline(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		deadline bool
+	}{{name: "cancel"}, {name: "deadline", deadline: true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := testServer(t, false)
+			dir := t.TempDir()
+			pidFile := filepath.Join(dir, "child.pid")
+			if err := srv.configStore.WriteProject("app", config.Project{Title: "App", Cwd: dir, AddDirs: []string{},
+				SetupCommand: "sleep 30 & echo $! > " + pidFile + "; wait"}); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if tc.deadline {
+				old := setupTimeout
+				setupTimeout = 200 * time.Millisecond
+				t.Cleanup(func() { setupTimeout = old })
+			} else {
+				time.AfterFunc(200*time.Millisecond, cancel)
+			}
+
+			start := time.Now()
+			warning := srv.runProjectSetup(ctx, "app", dir)
+			if elapsed := time.Since(start); elapsed > 3*time.Second {
+				t.Fatalf("setup returned after %s; descendant held it open", elapsed)
+			}
+			if !strings.Contains(warning, "timed out") {
+				t.Fatalf("warning = %q, want timeout outcome", warning)
+			}
+			raw, err := os.ReadFile(pidFile)
+			if err != nil {
+				t.Fatalf("read descendant pid: %v", err)
+			}
+			child, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = syscall.Kill(child, syscall.SIGKILL) })
+			deadline := time.Now().Add(2 * time.Second)
+			for syscall.Kill(child, 0) == nil {
+				if time.Now().After(deadline) {
+					t.Fatal("setup descendant survived cancellation")
+				}
+				time.Sleep(20 * time.Millisecond)
+			}
+		})
+	}
+}
+
+// TS-12.R11: a setup that exits while a background descendant still holds its
+// output returns within the drain bound instead of waiting for that child.
+func TestProjectSetupBoundsInheritedOutputDrain(t *testing.T) {
+	srv := testServer(t, false)
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "child.pid")
+	if err := srv.configStore.WriteProject("app", config.Project{Title: "App", Cwd: dir, AddDirs: []string{},
+		SetupCommand: "sleep 30 & echo $! > " + pidFile + "; exit 0"}); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	srv.runProjectSetup(context.Background(), "app", dir)
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("setup returned after %s; inherited pipe held it open", elapsed)
+	}
+	if raw, err := os.ReadFile(pidFile); err == nil {
+		if child, err := strconv.Atoi(strings.TrimSpace(string(raw))); err == nil {
+			_ = syscall.Kill(child, syscall.SIGKILL)
+		}
 	}
 }
