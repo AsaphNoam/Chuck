@@ -64,29 +64,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- **ASW-3 — [Enforce process and terminal-driver ownership](../ready-changes/enforce-process-and-driver-ownership.md)
-  — in progress (started 2026-10-19).** Owned findings ASRA-4, ASRB-1, ASRB-4–7, ASRC-3/4/7.
-  Slice plan (orphan safety first, per the fix-unit priority):
-  1. **Done** — orphan proof: `running.process_birth_us` (migration 56); `runtime.ClassifyProcess`/
-     `StopRecordedProcess`/`ReconcileStale` (`internal/runtime/procstart.go`, `reconcile.go`) shared
-     by chat/terminal orphan Stop, server `reapOrphanRuntime` (Stop/Switch/Archive/pipeline), peer
-     Stop, startup and the 30 s sweep. Unproved live PID → 409 `conflict` naming the PID, row kept,
-     Switch starts nothing. Group swept after leader exit. Fixes ASRC-3, ASRC-7.
-  2. **Done** — setup containment (ASRA-4, TS-12.R11): `runtime.ContainCommand` (dedicated group,
-     context → group SIGKILL, 1 s `WaitDelay`) in `runProjectSetup`; tests
-     `TestProjectSetupContainsDescendantsOnCancelAndDeadline`/`...BoundsInheritedOutputDrain`
-     (each hung 30 s before the fix).
-  3. **Done** — launch claim (ASRC-4): `registry.go` `claimStart`/`commitStart`, exit during
-     Start → `ErrExitedDuringStart`; `launchClaimed` (manual launch, Clone). Launch-time proof
-     validation moves to slice 5 with driver handles.
-  4. **Done** — terminal native ID (ASRB-1): SessionStart → `sessions.last_session_id`;
-     `DeleteRunningRetainingSession`; `ErrNativeIdentityMissing` → 409 on terminal Resume.
-  5. **Done** — drivers (ASRB-4–7): `bootstrap.go` (hidden `__terminal-bootstrap`, private launch
-     record, nonce-bound handshake, exact env exec); tmux/iTerm2 use it; `startOwnedTab` proof gate;
-     `machineHandle` session names; 1 s exit polling; proof-checked Cancel/Stop. Fixtures: fake
-     tmux/osascript in `fake_driver_test.go`, tests in `drivers_test.go`/`bootstrap_test.go`.
-  Remaining: TS-06 closure, then close the change and queue its substantive review.
-  Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
+- None. ASW-3 (process and terminal-driver ownership) closed 2026-10-19 and awaits its
+  substantive review (Review queue); FS-07.A12 real tmux/iTerm2 receipts are owed.
 
 ## Acceptance gates still owed
 
@@ -208,7 +187,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-3 in progress (see Active change); all others waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-3 finished (awaiting review); all others waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are ready in
 [`docs/ready-changes/`](../ready-changes/README.md):
 
@@ -216,7 +195,7 @@ are the selection authority for this campaign. Three substantive refactors are r
 |---|---|---|
 | ASW-1 | `/work serialize-conversation-event-commits` | One canonical commit boundary, ordered control observations and truthful history failure |
 | ASW-2 | `/work preserve-native-execution-contract` | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
-| ASW-3 | `/work enforce-process-and-driver-ownership` | Verified process/terminal ownership, safe control and durable native terminal identity — **in progress** |
+| ASW-3 | finished 2026-10-19 — awaiting review (see Review queue) | Verified process/terminal ownership, safe control and durable native terminal identity |
 
 The following cross-review §8 batches are explicitly authorized by the human's consolidation
 request. Their exact scope, required specs, regressions and closure rules are in the linked design.
@@ -261,6 +240,18 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | reviewed — findings open (`fa092f63`) |
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | reviewed — findings open (`d49a8f86`) |
+
+**Implementation review units (independent of the table above):**
+
+- **ASW-3 — process and terminal-driver ownership** (`2609e903`, `3e7df682`, `e2cf34f8`,
+  `9a0bf119` and the closure commit) — **waiting**. Substantive architecture review of the orphan
+  proof (`runtime/procstart.go`, `reconcile.go`, migration 56), setup containment, registry launch
+  fence, terminal native-ID persistence and the tmux/iTerm2 bootstrap (`runtime/terminal/bootstrap.go`).
+  Confirm each fixed finding (ASRA-4, ASRB-1, ASRB-4–7, ASRC-3/4/7) against its original evidence
+  before closing it. Reviewer notes: tmux/iTerm2 remain advertised by installation and now fail
+  closed at launch; an iTerm2 login shell not leading its own foreground group would refuse launch;
+  the proof version is implicit in `process_birth_us`; `DeleteRunningRetainingSession` also copies
+  chat running IDs during orphan reconciliation. FS-07.A12 real-driver receipts are owed separately.
 
 ## Review findings
 
@@ -1405,6 +1396,19 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Implemented ASW-3 process and terminal-driver ownership:** running rows record
+  the leader's kernel birth (migration 56) and every orphan signal, peer Stop, startup reconcile
+  and sweep share one proof check (`runtime.ClassifyProcess`/`StopRecordedProcess`); unproved live
+  PIDs refuse with a 409 and confirmed death writes FS-01.R20's outcome. Setup commands are
+  contained (`runtime.ContainCommand`, TS-12.R11). Registry launch/resume fence exit-before-commit;
+  manual launch and Clone hold the lifecycle claim. Terminal SessionStart makes the native ID
+  durable and empty-ID Resume refuses. tmux/iTerm2 exec a hidden bootstrap with a private launch
+  record and nonce-bound handshake, unique session handles, 1 s exit polling and proof-checked
+  Cancel/Stop. Fixes ASRA-4, ASRB-1, ASRB-4–7, ASRC-3/4/7 pending review. Closure: `make test`
+  (both variants), `make build`, `-race` on runtime registry/proof and terminal packages,
+  `make check-specs`; each regression was confirmed failing on the pre-fix code. No real
+  tmux/iTerm2 or credentialed CLI run (neither driver installed): FS-07.A12 owed.
 
 - **2026-10-19 — Designed agent-surface remediation:** formalized three bounded structural
   refactors as ready changes with planned FS/TS requirements, forward migration, security,

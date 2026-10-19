@@ -222,9 +222,10 @@ func (a *termAgent) exitSignal() <-chan struct{} {
 		return a.tab.exited
 	}
 	ch := make(chan struct{})
+	interval := exitPollInterval
 	go func() {
 		defer close(ch)
-		tick := time.NewTicker(exitPollInterval)
+		tick := time.NewTicker(interval)
 		defer tick.Stop()
 		for range tick.C {
 			if a.isStopped() || rt.ClassifyProcess(a.tab.PGID, a.tab.Birth) != rt.ProcessOwned {

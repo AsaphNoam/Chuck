@@ -166,7 +166,12 @@ func TestExternalDriverStopTerminatesProvedGroup(t *testing.T) {
 // closes only that view and records nothing.
 func TestExternalDriverHandshakeFailureRefusesLaunch(t *testing.T) {
 	f := newDriverFixture(t)
-	bootstrapExecutable = func() (string, error) { return "/usr/bin/true", nil }
+	// A view that stays up but never reports a handshake.
+	silent := filepath.Join(t.TempDir(), "silent-bootstrap")
+	if err := os.WriteFile(silent, []byte("#!/bin/sh\nexec sleep 30\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	bootstrapExecutable = func() (string, error) { return silent, nil }
 	old := bootstrapHandshakeWait
 	bootstrapHandshakeWait = 300 * time.Millisecond
 	t.Cleanup(func() { bootstrapHandshakeWait = old })
@@ -177,8 +182,8 @@ func TestExternalDriverHandshakeFailureRefusesLaunch(t *testing.T) {
 	}
 	f.r.SetCommand("/bin/sh", "-c", "sleep 30")
 	_, err := f.r.Start(context.Background(), rt.LaunchSpec{Agent: agent, Generation: "g", Driver: "tmux", Cwd: t.TempDir()})
-	if err == nil {
-		t.Fatal("launch without a bootstrap handshake succeeded")
+	if err == nil || !strings.Contains(err.Error(), "did not report") {
+		t.Fatalf("launch without a bootstrap handshake = %v, want handshake timeout", err)
 	}
 	if _, err := f.store.ReadRunning("a_fail"); err == nil {
 		t.Fatal("refused launch wrote a running row")

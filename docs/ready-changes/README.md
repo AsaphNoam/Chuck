@@ -86,12 +86,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
   room cards, standard chat composition and shared mentions, stable speaker tints, concurrent
   isolated openings, live ceilings, retained judge-chat results and grouping of new room agents.
 
-## Changes in progress
-
-- [`enforce-process-and-driver-ownership.md`](enforce-process-and-driver-ownership.md) — ASW-3:
-  verified process/driver lifecycle, per-child environment, safe orphan control and durable terminal
-  session IDs. Next step is in `HANDOFF.md`.
-
 ## Paused changes
 
 - [`migrate-internal-actions-from-mcp.md`](migrate-internal-actions-from-mcp.md) — replace only
