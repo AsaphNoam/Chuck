@@ -19,6 +19,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   rule; live Claude receipt
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
+- **Agent-surface review backlog:** 25 user-requested whole-subsystem review units for Codex and
+  Claude are **waiting to start** under [Review queue](#review-queue). Select any one per `/review`;
+  [AGENT-SURFACE-REVIEW.md](AGENT-SURFACE-REVIEW.md) defines its responsibility, source/spec entry
+  points, failure searches and completion evidence. This was research/queue preparation only;
+  none of the slices has been reviewed. Existing findings and live gates remain independent.
 - **Prompt/harness investigation:** native Codex instruction loss (PROMPT-1) is fixed; the
   Review findings unit below still records a prompt-composition diagnostic gap (PROMPT-2) and
   separate process-policy recommendations. General output-quality regression remains unproven.
@@ -157,6 +162,44 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - The phone agent header still repeats the model as text under the name now that the model
   switch shows it above the composer.
 
+## Review queue
+
+These are explicitly requested subsystem audits, not reviews of the queue-preparation commit.
+Review the selected item's full owned logic at the HEAD recorded when starting, including callers
+and failures, rather than only that HEAD's diff. The [review plan](AGENT-SURFACE-REVIEW.md) owns the
+scope and interface boundaries; this table owns live status. Any row is independently available.
+On selection mark only that row **in progress**; findings keep that same unit open. Remove a row
+only after its review is finished, retaining results/evidence gaps under Review findings, acceptance
+gates and the changelog as applicable. Do not choose or perform fixes as part of this backlog.
+
+| Unit | Responsibility | Status |
+|---|---|---|
+| [ASR-01](AGENT-SURFACE-REVIEW.md#asr-01--instruction-composition-personas-and-operating-knowledge) | Instruction composition, personas and operating knowledge | waiting to start |
+| [ASR-02](AGENT-SURFACE-REVIEW.md#asr-02--effective-configuration-federation-and-frozen-launch-values) | Effective configuration, federation and frozen launch values | waiting to start |
+| [ASR-03](AGENT-SURFACE-REVIEW.md#asr-03--provider-selection-packaging-authentication-and-model-discovery) | Provider selection, packaging, authentication and model discovery | waiting to start |
+| [ASR-04](AGENT-SURFACE-REVIEW.md#asr-04--codex-native-adapter-and-instructionconfiguration-delivery) | Codex native adapter and instruction/configuration delivery | waiting to start |
+| [ASR-05](AGENT-SURFACE-REVIEW.md#asr-05--claude-native-adapter-and-instructionconfiguration-delivery) | Claude native adapter and instruction/configuration delivery | waiting to start |
+| [ASR-06](AGENT-SURFACE-REVIEW.md#asr-06--fresh-launch-process-registration-crash-and-restart-recovery) | Fresh launch, registration, crash and restart recovery | waiting to start |
+| [ASR-07](AGENT-SURFACE-REVIEW.md#asr-07--resume-clone-fork-switch-and-native-history-continuity) | Resume, clone, fork, switch and native history continuity | waiting to start |
+| [ASR-08](AGENT-SURFACE-REVIEW.md#asr-08--message-submission-held-input-steer-and-turn-ownership) | Message submission, held input, Steer and turn ownership | waiting to start |
+| [ASR-09](AGENT-SURFACE-REVIEW.md#asr-09--stop-cancellation-process-containment-and-teardown) | Stop, cancellation, process containment and teardown | waiting to start |
+| [ASR-10](AGENT-SURFACE-REVIEW.md#asr-10--acp-transport-callbacks-locking-and-backpressure) | ACP transport, callbacks, locking and backpressure | waiting to start |
+| [ASR-11](AGENT-SURFACE-REVIEW.md#asr-11--permissions-session-modes-and-human-decisions) | Permissions, session modes and human decisions | waiting to start |
+| [ASR-12](AGENT-SURFACE-REVIEW.md#asr-12--native-events-tools-child-agents-background-activity-and-context-usage) | Native events, tools, children, background work and context usage | waiting to start |
+| [ASR-13](AGENT-SURFACE-REVIEW.md#asr-13--transcript-durability-replay-indexing-and-stream-continuity) | Transcript durability, replay, indexing and stream continuity | waiting to start |
+| [ASR-14](AGENT-SURFACE-REVIEW.md#asr-14--submitted-text-mentions-files-images-and-attachment-bytes) | Submitted text, mentions, files, images and attachment bytes | waiting to start |
+| [ASR-15](AGENT-SURFACE-REVIEW.md#asr-15--authorized-context-peer-reads-and-annotations) | Authorized context, peer reads and annotations | waiting to start |
+| [ASR-16](AGENT-SURFACE-REVIEW.md#asr-16--agent-facing-mcp-hooks-caller-authority-and-result-contracts) | MCP, hooks, caller authority and result contracts | waiting to start |
+| [ASR-17](AGENT-SURFACE-REVIEW.md#asr-17--peer-mail-deferred-delivery-waking-and-message-budgets) | Peer mail, deferred delivery, waking and budgets | waiting to start |
+| [ASR-18](AGENT-SURFACE-REVIEW.md#asr-18--durable-tasks-waits-reports-and-chucky-delegation) | Durable tasks, waits, reports and Chucky delegation | waiting to start |
+| [ASR-19](AGENT-SURFACE-REVIEW.md#asr-19--pipelines-and-standing-orchestration) | Pipelines and standing orchestration | waiting to start |
+| [ASR-20](AGENT-SURFACE-REVIEW.md#asr-20--think-tanks-room-turns-private-input-and-judge-results) | Think Tanks, room turns, private input and judge results | waiting to start |
+| [ASR-21](AGENT-SURFACE-REVIEW.md#asr-21--claude-interactive-terminal-pty-and-external-drivers) | Claude terminal, PTY and external drivers | waiting to start |
+| [ASR-22](AGENT-SURFACE-REVIEW.md#asr-22--provider-failures-quota-admission-and-recovery) | Provider failures, quota admission and recovery | waiting to start |
+| [ASR-23](AGENT-SURFACE-REVIEW.md#asr-23--operator-entry-point-parity-and-recovery) | Desktop, phone, CLI and HTTP action parity/recovery | waiting to start |
+| [ASR-24](AGENT-SURFACE-REVIEW.md#asr-24--diagnostic-sufficiency-and-measured-agent-performance) | Diagnostics and measured agent performance | waiting to start |
+| [ASR-25](AGENT-SURFACE-REVIEW.md#asr-25--project-execution-context-worktrees-and-shared-resources) | Project cwd, worktrees, setup and shared resources | waiting to start |
+
 ## Review findings
 
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
@@ -240,6 +283,14 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Prepared agent-surface review backlog:** researched shared runtime and native
+  Codex/Claude boundaries; queued 25 independent subsystem reviews with ownership, source/spec
+  entry points, failure hypotheses and evidence requirements in
+  [AGENT-SURFACE-REVIEW.md](AGENT-SURFACE-REVIEW.md). Planning only: no substantive review,
+  product/spec change or provider run. Existing findings, gates and dirty code were preserved.
+  `make check-specs`, source/spec-reference checks, local link/anchor checks and 25-unit queue
+  consistency checks pass.
 
 - **2026-10-19 — Fixed CI-1; late tool input CI flake unit closed** (INV §17 — test double
   diverged from the real peer): product ordering is correct. `fakeacp` closed one process-wide
