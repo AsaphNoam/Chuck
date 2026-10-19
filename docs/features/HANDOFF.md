@@ -64,8 +64,27 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None. ASW-3 (process and terminal-driver ownership) closed 2026-10-19 and awaits its
-  substantive review (Review queue); FS-07.A12 real tmux/iTerm2 receipts are owed.
+- **ASW-1 — [serialize conversation event commits](../ready-changes/serialize-conversation-event-commits.md)
+  — in progress (started 2026-10-19).** Owns ASRD-1/2/3/5. Slices:
+  1. *Done:* ASRD-5 — reconcile admits only `sessions/{a_id}/transcript.ndjson`, streams it with
+     the tolerant reader and keeps a 4 KiB reply tail (`internal/server/reconcile.go`).
+  2. *Next:* runtime commit serialization (ASRD-2/3) — a per-agent journal mutex (not `as.mu`)
+     around seq allocation → `Writer.Append`/required sync → in-memory insert → `hub.Publish` →
+     bus publish; failed/uncertain appends never enter `as.transcript`/hub; sequence never reused.
+     Seam: `emitChecked`/`persistEvent` (`internal/runtime/chat.go` ~2048–2360); notice appenders
+     `AppendQuotaNoticeAndSync`/`AppendPeerStopNoticeAndSync`/`AppendAnnotationAndSync`.
+  3. ASRD-1 — registry-owned journal per agent ID shared by chat/terminal/server inactive appends:
+     route `appendBackendSwitchMarker` (`primer.go:65`), inactive `appendAnnotation`
+     (`sessions.go:388`, no lifecycle claim today), `appendStoppedQuotaNotice`, peer notice fallback
+     through it; switch-marker failure after activation returns the truthful TS-03.R73 envelope.
+  4. Split sink (`server.go` ~409–433) into history publication + bounded ordered control
+     dispatcher (TS-01.R39/TS-04.R100); room capture needs committed source; task release keeps its
+     SQLite authority.
+  5. History health/gap recovery: SQLite forward migration, `history_state`, open-writer marker,
+     admission latch (FS-03.R99, TS-02.R52, TS-03.R73).
+  Checks so far: `go test ./internal/server -run 'TestReconcile|TestLastAssistantPreview'`.
+- ASW-3 (process and terminal-driver ownership) closed 2026-10-19 and awaits its substantive
+  review (Review queue); FS-07.A12 real tmux/iTerm2 receipts are owed.
 
 ## Acceptance gates still owed
 
@@ -187,13 +206,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-3 finished (awaiting review); all others waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1 in progress; ASW-3 finished (awaiting review); all others waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are ready in
 [`docs/ready-changes/`](../ready-changes/README.md):
 
 | Unit | Invocation | Outcome |
 |---|---|---|
-| ASW-1 | `/work serialize-conversation-event-commits` | One canonical commit boundary, ordered control observations and truthful history failure |
+| ASW-1 | in progress 2026-10-19 (`/work serialize-conversation-event-commits`) | One canonical commit boundary, ordered control observations and truthful history failure |
 | ASW-2 | `/work preserve-native-execution-contract` | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
 | ASW-3 | finished 2026-10-19 — awaiting review (see Review queue) | Verified process/terminal ownership, safe control and durable native terminal identity |
 
@@ -770,6 +789,10 @@ Tree clean at entry. Source mode: repository source at
   retention for the preview, preserving stale-generation guards and reporting real read failures.
   Regress unrelated artifacts, long streamed replies and bounded reads. Evidence:
   `/tmp/asrd_annotation_overlay.json`, `TestASRDReconcileAcceptsAttachmentAsTranscript`.
+  *Fixed in ASW-1 slice 1 (2026-10-19), pending ASW-1's substantive review:* only the canonical
+  `transcript.ndjson` is a reconcile candidate; the preview streams through the shared reader with
+  a 4 KiB tail and logs read failures (`TestReconcileIgnoresNonTranscriptSessionArtifacts`,
+  `TestLastAssistantPreviewBoundsRetainedReply`).
 
 Connected evidence ledger and J5 (context in delegated work):
 

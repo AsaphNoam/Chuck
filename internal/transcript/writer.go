@@ -169,6 +169,10 @@ func transcriptPath(home, agentID string) string {
 	return filepath.Join(home, dirSessions, agentID, fileLog)
 }
 
+// LogFileName is the canonical transcript's file name inside sessions/{agentID}/.
+// Other files there (attachments, artifacts) are never transcript truth (TS-01.R8).
+const LogFileName = fileLog
+
 // truncateToLastNewline removes any trailing bytes after the file's last '\n',
 // which represent a torn write from a crash mid-Append. A well-formed log ends
 // with '\n' and is left untouched. If the file has no '\n' at all, it is

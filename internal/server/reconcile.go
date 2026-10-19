@@ -11,6 +11,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
+	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
 const reconcileInterval = 30 * time.Second
@@ -87,7 +88,11 @@ func (s *Server) reconcileSessionPath(path string, staleBefore time.Time) bool {
 	if agentID == "" {
 		return false
 	}
-	preview := lastAssistantPreview(path)
+	preview, err := lastAssistantPreviewFrom(path, nil)
+	if err != nil {
+		s.log.Warn("reconcile: read transcript", "agent", agentID, "err", err)
+		return false
+	}
 	if _, ok, err := s.stateMgr.ApplyStaleCorrection(agentID, preview, staleBefore); err != nil {
 		s.log.Debug("reconcile: correction skipped", "agent", agentID, "err", err)
 		return false
@@ -125,21 +130,18 @@ func (s *Server) reconcileSessionsOnce(staleBefore time.Time) int {
 	return applied
 }
 
+// agentIDFromSessionPath accepts only the canonical sessions/{a_id}/transcript.ndjson.
+// Attachments and other session artifacts are never transcript truth (TS-01.R8).
 func agentIDFromSessionPath(root, path string) string {
 	rel, err := filepath.Rel(root, path)
-	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+	if err != nil {
 		return ""
 	}
 	parts := strings.Split(rel, string(filepath.Separator))
-	for _, part := range parts {
-		if strings.HasPrefix(part, "a_") {
-			id := strings.TrimSuffix(part, filepath.Ext(part))
-			if id != "" {
-				return id
-			}
-		}
+	if len(parts) != 2 || parts[1] != transcript.LogFileName || !strings.HasPrefix(parts[0], "a_") {
+		return ""
 	}
-	return ""
+	return parts[0]
 }
 
 // lastAssistantPreview derives a bounded, human-readable status preview from the
@@ -154,27 +156,24 @@ func agentIDFromSessionPath(root, path string) string {
 // card shows (INV §2). Returns "" when the transcript carries no assistant text, which
 // leaves the existing status detail untouched (a non-text envelope is never a
 // meaningful preview and must not clobber a healthy card — the BLOCKING fix).
-func lastAssistantPreview(path string) string {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
+// It streams the log with the shared tolerant reader and retains only a bounded
+// tail of each reply (INV §16); retained reports that size for tests. A missing
+// log is an empty preview; any other read failure is returned (INV §7).
+func lastAssistantPreviewFrom(path string, retained func(int)) (string, error) {
 	var completed, current string
-	for _, raw := range strings.Split(string(b), "\n") {
-		raw = strings.TrimSpace(raw)
-		if raw == "" {
-			continue
-		}
-		var ev runtime.Event
+	err := transcript.NewReader(path).ForEach(transcript.ReadOptions{}, func(ev runtime.Event) error {
 		// A native child's text is not the agent's reply (FS-03.R58).
-		if json.Unmarshal([]byte(raw), &ev) != nil || ev.ActivityID != "" {
-			continue
+		if ev.ActivityID != "" {
+			return nil
 		}
 		switch ev.Type {
 		case runtime.EvAssistantText:
 			var d runtime.AssistantTextData
 			if json.Unmarshal(ev.Data, &d) == nil {
-				current += d.Delta
+				current = keepTailBytes(current+d.Delta, previewRetainBytes)
+				if retained != nil {
+					retained(len(current))
+				}
 			}
 		case runtime.EvTurnEnd:
 			if strings.TrimSpace(current) != "" {
@@ -182,13 +181,21 @@ func lastAssistantPreview(path string) string {
 			}
 			current = ""
 		}
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 	preview := current
 	if strings.TrimSpace(preview) == "" {
 		preview = completed
 	}
-	return clipPreview(strings.TrimSpace(preview), detailPreviewLimit)
+	return clipPreview(strings.TrimSpace(preview), detailPreviewLimit), nil
 }
+
+// previewRetainBytes bounds the reply tail a preview keeps while streaming: ample
+// for detailPreviewLimit runes plus trailing whitespace trimmed before clipping.
+const previewRetainBytes = 4096
 
 // detailPreviewLimit bounds a reconciled status-detail preview (mirrors the
 // chat runtime's clip(tail, 120) crash-path convention).

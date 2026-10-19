@@ -11,11 +11,12 @@ import (
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
+	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
 func writeSessionTranscript(t *testing.T, srv *Server, agentID string, body string) {
 	t.Helper()
-	path := filepath.Join(srv.configStore.Home(), "sessions", agentID, "transcript.jsonl")
+	path := filepath.Join(srv.configStore.Home(), "sessions", agentID, transcript.LogFileName)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll transcript dir: %v", err)
 	}
@@ -130,7 +131,7 @@ func TestReconcileSessionPathTouchesOnlyChangedTranscript(t *testing.T) {
 		before[id] = status
 	}
 
-	path := filepath.Join(srv.configStore.Home(), "sessions", changedID, "transcript.jsonl")
+	path := filepath.Join(srv.configStore.Home(), "sessions", changedID, transcript.LogFileName)
 	body := ""
 	for seq := 1; seq <= 200; seq++ {
 		body += transcriptEvent(t, changedID, seq, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "d"})
@@ -285,5 +286,69 @@ func TestReconcileSessionsOnceDoesNotOverrideFreshHook(t *testing.T) {
 	}
 	if status.Detail != "fresh hook detail" || status.LastTrace != "PostToolUse: Edit" {
 		t.Fatalf("fresh status was overwritten: %+v", status)
+	}
+}
+
+// ASRD-5: only the canonical transcript is fallback truth (TS-01.R8). An uploaded
+// NDJSON attachment beside it whose records look like assistant text must not
+// replace a stale card preview, and the sweep must not read it.
+func TestReconcileIgnoresNonTranscriptSessionArtifacts(t *testing.T) {
+	srv := testServer(t, true)
+	agentID := seedHookAgent(t, srv)
+	if err := srv.stateStore.WriteStatus(state.Status{
+		AgentID: agentID, State: "idle", Detail: "real detail", LastTrace: "Stop",
+		UpdatedAt: time.Now().Add(-time.Hour).UnixMilli(),
+	}); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
+	}
+	upload := filepath.Join(srv.configStore.Home(), "sessions", agentID, "attachments", "att_1", "log.ndjson")
+	if err := os.MkdirAll(filepath.Dir(upload), 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	body := transcriptEvent(t, agentID, 1, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "unrelated upload"})
+	if err := os.WriteFile(upload, []byte(body), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if got := srv.reconcileSessionsOnce(time.Now()); got != 0 {
+		t.Fatalf("reconcile applied = %d, want 0 for a non-transcript artifact", got)
+	}
+	if srv.reconcileSessionPath(upload, time.Now()) {
+		t.Fatal("watcher path accepted a non-transcript artifact")
+	}
+	status, err := srv.stateStore.ReadStatus(agentID)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	if status.Detail != "real detail" {
+		t.Fatalf("detail = %q, want the untouched real detail", status.Detail)
+	}
+}
+
+// ASRD-5: a long streamed reply is previewed from a bounded tail rather than by
+// retaining every delta; the preview is still the message's final 120 runes.
+func TestLastAssistantPreviewBoundsRetainedReply(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, transcript.LogFileName)
+	var b strings.Builder
+	for i := 1; i <= 5000; i++ {
+		b.WriteString(transcriptEvent(t, "a_x", i, runtime.EvAssistantText, runtime.AssistantTextData{Delta: strings.Repeat("x", 99) + "y"}))
+	}
+	b.WriteString(transcriptEvent(t, "a_x", 5001, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "END"}))
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	var retained int
+	got, err := lastAssistantPreviewFrom(path, func(n int) { retained = max(retained, n) })
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	if !strings.HasSuffix(got, "yEND") || utf8.RuneCountInString(got) != detailPreviewLimit {
+		t.Fatalf("preview = %q, want the final %d runes", got, detailPreviewLimit)
+	}
+	if retained > previewRetainBytes+256 {
+		t.Fatalf("retained %d bytes of reply, want at most about %d", retained, previewRetainBytes)
+	}
+	if _, err := lastAssistantPreviewFrom(filepath.Join(dir, "missing", transcript.LogFileName), nil); err != nil {
+		t.Fatalf("missing transcript should be empty, not an error: %v", err)
 	}
 }

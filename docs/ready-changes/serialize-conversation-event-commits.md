@@ -1,6 +1,6 @@
 # Serialize conversation event commits and separate control authority
 
-**State:** Waiting to start
+**State:** In progress (2026-10-19)
 **Why:** Direct request on 2026-10-19 to formalize the systemic refactor proposals.
 **Execution unit:** ASW-1; use `/work serialize-conversation-event-commits`.
 **Owned findings:** ASRD-1, ASRD-2, ASRD-3, ASRD-5.
