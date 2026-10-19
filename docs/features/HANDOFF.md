@@ -19,13 +19,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   rule; live Claude receipt
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
-- **Agent-surface review backlog:** ASR-A (`4fbeb316`) and ASR-C (`6b5de19b`) have been audited
+- **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`) have been audited
   and have open findings; the remaining integrated Codex/Claude reviews are listed under
   [Review queue](#review-queue), sized for frontier reviewers. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
   joins plus a final synthesis/performance review. All original 25 research areas remain in the
-  [search catalogue](AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. ASR-A's and
-  ASR-C's evidence and findings are below; the campaign as a whole is not reviewed. Other findings and live gates
+  [search catalogue](AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. Their
+  evidence and findings are below; the campaign as a whole is not reviewed. Other findings and live gates
   remain independent.
 - **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
   loss; its earlier fix covers user/exact-cwd configuration. The original unit below retains the
@@ -183,7 +183,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | Unit | Responsibility | Status |
 |---|---|---|
 | [ASR-A](AGENT-SURFACE-REVIEW.md#asr-a--instructions-configuration-and-execution-environment) | Instructions, configuration and execution environment | reviewed — findings open (`4fbeb316`) |
-| [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | waiting to start |
+| [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
 | [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | reviewed — findings open (`6b5de19b`) |
 | [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | waiting to start |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | waiting to start |
@@ -336,6 +336,155 @@ their probes observe defects rather than claim acceptance. Consolidated reproduc
 log: `/tmp/chuck-asra-review-probes.log`. The native fixture probe separately uses stdio-only
 `config/read`. Invariant sweep: §1–§5, §7–§12 and §14–§17 checked; §6 (new interface/runtime) and
 §13 (UI selectors) have no applicable new surface. Fixes and sibling reviews were not selected.
+
+### ASR-B — Codex and Claude native integration fidelity — reviewed `6b5de19b` — **Fix model:** difficult — Codex Sol.
+
+Audit complete; eight findings keep this unit open. Product code and specifications unchanged.
+Fix sizing is independent of severity: ASRB-3/7 are easy; ASRB-1/2/4/6/8 are medium;
+ASRB-5 is difficult because external-driver process identity, containment and restart ownership
+must agree. Source mode: repository source plus locally installed lockfile packages, Claude ACP
+0.85.1 / Agent SDK 0.3.286 and Codex ACP 2.1.1 / CLI 0.159.3. Assembly pins Node 22.22.0 and
+Codex's patched component `2.1.1+chuck.1`; local test Node is 22.23.1. No native model turn ran.
+The pre-existing dirty ASR-C row and its concurrent administrative closure were preserved;
+`07f201a3` changes review state, not the inspected implementation. Three bounded read-only audits
+covered Codex selection/profile, Claude negotiation and terminal drivers; findings were re-read
+and integrated here.
+
+- **Must fix** — ASRB-1 — **Terminal Stop loses the native conversation needed by Resume**
+  (INV §1/§2/§11/§15/§17). `internal/runtime/terminal/terminal.go:170–189,209,347`,
+  `internal/state/manager.go:139–147,348–364`, `internal/runtime/registry.go:232`:
+  a fresh terminal launch indexes an empty native id. The CLI's SessionStart hook later records
+  the real id only in `running`, while Stop deletes that row without updating
+  `sessions.last_session_id`. Ordinary Resume reads the empty snapshot and omits `--resume`,
+  starting a fresh Claude conversation despite FS-07.R16–R17's continuity contract. A terminal
+  resumed from an earlier conversation can similarly retain its old snapshot id. Persist the
+  authenticated native id at the shared hook/session boundary before it can be lost; regress
+  launch → SessionStart → Stop/crash/restart → Resume and terminal→chat switch. The isolated
+  real-state/PTY probe sees running id `native-sentinel`, saved id empty, and resume argv
+  `["claude"]`. Existing persistence tests supply an invented resume id instead of recovering it.
+- **Must fix** — ASRB-2 — **Claude Clone never opens the forked conversation**
+  (INV §1/§6/§11/§12/§17). `internal/runtime/chat.go:430–467`, `fork.go:34–68`:
+  pinned Claude ACP's `unstable_forkSession` performs an SDK persistence fork and returns only
+  `{sessionId}` without registering `this.sessions[id]` (`claude-agent-acp/dist/acp-agent.js:1405–1412`,
+  `fork-session.js:107–113`). Chuck immediately applies settings: an explicit model/effort fails
+  on the absent advertisement; with neither, startup succeeds but the first prompt fails
+  `Session not found` (`acp-agent.js:1815–1821,5419–5423`). The fork operation also ignores the
+  supplied MCP/additional directories. This violates FS-01.R36 and TS-04.R47/R65. Open the new
+  fork through the supported load path with fresh scoped MCP/directories before configuration,
+  or withhold unsupported fork; retain compensating delete on failure. Regress the pinned bare
+  fork response, registration, settings, first prompt and cleanup. The fake masks this by returning
+  config options and immediately activating the fork (`testdata/fakeacp/main.go:329–347`).
+  Pinned source establishes the failure; no credentialed clone receipt is claimed.
+- **Must fix** — ASRB-3 — **Codex Clone reapplies a newly composed prompt and history primer**
+  (INV §1/§2/§11/§12). `internal/runtime/chat.go:160–178,2571–2623`,
+  `internal/server/launch.go:417`: even with `spec.Fork`, process start merges
+  `StartSystemPrompt()` into `CODEX_CONFIG.developer_instructions`. The pinned adapter parses
+  that overlay and passes it in `threadFork.config` (`codex-acp/dist/index.js:40302–40323,
+  33447–33461,34187–34206`). Thus cloning after a persona change can replace inherited instructions
+  with current ones, and a retained bridge is reapplied, contrary to TS-04.R65's explicit no-new-
+  prompt/primer rule. Skip the Chuck addition for a native fork while preserving native setup;
+  regress the actual process environment, not just the correctly prompt-free fork RPC. An
+  isolated helper probe observes both `SYSTEM_SENTINEL` and `PRIMER_SENTINEL` in that overlay;
+  no duplicate visible transcript or model-quality effect is asserted.
+- **Must fix** — ASRB-4 — **Non-PTY driver exits never release runtime ownership**
+  (INV §4/§6/§9/§10). `internal/runtime/terminal/terminal.go:480–510`,
+  `tmux.go:37–49`, `iterm2.go:66–76`, `internal/server/reconcile.go:211–237`:
+  tmux/iTerm2 return no exit channel, so their watcher returns immediately. After the CLI or
+  external viewer exits, the periodic sweep can remove the running row, but never removes
+  runtime/registry ownership, closes persistence or invokes generation-scoped registration
+  teardown. Resume can remain blocked as already started until explicit Stop. FS-01.R18 and
+  INV §4 require exit cleanup, not only a done card. Feed confirmed driver exits into the existing
+  generation-scoped teardown and regress native exit/viewer close plus later Resume. Source trace
+  and a no-process driver fixture confirm the retained registry claim after pruning; this is
+  distinct from ASRC-4's fresh-launch registration race.
+- **Must fix** — ASRB-5 — **iTerm2 launches have no process identity for control or restart**
+  (INV §4/§6/§9/§12). `internal/runtime/terminal/iterm2.go:66–76`,
+  `terminal.go:221–224,294–306,355–363`, `internal/server/reconcile.go:211–237`:
+  the accepted driver returns tty/window/session identifiers but leaves PGID zero. Launch records
+  PID 0, so the next sweep marks a live CLI stopped and invalidates its hook token; Cancel cannot
+  signal it. After a server crash the orphan reaper has neither a PID nor a retained driver handle
+  to stop, so a lifecycle action can report success while the CLI survives (FS-07.R1/R15,
+  FS-01.R20–R21). Establish a corroborated process/group identity and supported orphan recovery,
+  or refuse this driver until those contracts exist. Regress live launch across a sweep,
+  cancellation and crash→Stop/Switch. The PID-0 fixture proves false pruning plus retained runtime
+  ownership; actual iTerm automation/child containment remains unverified.
+- **Must fix** — ASRB-6 — **tmux panes can inherit another launch's environment**
+  (INV §2/§6/§11/§12). `internal/runtime/terminal/tmux.go:24–34` sets the tmux client's
+  `cmd.Env`, but supplies neither a per-session environment nor a child bootstrap. With an
+  existing tmux server, new panes inherit its global/session environments; only configured
+  `update-environment` names are copied from the client. Fresh `CHUCK_AGENT_ID`, hook URL/token,
+  resources and backend/model variables can therefore be absent or stale, breaking FS-07.R3/R12
+  and potentially addressing hooks to another agent. This follows the driver's argv plus the
+  [primary tmux environment/new-session contract](https://man.openbsd.org/tmux.1#GLOBAL_AND_SESSION_ENVIRONMENT),
+  not an actual local tmux run (tmux is unavailable here). Supply each launch's composed environment
+  through a supported bounded mechanism without exposing secrets; regress two distinct launches
+  against an already-running isolated tmux server and verify child bytes and hook identity.
+- **Must fix** — ASRB-7 — **Distinct terminal agents collide on tmux session names**
+  (INV §6/§9/§10/§12). `internal/runtime/terminal/terminal.go:573–583,642–644`,
+  `tmux.go:24–34,71–84`: session names derive solely from the sanitized display title, which
+  omits agent id/generation. Two agents with the same name/role/project, including ordinary
+  unnamed agents, map to the same `new-session -s` and the second launch fails; punctuation-only
+  title differences also collide. FS-07.R9/R17's independent runtime contract needs a unique
+  machine identity separate from the title. Use agent/generation identity for the session and
+  retain the title for display; regress duplicate and sanitization-colliding names. A probe of
+  the actual helpers maps `a_one` and `a_two` to `chuck-Same---dev-p`; no live tmux launch ran.
+- **Must fix** — ASRB-8 — **Source Codex Steer exposes an incompatible detached-turn path**
+  (INV §1/§10/§11/§12/§17). `internal/backend/adapter.go:423–432`,
+  `internal/runtime/chat.go:791–808,844–877`, `scripts/release/assemble.sh:68–83`:
+  documented source launches use PATH's unpatched `codex-acp`, while only release assembly adds
+  the required `promptRequired` patch. Pinned unpatched 2.1.1 still advertises steering, drops
+  the request's idle opt-in and starts a detached turn if the active turn just finished
+  (`codex-acp/dist/index.js:38522–38538,38590–38635,38668–38683`). Chuck accepts
+  `startedNewTurn` but has no ordinary prompt completion owner for that turn, violating
+  FS-03.R56/TS-04.R51. No-retry of already-consumed content is correct and must remain. Supply
+  a verified source adapter path or withhold the unproven feature; regress an idle-race against
+  the unpatched pinned boundary and assert busy/cancel/one terminal outcome. Existing legacy
+  tests prove classification only, expressly not successful fallback. No live provider race ran.
+
+Provider/path realization and evidence ledger:
+
+| Catalogue | Traced paths and result |
+|---|---|
+| **03 — selection/package/auth/catalog** | Shared resolver covers fresh/wake/resume/switch/rollback/task/pipeline/clone, direct Claude terminal, version/login/readiness. Installed overrides/discovery and explicit Bundle stay separate; no silent fallback established. Private Node/adapters/native paths, exact pins, patch hashes, single Codex package and manifest/wrapper agreement inspected. Resolver, probe, auth-target, refresh and release-layout fixtures support selection, not credentials or real packaging acceptance. Source Steer differs as ASRB-8. |
+| **04 — Codex native contract** | Private-home refresh and reserved environment across start/load; overlay to native config, ordered model→effort→fast, Steer, fork and capability/source contracts traced into pinned source. ASRB-3/8; ASR-A's PROMPT-1/custom-root findings retain their identities. Native account/home/model adoption, handoff/compaction and packaged optional-feature receipts remain owed. |
+| **05 — Claude native contract** | New/load share preset-plus-append metadata, MCP/directories, model metadata and ordered configuration; provider model refusal fails without bare/default retry. Advertisements/readback remain adapter evidence. Fork differs from load (ASRB-2). Terminal flags are composed; native-preset snapshots, modes, effective settings and terminal flag/hook adoption remain live gates. |
+| **21 — terminal/PTY/drivers** | Launch/resume/status hooks, prompt/resize, multi/no/slow-viewer drain and disconnect, quoting/FIFO env, process exit/Stop/restart and switch callers inspected. Default PTY has bounded scrollback and nonblocking subscribers; closing a viewer unsubscribes. Codex/other terminal backends, terminal MCP mail/ACP permissions/Steer/fast are explicitly unavailable. ASRB-1/4/5/6/7; no UI driver picker or tab cap is claimed beyond FS-07's existing deviations. |
+
+J1 challenge: selection/configuration payloads agree at the shared resolver and ordered option
+seam, subject to ASR-A's frozen/source defects and live adoption limits. J3 challenge: Claude fork
+does not install fresh scoped MCP authority until opened; tmux may lose hook identity via env.
+J5 challenge: terminal native identity and both providers' fork paths break intended context
+continuity as above. J4 terminal chain: default PTY output/viewer detach does not stop work;
+native failure/crash closes its process-backed runtime, but its durable native id is lost.
+Optional drivers lack complete lifetime/containment. Terminal has no chat quota dispatcher or
+automatic continuation contract; retained native conversation must precede any supported recovery.
+J2/J6 controls were traced through server lifecycle claims, settings partial-success persistence,
+switch preflight/rollback and failed native load without fresh-session fallback. ASRC-1/2/3/4/5
+retain their existing identities; no duplicate findings are created here.
+
+Local-choice outcomes: retain additive Claude preset metadata, model→effort→fast ordering,
+required-setting fail-closed/fast fail-open behavior, native-load refusal preserving history,
+explicit terminal capability boundaries and existing supported-driver/UI deviations. No redundant
+configuration or compatibility registry is proposed. Invariant sweep: §1–§12 and §14–§17 have
+applicable configuration, runtime, driver, protocol, package or test surfaces and were checked;
+§13 has no applicable markup/style change. No additional security, resource-bound or test-oracle
+defect established beyond the findings and existing ASR-A/C records.
+
+Verification: focused backend/runtime session, Claude/fast/model/capability/Steer/fork tests,
+Codex profile/auth tests and the complete terminal package pass. Root independently passed
+provider resolver/version bounds, source-aware server composer/error tests, live config partial
+success, mode routes, explicit-model continuity, native-load loss refusal, switch rollback,
+unsupported handoff and fake clone; approved loopback execution was required after sandbox bind
+denials. Credential-probe fake-endpoint tests pass with that approval; release wrapper/layout/
+archive-context fixtures, `make check-specs` and `git diff --check` pass. These are focused checks,
+not a new release/full closure claim.
+Consolidated defect probes pass against the current implementation:
+`env -u CHUCK_RUNTIME_ROOT GOCACHE=/tmp/chuck-gocache-asrb GOFLAGS=-p=1 go test
+-overlay=/tmp/asrb-probes-overlay.json ./internal/runtime/terminal ./internal/server
+./internal/runtime -run '^(TestOverlayTerminalNativeIDDoesNotReachSnapshot|TestASRBTmuxTitlesCollideAcrossAgentIDs|TestASRBZeroPIDPruneLeavesRuntimeClaim|TestCodexForkStillInjectsPromptOverlay)$' -count=1 -v`.
+They use temporary Go overlays/fixture homes, exercise actual state/helpers and confirm defects;
+they do not prove native adoption. No credentialed provider, iTerm/tmux integration, device,
+rendered-browser or quality/performance receipt ran. All named live gates remain owed.
 
 ### ASR-C — Runtime execution, concurrency and control — reviewed `6b5de19b` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -527,6 +676,13 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed Codex and Claude native integration fidelity (ASR-B):** audited
+  `6b5de19b` against pinned adapter/native contracts. Eight Must-fix findings cover terminal
+  conversation retention, Claude/Codex fork realization, optional-driver lifetime/environment/
+  identity, and unpatched source Codex steering. Independent source traces, temporary defect
+  probes and focused resolver/runtime/server/auth/release tests support the findings; live
+  provider/driver acceptance remains owed. Product code/specs unchanged.
 
 - **2026-10-19 — Reviewed runtime execution, concurrency and control (ASR-C):** audited the
   current runtime at `6b5de19b`. Confirmed the SetSessionConfig read-loop stall (ASRC-1); three
