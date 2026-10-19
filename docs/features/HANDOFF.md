@@ -249,42 +249,16 @@ failed for the missing native instruction before being skipped; the separate pin
 capture proves actual provider precedence. Spec lint, formatting and diff checks pass. Product code
 and specifications are unchanged.
 
-### No persona permission prompts investigation — `1303b36e` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Report received 2026-10-18, verbatim:
-
-> no persona keeps asking for permissions, even though my global Claude /codex settings are auto approval
-
-No logs or version supplied; inspected source at `1303b36e` and the reporter's local
-`~/.chuck`, `~/.claude/settings.json` and `~/.codex/config.toml` (read-only).
-
-**Works as specified (core behavior), confirmed from code and local config:** Chuck's permission
-policy is its own `skip_permissions`, not the provider's native setting (FS-04.R1/R10/R55). No
-persona is the canonical `default` role with `skip_permissions: null`, which inherits global
-`config.json` `skip_permissions`; the reporter's is `false` (seed default,
-`internal/config/seed.go:33`). `resolveSkip` (`internal/server/launch.go:684`) therefore freezes
-`false`, and the runtime gate (`internal/runtime/permission.go:46`) forwards every adapter
-permission request to the operator. The reporter's other five personas each carry
-`skip_permissions: true`, explaining why only No persona prompts. Native settings are not
-"auto" either: `~/.claude/settings.json` has no `permissions`/`defaultMode`, and Codex has
-`approval_policy = "on-request"` with `approvals_reviewer = "auto_review"` (mirrored into the
-Chuck-owned `CODEX_HOME`, but approval requests still arrive at Chuck's gate). Whether
-codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once Chuck's gate applies.
-
-- **Worth fixing** — PERM-1 — **confirmed spec gap** (no invariant class): the inherited global policy has no
-  first-party control. `PUT /api/config` accepts `skip_permissions`
-  (`internal/server/config_handlers.go:83`), but no Settings surface edits it, and FS-04.R57
-  hides the canonical Default from persona management, so No persona's effective policy can only
-  be changed by hand-editing `config.json`. The role form's **Inherit global** option
-  (`ui/src/features/settings/RoleForm.tsx:104`) names a setting the user cannot see and reads as
-  the provider CLI's global settings. Normal trigger: any user who wants No persona agents to
-  auto-approve. Fix: specify and add a Settings control for the global Chuck permission policy
-  (FS-04.R10), label the role option by that control's name, and cover it with a Settings
-  round-trip test. Workaround now: set `"skip_permissions": true` in `~/.chuck/config.json`
-  and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
-
 ## Changelog
 
+- **2026-10-19 — Fixed PERM-1; no-persona permission review closed** (no invariant class; INV
+  §3/§8/§13 checked): Settings → Roles gains **Default permissions** with a **Skip permission
+  prompts** toggle over the global `skip_permissions` (`PermissionPolicyEditor`, same
+  optimistic-save/restore pattern as Auto continue). The persona form option and row badge now
+  read **Use default permissions** / **Default permissions** instead of "Inherit global".
+  FS-04.R60/A39 added, R46 and FS-12's badge text updated. Tests: `PermissionPolicyEditor.test.tsx`
+  (round trip across remount, failed-save restore), `RoleForm.test.tsx` option label. Full Go
+  (serial), UI suite, UI build and Go build pass. Rendered browser check not run.
 - **2026-10-19 — Fixed PROMPT-1; prompt/harness unit stays open on PROMPT-2** (INV §12, §2,
   §17): Codex launches now prepend the instructions Codex would otherwise use — the
   `CODEX_CONFIG` overlay value, else the native `developer_instructions` from the child's

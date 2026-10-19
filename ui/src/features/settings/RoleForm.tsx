@@ -101,7 +101,7 @@ export function RoleForm({ initial, onSubmit, onCancel, submitting, error }: Rol
       <div className="form-field">
         <label>Skip permissions</label>
         <select {...register("skip_permissions")}>
-          <option value="null">Inherit global</option>
+          <option value="null">Use default permissions</option>
           <option value="true">Always skip</option>
           <option value="false">Always prompt</option>
         </select>

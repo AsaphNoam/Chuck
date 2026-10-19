@@ -28,3 +28,15 @@ describe("RoleForm Chuck awareness", () => {
     await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({ role: "reviewer", chuck_aware: true })));
   });
 });
+
+// FS-04.A39: the inheriting permission choice names the Settings control it follows.
+describe("RoleForm permissions", () => {
+  afterEach(cleanup);
+  it("labels the inherited choice as default permissions and submits null", async () => {
+    const submit = vi.fn();
+    const view = render(<RoleForm initial={{ role: "reviewer", title: "Reviewer", system_prompt: "", skip_permissions: null }} onSubmit={submit} onCancel={() => {}} />);
+    expect(screen.getByRole("option", { name: "Use default permissions" })).toBeInTheDocument();
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({ skip_permissions: null })));
+  });
+});

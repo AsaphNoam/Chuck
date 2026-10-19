@@ -295,7 +295,7 @@ export function useConfig() {
 export function usePutConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<Pick<Config, "onboarding_complete" | "default_project" | "default_role" | "appearance_skin" | "notifications" | "task_concurrency" | "auto_continue">>) =>
+    mutationFn: (data: Partial<Pick<Config, "onboarding_complete" | "default_project" | "default_role" | "appearance_skin" | "notifications" | "task_concurrency" | "auto_continue" | "skip_permissions">>) =>
       json<Config>("/api/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

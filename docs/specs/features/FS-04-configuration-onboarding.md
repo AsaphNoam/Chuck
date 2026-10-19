@@ -159,8 +159,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   `message_budget_per_turn` integer, joining R10's fields, owned by FS-06.R28. `GET /api/config`
   returns it and `PUT /api/config` merges it under R11's existing rules; an absent, non-numeric,
   zero, or negative value means the default. No Settings control is added for it in this change: it
-  is edited in `config.json` or through the configuration API, exactly as R10's global
-  `skip_permissions` already is. The value changes messaging behavior only and alters no launch
+  is edited in `config.json` or through the configuration API. The value changes messaging behavior only and alters no launch
   snapshot, project, agent, pipeline, role, or onboarding readiness.
 
 - **R38** — The user-editable global configuration adds an optional
@@ -187,6 +186,15 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   provider usage before actual continuation. Unsupported checking stays manual. No second
   toggle is introduced. Existing false values, immediate cancellation and failed-save behavior
   remain authoritative. The setting does not retroactively arm old unscheduled interruptions.
+
+- **R60 (implemented 2026-10-19)** — Settings → Roles exposes R10's global `skip_permissions` as
+  one **Default permissions** toggle, **Skip permission prompts**, read and written through the
+  existing global configuration API. Its help says it applies to No persona and to personas that
+  use default permissions, and that changes affect new launches only (R13). Persona forms and
+  rows name the inheriting choice **Use default permissions** / **Default permissions** rather than
+  a provider-sounding "global" setting. A pending or failed load disables the toggle; a failed save
+  restores the saved value and shows the readable error. Chuck's policy remains independent of
+  provider-native approval settings (R1).
 
 - **R13.** Editing a role, project, backend, or the global config affects **new launches only**.
   A running agent and its ordinary resume/switch paths keep the frozen launch snapshot; an explicit
@@ -582,6 +590,12 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   Disabling cancels either pending kind on desktop and phone, while a failed save reports the
   actual saved policy. *Verify:* configuration/API and focused Settings/recovery component tests,
   plus FS-01.A33's rendered journey.
+
+- **A39 (implemented 2026-10-19)** (R60) — In Settings → Roles, toggle **Skip permission prompts**
+  on and off: each change sends only `skip_permissions` and reloading shows the saved value. A
+  failed save restores the prior value and shows the server reason. The persona form's inheriting
+  option reads **Use default permissions**. *Verify:* `PermissionPolicyEditor.test.tsx` and
+  `RoleForm.test.tsx`.
 
 ## 6. Deviations & open decisions
 

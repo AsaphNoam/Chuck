@@ -7,6 +7,7 @@ import { AppearanceEditor } from "./AppearanceEditor";
 import { TaskConcurrencyEditor } from "./TaskConcurrencyEditor";
 import { RemoteEditor } from "./RemoteEditor";
 import { QuotaContinuationEditor } from "./QuotaContinuationEditor";
+import { PermissionPolicyEditor } from "./PermissionPolicyEditor";
 
 export function SettingsPage() {
   return (
@@ -23,6 +24,7 @@ export function SettingsPage() {
           <Tabs.Trigger value="remote">Remote</Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="roles" className="settings-tab-content" data-slot="content">
+          <PermissionPolicyEditor />
           <RolesEditor />
         </Tabs.Content>
         <Tabs.Content value="projects" className="settings-tab-content" data-slot="content">

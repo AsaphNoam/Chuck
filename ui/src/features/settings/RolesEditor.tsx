@@ -114,7 +114,7 @@ export function RolesEditor() {
             </div>
             <div className="config-row-detail">
               <span className={role.skip_permissions == null ? "config-badge config-badge-neutral" : "config-badge"}>
-                {role.skip_permissions == null ? "Inherit global" : role.skip_permissions ? "Always skip" : "Always prompt"}
+                {role.skip_permissions == null ? "Default permissions" : role.skip_permissions ? "Always skip" : "Always prompt"}
               </span>
               {role.system_prompt && (
                 <p className="config-excerpt">{role.system_prompt.slice(0, 80)}</p>

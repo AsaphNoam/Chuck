@@ -440,7 +440,7 @@ Requirements are user-observable.
   one-line description and its primary action at the right. Roles, projects and paired phones are
   softly raised rounded rows with name and id, a quiet status chip plus excerpt or working
   directory, and text-style row actions where destructive actions use the error color; a role
-  with no permission override reads "Inherit global". Each backend is one raised card whose
+  with no permission override reads "Default permissions". Each backend is one raised card whose
   models, environment, provider and configuration-source groups are separated by ruled bands with
   mono labels rather than nested boxes. Notifications and Tasks are bounded ruled lists/forms;
   appearance choices are three equal cards with a full-width palette preview over the radio,
