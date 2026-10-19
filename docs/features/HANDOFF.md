@@ -20,7 +20,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
 - **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`), and
-  ASR-D (`c12c4251`) have been audited
+  ASR-D (`c12c4251`) and ASR-E (`5eb574d9`) have been audited
   and have open findings; the remaining integrated Codex/Claude reviews are listed under
   [Review queue](#review-queue), sized for frontier reviewers. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
@@ -187,7 +187,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
 | [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | reviewed — findings open (`6b5de19b`) |
 | [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | reviewed — findings open (`c12c4251`) |
-| [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | waiting to start |
+| [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | waiting to start |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | waiting to start |
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | waiting to start |
@@ -711,6 +711,90 @@ Invariant sweep: §1–5, §7–12 and §14–17 applicable and checked; §6 has
 contract to add and §13 has no styling/class-name change. No local implementation choice or human
 decision was introduced. Sibling reviews and fixes were not selected.
 
+### ASR-E — Agent tools, communication and durable delegation — reviewed `5eb574d9` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+The continuation fix joins durable wait settlement, assignment projection and MCP reads; report
+bounds extend existing shared validation. Audit complete; findings keep this same unit open.
+Source mode: current repository source at `5eb574d9`, initially clean. Release lockfile: Claude
+ACP 0.85.1 / Agent SDK 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. Three bounded read-only audits
+covered tools/authority, peer delivery and tasks; the lead reconciled interactions and independently
+reproduced both findings. No product code or specifications changed.
+
+- **Must fix** — ASRE-1 — **A resumed assignment loses the watched changes that woke it**
+  (INV §1/§10/§11/§15). `internal/messaging/task_tools.go:28–66`,
+  `internal/state/tasks.go:1425–1442`, `internal/runtime/activation_kinds.go:55–58`:
+  after `wait_for_tasks` yields and a child reports, the dependency activation tells the parent
+  to read `get_assigned_task`, but that result contains only the original instruction, identity,
+  state, execution handle and attachments. It exposes neither `observed_changes` nor the retained
+  result/continuation context required by TS-10.R29/§3 and FS-16.R30–R34. Confirmation deletes
+  the watches as though the new execution had observed them, without retaining those changes.
+  The parent must reconstruct the wait from conversation history and individually inspect children;
+  the promised durable continuation context is absent. A serialized MCP probe runs wait → child
+  failure → notify → yield release → re-admit/confirm → assignment read and gets no child id,
+  revision or outcome. Preserve a bounded authorized continuation snapshot through confirmation
+  and expose the watched changes/results through the existing assignment read; test early/late
+  reads, multiple/deleted sources, restart and scope isolation. Evidence:
+  `/tmp/asre_assignment_probe_test.go`, `/tmp/asre_assignment_overlay.json`,
+  `TestASREAssignmentExposesWatchedResultAfterContinuation` (intentionally failing).
+- **Must fix** — ASRE-2 — **Task report outputs bypass the result size limits**
+  (INV §2/§11/§16). `internal/state/tasks.go:1677–1733,2116–2125`,
+  `internal/state/pipeline_tasks.go:224–285`: reporting validates summary/details but never
+  bounds the output map's values or aggregate result. The shared insert helper checks only that
+  names are nonblank; ordinary reports store arbitrary output keys/values, and stage reports
+  check declarations/required values without the generic size checks. TS-10.R33 requires the
+  pipeline text limit (64,000 runes per value) and a 256 KiB aggregate result limit. Serialized
+  ordinary-task MCP probes accept and persist both one 64,001-character output and five
+  individually legal 60,000-character outputs (300,000 bytes), marking each task finished/success.
+  A large generated artifact can therefore become immutable retained result data and be loaded
+  whole by task reads/lists and downstream consumers. Extend shared report validation to named
+  outputs and aggregate encoded size before committing any result, with a typed non-mutating
+  refusal. Regress individual and aggregate boundaries, Unicode/encoding overhead, and ordinary
+  versus stage reports. Evidence: the same temporary overlay's
+  `TestASRETaskReportRejectsOversizedOutputs` (both cases intentionally failing).
+
+Connected evidence ledger and J3 (authority through native execution):
+
+| Retained topic | Whole-chain coverage and result |
+|---|---|
+| 16 — Tools/hooks/authority/results | Traced token → caller identity → scoped action → committed effect → text/structured response, MCP/hook setup/revoke, owner-only artifacts and bounded hook network failure. Fresh/resume/wake/switch/rollback/crash use shared registration and teardown. Tool discovery, schemas, refusal classification and structured/text parity are producer-checked; paused direct actions are not advertised as shipped. |
+| 17 — Peer mail/delivery/budgets | Traced resolver → transactional insert/budget/activation → lifecycle claim → attempted boundary → native prompt → receipt/read settlement. Waking mail coalesces; deferred mail creates no turn and retains unread content. Whole-message/byte/budget bounds, waking-first ordering, stable ids, ambiguous delivery recovery and restart activation retirement are covered. No additional mail defect established. |
+| 18 — Tasks/delegation | Traced human/agent create and frozen backend/model/effort/fast/group → durable capacity/assignment claim → launch or existing/wake activation → read/report/wait → terminal/yield cleanup and continuation/restart. Creator/managed-run scope, generation/handle checks, dependency failure/repair, late reporting, and Chucky's bounded guidance/group placement were inspected. ASRE-1/2 break assignment context and retained-result bounds. |
+
+Peer Stop's provider permission exemption admits only the MCP call. Its separate host waiter
+requires operator Approve once, captures requester generation/turn and target generation/PID/start,
+and admits one effect before the ordinary quota/lifecycle Stop path. Cancellation/deny/timeout,
+requester replacement and target replacement refuse or invalidate the request. Durable decisions
+precede release; result envelopes distinguish unchanged/stopped/unknown effects and forbid automatic
+retry. Task creator/assignee and room membership never resolve that host gate. This source/test
+trace does not prove native providers preserve the gate under their most permissive modes.
+
+J4/J5 challenge: task reports commit outcomes/release intent before downstream readiness; runtime
+release waits for the reporting turn and stops only created/woke ownership, while borrowed cancel
+is generation/turn guarded. Pending yield and cleanup reconciliation retain ownership through
+restart; stopped/waiting work uses ordinary capacity and closure admission. The suspected missing
+closure predicate in `CompleteTaskYield` is not a finding: admission refuses a closed run and
+durable run cleanup cancels the transient ready/waiting row. Ordinary reports' optional execution
+handle is the explicit TS-10.R31 compatibility contract, not a new defect. Mail/task inputs use
+the common bounded prompt seam; task attachments retain assignee-derived grants. Room and pipeline
+tools share caller/result authority and ordinary launch/continuation seams; their supervisory state
+machines remain separate audits. Clone/fork gets a new registration and no transferred assignment;
+terminal execution has no usable coordination/task tools; isolated quota checks omit them.
+
+Verification: full messaging, hooks, state and agent-knowledge packages pass. Focused runtime/server
+host-approval, peer Stop, registration, mail activation, task dispatch/control/report/recovery
+tests pass; focused state/runtime race checks and FTS5 state/MCP/server task/mail/Stop checks pass.
+Spec lint and diff checks pass. Initial sandbox loopback denials were resolved
+with approved isolated loopback execution. Temporary probes above fail against the reviewed source
+and preserve the serialized failing responses. No provider credentials, model turns, UI or devices
+were exercised: FS-16.A33/A34, FS-06.A29/A30 and existing native task/room adoption gates remain owed.
+
+Existing findings retain their identities: ASRC-1 can stall the runtime read loop and ASRC-2 can
+hide permission-wait status; ASRD-2/3 affect event order/durability, including tool/approval history.
+CI-1's cancellation-double closure is not contradicted; PROMPT-2 still limits complete-instruction
+diagnosis and provides no causal quality result. Invariant sweep: §1–5, §7–12 and §14–17 applicable
+and checked; §6 has no new interface/runtime and §13 has no markup/style surface. No local
+implementation choice or human decision was introduced; sibling reviews/fixes remain unselected.
+
 ### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Report received 2026-10-18, verbatim:
@@ -789,6 +873,13 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed agent tools, communication and durable delegation (ASR-E):** audited
+  current implementation at `5eb574d9`, including host/provider approval, durable mail and task
+  lifecycle/context joins. Two Must-fix findings cover missing watched-result continuation context
+  and unbounded task-result outputs. Serialized MCP probes reproduce both; focused integration,
+  race, FTS5 and spec checks pass. Live provider/task/device receipts remain owed. Product code/specs
+  unchanged.
 
 - **2026-10-19 — Reviewed conversation, input and history fidelity (ASR-D):** audited current
   implementation at `c12c4251`, including delegated context and intake/native/durable/readback
