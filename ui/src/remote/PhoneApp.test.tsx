@@ -287,6 +287,35 @@ describe("phone conversation turns", () => {
     }
   });
 
+  it("offers Jump to latest when a live reply grows the chat without a scroll", async () => {
+    window.history.replaceState(null, "", "/agent/a1");
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    renderApp();
+    const stream = await waitFor(() => FakeEventSource.last ?? Promise.reject(new Error("no stream yet")));
+    act(() => {
+      stream.onopen?.();
+      stream.emit("state_update", { data: phoneAgent });
+      stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+    });
+    await screen.findByText("Fixed.");
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull();
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 5000 });
+    try {
+      window_ = [...window_, wire(7, "assistant_text", { delta: "A long reply." })];
+      act(() => stream.emit("new_message", { agent_id: "a1", data: { seq: 7 } }));
+      await screen.findByText("A long reply.");
+      fireEvent.click(await screen.findByRole("button", { name: "Jump to latest" }));
+      expect(scrollTo).toHaveBeenLastCalledWith(0, 5000);
+      window.scrollY = 5000;
+      fireEvent.scroll(window);
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull());
+    } finally {
+      delete (document.documentElement as { scrollHeight?: number }).scrollHeight;
+      window.scrollY = 0;
+      scrollTo.mockRestore();
+    }
+  });
+
   it("shows no header on an agent chat", async () => {
     window.history.replaceState(null, "", "/agent/a1");
     renderApp();

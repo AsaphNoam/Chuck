@@ -66,6 +66,7 @@ const EARLIER_PAGES = 3;
 const EARLIER_EVENTS = TRANSCRIPT_PAGE * EARLIER_PAGES;
 const EARLIER_BYTES = 3 * 1024 * 1024;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const isAtLatest = () => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 48;
 
 function retainEarlier(events: TranscriptEvent[]) {
   const unique = [...new Map(events.map((event) => [event.seq, event])).values()].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
@@ -505,11 +506,13 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   }, [rows, placePath]);
 
   const [awayFromLatest, setAwayFromLatest] = useState(false);
+  // A live reply can push the newest message off screen without a scroll event.
+  useEffect(() => { setAwayFromLatest(!isAtLatest()); }, [rows]);
   useEffect(() => {
     let frame = 0;
     const save = () => {
       frame = 0;
-      const atLatest = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 48;
+      const atLatest = isAtLatest();
       setAwayFromLatest(!atLatest);
       const list = listRef.current;
       if (!placeRestored.current || !list) return;
