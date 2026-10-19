@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1017,7 +1018,7 @@ func TestALaunchTaskStartsItsAgentAtTheStoredEffort(t *testing.T) {
 // FS-16.A34 (R50) — an agent-created launch task naming a group no agent carries
 // yet launches its agent into that new group, with the label trimmed.
 func TestAnAgentCreatedLaunchTaskPlacesItsAgentInANewGroup(t *testing.T) {
-	srv, _, _ := activationTestServer(t)
+	srv, ts, _ := activationTestServer(t)
 	task, err := srv.CreateAgentTask(messaging.AgentTaskRequest{
 		CreatorAgentID: "creator", Project: "tmpproj", DisplayName: "grouped work",
 		Instruction: "do it", Role: "impl", Group: "  reviewers ",
@@ -1027,6 +1028,21 @@ func TestAnAgentCreatedLaunchTaskPlacesItsAgentInANewGroup(t *testing.T) {
 	}
 	if task.Group != "reviewers" {
 		t.Fatalf("stored group = %q, want %q", task.Group, "reviewers")
+	}
+
+	// The task HTTP read reports the stored group beside the other launch
+	// inputs; only HTTP authoring lacks the field.
+	res, err := http.Get(ts.URL + "/api/tasks/" + task.TaskID)
+	if err != nil {
+		t.Fatalf("GET task: %v", err)
+	}
+	defer res.Body.Close()
+	var detail map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&detail); err != nil {
+		t.Fatalf("decode detail: %v", err)
+	}
+	if detail["group"] != "reviewers" {
+		t.Fatalf("HTTP detail group = %v, want %q", detail["group"], "reviewers")
 	}
 
 	srv.dispatchReadyTasks(context.Background())

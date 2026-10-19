@@ -372,7 +372,9 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   agent; an empty group launches ungrouped exactly as today. The reserved ungrouped label is
   rejected at creation with R20's validation error, and naming a group together with an existing
   agent target is rejected under R20 rather than silently dropped — regrouping an existing agent
-  stays an identity edit. The task HTTP API and Tasks view do not gain this field.
+  stays an identity edit. A label longer than the shared group-name bound (TS-03.R56) is also
+  rejected at creation without writing a task. HTTP task authoring and the Tasks view do not gain
+  this field; task HTTP reads report the stored group beside the other launch inputs.
 
 ## 3. States & transitions
 

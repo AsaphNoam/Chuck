@@ -70,6 +70,36 @@ func TestNormalizeAgentName(t *testing.T) {
 	}
 }
 
+// TS-03.R56 — every group ingress shares one trimmed, bounded label rule.
+func TestNormalizeGroup(t *testing.T) {
+	tests := []struct {
+		name     string
+		raw      string
+		want     string
+		wantCode string
+	}{
+		{name: "blank is ungrouped", raw: "  ", want: ""},
+		{name: "trimmed", raw: " reviewers ", want: "reviewers"},
+		{name: "reserved", raw: "_ungrouped", wantCode: runtime.CodeInvalidGroupName},
+		{name: "unicode limit", raw: strings.Repeat("界", maxGroupRunes), want: strings.Repeat("界", maxGroupRunes)},
+		{name: "too long", raw: strings.Repeat("a", maxGroupRunes+1), wantCode: runtime.CodeInvalidGroupName},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ae := normalizeGroup(tt.raw)
+			if tt.wantCode != "" {
+				if ae == nil || ae.Code != tt.wantCode {
+					t.Fatalf("error = %#v, want code %q", ae, tt.wantCode)
+				}
+				return
+			}
+			if ae != nil || got != tt.want {
+				t.Fatalf("normalizeGroup() = %q, %#v; want %q, nil", got, ae, tt.want)
+			}
+		})
+	}
+}
+
 func TestResolveEffortPrecedence(t *testing.T) {
 	model := config.Model{Efforts: []string{"low", "medium", "high"}, DefaultEffort: "medium"}
 	source := "low"

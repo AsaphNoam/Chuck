@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
@@ -38,6 +40,10 @@ type groupActionResponse struct {
 
 var errGroupLifecycleBusy = errors.New("a lifecycle transition is already in progress")
 
+// maxGroupRunes bounds a group label at every launch, identity and task
+// ingress (TS-03.R56), matching the agent display-name bound.
+const maxGroupRunes = 256
+
 func normalizeGroup(raw string) (string, *runtime.APIError) {
 	group := strings.TrimSpace(raw)
 	if group == "" {
@@ -45,6 +51,9 @@ func normalizeGroup(raw string) (string, *runtime.APIError) {
 	}
 	if group == "_ungrouped" {
 		return "", apiError(runtime.CodeInvalidGroupName, "invalid group name")
+	}
+	if utf8.RuneCountInString(group) > maxGroupRunes {
+		return "", apiError(runtime.CodeInvalidGroupName, fmt.Sprintf("group name must be at most %d characters", maxGroupRunes))
 	}
 	return group, nil
 }

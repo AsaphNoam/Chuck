@@ -60,6 +60,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   another phone. The two-device 390px journey for this entry point (including offline disable) is
   owed.
 
+- **FS-16.A34 — live Chucky group placement:** ask Chucky to delegate work into a new group and
+  confirm the launched agent lands in it; fake runtime and tool tests do not claim real-provider
+  adoption.
+
 - **Mobile annotation parity independent rendered review (workflow §14.4):** the review's
   `phone-render.mjs --annotation-check` attempt failed to bind `::1:5199` with `EPERM`.
   Approval-capable independent browser execution remains required; the implementer's stubbed
@@ -154,44 +158,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   switch shows it above the composer.
 
 ## Review findings
-
-### Agent-created task group placement — commit “tasks: let create_task place its launched agent in a group” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Implementation `2b7dcb24`; independent source review completed 2026-10-19 against FS-16.R50/A34
-and TS-02.R51 (migration 55). New-group launch, trimming, reserved-label refusal and refusal for
-an existing target work through the existing task/launch seams. The unit remains open for TG-1
-and TG-2 below. Live Chucky receipt (asks for a new group, agent lands in it) remains owed; fake
-runtime and tool tests do not claim real-provider adoption.
-
-Verification: `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 go test ./internal/state ./internal/messaging`
-passes, as do the focused server tests `TestAnAgentCreatedLaunchTaskPlacesItsAgentInANewGroup`
-and `TestAgentCreatedTaskChecksItsLaunchSpecification`. Loopback escalation was needed for the
-HTTP test listeners. A temporary Go overlay test, without repository edits, confirms a 64 KiB
-group is accepted and reread unchanged from SQLite; source:
-`/tmp/chuck-group-review.itGomY/task_http_test.go`.
-
-Local choices accepted: reuse `normalizeGroup`, `insertTaskRowTx`, the durable task launch inputs
-and the existing dispatcher/launch request; leave HTTP authoring and Tasks controls unchanged.
-Invariant sweep: applicable §1, §2, §3, §7, §8, §9, §10, §11, §14, §15, §16 and §17 checked;
-§8/§16 have TG-1 and §10/§11 have TG-2. No applicable surface for §4, §5, §6, §12 or §13.
-
-- **Worth fixing** — TG-1 — **The new group input has no size bound** (INV §8/§16):
-  `internal/server/task_handlers.go:742–748` accepts `create_task.group` through
-  `normalizeGroup` (`internal/server/groups.go:41–49`), which only trims and rejects the reserved
-  label. A tool call containing an oversized label stores it intact in `tasks.group_name`; the
-  dispatcher then copies it into the agent identity published to dashboard clients and group
-  headings. The temporary test confirms acceptance and durable round-trip of 65,536 characters.
-  Existing launch paths share this validation gap, but this change adds an agent-authored ingress.
-  Give group labels a documented bound at the shared validator, reject over-limit values with the
-  typed validation outcome before task insertion, and test the limit and no-write refusal.
-
-- **Worth fixing** — TG-2 — **HTTP read shape contradicts the specified field exclusion**
-  (FS-16.R50; INV §10/§11): `internal/state/tasks.go:130–132` serializes `Group` as `group`, and
-  `internal/server/task_handlers.go:332–335,349–358` embeds that task in detail/list responses.
-  Reading a grouped task therefore adds `group` to the task HTTP API, despite R50 saying that
-  API does not gain the field. HTTP creation and Tasks controls are correctly unchanged. Clarify
-  R50 to exclude only HTTP authoring if the read field is intentional, or omit the field from
-  the HTTP response projection; cover the chosen serialized contract with a focused test.
 
 ### Late tool input CI flake — `bbc8c89c` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -338,6 +304,15 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-19 — Fixed agent-created task group review; group placement unit closed** (INV §8,
+  §16, §10, §11): TG-1 — the shared `normalizeGroup` now rejects trimmed labels over 256
+  characters with `invalid_group_name` at every launch, identity and `create_task` ingress, before
+  any write (TS-03.R56; `TestNormalizeGroup`, oversized case in
+  `TestAgentCreatedTaskChecksItsLaunchSpecification`). TG-2 — kept the task HTTP read field,
+  consistent with effort/model/backend; FS-16.R50 now excludes only HTTP authoring and the Tasks
+  view, and the group test asserts the HTTP detail reports it. Live Chucky receipt moved to
+  Acceptance gates. No open findings remain for this unit.
 
 - **2026-10-19 — Fixed file-reader review findings; file reader formats unit closed** (INV §10,
   §17): the file-read API comment now says relative paths resolve from the recorded cwd and

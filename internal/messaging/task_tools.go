@@ -261,7 +261,7 @@ type createTaskArgs struct {
 	Model   string           `json:"model,omitempty" jsonschema:"optional model for a new agent"`
 	Effort  string           `json:"effort,omitempty" jsonschema:"optional reasoning effort for a new agent; must be a level the chosen model declares"`
 	Fast    bool             `json:"fast,omitempty" jsonschema:"request fast mode for a new agent; the chosen model must declare it"`
-	Group   string           `json:"group,omitempty" jsonschema:"optional project dashboard group for a new agent; a new label creates the group"`
+	Group   string           `json:"group,omitempty" jsonschema:"optional project dashboard group for a new agent; a new label creates the group; at most 256 characters"`
 	Arms    []createArmInput `json:"arms,omitempty" jsonschema:"prerequisites that must all be satisfied before this starts"`
 	// Attachments are context_ref_ids you can already read; the assignee reads
 	// them through its own assignment, not through a share to it.

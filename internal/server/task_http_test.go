@@ -1025,6 +1025,7 @@ func TestAgentCreatedTaskChecksItsLaunchSpecification(t *testing.T) {
 			r.TargetAgentID, r.Group = creator, "reviewers"
 		}, "group"},
 		{"reserved group label", func(r *messaging.AgentTaskRequest) { r.Group = "_ungrouped" }, "group"},
+		{"oversized group label", func(r *messaging.AgentTaskRequest) { r.Group = strings.Repeat("g", maxGroupRunes+1) }, "group"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := base()

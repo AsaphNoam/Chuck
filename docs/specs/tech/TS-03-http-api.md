@@ -781,7 +781,8 @@ Archive wire shapes. Every room route remains desktop `localOnly`, outside the p
 **R56 — Group identity stays in the existing launch and identity contracts.**
 Desktop `LaunchParams` admits optional `group`, matching the existing server and phone client.
 Launch and identity updates share trimmed-name validation: blank means ungrouped and `_ungrouped`
-is reserved, returning `invalid_group_name`. No group resource, schema migration or retained empty
+is reserved, returning `invalid_group_name`; a trimmed label over 256 characters returns the same
+code, so the dashboard never receives an unbounded label. No group resource, schema migration or retained empty
 record is added. Group edits take the existing per-agent lifecycle exclusion and archive/start
 gate before rereading and writing identity, preventing a move during an admitted bulk action;
 conflicts use R3's structured error. Persist identity before publishing the existing full
