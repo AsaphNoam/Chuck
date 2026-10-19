@@ -354,6 +354,15 @@ func refreshRunningFromHook(tx *sql.Tx, payload HookPayload, current RunningEntr
 	if payload.TTY != "" {
 		tty = payload.TTY
 	}
+	// The token-bound running row is the current generation, so its native
+	// conversation becomes durable here, before Stop or a crash can delete the
+	// row (TS-02.R54, ASRB-1). An empty hook ID never replaces a known one.
+	if payload.SessionID != "" {
+		if _, err := tx.Exec(`UPDATE sessions SET last_session_id = ? WHERE agent_id = ?`,
+			payload.SessionID, payload.AgentID); err != nil {
+			return fmt.Errorf("state: persist hook session id: %w", err)
+		}
+	}
 	if sessionID == current.SessionID && tty == current.TTY {
 		return nil
 	}

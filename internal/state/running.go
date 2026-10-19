@@ -156,6 +156,31 @@ func decodeDriverIDs(s string) map[string]string {
 	return m
 }
 
+// DeleteRunningRetainingSession deletes a running row after copying its
+// nonempty native session ID into the durable session snapshot, so a later
+// Resume reopens that conversation (TS-02.R54). Terminal teardown and orphan
+// reconciliation use it; an empty ID never replaces a known one.
+func (s *Store) DeleteRunningRetainingSession(agentID string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("state: delete running: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`
+UPDATE sessions SET last_session_id = (SELECT session_id FROM running WHERE agent_id = ?)
+WHERE agent_id = ? AND EXISTS (SELECT 1 FROM running WHERE agent_id = ? AND session_id <> '')`,
+		agentID, agentID, agentID); err != nil {
+		return fmt.Errorf("state: retain running session id: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM running WHERE agent_id = ?`, agentID); err != nil {
+		return fmt.Errorf("state: delete running: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("state: delete running: %w", err)
+	}
+	return nil
+}
+
 // DeleteRunning deletes one running entry.
 func (s *Store) DeleteRunning(id string) error {
 	if _, err := s.db.Exec(`DELETE FROM running WHERE agent_id = ?`, id); err != nil {

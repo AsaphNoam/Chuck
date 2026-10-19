@@ -72,7 +72,7 @@ func (s *Server) cloneAgent(ctx context.Context, sourceID string) (cloneResponse
 		return cloneResponse{}, cloneUnavailable(state.CloneReasonNoSession)
 	}
 
-	resp, ae := s.launchAgent(ctx, launchRequest{
+	resp, ae := s.launchClaimed(ctx, launchRequest{
 		Name: cloneName(source.Name), Role: source.Role, Project: source.Project, Backend: source.Backend, Model: source.Model,
 		Effort: source.Effort, Fast: source.Fast, Interface: source.Interface, Group: source.Group,
 	}, launchOptions{ChuckAware: &snap.ChuckAware, Fork: &runtime.ForkPlan{

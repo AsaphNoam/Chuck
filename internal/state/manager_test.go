@@ -356,3 +356,58 @@ func TestManagerTerminalUserPromptResetsBudget(t *testing.T) {
 		t.Fatalf("first action of the new terminal turn should not be blocked")
 	}
 }
+
+// TS-02.R54 (ASRB-1): the token-bound SessionStart makes the native ID durable;
+// a later empty ID or an empty running row never erases it.
+func TestSessionStartPersistsNativeIDAndTeardownRetainsIt(t *testing.T) {
+	withFixedNow(t, mustTime(t, "2026-10-19T10:00:00Z"))
+	st, _ := newTestStore(t)
+	mgr := NewManager(st, &capturePublisher{})
+	agent := testAgent("a_term", mustTime(t, "2026-10-19T09:00:00Z"))
+	if err := st.WriteAgent(agent); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`INSERT INTO sessions(agent_id, name, role, project, backend, model, interface, cwd, system_prompt, created_at, updated_at)
+VALUES ('a_term', 'T', 'r', 'p', 'b', 'm', 'terminal', '/tmp', '', '2026-10-19T09:00:00Z', '2026-10-19T09:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	saved := func() string {
+		snap, err := st.ReadSession("a_term")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return snap.LastSessionID
+	}
+	if err := st.WriteRunning(RunningEntry{AgentID: "a_term", PID: 1, Interface: "terminal", HookToken: "tok", StartedAt: timeNow()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mgr.ApplyHook("tok", HookPayload{AgentID: "a_term", Event: "SessionStart", State: "idle", SessionID: "native-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := saved(); got != "native-1" {
+		t.Fatalf("after SessionStart saved = %q, want native-1", got)
+	}
+	if _, err := mgr.ApplyHook("tok", HookPayload{AgentID: "a_term", Event: "SessionStart", State: "idle"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := saved(); got != "native-1" {
+		t.Fatalf("empty SessionStart replaced saved id with %q", got)
+	}
+	if _, err := mgr.ApplyHook("wrong", HookPayload{AgentID: "a_term", Event: "SessionStart", State: "idle", SessionID: "spoof"}); !errors.Is(err, ErrTokenMismatch) {
+		t.Fatalf("stale token = %v, want mismatch", err)
+	}
+
+	// A running row that never learned an ID is deleted without erasing it.
+	if err := st.WriteRunning(RunningEntry{AgentID: "a_term", PID: 1, Interface: "terminal", HookToken: "tok2", StartedAt: timeNow()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteRunningRetainingSession("a_term"); err != nil {
+		t.Fatal(err)
+	}
+	if got := saved(); got != "native-1" {
+		t.Fatalf("empty running row erased saved id: %q", got)
+	}
+	if _, err := st.ReadRunning("a_term"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("running row kept: %v", err)
+	}
+}

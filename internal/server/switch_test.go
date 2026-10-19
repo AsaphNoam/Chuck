@@ -543,6 +543,57 @@ func TestResumeTerminalAgent(t *testing.T) {
 	}
 }
 
+// ASRB-1 / FS-07.R25: the native conversation reported by a fresh terminal's
+// SessionStart becomes durable at that hook, survives Stop, and Resume reopens
+// it. A terminal whose conversation ID was never recorded refuses Resume
+// instead of silently starting a different conversation.
+func TestTerminalSessionStartSurvivesStopForResume(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	resp, body := post(t, ts.URL+"/api/sessions", map[string]string{"role": "impl", "project": "tmpproj", "interface": "terminal"})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("terminal launch = %d %s", resp.StatusCode, body)
+	}
+	var launched sessionResponse
+	if err := json.Unmarshal(body, &launched); err != nil {
+		t.Fatal(err)
+	}
+	id := launched.Agent.AgentID
+	srv.hookMu.Lock()
+	token := srv.hookTokens[id]
+	srv.hookMu.Unlock()
+
+	if rec := postHook(t, srv.routes(), `{"agent_id":"`+id+`","event":"SessionStart","state":"idle","session_id":"native-sentinel"}`, token); rec.Code != http.StatusNoContent {
+		t.Fatalf("SessionStart = %d %s", rec.Code, rec.Body)
+	}
+	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/stop", nil); resp.StatusCode != http.StatusOK {
+		t.Fatalf("stop = %d %s", resp.StatusCode, body)
+	}
+	if snap, err := srv.stateStore.ReadSession(id); err != nil || snap.LastSessionID != "native-sentinel" {
+		t.Fatalf("saved native id = %q, %v; want native-sentinel", snap.LastSessionID, err)
+	}
+	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/resume", nil); resp.StatusCode != http.StatusOK {
+		t.Fatalf("resume = %d %s", resp.StatusCode, body)
+	}
+	if run, err := srv.stateStore.ReadRunning(id); err != nil || run.SessionID != "native-sentinel" {
+		t.Fatalf("resumed running = %+v, %v; want the recorded conversation", run, err)
+	}
+
+	// A legacy terminal stopped before any SessionStart has no ID to reopen.
+	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/stop", nil); resp.StatusCode != http.StatusOK {
+		t.Fatalf("second stop = %d %s", resp.StatusCode, body)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE sessions SET last_session_id = '' WHERE agent_id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	resp, body = post(t, ts.URL+"/api/sessions/"+id+"/resume", nil)
+	if resp.StatusCode != http.StatusConflict || !strings.Contains(string(body), "never recorded") {
+		t.Fatalf("resume without native id = %d %s, want 409 refusal", resp.StatusCode, body)
+	}
+	if srv.registry.Owns(id) {
+		t.Fatal("refused resume started a fresh conversation")
+	}
+}
+
 // Regression (review fix): both the resume and switch-runtime LaunchSpec
 // composers must re-resolve role/project-derived fields (skip_permissions,
 // add_dirs) from current config — the frozen snapshot doesn't persist them, so
@@ -833,6 +884,55 @@ func TestSwitchRuntimeNoChange(t *testing.T) {
 	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", map[string]string{"interface": "chat"})
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("no_change status = %d: %s", resp.StatusCode, body)
+	}
+}
+
+// ASRC-4 / TS-01.R16: a manual launch holds its new agent's lifecycle claim
+// through the handshake, so a Stop arriving mid-handshake conflicts instead of
+// reading the launching sentinel as "stopped" and revoking the registration.
+func TestStopDuringLaunchHandshakeKeepsRegistration(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	dir := t.TempDir()
+	dump, release := filepath.Join(dir, "new.json"), filepath.Join(dir, "release")
+	t.Setenv("FAKEACP_NEW_DUMP", dump)
+	t.Setenv("FAKEACP_NEW_HOLD_FILE", release)
+
+	launched := make(chan int, 1)
+	go func() {
+		resp, _ := post(t, ts.URL+"/api/sessions", map[string]string{"role": "impl", "project": "tmpproj"})
+		launched <- resp.StatusCode
+	}()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(dump); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("launch never reached session/new")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	agents, err := srv.stateStore.ListAgents()
+	if err != nil || len(agents) != 1 {
+		t.Fatalf("in-flight agent = %v, %v", agents, err)
+	}
+	id := agents[0].AgentID
+
+	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/stop", nil)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("stop during handshake = %d %s, want 409", resp.StatusCode, body)
+	}
+	if err := os.WriteFile(release, []byte("go"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code := <-launched; code != http.StatusCreated {
+		t.Fatalf("launch = %d, want 201", code)
+	}
+	srv.hookMu.Lock()
+	_, tokenKept := srv.hookTokens[id]
+	srv.hookMu.Unlock()
+	if !tokenKept || !srv.registry.Owns(id) {
+		t.Fatalf("launch registration lost: token=%v owned=%v", tokenKept, srv.registry.Owns(id))
 	}
 }
 

@@ -66,12 +66,31 @@ func (s *Server) handleLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, ae := s.launchAgent(r.Context(), req, launchOptions{})
+	resp, ae := s.launchClaimed(r.Context(), req, launchOptions{})
 	if ae != nil {
 		writeAPIError(w, ae)
 		return
 	}
 	writeJSON(w, http.StatusCreated, resp)
+}
+
+// launchClaimed mints the new agent's id and holds its lifecycle claim through
+// launch, so a Stop during the handshake cannot tear down the in-flight
+// registration and shutdown quiescence waits for it (TS-01.R16/R41, ASRC-4).
+// Callers that already hold the new id's claim use launchAgent directly.
+func (s *Server) launchClaimed(ctx context.Context, req launchRequest, options launchOptions) (sessionResponse, *runtime.APIError) {
+	if options.AgentID == "" {
+		id, err := s.stateStore.NewAgentID()
+		if err != nil {
+			return sessionResponse{}, apiError(runtime.CodeInternal, "mint agent id: "+err.Error())
+		}
+		options.AgentID = id
+	}
+	if !s.claimLifecycle(options.AgentID) {
+		return sessionResponse{}, apiError(runtime.CodeTransitionInProgress, "another lifecycle change is in progress for this agent")
+	}
+	defer s.releaseLifecycle(options.AgentID)
+	return s.launchAgent(ctx, req, options)
 }
 
 type launchOptions struct {
@@ -882,7 +901,7 @@ func (s *Server) reapOrphanRuntime(agentID string) error {
 	}
 
 	// Delete the running row.
-	if err := s.stateStore.DeleteRunning(agentID); err != nil {
+	if err := s.stateStore.DeleteRunningRetainingSession(agentID); err != nil {
 		s.log.Warn("delete running row", "agent_id", agentID, "err", err)
 		return err
 	}

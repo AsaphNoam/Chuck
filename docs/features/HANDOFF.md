@@ -76,15 +76,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
      context → group SIGKILL, 1 s `WaitDelay`) in `runProjectSetup`; tests
      `TestProjectSetupContainsDescendantsOnCancelAndDeadline`/`...BoundsInheritedOutputDrain`
      (each hung 30 s before the fix).
-  3. Launch claim (ASRC-4, TS-01.R41): `registry.go` Launch/Resume `launching→committed|exited`;
-     exit during Start wins; manual `handleLaunch` under the lifecycle claim; fail launch without proof.
-  4. Terminal native ID (ASRB-1, TS-02.R54): SessionStart writes `sessions.last_session_id` under
-     the token-bound generation; preserve before running-row delete; missing ID refuses Resume.
+  3. **Done** — launch claim (ASRC-4): `registry.go` `claimStart`/`commitStart`, exit during
+     Start → `ErrExitedDuringStart`; `launchClaimed` (manual launch, Clone). Launch-time proof
+     validation moves to slice 5 with driver handles.
+  4. **Done** — terminal native ID (ASRB-1): SessionStart → `sessions.last_session_id`;
+     `DeleteRunningRetainingSession`; `ErrNativeIdentityMissing` → 409 on terminal Resume.
   5. Drivers (ASRB-4–7, TS-04.R102/TS-05.R28): unique agent/generation tmux names; exit
      observation → generation teardown; hidden bootstrap with owner-only launch record for
      tmux/iTerm2; refuse iTerm2/tmux control until proof exists.
-  Checks passed for slice 1: `go test ./internal/runtime/ ./internal/runtime/terminal/
-  ./internal/state/ ./internal/cli/ ./internal/server/`, `make check-specs`. TS-06 closure owed at
+  Checks passed through slice 4: `go test ./internal/runtime/... ./internal/state/ ./internal/cli/
+  ./internal/server/`, `make check-specs`. TS-06 closure owed at
   the end. Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
 
 ## Acceptance gates still owed
@@ -425,6 +426,13 @@ and integrated here.
   launch → SessionStart → Stop/crash/restart → Resume and terminal→chat switch. The isolated
   real-state/PTY probe sees running id `native-sentinel`, saved id empty, and resume argv
   `["claude"]`. Existing persistence tests supply an invented resume id instead of recovering it.
+  *Fixed in ASW-3 slice 4 (2026-10-19), pending review:* SessionStart writes
+  `sessions.last_session_id` in the hook transaction; terminal/orphan teardown uses
+  `DeleteRunningRetainingSession`; empty-ID terminal Resume → 409. Regressions
+  `TestTerminalSessionStartSurvivesStopForResume` (saved id was empty before the fix) and
+  `TestSessionStartPersistsNativeIDAndTeardownRetainsIt`. Crash/restart need no separate copy since
+  the ID is durable at the hook; terminal→chat switch reads the same refreshed running ID. No
+  real-CLI receipt.
 - **Must fix** — ASRB-2 — **Claude Clone never opens the forked conversation**
   (INV §1/§6/§11/§12/§17). `internal/runtime/chat.go:430–467`, `fork.go:34–68`:
   pinned Claude ACP's `unstable_forkSession` performs an SDK persistence fork and returns only
@@ -604,6 +612,10 @@ Bounded discovery for catalogue 06/11/12 was delegated and every reported findin
   Manual `handleLaunch` also takes no lifecycle claim, so shutdown quiescence and a Stop during the
   handshake can miss or tear down an in-flight launch (TS-01.R16). Fence commit against exit and put
   manual launch behind the same claim; regress exit-in-window and shutdown-during-launch.
+  *Fixed in ASW-3 slice 3 (2026-10-19), pending review:* `claimStart`/`commitStart` in
+  `registry.go`; `launchClaimed` for manual launch and Clone. Regressions
+  `TestExitBeforeCommitFailsLaunchAndFreesClaim`, `TestStopDuringLaunchHandshakeKeepsRegistration`.
+  Shutdown-during-launch relies on the shared claim's `quiesceLifecycle` wait; no dedicated test.
 - **Worth fixing** — ASRC-5 — **ACP permission prompts can remain actionable after settlement**
   (INV §5/§8). `internal/runtime/permission.go:76–83` registers a pending request before
   publishing it, and the `published` gate (`host_permission.go:54`) covers host requests only:

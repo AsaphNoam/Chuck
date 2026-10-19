@@ -22,6 +22,10 @@ type Registry struct {
 	byIface           map[string]Runtime // "chat" -> ChatRuntime, "terminal" -> terminal runtime/stub
 	rtByAgent         map[string]Runtime // agent_id -> owning runtime
 	generationByAgent map[string]string  // agent_id -> concrete launch generation
+	// exitedDuringStart marks a launching claim whose process exited before
+	// commit: agent_id -> that claim's generation. The exit wins; the commit
+	// fails instead of re-registering a dead runtime (TS-01.R41).
+	exitedDuringStart map[string]string
 	chat              *ChatRuntime
 	term              Runtime // the registered terminal runtime (nil until SetTerminalRuntime)
 	store             *state.Store
@@ -48,6 +52,7 @@ func NewRegistry(s *state.Store) *Registry {
 		byIface:           map[string]Runtime{},
 		rtByAgent:         map[string]Runtime{},
 		generationByAgent: map[string]string{},
+		exitedDuringStart: map[string]string{},
 		chat:              chat,
 		store:             s,
 	}
@@ -87,10 +92,17 @@ func (r *Registry) SetExitHook(fn func(string, string, string)) {
 }
 
 // handleAgentExit is the runtimes' onExit callback: it drops registry ownership
-// and then runs the server's registration teardown, if wired.
+// and then runs the server's registration teardown, if wired. An exit while
+// that same generation is still launching only marks the claim exited: the
+// launcher owns that failure and its rollback.
 func (r *Registry) handleAgentExit(agentID, generation string) {
 	r.mu.Lock()
 	if current, ok := r.generationByAgent[agentID]; !ok || current != generation {
+		r.mu.Unlock()
+		return
+	}
+	if rt := r.rtByAgent[agentID]; rt == nil {
+		r.exitedDuringStart[agentID] = generation
 		r.mu.Unlock()
 		return
 	}
@@ -175,29 +187,58 @@ func (r *Registry) Launch(ctx context.Context, spec LaunchSpec) (*Handle, error)
 	if err != nil {
 		return nil, err
 	}
-	// Atomically claim the slot with a nil sentinel before releasing the lock so
-	// no concurrent Launch for the same agent can also pass the existence check.
-	r.mu.Lock()
-	if _, ok := r.rtByAgent[spec.Agent.AgentID]; ok {
-		r.mu.Unlock()
-		return nil, ErrAlreadyStarted
-	}
-	r.rtByAgent[spec.Agent.AgentID] = nil // sentinel: "launching in progress"
-	r.generationByAgent[spec.Agent.AgentID] = spec.Generation
-	r.mu.Unlock()
-
-	h, err := rt.Start(ctx, spec)
-	if err != nil {
-		r.mu.Lock()
-		delete(r.rtByAgent, spec.Agent.AgentID)
-		delete(r.generationByAgent, spec.Agent.AgentID)
-		r.mu.Unlock()
+	if err := r.claimStart(spec.Agent.AgentID, spec.Generation); err != nil {
 		return nil, err
 	}
-	r.mu.Lock()
-	r.rtByAgent[spec.Agent.AgentID] = rt
-	r.mu.Unlock()
+	h, err := rt.Start(ctx, spec)
+	if err != nil {
+		r.releaseStart(spec.Agent.AgentID)
+		return nil, err
+	}
+	if err := r.commitStart(ctx, rt, spec.Agent.AgentID, spec.Generation); err != nil {
+		return nil, err
+	}
 	return h, nil
+}
+
+// claimStart atomically claims an agent's slot with a nil "launching"
+// sentinel, so no concurrent Launch/Resume can also pass the existence check.
+func (r *Registry) claimStart(agentID, generation string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.rtByAgent[agentID]; ok {
+		return ErrAlreadyStarted
+	}
+	r.rtByAgent[agentID] = nil
+	r.generationByAgent[agentID] = generation
+	delete(r.exitedDuringStart, agentID)
+	return nil
+}
+
+func (r *Registry) releaseStart(agentID string) {
+	r.mu.Lock()
+	delete(r.rtByAgent, agentID)
+	delete(r.generationByAgent, agentID)
+	delete(r.exitedDuringStart, agentID)
+	r.mu.Unlock()
+}
+
+// commitStart moves a launching claim to committed, unless its process exited
+// first: then the claim ends as exited, the runtime drops its dead handle and
+// rows, and the start fails so the caller rolls back (TS-01.R41, ASRC-4).
+func (r *Registry) commitStart(ctx context.Context, rt Runtime, agentID, generation string) error {
+	r.mu.Lock()
+	if gen, exited := r.exitedDuringStart[agentID]; exited && gen == generation {
+		delete(r.rtByAgent, agentID)
+		delete(r.generationByAgent, agentID)
+		delete(r.exitedDuringStart, agentID)
+		r.mu.Unlock()
+		_ = rt.Stop(ctx, agentID)
+		return ErrExitedDuringStart
+	}
+	r.rtByAgent[agentID] = rt
+	r.mu.Unlock()
+	return nil
 }
 
 // ownerFor returns the runtime that owns an agent, or ErrNoHandle.
@@ -220,26 +261,17 @@ func (r *Registry) Resume(ctx context.Context, spec LaunchSpec) (*Handle, error)
 	if err != nil {
 		return nil, err
 	}
-	r.mu.Lock()
-	if _, ok := r.rtByAgent[spec.Agent.AgentID]; ok {
-		r.mu.Unlock()
-		return nil, ErrAlreadyStarted
-	}
-	r.rtByAgent[spec.Agent.AgentID] = nil // sentinel: "resuming in progress"
-	r.generationByAgent[spec.Agent.AgentID] = spec.Generation
-	r.mu.Unlock()
-
-	h, err := rt.Resume(ctx, spec, spec.LastSessionID)
-	if err != nil {
-		r.mu.Lock()
-		delete(r.rtByAgent, spec.Agent.AgentID)
-		delete(r.generationByAgent, spec.Agent.AgentID)
-		r.mu.Unlock()
+	if err := r.claimStart(spec.Agent.AgentID, spec.Generation); err != nil {
 		return nil, err
 	}
-	r.mu.Lock()
-	r.rtByAgent[spec.Agent.AgentID] = rt
-	r.mu.Unlock()
+	h, err := rt.Resume(ctx, spec, spec.LastSessionID)
+	if err != nil {
+		r.releaseStart(spec.Agent.AgentID)
+		return nil, err
+	}
+	if err := r.commitStart(ctx, rt, spec.Agent.AgentID, spec.Generation); err != nil {
+		return nil, err
+	}
 	return h, nil
 }
 
@@ -569,6 +601,7 @@ func (r *Registry) Shutdown(ctx context.Context) {
 	r.mu.Lock()
 	r.rtByAgent = map[string]Runtime{}
 	r.generationByAgent = map[string]string{}
+	r.exitedDuringStart = map[string]string{}
 	r.mu.Unlock()
 }
 

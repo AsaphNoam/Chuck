@@ -768,7 +768,12 @@ primitive; unknown/mismatch fails closed. Do not manufacture proof for legacy ro
 *Shipped so far:* migration 56 adds `running.process_birth_us` (kernel birth of the dedicated group
 leader, unix microseconds; `0` is unknown). The PID column names that leader, so PGID equals PID.
 A token-bound `running` hook that changes the PID resets birth to unknown. The proof version is
-implicit in this column until a later proof field needs an explicit version.
+implicit in this column until a later proof field needs an explicit version. A token-bound
+SessionStart with a nonempty ID updates `sessions.last_session_id` in the same transaction as the
+running row; terminal teardown and orphan reconciliation delete running rows through
+`DeleteRunningRetainingSession`, which copies a nonempty running ID first. Terminal Resume with an
+empty ID refuses (409) instead of starting a fresh conversation. Launch-generation fencing of the
+hook beyond its per-generation token remains with the driver work.
 
 In the authenticated SessionStart transaction, update both the current running native ID/TTY and
 `sessions.last_session_id` when nonempty, conditional on the current token-bound running generation;

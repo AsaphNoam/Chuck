@@ -25,7 +25,7 @@ func ReconcileStale(s *state.Store) ([]string, error) {
 			continue
 		}
 		slog.Info("runtime: reconciling exited running row", "agent", r.AgentID, "pid", r.PID)
-		if err := s.DeleteRunning(r.AgentID); err != nil {
+		if err := s.DeleteRunningRetainingSession(r.AgentID); err != nil {
 			errs = append(errs, err)
 			continue
 		}

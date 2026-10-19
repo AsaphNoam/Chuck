@@ -546,6 +546,8 @@ func resumeStartError(err error) *runtime.APIError {
 		return apiError(runtime.CodeConflict, err.Error())
 	case errors.Is(err, runtime.ErrProviderIncompatible):
 		return providerIncompatibleError(err)
+	case errors.Is(err, runtime.ErrNativeIdentityMissing):
+		return apiError(runtime.CodeConflict, err.Error())
 	default:
 		return apiError(runtime.CodeRuntimeStartFailed, err.Error())
 	}

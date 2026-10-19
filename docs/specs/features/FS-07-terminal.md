@@ -112,6 +112,9 @@ a bounded owned bootstrap; successful real-platform verification is required bef
 This planned rule supersedes the bare-PID post-restart reap described below: only corroborated
 current group ownership permits teardown; unknown/mismatched proof refuses and retains the orphan,
 and confirmed death uses FS-01.R20's `done` / `process exited` outcome.
+*Shipped so far (2026-10-19):* the corroborated orphan reap/refusal, durable native SessionStart
+identity and the missing-identity Resume refusal ("start a new agent to continue the work"). Driver
+environment, unique machine handles, exit observation and external-driver proof remain planned.
 
 ## 3. States & transitions
 

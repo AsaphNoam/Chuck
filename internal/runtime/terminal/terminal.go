@@ -237,6 +237,11 @@ func (r *Runtime) Start(ctx context.Context, spec rt.LaunchSpec) (*rt.Handle, er
 // Resume re-launches under the driver in resume form on the same agent_id. Used
 // by switch-runtime (6.4) and Phase 4 archive resume when the target is terminal.
 func (r *Runtime) Resume(ctx context.Context, spec rt.LaunchSpec, sessionID string) (*rt.Handle, error) {
+	// Without the native ID the CLI would silently start a fresh conversation
+	// under this agent's continuity (FS-07.R16–R17/R25).
+	if sessionID == "" {
+		return nil, rt.ErrNativeIdentityMissing
+	}
 	drv, err := r.driverFor(spec.Driver)
 	if err != nil {
 		return nil, err
@@ -329,7 +334,7 @@ func (r *Runtime) Stop(ctx context.Context, agentID string) error {
 		if err := rt.StopRecordedRow(r.store, agentID, stopGrace); err != nil {
 			return err
 		}
-		_ = r.store.DeleteRunning(agentID)
+		_ = r.store.DeleteRunningRetainingSession(agentID)
 		r.touchState(agentID)
 		return nil
 	}
@@ -348,7 +353,7 @@ func (r *Runtime) Stop(ctx context.Context, agentID string) error {
 	a.closePTYHub()
 	_ = a.driver.CloseTab(a.tab)
 	a.closePersistence()
-	_ = r.store.DeleteRunning(agentID)
+	_ = r.store.DeleteRunningRetainingSession(agentID)
 	r.setDone(agentID)
 	r.touchState(agentID)
 	a.hub.Close()
@@ -468,7 +473,7 @@ func (r *Runtime) startWatcher(a *termAgent) {
 
 		a.closePTYHub()
 		a.closePersistence()
-		_ = r.store.DeleteRunning(a.agentID)
+		_ = r.store.DeleteRunningRetainingSession(a.agentID)
 		r.setDone(a.agentID)
 		r.touchState(a.agentID)
 		r.removeAgent(a.agentID)

@@ -609,6 +609,13 @@ acceptance, independently corroborating OS birth/group/foreground TTY and the ex
 xterm wait or bounded OS-identity monitoring (at most one-second detection interval)
 feeds the same generation-fenced exit path. Native session identity and process proof persist per
 TS-02.R54; native ID never derives from display title or process ID.
+*Shipped so far (2026-10-19):* `Registry.Launch`/`Resume` share `claimStart`/`commitStart`; an
+exit reported for a still-launching generation marks it exited without running exit teardown, and
+the commit then fails with `ErrExitedDuringStart` after `Runtime.Stop` drops the dead handle, so the
+launcher's rollback owns cleanup. Manual launch and Clone mint the new id and hold its lifecycle
+claim through launch (`launchClaimed`). `runtime.ContainCommand` is the owned-command containment
+primitive (TS-12.R11). Launch-time proof validation, driver handles and exit observation for
+tmux/iTerm2 remain planned.
 
 ## 3. Interfaces & data shapes
 

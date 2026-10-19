@@ -386,8 +386,10 @@ that required identity is unavailable. A failed start/old exit cannot claim or t
 generation. See TS-01.R41 and TS-02.R54.
 **Shipped so far (2026-10-19):** running rows record the leader's kernel birth; orphan Stop/Switch/
 Archive/pipeline reaps, peer Stop, startup reconciliation and the periodic sweep share one
-proof check and R20's outcome (R20–R21). Launch-time proof, exit-before-commit, external-driver
-identity and native-ID retention remain planned.
+proof check and R20's outcome (R20–R21). An exit before registry commit fails that launch/resume
+and a late prior-generation exit cannot tear down a newer claim (TS-01.R41). A terminal's native
+conversation ID is durable from SessionStart and survives Stop/crash; Resume without it refuses
+(FS-07.R25). Launch-time proof and external-driver identity remain planned.
 
 ## 3. States & transitions
 

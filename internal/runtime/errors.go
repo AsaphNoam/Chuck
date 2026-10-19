@@ -20,6 +20,13 @@ var ErrMessageAccepted = errors.New("runtime: message retained but delivery is u
 var (
 	// ErrNoHandle: no live handle for the agent (not started / already stopped).
 	ErrNoHandle = errors.New("runtime: agent not started")
+	// ErrExitedDuringStart: the process exited before its launch committed, so
+	// the start failed rather than registering a dead runtime (TS-01.R41).
+	ErrExitedDuringStart = errors.New("runtime: agent process exited during startup")
+	// ErrNativeIdentityMissing: Resume needs the native conversation ID, which
+	// was never recorded, so it refuses instead of opening a different
+	// conversation (FS-07.R25). Its text is the user-facing refusal.
+	ErrNativeIdentityMissing = errors.New("this terminal agent's conversation ID was never recorded, so Resume cannot reopen it; start a new agent to continue the work")
 	// ErrTurnInFlight: a turn is already running for the agent (no queue, §12.3).
 	ErrTurnInFlight = errors.New("runtime: a turn is already in flight")
 	// ErrNoPendingPermission: no pending permission for the given tool_call_id.
