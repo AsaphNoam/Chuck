@@ -19,7 +19,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   rule; live Claude receipt
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
-- **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`) have been audited
+- **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`), and
+  ASR-D (`c12c4251`) have been audited
   and have open findings; the remaining integrated Codex/Claude reviews are listed under
   [Review queue](#review-queue), sized for frontier reviewers. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
@@ -185,7 +186,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-A](AGENT-SURFACE-REVIEW.md#asr-a--instructions-configuration-and-execution-environment) | Instructions, configuration and execution environment | reviewed — findings open (`4fbeb316`) |
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
 | [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | reviewed — findings open (`6b5de19b`) |
-| [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | waiting to start |
+| [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | reviewed — findings open (`c12c4251`) |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | waiting to start |
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | waiting to start |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | waiting to start |
@@ -598,6 +599,118 @@ and native mode-adoption live gates remain owed. Invariant sweep: §1, §2, §4,
 interface), §7 (no record repair), §12 (no new external invocation), §13 (no UI markup) and §14
 (no new HTTP surface) have no applicable surface. Fixes and sibling reviews were not selected.
 
+### ASR-D — Conversation, input and history fidelity — reviewed `c12c4251` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Five Must-fix findings remain on this unit. Each fix extends existing transcript, lifecycle,
+receipt or reconciliation seams; the hardest fixes coordinate bounded concurrency and durable
+publication across those seams. Audit complete; no product code or specifications changed.
+Tree clean at entry. Source mode: repository source at
+`c12c425109a7bdd5682451f02afe958477319e7a`; release lock pins Claude ACP 0.85.1 / Agent SDK
+0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. No credentialed provider run was performed.
+
+- **Must fix** — ASRD-1 — **Independent writers reuse transcript sequences across history operations**
+  (INV §1/§2/§5/§9/§11/§15). `internal/server/primer.go:65–81`, `switch.go:277–281`,
+  `sessions.go:347–398`, `internal/runtime/chat.go:2305–2318`: a cross-backend switch starts
+  the target's long-lived writer, then opens another writer for its switch marker. The target's
+  sequence cursor never observes that append. A successful Claude → Codex switch followed by one
+  prompt produces both `backend_switch` and `user_text` at sequence 2. Independently, two inactive
+  annotation requests, or annotation versus Resume, can both open at the same next sequence;
+  writer mutexes are instance-local. This breaks TS-02.R8's monotonic identity, FS-01.R14's
+  continuous history and FS-13.R5/R10's annotation replay/search. Route active markers through the
+  runtime's serialized allocator and fence inactive appends against one another and lifecycle
+  transitions using existing ownership seams. Also preserve truthful switch failure handling:
+  marker append failure currently returns 500 after the target is already active with no rollback,
+  and deferred `Close` ignores its sync error. Regress unique increasing sequences through both
+  handoff directions → first prompt, concurrent inactive annotations and annotation → Resume,
+  plus marker append/sync failure after activation. Evidence: the independent fake-ACP overlay
+  `/tmp/asr07_overlay.json` fails `TestASR07SwitchMarkerSequenceCollision` on the duplicate;
+  `/tmp/transcript_race_overlay.json` confirms two independent writers append the same sequence.
+- **Must fix** — ASRD-2 — **Concurrent live events are persisted and published out of sequence**
+  (INV §2/§5/§11/§15). `internal/runtime/chat.go:2080–2100,2123–2128,2158–2175`:
+  sequence allocation/in-memory insertion release `as.mu` before persistence and publication.
+  An annotation of a busy source sent to another agent can overtake ACP output, even with one
+  active writer: event N+1 may be durable/published before event N. Reader/context turn boundaries
+  and live/replayed ordering then disagree with TS-02.R8 and FS-03.R8/R13. The temporary scheduled
+  writer probe records `2 (annotation), 1 (assistant_text)` in the durable file. Serialize sequence
+  allocation, append and ordered publication through one existing event seam, including special
+  annotation/notice append paths, without holding a mutex across reentrant provider callbacks.
+  Regress simultaneous ACP output, annotation and permission/notice events with barriers and assert
+  increasing durable and observed order, not merely race-detector success.
+- **Must fix** — ASRD-3 — **Failed transcript writes still become live conversation history**
+  (INV §7/§9/§15). `internal/runtime/chat.go:2097–2129`: only a required user prompt is
+  withdrawn when `persistEvent` fails; assistant text, tools and other ordinary events still reach
+  the hub and external sink. A disk/write failure therefore shows output that disappears on reload,
+  archive or later history handoff, contrary to FS-03.R13/TS-02.R8. An injected failed file append
+  returns `persisted=false`, leaves zero durable bytes, and still delivers `assistant_text` to the
+  subscriber. Make failure explicit and prevent unretained events from masquerading as durable
+  history; keep recovery/status publication bounded and avoid recursively using the failing writer.
+  Regress append and sync failures against both live subscribers and durable replay. Evidence for
+  ASRD-2/3: `/tmp/asrd_persist_overlay.json`, `TestASRDConcurrentEmitReordersDurableEvents` and
+  `TestASRDAppendFailureStillPublishes`; both reproduce the defects.
+- **Must fix** — ASRD-4 — **Retrying an annotation after a lost response delivers it twice**
+  (INV §2/§11/§15). `ui/src/components/chat/annotationDelivery.ts:76–94`,
+  `ui/src/lib/annotations.ts:69–76`, `internal/server/sessions.go:232–262`: delivery inserts
+  reserved-user mail (or starts a self prompt) before the success response, but the request carries
+  no stable delivery identity or receipt. If that response is lost, the preserved tray's Retry
+  inserts another source event and another actionable mail/prompt. The isolated handler probe
+  discards the first successful response and retries the same body: both return 202 and the target
+  has two mail rows. This defeats FS-13.R3/R5's recoverable batch behavior and INV §15's harmless
+  replay rule. Extend the existing receipt/idempotency pattern across desktop/phone delivery and
+  launched-recipient retry; retain the deliberate new attempt after a definite pre-delivery
+  failure. Room annotations already carry a command id and atomically deduplicate their mail.
+  Regress lost responses for mail and self targets, including a reload and New task delivery.
+  Evidence: `/tmp/asrd_annotation_overlay.json`, `TestASRDAnnotationLostResponseRetryDuplicates`.
+- **Must fix** — ASRD-5 — **Reconciliation reads arbitrary session artifacts as transcript truth**
+  (INV §1/§7/§8/§16). `internal/server/reconcile.go:87–100,118–165`: the sweep recursively
+  admits every file under an `a_*` session directory, including attachments, then `os.ReadFile`
+  and `strings.Split` retain its whole contents; assistant deltas also accumulate without a bound
+  before the final 120-rune clip. Large attachments/long conversations incur repeated unbounded
+  reads every sweep. More directly, an uploaded NDJSON log containing an `assistant_text` record
+  can replace a stale card preview with unrelated file content. The isolated probe confirms exactly
+  that false preview. TS-01.R8 restricts fallback to Chuck's normalized log; TS-02.R1/R8 preserve
+  that authority. Restrict candidates to the authoritative transcript path and use bounded streaming
+  retention for the preview, preserving stale-generation guards and reporting real read failures.
+  Regress unrelated artifacts, long streamed replies and bounded reads. Evidence:
+  `/tmp/asrd_annotation_overlay.json`, `TestASRDReconcileAcceptsAttachmentAsTranscript`.
+
+Connected evidence ledger and J5 (context in delegated work):
+
+| Retained topic | Whole-chain coverage and result |
+|---|---|
+| 07 — Lifecycle/history | Traced ordinary/wake/restart resume, load replay gate, clone prefix/artifact copying, switch/rollback, bounded primer and native-conversation bridge/compaction lifetime. ASRD-1 breaks successful handoff history; ASRB-1/2/3 retain terminal/Claude/Codex fork failures under their existing identities. ASRA-1 remains the frozen model-override finding. |
+| 13 — Durability/replay | Traced append/sync → index/counters/rollups → hub/bus/SSE → transcript refetch/window/reconciliation. Atomic snapshot+subscribe and bounded slow-client fan-out close the subscription gap; source and UI tests cover refetch/folding. ASRD-1/2/3/5 break identity, order, durability and fallback truth. Torn tails and oversized/malformed records use the shared tolerant reader. |
+| 14 — Input/bytes | Traced Composer through exact ACP text/image/file blocks, immutable SHA/size/ownership validation, request receipts, holds/Steer/Stop/restart recovery and clone-owned copies. File mentions and advertised skill/command names are intentionally verbatim text (FS-03.R31–R33); binary files become resource links/read instructions, never decoded prompt text. No additional attachment defect found. |
+| 15 — Authorized context/annotations | Traced token-derived share/read identity, exact source spans, canonical grants, per-page authorization, cursor/rune bounds, tombstones and peer-read fixed prefixes. Task creation rechecks attach authority in its transaction; confirmed assignee membership grants its own references across Stop/terminal completion without copying unrelated grants. Annotations preserve captured excerpts/anchors without rereading disk; ASRD-4 breaks retry delivery and ASRD-1/2 affect recording. |
+
+Task launch passes the verbatim assignment plus reporting guidance through the ordinary input seam;
+existing-agent/wake/dependency continuations use host-owned activation and `get_assigned_task`, not
+a global context scan. Pipeline successor/replacement context follows explicit task attachments
+and work-derived membership. Room access rechecks membership and current attempt; capture matches
+generation+turn, omits private prompts/prose, and projects Chuck tool calls/results as receipts.
+Goal attachment paths remain ordinary provider file access under FS-21.R54/TS-05.R26, and judge
+instructions are judge-only. Relative annotation anchors remain point-in-time source locations,
+not directory grants. Native loads request the saved provider session while suppressing replay into Chuck;
+cross-provider handoffs deliver bounded semantic text with omission markers, not reconstructed
+multimodal history. These traces join intake, correct checkout, authority, native submission and
+readback; they do not establish that a live provider consumed each supplied context.
+
+Verification: focused attachment/image runtime and server tests and Composer's 41 tests pass;
+context/peer/assignment MCP tests pass with approved loopback execution. Full `-race` package tests
+for `internal/contextref`, `transcript`, `index` and `bus` pass. The FTS5 focused server/MCP
+annotation, reconciliation, transcript-window, handoff and task-attachment checks pass; the full
+FTS5 context-service package also passes. UI
+transcript/SSE tests pass 50/50 with presentation checks. Temporary probes above reproduce defects;
+the switch sequence regression intentionally fails. `CHUCK_RUNTIME_ROOT` was unset and tests used
+isolated temporary homes/fake ACP. No provider credentials, rendered UI or devices were exercised;
+FS-01.A7/A8, TS-02.R48 and existing task/room/native/device receipts remain owed.
+
+Existing evidence reconciled: PROMPT-2's frozen-only diagnostics remain unchanged; CI-1's earlier
+closure is retained, with no new cancellation-double evidence against it. SetSessionConfig still
+holds `as.mu` across the config RPC (ASRC-1); its read-loop stall is not duplicated here.
+Invariant sweep: §1–5, §7–12 and §14–17 applicable and checked; §6 has no new interface/runtime
+contract to add and §13 has no styling/class-name change. No local implementation choice or human
+decision was introduced. Sibling reviews and fixes were not selected.
+
 ### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Report received 2026-10-18, verbatim:
@@ -676,6 +789,13 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed conversation, input and history fidelity (ASR-D):** audited current
+  implementation at `c12c4251`, including delegated context and intake/native/durable/readback
+  joins. Five Must-fix findings cover duplicate/out-of-order transcript sequences, live output
+  after failed persistence, annotation replay delivery and reconciliation artifact/size bounds.
+  Isolated overlay probes reproduce the defects; focused Go, race, FTS5, MCP and UI checks pass
+  as scoped above. Native provider/device acceptance remains owed. Product code/specs unchanged.
 
 - **2026-10-19 — Reviewed Codex and Claude native integration fidelity (ASR-B):** audited
   `6b5de19b` against pinned adapter/native contracts. Eight Must-fix findings cover terminal
