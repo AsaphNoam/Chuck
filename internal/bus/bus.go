@@ -147,19 +147,28 @@ func (b *Bus) PublishStateUpdate(update state.AgentStateUpdate) {
 func (b *Bus) PublishRuntimeEvent(ev runtime.Event) {
 	agentID := ev.AgentID
 	b.Publish("new_message", &agentID, ev)
-	if ev.Type == runtime.EvPermissionRequest {
-		var detail map[string]any
-		_ = json.Unmarshal(ev.Data, &detail)
-		var update state.AgentStateUpdate
-		b.mu.RLock()
-		update = b.snapshot[agentID]
-		b.mu.RUnlock()
-		if update.AgentID == "" {
-			update.AgentID = agentID
-			update.Name = agentID
-		}
-		b.Publish("notification", &agentID, notificationPayload(update, "permission_required", detail))
+	b.PublishPermissionNotification(ev)
+}
+
+// PublishPermissionNotification raises the permission_required notification
+// for a permission request. It is separate from history so an approval stays
+// reachable even when the request's transcript record failed (FS-03.R99).
+func (b *Bus) PublishPermissionNotification(ev runtime.Event) {
+	if ev.Type != runtime.EvPermissionRequest {
+		return
 	}
+	agentID := ev.AgentID
+	var detail map[string]any
+	_ = json.Unmarshal(ev.Data, &detail)
+	var update state.AgentStateUpdate
+	b.mu.RLock()
+	update = b.snapshot[agentID]
+	b.mu.RUnlock()
+	if update.AgentID == "" {
+		update.AgentID = agentID
+		update.Name = agentID
+	}
+	b.Publish("notification", &agentID, notificationPayload(update, "permission_required", detail))
 }
 
 // PublishBudgetExceeded emits a budget_exceeded notification, naming the agent

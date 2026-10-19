@@ -138,12 +138,20 @@ func (r *Registry) SetTerminalRuntime(rt Runtime) {
 	}
 }
 
-// SetEventSink mirrors runtime transcript events into an external bus.
-func (r *Registry) SetEventSink(sink func(Event)) {
+// SetEventSink installs the control observer of runtime commit attempts.
+func (r *Registry) SetEventSink(sink func(Observation)) {
 	if r == nil || r.chat == nil {
 		return
 	}
 	r.chat.SetEventSink(sink)
+}
+
+// SetHistoryPublisher mirrors committed history into an external bus.
+func (r *Registry) SetHistoryPublisher(publish func(Event)) {
+	if r == nil || r.chat == nil {
+		return
+	}
+	r.chat.SetHistoryPublisher(publish)
 }
 
 // SetActivitySink mirrors live-only runtime activity into an external bus.

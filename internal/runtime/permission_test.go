@@ -335,6 +335,7 @@ func TestTakePendingSingleWinner(t *testing.T) {
 
 	c := NewChatRuntime(st)
 	as := &agentState{
+		journal: NewJournal("", nil),
 		agentID: "a_perm_race",
 		hub:     NewHub(),
 		pending: map[string]*pendingPerm{
@@ -379,6 +380,7 @@ func TestTakePendingReportsAlreadyResolved(t *testing.T) {
 
 	c := NewChatRuntime(st)
 	as := &agentState{
+		journal:  NewJournal("", nil),
 		agentID:  "a_perm_done",
 		hub:      NewHub(),
 		pending:  map[string]*pendingPerm{},

@@ -52,6 +52,7 @@ func newFileReportAgentState(t *testing.T, requestID, root string) (*ChatRuntime
 	t.Cleanup(func() { st.Close() })
 	c := NewChatRuntime(st)
 	as := &agentState{
+		journal:           NewJournal("", nil),
 		agentID:           "a_filereport",
 		hub:               NewHub(),
 		roots:             []string{root},

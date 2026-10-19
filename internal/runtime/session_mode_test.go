@@ -49,7 +49,7 @@ func TestDecodeSessionModes(t *testing.T) {
 // it updates the snapshot, and an id the session never offered is ignored.
 func TestModeUpdatesReplaceLiveState(t *testing.T) {
 	c := NewChatRuntime(nil)
-	as := &agentState{agentID: "a1"}
+	as := &agentState{agentID: "a1", journal: NewJournal("a1", nil)}
 	c.agents["a1"] = as
 	update := func(body string) {
 		c.onNotification(as, "session/update", json.RawMessage(`{"sessionId":"","update":`+body+`}`))

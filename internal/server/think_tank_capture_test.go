@@ -76,14 +76,14 @@ func TestThinkTankCaptureProjectsRoomActivity(t *testing.T) {
 		roomEvent(t, "a_two", "g1", "t1", 8, runtime.EvDiff, runtime.DiffData{ToolCallID: "c5", Path: "other.md"}),
 	}
 	for _, ev := range events {
-		srv.captureThinkTankEvent(ev)
+		srv.captureThinkTankEvent(runtime.Observation{Event: ev, Outcome: runtime.CommitCommitted, IndexOK: true})
 	}
 	if _, err := srv.stateStore.StageThinkTankTurn("a_one", a.Token, state.ThinkTankReply, "A", "ttr_"+strings.TrimPrefix(a.AttemptID, "tta_")+"_0"); err != nil {
 		t.Fatal(err)
 	}
 	srv.finishThinkTankTurn(roomEvent(t, "a_one", "g1", "t1", 9, runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn"}))
 	beginCapturedTurn(t, srv, room.RoomID, "a_two", "t2", cwdB)
-	srv.captureThinkTankEvent(roomEvent(t, "a_two", "g1", "t2", 1, runtime.EvDiff, runtime.DiffData{ToolCallID: "d1", Path: "notes.md"}))
+	srv.captureThinkTankEvent(runtime.Observation{Event: roomEvent(t, "a_two", "g1", "t2", 1, runtime.EvDiff, runtime.DiffData{ToolCallID: "d1", Path: "notes.md"}), Outcome: runtime.CommitCommitted, IndexOK: true})
 
 	base := "/api/think-tanks/" + room.RoomID
 	act := doJSON(t, h, http.MethodGet, base+"/activity", "")
@@ -134,7 +134,7 @@ func TestThinkTankCaptureProjectsRoomActivity(t *testing.T) {
 		roomEvent(t, "a_two", "g1", "t2", 5, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "s2", Name: "execute", Args: json.RawMessage(`{"command":"make"}`)}),
 		roomEvent(t, "a_two", "g1", "t2", 6, runtime.EvToolCallUpdate, runtime.ToolCallUpdateData{ToolCallID: "s2", Name: "execute", Args: json.RawMessage(`{"command":"make test"}`)}),
 	} {
-		srv.captureThinkTankEvent(ev)
+		srv.captureThinkTankEvent(runtime.Observation{Event: ev, Outcome: runtime.CommitCommitted, IndexOK: true})
 	}
 	if body := doJSON(t, h, http.MethodGet, base+"/activity", "").Body.String(); strings.Contains(body, "streamed-secret") {
 		t.Fatalf("activity leaked streamed Chuck input: %s", body)
@@ -292,8 +292,41 @@ func TestThinkTankOpeningActivityIsWithheld(t *testing.T) {
 	var room thinkTankDetailWire
 	_ = json.Unmarshal(rec.Body.Bytes(), &room)
 	beginCapturedTurn(t, srv, room.RoomID, "a_one", "t1", t.TempDir())
-	srv.captureThinkTankEvent(roomEvent(t, "a_one", "g1", "t1", 1, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "c", Name: "Bash", Args: json.RawMessage(`{"command":"opening secret"}`)}))
+	srv.captureThinkTankEvent(runtime.Observation{Event: roomEvent(t, "a_one", "g1", "t1", 1, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "c", Name: "Bash", Args: json.RawMessage(`{"command":"opening secret"}`)}), Outcome: runtime.CommitCommitted, IndexOK: true})
 	if got := doJSON(t, h, http.MethodGet, "/api/think-tanks/"+room.RoomID+"/activity", "").Body.String(); strings.Contains(got, "opening secret") {
 		t.Fatalf("withheld opening activity offered: %s", got)
 	}
+}
+
+// TS-01.R39 / TS-04.R100 / FS-03.A78: room output needs a committed canonical
+// source. An uncommitted event of the attempt's turn — here the turn_end itself —
+// fails the exact attempt instead of finalizing a staged reply as accepted.
+func TestThinkTankUncommittedSourceFailsAttempt(t *testing.T) {
+	srv, h := roomRESTServer(t)
+	rec := doJSON(t, h, http.MethodPost, "/api/think-tanks", roomBody("a_one", "a_two"))
+	var room thinkTankDetailWire
+	_ = json.Unmarshal(rec.Body.Bytes(), &room)
+	a := beginCapturedTurn(t, srv, room.RoomID, "a_one", "t1", t.TempDir())
+	srv.captureThinkTankEvent(runtime.Observation{Event: roomEvent(t, "a_one", "g1", "t1", 1, runtime.EvToolCall,
+		runtime.ToolCallData{ToolCallID: "c1", Name: "Bash", Args: json.RawMessage(`{"command":"ls"}`)}), Outcome: runtime.CommitCommitted, IndexOK: true})
+	if _, err := srv.stateStore.StageThinkTankTurn("a_one", a.Token, state.ThinkTankReply, "A", "ttr_"+strings.TrimPrefix(a.AttemptID, "tta_")+"_0"); err != nil {
+		t.Fatal(err)
+	}
+	end := roomEvent(t, "a_one", "g1", "t1", 2, runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn"})
+	srv.captureThinkTankEvent(runtime.Observation{Event: end, Outcome: runtime.CommitUncertain, IndexOK: true})
+	srv.finishThinkTankTurn(end)
+
+	d, err := srv.stateStore.ReadThinkTank(room.RoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, got := range d.Attempts {
+		if got.AttemptID == a.AttemptID {
+			if got.State != state.ThinkTankAttemptFailed {
+				t.Fatalf("attempt state = %q, want failed for an uncommitted source", got.State)
+			}
+			return
+		}
+	}
+	t.Fatalf("attempt %s not found in %+v", a.AttemptID, d.Attempts)
 }

@@ -123,13 +123,11 @@ func (c *ChatRuntime) writeForkPrefix(as *agentState, plan *ForkPlan) error {
 		}
 	}
 	for _, ev := range plan.Prefix {
-		as.mu.Lock()
-		as.seq++
-		ev.AgentID, ev.Generation, ev.Seq = as.agentID, as.generation, as.seq
-		as.transcript = append(as.transcript, ev)
-		as.mu.Unlock()
-		if !c.persistEvent(as, ev) {
-			return fmt.Errorf("runtime: write clone history at seq %d", ev.Seq)
+		ev.Generation = as.generation
+		// Clone history is retained, not replayed as live activity.
+		obs := as.journal.Commit(CommitRequest{Event: ev, Committed: as.retainHistory, Unpublished: true})
+		if !obs.Committed() || !obs.IndexOK {
+			return fmt.Errorf("runtime: write clone history at seq %d", obs.Event.Seq)
 		}
 	}
 	c.emit(as, EvForkBoundary, ForkBoundaryData{ForkedFromAgentID: plan.SourceAgentID, ForkedFromSeq: plan.SourceSeq})
@@ -147,11 +145,7 @@ func (c *ChatRuntime) discardForkPersistence(as *agentState) {
 	c.mu.Lock()
 	ix := c.indexer
 	c.mu.Unlock()
-	as.mu.Lock()
-	w := as.writer
-	as.writer = nil
-	as.mu.Unlock()
-	if w != nil {
+	if w := as.journal.Detach(); w != nil {
 		if err := w.Discard(); err != nil {
 			slog.Warn("runtime: discard clone transcript", "agent", as.agentID, "err", err)
 		}

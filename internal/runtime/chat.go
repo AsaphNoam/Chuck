@@ -63,7 +63,9 @@ type ChatRuntime struct {
 
 	mu     sync.Mutex
 	agents map[string]*agentState
-	sink   func(Event)
+	sink   func(Observation)
+	// history receives committed events in commit order (TS-01.R39).
+	history func(Event)
 	// activitySink receives live-only reasoning (TS-03.R44).
 	activitySink    func(ActivityNotice)
 	touch           func(string)
@@ -178,11 +180,22 @@ func (c *ChatRuntime) startCmd(cmd *exec.Cmd, spec LaunchSpec) error {
 	return start()
 }
 
-// SetEventSink mirrors normalized runtime events into the Phase 2 bus.
-func (c *ChatRuntime) SetEventSink(sink func(Event)) {
+// SetEventSink installs the control observer: it sees every runtime event's
+// commit attempt, after the journal lock is released, with its outcome
+// (TS-04.R100). It is not a history publisher.
+func (c *ChatRuntime) SetEventSink(sink func(Observation)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sink = sink
+}
+
+// SetHistoryPublisher installs the external publisher of committed history.
+// It runs under the journal lock in commit order, so it must not block on
+// subscribers, call controllers or touch runtime state (TS-01.R39).
+func (c *ChatRuntime) SetHistoryPublisher(publish func(Event)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.history = publish
 }
 
 // SetStateTouch is called after runtime-owned state.db writes so the dashboard
@@ -260,7 +273,7 @@ type agentState struct {
 	hostApproved           map[string]*HostPermission // approved host requests not yet admitted
 	hostVoidSeq            uint64                     // bumped by requester cancellation; voids open host requests
 	transcript             []Event
-	writer                 TranscriptWriter
+	journal                *Journal
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
 	// replace-only live state, not a transcript event: each update overwrites it,
 	// an empty update clears it, and it dies with this agentState on stop/crash.
@@ -394,6 +407,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		processZone:      processZone(cmd.Env),
 		quotaSelection:   quotaSelectionOf(spec),
 	}
+	as.journal = NewJournal(as.agentID, c.publishHistory)
 	as.transport = NewTransport(stdin,
 		func(method string, params json.RawMessage) { c.onNotification(as, method, params) },
 		func(req *IncomingRequest) { c.onRequest(as, req) },
@@ -1407,6 +1421,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		// replaying immediately must not race an assignment made later.
 		loadReplay: true,
 	}
+	as.journal = NewJournal(as.agentID, c.publishHistory)
 	as.transport = NewTransport(stdin,
 		func(method string, params json.RawMessage) { c.onNotification(as, method, params) },
 		func(req *IncomingRequest) { c.onRequest(as, req) },
@@ -2055,46 +2070,41 @@ func (c *ChatRuntime) emitIn(as *agentState, scope activityScope, typ string, da
 	return ev
 }
 
-// emitChecked is emitIn reporting durability. A required event that fails to
-// persist is withdrawn and never published.
+// emitChecked is emitIn reporting durability. Every event commits through the
+// conversation journal, which serializes allocation, append and publication
+// (TS-01.R39); an event that does not commit never becomes live history. The
+// control sink still observes the attempt with its outcome (TS-04.R100), so
+// independently durable cleanup is not withheld by a transcript failure.
+// required only names callers that act on the result (a user prompt).
 func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ string, data any, required bool) (Event, bool) {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		slog.Error("runtime: marshal event payload", "type", typ, "err", err)
 		return Event{}, false
 	}
+	// Capture scope under as.mu, then release it before entering the journal.
 	as.mu.Lock()
-	as.seq++
 	turnID := as.execTurnID
 	if scope.ActivityID != "" || scope.TurnID != "" {
 		turnID = scope.TurnID
 	}
 	ev := Event{
-		AgentID: as.agentID, Generation: as.generation, TurnID: turnID,
-		Seq:  as.seq,
+		Generation: as.generation, TurnID: turnID,
 		Type: typ,
 		Data: raw,
 		Ts:   time.Now().UTC().Format(time.RFC3339),
 
 		ActivityID: scope.ActivityID, ParentActivityID: scope.ParentActivityID,
 	}
-	as.transcript = append(as.transcript, ev)
 	as.mu.Unlock()
-	// Durability is best-effort: a transcript write failure is logged inside
-	// persistEvent but must NOT suppress live delivery, or subscribers' in-memory
-	// view would silently diverge from Transcript() on a disk error.
-	persisted := c.persistEvent(as, ev)
-	if !persisted && required {
-		as.mu.Lock()
-		for i := range as.transcript {
-			if as.transcript[i].Seq == ev.Seq {
-				as.transcript = append(as.transcript[:i], as.transcript[i+1:]...)
-				break
-			}
-		}
-		as.mu.Unlock()
-		return Event{}, false
+	req := CommitRequest{Event: ev, Committed: as.retainCommitted}
+	if typ == EvTurnEnd {
+		last := as.lastContext()
+		req.Rollup = &TurnRollup{LastContextPct: last.pct, LastContext: last.counts}
 	}
+	obs := as.journal.Commit(req)
+	ev = obs.Event
+	persisted := obs.Committed()
 	if persisted && typ == EvAssistantImage {
 		var image AssistantImageData
 		if json.Unmarshal(ev.Data, &image) == nil && image.Attachment != nil {
@@ -2106,14 +2116,42 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 			}
 		}
 	}
-	as.hub.Publish(ev)
 	c.mu.Lock()
 	sink := c.sink
 	c.mu.Unlock()
 	if sink != nil {
-		sink(ev)
+		sink(obs)
+	}
+	if !persisted && required {
+		return Event{}, false
 	}
 	return ev, persisted
+}
+
+// retainCommitted is the journal's post-commit bookkeeping for a live agent:
+// it records the event in the in-memory history and publishes it to the hub
+// under the journal lock, so live order equals durable order (TS-01.R39).
+func (as *agentState) retainCommitted(ev Event) {
+	as.retainHistory(ev)
+	as.hub.Publish(ev)
+}
+
+// retainHistory records a committed event in the in-memory history only.
+func (as *agentState) retainHistory(ev Event) {
+	as.mu.Lock()
+	as.seq = ev.Seq
+	as.transcript = append(as.transcript, ev)
+	as.mu.Unlock()
+}
+
+// publishHistory forwards a committed event to the external history publisher.
+func (c *ChatRuntime) publishHistory(ev Event) {
+	c.mu.Lock()
+	publish := c.history
+	c.mu.Unlock()
+	if publish != nil {
+		publish(ev)
+	}
 }
 
 // AppendAnnotation records and publishes a dashboard annotation through the
@@ -2136,33 +2174,17 @@ func (c *ChatRuntime) AppendAnnotationAndSync(agentID string, data AnnotationDat
 		return Event{}, err
 	}
 
-	// Build the event like emit() does, but WITHOUT publishing.
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return Event{}, fmt.Errorf("marshal annotation data: %w", err)
 	}
-
-	as.mu.Lock()
-	as.seq++
-	ev := Event{
-		AgentID: as.agentID,
-		Seq:     as.seq,
-		Type:    EvAnnotation,
-		Data:    raw,
-		Ts:      time.Now().UTC().Format(time.RFC3339),
+	// The journal publishes only after the append and its sync succeed; the
+	// control sink is not invoked for an annotation.
+	obs := as.journal.Commit(CommitRequest{Event: Event{Type: EvAnnotation, Data: raw}, Committed: as.retainCommitted})
+	if !obs.Committed() {
+		return Event{}, fmt.Errorf("persist annotation: transcript %s", obs.Outcome)
 	}
-	as.transcript = append(as.transcript, ev)
-	as.mu.Unlock()
-
-	// Persist the event synchronously before returning. persistEvent logs and
-	// returns a bool indicating success; a failed append is an error that must
-	// not be suppressed (unlike the normal emit path where best-effort
-	// persistence does not suppress delivery).
-	if !c.persistEvent(as, ev) {
-		return Event{}, fmt.Errorf("persist annotation: transcript or index sync failed")
-	}
-
-	return ev, nil
+	return obs.Event, nil
 }
 
 // AppendQuotaNoticeAndSync appends one idempotent quota-continuation notice
@@ -2193,33 +2215,28 @@ func (c *ChatRuntime) AppendQuotaNoticeAndSync(agentID string, data NoticeData) 
 			return old, nil
 		}
 	}
-	w := as.writer
-	if w == nil {
-		as.mu.Unlock()
-		return Event{}, fmt.Errorf("quota notice requires an active durable transcript")
-	}
-	as.seq++
-	ev := Event{
-		AgentID: as.agentID, Generation: as.generation, TurnID: as.execTurnID,
-		Seq: as.seq, Type: EvNotice, Ts: time.Now().UTC().Format(time.RFC3339),
-	}
-	var marshalErr error
-	ev.Data, marshalErr = json.Marshal(data)
+	ev := Event{Generation: as.generation, TurnID: as.execTurnID, Type: EvNotice}
 	as.mu.Unlock()
-	if marshalErr != nil {
-		return Event{}, marshalErr
+	return c.commitNotice(as, CommitRequest{Event: ev, IndexedByCaller: true}, data, "quota notice")
+}
+
+// commitNotice commits one history-only notice through the journal. It never
+// invokes the control sink, so a notice appended from inside a control
+// callback cannot re-enter that callback (TS-01.R39).
+func (c *ChatRuntime) commitNotice(as *agentState, req CommitRequest, data NoticeData, what string) (Event, error) {
+	if !as.journal.Durable() {
+		return Event{}, fmt.Errorf("%s requires an active durable transcript", what)
 	}
-	if err := w.Append(ev); err != nil {
-		return Event{}, fmt.Errorf("append quota notice: %w", err)
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return Event{}, err
 	}
-	if err := w.Sync(); err != nil {
-		return Event{}, fmt.Errorf("sync quota notice: %w", err)
+	req.Event.Data, req.Committed = raw, as.retainCommitted
+	obs := as.journal.Commit(req)
+	if !obs.Committed() {
+		return Event{}, fmt.Errorf("persist %s: transcript %s", what, obs.Outcome)
 	}
-	as.mu.Lock()
-	as.transcript = append(as.transcript, ev)
-	as.mu.Unlock()
-	as.hub.Publish(ev)
-	return ev, nil
+	return obs.Event, nil
 }
 
 // AppendPeerStopNoticeAndSync appends one peer Stop audit notice through the
@@ -2248,29 +2265,9 @@ func (c *ChatRuntime) AppendPeerStopNoticeAndSync(agentID string, data NoticeDat
 			return old, nil
 		}
 	}
-	if as.writer == nil {
-		as.mu.Unlock()
-		return Event{}, fmt.Errorf("peer stop notice requires an active durable transcript")
-	}
-	as.seq++
-	ev := Event{
-		AgentID: as.agentID, Generation: as.generation, TurnID: as.execTurnID,
-		Seq: as.seq, Type: EvNotice, Ts: time.Now().UTC().Format(time.RFC3339),
-	}
-	var marshalErr error
-	ev.Data, marshalErr = json.Marshal(data)
+	ev := Event{Generation: as.generation, TurnID: as.execTurnID, Type: EvNotice}
 	as.mu.Unlock()
-	if marshalErr != nil {
-		return Event{}, marshalErr
-	}
-	if !c.persistEvent(as, ev) {
-		return Event{}, fmt.Errorf("persist peer stop notice: transcript or index sync failed")
-	}
-	as.mu.Lock()
-	as.transcript = append(as.transcript, ev)
-	as.mu.Unlock()
-	as.hub.Publish(ev)
-	return ev, nil
+	return c.commitNotice(as, CommitRequest{Event: ev}, data, "peer stop notice")
 }
 
 func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID string) error {
@@ -2300,70 +2297,18 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 		}
 		return fmt.Errorf("runtime: index session meta: %w", err)
 	}
-	as.writer = w
+	as.journal.Attach(w, ix)
+	as.mu.Lock()
 	as.seq = w.NextSeq() - 1
+	as.mu.Unlock()
 	return nil
 }
 
-func (c *ChatRuntime) persistEvent(as *agentState, ev Event) bool {
-	c.mu.Lock()
-	ix := c.indexer
-	c.mu.Unlock()
-	as.mu.Lock()
-	w := as.writer
-	as.mu.Unlock()
-	if w == nil || ix == nil {
-		return true
-	}
-	if err := w.Append(ev); err != nil {
-		slog.Error("runtime: append transcript", "agent", as.agentID, "seq", ev.Seq, "err", err)
-		return false
-	}
-	if ev.Type == EvTurnEnd {
-		_ = w.Sync()
-		last := as.lastContext()
-		rollup := TurnRollup{LastSeq: ev.Seq, UpdatedAt: ev.Ts, LastContextPct: last.pct, LastContext: last.counts}
-		var td TurnEndData
-		if err := json.Unmarshal(ev.Data, &td); err == nil {
-			rollup.LastContextPct, rollup.LastContext = td.ContextPct, td.ContextCounts
-		}
-		if err := ix.OnEventAndTurnEnd(as.agentID, ev, rollup); err != nil {
-			slog.Error("runtime: index turn end", "agent", as.agentID, "seq", ev.Seq, "err", err)
-		}
-		return true
-	}
-	if ev.Type == EvAnnotation || ev.Type == EvNotice || ev.Type == EvUserPrompt || ev.Type == EvPermissionResolved {
-		if err := w.Sync(); err != nil {
-			slog.Error("runtime: sync transcript event", "agent", as.agentID, "seq", ev.Seq, "type", ev.Type, "err", err)
-			return false
-		}
-		if ev.Type == EvAnnotation {
-			if err := ix.OnEventAndFlushContent(as.agentID, ev, ev.Seq, ev.Ts); err != nil {
-				slog.Error("runtime: index annotation", "agent", as.agentID, "seq", ev.Seq, "err", err)
-				return false
-			}
-		} else if err := ix.OnEvent(as.agentID, ev); err != nil {
-			slog.Error("runtime: index quota notice", "agent", as.agentID, "seq", ev.Seq, "err", err)
-			return false
-		}
-		return true
-	}
-	if err := ix.OnEvent(as.agentID, ev); err != nil {
-		slog.Error("runtime: index event", "agent", as.agentID, "seq", ev.Seq, "err", err)
-	}
-	if ev.Type == EvError {
-		_ = w.Sync()
-	}
-	return true
-}
-
 func (as *agentState) closePersistence() {
-	as.mu.Lock()
-	w := as.writer
-	as.writer = nil
-	as.mu.Unlock()
-	if w != nil {
-		_ = w.Close()
+	if w := as.journal.Detach(); w != nil {
+		if err := w.Close(); err != nil {
+			slog.Error("runtime: close transcript", "agent", as.agentID, "err", err)
+		}
 	}
 }
 

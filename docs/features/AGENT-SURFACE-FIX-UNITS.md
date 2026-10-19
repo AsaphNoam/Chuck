@@ -32,7 +32,7 @@ Ordinary fix-closure bookkeeping follows §8 and is not a new implementation rev
 
 | Unit / invocation | Scope | Primary IDs | State / fix model |
 |---|---|---|---|
-| ASW-1 — `/work serialize-conversation-event-commits` | [One conversation commit and ordered control boundary](../ready-changes/serialize-conversation-event-commits.md) | ASRD-1, ASRD-2, ASRD-3, ASRD-5 | In progress 2026-10-19 — ASRD-5 fixed |
+| ASW-1 — `/work serialize-conversation-event-commits` | [One conversation commit and ordered control boundary](../ready-changes/serialize-conversation-event-commits.md) | ASRD-1, ASRD-2, ASRD-3, ASRD-5 | In progress 2026-10-19 — ASRD-5, ASRD-2 fixed; ASRD-3 partly |
 | ASW-2 — `/work preserve-native-execution-contract` | [Frozen native contract, purpose-aware provider preparation and diagnostic provenance](../ready-changes/preserve-native-execution-contract.md) | ASRA-1, ASRA-2, ASRA-3, PROMPT-1, ASRB-2, ASRB-3, ASRB-8, ASRG-4, PROMPT-2 | Waiting — difficult, Codex Sol |
 | ASW-3 — finished 2026-10-19 (`2609e903`..`HEAD`) | Owned process/driver proof, launch claim and native terminal identity (FS-01.R54, FS-07.R25, TS-01.R41, TS-02.R54, TS-04.R102, TS-05.R28, TS-12.R11) | ASRA-4, ASRB-1, ASRB-4, ASRB-5, ASRB-6, ASRB-7, ASRC-3, ASRC-4, ASRC-7 | Implemented; findings fixed pending the ASW-3 substantive review; FS-07.A12 real-driver receipts owed |
 | ASF-1 — `/fix ASF-1` | [Turn, status, permission and settings settlement](#asf-1--turn-and-control-settlement) | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Waiting — medium, Codex Terra or Claude Opus |

@@ -68,12 +68,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   — in progress (started 2026-10-19).** Owns ASRD-1/2/3/5. Slices:
   1. *Done:* ASRD-5 — reconcile admits only `sessions/{a_id}/transcript.ndjson`, streams it with
      the tolerant reader and keeps a 4 KiB reply tail (`internal/server/reconcile.go`).
-  2. *Next:* runtime commit serialization (ASRD-2/3) — a per-agent journal mutex (not `as.mu`)
-     around seq allocation → `Writer.Append`/required sync → in-memory insert → `hub.Publish` →
-     bus publish; failed/uncertain appends never enter `as.transcript`/hub; sequence never reused.
-     Seam: `emitChecked`/`persistEvent` (`internal/runtime/chat.go` ~2048–2360); notice appenders
-     `AppendQuotaNoticeAndSync`/`AppendPeerStopNoticeAndSync`/`AppendAnnotationAndSync`.
-  3. ASRD-1 — registry-owned journal per agent ID shared by chat/terminal/server inactive appends:
+  2. *Done:* `runtime.Journal` (`internal/runtime/journal.go`) serializes seq allocation →
+     append/required sync → index → in-memory/hub (`retainCommitted`) → `SetHistoryPublisher`
+     (bus `new_message`), all under `Journal.mu` (lock order `Journal.mu` → `as.mu`). Outcomes
+     `not_written|uncertain|committed` + `IndexOK`; uncertain latches `broken` and refuses later
+     appends; sequences never reused. `SetEventSink` is now `func(Observation)` (control, outside
+     the lock); the server sink fails room capture on any uncommitted source of its turn and still
+     raises permission notifications. Every chat append (emit, annotation, quota/peer notices,
+     fork prefix — unpublished) goes through it; `persistEvent`/`as.writer` are gone. The journal
+     is still per `agentState` (per generation) — slice 3 moves it to a registry-owned per-agent set.
+  3. *Next:* ASRD-1 — registry-owned journal per agent ID shared by chat/terminal/server inactive appends:
      route `appendBackendSwitchMarker` (`primer.go:65`), inactive `appendAnnotation`
      (`sessions.go:388`, no lifecycle claim today), `appendStoppedQuotaNotice`, peer notice fallback
      through it; switch-marker failure after activation returns the truthful TS-03.R73 envelope.
@@ -82,7 +86,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
      SQLite authority.
   5. History health/gap recovery: SQLite forward migration, `history_state`, open-writer marker,
      admission latch (FS-03.R99, TS-02.R52, TS-03.R73).
-  Checks so far: `go test ./internal/server -run 'TestReconcile|TestLastAssistantPreview'`.
+  Slice 5 must also repair a latched `broken` journal (tail validation + gap notice) and surface
+  `Journal.Health`; until then a broken journal recovers only on the next generation's reopen,
+  and an uncommitted permission resolution is not in history (its prompt may linger in the UI).
+  Server notice paths still republish to the bus after the journal does (idempotent by seq; remove
+  in slice 3). Checks so far: `go test ./internal/runtime ./internal/server ./internal/bus
+  ./internal/transcript ./internal/index` and `-race -run TestJournal ./internal/runtime`.
 - ASW-3 (process and terminal-driver ownership) closed 2026-10-19 and awaits its substantive
   review (Review queue); FS-07.A12 real tmux/iTerm2 receipts are owed.
 
@@ -748,6 +757,8 @@ Tree clean at entry. Source mode: repository source at
   annotation/notice append paths, without holding a mutex across reentrant provider callbacks.
   Regress simultaneous ACP output, annotation and permission/notice events with barriers and assert
   increasing durable and observed order, not merely race-detector success.
+  *Fixed in ASW-1 slice 2 (2026-10-19), pending review:* `runtime.Journal` serializes allocation,
+  append, in-memory/hub and bus publication (`TestJournalSerializesConcurrentCommits`).
 - **Must fix** — ASRD-3 — **Failed transcript writes still become live conversation history**
   (INV §7/§9/§15). `internal/runtime/chat.go:2097–2129`: only a required user prompt is
   withdrawn when `persistEvent` fails; assistant text, tools and other ordinary events still reach
@@ -764,6 +775,10 @@ Tree clean at entry. Source mode: repository source at
   also a control-consumer boundary. Do not globally suppress cleanup of an independently committed
   task result when transcript persistence fails. Make event durability/authority explicit to each
   consumer; the [fix strategy](AGENT-SURFACE-FIX-STRATEGY.md) records the distinction and limits.
+  *Partly fixed in ASW-1 slice 2 (2026-10-19):* uncommitted events never reach hub/bus/in-memory
+  history and the control observer carries the outcome (`TestJournalFailedAppendIsNotPublished`,
+  `TestThinkTankUncommittedSourceFailsAttempt`). Open until slice 5: health surfacing, repair
+  of a latched journal with a durable gap notice, and the admission latch.
 - **Must fix** — ASRD-4 — **Retrying an annotation after a lost response delivers it twice**
   (INV §2/§11/§15). `ui/src/components/chat/annotationDelivery.ts:76–94`,
   `ui/src/lib/annotations.ts:69–76`, `internal/server/sessions.go:232–262`: delivery inserts

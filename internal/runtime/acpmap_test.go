@@ -246,7 +246,7 @@ func TestDecodeAvailableCommands(t *testing.T) {
 // empty update clears it, and an unknown agent yields ErrNoHandle.
 func TestAvailableCommandsSnapshotReplaceOnly(t *testing.T) {
 	c := NewChatRuntime(nil)
-	as := &agentState{agentID: "a1"}
+	as := &agentState{agentID: "a1", journal: NewJournal("a1", nil)}
 	c.agents["a1"] = as
 
 	c.onNotification(as, "session/update", commandsUpdateParams(`[{"name":"review","description":"Review"}]`))

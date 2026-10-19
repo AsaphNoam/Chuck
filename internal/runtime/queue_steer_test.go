@@ -184,6 +184,7 @@ func TestSendPromptOrHoldQueuesOneFollowUpAndDeliversItAsTheNextTurn(t *testing.
 // the ordering that a race detector cannot observe (FS-03.A31, INV §5/§15).
 func TestHeldSuccessorOwnsGateBeforeNewerSend(t *testing.T) {
 	as := &agentState{
+		journal:    NewJournal("", nil),
 		turnActive: true,
 		turnSeq:    1,
 		held:       heldMessage{Text: "queued first", AfterSeq: 7},

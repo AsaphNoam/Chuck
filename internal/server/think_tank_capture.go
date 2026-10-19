@@ -73,15 +73,24 @@ func (s *Server) endThinkTankCapture(agentID, generation, turnID string) (failed
 
 // captureThinkTankEvent runs on the runtime event sink, so capture order is
 // emission order. Events without the attempt's exact generation and turn are
-// never guessed into a room (TS-14.R4).
-func (s *Server) captureThinkTankEvent(ev runtime.Event) {
-	if ev.TurnID == "" || !thinkTankCapturedTypes[ev.Type] {
+// never guessed into a room (TS-14.R4). Room output needs a committed canonical
+// source: any uncommitted event of the attempt's turn, including its turn_end,
+// fails the capture monotonically, so finishThinkTankTurn fails or holds the
+// attempt instead of accepting unsupported output (TS-01.R39, TS-04.R100).
+func (s *Server) captureThinkTankEvent(obs runtime.Observation) {
+	ev := obs.Event
+	if ev.TurnID == "" || (obs.Committed() && !thinkTankCapturedTypes[ev.Type]) {
 		return
 	}
 	s.thinkTankCaptureMu.Lock()
 	defer s.thinkTankCaptureMu.Unlock()
 	c := s.thinkTankCaptures[ev.AgentID]
 	if c == nil || c.generation != ev.Generation || c.turnID != ev.TurnID || c.failed {
+		return
+	}
+	if !obs.Committed() {
+		s.log.Warn("think tank source event not committed", "room", c.roomID, "seq", ev.Seq, "outcome", obs.Outcome)
+		c.failed = true
 		return
 	}
 	payload, err := json.Marshal(map[string]any{

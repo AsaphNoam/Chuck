@@ -912,7 +912,8 @@ func TestResumeSuppressesProviderHistoryReplay(t *testing.T) {
 
 	var sinkMu sync.Mutex
 	var published []Event
-	c.SetEventSink(func(ev Event) {
+	c.SetEventSink(func(obs Observation) {
+		ev := obs.Event
 		sinkMu.Lock()
 		published = append(published, ev)
 		sinkMu.Unlock()

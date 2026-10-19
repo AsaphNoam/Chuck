@@ -263,13 +263,17 @@ func TestHostPermissionSettlementFollowsPublication(t *testing.T) {
 func TestHostPermissionApprovalRequiresDurableRecord(t *testing.T) {
 	c, h, ch, gen := hostBusyAgent(t)
 	hp := openPeerStop(t, c, h.AgentID, gen)
-	c.SetPersistence(t.TempDir(), nil, &removalIndexer{})
 	c.mu.Lock()
 	as := c.agents[h.AgentID]
 	c.mu.Unlock()
-	as.mu.Lock()
-	as.writer = &failingForkWriter{}
-	as.mu.Unlock()
+	as.journal.Attach(&failingForkWriter{}, &removalIndexer{})
+	var obsMu sync.Mutex
+	var observed []Observation
+	c.SetEventSink(func(obs Observation) {
+		obsMu.Lock()
+		observed = append(observed, obs)
+		obsMu.Unlock()
+	})
 	if err := c.Permission(context.Background(), h.AgentID, hp.ID, "approve"); !errors.Is(err, ErrPermissionNotRecorded) {
 		t.Fatalf("approve with failed record = %v", err)
 	}
@@ -279,18 +283,31 @@ func TestHostPermissionApprovalRequiresDurableRecord(t *testing.T) {
 	if err := hp.Admit(); !errors.Is(err, ErrHostPermissionStale) {
 		t.Fatalf("Admit after unrecorded approval = %v", err)
 	}
-	for {
-		ev := waitForEvent(t, ch, EvPermissionResolved)
-		var rd PermissionResolvedData
-		_ = json.Unmarshal(ev.Data, &rd)
-		if rd.ToolCallID != hp.ID {
+	// Neither resolution committed, so neither is live history (FS-03.R99);
+	// the control observer still sees the cancellation with its outcome.
+	for quiet := time.After(100 * time.Millisecond); ; {
+		select {
+		case ev := <-ch:
+			if ev.Type == EvPermissionResolved {
+				t.Fatalf("uncommitted resolution published as history: %+v", ev)
+			}
 			continue
+		case <-quiet:
 		}
-		if rd.Decision != "cancelled" {
-			t.Fatalf("published resolution = %+v, want cancelled", rd)
-		}
-		return
+		break
 	}
+	obsMu.Lock()
+	defer obsMu.Unlock()
+	for _, obs := range observed {
+		var rd PermissionResolvedData
+		if obs.Event.Type == EvPermissionResolved && json.Unmarshal(obs.Event.Data, &rd) == nil && rd.Decision == "cancelled" {
+			if obs.Committed() {
+				t.Fatalf("cancellation reported committed on a failed journal: %+v", obs)
+			}
+			return
+		}
+	}
+	t.Fatalf("control observer never saw the cancellation: %+v", observed)
 }
 
 // FS-06.R42/R44: a requester crash records the host request's cancellation in

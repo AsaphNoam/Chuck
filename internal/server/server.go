@@ -409,12 +409,21 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 			agentID := notice.AgentID
 			eventBus.Publish("runtime_activity", &agentID, notice)
 		})
-		registry.SetEventSink(func(ev runtime.Event) {
-			eventBus.PublishRuntimeEvent(ev)
+		// Committed history reaches SSE in commit order from inside the journal;
+		// the observer below is control only and checks each consumer's own
+		// authority against the commit outcome (TS-01.R39, TS-04.R100).
+		registry.SetHistoryPublisher(eventBus.PublishRuntimeEvent)
+		registry.SetEventSink(func(obs runtime.Observation) {
+			ev := obs.Event
+			if !obs.Committed() {
+				s.log.Error("runtime event not retained in history", "agent", ev.AgentID, "seq", ev.Seq, "type", ev.Type, "outcome", obs.Outcome)
+				// Approvals stay reachable without a history record.
+				eventBus.PublishPermissionNotification(ev)
+			}
 			if err := s.confirmQuotaProgress(ev); err != nil {
 				s.log.Error("confirm quota continuation progress", "agent", ev.AgentID, "err", err)
 			}
-			s.captureThinkTankEvent(ev)
+			s.captureThinkTankEvent(obs)
 			if ev.Type == runtime.EvPermissionRequest || ev.Type == runtime.EvPermissionResolved {
 				s.handlePermissionEvent(ev)
 			}
