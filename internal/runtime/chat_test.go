@@ -380,7 +380,11 @@ func TestCodexDeveloperInstructionsEnv(t *testing.T) {
 		if err != nil {
 			t.Fatalf("spawn Codex: %v", err)
 		}
-		raw, ok := hasEnv(cmd.Env, "CODEX_CONFIG")
+		env, err := codexLaunchEnv(cmd.Env, spec)
+		if err != nil {
+			t.Fatalf("Codex launch env: %v", err)
+		}
+		raw, ok := hasEnv(env, "CODEX_CONFIG")
 		if !ok {
 			t.Fatal("CODEX_CONFIG missing")
 		}
@@ -452,6 +456,8 @@ func TestCodexSpawnRefreshesProfile(t *testing.T) {
 
 func TestCodexDeveloperInstructionsRejectInvalidConfig(t *testing.T) {
 	c := NewChatRuntime(nil)
+	c.command = "/bin/sh"
+	c.cmdArgs = []string{"-c", "exit 0"}
 	ad, _ := backend.For("codex-acp")
 	for name, config := range map[string]string{
 		"malformed JSON":                "{not-json",
@@ -459,14 +465,22 @@ func TestCodexDeveloperInstructionsRejectInvalidConfig(t *testing.T) {
 		"non-string instructions value": `{"developer_instructions":true}`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := c.spawnCmd(ad, LaunchSpec{
+			spec := LaunchSpec{
 				Cwd:          t.TempDir(),
 				BackendType:  "codex-acp",
 				SystemPrompt: "Act as reviewer.",
 				Env:          []string{"CODEX_CONFIG=" + config},
-			})
+			}
+			cmd, err := c.spawnCmd(ad, spec)
+			if err != nil {
+				t.Fatalf("spawnCmd: %v", err)
+			}
+			err = c.startCmd(cmd, spec)
 			if err == nil || strings.Contains(err.Error(), config) {
-				t.Fatalf("spawn error = %v, want bounded invalid CODEX_CONFIG error", err)
+				t.Fatalf("start error = %v, want bounded invalid CODEX_CONFIG error", err)
+			}
+			if cmd.Process != nil {
+				t.Fatal("Codex child started despite invalid CODEX_CONFIG")
 			}
 		})
 	}

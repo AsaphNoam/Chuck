@@ -499,10 +499,14 @@ Configuration-source federation for Claude/Codex is FS-08.
   the person explicitly saves a valid catalog.
 - **R32** — `codex-acp` receives Chuck's frozen composed role/project prompt through its
   documented `CODEX_CONFIG` session-config overlay as `developer_instructions`, on both new and
-  resumed chats. Chuck preserves unrelated keys from a valid existing `CODEX_CONFIG` object and
-  places a pre-existing string `developer_instructions` before the composed prompt. Malformed,
-  non-object config, or a non-string existing `developer_instructions` fails that launch with a
-  bounded configuration error; Chuck never silently drops the selected role.
+  resumed chats. Chuck preserves unrelated keys from a valid existing `CODEX_CONFIG` object.
+  Because the overlay value replaces Codex's native one, Chuck places the developer instructions
+  Codex would otherwise use before the composed prompt: a pre-existing string overlay value, else
+  the native value from the child's configuration (user `config.toml`, its active profile, then the
+  launch project's `.codex/config.toml`), read after the profile refresh for that start. Malformed,
+  non-object config, malformed native TOML, or a non-string `developer_instructions` fails that
+  launch with a bounded configuration error; Chuck never silently drops the selected role or the
+  user's configured guidance.
 - **R33** — Fresh homes seed Claude's default model as `sonnet` (labelled as the current
   Claude Sonnet) and Codex's as `gpt-5.6-sol` (labelled `GPT-5.6-Sol`). Seed updates never rewrite an
   existing `backends.json`, change an existing default, or replace a person’s model entry.

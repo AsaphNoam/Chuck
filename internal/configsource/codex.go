@@ -190,6 +190,63 @@ func (r *CodexResolver) resolve(ctx context.Context, binding Binding, project co
 	return effective, report, nil
 }
 
+// CodexDeveloperInstructions returns the native developer_instructions a Codex
+// session in cwd loads from codexHome, using the resolver's layer order: user
+// config, its active [profiles.<profile>] table, then the project's
+// .codex/config.toml. The project layer needs no user trust entry because
+// codex-acp marks every session root trusted. A later string value wins; a
+// malformed layer or non-string value is an error so a launch fails closed
+// rather than silently dropping configured guidance (FS-09.R32, TS-04.R14).
+func CodexDeveloperInstructions(codexHome, cwd string) (string, error) {
+	user, err := readCodexConfig(filepath.Join(codexHome, "config.toml"))
+	if err != nil {
+		return "", err
+	}
+	layers := []map[string]any{user}
+	if name, ok := user["profile"].(string); ok && name != "" {
+		profiles, _ := user["profiles"].(map[string]any)
+		if selected, ok := profiles[name].(map[string]any); ok {
+			layers = append(layers, selected)
+		}
+	}
+	if cwd != "" {
+		project, err := readCodexConfig(filepath.Join(cwd, ".codex", "config.toml"))
+		if err != nil {
+			return "", err
+		}
+		layers = append(layers, project)
+	}
+	value := ""
+	for _, layer := range layers {
+		raw, ok := layer["developer_instructions"]
+		if !ok {
+			continue
+		}
+		text, ok := raw.(string)
+		if !ok {
+			return "", fmt.Errorf("%w: Codex developer_instructions must be a string", ErrInvalidSource)
+		}
+		value = text
+	}
+	return value, nil
+}
+
+// readCodexConfig decodes one native Codex TOML file; a missing file is empty.
+func readCodexConfig(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%w: unreadable Codex config %s", ErrInvalidSource, path)
+	}
+	values := make(map[string]any)
+	if err := toml.Unmarshal(data, &values); err != nil {
+		return nil, fmt.Errorf("%w: malformed TOML in %s", ErrInvalidSource, path)
+	}
+	return values, nil
+}
+
 func applyCodexLayersBestEffort(effective *Effective, report *Report, layers []codexLayer, binding Binding) {
 	for _, layer := range layers {
 		if err := applyCodexLayer(effective, report, layer, binding); err != nil {

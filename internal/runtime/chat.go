@@ -21,6 +21,7 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/backend"
 	"github.com/AsaphNoam/Chuck/internal/backend/providerexec"
 	"github.com/AsaphNoam/Chuck/internal/config"
+	"github.com/AsaphNoam/Chuck/internal/configsource"
 	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/strutil"
 )
@@ -146,13 +147,6 @@ func (c *ChatRuntime) spawnCmd(ad backend.BackendAdapter, spec LaunchSpec) (*exe
 	if ep, ok := ad.(backend.ExtraEnvProvider); ok {
 		env = append(env, ep.ExtraEnv(spec.ModelID, spec.SkipPerms)...)
 	}
-	if spec.BackendType == "codex-acp" {
-		var err error
-		env, err = withCodexDeveloperInstructions(env, spec.StartSystemPrompt())
-		if err != nil {
-			return nil, err
-		}
-	}
 	cmd.Env = env
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return cmd, nil
@@ -161,17 +155,27 @@ func (c *ChatRuntime) spawnCmd(ad backend.BackendAdapter, spec LaunchSpec) (*exe
 // startCmd starts a child after refreshing its Codex profile when applicable.
 // The Codex refresh lock remains held through cmd.Start, so another launch
 // cannot publish a different setup generation in the interval between this
-// launch's refresh and its process creation (INV §5/§15).
+// launch's refresh and its process creation (INV §5/§15). The Chuck prompt is
+// merged after the refresh so it reads the native instructions this child loads.
 func (c *ChatRuntime) startCmd(cmd *exec.Cmd, spec LaunchSpec) error {
-	if spec.BackendType == "codex-acp" {
-		if home := envValue(cmd.Env, "CODEX_HOME"); home != "" {
-			if err := config.WithRefreshedCodexProfile(home, cmd.Start); err != nil {
-				return fmt.Errorf("runtime: refresh/start codex profile: %w", err)
-			}
-			return nil
-		}
+	if spec.BackendType != "codex-acp" {
+		return cmd.Start()
 	}
-	return cmd.Start()
+	start := func() error {
+		env, err := codexLaunchEnv(cmd.Env, spec)
+		if err != nil {
+			return err
+		}
+		cmd.Env = env
+		return cmd.Start()
+	}
+	if home := envValue(cmd.Env, "CODEX_HOME"); home != "" {
+		if err := config.WithRefreshedCodexProfile(home, start); err != nil {
+			return fmt.Errorf("runtime: refresh/start codex profile: %w", err)
+		}
+		return nil
+	}
+	return start()
 }
 
 // SetEventSink mirrors normalized runtime events into the Phase 2 bus.
@@ -2557,12 +2561,15 @@ func envValue(env []string, key string) string {
 	return value
 }
 
-// withCodexDeveloperInstructions adds the composed Chuck launch prompt to
-// codex-acp's documented CODEX_CONFIG session-config overlay. The adapter does
-// not consume an ACP systemPrompt field, so passing it over session/new quietly
-// loses a role/project persona. Preserve the caller's valid overlay and place
-// its existing developer instructions before Chuck's frozen prompt.
-func withCodexDeveloperInstructions(env []string, prompt string) ([]string, error) {
+// codexLaunchEnv adds the composed Chuck launch prompt to codex-acp's
+// documented CODEX_CONFIG session-config overlay. The adapter does not consume
+// an ACP systemPrompt field, so passing it over session/new quietly loses a
+// role/project persona. The overlay value replaces Codex's native
+// developer_instructions, so the instructions Codex would otherwise use — the
+// caller's overlay value, else the native config the child loads — go before
+// Chuck's frozen prompt. Unrelated overlay keys are preserved.
+func codexLaunchEnv(env []string, spec LaunchSpec) ([]string, error) {
+	prompt := spec.StartSystemPrompt()
 	if prompt == "" {
 		return env, nil
 	}
@@ -2575,16 +2582,16 @@ func withCodexDeveloperInstructions(env []string, prompt string) ([]string, erro
 		}
 	}
 
-	config := map[string]any{}
+	overlay := map[string]any{}
 	if raw != "" {
-		if err := json.Unmarshal([]byte(raw), &config); err != nil {
+		if err := json.Unmarshal([]byte(raw), &overlay); err != nil {
 			return nil, fmt.Errorf("runtime: invalid CODEX_CONFIG JSON: %w", err)
 		}
-		if config == nil {
+		if overlay == nil {
 			return nil, errors.New("runtime: CODEX_CONFIG must be a JSON object")
 		}
 	}
-	if existing, ok := config["developer_instructions"]; ok && existing != nil {
+	if existing, ok := overlay["developer_instructions"]; ok && existing != nil {
 		value, ok := existing.(string)
 		if !ok {
 			return nil, errors.New("runtime: CODEX_CONFIG developer_instructions must be a string")
@@ -2592,9 +2599,24 @@ func withCodexDeveloperInstructions(env []string, prompt string) ([]string, erro
 		if value != "" {
 			prompt = value + "\n\n" + prompt
 		}
+	} else {
+		home := envValue(env, "CODEX_HOME")
+		if home == "" {
+			var err error
+			if home, err = config.PersonalCodexHome(); err != nil {
+				return nil, fmt.Errorf("runtime: resolve Codex home: %w", err)
+			}
+		}
+		native, err := configsource.CodexDeveloperInstructions(home, spec.Cwd)
+		if err != nil {
+			return nil, fmt.Errorf("runtime: read native Codex developer instructions: %w", err)
+		}
+		if native != "" {
+			prompt = native + "\n\n" + prompt
+		}
 	}
-	config["developer_instructions"] = prompt
-	encoded, err := json.Marshal(config)
+	overlay["developer_instructions"] = prompt
+	encoded, err := json.Marshal(overlay)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: encode CODEX_CONFIG: %w", err)
 	}

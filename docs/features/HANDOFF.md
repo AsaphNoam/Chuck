@@ -19,9 +19,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   rule; live Claude receipt
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
-- **Prompt/harness investigation:** the Review findings unit below records confirmed native Codex
-  instruction loss (PROMPT-1), a prompt-composition diagnostic gap (PROMPT-2), and separate
-  process-policy recommendations. General output-quality regression remains unproven.
+- **Prompt/harness investigation:** native Codex instruction loss (PROMPT-1) is fixed; the
+  Review findings unit below still records a prompt-composition diagnostic gap (PROMPT-2) and
+  separate process-policy recommendations. General output-quality regression remains unproven.
 - **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
   provider call while `onNotification` takes `as.mu` for unmatched frames on the synchronous read
   loop, so an adapter notification sent before that reply could stall it.
@@ -189,28 +189,8 @@ none were captured from live user sessions. General quality regression and the s
 meaning of "overly instructs" remain **undetermined**. Findings below separate proven instruction
 loss from plausible behavioral effects.
 
-- **Must fix** — PROMPT-1 — **confirmed**: Codex loses native `config.toml`
-  `developer_instructions` when Chuck adds its prompt. `internal/runtime/chat.go:149–155,2565–2601`
-  preserves only a prior `CODEX_CONFIG.developer_instructions`; it does not preserve the field
-  from the native config mirrored by `internal/config/codexprofile.go:36–55`. Normal trigger: a
-  user saves developer guidance in native configuration and launches/resumes/switches a Codex
-  Chuck agent. Even No persona or awareness off normally still adds the shared-resources prompt,
-  making the override nonempty. The 2.1.1 adapter spreads the overlay into `thread/start.config`
-  (`scripts/release/node_modules/@agentclientprotocol/codex-acp/dist/index.js:34087–34091,34187–34206`).
-  An isolated 0.159.3 app-server check used separate temporary profiles, an ephemeral thread and a
-  loopback mock Responses endpoint, with no credentials or real inference: the baseline request
-  contained `NATIVE_CONFIG_SENTINEL`; the same native config plus the adapter-equivalent
-  `thread/start.config.developer_instructions` contained only `CHUCK_OVERLAY_SENTINEL`.
-  This is loss of configured additional instructions, not proof of native base-prompt loss or of
-  the reported quality decline. FS-09.R44/A17 and FS-18.R17/R20/A13 require native setup/guidance
-  preservation; TS-04.R14/R69 currently specify only the environment-overlay merge, leaving the
-  native-config precedence case uncovered (INV §11–§12/§17). Preserve the effective native value,
-  including applicable project/profile precedence, before adding Chuck guidance; keep the current
-  malformed-overlay refusal and unrelated-key preservation. Do not grow an independent TOML
-  resolver from a guessed subset of provider config. Reproduction:
-  `internal/runtime/native_prompt_investigation_test.go`, observed failing on current code and
-  committed skipped under this finding. Extend the provider-boundary check with native config,
-  environment overlay, empty prompt, resume, and refreshed-profile cases when fixing.
+PROMPT-1 (native Codex developer instructions lost) is fixed; see Changelog.
+
 - **Worth fixing** — PROMPT-2 — **confirmed diagnostic gap**, behavioral causality
   **undetermined** (no invariant class): `internal/runtime/chat.go:2387–2418` records/hashes only frozen
   `SystemPrompt`; the deliberately runtime-only operating suffix and installed knowledge/tool
@@ -304,6 +284,20 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-19 — Fixed PROMPT-1; prompt/harness unit stays open on PROMPT-2** (INV §12, §2,
+  §17): Codex launches now prepend the instructions Codex would otherwise use — the
+  `CODEX_CONFIG` overlay value, else the native `developer_instructions` from the child's
+  `CODEX_HOME` (user config, active `[profiles.<profile>]`, launch project `.codex/config.toml`)
+  — before Chuck's prompt. `configsource.CodexDeveloperInstructions` follows the existing Codex
+  resolver's layer order; the merge moved from `spawnCmd` into `startCmd` inside the
+  profile-refresh lock so it reads the generation published for that child. Malformed native
+  TOML or a non-string value fails the launch. FS-09.R32 and TS-04.R14 updated. Tests:
+  `TestCodexNativeDeveloperInstructionsPreserved` (user, profile, project, overlay precedence,
+  empty prompt, resume, malformed), `TestCodexStartUsesRefreshedNativeInstructions`; the
+  invalid-overlay test now proves no child starts. Live provider adoption is still the FS-18.A13
+  gate. PROMPT-2 remains open: it needs a new requirement and a choice of where a per-start
+  manifest lives, since the runtime suffix is deliberately outside the frozen session snapshot.
 
 - **2026-10-19 — Fixed agent-created task group review; group placement unit closed** (INV §8,
   §16, §10, §11): TG-1 — the shared `normalizeGroup` now rejects trimmed labels over 256

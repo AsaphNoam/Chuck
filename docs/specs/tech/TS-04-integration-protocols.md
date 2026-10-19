@@ -71,9 +71,14 @@ checks. Interactive terminal launch and hook settings remain a direct-Claude-CLI
 **R14 — Prompt delivery is adapter-specific and fail-closed.** Claude receives the composed prompt
 through its documented ACP metadata. `codex-acp` does not consume an ACP `systemPrompt` or prompt
 metadata field; Chuck instead merges the composed start prompt into the adapter's documented
-`CODEX_CONFIG` JSON object as `developer_instructions` before spawning it. A malformed overlay or
-conflicting non-string value is a launch error, not a best-effort prompt omission. The generic ACP
-shape omits `systemPrompt` for Codex.
+`CODEX_CONFIG` JSON object as `developer_instructions` before spawning it. That overlay value
+replaces Codex's native one, so the merge runs inside the profile-refresh lock, after the refresh
+and immediately before process start, and prepends the overlay's existing value or, when absent,
+the native value resolved by `configsource.CodexDeveloperInstructions` from the child's
+`CODEX_HOME` in the Codex resolver's layer order (user, active profile, launch project; codex-acp
+trusts every session root). An empty composed prompt leaves the environment unchanged. A
+malformed overlay or native config, or a conflicting non-string value, is a launch error, not a
+best-effort prompt omission. The generic ACP shape omits `systemPrompt` for Codex.
 
 **R15 — Native-auth readiness is a fixed-command probe, not a dashboard login flow.**
 One provider-metadata helper owns the CLI `chuck auth` login argv and each non-interactive
