@@ -20,7 +20,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
 - **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`), and
-  ASR-D (`c12c4251`) and ASR-E (`5eb574d9`) have been audited
+  ASR-D (`c12c4251`), ASR-E (`5eb574d9`) and ASR-F (`b8157f13`) have been audited
   and have open findings; the remaining integrated Codex/Claude reviews are listed under
   [Review queue](#review-queue), sized for frontier reviewers. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
@@ -188,7 +188,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | reviewed — findings open (`6b5de19b`) |
 | [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | reviewed — findings open (`c12c4251`) |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
-| [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | waiting to start |
+| [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | waiting to start |
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | waiting to start |
 | [ASR-I](AGENT-SURFACE-REVIEW.md#asr-i--whole-system-synthesis-and-agent-performance) | Whole-system synthesis and agent performance | waiting to start |
@@ -795,6 +795,103 @@ diagnosis and provides no causal quality result. Invariant sweep: §1–5, §7�
 and checked; §6 has no new interface/runtime and §13 has no markup/style surface. No local
 implementation choice or human decision was introduced; sibling reviews/fixes remain unselected.
 
+### ASR-F — Pipelines, Think Tanks and orchestration — reviewed `b8157f13` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Recovery needs coordinated controller/dispatcher changes at the existing durable-action seam;
+removing the obsolete execution methods and updating their tests is localized. Audit complete;
+findings keep this same unit open. Source mode: current repository at `b8157f13`, clean at entry.
+Release lockfile pins Claude ACP 0.85.1 / Agent SDK 0.3.286 and Codex ACP 2.1.1 / CLI 0.159.3;
+this audit exercised source and isolated fake-provider tests, not installed/native provider behavior.
+Two bounded readers traced ordinary stages and room lifecycle; the lead integrated the ownership,
+interruption and context joins and independently reproduced the recovery failure. Product code and
+specifications unchanged.
+
+- **Must fix** — ASRF-1 — **A failed post-result transition loses its recovery owner**
+  (INV §7/§8/§9/§15). `internal/pipeline/manager.go:754–761,792–823`,
+  `internal/server/task_dispatcher.go:575–600`, `internal/pipeline/reconcile.go:142–185`:
+  after a stage result and runtime release commit, startup reconciliation can fail while creating
+  the next stage or recording the final/approval boundary. `pauseStartupRun` then replaces
+  `finishing/release_stage_task` with `paused/""`. The successful current task permits neither
+  Continue nor Retry, cleanup repair is ineligible, and further reconciliation/restart skips the
+  lost action. A temporary store/transition failure can therefore strand an otherwise completed
+  stage permanently. Related live-path source tracing shows that the final cleanup callback only
+  logs a controller error after clearing the task's pending release; the cleanup ticker no longer
+  selects that task, and the room-output sweep does not retry ordinary-stage transitions.
+  FS-14.R66/R71/R77 and TS-09.R41–R43 require retained, automatically retryable bookkeeping and
+  valid recovery. Preserve the durable action until progression commits and give failed controller
+  actions bounded retry/recovery ownership through the existing dispatcher; retain the current
+  stopping fence and never rerun accepted stage work. Regress transient next-task/final/approval
+  writes both at runtime and restart, including Stop racing recovery and exhausted retry attention.
+  Evidence: `/tmp/asrf_startup_probe_test.go`, `/tmp/asrf_overlay.json`,
+  `TestASRFStartupPreservesAcceptedStageProgression`. The probe accepts success, settles release,
+  injects an abort at next-stage insertion, runs Startup, removes the fault and reconciles again:
+  `paused`, empty pending action, one stage, Continue/Retry refused and cleanup repair false.
+  The injected case fails in both Go variants; the same fixture without the fault passes and
+  creates the queued second stage. The runtime callback gap is source-backed, not a separate
+  provider-failure receipt.
+- **Worth fixing** — ASRF-2 — **The removed stage executor survives in production source and tests**
+  (INV §2/§10/§17). `internal/server/pipeline_lifecycle.go:236–355,382–384`,
+  `internal/pipeline/manager_types.go:101–104`, `internal/server/pipeline_fast_test.go:15–55`,
+  `internal/server/pipeline_handlers_test.go:833–852`: a tree-wide caller audit finds no production
+  caller of `LaunchStage` or `ContinueStage`; `IsRunning` serves only the latter. Yet the public
+  lifecycle interface still requires the old launch/resume machinery, and tests use it as evidence
+  for pipeline fast-mode/group behavior without creating a run or dispatching a stage task. The
+  group test even asserts the superseded stage-group contract. TS-09.R35/R46 requires task-owned
+  execution and removal of those paths; TS-12.R4 still describes them as active. Keeping this code
+  duplicates lifecycle policy and preserves acceptance tests that cannot detect a broken real
+  pipeline-to-task handoff. Remove the unused methods/interface obligations, retain `StopStage`
+  used by task cleanup and legacy-runtime reaping, and exercise actual run → stage task → dispatcher
+  behavior for frozen/applied fast mode and current run grouping (FS-14.R72/R74). Update the stale
+  lifecycle tests/docs at the same seam. Ordinary-task fast-mode tests already cover the shared
+  dispatcher, so the missing proof is the pipeline handoff, not all fast-mode behavior.
+
+Connected evidence ledger (catalogue topics 19 and 20):
+
+| Retained topic | State, authority and effect trace |
+|---|---|
+| 19 — Ordered stages and standing orchestration | Frozen template/runtime/input snapshot → unique stage task and optional managed coordinator child → ordinary task capacity/identity claim → launch or same-identity resume → assignment/report/wait → immutable stage result and closure → release/cancel descendants → approval/next task/final result. Read Start/Continue/Retry/Replace/Stop, dispatcher, report transaction, lineage projections, cleanup and startup. A coordinator's child result cannot substitute for the standing stage report; replacement retains coordinator binding and predecessor work. ASRF-1 breaks recovery after accepted work; ASRF-2 retains the old executor. |
+| 20 — Rooms and judge capture | Room/stage binding and reserved new identities commit before setup launches. Independent openings use bounded concurrent starts and withheld publication; discussion uses one floor. Read receipt/head/token plus exact generation/executing turn bind staged reply to successful completion. Completion atomically publishes the judge entry and retained result; trusted stage acceptance binds that exact entry and named output once, followed by ordinary cleanup/approval/progression. Failed/oversized/staged replies never become accepted synthesis. Inspected setup/turn/judge retry, ceilings/pass/leave, End/Pause, capture/privacy, queued input, restart and output-acceptance sweep. |
+
+J3 authority: token-bound membership and task/handle/generation authority remain separate. Only the
+standing stage task reports ordinary stage success; room success uses the trusted bound finalized
+synthesis. Neither scope grants host peer-Stop approval. Room mutation/admission guards recheck
+pipeline openness in their write transaction; Stop commits closure before cancellation/teardown.
+Claimed setup may settle registration, then only its captured idle generation is stopped; an active
+room turn uses guarded generation/turn cancellation. Completed room release preserves private work.
+
+J4 interruption: traced quota failure → preserved task/room owner → exact continuation claim → new
+room attempt/token or ordinary task activation → actual completion. Pause/End/Stop and stage closure
+revalidate before delivery; quota cannot synthesize a report or successor. Startup task recovery and
+room recovery fence uncertain work, retain withheld/published history, and recover finalized output
+acceptance without rejudging. ASRF-1 is the missing post-result controller recovery. The recorded
+`TestOrdinaryStageAgentStopPausesPipelineRun` 409 did not reproduce in 25 isolated repeats or the
+focused suites; its intermittent cause remains unproven and the existing note remains live.
+
+J5 context: ordinary stages receive bounded persisted assignment, prior-result source ids, named
+inputs and coordinator identity; shared operator instructions are frozen once in run-created
+orchestrator prompts and retained by ordinary resume/switch composition. Room stage context uses
+the same paged read/receipt seam for participants and judge. Public capture excludes private prompts
+and projects internal Chuck calls/results to action receipts; source generation/turn remains sealed
+before held/private successors start. Native provider context adoption remains unproved here.
+Clone/fork creates no stage/room assignment; switch/rollback reuse the shared conversation lifecycle.
+Supervisory participants are chat-only; terminal and isolated quota-check processes cannot be stage
+assignees or room actors. Existing ASRA-1 configuration-continuation, ASRC-1/2 runtime/permission,
+ASRD-2/3 event-order/durability and ASRE-1/2 task-context/output-bound findings retain their identities
+and apply through these shared seams; this audit does not close them. PROMPT-2 and CI-1's recorded
+limits/closure are unchanged. No measured agent-quality or harness-cost conclusion is claimed.
+
+Verification: focused pipeline/state/server tests pass in both untagged and `sqlite_fts5` builds;
+focused pipeline/state/server race tests pass. Server runs used approved isolated loopback listeners
+after the readers' sandbox listener denials. The temporary failure probe above is intentionally red;
+its no-fault control passes. Spec lint and diff checks pass. No browser/device/provider/model turns
+were exercised: FS-14.A49/A50/A54, FS-21.A31/A32 and the existing real-provider/permission/resume
+gates remain owed. No visual implementation changed and no rendered gate is closed by this audit.
+Invariant sweep: §1–5, §7–11 and §14–17 apply to lifecycle, frozen state, claims, reads, wire data,
+authority, bounded capture and verification; all were checked, with findings tagged above.
+§6 has no new runtime/driver contract, §12 has no supervisor-owned external-CLI invocation and
+§13 has no selected markup/style change. No local implementation choice or human decision was
+introduced; sibling review/fix queues remain unchanged.
+
 ### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Report received 2026-10-18, verbatim:
@@ -873,6 +970,14 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed pipelines, Think Tanks and orchestration (ASR-F):** audited current
+  implementation at `b8157f13`, including task/room authority, Stop/quota/restart and private-context
+  joins. One Must-fix finding covers lost post-result transition recovery; one Worth-fixing finding
+  covers obsolete stage-executor code and misleading acceptance tests. A temporary fault probe
+  reproduces the stranded run in both Go variants and its no-fault control passes. Focused Go,
+  race, FTS5 and spec checks pass; the known Stop 409 did not reproduce in 25 repeats. Existing
+  provider/device/restart acceptance gates remain owed. Product code/specs unchanged.
 
 - **2026-10-19 — Reviewed agent tools, communication and durable delegation (ASR-E):** audited
   current implementation at `5eb574d9`, including host/provider approval, durable mail and task
