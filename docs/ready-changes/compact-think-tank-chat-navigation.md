@@ -1,6 +1,6 @@
 # Compact Think Tank navigation in agent chat
 
-**State:** Waiting to start
+**State:** Finished — 2026-10-19; available for independent review
 **Why:** Direct `/design-feature` request 2026-10-16; operator approved only other-participant
 links, subtle bold/raised active-participant treatment, and a room link, reusing Chuck's design.
 **Relevant requirements:** FS-21.R57/A40; TS-08.R126; existing FS-03.R71,
@@ -38,4 +38,4 @@ existing room membership query. No provider capability or architecture limitatio
 
 ## Waiting on
 
-Nothing; approved design is ready for implementation.
+Nothing. Implementation and closure finished 2026-10-19.

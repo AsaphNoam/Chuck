@@ -324,7 +324,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
 - **R56 (shipped 2026-10-15)** — Setup shows each chosen participant's and the judge's model and
   effort, and existing-agent choices carry the same. The **Add new agent** action is a distinct
   button placed above the existing-agent picker; the picker lists only non-archived agents (R34).
-- **R57 (planned) — Agent-chat membership is compact navigation.** The Think Tank tab shows
+- **R57 — Agent-chat membership is compact navigation.** The Think Tank tab shows
   one compact group per associated room: a link labelled with the room title and button-styled
   links to the other surviving members' ordinary chats, including the judge when one exists.
   Omit the agent whose chat is open. Use retained roster order and stable identities for routes;
@@ -599,7 +599,7 @@ completion; R37 defines partial opening publication and pending input on End.
   omits archived agents. *Verify:* server handler and MCP tool tests, the setup dialog test, and
   the room page test for the operator disclosure.
 
-- **A40 (planned)** (R57) — Open a participant's Think Tank tab and follow each other member
+- **A40** (R57) — Open a participant's Think Tank tab and follow each other member
   and room link to its correct destination. Verify the current agent is omitted; active-turn
   emphasis follows running attempts through speaker changes and concurrent openings, and clears
   when settled. Cover multiple and ended rooms, a judge, duplicate/long names, removed members,

@@ -1,5 +1,5 @@
 import React from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
@@ -682,8 +682,8 @@ describe("the open file on the agent route", () => {
   });
 });
 
-// FS-03.A52, FS-21.R45: a member's chat keeps its ordinary header and shows a
-// compact room cue plus a Think Tank tab with the goal, members and links —
+// FS-03.A52, FS-21.R57: a member's chat keeps its ordinary header and shows a
+// compact room cue plus a Think Tank tab linking the room and other members —
 // also between turns, when the agent is idle.
 it("shows a compact room cue and a Think Tank tab for room membership", async () => {
   const room = {
@@ -710,10 +710,48 @@ it("shows a compact room cue and a Think Tank tab for room membership", async ()
   const tab = screen.getByRole("tab", { name: "Think Tank" });
   fireEvent.mouseDown(tab);
   fireEvent.click(tab);
-  expect(await screen.findByText("1 of 2 turns left", { exact: false })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Ari" }).getAttribute("href")).toBe("/agent/a_ari");
-  expect(screen.getByText("Nova (this agent)")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Nova" })).toBeNull();
+  expect(screen.queryByText("A long goal about caches")).toBeNull();
   expect(screen.queryByText(/most recent Think Tanks/)).toBeNull();
+  fetchSpy.mockRestore();
+});
+
+it("keeps room navigation compact while exposing concurrent active and retained members", async () => {
+  const room = {
+    version: 1, room_id: "tt_compact", title: "Shared decision", goal: "long explanation", origin_project: "app",
+    phase: "openings", control: "running", participants: ["Nova", "Ari", "Ari"], revision: 3,
+    created_at: "2026-10-07T00:00:00Z", updated_at: "2026-10-07T00:00:00Z",
+    active_attempts: [
+      { attempt_id: "opening_a", agent_id: "a_ari", turn: "opening", state: "running", started_at: "2026-10-07T00:00:00Z" },
+      { attempt_id: "opening_b", agent_id: "a_ari_2", turn: "opening", state: "running", started_at: "2026-10-07T00:00:00Z" },
+    ],
+    total_remaining: 4, judge_enabled: true,
+    roster: [
+      { agent_id: "a_room", name: "Nova", project: "app", role: "participant", state: "active", limit: 2, completed: 0, remaining: 2, exists: true },
+      { agent_id: "a_ari", name: "Ari", project: "app", role: "participant", state: "active", limit: 2, completed: 0, remaining: 2, exists: true },
+      { agent_id: "a_ari_2", name: "Ari", project: "ops", role: "participant", state: "active", limit: 2, completed: 0, remaining: 2, exists: true },
+      { agent_id: "a_gone", name: "Lee", project: "old", role: "judge", state: "departed", limit: 0, completed: 0, remaining: 0, exists: false },
+    ],
+  };
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    if (String(input).startsWith("/api/think-tanks?agent_id=a_room")) return new Response(JSON.stringify({ version: 1, rooms: [room] }));
+    return new Response("{}", { status: 404 });
+  });
+  useAgentStore.setState({ agents: { a_room: liveAgent("a_room") }, order: ["a_room"], hydrated: true, hydrating: false });
+  renderPanel("a_room");
+
+  const tab = await screen.findByRole("tab", { name: "Think Tank" });
+  fireEvent.mouseDown(tab);
+  fireEvent.click(tab);
+  const nav = await screen.findByRole("navigation", { name: "Shared decision navigation" });
+  expect(within(nav).getByRole("link", { name: "Shared decision" })).toHaveAttribute("href", "/think-tank/tt_compact");
+  expect(screen.getByRole("link", { name: "Ari · app, taking a room turn" })).toHaveAttribute("href", "/agent/a_ari");
+  expect(screen.getByRole("link", { name: "Ari · ops, taking a room turn" })).toHaveAttribute("href", "/agent/a_ari_2");
+  expect(screen.getByText("Lee (unavailable)")).toBeInTheDocument();
+  expect(screen.queryByText("long explanation")).toBeNull();
+  expect(screen.queryByText(/turns left/)).toBeNull();
+  expect(screen.queryByText("Judge")).toBeNull();
   fetchSpy.mockRestore();
 });
 

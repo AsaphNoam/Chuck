@@ -3,7 +3,7 @@ import { useAgentThinkTanks } from "../../api/thinkTanks";
 import { agentConversationPath } from "../../lib/agentConversation";
 import { useProjects } from "../../api/config";
 import type { ThinkTankSummary } from "../../schemas/thinkTank";
-import { judgeText, phaseLabel, roomTitle, thinkTankPath } from "./roomText";
+import { phaseLabel, roomTitle, thinkTankPath } from "./roomText";
 
 /** RoomCue is the compact Think Tank identification under an agent's
  *  ordinary header: the room title and whether this agent is taking a room
@@ -27,9 +27,9 @@ export function RoomCue({ agentId }: { agentId: string }) {
   );
 }
 
-/** ThinkTankTab lists every room this agent belongs to with its goal, state,
- *  members and allowances, linking to the whole room and each surviving
- *  member's ordinary chat (FS-21.R45, FS-03.R71). */
+/** ThinkTankTab is compact navigation for every room this agent belongs to.
+ *  Room state, goals and allowances remain on the room and member
+ *  destinations (FS-21.R57, FS-03.R71). */
 export function ThinkTankTab({ agentId }: { agentId: string }) {
   const rooms = useAgentThinkTanks(agentId);
   if (rooms.isError) return <p className="form-error">Could not load this agent's Think Tanks.</p>;
@@ -38,10 +38,6 @@ export function ThinkTankTab({ agentId }: { agentId: string }) {
   if (list.length === 0) return <p>This agent is not in a Think Tank.</p>;
   return (
     <div className="think-tank-tab" data-ui="think-tank" data-slot="membership">
-      <p className="think-tank-tab-note">
-        Room turns use this agent&rsquo;s own conversation. During a room turn, Steer shapes the contribution and
-        stays private; Send waits until the turn ends. Nothing private here is copied into the room.
-      </p>
       {list.map((room) => <Membership key={room.room_id} room={room} agentId={agentId} />)}
       {rooms.data?.clipped && <p role="status">Showing the {list.length} most recent Think Tanks; older ones are not listed here.</p>}
     </div>
@@ -50,31 +46,41 @@ export function ThinkTankTab({ agentId }: { agentId: string }) {
 
 function Membership({ room, agentId }: { room: ThinkTankSummary; agentId: string }) {
   const projects = useProjects();
-  const me = room.roster.find((m) => m.agent_id === agentId);
-  const speaking = new Set(room.active_attempts.map((a) => a.agent_id));
+  const linked = room.roster.filter((member) => member.agent_id !== agentId);
+  const duplicateNames = new Set(linked.filter((member, index) => linked.some((other, otherIndex) => otherIndex !== index && other.name === member.name)).map((member) => member.name));
+  const labelCounts = new Map<string, number>();
+  const projectLabel = (project: string) => projects.data?.[project]?.title ?? project;
+  const memberLabel = (member: ThinkTankSummary["roster"][number]) => {
+    if (!duplicateNames.has(member.name)) return member.name;
+    const base = member.name + " · " + projectLabel(member.project);
+    const count = (labelCounts.get(base) ?? 0) + 1;
+    labelCounts.set(base, count);
+    return count === 1 ? base : base + " · " + member.agent_id;
+  };
+  const active = new Set(room.active_attempts.map((attempt) => attempt.agent_id));
   return (
     <section className="think-tank-membership" aria-label={roomTitle(room)}>
-      <h3><Link to={thinkTankPath(room.room_id)}>{roomTitle(room)}</Link></h3>
-      <p>
-        {phaseLabel(room.phase)}
-        {me?.role === "judge" ? " · You are the judge" : me ? ` · ${me.state === "departed" ? "Left" : `${me.remaining} of ${me.limit} turns left`}` : ""}
-        {room.hold ? ` · Needs attention: ${room.hold}` : ""}
-      </p>
-      <details>
-        <summary>Goal</summary>
-        <p className="think-tank-membership-goal">{room.goal}</p>
-      </details>
-      <ul className="think-tank-card-roster" aria-label="Members">
-        {room.roster.map((m) => (
-          <li key={m.agent_id} data-state={speaking.has(m.agent_id) ? "speaking" : m.state === "departed" ? "departed" : m.state === "exhausted" ? "exhausted" : "active"}>
-            {m.agent_id === agentId ? <strong>{m.name} (this agent)</strong> : m.exists ? <Link to={agentConversationPath(m.agent_id)}>{m.name}</Link> : <span>{m.name} (deleted)</span>}
-            <span>{projects.data?.[m.project]?.title ?? m.project}</span>
-            <span>{m.role === "judge" ? "Judge" : m.state === "departed" ? "Left" : `${m.remaining} of ${m.limit} left`}</span>
-            {speaking.has(m.agent_id) && <span>Speaking</span>}
-          </li>
-        ))}
-      </ul>
-      {room.judge_enabled && <p>Judge: {judgeText(room.judge_status) || "waiting"}</p>}
+      <nav className="think-tank-membership-nav" aria-label={roomTitle(room) + " navigation"}>
+        <Link className="think-tank-room-link" to={thinkTankPath(room.room_id)}>{roomTitle(room)}</Link>
+        <div className="think-tank-member-links">
+          {linked.map((member) => {
+            const isActive = active.has(member.agent_id);
+            const label = memberLabel(member);
+            if (!member.exists) return <span className="think-tank-member-unavailable" key={member.agent_id}>{label + " (unavailable)"}</span>;
+            return (
+              <Link
+                className={"ad-button ad-button-secondary think-tank-member-link" + (isActive ? " is-active" : "")}
+                data-state={isActive ? "active" : "settled"}
+                key={member.agent_id}
+                to={agentConversationPath(member.agent_id)}
+                aria-label={isActive ? label + ", taking a room turn" : label}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </section>
   );
 }

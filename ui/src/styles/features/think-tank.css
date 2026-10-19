@@ -1418,32 +1418,55 @@ a.think-tank-author:hover {
 .think-tank-tab {
   display: grid;
   gap: var(--ad-space-4);
-  max-width: 72ch;
+  max-width: 90ch;
   padding: var(--ad-space-4);
 }
 
-.think-tank-tab-note,
-.think-tank-membership p {
-  color: var(--ad-text-secondary);
-  margin: 0;
-}
-
-.think-tank-membership {
+.think-tank-membership + .think-tank-membership {
   border-top: var(--ad-border-thin) solid var(--ad-border-default);
-  display: grid;
-  gap: var(--ad-space-2);
   padding-top: var(--ad-space-3);
 }
 
-.think-tank-membership h3 {
-  font-size: 1rem;
-  margin: 0;
+.think-tank-membership-nav {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-space-2) var(--ad-space-3);
+}
+
+.think-tank-room-link {
+  color: var(--ad-text-primary);
+  font-weight: 650;
+  max-width: 24ch;
   overflow-wrap: anywhere;
 }
 
-.think-tank-membership-goal {
+.think-tank-member-links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-space-1);
+  min-width: 0;
+}
+
+.think-tank-member-link {
+  max-width: 32ch;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+  padding-inline: var(--ad-space-2);
+  text-align: start;
+  text-decoration: none;
+}
+
+.think-tank-member-link.is-active {
+  box-shadow: var(--ad-shadow-keyline);
+  color: var(--ad-text-primary);
+  font-weight: 650;
+}
+
+.think-tank-member-unavailable {
+  color: var(--ad-text-muted);
+  font-size: 0.75rem;
+  padding: 0 var(--ad-space-2);
 }
 
 /* Setup dialog */

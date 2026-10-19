@@ -210,6 +210,21 @@ Invariant sweep: applicable classes §1, §2, §4, §8, §10, §11, §13, §14, 
   alone and in the full two-worker run. No phone gap code was changed. Diagnose timing or fixture
   isolation before changing production behavior or weakening the test.
 
+### Compact Think Tank chat navigation — commit “think tank: compact chat-tab navigation to room and members” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Awaiting review.
+
+FS-21.R57/A40, TS-08.R126 (TS-08 now Current). `ThinkTankTab` in `RoomTurnNotice.tsx` renders
+one `<nav>` per room: room link, then other roster members as `ad-button ad-button-secondary`
+router links (`data-state` active/settled; active = running `active_attempts`, aria-label adds
+“taking a room turn”); deleted members are “(unavailable)” text; duplicate names add project.
+Adopted an interrupted uncommitted implementation; removed its translateY and busy-colour label.
+`ThinkTankTab.test.tsx` covers speaker change/clear on refetch. Closure: UI 975/975 (including
+the file-reader withdrawal assertion, which passed this run), `GOFLAGS=-p=1 make test`,
+`make build`, UI build. 42 Chromium checks pass at 1024/1600/360px-pane in Core, Sky & Grove and
+Studio; screenshots inspected. Evidence: `/tmp/chuck-ttnav-review-20261019/`; harness
+`/tmp/chuck-ttnav-review.mjs` (stubbed API; needs `delete window.SharedWorker`).
+
 ### Phone groups, Jump to latest, runtime buttons — commit “phone: collapsed groups, Jump to latest, Send-shaped runtime buttons” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Implementation `fe572fcc`; independent source and rendered review completed 2026-10-19 against
@@ -427,6 +442,9 @@ codex-acp honours `approvals_reviewer` is **undetermined** and irrelevant once C
   and restart Chuck (no live config reload); it affects new launches only (TS-01.R6). No reproduction test: behavior is as coded.
 
 ## Changelog
+
+- **2026-10-19 — Compact Think Tank chat navigation:** the agent-chat Think Tank tab is now a
+  compact link row per room, with active speakers slightly bolder and raised; queued for review.
 
 - **2026-10-19 — Reviewed phone header slimmed; unit closed:** implementation `caf4a008`
   matches FS-20.R43 and TS-08.R111/R134; no findings. **Fix model:** trivial/easy — Claude

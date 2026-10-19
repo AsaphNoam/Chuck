@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1470,7 +1470,7 @@ only existing state-color/typographic feedback changes, and reduced motion loses
   per mount after the first non-placeholder transcript renders; a missing key falls back to the
   top of the loaded list. Restoration never triggers older-history loading by itself.
 
-- **R126 (planned) — Compact Think Tank chat navigation reuses existing presentation.**
+- **R126 — Compact Think Tank chat navigation reuses existing presentation.**
   FS-21.R57 replaces only R98's full-goal/explanatory-tab composition. Keep `ThinkTankTab` and
   its existing `useAgentThinkTanks` query as the owner; derive other-member links from `roster`
   and active emphasis from running `active_attempts` by agent id. Reuse `agentConversationPath`,
