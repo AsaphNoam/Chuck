@@ -19,21 +19,20 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   rule; live Claude receipt
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
-- **Agent-surface review backlog:** ASR-A has been audited at `4fbeb316` and has open findings;
-  eight integrated Codex/Claude reviews are **waiting to start** under
+- **Agent-surface review backlog:** ASR-A (`4fbeb316`) and ASR-C (`6b5de19b`) have been audited
+  and have open findings; the remaining integrated Codex/Claude reviews are listed under
   [Review queue](#review-queue), sized for frontier reviewers. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
   joins plus a final synthesis/performance review. All original 25 research areas remain in the
-  [search catalogue](AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. ASR-A's evidence
-  and findings are below; the campaign as a whole is not reviewed. Other findings and live gates
+  [search catalogue](AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. ASR-A's and
+  ASR-C's evidence and findings are below; the campaign as a whole is not reviewed. Other findings and live gates
   remain independent.
 - **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
   loss; its earlier fix covers user/exact-cwd configuration. The original unit below retains the
   prompt-composition diagnostic gap (PROMPT-2) and separate process-policy recommendations.
   General output-quality regression remains unproven.
-- **Known risk (unchanged, uninvestigated):** runtime `SetSessionConfig` holds `as.mu` across its
-  provider call while `onNotification` takes `as.mu` for unmatched frames on the synchronous read
-  loop, so an adapter notification sent before that reply could stall it.
+- **Former known risk confirmed:** the `SetSessionConfig`/`as.mu` read-loop stall is now ASRC-1
+  under Review findings.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
@@ -185,7 +184,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 |---|---|---|
 | [ASR-A](AGENT-SURFACE-REVIEW.md#asr-a--instructions-configuration-and-execution-environment) | Instructions, configuration and execution environment | reviewed — findings open (`4fbeb316`) |
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | waiting to start |
-| [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | waiting to start |
+| [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | reviewed — findings open (`6b5de19b`) |
 | [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | waiting to start |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | waiting to start |
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | waiting to start |
@@ -338,6 +337,118 @@ log: `/tmp/chuck-asra-review-probes.log`. The native fixture probe separately us
 `config/read`. Invariant sweep: §1–§5, §7–§12 and §14–§17 checked; §6 (new interface/runtime) and
 §13 (UI selectors) have no applicable new surface. Fixes and sibling reviews were not selected.
 
+### ASR-C — Runtime execution, concurrency and control — reviewed `6b5de19b` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+The status-ownership and registration-window fixes coordinate runtime, registry and server state;
+the others extend existing seams. Audit complete; findings keep this same unit open. No product code
+or specifications changed. Source mode: repository source; real-adapter shapes read from the
+release lockfile packages (Claude ACP 0.85.1; Codex ACP 2.1.1 is a native binary, not inspected).
+Bounded discovery for catalogue 06/11/12 was delegated and every reported finding re-read in code.
+
+- **Must fix** — ASRC-1 — **A live effort/fast change stalls the read loop when any frame precedes
+  its reply** (INV §5/§15/§16). `internal/runtime/chat.go:1752–1795` holds `as.mu` across
+  `session/set_config_option`; `onNotification` takes `as.mu` first in `scopeFor`
+  (`subagent.go:79`), so the "mode updates never take mu" comment (`chat.go:1850`) is false. FS-03.R45/R47
+  allow applying during a running turn; one streamed chunk before the reply blocks the reader,
+  so the reply is never read. The HTTP handler passes `r.Context()` with no server or UI timeout
+  while holding the lifecycle claim (`session_config.go:33,83`): the turn freezes, permission
+  requests are unread, and Stop returns 409 until the browser aborts. The late success reply is then
+  dropped ("response for unknown request id"), so Chuck persists and reports the old value while the
+  provider runs the new one. Probe: `/tmp/chuck-asrc/{setconfig_probe_test.go,fakeacp_main.go,overlay.json}`
+  (`GOFLAGS="-p=1 -overlay=/tmp/chuck-asrc/overlay.json"`): control applies in 0 s; chunk-before-reply
+  fails at the 2 s deadline. Snapshot identity/advertisement under the lock, call unlocked
+  (as `SetSessionMode` does under the lifecycle claim), merge the returned option list after;
+  regress an interleaved update mid-turn plus the late-reply/persisted-value agreement.
+- **Must fix** — ASRC-2 — **Status writes are not owned by the turn or the open permission gate**
+  (INV §5/§1). `chat.go:2438–2459` writes `busy` for any tool call/result while `turnActive`,
+  ignoring `as.pending`; `updateStatus` (`chat.go:2480`) is an unlocked read-modify-write.
+  (a) A parallel or child tool frame after a permission request replaces `waiting_input` with
+  `busy`, so the actionable card treatment (FS-02.R3/R22) disappears while a human gate is open.
+  (b) A native background continuation frame (FS-01.R52) racing `finishTurn` — idle is written
+  before `turn_end` persists and `turnActive` clears (`chat.go:1158–1172`) — leaves the card `busy`
+  with no owning turn until the next turn. Delegated fake-ACP probes in `/tmp/asrc/probe_test.go`
+  (overlay `/tmp/asrc/overlay.json`): (a) deterministic; (b) 299/300 under a 40-frame flood,
+  0/300 without (real-world rate lower). Derive status from turn and pending ownership in one
+  critical section; regress both interleavings.
+- **Must fix** — ASRC-3 — **Orphan reaping kills by bare PID liveness** (INV §9/§4).
+  `internal/server/launch.go:863–883` (`reapOrphanRuntime`, used by Stop/Switch/Archive/pipeline)
+  and `chat.go:1309–1332` (`reconcileOrphanStop`) signal a recorded PID whenever `kill(pid,0)`
+  succeeds; startup `ReconcileStale` (`runtime/reconcile.go:21`) and the prune sweep likewise keep
+  a reused PID as live. After a server crash or reboot, a recorded adapter PID reused by an
+  unrelated process keeps a ghost card, and Stop/Switch/Archive SIGKILLs that process. INV §9
+  requires corroboration where liveness gates destruction; `ProcessIsRecorded` (`procstart.go:17`)
+  already does this for peer Stop. `reapOrphanRuntime` also kills only the leader, leaving the
+  setpgid group's tools/MCP children alive (FS-01.R21 "actually gone"). Corroborate start time at
+  every reaper/reconciler, kill the group, and test reused-PID and descendant cases.
+- **Worth fixing** — ASRC-4 — **The fresh-launch registration window is unfenced** (INV §4/§5/§9).
+  `registry.go:173–200`, `chat.go:458–505`, `launch.go:70`: an adapter exit after the handshake but
+  before `Registry.Launch` commits runs `handleAgentExit` (dropping the sentinel and tearing down
+  registration); `Start` then writes running/idle and Launch re-inserts the dead runtime. Launch
+  returns success, `Owns` stays true with no generation, and resume fails `ErrAlreadyStarted` until a
+  manual Stop. Delegated probe `/tmp/asrc/probe_test.go` (injected kill in the opener) confirms.
+  Manual `handleLaunch` also takes no lifecycle claim, so shutdown quiescence and a Stop during the
+  handshake can miss or tear down an in-flight launch (TS-01.R16). Fence commit against exit and put
+  manual launch behind the same claim; regress exit-in-window and shutdown-during-launch.
+- **Worth fixing** — ASRC-5 — **ACP permission prompts can remain actionable after settlement**
+  (INV §5/§8). `internal/runtime/permission.go:76–83` registers a pending request before
+  publishing it, and the `published` gate (`host_permission.go:54`) covers host requests only:
+  Cancel/Stop/timeout in that window persists `permission_resolved` before `permission_request`
+  and leaves `waiting_input`. Separately, approve/deny with no matching provider option
+  (`permission.go:99–108`) answers cancelled, emits only an error and no `permission_resolved`,
+  leaving a live card that returns 409. Delegated probes `/tmp/asrc/probe1_test.go`,
+  `probe3_test.go`. Extend the publication gate to ACP requests and route the no-option branch
+  through `resolvePending`.
+- **Worth fixing** — ASRC-6 — **Per-generation retention never frees completed native work**
+  (INV §16). `subagent.go:148–154` caps `as.children` at 256 and never deletes a terminal child,
+  so in a long-lived orchestrator child 257+ loses all output and its permission requests are
+  silently cancelled (`permission.go:32–36`); `as.toolNames` (`chat.go:2442`) grows per tool call.
+  TS-04.R63 bounds children to the active generation, not lifetime count. Delegated probe
+  `/tmp/asrc/probe_test.go`: 300 sequential children → 256 retained, child 299 dropped.
+  Evict terminal children (keeping a bounded tombstone for late frames) and prune tool names
+  with tool inputs.
+- **Worth fixing** — ASRC-7 — **Restart reconciliation disagrees with FS-01.R20** (INV §2/§10).
+  `runtime/reconcile.go:32–35` writes `error`/"stale session reconciled on startup"; FS-01.R20
+  says `done`/"process exited", which `pruneStaleRunning` writes. Pick one outcome and share it.
+
+J2 (lead) result — one conversation under concurrent control: Send/hold, withdraw, Steer
+promotion and turn-end successor transfer decide under `as.mu` with single-owner hand-off; Stop
+and crash release held/steer receipts; held input is intentionally lost on dashboard restart
+(FS-03.R48/R49). Cancel escalation is turn-sequence fenced; `completePromptTurn` ignores stale
+turns; late tool input is released at turn boundaries. ASRC-1 breaks J2 while a setting changes;
+ASRC-2/5 break status/approval truth around permission waits and late native output.
+Challenges to siblings: J6/ASR-H — a promoted held message without `request_id` is restored after a
+non-refused ambiguous steering error (`chat.go:707–717`) and could be resent if the adapter
+consumed it (UI always sends `request_id`; CLI path unchecked). J4/ASR-G — crash `turn_end`
+dispatch reads `registry.Generation` after `onExit` cleared it (`server/server.go:426`), so
+`dispatchTurnEnd` runs with an empty generation instead of `ev.Generation`; release consequences
+unverified.
+
+Coverage ledger: catalogue **06** — launch/Start/registry/reconcile/state transitions with
+per-step failure handling; concurrent same-agent launches are atomic; late N exit is
+generation-fenced; restart never adopts. **08** — claim/hold/withdraw/Steer/fallback/activation
+admission and successor transfer read in full; deterministic count/order covered by existing
+tests, no new defect beyond ASRC-1/2. **09** — Stop, cancel, escalation, shutdown, orphan stop;
+ASRC-3/4. **10** — transport framing, pending routing, oversized frames end the session (36 MiB),
+malformed frames are skipped (a malformed reply leaves only its caller's ctx to release it),
+unknown inbound methods get -32601; SetSessionConfig hypothesis reproduced (ASRC-1); launch-time
+configuration holds no `as.mu`. Event seq is allocated under `as.mu` but persisted/published
+outside it; the writer and readers tolerate reordering, so no impact was established.
+**11** — skip-permissions/registered-tool paths cannot resolve host peer-Stop records; single-winner
+`takePending`; host decisions durable before release; ASRC-5. Unconfirmed: a model change does not
+refresh the mode list from the `set_config_option` reply; selecting `allow_always` when no
+`allow_once` exists follows techspec §5.3. **12** — child scoping, reasoning, failure reasons,
+stop-reason mapping and replay gating hold; ASRC-2/6. Unconfirmed: open background tasks/children
+get no terminal record on Stop/crash (display-only); initial `tool_call` content is not mapped.
+
+Existing evidence reconciled: CI-1 closure holds — `go test -race ./internal/runtime -run
+'TestCanceledTurnsReleaseToolInput|TestCancel|TestSteer|TestQueue|TestTurnOwnership|TestHeld|TestSetSessionConfig|TestPermission' -count=3`
+passes (`GOCACHE=/tmp/chuck-gocache-asrc GOFLAGS=-p=1`, `CHUCK_RUNTIME_ROOT` unset). PROMPT-2 is
+untouched by this unit. No real provider, credentialed run, rendered UI or device ran; peer-Stop
+and native mode-adoption live gates remain owed. Invariant sweep: §1, §2, §4, §5, §8, §9, §10,
+§11, §15, §16 and §17 applicable and checked; §3 (no persisted one-shot field), §6 (no new
+interface), §7 (no record repair), §12 (no new external invocation), §13 (no UI markup) and §14
+(no new HTTP surface) have no applicable surface. Fixes and sibling reviews were not selected.
+
 ### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Report received 2026-10-18, verbatim:
@@ -416,6 +527,11 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed runtime execution, concurrency and control (ASR-C):** audited the
+  current runtime at `6b5de19b`. Confirmed the SetSessionConfig read-loop stall (ASRC-1); three
+  Must-fix and four Worth-fixing findings remain on this unit. Fake-ACP overlay probes and focused
+  `-race` runtime tests pass as scoped above; no live provider run. Product code/specs unchanged.
 
 - **2026-10-19 — Reviewed instructions, configuration and execution environment (ASR-A):**
   audited current implementation at `4fbeb316`, including native delivery and checkout readiness.
