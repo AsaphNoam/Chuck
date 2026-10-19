@@ -212,7 +212,28 @@ Invariant sweep: applicable classes §1, §2, §4, §8, §10, §11, §13, §14, 
 
 ### Compact Think Tank chat navigation — commit “think tank: compact chat-tab navigation to room and members” — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-Awaiting review.
+Implementation `48e7d223`; independent source and rendered review completed 2026-10-19 against
+FS-21.R57/A40 and TS-08.R126. No functional, accessibility or requirement defect found; the unit
+remains open for the finding below.
+
+Verification: 51 focused tests pass (`ThinkTankTab.test.tsx`, `ChatPanel.test.tsx`), covering
+current-agent omission, judge, concurrent openings, speaker change/clear, ended/multiple rooms,
+duplicate/long names, unavailable members, failed/empty reads and the clipped list. Independent
+approved loopback Chromium run of the stubbed harness passes 42/42 checks (Core, Sky & Grove,
+Studio at 1024/1600px and a 360px pane: no overflow/clipping, two concurrent actives heavier with
+keyline and no motion, settled links match the shared secondary button, goal absent, keyboard
+order/focus ring, Enter navigation). Screenshots inspected. Evidence:
+`/tmp/chuck-ttnav-indep/`. Every `active_attempts` entry is a running attempt
+(`think_tank_wire.go`), so no state filter is needed.
+Invariant sweep: §8, §10, §13 and §17 checked; §10 has the finding below. No applicable surface
+for §1–§7, §9, §11, §12 or §14–§16.
+
+- **Worth fixing** — **dead roster CSS with a false comment** (INV §10/§13):
+  `ui/src/styles/features/think-tank.css:1360–1395` keeps `.think-tank-card-roster` rules under a
+  comment saying the agent-header room cue still uses the pill roster. The tab was its only
+  markup user and `RoomCue` never used it; no `ui/src` markup references it now. A later edit
+  would maintain or extend styles for a surface that no longer exists. Delete the rule block and
+  comment; confirm with `grep -rn think-tank-card-roster ui/src` and the style/presentation checks.
 
 FS-21.R57/A40, TS-08.R126 (TS-08 now Current). `ThinkTankTab` in `RoomTurnNotice.tsx` renders
 one `<nav>` per room: room link, then other roster members as `ad-button ad-button-secondary`
