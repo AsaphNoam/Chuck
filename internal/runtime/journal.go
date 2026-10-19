@@ -207,6 +207,10 @@ type CommitRequest struct {
 	// IndexedByCaller skips projection: the caller indexes the event in its
 	// own receipt transaction (a quota continuation notice).
 	IndexedByCaller bool
+	// Observe receives every attempt's observation, whatever its outcome,
+	// under the journal lock in reserved-sequence order. It only enqueues
+	// (the control dispatcher); it must not block or call controllers.
+	Observe func(Observation)
 
 	requireSync bool
 }
@@ -237,14 +241,16 @@ func (j *Journal) commitLocked(req CommitRequest) Observation {
 		// The generation's writer is closed: nothing durable can accept it.
 		obs.Outcome = CommitNotWritten
 	}
-	if !obs.Committed() {
-		return obs
+	if obs.Committed() {
+		if req.Committed != nil {
+			req.Committed(ev)
+		}
+		if j.publish != nil && !req.Unpublished {
+			j.publish(ev)
+		}
 	}
-	if req.Committed != nil {
-		req.Committed(ev)
-	}
-	if j.publish != nil && !req.Unpublished {
-		j.publish(ev)
+	if req.Observe != nil {
+		req.Observe(obs)
 	}
 	return obs
 }

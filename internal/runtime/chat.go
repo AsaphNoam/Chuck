@@ -285,6 +285,7 @@ type agentState struct {
 	journals               *Journals
 	journalAttachment      uint64 // this generation's writer attachment, guarded by mu
 	journalRelease         sync.Once
+	control                *controlQueue // ordered control observations (TS-01.R39), guarded by mu
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
 	// replace-only live state, not a transcript event: each update overwrites it,
 	// an empty update clears it, and it dies with this agentState on stop/crash.
@@ -2109,11 +2110,30 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 
 		ActivityID: scope.ActivityID, ParentActivityID: scope.ParentActivityID,
 	}
+	if as.control == nil {
+		as.control = newControlQueue(c.deliverControl)
+	}
+	control, ctx := as.control, as.ctx
 	as.mu.Unlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	req := CommitRequest{Event: ev, Committed: as.retainCommitted}
 	if typ == EvTurnEnd {
 		last := as.lastContext()
 		req.Rollup = &TurnRollup{LastContextPct: last.pct, LastContext: last.counts}
+	}
+	// Reserve control capacity before entering the journal; the observation
+	// is enqueued in commit order, whatever the outcome (TS-04.R100).
+	item := controlItem{reserved: control.reserve(ctx)}
+	var done chan struct{}
+	if typ == EvTurnEnd {
+		done = make(chan struct{})
+		item.done = done
+	}
+	req.Observe = func(obs Observation) {
+		item.obs = obs
+		control.enqueue(item)
 	}
 	obs := as.journal.Commit(req)
 	ev = obs.Event
@@ -2129,11 +2149,10 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 			}
 		}
 	}
-	c.mu.Lock()
-	sink := c.sink
-	c.mu.Unlock()
-	if sink != nil {
-		sink(obs)
+	if done != nil {
+		// Turn settlement waits for its terminal observation, outside every
+		// lock, before the caller can release a held successor (TS-01.R39).
+		<-done
 	}
 	if !persisted && required {
 		return Event{}, false
@@ -2155,6 +2174,17 @@ func (as *agentState) retainHistory(ev Event) {
 	as.seq = ev.Seq
 	as.transcript = append(as.transcript, ev)
 	as.mu.Unlock()
+}
+
+// deliverControl hands one observation to the control sink. It runs on the
+// conversation's control drainer, outside the journal and agent locks.
+func (c *ChatRuntime) deliverControl(obs Observation) {
+	c.mu.Lock()
+	sink := c.sink
+	c.mu.Unlock()
+	if sink != nil {
+		sink(obs)
+	}
 }
 
 // publishHistory forwards a committed event to the external history publisher.

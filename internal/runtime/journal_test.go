@@ -128,8 +128,8 @@ func TestJournalFailedAppendIsNotPublished(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, as, published := newChatJournalState(t, tc.w)
-			var observed []Observation
-			c.SetEventSink(func(obs Observation) { observed = append(observed, obs) })
+			observedCh := make(chan Observation, 8)
+			c.SetEventSink(func(obs Observation) { observedCh <- obs })
 			ch, cancel := as.hub.Subscribe()
 			defer cancel()
 
@@ -159,7 +159,16 @@ func TestJournalFailedAppendIsNotPublished(t *testing.T) {
 			if txt, _ := c.transcriptOf(as); len(txt) != 1 {
 				t.Fatalf("in-memory history kept %d events, want 1", len(txt))
 			}
-			if len(observed) != 3 || !observed[0].Committed() || observed[1].Outcome != CommitUncertain || observed[2].Outcome != CommitNotWritten {
+			var observed []Observation
+			for len(observed) < 3 {
+				select {
+				case obs := <-observedCh:
+					observed = append(observed, obs)
+				case <-time.After(time.Second):
+					t.Fatalf("control observations = %+v, want 3 in commit order", observed)
+				}
+			}
+			if !observed[0].Committed() || observed[1].Outcome != CommitUncertain || observed[2].Outcome != CommitNotWritten {
 				t.Fatalf("observations = %+v", observed)
 			}
 			if observed[1].Event.Seq != 2 || observed[2].Event.Seq != 3 {
@@ -195,4 +204,52 @@ func (c *ChatRuntime) transcriptOf(as *agentState) ([]Event, error) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 	return append([]Event(nil), as.transcript...), nil
+}
+
+// TS-01.R39 / FS-03.A78: concurrent emitters' control observations reach the
+// sink in commit order, one at a time, outside the journal lock; a turn_end
+// emitter returns only after its own observation settled.
+func TestControlObservationsSettleInCommitOrder(t *testing.T) {
+	c, as, _ := newChatJournalState(t, &recordingWriter{})
+	var mu sync.Mutex
+	var seqs []int64
+	inFlight := 0
+	c.SetEventSink(func(obs Observation) {
+		mu.Lock()
+		inFlight++
+		if inFlight > 1 {
+			t.Error("control observations delivered concurrently")
+		}
+		mu.Unlock()
+		// A history-only notice from inside a callback must not deadlock.
+		if _, err := c.commitNotice(as, CommitRequest{Event: Event{Type: EvNotice}}, NoticeData{Severity: "info", Title: "reentrant"}, "notice"); err != nil {
+			t.Errorf("reentrant notice: %v", err)
+		}
+		mu.Lock()
+		seqs = append(seqs, obs.Event.Seq)
+		inFlight--
+		mu.Unlock()
+	})
+	var wg sync.WaitGroup
+	for g := 0; g < 4; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 25; i++ {
+				c.emit(as, EvAssistantText, AssistantTextData{Delta: "x"})
+			}
+		}()
+	}
+	wg.Wait()
+	end := c.emit(as, EvTurnEnd, TurnEndData{StopReason: "end_turn"})
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seqs) != 101 || seqs[len(seqs)-1] != end.Seq {
+		t.Fatalf("turn_end returned before its observation settled: %d observed, last %v, turn_end %d", len(seqs), seqs[len(seqs)-1:], end.Seq)
+	}
+	for i := 1; i < len(seqs); i++ {
+		if seqs[i] <= seqs[i-1] {
+			t.Fatalf("control order %d after %d: observations must follow commit order", seqs[i], seqs[i-1])
+		}
+	}
 }
