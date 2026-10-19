@@ -12,33 +12,38 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
-func TestITermLaunchCommandKeepsEnvironmentSecretsOutOfVisibleCommand(t *testing.T) {
-	command, envPath, err := itermLaunchCommand(TabSpec{
-		Command: []string{"claude", "--model", "sonnet"},
+// TS-05.R28: external-driver command text names only the executable and the
+// private record; argv and environment secrets live in a 0600 file inside a
+// 0700 directory.
+func TestOwnedLaunchKeepsSecretsOutOfVisibleCommand(t *testing.T) {
+	launch, command, err := prepareOwnedLaunch(TabSpec{
+		Command: []string{"claude", "--append-system-prompt", "persona secret"},
 		Env:     []string{"API_KEY=secret value", "CHUCK_HOOK_TOKEN=hook-secret"},
+		Cwd:     t.TempDir(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Remove(envPath) })
-	for _, secret := range []string{"secret value", "hook-secret"} {
+	defer launch.cleanup()
+	for _, secret := range []string{"secret value", "hook-secret", "persona secret"} {
 		if strings.Contains(command, secret) {
-			t.Fatalf("visible iTerm command contains secret %q: %s", secret, command)
+			t.Fatalf("visible command contains secret %q: %s", secret, command)
 		}
 	}
-	if !strings.Contains(command, envPath) || !strings.Contains(command, "rm -f") {
-		t.Fatalf("iTerm command does not source and remove env file: %s", command)
+	if !strings.HasPrefix(command, "exec ") || !strings.Contains(command, BootstrapCommand) || !strings.Contains(command, launch.recordPath()) {
+		t.Fatalf("command does not exec the bootstrap with its record: %s", command)
 	}
-	info, err := os.Stat(envPath)
-	if err != nil {
-		t.Fatal(err)
+	dir, err := os.Stat(launch.dir)
+	if err != nil || dir.Mode().Perm() != 0o700 {
+		t.Fatalf("launch directory mode = %v, %v", dir.Mode(), err)
 	}
-	if info.Mode()&os.ModeNamedPipe == 0 || info.Mode().Perm() != 0o600 {
-		t.Fatalf("env file mode = %v", info.Mode())
+	info, err := os.Stat(launch.recordPath())
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("launch record mode = %v, %v", info.Mode(), err)
 	}
-	data, err := os.ReadFile(envPath)
+	data, err := os.ReadFile(launch.recordPath())
 	if err != nil || !strings.Contains(string(data), "hook-secret") {
-		t.Fatalf("env file content missing: %q, err=%v", data, err)
+		t.Fatalf("record content missing: %q, err=%v", data, err)
 	}
 }
 

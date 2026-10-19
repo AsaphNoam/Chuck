@@ -6,7 +6,10 @@
 // one interface; the registry never sees the difference.
 package terminal
 
-import "os"
+import (
+	"os"
+	"time"
+)
 
 // TabSpec is the fully-resolved input to a driver's StartTab: the launch argv,
 // working dir, env, and the cosmetic tab title/color. The runtime composes it
@@ -17,6 +20,9 @@ type TabSpec struct {
 	Env     []string // "K=V" entries (already layered, incl. CHUCK_* hook env)
 	Title   string   // "{name} · {role}@{project}" (§3.2)
 	Color   [3]int   // project accent (0–255 RGB); zero value means "unset"
+	// Handle is the unique, bounded agent/generation machine identity used for
+	// driver names (tmux sessions). Titles are cosmetic (TS-04.R102).
+	Handle string
 }
 
 // Tab is the live handle a driver returns for one launched terminal. It carries
@@ -28,6 +34,9 @@ type Tab struct {
 	TTY    string            // controlling tty path, e.g. /dev/ttys003
 	PGID   int               // process group to signal for Cancel/Stop (§3.1)
 	IDs    map[string]string // driver-specific ids → running.driver_ids (§3.1)
+	// Birth is the kernel start time of the PGID leader, proved by the driver
+	// (TS-01.R41). A zero Birth is not a usable launch.
+	Birth time.Time
 
 	// xterm/PTY driver handles.
 	ptmx   *os.File      // PTY master, bridged to the browser over the WS (§3.4)
@@ -40,7 +49,6 @@ type Tab struct {
 	// the tab for CloseTab; the session id addresses it for write-text.
 	itermWindowID  string
 	itermSessionID string
-	itermEnvPath   string
 }
 
 // TerminalDriver is the seam (§2.1). The xterm/PTY and tmux drivers are

@@ -1475,7 +1475,7 @@ version string or steering advertisement alone is insufficient. Source artifacts
 withhold/refuse Steer; ordinary Send continues. No unowned detached turn or automatic resubmission
 is an acceptable fallback. Native adoption/live gates remain independent of artifact proof.
 
-**R102 (planned) — External terminal bootstrap and control use exact owned handles.** Extend
+**R102 — External terminal bootstrap and control use exact owned handles.** Extend
 TabSpec with stable agent/generation machine identity. tmux/iTerm2 call the same hidden bootstrap
 with only an owner-only launch-record path in argv; the record contains bounded exact argv/env/cwd,
 generation and a random one-use nonce. Resolve the hidden command through the current Chuck

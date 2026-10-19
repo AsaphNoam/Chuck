@@ -588,7 +588,7 @@ when equivalent routing/isolation cannot be proved. The real provider setup must
 before registrations or source teardown. Reuse adapters/resolvers/LaunchSpec; do not create a
 parallel configuration manager or treat one set of prompt injections as valid for every purpose.
 
-**R41 (planned) — Execution handles prove identity, control and finalization.** Registry launch
+**R41 — Execution handles prove identity, control and finalization.** Registry launch
 and resume use an explicit generation claim `launching -> committed|exited`; a runtime exit wins
 against a later commit of that same claim. The current driver/child result must carry corroborated
 PID, dedicated PGID, actual process birth identity, unique machine handle and wait/exit observation.
@@ -609,13 +609,15 @@ acceptance, independently corroborating OS birth/group/foreground TTY and the ex
 xterm wait or bounded OS-identity monitoring (at most one-second detection interval)
 feeds the same generation-fenced exit path. Native session identity and process proof persist per
 TS-02.R54; native ID never derives from display title or process ID.
-*Shipped so far (2026-10-19):* `Registry.Launch`/`Resume` share `claimStart`/`commitStart`; an
-exit reported for a still-launching generation marks it exited without running exit teardown, and
-the commit then fails with `ErrExitedDuringStart` after `Runtime.Stop` drops the dead handle, so the
-launcher's rollback owns cleanup. Manual launch and Clone mint the new id and hold its lifecycle
-claim through launch (`launchClaimed`). `runtime.ContainCommand` is the owned-command containment
-primitive (TS-12.R11). Launch-time proof validation, driver handles and exit observation for
-tmux/iTerm2 remain planned.
+*Implementation:* `Registry.Launch`/`Resume` share `claimStart`/`commitStart`; an exit reported
+for a still-launching generation marks it exited without running exit teardown, and the commit
+then fails with `ErrExitedDuringStart` after `Runtime.Stop` drops the dead handle, so the launcher's
+rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim (`launchClaimed`).
+`runtime.ContainCommand` is the owned-command containment primitive (TS-12.R11). `Tab` carries
+`PGID`/`Birth`; `startOwnedTab` refuses an unproved result with `ErrTerminalUnavailable`
+(`terminal_unavailable`); external views are polled with `ClassifyProcess` at `exitPollInterval`
+(1 s) and Cancel/Stop re-prove them first. The bootstrap lives in
+`internal/runtime/terminal/bootstrap.go`; `cli.Execute` dispatches it before cobra.
 
 ## 3. Interfaces & data shapes
 

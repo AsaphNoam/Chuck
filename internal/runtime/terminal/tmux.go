@@ -15,34 +15,48 @@ type tmuxDriver struct{}
 
 func (tmuxDriver) Name() string { return "tmux" }
 
-// StartTab creates a detached session running argv, then reads back the pane tty
-// and pid. The session name embeds the agent id for later reattach/teardown.
+// StartTab creates a detached session whose pane execs the owned bootstrap,
+// then accepts it only after the bootstrap's handshake matches the pane's PID
+// and TTY (TS-04.R102). The pane receives exactly the record's environment,
+// never the tmux server's global or session environment (ASRB-6), and the
+// session name is the unique machine handle, not the title (ASRB-7).
 func (tmuxDriver) StartTab(spec TabSpec) (*Tab, error) {
-	if len(spec.Command) == 0 {
-		return nil, fmt.Errorf("terminal: empty launch command")
+	launch, command, err := prepareOwnedLaunch(spec)
+	if err != nil {
+		return nil, err
 	}
+	defer launch.cleanup()
 	name := spec.tmuxSession()
-	// Pass argv as a single shell-safe command; tmux runs it via the user's shell.
 	args := []string{"new-session", "-d", "-s", name}
 	if spec.Cwd != "" {
 		args = append(args, "-c", spec.Cwd)
 	}
-	args = append(args, shellJoin(spec.Command))
-	cmd := exec.Command("tmux", args...)
-	cmd.Env = spec.Env
-	if out, err := cmd.CombinedOutput(); err != nil {
+	// The tmux client keeps Chuck's own environment: agent secrets must not
+	// seed a new tmux server's global environment.
+	args = append(args, command)
+	if out, err := exec.Command("tmux", args...).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("terminal: tmux new-session: %w: %s", err, strings.TrimSpace(string(out)))
 	}
-
 	tab := &Tab{Driver: "tmux", tmuxName: name, IDs: map[string]string{"tmux_session": name}}
-	if tty, err := tmuxDisplay(name, "#{pane_tty}"); err == nil {
-		tab.TTY = tty
+	fail := func(err error) (*Tab, error) {
+		_ = exec.Command("tmux", "kill-session", "-t", name).Run()
+		return nil, err
 	}
-	if pidStr, err := tmuxDisplay(name, "#{pane_pid}"); err == nil {
-		if pid, perr := strconv.Atoi(strings.TrimSpace(pidStr)); perr == nil {
-			tab.PGID = pid
-		}
+	h, err := launch.await(bootstrapHandshakeWait)
+	if err != nil {
+		return fail(err)
 	}
+	tty, terr := tmuxDisplay(name, "#{pane_tty}")
+	pidStr, perr := tmuxDisplay(name, "#{pane_pid}")
+	pid, aerr := strconv.Atoi(strings.TrimSpace(pidStr))
+	if terr != nil || perr != nil || aerr != nil || pid <= 0 {
+		return fail(fmt.Errorf("terminal: tmux pane identity unavailable"))
+	}
+	birth, err := verifyOwnedProcess(h, pid, tty)
+	if err != nil {
+		return fail(err)
+	}
+	tab.TTY, tab.PGID, tab.Birth = tty, pid, birth
 	if spec.Title != "" {
 		_ = exec.Command("tmux", "rename-window", "-t", name, spec.Title).Run()
 	}
@@ -68,9 +82,10 @@ func (tmuxDriver) CloseTab(tab *Tab) error {
 	return exec.Command("tmux", "kill-session", "-t", tab.tmuxName).Run()
 }
 
+// tmuxSession names the session from the unique agent/generation handle; two
+// agents with the same title never collide (ASRB-7). Handles are already
+// tmux-safe ([a-z0-9_-]); anything else is replaced defensively.
 func (s TabSpec) tmuxSession() string {
-	// Stable, collision-free per agent: the runtime sets a unique Title, but the
-	// session name must be tmux-safe, so derive it from a sanitized title.
 	base := strings.Map(func(r rune) rune {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
@@ -78,7 +93,7 @@ func (s TabSpec) tmuxSession() string {
 		default:
 			return '-'
 		}
-	}, s.Title)
+	}, s.Handle)
 	if base == "" {
 		base = "agent"
 	}

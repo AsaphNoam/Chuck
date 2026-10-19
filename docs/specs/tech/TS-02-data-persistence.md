@@ -758,22 +758,23 @@ relabel/rewrite native history or choose another model/account. New native fork 
 contract; a transient fork/check plan is not stored as user configuration. No raw native config,
 auth file, token or full environment is added to the contract.
 
-**R54 (planned) — Persist process proof and terminal native identity at their owning boundary.**
+**R54 — Persist process proof and terminal native identity at their owning boundary.**
 Extend running rows forward-only with a versioned process proof: actual process birth value at
 platform precision, positive PID/PGID, existing generation and bounded driver IDs/machine handle.
 Keep process birth distinct from row `started_at`; capture it from the owned native process, not
 a clock guess. New orphan signals compare that exact current proof immediately before each
 destructive action. No claim of atomic identity-and-signal is made on platforms lacking that
 primitive; unknown/mismatch fails closed. Do not manufacture proof for legacy rows.
-*Shipped so far:* migration 56 adds `running.process_birth_us` (kernel birth of the dedicated group
+*Implementation:* migration 56 adds `running.process_birth_us` (kernel birth of the dedicated group
 leader, unix microseconds; `0` is unknown). The PID column names that leader, so PGID equals PID.
 A token-bound `running` hook that changes the PID resets birth to unknown. The proof version is
 implicit in this column until a later proof field needs an explicit version. A token-bound
 SessionStart with a nonempty ID updates `sessions.last_session_id` in the same transaction as the
 running row; terminal teardown and orphan reconciliation delete running rows through
 `DeleteRunningRetainingSession`, which copies a nonempty running ID first. Terminal Resume with an
-empty ID refuses (409) instead of starting a fresh conversation. Launch-generation fencing of the
-hook beyond its per-generation token remains with the driver work.
+empty ID refuses (409) instead of starting a fresh conversation. The hook token is minted per
+generation, so token binding is the generation condition. Bootstrap records live in a private
+`chuck-term-*` temporary directory removed by the launching driver on every path.
 
 In the authenticated SessionStart transaction, update both the current running native ID/TTY and
 `sessions.last_session_id` when nonempty, conditional on the current token-bound running generation;

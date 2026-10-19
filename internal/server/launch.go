@@ -833,6 +833,8 @@ func launchStartError(err error) *runtime.APIError {
 		return providerIncompatibleError(err)
 	case errors.Is(err, runtime.ErrForkUnavailable):
 		return cloneUnavailable(state.CloneReasonNoFork)
+	case errors.Is(err, runtime.ErrTerminalUnavailable):
+		return apiError(runtime.CodeTerminalUnavailable, err.Error())
 	default:
 		return apiError(runtime.CodeRuntimeStartFailed, err.Error())
 	}

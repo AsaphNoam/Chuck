@@ -6,6 +6,8 @@ import (
 	"syscall"
 
 	"github.com/creack/pty"
+
+	rt "github.com/AsaphNoam/Chuck/internal/runtime"
 )
 
 // xtermDriver is the default, cross-platform driver: it runs the CLI under a
@@ -47,7 +49,8 @@ func (xtermDriver) StartTab(spec TabSpec) (*Tab, error) {
 	tab := &Tab{
 		Driver: "xterm",
 		TTY:    ttyName,
-		PGID:   cmd.Process.Pid, // session leader (Setsid) → pid == pgid
+		PGID:   cmd.Process.Pid,                  // session leader (Setsid) → pid == pgid
+		Birth:  rt.ProcessBirth(cmd.Process.Pid), // unreaped child: PID cannot be reused yet
 		ptmx:   ptmx,
 		exited: make(chan struct{}),
 	}

@@ -2,6 +2,8 @@ package terminal
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"sync"
@@ -10,6 +12,7 @@ import (
 
 	rt "github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
+	"github.com/AsaphNoam/Chuck/internal/strutil"
 	"github.com/creack/pty"
 )
 
@@ -189,6 +192,49 @@ func (r *Runtime) openPersistence(a *termAgent, spec rt.LaunchSpec, sessionID st
 	return nil
 }
 
+// exitPollInterval bounds exit detection for drivers without a waitable child
+// (tmux/iTerm2) (TS-01.R41).
+var exitPollInterval = time.Second
+
+// startOwnedTab starts the driver view and refuses a result without a
+// provable dedicated process group, closing only that view (FS-07.R25). A
+// waitable xterm child is ours until reaped; an external view must still be
+// the proved leader.
+func startOwnedTab(drv TerminalDriver, spec TabSpec) (*Tab, error) {
+	tab, err := drv.StartTab(spec)
+	if err != nil {
+		return nil, err
+	}
+	proved := tab.PGID > 0 && !tab.Birth.IsZero() &&
+		(tab.exited != nil || rt.ClassifyProcess(tab.PGID, tab.Birth) == rt.ProcessOwned)
+	if !proved {
+		_ = drv.CloseTab(tab)
+		return nil, rt.ErrTerminalUnavailable
+	}
+	return tab, nil
+}
+
+// exitSignal closes when the agent's process exits: the xterm child's reap,
+// or a bounded identity poll for an external view. It also closes once the
+// agent is stopped so no watcher outlives Stop.
+func (a *termAgent) exitSignal() <-chan struct{} {
+	if a.tab.exited != nil {
+		return a.tab.exited
+	}
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		tick := time.NewTicker(exitPollInterval)
+		defer tick.Stop()
+		for range tick.C {
+			if a.isStopped() || rt.ClassifyProcess(a.tab.PGID, a.tab.Birth) != rt.ProcessOwned {
+				return
+			}
+		}
+	}()
+	return ch
+}
+
 // Start launches the CLI under the driver, records the running row (tty, driver,
 // driver_ids), and schedules the race-guarded initial idle (§3.1).
 func (r *Runtime) Start(ctx context.Context, spec rt.LaunchSpec) (*rt.Handle, error) {
@@ -196,7 +242,7 @@ func (r *Runtime) Start(ctx context.Context, spec rt.LaunchSpec) (*rt.Handle, er
 	if err != nil {
 		return nil, err
 	}
-	tab, err := drv.StartTab(r.tabSpec(spec, false, ""))
+	tab, err := startOwnedTab(drv, r.tabSpec(spec, false, ""))
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +261,7 @@ func (r *Runtime) Start(ctx context.Context, spec rt.LaunchSpec) (*rt.Handle, er
 	a.startPTYHub()
 
 	if err := r.store.WriteRunning(state.RunningEntry{
-		AgentID: a.agentID, PID: tab.PGID, ProcessBirth: rt.ProcessBirth(tab.PGID), SessionID: "", Interface: "terminal",
+		AgentID: a.agentID, PID: tab.PGID, ProcessBirth: tab.Birth, SessionID: "", Interface: "terminal",
 		TTY: tab.TTY, Driver: tab.Driver, DriverIDs: tab.IDs,
 		HookToken: spec.HookToken, StartedAt: time.Now().UTC(), Generation: spec.Generation,
 	}); err != nil {
@@ -246,7 +292,7 @@ func (r *Runtime) Resume(ctx context.Context, spec rt.LaunchSpec, sessionID stri
 	if err != nil {
 		return nil, err
 	}
-	tab, err := drv.StartTab(r.tabSpec(spec, true, sessionID))
+	tab, err := startOwnedTab(drv, r.tabSpec(spec, true, sessionID))
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +311,7 @@ func (r *Runtime) Resume(ctx context.Context, spec rt.LaunchSpec, sessionID stri
 	a.startPTYHub()
 
 	if err := r.store.WriteRunning(state.RunningEntry{
-		AgentID: a.agentID, PID: tab.PGID, ProcessBirth: rt.ProcessBirth(tab.PGID), SessionID: sessionID, Interface: "terminal",
+		AgentID: a.agentID, PID: tab.PGID, ProcessBirth: tab.Birth, SessionID: sessionID, Interface: "terminal",
 		TTY: tab.TTY, Driver: tab.Driver, DriverIDs: tab.IDs,
 		HookToken: spec.HookToken, StartedAt: time.Now().UTC(), Generation: spec.Generation,
 	}); err != nil {
@@ -301,7 +347,8 @@ func (r *Runtime) Cancel(ctx context.Context, agentID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if a.tab.PGID > 0 {
+	// An external view's PID is not our child: re-prove it before signaling.
+	if a.tab.PGID > 0 && (a.tab.exited != nil || rt.ClassifyProcess(a.tab.PGID, a.tab.Birth) == rt.ProcessOwned) {
 		_ = syscall.Kill(-a.tab.PGID, syscall.SIGINT)
 		return true, nil
 	}
@@ -458,11 +505,9 @@ func (r *Runtime) removeAgent(agentID string) {
 // tmux liveness is handled by the 6.6 sweep). On exit outside Stop it clears the
 // running row, marks the agent done, and tells the Registry to drop ownership.
 func (r *Runtime) startWatcher(a *termAgent) {
-	if a.tab.exited == nil {
-		return
-	}
+	exited := a.exitSignal()
 	go func() {
-		<-a.tab.exited
+		<-exited
 		a.mu.Lock()
 		if a.stopped {
 			a.mu.Unlock()
@@ -505,27 +550,24 @@ func (r *Runtime) scheduleInitialIdle(a *termAgent) {
 }
 
 // terminate signals SIGTERM→(grace)→SIGKILL to the process group, waiting on the
-// driver's exited channel where available.
+// driver's exited channel where available. An external view's group is
+// re-proved before each signal (FS-01.R54); CloseTab then releases the view.
 func (r *Runtime) terminate(a *termAgent) {
 	pgid := a.tab.PGID
+	if a.tab.exited == nil {
+		_ = rt.StopRecordedProcess(pgid, a.tab.Birth, stopGrace)
+		return
+	}
 	if pgid > 0 {
 		_ = syscall.Kill(-pgid, syscall.SIGTERM)
 	}
-	switch {
-	case a.tab.exited != nil:
-		select {
-		case <-a.tab.exited:
-		case <-time.After(stopGrace):
-			if pgid > 0 {
-				_ = syscall.Kill(-pgid, syscall.SIGKILL)
-			}
-			<-a.tab.exited
+	select {
+	case <-a.tab.exited:
+	case <-time.After(stopGrace):
+		if pgid > 0 {
+			_ = syscall.Kill(-pgid, syscall.SIGKILL)
 		}
-	case pgid > 0:
-		// Driver without a waitable process (tmux): brief grace, then SIGKILL;
-		// CloseTab does the authoritative teardown (kill-session).
-		time.Sleep(stopGrace)
-		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		<-a.tab.exited
 	}
 }
 
@@ -557,7 +599,15 @@ func (r *Runtime) tabSpec(spec rt.LaunchSpec, resume bool, sessionID string) Tab
 		Cwd:     spec.Cwd,
 		Env:     env,
 		Title:   tabTitle(spec.Agent),
+		Handle:  machineHandle(spec.Agent.AgentID, spec.Generation),
 	}
+}
+
+// machineHandle is the unique, bounded agent/generation identity for driver
+// names. The generation is a hook token, so only a short hash of it appears.
+func machineHandle(agentID, generation string) string {
+	sum := sha256.Sum256([]byte(generation))
+	return strutil.ClipRunes(agentID, 64) + "-" + hex.EncodeToString(sum[:4])
 }
 
 // launchArgv builds the launch command. Tests override the binary; production

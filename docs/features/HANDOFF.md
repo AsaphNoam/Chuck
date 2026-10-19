@@ -81,14 +81,22 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
      validation moves to slice 5 with driver handles.
   4. **Done** — terminal native ID (ASRB-1): SessionStart → `sessions.last_session_id`;
      `DeleteRunningRetainingSession`; `ErrNativeIdentityMissing` → 409 on terminal Resume.
-  5. Drivers (ASRB-4–7, TS-04.R102/TS-05.R28): unique agent/generation tmux names; exit
-     observation → generation teardown; hidden bootstrap with owner-only launch record for
-     tmux/iTerm2; refuse iTerm2/tmux control until proof exists.
-  Checks passed through slice 4: `go test ./internal/runtime/... ./internal/state/ ./internal/cli/
-  ./internal/server/`, `make check-specs`. TS-06 closure owed at
-  the end. Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
+  5. **Done** — drivers (ASRB-4–7): `bootstrap.go` (hidden `__terminal-bootstrap`, private launch
+     record, nonce-bound handshake, exact env exec); tmux/iTerm2 use it; `startOwnedTab` proof gate;
+     `machineHandle` session names; 1 s exit polling; proof-checked Cancel/Stop. Fixtures: fake
+     tmux/osascript in `fake_driver_test.go`, tests in `drivers_test.go`/`bootstrap_test.go`.
+  Remaining: TS-06 closure, then close the change and queue its substantive review.
+  Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
 
 ## Acceptance gates still owed
+
+- **FS-07.A12 — real tmux/iTerm2 ownership receipts (ASW-3):** neither tmux nor iTerm2 is
+  installed on the implementing machine. On a host with both: two terminal agents against an
+  already-running tmux server and a real iTerm2 launch; verify each CLI's environment/hook identity,
+  native SessionStart → Stop → Resume, Cancel, Stop, viewer detach versus CLI exit, descendants and
+  dashboard crash → Stop/Switch. Fake tmux/osascript fixtures (`drivers_test.go`) and the real-PTY
+  bootstrap tests do not close this. Also unverified: iTerm2 shells that do not lead their own
+  foreground group would now refuse launch (fail-closed) rather than run.
 
 - **FS-16.A33 — task reporting under real provider policy:** run a credentialed sequential
   workflow (Claude `/work` → Codex `$review` → Claude `/fix` as tasks); each assignee must read
@@ -468,6 +476,9 @@ and integrated here.
   generation-scoped teardown and regress native exit/viewer close plus later Resume. Source trace
   and a no-process driver fixture confirm the retained registry claim after pruning; this is
   distinct from ASRC-4's fresh-launch registration race.
+  *Fixed in ASW-3 slice 5 (2026-10-19), pending review:* `termAgent.exitSignal` polls the proved
+  group every `exitPollInterval` (1 s) into the existing watcher teardown/`onExit`;
+  `TestExternalDriverExitReleasesOwnership` (fake tmux and iTerm2). Real driver receipt: FS-07.A12.
 - **Must fix** — ASRB-5 — **iTerm2 launches have no process identity for control or restart**
   (INV §4/§6/§9/§12). `internal/runtime/terminal/iterm2.go:66–76`,
   `terminal.go:221–224,294–306,355–363`, `internal/server/reconcile.go:211–237`:
@@ -479,6 +490,11 @@ and integrated here.
   or refuse this driver until those contracts exist. Regress live launch across a sweep,
   cancellation and crash→Stop/Switch. The PID-0 fixture proves false pruning plus retained runtime
   ownership; actual iTerm automation/child containment remains unverified.
+  *Fixed in ASW-3 slice 5 (2026-10-19), pending review:* iTerm2 sessions exec the owned bootstrap;
+  the launch is accepted only after a nonce-bound handshake proves PID/PGID/birth/TTY, otherwise
+  its window closes and the launch fails `terminal_unavailable`. Cancel/Stop re-prove first.
+  Fixtures: `TestExternalDriverExitReleasesOwnership/iterm2`, `TestExternalDriverStopTerminatesProvedGroup`.
+  Real iTerm2 automation still unverified (FS-07.A12).
 - **Must fix** — ASRB-6 — **tmux panes can inherit another launch's environment**
   (INV §2/§6/§11/§12). `internal/runtime/terminal/tmux.go:24–34` sets the tmux client's
   `cmd.Env`, but supplies neither a per-session environment nor a child bootstrap. With an
@@ -490,6 +506,10 @@ and integrated here.
   not an actual local tmux run (tmux is unavailable here). Supply each launch's composed environment
   through a supported bounded mechanism without exposing secrets; regress two distinct launches
   against an already-running isolated tmux server and verify child bytes and hook identity.
+  *Fixed in ASW-3 slice 5 (2026-10-19), pending review:* panes exec the bootstrap, which execs the
+  CLI with exactly the launch record's environment; the tmux client keeps Chuck's own env.
+  `TestTmuxDriverOwnsSameTitleAgentsWithExactEnv` uses a fake server with its own stale
+  environment and fails against the old driver. Real tmux receipt: FS-07.A12.
 - **Must fix** — ASRB-7 — **Distinct terminal agents collide on tmux session names**
   (INV §6/§9/§10/§12). `internal/runtime/terminal/terminal.go:573–583,642–644`,
   `tmux.go:24–34,71–84`: session names derive solely from the sanitized display title, which
@@ -499,6 +519,9 @@ and integrated here.
   machine identity separate from the title. Use agent/generation identity for the session and
   retain the title for display; regress duplicate and sanitization-colliding names. A probe of
   the actual helpers maps `a_one` and `a_two` to `chuck-Same---dev-p`; no live tmux launch ran.
+  *Fixed in ASW-3 slice 5 (2026-10-19), pending review:* session names come from
+  `machineHandle(agentID, generation)` (agent id + 8-hex hash of the generation); covered by
+  `TestTmuxDriverOwnsSameTitleAgentsWithExactEnv`.
 - **Must fix** — ASRB-8 — **Source Codex Steer exposes an incompatible detached-turn path**
   (INV §1/§10/§11/§12/§17). `internal/backend/adapter.go:423–432`,
   `internal/runtime/chat.go:791–808,844–877`, `scripts/release/assemble.sh:68–83`:

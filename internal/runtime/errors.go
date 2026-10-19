@@ -23,6 +23,9 @@ var (
 	// ErrExitedDuringStart: the process exited before its launch committed, so
 	// the start failed rather than registering a dead runtime (TS-01.R41).
 	ErrExitedDuringStart = errors.New("runtime: agent process exited during startup")
+	// ErrTerminalUnavailable: the terminal driver could not prove the agent
+	// process's identity and control, so the launch is refused (FS-07.R25).
+	ErrTerminalUnavailable = errors.New("the terminal driver could not prove control of the agent process")
 	// ErrNativeIdentityMissing: Resume needs the native conversation ID, which
 	// was never recorded, so it refuses instead of opening a different
 	// conversation (FS-07.R25). Its text is the user-facing refusal.

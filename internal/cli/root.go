@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/AsaphNoam/Chuck/internal/runtime/terminal"
 	"github.com/AsaphNoam/Chuck/internal/version"
 )
 
@@ -67,6 +68,13 @@ func newResumeCmd() *cobra.Command {
 // reserved `<role>@<project>` launch syntax before cobra dispatch, then runs the
 // command tree. Returns the process exit code.
 func Execute(args []string) int {
+	// Internal terminal bootstrap (TS-04.R102): exec'd by an owned tmux/iTerm2
+	// view, never offered as a command. It returns only on failure.
+	if len(args) == 2 && args[0] == terminal.BootstrapCommand {
+		err := terminal.RunBootstrap(args[1])
+		fmt.Fprintln(os.Stderr, "chuck: terminal launch failed:", err)
+		return 1
+	}
 	// Reserved launch syntax: first positional arg of the form role@project.
 	if len(args) > 0 && isLaunchArg(args[0]) {
 		return runLaunch(args)

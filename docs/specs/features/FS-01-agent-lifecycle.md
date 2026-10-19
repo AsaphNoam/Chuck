@@ -375,7 +375,7 @@ persona/history primer; a check carries no work instructions or coordination aut
 or ambiguous source/legacy selection fails before registration, native work or source-runtime
 teardown; explicit refresh remains the existing opt-in way to select a new contract.
 
-**R54 (planned) — Lifecycle control proves execution ownership.** Extending R20–R21, a live PID
+**R54 — Lifecycle control proves execution ownership.** Extending R20–R21, a live PID
 alone never authorizes Stop, Switch, Archive, pruning or orphan destruction. A new execution has
 a generation-bound corroborated process/group and driver identity and an observed exit path before
 launch reports success. Unknown/mismatched legacy identity causes a bounded actionable refusal and
@@ -384,12 +384,11 @@ rows retain R20's `done` / `process exited` outcome. The current native conversa
 before deleting its running row; Resume never silently creates a fresh native conversation when
 that required identity is unavailable. A failed start/old exit cannot claim or tear down a newer
 generation. See TS-01.R41 and TS-02.R54.
-**Shipped so far (2026-10-19):** running rows record the leader's kernel birth; orphan Stop/Switch/
-Archive/pipeline reaps, peer Stop, startup reconciliation and the periodic sweep share one
-proof check and R20's outcome (R20–R21). An exit before registry commit fails that launch/resume
-and a late prior-generation exit cannot tear down a newer claim (TS-01.R41). A terminal's native
-conversation ID is durable from SessionStart and survives Stop/crash; Resume without it refuses
-(FS-07.R25). Launch-time proof and external-driver identity remain planned.
+Running rows record the leader's kernel birth; orphan Stop/Switch/Archive/pipeline reaps, peer
+Stop, startup reconciliation and the periodic sweep share one proof check and R20's outcome
+(R20–R21). An exit before registry commit fails that launch/resume (TS-01.R41). A terminal's native
+conversation ID is durable from SessionStart; Resume without it refuses (FS-07.R25). Terminal
+launches are accepted only with a driver-proved group (FS-07.R25).
 
 ## 3. States & transitions
 
@@ -686,7 +685,7 @@ switch, rollback, both handoff directions, Claude/Codex fork and isolated quota 
 and nested native project layers are covered; unsupported custom roots/profiles and ambiguous old
 snapshots refuse without side effects. Credentialed adoption remains a separately recorded gate.
 
-**A36 (planned)** (R54) — Isolated subprocess/driver tests cover exit before registry commit,
+**A36** (R54) — Isolated subprocess/driver tests cover exit before registry commit,
 late prior-generation exit, reused PID, unknown legacy proof, dedicated-group descendants,
 terminal SessionStart → Stop/crash/restart → Resume and false-prune prevention. Confirmed-dead
 restart writes R20's outcome. Real driver/provider receipts are required by FS-07.A11–A12.

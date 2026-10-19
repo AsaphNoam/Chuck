@@ -304,7 +304,7 @@ Do not claim resistance to a same-user process bypassing the tool. No API creden
 restriction, new remote access or provider configuration migration is introduced. Existing
 Host/Origin guards and paired-device authorization still protect their respective routes.
 
-**R28 (planned) — Process control proof and bootstrap material are scoped to one generation.**
+**R28 — Process control proof and bootstrap material are scoped to one generation.**
 TS-01.R41/TS-02.R54 require actual process-birth and dedicated group/driver corroboration before
 signals or destructive cleanup. Unknown/mismatched legacy proof never authorizes a kill or cleanup
 of another generation. Bootstrap input/handshake paths stay within a Chuck-owned 0700 temporary

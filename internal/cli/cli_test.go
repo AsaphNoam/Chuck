@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/AsaphNoam/Chuck/internal/runtime/terminal"
 )
 
 // FS-04.A21: a foreground dashboard persists structured logs and keeps the
@@ -297,5 +299,23 @@ func TestProcessAlive(t *testing.T) {
 	}
 	if processAlive(2147480000) {
 		t.Error("processAlive(huge) = true, want false")
+	}
+}
+
+// TS-04.R102: the current executable dispatches the hidden terminal bootstrap
+// before cobra, refuses an unusable record, and never lists the command.
+func TestTerminalBootstrapIsHiddenAndFailsClosed(t *testing.T) {
+	if code := Execute([]string{terminal.BootstrapCommand, filepath.Join(t.TempDir(), "launch.json")}); code != 1 {
+		t.Fatalf("bootstrap with a missing record exited %d, want 1", code)
+	}
+	var help bytes.Buffer
+	root := NewRootCmd()
+	root.SetOut(&help)
+	root.SetArgs([]string{"--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(help.String(), terminal.BootstrapCommand) {
+		t.Fatal("help lists the internal terminal bootstrap")
 	}
 }
