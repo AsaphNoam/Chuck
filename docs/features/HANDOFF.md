@@ -20,7 +20,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
 - **Repository:** `AsaphNoam/Chuck`; branch `main`.
 - **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`), and
-  ASR-D (`c12c4251`), ASR-E (`5eb574d9`), ASR-F (`b8157f13`) and ASR-G (`fa092f63`)
+  ASR-D (`c12c4251`), ASR-E (`5eb574d9`), ASR-F (`b8157f13`), ASR-G (`fa092f63`) and
+  ASR-H (`d49a8f86`)
   have been audited and have open findings; the remaining integrated Codex/Claude reviews are
   listed under [Review queue](#review-queue), sized for frontier reviewers. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
@@ -190,7 +191,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | reviewed — findings open (`fa092f63`) |
-| [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | waiting to start |
+| [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | reviewed — findings open (`d49a8f86`) |
 | [ASR-I](AGENT-SURFACE-REVIEW.md#asr-i--whole-system-synthesis-and-agent-performance) | Whole-system synthesis and agent performance | waiting to start |
 
 ## Review findings
@@ -1010,6 +1011,108 @@ the existing chat/terminal/check capability boundaries were traced. §13 has no 
 markup/style change; quota banner selectors exist. No visual gate is closed, no new local
 implementation choice or human decision was introduced, and sibling queues are unchanged.
 
+### ASR-H — Human intent across desktop, phone, CLI and HTTP — reviewed `d49a8f86` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Audit complete; four Must-fix findings keep this same unit open. The hardest fixes coordinate the
+existing hold/Steer and client recovery contracts; no new scheduler or provider client is needed.
+Source snapshot `d49a8f86`; tree clean at entry. Repository source and release-lock profiles:
+Claude ACP 0.85.1 / Agent SDK 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. Three bounded discovery
+audits were integrated; the findings below were independently checked against source and probes.
+No product code or specifications changed.
+
+- **Must fix** — ASRH-1 — **A successful text Steer erases a newer desktop draft**
+  (INV §1/§5). `ui/src/components/chat/Composer.tsx:290–305`: while text-only Steer awaits its
+  response, the textarea remains editable. Success unconditionally clears both the live textarea
+  and `discardChatDraft(agentId)`, deleting text typed after submission; ordinary Send and
+  attachment Steer already check the submitted draft revision. This violates FS-03.R36/A19.
+  The delayed-success component probe types a second draft before resolving the request and
+  observes an empty textarea instead. Capture/recheck the draft revision and current owner before
+  clearing text or changing visible feedback; regress same-agent edits and navigation away/back.
+  Fix complexity: easy; localized to the existing composer ownership seam.
+- **Must fix** — ASRH-2 — **Stale Withdraw removes one queued message but restores another**
+  (INV §1/§5/§11). `ui/src/lib/heldMessage.ts:24–32`,
+  `internal/server/sessions.go:84–102`, `internal/runtime/chat.go:571–583`: the browser saves its
+  cached held text A, then parameterless DELETE removes whatever is currently held. If another
+  device has replaced A with B, the successful response contains no withdrawn identity/content;
+  the browser restores A while B has been removed. A turn ending before DELETE similarly lets
+  a no-op success restore text already delivered. FS-03.R90 requires returning the withdrawn
+  message for editing, not an obsolete cached message. The actual server probe confirms B is
+  removed with a content-free response; the UI probe confirms A is restored. Make withdrawal
+  and recovery refer to the same authoritative hold (conditional identity/version or an atomic
+  returned message), preserving the documented idempotent no-hold behavior. Regress two-device
+  replacement and turn-end races, text/attachment combinations, and overlapping withdrawals.
+  Fix complexity: medium; coordinate the shared runtime/API and both clients.
+- **Must fix** — ASRH-3 — **Bare CLI launch treats an uncertain archive lookup as no match**
+  (INV §7/§8/§11/§16). `internal/cli/launch.go:133–159`, `internal/cli/resume.go:85–117`:
+  the legacy `role@project` form silently falls through to a new launch after any lookup error.
+  Its successful lookup also reads only the first 200 inactive project rows, ignores `total`,
+  and filters role/name locally. An older match beyond that page is missed; one apparent match
+  can be selected despite a second match on a later page. This violates FS-01.R11's exact match
+  rule and FS-22.R1's legacy behavior preservation, creating a new conversation or selecting one
+  without establishing the required uniqueness. Both isolated CLI probes observe a new-agent
+  POST after a 500 or a valid 200-row page with `total:201` and the match on page two. Surface
+  lookup failure; use bounded pagination or require explicit selection/`--new` when completeness
+  cannot be established. Regress errors, late matching names/roles and two matches across pages.
+  Fix complexity: medium; preserve exact legacy selection with bounded, complete evidence.
+- **Must fix** — ASRH-4 — **Interrupted promoted Steer can automatically repeat consumed input**
+  (INV §5/§11/§15). `internal/runtime/chat.go:682–717,843–870,1191–1222`: an empty text Steer
+  takes the held text, but a cancelled HTTP/CLI request context can end its wait after native
+  consumption and before acknowledgement. With no attachment/request receipt, the ambiguous
+  error restores the message to the live hold; ordinary turn completion then submits it again
+  automatically. No human retry is needed. FS-03.R50 and TS-03.R39/R41 preserve the deliberate
+  Steer operation; an unconfirmed acknowledgement cannot authorize another consumption. The
+  controlled fake provider applies an injected Steer, withholds its success reply, then sends it
+  late after context cancellation. Its wire logs show one Steer and a second ordinary prompt
+  containing the same text. Restore automatic holding only after definite no-consumption;
+  preserve ambiguous input for explicit recovery without releasing it as a queued successor.
+  Regress context loss before/after consumption, late acknowledgement, original turn-end races
+  and definite refusal, with provider submission counts and durable transcript observations.
+  Fix complexity: medium; coordinate existing Steer/hold ownership and visible recovery.
+
+Catalogue 23 action map and connected evidence ledger:
+
+| Action / entry point | Supported contract and traced outcome |
+|---|---|
+| Launch | Desktop, CLI and local HTTP share session launch/composition. Phone uses the same handler with chat-only, secret-free runtime choices and the narrow field allowlist; terminal/worktree/permission-bypass choices remain excluded. Desktop defaults, explicit false/config merges, fixed project/group and refusal retention were checked. ASRH-3 affects legacy CLI auto-selection; explicit new launch does not use that lookup. |
+| Send / hold / withdraw / Steer / attachments | All four entry points reach shared runtime turn ownership; Send holds behind a busy turn, Steer requires advertisement and preserves its reported injected/new-turn outcome. Attachment bytes, request identity, admission, receipt replay, Stop/restart recovery and explicit recovered sends were traced into ACP and durable records. ASRH-1/2/4 break draft/withdraw/ambiguous recovery. Attachment receipts do not promise idempotency for ordinary text-only retries; that proposed broader finding was rejected. |
+| Stop / Cancel / Resume / switch | All supported entry points use shared lifecycle, frozen resume/wake and typed refusal. Phone runtime changes remain chat-only; local desktop/CLI/HTTP own terminal/interface changes. Shared task/pipeline/room/quota admission remains authoritative; reconnect never replays a mutation. Existing ASR-A/B/C/G lifecycle/provider findings retain their identities. |
+| Settings / permissions | Desktop, CLI and local HTTP expose live effort/fast and provider mode choices; phone exposes effort/fast but denies provider-mode routes. All use advertised capabilities and shared apply/persist behavior. Ordinary tool/host peer-Stop decisions preserve exact pending identities and single-winner settlement; failed decisions remain visible. ASRC-1's config read-loop stall and ASRC-2/5's status/permission ordering remain open. |
+| Annotation / file / navigation | Desktop and phone capture event/diff/file excerpts and anchors before instruction focus changes. Shared source-token delivery, source-scoped bounded drafts, launched-recipient retry and stale read fences were traced; file paths/excerpts remain point-in-time context rather than new grants. CLI/local HTTP use the same validated delivery/read boundaries. Phone tracked-file authority, terminal exclusions and newer drafts were checked. ASRD-4 remains the lost-annotation-response duplicate; it is not duplicated here. |
+| Recovery / observation | Phone generation/hydration gates retain cached views, text/files and route ownership while disabling mutations; one foreground owner bounds health/SSE retries. Desktop SSE and selected-agent panels fence stale reads. CLI follow subscribes before catch-up, preserves durable sequence order and exits on Ctrl-C/EPIPE without Stop/Cancel. Fake-clock/component and built-CLI journeys pass; real paired-device suspension/native selection remains unproved. |
+
+J6 lead result: accepted attachment retries preserve their receipt, recovery reads do not repeat
+withdrawal, and reconnect refreshes current truth without automatic sends. ASRH-2/4 expose missing
+ownership/acknowledgement boundaries; ASRH-1 loses newer intent and ASRH-3 changes CLI intent on an
+incomplete read. J2/J4 challenges retain the existing permission/status, quota and owner-admission
+findings. ASRC's promoted-Steer hypothesis is confirmed as ASRH-4; its statement that the UI always
+sends `request_id` is corrected here: `api/client.ts` omits it for text-only Send/Steer, and ordinary
+CLI text also has no receipt. This finding concerns automatic re-consumption, not a universal text
+retry guarantee. PROMPT-2's diagnostic limit and CI-1's prior closure remain unchanged.
+
+Verification: 198 focused UI tests pass across Composer, permission modes, annotation tray, drafts,
+launch, agent store, desktop SSE, phone agent/recovery and pipeline controls; presentation checks
+also pass. Focused server action/remote/mode checks pass normally and under `-race -tags sqlite_fts5`;
+attachment admission/receipt tests and runtime permission/hold/Steer/CI-1 checks pass under `-race`.
+The CLI built-server/follow/legacy-filter journeys pass under `-race`. `CHUCK_RUNTIME_ROOT` was
+unset; temporary homes/fake ACP were used. Sandbox loopback denial was resolved by approved
+isolated execution. New failure probes intentionally expose the missing behavior: two CLI
+assertions, desktop newer-draft assertion and consumed-Steer assertion; stale-withdraw probes
+characterize the inconsistent server/client outcome. Evidence: `/private/tmp/operator_probe_test.go`
+with `operator_overlay.json`, `chuck_asrh_composer_probe.test.tsx` (temporarily placed beside
+Composer to run Vitest, then removed), `chuck_asrh_server_probe_test.go` with
+`chuck_asrh_server_overlay.json`, and `chuck_asrh_steer_probe_test.go` with
+`chuck_asrh_steer_overlay.json`/`chuck_asrh_fakeacp_main.go`. No live provider, browser rendering,
+tailnet or paired device ran; existing independent-render/native anchoring, annotation selection,
+permission-mode/peer-Stop, handoff and phone background-return gates remain owed. Fake provider
+consumption models the lost acknowledgement; it is not a captured Claude/Codex race.
+
+Invariant sweep: §1–5, §7–12 and §14–17 apply and were checked across lifecycle, forms, registration,
+atomic control, reads, truthful feedback, persistence, wiring, protocols, native boundaries,
+authority, effects, bounds and tests. §6 has no new runtime/interface contract; existing capability
+exclusions were checked. §13 has no selected markup/style change, and presentation checks pass;
+no visual or device gate is closed. No local implementation choice or human decision was introduced.
+Sibling reviews/fixes remain unchanged; whole-system synthesis is still waiting.
+
 ### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Report received 2026-10-18, verbatim:
@@ -1088,6 +1191,13 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed human actions across desktop, phone, CLI and HTTP (ASR-H):** audited
+  `d49a8f86` through shared runtime/context/recovery effects. Four Must-fix findings cover erased
+  newer Steer drafts, stale Withdraw restoring the wrong message, uncertain/truncated CLI resume
+  selection and automatic replay after an unconfirmed consumed Steer. Focused UI, Go/race/FTS5
+  and isolated CLI journeys pass; temporary probes reproduce the gaps. Native/device/rendered
+  gates remain owed. Product code/specs unchanged.
 
 - **2026-10-19 — Reviewed failure, quota and continuation recovery (ASR-G):** audited current
   implementation at `fa092f63` across provider failures, isolated checks, owner admission,
