@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -832,6 +833,53 @@ func TestSwitchRuntimeNoChange(t *testing.T) {
 	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", map[string]string{"interface": "chat"})
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("no_change status = %d: %s", resp.StatusCode, body)
+	}
+}
+
+// FS-01.R21/R54: after a restart, an orphan whose live PID lacks process proof
+// is neither signaled nor joined by a second runtime. Stop and Switch refuse
+// with an actionable conflict and keep the orphan row.
+func TestUnverifiedOrphanRefusesStopAndSwitch(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	if err := srv.registry.Stop(context.Background(), id); err != nil {
+		t.Fatalf("simulate restart: %v", err)
+	}
+	cmd := exec.Command("sleep", "60")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	exited := make(chan struct{})
+	go func() { _ = cmd.Wait(); close(exited) }()
+	t.Cleanup(func() { _ = cmd.Process.Kill(); <-exited })
+	legacy := state.RunningEntry{AgentID: id, PID: cmd.Process.Pid, SessionID: "legacy", Interface: "chat", StartedAt: time.Now().UTC()}
+	if err := srv.stateStore.WriteRunning(legacy); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, call := range []struct {
+		path string
+		body any
+	}{
+		{"/stop", nil},
+		{"/switch-runtime", map[string]string{"model": "opus"}},
+	} {
+		resp, body := post(t, ts.URL+"/api/sessions/"+id+call.path, call.body)
+		if resp.StatusCode != http.StatusConflict || !strings.Contains(string(body), "stop it manually") {
+			t.Fatalf("%s = %d %s, want actionable 409", call.path, resp.StatusCode, body)
+		}
+		select {
+		case <-exited:
+			t.Fatalf("%s signaled an unverified process", call.path)
+		default:
+		}
+		if row, err := srv.stateStore.ReadRunning(id); err != nil || row.SessionID != "legacy" {
+			t.Fatalf("%s did not keep the orphan row: %+v %v", call.path, row, err)
+		}
+		if srv.registry.Owns(id) {
+			t.Fatalf("%s started a second runtime beside the orphan", call.path)
+		}
 	}
 }
 

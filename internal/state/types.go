@@ -39,6 +39,10 @@ type RunningEntry struct {
 	DriverIDs map[string]string `json:"driver_ids,omitempty"`
 	HookToken string            `json:"-"`
 	StartedAt time.Time         `json:"started_at"`
+	// ProcessBirth is the kernel start time of the owned group leader PID,
+	// captured from the live child (TS-02.R54). Zero is unknown proof (a legacy
+	// row or unavailable platform) and never authorizes a destructive signal.
+	ProcessBirth time.Time `json:"-"`
 	// FastAvailable records whether this live session advertised the backend's
 	// fast-mode configuration option (FS-03.R46, TS-04.R46). It is session-scoped
 	// rather than identity-scoped: a session's current model decides it, so it is

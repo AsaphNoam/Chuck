@@ -64,8 +64,26 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None. File reader formats and path copying closed 2026-10-19 (see Changelog); its
-  real-device/room/native-anchoring gates were not claimed by the stubbed browser review.
+- **ASW-3 — [Enforce process and terminal-driver ownership](../ready-changes/enforce-process-and-driver-ownership.md)
+  — in progress (started 2026-10-19).** Owned findings ASRA-4, ASRB-1, ASRB-4–7, ASRC-3/4/7.
+  Slice plan (orphan safety first, per the fix-unit priority):
+  1. **Done** — orphan proof: `running.process_birth_us` (migration 56); `runtime.ClassifyProcess`/
+     `StopRecordedProcess`/`ReconcileStale` (`internal/runtime/procstart.go`, `reconcile.go`) shared
+     by chat/terminal orphan Stop, server `reapOrphanRuntime` (Stop/Switch/Archive/pipeline), peer
+     Stop, startup and the 30 s sweep. Unproved live PID → 409 `conflict` naming the PID, row kept,
+     Switch starts nothing. Group swept after leader exit. Fixes ASRC-3, ASRC-7.
+  2. Setup containment (ASRA-4, TS-12.R11): dedicated group + group kill + ≤1 s drain in
+     `internal/server/worktree.go` `runProjectSetup`; regress inherited stdout + cancel/deadline.
+  3. Launch claim (ASRC-4, TS-01.R41): `registry.go` Launch/Resume `launching→committed|exited`;
+     exit during Start wins; manual `handleLaunch` under the lifecycle claim; fail launch without proof.
+  4. Terminal native ID (ASRB-1, TS-02.R54): SessionStart writes `sessions.last_session_id` under
+     the token-bound generation; preserve before running-row delete; missing ID refuses Resume.
+  5. Drivers (ASRB-4–7, TS-04.R102/TS-05.R28): unique agent/generation tmux names; exit
+     observation → generation teardown; hidden bootstrap with owner-only launch record for
+     tmux/iTerm2; refuse iTerm2/tmux control until proof exists.
+  Checks passed for slice 1: `go test ./internal/runtime/ ./internal/runtime/terminal/
+  ./internal/state/ ./internal/cli/ ./internal/server/`, `make check-specs`. TS-06 closure owed at
+  the end. Run Go tests with `CHUCK_RUNTIME_ROOT` unset.
 
 ## Acceptance gates still owed
 
@@ -179,7 +197,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**All waiting; none selected.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-3 in progress (see Active change); all others waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are ready in
 [`docs/ready-changes/`](../ready-changes/README.md):
 
@@ -187,7 +205,7 @@ are the selection authority for this campaign. Three substantive refactors are r
 |---|---|---|
 | ASW-1 | `/work serialize-conversation-event-commits` | One canonical commit boundary, ordered control observations and truthful history failure |
 | ASW-2 | `/work preserve-native-execution-contract` | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
-| ASW-3 | `/work enforce-process-and-driver-ownership` | Verified process/terminal ownership, safe control and durable native terminal identity |
+| ASW-3 | `/work enforce-process-and-driver-ownership` | Verified process/terminal ownership, safe control and durable native terminal identity — **in progress** |
 
 The following cross-review §8 batches are explicitly authorized by the human's consolidation
 request. Their exact scope, required specs, regressions and closure rules are in the linked design.
@@ -561,6 +579,9 @@ Bounded discovery for catalogue 06/11/12 was delegated and every reported findin
   0/300 without (real-world rate lower). Derive status from turn and pending ownership in one
   critical section; regress both interleavings.
 - **Must fix** — ASRC-3 — **Orphan reaping kills by bare PID liveness** (INV §9/§4).
+  *Fixed in ASW-3 slice 1 (2026-10-19), pending ASW-3's substantive review:* recorded kernel birth,
+  shared proof check before every signal, group sweep; regressions in
+  `internal/runtime/process_proof_test.go` and `TestUnverifiedOrphanRefusesStopAndSwitch`.
   `internal/server/launch.go:863–883` (`reapOrphanRuntime`, used by Stop/Switch/Archive/pipeline)
   and `chat.go:1309–1332` (`reconcileOrphanStop`) signal a recorded PID whenever `kill(pid,0)`
   succeeds; startup `ReconcileStale` (`runtime/reconcile.go:21`) and the prune sweep likewise keep
@@ -599,6 +620,8 @@ Bounded discovery for catalogue 06/11/12 was delegated and every reported findin
 - **Worth fixing** — ASRC-7 — **Restart reconciliation disagrees with FS-01.R20** (INV §2/§10).
   `runtime/reconcile.go:32–35` writes `error`/"stale session reconciled on startup"; FS-01.R20
   says `done`/"process exited", which `pruneStaleRunning` writes. Pick one outcome and share it.
+  *Fixed in ASW-3 slice 1 (2026-10-19), pending review:* both call `runtime.ReconcileStale`, which
+  writes R20's outcome (`TestReconcileStale`).
 
 J2 (lead) result — one conversation under concurrent control: Send/hold, withdraw, Steer
 promotion and turn-end successor transfer decide under `as.mu` with single-owner hand-off; Stop

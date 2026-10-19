@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -208,39 +207,17 @@ func clipPreview(s string, n int) string {
 	return string(r[len(r)-n:])
 }
 
+// pruneStaleRunning shares server start's exited-row reconciliation so both
+// write FS-01.R20's outcome from one identity check (INV §2/§9).
 func (s *Server) pruneStaleRunning() int {
-	rows, err := s.stateStore.ListRunning()
+	pruned, err := runtime.ReconcileStale(s.stateStore)
 	if err != nil {
-		s.log.Debug("liveness: list running", "err", err)
-		return 0
+		s.log.Debug("liveness: reconcile running", "err", err)
 	}
-	pruned := 0
-	for _, row := range rows {
-		if pidAlive(row.PID) {
-			continue
+	for _, id := range pruned {
+		if _, err := s.stateMgr.Touch(id); err != nil {
+			s.log.Debug("liveness: touch", "agent", id, "err", err)
 		}
-		if err := s.stateStore.DeleteRunning(row.AgentID); err != nil {
-			s.log.Debug("liveness: delete running", "agent", row.AgentID, "err", err)
-			continue
-		}
-		if st, err := s.stateStore.ReadStatus(row.AgentID); err == nil {
-			st.State = "done"
-			st.Detail = "process exited"
-			st.LastTrace = "Stop"
-			st.BusySince = nil
-			_ = s.stateStore.WriteStatus(st)
-		}
-		if _, err := s.stateMgr.Touch(row.AgentID); err != nil {
-			s.log.Debug("liveness: touch", "agent", row.AgentID, "err", err)
-		}
-		pruned++
 	}
-	return pruned
-}
-
-func pidAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	return syscall.Kill(pid, 0) == nil
+	return len(pruned)
 }

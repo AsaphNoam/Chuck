@@ -17,7 +17,7 @@ func (s *Server) stopForArchive(ctx context.Context, id string) *runtime.APIErro
 			return apiError(runtime.CodeInternal, "stop agent: "+err.Error())
 		}
 		if err := s.reapOrphanRuntime(id); err != nil {
-			return apiError(runtime.CodeInternal, "reap orphan agent: "+err.Error())
+			return orphanReapAPIError("reap orphan agent: ", err)
 		}
 	}
 	s.teardownAgentRegistration(id)

@@ -370,6 +370,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		return nil, fmt.Errorf("runtime: start %s: %w", c.command, err)
 	}
 	pgid := cmd.Process.Pid // the child is the group leader (Setpgid)
+	birth := ProcessBirth(pgid)
 
 	actx, acancel := context.WithCancel(context.Background())
 	as := &agentState{
@@ -482,7 +483,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 	// Persist running + initial status rows (state.db is the sole writer).
 	now := time.Now().UTC()
 	if err := c.store.WriteRunning(state.RunningEntry{
-		AgentID: as.agentID, PID: pgid, SessionID: sess.SessionID,
+		AgentID: as.agentID, PID: pgid, ProcessBirth: birth, SessionID: sess.SessionID,
 		Interface: "chat", HookToken: spec.HookToken, StartedAt: now, Generation: spec.Generation,
 		FastAvailable: applied.FastAvailable, SteeringAvailable: as.steeringSupported(),
 	}); err != nil {
@@ -1255,7 +1256,9 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 		// silently succeed: if the recorded process group is alive, kill it before
 		// clearing the row, otherwise the CLI keeps running invisible and unkillable
 		// from the UI (Finding 5).
-		c.reconcileOrphanStop(agentID)
+		if err := StopRecordedRow(c.store, agentID, stopGrace); err != nil {
+			return err
+		}
 		_ = c.store.DeleteRunning(agentID)
 		c.touchState(agentID)
 		return nil
@@ -1301,34 +1304,16 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 	return nil
 }
 
-// reconcileOrphanStop handles a Stop on an agent this runtime no longer owns in
-// memory (e.g. post-restart, where reconcile leaves the live PID un-adopted). If
-// the recorded process group is still alive it is SIGTERM'd, then SIGKILL'd after
-// a short grace, so Stop never reports success while a live child keeps running
-// (Finding 5). No live PID → nothing to kill.
-func (c *ChatRuntime) reconcileOrphanStop(agentID string) {
-	row, err := c.store.ReadRunning(agentID)
+// StopRecordedRow ends the recorded owned process group of an agent no runtime
+// holds in memory (e.g. post-restart, where reconcile leaves the live PID
+// un-adopted), so Stop never reports success while a live child keeps running
+// (Finding 5). An unverifiable live PID is refused, not signaled (FS-01.R54).
+func StopRecordedRow(store *state.Store, agentID string, grace time.Duration) error {
+	row, err := store.ReadRunning(agentID)
 	if err != nil {
-		return // no running row → nothing to reconcile
+		return nil // no running row → nothing to reconcile
 	}
-	if row.PID <= 0 || !pidAlive(row.PID) {
-		return
-	}
-	_ = syscall.Kill(-row.PID, syscall.SIGTERM)
-	deadline := time.After(stopGrace)
-	tick := time.NewTicker(50 * time.Millisecond)
-	defer tick.Stop()
-	for {
-		select {
-		case <-deadline:
-			_ = syscall.Kill(-row.PID, syscall.SIGKILL)
-			return
-		case <-tick.C:
-			if !pidAlive(row.PID) {
-				return
-			}
-		}
-	}
+	return StopRecordedProcess(row.PID, row.ProcessBirth, grace)
 }
 
 func (c *ChatRuntime) Subscribe(agentID string) (<-chan Event, func(), error) {
@@ -1389,6 +1374,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		return nil, fmt.Errorf("runtime: start %s: %w", c.command, err)
 	}
 	pgid := cmd.Process.Pid
+	birth := ProcessBirth(pgid)
 
 	actx, acancel := context.WithCancel(context.Background())
 	as := &agentState{
@@ -1562,7 +1548,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	// Write fresh running and status rows with usage for the actual context.
 	now := time.Now().UTC()
 	if err := c.store.WriteRunning(state.RunningEntry{
-		AgentID: as.agentID, PID: pgid, SessionID: resolvedSessionID,
+		AgentID: as.agentID, PID: pgid, ProcessBirth: birth, SessionID: resolvedSessionID,
 		Interface: "chat", HookToken: spec.HookToken, StartedAt: now, Generation: spec.Generation,
 		FastAvailable: applied.FastAvailable, SteeringAvailable: as.steeringSupported(),
 	}); err != nil {

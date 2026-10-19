@@ -195,7 +195,7 @@ func newDashboardStartCmd() *cobra.Command {
 			defer stateStore.Close()
 
 			// Reconcile stale running rows left by a crashed prior run (§8.5).
-			if err := runtime.ReconcileStale(stateStore); err != nil {
+			if _, err := runtime.ReconcileStale(stateStore); err != nil {
 				log.Warn("reconcile stale sessions", "err", err)
 			}
 			registry := runtime.NewRegistry(stateStore)

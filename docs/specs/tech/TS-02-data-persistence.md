@@ -765,6 +765,10 @@ Keep process birth distinct from row `started_at`; capture it from the owned nat
 a clock guess. New orphan signals compare that exact current proof immediately before each
 destructive action. No claim of atomic identity-and-signal is made on platforms lacking that
 primitive; unknown/mismatch fails closed. Do not manufacture proof for legacy rows.
+*Shipped so far:* migration 56 adds `running.process_birth_us` (kernel birth of the dedicated group
+leader, unix microseconds; `0` is unknown). The PID column names that leader, so PGID equals PID.
+A token-bound `running` hook that changes the PID resets birth to unknown. The proof version is
+implicit in this column until a later proof field needs an explicit version.
 
 In the authenticated SessionStart transaction, update both the current running native ID/TTY and
 `sessions.last_session_id` when nonempty, conditional on the current token-bound running generation;

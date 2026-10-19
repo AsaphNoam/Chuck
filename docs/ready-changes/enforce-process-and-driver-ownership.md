@@ -1,6 +1,6 @@
 # Enforce process and terminal-driver ownership
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct request on 2026-10-19 to formalize the systemic refactor proposals and unsafe control fixes.
 **Execution unit:** ASW-3; use `/work enforce-process-and-driver-ownership`.
 **Owned findings:** ASRA-4, ASRB-1, ASRB-4, ASRB-5, ASRB-6, ASRB-7, ASRC-3, ASRC-4, ASRC-7.

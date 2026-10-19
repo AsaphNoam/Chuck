@@ -201,8 +201,10 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// ErrNoHandle: no handler in registry, but check for orphan runtimes (invariant §4).
+		// An unreaped orphan must not gain a second process (FS-01.R21/R54).
 		if rerr := s.reapOrphanRuntime(id); rerr != nil {
-			s.log.Warn("reap orphan during switch", "agent_id", id, "err", rerr)
+			writeAPIError(w, orphanReapAPIError("reap orphan runtime: ", rerr))
+			return
 		}
 	}
 

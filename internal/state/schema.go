@@ -806,6 +806,13 @@ ALTER TABLE think_tanks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';`,
 		version: 55,
 		sql:     `ALTER TABLE tasks ADD COLUMN group_name TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// Running rows carry the owned process's kernel birth time (unix
+		// microseconds) so orphan control can prove identity (TS-02.R54).
+		// Existing rows stay 0: unknown proof, never backfilled.
+		version: 56,
+		sql:     `ALTER TABLE running ADD COLUMN process_birth_us INTEGER NOT NULL DEFAULT 0;`,
+	},
 }
 
 // migrateQuotaChecks rebuilds quota_intents for the check chain and its

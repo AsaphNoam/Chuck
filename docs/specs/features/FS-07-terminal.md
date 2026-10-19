@@ -124,8 +124,9 @@ and confirmed death uses FS-01.R20's `done` / `process exited` outcome.
   `done`, drops registry ownership, and closes the PTY hub. A disappeared process becomes `done`
   (not `error`) — see FS-01 and the standing "Immediate/prompt-based UI" decision.
 - **Post-restart orphan:** after a dashboard crash where the CLI survives, the runtime does not
-  re-adopt the live PID. A subsequent Stop/Switch/Release detects the still-live process group,
-  SIGTERM→SIGKILL's it, and clears the row rather than reporting a false success.
+  re-adopt the live PID. A subsequent Stop/Switch/Release re-proves the recorded group leader's
+  kernel birth, SIGTERM→SIGKILL's that group and clears the row rather than reporting a false
+  success; an unproved live PID refuses and keeps the row (FS-01.R21).
 
 ## 4. Edge cases & errors
 

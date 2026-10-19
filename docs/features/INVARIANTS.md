@@ -278,8 +278,10 @@ Paid for by:
 **Rule:** the OS and SQLite primitives this codebase leans on all have sharp edges that already cut:
 
 - **Bare `kill(pid, 0)`** proves only that *some* process has the PID (reuse!). Used in
-  `internal/cli/pidfile.go` and both reconcilers — corroborate (start-time/comm/nonce) where it
-  gates destructive action, and never remove a pidfile without verifying it names your own PID.
+  `internal/cli/pidfile.go` — corroborate (start-time/comm/nonce) where it gates destructive
+  action, and never remove a pidfile without verifying it names your own PID. Orphan reapers and
+  both reconcilers once trusted it and could SIGKILL a reused PID; they now compare the running
+  row's recorded kernel birth (`runtime.ClassifyProcess`) and refuse unknown proof.
 - **Atomic-write-via-rename** must fsync the file AND the parent directory
   (`internal/config/atomic.go`, `pidfile.go`).
 - **`CREATE VIRTUAL TABLE IF NOT EXISTS`** freezes a degraded fallback forever — a
@@ -534,7 +536,7 @@ the old behavior before relying on it.
 | `composeLaunch`, `composeResumeSpec`, `composeSwitchSpec`, `resolveSkip`, `expandAddDirs`, `composeEnv` | `internal/server/{launch,resume,switch}.go` | any path that builds/rebuilds a LaunchSpec (§2) |
 | `takePending` | `internal/runtime/permission.go` | atomic claim for racy resolutions (§5) |
 | `SubscribeWithSnapshot` | `internal/bus/bus.go` | any snapshot+subscribe consumer (§5) |
-| `runtime.ReapOrphan` | `internal/runtime/` | stopping agents the registry doesn't own (§4) |
+| `runtime.ClassifyProcess` / `StopRecordedProcess` / `ReconcileStale` | `internal/runtime/procstart.go`, `reconcile.go` | every liveness decision, signal or prune for a process the registry doesn't hold; proof is recorded leader PID + kernel birth (§4, §9) |
 | PTY hub pattern | `internal/runtime/terminal/ptyhub.go` | any shared-fd broadcast need (§6) |
 | `seedLocked` | `internal/index/indexer.go` | in-memory buffers feeding replace-style writes (§9) |
 | `config.ValidSlug` | `internal/config/validate.go` | every path-param on every verb (§2) |

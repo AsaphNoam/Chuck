@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
+	"syscall"
 	"testing"
 	"time"
 
@@ -216,16 +217,16 @@ func TestPeerStopRefusesStaleOrSettledTargets(t *testing.T) {
 }
 
 // TS-04.R94/FS-06.R42: an orphan row is stopped only while its live PID is
-// still the recorded process; a later process that reused the PID refuses
-// without a prompt or kill (INV §9). Only children this test started are used.
+// still the recorded process; a live PID without that proof refuses without a
+// prompt or kill (FS-01.R54, INV §9). Only children this test started are used.
 func TestPeerStopVerifiesOrphanProcessIdentity(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		recorded func(started time.Time) time.Time
-		want     string
+		name  string
+		birth func(actual time.Time) time.Time
+		want  string
 	}{
-		{name: "reused pid", recorded: func(started time.Time) time.Time { return started.Add(-24 * time.Hour) }},
-		{name: "recorded orphan", recorded: func(started time.Time) time.Time { return started.Add(time.Second) }, want: "stopped"},
+		{name: "unknown legacy proof", birth: func(time.Time) time.Time { return time.Time{} }},
+		{name: "recorded orphan", birth: func(actual time.Time) time.Time { return actual }, want: "stopped"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, ts, requester, target := peerStopFixture(t)
@@ -233,15 +234,16 @@ func TestPeerStopVerifiesOrphanProcessIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			cmd := exec.Command("sleep", "60")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
 			}
-			started := time.Now()
 			t.Cleanup(func() { _ = cmd.Process.Kill() })
 			exited := make(chan error, 1)
 			go func() { exited <- cmd.Wait() }()
 			if err := srv.stateStore.WriteRunning(state.RunningEntry{AgentID: target, Generation: "orphan",
-				PID: cmd.Process.Pid, Interface: "chat", StartedAt: tc.recorded(started)}); err != nil {
+				PID: cmd.Process.Pid, ProcessBirth: tc.birth(runtime.ProcessBirth(cmd.Process.Pid)),
+				Interface: "chat", StartedAt: time.Now().UTC()}); err != nil {
 				t.Fatal(err)
 			}
 			ch, cancel := startPeerStop(srv, requester, target)

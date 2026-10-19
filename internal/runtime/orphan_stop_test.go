@@ -40,7 +40,7 @@ func TestChatStopKillsOrphanedLiveProcess(t *testing.T) {
 		t.Fatalf("WriteAgent: %v", err)
 	}
 	if err := store.WriteRunning(state.RunningEntry{
-		AgentID: id, PID: pgid, SessionID: "sess-x", Interface: "chat",
+		AgentID: id, PID: pgid, ProcessBirth: requireStartTime(t, pgid), SessionID: "sess-x", Interface: "chat",
 		StartedAt: time.Now().UTC(),
 	}); err != nil {
 		t.Fatalf("WriteRunning: %v", err)

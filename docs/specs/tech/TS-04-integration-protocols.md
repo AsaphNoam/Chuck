@@ -1258,8 +1258,9 @@ reject self and unknown targets before creating a prompt. Resolve target executi
 the registry and durable running row (generation, PID/start identity for an orphan), never from
 arguments. A genuinely stopped target returns `already_stopped` without a prompt; a missing runtime
 handle alone is not proof that it is stopped. Conflicting or unverifiable execution state refuses
-without killing anything; a live orphan PID whose operating-system start time is unknown or later
-than its running row's `started_at` (beyond small timestamp slack) is unverifiable.
+without killing anything; a live orphan PID with no recorded kernel birth, or whose birth cannot be
+read, is unverifiable (FS-01.R54). A PID whose birth differs from the record was reused, so the
+recorded target is already stopped.
 
 Extend the existing runtime pending-permission mechanism with a host-decision waiter, rather than
 adding another approval inbox, MCP elicitation dependency or fake ACP request. Mint an opaque

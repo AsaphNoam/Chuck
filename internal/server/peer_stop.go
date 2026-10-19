@@ -161,8 +161,8 @@ func (s *Server) peerExecution(agentID string) (peerExecution, bool, error) {
 		return peerExecution{}, false, fmt.Errorf("owned generation differs from running row")
 	}
 	// An orphan's PID alone may name a later, unrelated process: Stop would
-	// kill it, so its live start must predate the record (TS-04.R94, INV §9).
-	if live == "" && runtime.PidAlive(row.PID) && !runtime.ProcessIsRecorded(row.PID, row.StartedAt) {
+	// kill it, so it must carry the recorded birth (TS-04.R94, FS-01.R54).
+	if live == "" && runtime.ClassifyProcess(row.PID, row.ProcessBirth) == runtime.ProcessUnverified {
 		return peerExecution{}, false, fmt.Errorf("orphan process identity is unverifiable")
 	}
 	return peerExecution{generation: row.Generation, pid: row.PID, startedAt: row.StartedAt}, false, nil

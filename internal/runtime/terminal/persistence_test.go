@@ -128,7 +128,7 @@ func TestTerminalStopKillsOrphanedLiveProcess(t *testing.T) {
 		t.Fatalf("WriteAgent: %v", err)
 	}
 	if err := store.WriteRunning(state.RunningEntry{
-		AgentID: id, PID: pgid, SessionID: "", Interface: "terminal",
+		AgentID: id, PID: pgid, ProcessBirth: rt.ProcessBirth(pgid), SessionID: "", Interface: "terminal",
 		Driver: "xterm", StartedAt: time.Now().UTC(),
 	}); err != nil {
 		t.Fatalf("WriteRunning: %v", err)

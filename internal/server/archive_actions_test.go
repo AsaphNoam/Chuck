@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 func TestArchiveAgentReapsLiveOrphanBeforeCommit(t *testing.T) {
 	srv := testServer(t, true)
 	cmd := exec.Command("sh", "-c", "exec sleep 30")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // runtimes own a dedicated group
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start orphan process: %v", err)
 	}
@@ -36,7 +38,7 @@ func TestArchiveAgentReapsLiveOrphanBeforeCommit(t *testing.T) {
 	if err := srv.stateStore.WriteAgent(agent); err != nil {
 		t.Fatal(err)
 	}
-	if err := srv.stateStore.WriteRunning(state.RunningEntry{AgentID: agent.AgentID, PID: cmd.Process.Pid, SessionID: "orphan", Interface: "chat", StartedAt: time.Now().UTC()}); err != nil {
+	if err := srv.stateStore.WriteRunning(state.RunningEntry{AgentID: agent.AgentID, PID: cmd.Process.Pid, ProcessBirth: runtime.ProcessBirth(cmd.Process.Pid), SessionID: "orphan", Interface: "chat", StartedAt: time.Now().UTC()}); err != nil {
 		t.Fatal(err)
 	}
 

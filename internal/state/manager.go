@@ -124,7 +124,8 @@ ON CONFLICT(agent_id) DO UPDATE SET
     interface = excluded.interface,
     tty = excluded.tty,
     hook_token = excluded.hook_token,
-    started_at = excluded.started_at`,
+    started_at = excluded.started_at,
+    process_birth_us = CASE WHEN running.pid = excluded.pid THEN running.process_birth_us ELSE 0 END`,
 				payload.AgentID, pid, sessionID, current.Interface, current.TTY, current.HookToken, formatTime(now),
 			)
 			if err != nil {

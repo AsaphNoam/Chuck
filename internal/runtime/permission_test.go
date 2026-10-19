@@ -608,13 +608,14 @@ func TestReconcileStale(t *testing.T) {
 	})
 	st.WriteStatus(state.Status{AgentID: agent.AgentID, State: "busy"})
 
-	if err := ReconcileStale(st); err != nil {
-		t.Fatalf("ReconcileStale: %v", err)
+	if pruned, err := ReconcileStale(st); err != nil || len(pruned) != 1 {
+		t.Fatalf("ReconcileStale = %v, %v", pruned, err)
 	}
 	if _, err := st.ReadRunning(agent.AgentID); err == nil {
 		t.Fatal("stale running row should be deleted")
 	}
-	if status, _ := st.ReadStatus(agent.AgentID); status.State != "error" {
-		t.Fatalf("reconciled status = %q, want error", status.State)
+	// Startup shares the periodic sweep's FS-01.R20 outcome (ASRC-7).
+	if status, _ := st.ReadStatus(agent.AgentID); status.State != "done" || status.Detail != "process exited" {
+		t.Fatalf("reconciled status = %q/%q, want done/process exited", status.State, status.Detail)
 	}
 }

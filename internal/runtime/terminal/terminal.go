@@ -215,7 +215,7 @@ func (r *Runtime) Start(ctx context.Context, spec rt.LaunchSpec) (*rt.Handle, er
 	a.startPTYHub()
 
 	if err := r.store.WriteRunning(state.RunningEntry{
-		AgentID: a.agentID, PID: tab.PGID, SessionID: "", Interface: "terminal",
+		AgentID: a.agentID, PID: tab.PGID, ProcessBirth: rt.ProcessBirth(tab.PGID), SessionID: "", Interface: "terminal",
 		TTY: tab.TTY, Driver: tab.Driver, DriverIDs: tab.IDs,
 		HookToken: spec.HookToken, StartedAt: time.Now().UTC(), Generation: spec.Generation,
 	}); err != nil {
@@ -260,7 +260,7 @@ func (r *Runtime) Resume(ctx context.Context, spec rt.LaunchSpec, sessionID stri
 	a.startPTYHub()
 
 	if err := r.store.WriteRunning(state.RunningEntry{
-		AgentID: a.agentID, PID: tab.PGID, SessionID: sessionID, Interface: "terminal",
+		AgentID: a.agentID, PID: tab.PGID, ProcessBirth: rt.ProcessBirth(tab.PGID), SessionID: sessionID, Interface: "terminal",
 		TTY: tab.TTY, Driver: tab.Driver, DriverIDs: tab.IDs,
 		HookToken: spec.HookToken, StartedAt: time.Now().UTC(), Generation: spec.Generation,
 	}); err != nil {
@@ -326,7 +326,9 @@ func (r *Runtime) Stop(ctx context.Context, agentID string) error {
 		// silently succeed: if the recorded process group is alive, kill it before
 		// clearing the row, otherwise the PTY/CLI keeps running invisible and
 		// unkillable from the UI (Finding 5).
-		r.reconcileOrphanStop(agentID)
+		if err := rt.StopRecordedRow(r.store, agentID, stopGrace); err != nil {
+			return err
+		}
 		_ = r.store.DeleteRunning(agentID)
 		r.touchState(agentID)
 		return nil
@@ -351,36 +353,6 @@ func (r *Runtime) Stop(ctx context.Context, agentID string) error {
 	r.touchState(agentID)
 	a.hub.Close()
 	return nil
-}
-
-// reconcileOrphanStop handles a Stop on an agent the in-memory registry no longer
-// owns (e.g. post-restart, where reconcile leaves the live PID un-adopted). If the
-// recorded process group is still alive it is SIGTERM'd, then SIGKILL'd after a
-// short grace, so Stop never reports success while a live child keeps running
-// (Finding 5). No live PID → nothing to kill.
-func (r *Runtime) reconcileOrphanStop(agentID string) {
-	row, err := r.store.ReadRunning(agentID)
-	if err != nil {
-		return // no running row → nothing to reconcile
-	}
-	if row.PID <= 0 || !rt.PidAlive(row.PID) {
-		return
-	}
-	_ = syscall.Kill(-row.PID, syscall.SIGTERM)
-	deadline := time.After(stopGrace)
-	tick := time.NewTicker(50 * time.Millisecond)
-	defer tick.Stop()
-	for {
-		select {
-		case <-deadline:
-			_ = syscall.Kill(-row.PID, syscall.SIGKILL)
-			return
-		case <-tick.C:
-			if !rt.PidAlive(row.PID) {
-				return
-			}
-		}
-	}
 }
 
 // StartActivation intentionally rejects terminal agents. They remain excluded

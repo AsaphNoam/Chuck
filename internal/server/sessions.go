@@ -619,8 +619,9 @@ func (s *Server) stopAgentClaimed(ctx context.Context, id string) *runtime.APIEr
 			return apiError(runtime.CodeNotFound, "no such agent: "+id)
 		}
 		// Check for orphan runtimes left by a prior crash (invariant §4).
+		// An unreaped orphan keeps its row and registration (FS-01.R54).
 		if rerr := s.reapOrphanRuntime(id); rerr != nil {
-			s.log.Warn("reap orphan during stop", "agent_id", id, "err", rerr)
+			return orphanReapAPIError("reap orphan agent: ", rerr)
 		}
 	}
 	s.teardownAgentRegistration(id)

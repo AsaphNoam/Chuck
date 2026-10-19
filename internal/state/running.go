@@ -5,17 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // ReadRunning returns one running entry by agent id.
 func (s *Store) ReadRunning(id string) (RunningEntry, error) {
 	var r RunningEntry
 	var startedAt, driverIDs string
+	var birthUS int64
 	err := s.db.QueryRow(`
-SELECT agent_id, pid, session_id, interface, tty, driver, driver_ids, hook_token, started_at, fast_available, steering_available, generation
+SELECT agent_id, pid, session_id, interface, tty, driver, driver_ids, hook_token, started_at, fast_available, steering_available, generation, process_birth_us
 FROM running
 WHERE agent_id = ?`, id).Scan(
-		&r.AgentID, &r.PID, &r.SessionID, &r.Interface, &r.TTY, &r.Driver, &driverIDs, &r.HookToken, &startedAt, &r.FastAvailable, &r.SteeringAvailable, &r.Generation,
+		&r.AgentID, &r.PID, &r.SessionID, &r.Interface, &r.TTY, &r.Driver, &driverIDs, &r.HookToken, &startedAt, &r.FastAvailable, &r.SteeringAvailable, &r.Generation, &birthUS,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return RunningEntry{}, ErrNotFound
@@ -24,6 +26,7 @@ WHERE agent_id = ?`, id).Scan(
 		return RunningEntry{}, fmt.Errorf("state: read running: %w", err)
 	}
 	r.DriverIDs = decodeDriverIDs(driverIDs)
+	r.ProcessBirth = decodeProcessBirth(birthUS)
 	r.StartedAt, err = parseTime(startedAt)
 	if err != nil {
 		return RunningEntry{}, wrapTimeErr("running.started_at", err)
@@ -31,11 +34,27 @@ WHERE agent_id = ?`, id).Scan(
 	return r, nil
 }
 
+// encodeProcessBirth stores a kernel birth time at microsecond precision;
+// zero (unknown proof) stays 0.
+func encodeProcessBirth(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixMicro()
+}
+
+func decodeProcessBirth(us int64) time.Time {
+	if us <= 0 {
+		return time.Time{}
+	}
+	return time.UnixMicro(us).UTC()
+}
+
 // WriteRunning inserts or updates a running entry.
 func (s *Store) WriteRunning(r RunningEntry) error {
 	_, err := s.db.Exec(`
-INSERT INTO running(agent_id, pid, session_id, interface, tty, driver, driver_ids, hook_token, started_at, fast_available, steering_available, generation)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO running(agent_id, pid, session_id, interface, tty, driver, driver_ids, hook_token, started_at, fast_available, steering_available, generation, process_birth_us)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(agent_id) DO UPDATE SET
     pid = excluded.pid,
     session_id = excluded.session_id,
@@ -47,8 +66,9 @@ ON CONFLICT(agent_id) DO UPDATE SET
     started_at = excluded.started_at,
     fast_available = excluded.fast_available,
     steering_available = excluded.steering_available,
-    generation = excluded.generation`,
-		r.AgentID, r.PID, r.SessionID, r.Interface, r.TTY, r.Driver, encodeDriverIDs(r.DriverIDs), r.HookToken, formatTime(r.StartedAt), r.FastAvailable, r.SteeringAvailable, r.Generation,
+    generation = excluded.generation,
+    process_birth_us = excluded.process_birth_us`,
+		r.AgentID, r.PID, r.SessionID, r.Interface, r.TTY, r.Driver, encodeDriverIDs(r.DriverIDs), r.HookToken, formatTime(r.StartedAt), r.FastAvailable, r.SteeringAvailable, r.Generation, encodeProcessBirth(r.ProcessBirth),
 	)
 	if err != nil {
 		return fmt.Errorf("state: write running: %w", err)
@@ -59,7 +79,7 @@ ON CONFLICT(agent_id) DO UPDATE SET
 // ListRunning returns all running entries.
 func (s *Store) ListRunning() ([]RunningEntry, error) {
 	rows, err := s.db.Query(`
-SELECT agent_id, pid, session_id, interface, tty, driver, driver_ids, hook_token, started_at, fast_available, steering_available, generation
+SELECT agent_id, pid, session_id, interface, tty, driver, driver_ids, hook_token, started_at, fast_available, steering_available, generation, process_birth_us
 FROM running
 ORDER BY started_at, agent_id`)
 	if err != nil {
@@ -71,10 +91,12 @@ ORDER BY started_at, agent_id`)
 	for rows.Next() {
 		var r RunningEntry
 		var startedAt, driverIDs string
-		if err := rows.Scan(&r.AgentID, &r.PID, &r.SessionID, &r.Interface, &r.TTY, &r.Driver, &driverIDs, &r.HookToken, &startedAt, &r.FastAvailable, &r.SteeringAvailable, &r.Generation); err != nil {
+		var birthUS int64
+		if err := rows.Scan(&r.AgentID, &r.PID, &r.SessionID, &r.Interface, &r.TTY, &r.Driver, &driverIDs, &r.HookToken, &startedAt, &r.FastAvailable, &r.SteeringAvailable, &r.Generation, &birthUS); err != nil {
 			return nil, fmt.Errorf("state: scan running: %w", err)
 		}
 		r.DriverIDs = decodeDriverIDs(driverIDs)
+		r.ProcessBirth = decodeProcessBirth(birthUS)
 		r.StartedAt, err = parseTime(startedAt)
 		if err != nil {
 			return nil, wrapTimeErr("running.started_at", err)

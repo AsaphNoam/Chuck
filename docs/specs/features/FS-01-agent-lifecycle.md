@@ -383,9 +383,11 @@ retains the record; it never kills another process or silently starts a replacem
 rows retain R20's `done` / `process exited` outcome. The current native conversation ID is retained
 before deleting its running row; Resume never silently creates a fresh native conversation when
 that required identity is unavailable. A failed start/old exit cannot claim or tear down a newer
-generation. This planned rule replaces R21's bare-PID signaling with corroborated owned-group
-teardown and qualifies R20's live-orphan interpretation; unknown/mismatched proof remains retained.
-See TS-01.R41 and TS-02.R54.
+generation. See TS-01.R41 and TS-02.R54.
+**Shipped so far (2026-10-19):** running rows record the leader's kernel birth; orphan Stop/Switch/
+Archive/pipeline reaps, peer Stop, startup reconciliation and the periodic sweep share one
+proof check and R20's outcome (R20–R21). Launch-time proof, exit-before-commit, external-driver
+identity and native-ID retention remain planned.
 
 ## 3. States & transitions
 
@@ -400,16 +402,20 @@ transitions:
   indistinguishable from a normal shell exit.
 - **R19** — A solicited **Stop** transitions the agent to `done` (R6). A completed turn returns the
   agent to `idle`/its last state; these are FS-03 concerns.
-- **R20** — On **server restart**, stale running rows whose PID is no longer alive are reconciled:
+- **R20** — On **server restart**, stale running rows whose recorded process is no longer alive
+  (its PID is gone or now names a process with a different kernel birth) are reconciled:
   the running row is deleted and the status set to `done` (`"process exited"`),
-  so no ghost card survives. A running row whose **PID is still alive** (the agent CLI outlived a
+  so no ghost card survives. Startup and the periodic liveness sweep share this one outcome. A running row whose **PID is still alive** (the agent CLI outlived a
   dashboard crash) is **preserved** as an orphan — the new server does not adopt it into the registry.
 - **R21** — A lifecycle action (Stop, Switch, project group Stop/Archive) on such an orphan **reaps** it: because
-  the registry has no handle, the server checks the running row, SIGKILLs the live PID, and deletes
-  the row — so Stop/Release report success only after the process is actually gone, and Switch cannot
-  spawn a second process under the same `agent_id`.
-  **Planned replacement:** R54 requires current process/group proof before destruction; unknown or
-  mismatched proof refuses and retains the orphan instead of signaling that PID.
+  the registry has no handle, the server re-proves the running row's recorded leader PID and kernel
+  birth immediately before each signal, sends SIGTERM then (after grace) SIGKILL to that dedicated
+  process group, sweeps descendants left in the group once the leader is gone, and deletes the row —
+  so Stop/Release report success only after the process is actually gone, and Switch cannot spawn a
+  second process under the same `agent_id`. A live PID whose birth differs from the record was
+  reused and is never signaled; that row is reconciled as exited. A live PID without recorded birth
+  (a legacy row) or with an unreadable birth refuses the action with a 409 naming the PID, retains
+  the row and starts nothing (R54).
 - **R52** — **Busy belongs to an owned turn.** Tool calls and results a chat provider streams after
   Chuck's turn has settled (for example a native background-task continuation after `end_turn`) are
   still transcribed, but they do not move status to `busy`: with no turn there is no turn end to

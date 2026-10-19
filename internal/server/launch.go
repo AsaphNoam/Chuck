@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -855,23 +854,31 @@ func (s *Server) cleanupHookSettings(agentID string) {
 	}
 }
 
-// reapOrphanRuntime checks if there is a live orphan running row (a process that
-// survived a dashboard crash), kills it if so, and deletes the running row.
-// Called when registry.Stop returns ErrNoHandle (no handler in the registry),
-// which means the runtime exited and deregistered, but the running row persists.
-// If the PID is still alive, it's an orphan left by a prior crash.
+// orphanStopGrace is how long an orphan group has to exit after SIGTERM.
+var orphanStopGrace = 5 * time.Second
+
+// orphanReapAPIError maps a failed orphan reap: an unverifiable process is an
+// actionable conflict, anything else an internal failure.
+func orphanReapAPIError(prefix string, err error) *runtime.APIError {
+	if errors.Is(err, runtime.ErrProcessUnverified) {
+		return apiError(runtime.CodeConflict, err.Error())
+	}
+	return apiError(runtime.CodeInternal, prefix+err.Error())
+}
+
+// reapOrphanRuntime ends a running row's orphan process (one that survived a
+// dashboard crash) and deletes the row. Called when registry.Stop returns
+// ErrNoHandle. Only a corroborated owned group is signaled; an unverifiable
+// live PID returns runtime.ErrProcessUnverified and keeps the row (FS-01.R54).
 func (s *Server) reapOrphanRuntime(agentID string) error {
 	running, err := s.stateStore.ReadRunning(agentID)
 	if err != nil {
 		// No running row: already cleaned up or never existed.
 		return nil
 	}
-
-	// Check if the PID is actually still alive.
-	if runtime.PidAlive(running.PID) {
-		// Kill it with SIGKILL to ensure it dies (SIGTERM can be ignored).
-		s.log.Info("reaping orphan runtime", "agent_id", agentID, "pid", running.PID)
-		_ = syscall.Kill(running.PID, syscall.SIGKILL)
+	if err := runtime.StopRecordedProcess(running.PID, running.ProcessBirth, orphanStopGrace); err != nil {
+		s.log.Warn("orphan runtime not reaped", "agent_id", agentID, "pid", running.PID, "err", err)
+		return err
 	}
 
 	// Delete the running row.
