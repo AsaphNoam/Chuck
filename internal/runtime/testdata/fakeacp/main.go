@@ -94,8 +94,12 @@ var (
 	pending   = map[int64]chan rpcMessage{}
 	reqSeq    atomic.Int64
 
-	cancelOnce sync.Once
-	cancelCh   = make(chan struct{})
+	// cancelCh is the in-flight prompt's cancel signal. Like a real peer,
+	// session/cancel ends only the current prompt; each session/prompt installs
+	// a fresh one so an earlier cancel cannot end a later turn.
+	cancelMu     sync.Mutex
+	cancelCh     = make(chan struct{})
+	cancelClosed bool
 
 	// noticesOffered mirrors claude-agent-acp 0.85.1's clientSupportsNotices:
 	// `clientCapabilities.session.notices` must be a non-null, non-array object.
@@ -127,13 +131,24 @@ func main() {
 	}
 }
 
+func promptCancel() chan struct{} {
+	cancelMu.Lock()
+	defer cancelMu.Unlock()
+	return cancelCh
+}
+
 func handle(msg *rpcMessage) {
 	if msg.ID == nil { // notification
 		if msg.Method == "session/cancel" {
 			if logPath := os.Getenv("FAKEACP_CANCEL_LOG"); logPath != "" {
 				_ = os.WriteFile(logPath, msg.Params, 0o600)
 			}
-			cancelOnce.Do(func() { close(cancelCh) })
+			cancelMu.Lock()
+			if !cancelClosed {
+				close(cancelCh)
+				cancelClosed = true
+			}
+			cancelMu.Unlock()
 		}
 		return
 	}
@@ -415,6 +430,9 @@ func handle(msg *rpcMessage) {
 		respond(*msg.ID, map[string]any{"outcome": outcome})
 	case "session/prompt":
 		id := *msg.ID
+		cancelMu.Lock()
+		cancelCh, cancelClosed = make(chan struct{}), false
+		cancelMu.Unlock()
 		if dump := os.Getenv("FAKEACP_PROMPT_DUMP"); dump != "" {
 			_ = os.WriteFile(dump, msg.Params, 0o600)
 		}
@@ -741,7 +759,7 @@ func runScenario(name string) string {
 			})
 			select {
 			case <-ch:
-			case <-cancelCh:
+			case <-promptCancel():
 				return "cancelled"
 			}
 		}
@@ -796,7 +814,7 @@ func runScenario(name string) string {
 		started("tc_bg", "npm run build")
 		select {
 		case <-steeredCh:
-		case <-cancelCh:
+		case <-promptCancel():
 			return "cancelled"
 		case <-time.After(10 * time.Second):
 			return "end_turn"
@@ -893,7 +911,7 @@ func runScenario(name string) string {
 				}
 			}
 			select {
-			case <-cancelCh:
+			case <-promptCancel():
 				return "cancelled"
 			case <-time.After(5 * time.Millisecond):
 			}
@@ -973,7 +991,7 @@ func permissionScenario() string {
 		default: // "cancelled"
 			return "cancelled"
 		}
-	case <-cancelCh:
+	case <-promptCancel():
 		return "cancelled"
 	}
 }

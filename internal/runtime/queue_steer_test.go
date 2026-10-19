@@ -303,7 +303,7 @@ func TestSteerReportsTheAdapterStartedANewTurn(t *testing.T) {
 func TestSteerPromptRequiredRunsAHostOwnedTurn(t *testing.T) {
 	ended := filepath.Join(t.TempDir(), "prompt-ended")
 	steerReply := filepath.Join(t.TempDir(), "steer-reply")
-	c, h, ch, _, promptLog := busyAgent(t,
+	c, h, ch, release, promptLog := busyAgent(t,
 		"FAKEACP_STEERING=1",
 		"FAKEACP_STEER_OUTCOME=promptRequired",
 		"FAKEACP_PROMPT_END_FILE="+ended,
@@ -352,6 +352,8 @@ func TestSteerPromptRequiredRunsAHostOwnedTurn(t *testing.T) {
 	if got := waitForPrompts(t, promptLog, 3); got[2] != "after fallback" {
 		t.Fatalf("post-cancel prompts = %v, want held Send as successor", got)
 	}
+	// The cancel ended only the fallback turn; the successor runs until released.
+	release()
 	waitForRuntimeStatus(t, c, h.AgentID, "idle")
 
 	events, err := c.Transcript(h.AgentID)

@@ -9,7 +9,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Release:** `v0.17.0` published 2026-10-18 (Latest): release CI run 39100834882 passed and
   the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from the
   notes. Main CI run 39100833712 on the release commit failed once on
-  `TestCanceledTurnsReleaseToolInput` (see Review findings). Notes:
+  `TestCanceledTurnsReleaseToolInput` (test-double flake, fixed 2026-10-19; see Changelog). Notes:
   [`RELEASE-v0.17.0-notes.md`](../archive/state/RELEASE-v0.17.0-notes.md). Everything it settled
   is archived in [`HANDOFF-through-2026-10-18`](../archive/state/HANDOFF-through-2026-10-18.md).
   The shipped `operating-chuck` package now covers peer transcript reads, approved peer Stop,
@@ -159,16 +159,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Review findings
 
-### Late tool input CI flake — `bbc8c89c` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Worth fixing** — CI-1: `TestCanceledTurnsReleaseToolInput` flakes in CI (TS-04.R98; INV §17). Main
-  CI run 39100833712 failed at `internal/runtime/tool_input_test.go:37` (“turn 2: open inputs =
-  0, want the live call”) after the turn-1 cancel; 60/60 local repeats pass. It matters because
-  it either reddens main CI or hides a late turn-1 `finishTurn` dropping a live turn-2 call.
-  Uninvestigated whether the test injects its frame before turn 2's `setExecTurn` release or the
-  product ordering is wrong; route through `/investigate-bug`, then fix with a deterministic
-  ordering test.
-
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
@@ -251,6 +241,16 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-19 — Fixed CI-1; late tool input CI flake unit closed** (INV §17 — test double
+  diverged from the real peer): product ordering is correct. `fakeacp` closed one process-wide
+  `cancelCh` on the first `session/cancel`, so every later permission prompt returned
+  `cancelled` immediately and turn 2 of `TestCanceledTurnsReleaseToolInput` could end (releasing
+  its input) between the test's frame injection and its count. Cancel is now scoped to the
+  in-flight prompt (fresh channel per `session/prompt`). `TestCancelDoesNotEndNextTurn`
+  (permission_test.go) fails 3/3 on the old double and passes; the flaky test passes 30/30.
+  `TestSteerPromptRequiredRunsAHostOwnedTurn` relied on the sticky cancel to end its held
+  successor and now releases it explicitly. Full Go (serial, both variants), focused `-race` and Go
+  build pass; remote CI not yet observed.
 - **2026-10-19 — Fixed PERM-1; no-persona permission review closed** (no invariant class; INV
   §3/§8/§13 checked): Settings → Roles gains **Default permissions** with a **Skip permission
   prompts** toggle over the global `skip_permissions` (`PermissionPolicyEditor`, same

@@ -126,6 +126,36 @@ func TestPermissionApprove(t *testing.T) {
 	}
 }
 
+// A canceled turn must not end the next one: the fake peer, like a real one,
+// scopes session/cancel to the in-flight prompt. A sticky cancel ended every
+// later permission turn on its own and flaked TestCanceledTurnsReleaseToolInput.
+func TestCancelDoesNotEndNextTurn(t *testing.T) {
+	c, h, sentinel, ch := startPermAgent(t, false, "")
+	ctx := context.Background()
+
+	if err := c.SendPrompt(ctx, h.AgentID, "run ls"); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvPermissionRequest)
+	if _, err := c.Cancel(ctx, h.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvTurnEnd)
+
+	if err := c.SendPrompt(ctx, h.AgentID, "run ls"); err != nil {
+		t.Fatal(err)
+	}
+	var prd PermissionRequestData
+	json.Unmarshal(waitForEvent(t, ch, EvPermissionRequest).Data, &prd)
+	if err := c.Permission(ctx, h.AgentID, prd.ToolCallID, "approve"); err != nil {
+		t.Fatalf("approve after earlier cancel: %v", err)
+	}
+	waitForEvent(t, ch, EvTurnEnd)
+	if !fileExists(sentinel) {
+		t.Fatal("second turn ended without running the approved tool")
+	}
+}
+
 func TestPermissionDeny(t *testing.T) {
 	c, h, sentinel, ch := startPermAgent(t, false, "")
 	ctx := context.Background()
