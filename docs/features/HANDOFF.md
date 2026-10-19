@@ -22,12 +22,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`), and
   ASR-D (`c12c4251`), ASR-E (`5eb574d9`), ASR-F (`b8157f13`), ASR-G (`fa092f63`) and
   ASR-H (`d49a8f86`)
-  have been audited and have open findings; the remaining integrated Codex/Claude reviews are
-  listed under [Review queue](#review-queue), sized for frontier reviewers. The
+  have been audited and have open findings; their units remain under
+  [Review queue](#review-queue). ASR-I's whole-system source synthesis is complete below. The
   [charters](AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
   joins plus a final synthesis/performance review. All original 25 research areas remain in the
   [search catalogue](AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. Their
-  evidence and findings are below; the campaign as a whole is not reviewed. Other findings and live gates
+  evidence and findings are below; all 25 topics and seven joins have been reconciled, with
+  native/device adoption and comparative performance still unproved. Other findings and live gates
   remain independent.
 - **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
   loss; its earlier fix covers user/exact-cwd configuration. The original unit below retains the
@@ -134,7 +135,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   shared orchestrator instructions; fake delivery capture is not a live receipt.
 - **FS-18.A12/A13:** six manual role scenarios and role-free follow-ups on pinned Claude/Codex;
   credentialed fresh/resumed Claude native-preset adoption (pinned adapter 0.85.1 only proves
-  the `_meta.systemPrompt` request, not live adoption).
+  the `_meta.systemPrompt` request, not live adoption). ASR-I below adds a bounded paired
+  performance experiment; no native-versus-Chuck quality or latency comparison has run.
 - **FS-20.A1/A5/A6/A8:** real tailnet, Android, iPhone, and `pmset -g assertions`; iPhone Home
   Screen PNG touch icon is absent. The combined 390px dashboard/project/agent-management/Files/
   Commands-retired journey remains owed; fast-mode picker and Continue on approval pause remain
@@ -171,6 +173,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 Nine integrated reviews are sized for frontier reviewers to follow interacting mechanisms and
 whole workflows. These are explicitly requested subsystem audits, not reviews of queue commits.
+ASR-I's source synthesis is complete; the eight domain units below remain open on their findings.
 Read the selected [charter and mandatory joins](AGENT-SURFACE-REVIEW.md), then its retained
 [search topics](AGENT-SURFACE-SEARCH-CATALOGUE.md); inspect the complete current implementation and
 callers, not only a commit diff. Numeric ASR-01–ASR-25 aliases now select their whole containing
@@ -192,7 +195,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | reviewed — findings open (`fa092f63`) |
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | reviewed — findings open (`d49a8f86`) |
-| [ASR-I](AGENT-SURFACE-REVIEW.md#asr-i--whole-system-synthesis-and-agent-performance) | Whole-system synthesis and agent performance | waiting to start |
 
 ## Review findings
 
@@ -1111,7 +1113,115 @@ atomic control, reads, truthful feedback, persistence, wiring, protocols, native
 authority, effects, bounds and tests. §6 has no new runtime/interface contract; existing capability
 exclusions were checked. §13 has no selected markup/style change, and presentation checks pass;
 no visual or device gate is closed. No local implementation choice or human decision was introduced.
-Sibling reviews/fixes remain unchanged; whole-system synthesis is still waiting.
+Sibling reviews/fixes remain unchanged; the subsequent whole-system synthesis is below.
+
+### ASR-I — Whole-system synthesis and agent performance — reviewed `8e03e709` — **Fix model:** difficult — Codex Sol.
+
+Source synthesis complete; no new independent defect or duplicate finding is added. The
+recommendation reflects the hardest linked open fixes (ASR-A/B's native contract and driver
+ownership), not a new fix unit. Existing finding identities, severities and individual fix-unit
+recommendations remain authoritative. Their fixes need not precede this review's closure, but
+the source audit does not close any native, device or behavioral acceptance gate.
+
+Source snapshot `8e03e7091633f717b13447f1191cd30bf7d993d2`, clean at entry. The entire range
+`4fbeb316..8e03e709` changes only this handoff: no intervening product/spec edit invalidates A–H's
+probes. Source mode is repository implementation plus the retained pinned-native traces, not an
+installed-provider execution. Pins remain Claude ACP 0.85.1 / Agent SDK 0.3.286 and Codex ACP
+2.1.1 / CLI 0.159.3; release assembly applies `2.1.1+chuck.1`, unlike the source PATH adapter.
+Three bounded read-only discoveries were integrated with direct checks of the callers and
+failure owners below. Product code and specifications were unchanged.
+
+All retained catalogue topics are accounted for:
+
+| Topics / domain | Reconciled evidence and remaining risk |
+|---|---|
+| 01/02/25 — A | Prompt/native guidance, frozen selection and checkout readiness compose through the shared launch/resume/switch seams. ASRA-1–6 and reopened PROMPT-1 remain; no prompt accumulation or unconsented checkout deletion is established. |
+| 03/04/05/21 — B | Native new/load/fork, installed/bundled selection and PTY/external drivers retain ASRB-1–8. Native fork is not ordinary load; source Codex Steer is not the patched release path. Terminal conversation/process/environment identity cannot be inferred from a chat success. |
+| 06/08/09/10/11/12 — C | Runtime claims, held/steered input, RPC callbacks, permission settlement, cancellation and native background events retain ASRC-1–7. CI-1's corrected test double remains closed; passing cancellation tests do not settle the distinct late-success quota issue. |
+| 07/13/14/15 — D | Native/history bridge, durable/live ordering, exact input bytes, scoped reads and annotation retry retain ASRD-1–5. Attachment recovery has its own receipt; neither a visible transcript nor a copied bridge proves native consumption. |
+| 16/17/18 — E | Token/host authority, mail activation, assignment/report/wait and release retain ASRE-1/2. Peer Stop's host decision is independent of permissive provider settings; live adoption of that boundary remains owed. |
+| 19/20 — F | Ordinary stage-task progression and room/judge result capture retain ASRF-1/2, with E/G defects applying through shared services. Obsolete stage-executor tests do not prove the current dispatcher handoff. |
+| 22 — G | Quota evidence, check isolation/admission, source-owner continuation and cleanup retain ASRG-1–5. Passive quota snapshots remain planned; missing live receipts do not establish a parser/provider failure. |
+| 23 — H | Desktop/phone/CLI/local HTTP intent and recovery retain ASRH-1–4 and ASRD-4. Reconnect refreshes state without replaying mutations; physical-device suspension and native anchoring remain open. |
+| 24 — I | Frozen diagnostics, revision/adoption limits, combined failure costs and the paired experiment below were assessed. PROMPT-2 keeps its original owner; no measured general quality or excess-process conclusion is supported. |
+
+Whole-journey assurance ledger (J1–J7):
+
+| Join / interacting journey | Boundary, failure/recovery owner and conclusion |
+|---|---|
+| J1 — selected contract across fresh/resume/wake/switch/rollback | Frozen base plus runtime-only overlay reaches the provider start seam; model/root/profile/native ancestor defects remain ASRA-1/3/PROMPT-1. `applyKnowledgeOverlay` (`launch.go:434–454`) is rebuilt per process, not every turn. Clone/fork has its separate B2/B3 contract. Account/model/preset adoption remains a native gate. |
+| J2 — manual multimodal queue/Steer + permission wait + Stop/resume | Runtime holds retain exact descriptors; Stop releases attachment receipts, and restart makes held/prepared copies explicitly recoverable (`chat.go:1264–1284`, `state/attachment_receipts.go:44–65`). ASRC-1/2/5 break read-loop/status/permission truth; ASRH-1/2 break draft/withdraw ownership. ASRH-4 (`chat.go:682–717,843–870`) restores an ambiguously consumed text Steer to automatic holding. These are existing failures, not a second attachment-loss finding. |
+| J3 — Chucky mail/task/report + host approval + late continuation | Durable mail/assignment claims precede native activation; reports commit before cleanup/readiness and old generations cannot authorize current work. Peer Stop still requires its separate host waiter. ASRE-1 loses the watched changes before resumed assignment read; ASRE-2 allows oversized retained outputs. Claude fork's missing loaded session and tmux's stale environment weaken native registration (B2/B6). Late-turn guards have fake/source proof, with ASRC-2's final-status race and FS-01.R52/FS-16.A33 live gates retained. |
+| J4 — ordinary/room stage + quota/Stop/restart | Task/run closure precedes cancellation; room capture binds generation/turn/attempt and accepted judge output, not arbitrary private prose. `Manager.Startup` → `pauseStartupRun` clears a failed post-result action (`manager.go:754–761,792–825`, ASRF-1). Quota room admission lacks ordinary-start compensation after creating its attempt (`quota_dispatch.go:154–237`, ASRG-1); G2–G5 retain check admission, cancellation settlement, isolation and cleanup defects. Terminal viewer detach preserves PTY work; terminal quota automation is unsupported and B1/B4/B5 recovery remains defective. |
+| J5 — context through delegation/handoff/compaction | Assignment references/grants and room read receipts stay scoped; private room input does not become public judge prose. The bounded bridge persists separately through immediate Stop/wake and compaction, but switch marker append opens a second writer after target Resume (`primer.go:65–81`, `switch.go:266–278`, ASRD-1). D2/D3 affect order/durability and B1–B3 affect terminal/fork context. A4/A6 additionally invalidate assumptions that a recreated checkout is ready. Actual live context adoption is still unproved. |
+| J6 — accepted-but-lost desktop/phone/CLI actions | Attachment request hash/receipt precedes native admission (`attachments.go:453–541`); identical explicit retry returns stored acceptance. Text-only sends have no universal idempotency promise. CLI reports uncertainty without automatic replay; phone recovery only rehydrates current truth. ASRD-4 annotation retry and ASRH-4 automatic held replay remain proven duplicate-effect paths; H1/H2/H3 retain lost/stale/incorrect human intent. Phone agent routes are keyed by identity (`PhoneApp.tsx:128`), so an old component's completion is not evidence of a new cross-agent draft bug. |
+| J7 — cumulative harness cost and quality | Wrong native/frozen instructions (A/B), repeated input/annotation effects (H4/D4), blocked read loop (C1), lost continuation context (E1), stranded recovery (F1/G1), and unbounded retention (C6/D5/E2) are supported mechanisms for wrong work, extra work or delay. Their incidence, usage and output-quality effects have not been compared with native operation. Persona/repository process pressure is a hypothesis, not an additional defect. |
+
+Conflicting earlier statements are resolved explicitly. ASRC's suggestion that transcript
+reordering was tolerated is superseded by ASRD-2's scheduled durable-order probe. ASRC's claim
+that the UI always supplies a request id is superseded by ASRH-4: ordinary desktop/CLI text has
+none. A's intended no-work quota-check isolation is qualified by ASRG-4's inherited explicit
+Codex instructions. CI-1's sticky fake-cancellation bug stays closed and does not explain G3's
+late same-turn success after Cancel. PROMPT-1's user/exact-cwd fix remains valid, while its
+ancestor-project variant stays open. These qualifications preserve the original finding IDs.
+
+The crash-turn generation lookup noted in ASRC is not promoted to a new failure: the exit hook
+already interrupts unreported task/room ownership (`server.go:463–464`), while reported/yielded
+cleanup has a durable retry pass (`task_dispatcher.go:466–528`). No loss or duplicate effect
+beyond the retained findings was established. The intermittent ordinary-stage Stop 409 remains
+unresolved; isolated passing runs do not close that note. No contradictory product requirement
+was silently selected; ASRC-7 and ASRF-2 retain their specification-drift findings.
+
+Diagnostic sufficiency and bounded performance experiment:
+
+`runtimeMeta` (`chat.go:2387–2418`) retains frozen prompt/hash and requested settings, but not
+runtime suffix/skill/tool/package identities or provider adoption (PROMPT-2). Event generation
+and turn are in-process identities excluded from durable JSON (`event.go:44–52`). Live
+`busy_since`, transcript events and provider usage do not constitute an archived per-turn
+latency/retry/native-call manifest. Missing correlation is an evidence limit, not an invented
+requirement for a telemetry platform.
+
+Start with three randomized paired repetitions for each of four fixed task classes (question,
+small fix, known-defect/non-defect review, coordination), separately for Claude and Codex:
+native baseline versus Chuck with empty persona/awareness off, at most 48 task executions.
+Hold repository commit, executable/model/effort/permissions, guidance, tools/context, input
+bytes and fresh/resumed state equal within pairs. Use disposable worktrees and no publishing.
+Equivalent coordination tools are required in the baseline, or report that cell as confounded.
+
+If that first pass identifies a signal, allow a separate capped 24-execution ablation using
+representative tasks to vary awareness/persona and repository guidance independently. An
+awareness-off Chuck session still has tools, installed skills, project/native instructions
+and task-specific context; it is not the native baseline. Retain native fresh/resume adoption
+receipts separately under FS-18.A13; complete FS-18.A12's six qualitative scenarios as written.
+
+Capture redacted complete requested layer hashes/revisions/sizes, executable/provider source,
+observed versus requested settings, generation/turn, submission/tool/delegation/retry counts,
+available usage, elapsed wall time and answer/brief length outside production instrumentation.
+Blind correctness/coverage/scope/unnecessary-work scoring to condition, randomize order and
+report paired deltas and variance. Separate provider failures, harness defects and repository
+process mandates. This small sample cannot establish universal quality or absence of harm.
+
+No credentialed model turn, paired benchmark, rendered browser or physical-device run occurred.
+The live gates above remain explicit; source/fake success is not substituted for them. No prompt
+rewrite, benchmark service, production instrumentation or refactor was selected. Local-choice
+outcome: retain the current frozen/runtime split and progressive skill delivery; native contract,
+recovery and diagnostic fixes remain independently selectable under their existing units.
+
+Invariant sweep: §1–5, §7–12 and §14–17 apply across the lifecycle, instruction/config, authority,
+durability, recovery, protocol, bounds and evidence joins, and were reconciled with the tagged
+findings above. §6 has no new runtime/interface to enroll; existing chat/terminal/fork/check
+capability exclusions were traced. §13 has no selected markup/style change; source selectors and
+presentation checks do not close a rendered/device gate.
+
+Verification: runtime held/Steer/attachment/late-tool checks pass under `-race -count=3`;
+CLI uncertainty/receipt checks pass under `-race`. FTS5 server receipt/recovery, stopped-mail
+activation, immediate-resume bridge, explicit-model resume and permission-deny checks pass under
+`-race`. The sandbox denied the server fixtures' IPv6 loopback bind; approved isolated execution
+then passed. Source-build tests unset `CHUCK_RUNTIME_ROOT`, with `GOCACHE=/tmp/chuck-gocache-asri`
+and `GOFLAGS=-p=1`. Composer/AgentScreen/PhoneApp pass 113/113 tests and presentation checks;
+jsdom scroll and unmatched fixture warnings do not constitute browser/device proof. Spec lint
+and diff checks pass. These existing positive tests do not exercise or overturn the retained
+intentionally failing probes.
 
 ### Prompt/harness performance investigation — `f54ce47a` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -1191,6 +1301,13 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-19 — Reviewed whole-system synthesis and agent performance (ASR-I).** Reconciled
+  all 25 topics and J1–J7 against unchanged source, resolved conflicting ordering/receipt/isolation
+  claims, and retained existing finding identities. No new independent defect or product/spec
+  change. Focused runtime/server/CLI race checks, 113 UI tests and presentation/spec/diff checks
+  pass. Recorded a bounded paired experiment; native adoption, physical-device and comparative
+  performance gates stay open. Removed the completed synthesis row; A–H remain open on findings.
 
 - **2026-10-19 — Reviewed human actions across desktop, phone, CLI and HTTP (ASR-H):** audited
   `d49a8f86` through shared runtime/context/recovery effects. Four Must-fix findings cover erased
