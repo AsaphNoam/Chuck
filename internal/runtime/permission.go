@@ -67,7 +67,7 @@ func (c *ChatRuntime) onRequest(as *agentState, req *IncomingRequest) {
 	data, byKind := mapPermissionRequest(req.Params, expiresAt, false)
 	data.ToolCallID = scope.toolCallID(data.ToolCallID)
 
-	p := &pendingPerm{req: req, name: data.Name, optByKind: byKind, scope: scope}
+	p := &pendingPerm{req: req, name: data.Name, optByKind: byKind, scope: scope, published: make(chan struct{})}
 	toolCallID := data.ToolCallID
 	if timeout > 0 {
 		p.timer = time.AfterFunc(timeout, func() { c.onPermissionTimeout(as, toolCallID) })
@@ -77,9 +77,12 @@ func (c *ChatRuntime) onRequest(as *agentState, req *IncomingRequest) {
 	as.pending[toolCallID] = p
 	as.mu.Unlock()
 
-	// waiting_input while withheld (techspec §4.4).
+	// waiting_input while withheld (techspec §4.4). A settler that claims the
+	// request in this gap waits on published, so the request and its waiting
+	// status precede any resolution (INV §5).
 	c.updateStatus(as, "waiting_input", "Permission: "+data.Name, "PermissionRequest: "+data.Name, keepBusySince)
 	c.emitIn(as, scope, EvPermissionRequest, data)
+	close(p.published)
 	// NB: no req.Respond here — withholding the response IS the pause.
 }
 
@@ -103,9 +106,13 @@ func (c *ChatRuntime) Permission(ctx context.Context, agentID, toolCallID, decis
 			c.restorePending(as, toolCallID, p)
 			return ErrInvalidDecision
 		}
-		p.resolve("cancelled", "")
+		// Settle the exact request once as cancelled, recorded like any other
+		// resolution, so no actionable card survives it (FS-03.R9, INV §8).
 		c.markResolved(as, toolCallID)
+		c.updateOwnedBusy(as, "thinking", "PermissionResolved")
+		c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "cancelled"})
 		c.emit(as, EvError, ErrorData{Scope: "tool", Message: "adapter offered no usable permission option"})
+		p.resolve("cancelled", "")
 		return nil
 	}
 
@@ -113,7 +120,7 @@ func (c *ChatRuntime) Permission(ctx context.Context, agentID, toolCallID, decis
 	// Write the resolved-but-active state before releasing the ACP peer. A peer
 	// may finish session/prompt as soon as it receives this response; writing busy
 	// afterwards could then overwrite the prompt goroutine's final idle status.
-	c.updateStatus(as, "busy", "thinking", "PermissionResolved", keepBusySince)
+	c.updateOwnedBusy(as, "thinking", "PermissionResolved")
 	resolved := PermissionResolvedData{ToolCallID: toolCallID, Decision: decision}
 	if p.host != nil {
 		// The host waiter acts on this decision, so it is released only after the
@@ -148,7 +155,7 @@ func (c *ChatRuntime) onPermissionTimeout(as *agentState, toolCallID string) {
 	c.markResolved(as, toolCallID)
 	// As with a user decision, write busy before answering the peer so a fast
 	// prompt completion is the final owner of the idle transition.
-	c.updateStatus(as, "busy", "thinking", "PermissionResolved", keepBusySince)
+	c.updateOwnedBusy(as, "thinking", "PermissionResolved")
 	c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "timeout"})
 	c.emit(as, EvError, ErrorData{Scope: "tool", Message: "permission timed out"})
 	if p.host != nil {
@@ -272,6 +279,7 @@ func (c *ChatRuntime) resolvePending(as *agentState, toolCallID, outcome, option
 	}
 	p.awaitPublished()
 	c.markResolved(as, toolCallID)
+	c.updateOwnedBusy(as, "thinking", "PermissionResolved")
 	c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "cancelled"})
 	p.resolve(outcome, optionID)
 	return true

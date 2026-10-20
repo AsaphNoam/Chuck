@@ -1029,6 +1029,9 @@ func permissionScenario() string {
 			map[string]any{"optionId": "opt_reject", "name": "Reject", "kind": "reject_once"},
 		}
 	}
+	if os.Getenv("FAKEACP_PERMISSION_REJECT_ONLY") == "1" {
+		options = []any{map[string]any{"optionId": "opt_reject", "name": "Reject", "kind": "reject_once"}}
+	}
 	sendRequest(id, "session/request_permission", map[string]any{
 		"sessionId": sessionID,
 		"reason":    "run a shell command",

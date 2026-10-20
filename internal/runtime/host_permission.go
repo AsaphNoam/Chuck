@@ -52,8 +52,8 @@ type HostPermission struct {
 // awaitPublished holds a settler until the opener has published the request,
 // so a resolution never precedes its request or its waiting status (INV §5).
 func (p *pendingPerm) awaitPublished() {
-	if p.host != nil {
-		<-p.host.published
+	if p.published != nil {
+		<-p.published
 	}
 }
 
@@ -86,7 +86,7 @@ func (c *ChatRuntime) RequestHostPermission(agentID string, req HostPermissionRe
 	if data.Args == nil {
 		data.Args = json.RawMessage("{}")
 	}
-	p := &pendingPerm{name: req.Name, host: h,
+	p := &pendingPerm{name: req.Name, host: h, published: h.published,
 		optByKind: map[string]string{"allow_once": "allow_once", "reject_once": "reject_once"}}
 
 	as.mu.Lock()

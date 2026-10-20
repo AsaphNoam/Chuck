@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -45,6 +46,9 @@ func startPermAgent(t *testing.T, skip bool, timeout string) (*ChatRuntime, *Han
 	}
 	if os.Getenv("FAKEACP_PERMISSION_ALLOW_ALWAYS_ONLY") == "1" {
 		env = append(env, "FAKEACP_PERMISSION_ALLOW_ALWAYS_ONLY=1")
+	}
+	if os.Getenv("FAKEACP_PERMISSION_REJECT_ONLY") == "1" {
+		env = append(env, "FAKEACP_PERMISSION_REJECT_ONLY=1")
 	}
 	if timeout != "" {
 		env = append(env, "PERMISSION_TIMEOUT="+timeout)
@@ -153,6 +157,156 @@ func TestCancelDoesNotEndNextTurn(t *testing.T) {
 	waitForEvent(t, ch, EvTurnEnd)
 	if !fileExists(sentinel) {
 		t.Fatal("second turn ended without running the approved tool")
+	}
+}
+
+func readState(t *testing.T, c *ChatRuntime, agentID string) string {
+	t.Helper()
+	st, err := c.store.ReadStatus(agentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st.State
+}
+
+// ASRC-2(a), FS-02.R3/R22, INV §5 — a parallel tool frame while a permission
+// gate is open must not replace waiting_input with busy; the card would lose
+// its actionable treatment while the human decision is still required.
+func TestParallelToolFrameKeepsWaitingInput(t *testing.T) {
+	c, h, _, ch := startPermAgent(t, false, "")
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SendPrompt(context.Background(), h.AgentID, "run ls"); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvPermissionRequest)
+	c.mapScoped(as, activityScope{}, "tool_call", toolCallFrame("parallel", `{"file_path":"a.go"}`))
+	if got := readState(t, c, h.AgentID); got != "waiting_input" {
+		t.Fatalf("status after a parallel tool frame = %q, want waiting_input", got)
+	}
+	if _, err := c.Cancel(context.Background(), h.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvTurnEnd)
+}
+
+// ASRC-2(b), FS-01.R52, INV §5 — once a turn's terminal status is written, a
+// native background frame that races the rest of the turn end cannot reopen
+// busy with no owning turn. The ordering is fixed by settling the status while
+// the gate is still held, which is the window finishTurn has.
+func TestBackgroundFrameAfterTurnSettlesCannotReopenBusy(t *testing.T) {
+	holdFile := filepath.Join(t.TempDir(), "release")
+	c, spec := newChatTest(t, "hold_turn")
+	spec.Env = append(spec.Env, "FAKEACP_HOLD_FILE="+holdFile)
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Stop(context.Background(), h.AgentID) })
+	ch, unsub, err := c.Subscribe(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(unsub)
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SendPrompt(context.Background(), h.AgentID, "work"); err != nil {
+		t.Fatal(err)
+	}
+	waitForChunk(t, ch, "working")
+	as.mu.Lock()
+	turnID := as.execTurnID
+	as.mu.Unlock()
+	c.applyTurnEndStatus(as, turnID, TurnEndData{StopReason: "end_turn"})
+	c.mapScoped(as, activityScope{}, "tool_call", toolCallFrame("background", `{"file_path":"a.go"}`))
+	if got := readState(t, c, h.AgentID); got != "idle" {
+		t.Fatalf("status after a background frame = %q, want idle", got)
+	}
+	if err := os.WriteFile(holdFile, []byte("go"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvTurnEnd)
+}
+
+// ASRC-5, FS-03.R9, INV §5 — Cancel that claims an ACP permission before its
+// request and waiting status are published waits for that publication: the
+// resolution follows the request and no waiting_input survives the settled gate.
+func TestCancelBeforePermissionPublicationResolvesAfterRequest(t *testing.T) {
+	c, h, _, ch := startPermAgent(t, false, "")
+	c.cancelGrace = 0
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SendPrompt(context.Background(), h.AgentID, "run ls"); err != nil {
+		t.Fatal(err)
+	}
+	// Hold the status lock so the request registers but cannot publish.
+	as.statusMu.Lock()
+	deadline := time.Now().Add(3 * time.Second)
+	for !c.PermissionPending(h.AgentID, "tc_p") {
+		if time.Now().After(deadline) {
+			as.statusMu.Unlock()
+			t.Fatal("permission request was never registered")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	done := make(chan struct{})
+	go func() {
+		_, _ = c.Cancel(context.Background(), h.AgentID)
+		close(done)
+	}()
+	time.Sleep(50 * time.Millisecond) // let Cancel reach the publication gate
+	as.statusMu.Unlock()
+	<-done
+
+	var order []string
+	for {
+		ev := <-ch
+		if ev.Type == EvPermissionRequest || ev.Type == EvPermissionResolved {
+			order = append(order, ev.Type)
+		}
+		if ev.Type == EvTurnEnd {
+			break
+		}
+	}
+	if strings.Join(order, ",") != EvPermissionRequest+","+EvPermissionResolved {
+		t.Fatalf("permission event order = %v, want request then resolution", order)
+	}
+	if got := readState(t, c, h.AgentID); got == "waiting_input" {
+		t.Fatal("waiting_input survived a cancelled permission")
+	}
+}
+
+// ASRC-5, INV §8 — approving a request whose provider offers no allow option
+// settles that exact request once as cancelled with a recorded resolution, so
+// the card is not left actionable and a retry is refused as already resolved.
+func TestPermissionWithoutMatchingOptionResolvesCancelled(t *testing.T) {
+	t.Setenv("FAKEACP_PERMISSION_REJECT_ONLY", "1")
+	c, h, sentinel, ch := startPermAgent(t, false, "")
+	if err := c.SendPrompt(context.Background(), h.AgentID, "run ls"); err != nil {
+		t.Fatal(err)
+	}
+	var prd PermissionRequestData
+	json.Unmarshal(waitForEvent(t, ch, EvPermissionRequest).Data, &prd)
+	if err := c.Permission(context.Background(), h.AgentID, prd.ToolCallID, "approve"); err != nil {
+		t.Fatalf("approve without an allow option: %v", err)
+	}
+	var resolved PermissionResolvedData
+	json.Unmarshal(waitForEvent(t, ch, EvPermissionResolved).Data, &resolved)
+	if resolved.ToolCallID != prd.ToolCallID || resolved.Decision != "cancelled" {
+		t.Fatalf("resolution = %+v, want the exact request cancelled", resolved)
+	}
+	waitForEvent(t, ch, EvTurnEnd)
+	if err := c.Permission(context.Background(), h.AgentID, prd.ToolCallID, "deny"); !errors.Is(err, ErrPermissionAlreadyResolved) {
+		t.Fatalf("second decision error = %v, want ErrPermissionAlreadyResolved", err)
+	}
+	if fileExists(sentinel) {
+		t.Fatal("tool ran without an approval option")
 	}
 }
 

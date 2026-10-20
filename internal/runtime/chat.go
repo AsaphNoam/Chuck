@@ -309,6 +309,12 @@ type agentState struct {
 	// That turn settles as `cancelled` even if the provider still answers
 	// `end_turn`, so a late completion never confirms quota recovery (FS-03.R9).
 	cancelledTurnSeq int64
+	// statusMu serializes every status-row read-modify-write together with its
+	// ownership decision; settledTurnID is the turn whose terminal status has
+	// been written. Busy is written only for an unsettled owning turn with no
+	// open permission gate (FS-02.R3/R22, FS-01.R52, INV §5).
+	statusMu      sync.Mutex
+	settledTurnID string
 	// loadReplay is set only while ACP session/load is restoring provider-native
 	// context. A provider is allowed to replay the prior conversation as
 	// session/update frames during that call; those frames describe history
@@ -376,6 +382,9 @@ type pendingPerm struct {
 	// host is set for a Chuck-owned request with no ACP peer to answer; its
 	// decision goes to the waiting host operation instead (TS-04.R94).
 	host *HostPermission
+	// published closes once the request and its waiting status are published;
+	// every settler waits for it so no resolution precedes its request (INV §5).
+	published chan struct{}
 }
 
 func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, error) {
@@ -1218,7 +1227,7 @@ func (c *ChatRuntime) clearInlineMail(agentID, deliveryKey string) {
 // divergent delivery paths (FS-03.R49, INV §2). The crash path deliberately does
 // not: its held message has no next turn to run in and dies with the agent.
 func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) (Message, string) {
-	c.applyTurnEndStatus(as, td)
+	c.applyTurnEndStatus(as, turnID, td)
 	// Keep the gate until terminal subscribers have settled this owner. A racing
 	// Send cannot start a successor before the room completion callback returns.
 	c.emitIn(as, activityScope{TurnID: turnID}, EvTurnEnd, td)
@@ -2530,36 +2539,53 @@ func envKeys(env []string) []string {
 // cannot reopen busy, because only a turn end restores idle and Cancel has no
 // turn to interrupt (FS-01.R52, INV §1/§11).
 func (c *ChatRuntime) applyEventStatus(as *agentState, m mappedEvent) {
-	as.mu.Lock()
 	if m.Type == EvToolCall {
+		as.mu.Lock()
 		d := m.Data.(ToolCallData)
 		as.toolNames[d.ToolCallID] = d.Name
-	}
-	active := as.turnActive
-	as.mu.Unlock()
-	if !active {
-		return
+		as.mu.Unlock()
 	}
 	switch m.Type {
 	case EvToolCall:
 		d := m.Data.(ToolCallData)
-		c.updateStatus(as, "busy", "Running "+d.Name, "PreToolUse: "+d.Name, keepBusySince)
+		c.updateOwnedBusy(as, "Running "+d.Name, "PreToolUse: "+d.Name)
 	case EvToolResult:
 		d := m.Data.(ToolResultData)
 		name := as.toolNameFor(d.ToolCallID)
-		c.updateStatus(as, "busy", name+" done", "PostToolUse: "+name, keepBusySince)
+		c.updateOwnedBusy(as, name+" done", "PostToolUse: "+name)
 	}
 	// assistant_text / diff carry no status transition (agent stays busy).
 }
 
-func (c *ChatRuntime) applyTurnEndStatus(as *agentState, td TurnEndData) {
+// updateOwnedBusy writes busy only while an unsettled turn owns the agent and
+// no permission gate is open. The decision and the write share statusMu, so a
+// parallel tool frame cannot erase waiting_input and a background frame racing
+// the turn end cannot leave busy behind it (FS-02.R3/R22, FS-01.R52, INV §5).
+func (c *ChatRuntime) updateOwnedBusy(as *agentState, detail, trace string) {
+	as.statusMu.Lock()
+	defer as.statusMu.Unlock()
+	as.mu.Lock()
+	owned := as.turnActive && !as.stopped && as.execTurnID != "" &&
+		as.execTurnID != as.settledTurnID && len(as.pending) == 0
+	as.mu.Unlock()
+	if owned {
+		c.writeStatusRowLocked(as, "busy", detail, trace, keepBusySince)
+	}
+}
+
+func (c *ChatRuntime) applyTurnEndStatus(as *agentState, turnID string, td TurnEndData) {
+	as.statusMu.Lock()
+	defer as.statusMu.Unlock()
+	as.mu.Lock()
+	as.settledTurnID = turnID
+	as.mu.Unlock()
 	switch td.StopReason {
 	case "cancelled":
-		c.updateStatus(as, "idle", "cancelled", "Cancelled", clearBusySince)
+		c.writeStatusRowLocked(as, "idle", "cancelled", "Cancelled", clearBusySince)
 	case "error":
-		c.updateStatus(as, "error", "turn failed", "Error", clearBusySince)
+		c.writeStatusRowLocked(as, "error", "turn failed", "Error", clearBusySince)
 	default:
-		c.updateStatus(as, "idle", "", "Stop", clearBusySince)
+		c.writeStatusRowLocked(as, "idle", "", "Stop", clearBusySince)
 	}
 }
 
@@ -2572,6 +2598,13 @@ const (
 
 // updateStatus reads the current row, applies the transition, and writes it back.
 func (c *ChatRuntime) updateStatus(as *agentState, st, detail, trace string, mode busySinceMode) {
+	as.statusMu.Lock()
+	defer as.statusMu.Unlock()
+	c.writeStatusRowLocked(as, st, detail, trace, mode)
+}
+
+// writeStatusRowLocked is updateStatus's read-modify-write. Caller holds statusMu.
+func (c *ChatRuntime) writeStatusRowLocked(as *agentState, st, detail, trace string, mode busySinceMode) {
 	cur, err := c.store.ReadStatus(as.agentID)
 	if err != nil {
 		cur = state.Status{AgentID: as.agentID}
@@ -2591,6 +2624,8 @@ func (c *ChatRuntime) updateStatus(as *agentState, st, detail, trace string, mod
 
 // writeStatus writes a fully-specified status row.
 func (c *ChatRuntime) writeStatus(as *agentState, st state.Status) error {
+	as.statusMu.Lock()
+	defer as.statusMu.Unlock()
 	if err := c.store.WriteStatus(st); err != nil {
 		return err
 	}
@@ -2604,6 +2639,8 @@ func (c *ChatRuntime) writeStatus(as *agentState, st state.Status) error {
 // disturbing the row's state/detail/trace/busy_since (there is no status
 // transition implied by a usage_update alone).
 func (c *ChatRuntime) republishContext(as *agentState) {
+	as.statusMu.Lock()
+	defer as.statusMu.Unlock()
 	cur, err := c.store.ReadStatus(as.agentID)
 	if err != nil {
 		// Unlike updateStatus there is no state transition to record, so an
