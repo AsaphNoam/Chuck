@@ -3,11 +3,114 @@
 Release-era implementation and planning history. Open findings, queues and owed gates remain
 in the [live handoff](../../features/HANDOFF.md).
 
+## Prior position (historical; use the live handoff for current queues and gates)
+
+## Current position
+
+- **Release:** `v0.17.0` published 2026-10-18 (Latest): release CI run 39100834882 passed and
+  the GitHub Release carries the archive, `install.sh` and `manifest.json`; body set from the
+  notes. Main CI run 39100833712 on the release commit failed once on
+  `TestCanceledTurnsReleaseToolInput` (test-double flake, fixed 2026-10-19; see Changelog). Notes:
+  [`RELEASE-v0.17.0-notes.md`](RELEASE-v0.17.0-notes.md). Everything it settled
+  is archived in [`HANDOFF-through-2026-10-18`](HANDOFF-through-2026-10-18.md).
+  The shipped `operating-chuck` package now covers peer transcript reads, approved peer Stop,
+  task reporting/`$name` skills, Think Tank goal attachments and judge instructions, quota
+  reset/check recovery, the provider-handoff history bridge and restart-paused pipeline stages.
+- **Smaller owed checks carried over:** no phone component test for the definite-refusal Retry
+  rule; live Claude receipt
+  for late tool input; rendered check of the withdraw failed-recovery-read tail notice.
+- **Repository:** `AsaphNoam/Chuck`; branch `main`.
+- **Agent-surface review backlog:** ASR-A (`4fbeb316`), ASR-B and ASR-C (`6b5de19b`), and
+  ASR-D (`c12c4251`), ASR-E (`5eb574d9`), ASR-F (`b8157f13`), ASR-G (`fa092f63`) and
+  ASR-H (`d49a8f86`)
+  have been audited and have open findings; their units remain under
+  [Review queue](#review-queue). ASR-I's whole-system source synthesis is complete below. The
+  [charters](../../features/AGENT-SURFACE-REVIEW.md) combine interacting mechanisms and require cross-system
+  joins plus a final synthesis/performance review. All original 25 research areas remain in the
+  [search catalogue](../../features/AGENT-SURFACE-SEARCH-CATALOGUE.md), not as separate tasks. Their
+  evidence and findings are below; all 25 topics and seven joins have been reconciled, with
+  native/device adoption and comparative performance still unproved. Other findings and live gates
+  remain independent.
+- **Designed agent-surface work/fix units:** [AGENT-SURFACE-FIX-UNITS.md](../../features/AGENT-SURFACE-FIX-UNITS.md)
+  assigns the original 41 findings once: three `/work` refactors (ASW-1 event commit, ASW-2 frozen
+  native execution, ASW-3 process/driver ownership) and six consolidated `/fix` batches below.
+  The human explicitly authorized these cross-review batches; for this campaign select the new
+  unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
+  migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
+  control, ambiguous replay and the config read-loop stall. ASW-1 is closed (all nine findings
+  fixed 2026-10-20); ASW-2 is closed (all eleven findings fixed or
+  decided 2026-10-20); ASW-3 is closed (all six findings fixed 2026-10-20).
+  Other units remain waiting. The
+  [systemic assessment](../../features/AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
+- **Post-refactor synthesis:** [pre-fix assessment](../../features/AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md)
+  connects ownership/refusal, conversation dispatch and controller recovery; its two confirmed
+  probes (ASW1-9, ASW3-6) are fixed. Keep existing units rather than another broad rewrite.
+- **Defect-origin and review-escape research:** [meta-analysis](../../features/AGENT-SURFACE-META-ANALYSIS.md)
+  distinguishes unsafe designs, explicit implementation violations and unchanged consumers of new
+  authority. Six GPT-6 Luna investigations supported four workflow proposals; the later two-skill
+  implementation is recorded below. Its confirmed META-1 (offline reindex erased a hook-learned terminal
+  native ID), is fixed (Changelog). Archive repair is the first suggested wider audit; updater,
+  remote revocation and retrieval performance remain candidates, not confirmed findings.
+- **Core reliability audit planning:** [priorities and planning progress](../../features/CORE-RELIABILITY-AUDIT-PLAN.md)
+  now map seven architectures from the product docs: durable truth, work admission/recovery,
+  executable workspace/configuration, information/knowledge, authoritative results, operator
+  actions and sustained capacity. All seven researched units are waiting for review:
+  [CR-A1 — Durable truth and recovery](../../features/CORE-RELIABILITY-REVIEW-A1.md),
+  [CR-A2 — Admission, waiting and recovery](../../features/CORE-RELIABILITY-REVIEW-A2.md),
+  [CR-A3 — Executable workspace and configuration](../../features/CORE-RELIABILITY-REVIEW-A3.md),
+  [CR-A4 — Information and operating knowledge](../../features/CORE-RELIABILITY-REVIEW-A4.md),
+  [CR-A5 — Supervision and result authority](../../features/CORE-RELIABILITY-REVIEW-A5.md),
+  [CR-A6 — Operator action and observation truth](../../features/CORE-RELIABILITY-REVIEW-A6.md) and
+  [CR-A7 — Sustained capacity and cost](../../features/CORE-RELIABILITY-REVIEW-A7.md).
+  Existing ASR/ASW/ASF proofs/owners remain; no core audit has run.
+  The [workflow design](../../features/WORKFLOW-RELIABILITY-DESIGN.md) specifies shared test rules, a `write-tests`
+  companion and an `architectural-review` before every release, with candidate-bound receipts and
+  a mechanical release gate. Both skills are implemented sequentially (TS-06.R35–R36/workflow
+  §§17–18), researched and independently forward-tested. No real audit/release review started.
+  Finding fixes reuse the original architectural review and receipt; they do not force a rerun.
+  Planning is complete; each charter is one independently selectable review unit.
+- **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
+  original unit below retains separate process-policy recommendations.
+  General output-quality regression remains unproven.
+- **Former known risk confirmed:** the `SetSessionConfig`/`as.mu` read-loop stall is now ASRC-1
+  under Review findings.
+- **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
+  TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
+  in [`ideas.md`](../../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
+  parser, login side client or new adapter patch.
+- **Paused work:** `migrate-internal-actions-from-mcp.md` remains paused on its transport blocker.
+- **Source-build Go tests:** run with `CHUCK_RUNTIME_ROOT` unset; an inherited installed bundle
+  violates a credential test's source-build assumption. Prefer `GOFLAGS=-p=1` for full closure:
+  the parallel image-fix run timed out `TestCodexProberAcceptsNativeLoginWithoutAPIKey` after 2 s;
+  five isolated repeats and the full serial matrix passed without code changes.
+- **Known flaky checks (uninvestigated):** `internal/cli`
+  `TestBootstrapContenderExitsDuringDownload` failed in the META-1 FTS5 full serial run (“first
+  bootstrap did not begin downloading”; a 1 s wall-clock wait) and in one of ten isolated repeats;
+  30 further isolated runs (10 without the change, 20 with) pass. `internal/server`
+  `TestOrdinaryStageAgentStopPausesPipelineRun` intermittently returns 409 “a resume is already in
+  progress”. `FileViewer.test.tsx`
+  “scrolls to and marks a cited line” failed once in the full suite and passes alone.
+  `internal/server` `TestQuotaDispatcherContinuesSameConversationOnce/stopped` failed once
+  (“reloaded transcript differs”, FTS5 variant) in the `v0.16.0` closure run; 40 isolated runs,
+  30 `-race` runs and a full FTS5 package rerun pass. Range commit `9989fb88` touched ACP update
+  routing; whether it relates is uninvestigated.
+
+## Active change
+
+- None in progress. Workflow skills and release-gate implementation are complete; normal change
+  review is available below. CR-A1–CR-A7 are researched and waiting for review; audit planning is complete.
+- ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
+  clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
+- ASW-1 (conversation event commits) closed 2026-10-20 (Changelog); rendered unsaved-permission
+  prompt and live duplicate-terminal room receipts are owed.
+- ASW-3 (process and terminal-driver ownership) closed 2026-10-20 (Changelog); FS-07.A12 real
+  tmux/iTerm2 receipts, including early SessionStart → Stop → Resume, are owed.
+
 ## Changelog
 
 - **2026-10-20 — Mapped the seventh core reliability audit; planning complete:** two focused
   GPT-6 Luna research passes and parent integration produced
-  [CR-A7](CORE-RELIABILITY-REVIEW-A7.md), one frontier-sized review of sustained capacity and cost.
+  [CR-A7](../../features/CORE-RELIABILITY-REVIEW-A7.md), one frontier-sized review of sustained capacity and cost.
   It maps actual retrieval scans, retained queries, view fan-out, bounded control/dispatch work and
   ephemeral resource ownership into representative measurement and cross-agent intervention;
   ASR-I keeps its matched native-comparison design and existing ASW/ASF finding owners remain.
@@ -17,7 +120,7 @@ in the [live handoff](../../features/HANDOFF.md).
   shape and diff checks passed; product tests were not run for this planning-only change.
 
 - **2026-10-20 — Mapped the sixth core reliability audit:** two focused GPT-6 Luna research passes
-  and parent integration produced [CR-A6](CORE-RELIABILITY-REVIEW-A6.md), one frontier-sized review
+  and parent integration produced [CR-A6](../../features/CORE-RELIABILITY-REVIEW-A6.md), one frontier-sized review
   of operator actions through trustworthy observation. It maps exact input/targets/guards,
   acceptance versus completion/unknown effects, bulk outcomes, CLI output and live/reconnected
   desktop/phone state, preserving existing proof limits and ASW/ASF owners. Added one waiting
@@ -27,7 +130,7 @@ in the [live handoff](../../features/HANDOFF.md).
   whitespace checks passed; product tests were not run for this planning-only change.
 
 - **2026-10-20 — Mapped the fifth core reliability audit:** two focused GPT-6 Luna research passes
-  and parent integration produced [CR-A5](CORE-RELIABILITY-REVIEW-A5.md), one frontier-sized review
+  and parent integration produced [CR-A5](../../features/CORE-RELIABILITY-REVIEW-A5.md), one frontier-sized review
   of result authority through actual next work. It maps task acceptance/cleanup/progression,
   current pipeline controls, concurrent openings, judge publication/retained projection and later
   bound stage acceptance, preserving existing ASW/ASF owners. Added one waiting review unit;
@@ -36,7 +139,7 @@ in the [live handoff](../../features/HANDOFF.md).
   tests were run. No audit, failure probe, product repair or release architecture receipt was performed.
 
 - **2026-10-20 — Mapped the fourth core reliability audit:** two focused GPT-6 Luna research passes
-  and parent integration produced [CR-A4](CORE-RELIABILITY-REVIEW-A4.md), one frontier-sized review
+  and parent integration produced [CR-A4](../../features/CORE-RELIABILITY-REVIEW-A4.md), one frontier-sized review
   of faithful information delivery and operating guidance. It maps selected sources/bytes, access,
   actual annotation/task/mail consumers, bounded receipts, managed knowledge/awareness and requested
   versus native adoption evidence, preserving existing ASW/ASF owners. Added one waiting review
@@ -79,7 +182,7 @@ in the [live handoff](../../features/HANDOFF.md).
   unnamed test and two reruns plus task/pipeline ×4 passed.
 
 - **2026-10-20 — Mapped the third core reliability audit:** two focused GPT-6 Luna research passes
-  and parent integration produced [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review
+  and parent integration produced [CR-A3](../../features/CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review
   of workspace and executable configuration. It maps checkout ownership/setup, resources,
   fresh/frozen selection, current pipeline-to-task callers and real native execution evidence;
   setup warning semantics, deliberate deletion and ASW/ASF ownership remain explicit. Added one
@@ -88,7 +191,7 @@ in the [live handoff](../../features/HANDOFF.md).
   tests were run. No audit, failure probe, product repair or release architecture receipt was performed.
 
 - **2026-10-20 — Mapped the second core reliability audit:** two focused GPT-6 Luna research
-  passes and parent integration produced [CR-A2](CORE-RELIABILITY-REVIEW-A2.md), one frontier-sized
+  passes and parent integration produced [CR-A2](../../features/CORE-RELIABILITY-REVIEW-A2.md), one frontier-sized
   control-plane review. The charter maps work readiness, assignment/runtime claims, wait/yield,
   distinct mail/dependency/quota policies, actual startup and retained cleanup; it records existing
   proof limits and ASW/ASF ownership. Added one waiting review unit; A3–A7 remain unmapped.
@@ -97,7 +200,7 @@ in the [live handoff](../../features/HANDOFF.md).
   No audit, failure probe, product repair or release architecture receipt was performed.
 
 - **2026-10-20 — Mapped the first core reliability audit:** two focused GPT-6 Luna research passes
-  and parent integration produced [CR-A1](CORE-RELIABILITY-REVIEW-A1.md), one frontier-sized review
+  and parent integration produced [CR-A1](../../features/CORE-RELIABILITY-REVIEW-A1.md), one frontier-sized review
   of durable conversation/session truth and maintenance recovery. The charter maps authority,
   actual archive/Restore/reconcile/reindex boundaries, requirements, existing tests, interruption
   questions and cross-unit owners. Added one waiting review unit; A2–A7 remain unmapped. No audit,
@@ -113,7 +216,7 @@ in the [live handoff](../../features/HANDOFF.md).
   independent Luna implementation review and a synthetic startup-liveness forward test verify
   behavior; skill/twin/mutation, syntax/spec/reference and diff checks pass. No product fix or real
   audit/release review ran. The seven-slice audit plan is recorded/deferred for human expansion.
-  [Research/evidence](../archive/reviews/workflow-skills-2026-10-20.md). Four unrelated dirty ready-change
+  [Research/evidence](../reviews/workflow-skills-2026-10-20.md). Four unrelated dirty ready-change
   files remain outside the commits.
 
 - **2026-10-20 — Created purposeful test-authoring companion:** two Luna research slices informed
@@ -121,7 +224,7 @@ in the [live handoff](../../features/HANDOFF.md).
   must add meaningful confidence worth its cost; no quotas, exhaustive matrices or duplicate
   layers. Review checks evidence value. Independent Luna forward-testing added one useful failing
   repair/Resume regression and no prose-only test. Skill validation, launcher mutation/twin checks,
-  spec/reference and diff checks pass. [Research/evidence](../archive/reviews/workflow-skills-2026-10-20.md).
+  spec/reference and diff checks pass. [Research/evidence](../reviews/workflow-skills-2026-10-20.md).
   This is the first sequential checkpoint; architecture skill is next, audits remain deferred.
 
 - **2026-10-20 — Fixed and closed ASW-3 process/terminal ownership (ASW3-1–6; ASRB-1 and ASRC-3
@@ -153,8 +256,8 @@ in the [live handoff](../../features/HANDOFF.md).
   idle-Steer race receipts remain unclaimed live evidence.
 
 - **2026-10-20 — Simplified workflow proposals and scoped the next reliability audits:** added
-  concrete plain-language examples to the [meta-analysis](AGENT-SURFACE-META-ANALYSIS.md) and a
-  [deferred core audit plan](CORE-RELIABILITY-AUDIT-PLAN.md). One focused GPT-6 Luna scope reader
+  concrete plain-language examples to the [meta-analysis](../../features/AGENT-SURFACE-META-ANALYSIS.md) and a
+  [deferred core audit plan](../../features/CORE-RELIABILITY-AUDIT-PLAN.md). One focused GPT-6 Luna scope reader
   challenged duplicate reviews; parent checked current architecture/fixes and prioritized preserved
   work, context/message fidelity, correct execution and measured long-history overhead. Six core
   responsibilities map to two fresh investigations and one combined post-fix journey, not six
@@ -214,7 +317,7 @@ in the [live handoff](../../features/HANDOFF.md).
 - **2026-10-20 — Researched defect causes, review escapes and wider audit value:** six GPT-6 Luna
   discovery slices covered history, refactors, workflow, test oracles and backend/client surfaces;
   parent verified representative diffs and a new real-state reindex probe. The
-  [report](AGENT-SURFACE-META-ANALYSIS.md) distinguishes design, implementation and integration drift,
+  [report](../../features/AGENT-SURFACE-META-ANALYSIS.md) distinguishes design, implementation and integration drift,
   proposes four bounded workflow changes and ranks wider audits with explicit confidence limits.
   Added confirmed META-1 and retained its reproducer; both SQLite variants intentionally fail the
   preservation assertion. No product/spec/skill policy changed and no future audit selected.
@@ -225,7 +328,7 @@ in the [live handoff](../../features/HANDOFF.md).
   reviews with remaining ASF batches and current source. Added ASW1-9 (terminal cleanup loses
   execution identity) and ASW3-6 (near birth mismatch authorizes control), both confirmed by
   intentionally failing isolated overlay probes (INV §1/§2/§5/§9/§11/§12/§15/§17).
-  [The assessment](AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md) records bounded shared-seam repairs,
+  [The assessment](../../features/AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md) records bounded shared-seam repairs,
   integration constraints and joint regressions; no fourth broad refactor or product fix selected.
   Updated stale ASW review status in the unit index. No provider/browser/real-driver run.
   Documentation/spec-reference checks and diff checks pass; the four pre-existing dirty
@@ -294,7 +397,7 @@ in the [live handoff](../../features/HANDOFF.md).
   refactors as ready changes with planned FS/TS requirements, forward migration, security,
   native-proof and acceptance obligations. Consolidated the other 19 findings into six explicitly
   authorized cross-review fix batches; all 41 open IDs have exactly one primary owner in
-  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md). Preserved original review evidence,
+  [AGENT-SURFACE-FIX-UNITS.md](../../features/AGENT-SURFACE-FIX-UNITS.md). Preserved original review evidence,
   native/device gates and closure identities. No product code, provider turn or fix closure.
   Spec/launcher lint, finding assignment, document links/anchors and diff checks pass.
 
@@ -304,7 +407,7 @@ in the [live handoff](../../features/HANDOFF.md).
   replay and liveness risks, and strengthened ASRD-3's control-consumer impact without a duplicate
   finding. Rejected an invalid
   same-stage wait composition; retained the valid broader workflow as unprobed. Recommendations
-  are in [AGENT-SURFACE-FIX-STRATEGY.md](AGENT-SURFACE-FIX-STRATEGY.md). No product/spec edits,
+  are in [AGENT-SURFACE-FIX-STRATEGY.md](../../features/AGENT-SURFACE-FIX-STRATEGY.md). No product/spec edits,
   provider turns or new end-to-end failure reproduction; existing review evidence remains explicit.
   Spec lint, report/handoff link/anchor/source/finding references and diff checks pass.
 
@@ -384,7 +487,7 @@ in the [live handoff](../../features/HANDOFF.md).
 - **2026-10-19 — Prepared agent-surface review backlog:** researched shared runtime and native
   Codex/Claude boundaries; queued 25 independent subsystem reviews with ownership, source/spec
   entry points, failure hypotheses and evidence requirements in
-  [AGENT-SURFACE-REVIEW.md](AGENT-SURFACE-REVIEW.md). Planning only: no substantive review,
+  [AGENT-SURFACE-REVIEW.md](../../features/AGENT-SURFACE-REVIEW.md). Planning only: no substantive review,
   product/spec change or provider run. Existing findings, gates and dirty code were preserved.
   `make check-specs`, source/spec-reference checks, local link/anchor checks and 25-unit queue
   consistency checks pass.
