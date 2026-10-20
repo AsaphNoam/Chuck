@@ -1494,7 +1494,8 @@ and specifications are unchanged.
   `TestCodexDeveloperInstructionsProjectChain/effective_project_root_markers`,
   `TestCodexOverlayRootMarkersPreserveAncestorInstructions`. ASW2-1 and ASW2-5 are left open
   under Blocked on human (compatibility decision; requirement conflicts with Claude adapter
-  behavior).
+  behavior). Closure for ASW2-2–4/6–11: serial `make test` (untagged and FTS5) and `make build`
+  pass; focused runtime `-race` passes. Four pre-existing dirty ready-change files remain outside.
 
 - **2026-10-20 — Fixed ASW2-4 (INV §2/§10/§12/§17):** Codex quota-check isolation now refuses
   (`unsupported`) when the check home holds a nonblank `AGENTS.md`/`AGENTS.override.md` or any
