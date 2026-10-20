@@ -42,5 +42,5 @@ component version bump is required.
 - Specification checks, release-workflow YAML parsing, whitespace checks and all eight
   architectural-gate regression tests pass. The candidate gate itself refuses the absent receipt;
   publication uses the explicit version-specific waiver above.
-- Static checks pass. Both Go test variants are in progress. The operator confirmed v0.18.0;
-  tagging and publication remain pending successful required verification.
+- Both Go test variants and static checks pass. The operator confirmed v0.18.0.
+  Tagging and GitHub publication remain pending.
