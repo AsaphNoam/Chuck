@@ -8,10 +8,11 @@ and checked source entry paths. The committed baseline for this expansion is `f7
 product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
 journey recommendation, which compressed distinct core architectures too much.
 
-**Status: mapping one subject at a time, as requested.** A1 now has a
-[researched review charter](CORE-RELIABILITY-REVIEW-A1.md) and one waiting review unit, **CR-A1**,
-in the handoff. A2–A7 remain proposed scopes awaiting the same planning research. No audit or
-product repair has started. The purposeful testing and architectural-review skills are implemented.
+**Status: mapping one subject at a time, as requested.** A1 and A2 have researched review charters
+and waiting review units, [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) and
+[CR-A2](CORE-RELIABILITY-REVIEW-A2.md), in the handoff. A3–A7 remain proposed scopes awaiting the
+same planning research. No audit or product repair has started. The purposeful testing and
+architectural-review skills are implemented.
 Refresh current handoff/fix status before each review; concurrent fixes are landing. Hypotheses
 below are questions to investigate, not new findings.
 
@@ -76,8 +77,8 @@ priority; permission/Stop/failed-delivery observations matter on every operator 
 
 ## Audit scopes and planning progress
 
-Only A1 is mapped into a review-ready charter. The remaining sections preserve the agreed subjects;
-they are not additional executable review tasks yet. Continue planning with A2 on the next request.
+A1 and A2 are mapped into review-ready charters. The remaining sections preserve the agreed subjects;
+they are not additional executable review tasks yet. Continue planning with A3 on the next request.
 
 ### A1. Preserve saved work through repair and interruption
 
@@ -98,22 +99,14 @@ are questions for the review, not confirmed new defects. No audit/probe or produ
 **Purpose:** audit the control plane as a deterministic work system, including progress and safe
 refusal. A task can be perfectly stored yet never run; a stale activation can run already-closed work.
 
-**Start:** `internal/state/{tasks,task_waits,activations,quota_admission}.go`,
-`internal/server/{task_dispatcher,messaging_loops,quota_dispatch}.go`,
-`internal/runtime/{tasks,activation_kinds,registry_message}.go`. Read FS-06/FS-16 and
-TS-10.R2–R6/R17–R19/R25–R35 plus the relevant FS-09 quota contracts.
-
-**Challenge:** dependency completion while a task waits; capacity deferral versus consumed attempt
-allowance; coalesced watched changes; created/woken versus borrowed runtimes; retained cleanup
-claims; manual input/mail to a waiting assignee; restart reconstruction of capacity; cancellation
-winning over pending wake. Durable rows are correctness and bus hints only acceleration: show what
-ensures eventual progress when a hint is missed. Never apply mail's attempted-at-most-once policy
-to a dependency activation that must remain actionable until confirmed start.
-
-**Proof/ownership:** use actual committed task/activation/claim rows and native-submission counts,
-then a bounded real-provider adoption case where needed. Check both no duplicate execution and no
-permanently stranded work after the advertised repair. Reuse ASF-1/3 and ASW-1/3 regressions; any
-new finding needs a different current trigger, not a second owner for their existing findings.
+**Mapped 2026-10-20 — [CR-A2: Admission, waiting and recovery](CORE-RELIABILITY-REVIEW-A2.md).**
+Two focused GPT-6 Luna researchers and parent integration mapped durable task/activation authority,
+capacity/assignment/lifecycle distinctions, wait/yield, mail and quota policies, actual startup
+paths and existing proof limits against `bdc13d02`. One frontier-sized review checks safe admission
+and eventual progress together, including lost hints, interrupted starts and retained cleanup.
+The charter distinguishes mail's attempted-at-most-once rule, task-owned confirmed-start retry,
+quota authorization and cleanup-only reconciliation. Existing ASW/ASF owners remain; these are
+questions for review, not confirmed new defects. No audit/probe or product fix ran.
 
 ### A3. Start and continue in the correct usable workspace
 
@@ -282,9 +275,9 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 ## How to continue
 
 Map one remaining subject at a time into a researched charter and one separately selectable
-handoff review unit. A1 is ready; A2's deterministic work admission/recovery is the next planning subject.
-A3's executable workspace is the next distinct high-value architecture. A7 can collect measurements
-independently. A4–A6 use prior findings and current changes to choose their highest-consequence
+handoff review unit. A1 and A2 are ready; A3's executable workspace/configuration is the next
+planning subject. A7 can collect measurements independently. A4–A6 use prior findings and current
+changes to choose their highest-consequence
 unproved joins. The integration proof spans them after the relevant repairs. This is a proposed
 investment order, not chronological gating of independent role queues or automatic audit execution.
 
