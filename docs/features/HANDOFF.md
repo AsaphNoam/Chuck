@@ -53,10 +53,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   native ID), is fixed (Changelog). Archive repair is the first suggested wider audit; updater,
   remote revocation and retrieval performance remain candidates, not confirmed findings.
 - **Proposed core reliability audits:** [priorities and deferred scopes](CORE-RELIABILITY-AUDIT-PLAN.md)
-  focus on saved conversations, actual agent context, faithful peer messages/results, correct
-  execution and sustained performance. Two fresh investigations (storage/repair and long-history
-  overhead) plus one post-fix development journey reuse existing ASR/ASW/ASF evidence. The human
-  wants workflow/skill decisions defined first; no executable audit queue or product repair started.
+  now map seven architectures from the product docs: durable truth, work admission/recovery,
+  executable workspace/configuration, information/knowledge, authoritative results, operator
+  actions and sustained capacity. Existing ASR/ASW/ASF proofs/owners remain; audits are deferred.
+  The [workflow design](WORKFLOW-RELIABILITY-DESIGN.md) specifies shared test rules, a `write-tests`
+  companion and an `architectural-review` before every release, with candidate-bound receipts and
+  a mechanical release gate. These remain proposals: no skill/policy/CI change or audit started.
 - **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
   original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.

@@ -1,14 +1,21 @@
 # Chuck core reliability: proposed audit priorities
 
-Prepared 2026-10-20 from the human's reliability priorities, the
-[defect-origin research](AGENT-SURFACE-META-ANALYSIS.md), current source through `fc4a1b33`, and
-the existing ASR/ASW/ASF evidence. One focused GPT-6 Luna reader challenged overlap with previous
-audits; the parent checked the architecture map, current fixes and source entry paths.
+Prepared 2026-10-20; expanded after the human requested a deeper documentation-grounded view.
+Three additional GPT-6 Luna readers mapped operator/workspace capabilities, coordination/control
+planes and workflow/testing policy. The parent read the product object/control-plane model,
+worktree/resources, federation/knowledge, task admission/waiting, room completion and CLI contracts,
+and checked source entry paths. The committed baseline for this expansion is `f7809690`; concurrent
+product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
+journey recommendation, which compressed distinct core architectures too much.
 
 **Status: proposed and deferred.** Finish defining the workflow/skill changes first. This list
 does not start an audit, create executable review units, change requirements, or authorize product
 repairs. At the next audit selection, refresh the current handoff and fix status; concurrent fixes
 are landing. Hypotheses below are questions to investigate, not new findings.
+
+The concrete workflow/skill proposal is in
+[WORKFLOW-RELIABILITY-DESIGN.md](WORKFLOW-RELIABILITY-DESIGN.md). This document maps the audit
+subjects that its future architectural-review role should understand; it does not install that role.
 
 ## What matters
 
@@ -22,23 +29,52 @@ A broken display becomes core reliability work when it hides lost input, a false
 missing recovery or a Stop that did not actually stop work. A disclosed, recoverable refusal can
 be better than apparent success with the wrong conversation or missing context.
 
-## Architecture map
+## What Chuck adds beyond a collection of agent terminals
 
-These are six connected responsibilities, not six new broad source reviews. Existing evidence
-and findings must be reused. The three proposed work slices below group the remaining gaps.
+FS-00.R3/R13–R15 define persistent sessions plus distinct conversation, context and control planes.
+The detailed specs show why the audit must cover more than sending text:
 
-| Priority / responsibility | User-visible promise | Important failure to search for | Evidence still worth obtaining / existing owner |
-|---|---|---|---|
-| **1. Conversation storage and recovery** | My conversation and the ability to continue it survive normal Stop, restart, archive/restore and maintenance. | Text exists in one store but disappears from another; repair destroys the only copy of an identity or setting; a partial read makes intact work inaccessible; an interrupted rebuild cannot recover. | A fresh audit of storage/repair boundaries, using current fixes as baseline. ASW-1 owns event commit/history failures; ASW-3 owns native identity/lifecycle. **META-1 is fixed**, including ID/effort/fast retention; do not reopen its old reproduction. |
-| **2. Context that actually reaches the agent** | The agent receives the intended instructions, files, references and conversation context for this task. | The UI/history looks complete while the provider gets missing, stale, duplicated or wrong-project material; a handoff or resumed assignment drops facts; clipping is silent. | Post-fix native input captures plus a small real-provider task. Reuse ASR-A/B/D and ASW-2; do not repeat their configuration inventory. ASF-3 owns missing watched-change context; ASF-2 owns input/attachment uncertainty. Provider compaction need not preserve every historical byte; test the promised context and disclose limits. |
-| **3. Agent-to-agent messages** | A message reaches the right recipient with its intended body, sender and references, and delivery status tells the truth. | Mail is marked read/delivered too early, stays stranded after wake/restart, goes to the wrong generation, or retries cause repeated work. | A post-fix delivery journey, not another full source audit: ASR-E already traced transactional mail, budgets, activation and native delivery without another confirmed mail finding. Test receipt/consumption uncertainty explicitly; do not invent an exactly-once transport guarantee. |
-| **4. Tasks, pipelines and Think Tank outcomes** | Accepted assignments and results remain actionable; successors run only from the correct accepted outcome. | A controller says done without a valid result, forgets a result after restart, launches a stage twice, or loses the pending action needed to continue. | Verify interactions after ASF-1/3/4 and ASW-1/3 fixes; preserve their finding ownership. Trace task/attempt/result identity through one ordinary pipeline and a bounded room-backed variant. Real task-reporting adoption remains an existing owed gate. |
-| **5. Correct execution and workspace** | The right agent continues the right conversation in the right repository/worktree with the intended settings, and Stop controls that execution. | A resume silently starts fresh, work lands in the wrong checkout, defaults replace frozen choices, or delayed cleanup stops another execution. | Use ASW-2/3 and ASF-5 regressions as baseline; join project setup, delegation, resume and archive/restore in the integration journey. Existing real tmux/iTerm2 gates remain separate. A new generic process/worktree review is not justified solely by this list. |
-| **6. Performance over a real working day** | Growing history, several active agents and repeated context reads do not progressively stall development or multiply unnecessary work. | Every late context page rescans old history; a slow reader blocks agent progress; queues/caches retain old executions; extra prompts or retries inflate latency and cost. | Fresh measurement, starting with the concrete unmeasured retrieval-scan hypothesis. ASW-1 queue-bound defects already have an owner. ASR-I's native-versus-Chuck comparison remains unproved; reuse that gate, with matched provider/model/context, rather than infer model degradation from host latency. |
+| Shipped development capability | Architectural responsibility and authority | Governing docs |
+|---|---|---|
+| Launch the intended role/provider/model in a project and continue it later | JSON config/native source bindings compose into frozen session inputs; ordinary continuation and explicit refresh have different authority. | FS-01/FS-04/FS-08/FS-09; TS-01/TS-07 |
+| Run parallel work on isolated branches with setup and shared project files | Worktree ownership lives in SQLite, readiness gates process start, and resources live outside the checkout. A project is the isolation unit; two agents in one project share its files. | FS-11/FS-19; TS-12 |
+| Delegate durable work, wait for prerequisites, yield capacity and resume | Task assignment, dependency readiness, capacity reservation and runtime ownership are separate durable facts. Waiting retains the assignment; idle/exit never means task success. | FS-16; TS-10 |
+| Coordinate without unnecessary model turns | Waking and deferred mail have different activation rules; mail, dependency and quota paths cannot borrow each other's retry policy. | FS-06/FS-09/FS-16; TS-01/TS-04/TS-10 |
+| Turn selected evidence into actionable work | Annotations, attachments, immutable context references and accepted reports preserve source identity and access. References do not inherently inject content or wake a recipient. | FS-03/FS-13/FS-15; TS-02/TS-05 |
+| Supervise ordered workflows and deliberate with several agents | A pipeline is a cursor over stage tasks; room participants remain ordinary agents; judge publication and accepted task results have distinct commit boundaries. | FS-14/FS-21; TS-09/TS-14 |
+| Inspect, intervene and automate from a terminal as well as a dashboard | Shared domain mutations must preserve target identity, consent, revisions, receipts, partial failures, output bytes and truthful acceptance/completion status. | FS-01/FS-03/FS-22; TS-03/TS-06 |
+| Run the same product after installing or updating it | The selected binary/private runtime, provider source, managed knowledge and durable home must agree; clean-source tests alone do not prove the installed stack. | FS-10/FS-18; TS-06/TS-11 |
 
-## Proposed work slices, after workflow decisions
+Planned direct-action replacement, detached configuration import, general migration promises and
+unproved provider compatibility are not assumed shipped. Feature `Partial` status requires reading
+the individual requirement and its shipped/superseded notes. For example, pipeline named values
+are opaque text, not verified/copied file artifacts; a completed room is not proof that its goal
+was achieved. These limits are product contracts, not defects to invent.
 
-### A. Preserve saved work through repair and interruption
+## Prioritized audit subjects
+
+Seven coherent slices follow different authorities; they are not seven tiny tasks or seven new
+claims that all previous review work is useless. Begin each with existing proofs and fix ownership,
+then challenge an unresolved architectural assumption at the combined current revision. Prior
+source review narrows the search; it does not forbid a new source-level counterexample.
+
+| Order | Slice / core question | Why this deserves capacity beyond the earlier plan |
+|---|---|---|
+| 1 | **A1 — Durable truth and recovery:** can accepted development work be reconstructed and continued? | Authority is split across normalized history, SQLite, provider sessions and maintenance paths; the fixed META case showed a real missed consumer. |
+| 2 | **A2 — Admission, waiting and recovery:** will eligible work run, and will ineligible/stale work stay stopped? | Dependency readiness, runtime slots, assignment ownership, mail wake and quota recovery have different retry/liveness rules. A single conversation journey cannot establish them. |
+| 3 | **A3 — Executable workspace and configuration:** does work start only in its intended, usable environment? | Worktree creation/recreation, setup, resources, native-source freshness and frozen continuations jointly define the real development environment. |
+| 4 | **A4 — Information and operating knowledge:** do exact messages, selected sources and required Chuck capabilities reach the right consumer? | Content can be durable without being delivered; reference grants, annotation identity, mail confirmation and managed skill availability have different meanings. |
+| 5 | **A5 — Supervision and result authority:** does the right accepted outcome drive the right next work? | Pipeline cursor, task result, descendant cleanup and room/judge publication cannot be treated as one generic completion event. |
+| 6 | **A6 — Operator action and observation truth:** can a person or script reliably control and recover work? | CLI success/exit status, bulk failures, lost responses, stale targets and reconstructed live status affect whether development automation can trust Chuck. |
+| 7 | **A7 — Sustained capacity and cost:** does the hub remain responsive without multiplying model work? | Retrieval scans are only one possible cost; control loops, stream consumers, registrations and unnecessary activations can amplify one another. |
+
+Release/installed-runtime verification is cross-cutting in the proposed mandatory architectural
+release review, rather than an eighth broad source audit by default. Phone polish remains lower
+priority; permission/Stop/failed-delivery observations matter on every operator surface.
+
+## Proposed audit scopes, after workflow decisions
+
+### A1. Preserve saved work through repair and interruption
 
 **Purpose:** challenge the storage architecture beyond the already repaired META-1 case. This is
 the first fresh source audit because stored work is Chuck's recovery foundation.
@@ -67,7 +103,121 @@ existing commit/index failure regressions. Never run destructive probes on the u
 **Do not duplicate:** ASW-1 event failures, ASW-3 early hooks, or the closed META-1 finding. A new
 finding needs a current counterexample, not an old failing overlay.
 
-### B. Measure overhead as real development accumulates
+### A2. Admit, wait, wake and recover work correctly
+
+**Purpose:** audit the control plane as a deterministic work system, including progress and safe
+refusal. A task can be perfectly stored yet never run; a stale activation can run already-closed work.
+
+**Start:** `internal/state/{tasks,task_waits,activations,quota_admission}.go`,
+`internal/server/{task_dispatcher,messaging_loops,quota_dispatch}.go`,
+`internal/runtime/{tasks,activation_kinds,registry_message}.go`. Read FS-06/FS-16 and
+TS-10.R2–R6/R17–R19/R25–R35 plus the relevant FS-09 quota contracts.
+
+**Challenge:** dependency completion while a task waits; capacity deferral versus consumed attempt
+allowance; coalesced watched changes; created/woken versus borrowed runtimes; retained cleanup
+claims; manual input/mail to a waiting assignee; restart reconstruction of capacity; cancellation
+winning over pending wake. Durable rows are correctness and bus hints only acceleration: show what
+ensures eventual progress when a hint is missed. Never apply mail's attempted-at-most-once policy
+to a dependency activation that must remain actionable until confirmed start.
+
+**Proof/ownership:** use actual committed task/activation/claim rows and native-submission counts,
+then a bounded real-provider adoption case where needed. Check both no duplicate execution and no
+permanently stranded work after the advertised repair. Reuse ASF-1/3 and ASW-1/3 regressions; any
+new finding needs a different current trigger, not a second owner for their existing findings.
+
+### A3. Start and continue in the correct usable workspace
+
+**Purpose:** treat workspace readiness and execution configuration as one launch precondition.
+This includes the code branch, dependencies and shared artifacts needed to do real development.
+
+**Start:** `internal/server/{launch,resume,switch,worktree,pipeline_lifecycle}.go`,
+`internal/worktree/git.go`, `internal/config/{resources,worktrees}.go`,
+`internal/state/worktrees.go`, `internal/configsource`, and the backend/runtime composition seam.
+Read FS-04/FS-08/FS-09/FS-11/FS-19 and TS-01.R6/R9, TS-07.R1–R8, TS-12.R1–R4.
+
+**Challenge:** fork/create → setup → two concurrent starts; missing-checkout recreation from the
+recorded branch; task/pipeline/wake paths versus manual launch; frozen cwd/resource paths after
+project edits; fresh native resolution versus ordinary frozen continuation; failed source refresh
+with a visible last-known-good cache. A cache shown in Settings must not authorize a launch that
+requires fresh resolution. Project isolation is explicit: same-project agents share a checkout;
+Chuck does not automatically merge branches or isolate each agent.
+
+**Proof/ownership:** observe the real child's cwd, repository/branch, accessible resource location
+and applied invocation, not only the composed struct. A recreated checkout does not restore lost
+uncommitted files and must not be reported as such. Preserve ASW-2's closed selection fixes,
+ASW-3's control owner and ASF-5's readiness/resource findings; target unproved combinations after
+those fixes, not the same old setup reproduction.
+
+### A4. Preserve information identity and usable operating knowledge
+
+**Purpose:** audit information from selection/sending through storage, authorization, rendering
+and provider use. Include knowledge needed to operate Chuck, not only the user's prompt text.
+
+**Start:** `internal/contextref`, `internal/agentknowledge`,
+`internal/server/{primer,attachments,attachment_recovery,launch}.go`,
+`internal/messaging/{peer_tools,context_tools}.go`, `internal/state/messages.go`, and
+`internal/runtime/{message,images,fork}.go`. `applyKnowledgeOverlay` in `launch.go` owns the shared
+knowledge overlay. Read FS-03/FS-06/FS-13/FS-15/FS-18 and TS-11.R1–R5.
+
+**Challenge:** wrong source/version/cwd in a reference; cursor gaps or silent clipping; altered
+attachment bytes on retry; annotation-to-task losing its anchor; private data entering public room
+activity; native history/primer adoption after handoff; old sessions receiving current managed
+operating knowledge without contaminating frozen user configuration. Simulate unavailable knowledge
+installation and verify the documented warning/no-advertisement degradation rather than a stale
+path being advertised as usable.
+
+Waking mail has an activation; deferred mail does not. Deferred content is supplied on the next
+independently authorized turn, within bounds, or explicitly read; it is not generally pull-only.
+Reference grants do not start turns or prove model memory. Direct peer inspection has its own
+documented policy; do not invent confidentiality boundaries that the product does not promise.
+
+**Proof/ownership:** compare exact source facts/revisions, consumer-decoded native inputs, message
+receipts and a task that depends on the supplied facts. Message delivery is not comprehension.
+Reuse ASR-A/B/D/E evidence and ASW-2 closure; ASF-2/3/4 retain input uncertainty, watched-context
+and result-bound findings. Live skill/native-context adoption remains distinct from fake-wire proof.
+
+### A5. Make supervision advance only from authoritative results
+
+**Purpose:** inspect the pipeline/task/room join as an architecture, including cleanup and
+human intervention. It is separate from A2's admission mechanics and A4's content delivery.
+
+**Start:** `internal/pipeline/{manager,reconcile,actions,rooms}.go`,
+`internal/state/{pipeline_tasks,tasks}.go`,
+`internal/server/{pipeline_lifecycle,think_tank_capture}.go` and the room state/service/messaging
+owners. Read FS-14/FS-16/FS-21 and TS-09.R35–R49/R51–R59, TS-10.R25–R35, TS-14.R4–R14.
+
+**Challenge:** accepted report → matching turn end → runtime release → next cursor action;
+descendant cancellation and attempt closure; preserved pending approval/finalization across restart;
+room submission intent versus successful publication; partial openings without exposure to peers;
+captured room activity versus unrelated private turns; judge result attached to the exact stage.
+Named outputs are opaque text, not copied filesystem artifacts, and an idle agent is not a result.
+
+**Proof/ownership:** inspect the immutable accepted result, current attempt/cursor, retained cleanup
+intent and actual launched successor. A staged tool receipt or fluent judge answer does not prove
+canonical publication or task acceptance. Reuse ASF-3 and ASW-1/3 ownership and existing room
+fixtures; recheck combined changes and any remaining current assumptions. Owed real-provider
+task/room behavior is not satisfied by repeating the source audit.
+
+### A6. Make operator commands and observations trustworthy
+
+**Purpose:** audit reliable control of a development hub from scripts, CLI and dashboard using
+the same domain mutations. This is not a layout or visual-polish audit.
+
+**Start:** `internal/cli/operator_*.go`, `internal/server/{sessions,archive_actions,task_handlers}.go`,
+`internal/messaging/tool_result_contract_test.go`, the authoritative route/tool producers and
+status/SSE reconciliation. Read FS-22.R1–R4 and TS-06.R34, plus each selected action's own contract.
+
+**Challenge:** multiline/Unicode/stdin bytes; stable target identity; stale consent/revision/permission
+targets; accepted-but-lost response; mixed bulk outcomes; interruption during follow/file output;
+whether apparent idle/done hides a real permission wait, active execution or lost failure. CLI exit
+zero may mean accepted action, not completed model work; control operations must expose that truth.
+
+**Proof/ownership:** use the actual CLI/server or MCP wire, output streams/exit status and resulting
+durable state, rather than a mirrored command table. Reuse existing independent-wire tests; a
+route inventory is not itself a missing audit. ASF-2/6 and ASF-1 retain uncertain input, archive
+selection and status/control findings. Extend only where current evidence leaves a consequential gap.
+
+### A7. Measure overhead as real development accumulates
 
 **Purpose:** find silent performance deterioration and repeated host-generated work. Start with
 measurement before proposing a new cache, index, queue or architecture.
@@ -91,10 +241,10 @@ Compare late and repeated pages with early pages. Separate provider time from Ch
 Report the workload where a problem matters before choosing a fix or a performance budget; a
 small returned page is not evidence of cheap retrieval, and one noisy timing sample is not a bug.
 
-### C. Verify one complete development job across agents
+## Integration proof across selected audits
 
-**Purpose:** establish the combined user-value chain after the existing fixes. This is one
-integration audit, not separate source re-reviews of context, mail, tasks, rooms and lifecycle.
+**Purpose:** establish the combined user-value chain after the existing fixes. This journey joins
+the relevant audit results; it does not substitute for all seven different architectural questions.
 
 **Scope:** a coordinator delegates a bounded repository task with explicit source facts and a file
 or reference; a worker receives a peer message, reads the assignment, produces a result, and the
@@ -128,7 +278,9 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 
 ## Lower priority for this reliability-first round
 
-- **Updater/rollback:** still worth a later operational audit of recoverability and truthful failure
+- **Updater/rollback:** include installed-runtime and data-preservation evidence in the proposed
+  architectural release review; a dedicated deep audit of pointer failures can follow the core
+  control/data/workspace slices. It still needs recoverability and truthful failure
   after partial pointer changes. Inspect `Layout.Rollback`, not just `Activate`: activation already
   changes `previous` before `current`; rollback changes `current` first. No new defect is asserted.
 - **Phone lifecycle and remote revocation:** retain existing gates and security candidates; they do
@@ -140,8 +292,11 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 ## How to use this list later
 
 Finish the workflow decisions, then select a small first tranche rather than commissioning every
-possible audit. A and B can be independent; C consumes relevant fix results and existing evidence.
-The sequencing is a proposed investigation plan, not a change to independent role queues.
+possible audit. Start with A1's durable foundation and A2's deterministic work admission/recovery;
+A3's executable workspace is the next distinct high-value architecture. A7 can collect measurements
+independently. A4–A6 use prior findings and current changes to choose their highest-consequence
+unproved joins. The integration proof spans them after the relevant repairs. This is a proposed
+investment order, not chronological gating of independent role queues or automatic audit execution.
 
 For each selected slice, record what was actually exercised, the current source/provider versions,
 confirmed findings, and evidence still owed. Link new findings to their original owners where
