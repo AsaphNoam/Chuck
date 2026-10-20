@@ -49,8 +49,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Defect-origin and review-escape research:** [meta-analysis](AGENT-SURFACE-META-ANALYSIS.md)
   distinguishes unsafe designs, explicit implementation violations and unchanged consumers of new
   authority. Six GPT-6 Luna investigations support four targeted workflow proposals; no policy or
-  skill changed. A new real-state probe confirms **META-1** below: offline reindex erases a
-  hook-learned terminal native ID. Archive repair is the first suggested wider audit; updater,
+  skill changed. Its one confirmed finding, META-1 (offline reindex erased a hook-learned terminal
+  native ID), is fixed (Changelog). Archive repair is the first suggested wider audit; updater,
   remote revocation and retrieval performance remain candidates, not confirmed findings.
 - **Prompt/harness investigation:** PROMPT-1's ordinary ancestor-chain fix is verified, but
   effective root-marker precedence still loses guidance (ASW2-7). PROMPT-2's remaining manifest
@@ -67,7 +67,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   violates a credential test's source-build assumption. Prefer `GOFLAGS=-p=1` for full closure:
   the parallel image-fix run timed out `TestCodexProberAcceptsNativeLoginWithoutAPIKey` after 2 s;
   five isolated repeats and the full serial matrix passed without code changes.
-- **Known flaky checks (uninvestigated):** `internal/server`
+- **Known flaky checks (uninvestigated):** `internal/cli`
+  `TestBootstrapContenderExitsDuringDownload` failed in the META-1 FTS5 full serial run (“first
+  bootstrap did not begin downloading”; a 1 s wall-clock wait) and in one of ten isolated repeats;
+  30 further isolated runs (10 without the change, 20 with) pass. `internal/server`
   `TestOrdinaryStageAgentStopPausesPipelineRun` intermittently returns 409 “a resume is already in
   progress”. `FileViewer.test.tsx`
   “scrolls to and marks a cited line” failed once in the full suite and passes alone.
@@ -283,39 +286,11 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
   ASW3-1–6 below retain this same unit for `/fix`; original ASRB-1 and ASRC-3 remain partially
   resolved. FS-07.A12 real-driver receipts remain separately owed.
 
-- **META — cross-system discovery** (`0bebb062`) — **researched; META-1 open**. The
-  [meta-analysis](AGENT-SURFACE-META-ANALYSIS.md) records causal history and proposed workflow/audit
-  changes. Only META-1 is a confirmed fix finding; it is independently selectable as `/fix META`.
-  It is outside the original ASW/ASF assignment map and must not duplicate those batches.
-
 ## Review findings
 
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
-
-### META — Cross-system discovery — inspected `0bebb062` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** — META-1 — **Offline reindex destroys hook-learned terminal conversation identity**
-  (INV §1/§2/§7/§9/§10/§15/§17). `internal/index/reindex.go:22–35,151–158` deletes all
-  `sessions` rows and replays the transcript, while terminal launch metadata has an empty native ID
-  (`internal/runtime/terminal/terminal.go:175–185,246`). Authenticated SessionStart learns the real
-  ID into SQLite (`internal/state/manager.go:357–363`); teardown preserves it, but no later terminal
-  session metadata records it in the transcript. After an ordinary Stop and successful **offline**
-  `chuck reindex`, that ID becomes empty; terminal Resume then refuses with
-  `ErrNativeIdentityMissing` (`terminal.go:287–291`). TS-02.R9 distinguishes rebuildable search
-  projections from durable identity/session inputs; TS-02.R54 and FS-07.R25 require retained native
-  continuity. The old whole-table rebuild assumption was not updated when `e2cf34f8` made this
-  field authoritative. Inventory replayable versus authoritative fields and preserve the latter
-  through rebuild, including errors; extend the existing state/index seam rather than inventing a
-  new lifecycle manager. Regress terminal metadata → authenticated hook → teardown → reindex →
-  retained Resume identity, plus one adjacent failure/legacy case. This is a bounded additional fix,
-  not a replacement for ASW3-3's early-hook ordering repair. The
-  [versioned probe](../archive/reviews/meta-2026-10-20/reindex-native-id_test.go.txt) uses real temporary
-  SQLite/transcript state, actual `Manager.ApplyHook`, retention and `Reindex`; it fails in both
-  normal and `sqlite_fts5` builds with before=`native-learned-after-start`, after=empty. No provider,
-  external terminal, server listener or user state was used. Other meta-analysis audit candidates
-  remain unconfirmed and are not fix findings.
 
 ### ASW-2 — Native execution contract — reviewed `9a15afa6` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -1594,6 +1569,19 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Fixed META-1, closing the META unit (INV §1/§9):** offline `chuck reindex` now
+  reads the SQLite-only session fields (hook-learned native ID, live effort/fast) before the wipe and
+  restores them after each agent's replay, including a failed replay; a read failure leaves the
+  archive untouched. The inventory found effort/fast had the same loss as the native ID; every other
+  `sessions` column is replayed from transcript metadata. TS-02.R9 records the rule;
+  `TestReindexRetainsSQLiteOnlySessionFields` covers the review's hook → teardown → reindex path,
+  a legacy chat row and a failed replay, and fails without the fix. Archive repair, updater, remote
+  revocation and retrieval performance remain unconfirmed audit candidates. Serial `make test`:
+  untagged variant passed in full; the FTS5 variant passed except
+  `internal/cli` `TestBootstrapContenderExitsDuringDownload` (its 1 s wait for the installer's fake
+  download to start expired; unrelated installer code, now a known flake — 30 isolated reruns pass).
+  `make build` passed. Four pre-existing dirty ready-change files remain outside this commit.
 
 - **2026-10-20 — Researched defect causes, review escapes and wider audit value:** six GPT-6 Luna
   discovery slices covered history, refactors, workflow, test oracles and backend/client surfaces;

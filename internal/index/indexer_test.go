@@ -556,6 +556,87 @@ func TestReindexPreservesAnnotationFlushBoundary(t *testing.T) {
 	}
 }
 
+// TestReindexRetainsSQLiteOnlySessionFields guards META-1: a terminal agent's
+// native ID is learned by the authenticated SessionStart hook and the live
+// effort/fast settings are committed only to SQLite, so neither is in the
+// transcript. Offline reindex must carry them across, including for an agent
+// whose replay fails, while an empty retained ID keeps the transcript's.
+func TestReindexRetainsSQLiteOnlySessionFields(t *testing.T) {
+	st, home := openTestDB(t)
+	open := func(id string, m runtime.SessionMetaData) {
+		t.Helper()
+		if err := st.WriteAgent(state.Agent{AgentID: id, Name: m.Name, Role: m.Role, Project: m.Project,
+			Backend: m.Backend, Model: m.Model, Interface: m.Interface, CreatedAt: time.Now().UTC()}); err != nil {
+			t.Fatal(err)
+		}
+		w, err := transcript.Open(home, id, &m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := New(st.DB()).UpsertSessionMeta(id, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	term := meta()
+	term.Interface, term.SessionID = "terminal", ""
+	open("a_term", term)
+	if err := st.WriteRunning(state.RunningEntry{AgentID: "a_term", PID: os.Getpid(), Interface: "terminal",
+		HookToken: "meta-token", Generation: "g_meta", StartedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := state.NewManager(st, nil).ApplyHook("meta-token", state.HookPayload{
+		AgentID: "a_term", Event: "SessionStart", State: "idle", SessionID: "native-learned-after-start"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteRunningRetainingSession("a_term"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpdateAgentSessionSettings("a_term", "high", true, true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Legacy chat row: no retained ID beyond the transcript's own.
+	open("a_chat", meta())
+
+	// An agent whose transcript later becomes unreadable keeps its retained ID
+	// on the partially replayed row rather than losing it with the error.
+	bad := meta()
+	bad.SessionID = ""
+	open("a_bad", bad)
+	if _, err := st.DB().Exec(`UPDATE sessions SET last_session_id = 'native-bad' WHERE agent_id = 'a_bad'`); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(filepath.Join(home, "sessions", "a_bad", "transcript.ndjson"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(`{"seq":1,"type":"session_meta","data":"not metadata","ts":"2026-06-28T10:01:00Z"}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	if err := Reindex(home, st.DB()); err == nil || !strings.Contains(err.Error(), "a_bad") {
+		t.Fatalf("Reindex error = %v, want it to name a_bad", err)
+	}
+	got, err := st.ReadSession("a_term")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LastSessionID != "native-learned-after-start" || got.Effort != "high" || !got.Fast {
+		t.Fatalf("terminal snapshot after reindex = id %q effort %q fast %v", got.LastSessionID, got.Effort, got.Fast)
+	}
+	if chat, err := st.ReadSession("a_chat"); err != nil || chat.LastSessionID != "sess-1" {
+		t.Fatalf("chat snapshot after reindex = %+v, %v", chat, err)
+	}
+	if b, err := st.ReadSession("a_bad"); err != nil || b.LastSessionID != "native-bad" {
+		t.Fatalf("failed-replay snapshot after reindex = %+v, %v", b, err)
+	}
+}
+
 func TestReindexMissingSessionsDirIsNoop(t *testing.T) {
 	st, home := openTestDB(t)
 	if err := os.RemoveAll(filepath.Join(home, "sessions")); err != nil {

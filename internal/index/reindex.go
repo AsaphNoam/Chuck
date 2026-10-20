@@ -18,21 +18,28 @@ import (
 // It is NOT safe to run while the server is live: resetTables deletes all
 // sessions rows outside the replay transaction, so any agents active during
 // the wipe are permanently lost from the index. Always stop the server before
-// running reindex.
+// running reindex. Session fields that only SQLite records (retainedSession)
+// are carried across the rebuild rather than replayed.
 func Reindex(home string, db *sql.DB) error {
 	if home == "" {
 		return fmt.Errorf("index: home is required")
-	}
-	if err := resetTables(db); err != nil {
-		return err
 	}
 	root := filepath.Join(home, "sessions")
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return resetTables(db)
 		}
 		return fmt.Errorf("index: read sessions dir: %w", err)
+	}
+	// Read the authoritative fields before the wipe; failing here leaves the
+	// archive untouched rather than rebuilding without them.
+	retained, err := readRetainedSessions(db)
+	if err != nil {
+		return err
+	}
+	if err := resetTables(db); err != nil {
+		return err
 	}
 	ix := New(db)
 	var failures []error
@@ -46,6 +53,11 @@ func Reindex(home string, db *sql.DB) error {
 		// agents are still reindexed rather than leaving the archive wiped.
 		if err := reindexAgent(ix, root, agentID); err != nil {
 			failures = append(failures, err)
+		}
+		if r, ok := retained[agentID]; ok {
+			if err := restoreRetainedSession(db, agentID, r); err != nil {
+				failures = append(failures, err)
+			}
 		}
 	}
 	if len(failures) > 0 {
@@ -141,6 +153,49 @@ func (ix *Indexer) RemoveAgent(agentID string) error {
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("index: commit remove: %w", err)
+	}
+	return nil
+}
+
+// retainedSession is the part of a sessions row that is committed straight to
+// SQLite and never appended to the transcript, so replay cannot rebuild it
+// (TS-02.R9): the hook-learned native conversation ID (TS-02.R54) and the
+// live effort/fast settings. Every other column is a replayable projection.
+type retainedSession struct {
+	nativeID string
+	effort   string
+	fast     bool
+}
+
+func readRetainedSessions(db *sql.DB) (map[string]retainedSession, error) {
+	rows, err := db.Query(`SELECT agent_id, last_session_id, effort, fast FROM sessions`)
+	if err != nil {
+		return nil, fmt.Errorf("index: read retained session fields: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]retainedSession{}
+	for rows.Next() {
+		var id string
+		var r retainedSession
+		if err := rows.Scan(&id, &r.nativeID, &r.effort, &r.fast); err != nil {
+			return nil, fmt.Errorf("index: scan retained session fields: %w", err)
+		}
+		out[id] = r
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("index: read retained session fields: %w", err)
+	}
+	return out, nil
+}
+
+// restoreRetainedSession reapplies retained fields to the replayed row. An
+// empty retained ID never replaces the transcript's.
+func restoreRetainedSession(db *sql.DB, agentID string, r retainedSession) error {
+	if _, err := db.Exec(`
+UPDATE sessions SET last_session_id = CASE WHEN ? <> '' THEN ? ELSE last_session_id END,
+  effort = ?, fast = ?
+WHERE agent_id = ?`, r.nativeID, r.nativeID, r.effort, r.fast, agentID); err != nil {
+		return fmt.Errorf("index: restore retained session fields %s: %w", agentID, err)
 	}
 	return nil
 }

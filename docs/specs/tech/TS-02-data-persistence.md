@@ -53,7 +53,11 @@ when safe, report scanner/I/O errors, and always return arrays rather than JSON 
 **R9 — Search data is derived and repairable.** `sessions_fts`, tracked-file, tracked-command, and
 rollup projections can be rebuilt from durable identity/session/transcript inputs. Reindex preserves
 the final partial turn and replaces a session's indexed content atomically enough that readers never
-observe a knowingly mixed generation.
+observe a knowingly mixed generation. Session fields committed only to SQLite — the hook-learned
+native conversation ID (R54) and live effort/fast settings — are durable inputs, not projections:
+reindex reads them before the wipe (a read failure leaves the archive untouched) and restores them
+after each agent's replay, including one whose replay fails; an empty retained ID never replaces
+the transcript's (`TestReindexRetainsSQLiteOnlySessionFields`).
 
 **R10 — Both FTS capabilities are supported.** Release binaries compile with `sqlite_fts5`; the
 untagged test/build path must degrade to metadata `LIKE` search without surfacing a missing-module
