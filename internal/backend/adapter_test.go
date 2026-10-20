@@ -1,9 +1,44 @@
 package backend
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestSteerArtifactVerified(t *testing.T) {
+	codex, _ := For("codex-acp")
+	claude, _ := For("claude-acp")
+	if SteerArtifactVerified(codex, "") {
+		t.Fatal("PATH codex-acp must not be proven")
+	}
+	root := t.TempDir()
+	entry := filepath.Join(root, ManagedEntrypoint("codex-acp"))
+	if err := os.MkdirAll(filepath.Dir(entry), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte("unpatched"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if SteerArtifactVerified(codex, root) {
+		t.Fatal("unpatched managed entrypoint must not be proven")
+	}
+	if !SteerArtifactVerified(claude, "") {
+		t.Fatal("claude has no codex patch dependency")
+	}
+}
+
+func TestPatchedHashMatchesReleaseScript(t *testing.T) {
+	b, err := os.ReadFile("../../scripts/release/assemble.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `CODEX_ACP_PATCHED_SHA256="`+CodexACPPatchedSHA256+`"`) {
+		t.Fatal("CodexACPPatchedSHA256 differs from scripts/release/assemble.sh")
+	}
+}
 
 func TestForKnownAndUnknown(t *testing.T) {
 	for _, typ := range []string{"claude-acp", "codex-acp"} {

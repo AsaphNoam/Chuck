@@ -77,6 +77,9 @@ type ChatRuntime struct {
 	transcriptHome string
 	openTranscript TranscriptOpener
 	indexer        PersistenceIndexer
+	// steerProof overrides the Steer artifact proof (tests); nil uses the
+	// managed-runtime check.
+	steerProof func(backend.BackendAdapter) bool
 }
 
 // NewChatRuntime constructs the chat runtime bound to the state store. The launch
@@ -447,7 +450,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		as.shutdown()
 		return nil, err
 	}
-	as.setSteering(decodeSteeringSupport(initRes))
+	as.setSteering(decodeSteeringSupport(initRes) && c.steerArtifactVerified(ad))
 	as.setCapabilities(negotiateCapabilities(initRes, offered))
 	var sess struct {
 		SessionID string `json:"sessionId"`
@@ -1480,7 +1483,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	}
 	// Re-decoded here, not carried across the boundary: resume spawns a new
 	// adapter process whose advertisement is its own (INV §1).
-	as.setSteering(decodeSteeringSupport(initRes))
+	as.setSteering(decodeSteeringSupport(initRes) && c.steerArtifactVerified(ad))
 	as.setCapabilities(negotiateCapabilities(initRes, offered))
 
 	// Restore native context when an identity exists. A failed load must not
@@ -2652,6 +2655,19 @@ func clip(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// steerArtifactVerified withholds Steer unless the selected adapter artifact is
+// proven to honour `idleBehavior:promptRequired` (TS-04.R101). A runtime command
+// override is a test double and keeps the advertisement-only behaviour.
+func (c *ChatRuntime) steerArtifactVerified(ad backend.BackendAdapter) bool {
+	if c.steerProof != nil {
+		return c.steerProof(ad)
+	}
+	if c.command != "" {
+		return true
+	}
+	return backend.SteerArtifactVerified(ad, os.Getenv(providerexec.RuntimeRootEnv))
 }
 
 func (as *agentState) steeringSupported() bool {

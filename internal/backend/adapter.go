@@ -6,7 +6,14 @@
 // rather than branching on backend type inline.
 package backend
 
-import "sort"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+)
 
 // BackendAdapter abstracts one ACP backend type. Implementations are pure data +
 // logic (no process or runtime imports) so the runtime can import this package
@@ -430,4 +437,34 @@ func LaunchCommand(ad BackendAdapter, managedRoot string) (string, []string) {
 		return managedRoot + "/node/bin/node", append([]string{managedRoot + "/" + rel}, ad.LaunchArgs()...)
 	}
 	return ad.Binary(), ad.LaunchArgs()
+}
+
+// CodexACPPatchedSHA256 is the SHA-256 of the managed Codex ACP entrypoint after
+// the release's version-locked `promptRequired` steering patch. It must equal
+// CODEX_ACP_PATCHED_SHA256 in scripts/release/assemble.sh (checked by test).
+const CodexACPPatchedSHA256 = "8424ea6e64c8b7e20f1ab325eaf8f8a033c7f24a161c663d7c42695a9c5363d9"
+
+// SteerArtifactVerified reports whether the adapter artifact that LaunchCommand
+// selects is proven to honour `idleBehavior:promptRequired` (TS-04.R101). Codex
+// is proven only when the managed runtime's entrypoint hashes to the release's
+// patched artifact: a PATH `codex-acp` advertises steering but starts a detached
+// turn when idle. Other adapters carry no such dependency here.
+func SteerArtifactVerified(ad BackendAdapter, managedRoot string) bool {
+	if ad.Type() != "codex-acp" {
+		return true
+	}
+	rel := managedEntrypoints["codex-acp"]
+	if managedRoot == "" || rel == "" {
+		return false
+	}
+	f, err := os.Open(filepath.Join(managedRoot, rel))
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return false
+	}
+	return hex.EncodeToString(h.Sum(nil)) == CodexACPPatchedSHA256
 }

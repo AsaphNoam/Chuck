@@ -1482,6 +1482,10 @@ the release's exact verified patched artifact or an equivalently reviewed source
 version string or steering advertisement alone is insufficient. Source artifacts lacking proof
 withhold/refuse Steer; ordinary Send continues. No unowned detached turn or automatic resubmission
 is an acceptable fallback. Native adoption/live gates remain independent of artifact proof.
+*Implementation (Steer only):* a Codex session reports Steer only when `LaunchCommand` selects the
+managed entrypoint whose SHA-256 equals the release's patched hash (`backend.CodexACPPatchedSHA256`,
+test-locked to `assemble.sh`); a PATH `codex-acp` withholds Steer (`ErrSteeringUnsupported`, before
+any adapter call). No equivalently-reviewed source artifact is recognised yet; Claude is not gated.
 
 **R102 — External terminal bootstrap and control use exact owned handles.** Extend
 TabSpec with stable agent/generation machine identity. tmux/iTerm2 call the same hidden bootstrap
