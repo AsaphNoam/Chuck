@@ -37,12 +37,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
   migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
   control, ambiguous replay and the config read-loop stall. ASW-1 is reviewed with seven Must-fix
-  findings and one documentation finding open below; ASW-3's implementation
-  is reviewed with five findings open below; other units remain waiting. The
+  findings and one documentation finding open below; ASW-2 is reviewed with nine Must-fix
+  findings and two Worth-fixing findings; ASW-3 is reviewed with five findings open below.
+  Other units remain waiting. The
   [systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
-- **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
-  loss; its earlier fix covers user/exact-cwd configuration. The original unit below retains the
-  prompt-composition diagnostic gap (PROMPT-2) and separate process-policy recommendations.
+- **Prompt/harness investigation:** PROMPT-1's ordinary ancestor-chain fix is verified, but
+  effective root-marker precedence still loses guidance (ASW2-7). PROMPT-2's remaining manifest
+  omissions are ASW2-8–10. The original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.
 - **Former known risk confirmed:** the `SetSessionConfig`/`as.mu` read-loop stall is now ASRC-1
   under Review findings.
@@ -66,8 +67,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None in progress. ASW-2 (native execution contract) finished 2026-10-20 and awaits its
-  substantive review (Review queue).
+- None in progress. ASW-2 (native execution contract) reviewed 2026-10-20; ASW2-1–11 below
+  retain the same unit for fixes. Fresh unsupported-setup refusal, empty override normalization,
+  new-session model continuation, Claude fork opening and Codex fork/Steer corrections are verified.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–8 below keep that
   same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
 - ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19; five Must-fix findings
@@ -193,14 +195,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-1 and ASW-3 reviewed with findings open; ASW-2 finished (awaiting review); all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1, ASW-2 and ASW-3 reviewed with findings open; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are ready in
 [`docs/ready-changes/`](../ready-changes/README.md):
 
 | Unit | Invocation | Outcome |
 |---|---|---|
 | ASW-1 | reviewed 2026-10-20 — findings open (ASW1-1–8) | One canonical commit boundary, ordered control observations and truthful history failure |
-| ASW-2 | finished 2026-10-20 — awaiting review (see Review queue) | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
+| ASW-2 | reviewed 2026-10-20 — nine Must-fix and two Worth-fixing findings (see Review findings) | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
 | ASW-3 | reviewed 2026-10-19 — five findings open (see Review findings) | Process/terminal ownership and native terminal identity; incomplete fail-closed control and launch-hook ordering |
 
 The following cross-review §8 batches are explicitly authorized by the human's consolidation
@@ -250,13 +252,12 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 **Implementation review units (independent of the table above):**
 
 - **ASW-2 — native execution contract** (`66f1fe55`, `8e47d056`, `b2f5051c`, `5ebaa1be`,
-  `7a743d9d`, `4d4c7aa7`, closure `9a15afa6`) — **finished; awaiting substantive review**. Owns
-  ASRA-1/2/3, PROMPT-1 (ancestor), ASRB-2/3/8, ASRG-4 and PROMPT-2, all fixed pending review.
-  Evidence limits: no credentialed clone, check or adoption receipt; Codex blank-instruction
-  override adoption unproved; no fakeacp model of the unpatched idle-Steer race; source/PATH
-  builds now withhold Codex Steer; legacy unbound rows freeze the catalogue's current provider id
-  at first continuation (TS-02.R53 note); manifest records no adapter artifact digest or native
-  Codex instruction identity (TS-11.R24 note).
+  `7a743d9d`, `4d4c7aa7`, closure `9a15afa6`) — **reviewed; findings open**. Reviewed
+  `43da6bec..9a15afa6`, skipping intervening administrative review/handoff commits. ASW2-1–11
+  below retain this same unit for `/fix`. Original ASRA-1/2 and ASRB-2/3/8 reproductions are
+  corrected; ASRA-3, PROMPT-1, ASRG-4 and PROMPT-2 are partially resolved with remaining work
+  consolidated below. Native clone/check/adoption and unpatched idle-Steer race receipts remain
+  unclaimed. Source/PATH Codex Steer is correctly withheld.
 
 - **ASW-1 — conversation event commits** (`3f746c2a`, `69ef5951`, `1843470f`, `57af7f61`,
   closure `43da6bec`) — **reviewed; findings open**. Reviewed `3618df3e..43da6bec`;
@@ -276,6 +277,162 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### ASW-2 — Native execution contract — reviewed `9a15afa6` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Nine Must-fix findings and two Worth-fixing findings keep this same unit open. Fix scope is
+assessed independently below: the work extends the existing contract, provider-preparation and
+metadata seams; no new lifecycle/ownership mechanism is needed. Read-only parallel audits were
+independently checked with the probes below. Product code and specifications are unchanged.
+
+- **Must fix** — ASW2-1 — **Legacy migration silently chooses today's provider model**
+  (INV §1/§3/§7/§11/§17). `internal/server/contract.go:85–97`: an old unbound snapshot, or
+  one marked `CurrentModelExplicit`, proves only a catalogue key. After its provider id changes,
+  ordinary Resume/Clone/same-identity Switch freezes and sends the current `model.Model` as if it
+  were historical evidence. FS-01.R53, TS-02.R53's binding legacy rule and TS-07.R19 explicitly
+  prohibit reconstruction from the current catalogue. TS-02.R53's new implementation note admits
+  the opposite policy; recording that choice does not reconcile the conflicting requirements.
+  Require original frozen provider-id evidence or the existing explicit refresh/new-conversation
+  path; align the implementation note and migration oracle with that rule. **Fix scope: medium.**
+  `TestASW2ReviewLegacyCatalogGuessRefuses` accepts `edited-provider-id` with no such evidence.
+
+- **Must fix** — ASW2-2 — **Legacy selected profiles bypass setup preflight on continuation**
+  (INV §1/§2/§10/§11/§12/§15/§17). `internal/server/contract.go:55–78,102–107`,
+  `resume.go:481–558`, `switch.go:433–508`: fresh launch/refresh correctly refuse unsupported
+  profiles, but an older native-inherited snapshot with `binding.profile` nonempty is converted
+  into a contract and resumed/switched without checking realizability. The child still runs its
+  personal setup under the old named-profile provenance. This leaves ASRA-3 partially unresolved
+  and violates FS-01.R53/FS-08.R37/TS-07.R19. Validate frozen setup support before registration or
+  source teardown without refreshing ordinary continuation. **Fix scope: medium.**
+  `TestLegacyProfileRefusesBeforeRegistration` observes successful composition for
+  `unsupported-profile` instead of `source_invalid`.
+
+- **Must fix** — ASW2-3 — **Stopped quota checks probe a different model from continuation**
+  (INV §1/§2/§10/§11/§17). `internal/server/quota_check.go:47–71`: the stopped-agent path reads
+  the session but ignores `ExecutionContract`, choosing current `model.Model`. After a bound
+  override/native-inherited launch, or a catalogue edit, the readiness probe and Resume disagree.
+  The ready-check fingerprint compares this same wrong derivation, so it cannot detect the
+  mismatch. FS-01.R53/TS-01.R40/TS-02.R53/TS-04.R97 require the checked continuation selection.
+  Use the shared contract resolver or refuse unknown selection before a probe. **Fix scope: medium.**
+  `TestASW2ReviewStoppedQuotaUsesFrozenModel` observes check `sonnet` versus continuation
+  `frozen-provider-model`; the live-process path remains correct.
+
+- **Must fix** — ASW2-4 — **Codex checks still load unsuppressed native work instructions**
+  (INV §2/§10/§11/§12/§17). `internal/runtime/quota_check.go:501–529,551–588`,
+  `internal/config/codexprofile.go:45–50`: blanking `developer_instructions` leaves the mirrored
+  global `AGENTS.md` and the native `instructions` base-prompt setting active. The helper returns
+  success with either source. Pinned 0.159.3 loads global instructions through a separate
+  [home instruction provider](https://github.com/openai/codex/blob/rust-v0.159.3/codex-rs/codex-home/src/instructions/mod.rs#L35-L74),
+  and [config loading](https://github.com/openai/codex/blob/rust-v0.159.3/codex-rs/core/src/config/mod.rs#L3746-L3763)
+  resolves `instructions` independently from `developer_instructions`. TS-04.R97/R101 and
+  FS-01.R53 require a proven no-work projection or refusal; ASRG-4 remains partially resolved.
+  Refuse these sources unless a supported suppression route is independently proven, preserving
+  routing/authentication and the shared profile. **Fix scope: medium.**
+  `TestASW2ReviewQuotaRejectsUnsuppressedInstructions` fails for both sources. No assertion about
+  legacy `instructions.md` adoption or a credentialed model response is made.
+
+- **Must fix** — ASW2-5 — **Claude Clone re-sends persona, bridge and new runtime guidance**
+  (INV §1/§2/§11/§12/§17). `internal/runtime/fork.go:69`, `chat.go:3027–3043`,
+  `internal/server/launch.go:450–460`: the new Claude load correctly opens the returned fork id,
+  but ordinary `sessionLoadParams` supplies `claudeSystemPrompt(spec)` and therefore the complete
+  `StartSystemPrompt()`. A normal aware clone receives a new runtime suffix; a source with a
+  bridge receives that primer again. FS-01.R53 and TS-04.R65/R101 require native fork instruction
+  inheritance with only necessary generation-scoped MCP/directories. Make the shared load
+  builder purpose-aware while retaining model/settings, scoped registration and exact-id cleanup.
+  **Fix scope: medium.** `TestASW2ReviewClaudeForkOmitsChuckPrompt` captures the fork's actual
+  `session/load` payload and finds the persona sentinel; the same payload contains bridge/suffix.
+
+- **Must fix** — ASW2-6 — **Clone replaces the source's frozen permission choice**
+  (INV §1/§2/§3/§11/§17). `internal/server/launch.go:352–357,424–426`: the source branch copies
+  only model/setup, then constructs a new contract with today's global/persona permission setting.
+  Changing a persona's permission default after source launch can make its clone skip approvals
+  even though the source required them. FS-01.R53 and TS-01.R40/TS-02.R53 require fork to copy the
+  source contract, including its effective permission choice. Carry source permissions through
+  both `LaunchSpec.SkipPerms` and the retained contract. **Fix scope: easy.**
+  `TestASW2ReviewForkKeepsSourcePermissions` edits the persona default and observes clone
+  `skip=true` versus source `skip=false`.
+
+- **Must fix** — ASW2-7 — **Ancestor instructions use the wrong effective root markers**
+  (INV §1/§2/§10/§11/§12/§17). `internal/configsource/codex.go:202–219,242–262`,
+  `internal/runtime/chat.go:2640–2645`: discovery reads `project_root_markers` only from user
+  `config.toml`, ignoring effective runtime/system/managed values. With `CODEX_CONFIG` selecting
+  `MARK`, a nested cwd and instructions at that marked root, Chuck falls back to `.git`, omits
+  the ancestor text and sends its own replacement. The pinned
+  [native loader](https://github.com/openai/codex/blob/rust-v0.159.3/codex-rs/config/src/loader/mod.rs#L319-L340)
+  merges effective pre-project layers and runtime/managed overrides before discovery. This leaves
+  PROMPT-1 partially unresolved under FS-18.R17/TS-04.R14/R101. Extend the existing resolver with
+  the child's effective marker inputs, or refuse an unprovable merge; do not add an independent
+  configuration manager. **Fix scope: medium.**
+  `TestASW2ReviewOverlayRootMarkersPreserveAncestorInstructions` loses `ANCESTOR_SENTINEL`.
+
+- **Must fix** — ASW2-8 — **The manifest cannot identify changed delivered instructions/artifacts**
+  (INV §2/§10/§11/§12/§17). `internal/runtime/manifest.go:43–47,87–100`,
+  `chat.go:2627–2658`: it hashes Chuck persona/bridge/suffix before Codex's actual native
+  instruction merge, and stores only adapter self-reported name/version. Two different native
+  instruction requests produce identical manifests; the available reviewed managed-adapter
+  digest used by Steer is also discarded, so same-version artifact changes remain indistinguishable.
+  FS-18.R21/A17 and TS-11.R24 require requested layer identities and artifact identity where
+  available. The implementation note acknowledges both omissions without reconciling that
+  requirement. Capture hashes/sizes and observed/reviewed identity at the existing assembly seam,
+  with unknown values explicit and no raw text. **Fix scope: medium.**
+  `TestASW2ReviewNativeInstructionManifest` changes the actual outgoing `CODEX_CONFIG` instructions
+  while the serialized manifest remains identical; the provider shape has no artifact-digest field.
+
+- **Must fix** — ASW2-9 — **Terminal processes receive no execution manifest**
+  (INV §1/§2/§10/§17). `internal/runtime/chat.go:2416–2417`,
+  `internal/runtime/terminal/terminal.go:175`: only chat Start/Resume attach a manifest. The shared
+  terminal metadata builder returns `runtimeMeta` without one, so ordinary terminal launch,
+  resume and chat-to-terminal switches lose the new diagnostic record. FS-18.R21/TS-11.R24
+  require each new process; the implementation note's exclusion conflicts with that scope.
+  Extend the shared metadata seam for terminal requests, keeping unobserved adapter identity
+  unknown. **Fix scope: easy.** `TestASW2ReviewTerminalManifest` finds a nil manifest.
+
+- **Worth fixing** — ASW2-10 — **The manifest's 16 KiB bound is not enforced**
+  (INV §11/§16/§17). `internal/runtime/manifest.go:70–87`: only three provider strings are
+  clipped; copied `ModelChoice.ID`, setup and other text fields have no manifest bound or final
+  serialized-size check. A long configured provider id emits 20,670 bytes with `truncated=false`,
+  contrary to TS-11.R24. Bound all retained fields and the serialized record, setting bounded
+  unknown/truncation metadata without failing startup. **Fix scope: easy.**
+  `TestASW2ReviewManifestBound` uses a 20 KiB provider id; no live provider accepting such an id
+  is asserted. Existing tests check the limit only for short inputs.
+
+- **Worth fixing** — ASW2-11 — **The initial contract records requested fast as applied**
+  (INV §1/§3/§11/§17). `internal/server/launch.go:425–426`,
+  `internal/runtime/chat.go:500–505`: the contract freezes `req.Fast`, while negotiation updates
+  only `spec.Agent.Fast`. A normal fast request against an unavailable/refused option persists
+  contract `fast=true` beside applied agent/session `fast=false`, contrary to TS-01.R40/TS-02.R53.
+  Continuation later corrects it from the agent row, so this is an initial historical-record
+  defect, not a claim that later turns run fast. Separate requested/applied values using existing
+  semantics and update the applied contract before metadata persistence. **Fix scope: easy.**
+  `TestASW2ReviewContractRecordsAppliedFast` observes persisted true versus handle false.
+
+Coverage/local choices: new-contract source overrides, explicit empty model/effort resets,
+same-identity resume/switch and rollback, forward migration/index preservation, fresh/refresh
+root/profile refusal, Claude fork open/settings/first prompt/delete, Codex fork process omissions,
+and source Steer withholding were traced. ASRA-1/2 and ASRB-2/3/8 are closed as original
+reproductions. Existing composition/preflight seams and withholding unproven Steer are sound;
+no arbitrary-root support or detached-turn fallback was introduced. Legacy catalogue guessing and
+the reduced manifest scope are not accepted as satisfying the contradictory binding FS/TS text.
+ASRA-3/PROMPT-1/ASRG-4/PROMPT-2 remainders are owned only by ASW2-2/7/4/8–10 above.
+
+Invariant sweep: §1–5, §7–12 and §14–17 apply to lifecycle, persisted intent, failure cleanup,
+SQLite migration, external configuration, ordered side effects, metadata bounds and tests; checked
+with findings tagged above. §6 adds no runtime/interface/driver, and §13 has no markup/selectors.
+Existing HTTP guards, owner-only persistence and generation-scoped cleanup remain wired.
+
+Evidence: pristine snapshot `/private/tmp/chuck-asw2-baseline-9a15afa6.Xr5qQY`; full state/index/
+configsource/backend/agentknowledge suites pass. Focused runtime/server/adapter/manifest/contract
+checks pass untagged and `sqlite_fts5`; focused runtime/server startup/fork/contract checks also
+pass under `-race`. Source-build runs unset `CHUCK_RUNTIME_ROOT`, with `GOFLAGS=-p=1`.
+Go-cache/IPv6 loopback sandbox denials were resolved through approved execution. Independent
+intentionally failing probes are retained only in `/private/tmp/chuck-asw2-review-9a15afa6.4VmF18`
+(`internal/runtime/asw2_review_test.go`, `internal/server/asw2_review_test.go`, and the legacy
+profile probe in `internal/server/contract_test.go`); all eleven reproduce under `sqlite_fts5` too.
+The global-file refusal probe added to the
+snapshot's quota-check test is corroborating evidence only; its legacy `instructions.md` claim
+was not accepted. Native source establishes separate instruction loading and marker precedence;
+fixtures prove Chuck's requests/refusals, not credentialed model adoption. No UI/rendered surface
+changed. Native clone/check/adoption and unpatched idle-Steer race receipts remain owed.
 
 ### ASW-1 — Conversation event commits — reviewed `43da6bec` — **Fix model:** difficult — Codex Sol.
 
@@ -468,56 +625,18 @@ Audit complete; findings keep this same unit open. No product code or specificat
 Source mode: repository source plus installed, lockfile-pinned packages: Claude ACP 0.85.1,
 Claude Agent SDK 0.3.286, Codex ACP 2.1.1 and Codex CLI 0.159.3. Tree was clean at entry.
 
-- **Must fix** — ASRA-1 — **Source model overrides are lost on continuation** (INV §1/§2/§3/§11).
-  **Fixed pending ASW-2 review** (`66f1fe55`).
-  `internal/server/config_sources.go:586–605`, `resume.go:321–328,519`,
-  `switch.go:237–239,478`: a bound launch with `overrides.model:"native-sentinel"` sends that
-  model, but stores the catalog key (`sonnet`) on the identity. Ordinary/wake resume and an
-  identity-preserving switch rebuild `ModelID` from the catalog; their only federation correction
-  handles native inheritance, so the override silently becomes `sonnet`. An explicit empty model
-  override also emits no model initially but records `native_inherited:false`, causing the same
-  change on continuation. This violates FS-08.R10/R18/R19 and TS-07.R5/R6. Restore the frozen
-  effective choice through a shared resolver, preserving later explicit model switches and explicit
-  refresh. Regress nonempty and empty overrides through fresh → Stop/wake/Resume, same-identity
-  switch and rollback with changed catalog/source defaults. Temporary composer probes confirm
-  both mechanisms; `/tmp/asr02_nonempty_test.go` captures the actual fresh/resume mismatch.
-- **Must fix** — ASRA-2 — **Empty effort overrides bypass the declared default** (INV §2/§11).
-  **Fixed pending ASW-2 review** (`66f1fe55`).
-  `internal/server/config_sources.go:604–605`, `launch.go:550–560`: a binding with
-  `overrides.effort:""` reaches `resolveEffort` as a present override and returns empty instead
-  of falling through to the model's `default_effort`. This changes reset-to-inherit behavior and
-  freezes a different effort from the documented precedence (FS-08.R10/R31, TS-01.R12,
-  TS-07.R14). Normalize empty resets consistently at the existing source/resolution seam; test
-  empty versus absent versus nonempty override, with a declared default and explicit request.
-  The isolated resolver probe observes empty with a `medium` model default.
-- **Must fix** — PROMPT-1 **reopened, ancestor-project variant** — **Codex guidance is still
-  **Fixed pending ASW-2 review** (`8e47d056`).
-  replaced from nested working directories** (INV §2/§10/§12/§17).
-  `internal/configsource/codex.go:200–221`, `internal/runtime/chat.go:2610–2620`: the merge reads
-  only `<cwd>/.codex/config.toml`; pinned Codex also loads ancestor project layers between a
-  nested cwd and repository root. With native user text `USER_SENTINEL`, repository-root text
-  `PROJECT_SENTINEL` and cwd `repo/packages/app`, native `config/read` selects the project text;
-  Chuck instead emits `USER_SENTINEL\n\nCHUCK_SENTINEL`, replacing and losing the project text.
-  This violates FS-09.R32/FS-18.R17's preservation contract and TS-07.R2/TS-04.R14. Resolve the
-  actual supported native layer chain before adding Chuck's text, retaining bounded reads and
-  native precedence. Regress a nested cwd with ancestor and nearer overrides against the pinned
-  native boundary, beyond the existing exact-cwd fixture. Evidence: synthetic, credential-free
-  `/tmp/chuck-asra-native-config.mjs` and `/tmp/chuck-asra-native-config_test.go`; no model turn.
-  The earlier user/exact-cwd correction remains valid; this is the same finding identity.
-- **Must fix** — ASRA-3 — **An accepted custom source/profile does not select the child's setup**
-  **Fixed pending ASW-2 review** (`4d4c7aa7`).
-  (INV §2/§10/§11/§12). `internal/server/config_sources.go:569–605`, `launch.go:724–737`,
-  `internal/config/codexprofile.go:83–92,180–202`: the supported source API can bind a distinct
-  Codex root and named profile, resolve/freeze `bound-profile-sentinel`, and omit ACP model as
-  native-inherited. Child composition transfers neither root nor profile, and the private home
-  refresh copies the ambient personal source (`personal-sentinel`) instead. The agent therefore
-  receives another setup/model while its provenance describes the selected binding (FS-08.R3,
-  R12/R16–R20/R32, TS-07.R2/R5/R6). The same missing transfer seam affects custom Claude roots;
-  the deterministic end-to-end composer/mirror probe covers Codex. Align supported source
-  selection with native launch and isolated-home ownership, or explicitly refuse unsupported
-  selections before accepting a launch; do not claim success from resolver bytes alone. Test
-  distinct personal/bound roots and named profiles across both providers and continuation, with
-  native payload verification. Evidence: `/tmp/asr02_codex_root_test.go`, using only fixtures.
+ASRA-1/2 are verified closed by the ASW-2 review: new contracts preserve source model overrides
+and native inheritance through continuation, and empty effort resets use the declared default.
+
+- **Must fix** — PROMPT-1 — **Ancestor-project instruction preservation remains incomplete**
+  (INV §2/§10/§12/§17). **Partially resolved by ASW-2, reviewed 2026-10-20.** The ordinary
+  `.git`/user-marker root-to-cwd chain is corrected; effective runtime/system/managed marker
+  precedence still loses guidance. **ASW2-7** owns the remaining fix and independent probe.
+- **Must fix** — ASRA-3 — **Unsupported frozen selected profiles still resume**
+  (INV §1/§2/§10/§11/§12/§15/§17). **Partially resolved by ASW-2, reviewed 2026-10-20.**
+  Fresh launch and explicit refresh now refuse distinct roots/nonempty profiles before effects.
+  Legacy continuation bypasses that gate; **ASW2-2** owns the remaining fix and reproduction.
+  Do not implement separate fixes from these originating entries.
 - **Worth fixing** — ASRA-5 — **Resource validation widens existing owner permissions**
   (INV §10/§14). `internal/config/resources.go:53–89`: an existing resource directory set to
   `0500` is chmodded to `0700` before its writability probe and launch is allowed. FS-11.R9
@@ -613,53 +732,20 @@ and integrated here.
   identity: see **ASW3-3** above for current location, actual-code reproduction and fix/test scope.
   That remainder stays owned by ASW-3; do not implement a second fix from this originating unit.
   No real-CLI receipt.
-- **Must fix** — ASRB-2 — **Claude Clone never opens the forked conversation**
-  **Fixed pending ASW-2 review** (`5ebaa1be`).
-  (INV §1/§6/§11/§12/§17). `internal/runtime/chat.go:430–467`, `fork.go:34–68`:
-  pinned Claude ACP's `unstable_forkSession` performs an SDK persistence fork and returns only
-  `{sessionId}` without registering `this.sessions[id]` (`claude-agent-acp/dist/acp-agent.js:1405–1412`,
-  `fork-session.js:107–113`). Chuck immediately applies settings: an explicit model/effort fails
-  on the absent advertisement; with neither, startup succeeds but the first prompt fails
-  `Session not found` (`acp-agent.js:1815–1821,5419–5423`). The fork operation also ignores the
-  supplied MCP/additional directories. This violates FS-01.R36 and TS-04.R47/R65. Open the new
-  fork through the supported load path with fresh scoped MCP/directories before configuration,
-  or withhold unsupported fork; retain compensating delete on failure. Regress the pinned bare
-  fork response, registration, settings, first prompt and cleanup. The fake masks this by returning
-  config options and immediately activating the fork (`testdata/fakeacp/main.go:329–347`).
-  Pinned source establishes the failure; no credentialed clone receipt is claimed.
-- **Must fix** — ASRB-3 — **Codex Clone reapplies a newly composed prompt and history primer**
-  **Fixed pending ASW-2 review** (`5ebaa1be`).
-  (INV §1/§2/§11/§12). `internal/runtime/chat.go:160–178,2571–2623`,
-  `internal/server/launch.go:417`: even with `spec.Fork`, process start merges
-  `StartSystemPrompt()` into `CODEX_CONFIG.developer_instructions`. The pinned adapter parses
-  that overlay and passes it in `threadFork.config` (`codex-acp/dist/index.js:40302–40323,
-  33447–33461,34187–34206`). Thus cloning after a persona change can replace inherited instructions
-  with current ones, and a retained bridge is reapplied, contrary to TS-04.R65's explicit no-new-
-  prompt/primer rule. Skip the Chuck addition for a native fork while preserving native setup;
-  regress the actual process environment, not just the correctly prompt-free fork RPC. An
-  isolated helper probe observes both `SYSTEM_SENTINEL` and `PRIMER_SENTINEL` in that overlay;
-  no duplicate visible transcript or model-quality effect is asserted.
-- **Must fix** — ASRB-8 — **Source Codex Steer exposes an incompatible detached-turn path**
-  **Fixed pending ASW-2 review** (`7a743d9d`).
-  (INV §1/§10/§11/§12/§17). `internal/backend/adapter.go:423–432`,
-  `internal/runtime/chat.go:791–808,844–877`, `scripts/release/assemble.sh:68–83`:
-  documented source launches use PATH's unpatched `codex-acp`, while only release assembly adds
-  the required `promptRequired` patch. Pinned unpatched 2.1.1 still advertises steering, drops
-  the request's idle opt-in and starts a detached turn if the active turn just finished
-  (`codex-acp/dist/index.js:38522–38538,38590–38635,38668–38683`). Chuck accepts
-  `startedNewTurn` but has no ordinary prompt completion owner for that turn, violating
-  FS-03.R56/TS-04.R51. No-retry of already-consumed content is correct and must remain. Supply
-  a verified source adapter path or withhold the unproven feature; regress an idle-race against
-  the unpatched pinned boundary and assert busy/cancel/one terminal outcome. Existing legacy
-  tests prove classification only, expressly not successful fallback. No live provider race ran.
+
+ASRB-2/3/8 are verified closed as original reproductions by the ASW-2 review: Claude opens its
+returned fork before settings/prompt with exact-id delete on failure, Codex omits the new prompt
+overlay on fork, and unproven source/PATH Codex Steer is withheld while ordinary Send remains
+usable. ASW2-5/6 own the separate Claude fork-layer and clone-permission defects. Credentialed
+clone/adoption and unpatched idle-Steer race receipts remain owed.
 
 Provider/path realization and evidence ledger:
 
 | Catalogue | Traced paths and result |
 |---|---|
-| **03 — selection/package/auth/catalog** | Shared resolver covers fresh/wake/resume/switch/rollback/task/pipeline/clone, direct Claude terminal, version/login/readiness. Installed overrides/discovery and explicit Bundle stay separate; no silent fallback established. Private Node/adapters/native paths, exact pins, patch hashes, single Codex package and manifest/wrapper agreement inspected. Resolver, probe, auth-target, refresh and release-layout fixtures support selection, not credentials or real packaging acceptance. Source Steer differs as ASRB-8. |
-| **04 — Codex native contract** | Private-home refresh and reserved environment across start/load; overlay to native config, ordered model→effort→fast, Steer, fork and capability/source contracts traced into pinned source. ASRB-3/8; ASR-A's PROMPT-1/custom-root findings retain their identities. Native account/home/model adoption, handoff/compaction and packaged optional-feature receipts remain owed. |
-| **05 — Claude native contract** | New/load share preset-plus-append metadata, MCP/directories, model metadata and ordered configuration; provider model refusal fails without bare/default retry. Advertisements/readback remain adapter evidence. Fork differs from load (ASRB-2). Terminal flags are composed; native-preset snapshots, modes, effective settings and terminal flag/hook adoption remain live gates. |
+| **03 — selection/package/auth/catalog** | Shared resolver covers fresh/wake/resume/switch/rollback/task/pipeline/clone, direct Claude terminal, version/login/readiness. Installed overrides/discovery and explicit Bundle stay separate; no silent fallback established. Private Node/adapters/native paths, exact pins, patch hashes, single Codex package and manifest/wrapper agreement inspected. Resolver, probe, auth-target, refresh and release-layout fixtures support selection, not credentials or real packaging acceptance. ASW-2 now withholds unproven source Steer. |
+| **04 — Codex native contract** | Private-home refresh and reserved environment across start/load; overlay to native config, ordered model→effort→fast, Steer, fork and capability/source contracts traced into pinned source. ASW-2 corrects the original fork overlay and source Steer defects; ASR-A's PROMPT-1/custom-root remainders point to ASW2-7/2. Native account/home/model adoption, handoff/compaction and packaged optional-feature receipts remain owed. |
+| **05 — Claude native contract** | New/load share preset-plus-append metadata, MCP/directories, model metadata and ordered configuration; provider model refusal fails without bare/default retry. Advertisements/readback remain adapter evidence. ASW-2 now loads the returned fork id; ASW2-5/6 retain instruction/permission defects. Terminal flags are composed; native-preset snapshots, modes, effective settings and terminal flag/hook adoption remain live gates. |
 | **21 — terminal/PTY/drivers** | Launch/resume/status hooks, prompt/resize, multi/no/slow-viewer drain and disconnect, quoting/FIFO env, process exit/Stop/restart and switch callers inspected. Default PTY has bounded scrollback and nonblocking subscribers; closing a viewer unsubscribes. Codex/other terminal backends, terminal MCP mail/ACP permissions/Steer/fast are explicitly unavailable. ASRB-1/4/5/6/7; no UI driver picker or tab cap is claimed beyond FS-07's existing deviations. |
 
 J1 challenge: selection/configuration payloads agree at the shared resolver and ordered option
@@ -1086,17 +1172,10 @@ code or specification changed.
   follow-ups remain allowed after a cancelled turn under FS-03.R49. This is separate from
   ASRC-2's late status writes and CI-1's already-fixed sticky fake cancellation.
 - **Must fix** — ASRG-4 — **An isolated Codex check retains explicit work instructions**
-  **Fixed pending ASW-2 review** (`b2f5051c`).
-  (INV §2/§10/§12). `internal/runtime/quota_check.go:501–575`: isolation reads the inherited
-  `CODEX_CONFIG` but changes only MCP entries; with no servers it returns the environment
-  unchanged. A backend/model overlay containing `developer_instructions` therefore carries
-  that work guidance into the supposedly minimal check process. The sentinel overlay probe
-  confirms preservation. This violates FS-01.R51 and TS-04.R97's omission of work instructions;
-  a check can be steered away from its fixed request and needlessly consume allowance/usage.
-  Sanitize instruction-bearing configuration while retaining proved authentication/routing,
-  or refuse unsupported isolation. Regress existing overlay and native-config instruction
-  sources with routing preserved and MCP disabled. The current test only asserts no generated
-  instruction key for a fixture that supplied none; no live provider adoption is claimed here.
+  (INV §2/§10/§12/§17). **Partially resolved by ASW-2, reviewed 2026-10-20.** The inline
+  `developer_instructions` leak is corrected and several file/profile instruction sources now
+  refuse. Global `AGENTS.md` and the native `instructions` setting remain active; **ASW2-4** owns
+  the remaining isolation fix and independent evidence. No separate fix from this originating unit.
 - **Worth fixing** — ASRG-5 — **Older cleanup failures starve later probe cleanup indefinitely**
   (INV §7/§9/§16). `internal/state/quota_checks.go:122–139`,
   `internal/server/quota_check.go:256–289`: the database always selects the oldest eight
@@ -1387,16 +1466,11 @@ PROMPT-1's user/exact-cwd correction is shipped; ASR-A above reopens the same id
 ancestor-project guidance. PROMPT-2 remains owned here.
 
 - **Worth fixing** — PROMPT-2 — **confirmed diagnostic gap**, behavioral causality
-  **Fixed pending ASW-2 review** (`9a15afa6`).
-  **undetermined** (no invariant class): `internal/runtime/chat.go:2387–2418` records/hashes only frozen
-  `SystemPrompt`; the deliberately runtime-only operating suffix and installed knowledge/tool
-  revisions are not identified in that prompt fingerprint. Consequently an archived task cannot
-  establish which complete Chuck instruction set accompanied it, or prove provider adoption from
-  that hash. This limits diagnosis of this report across releases/resumes (FS-18.R8/R17,
-  TS-11.R5/R15/R17; no existing requirement for a complete diagnostic manifest). Add a bounded
-  diagnostic manifest of requested layer identities/hashes/sizes, source and provider versions,
-  distinguishing requested delivery from verified adoption; preserve frozen snapshot semantics and
-  avoid automatic raw prompt/config logging. Pair it with the already-owed FS-18.A12/A13 evidence.
+  **undetermined** (INV §2/§10/§11/§12/§16/§17). **Partially resolved by ASW-2, reviewed
+  2026-10-20.** Chat manifests identify Chuck layers and knowledge/tool-name revisions without
+  claiming adoption. Missing merged-native/artifact identity, terminal wiring and bounds remain
+  under **ASW2-8–10**, now governed by FS-18.R21/TS-11.R24. No duplicate fix belongs to this
+  originating unit. FS-18.A12/A13 native adoption/quality evidence remains separate.
 
 Other conclusions and recommendations (no additional confirmed product defect):
 
@@ -1447,6 +1521,13 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-20 — Reviewed ASW-2 native execution contract:** reviewed `43da6bec..9a15afa6`
+  from isolated snapshots. Nine Must-fix and two Worth-fixing findings cover legacy model/setup
+  continuation, stopped quota selection/isolation, Claude fork layers, clone permissions, effective
+  root markers and manifest coverage/bounds/applied fast (INV §1/§2/§3/§7/§10/§11/§12/§15/§16/§17).
+  Original ASRA-1/2 and ASRB-2/3/8 reproductions are corrected; other owned remainders stay with
+  ASW-2. Existing focused checks pass both SQLite variants and `-race`; independent probes expose
+  the gaps those tests miss. Product/spec files unchanged; native adoption/live gates remain owed.
 - **2026-10-20 — Implemented ASW-2 native execution contract:** sessions freeze a versioned
   effective model/setup choice that every continuation and clone reuses; empty overrides reset to
   inheritance; unrealizable roots/profiles and undecidable legacy rows refuse before effects
