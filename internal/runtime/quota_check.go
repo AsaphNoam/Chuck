@@ -498,8 +498,14 @@ func claudeCheckSettings(env []string, sourceCwd string) (map[string]any, error)
 // codexInstructionFileKeys are Codex config keys (present in the pinned
 // 0.159.x binary or its predecessors) that load work instructions from a file
 // and that a CODEX_CONFIG overlay cannot blank.
+// "instructions" is the base-prompt setting, resolved independently of
+// developer_instructions, so blanking the latter does not suppress it.
 var codexInstructionFileKeys = []string{"model_instructions_file", "experimental_instructions_file",
-	"experimental_compact_prompt_file", "compact_prompt"}
+	"experimental_compact_prompt_file", "compact_prompt", "instructions"}
+
+// codexHomeInstructionFiles are global instruction files Codex loads from its
+// home through a separate provider no CODEX_CONFIG key suppresses.
+var codexHomeInstructionFiles = []string{"AGENTS.override.md", "AGENTS.md"}
 
 // withCodexCheckIsolation blanks work instructions and disables every MCP
 // server known to the effective Codex configuration layers through the process
@@ -514,6 +520,15 @@ func withCodexCheckIsolation(env []string) ([]string, error) {
 	}
 	if home == "" {
 		return nil, errQuotaCheckUnsupported
+	}
+	for _, name := range codexHomeInstructionFiles {
+		raw, err := os.ReadFile(filepath.Join(home, name))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil || strings.TrimSpace(string(raw)) != "" {
+			return nil, fmt.Errorf("%w: home sets %s", errQuotaCheckUnsupported, name)
+		}
 	}
 	overlay := map[string]any{}
 	if raw := envValue(env, "CODEX_CONFIG"); raw != "" {

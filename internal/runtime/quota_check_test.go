@@ -303,13 +303,17 @@ func TestCodexCheckIsolationSuppressesWorkInstructions(t *testing.T) {
 		t.Fatalf("native overlay = %v", got)
 	}
 
-	// Inseparable sources refuse.
-	for name, toml := range map[string]string{
-		"file":    "model_instructions_file = \"/tmp/i.md\"\n",
-		"profile": "[profiles.p]\ndeveloper_instructions = \"x\"\n",
+	// Inseparable sources refuse: instruction files, profile-scoped and base
+	// instructions, and global home instruction files (TS-04.R97/R101).
+	for name, file := range map[string][2]string{
+		"file":              {"config.toml", "model_instructions_file = \"/tmp/i.md\"\n"},
+		"profile":           {"config.toml", "[profiles.p]\ndeveloper_instructions = \"x\"\n"},
+		"base-instructions": {"config.toml", "instructions = 'base work instructions'\n"},
+		"AGENTS.md":         {"AGENTS.md", "global work instructions"},
+		"AGENTS.override":   {"AGENTS.override.md", "override work instructions"},
 	} {
 		h := t.TempDir()
-		if err := os.WriteFile(filepath.Join(h, "config.toml"), []byte(toml), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(h, file[0]), []byte(file[1]), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := withCodexCheckIsolation([]string{"CODEX_HOME=" + h}); !errors.Is(err, errQuotaCheckUnsupported) {

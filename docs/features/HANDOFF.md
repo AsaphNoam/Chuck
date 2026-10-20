@@ -294,7 +294,7 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
 
 ### ASW-2 — Native execution contract — reviewed `9a15afa6` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-**Fix in progress (2026-10-20):** ASW2-2/3/6/8–11 fixed (Changelog). Remaining: ASW2-1, 4, 5, 7.
+**Fix in progress (2026-10-20):** ASW2-2/3/4/6/8–11 fixed (Changelog). Remaining: ASW2-1, 5, 7.
 Fix scope is
 assessed independently below: the work extends the existing contract, provider-preparation and
 metadata seams; no new lifecycle/ownership mechanism is needed. Read-only parallel audits were
@@ -310,20 +310,6 @@ independently checked with the probes below. Product code and specifications are
   Require original frozen provider-id evidence or the existing explicit refresh/new-conversation
   path; align the implementation note and migration oracle with that rule. **Fix scope: medium.**
   `TestASW2ReviewLegacyCatalogGuessRefuses` accepts `edited-provider-id` with no such evidence.
-
-- **Must fix** — ASW2-4 — **Codex checks still load unsuppressed native work instructions**
-  (INV §2/§10/§11/§12/§17). `internal/runtime/quota_check.go:501–529,551–588`,
-  `internal/config/codexprofile.go:45–50`: blanking `developer_instructions` leaves the mirrored
-  global `AGENTS.md` and the native `instructions` base-prompt setting active. The helper returns
-  success with either source. Pinned 0.159.3 loads global instructions through a separate
-  [home instruction provider](https://github.com/openai/codex/blob/rust-v0.159.3/codex-rs/codex-home/src/instructions/mod.rs#L35-L74),
-  and [config loading](https://github.com/openai/codex/blob/rust-v0.159.3/codex-rs/core/src/config/mod.rs#L3746-L3763)
-  resolves `instructions` independently from `developer_instructions`. TS-04.R97/R101 and
-  FS-01.R53 require a proven no-work projection or refusal; ASRG-4 remains partially resolved.
-  Refuse these sources unless a supported suppression route is independently proven, preserving
-  routing/authentication and the shared profile. **Fix scope: medium.**
-  `TestASW2ReviewQuotaRejectsUnsuppressedInstructions` fails for both sources. No assertion about
-  legacy `instructions.md` adoption or a credentialed model response is made.
 
 - **Must fix** — ASW2-5 — **Claude Clone re-sends persona, bridge and new runtime guidance**
   (INV §1/§2/§11/§12/§17). `internal/runtime/fork.go:69`, `chat.go:3027–3043`,
@@ -1498,6 +1484,13 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Fixed ASW2-4 (INV §2/§10/§12/§17):** Codex quota-check isolation now refuses
+  (`unsupported`) when the check home holds a nonblank `AGENTS.md`/`AGENTS.override.md` or any
+  native layer sets the base `instructions` key; the overlay's own `instructions` is dropped.
+  Routing/auth and the shared profile are untouched. TS-04.R101 note updated;
+  `TestCodexCheckIsolationSuppressesWorkInstructions` covers both sources. A user with a global
+  `AGENTS.md` now gets manual quota continuation for Codex rather than an unisolated check.
 
 - **2026-10-20 — Fixed ASW2-8/9/10 (INV §2/§10/§11/§16/§17):** the execution manifest now
   records a `native_instructions` layer for the Codex text actually merged at process start
