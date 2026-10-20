@@ -756,7 +756,10 @@ Record requested fast separately from applied identity using current semantics. 
 history bridge and process-only guidance retain their current distinct fields/lifetimes.
 
 Old rows remain null/unknown. Derive a contract only when the old frozen metadata unambiguously
-proves the original selection; a catalogue's current value cannot prove it. Ambiguous legacy resume
+proves the original selection kind. A legacy unbound launch or explicit switch proves an explicit
+catalogue-key choice whose provider id was never recorded; by human decision (2026-10-20) its
+first continuation takes the catalogue's current provider id for that key and freezes it, because
+refusing would strand nearly every pre-contract conversation. Any other ambiguous legacy resume
 requires the existing explicit configuration-refresh path or a new conversation; never silently
 relabel/rewrite native history or choose another model/account. New native fork copies its source
 contract; a transient fork/check plan is not stored as user configuration. No raw native config,

@@ -146,7 +146,7 @@ This refactor does not expand arbitrary-root execution support: do not point CLA
 CODEX_HOME at the bound source, adopt its auth.json, stage an unapproved config tree, or invent an
 ACP profile field. Personal authentication origin and Chuck-owned native session storage retain
 TS-04.R20/R21/R71 ownership. Legacy ambiguous contracts require explicit refresh rather than
-current-catalogue reconstruction. Any later broader root/profile capability is a separate verified
+current-catalogue reconstruction, except TS-02.R53's unbound/explicit-switch catalogue-key rows. Any later broader root/profile capability is a separate verified
 feature; a resolver preview alone is never evidence of native adoption.
 *Implementation:* `composeFederation` normalizes empty overrides, then `preflightSourceSetup`
 refuses a named profile or a root other than the resolver's discovered personal root with

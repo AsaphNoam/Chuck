@@ -66,6 +66,31 @@ func forkSpec(t *testing.T, env ...string) (*ChatRuntime, LaunchSpec, string) {
 	return c, spec, dir
 }
 
+// TS-04.R65/R101 (decided 2026-10-20): Claude keeps no system prompt in the
+// conversation, so the fork's load carries the source's resume layers.
+func TestClaudeForkLoadCarriesSourceResumeInstructions(t *testing.T) {
+	c, spec, dir := forkSpec(t, "FAKEACP_CAPS=1", "FAKEACP_FORK_UNREGISTERED=1")
+	loadDump := filepath.Join(dir, "load.json")
+	spec.Env = append(spec.Env, "FAKEACP_LOAD_DUMP="+loadDump)
+	spec.SystemPrompt = "FROZEN_PERSONA_SENTINEL"
+	spec.HistoryPrimer = "HISTORY_BRIDGE_SENTINEL"
+	spec.RuntimeSystemPromptSuffix = "RUNTIME_GUIDANCE_SENTINEL"
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Stop(context.Background(), h.AgentID) })
+	raw, err := os.ReadFile(loadDump)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{spec.SystemPrompt, spec.HistoryPrimer, spec.RuntimeSystemPromptSuffix} {
+		if !bytes.Contains(raw, []byte(text)) {
+			t.Fatalf("fork load omits %q: %s", text, raw)
+		}
+	}
+}
+
 // A clone forks the source's native session in a fresh process, drops the
 // provider's replayed history, and records Chuck's own copy of the source
 // transcript plus a boundary marker under the clone's sequence (FS-01.A20).

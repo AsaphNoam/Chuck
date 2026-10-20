@@ -881,8 +881,11 @@ standard `session/fork` only after initialize advertises `sessionCapabilities.fo
 native session id and the same shared cwd/additional-directory/MCP builders used for session open.
 It trusts only a non-empty returned target session id, applies the ordinary post-session config
 verification, and exposes neither provider ids nor fork request members above `internal/runtime`.
-Fork sends no new system-prompt overlay or primer because the provider conversation already contains
-the source context. Load/fork replay accepts every paginated chronological page, rejects cyclic or
+Where the provider persists instructions in the conversation (Codex), fork sends no new
+system-prompt overlay or primer because the provider conversation already contains the source
+context. Claude sets its system prompt per process and keeps none in the conversation, so its fork
+load sends exactly what the source's own resume would: the frozen persona, the source's bridge and
+this process's runtime guidance (R101). Load/fork replay accepts every paginated chronological page, rejects cyclic or
 unbounded cursor traversal, and de-duplicates updates before they reach the clone transcript. A
 post-fork local failure invokes standard `session/delete` best-effort on the target before process
 teardown; no native app-server method is called directly (INV §2/§12/§15).
@@ -1454,8 +1457,10 @@ excluded from both new history and new control effects under R50.
 
 **R101 — Provider preparation follows a concrete purpose/delivery table.** For TS-01.R40:
 fresh/resume preserve the provider's native guidance and append the applicable frozen persona,
-bridge and runtime suffix; native fork omits those newly composed instruction/primer layers,
-retaining the source contract and installing only required generation-scoped directories/MCP.
+bridge and runtime suffix; native fork on a provider that persists instructions (Codex) omits those
+layers, retaining the source contract and installing only required generation-scoped
+directories/MCP. A Claude fork load carries the source's resume layers, since pinned
+`claude-agent-acp` defaults to the bare preset without `_meta.systemPrompt` (decided 2026-10-20).
 Pinned Claude fork returns an ID without registering it, so fork must then load that ID with the
 supported new generation's MCP/directories before configuration or first prompt, with compensating
 delete on failure. Codex fork process config must not replace inherited instructions.

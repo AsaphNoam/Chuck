@@ -371,7 +371,8 @@ same-provider switch/rollback, native fork and quota check use TS-01.R40's expli
 frozen execution contract. Ordinary continuation preserves the effective provider model choice
 (including native inheritance), selected supported setup and permissions rather than rebuilding
 them from the display/catalogue key. Fork inherits its source's native instructions without a new
-persona/history primer; a check carries no work instructions or coordination authority. Unsupported
+persona/history primer where the provider keeps them in the conversation, and otherwise receives
+exactly the source's own resume instructions; a check carries no work instructions or coordination authority. Unsupported
 or ambiguous source/legacy selection fails before registration, native work or source-runtime
 teardown; explicit refresh remains the existing opt-in way to select a new contract.
 
