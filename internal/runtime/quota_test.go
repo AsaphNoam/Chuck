@@ -187,6 +187,55 @@ func TestQuotaUpdateClearedBySuccessfulResultWithoutMetadata(t *testing.T) {
 	}
 }
 
+// ASRG-3, FS-03.R9, INV §5/§15 — a claimed Cancel terminates its turn as
+// cancelled even when the provider still answers end_turn afterwards. The late
+// completion used to settle as successful quota recovery and clear the block.
+func TestCancelledTurnLateCompletionDoesNotConfirmQuotaRecovery(t *testing.T) {
+	holdFile := filepath.Join(t.TempDir(), "release")
+	c, h, ch, as := startQuotaTestAgent(t, "hold_turn",
+		"FAKEACP_HOLD_FILE="+holdFile, "FAKEACP_HOLD_IGNORE_CANCEL=1")
+	c.cancelGrace = 0
+	mu, calls := recordQuotaSettlement(c)
+	if err := c.SendPrompt(context.Background(), h.AgentID, "retry after quota"); err != nil {
+		t.Fatal(err)
+	}
+	waitForChunk(t, ch, "working")
+	as.mu.Lock()
+	as.quotaBlocked = true
+	as.mu.Unlock()
+	if ok, err := c.Cancel(context.Background(), h.AgentID); err != nil || !ok {
+		t.Fatalf("Cancel = %v, %v; want the active turn claimed", ok, err)
+	}
+	if err := os.WriteFile(holdFile, []byte("go"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var ends []TurnEndData
+	for _, ev := range drainTurn(t, ch) {
+		if ev.Type == EvTurnEnd {
+			var td TurnEndData
+			if err := json.Unmarshal(ev.Data, &td); err != nil {
+				t.Fatal(err)
+			}
+			ends = append(ends, td)
+		}
+	}
+	if len(ends) != 1 || ends[0].StopReason != "cancelled" {
+		t.Fatalf("terminal events = %+v; want one cancelled turn_end", ends)
+	}
+	mu.Lock()
+	if len(*calls) != 1 || (*calls)[0].successful {
+		mu.Unlock()
+		t.Fatalf("settlement calls = %+v; want one unsuccessful settlement", *calls)
+	}
+	mu.Unlock()
+	as.mu.Lock()
+	blocked := as.quotaBlocked
+	as.mu.Unlock()
+	if !blocked {
+		t.Fatal("a cancelled late completion cleared the quota block")
+	}
+}
+
 func TestQuotaStaleCompletionCannotSettleAfterTurnChanges(t *testing.T) {
 	c, h, _, as := startQuotaTestAgent(t, "stream_text")
 	mu, calls := recordQuotaSettlement(c)

@@ -205,6 +205,9 @@ func (c *ChatRuntime) cancel(as *agentState, expectedGeneration, expectedTurn st
 	cancelled := active || len(ids) > 0
 	// Keep the turn lock through the initial cancel. A turn cannot settle and a
 	// later turn cannot start between the guarded check and this side effect.
+	if active {
+		as.cancelledTurnSeq = armedTurn
+	}
 	if cancelled {
 		_ = as.transport.Notify("session/cancel", map[string]any{"sessionId": as.sessionID})
 	}

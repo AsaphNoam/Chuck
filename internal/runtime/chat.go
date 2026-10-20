@@ -305,6 +305,10 @@ type agentState struct {
 	// cancelEscalated is set only when the current turn ignored cooperative
 	// cancellation and the fallback SIGINT was delivered successfully.
 	cancelEscalated bool
+	// cancelledTurnSeq is the turn sequence a Cancel claimed while it was active.
+	// That turn settles as `cancelled` even if the provider still answers
+	// `end_turn`, so a late completion never confirms quota recovery (FS-03.R9).
+	cancelledTurnSeq int64
 	// loadReplay is set only while ACP session/load is restoring provider-native
 	// context. A provider is allowed to replay the prior conversation as
 	// session/update frames during that call; those frames describe history

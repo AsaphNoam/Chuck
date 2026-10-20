@@ -963,8 +963,14 @@ func runScenario(name string) string {
 					return "end_turn"
 				}
 			}
+			// FAKEACP_HOLD_IGNORE_CANCEL keeps running after session/cancel and
+			// still answers end_turn: the late-completion race (FS-03.R9).
+			cancelled := promptCancel()
+			if os.Getenv("FAKEACP_HOLD_IGNORE_CANCEL") != "" {
+				cancelled = nil
+			}
 			select {
-			case <-promptCancel():
+			case <-cancelled:
 				return "cancelled"
 			case <-time.After(5 * time.Millisecond):
 			}

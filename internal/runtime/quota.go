@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -92,6 +93,9 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 	td.Quota = nil
 	resultFailure, hasResultFailure := decodeSessionFailureRecord(result)
 	as.mu.Lock()
+	if as.cancelledTurnSeq != 0 && turnID == fmt.Sprintf("t_%012d", as.cancelledTurnSeq) {
+		td.StopReason = "cancelled"
+	}
 	if hasResultFailure &&
 		(as.turnFailure == nil ||
 			resultFailure.ID == as.turnFailure.ID && resultFailure.Revision >= as.turnFailure.Revision ||
