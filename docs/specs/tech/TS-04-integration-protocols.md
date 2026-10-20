@@ -1465,6 +1465,9 @@ rules. Project every effective config layer/overlay into proven routing/auth/mod
 explicitly suppress work instruction/MCP/tool sources by a supported override; unknown inseparable
 sources return unsupported. An empty ACP server list or empty generated prompt does not prove
 native setup isolation. Do not copy authentication into a new home or mutate shared work config.
+*Implementation (Codex check only):* `withCodexCheckIsolation` always emits `CODEX_CONFIG` with
+`developer_instructions = ""`, drops instruction-file/compact-prompt keys, and refuses when a native
+layer sets such a key or a profile-scoped instruction. Live adoption of the blank override is unproved.
 
 Resolve the actual trusted Codex project chain from repository root through nested cwd with native
 precedence before additive guidance, using bounded approved reads and pinned-native independent

@@ -76,6 +76,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Slices 4 and 5 are delegated to isolated worktrees and integrated here.
   Slice 1 done: TS-02.R53 contract + `continuedContract`; ASRA-1/ASRA-2 fixed pending review
   (`internal/server/contract_test.go`, `internal/index/contract_test.go`).
+  Slice 4 done: ASRG-4 fixed pending review (Codex check blanks instructions; refuses
+  instruction-file/profile sources; live adoption of the blank override unproved).
+  Slice 5 done: PROMPT-1 ancestor variant fixed pending review (`project_root_markers` chain,
+  default `.git`; pinned binary strings + reviewer probe; nearer/custom-marker cases fixture-only).
+  Next: slice 3 (fork purpose), then 2, 6, 7.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–8 below keep that
   same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
 - ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19; five Must-fix findings
