@@ -2651,7 +2651,7 @@ func codexLaunchOverlay(env []string, spec LaunchSpec) ([]string, string, error)
 			}
 		}
 		var err error
-		native, err = configsource.CodexDeveloperInstructions(home, spec.Cwd)
+		native, err = configsource.CodexDeveloperInstructions(home, spec.Cwd, overlay)
 		if err != nil {
 			return nil, "", fmt.Errorf("runtime: read native Codex developer instructions: %w", err)
 		}

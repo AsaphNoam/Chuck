@@ -294,11 +294,11 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
 
 ### ASW-2 — Native execution contract — reviewed `9a15afa6` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-**Fix in progress (2026-10-20):** ASW2-2/3/4/6/8–11 fixed (Changelog). Remaining: ASW2-1, 5, 7.
+**Fix in progress (2026-10-20):** ASW2-2–4 and ASW2-6–11 fixed (Changelog). ASW2-1 and ASW2-5 remain open, blocked on the human (see Blocked on human).
 Fix scope is
 assessed independently below: the work extends the existing contract, provider-preparation and
 metadata seams; no new lifecycle/ownership mechanism is needed. Read-only parallel audits were
-independently checked with the probes below. Product code and specifications are unchanged.
+independently checked with the probes below.
 
 - **Must fix** — ASW2-1 — **Legacy migration silently chooses today's provider model**
   (INV §1/§3/§7/§11/§17). `internal/server/contract.go:85–97`: an old unbound snapshot, or
@@ -321,19 +321,6 @@ independently checked with the probes below. Product code and specifications are
   builder purpose-aware while retaining model/settings, scoped registration and exact-id cleanup.
   **Fix scope: medium.** `TestASW2ReviewClaudeForkOmitsChuckPrompt` captures the fork's actual
   `session/load` payload and finds the persona sentinel; the same payload contains bridge/suffix.
-
-- **Must fix** — ASW2-7 — **Ancestor instructions use the wrong effective root markers**
-  (INV §1/§2/§10/§11/§12/§17). `internal/configsource/codex.go:202–219,242–262`,
-  `internal/runtime/chat.go:2640–2645`: discovery reads `project_root_markers` only from user
-  `config.toml`, ignoring effective runtime/system/managed values. With `CODEX_CONFIG` selecting
-  `MARK`, a nested cwd and instructions at that marked root, Chuck falls back to `.git`, omits
-  the ancestor text and sends its own replacement. The pinned
-  [native loader](https://github.com/openai/codex/blob/rust-v0.159.3/codex-rs/config/src/loader/mod.rs#L319-L340)
-  merges effective pre-project layers and runtime/managed overrides before discovery. This leaves
-  PROMPT-1 partially unresolved under FS-18.R17/TS-04.R14/R101. Extend the existing resolver with
-  the child's effective marker inputs, or refuse an unprovable merge; do not add an independent
-  configuration manager. **Fix scope: medium.**
-  `TestASW2ReviewOverlayRootMarkersPreserveAncestorInstructions` loses `ANCESTOR_SENTINEL`.
 
 Coverage/local choices: new-contract source overrides, explicit empty model/effort resets,
 same-identity resume/switch and rollback, forward migration/index preservation, fresh/refresh
@@ -1485,6 +1472,15 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-20 — Fixed ASW2-7 (INV §2/§12/§17):** Codex ancestor-instruction discovery now
+  takes `project_root_markers` from the effective pre-project layers with native precedence (system
+  config < user < the child's `CODEX_CONFIG` overlay < home/system managed config); a malformed
+  layer fails the launch closed. TS-04.R101 note updated. Regressions:
+  `TestCodexDeveloperInstructionsProjectChain/effective_project_root_markers`,
+  `TestCodexOverlayRootMarkersPreserveAncestorInstructions`. ASW2-1 and ASW2-5 are left open
+  under Blocked on human (compatibility decision; requirement conflicts with Claude adapter
+  behavior).
+
 - **2026-10-20 — Fixed ASW2-4 (INV §2/§10/§12/§17):** Codex quota-check isolation now refuses
   (`unsupported`) when the check home holds a nonblank `AGENTS.md`/`AGENTS.override.md` or any
   native layer sets the base `instructions` key; the overlay's own `instructions` is dropped.
@@ -1832,6 +1828,31 @@ and specifications are unchanged.
   pass. Handoff epoch archived.
 
 ## Blocked on human
+
+- **ASW2-1 — legacy conversations after upgrade (compatibility decision):** a pre-contract stopped
+  conversation that was launched unbound or explicitly switched records only the catalogue key,
+  never the provider model id it sent. The binding rule (TS-02.R53/TS-07.R19) says such rows must
+  refuse ordinary Resume and require "resume with latest setup" or a new conversation. Applied
+  literally, that is nearly every stopped conversation from before this release, including wake,
+  mail, pipeline and quota continuations; and the desktop/phone UI has no "resume with latest
+  setup" action (only the HTTP `config_refresh` field). Options: (a) refuse as specified and add a
+  UI recovery action (product change); (b) accept the current catalogue value for these rows and
+  amend the rule to allow it (current behavior); (c) refuse only when the catalogue entry changed
+  since the row was written — no evidence of that exists today, so not implementable without new
+  recording. Recommended: (b) unless a catalogue edit between launch and upgrade is a real risk.
+
+- **ASW2-5 — Claude clone instructions (requirement conflicts with provider behavior):**
+  TS-04.R65/R101 assume a fork inherits its source's instructions natively, so the clone's
+  `session/load` should omit Chuck's persona, history bridge and runtime guidance. That holds for
+  Codex (instructions live in the thread). For Claude it does not: the pinned `claude-agent-acp`
+  0.85.1 sets the system prompt per process and defaults to the bare `claude_code` preset when
+  `_meta.systemPrompt` is absent (installed `dist/acp-agent.js`, `createSession` systemPrompt, shared by new and load
+  handling), and the Claude transcript does not store it. Omitting the layers would run the clone's
+  first process without its persona/bridge/agent guidance while every later resume restores them.
+  Current code sends exactly what the source's own resume would (frozen persona, its bridge, this
+  process's runtime guidance). Decide: (a) keep current Claude behavior and amend TS-04.R65/R101
+  to scope "no new overlay" to providers that persist instructions (recommended); or (b) omit as
+  the review asks and accept the persona gap.
 
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).

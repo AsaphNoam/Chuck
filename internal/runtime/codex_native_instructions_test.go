@@ -166,3 +166,23 @@ func TestCodexStartUsesRefreshedNativeInstructions(t *testing.T) {
 		t.Fatal("child received the stale mirrored instructions")
 	}
 }
+
+// TS-04.R101: root markers selected by the child's runtime overlay locate the
+// ancestor project layer, as native Codex resolves them.
+func TestCodexOverlayRootMarkersPreserveAncestorInstructions(t *testing.T) {
+	home, root := t.TempDir(), t.TempDir()
+	writeCodexTOML(t, filepath.Join(root, "MARK"), "")
+	writeCodexTOML(t, filepath.Join(root, ".codex", "config.toml"), "developer_instructions = 'ANCESTOR_SENTINEL'\n")
+	cwd := filepath.Join(root, "nested")
+	if err := os.Mkdir(cwd, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	spec := LaunchSpec{BackendType: "codex-acp", Cwd: cwd, SystemPrompt: "Chuck persona"}
+	env, err := codexLaunchEnv([]string{"CODEX_HOME=" + home, `CODEX_CONFIG={"project_root_markers":["MARK"]}`}, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := codexOverlayInstructions(t, env); got != "ANCESTOR_SENTINEL\n\nChuck persona" {
+		t.Fatalf("developer_instructions = %q", got)
+	}
+}

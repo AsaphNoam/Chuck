@@ -1479,6 +1479,9 @@ precedence before additive guidance, using bounded approved reads and pinned-nat
 fixtures. Unsupported selected roots/profiles obey TS-07.R19, without a new home/auth loader.
 *Implementation (ancestor layers only):* `configsource.CodexDeveloperInstructions` reads each
 `.codex/config.toml` from the nearest `project_root_markers` ancestor (default `.git`) down to cwd.
+The markers follow native precedence across pre-project layers — system `config.toml`, user config,
+the child's `CODEX_CONFIG` overlay, then home and system `managed_config.toml` — and a malformed
+layer fails the launch closed.
 Steer requires reviewed artifact capability evidence for `idleBehavior:promptRequired`: accept
 the release's exact verified patched artifact or an equivalently reviewed source artifact. A
 version string or steering advertisement alone is insufficient. Source artifacts lacking proof

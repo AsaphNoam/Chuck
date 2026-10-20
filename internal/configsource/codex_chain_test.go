@@ -37,7 +37,7 @@ func TestCodexDeveloperInstructionsProjectChain(t *testing.T) {
 	t.Run("ancestor only project layer wins over user", func(t *testing.T) {
 		home, repo, nested := setup(t)
 		writeChainFile(t, filepath.Join(repo, ".codex", "config.toml"), "developer_instructions = \"PROJECT\"\n")
-		got, err := CodexDeveloperInstructions(home, nested)
+		got, err := CodexDeveloperInstructions(home, nested, nil)
 		if err != nil || got != "PROJECT" {
 			t.Fatalf("got %q, %v; want PROJECT", got, err)
 		}
@@ -47,12 +47,12 @@ func TestCodexDeveloperInstructionsProjectChain(t *testing.T) {
 		home, repo, nested := setup(t)
 		writeChainFile(t, filepath.Join(repo, ".codex", "config.toml"), "developer_instructions = \"PROJECT\"\n")
 		writeChainFile(t, filepath.Join(repo, "packages", ".codex", "config.toml"), "developer_instructions = \"MID\"\n")
-		got, err := CodexDeveloperInstructions(home, nested)
+		got, err := CodexDeveloperInstructions(home, nested, nil)
 		if err != nil || got != "MID" {
 			t.Fatalf("got %q, %v; want MID", got, err)
 		}
 		writeChainFile(t, filepath.Join(nested, ".codex", "config.toml"), "developer_instructions = \"APP\"\n")
-		got, err = CodexDeveloperInstructions(home, nested)
+		got, err = CodexDeveloperInstructions(home, nested, nil)
 		if err != nil || got != "APP" {
 			t.Fatalf("got %q, %v; want APP", got, err)
 		}
@@ -68,12 +68,12 @@ func TestCodexDeveloperInstructionsProjectChain(t *testing.T) {
 		if err := os.MkdirAll(cwd, 0o700); err != nil {
 			t.Fatal(err)
 		}
-		got, err := CodexDeveloperInstructions(home, cwd)
+		got, err := CodexDeveloperInstructions(home, cwd, nil)
 		if err != nil || got != "USER" {
 			t.Fatalf("got %q, %v; want USER", got, err)
 		}
 		writeChainFile(t, filepath.Join(cwd, ".codex", "config.toml"), "developer_instructions = \"CWD\"\n")
-		got, err = CodexDeveloperInstructions(home, cwd)
+		got, err = CodexDeveloperInstructions(home, cwd, nil)
 		if err != nil || got != "CWD" {
 			t.Fatalf("got %q, %v; want CWD", got, err)
 		}
@@ -86,7 +86,7 @@ func TestCodexDeveloperInstructionsProjectChain(t *testing.T) {
 		} {
 			home, repo, nested := setup(t)
 			writeChainFile(t, filepath.Join(repo, ".codex", "config.toml"), body)
-			if got, err := CodexDeveloperInstructions(home, nested); err == nil {
+			if got, err := CodexDeveloperInstructions(home, nested, nil); err == nil {
 				t.Fatalf("%s: got %q, nil error", name, got)
 			}
 		}
@@ -97,18 +97,46 @@ func TestCodexDeveloperInstructionsProjectChain(t *testing.T) {
 		writeChainFile(t, filepath.Join(repo, ".codex", "config.toml"), "developer_instructions = \"PROJECT\"\n")
 		writeChainFile(t, filepath.Join(home, "config.toml"),
 			"developer_instructions = \"USER\"\nproject_root_markers = []\n")
-		if got, err := CodexDeveloperInstructions(home, nested); err != nil || got != "USER" {
+		if got, err := CodexDeveloperInstructions(home, nested, nil); err != nil || got != "USER" {
 			t.Fatalf("empty markers: got %q, %v; want USER", got, err)
 		}
 		writeChainFile(t, filepath.Join(repo, "MARK"), "")
 		writeChainFile(t, filepath.Join(home, "config.toml"),
 			"developer_instructions = \"USER\"\nproject_root_markers = [\"MARK\"]\n")
-		if got, err := CodexDeveloperInstructions(home, nested); err != nil || got != "PROJECT" {
+		if got, err := CodexDeveloperInstructions(home, nested, nil); err != nil || got != "PROJECT" {
 			t.Fatalf("MARK: got %q, %v; want PROJECT", got, err)
 		}
 		writeChainFile(t, filepath.Join(home, "config.toml"), "project_root_markers = \"x\"\n")
-		if _, err := CodexDeveloperInstructions(home, nested); err == nil {
+		if _, err := CodexDeveloperInstructions(home, nested, nil); err == nil {
 			t.Fatal("non-list project_root_markers accepted")
+		}
+	})
+
+	// Native precedence for markers: system < user < runtime overlay < managed.
+	t.Run("effective project_root_markers", func(t *testing.T) {
+		system := t.TempDir()
+		prev := codexSystemDir
+		codexSystemDir = system
+		t.Cleanup(func() { codexSystemDir = prev })
+		home, repo, nested := setup(t)
+		writeChainFile(t, filepath.Join(repo, "MARK"), "")
+		writeChainFile(t, filepath.Join(repo, ".codex", "config.toml"), "developer_instructions = \"PROJECT\"\n")
+		writeChainFile(t, filepath.Join(home, "config.toml"), "developer_instructions = \"USER\"\nproject_root_markers = []\n")
+		overlay := map[string]any{"project_root_markers": []any{"MARK"}}
+		if got, err := CodexDeveloperInstructions(home, nested, overlay); err != nil || got != "PROJECT" {
+			t.Fatalf("overlay MARK: got %q, %v; want PROJECT", got, err)
+		}
+		writeChainFile(t, filepath.Join(system, "config.toml"), "project_root_markers = [\"MARK\"]\n")
+		if got, err := CodexDeveloperInstructions(home, nested, nil); err != nil || got != "USER" {
+			t.Fatalf("system below user: got %q, %v; want USER", got, err)
+		}
+		writeChainFile(t, filepath.Join(system, "managed_config.toml"), "project_root_markers = []\n")
+		if got, err := CodexDeveloperInstructions(home, nested, overlay); err != nil || got != "USER" {
+			t.Fatalf("managed above overlay: got %q, %v; want USER", got, err)
+		}
+		writeChainFile(t, filepath.Join(system, "managed_config.toml"), "project_root_markers = 1\n")
+		if _, err := CodexDeveloperInstructions(home, nested, nil); err == nil {
+			t.Fatal("non-list managed project_root_markers accepted")
 		}
 	})
 }

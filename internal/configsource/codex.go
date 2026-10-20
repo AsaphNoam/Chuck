@@ -199,7 +199,10 @@ func (r *CodexResolver) resolve(ctx context.Context, binding Binding, project co
 // session root trusted. A later string value wins; a
 // malformed layer or non-string value is an error so a launch fails closed
 // rather than silently dropping configured guidance (FS-09.R32, TS-04.R14).
-func CodexDeveloperInstructions(codexHome, cwd string) (string, error) {
+// overrides is the child's CODEX_CONFIG runtime overlay (nil when none); with
+// the system and managed layers it takes part in root-marker selection, which
+// native Codex resolves from every pre-project layer.
+func CodexDeveloperInstructions(codexHome, cwd string, overrides map[string]any) (string, error) {
 	user, err := readCodexConfig(filepath.Join(codexHome, "config.toml"))
 	if err != nil {
 		return "", err
@@ -212,7 +215,7 @@ func CodexDeveloperInstructions(codexHome, cwd string) (string, error) {
 		}
 	}
 	if cwd != "" {
-		markers, err := codexRootMarkers(user)
+		markers, err := codexEffectiveRootMarkers(codexHome, user, overrides)
 		if err != nil {
 			return "", err
 		}
@@ -239,7 +242,37 @@ func CodexDeveloperInstructions(codexHome, cwd string) (string, error) {
 	return value, nil
 }
 
-// codexRootMarkers returns the user config's project_root_markers, defaulting
+// codexSystemDir holds Codex's system and managed configuration (tests point
+// it elsewhere).
+var codexSystemDir = "/etc/codex"
+
+// codexEffectiveRootMarkers applies native precedence to project_root_markers
+// across the pre-project layers, lowest first: system config, user config,
+// the runtime overlay, then managed config (home, then system). The last
+// layer that sets the key wins.
+func codexEffectiveRootMarkers(codexHome string, user, overrides map[string]any) ([]string, error) {
+	system, err := readCodexConfig(filepath.Join(codexSystemDir, "config.toml"))
+	if err != nil {
+		return nil, err
+	}
+	homeManaged, err := readCodexConfig(filepath.Join(codexHome, "managed_config.toml"))
+	if err != nil {
+		return nil, err
+	}
+	systemManaged, err := readCodexConfig(filepath.Join(codexSystemDir, "managed_config.toml"))
+	if err != nil {
+		return nil, err
+	}
+	effective := map[string]any{}
+	for _, layer := range []map[string]any{system, user, overrides, homeManaged, systemManaged} {
+		if raw, ok := layer["project_root_markers"]; ok {
+			effective["project_root_markers"] = raw
+		}
+	}
+	return codexRootMarkers(effective)
+}
+
+// codexRootMarkers returns a layer's project_root_markers, defaulting
 // to [".git"] like the pinned Codex. A non-list or non-string entry fails
 // closed. An explicit empty list disables the ancestor walk.
 func codexRootMarkers(user map[string]any) ([]string, error) {
