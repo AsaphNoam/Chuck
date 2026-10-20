@@ -250,7 +250,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 **Implementation review units (independent of the table above):**
 
 - **ASW-2 — native execution contract** (`66f1fe55`, `8e47d056`, `b2f5051c`, `5ebaa1be`,
-  `7a743d9d`, `4d4c7aa7`, closure commit) — **finished; awaiting substantive review**. Owns
+  `7a743d9d`, `4d4c7aa7`, closure `9a15afa6`) — **finished; awaiting substantive review**. Owns
   ASRA-1/2/3, PROMPT-1 (ancestor), ASRB-2/3/8, ASRG-4 and PROMPT-2, all fixed pending review.
   Evidence limits: no credentialed clone, check or adoption receipt; Codex blank-instruction
   override adoption unproved; no fakeacp model of the unpatched idle-Steer race; source/PATH
@@ -1387,7 +1387,7 @@ PROMPT-1's user/exact-cwd correction is shipped; ASR-A above reopens the same id
 ancestor-project guidance. PROMPT-2 remains owned here.
 
 - **Worth fixing** — PROMPT-2 — **confirmed diagnostic gap**, behavioral causality
-  **Fixed pending ASW-2 review** (`ASW-2 closure`).
+  **Fixed pending ASW-2 review** (`9a15afa6`).
   **undetermined** (no invariant class): `internal/runtime/chat.go:2387–2418` records/hashes only frozen
   `SystemPrompt`; the deliberately runtime-only operating suffix and installed knowledge/tool
   revisions are not identified in that prompt fingerprint. Consequently an archived task cannot
