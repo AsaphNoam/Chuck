@@ -57,6 +57,21 @@ if ! output=$("$checker" --root "$baseline" 2>&1); then
   fail "baseline: unmutated tree fails the contract check: $output"
 fi
 
+# Missing routing in either parent must not silently turn off the companion.
+for role in work fix; do
+  dir=$(fixture "test-routing-$role")
+  mutate_launcher "$dir" "$role" '/^Use `write-tests` when behavior needs new verification/d'
+  expect_failure "$role missing test routing" 'missing conditional write-tests routing' "$dir"
+done
+
+dir=$(fixture missing-test-companion)
+rm "$dir/.agents/skills/write-tests/SKILL.md" "$dir/.claude/skills/write-tests/SKILL.md"
+expect_failure 'missing test companion' 'companion is missing' "$dir"
+
+dir=$(fixture divergent-test-companion)
+mutate "$dir" .claude/skills/write-tests/SKILL.md 's/Test count and coverage percentage are not objectives./Test count is an objective./'
+expect_failure 'divergent test companion' 'write-tests: Claude and Codex companions differ' "$dir"
+
 # The review launcher tells a no-op run to make the empty commit it must refuse.
 dir=$(fixture review-noop)
 mutate_launcher "$dir" review 's/report that and do not$/report that and/'

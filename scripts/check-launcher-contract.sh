@@ -40,6 +40,11 @@ for tree in .agents .claude; do
     if ! grep -Eqi '\bclose\b' "$file"; then
       fail "$tree/$role: missing close rule"
     fi
+    if [ "$role" = work ] || [ "$role" = fix ]; then
+      if ! has_rule "$file" 'Use `write-tests` when behavior needs new verification or tests/fixtures materially change;'; then
+        fail "$tree/$role: missing conditional write-tests routing"
+      fi
+    fi
     if [ "$role" = review ]; then
       if ! grep -Fq 'Administrative commits never become' "$file"; then
         fail "$tree/$role: missing administrative-commit exclusion"
@@ -115,6 +120,15 @@ for tree in .agents .claude; do
     fi
   done
 done
+
+for tree in .agents .claude; do
+  if [ ! -f "$ROOT/$tree/skills/write-tests/SKILL.md" ]; then
+    fail "$tree/write-tests: companion is missing"
+  fi
+done
+if ! cmp -s "$ROOT/.agents/skills/write-tests/SKILL.md" "$ROOT/.claude/skills/write-tests/SKILL.md"; then
+  fail 'write-tests: Claude and Codex companions differ'
+fi
 
 for role in $roles; do
   if ! cmp -s "$ROOT/.agents/skills/$role/SKILL.md" "$ROOT/.claude/skills/$role/SKILL.md"; then

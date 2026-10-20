@@ -30,6 +30,8 @@ rationale, history, or sequencing but do not override an FS/TS requirement.
   shipped behavior; record every real finding.
 - **Fix review:** §8 and §10. Validate before editing; update the relevant specification when a fix
   changes behavior or fills missing coverage.
+- **Write tests:** §17 and TS-06.R35. A companion to relevant work/fix or explicit test work;
+  protect meaningful behavior with the smallest adequate evidence, reusing coverage before adding it.
 - **Usability review:** §9 plus `USABILITY-REVIEW.md`. Exercise FS acceptance criteria without
   changing product code or specs.
 - **Investigate bug:** §12. Turn a field bug report into a diagnosed, confidence-labelled finding

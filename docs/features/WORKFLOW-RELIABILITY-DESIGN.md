@@ -6,8 +6,10 @@ the [defect-origin research](AGENT-SURFACE-META-ANALYSIS.md). Three focused GPT-
 researched the current workflow/testing rules and Chuck's operator/coordination architecture;
 the parent checked the specifications, launcher checker and release sequence.
 
-**Proposal only:** no skill, requirement, gate, hook, CI or product behavior changes in this
-document. The [core audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) is also deferred. This is a medium
+**Implementation status:** the purposeful `write-tests` companion, TS-06.R35 and workflow §17 are
+implemented and verified first. The architectural-review/gate sections below remain proposals
+until the second sequential skill is implemented. The [core audit plan](CORE-RELIABILITY-AUDIT-PLAN.md)
+remains deferred. This is a medium
 documentation/tooling change: two skills in both launcher trees, targeted existing-launcher edits,
 shared rule changes, and a small release-receipt check with negative tests. It needs no product
 architecture refactor.

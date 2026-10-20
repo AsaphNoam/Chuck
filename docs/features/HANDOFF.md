@@ -58,7 +58,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   actions and sustained capacity. Existing ASR/ASW/ASF proofs/owners remain; audits are deferred.
   The [workflow design](WORKFLOW-RELIABILITY-DESIGN.md) specifies shared test rules, a `write-tests`
   companion and an `architectural-review` before every release, with candidate-bound receipts and
-  a mechanical release gate. These remain proposals: no skill/policy/CI change or audit started.
+  a mechanical release gate. `write-tests` is implemented first (TS-06.R35/workflow §17); architecture
+  research/creation follows next. No audit started. Human clarification: fixing architectural-review
+  findings must not force another architectural review for that release.
 - **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
   original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.
@@ -87,7 +89,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None in progress. ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
+- Workflow skill creation in progress: `write-tests` verified; next research and create
+  `architectural-review` with the human's no-rerun-after-fixes rule. Core audits stay deferred.
+- ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
   clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–9 below keep that
   same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
@@ -1278,6 +1282,14 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Created purposeful test-authoring companion:** two Luna research slices informed
+  twinned `write-tests` skills, TS-06.R35, workflow §17 and conditional work/fix routing. Each test
+  must add meaningful confidence worth its cost; no quotas, exhaustive matrices or duplicate
+  layers. Review checks evidence value. Independent Luna forward-testing added one useful failing
+  repair/Resume regression and no prose-only test. Skill validation, launcher mutation/twin checks,
+  spec/reference and diff checks pass. [Research/evidence](../archive/reviews/workflow-skills-2026-10-20.md).
+  This is the first sequential checkpoint; architecture skill is next, audits remain deferred.
 
 - **2026-10-20 — Fixed and closed ASW-3 process/terminal ownership (ASW3-1–6; ASRB-1 and ASRC-3
   remainders):** ASW3-6 (INV §9/§12/§17): `ClassifyProcess` requires the exact microsecond birth

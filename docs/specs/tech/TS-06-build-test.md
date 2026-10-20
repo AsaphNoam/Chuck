@@ -290,6 +290,29 @@ seams and remains distinct from live-provider support receipts. Existing manual 
 gates are neither repeated by default nor satisfied by fake-provider CLI proof. Design-only
 closure uses spec lint, launcher twin comparison and diff checks.
 
+**R35 — Tests earn their cost by protecting a meaningful contract.** Before adding or materially
+changing a test, identify the behavior, independent expected-answer authority (INV §17), production
+boundary and plausible defect it distinguishes. Check existing evidence first; extend or reuse it
+when it already proves the same promise. Choose the smallest reliable test that observes the
+relevant boundary, not necessarily the smallest helper. Add another level or case only for a
+distinct unproved behavior or credible failure. No test-per-function, coverage quota, exhaustive
+Cartesian matrix, duplicate happy-path layers, or assertions on irrelevant internal structure.
+Do not remove useful coverage merely to reduce count; improve targeted redundancy within scope.
+
+| Claim | Appropriate evidence and limit |
+|---|---|
+| Local decision/parser/transform/bound | Deterministic unit cases derived from the contract, with only relevant boundaries/negatives. |
+| Durable transition or recovery | Actual store/transcript/transition-owner integration; assert retained state and recoverability. |
+| Wire/command delivery | Actual serialization/argv/consumer decoding with independently grounded fixtures; permissive emission-only fakes do not prove consumption. |
+| Race/retry/partial failure | Control the relevant schedule/failure; assert ownership, outcome and contract-relevant side-effect counts. `-race` alone does not supply the schedule. |
+| OS/driver/provider behavior | Isolated real OS/driver evidence for platform claims; bounded live-provider receipts for provider claims. Neither substitutes for the other. |
+
+Prefer stable outcome/state assertions; interaction counts matter when duplication or a forbidden
+side effect is the contract. Reuse canonical helpers and failure-faithful doubles; do not create
+large test frameworks or product abstractions only to test a small change. Use controlled time and
+synchronization where suitable, retaining bounded real-time tests for actual timing/OS contracts.
+Existing R5/R9 and INV §17 govern closure, isolation, live-gate limits and practical pre-fix proof.
+
 ## 3. Interfaces & data shapes
 
 The canonical commands are:
@@ -331,6 +354,9 @@ shared target guarantees.
 
 ## 6. Traceability
 
+- Purposeful test authoring (R35): workflow §17 and the twinned `write-tests` skill; work/fix
+  routing is guarded by `scripts/check-launcher-contract.sh`. Skill forward-testing and source
+  research are retained in `docs/archive/reviews/workflow-skills-2026-10-20.md`.
 - Operator closure (R34): `internal/cli/operator_contract_test.go`, the family wire tests,
   `operator_follow_test.go` and `operator_process_test.go`; the latter builds the executable
   and uses an isolated real loopback server/fake ACP. Focused race checks verify observer cleanup.

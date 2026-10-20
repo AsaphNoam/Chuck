@@ -13,6 +13,10 @@ for the review being fixed, then read the FS/TS items named by those findings,
 findings touch, and workflow
 §§2–6, §8, and §10 completely, then follow the fix process.
 
+Use `write-tests` when behavior needs new verification or tests/fixtures materially change;
+read [its instructions](../write-tests/SKILL.md) and follow TS-06.R35. Reuse adequate evidence; each added test must
+protect a meaningful contract or plausible defect worth its runtime and maintenance cost.
+
 `$ARGUMENTS` may scope the run to a finding priority or keyword; otherwise choose findings from any
 one available review and say which one you took, then handle its **Must fix** items first as the
 continuation of its originating change unit (workflow §1.4 and §8). Chronology and other role queues

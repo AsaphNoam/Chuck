@@ -47,7 +47,9 @@ For each piece:
 1. If it changes what a user sees or changes an architectural rule, update the relevant specification
    first. Add or change its R/A items and mark unshipped behavior `(planned)`. A bug fix that restores
    already-specified behavior does not need a specification change.
-2. Implement the work and add or keep the test that demonstrates the requirement.
+2. Implement the work and add or keep the test that demonstrates the requirement. Use `write-tests`
+   (§17) when behavior needs new verification or tests/fixtures materially change; reuse adequate
+   existing evidence rather than add tests for their own sake.
 3. Run the narrow test, type check, or syntax check that gives useful feedback for that piece. Do
    not run the full closure matrix after every edit.
 4. Check that the specifications match the piece, update the handoff (§4), and inspect the selected
@@ -224,7 +226,7 @@ findings, then stop rather than continuing into another unit unless the user ask
 
 1. Confirm the report is true by reading the code, the cited requirement, and the real path. Reproduce it with a failing test when practical. A finding that cites a committed skipped reproduction test (§12) starts by un-skipping it and confirming it fails.
 2. If it is false or already fixed, remove the finding and record the short evidence in the changelog and human update; do not change code.
-3. If it is real, fix it, add or keep a regression test, run the required checks, and update the relevant specification if the correct fix changes behavior or fills missing coverage.
+3. If it is real, fix it, add or keep a regression test, run the required checks, and update the relevant specification if the correct fix changes behavior or fills missing coverage. Use `write-tests` (§17) when behavior needs new verification or tests/fixtures materially change.
 4. When the work is verified, remove the finding, update the handoff, and commit.
 
 When every finding from the review is closed, close the originating change unit. The finding-fix
@@ -693,3 +695,22 @@ behavior; when the release range needs one of those, that work happens first und
    8 KiB; that slice, not the whole file, is the recurring session-start cost. Write the final update
    as release notes a person can read — what this version gives them — drawing on the release range,
    specifications, and handoff rather than a duplicate response history.
+
+## 17. Write purposeful tests
+
+`write-tests` is a companion to the selected work/fix scope, automatically used when behavior
+needs new verification or tests/fixtures materially change. It is also available explicitly for
+test work. It selects no new queue unit and creates no extra approval, author, commit or closure
+cycle inside its parent. Standalone test changes use §§2–6 for their requested scope.
+
+TS-06.R35 owns test value and level selection; INV §17 owns independent proof. Before a nontrivial
+test, identify the promise, expected-answer authority, real boundary and smallest meaningful
+falsifier. Keep this brief in the test/working plan rather than create a report per test. Existing
+adequate evidence can justify no new test. Unit tests prove local behavior; integration/native
+evidence is needed when the promise crosses those boundaries. Extra layers/cases must buy distinct
+confidence worth their runtime and maintenance cost.
+
+Review checks the claimed evidence and its limits, including redundant/brittle tests; it does not
+invoke a writing skill or change product code. Run focused checks while iterating, then the parent
+performs the applicable closure matrix once (§2). No testing project is added to a copy-only,
+cosmetic or documentation edit without a real behavioral risk.

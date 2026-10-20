@@ -17,6 +17,10 @@ follow the shared workflow; the workflow and specs take precedence over this lau
 A new interface, runtime, or driver completes the invariant §6 contract checklist line by line;
 silence on any line is a bug, not a default.
 
+Use `write-tests` when behavior needs new verification or tests/fixtures materially change;
+read [its instructions](../write-tests/SKILL.md) and follow TS-06.R35. Reuse adequate evidence; each added test must
+protect a meaningful contract or plausible defect worth its runtime and maintenance cost.
+
 `$ARGUMENTS`, if present, names a change or the human’s requested change. Otherwise choose any
 available resumable unit in the handoff or `Waiting to start` change in `docs/ready-changes/`, and
 say which one you took. Several available changes are not a reason to ask, and pending design,

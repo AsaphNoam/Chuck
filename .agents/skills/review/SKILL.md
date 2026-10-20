@@ -17,6 +17,10 @@ Then sweep the diff against every invariant class by that index and tag each fin
 number; open a class body only where the trigger matches. A class with no applicable surface in the
 diff is a result to state, not a step to skip.
 
+For materially changed tests, apply TS-06.R35 and INV §17: challenge the meaningful contract,
+independent oracle, real boundary and added confidence relative to cost. Do not demand more
+tests merely for coverage or invoke the test-writing companion during this read-only review.
+
 Classify every fix independently from severity, then record exactly one §7 **Fix model**
 recommendation for the selected review unit at the level of its most difficult open fix:
 trivial/easy uses Claude Sonnet or Codex Luna; medium uses Codex Terra or Claude Opus; difficult uses
