@@ -502,7 +502,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		failForked()
 		return nil, err
 	}
-	spec.Agent.Fast = applied.Fast
+	spec.recordAppliedFast(applied.Fast)
 	if err := c.openPersistence(as, spec, sess.SessionID); err != nil {
 		failForked()
 		return nil, err
@@ -1579,7 +1579,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		as.shutdown()
 		return nil, err
 	}
-	spec.Agent.Fast = applied.Fast
+	spec.recordAppliedFast(applied.Fast)
 
 	// Record whether this restore actually created a fresh context, including in replayable metadata.
 	spec.LastSessionID = sessionID
@@ -3287,6 +3287,17 @@ type sessionConfigResult struct {
 	// model does not offer fast mode" instead of showing an ordinary off toggle
 	// that silently springs back (FS-03.R46).
 	FastAvailable bool
+}
+
+// recordAppliedFast stores the negotiated fast value on the agent and the
+// frozen contract; the request stays in spec.Fast (TS-02.R53).
+func (spec *LaunchSpec) recordAppliedFast(fast bool) {
+	spec.Agent.Fast = fast
+	if spec.ExecutionContract != nil {
+		c := *spec.ExecutionContract
+		c.Fast = fast
+		spec.ExecutionContract = &c
+	}
 }
 
 // applySessionConfig performs the one ordered post-session configuration step —

@@ -153,8 +153,8 @@ func TestQuotaCheckFollowsInterruptedSelection(t *testing.T) {
 		t.Fatalf("live check model = %q (%v), original %q", live.ModelID, err, before.ModelID)
 	}
 
-	// Stopped: a resume would use the catalog, so the check does too, and the
-	// continuation must still match what was checked.
+	// Stopped: a resume continues the frozen contract, so the check probes it
+	// too, and the continuation must still match what was checked.
 	generation := s.registry.Generation(id)
 	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/stop", nil); resp.StatusCode != 200 {
 		t.Fatalf("stop status = %d: %s", resp.StatusCode, body)
@@ -170,6 +170,17 @@ func TestQuotaCheckFollowsInterruptedSelection(t *testing.T) {
 		t.Fatal("unchanged stopped selection does not match its check")
 	}
 	remap("yet-another-model")
+	if !s.quotaCheckStillMatches(ready) {
+		t.Fatal("a catalogue edit changed the frozen continuation selection")
+	}
+	a, err := s.stateStore.ReadAgent(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Effort = "changed-after-check"
+	if err := s.stateStore.WriteAgent(a); err != nil {
+		t.Fatal(err)
+	}
 	s.dispatchQuotaContinuations(context.Background())
 	q := waitQuota(t, s, id, func(q state.QuotaIntent) bool { return q.State == state.QuotaNeedsAttention })
 	if q.ReasonCode != "check_unsupported" {

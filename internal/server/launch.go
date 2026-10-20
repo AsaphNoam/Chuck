@@ -348,6 +348,7 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		fedModel     *federationModel
 		choice       state.ModelChoice
 		setup        state.SetupChoice
+		sourceSkip   *bool
 	)
 	if options.Source != nil {
 		source, sae := continuedContract(*options.Source, state.Agent{Backend: backendID, Model: modelID}, backend, model, false)
@@ -355,6 +356,7 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 			return runtime.LaunchSpec{}, state.Agent{}, sae
 		}
 		launchConfig, choice, setup = options.Source.LaunchConfig, source.ModelChoice, source.Setup
+		sourceSkip = &source.SkipPerms
 	} else {
 		launchConfig, fedModel, ae = s.composeFederation(ctx, backendID, req, backend, project, modelID)
 		if ae != nil {
@@ -422,8 +424,11 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		aware = *options.ChuckAware
 	}
 	skip := resolveSkip(s.cfg.SkipPermissions, role.SkipPermissions)
+	if sourceSkip != nil {
+		skip = *sourceSkip // a fork keeps its source's frozen permission choice (FS-01.R53)
+	}
 	contract := newExecutionContract(agent, backend.Type, choice, skip, setup)
-	contract.Fast = req.Fast // requested; the applied value is the agent's
+	contract.Fast = req.Fast // requested; the runtime records the applied value before persistence
 	spec := runtime.LaunchSpec{
 		ChuckAware:         &aware,
 		Agent:              agent,

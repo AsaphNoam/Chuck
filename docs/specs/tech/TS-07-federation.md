@@ -151,7 +151,8 @@ feature; a resolver preview alone is never evidence of native adoption.
 *Implementation:* `composeFederation` normalizes empty overrides, then `preflightSourceSetup`
 refuses a named profile or a root other than the resolver's discovered personal root with
 `422 source_invalid`, before registration and, for refresh, before any process work. The frozen
-choice lives in TS-02.R53's contract.
+choice lives in TS-02.R53's contract. Ordinary continuation of a frozen or legacy setup naming a
+profile refuses the same way in `continuedContract`, before registration or switch teardown.
 
 ## 3. Interfaces & data shapes
 

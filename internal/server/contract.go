@@ -59,6 +59,12 @@ func continuedContract(snap state.SessionSnapshot, agent state.Agent, be config.
 	if frozen != nil {
 		backend, modelKey, setup = frozen.Backend, frozen.Model, frozen.Setup
 	}
+	// A frozen named profile has no verified delivery route; continuing would run
+	// the personal setup under its provenance (FS-08.R37, TS-07.R19).
+	if setup.Profile != "" && backend == agent.Backend {
+		return nil, apiError(runtime.CodeSourceInvalid,
+			"this conversation was started with the profile "+setup.Profile+", which cannot be delivered to agents; resume with the latest setup or start a new conversation")
+	}
 	if !explicit && backend == agent.Backend && modelKey == agent.Model {
 		if frozen != nil {
 			c := *frozen

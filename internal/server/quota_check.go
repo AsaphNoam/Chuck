@@ -63,11 +63,17 @@ func (s *Server) quotaCheckSpec(agentID string) (runtime.QuotaCheckSpec, error) 
 	if !ok {
 		return runtime.QuotaCheckSpec{}, errors.New("quota check: unknown model")
 	}
+	// Probe the selection the continuation would realize, not today's catalogue
+	// value; an undecidable one refuses before any probe (FS-01.R53).
+	contract, ae := continuedContract(snap, a, be, model, false)
+	if ae != nil {
+		return runtime.QuotaCheckSpec{}, ae
+	}
 	providerEnv, _, ae := providerLaunchLayer(be, model)
 	if ae != nil {
 		return runtime.QuotaCheckSpec{}, ae
 	}
-	return runtime.QuotaCheckSpec{BackendType: be.Type, ModelID: model.Model, Effort: a.Effort, Fast: a.Fast,
+	return runtime.QuotaCheckSpec{BackendType: be.Type, ModelID: contract.ProviderModelID(), Effort: a.Effort, Fast: a.Fast,
 		Env: s.quotaCheckEnv(be, model, providerEnv), SourceCwd: snap.Cwd}, nil
 }
 

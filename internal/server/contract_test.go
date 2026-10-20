@@ -226,6 +226,36 @@ func TestContractLegacySnapshots(t *testing.T) {
 	}
 }
 
+// FS-01.R53 / FS-08.R37 / TS-07.R19: a legacy native-inherited snapshot with
+// a selected profile refuses before composing registration.
+func TestLegacyProfileRefusesBeforeRegistration(t *testing.T) {
+	srv, _, projectDir := federationServer(t)
+	be, err := srv.configStore.ReadBackends()
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := be.Backends["claude"]
+	model := backend.Models[backend.DefaultModel]
+	agent := state.Agent{AgentID: "a_legacy_profile", Name: "Legacy", Role: "implementer", Project: "fed", Backend: "claude", Model: backend.DefaultModel, Interface: "chat"}
+	raw, err := json.Marshal(launchConfigDoc{
+		Version:         1,
+		Binding:         launchConfigBinding{BackendID: "claude", Provider: "claude-code", Profile: "unsupported-profile", Mode: "linked"},
+		NativeInherited: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap := state.SessionSnapshot{AgentID: agent.AgentID, Backend: agent.Backend, Model: agent.Model, Interface: agent.Interface,
+		Cwd: projectDir, LaunchConfig: raw, LastSessionID: "native-1"}
+	_, ae := srv.composeResumeSpec(agent, snap, backend, model)
+	if ae == nil || ae.Code != runtime.CodeSourceInvalid {
+		t.Fatalf("resume error = %v, want source_invalid", ae)
+	}
+	if _, ok := srv.hookTokens[agent.AgentID]; ok {
+		t.Fatal("refusal left a hook registration")
+	}
+}
+
 // FS-01.R53: a clone inherits its source's frozen choice rather than
 // re-resolving the catalogue key it names.
 func TestContractForkInheritsSourceChoice(t *testing.T) {

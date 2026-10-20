@@ -294,7 +294,8 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
 
 ### ASW-2 — Native execution contract — reviewed `9a15afa6` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Nine Must-fix findings and two Worth-fixing findings keep this same unit open. Fix scope is
+**Fix in progress (2026-10-20):** ASW2-2/3/6/11 fixed (Changelog). Remaining: ASW2-1, 4, 5, 7–10.
+Fix scope is
 assessed independently below: the work extends the existing contract, provider-preparation and
 metadata seams; no new lifecycle/ownership mechanism is needed. Read-only parallel audits were
 independently checked with the probes below. Product code and specifications are unchanged.
@@ -309,27 +310,6 @@ independently checked with the probes below. Product code and specifications are
   Require original frozen provider-id evidence or the existing explicit refresh/new-conversation
   path; align the implementation note and migration oracle with that rule. **Fix scope: medium.**
   `TestASW2ReviewLegacyCatalogGuessRefuses` accepts `edited-provider-id` with no such evidence.
-
-- **Must fix** — ASW2-2 — **Legacy selected profiles bypass setup preflight on continuation**
-  (INV §1/§2/§10/§11/§12/§15/§17). `internal/server/contract.go:55–78,102–107`,
-  `resume.go:481–558`, `switch.go:433–508`: fresh launch/refresh correctly refuse unsupported
-  profiles, but an older native-inherited snapshot with `binding.profile` nonempty is converted
-  into a contract and resumed/switched without checking realizability. The child still runs its
-  personal setup under the old named-profile provenance. This leaves ASRA-3 partially unresolved
-  and violates FS-01.R53/FS-08.R37/TS-07.R19. Validate frozen setup support before registration or
-  source teardown without refreshing ordinary continuation. **Fix scope: medium.**
-  `TestLegacyProfileRefusesBeforeRegistration` observes successful composition for
-  `unsupported-profile` instead of `source_invalid`.
-
-- **Must fix** — ASW2-3 — **Stopped quota checks probe a different model from continuation**
-  (INV §1/§2/§10/§11/§17). `internal/server/quota_check.go:47–71`: the stopped-agent path reads
-  the session but ignores `ExecutionContract`, choosing current `model.Model`. After a bound
-  override/native-inherited launch, or a catalogue edit, the readiness probe and Resume disagree.
-  The ready-check fingerprint compares this same wrong derivation, so it cannot detect the
-  mismatch. FS-01.R53/TS-01.R40/TS-02.R53/TS-04.R97 require the checked continuation selection.
-  Use the shared contract resolver or refuse unknown selection before a probe. **Fix scope: medium.**
-  `TestASW2ReviewStoppedQuotaUsesFrozenModel` observes check `sonnet` versus continuation
-  `frozen-provider-model`; the live-process path remains correct.
 
 - **Must fix** — ASW2-4 — **Codex checks still load unsuppressed native work instructions**
   (INV §2/§10/§11/§12/§17). `internal/runtime/quota_check.go:501–529,551–588`,
@@ -355,16 +335,6 @@ independently checked with the probes below. Product code and specifications are
   builder purpose-aware while retaining model/settings, scoped registration and exact-id cleanup.
   **Fix scope: medium.** `TestASW2ReviewClaudeForkOmitsChuckPrompt` captures the fork's actual
   `session/load` payload and finds the persona sentinel; the same payload contains bridge/suffix.
-
-- **Must fix** — ASW2-6 — **Clone replaces the source's frozen permission choice**
-  (INV §1/§2/§3/§11/§17). `internal/server/launch.go:352–357,424–426`: the source branch copies
-  only model/setup, then constructs a new contract with today's global/persona permission setting.
-  Changing a persona's permission default after source launch can make its clone skip approvals
-  even though the source required them. FS-01.R53 and TS-01.R40/TS-02.R53 require fork to copy the
-  source contract, including its effective permission choice. Carry source permissions through
-  both `LaunchSpec.SkipPerms` and the retained contract. **Fix scope: easy.**
-  `TestASW2ReviewForkKeepsSourcePermissions` edits the persona default and observes clone
-  `skip=true` versus source `skip=false`.
 
 - **Must fix** — ASW2-7 — **Ancestor instructions use the wrong effective root markers**
   (INV §1/§2/§10/§11/§12/§17). `internal/configsource/codex.go:202–219,242–262`,
@@ -409,16 +379,6 @@ independently checked with the probes below. Product code and specifications are
   unknown/truncation metadata without failing startup. **Fix scope: easy.**
   `TestASW2ReviewManifestBound` uses a 20 KiB provider id; no live provider accepting such an id
   is asserted. Existing tests check the limit only for short inputs.
-
-- **Worth fixing** — ASW2-11 — **The initial contract records requested fast as applied**
-  (INV §1/§3/§11/§17). `internal/server/launch.go:425–426`,
-  `internal/runtime/chat.go:500–505`: the contract freezes `req.Fast`, while negotiation updates
-  only `spec.Agent.Fast`. A normal fast request against an unavailable/refused option persists
-  contract `fast=true` beside applied agent/session `fast=false`, contrary to TS-01.R40/TS-02.R53.
-  Continuation later corrects it from the agent row, so this is an initial historical-record
-  defect, not a claim that later turns run fast. Separate requested/applied values using existing
-  semantics and update the applied contract before metadata persistence. **Fix scope: easy.**
-  `TestASW2ReviewContractRecordsAppliedFast` observes persisted true versus handle false.
 
 Coverage/local choices: new-contract source overrides, explicit empty model/effort resets,
 same-identity resume/switch and rollback, forward migration/index preservation, fresh/refresh
@@ -1569,6 +1529,17 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Fixed ASW2-2/3/6/11 (INV §1/§2/§3/§11/§17):** ordinary continuation refuses a
+  frozen or legacy setup naming a profile (`422 source_invalid`) before registration or switch
+  teardown; the stopped-agent quota check probes `continuedContract`'s provider model, so a
+  catalogue edit no longer splits check from Resume; a clone keeps its source's frozen permission
+  choice; the runtime records negotiated fast in the contract before metadata persistence.
+  TS-02.R53/TS-07.R19 notes updated. `TestQuotaCheckFollowsInterruptedSelection` encoded the old
+  catalogue-following check; it now proves a catalogue edit keeps the check valid and an effort
+  change still forces manual handling. New regressions: `TestLegacyProfileRefusesBeforeRegistration`,
+  `TestStoppedQuotaCheckUsesFrozenModel`, `TestForkKeepsSourcePermissions`,
+  `TestContractRecordsAppliedFast`.
 
 - **2026-10-20 — Fixed META-1, closing the META unit (INV §1/§9):** offline `chuck reindex` now
   reads the SQLite-only session fields (hook-learned native ID, live effort/fast) before the wipe and

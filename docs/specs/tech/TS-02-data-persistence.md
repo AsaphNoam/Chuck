@@ -764,12 +764,14 @@ auth file, token or full environment is added to the contract.
 *Implementation:* migration 58 adds `sessions.execution_contract_json` (`state.ExecutionContract`),
 written through `session_meta`; a record without one keeps the stored value. `continuedContract`
 (`internal/server/contract.go`) is the one continuation seam for resume, wake, pipeline resume,
-switch, rollback and clone. Legacy derivation: native inheritance is proven by the frozen launch
+switch, rollback, clone and the stopped-agent quota check; a clone also keeps the source's frozen
+permission choice. Legacy derivation: native inheritance is proven by the frozen launch
 object; an unbound launch or an explicit switch proves an explicit catalogue-key choice, whose
 provider id is the catalogue's at first continuation (no other evidence exists) and is frozen
 from then on. A bound launch with neither mark refuses `422 source_invalid` before registration
 or switch teardown; resume with latest setup derives a new contract. Requested fast is the
-launch value; continuation records the agent's applied fast and effort.
+launch value (`LaunchSpec.Fast`); the runtime replaces the contract's fast with the negotiated
+value before metadata persistence, and continuation records the agent's applied fast and effort.
 
 **R54 — Persist process proof and terminal native identity at their owning boundary.**
 Extend running rows forward-only with a versioned process proof: actual process birth value at
