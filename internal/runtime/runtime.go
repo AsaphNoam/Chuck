@@ -82,6 +82,10 @@ type LaunchSpec struct {
 	// session_meta so resume reproduces the frozen high-level snapshot. Empty when
 	// the backend has no active source binding.
 	LaunchConfig json.RawMessage
+	// ExecutionContract is the frozen effective native selection this start
+	// realizes (TS-02.R53); persisted with session_meta. ModelID is derived
+	// from it by the server composers.
+	ExecutionContract *state.ExecutionContract
 	// Fork, when set, makes Start open a native fork of another agent's
 	// provider session instead of a fresh one (FS-01.R36, TS-04.R65). It is
 	// one-shot launch input and never persisted as configuration (INV §3).

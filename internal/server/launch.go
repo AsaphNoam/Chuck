@@ -106,6 +106,10 @@ type launchOptions struct {
 	// Fork makes the start a native fork of another agent's conversation
 	// (Clone, FS-01.R36). One-shot launch input; never persisted.
 	Fork *runtime.ForkPlan
+	// Source is a fork's source snapshot: the fork inherits its frozen
+	// execution contract and launch object instead of re-resolving the
+	// catalogue or bound source (TS-02.R53).
+	Source *state.SessionSnapshot
 	// OrchestratorInstructions is server-resolved run guidance for a pipeline
 	// orchestrator; it is frozen into the base prompt and never caller-supplied
 	// (TS-09.R58–R59, TS-11.R20).
@@ -337,22 +341,31 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 	// cache). The resolved high-level view is frozen into the session snapshot as
 	// redacted provenance. Placed before any registration side effects so a source
 	// error returns cleanly with nothing to unwind.
-	launchConfig, fedModel, ae := s.composeFederation(ctx, backendID, req, backend, project, modelID)
-	if ae != nil {
-		return runtime.LaunchSpec{}, state.Agent{}, ae
-	}
-	// Compose the effective model sent over ACP (§2.4). An explicit launch model
-	// always wins (keeps model.Model, below). For a bound source with no explicit
-	// choice: a source override is applied verbatim; otherwise the model is left to
-	// native inheritance ("" → omitted over ACP). agent.Model keeps the resolved
-	// backend model id as the display/search projection (§2.5).
-	acpModelID := model.Model
-	if fedModel != nil && req.Model == "" {
-		switch {
-		case fedModel.override != nil:
-			acpModelID = *fedModel.override
-		case fedModel.inherit:
-			acpModelID = ""
+	//
+	// A fork instead inherits its source's frozen contract and launch object.
+	var (
+		launchConfig json.RawMessage
+		fedModel     *federationModel
+		choice       state.ModelChoice
+		setup        state.SetupChoice
+	)
+	if options.Source != nil {
+		source, sae := continuedContract(*options.Source, state.Agent{Backend: backendID, Model: modelID}, backend, model, false)
+		if sae != nil {
+			return runtime.LaunchSpec{}, state.Agent{}, sae
+		}
+		launchConfig, choice, setup = options.Source.LaunchConfig, source.ModelChoice, source.Setup
+	} else {
+		launchConfig, fedModel, ae = s.composeFederation(ctx, backendID, req, backend, project, modelID)
+		if ae != nil {
+			return runtime.LaunchSpec{}, state.Agent{}, ae
+		}
+		// The effective provider model (§2.4) is frozen in the execution
+		// contract; agent.Model keeps the catalogue key as the display/search
+		// projection (§2.5).
+		choice = launchModelChoice(model, req.Model != "", fedModel)
+		if fedModel != nil {
+			setup = fedModel.setup
 		}
 	}
 	resolvedEffort, ae := resolveTargetEffort(target, req.Effort, fedModel)
@@ -408,6 +421,9 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 	if options.ChuckAware != nil {
 		aware = *options.ChuckAware
 	}
+	skip := resolveSkip(s.cfg.SkipPermissions, role.SkipPermissions)
+	contract := newExecutionContract(agent, backend.Type, choice, skip, setup)
+	contract.Fast = req.Fast // requested; the applied value is the agent's
 	spec := runtime.LaunchSpec{
 		ChuckAware:         &aware,
 		Agent:              agent,
@@ -416,7 +432,7 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		AddDirs:            addDirs,
 		SystemPrompt:       joinSystemPrompt(project.ContextPrompt, role.SystemPrompt, projectResourcesInstruction(resourceDir), pipelineOrchestrationBlock(options.OrchestratorInstructions)),
 		BackendType:        backend.Type,
-		ModelID:            acpModelID,
+		ModelID:            contract.ProviderModelID(),
 		Effort:             resolvedEffort,
 		Fast:               req.Fast,
 		Driver:             driver,
@@ -424,11 +440,12 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		QuotaCheckEnv:      s.quotaCheckEnv(backend, model, providerEnv),
 		ProviderExecutable: provider.Path,
 		ProviderSource:     provider.Source,
-		SkipPerms:          resolveSkip(s.cfg.SkipPermissions, role.SkipPermissions),
+		SkipPerms:          skip,
 		HookToken:          token,
 		MCPServers:         []runtime.MCPServerSpec{mcpSpec},
 		ExtraArgs:          extraArgs,
 		LaunchConfig:       launchConfig,
+		ExecutionContract:  contract,
 		Fork:               options.Fork,
 	}
 	if options.Fork != nil {

@@ -259,6 +259,17 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 	// resume with nothing registered to unwind. Absent/false keeps the frozen
 	// snapshot; a backend without an active binding leaves the snapshot untouched.
 	var refreshedConfig json.RawMessage
+	// A caller-named model or a configuration refresh is the explicit way to
+	// select a new execution contract; everything else continues the frozen one.
+	var newChoice *state.ModelChoice
+	var newSetup state.SetupChoice
+	if override.Model != "" {
+		c := explicitModelChoice(model.Model)
+		newChoice = &c
+		if frozen := snap.ExecutionContract; frozen != nil && frozen.Backend == backendID {
+			newSetup = frozen.Setup
+		}
+	}
 	if override.ConfigRefresh {
 		project, perr := s.configStore.ReadProject(agent.Project)
 		if perr != nil {
@@ -270,6 +281,11 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 			return ae
 		}
 		refreshedConfig = lc
+		c := launchModelChoice(model, override.Model != "", fed)
+		newChoice, newSetup = &c, state.SetupChoice{}
+		if fed != nil {
+			newSetup = fed.setup
+		}
 		effort, ae = resolveEffort(override.Effort, model, fed)
 		if ae != nil {
 			return ae
@@ -301,6 +317,14 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 		CreatedAt: agent.CreatedAt,
 		Group:     agent.Group,
 	}
+	if newChoice != nil {
+		snap.ExecutionContract = newExecutionContract(resumeAgent, backend.Type, *newChoice, snap.SkipPermissions, newSetup)
+	}
+	// An undecidable legacy selection refuses here, while a claimed opportunity
+	// is still releasable (TS-02.R53).
+	if _, ae := continuedContract(snap, resumeAgent, backend, model, false); ae != nil {
+		return ae
+	}
 	// Mail commits its non-replayable attempt immediately before composition, the
 	// first resume side effect (hook token, MCP registration, hook-settings file).
 	// All preceding validation must leave the claimed opportunity releasable.
@@ -317,14 +341,6 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 	// caller asked to resume with the latest setup.
 	if refreshedConfig != nil {
 		spec.LaunchConfig = refreshedConfig
-	}
-	// Honor native model inheritance across resume (§2.4): if the effective launch
-	// object left the model to native resolution and the caller supplied no explicit
-	// model override, omit the model over ACP so the CLI keeps resolving its own —
-	// otherwise a resume would silently reinstate the backend default. config_refresh
-	// uses the freshly-resolved doc (set above); the default path uses the frozen one.
-	if override.Model == "" && frozenModelInherited(spec.LaunchConfig) {
-		spec.ModelID = ""
 	}
 
 	// 7. Resume via the registry (double-resume is guarded by the registry sentinel
@@ -465,6 +481,12 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 	if agent.Interface == "terminal" && !terminalSupported(be.Type) {
 		return runtime.LaunchSpec{}, apiError(runtime.CodeTerminalUnavailable, terminalUnsupportedReason(be.Type))
 	}
+	// Continue the frozen effective selection rather than the catalogue key's
+	// current model (TS-01.R40).
+	contract, ae := continuedContract(snap, agent, be, model, false)
+	if ae != nil {
+		return runtime.LaunchSpec{}, ae
+	}
 	// Re-select the provider for this process start before any side effect: a
 	// missing provider fails the resume and keeps the conversation (FS-09.R70).
 	providerEnv, provider, ae := providerLaunchLayer(be, model)
@@ -516,7 +538,7 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 		HistoryPrimer:      snap.HistoryPrimer,
 		ChuckAware:         &snap.ChuckAware,
 		BackendType:        be.Type,
-		ModelID:            model.Model,
+		ModelID:            contract.ProviderModelID(),
 		Effort:             agent.Effort,
 		Fast:               agent.Fast,
 		Env:                composeChildEnv(be.Type, s.configStore.Home(), be.Env, model.Env, s.hookEnv(agent, token), projectResourcesEnv(resourceDir), providerEnv),
@@ -532,7 +554,8 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 		LastContext:        snap.LastContext,
 		// Resume reproduces the frozen federation launch object by default
 		// (techspec §2.5); "Resume with latest setup" re-resolves it (handleResume).
-		LaunchConfig: snap.LaunchConfig,
+		LaunchConfig:      snap.LaunchConfig,
+		ExecutionContract: contract,
 	}
 	return s.applyKnowledgeOverlay(spec), nil
 }

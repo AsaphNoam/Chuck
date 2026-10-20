@@ -325,9 +325,12 @@ type SessionMetaData struct {
 	// when the backend has no active source binding. Mirrored here so reindex can
 	// rebuild sessions.launch_config_json from the transcript.
 	LaunchConfig json.RawMessage `json:"launch_config,omitempty"`
-	CreatedAt    string          `json:"created_at"`
-	ResumedAt    *string         `json:"resumed_at"`
-	SessionID    string          `json:"session_id,omitempty"`
+	// ExecutionContract is the frozen effective native selection
+	// (TS-02.R53); absent in older records, which stay unknown.
+	ExecutionContract *state.ExecutionContract `json:"execution_contract,omitempty"`
+	CreatedAt         string                   `json:"created_at"`
+	ResumedAt         *string                  `json:"resumed_at"`
+	SessionID         string                   `json:"session_id,omitempty"`
 	// RuntimeCapabilities is this handshake's normalized advertisement, replaced
 	// on every successful launch/resume (TS-02.R35). Nil in older records.
 	RuntimeCapabilities *SessionCapabilities `json:"runtime_capabilities,omitempty"`

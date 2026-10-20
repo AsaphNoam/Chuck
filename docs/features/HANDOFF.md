@@ -36,7 +36,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   The human explicitly authorized these cross-review batches; for this campaign select the new
   unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
   migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
-  control, ambiguous replay and the config read-loop stall. ASW-1 is finished and awaits review; ASW-3's implementation
+  control, ambiguous replay and the config read-loop stall. ASW-1 is reviewed with seven Must-fix
+  findings and one documentation finding open below; ASW-3's implementation
   is reviewed with five findings open below; other units remain waiting. The
   [systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
 - **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
@@ -65,8 +66,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None in progress. ASW-1 (conversation event commits) finished 2026-10-20 and awaits its
-  substantive review (Review queue).
+- **ASW-2 in progress** (2026-10-20) —
+  [`preserve-native-execution-contract.md`](../ready-changes/preserve-native-execution-contract.md).
+  Slices: (1) versioned execution contract (TS-02.R53) through launch/resume/switch/rollback/fork
+  with empty-override normalization — ASRA-1/2; (2) unsupported root/profile preflight — ASRA-3;
+  (3) fork purpose: Codex fork omits Chuck overlay, Claude fork loads the returned ID — ASRB-2/3;
+  (4) quota-check instruction sanitization — ASRG-4; (5) Codex ancestor project layers —
+  PROMPT-1; (6) Steer artifact proof — ASRB-8; (7) bounded execution manifest — PROMPT-2.
+  Slices 4 and 5 are delegated to isolated worktrees and integrated here.
+  Slice 1 done: TS-02.R53 contract + `continuedContract`; ASRA-1/ASRA-2 fixed pending review
+  (`internal/server/contract_test.go`, `internal/index/contract_test.go`).
+- ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–8 below keep that
+  same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
 - ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19; five Must-fix findings
   keep the unit open (Review findings). FS-07.A12 real tmux/iTerm2 receipts are owed.
 
@@ -190,13 +201,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-1 finished (awaiting review); ASW-3 reviewed with findings open; all others waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1 and ASW-3 reviewed with findings open; ASW-2 in progress; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are ready in
 [`docs/ready-changes/`](../ready-changes/README.md):
 
 | Unit | Invocation | Outcome |
 |---|---|---|
-| ASW-1 | finished 2026-10-20 — awaiting review (see Review queue) | One canonical commit boundary, ordered control observations and truthful history failure |
+| ASW-1 | reviewed 2026-10-20 — findings open (ASW1-1–8) | One canonical commit boundary, ordered control observations and truthful history failure |
 | ASW-2 | `/work preserve-native-execution-contract` | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
 | ASW-3 | reviewed 2026-10-19 — five findings open (see Review findings) | Process/terminal ownership and native terminal identity; incomplete fail-closed control and launch-hook ordering |
 
@@ -246,15 +257,12 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 
 **Implementation review units (independent of the table above):**
 
-- **ASW-1 — conversation event commits** (`3f746c2a`, `69ef5951`, `1843470f`, `57af7f61` and the
-  slice-5/closure commit) — **awaiting review**. Review the journal (`internal/runtime/journal.go`,
-  `control.go`), every writer routed through it (`Registry.AppendHistory`/`CommitInactive`), the
-  history/control sink split, migration 57 `conversation_health`, the admission latch and the
-  `history_state` projection. Reviewer notes: inactive annotations are fenced by the journal lock,
-  not `claimLifecycle`; a cancelled control reservation enqueues unreserved; every unclean stop
-  yields one gap notice; index degradation repairs only via offline reindex; no UI banner reads
-  `history_state` yet; `as.seq` may lag a gap notice until the next commit. Spec deviations record
-  these in FS-03/TS-01–04 §5/§6. ASRD-4 stays with ASF-2.
+- **ASW-1 — conversation event commits** (`3f746c2a`, `69ef5951`, `1843470f`, `57af7f61`,
+  closure `43da6bec`) — **reviewed; findings open**. Reviewed `3618df3e..43da6bec`;
+  ASW1-1–8 below retain this same unit for `/fix`. Original ASRD-1/2/5 reproductions are corrected;
+  ASRD-3's history suppression is corrected but its recovery/control obligations remain incomplete.
+  ASRD-4 stays with ASF-2. Concurrent ASW-2 edits were excluded by finishing the probes in
+  `/private/tmp/chuck-asw1-review-43da6bec`.
 
 - **ASW-3 — process and terminal-driver ownership** (`2609e903`, `3e7df682`, `e2cf34f8`,
   `9a0bf119`, closure `3618df3e`) — **reviewed; findings open**. Reviewed
@@ -267,6 +275,110 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### ASW-1 — Conversation event commits — reviewed `43da6bec` — **Fix model:** difficult — Codex Sol.
+
+Seven Must-fix findings and one Worth-fixing documentation finding keep this unit open. Fix scope
+is assessed independently below; the hardest fixes coordinate conversation/generation ownership
+and durable failure recovery. No product code or specifications were changed. Locations refer to
+the reviewed snapshot, before concurrent ASW-2 work.
+
+- **Must fix** — ASW1-1 — **History refusal silently discards an accepted held message**
+  (INV §1/§5/§8/§15). `internal/runtime/chat.go:959–963,1234–1262,1276–1285`: Send accepts a
+  follow-up while the current turn is healthy; a later append/sync failure latches the journal.
+  `finishTurn` removes the hold before the successor checks `Admit`. If storage still fails, the
+  follow-up is never submitted, its text-only hold is gone, and its error event is suppressed by
+  the same broken journal. The composer already cleared its draft on acceptance. FS-03.R99/A78
+  require recoverable input ownership. Preserve/restore the exact hold on definite history refusal
+  and report outside the transcript, without replacing a newer hold or replaying consumed input.
+  **Fix scope: medium.** `TestReviewHeldSurvivesJournalRefusal` reproduces `held=""` with only
+  the first native prompt submitted.
+- **Must fix** — ASW1-2 — **The failed-permission notification exposes no approval controls**
+  (INV §8/§10/§11/§15). `internal/server/server.go:424–427`, `internal/bus/bus.go:153–172`,
+  `ui/src/api/sse.ts:213–237`, `internal/server/sessions.go:391–411`: an unsaved permission
+  request stays pending in the runtime, but only a notification is published. Toast/notification
+  handling merely opens the conversation; desktop controls require a transcript event and phone
+  controls use the canonical window's `pending_permission`, which is null. Reload cannot discover
+  the request either. This violates FS-03.R99/TS-03.R73's reachable approvals. Add a bounded,
+  generation-scoped non-history pending-control projection, including resolutions and reload,
+  while keeping failed records out of retained history. **Fix scope: medium.**
+  `TestReviewUnsavedPermissionStillHasApprovalSurface` injects request-append failure and confirms
+  live `tc_p` plus delivered `permission_required`, but no windowed pending request.
+- **Must fix** — ASW1-3 — **Exit during persistence setup leaves an ownerless live writer**
+  (INV §4/§5/§9/§16). `internal/runtime/chat.go:2318–2331,2337–2353`: `Journal.Open` attaches
+  before `UpsertSessionMeta`, but `journalAttachment` is assigned only after that write. An exit
+  in this window runs `closePersistence` with attachment zero, skips Close and releases the
+  generation reference. The attached writer keeps the journal alive with zero references and no
+  closer; later inactive annotations/notices return `ErrJournalLive` until replacement/restart.
+  TS-01.R39/TS-02.R52 require generation-fenced teardown here. Publish attachment ownership with
+  lifecycle state and close a writer whose owner already exited. **Fix scope: medium.**
+  `TestReviewExitDuringPersistenceAttachClosesJournal` blocks metadata indexing after Open,
+  runs exit teardown, releases indexing, and reproduces inactive-append refusal.
+- **Must fix** — ASW1-4 — **Failed room settlement forgets its exact capture failure**
+  (INV §4/§5/§7/§9/§15). `internal/server/think_tank_capture.go:63–71,91–95`,
+  `internal/server/think_tanks.go:466–491`: terminal handling deletes a failed capture before
+  `FailThinkTankAttempt`. If that write and the fallback room-hold write fail, nothing retains the
+  exact failure for live retry. Restoring SQLite leaves the attempt running; terminal retry now
+  sees no failed capture and can finalize its staged contribution. TS-01.R39/TS-04.R100 require
+  monotonic failure and an exact recovery obligation; generic restart recovery is insufficient.
+  Retain the exact attempt failure until its idempotent failure/hold transition commits and fence
+  finalization on it; never replay activity appends. **Fix scope: difficult.**
+  `TestReviewFailedRoomSettlementRetainsFailure` aborts both writes with SQLite triggers, restores
+  them and retries the terminal event: the raw attempt row becomes `finalized`.
+- **Must fix** — ASW1-5 — **Recovery ignores and clean close erases reserved sequences**
+  (INV §1/§7/§9/§11/§15). `internal/runtime/journal.go:128–145,186–190,319–324`: health stores
+  `ReservedSeq`, but opening advances allocation only from the complete log tail. A failed/torn
+  append followed by restart can assign its reserved identity to the gap notice. Clean Close
+  while degraded also writes a zero reservation, violating TS-02.R52. Preserve the watermark
+  through degradation/close and advance allocation beyond it before recovery records. **Fix scope:
+  trivial/easy.** `TestReviewRestartHonorsReservedSequence` seeds reservation 42 and reproduces
+  a recovery notice at sequence 1.
+- **Must fix** — ASW1-6 — **Control ordering ends at a generation boundary**
+  (INV §1/§2/§4/§5/§15/§16). `internal/runtime/chat.go:288,2132–2135`,
+  `internal/runtime/control.go:25–35`: the FIFO lives on `agentState`, so Stop/Resume or Switch
+  creates another dispatcher while old callbacks may still drain. A newer control observation can
+  run before an earlier one settles, with multiple sinks/queue budgets for the same conversation.
+  TS-01.R39 requires one per-conversation dispatcher. Share ownership/lifetime with the
+  conversation and retain captured generation checks. **Fix scope: difficult.**
+  `TestReviewControlOrderSurvivesGenerationReplacement` blocks the old observation and confirms
+  the new generation's callback runs concurrently on the same journal.
+- **Must fix** — ASW1-7 — **Cancellation removes the control queue's admission bound**
+  (INV §4/§5/§16). `internal/runtime/control.go:41–60`, `internal/runtime/chat.go:2146–2156`:
+  after capacity fills, cancellation makes `reserve` return false, yet every late emission is
+  appended unreserved. Buffered provider output/permission continuations can retain arbitrary
+  pending events behind a slow sink. TS-01 §5 calls this deviation bounded but supplies no other
+  bound or durable cancellation obligation, contrary to R39's 256 pending plus one in flight.
+  Keep admission bounded through shutdown and retain required cleanup through its exact domain
+  authority. **Fix scope: medium.** `TestReviewCancelledControlRemainsBounded` reproduces 599
+  pending observations against limit 256.
+- **Worth fixing** — ASW1-8 — **The spec describes a different inactive-writer fence** (INV §10).
+  `docs/specs/tech/TS-01-architecture.md:530–531` requires joining the lifecycle claim and
+  rechecking ownership; `Registry.AppendHistory`/`Journal.CommitDetached` use the journal mutex
+  and live-writer recheck instead. This lock is sufficient for atomic append-versus-attach and
+  avoids a second lifecycle lock; the local choice is accepted for sequence serialization.
+  Update normative wording/deviation so the handoff is not its only explanation. **Fix scope:
+  trivial/easy.**
+
+Local-choice outcomes: a separate health table is justified because the open marker precedes a
+new session row; conservative unclean-stop gap notices and offline index repair are reasonable.
+The absent banner is covered by the refused-Send surface, but does not resolve ASW1-1/2. Gap
+notices temporarily lagging `as.seq` do not reuse allocation and appear in canonical HTTP reads.
+Unreserved enqueue is rejected under ASW1-7; the inactive fence needs ASW1-8's spec correction.
+
+Invariant sweep: §1/§2/§4/§5/§7/§8/§9/§10/§11/§14/§15/§16/§17 apply and were checked; existing HTTP
+guards and owner-only persistence remain wired. §3 has no one-shot persisted field/form surface,
+§6 adds no external runtime/driver, §12 changes no external CLI invocation, and §13 changes no
+markup/selectors. History/control interfaces and terminal persistence retain existing contracts.
+The seven reproductions expose missing failure/lifecycle coverage in FS-03.A78 (INV §17).
+
+Evidence: clean-entry untagged runtime/server/state/transcript/bus suites passed (server needed
+approved loopback access after sandbox `::1` refusal); focused journal/control race tests passed.
+After ASW-2 edits appeared, all seven probes were reproduced against isolated `43da6bec` using
+`/private/tmp/chuck-asw1-review-overlay.json` and `chuck-asw1-review-server-overlay.json`.
+Focused existing runtime/server checks pass on that snapshot untagged and `sqlite_fts5`.
+The room retry probe deliberately repeats terminal settlement to test monotonicity; no live-provider
+duplicate-terminal receipt is claimed. Native/provider/device gates remain owed. No sibling fixes
+or product/spec edits were selected.
 
 ### ASW-3 — Process and terminal-driver ownership — reviewed `3618df3e` — **Fix model:** difficult — Codex Sol.
 
@@ -677,9 +789,10 @@ interface), §7 (no record repair), §12 (no new external invocation), §13 (no 
 
 ### ASR-D — Conversation, input and history fidelity — reviewed `c12c4251` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Five Must-fix findings remain on this unit. Each fix extends existing transcript, lifecycle,
-receipt or reconciliation seams; the hardest fixes coordinate bounded concurrency and durable
-publication across those seams. Audit complete; no product code or specifications changed.
+ASRD-4 remains open here and belongs to ASF-2. ASRD-1/2/5's original reproductions are corrected
+and independently reviewed in ASW-1; ASRD-3's history suppression is corrected, with remaining
+recovery/control obligations tracked only as ASW1-1–7 above. The retained audit evidence below
+describes the original snapshot. No product code or specifications changed during this audit.
 Tree clean at entry. Source mode: repository source at
 `c12c425109a7bdd5682451f02afe958477319e7a`; release lock pins Claude ACP 0.85.1 / Agent SDK
 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. No credentialed provider run was performed.
@@ -701,7 +814,7 @@ Tree clean at entry. Source mode: repository source at
   plus marker append/sync failure after activation. Evidence: the independent fake-ACP overlay
   `/tmp/asr07_overlay.json` fails `TestASR07SwitchMarkerSequenceCollision` on the duplicate;
   `/tmp/transcript_race_overlay.json` confirms two independent writers append the same sequence.
-  *Fixed in ASW-1 slice 3 (2026-10-19), pending review:* one ref-counted journal per agent ID;
+  *Original reproduction corrected; reviewed in ASW-1 (2026-10-20):* one ref-counted journal per agent ID;
   no server writer of its own; marker failure after activation is reported truthfully
   (`TestSwitchRuntimeBackendSwapUsesPrimer` both directions, `TestConcurrentInactiveAnnotationsGetUniqueSequences`).
 - **Must fix** — ASRD-2 — **Concurrent live events are persisted and published out of sequence**
@@ -715,7 +828,7 @@ Tree clean at entry. Source mode: repository source at
   annotation/notice append paths, without holding a mutex across reentrant provider callbacks.
   Regress simultaneous ACP output, annotation and permission/notice events with barriers and assert
   increasing durable and observed order, not merely race-detector success.
-  *Fixed in ASW-1 slice 2 (2026-10-19), pending review:* `runtime.Journal` serializes allocation,
+  *Corrected and reviewed in ASW-1 (2026-10-20):* `runtime.Journal` serializes allocation,
   append, in-memory/hub and bus publication (`TestJournalSerializesConcurrentCommits`).
 - **Must fix** — ASRD-3 — **Failed transcript writes still become live conversation history**
   (INV §7/§9/§15). `internal/runtime/chat.go:2097–2129`: only a required user prompt is
@@ -733,7 +846,7 @@ Tree clean at entry. Source mode: repository source at
   also a control-consumer boundary. Do not globally suppress cleanup of an independently committed
   task result when transcript persistence fails. Make event durability/authority explicit to each
   consumer; the [fix strategy](AGENT-SURFACE-FIX-STRATEGY.md) records the distinction and limits.
-  *Fixed in ASW-1 slices 2/5 (2026-10-19/20), pending review:* uncommitted events never reach
+  *History suppression reviewed in ASW-1 (2026-10-20); recovery/control findings remain above:* uncommitted events never reach
   hub/bus/in-memory history; control observes the outcome; health is persisted outside the log,
   repaired with a durable gap notice, and new work is refused until then
   (`TestJournalFailedAppendIsNotPublished`, `TestJournalDegradesThenRecoversWithGapNotice`,
@@ -763,7 +876,7 @@ Tree clean at entry. Source mode: repository source at
   retention for the preview, preserving stale-generation guards and reporting real read failures.
   Regress unrelated artifacts, long streamed replies and bounded reads. Evidence:
   `/tmp/asrd_annotation_overlay.json`, `TestASRDReconcileAcceptsAttachmentAsTranscript`.
-  *Fixed in ASW-1 slice 1 (2026-10-19), pending ASW-1's substantive review:* only the canonical
+  *Corrected and reviewed in ASW-1 (2026-10-20):* only the canonical
   `transcript.ndjson` is a reconcile candidate; the preview streams through the shared reader with
   a 4 KiB tail and logs read failures (`TestReconcileIgnoresNonTranscriptSessionArtifacts`,
   `TestLastAssistantPreviewBoundsRetainedReply`).
@@ -1394,6 +1507,11 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-20 — Reviewed ASW-1 conversation event commits:** audited through `43da6bec`,
+  excluding concurrent ASW-2 edits. Seven independent failure/lifecycle probes reproduce seven
+  Must-fix findings; one Worth-fixing item aligns the inactive-writer spec with its accepted
+  journal lock. Original sequence/order/reconciliation corrections are verified. ASW1-1–8 retain
+  the same unit for fixes; passing existing suites, race and FTS5 checks do not cover those failures.
 - **2026-10-20 — Implemented ASW-1 conversation event commits:** one ref-counted journal per
   conversation serializes allocation, append/sync, index and ordered history publication for every
   writer (live events, annotations, notices, switch markers, fork prefixes); control observations

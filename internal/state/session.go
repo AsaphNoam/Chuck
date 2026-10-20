@@ -32,10 +32,13 @@ type SessionSnapshot struct {
 	// LaunchConfig is the frozen federation launch object (Phase 7 §2.5), stored
 	// verbatim as sessions.launch_config_json. Resume rebuilds from this rather
 	// than re-resolving the source. Empty object when the backend was unbound.
-	LaunchConfig   json.RawMessage
-	LastSessionID  string
-	LastSeq        int64
-	LastContextPct float64
+	LaunchConfig json.RawMessage
+	// ExecutionContract is the frozen effective native selection
+	// (TS-02.R53); nil for a legacy row.
+	ExecutionContract *ExecutionContract
+	LastSessionID     string
+	LastSeq           int64
+	LastContextPct    float64
 	// LastContext is the exact pair recorded with LastContextPct, or nil when
 	// raw counts are unknown (TS-02.R39).
 	LastContext *ContextCounts
@@ -62,17 +65,18 @@ func (s *Store) ReadSession(agentID string) (SessionSnapshot, error) {
 	var envKeysJSON string
 	var addDirsJSON string
 	var launchConfigJSON, capabilitiesJSON string
+	var contractJSON *string
 	var lastUsed, lastSize sql.NullInt64
 	err := s.db.QueryRow(`
 SELECT agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware,
        env_keys, skip_permissions, add_dirs, launch_config_json, last_session_id, last_seq, last_context_pct,
-       last_context_used, last_context_size, created_at, runtime_capabilities_json, history_primer
+       last_context_used, last_context_size, created_at, runtime_capabilities_json, history_primer, execution_contract_json
 FROM sessions WHERE agent_id = ?`, agentID).Scan(
 		&snap.AgentID, &snap.Name, &snap.Role, &snap.Project,
 		&snap.Backend, &snap.Model, &snap.Effort, &snap.Fast, &snap.Interface, &snap.Group,
 		&snap.Cwd, &snap.SystemPrompt, &snap.ChuckAware, &envKeysJSON, &snap.SkipPermissions, &addDirsJSON, &launchConfigJSON,
 		&snap.LastSessionID, &snap.LastSeq, &snap.LastContextPct, &lastUsed, &lastSize, &snap.CreatedAt,
-		&capabilitiesJSON, &snap.HistoryPrimer,
+		&capabilitiesJSON, &snap.HistoryPrimer, &contractJSON,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SessionSnapshot{}, ErrNotFound
@@ -87,6 +91,7 @@ FROM sessions WHERE agent_id = ?`, agentID).Scan(
 		snap.AddDirs = nil
 	}
 	snap.LaunchConfig = normalizeLaunchConfig(launchConfigJSON)
+	snap.ExecutionContract = decodeExecutionContract(contractJSON)
 	snap.RuntimeCapabilities = DecodeRuntimeCapabilities(capabilitiesJSON)
 	snap.LastContext = contextCountsFromColumns(lastUsed, lastSize)
 	return snap, nil

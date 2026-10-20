@@ -829,6 +829,13 @@ ALTER TABLE think_tanks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';`,
   updated_at TEXT NOT NULL
 );`,
 	},
+	{
+		// A session's frozen effective native selection (TS-02.R53). NULL is
+		// a legacy row whose selection is derived only from unambiguous
+		// frozen evidence, never from the current catalogue.
+		version: 58,
+		sql:     `ALTER TABLE sessions ADD COLUMN execution_contract_json TEXT;`,
+	},
 }
 
 // migrateQuotaChecks rebuilds quota_intents for the check chain and its

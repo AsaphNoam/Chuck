@@ -742,7 +742,7 @@ error crosses the API. Successful canonical append is not downgraded by derived-
 retain bounded repair eligibility until projection succeeds. Room source references are accepted
 only for committed canonical records; task/room/result authority remains in its existing tables.
 
-**R53 (planned) — Sessions retain a versioned effective execution contract.** Add a nullable
+**R53 — Sessions retain a versioned effective execution contract.** Add a nullable
 `execution_contract_json` to session snapshots through a forward migration. Version 1 records:
 catalogue backend/model key; provider/backend type; `model_choice:{kind:native|explicit,id?}`;
 resolved effort and applied fast; effective permission choice; supported setup root/profile and
@@ -757,6 +757,15 @@ requires the existing explicit configuration-refresh path or a new conversation;
 relabel/rewrite native history or choose another model/account. New native fork copies its source
 contract; a transient fork/check plan is not stored as user configuration. No raw native config,
 auth file, token or full environment is added to the contract.
+*Implementation:* migration 58 adds `sessions.execution_contract_json` (`state.ExecutionContract`),
+written through `session_meta`; a record without one keeps the stored value. `continuedContract`
+(`internal/server/contract.go`) is the one continuation seam for resume, wake, pipeline resume,
+switch, rollback and clone. Legacy derivation: native inheritance is proven by the frozen launch
+object; an unbound launch or an explicit switch proves an explicit catalogue-key choice, whose
+provider id is the catalogue's at first continuation (no other evidence exists) and is frozen
+from then on. A bound launch with neither mark refuses `422 source_invalid` before registration
+or switch teardown; resume with latest setup derives a new contract. Requested fast is the
+launch value; continuation records the agent's applied fast and effort.
 
 **R54 — Persist process proof and terminal native identity at their owning boundary.**
 Extend running rows forward-only with a versioned process proof: actual process birth value at

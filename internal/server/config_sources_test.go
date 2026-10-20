@@ -348,6 +348,7 @@ func TestComposeResumeSpecCarriesFrozenLaunchConfig(t *testing.T) {
 		AgentID: "a_res", Name: "Nova", Role: "implementer", Project: "fed",
 		Backend: "claude", Model: be.DefaultModel, Interface: "chat",
 		Cwd: t.TempDir(), LaunchConfig: frozen,
+		ExecutionContract: &state.ExecutionContract{Version: 1, Backend: "claude", Model: be.DefaultModel, ModelChoice: state.ModelChoice{Kind: "native"}},
 	}
 	agent := state.Agent{
 		AgentID: "a_res", Name: "Nova", Role: "implementer", Project: "fed",

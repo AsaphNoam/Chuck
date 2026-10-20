@@ -78,6 +78,10 @@ func (ix *Indexer) UpsertSessionMeta(agentID string, meta runtime.SessionMetaDat
 	if len(meta.LaunchConfig) > 0 {
 		launchConfig = string(meta.LaunchConfig)
 	}
+	contract, err := state.EncodeExecutionContract(meta.ExecutionContract)
+	if err != nil {
+		return fmt.Errorf("index: encode execution contract: %w", err)
+	}
 	capabilities := "{}"
 	if meta.RuntimeCapabilities != nil {
 		raw, err := json.Marshal(meta.RuntimeCapabilities)
@@ -95,8 +99,8 @@ func (ix *Indexer) UpsertSessionMeta(agentID string, meta runtime.SessionMetaDat
 	}
 	defer tx.Rollback()
 	_, err = tx.Exec(`
-INSERT INTO sessions(agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware, env_keys, skip_permissions, add_dirs, launch_config_json, runtime_capabilities_json, forked_from_agent_id, forked_from_seq, last_session_id, created_at, updated_at, history_primer)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?)
+INSERT INTO sessions(agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware, env_keys, skip_permissions, add_dirs, launch_config_json, runtime_capabilities_json, forked_from_agent_id, forked_from_seq, last_session_id, created_at, updated_at, history_primer, execution_contract_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?, ?)
 ON CONFLICT(agent_id) DO UPDATE SET
   name=excluded.name,
   role=excluded.role,
@@ -115,6 +119,7 @@ ON CONFLICT(agent_id) DO UPDATE SET
   skip_permissions=excluded.skip_permissions,
   add_dirs=excluded.add_dirs,
   launch_config_json=excluded.launch_config_json,
+  execution_contract_json=COALESCE(excluded.execution_contract_json, sessions.execution_contract_json),
   runtime_capabilities_json=excluded.runtime_capabilities_json,
   forked_from_agent_id=COALESCE(excluded.forked_from_agent_id, sessions.forked_from_agent_id),
   forked_from_seq=COALESCE(excluded.forked_from_seq, sessions.forked_from_seq),
@@ -124,7 +129,7 @@ ON CONFLICT(agent_id) DO UPDATE SET
   last_context_size=CASE WHEN ? THEN NULL ELSE sessions.last_context_size END,
   updated_at=MAX(excluded.updated_at, sessions.updated_at)`,
 		agentID, meta.Name, meta.Role, meta.Project, meta.Backend, meta.Model, meta.Effort, meta.Fast, meta.Interface,
-		meta.Group, meta.Cwd, meta.SystemPrompt, chuckAware, string(envKeys), meta.SkipPermissions, string(addDirs), launchConfig, capabilities, meta.ForkedFromAgentID, meta.ForkedFromSeq, meta.SessionID, now, now, meta.HistoryPrimer, meta.ResetContext, meta.ResetContext, meta.ResetContext)
+		meta.Group, meta.Cwd, meta.SystemPrompt, chuckAware, string(envKeys), meta.SkipPermissions, string(addDirs), launchConfig, capabilities, meta.ForkedFromAgentID, meta.ForkedFromSeq, meta.SessionID, now, now, meta.HistoryPrimer, contract, meta.ResetContext, meta.ResetContext, meta.ResetContext)
 	if err != nil {
 		return fmt.Errorf("index: upsert session meta: %w", err)
 	}

@@ -232,13 +232,9 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	// targets ignore it. Rollback re-launches the previous identity under the
 	// default driver, which is correct for the only shipped terminal driver.
 	spec.Driver = req.Driver
-	// A switch that changes only the interface/driver (same backend+model) must keep
-	// a native-inherited model inherited (§2.4): the frozen federation object carries
-	// over unchanged, so re-send no model rather than forcing the frozen backend id.
-	// A backend/model change is an explicit new identity and keeps its chosen model.
-	if target.Backend == agent.Backend && target.Model == agent.Model && frozenModelInherited(spec.LaunchConfig) {
-		spec.ModelID = ""
-	}
+	// The composer continued the frozen model choice for an interface/driver-only
+	// switch and froze an explicit one for a new backend/model; the launch object
+	// records that explicit choice as provenance.
 	if target.Backend != agent.Backend || target.Model != agent.Model {
 		var err error
 		spec.LaunchConfig, err = explicitModelConfig(spec.LaunchConfig)
@@ -314,7 +310,9 @@ func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAg
 		s.failSwitch(w, prevAgent.AgentID, "restore identity: "+err.Error())
 		return
 	}
-	spec, ae := s.composeSwitchSpec(prevAgent, prevSessionID)
+	// Compose from the pre-switch snapshot: a target startup may already have
+	// written its own metadata (bridge, launch object, contract) before failing.
+	spec, ae := s.composeSwitchSpecFrom(rollbackCtx, prevAgent, prevSessionID, previousSnapshot, nil)
 	if ae != nil {
 		// composeSwitchSpec mints a fresh hook token + MCP registration before it
 		// can fail; tear those down so a failed rollback leaves no spoofable
@@ -322,14 +320,6 @@ func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAg
 		s.teardownAgentRegistration(prevAgent.AgentID)
 		s.failSwitch(w, prevAgent.AgentID, "recompose previous: "+ae.Message)
 		return
-	}
-	// A target startup may have already written metadata before failing. Restore
-	// the bridge and model provenance owned by the previous native conversation.
-	spec.HistoryPrimer = previousSnapshot.HistoryPrimer
-	spec.LaunchConfig = previousSnapshot.LaunchConfig
-	spec.LastContextPct, spec.LastContext = previousSnapshot.LastContextPct, previousSnapshot.LastContext
-	if frozenModelInherited(spec.LaunchConfig) {
-		spec.ModelID = ""
 	}
 	if _, err := s.registry.Resume(rollbackCtx, spec); err != nil {
 		s.teardownAgentRegistration(prevAgent.AgentID)
@@ -360,7 +350,8 @@ func (s *Server) failSwitch(w http.ResponseWriter, agentID, detail string) {
 // stops the live agent. composeSwitchSpec repeats these lookups (and does the
 // registration) once the old artifacts are cleaned.
 func (s *Server) validateSwitchTarget(target state.Agent) *runtime.APIError {
-	if _, err := s.stateStore.ReadSession(target.AgentID); err != nil {
+	snap, err := s.stateStore.ReadSession(target.AgentID)
+	if err != nil {
 		if errors.Is(err, state.ErrNotFound) {
 			return apiError(runtime.CodeValidation, "no persisted session to switch")
 		}
@@ -383,6 +374,11 @@ func (s *Server) validateSwitchTarget(target state.Agent) *runtime.APIError {
 	}
 	if err := config.ValidateModelEffort(be, be.Models[target.Model], target.Effort); err != nil {
 		return apiError(runtime.CodeInvalidField, err.Error())
+	}
+	// An undecidable legacy selection refuses before the source runtime stops
+	// (FS-01.R53); the rollback composer would refuse it too.
+	if _, ae := continuedContract(snap, target, be, be.Models[target.Model], false); ae != nil {
+		return ae
 	}
 	// Only claude-acp supports the terminal interface; reject a terminal switch to
 	// any other backend rather than land a statusless agent that drops the composed
@@ -414,7 +410,13 @@ func (s *Server) composeSwitchSpecContext(ctx context.Context, target state.Agen
 	if err != nil {
 		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
 	}
+	return s.composeSwitchSpecFrom(ctx, target, resumeID, snap, notice)
+}
 
+// composeSwitchSpecFrom builds the switch/rollback spec from an explicit
+// snapshot. Rollback passes the previous identity's pre-switch snapshot, so a
+// failed target start cannot leak its metadata into the restored runtime.
+func (s *Server) composeSwitchSpecFrom(ctx context.Context, target state.Agent, resumeID string, snap state.SessionSnapshot, notice *worktreeStartNotice) (runtime.LaunchSpec, *runtime.APIError) {
 	backends, err := s.configStore.ReadBackends()
 	if err != nil {
 		if errors.Is(err, config.ErrNotFound) || errors.Is(err, config.ErrCorrupt) {
@@ -430,6 +432,12 @@ func (s *Server) composeSwitchSpecContext(ctx context.Context, target state.Agen
 	model, ok := be.Models[target.Model]
 	if !ok {
 		return runtime.LaunchSpec{}, apiError(runtime.CodeInvalidField, "unknown model: "+target.Model)
+	}
+	// Same identity continues the frozen selection; a new backend/model is an
+	// explicit catalogue choice (TS-01.R40).
+	contract, ae := continuedContract(snap, target, be, model, false)
+	if ae != nil {
+		return runtime.LaunchSpec{}, ae
 	}
 
 	// validateSwitchTarget already proved the provider selectable before the
@@ -480,7 +488,7 @@ func (s *Server) composeSwitchSpecContext(ctx context.Context, target state.Agen
 		HistoryPrimer:      snap.HistoryPrimer,
 		ChuckAware:         &snap.ChuckAware,
 		BackendType:        be.Type,
-		ModelID:            model.Model,
+		ModelID:            contract.ProviderModelID(),
 		Effort:             target.Effort,
 		Fast:               target.Fast,
 		Env:                composeChildEnv(be.Type, s.configStore.Home(), be.Env, model.Env, s.hookEnv(target, token), projectResourcesEnv(resourceDir), providerEnv),
@@ -496,7 +504,8 @@ func (s *Server) composeSwitchSpecContext(ctx context.Context, target state.Agen
 		LastContext:        snap.LastContext,
 		// Switch continues the same logical session, so the frozen federation launch
 		// object carries over unchanged — switch never re-resolves the source (§2.5).
-		LaunchConfig: snap.LaunchConfig,
+		LaunchConfig:      snap.LaunchConfig,
+		ExecutionContract: contract,
 	}
 	return s.applyKnowledgeOverlay(spec), nil
 }

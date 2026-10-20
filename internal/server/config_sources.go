@@ -13,6 +13,7 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/configsource"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
+	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 // newConfigSourceManager builds the federation SourceManager over the real user
@@ -546,6 +547,7 @@ type federationModel struct {
 	inherit        bool
 	override       *string
 	effortOverride *string
+	setup          state.SetupChoice
 }
 
 // composeFederation resolves a backend's active source binding fresh at launch and
@@ -583,7 +585,11 @@ func (s *Server) composeFederation(ctx context.Context, backendID string, req la
 				"native configuration already declares the reserved MCP server id "+messagingMCPName)
 		}
 	}
-	inherited := req.Model == "" && binding.Overrides.Model == nil
+	// An explicit empty override is a reset to inheritance (config.SourceOverrides):
+	// normalize it here, before precedence, so an empty model means native and
+	// an empty effort falls through to the catalogue default (FS-08.R37, TS-07.R19).
+	modelOverride, effortOverride := nonEmpty(binding.Overrides.Model), nonEmpty(binding.Overrides.Effort)
+	inherited := req.Model == "" && modelOverride == nil
 	doc := launchConfigDoc{
 		Version:         1,
 		Binding:         launchConfigBinding{BackendID: backendID, Provider: binding.Provider, Profile: binding.Profile, Mode: binding.Mode},
@@ -597,14 +603,21 @@ func (s *Server) composeFederation(ctx context.Context, backendID string, req la
 	if err != nil {
 		return nil, nil, apiError(runtime.CodeInternal, "marshal launch config: "+err.Error())
 	}
-	fed := &federationModel{inherit: inherited}
-	if req.Model == "" && binding.Overrides.Model != nil {
-		fed.override = binding.Overrides.Model
+	fed := &federationModel{inherit: inherited, setup: boundSetup(doc.Binding)}
+	if req.Model == "" {
+		fed.override = modelOverride
 	}
-	if req.Effort == "" && binding.Overrides.Effort != nil {
-		fed.effortOverride = binding.Overrides.Effort
+	if req.Effort == "" {
+		fed.effortOverride = effortOverride
 	}
 	return data, fed, nil
+}
+
+func nonEmpty(v *string) *string {
+	if v == nil || *v == "" {
+		return nil
+	}
+	return v
 }
 
 // frozenModelInherited reports whether a frozen federation launch object marks the
