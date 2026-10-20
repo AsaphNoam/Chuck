@@ -178,7 +178,7 @@ func (r *Runtime) openPersistence(a *termAgent, spec rt.LaunchSpec, sessionID st
 	// journal like any inactive append (TS-01.R39).
 	if err := journals.Record(spec.Agent.AgentID, func() (rt.TranscriptWriter, error) {
 		return open(home, spec.Agent.AgentID, &meta)
-	}); err != nil {
+	}, ix); err != nil {
 		return fmt.Errorf("terminal: open transcript: %w", err)
 	}
 	if err := ix.UpsertSessionMeta(spec.Agent.AgentID, meta); err != nil {

@@ -455,11 +455,12 @@ SELECT
     a.agent_id, a.name, a.role, a.project, a.backend, a.model, a.effort, a.fast, a.interface, a.grp, a.created_at, a.archived,
     r.pid, r.session_id, r.tty, r.driver, r.started_at, r.fast_available, r.steering_available,
     st.state, st.detail, st.last_trace, st.busy_since, st.context_pct, st.context_used, st.context_size,
-    s.runtime_capabilities_json, s.last_session_id
+    s.runtime_capabilities_json, s.last_session_id, h.state, h.reason
 FROM agents a
 LEFT JOIN running r ON r.agent_id = a.agent_id
 LEFT JOIN status st ON st.agent_id = a.agent_id
 LEFT JOIN sessions s ON s.agent_id = a.agent_id
+LEFT JOIN conversation_health h ON h.agent_id = a.agent_id
 WHERE a.agent_id = ?`, agentID)
 
 	var out AgentState
@@ -469,13 +470,13 @@ WHERE a.agent_id = ?`, agentID)
 	var state, detail, lastTrace, busySince sql.NullString
 	var contextPct sql.NullFloat64
 	var contextUsed, contextSize sql.NullInt64
-	var capabilities, nativeSession sql.NullString
+	var capabilities, nativeSession, historyState, historyReason sql.NullString
 	err := row.Scan(
 		&out.AgentID, &out.Name, &out.Role, &out.Project, &out.Backend, &out.Model, &out.Effort, &out.Fast,
 		&out.Interface, &out.Group, &out.CreatedAt, &out.Archived,
 		&pid, &sessionID, &tty, &driver, &startedAt, &fastAvailable, &steeringAvailable,
 		&state, &detail, &lastTrace, &busySince, &contextPct, &contextUsed, &contextSize,
-		&capabilities, &nativeSession,
+		&capabilities, &nativeSession, &historyState, &historyReason,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		if !m.isKnown(agentID) {
@@ -513,6 +514,11 @@ WHERE a.agent_id = ?`, agentID)
 	// the extension — both render no Steer control rather than a failing one.
 	out.SteeringAvailable = steeringAvailable.Valid && steeringAvailable.Bool
 	out.RuntimeCapabilities = DecodeRuntimeCapabilities(capabilities.String)
+	// No row is legacy unknown: the field stays absent rather than "ok" (TS-03.R73).
+	out.HistoryState = historyState.String
+	if out.HistoryState == "degraded" {
+		out.HistoryReason = historyReason.String
+	}
 	out.AttachmentCapabilities = AttachmentCapabilitiesFor(out.Interface, out.RuntimeCapabilities)
 	if state.Valid && state.String != "" {
 		out.State = state.String

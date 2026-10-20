@@ -683,3 +683,6 @@ func (r *Registry) AppendPeerStopNoticeAndSync(agentID string, data NoticeData) 
 	}
 	return chat.AppendPeerStopNoticeAndSync(agentID, data)
 }
+
+// Journals is the shared per-conversation journal set (TS-01.R39).
+func (r *Registry) Journals() *Journals { return r.chat.Journals() }

@@ -743,6 +743,10 @@ func sessionOpError(err error) *runtime.APIError {
 		return apiError(runtime.CodeNotFound, "agent not started")
 	case errors.Is(err, runtime.ErrTurnInFlight):
 		return apiError(runtime.CodeConflict, "a turn is already in flight")
+	case errors.Is(err, runtime.ErrHistoryUnavailable):
+		// A definite refusal: nothing reached the agent and the draft stays
+		// with the person; Stop and approvals remain available (FS-03.R99).
+		return apiError(runtime.CodeConflict, "Nothing was sent: this conversation's history can't be saved right now. Your message is kept — try again once storage is available.")
 	default:
 		return apiError(runtime.CodeInternal, err.Error())
 	}

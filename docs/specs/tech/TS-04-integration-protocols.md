@@ -1438,7 +1438,7 @@ the only decoded shape: any other `rawOutput` (absent, a string, a string `error
 leaves `error` empty, and `rawOutput` is never copied into user-facing text as raw JSON
 (INV §8/§11/§12). The existing tool-result renderer shows `error` when content is empty.
 
-**R100 (planned) — Native observations carry independent history/control authority.** Replace
+**R100 — Native observations carry independent history/control authority.** Replace
 the combined history/control event sink with TS-01.R39's committed-history publisher and typed
 control observer. History publication remains the same runtime.Event/SSE shape; an internal
 observation adds canonical/index outcome and captured generation/turn. Provider progress is not
@@ -1590,6 +1590,12 @@ durable/public contract. FS-01.A34 verifies these callbacks at the actual ACP fr
   local turn state is committed before the provider frame is written (R27).
 
 ## 5. Deviations & open decisions
+
+- **History/control split shipped 2026-10-20 (ASW-1, R100):** `SetHistoryPublisher` carries committed history and
+  `SetEventSink(func(Observation))` carries control with its commit outcome. Room capture fails its
+  exact attempt on any uncommitted source of the turn through the existing fail/hold path; a hold
+  write that also fails leaves the attempt running, which restart recovery (`RecoverThinkTanks`)
+  fences and holds.
 
 - R90–R91 were approved 2026-10-12 and implemented 2026-10-13. Pinned and authenticated live
   receipts verify native image input, copied-file reads and attachment Steer on Claude ACP 0.85.1

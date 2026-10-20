@@ -564,6 +564,11 @@ func (c *ChatRuntime) SendMessageOrHold(ctx context.Context, agentID string, mes
 	if _, err := c.messageContent(as, message); err != nil {
 		return false, err
 	}
+	// Refuse before holding too: a refused Send keeps the person's draft,
+	// while a held message would later fail out of sight (FS-03.R99).
+	if err := as.journal.Admit(); err != nil {
+		return false, err
+	}
 	as.mu.Lock()
 	if as.stopping || as.stopped {
 		as.mu.Unlock()
@@ -656,6 +661,9 @@ func (c *ChatRuntime) Steer(ctx context.Context, agentID, text string) (SteerOut
 func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message Message) (SteerOutcome, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
+		return "", err
+	}
+	if err := as.journal.Admit(); err != nil {
 		return "", err
 	}
 
@@ -946,6 +954,14 @@ func (c *ChatRuntime) runPromptTurn(as *agentState, text, turnID string) error {
 }
 
 func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID string) error {
+	// No turn — manual, held successor or dispatched — starts while its
+	// history cannot be recorded (FS-03.R99).
+	if err := as.journal.Admit(); err != nil {
+		as.mu.Lock()
+		as.turnActive = false
+		as.mu.Unlock()
+		return err
+	}
 	content, err := c.messageContent(as, message)
 	if err != nil {
 		as.mu.Lock()
@@ -1621,6 +1637,10 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	}
 	as, err := c.lookup(agentID)
 	if err != nil {
+		return false, err
+	}
+	// An automatic activation never starts on unrecorded history (FS-03.R99).
+	if err := as.journal.Admit(); err != nil {
 		return false, err
 	}
 	quotaContinuation := kind == state.ActivationKindQuotaContinue || kind == state.ActivationKindQuotaThinkTank
@@ -2302,13 +2322,7 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 		return fmt.Errorf("runtime: open transcript: %w", err)
 	}
 	if err := ix.UpsertSessionMeta(spec.Agent.AgentID, meta); err != nil {
-		if w := as.journal.Detach(attachment); w != nil {
-			if spec.Fork != nil {
-				_ = w.Discard() // a failed clone leaves no transcript (INV §15)
-			} else {
-				_ = w.Close()
-			}
-		}
+		_ = as.journal.Close(attachment, spec.Fork != nil) // a failed clone leaves no transcript (INV §15)
 		return fmt.Errorf("runtime: index session meta: %w", err)
 	}
 	as.mu.Lock()
@@ -2318,23 +2332,22 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 	return nil
 }
 
-// detachJournal detaches this generation's writer, if it still owns it.
-func (as *agentState) detachJournal() TranscriptWriter {
+// closeJournal closes this generation's writer, if it still owns it, and
+// records the clean close (TS-02.R52); discard removes a failed clone's log.
+func (as *agentState) closeJournal(discard bool) {
 	as.mu.Lock()
 	attachment := as.journalAttachment
 	as.mu.Unlock()
 	if attachment == 0 {
-		return nil
+		return
 	}
-	return as.journal.Detach(attachment)
+	if err := as.journal.Close(attachment, discard); err != nil {
+		slog.Error("runtime: close transcript", "agent", as.agentID, "discard", discard, "err", err)
+	}
 }
 
 func (as *agentState) closePersistence() {
-	if w := as.detachJournal(); w != nil {
-		if err := w.Close(); err != nil {
-			slog.Error("runtime: close transcript", "agent", as.agentID, "err", err)
-		}
-	}
+	as.closeJournal(false)
 	as.releaseJournal()
 }
 

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -251,5 +252,184 @@ func TestControlObservationsSettleInCommitOrder(t *testing.T) {
 		if seqs[i] <= seqs[i-1] {
 			t.Fatalf("control order %d after %d: observations must follow commit order", seqs[i], seqs[i-1])
 		}
+	}
+}
+
+type memHealth struct {
+	mu       sync.Mutex
+	h        map[string]HistoryHealth
+	failOpen bool
+}
+
+func (m *memHealth) ReadHistoryHealth(id string) (HistoryHealth, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.h[id], nil
+}
+func (m *memHealth) WriteHistoryHealth(id string, h HistoryHealth) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.failOpen && h.OpenWriter && h.State == HistoryOK {
+		return errors.New("db locked")
+	}
+	if m.h == nil {
+		m.h = map[string]HistoryHealth{}
+	}
+	m.h[id] = h
+	return nil
+}
+
+func noticeTitles(t *testing.T, w *recordingWriter, events []Event) []string {
+	t.Helper()
+	var out []string
+	for _, ev := range events {
+		var n NoticeData
+		if ev.Type == EvNotice && json.Unmarshal(ev.Data, &n) == nil {
+			out = append(out, n.Title)
+		}
+	}
+	return out
+}
+
+// eventWriter records whole events so a test can inspect gap notices.
+type eventWriter struct {
+	recordingWriter
+	events []Event
+}
+
+func (w *eventWriter) Append(ev Event) error {
+	if err := w.recordingWriter.Append(ev); err != nil {
+		return err
+	}
+	w.events = append(w.events, ev)
+	return nil
+}
+
+// FS-03.R99 / TS-02.R52: an uncertain append degrades durable health outside
+// the log and refuses new work; once storage works again, Admit reopens the log,
+// records one gap notice at a fresh sequence and reports healthy.
+func TestJournalDegradesThenRecoversWithGapNotice(t *testing.T) {
+	health := &memHealth{}
+	var notified []HistoryHealth
+	s := NewJournals(nil)
+	s.SetHealth(health, func(_ string, h HistoryHealth) { notified = append(notified, h) })
+	j := s.Acquire("a_h")
+	first := &eventWriter{recordingWriter: recordingWriter{failSeq: 2}}
+	reopenFails := true
+	second := &eventWriter{}
+	opens := 0
+	open := func() (TranscriptWriter, error) {
+		opens++
+		if opens == 1 {
+			return first, nil
+		}
+		if reopenFails {
+			return nil, errors.New("disk still full")
+		}
+		return second, nil
+	}
+	if _, _, err := j.Open(open, &removalIndexer{}); err != nil {
+		t.Fatal(err)
+	}
+	if h := health.h["a_h"]; h.State != HistoryOK || !h.OpenWriter {
+		t.Fatalf("open marker = %+v", h)
+	}
+	j.Commit(CommitRequest{Event: Event{Type: EvAssistantText}})
+	if obs := j.Commit(CommitRequest{Event: Event{Type: EvAssistantText}}); obs.Outcome != CommitUncertain {
+		t.Fatalf("outcome = %v", obs.Outcome)
+	}
+	if h := health.h["a_h"]; h.State != HistoryDegraded || h.Reason != "append_failed" || h.ReservedSeq != 2 || !h.OpenWriter {
+		t.Fatalf("degraded health = %+v", h)
+	}
+	if len(notified) != 1 || notified[0].State != HistoryDegraded {
+		t.Fatalf("notifications = %+v", notified)
+	}
+	if err := j.Admit(); !errors.Is(err, ErrHistoryUnavailable) {
+		t.Fatalf("Admit while storage still fails = %v", err)
+	}
+	if h := health.h["a_h"]; h.State != HistoryDegraded {
+		t.Fatalf("health after failed repair = %+v", h)
+	}
+	reopenFails = false
+	if err := j.Admit(); err != nil {
+		t.Fatalf("Admit after storage recovered: %v", err)
+	}
+	if titles := noticeTitles(t, &second.recordingWriter, second.events); len(titles) != 1 || titles[0] != "Some conversation history could not be saved" {
+		t.Fatalf("gap notices = %v", titles)
+	}
+	if second.events[0].Seq <= 2 {
+		t.Fatalf("gap notice reused reserved sequence %d", second.events[0].Seq)
+	}
+	if h := health.h["a_h"]; h.State != HistoryOK || !h.OpenWriter {
+		t.Fatalf("health after recovery = %+v", h)
+	}
+	if obs := j.Commit(CommitRequest{Event: Event{Type: EvAssistantText}}); !obs.Committed() {
+		t.Fatalf("commit after recovery = %+v", obs)
+	}
+}
+
+// TS-02.R52: a writer that never closed cleanly (crash) leaves its marker;
+// the next open records a gap notice. Legacy unknown health gets none, a clean
+// close clears the marker, and failure to record the marker refuses the writer.
+func TestJournalOpenMarkerRecovery(t *testing.T) {
+	health := &memHealth{h: map[string]HistoryHealth{"a_crash": {State: HistoryOK, OpenWriter: true}}}
+	s := NewJournals(nil)
+	s.SetHealth(health, nil)
+
+	crashed := &eventWriter{}
+	j := s.Acquire("a_crash")
+	att, _, err := j.Open(func() (TranscriptWriter, error) { return crashed, nil }, &removalIndexer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if titles := noticeTitles(t, &crashed.recordingWriter, crashed.events); len(titles) != 1 || titles[0] != "Conversation history may be incomplete" {
+		t.Fatalf("unclean-stop gap notices = %v", titles)
+	}
+	if err := j.Close(att, false); err != nil {
+		t.Fatal(err)
+	}
+	if h := health.h["a_crash"]; h.State != HistoryOK || h.OpenWriter {
+		t.Fatalf("health after clean close = %+v", h)
+	}
+
+	legacy := &eventWriter{}
+	if _, _, err := s.Acquire("a_legacy").Open(func() (TranscriptWriter, error) { return legacy, nil }, &removalIndexer{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(legacy.events) != 0 {
+		t.Fatalf("legacy unknown health wrote %d records; want validation only", len(legacy.events))
+	}
+
+	health.failOpen = true
+	if _, _, err := s.Acquire("a_refused").Open(func() (TranscriptWriter, error) { return &eventWriter{}, nil }, &removalIndexer{}); err == nil {
+		t.Fatal("writer admitted without a recorded open marker")
+	}
+}
+
+// FS-03.A78: a newer generation's open supersedes a writer the older one has
+// not yet closed; the older generation's late commit continues the same
+// sequence space and its late Close leaves the new writer attached.
+func TestJournalGenerationReplacement(t *testing.T) {
+	s := NewJournals(nil)
+	j := s.Acquire("a_gen")
+	oldW, newW := &eventWriter{}, &eventWriter{}
+	oldAtt, _, err := j.Open(func() (TranscriptWriter, error) { return oldW, nil }, &removalIndexer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	j.Commit(CommitRequest{Event: Event{Type: EvAssistantText, Generation: "g1"}})
+	if _, _, err := j.Open(func() (TranscriptWriter, error) { return newW, nil }, &removalIndexer{}); err != nil {
+		t.Fatal(err)
+	}
+	late := j.Commit(CommitRequest{Event: Event{Type: EvTurnEnd, Generation: "g1"}})
+	if err := j.Close(oldAtt, false); err != nil {
+		t.Fatal(err)
+	}
+	next := j.Commit(CommitRequest{Event: Event{Type: EvUserPrompt, Generation: "g2"}})
+	if !late.Committed() || !next.Committed() || late.Event.Seq != 2 || next.Event.Seq != 3 {
+		t.Fatalf("late=%+v next=%+v; want seqs 2 and 3 committed", late, next)
+	}
+	if len(oldW.events) != 1 || len(newW.events) != 2 {
+		t.Fatalf("old writer kept %d, new writer %d; want 1 and 2", len(oldW.events), len(newW.events))
 	}
 }

@@ -43,8 +43,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
-- [`serialize-conversation-event-commits.md`](serialize-conversation-event-commits.md) — ASW-1:
-  one conversation journal/ordered publication boundary, with independent task/room control authority.
 - [`preserve-native-execution-contract.md`](preserve-native-execution-contract.md) — ASW-2:
   preserve effective native selection by fresh/resume/fork/check purpose and record bounded requested evidence.
 

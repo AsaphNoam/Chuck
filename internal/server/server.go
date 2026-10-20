@@ -265,6 +265,12 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 			return transcript.Open(home, agentID, meta)
 		}, ix)
 		registry.SetStateTouch(touch)
+		// History health is persisted outside the transcript and surfaced by
+		// the agent's state_update, never by appending to the failing log
+		// (FS-03.R99, TS-03.R73).
+		registry.Journals().SetHealth(historyHealthStore{stateStore}, func(agentID string, _ runtime.HistoryHealth) {
+			touch(agentID)
+		})
 		// Construct + register the terminal runtime here (it lives in a subpackage
 		// that imports runtime, so the Registry can't build it without an import
 		// cycle — see Registry.SetTerminalRuntime). Wire its state-touch the same

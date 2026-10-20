@@ -36,7 +36,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   The human explicitly authorized these cross-review batches; for this campaign select the new
   unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
   migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
-  control, ambiguous replay and the config read-loop stall. ASW-1 is active; ASW-3's implementation
+  control, ambiguous replay and the config read-loop stall. ASW-1 is finished and awaits review; ASW-3's implementation
   is reviewed with five findings open below; other units remain waiting. The
   [systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
 - **Prompt/harness investigation:** ASR-A reopens PROMPT-1 for ancestor-project Codex instruction
@@ -65,24 +65,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- **ASW-1 — [serialize conversation event commits](../ready-changes/serialize-conversation-event-commits.md)
-  — in progress (started 2026-10-19).** Owns ASRD-1/2/3/5. Done: (1) reconcile reads only the
-  canonical log, bounded; (2) `runtime.Journal` (`internal/runtime/journal.go`) serializes seq
-  allocation → append/required sync → index → in-memory/hub → bus (`SetHistoryPublisher`) under
-  `Journal.mu` (order `Journal.mu` → `as.mu`); `not_written|uncertain|committed` + `IndexOK`;
-  uncertain latches `broken`; `SetEventSink(func(Observation))` is control-only; room capture
-  fails on an uncommitted source; (3) `runtime.Journals` is per agent ID and shared with terminal
-  (`Journals.Record`); server writers use `Registry.AppendHistory`/`CommitInactive` only; switch
-  marker failure after activation returns the applied-but-unrecorded message. Review note:
-  inactive annotation is fenced by the journal lock, not `claimLifecycle`. (4) `controlQueue`
-  (`internal/runtime/control.go`): slot reserved before the journal (cancellable by `as.ctx`),
-  enqueue via `CommitRequest.Observe` in commit order, one lazy drainer; `turn_end` emit waits for
-  its own delivery. *Next:* (5) health/gap
-  recovery: forward migration, `history_state`, open-writer marker, admission latch, repair of a
-  latched journal with a gap notice (today `Journal.Open` just clears it), uncommitted permission
-  resolutions surfaced (FS-03.R99, TS-02.R52, TS-03.R73). Checks so far: `go test
-  ./internal/runtime/... ./internal/server ./internal/bus ./internal/transcript ./internal/index`
-  and `-race` on journal/annotation/switch/room tests.
+- None in progress. ASW-1 (conversation event commits) finished 2026-10-20 and awaits its
+  substantive review (Review queue).
 - ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19; five Must-fix findings
   keep the unit open (Review findings). FS-07.A12 real tmux/iTerm2 receipts are owed.
 
@@ -206,13 +190,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-1 in progress; ASW-3 reviewed with findings open; all others waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1 finished (awaiting review); ASW-3 reviewed with findings open; all others waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are ready in
 [`docs/ready-changes/`](../ready-changes/README.md):
 
 | Unit | Invocation | Outcome |
 |---|---|---|
-| ASW-1 | in progress 2026-10-19 (`/work serialize-conversation-event-commits`) | One canonical commit boundary, ordered control observations and truthful history failure |
+| ASW-1 | finished 2026-10-20 — awaiting review (see Review queue) | One canonical commit boundary, ordered control observations and truthful history failure |
 | ASW-2 | `/work preserve-native-execution-contract` | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
 | ASW-3 | reviewed 2026-10-19 — five findings open (see Review findings) | Process/terminal ownership and native terminal identity; incomplete fail-closed control and launch-hook ordering |
 
@@ -261,6 +245,16 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | reviewed — findings open (`d49a8f86`) |
 
 **Implementation review units (independent of the table above):**
+
+- **ASW-1 — conversation event commits** (`3f746c2a`, `69ef5951`, `1843470f`, `57af7f61` and the
+  slice-5/closure commit) — **awaiting review**. Review the journal (`internal/runtime/journal.go`,
+  `control.go`), every writer routed through it (`Registry.AppendHistory`/`CommitInactive`), the
+  history/control sink split, migration 57 `conversation_health`, the admission latch and the
+  `history_state` projection. Reviewer notes: inactive annotations are fenced by the journal lock,
+  not `claimLifecycle`; a cancelled control reservation enqueues unreserved; every unclean stop
+  yields one gap notice; index degradation repairs only via offline reindex; no UI banner reads
+  `history_state` yet; `as.seq` may lag a gap notice until the next commit. Spec deviations record
+  these in FS-03/TS-01–04 §5/§6. ASRD-4 stays with ASF-2.
 
 - **ASW-3 — process and terminal-driver ownership** (`2609e903`, `3e7df682`, `e2cf34f8`,
   `9a0bf119`, closure `3618df3e`) — **reviewed; findings open**. Reviewed
@@ -739,10 +733,11 @@ Tree clean at entry. Source mode: repository source at
   also a control-consumer boundary. Do not globally suppress cleanup of an independently committed
   task result when transcript persistence fails. Make event durability/authority explicit to each
   consumer; the [fix strategy](AGENT-SURFACE-FIX-STRATEGY.md) records the distinction and limits.
-  *Partly fixed in ASW-1 slice 2 (2026-10-19):* uncommitted events never reach hub/bus/in-memory
-  history and the control observer carries the outcome (`TestJournalFailedAppendIsNotPublished`,
-  `TestThinkTankUncommittedSourceFailsAttempt`). Open until slice 5: health surfacing, repair
-  of a latched journal with a durable gap notice, and the admission latch.
+  *Fixed in ASW-1 slices 2/5 (2026-10-19/20), pending review:* uncommitted events never reach
+  hub/bus/in-memory history; control observes the outcome; health is persisted outside the log,
+  repaired with a durable gap notice, and new work is refused until then
+  (`TestJournalFailedAppendIsNotPublished`, `TestJournalDegradesThenRecoversWithGapNotice`,
+  `TestThinkTankUncommittedSourceFailsAttempt`, `TestHistoryUnavailableIsADefiniteRefusal`).
 - **Must fix** — ASRD-4 — **Retrying an annotation after a lost response delivers it twice**
   (INV §2/§11/§15). `ui/src/components/chat/annotationDelivery.ts:76–94`,
   `ui/src/lib/annotations.ts:69–76`, `internal/server/sessions.go:232–262`: delivery inserts
@@ -1399,6 +1394,13 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-20 — Implemented ASW-1 conversation event commits:** one ref-counted journal per
+  conversation serializes allocation, append/sync, index and ordered history publication for every
+  writer (live events, annotations, notices, switch markers, fork prefixes); control observations
+  carry the commit outcome through a bounded ordered queue; history health is persisted outside the
+  log (migration 57), repaired with a durable gap notice and gates new work; the reconcile sweep
+  reads only the canonical log. Fixes ASRD-1/2/3/5 pending review; FS-03.R99/A78, TS-01.R39,
+  TS-02.R52, TS-03.R73 and TS-04.R100 shipped with recorded deviations.
 - **2026-10-19 — Reviewed process and terminal-driver ownership (ASW-3):** audited
   `a3bd6015..3618df3e` in `/tmp/chuck-asw3-review-20261019`, independently of ongoing ASW-1
   work. Five Must-fix findings keep this unit open: failed-proof Stop, false unknown-proof exit,

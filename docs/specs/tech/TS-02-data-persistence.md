@@ -723,7 +723,7 @@ FS-16.R50, `tasks.group_name TEXT NOT NULL DEFAULT ''` holds the normalized proj
 other durable launch inputs (R30), so a task admitted after restart launches into the group it was
 created with. Empty is ungrouped; existing rows adopt it unchanged.
 
-**R52 (planned) — Canonical journal outcomes are explicit.** TS-01.R39 keeps the normalized
+**R52 — Canonical journal outcomes are explicit.** TS-01.R39 keeps the normalized
 NDJSON format and event vocabulary; no rewrite/renumber of historical records is authorized.
 Internal commit result distinguishes `not_written|uncertain|committed` (complete append and
 required sync) and independently `index_ok|index_degraded`. Uncertain partial/sync outcomes
@@ -874,6 +874,13 @@ R1–R26 and must be reflected here when its contract changes.
   than independently rebuilding the environment, prompt, or additional directories.
 
 ## 5. Deviations & open decisions
+
+- **Journal outcomes shipped 2026-10-20 (ASW-1, R52):** health lives in its own `conversation_health` table
+  (migration 57) rather than `sessions` columns, because the open-writer marker must be recordable
+  before a new agent's `sessions` row exists. A surviving open marker always yields one
+  "may be incomplete" gap notice: unsynced streaming output cannot be detected after a crash.
+  Index degradation is tracked in memory and logged; its repair remains the offline `chuck
+  reindex`, not an automatic projection retry.
 
 - R46–R47 were approved 2026-10-12 and implemented 2026-10-13. Migration 51's checkpoint-50
   upgrade and attachment receipt restart/recovery behavior are covered by `internal/state` receipt

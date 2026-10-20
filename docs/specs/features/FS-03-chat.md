@@ -785,7 +785,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   Tank rooms, the dashboard, the phone companion and every API are unchanged; stopped siblings
   are reached through the project dashboard as before (operator decision 2026-10-18).
 
-**R99 (planned) — Conversation history has one commit boundary.** TS-01.R39 orders live,
+**R99 — Conversation history has one commit boundary.** TS-01.R39 orders live,
 annotation, notice and lifecycle-marker events through one conversation owner. Only complete
 canonical records with their required sync are presented as retained history; derived indexing
 failure is reported separately and cannot make a committed native delivery look unaccepted.
@@ -1453,7 +1453,7 @@ A71–A75 are covered by `readerLayout.test.ts`, `ReaderWorkspace.test.tsx` and 
 pages, Core/Sky & Grove/Studio at 1024, 1440 and 2137px, nested New task launch) and
 `ui/scripts/room-render.mjs <out> file` for the room viewer.
 
-**A78 (planned)** (R99) — Barrier-driven tests interleave provider output, active/inactive
+**A78** (R99) — Barrier-driven tests interleave provider output, active/inactive
 annotation, notices, switch markers and resume, asserting unique increasing durable and observed
 sequences for history publication. Control observations assert per-domain ordered settlement,
 reentrant notice safety and no successor before terminal acknowledgement. Inject append,
@@ -1467,6 +1467,13 @@ can restore its original hold; unknown consumption requires explicit recovery. T
 phone and CLI callers with actual provider-submission counts in controlled fixtures.
 
 ## 6. Deviations & open decisions
+
+- **History commit boundary shipped 2026-10-20 (ASW-1, R99/A78):** A78 is covered by runtime journal tests (concurrent
+  commit order, append/sync/index failure, degrade → repair with gap notice, open-marker recovery,
+  generation replacement, ordered reentrant control) and server tests (both switch directions then
+  a prompt, concurrent inactive annotations, uncommitted room source, latch refusal, projection).
+  The person sees the latch through the refused Send's message; the chat has no dedicated
+  degraded-history banner yet. Native/device receipts are not claimed from fixtures.
 
 - **File reader shipped, 2026-10-17:** the operator approved the resizable split reader, optional
   Focus file modal, shared annotations and page-lifetime sizing, and required avoiding

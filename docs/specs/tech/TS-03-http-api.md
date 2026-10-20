@@ -1030,7 +1030,7 @@ pairing scope is added. Original-work notices remain the only transcript change 
 FS-01.R50 sentence only on corroborated continuation. Verify serialized projections plus rendered
 cancel/reload/disable and quiet-failure journeys under FS-01.A33–A34.
 
-**R73 (planned) — History health and applied lifecycle state are truthful.** Add bounded
+**R73 — History health and applied lifecycle state are truthful.** Add bounded
 `history_state:ok|degraded` and optional sanitized `history_reason` to the existing conversation/
 session projection; absence means legacy unknown, not verified healthy. FS-03.R99's storage latch
 blocks new/automatic work without hiding Stop or approvals. Health errors travel via the existing
@@ -1162,6 +1162,10 @@ integers instead of silently applying defaults.
   together; no API field or directory is left unreachable or undocumented.
 
 ## 5. Deviations & open decisions
+
+- **History health projection shipped 2026-10-20 (ASW-1, R73):** `history_state`/`history_reason` are on the agent state
+  projection (`state_update`, list and detail). The storage latch is a 409 `conflict` whose message
+  explains that nothing was sent and the draft is kept; no UI banner reads `history_state` yet.
 
 - R62–R63 were approved 2026-10-12 and implemented 2026-10-13. Verification covers loopback and
   authenticated TLS route journeys, malformed/oversized upload rejection, recovery/dismissal and

@@ -66,6 +66,10 @@ export interface AgentState {
   state: AgentStatus;
   detail: string;
   quota?: QuotaWireState;
+  /** Conversation history health (TS-03.R73); absent is legacy unknown, not healthy. */
+  history_state?: "ok" | "degraded";
+  /** Bounded reason, present only while degraded. */
+  history_reason?: string;
   last_trace?: string;
   busy_since?: string;
   context_pct: number;

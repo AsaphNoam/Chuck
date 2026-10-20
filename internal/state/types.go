@@ -232,6 +232,11 @@ type AgentState struct {
 	Archived       bool                 `json:"archived"`
 	Pipeline       *PipelineAssociation `json:"pipeline,omitempty"`
 	Quota          *QuotaProjection     `json:"quota,omitempty"`
+	// HistoryState is the conversation's history health, "ok" or "degraded";
+	// absent is legacy unknown, not verified healthy. HistoryReason is a bounded
+	// vocabulary set only while degraded (FS-03.R99, TS-03.R73).
+	HistoryState  string `json:"history_state,omitempty"`
+	HistoryReason string `json:"history_reason,omitempty"`
 }
 
 // AgentStateUpdate is the payload published after Manager recomputes an agent.

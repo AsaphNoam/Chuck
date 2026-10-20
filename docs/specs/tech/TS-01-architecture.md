@@ -524,7 +524,7 @@ commands retain their separately specified behavior. Human transcript text uses
 Reuse server validation, composition, ownership, lifecycle claims and receipt seams rather than
 reimplementing them in command handlers. No direct-action/MCP migration work is included.
 
-**R39 (planned) — One registry-owned conversation journal serializes history.** Extend the
+**R39 — One registry-owned conversation journal serializes history.** Extend the
 existing runtime persistence seam with one ref-counted owner per stable agent ID, shared by chat,
 terminal and server-side inactive append. It owns the writer, next sequence and generation attachment
 for every normalized event, marker, annotation and notice. Inactive operations join the existing
@@ -674,6 +674,14 @@ lost.
 - **R10 (local invariant) — `state.db` has exactly one writer.** No package other than `internal/state` (driven by the server process) opens the DB for writing. A second writer is a defect regardless of correctness, because D1's safety argument depends on single-writer.
 
 ## 5. Deviations & open decisions
+
+- **Conversation journal shipped 2026-10-20 (ASW-1, R39):** `runtime.Journal`/`Journals` own every conversation's
+  writer, allocation and ordered publication; the control queue is `runtime.controlQueue`. Two
+  bounded deviations: when the generation context is cancelled before capacity is reserved, the
+  observation is still enqueued (unreserved) in commit order rather than latching a separate
+  recovery obligation, so shutdown never drops a terminal observation; and a permission
+  resolution that fails to commit is not in history — only its request raises the
+  non-transcript `permission_required` notification.
 
 - **Mail delivery extension specified:** R31–R33, TS-02.R34 and TS-04.R53 implement the planned
   FS-00.R17 and FS-06.R30–R36 scope and intentionally replace the

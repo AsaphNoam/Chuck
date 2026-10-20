@@ -813,6 +813,22 @@ ALTER TABLE think_tanks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';`,
 		version: 56,
 		sql:     `ALTER TABLE running ADD COLUMN process_birth_us INTEGER NOT NULL DEFAULT 0;`,
 	},
+	{
+		// Conversation history health lives outside the transcript it
+		// describes, so a failing log stays diagnosable after restart
+		// (TS-02.R52). It is keyed by agent alone: the open-writer marker
+		// must be recordable before a new agent's sessions row exists. No
+		// row is legacy unknown, never assumed healthy.
+		version: 57,
+		sql: `CREATE TABLE conversation_health (
+  agent_id TEXT PRIMARY KEY,
+  state TEXT NOT NULL CHECK (state IN ('ok', 'degraded')),
+  reason TEXT NOT NULL DEFAULT '' CHECK (length(reason) <= 64),
+  reserved_seq INTEGER NOT NULL DEFAULT 0,
+  open_writer INTEGER NOT NULL DEFAULT 0 CHECK (open_writer IN (0, 1)),
+  updated_at TEXT NOT NULL
+);`,
+	},
 }
 
 // migrateQuotaChecks rebuilds quota_intents for the check chain and its
