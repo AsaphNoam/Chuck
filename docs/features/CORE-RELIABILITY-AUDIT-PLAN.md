@@ -8,10 +8,12 @@ and checked source entry paths. The committed baseline for this expansion is `f7
 product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
 journey recommendation, which compressed distinct core architectures too much.
 
-**Status: recorded and deferred for human expansion/selection.** The purposeful testing and
-architectural-review skills are implemented. This list starts no audit or product repair and
-creates no executable audit queue. At the next selection, refresh current handoff/fix status;
-concurrent fixes are landing. Hypotheses below are questions to investigate, not new findings.
+**Status: mapping one subject at a time, as requested.** A1 now has a
+[researched review charter](CORE-RELIABILITY-REVIEW-A1.md) and one waiting review unit, **CR-A1**,
+in the handoff. A2–A7 remain proposed scopes awaiting the same planning research. No audit or
+product repair has started. The purposeful testing and architectural-review skills are implemented.
+Refresh current handoff/fix status before each review; concurrent fixes are landing. Hypotheses
+below are questions to investigate, not new findings.
 
 The concrete workflow/skill proposal is in
 [WORKFLOW-RELIABILITY-DESIGN.md](WORKFLOW-RELIABILITY-DESIGN.md). This document maps the audit
@@ -72,36 +74,24 @@ Release/installed-runtime verification is cross-cutting in the proposed mandator
 release review, rather than an eighth broad source audit by default. Phone polish remains lower
 priority; permission/Stop/failed-delivery observations matter on every operator surface.
 
-## Proposed audit scopes, after workflow decisions
+## Audit scopes and planning progress
+
+Only A1 is mapped into a review-ready charter. The remaining sections preserve the agreed subjects;
+they are not additional executable review tasks yet. Continue planning with A2 on the next request.
 
 ### A1. Preserve saved work through repair and interruption
 
 **Purpose:** challenge the storage architecture beyond the already repaired META-1 case. This is
 the first fresh source audit because stored work is Chuck's recovery foundation.
 
-**Scope:** normalized transcript, durable SQLite session inputs, native conversation identity,
-archive visibility and the repair/reconciliation paths that connect them. Follow ordinary chat and
-terminal Stop/restart, archive/restore and offline reindex. Check relevant migrations when they
-change these fields; do not add a backup feature or audit every unrelated database table.
-
-**Start:** `internal/transcript/{writer,reader}.go`, `internal/runtime/journal.go`,
-`internal/index/{reindex,indexer}.go`, `internal/state/{session,running,manager}.go`,
-`internal/archive/archive.go`, and `internal/server/{archive,reconcile,resume}.go`;
-`internal/cli/reindex.go` is the repair entry point. Read FS-01/FS-03/FS-05/FS-07 and TS-01/TS-02
-only for the relevant durable/derived and continuation contracts.
-
-**Look for:** a path treating authoritative state as disposable; errors after a destructive reset;
-partial/missing input causing more loss than the damaged record; loss of live-updated fields;
-successful repair that leaves a conversation unresumable or silently rewound. Inspect the current
-retention regression before proposing another field inventory: the META fix already did one.
-
-**Useful proof:** capture known messages, native ID and live settings before the operation; compare
-canonical content, archive readback and the native Resume target after it. Add one realistic
-interruption at the destructive boundary and demonstrate recovery from durable inputs. Reuse
-existing commit/index failure regressions. Never run destructive probes on the user's archive.
-
-**Do not duplicate:** ASW-1 event failures, ASW-3 early hooks, or the closed META-1 finding. A new
-finding needs a current counterexample, not an old failing overlay.
+**Mapped 2026-10-20 — [CR-A1: Durable truth and recovery](CORE-RELIABILITY-REVIEW-A1.md).** Two
+focused GPT-6 Luna researchers and parent integration mapped current authorities, shipped entry
+points, governing requirements, reusable tests and failure-boundary questions against `97c67f39`.
+One frontier-sized review follows conversation/session persistence through Stop/restart,
+archive/readback/Restore, offline repair and native continuation. It distinguishes visibility
+restoration from data recovery and status reconciliation from index rebuild. The charter includes
+interrupted repair, damaged/missing input, legacy shapes and existing ASW/META ownership; these
+are questions for the review, not confirmed new defects. No audit/probe or product fix ran.
 
 ### A2. Admit, wait, wake and recover work correctly
 
@@ -289,10 +279,10 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 - **Visual polish and exhaustive rare timing combinations:** spend capacity only when they expose
   missing work, misleading success or a credible repeated development failure.
 
-## How to use this list later
+## How to continue
 
-After the human expands/selects this recorded plan, choose a small first tranche rather than commissioning every
-possible audit. Start with A1's durable foundation and A2's deterministic work admission/recovery;
+Map one remaining subject at a time into a researched charter and one separately selectable
+handoff review unit. A1 is ready; A2's deterministic work admission/recovery is the next planning subject.
 A3's executable workspace is the next distinct high-value architecture. A7 can collect measurements
 independently. A4–A6 use prior findings and current changes to choose their highest-consequence
 unproved joins. The integration proof spans them after the relevant repairs. This is a proposed

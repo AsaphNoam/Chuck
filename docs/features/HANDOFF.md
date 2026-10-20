@@ -52,16 +52,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   implementation is recorded below. Its confirmed META-1 (offline reindex erased a hook-learned terminal
   native ID), is fixed (Changelog). Archive repair is the first suggested wider audit; updater,
   remote revocation and retrieval performance remain candidates, not confirmed findings.
-- **Proposed core reliability audits:** [priorities and deferred scopes](CORE-RELIABILITY-AUDIT-PLAN.md)
+- **Core reliability audit planning:** [priorities and planning progress](CORE-RELIABILITY-AUDIT-PLAN.md)
   now map seven architectures from the product docs: durable truth, work admission/recovery,
   executable workspace/configuration, information/knowledge, authoritative results, operator
-  actions and sustained capacity. Existing ASR/ASW/ASF proofs/owners remain; audits are deferred.
+  actions and sustained capacity. A1 is now mapped as one waiting review unit,
+  [CR-A1 — Durable truth and recovery](CORE-RELIABILITY-REVIEW-A1.md); A2–A7 await planning research
+  one at a time. Existing ASR/ASW/ASF proofs/owners remain; no core audit has run.
   The [workflow design](WORKFLOW-RELIABILITY-DESIGN.md) specifies shared test rules, a `write-tests`
   companion and an `architectural-review` before every release, with candidate-bound receipts and
   a mechanical release gate. Both skills are implemented sequentially (TS-06.R35–R36/workflow
   §§17–18), researched and independently forward-tested. No real audit/release review started.
   Finding fixes reuse the original architectural review and receipt; they do not force a rerun.
-  The audit plan stays recorded/deferred for human expansion and selection.
+  A2 (admission, waiting and recovery) is the next audit subject to map on request.
 - **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
   original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.
@@ -91,7 +93,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 ## Active change
 
 - None in progress. Workflow skills and release-gate implementation are complete; normal change
-  review is available below. Core audits stay deferred for human expansion/selection.
+  review is available below. CR-A1 is researched and waiting for review; A2–A7 remain unmapped.
 - ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
   clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–9 below keep that
@@ -246,6 +248,20 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 
 ## Review queue
 
+**Core reliability audit units:** explicitly requested subsystem reviews of the complete current
+implementation and callers, not reviews of planning commits. Read the selected charter, refresh
+current fix ownership and record the reviewed HEAD. No core audit has started; only A1 is mapped.
+
+| Unit | Responsibility | Status |
+|---|---|---|
+| [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) | Durable truth and recovery: conversation/session authority through Stop/restart, archive/Restore, interrupted reindex and native continuation | waiting to start |
+
+A2–A7 in the [audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) await research one subject at a time;
+they are not queued reviews yet. This subsystem audit does not substitute for the candidate-bound
+architectural review before release or start any fix workflow.
+
+**Original agent-surface campaign:**
+
 Nine integrated reviews are sized for frontier reviewers to follow interacting mechanisms and
 whole workflows. These are explicitly requested subsystem audits, not reviews of queue commits.
 ASR-I's source synthesis is complete; the eight domain units below remain open on their findings.
@@ -275,8 +291,8 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 
 **Implementation review units (independent of the table above):**
 
-- **Workflow reliability skills and architectural release gate** (`e96c47fe` plus architecture
-  implementation closure) — **waiting to start**. Review TS-06.R35–R36, workflow §§8/16–18,
+- **Workflow reliability skills and architectural release gate** (`e96c47fe`, `97c67f39`)
+  — **waiting to start**. Review TS-06.R35–R36, workflow §§8/16–18,
   skill twins/routing and the candidate gate/CI. Required no-loop behavior: original architectural
   review → finding repairs/verification → receipt closure → release, without another architecture
   review solely due to those fixes. This is review of a substantive workflow/tooling change, not
@@ -1290,6 +1306,15 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Mapped the first core reliability audit:** two focused GPT-6 Luna research passes
+  and parent integration produced [CR-A1](CORE-RELIABILITY-REVIEW-A1.md), one frontier-sized review
+  of durable conversation/session truth and maintenance recovery. The charter maps authority,
+  actual archive/Restore/reconcile/reindex boundaries, requirements, existing tests, interruption
+  questions and cross-unit owners. Added one waiting review unit; A2–A7 remain unmapped. No audit,
+  failure probe, product repair or release architecture receipt was performed. Independent charter
+  checking added the separate journal-health recovery authority. Spec, link/source/test-reference
+  (30 named tests) and diff checks pass; existing product tests were researched, not rerun.
 
 - **2026-10-20 — Created architectural-review and enforced the no-loop release gate:** after
   committing the testing skill, two Luna researchers supplied scenario/risk-based review practice
