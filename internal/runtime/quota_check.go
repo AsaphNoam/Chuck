@@ -495,9 +495,16 @@ func claudeCheckSettings(env []string, sourceCwd string) (map[string]any, error)
 	return routing, nil
 }
 
-// withCodexCheckIsolation disables every MCP server known to the effective
-// Codex configuration layers through the process CODEX_CONFIG overlay, without
-// touching the shared profile or its authentication.
+// codexInstructionFileKeys are Codex config keys (present in the pinned
+// 0.159.x binary or its predecessors) that load work instructions from a file
+// and that a CODEX_CONFIG overlay cannot blank.
+var codexInstructionFileKeys = []string{"model_instructions_file", "experimental_instructions_file",
+	"experimental_compact_prompt_file", "compact_prompt"}
+
+// withCodexCheckIsolation blanks work instructions and disables every MCP
+// server known to the effective Codex configuration layers through the process
+// CODEX_CONFIG overlay, without touching the shared profile or its
+// authentication. Instruction sources the overlay cannot neutralize refuse.
 func withCodexCheckIsolation(env []string) ([]string, error) {
 	home := envValue(env, "CODEX_HOME")
 	if home == "" {
@@ -514,6 +521,12 @@ func withCodexCheckIsolation(env []string) ([]string, error) {
 			return nil, errQuotaCheckUnsupported
 		}
 	}
+	// Work instructions never reach a check: blank the inline key (overriding
+	// every lower layer) and drop file-style keys the overlay carries.
+	for _, key := range codexInstructionFileKeys {
+		delete(overlay, key)
+	}
+	overlay["developer_instructions"] = ""
 	names := map[string]bool{}
 	if raw, present := overlay["mcp_servers"]; present {
 		servers, ok := raw.(map[string]any)
@@ -544,10 +557,26 @@ func withCodexCheckIsolation(env []string) ([]string, error) {
 			return nil, errQuotaCheckUnsupported
 		}
 		var layer struct {
-			MCPServers map[string]any `toml:"mcp_servers"`
+			MCPServers map[string]any            `toml:"mcp_servers"`
+			Profiles   map[string]map[string]any `toml:"profiles"`
 		}
-		if err := toml.Unmarshal(raw, &layer); err != nil {
+		var top map[string]any
+		if err := toml.Unmarshal(raw, &layer); err != nil || toml.Unmarshal(raw, &top) != nil {
 			return nil, fmt.Errorf("%w: %s", errQuotaCheckUnsupported, filepath.Base(path))
+		}
+		// The overlay blanks top-level developer_instructions, but it cannot
+		// clear an instruction file or a profile-scoped instruction.
+		for _, key := range codexInstructionFileKeys {
+			if _, present := top[key]; present {
+				return nil, fmt.Errorf("%w: %s sets %s", errQuotaCheckUnsupported, filepath.Base(path), key)
+			}
+		}
+		for _, profile := range layer.Profiles {
+			for _, key := range append([]string{"developer_instructions"}, codexInstructionFileKeys...) {
+				if _, present := profile[key]; present {
+					return nil, fmt.Errorf("%w: %s profile sets %s", errQuotaCheckUnsupported, filepath.Base(path), key)
+				}
+			}
 		}
 		for name := range layer.MCPServers {
 			names[name] = true
@@ -563,9 +592,6 @@ func withCodexCheckIsolation(env []string) ([]string, error) {
 	sort.Strings(sorted)
 	for _, name := range sorted {
 		overlay["mcp_servers."+name+".enabled"] = false
-	}
-	if len(sorted) == 0 {
-		return env, nil
 	}
 	encoded, err := json.Marshal(overlay)
 	if err != nil {

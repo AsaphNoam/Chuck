@@ -220,7 +220,7 @@ func TestQuotaCheckCodexRenamesDisablesMCPAndArchives(t *testing.T) {
 	}
 	overlay, _ := os.ReadFile(h.newDump + ".codex_config")
 	var cfg map[string]any
-	if err := json.Unmarshal(overlay, &cfg); err != nil || cfg["mcp_servers.docs.enabled"] != false || cfg["model_reasoning_summary"] != "auto" || cfg["developer_instructions"] != nil {
+	if err := json.Unmarshal(overlay, &cfg); err != nil || cfg["mcp_servers.docs.enabled"] != false || cfg["model_reasoning_summary"] != "auto" || cfg["developer_instructions"] != "" {
 		t.Fatalf("CODEX_CONFIG = %s", overlay)
 	}
 	prompts, _ := os.ReadFile(h.prompts)
@@ -256,6 +256,64 @@ func TestCodexCheckIsolationDisablesOverlayServers(t *testing.T) {
 	for _, raw := range []string{`{"mcp_servers.\"a.b\".enabled":true}`, `{"mcp_servers":"docs"}`} {
 		if _, err := withCodexCheckIsolation([]string{"HOME=" + t.TempDir(), "CODEX_CONFIG=" + raw}); err == nil {
 			t.Fatalf("ambiguous overlay %s was accepted", raw)
+		}
+	}
+}
+
+// ASRG-4: work instructions never reach a check, with or without MCP servers.
+func TestCodexCheckIsolationSuppressesWorkInstructions(t *testing.T) {
+	decode := func(env []string) map[string]any {
+		var o map[string]any
+		if err := json.Unmarshal([]byte(envValue(env, "CODEX_CONFIG")), &o); err != nil {
+			t.Fatalf("CODEX_CONFIG: %v (%q)", err, envValue(env, "CODEX_CONFIG"))
+		}
+		return o
+	}
+	overlay := `{"model":"gpt-x","model_provider":"corp","developer_instructions":"do the work","model_instructions_file":"/tmp/i.md"}`
+	env, err := withCodexCheckIsolation([]string{"HOME=" + t.TempDir(), "CODEX_CONFIG=" + overlay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := decode(env)
+	if got["developer_instructions"] != "" || got["model"] != "gpt-x" || got["model_provider"] != "corp" {
+		t.Fatalf("overlay = %v", got)
+	}
+	if _, ok := got["model_instructions_file"]; ok {
+		t.Fatalf("instruction file kept: %v", got)
+	}
+
+	// No overlay at all still emits an explicit suppression.
+	env, err = withCodexCheckIsolation([]string{"HOME=" + t.TempDir()})
+	if err != nil || decode(env)["developer_instructions"] != "" {
+		t.Fatalf("no-overlay env = %v err=%v", env, err)
+	}
+
+	// A native layer's instructions are suppressed by the overlay; MCP stays disabled.
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "config.toml"),
+		[]byte("developer_instructions = \"native\"\n[mcp_servers.docs]\ncommand = \"docs-mcp\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env, err = withCodexCheckIsolation([]string{"CODEX_HOME=" + home})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = decode(env)
+	if got["developer_instructions"] != "" || got["mcp_servers.docs.enabled"] != false {
+		t.Fatalf("native overlay = %v", got)
+	}
+
+	// Inseparable sources refuse.
+	for name, toml := range map[string]string{
+		"file":    "model_instructions_file = \"/tmp/i.md\"\n",
+		"profile": "[profiles.p]\ndeveloper_instructions = \"x\"\n",
+	} {
+		h := t.TempDir()
+		if err := os.WriteFile(filepath.Join(h, "config.toml"), []byte(toml), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := withCodexCheckIsolation([]string{"CODEX_HOME=" + h}); !errors.Is(err, errQuotaCheckUnsupported) {
+			t.Fatalf("%s: err = %v", name, err)
 		}
 	}
 }
