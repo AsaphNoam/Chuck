@@ -527,8 +527,10 @@ reimplementing them in command handlers. No direct-action/MCP migration work is 
 **R39 — One registry-owned conversation journal serializes history.** Extend the
 existing runtime persistence seam with one ref-counted owner per stable agent ID, shared by chat,
 terminal and server-side inactive append. It owns the writer, next sequence and generation attachment
-for every normalized event, marker, annotation and notice. Inactive operations join the existing
-agent lifecycle claim and recheck ownership; active producers supply the captured generation.
+for every normalized event, marker, annotation and notice. An inactive operation opens, commits
+and closes under the journal lock and is refused while any generation's writer is attached, so it is
+atomic against a resume's attach without joining a lifecycle claim; active producers supply the
+captured generation.
 No server handler opens an independent writer for the same conversation. Attach/detach/close is
 generation-fenced and returns required-sync errors. Reclaim/close only after inactive appends,
 fork-prefix transactions and generation attachments release their references. The owner supports

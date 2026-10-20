@@ -382,13 +382,6 @@ the reviewed snapshot, before concurrent ASW-2 work; ASW1-9 was added against `e
   Keep admission bounded through shutdown and retain required cleanup through its exact domain
   authority. **Fix scope: medium.** `TestReviewCancelledControlRemainsBounded` reproduces 599
   pending observations against limit 256.
-- **Worth fixing** — ASW1-8 — **The spec describes a different inactive-writer fence** (INV §10).
-  `docs/specs/tech/TS-01-architecture.md:530–531` requires joining the lifecycle claim and
-  rechecking ownership; `Registry.AppendHistory`/`Journal.CommitDetached` use the journal mutex
-  and live-writer recheck instead. This lock is sufficient for atomic append-versus-attach and
-  avoids a second lifecycle lock; the local choice is accepted for sequence serialization.
-  Update normative wording/deviation so the handoff is not its only explanation. **Fix scope:
-  trivial/easy.**
 
 - **Must fix** — ASW1-9 — **A delayed terminal observation settles the current execution instead
   of its original owner** (INV §1/§2/§5/§11/§15/§17). `internal/server/server.go:441–442` replaces
@@ -413,7 +406,7 @@ Local-choice outcomes: a separate health table is justified because the open mar
 new session row; conservative unclean-stop gap notices and offline index repair are reasonable.
 The absent banner is covered by the refused-Send surface, but does not resolve ASW1-1/2. Gap
 notices temporarily lagging `as.seq` do not reuse allocation and appear in canonical HTTP reads.
-Unreserved enqueue is rejected under ASW1-7; the inactive fence needs ASW1-8's spec correction.
+Unreserved enqueue is rejected under ASW1-7; the inactive fence is now specified.
 
 Invariant sweep: §1/§2/§4/§5/§7/§8/§9/§10/§11/§14/§15/§16/§17 apply and were checked; existing HTTP
 guards and owner-only persistence remain wired. §3 has no one-shot persisted field/form surface,
@@ -1305,7 +1298,8 @@ and specifications are unchanged.
 
 - **2026-10-20 — ASW-1 fixes (in progress):** ASW1-5 (INV §7/§9) — journal open advances
   allocation past a persisted `ReservedSeq` and a degraded clean close keeps it;
-  `TestJournalReservedSequenceSurvivesCloseAndRestart` fails before the fix.
+  `TestJournalReservedSequenceSurvivesCloseAndRestart` fails before the fix. ASW1-8 (INV §10) —
+  TS-01.R39 now states the shipped inactive-writer fence (journal lock plus live-writer refusal).
 
 - **2026-10-20 — Mapped the third core reliability audit:** two focused GPT-6 Luna research passes
   and parent integration produced [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review
