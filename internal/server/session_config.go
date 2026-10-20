@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -80,7 +81,9 @@ func (s *Server) handleSessionConfig(w http.ResponseWriter, r *http.Request) {
 	// what actually applied and persist that before reporting the failure,
 	// otherwise the response, the stored agent, the archive, and the next resume
 	// all disagree with the provider the next turn will run on (INV §15).
-	change, runErr := s.registry.SetSessionConfig(r.Context(), id, req.Effort, req.Fast)
+	// The runtime bounds the provider call itself (TS-03.R37); a closed browser
+	// must not turn an in-flight setting into an unconfirmed one.
+	change, runErr := s.registry.SetSessionConfig(context.WithoutCancel(r.Context()), id, req.Effort, req.Fast)
 	appliedEffort, appliedFast := agent.Effort, agent.Fast
 	if change.EffortApplied {
 		appliedEffort = change.Effort
@@ -178,7 +181,8 @@ func sessionConfigError(err error) *runtime.APIError {
 		return apiError(runtime.CodeInvalidField, err.Error())
 	default:
 		// Includes ErrSettingIgnored: the provider answered success and did
-		// something else, which is an upstream fault rather than a bad request.
+		// something else, which is an upstream fault rather than a bad request;
+		// and ErrSettingUnconfirmed, whose message names the Stop/Resume repair.
 		return apiError(runtime.CodeRuntimeStartFailed, err.Error())
 	}
 }

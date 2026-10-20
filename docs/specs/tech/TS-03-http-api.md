@@ -194,6 +194,16 @@ it, so leaving the old value stored would make the response, the agent, the sess
 archive, and the next resume all disagree with the running provider (INV §15). The response body on
 failure is the error envelope; the applied state reaches clients through the agent republication.
 
+Each provider call is bounded to 30 seconds (a shorter caller deadline wins), independent of the
+browser request's lifetime, and never holds the runtime's per-agent lock, so streamed output,
+permission requests and Stop keep flowing while a setting is in flight during a turn. A call that
+times out or loses its reply is **unconfirmed**, not rejected: the provider may already run the new
+value. The route keeps the last confirmed stored values, persists any earlier setting that was
+confirmed, and returns the upstream-failure envelope telling the person the effective value is
+unknown and that Stop and Resume reapplies the saved settings. It never silently retries an
+uncertain setting, and a confirmation is folded into the session's advertisement only while the same
+runtime generation is still live.
+
 `POST /api/sessions/{id}/switch-runtime` keeps accepting `effort` with unchanged semantics, so no
 existing client changes and a combined backend/model/effort switch stays one request. An effort-only
 switch still restarts the process; that redundancy is retained deliberately rather than narrowed,

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"os/exec"
 	"reflect"
@@ -1813,6 +1814,10 @@ type SessionConfigChange struct {
 	FastAvailable bool
 }
 
+// sessionConfigTimeout bounds one live setting change independently of the
+// caller's lifetime (TS-03.R37); a shorter caller deadline still wins.
+var sessionConfigTimeout = 30 * time.Second
+
 // SetSessionConfig applies effort and/or fast mode to a live chat session without
 // restarting the process or rebuilding the conversation (FS-03.R45/R47). It reuses
 // the same adapter-declared identifiers and the same honored-value check as the
@@ -1823,16 +1828,35 @@ func (c *ChatRuntime) SetSessionConfig(ctx context.Context, agentID string, effo
 	if err != nil {
 		return SessionConfigChange{}, err
 	}
+	// Capture the session identity and a private advertisement under mu, then
+	// call the provider unlocked as SetSessionMode does: the reader takes mu for
+	// every session/update, so holding it across the call stalled any turn that
+	// streamed a frame before the reply (INV §5). Callers serialize changes with
+	// the per-agent lifecycle claim.
 	as.mu.Lock()
-	defer as.mu.Unlock()
+	transport, sessionID := as.transport, as.sessionID
+	options := maps.Clone(as.configOptions)
+	as.mu.Unlock()
+	if options == nil {
+		options = sessionConfigAdvertisement{}
+	}
+	ctx, cancel := context.WithTimeout(ctx, sessionConfigTimeout)
+	defer cancel()
 	_, effortID, fastID := as.adapter.SessionConfigIDs()
-	// Report the advertisement as it stands at every exit, including the failure
-	// exits above: a caller that persists a partial change still needs the current
-	// availability, and an early return must not write it back as "unavailable".
-	defer func() { change.FastAvailable = as.configOptions.has(fastID) }()
+	// Fold confirmed answers back only into the same live generation, and report
+	// the advertisement as it stands at every exit: a caller that persists a
+	// partial change still needs the current availability.
+	defer func() {
+		as.mu.Lock()
+		if !as.stopped && as.transport == transport {
+			as.configOptions = options
+		}
+		as.mu.Unlock()
+		change.FastAvailable = options.has(fastID)
+	}()
 
 	if effort != nil {
-		if err := applyRequiredOption(ctx, as.transport, as.sessionID, effortID, *effort, as.configOptions, false); err != nil {
+		if err := applyRequiredOption(ctx, transport, sessionID, effortID, *effort, options, false); err != nil {
 			return change, err
 		}
 		change.Effort, change.EffortApplied = *effort, true
@@ -1843,7 +1867,7 @@ func (c *ChatRuntime) SetSessionConfig(ctx context.Context, agentID string, effo
 	if fastID == "" {
 		return change, fmt.Errorf("%w: fast mode", ErrSettingUnsupported)
 	}
-	if !as.configOptions.has(fastID) {
+	if !options.has(fastID) {
 		// Fail-open exactly as launch does (FS-09.R55): an unadvertised speed tier
 		// resolves to off rather than erroring, and FastAvailable tells the header
 		// to explain why the toggle did not move, instead of inventing a third
@@ -1855,7 +1879,7 @@ func (c *ChatRuntime) SetSessionConfig(ctx context.Context, agentID string, effo
 	if *fast {
 		value = "on"
 	}
-	if err := setConfigOption(ctx, as.transport, as.sessionID, fastID, value, as.configOptions, false); err != nil {
+	if err := setConfigOption(ctx, transport, sessionID, fastID, value, options, false); err != nil {
 		return change, err
 	}
 	change.Fast, change.FastApplied = *fast, true
@@ -3299,6 +3323,9 @@ func setConfigOption(ctx context.Context, transport *Transport, sessionID, id, v
 		"sessionId": sessionID, "configId": id, "value": value,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, errTransportClosed) {
+			return fmt.Errorf("%w: %s %q: its effective value is unknown; Stop and Resume the agent to reapply its saved settings", ErrSettingUnconfirmed, id, value)
+		}
 		if tooOld := claudeVersionTooOld(err); tooOld != nil {
 			return fmt.Errorf("%w: %s: %w", ErrSettingRejected, id, tooOld)
 		}

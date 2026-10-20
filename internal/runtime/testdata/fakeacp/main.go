@@ -351,6 +351,15 @@ func handle(msg *rpcMessage) {
 			return
 		}
 		applyConfigOption(setParams.ConfigID, setParams.Value)
+		// FAKEACP_CONFIG_CHUNK_FIRST streams turn output before the reply, as a
+		// provider applying a setting mid-turn may; FAKEACP_CONFIG_NO_REPLY applies
+		// the value and never answers (TS-03.R37).
+		if os.Getenv("FAKEACP_CONFIG_CHUNK_FIRST") != "" && setParams.ConfigID != "model" {
+			emitUpdate(map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "mid-turn"}})
+		}
+		if os.Getenv("FAKEACP_CONFIG_NO_REPLY") != "" && setParams.ConfigID != "model" {
+			return
+		}
 		// SetSessionConfigOptionResponse requires the full rebuilt option list.
 		respond(*msg.ID, map[string]any{"configOptions": fakeConfigOptions()})
 	case "session/fork":

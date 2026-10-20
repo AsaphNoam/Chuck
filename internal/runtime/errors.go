@@ -76,6 +76,10 @@ var (
 	// BR-1 shipped, so accepting the RPC envelope as success is not enough
 	// (INV §12).
 	ErrSettingIgnored = errors.New("runtime: provider ignored the setting")
+	// ErrSettingUnconfirmed: the call timed out or lost its reply, so the
+	// provider may or may not run the new value. It is never proof the old value
+	// remains effective, and it is never silently retried (TS-03.R37).
+	ErrSettingUnconfirmed = errors.New("runtime: provider did not confirm the setting")
 	// ErrProviderIncompatible: the selected provider executable is a version the
 	// request or native session cannot use (TS-04.R76). Resume never replaces a
 	// conversation to hide it.

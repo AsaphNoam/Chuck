@@ -1413,6 +1413,60 @@ func TestSetSessionConfigReportsTheSettingsThatAppliedBeforeAFailure(t *testing.
 	}
 }
 
+// ASRC-1, TS-03.R37, INV §5 — a provider that streams a frame before answering
+// a live setting must not stall the reader. Holding the agent lock across the
+// call blocked the frame's dispatch, so the reply was never read and the change
+// failed at its deadline while the turn froze.
+func TestSetSessionConfigDoesNotStallTheReaderOnAFrameBeforeTheReply(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	spec.BackendType = "codex-acp"
+	spec.ModelID = "gpt-5.4-mini"
+	spec.Env = append(spec.Env, "FAKEACP_FAST_OPTION=fast-mode", "FAKEACP_CONFIG_CHUNK_FIRST=1")
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { c.Stop(context.Background(), h.AgentID) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	effort, fast := "high", true
+	change, err := c.SetSessionConfig(ctx, h.AgentID, &effort, &fast)
+	if err != nil {
+		t.Fatalf("SetSessionConfig: %v", err)
+	}
+	if !change.EffortApplied || !change.FastApplied || !change.Fast || !change.FastAvailable {
+		t.Fatalf("change = %+v; want both settings confirmed", change)
+	}
+}
+
+// ASRC-1, TS-03.R37 — a reply that never arrives is unconfirmed, not a
+// rejection: the provider may already run the new value. The call is bounded
+// even for a caller without a deadline and releases the agent for other work.
+func TestSetSessionConfigReportsAMissingReplyAsUnconfirmed(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	spec.Env = append(spec.Env, "FAKEACP_CONFIG_NO_REPLY=1")
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { c.Stop(context.Background(), h.AgentID) })
+	defer func(d time.Duration) { sessionConfigTimeout = d }(sessionConfigTimeout)
+	sessionConfigTimeout = 200 * time.Millisecond
+
+	effort := "high"
+	change, err := c.SetSessionConfig(context.Background(), h.AgentID, &effort, nil)
+	if !errors.Is(err, ErrSettingUnconfirmed) || errors.Is(err, ErrSettingRejected) {
+		t.Fatalf("SetSessionConfig error = %v, want ErrSettingUnconfirmed only", err)
+	}
+	if change.EffortApplied {
+		t.Fatalf("change = %+v; an unconfirmed effort is not reported as applied", change)
+	}
+	if ok, err := c.Cancel(context.Background(), h.AgentID); err != nil || ok {
+		t.Fatalf("Cancel on an idle agent = %v, %v; the agent must stay controllable", ok, err)
+	}
+}
+
 // FS-03.A29, TS-03.R37 — the live path keeps fast mode fail-open: an
 // unadvertised speed tier resolves to off rather than erroring, and reports that
 // it is unavailable so the header explains why the toggle did not move.
