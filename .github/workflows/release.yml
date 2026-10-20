@@ -33,6 +33,8 @@ jobs:
       - name: Confirm Apple-silicon runner
         run: test "$(uname -m)" = arm64
       - name: Verify architectural review and finding closure
+        # One-release operator waiver, 2026-10-20; see RELEASE-v0.18.0-notes.md.
+        if: (inputs.version || github.ref_name) != 'v0.18.0' && (inputs.version || github.ref_name) != '0.18.0'
         env:
           VERSION: ${{ inputs.version || github.ref_name }}
         run: |

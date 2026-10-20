@@ -329,6 +329,11 @@ finding-fix commits without restarting review. It also rejects live Must-fix fin
 validates declared provenance/closure, not the reasoning or correctness of a review. Missing,
 incomplete or uncovered evidence cannot be relabeled as an owed architectural review.
 
+**One-release exception — v0.18.0 (2026-10-20):** the operator explicitly authorized release and
+push with open fix items and waived the architectural review for this version. The release job
+skips only this gate for v0.18.0; no review or finding closure is claimed. Open findings and manual
+acceptance gates remain live. R36 and its mechanical gate apply to subsequent releases unchanged.
+
 ## 3. Interfaces & data shapes
 
 The canonical commands are:
