@@ -55,17 +55,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Core reliability audit planning:** [priorities and planning progress](CORE-RELIABILITY-AUDIT-PLAN.md)
   now map seven architectures from the product docs: durable truth, work admission/recovery,
   executable workspace/configuration, information/knowledge, authoritative results, operator
-  actions and sustained capacity. Three researched units are waiting for review:
+  actions and sustained capacity. Four researched units are waiting for review:
   [CR-A1 — Durable truth and recovery](CORE-RELIABILITY-REVIEW-A1.md),
-  [CR-A2 — Admission, waiting and recovery](CORE-RELIABILITY-REVIEW-A2.md) and
-  [CR-A3 — Executable workspace and configuration](CORE-RELIABILITY-REVIEW-A3.md); A4–A7 await planning research
+  [CR-A2 — Admission, waiting and recovery](CORE-RELIABILITY-REVIEW-A2.md),
+  [CR-A3 — Executable workspace and configuration](CORE-RELIABILITY-REVIEW-A3.md) and
+  [CR-A4 — Information and operating knowledge](CORE-RELIABILITY-REVIEW-A4.md); A5–A7 await planning research
   one at a time. Existing ASR/ASW/ASF proofs/owners remain; no core audit has run.
   The [workflow design](WORKFLOW-RELIABILITY-DESIGN.md) specifies shared test rules, a `write-tests`
   companion and an `architectural-review` before every release, with candidate-bound receipts and
   a mechanical release gate. Both skills are implemented sequentially (TS-06.R35–R36/workflow
   §§17–18), researched and independently forward-tested. No real audit/release review started.
   Finding fixes reuse the original architectural review and receipt; they do not force a rerun.
-  A4 (information and operating knowledge) is the next audit subject to map on request.
+  A5 (supervision and result authority) is the next audit subject to map on request.
 - **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
   original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.
@@ -95,7 +96,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 ## Active change
 
 - None in progress. Workflow skills and release-gate implementation are complete; normal change
-  review is available below. CR-A1–CR-A3 are researched and waiting for review; A4–A7 remain unmapped.
+  review is available below. CR-A1–CR-A4 are researched and waiting for review; A5–A7 remain unmapped.
 - ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
   clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–9 below keep that
@@ -252,15 +253,16 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 
 **Core reliability audit units:** explicitly requested subsystem reviews of the complete current
 implementation and callers, not reviews of planning commits. Read the selected charter, refresh
-current fix ownership and record the reviewed HEAD. No core audit has started; A1–A3 are mapped.
+current fix ownership and record the reviewed HEAD. No core audit has started; A1–A4 are mapped.
 
 | Unit | Responsibility | Status |
 |---|---|---|
 | [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) | Durable truth and recovery: conversation/session authority through Stop/restart, archive/Restore, interrupted reindex and native continuation | waiting to start |
 | [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | waiting to start |
 | [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | waiting to start |
+| [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | waiting to start |
 
-A4–A7 in the [audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) await research one subject at a time;
+A5–A7 in the [audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) await research one subject at a time;
 they are not queued reviews yet. This subsystem audit does not substitute for the candidate-bound
 architectural review before release or start any fix workflow.
 
@@ -1285,6 +1287,15 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Mapped the fourth core reliability audit:** two focused GPT-6 Luna research passes
+  and parent integration produced [CR-A4](CORE-RELIABILITY-REVIEW-A4.md), one frontier-sized review
+  of faithful information delivery and operating guidance. It maps selected sources/bytes, access,
+  actual annotation/task/mail consumers, bounded receipts, managed knowledge/awareness and requested
+  versus native adoption evidence, preserving existing ASW/ASF owners. Added one waiting review
+  unit; A5–A7 remain unmapped. Independent charter checking added persona-selection/preservation
+  requirements. Spec, link/source/test-reference (24 named tests) and diff checks pass; no product
+  tests were run. No audit, failure probe, product repair or release architecture receipt was performed.
 
 - **2026-10-20 — ASW-1 fixes (in progress):** ASW1-5 (INV §7/§9) — journal open advances
   allocation past a persisted `ReservedSeq` and a degraded clean close keeps it;

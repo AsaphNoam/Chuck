@@ -8,10 +8,11 @@ and checked source entry paths. The committed baseline for this expansion is `f7
 product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
 journey recommendation, which compressed distinct core architectures too much.
 
-**Status: mapping one subject at a time, as requested.** A1–A3 have researched review charters
+**Status: mapping one subject at a time, as requested.** A1–A4 have researched review charters
 and waiting review units, [CR-A1](CORE-RELIABILITY-REVIEW-A1.md),
-[CR-A2](CORE-RELIABILITY-REVIEW-A2.md) and [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), in the handoff.
-A4–A7 remain proposed scopes awaiting the same planning research. No audit or product repair has
+[CR-A2](CORE-RELIABILITY-REVIEW-A2.md), [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) and
+[CR-A4](CORE-RELIABILITY-REVIEW-A4.md), in the handoff.
+A5–A7 remain proposed scopes awaiting the same planning research. No audit or product repair has
 started. The purposeful testing and
 architectural-review skills are implemented.
 Refresh current handoff/fix status before each review; concurrent fixes are landing. Hypotheses
@@ -78,8 +79,8 @@ priority; permission/Stop/failed-delivery observations matter on every operator 
 
 ## Audit scopes and planning progress
 
-A1–A3 are mapped into review-ready charters. The remaining sections preserve the agreed subjects;
-they are not additional executable review tasks yet. Continue planning with A4 on the next request.
+A1–A4 are mapped into review-ready charters. The remaining sections preserve the agreed subjects;
+they are not additional executable review tasks yet. Continue planning with A5 on the next request.
 
 ### A1. Preserve saved work through repair and interruption
 
@@ -129,28 +130,14 @@ No audit/probe or product fix ran.
 **Purpose:** audit information from selection/sending through storage, authorization, rendering
 and provider use. Include knowledge needed to operate Chuck, not only the user's prompt text.
 
-**Start:** `internal/contextref`, `internal/agentknowledge`,
-`internal/server/{primer,attachments,attachment_recovery,launch}.go`,
-`internal/messaging/{peer_tools,context_tools}.go`, `internal/state/messages.go`, and
-`internal/runtime/{message,images,fork}.go`. `applyKnowledgeOverlay` in `launch.go` owns the shared
-knowledge overlay. Read FS-03/FS-06/FS-13/FS-15/FS-18 and TS-11.R1–R5.
-
-**Challenge:** wrong source/version/cwd in a reference; cursor gaps or silent clipping; altered
-attachment bytes on retry; annotation-to-task losing its anchor; private data entering public room
-activity; native history/primer adoption after handoff; old sessions receiving current managed
-operating knowledge without contaminating frozen user configuration. Simulate unavailable knowledge
-installation and verify the documented warning/no-advertisement degradation rather than a stale
-path being advertised as usable.
-
-Waking mail has an activation; deferred mail does not. Deferred content is supplied on the next
-independently authorized turn, within bounds, or explicitly read; it is not generally pull-only.
-Reference grants do not start turns or prove model memory. Direct peer inspection has its own
-documented policy; do not invent confidentiality boundaries that the product does not promise.
-
-**Proof/ownership:** compare exact source facts/revisions, consumer-decoded native inputs, message
-receipts and a task that depends on the supplied facts. Message delivery is not comprehension.
-Reuse ASR-A/B/D/E evidence and ASW-2 closure; ASF-2/3/4 retain input uncertainty, watched-context
-and result-bound findings. Live skill/native-context adoption remains distinct from fake-wire proof.
+**Mapped 2026-10-20 — [CR-A4: Information and operating knowledge](CORE-RELIABILITY-REVIEW-A4.md).**
+Two focused GPT-6 Luna researchers and parent integration mapped selected information through
+accepted bytes/source identity, authorization, bounded reads/native input and delivery receipts
+against `735ea6e5`. One frontier-sized review joins attachments/annotations/mail/context with
+managed knowledge and truthful tool guidance. It distinguishes grants from injection, wake from
+content receipt, awareness from availability, and requested manifests from native adoption;
+annotation New task and durable task assignment retain their actual different paths. Current
+ASW/ASF owners remain; these are review questions, not new defect claims. No audit/probe or fix ran.
 
 ### A5. Make supervision advance only from authoritative results
 
@@ -268,8 +255,8 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 ## How to continue
 
 Map one remaining subject at a time into a researched charter and one separately selectable
-handoff review unit. A1–A3 are ready; A4's information and operating knowledge is the next planning
-subject. A7 can collect measurements independently. A4–A6 use prior findings and current changes
+handoff review unit. A1–A4 are ready; A5's supervision and result authority is the next planning
+subject. A7 can collect measurements independently. A5–A6 use prior findings and current changes
 to choose their highest-consequence unproved joins. The integration proof spans them after the
 relevant repairs. This is a proposed investment order, not chronological gating of independent role
 queues or automatic audit execution.
