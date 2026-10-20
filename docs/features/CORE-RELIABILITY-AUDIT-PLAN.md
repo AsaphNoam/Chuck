@@ -1,4 +1,4 @@
-# Chuck core reliability: proposed audit priorities
+# Chuck core reliability: audit plans and priorities
 
 Prepared 2026-10-20; expanded after the human requested a deeper documentation-grounded view.
 Three additional GPT-6 Luna readers mapped operator/workspace capabilities, coordination/control
@@ -8,12 +8,12 @@ and checked source entry paths. The committed baseline for this expansion is `f7
 product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
 journey recommendation, which compressed distinct core architectures too much.
 
-**Status: mapping one subject at a time, as requested.** A1–A6 have researched review charters
+**Status: all seven subjects mapped, one at a time as requested.** A1–A7 have researched review charters
 and waiting review units, [CR-A1](CORE-RELIABILITY-REVIEW-A1.md),
 [CR-A2](CORE-RELIABILITY-REVIEW-A2.md), [CR-A3](CORE-RELIABILITY-REVIEW-A3.md),
-[CR-A4](CORE-RELIABILITY-REVIEW-A4.md), [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) and
-[CR-A6](CORE-RELIABILITY-REVIEW-A6.md), in the handoff. A7 remains a proposed scope awaiting the
-same planning research. No audit or product repair from these charters has started. Existing
+[CR-A4](CORE-RELIABILITY-REVIEW-A4.md), [CR-A5](CORE-RELIABILITY-REVIEW-A5.md),
+[CR-A6](CORE-RELIABILITY-REVIEW-A6.md) and [CR-A7](CORE-RELIABILITY-REVIEW-A7.md), in the handoff.
+No audit or product repair from these charters has started. Existing
 remediation retains its own units. The purposeful testing and architectural-review skills are implemented.
 Refresh current handoff/fix status before each review; concurrent fixes are landing. Hypotheses
 below are questions to investigate, not new findings.
@@ -79,8 +79,9 @@ priority; permission/Stop/failed-delivery observations matter on every operator 
 
 ## Audit scopes and planning progress
 
-A1–A6 are mapped into review-ready charters. A7 preserves the remaining agreed subject; it is not
-an executable review task yet. Continue planning with A7 on the next request.
+A1–A7 are mapped into review-ready charters, each one independently selectable unit in the handoff.
+The sections below retain their research baselines; refresh current code and fix ownership before
+executing a review. This plan does not start one.
 
 ### A1. Preserve saved work through repair and interruption
 
@@ -172,24 +173,15 @@ audit/probe or product fix ran. Refresh concurrent fix closure before review.
 **Purpose:** find silent performance deterioration and repeated host-generated work. Start with
 measurement before proposing a new cache, index, queue or architecture.
 
-**Scope:** long transcript reads and context pagination first; then expand to shared I/O, stream
-backpressure, accumulated registrations or retries only when measurements identify that path.
-
-**Start:** `internal/contextref/{service,page,limits}.go`, `internal/transcript/reader.go`,
-`internal/server/transcript_window.go`; follow `internal/runtime/journal.go`, `internal/bus/bus.go`
-and messaging/dispatcher loops when they contribute to an observed stall. Read FS-15, TS-02/TS-03
-and INV §16/§17; use ASR-I for the already-defined matched native comparison.
-
-**Look for:** work proportional to all old history for every small page; repeated scans during a
-single task; resource use that grows after agents stop; one slow consumer delaying unrelated agents;
-unnecessary native submissions, tool loops or context growth introduced by Chuck.
-
-**Useful proof:** pick a documented representative development workload and host, then vary history
-size and concurrency one at a time. Count bytes/records scanned, native submissions and retained
-resources; measure context-read latency and whether another agent can still progress and Stop.
-Compare late and repeated pages with early pages. Separate provider time from Chuck's overhead.
-Report the workload where a problem matters before choosing a fix or a performance budget; a
-small returned page is not evidence of cheap retrieval, and one noisy timing sample is not a bug.
+**Mapped 2026-10-20 — [CR-A7: Sustained capacity and cost](CORE-RELIABILITY-REVIEW-A7.md).**
+Two focused GPT-6 Luna researchers and parent integration mapped actual reference/peer/window
+reads, retained-data queries, snapshot/view fan-out, conversation queues, domain admission caps
+and generation/resource teardown against `44d285fc`. One frontier-sized review starts with retrieval
+growth and follows supported cost/lifetime joins into shared pressure, intervention and extra native
+work. It separates bounded output from scan work, durable retention from temporary resource ownership,
+and Chuck overhead from provider cost. The charter defines proportional measurement/evidence and
+reuses existing proofs and ASR-I's matched comparison rather than creating a benchmark program.
+Existing ASW/ASF owners remain; no audit, measurement/probe or product fix ran.
 
 ## Integration proof across selected audits
 
@@ -241,11 +233,11 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 
 ## How to continue
 
-Map one remaining subject at a time into a researched charter and one separately selectable
-handoff review unit. A1–A6 are ready; A7's sustained capacity and cost is the next planning subject.
-Its measurements can proceed independently of other review queues. The integration proof spans the
-selected architectures after the relevant repairs. This is a proposed investment order, not
-chronological gating of independent role queues or automatic audit execution.
+All seven researched charters are ready as separately selectable handoff review units. A7's
+measurements can proceed independently of other review queues. The integration proof above spans
+the selected architectures after the relevant repairs; it remains a cross-audit proposal, not an
+eighth queued review or work started by this plan. The order is a proposed investment priority,
+not chronological gating of independent role queues or automatic audit execution.
 
 For each selected slice, record what was actually exercised, the current source/provider versions,
 confirmed findings, and evidence still owed. Link new findings to their original owners where

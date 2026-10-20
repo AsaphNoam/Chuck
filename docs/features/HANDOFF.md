@@ -55,20 +55,21 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Core reliability audit planning:** [priorities and planning progress](CORE-RELIABILITY-AUDIT-PLAN.md)
   now map seven architectures from the product docs: durable truth, work admission/recovery,
   executable workspace/configuration, information/knowledge, authoritative results, operator
-  actions and sustained capacity. Six researched units are waiting for review:
+  actions and sustained capacity. All seven researched units are waiting for review:
   [CR-A1 — Durable truth and recovery](CORE-RELIABILITY-REVIEW-A1.md),
   [CR-A2 — Admission, waiting and recovery](CORE-RELIABILITY-REVIEW-A2.md),
   [CR-A3 — Executable workspace and configuration](CORE-RELIABILITY-REVIEW-A3.md),
   [CR-A4 — Information and operating knowledge](CORE-RELIABILITY-REVIEW-A4.md),
-  [CR-A5 — Supervision and result authority](CORE-RELIABILITY-REVIEW-A5.md) and
-  [CR-A6 — Operator action and observation truth](CORE-RELIABILITY-REVIEW-A6.md); A7 awaits planning
-  research. Existing ASR/ASW/ASF proofs/owners remain; no core audit has run.
+  [CR-A5 — Supervision and result authority](CORE-RELIABILITY-REVIEW-A5.md),
+  [CR-A6 — Operator action and observation truth](CORE-RELIABILITY-REVIEW-A6.md) and
+  [CR-A7 — Sustained capacity and cost](CORE-RELIABILITY-REVIEW-A7.md).
+  Existing ASR/ASW/ASF proofs/owners remain; no core audit has run.
   The [workflow design](WORKFLOW-RELIABILITY-DESIGN.md) specifies shared test rules, a `write-tests`
   companion and an `architectural-review` before every release, with candidate-bound receipts and
   a mechanical release gate. Both skills are implemented sequentially (TS-06.R35–R36/workflow
   §§17–18), researched and independently forward-tested. No real audit/release review started.
   Finding fixes reuse the original architectural review and receipt; they do not force a rerun.
-  A7 (sustained capacity and cost) is the next audit subject to map on request.
+  Planning is complete; each charter is one independently selectable review unit.
 - **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
   original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.
@@ -98,7 +99,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 ## Active change
 
 - None in progress. Workflow skills and release-gate implementation are complete; normal change
-  review is available below. CR-A1–CR-A6 are researched and waiting for review; A7 remains unmapped.
+  review is available below. CR-A1–CR-A7 are researched and waiting for review; audit planning is complete.
 - ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
   clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–9 below keep that
@@ -255,7 +256,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 
 **Core reliability audit units:** explicitly requested subsystem reviews of the complete current
 implementation and callers, not reviews of planning commits. Read the selected charter, refresh
-current fix ownership and record the reviewed HEAD. No core audit has started; A1–A6 are mapped.
+current fix ownership and record the reviewed HEAD. No core audit has started; all seven subjects are mapped.
 
 | Unit | Responsibility | Status |
 |---|---|---|
@@ -265,9 +266,10 @@ current fix ownership and record the reviewed HEAD. No core audit has started; A
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | waiting to start |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | waiting to start |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | waiting to start |
+| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | waiting to start |
 
-A7 in the [audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) awaits planning research and is not a queued
-review yet. These subsystem audits do not substitute for the candidate-bound
+The [audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) records all seven charters and the separate proposed
+cross-audit integration proof. These subsystem audits do not substitute for the candidate-bound
 architectural review before release or start any fix workflow.
 
 **Original agent-surface campaign:**
@@ -1244,6 +1246,17 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Mapped the seventh core reliability audit; planning complete:** two focused
+  GPT-6 Luna research passes and parent integration produced
+  [CR-A7](CORE-RELIABILITY-REVIEW-A7.md), one frontier-sized review of sustained capacity and cost.
+  It maps actual retrieval scans, retained queries, view fan-out, bounded control/dispatch work and
+  ephemeral resource ownership into representative measurement and cross-agent intervention;
+  ASR-I keeps its matched native-comparison design and existing ASW/ASF finding owners remain.
+  All seven charters now have waiting review units. No audit, workload measurement, failure probe,
+  product repair or release architecture receipt was performed. Independent checks confirmed the
+  retrieval and runtime lifetime maps. Spec, link/source/test-reference (22 named tests), table
+  shape and diff checks passed; product tests were not run for this planning-only change.
 
 - **2026-10-20 — Mapped the sixth core reliability audit:** two focused GPT-6 Luna research passes
   and parent integration produced [CR-A6](CORE-RELIABILITY-REVIEW-A6.md), one frontier-sized review
