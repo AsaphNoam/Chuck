@@ -326,7 +326,7 @@ the reviewed snapshot, before concurrent ASW-2 work.
   `TestReviewFailedRoomSettlementRetainsFailure` aborts both writes with SQLite triggers, restores
   them and retries the terminal event: the raw attempt row becomes `finalized`.
 - **Must fix** — ASW1-5 — **Recovery ignores and clean close erases reserved sequences**
-  (INV §1/§7/§9/§11/§15). `internal/runtime/journal.go:128–145,186–190,319–324`: health stores
+  (INV §1/§7/§9/§11/§15). `internal/runtime/journal.go:128–145,186–190,323–328`: health stores
   `ReservedSeq`, but opening advances allocation only from the complete log tail. A failed/torn
   append followed by restart can assign its reserved identity to the gap notice. Clean Close
   while degraded also writes a zero reservation, violating TS-02.R52. Preserve the watermark
@@ -797,60 +797,6 @@ Tree clean at entry. Source mode: repository source at
 `c12c425109a7bdd5682451f02afe958477319e7a`; release lock pins Claude ACP 0.85.1 / Agent SDK
 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. No credentialed provider run was performed.
 
-- **Must fix** — ASRD-1 — **Independent writers reuse transcript sequences across history operations**
-  (INV §1/§2/§5/§9/§11/§15). `internal/server/primer.go:65–81`, `switch.go:277–281`,
-  `sessions.go:347–398`, `internal/runtime/chat.go:2305–2318`: a cross-backend switch starts
-  the target's long-lived writer, then opens another writer for its switch marker. The target's
-  sequence cursor never observes that append. A successful Claude → Codex switch followed by one
-  prompt produces both `backend_switch` and `user_text` at sequence 2. Independently, two inactive
-  annotation requests, or annotation versus Resume, can both open at the same next sequence;
-  writer mutexes are instance-local. This breaks TS-02.R8's monotonic identity, FS-01.R14's
-  continuous history and FS-13.R5/R10's annotation replay/search. Route active markers through the
-  runtime's serialized allocator and fence inactive appends against one another and lifecycle
-  transitions using existing ownership seams. Also preserve truthful switch failure handling:
-  marker append failure currently returns 500 after the target is already active with no rollback,
-  and deferred `Close` ignores its sync error. Regress unique increasing sequences through both
-  handoff directions → first prompt, concurrent inactive annotations and annotation → Resume,
-  plus marker append/sync failure after activation. Evidence: the independent fake-ACP overlay
-  `/tmp/asr07_overlay.json` fails `TestASR07SwitchMarkerSequenceCollision` on the duplicate;
-  `/tmp/transcript_race_overlay.json` confirms two independent writers append the same sequence.
-  *Original reproduction corrected; reviewed in ASW-1 (2026-10-20):* one ref-counted journal per agent ID;
-  no server writer of its own; marker failure after activation is reported truthfully
-  (`TestSwitchRuntimeBackendSwapUsesPrimer` both directions, `TestConcurrentInactiveAnnotationsGetUniqueSequences`).
-- **Must fix** — ASRD-2 — **Concurrent live events are persisted and published out of sequence**
-  (INV §2/§5/§11/§15). `internal/runtime/chat.go:2080–2100,2123–2128,2158–2175`:
-  sequence allocation/in-memory insertion release `as.mu` before persistence and publication.
-  An annotation of a busy source sent to another agent can overtake ACP output, even with one
-  active writer: event N+1 may be durable/published before event N. Reader/context turn boundaries
-  and live/replayed ordering then disagree with TS-02.R8 and FS-03.R8/R13. The temporary scheduled
-  writer probe records `2 (annotation), 1 (assistant_text)` in the durable file. Serialize sequence
-  allocation, append and ordered publication through one existing event seam, including special
-  annotation/notice append paths, without holding a mutex across reentrant provider callbacks.
-  Regress simultaneous ACP output, annotation and permission/notice events with barriers and assert
-  increasing durable and observed order, not merely race-detector success.
-  *Corrected and reviewed in ASW-1 (2026-10-20):* `runtime.Journal` serializes allocation,
-  append, in-memory/hub and bus publication (`TestJournalSerializesConcurrentCommits`).
-- **Must fix** — ASRD-3 — **Failed transcript writes still become live conversation history**
-  (INV §7/§9/§15). `internal/runtime/chat.go:2097–2129`: only a required user prompt is
-  withdrawn when `persistEvent` fails; assistant text, tools and other ordinary events still reach
-  the hub and external sink. A disk/write failure therefore shows output that disappears on reload,
-  archive or later history handoff, contrary to FS-03.R13/TS-02.R8. An injected failed file append
-  returns `persisted=false`, leaves zero durable bytes, and still delivers `assistant_text` to the
-  subscriber. Make failure explicit and prevent unretained events from masquerading as durable
-  history; keep recovery/status publication bounded and avoid recursively using the failing writer.
-  Regress append and sync failures against both live subscribers and durable replay. Evidence for
-  ASRD-2/3: `/tmp/asrd_persist_overlay.json`, `TestASRDConcurrentEmitReordersDurableEvents` and
-  `TestASRDAppendFailureStillPublishes`; both reproduce the defects.
-  Systemic follow-up (same finding, source-backed): `internal/server/server.go:412–435` routes
-  that external sink to quota progress, room capture/finalization and task release, so this is
-  also a control-consumer boundary. Do not globally suppress cleanup of an independently committed
-  task result when transcript persistence fails. Make event durability/authority explicit to each
-  consumer; the [fix strategy](AGENT-SURFACE-FIX-STRATEGY.md) records the distinction and limits.
-  *History suppression reviewed in ASW-1 (2026-10-20); recovery/control findings remain above:* uncommitted events never reach
-  hub/bus/in-memory history; control observes the outcome; health is persisted outside the log,
-  repaired with a durable gap notice, and new work is refused until then
-  (`TestJournalFailedAppendIsNotPublished`, `TestJournalDegradesThenRecoversWithGapNotice`,
-  `TestThinkTankUncommittedSourceFailsAttempt`, `TestHistoryUnavailableIsADefiniteRefusal`).
 - **Must fix** — ASRD-4 — **Retrying an annotation after a lost response delivers it twice**
   (INV §2/§11/§15). `ui/src/components/chat/annotationDelivery.ts:76–94`,
   `ui/src/lib/annotations.ts:69–76`, `internal/server/sessions.go:232–262`: delivery inserts
@@ -864,22 +810,6 @@ Tree clean at entry. Source mode: repository source at
   failure. Room annotations already carry a command id and atomically deduplicate their mail.
   Regress lost responses for mail and self targets, including a reload and New task delivery.
   Evidence: `/tmp/asrd_annotation_overlay.json`, `TestASRDAnnotationLostResponseRetryDuplicates`.
-- **Must fix** — ASRD-5 — **Reconciliation reads arbitrary session artifacts as transcript truth**
-  (INV §1/§7/§8/§16). `internal/server/reconcile.go:87–100,118–165`: the sweep recursively
-  admits every file under an `a_*` session directory, including attachments, then `os.ReadFile`
-  and `strings.Split` retain its whole contents; assistant deltas also accumulate without a bound
-  before the final 120-rune clip. Large attachments/long conversations incur repeated unbounded
-  reads every sweep. More directly, an uploaded NDJSON log containing an `assistant_text` record
-  can replace a stale card preview with unrelated file content. The isolated probe confirms exactly
-  that false preview. TS-01.R8 restricts fallback to Chuck's normalized log; TS-02.R1/R8 preserve
-  that authority. Restrict candidates to the authoritative transcript path and use bounded streaming
-  retention for the preview, preserving stale-generation guards and reporting real read failures.
-  Regress unrelated artifacts, long streamed replies and bounded reads. Evidence:
-  `/tmp/asrd_annotation_overlay.json`, `TestASRDReconcileAcceptsAttachmentAsTranscript`.
-  *Corrected and reviewed in ASW-1 (2026-10-20):* only the canonical
-  `transcript.ndjson` is a reconcile candidate; the preview streams through the shared reader with
-  a 4 KiB tail and logs read failures (`TestReconcileIgnoresNonTranscriptSessionArtifacts`,
-  `TestLastAssistantPreviewBoundsRetainedReply`).
 
 Connected evidence ledger and J5 (context in delegated work):
 
