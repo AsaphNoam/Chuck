@@ -12,7 +12,10 @@ import (
 // ExecutionManifestVersion is the only manifest shape this build writes.
 const ExecutionManifestVersion = 1
 
-const maxManifestText = 128
+const (
+	maxManifestText  = 128
+	maxManifestBytes = 16 << 10
+)
 
 // ExecutionManifest records what one process start requested (TS-11.R24,
 // FS-18.R21): its purpose, frozen selection, the hash and size of each Chuck
@@ -38,12 +41,14 @@ type ExecutionManifest struct {
 	Truncated bool   `json:"truncated,omitempty"`
 }
 
-// ManifestProvider is the provider selection and the adapter's own
-// initialize self-description (observed, unverified).
+// ManifestProvider is the provider selection, the adapter's own initialize
+// self-description (observed, unverified) and the SHA-256 of the managed
+// adapter entrypoint actually run (empty: a PATH adapter, unknown).
 type ManifestProvider struct {
 	Source         string `json:"source,omitempty"`
 	AdapterName    string `json:"adapter_name,omitempty"`
 	AdapterVersion string `json:"adapter_version,omitempty"`
+	ArtifactSHA256 string `json:"artifact_sha256,omitempty"`
 }
 
 // ManifestLayer identifies one requested instruction layer.
@@ -53,8 +58,9 @@ type ManifestLayer struct {
 	Bytes  int    `json:"bytes"`
 }
 
-// adapterIdentity is what an adapter's initialize response says it is.
-type adapterIdentity struct{ Name, Version string }
+// adapterIdentity is what an adapter's initialize response says it is, plus
+// the managed artifact digest Chuck computed for it.
+type adapterIdentity struct{ Name, Version, Artifact string }
 
 func decodeAdapterIdentity(initRes json.RawMessage) adapterIdentity {
 	var body struct {
@@ -69,13 +75,8 @@ func decodeAdapterIdentity(initRes json.RawMessage) adapterIdentity {
 
 func executionManifest(spec LaunchSpec, adapter adapterIdentity) *ExecutionManifest {
 	m := &ExecutionManifest{
-		Version: ExecutionManifestVersion, Purpose: spec.Purpose(),
-		Backend: spec.Agent.Backend, Model: spec.Agent.Model, Effort: spec.Effort, SkipPerms: spec.SkipPerms,
-		Layers: []ManifestLayer{}, Knowledge: spec.KnowledgeDigest, Delivery: "requested", Adoption: "unknown",
-	}
-	if c := spec.ExecutionContract; c != nil {
-		choice, setup := c.ModelChoice, c.Setup
-		m.Choice, m.Setup = &choice, &setup
+		Version: ExecutionManifestVersion, Purpose: spec.Purpose(), SkipPerms: spec.SkipPerms,
+		Layers: []ManifestLayer{}, Delivery: "requested", Adoption: "unknown",
 	}
 	clipped := func(s string) string {
 		if len(s) > maxManifestText {
@@ -84,7 +85,20 @@ func executionManifest(spec LaunchSpec, adapter adapterIdentity) *ExecutionManif
 		}
 		return s
 	}
-	m.Provider = ManifestProvider{Source: clipped(spec.ProviderSource), AdapterName: clipped(adapter.Name), AdapterVersion: clipped(adapter.Version)}
+	m.Backend, m.Model, m.Effort = clipped(spec.Agent.Backend), clipped(spec.Agent.Model), clipped(spec.Effort)
+	m.Knowledge = clipped(spec.KnowledgeDigest)
+	if c := spec.ExecutionContract; c != nil {
+		choice := state.ModelChoice{Kind: clipped(c.ModelChoice.Kind), ID: clipped(c.ModelChoice.ID)}
+		setup := state.SetupChoice{Source: clipped(c.Setup.Source), Provider: clipped(c.Setup.Provider),
+			Profile: clipped(c.Setup.Profile), Mode: clipped(c.Setup.Mode)}
+		m.Choice, m.Setup = &choice, &setup
+	}
+	m.Provider = ManifestProvider{Source: clipped(spec.ProviderSource), AdapterName: clipped(adapter.Name),
+		AdapterVersion: clipped(adapter.Version), ArtifactSHA256: clipped(adapter.Artifact)}
+	// Native Codex instructions are merged ahead of the Chuck layers.
+	if n := spec.nativeInstructions; n != nil {
+		m.Layers = append(m.Layers, *n)
+	}
 	// A Codex fork sends no Chuck layer: the forked thread keeps its own.
 	if !(spec.BackendType == "codex-acp" && spec.Purpose() == PurposeFork) {
 		persona, kind := spec.SystemPrompt, "persona"
@@ -107,6 +121,10 @@ func executionManifest(spec LaunchSpec, adapter adapterIdentity) *ExecutionManif
 		sort.Strings(names)
 		raw, _ := json.Marshal(names)
 		m.Tools = hashText(string(raw))
+	}
+	// Every field above is clipped, so this backstop only guards future growth.
+	if raw, err := json.Marshal(m); err != nil || len(raw) > maxManifestBytes {
+		m.Layers, m.Truncated = []ManifestLayer{}, true
 	}
 	return m
 }

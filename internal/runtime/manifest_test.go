@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AsaphNoam/Chuck/internal/backend"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
@@ -98,5 +99,82 @@ func TestStartRecordsExecutionManifest(t *testing.T) {
 	}
 	if meta.SystemPrompt != "PERSONA_SENTINEL" || meta.ExecutionManifest.Layers[0].SHA256 != sha("PERSONA_SENTINEL") {
 		t.Fatalf("meta persona %q manifest %+v", meta.SystemPrompt, meta.ExecutionManifest)
+	}
+}
+
+// TS-11.R24: every retained field is clipped and the serialized record stays
+// within 16 KiB, signalling truncation instead of failing the start.
+func TestExecutionManifestBoundsEveryField(t *testing.T) {
+	long := strings.Repeat("m", 20<<10)
+	spec := LaunchSpec{Agent: state.Agent{Backend: long, Model: long}, Effort: long, KnowledgeDigest: long,
+		ExecutionContract: &state.ExecutionContract{ModelChoice: state.ModelChoice{Kind: state.ModelChoiceExplicit, ID: long},
+			Setup: state.SetupChoice{Source: long, Provider: long, Profile: long, Mode: long}}}
+	m := executionManifest(spec, adapterIdentity{Artifact: long})
+	raw, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) > maxManifestBytes || !m.Truncated || len(m.Choice.ID) != maxManifestText {
+		t.Fatalf("manifest bytes=%d truncated=%v id=%d", len(raw), m.Truncated, len(m.Choice.ID))
+	}
+}
+
+// FS-18.R21 / TS-11.R24: the native Codex instructions actually merged at
+// process start, and the managed adapter artifact, are identified by hash.
+func TestExecutionManifestIdentifiesNativeInstructionsAndArtifact(t *testing.T) {
+	ad, ok := backend.For("codex-acp")
+	if !ok {
+		t.Fatal("codex adapter missing")
+	}
+	c := NewChatRuntime(nil)
+	c.command = "/usr/bin/true"
+	var records []*ExecutionManifest
+	for _, native := range []string{"native-one", "native-two"} {
+		spec := LaunchSpec{Cwd: t.TempDir(), BackendType: "codex-acp", SystemPrompt: "same Chuck persona",
+			Env: []string{`CODEX_CONFIG={"developer_instructions":"` + native + `"}`}}
+		cmd, err := c.spawnCmd(ad, spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.startCmd(cmd, &spec); err != nil {
+			t.Fatal(err)
+		}
+		_ = cmd.Wait()
+		m := executionManifest(spec, adapterIdentity{Artifact: "artifact-digest"})
+		if len(m.Layers) == 0 || m.Layers[0] != (ManifestLayer{Kind: "native_instructions", SHA256: sha(native), Bytes: len(native)}) {
+			t.Fatalf("layers = %+v", m.Layers)
+		}
+		if m.Provider.ArtifactSHA256 != "artifact-digest" {
+			t.Fatalf("provider = %+v", m.Provider)
+		}
+		records = append(records, m)
+	}
+	if records[0].Layers[0] == records[1].Layers[0] {
+		t.Fatal("different native instruction requests yield identical layers")
+	}
+
+	root := t.TempDir()
+	_, args := backend.LaunchCommand(ad, root)
+	if err := os.MkdirAll(filepath.Dir(args[0]), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(args[0], []byte("entrypoint"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := backend.ManagedArtifactDigest(ad, root); got != sha("entrypoint") {
+		t.Fatalf("artifact digest = %q", got)
+	}
+	if got := backend.ManagedArtifactDigest(ad, ""); got != "" {
+		t.Fatalf("PATH adapter digest = %q, want unknown", got)
+	}
+}
+
+// FS-18.R21: terminal process starts record a manifest through the shared
+// metadata builder, with adapter identity unknown.
+func TestTerminalSessionMetaCarriesManifest(t *testing.T) {
+	spec := LaunchSpec{Agent: state.Agent{Interface: "terminal"}, BackendType: "claude-acp", SystemPrompt: "terminal persona"}
+	meta := NewSessionMeta(spec, "native-1")
+	if meta.ExecutionManifest == nil || len(meta.ExecutionManifest.Layers) != 1 || meta.ExecutionManifest.Provider.AdapterName != "" {
+		t.Fatalf("terminal manifest = %+v", meta.ExecutionManifest)
 	}
 }

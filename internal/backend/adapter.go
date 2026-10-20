@@ -450,21 +450,30 @@ const CodexACPPatchedSHA256 = "8424ea6e64c8b7e20f1ab325eaf8f8a033c7f24a161c663d7
 // patched artifact: a PATH `codex-acp` advertises steering but starts a detached
 // turn when idle. Other adapters carry no such dependency here.
 func SteerArtifactVerified(ad BackendAdapter, managedRoot string) bool {
-	if ad.Type() != "codex-acp" {
-		return true
-	}
-	rel := managedEntrypoints["codex-acp"]
+	return SteerDigestVerified(ad, ManagedArtifactDigest(ad, managedRoot))
+}
+
+// SteerDigestVerified is SteerArtifactVerified for an already computed
+// ManagedArtifactDigest.
+func SteerDigestVerified(ad BackendAdapter, digest string) bool {
+	return ad.Type() != "codex-acp" || digest == CodexACPPatchedSHA256
+}
+
+// ManagedArtifactDigest is the SHA-256 of the managed entrypoint LaunchCommand
+// runs, or "" when the adapter comes from PATH or cannot be read (unknown).
+func ManagedArtifactDigest(ad BackendAdapter, managedRoot string) string {
+	rel := managedEntrypoints[ad.Type()]
 	if managedRoot == "" || rel == "" {
-		return false
+		return ""
 	}
 	f, err := os.Open(filepath.Join(managedRoot, rel))
 	if err != nil {
-		return false
+		return ""
 	}
 	defer f.Close()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return false
+		return ""
 	}
-	return hex.EncodeToString(h.Sum(nil)) == CodexACPPatchedSHA256
+	return hex.EncodeToString(h.Sum(nil))
 }

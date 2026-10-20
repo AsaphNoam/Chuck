@@ -148,7 +148,7 @@ func TestCodexStartUsesRefreshedNativeInstructions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("spawnCmd: %v", err)
 	}
-	if err := c.startCmd(cmd, spec); err != nil {
+	if err := c.startCmd(cmd, &spec); err != nil {
 		t.Fatalf("startCmd: %v", err)
 	}
 	if err := cmd.Wait(); err != nil {

@@ -294,7 +294,7 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
 
 ### ASW-2 — Native execution contract — reviewed `9a15afa6` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-**Fix in progress (2026-10-20):** ASW2-2/3/6/11 fixed (Changelog). Remaining: ASW2-1, 4, 5, 7–10.
+**Fix in progress (2026-10-20):** ASW2-2/3/6/8–11 fixed (Changelog). Remaining: ASW2-1, 4, 5, 7.
 Fix scope is
 assessed independently below: the work extends the existing contract, provider-preparation and
 metadata seams; no new lifecycle/ownership mechanism is needed. Read-only parallel audits were
@@ -348,37 +348,6 @@ independently checked with the probes below. Product code and specifications are
   the child's effective marker inputs, or refuse an unprovable merge; do not add an independent
   configuration manager. **Fix scope: medium.**
   `TestASW2ReviewOverlayRootMarkersPreserveAncestorInstructions` loses `ANCESTOR_SENTINEL`.
-
-- **Must fix** — ASW2-8 — **The manifest cannot identify changed delivered instructions/artifacts**
-  (INV §2/§10/§11/§12/§17). `internal/runtime/manifest.go:43–47,87–100`,
-  `chat.go:2627–2658`: it hashes Chuck persona/bridge/suffix before Codex's actual native
-  instruction merge, and stores only adapter self-reported name/version. Two different native
-  instruction requests produce identical manifests; the available reviewed managed-adapter
-  digest used by Steer is also discarded, so same-version artifact changes remain indistinguishable.
-  FS-18.R21/A17 and TS-11.R24 require requested layer identities and artifact identity where
-  available. The implementation note acknowledges both omissions without reconciling that
-  requirement. Capture hashes/sizes and observed/reviewed identity at the existing assembly seam,
-  with unknown values explicit and no raw text. **Fix scope: medium.**
-  `TestASW2ReviewNativeInstructionManifest` changes the actual outgoing `CODEX_CONFIG` instructions
-  while the serialized manifest remains identical; the provider shape has no artifact-digest field.
-
-- **Must fix** — ASW2-9 — **Terminal processes receive no execution manifest**
-  (INV §1/§2/§10/§17). `internal/runtime/chat.go:2416–2417`,
-  `internal/runtime/terminal/terminal.go:175`: only chat Start/Resume attach a manifest. The shared
-  terminal metadata builder returns `runtimeMeta` without one, so ordinary terminal launch,
-  resume and chat-to-terminal switches lose the new diagnostic record. FS-18.R21/TS-11.R24
-  require each new process; the implementation note's exclusion conflicts with that scope.
-  Extend the shared metadata seam for terminal requests, keeping unobserved adapter identity
-  unknown. **Fix scope: easy.** `TestASW2ReviewTerminalManifest` finds a nil manifest.
-
-- **Worth fixing** — ASW2-10 — **The manifest's 16 KiB bound is not enforced**
-  (INV §11/§16/§17). `internal/runtime/manifest.go:70–87`: only three provider strings are
-  clipped; copied `ModelChoice.ID`, setup and other text fields have no manifest bound or final
-  serialized-size check. A long configured provider id emits 20,670 bytes with `truncated=false`,
-  contrary to TS-11.R24. Bound all retained fields and the serialized record, setting bounded
-  unknown/truncation metadata without failing startup. **Fix scope: easy.**
-  `TestASW2ReviewManifestBound` uses a 20 KiB provider id; no live provider accepting such an id
-  is asserted. Existing tests check the limit only for short inputs.
 
 Coverage/local choices: new-contract source overrides, explicit empty model/effort resets,
 same-identity resume/switch and rollback, forward migration/index preservation, fresh/refresh
@@ -1529,6 +1498,14 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Fixed ASW2-8/9/10 (INV §2/§10/§11/§16/§17):** the execution manifest now
+  records a `native_instructions` layer for the Codex text actually merged at process start
+  (`codexLaunchOverlay`, captured by `startCmd`) and `artifact_sha256`, the managed adapter
+  entrypoint digest Steer's proof already compares (`backend.ManagedArtifactDigest`; empty for a
+  PATH adapter). Terminal starts get a manifest through the shared metadata builder with adapter
+  identity unknown. Every text field clips to 128 bytes and an over-16 KiB record drops its layers
+  with `truncated`. TS-11.R24 note updated. Regressions in `internal/runtime/manifest_test.go`.
 
 - **2026-10-20 — Fixed ASW2-2/3/6/11 (INV §1/§2/§3/§11/§17):** ordinary continuation refuses a
   frozen or legacy setup naming a profile (`422 source_invalid`) before registration or switch

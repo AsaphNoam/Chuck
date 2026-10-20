@@ -89,6 +89,9 @@ type LaunchSpec struct {
 	// KnowledgeDigest identifies the operating package offered to this process
 	// (runtime-only; empty when unavailable). It feeds the execution manifest.
 	KnowledgeDigest string
+	// nativeInstructions identifies the native Codex instruction text merged
+	// ahead of the Chuck layers at process start (nil when none was sent).
+	nativeInstructions *ManifestLayer
 	// Fork, when set, makes Start open a native fork of another agent's
 	// provider session instead of a fresh one (FS-01.R36, TS-04.R65). It is
 	// one-shot launch input and never persisted as configuration (INV §3).

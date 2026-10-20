@@ -170,14 +170,18 @@ func (c *ChatRuntime) spawnCmd(ad backend.BackendAdapter, spec LaunchSpec) (*exe
 // cannot publish a different setup generation in the interval between this
 // launch's refresh and its process creation (INV §5/§15). The Chuck prompt is
 // merged after the refresh so it reads the native instructions this child loads.
-func (c *ChatRuntime) startCmd(cmd *exec.Cmd, spec LaunchSpec) error {
+// The merged native text's identity is recorded on spec for the manifest.
+func (c *ChatRuntime) startCmd(cmd *exec.Cmd, spec *LaunchSpec) error {
 	if spec.BackendType != "codex-acp" {
 		return cmd.Start()
 	}
 	start := func() error {
-		env, err := codexLaunchEnv(cmd.Env, spec)
+		env, native, err := codexLaunchOverlay(cmd.Env, *spec)
 		if err != nil {
 			return err
+		}
+		if native != "" {
+			spec.nativeInstructions = &ManifestLayer{Kind: "native_instructions", SHA256: hashText(native), Bytes: len(native)}
 		}
 		cmd.Env = env
 		return cmd.Start()
@@ -394,7 +398,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		_ = stdout.Close()
 		return nil, fmt.Errorf("runtime: stderr pipe: %w", err)
 	}
-	if err := c.startCmd(cmd, spec); err != nil {
+	if err := c.startCmd(cmd, &spec); err != nil {
 		_ = stdin.Close()
 		_ = stdout.Close()
 		_ = stderr.Close()
@@ -453,8 +457,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		as.shutdown()
 		return nil, err
 	}
-	as.setSteering(decodeSteeringSupport(initRes) && c.steerArtifactVerified(ad))
-	as.adapterInfo = decodeAdapterIdentity(initRes)
+	c.readAdapterIdentity(as, ad, initRes)
 	as.setCapabilities(negotiateCapabilities(initRes, offered))
 	var sess struct {
 		SessionID string `json:"sessionId"`
@@ -1417,7 +1420,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		_ = stdout.Close()
 		return nil, fmt.Errorf("runtime: stderr pipe: %w", err)
 	}
-	if err := c.startCmd(cmd, spec); err != nil {
+	if err := c.startCmd(cmd, &spec); err != nil {
 		_ = stdin.Close()
 		_ = stdout.Close()
 		_ = stderr.Close()
@@ -1487,8 +1490,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	}
 	// Re-decoded here, not carried across the boundary: resume spawns a new
 	// adapter process whose advertisement is its own (INV §1).
-	as.setSteering(decodeSteeringSupport(initRes) && c.steerArtifactVerified(ad))
-	as.adapterInfo = decodeAdapterIdentity(initRes)
+	c.readAdapterIdentity(as, ad, initRes)
 	as.setCapabilities(negotiateCapabilities(initRes, offered))
 
 	// Restore native context when an identity exists. A failed load must not
@@ -2445,6 +2447,8 @@ func runtimeMeta(spec LaunchSpec, sessionID string) SessionMetaData {
 		AddDirs:           spec.AddDirs,
 		LaunchConfig:      spec.LaunchConfig,
 		ExecutionContract: spec.ExecutionContract,
+		// Adapter identity stays unknown unless the chat runtime observed it.
+		ExecutionManifest: executionManifest(spec, adapterIdentity{}),
 		CreatedAt:         spec.Agent.CreatedAt.UTC().Format(time.RFC3339),
 		SessionID:         sessionID,
 	}
@@ -2599,12 +2603,19 @@ func envValue(env []string, key string) string {
 // caller's overlay value, else the native config the child loads — go before
 // Chuck's frozen prompt. Unrelated overlay keys are preserved.
 func codexLaunchEnv(env []string, spec LaunchSpec) ([]string, error) {
+	env, _, err := codexLaunchOverlay(env, spec)
+	return env, err
+}
+
+// codexLaunchOverlay is codexLaunchEnv that also returns the native
+// instruction text it merged ahead of the Chuck prompt.
+func codexLaunchOverlay(env []string, spec LaunchSpec) ([]string, string, error) {
 	prompt := spec.StartSystemPrompt()
 	// A native fork keeps its source thread's instructions: the adapter passes
 	// this overlay into thread/fork config, where a newly composed persona or
 	// bridge would replace them (TS-04.R65/R101).
 	if prompt == "" || spec.Purpose() == PurposeFork {
-		return env, nil
+		return env, "", nil
 	}
 
 	var raw string
@@ -2618,42 +2629,42 @@ func codexLaunchEnv(env []string, spec LaunchSpec) ([]string, error) {
 	overlay := map[string]any{}
 	if raw != "" {
 		if err := json.Unmarshal([]byte(raw), &overlay); err != nil {
-			return nil, fmt.Errorf("runtime: invalid CODEX_CONFIG JSON: %w", err)
+			return nil, "", fmt.Errorf("runtime: invalid CODEX_CONFIG JSON: %w", err)
 		}
 		if overlay == nil {
-			return nil, errors.New("runtime: CODEX_CONFIG must be a JSON object")
+			return nil, "", errors.New("runtime: CODEX_CONFIG must be a JSON object")
 		}
 	}
+	var native string
 	if existing, ok := overlay["developer_instructions"]; ok && existing != nil {
 		value, ok := existing.(string)
 		if !ok {
-			return nil, errors.New("runtime: CODEX_CONFIG developer_instructions must be a string")
+			return nil, "", errors.New("runtime: CODEX_CONFIG developer_instructions must be a string")
 		}
-		if value != "" {
-			prompt = value + "\n\n" + prompt
-		}
+		native = value
 	} else {
 		home := envValue(env, "CODEX_HOME")
 		if home == "" {
 			var err error
 			if home, err = config.PersonalCodexHome(); err != nil {
-				return nil, fmt.Errorf("runtime: resolve Codex home: %w", err)
+				return nil, "", fmt.Errorf("runtime: resolve Codex home: %w", err)
 			}
 		}
-		native, err := configsource.CodexDeveloperInstructions(home, spec.Cwd)
+		var err error
+		native, err = configsource.CodexDeveloperInstructions(home, spec.Cwd)
 		if err != nil {
-			return nil, fmt.Errorf("runtime: read native Codex developer instructions: %w", err)
+			return nil, "", fmt.Errorf("runtime: read native Codex developer instructions: %w", err)
 		}
-		if native != "" {
-			prompt = native + "\n\n" + prompt
-		}
+	}
+	if native != "" {
+		prompt = native + "\n\n" + prompt
 	}
 	overlay["developer_instructions"] = prompt
 	encoded, err := json.Marshal(overlay)
 	if err != nil {
-		return nil, fmt.Errorf("runtime: encode CODEX_CONFIG: %w", err)
+		return nil, "", fmt.Errorf("runtime: encode CODEX_CONFIG: %w", err)
 	}
-	return append(stripEnv(env, "CODEX_CONFIG"), "CODEX_CONFIG="+string(encoded)), nil
+	return append(stripEnv(env, "CODEX_CONFIG"), "CODEX_CONFIG="+string(encoded)), native, nil
 }
 
 // clip truncates s to at most n bytes (for status detail fields, ≤120 chars).
@@ -2667,14 +2678,31 @@ func clip(s string, n int) string {
 // steerArtifactVerified withholds Steer unless the selected adapter artifact is
 // proven to honour `idleBehavior:promptRequired` (TS-04.R101). A runtime command
 // override is a test double and keeps the advertisement-only behaviour.
-func (c *ChatRuntime) steerArtifactVerified(ad backend.BackendAdapter) bool {
+func (c *ChatRuntime) steerArtifactVerified(ad backend.BackendAdapter, artifact string) bool {
 	if c.steerProof != nil {
 		return c.steerProof(ad)
 	}
 	if c.command != "" {
 		return true
 	}
-	return backend.SteerArtifactVerified(ad, os.Getenv(providerexec.RuntimeRootEnv))
+	return backend.SteerDigestVerified(ad, artifact)
+}
+
+// adapterArtifact is the managed adapter entrypoint digest this start runs
+// ("" for a PATH adapter or a test-double command: unknown).
+func (c *ChatRuntime) adapterArtifact(ad backend.BackendAdapter) string {
+	if c.command != "" {
+		return ""
+	}
+	return backend.ManagedArtifactDigest(ad, os.Getenv(providerexec.RuntimeRootEnv))
+}
+
+// readAdapterIdentity records one process's steering proof and identity.
+func (c *ChatRuntime) readAdapterIdentity(as *agentState, ad backend.BackendAdapter, initRes json.RawMessage) {
+	artifact := c.adapterArtifact(ad)
+	as.setSteering(decodeSteeringSupport(initRes) && c.steerArtifactVerified(ad, artifact))
+	as.adapterInfo = decodeAdapterIdentity(initRes)
+	as.adapterInfo.Artifact = artifact
 }
 
 func (as *agentState) steeringSupported() bool {

@@ -347,13 +347,16 @@ retrofitted from current files. Resume appends a new process record while retain
 persona and conversation contract. Bounds cause explicit bounded unknown/truncation metadata,
 not a second instruction source or startup failure. Use the existing transcript/archive metadata
 path; no telemetry service, benchmark framework or prompt hot-rewrite is introduced.
-*Implementation:* `runtime.ExecutionManifest` rides each chat start/resume `session_meta` record
-(transcript only; not a sessions column). Layers are `persona`/`persona_override`, `bridge` and
-`runtime_guidance`; a Codex fork records none. Knowledge is `agentknowledge.PackageDigest`, tools
-the sorted auto-approved MCP tool names. The adapter name/version is its initialize `agentInfo`
-(observed, unverified); no adapter artifact digest is recorded yet, and native Codex instruction
-text merged ahead of the persona is not identified. Terminal starts carry no manifest. Delivery is
-always `requested`, adoption `unknown`; over-long text fields clip to 128 bytes and set `truncated`.
+*Implementation:* `runtime.ExecutionManifest` rides each chat and terminal start/resume
+`session_meta` record through the shared metadata builder (transcript only; not a sessions column).
+Layers are `native_instructions` (the Codex text `codexLaunchOverlay` merged at process start),
+`persona`/`persona_override`, `bridge` and `runtime_guidance`; a Codex fork records no Chuck layer.
+Knowledge is `agentknowledge.PackageDigest`, tools the sorted auto-approved MCP tool names. The
+adapter name/version is its initialize `agentInfo` (observed, unverified; unknown for terminal
+starts); `artifact_sha256` is `backend.ManagedArtifactDigest` of the managed entrypoint run, the
+same digest Steer's proof compares, and is empty for a PATH adapter. Delivery is always
+`requested`, adoption `unknown`; every text field clips to 128 bytes and sets `truncated`, and a
+serialized record over 16 KiB drops its layers with `truncated`.
 
 ## 3. Interfaces & data shapes
 

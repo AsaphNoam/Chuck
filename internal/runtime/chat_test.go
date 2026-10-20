@@ -443,7 +443,7 @@ func TestCodexSpawnRefreshesProfile(t *testing.T) {
 	if got := envValue(cmd.Env, "CODEX_HOME"); got != profile {
 		t.Fatalf("child CODEX_HOME = %q, want %q", got, profile)
 	}
-	if err := c.startCmd(cmd, spec); err != nil {
+	if err := c.startCmd(cmd, &spec); err != nil {
 		t.Fatalf("startCmd: %v", err)
 	}
 	if err := cmd.Wait(); err != nil {
@@ -475,7 +475,7 @@ func TestCodexDeveloperInstructionsRejectInvalidConfig(t *testing.T) {
 			if err != nil {
 				t.Fatalf("spawnCmd: %v", err)
 			}
-			err = c.startCmd(cmd, spec)
+			err = c.startCmd(cmd, &spec)
 			if err == nil || strings.Contains(err.Error(), config) {
 				t.Fatalf("start error = %v, want bounded invalid CODEX_CONFIG error", err)
 			}
