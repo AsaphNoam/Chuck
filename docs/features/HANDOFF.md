@@ -36,11 +36,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   The human explicitly authorized these cross-review batches; for this campaign select the new
   unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
   migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
-  control, ambiguous replay and the config read-loop stall. ASW-1 is reviewed with seven Must-fix
+  control, ambiguous replay and the config read-loop stall. ASW-1 is reviewed with eight Must-fix
   findings and one documentation finding open below; ASW-2 is reviewed with nine Must-fix
-  findings and two Worth-fixing findings; ASW-3 is reviewed with five findings open below.
+  findings and two Worth-fixing findings; ASW-3 is reviewed with six Must-fix findings open below.
   Other units remain waiting. The
   [systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
+- **Post-refactor synthesis:** [pre-fix assessment](AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md)
+  connects ownership/refusal, conversation dispatch and controller recovery. Two additional probes
+  confirm ASW1-9 (old terminal observation stops a current reporter) and ASW3-6 (birth mismatch
+  still authorizes signaling). Keep existing units; integrate exact execution identity and retained
+  recovery owners rather than commissioning another broad rewrite. No product fix selected.
 - **Prompt/harness investigation:** PROMPT-1's ordinary ancestor-chain fix is verified, but
   effective root-marker precedence still loses guidance (ASW2-7). PROMPT-2's remaining manifest
   omissions are ASW2-8–10. The original unit below retains separate process-policy recommendations.
@@ -70,9 +75,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - None in progress. ASW-2 (native execution contract) reviewed 2026-10-20; ASW2-1–11 below
   retain the same unit for fixes. Fresh unsupported-setup refusal, empty override normalization,
   new-session model continuation, Claude fork opening and Codex fork/Steer corrections are verified.
-- ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–8 below keep that
+- ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–9 below keep that
   same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
-- ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19; five Must-fix findings
+- ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19, extended 2026-10-20; six Must-fix findings
   keep the unit open (Review findings). FS-07.A12 real tmux/iTerm2 receipts are owed.
 
 ## Acceptance gates still owed
@@ -201,9 +206,9 @@ are the selection authority for this campaign. Three substantive refactors are r
 
 | Unit | Invocation | Outcome |
 |---|---|---|
-| ASW-1 | reviewed 2026-10-20 — findings open (ASW1-1–8) | One canonical commit boundary, ordered control observations and truthful history failure |
+| ASW-1 | reviewed 2026-10-20 — findings open (ASW1-1–9) | One canonical commit boundary, ordered control observations and truthful history failure |
 | ASW-2 | reviewed 2026-10-20 — nine Must-fix and two Worth-fixing findings (see Review findings) | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
-| ASW-3 | reviewed 2026-10-19 — five findings open (see Review findings) | Process/terminal ownership and native terminal identity; incomplete fail-closed control and launch-hook ordering |
+| ASW-3 | reviewed 2026-10-19/20 — six findings open (see Review findings) | Process/terminal ownership and native terminal identity; incomplete fail-closed control and launch-hook ordering |
 
 The following cross-review §8 batches are explicitly authorized by the human's consolidation
 request. Their exact scope, required specs, regressions and closure rules are in the linked design.
@@ -261,7 +266,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 
 - **ASW-1 — conversation event commits** (`3f746c2a`, `69ef5951`, `1843470f`, `57af7f61`,
   closure `43da6bec`) — **reviewed; findings open**. Reviewed `3618df3e..43da6bec`;
-  ASW1-1–8 below retain this same unit for `/fix`. Original ASRD-1/2/5 reproductions are corrected;
+  ASW1-1–9 below retain this same unit for `/fix`. Original ASRD-1/2/5 reproductions are corrected;
   ASRD-3's history suppression is corrected but its recovery/control obligations remain incomplete.
   ASRD-4 stays with ASF-2. Concurrent ASW-2 edits were excluded by finishing the probes in
   `/private/tmp/chuck-asw1-review-43da6bec`.
@@ -269,7 +274,7 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 - **ASW-3 — process and terminal-driver ownership** (`2609e903`, `3e7df682`, `e2cf34f8`,
   `9a0bf119`, closure `3618df3e`) — **reviewed; findings open**. Reviewed
   `a3bd6015..3618df3e` in an isolated snapshot; ongoing ASW-1 work is outside the unit.
-  ASW3-1–5 below retain this same unit for `/fix`; original ASRB-1 and ASRC-3 remain partially
+  ASW3-1–6 below retain this same unit for `/fix`; original ASRB-1 and ASRC-3 remain partially
   resolved. FS-07.A12 real-driver receipts remain separately owed.
 
 ## Review findings
@@ -436,10 +441,10 @@ changed. Native clone/check/adoption and unpatched idle-Steer race receipts rema
 
 ### ASW-1 — Conversation event commits — reviewed `43da6bec` — **Fix model:** difficult — Codex Sol.
 
-Seven Must-fix findings and one Worth-fixing documentation finding keep this unit open. Fix scope
+Eight Must-fix findings and one Worth-fixing documentation finding keep this unit open. Fix scope
 is assessed independently below; the hardest fixes coordinate conversation/generation ownership
 and durable failure recovery. No product code or specifications were changed. Locations refer to
-the reviewed snapshot, before concurrent ASW-2 work.
+the reviewed snapshot, before concurrent ASW-2 work; ASW1-9 was added against `eaaf1c1f` below.
 
 - **Must fix** — ASW1-1 — **History refusal silently discards an accepted held message**
   (INV §1/§5/§8/§15). `internal/runtime/chat.go:959–963,1234–1262,1276–1285`: Send accepts a
@@ -517,6 +522,25 @@ the reviewed snapshot, before concurrent ASW-2 work.
   Update normative wording/deviation so the handoff is not its only explanation. **Fix scope:
   trivial/easy.**
 
+- **Must fix** — ASW1-9 — **A delayed terminal observation settles the current execution instead
+  of its original owner** (INV §1/§2/§5/§11/§15/§17). `internal/server/server.go:441–442` replaces
+  `ev.Generation` with `registry.Generation(ev.AgentID)` and starts asynchronous cleanup. Task
+  release/yield lookups (`internal/state/tasks.go:1739`, `internal/state/task_waits.go:180`) match only agent/generation;
+  the pipeline lookup deliberately chooses the latest stage for that pair. A stale callback can
+  therefore select a newer pending task and `finishTaskCleanup` calls unguarded `StopStage`
+  (`internal/server/task_dispatcher.go:556–560`) on the current runtime. ASW1-6's queue overlap makes
+  cross-generation delivery possible; detached cleanup also escapes FIFO settlement ordering.
+  TS-01.R39/TS-04.R100 and TS-10.R19/R35 require the reporting execution's boundary, not current
+  identity. Carry immutable event generation/turn and bind the exact task execution/release obligation;
+  preserve that identity through deferred work and effect-time lifecycle checks. Do not merely make
+  cleanup synchronous in the drainer: Stop can emit/wait on the same queue and deadlock it.
+  **Fix scope: difficult.** The temporary actual-installed-callback probe
+  `TestSystemicOldTerminalObservationCannotReleaseCurrentTask` fails for both an old generation and
+  an old turn in the current generation, stopping a task-created reporter whose fake-ACP prompt is
+  still held. It injects the stale observation; full native replacement/assignment scheduling was
+  not reenacted. Port it with a same-generation successive-assignment and reentrant Stop regression.
+  Evidence: `/private/tmp/chuck-systemic-20261020-server_test.go` and its overlay JSON.
+
 Local-choice outcomes: a separate health table is justified because the open marker precedes a
 new session row; conservative unclean-stop gap notices and offline index repair are reasonable.
 The absent banner is covered by the refused-Send surface, but does not resolve ASW1-1/2. Gap
@@ -540,10 +564,11 @@ or product/spec edits were selected.
 
 ### ASW-3 — Process and terminal-driver ownership — reviewed `3618df3e` — **Fix model:** difficult — Codex Sol.
 
-Five confirmed Must-fix findings keep this unit open. Fix sizing is independent of severity:
+Six confirmed Must-fix findings keep this unit open. Fix sizing is independent of severity:
 ASW3-1/3/5 are medium, ASW3-2 is easy, and ASW3-4 is difficult because leaderless-group recovery
 must preserve ownership proof instead of blindly signaling a numeric PGID. All locations below
-refer to the reviewed snapshot, before ASW-1's later journal changes.
+refer to the reviewed snapshot, before ASW-1's later journal changes; ASW3-6 was added against
+`eaaf1c1f` and its unchanged process-proof helper.
 
 - **Must fix** — ASW3-1 — **Terminal Stop destroys the view after ownership verification fails**
   (INV §4/§5/§9/§15). `internal/runtime/terminal/terminal.go:369–409,553–560`:
@@ -593,6 +618,21 @@ refer to the reviewed snapshot, before ASW-1's later journal changes.
   and corroborate identity immediately before signals; preserve descendant containment. An actual
   Runtime.Cancel probe with a closed exit channel and stale birth delivers SIGINT to a separate
   test-owned group. No unowned process or forced OS PID reuse was used.
+
+- **Must fix** — ASW3-6 — **The shared identity comparison accepts a different process birth**
+  (INV §9/§12/§17). `internal/runtime/procstart.go:14–17,59–62` applies a one-second slack on
+  every platform; mismatches up to and including ±1 s return `ProcessOwned`, authorizing group
+  signaling in `StopRecordedProcess`. Darwin's reader returns kernel microseconds; Linux's
+  tick/boot-time reconstruction does not establish equivalence of different births. FS-01.R54 /
+  TS-02.R54 require equality at platform precision and mismatch to fail closed. Existing
+  `TestClassifyProcessRequiresExactBirth` and the reused-PID Stop test check only a one-hour mismatch.
+  Use exact native identity or narrowly proven platform normalization, not a broad tolerance;
+  regress small positive/negative mismatches, equality and the old slack boundary before relying on
+  this classifier for the other ASW-3 fixes. **Fix scope: medium.**
+  `TestSystemicNearBirthMismatchCannotAuthorizeControl` reports Owned for ±250 ms and ±1 s,
+  and `StopRecordedProcess` terminates its own child with an intentionally wrong -250 ms proof.
+  No actual PID reuse or signal to an unowned process was attempted. Evidence:
+  `/private/tmp/chuck-systemic-20261020-runtime_test.go` and its overlay JSON.
 
 Original-finding reconciliation: **ASRA-4, ASRB-4–7, ASRC-4 and ASRC-7 closed** against their
 original evidence. Setup cancellation/deadline uses the shared owned group and bounded drain;
@@ -1520,6 +1560,16 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Assessed completed refactors before fix queueing:** compared all three ASW
+  reviews with remaining ASF batches and current source. Added ASW1-9 (terminal cleanup loses
+  execution identity) and ASW3-6 (near birth mismatch authorizes control), both confirmed by
+  intentionally failing isolated overlay probes (INV §1/§2/§5/§9/§11/§12/§15/§17).
+  [The assessment](AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md) records bounded shared-seam repairs,
+  integration constraints and joint regressions; no fourth broad refactor or product fix selected.
+  Updated stale ASW review status in the unit index. No provider/browser/real-driver run.
+  Documentation/spec-reference checks and diff checks pass; the four pre-existing dirty
+  ready-change files are preserved outside this commit.
 
 - **2026-10-20 — Reviewed ASW-2 native execution contract:** reviewed `43da6bec..9a15afa6`
   from isolated snapshots. Nine Must-fix and two Worth-fixing findings cover legacy model/setup

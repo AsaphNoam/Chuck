@@ -1,8 +1,12 @@
 # Agent-surface implementation and fix units
 
 Designed 2026-10-19 from the completed ASR-A–I reviews and
-[systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md). **Nothing here is implemented or closed.**
-The three architectural units have ready changes and normative planned FS/TS requirements.
+[systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md). **Updated 2026-10-20:** all three architectural
+units are implemented and independently reviewed, with findings still open. Their original coverage
+IDs below are historical provenance, not a claim that those original reproductions remain open.
+Current ASW closure uses ASW1-1–9, ASW2-1–11 and ASW3-1–6 in the handoff. See the
+[post-refactor assessment](AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md) for the additional joins and
+two new reproduced defects. No fix unit is currently in progress.
 The six fix units below repair existing seams; their original evidence and severity remain in
 [HANDOFF.md](HANDOFF.md#review-findings). This is an execution index, not a replacement specification.
 
@@ -30,11 +34,11 @@ Ordinary fix-closure bookkeeping follows §8 and is not a new implementation rev
 
 ## Ready units and priority
 
-| Unit / invocation | Scope | Primary IDs | State / fix model |
+| Unit / invocation | Scope | Original coverage IDs | State / fix model |
 |---|---|---|---|
-| ASW-1 — finished 2026-10-20 (`3f746c2a`..closure) | One conversation commit and ordered control boundary (FS-03.R99, TS-01.R39, TS-02.R52, TS-03.R73, TS-04.R100) | ASRD-1, ASRD-2, ASRD-3, ASRD-5 | Implemented; findings fixed pending the ASW-1 substantive review |
-| ASW-2 — finished 2026-10-20 (`66f1fe55`..`9a15afa6`) | Frozen native contract, purpose-aware provider preparation and diagnostic provenance (FS-01.R53, FS-08.R37, FS-18.R21, TS-01.R40, TS-02.R53, TS-04.R101, TS-07.R19, TS-11.R24) | ASRA-1, ASRA-2, ASRA-3, PROMPT-1, ASRB-2, ASRB-3, ASRB-8, ASRG-4, PROMPT-2 | Implemented; findings fixed pending the ASW-2 substantive review |
-| ASW-3 — finished 2026-10-19 (`2609e903`..`HEAD`) | Owned process/driver proof, launch claim and native terminal identity (FS-01.R54, FS-07.R25, TS-01.R41, TS-02.R54, TS-04.R102, TS-05.R28, TS-12.R11) | ASRA-4, ASRB-1, ASRB-4, ASRB-5, ASRB-6, ASRB-7, ASRC-3, ASRC-4, ASRC-7 | Implemented; findings fixed pending the ASW-3 substantive review; FS-07.A12 real-driver receipts owed |
+| ASW-1 — `/fix ASW-1` (reviewed `43da6bec`) | One conversation commit and ordered control boundary (FS-03.R99, TS-01.R39, TS-02.R52, TS-03.R73, TS-04.R100) | ASRD-1, ASRD-2, ASRD-3, ASRD-5 | Reviewed; ASW1-1–9 open — difficult, Codex Sol |
+| ASW-2 — `/fix ASW-2` (reviewed `9a15afa6`) | Frozen native contract, purpose-aware provider preparation and diagnostic provenance (FS-01.R53, FS-08.R37, FS-18.R21, TS-01.R40, TS-02.R53, TS-04.R101, TS-07.R19, TS-11.R24) | ASRA-1, ASRA-2, ASRA-3, PROMPT-1, ASRB-2, ASRB-3, ASRB-8, ASRG-4, PROMPT-2 | Reviewed; ASW2-1–11 open — medium, Codex Terra or Claude Opus |
+| ASW-3 — `/fix ASW-3` (reviewed `3618df3e`) | Owned process/driver proof, launch claim and native terminal identity (FS-01.R54, FS-07.R25, TS-01.R41, TS-02.R54, TS-04.R102, TS-05.R28, TS-12.R11) | ASRA-4, ASRB-1, ASRB-4, ASRB-5, ASRB-6, ASRB-7, ASRC-3, ASRC-4, ASRC-7 | Reviewed; ASW3-1–6 open — difficult, Codex Sol; FS-07.A12 receipts owed |
 | ASF-1 — `/fix ASF-1` | [Turn, status, permission and settings settlement](#asf-1--turn-and-control-settlement) | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Waiting — medium, Codex Terra or Claude Opus |
 | ASF-2 — `/fix ASF-2` | [Input acceptance, uncertain delivery and exact recovery](#asf-2--input-acceptance-and-recovery) | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Waiting — medium, Codex Terra or Claude Opus |
 | ASF-3 — `/fix ASF-3` | [Durable continuation and controller recovery](#asf-3--durable-continuation-and-controller-recovery) | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
@@ -258,8 +262,10 @@ correct resume only on a unique complete result. Run CLI tests and applicable TS
 
 ## Coverage ledger
 
-The primary-ID column above is the machine-countable assignment: **41 findings, 41 assignments,
-no duplicates** (4 + 9 + 9 + 4 + 4 + 6 + 2 + 2 + 1). By origin:
+The original-coverage column above preserves the historical assignment: **41 findings, 41 assignments,
+no duplicates** (4 + 9 + 9 + 4 + 4 + 6 + 2 + 2 + 1). It is not the current open-finding count.
+The handoff's ASW findings supersede corrected reproductions and own the explicitly linked original
+remainders; do not queue those aliases twice. By origin:
 
 | Original review | Refactor/fix owners |
 |---|---|
