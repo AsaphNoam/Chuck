@@ -8,11 +8,11 @@ and checked source entry paths. The committed baseline for this expansion is `f7
 product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
 journey recommendation, which compressed distinct core architectures too much.
 
-**Status: mapping one subject at a time, as requested.** A1–A4 have researched review charters
+**Status: mapping one subject at a time, as requested.** A1–A5 have researched review charters
 and waiting review units, [CR-A1](CORE-RELIABILITY-REVIEW-A1.md),
-[CR-A2](CORE-RELIABILITY-REVIEW-A2.md), [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) and
-[CR-A4](CORE-RELIABILITY-REVIEW-A4.md), in the handoff.
-A5–A7 remain proposed scopes awaiting the same planning research. No audit or product repair has
+[CR-A2](CORE-RELIABILITY-REVIEW-A2.md), [CR-A3](CORE-RELIABILITY-REVIEW-A3.md),
+[CR-A4](CORE-RELIABILITY-REVIEW-A4.md) and [CR-A5](CORE-RELIABILITY-REVIEW-A5.md), in the handoff.
+A6–A7 remain proposed scopes awaiting the same planning research. No audit or product repair has
 started. The purposeful testing and
 architectural-review skills are implemented.
 Refresh current handoff/fix status before each review; concurrent fixes are landing. Hypotheses
@@ -79,8 +79,8 @@ priority; permission/Stop/failed-delivery observations matter on every operator 
 
 ## Audit scopes and planning progress
 
-A1–A4 are mapped into review-ready charters. The remaining sections preserve the agreed subjects;
-they are not additional executable review tasks yet. Continue planning with A5 on the next request.
+A1–A5 are mapped into review-ready charters. The remaining sections preserve the agreed subjects;
+they are not additional executable review tasks yet. Continue planning with A6 on the next request.
 
 ### A1. Preserve saved work through repair and interruption
 
@@ -144,22 +144,14 @@ ASW/ASF owners remain; these are review questions, not new defect claims. No aud
 **Purpose:** inspect the pipeline/task/room join as an architecture, including cleanup and
 human intervention. It is separate from A2's admission mechanics and A4's content delivery.
 
-**Start:** `internal/pipeline/{manager,reconcile,actions,rooms}.go`,
-`internal/state/{pipeline_tasks,tasks}.go`,
-`internal/server/{pipeline_lifecycle,think_tank_capture}.go` and the room state/service/messaging
-owners. Read FS-14/FS-16/FS-21 and TS-09.R35–R49/R51–R59, TS-10.R25–R35, TS-14.R4–R14.
-
-**Challenge:** accepted report → matching turn end → runtime release → next cursor action;
-descendant cancellation and attempt closure; preserved pending approval/finalization across restart;
-room submission intent versus successful publication; partial openings without exposure to peers;
-captured room activity versus unrelated private turns; judge result attached to the exact stage.
-Named outputs are opaque text, not copied filesystem artifacts, and an idle agent is not a result.
-
-**Proof/ownership:** inspect the immutable accepted result, current attempt/cursor, retained cleanup
-intent and actual launched successor. A staged tool receipt or fluent judge answer does not prove
-canonical publication or task acceptance. Reuse ASF-3 and ASW-1/3 ownership and existing room
-fixtures; recheck combined changes and any remaining current assumptions. Owed real-provider
-task/room behavior is not satisfied by repeating the source audit.
+**Mapped 2026-10-20 — [CR-A5: Supervision and result authority](CORE-RELIABILITY-REVIEW-A5.md).**
+Two focused GPT-6 Luna researchers and parent integration mapped accepted task reports, execution
+settlement, descendant closure, retained progression and room/judge publication against `b58708c6`.
+One frontier-sized review joins ordinary stages and room-backed stages through actual successor
+work. It distinguishes task cleanup authority from canonical room-source requirements, concurrent
+opening attempts from the discussion floor, published synthesis/read projection from stage
+acceptance, and Continue/Retry/Replace identities. Existing ASW/ASF owners and live evidence limits
+remain; no audit/probe or product fix ran. Refresh concurrent ASW-1 closure before review.
 
 ### A6. Make operator commands and observations trustworthy
 
@@ -255,9 +247,9 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 ## How to continue
 
 Map one remaining subject at a time into a researched charter and one separately selectable
-handoff review unit. A1–A4 are ready; A5's supervision and result authority is the next planning
-subject. A7 can collect measurements independently. A5–A6 use prior findings and current changes
-to choose their highest-consequence unproved joins. The integration proof spans them after the
+handoff review unit. A1–A5 are ready; A6's operator action and observation truth is the next planning
+subject. A7 can collect measurements independently. A6 uses prior findings and current changes
+to choose its highest-consequence unproved joins. The integration proof spans them after the
 relevant repairs. This is a proposed investment order, not chronological gating of independent role
 queues or automatic audit execution.
 
