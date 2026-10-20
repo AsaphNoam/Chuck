@@ -1053,7 +1053,6 @@ code or specification changed.
   settlement; test the terminal reason, quota receipt/block and inline-mail behavior. Held
   follow-ups remain allowed after a cancelled turn under FS-03.R49. This is separate from
   ASRC-2's late status writes and CI-1's already-fixed sticky fake cancellation.
-- ASRG-4 is closed by the ASW2-4 fix (Changelog 2026-10-20).
 - **Worth fixing** — ASRG-5 — **Older cleanup failures starve later probe cleanup indefinitely**
   (INV §7/§9/§16). `internal/state/quota_checks.go:122–139`,
   `internal/server/quota_check.go:256–289`: the database always selects the oldest eight
