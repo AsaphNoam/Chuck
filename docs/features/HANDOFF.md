@@ -80,7 +80,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   instruction-file/profile sources; live adoption of the blank override unproved).
   Slice 5 done: PROMPT-1 ancestor variant fixed pending review (`project_root_markers` chain,
   default `.git`; pinned binary strings + reviewer probe; nearer/custom-marker cases fixture-only).
-  Next: slice 3 (fork purpose), then 2, 6, 7.
+  Slice 3 done: ASRB-2/ASRB-3 fixed pending review (fakeacp `FAKEACP_FORK_UNREGISTERED` mirrors
+  the pinned Claude fork; `fork_purpose_test.go`); credentialed clone receipts still owed.
+  Slice 6 delegated (Steer artifact proof). Next: slice 2 (root/profile preflight), then 7.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–8 below keep that
   same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
 - ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19; five Must-fix findings

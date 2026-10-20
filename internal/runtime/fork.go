@@ -66,8 +66,28 @@ func (c *ChatRuntime) openFork(ctx context.Context, as *agentState, spec LaunchS
 	if json.Unmarshal(res, &body) != nil || body.SessionID == "" {
 		return "", nil, fmt.Errorf("runtime: session/fork returned no sessionId")
 	}
+	if forkOpensByLoad(spec.BackendType) {
+		// Pinned claude-agent-acp 0.85.1 forks only the SDK persistence and
+		// never registers the new session, ignoring MCP/directories; open it
+		// through the supported load path with this generation's registrations
+		// before any configuration or prompt (TS-04.R101).
+		as.mu.Lock()
+		as.loadReplay = true
+		as.mu.Unlock()
+		res, err = c.startupCall(ctx, as.transport, "session/load", sessionLoadParams(spec, body.SessionID))
+		as.mu.Lock()
+		as.loadReplay = false
+		as.mu.Unlock()
+		if err != nil {
+			c.deleteForkedSession(as, body.SessionID)
+			return "", nil, fmt.Errorf("runtime: open forked session: %w", err)
+		}
+	}
 	return body.SessionID, res, nil
 }
+
+// forkOpensByLoad reports adapters whose fork returns an unregistered id.
+func forkOpensByLoad(backendType string) bool { return backendType == "claude-acp" }
 
 // deleteForkedSession removes a forked provider session whose local commit
 // failed, best-effort, before the process is torn down (TS-01.R35, INV §15).

@@ -33,6 +33,20 @@ const sessionID = "fake-sess-1"
 // to the forked id, as the real adapter's updates follow the new session.
 var activeSession atomic.Value
 
+// pendingFork is a session the pinned Claude adapter's fork created on disk
+// but never registered (FAKEACP_FORK_UNREGISTERED): every session method on it
+// fails `Session not found` until session/load opens it.
+var pendingFork atomic.Value
+
+func sessionNotFound(params json.RawMessage) bool {
+	var p struct {
+		SessionID string `json:"sessionId"`
+	}
+	_ = json.Unmarshal(params, &p)
+	pending, _ := pendingFork.Load().(string)
+	return pending != "" && p.SessionID == pending
+}
+
 func currentSession() string {
 	if v, ok := activeSession.Load().(string); ok && v != "" {
 		return v
@@ -263,6 +277,15 @@ func handle(msg *rpcMessage) {
 			return
 		}
 		initConfigOptions()
+		if sessionNotFound(msg.Params) {
+			// Loading the unregistered fork registers it, without replaying
+			// history the caller already copied.
+			forked, _ := pendingFork.Load().(string)
+			pendingFork.Store("")
+			activeSession.Store(forked)
+			respond(*msg.ID, map[string]any{"configOptions": fakeConfigOptions()})
+			return
+		}
 		// A real adapter may restore native context by replaying the prior
 		// conversation as session/update frames before it answers session/load.
 		emitLoadHistory()
@@ -275,6 +298,10 @@ func handle(msg *rpcMessage) {
 		// Legacy fixture shape retained for existing parameter-path coverage.
 		respond(*msg.ID, map[string]any{"sessionId": "fake-sess-loaded", "configOptions": fakeConfigOptions()})
 	case "session/set_config_option":
+		if sessionNotFound(msg.Params) {
+			respondErr(*msg.ID, -32603, "Session not found")
+			return
+		}
 		if logPath := os.Getenv("FAKEACP_CONFIG_LOG"); logPath != "" {
 			if f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
 				_, _ = f.Write(append(bytes.ReplaceAll(msg.Params, []byte("\n"), []byte(" ")), '\n'))
@@ -334,6 +361,19 @@ func handle(msg *rpcMessage) {
 		}
 		if os.Getenv("FAKEACP_FORK_FAIL") != "" {
 			respondErr(*msg.ID, -32603, "fork refused")
+			return
+		}
+		// The pinned codex-acp passes the process CODEX_CONFIG overlay into
+		// thread/fork config, so fork tests inspect what this child received.
+		if dump := os.Getenv("FAKEACP_FORK_ENV_DUMP"); dump != "" {
+			_ = os.WriteFile(dump, []byte(os.Getenv("CODEX_CONFIG")), 0o600)
+		}
+		if os.Getenv("FAKEACP_FORK_UNREGISTERED") != "" {
+			// Pinned claude-agent-acp 0.85.1 unstable_forkSession: an SDK
+			// persistence fork answering only {sessionId}, never added to the
+			// adapter's live sessions and ignoring MCP/directories.
+			pendingFork.Store("fake-fork-1")
+			respond(*msg.ID, map[string]any{"sessionId": "fake-fork-1"})
 			return
 		}
 		initConfigOptions()
@@ -430,6 +470,10 @@ func handle(msg *rpcMessage) {
 		respond(*msg.ID, map[string]any{"outcome": outcome})
 	case "session/prompt":
 		id := *msg.ID
+		if sessionNotFound(msg.Params) {
+			respondErr(id, -32603, "Session not found")
+			return
+		}
 		cancelMu.Lock()
 		cancelCh, cancelClosed = make(chan struct{}), false
 		cancelMu.Unlock()

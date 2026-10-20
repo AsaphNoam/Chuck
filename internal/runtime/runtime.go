@@ -92,6 +92,25 @@ type LaunchSpec struct {
 	Fork *ForkPlan
 }
 
+// Provider-preparation purposes (TS-01.R40): execution intent for one process
+// start, never persisted configuration. A quota check prepares its own spec.
+const (
+	PurposeFresh  = "fresh"
+	PurposeResume = "resume"
+	PurposeFork   = "fork"
+)
+
+// Purpose is this start's provider-preparation purpose.
+func (s LaunchSpec) Purpose() string {
+	switch {
+	case s.Fork != nil:
+		return PurposeFork
+	case s.LastSessionID != "":
+		return PurposeResume
+	}
+	return PurposeFresh
+}
+
 // IsChuckAware resolves omitted legacy choices to the enabled default.
 func (s LaunchSpec) IsChuckAware() bool { return s.ChuckAware == nil || *s.ChuckAware }
 

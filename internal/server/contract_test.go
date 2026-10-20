@@ -237,6 +237,7 @@ func TestContractForkInheritsSourceChoice(t *testing.T) {
 		t.Fatal(ae)
 	}
 	snap := snapshotOf(agent, fresh)
+	snap.SystemPrompt = "SOURCE_PERSONA"
 	sentinel := "later-override"
 	bindClaudeSource(t, srv, root, projectDir, config.SourceOverrides{Model: &sentinel})
 
@@ -248,5 +249,8 @@ func TestContractForkInheritsSourceChoice(t *testing.T) {
 	}
 	if clone.ModelID != "" || clone.ExecutionContract.ModelChoice.Kind != "native" {
 		t.Fatalf("clone ModelID=%q contract=%+v, want inherited native", clone.ModelID, clone.ExecutionContract)
+	}
+	if clone.SystemPrompt != "SOURCE_PERSONA" {
+		t.Fatalf("clone persona = %q, want the source's frozen persona", clone.SystemPrompt)
 	}
 }

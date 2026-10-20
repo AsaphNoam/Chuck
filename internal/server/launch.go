@@ -451,6 +451,12 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 	if options.Fork != nil {
 		spec.HistoryPrimer = options.Fork.HistoryPrimer
 	}
+	if options.Source != nil {
+		// A fork inherits its source's frozen persona, not today's role and
+		// project text (FS-01.R53); Codex keeps it natively, Claude is given it
+		// on load exactly as the source's own resume would be.
+		spec.SystemPrompt = options.Source.SystemPrompt
+	}
 	return s.applyKnowledgeOverlay(spec), agent, nil
 }
 

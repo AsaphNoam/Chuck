@@ -2590,7 +2590,10 @@ func envValue(env []string, key string) string {
 // Chuck's frozen prompt. Unrelated overlay keys are preserved.
 func codexLaunchEnv(env []string, spec LaunchSpec) ([]string, error) {
 	prompt := spec.StartSystemPrompt()
-	if prompt == "" {
+	// A native fork keeps its source thread's instructions: the adapter passes
+	// this overlay into thread/fork config, where a newly composed persona or
+	// bridge would replace them (TS-04.R65/R101).
+	if prompt == "" || spec.Purpose() == PurposeFork {
 		return env, nil
 	}
 

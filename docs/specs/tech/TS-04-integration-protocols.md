@@ -1459,6 +1459,9 @@ retaining the source contract and installing only required generation-scoped dir
 Pinned Claude fork returns an ID without registering it, so fork must then load that ID with the
 supported new generation's MCP/directories before configuration or first prompt, with compensating
 delete on failure. Codex fork process config must not replace inherited instructions.
+*Implementation (fork only):* `LaunchSpec.Purpose()` derives fresh/resume/fork; `codexLaunchEnv`
+leaves a fork's overlay untouched; `openFork` loads a Claude fork's id with `sessionLoadParams`
+(deleting it on failure). A clone freezes its source's persona, contract and launch object.
 
 Quota checks keep R97's authentication home, routing, no-work, bounded lifetime and named archival
 rules. Project every effective config layer/overlay into proven routing/auth/model settings and
