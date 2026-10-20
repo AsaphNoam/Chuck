@@ -1289,12 +1289,32 @@ func (c *ChatRuntime) runReservedHeld(as *agentState, message Message, turnID st
 		return
 	}
 	if err := c.runMessageTurn(as, message, turnID); err != nil {
+		if errors.Is(err, ErrHistoryUnavailable) && as.restoreRefusedHeld(message) {
+			// Nothing reached the provider: the accepted follow-up stays held and
+			// recoverable. The history failure is already reported outside the
+			// transcript, which cannot record this error (FS-03.R99).
+			slog.Warn("runtime: held message kept after history refusal", "agent", as.agentID)
+			return
+		}
 		_ = c.messageTransition(as.agentID, message.RequestID, "failed")
 		// runPromptTurn already released the gate. Nobody is waiting on a return
 		// value here, so the person learns about it the only way that is visible:
 		// as a turn error in their transcript (INV §8).
 		c.emit(as, EvError, ErrorData{Scope: "protocol", Message: "queued message failed to send: " + err.Error(), Fatal: false})
 	}
+}
+
+// restoreRefusedHeld puts back a reserved successor that history admission
+// refused before submission. A newer hold is never replaced; the refused
+// message is then recorded as failed instead (INV §5).
+func (as *agentState) restoreRefusedHeld(message Message) bool {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	if as.stopping || as.stopped || !as.held.message().empty() {
+		return false
+	}
+	as.held = hold(message, as.seq)
+	return true
 }
 
 func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {

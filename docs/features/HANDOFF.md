@@ -324,16 +324,6 @@ is assessed independently below; the hardest fixes coordinate conversation/gener
 and durable failure recovery. No product code or specifications were changed. Locations refer to
 the reviewed snapshot, before concurrent ASW-2 work; ASW1-9 was added against `eaaf1c1f` below.
 
-- **Must fix** — ASW1-1 — **History refusal silently discards an accepted held message**
-  (INV §1/§5/§8/§15). `internal/runtime/chat.go:959–963,1234–1262,1276–1285`: Send accepts a
-  follow-up while the current turn is healthy; a later append/sync failure latches the journal.
-  `finishTurn` removes the hold before the successor checks `Admit`. If storage still fails, the
-  follow-up is never submitted, its text-only hold is gone, and its error event is suppressed by
-  the same broken journal. The composer already cleared its draft on acceptance. FS-03.R99/A78
-  require recoverable input ownership. Preserve/restore the exact hold on definite history refusal
-  and report outside the transcript, without replacing a newer hold or replaying consumed input.
-  **Fix scope: medium.** `TestReviewHeldSurvivesJournalRefusal` reproduces `held=""` with only
-  the first native prompt submitted.
 - **Must fix** — ASW1-2 — **The failed-permission notification exposes no approval controls**
   (INV §8/§10/§11/§15). `internal/server/server.go:424–427`, `internal/bus/bus.go:153–172`,
   `ui/src/api/sse.ts:213–237`, `internal/server/sessions.go:391–411`: an unsaved permission
@@ -1303,7 +1293,9 @@ and specifications are unchanged.
   TS-01.R39 now states the shipped inactive-writer fence (journal lock plus live-writer refusal).
   ASW1-3 (INV §4) — `openPersistence` publishes the writer attachment right after `Journal.Open`
   and closes it itself when exit teardown already ran; `TestExitDuringPersistenceOpenClosesJournal`
-  fails before the fix.
+  fails before the fix. ASW1-1 (INV §5) — a held successor refused by history admission is put
+  back as the hold (never over a newer one) instead of failing unseen;
+  `TestHeldSurvivesHistoryRefusal` fails before the fix.
 
 - **2026-10-20 — Mapped the third core reliability audit:** two focused GPT-6 Luna research passes
   and parent integration produced [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review

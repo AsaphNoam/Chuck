@@ -551,3 +551,37 @@ func TestEventsCarryTheExecutingTurnAcrossAHeldSuccessor(t *testing.T) {
 		t.Fatalf("turn ends %v, successor prompt %v, first turn %s", ends, prompts, first)
 	}
 }
+
+// FS-03.R99 (ASW1-1): a follow-up accepted as held while the turn was healthy
+// stays held and unsubmitted when the turn's end latches a history failure, so
+// the person can still recover it.
+func TestHeldSurvivesHistoryRefusal(t *testing.T) {
+	c, h, _, release, promptLog := busyAgent(t)
+	if held, err := c.SendPromptOrHold(context.Background(), h.AgentID, "keep this follow-up"); err != nil || !held {
+		t.Fatalf("hold = %v, %v", held, err)
+	}
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	as.journal.Attach(&recordingWriter{syncFail: true}, &removalIndexer{})
+	release()
+	// The turn settles, its successor is refused, and the hold comes back.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		as.mu.Lock()
+		settled := !as.turnActive && as.held.Text == "keep this follow-up"
+		as.mu.Unlock()
+		if settled {
+			break
+		}
+		if time.Now().After(deadline) {
+			text, _, _ := c.Held(h.AgentID)
+			t.Fatalf("held after history refusal = %q; native prompts = %v", text, promptTexts(t, promptLog))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := promptTexts(t, promptLog); len(got) != 1 {
+		t.Fatalf("native prompts = %v; the refused follow-up must not be submitted", got)
+	}
+}
