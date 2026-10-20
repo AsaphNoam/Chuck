@@ -11,6 +11,12 @@ skill, review policy or release gate. The confirmed new defect is META-1 in
 [HANDOFF.md](HANDOFF.md#review-findings). Other prospective audit areas below are hypotheses or
 evidence gaps, not newly asserted bugs.
 
+**Subsequent state:** META-1 was fixed in `0cafe370`; its finding/probe descriptions below retain
+the discovery snapshot, not a claim that the reproduction still fails. The live handoff owns current
+fix status. The human's later reliability priorities are mapped in
+[CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md); that proposed list supersedes the
+relative priorities below, without starting another audit.
+
 ## Findings
 
 **Both design and implementation contributed.** The older defects include unsafe policies and
@@ -106,6 +112,19 @@ These are proposals, not applied policy. Keep the shared workflow authoritative;
 point at its requirements rather than duplicate a new long checklist in both skill trees.
 Do not require a whole-repository audit, full Cartesian test matrix or extra full-suite run for
 every ordinary change. The existing full closure policy is unchanged by this research.
+
+In plain language:
+
+| Proposal | What the agent should do differently | Example |
+|---|---|---|
+| **Follow the affected paths.** | When changing how important information is stored or used, check the other paths that depend on it, including old ones. | Saving a conversation ID is incomplete if reindex later erases it. |
+| **Test the way the promise could fail.** | Choose a test that would expose the suspected loss or error, at the real boundary. | To test safe retry, let the recipient receive the message, lose the acknowledgement, then check that retry does not send it again. |
+| **Keep the promised behavior.** | Do not finish a simpler implementation and use a note to excuse the missing guarantee. Resolve a genuine change to the promise explicitly. | “Preserve the original permissions” cannot become “use today's defaults.” |
+| **Have another agent check consequential fixes.** | Before closing a fix that can lose work or misdirect an agent, have a fresh reviewer check that fix and one nearby affected path. | After repairing native-ID retention, check both ordinary Resume and the repair path. |
+
+The first three are mostly stronger checks on promises already made. The fourth adds a focused
+independent check to consequential fix closure. None requires asking the human about routine
+implementation details, another whole-app review, or another full test run for every small fix.
 
 ### 1. Enroll owners and consumers when semantics change
 

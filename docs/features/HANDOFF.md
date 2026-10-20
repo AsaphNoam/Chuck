@@ -52,6 +52,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   skill changed. Its one confirmed finding, META-1 (offline reindex erased a hook-learned terminal
   native ID), is fixed (Changelog). Archive repair is the first suggested wider audit; updater,
   remote revocation and retrieval performance remain candidates, not confirmed findings.
+- **Proposed core reliability audits:** [priorities and deferred scopes](CORE-RELIABILITY-AUDIT-PLAN.md)
+  focus on saved conversations, actual agent context, faithful peer messages/results, correct
+  execution and sustained performance. Two fresh investigations (storage/repair and long-history
+  overhead) plus one post-fix development journey reuse existing ASR/ASW/ASF evidence. The human
+  wants workflow/skill decisions defined first; no executable audit queue or product repair started.
 - **Prompt/harness investigation:** PROMPT-1's ordinary ancestor-chain fix is verified, but
   effective root-marker precedence still loses guidance (ASW2-7). PROMPT-2's remaining manifest
   omissions are ASW2-8–10. The original unit below retains separate process-policy recommendations.
@@ -1471,6 +1476,16 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Simplified workflow proposals and scoped the next reliability audits:** added
+  concrete plain-language examples to the [meta-analysis](AGENT-SURFACE-META-ANALYSIS.md) and a
+  [deferred core audit plan](CORE-RELIABILITY-AUDIT-PLAN.md). One focused GPT-6 Luna scope reader
+  challenged duplicate reviews; parent checked current architecture/fixes and prioritized preserved
+  work, context/message fidelity, correct execution and measured long-history overhead. Six core
+  responsibilities map to two fresh investigations and one combined post-fix journey, not six
+  repeated source audits. META-1 stays closed; updater/phone work is secondary under the human's
+  priorities. No product/spec/workflow/skill edits or new executable review units. Documentation,
+  reference and diff checks pass; unrelated dirty ready-change files are preserved.
 
 - **2026-10-20 — Fixed ASW2-7 (INV §2/§12/§17):** Codex ancestor-instruction discovery now
   takes `project_root_markers` from the effective pre-project layers with native precedence (system
