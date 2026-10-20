@@ -406,6 +406,43 @@ func TestJournalOpenMarkerRecovery(t *testing.T) {
 	}
 }
 
+// TS-02.R52 (ASW1-5): a failed append's reserved identity survives a
+// degraded clean close and a restart whose log tail no longer shows it; the
+// recovery gap notice is allocated after it, never at the reused identity.
+func TestJournalReservedSequenceSurvivesCloseAndRestart(t *testing.T) {
+	health := &memHealth{}
+	s := NewJournals(nil)
+	s.SetHealth(health, nil)
+	j := s.Acquire("a_res")
+	failing := &eventWriter{recordingWriter: recordingWriter{failSeq: 2}}
+	att, _, err := j.Open(func() (TranscriptWriter, error) { return failing, nil }, &removalIndexer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	j.Commit(CommitRequest{Event: Event{Type: EvAssistantText}})
+	if obs := j.Commit(CommitRequest{Event: Event{Type: EvAssistantText}}); obs.Outcome != CommitUncertain {
+		t.Fatalf("outcome = %v", obs.Outcome)
+	}
+	if err := j.Close(att, false); err != nil {
+		t.Fatal(err)
+	}
+	if h := health.h["a_res"]; h.State != HistoryDegraded || h.ReservedSeq != 2 || h.OpenWriter {
+		t.Fatalf("degraded close health = %+v; want reservation 2 kept", h)
+	}
+
+	// A restart: a fresh journal set whose writer's tail ends before seq 2.
+	health.h["a_res"] = HistoryHealth{State: HistoryDegraded, Reason: "append_failed", ReservedSeq: 42, OpenWriter: true}
+	restarted := NewJournals(nil)
+	restarted.SetHealth(health, nil)
+	w := &eventWriter{}
+	if _, _, err := restarted.Acquire("a_res").Open(func() (TranscriptWriter, error) { return w, nil }, &removalIndexer{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(w.events) != 1 || w.events[0].Seq <= 42 {
+		t.Fatalf("recovery records = %+v; want one gap notice after reserved 42", w.events)
+	}
+}
+
 // FS-03.A78: a newer generation's open supersedes a writer the older one has
 // not yet closed; the older generation's late commit continues the same
 // sequence space and its late Close leaves the new writer attached.

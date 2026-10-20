@@ -67,6 +67,9 @@ type Journal struct {
 	// broken latches an uncertain append: the log may hold a torn or
 	// unsynced record, so later appends are refused rather than fused onto it.
 	broken error
+	// reserved is the latched record's sequence; it survives a degraded close
+	// so a restart never reallocates it (TS-02.R52).
+	reserved int64
 	// indexDegraded records a committed event whose projection failed.
 	indexDegraded bool
 	publish       func(Event)
@@ -134,6 +137,14 @@ func (j *Journal) openLocked(open func() (TranscriptWriter, error), ix Persisten
 		return nil, err
 	}
 	j.attachLocked(w, ix)
+	// A failed or torn append's identity stays reserved even when the log
+	// tail no longer shows it.
+	if prior.ReservedSeq >= j.next {
+		j.next = prior.ReservedSeq + 1
+	}
+	if prior.ReservedSeq > j.reserved {
+		j.reserved = prior.ReservedSeq
+	}
 	fail := func(err error) (TranscriptWriter, error) {
 		j.w, j.ix = nil, nil
 		_ = w.Close()
@@ -185,7 +196,7 @@ func (j *Journal) closeLocked(w TranscriptWriter, discard bool) error {
 	}
 	h := HistoryHealth{State: HistoryOK}
 	if j.broken != nil {
-		h = HistoryHealth{State: HistoryDegraded, Reason: brokenReason(j.broken), OpenWriter: false}
+		h = HistoryHealth{State: HistoryDegraded, Reason: brokenReason(j.broken), ReservedSeq: j.reserved}
 	}
 	return j.writeHealthLocked(h)
 }
@@ -302,7 +313,7 @@ var errSyncFailed = errors.New("sync failed")
 // A failure to record it is logged; the surviving open-writer marker still
 // forces recovery after restart (TS-02.R52).
 func (j *Journal) degradeLocked(err error, seq int64) {
-	j.broken = err
+	j.broken, j.reserved = err, seq
 	h := HistoryHealth{State: HistoryDegraded, Reason: brokenReason(err), ReservedSeq: seq, OpenWriter: true}
 	if werr := j.writeHealthLocked(h); werr != nil {
 		slog.Error("runtime: record degraded history", "agent", j.agentID, "err", werr)

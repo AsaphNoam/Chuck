@@ -364,14 +364,6 @@ the reviewed snapshot, before concurrent ASW-2 work; ASW1-9 was added against `e
   finalization on it; never replay activity appends. **Fix scope: difficult.**
   `TestReviewFailedRoomSettlementRetainsFailure` aborts both writes with SQLite triggers, restores
   them and retries the terminal event: the raw attempt row becomes `finalized`.
-- **Must fix** — ASW1-5 — **Recovery ignores and clean close erases reserved sequences**
-  (INV §1/§7/§9/§11/§15). `internal/runtime/journal.go:128–145,186–190,323–328`: health stores
-  `ReservedSeq`, but opening advances allocation only from the complete log tail. A failed/torn
-  append followed by restart can assign its reserved identity to the gap notice. Clean Close
-  while degraded also writes a zero reservation, violating TS-02.R52. Preserve the watermark
-  through degradation/close and advance allocation beyond it before recovery records. **Fix scope:
-  trivial/easy.** `TestReviewRestartHonorsReservedSequence` seeds reservation 42 and reproduces
-  a recovery notice at sequence 1.
 - **Must fix** — ASW1-6 — **Control ordering ends at a generation boundary**
   (INV §1/§2/§4/§5/§15/§16). `internal/runtime/chat.go:288,2132–2135`,
   `internal/runtime/control.go:25–35`: the FIFO lives on `agentState`, so Stop/Resume or Switch
@@ -1310,6 +1302,10 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — ASW-1 fixes (in progress):** ASW1-5 (INV §7/§9) — journal open advances
+  allocation past a persisted `ReservedSeq` and a degraded clean close keeps it;
+  `TestJournalReservedSequenceSurvivesCloseAndRestart` fails before the fix.
 
 - **2026-10-20 — Mapped the third core reliability audit:** two focused GPT-6 Luna research passes
   and parent integration produced [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review
