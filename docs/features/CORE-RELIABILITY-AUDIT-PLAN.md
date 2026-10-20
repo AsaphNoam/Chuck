@@ -8,13 +8,13 @@ and checked source entry paths. The committed baseline for this expansion is `f7
 product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
 journey recommendation, which compressed distinct core architectures too much.
 
-**Status: mapping one subject at a time, as requested.** A1–A5 have researched review charters
+**Status: mapping one subject at a time, as requested.** A1–A6 have researched review charters
 and waiting review units, [CR-A1](CORE-RELIABILITY-REVIEW-A1.md),
 [CR-A2](CORE-RELIABILITY-REVIEW-A2.md), [CR-A3](CORE-RELIABILITY-REVIEW-A3.md),
-[CR-A4](CORE-RELIABILITY-REVIEW-A4.md) and [CR-A5](CORE-RELIABILITY-REVIEW-A5.md), in the handoff.
-A6–A7 remain proposed scopes awaiting the same planning research. No audit or product repair has
-started. The purposeful testing and
-architectural-review skills are implemented.
+[CR-A4](CORE-RELIABILITY-REVIEW-A4.md), [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) and
+[CR-A6](CORE-RELIABILITY-REVIEW-A6.md), in the handoff. A7 remains a proposed scope awaiting the
+same planning research. No audit or product repair from these charters has started. Existing
+remediation retains its own units. The purposeful testing and architectural-review skills are implemented.
 Refresh current handoff/fix status before each review; concurrent fixes are landing. Hypotheses
 below are questions to investigate, not new findings.
 
@@ -79,8 +79,8 @@ priority; permission/Stop/failed-delivery observations matter on every operator 
 
 ## Audit scopes and planning progress
 
-A1–A5 are mapped into review-ready charters. The remaining sections preserve the agreed subjects;
-they are not additional executable review tasks yet. Continue planning with A6 on the next request.
+A1–A6 are mapped into review-ready charters. A7 preserves the remaining agreed subject; it is not
+an executable review task yet. Continue planning with A7 on the next request.
 
 ### A1. Preserve saved work through repair and interruption
 
@@ -158,19 +158,14 @@ remain; no audit/probe or product fix ran. Refresh concurrent ASW-1 closure befo
 **Purpose:** audit reliable control of a development hub from scripts, CLI and dashboard using
 the same domain mutations. This is not a layout or visual-polish audit.
 
-**Start:** `internal/cli/operator_*.go`, `internal/server/{sessions,archive_actions,task_handlers}.go`,
-`internal/messaging/tool_result_contract_test.go`, the authoritative route/tool producers and
-status/SSE reconciliation. Read FS-22.R1–R4 and TS-06.R34, plus each selected action's own contract.
-
-**Challenge:** multiline/Unicode/stdin bytes; stable target identity; stale consent/revision/permission
-targets; accepted-but-lost response; mixed bulk outcomes; interruption during follow/file output;
-whether apparent idle/done hides a real permission wait, active execution or lost failure. CLI exit
-zero may mean accepted action, not completed model work; control operations must expose that truth.
-
-**Proof/ownership:** use the actual CLI/server or MCP wire, output streams/exit status and resulting
-durable state, rather than a mirrored command table. Reuse existing independent-wire tests; a
-route inventory is not itself a missing audit. ASF-2/6 and ASF-1 retain uncertain input, archive
-selection and status/control findings. Extend only where current evidence leaves a consequential gap.
+**Mapped 2026-10-20 — [CR-A6: Operator action and observation truth](CORE-RELIABILITY-REVIEW-A6.md).**
+Two focused GPT-6 Luna researchers and parent integration mapped real operator input/guards,
+acceptance/completion/ambiguity, CLI output, live state and snapshot/stream/phone recovery against
+`4b8c1265`. One frontier-sized review joins actions to subsequent trustworthy observation, including
+lost acknowledgements, partial bulk effects, pending controls and missed final updates. It preserves
+non-atomic status limits, live versus durable state, receipt-specific retries and caller scope;
+it does not reopen broad CLI parity or cosmetic review. Existing ASW/ASF owners remain; no
+audit/probe or product fix ran. Refresh concurrent fix closure before review.
 
 ### A7. Measure overhead as real development accumulates
 
@@ -247,11 +242,10 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 ## How to continue
 
 Map one remaining subject at a time into a researched charter and one separately selectable
-handoff review unit. A1–A5 are ready; A6's operator action and observation truth is the next planning
-subject. A7 can collect measurements independently. A6 uses prior findings and current changes
-to choose its highest-consequence unproved joins. The integration proof spans them after the
-relevant repairs. This is a proposed investment order, not chronological gating of independent role
-queues or automatic audit execution.
+handoff review unit. A1–A6 are ready; A7's sustained capacity and cost is the next planning subject.
+Its measurements can proceed independently of other review queues. The integration proof spans the
+selected architectures after the relevant repairs. This is a proposed investment order, not
+chronological gating of independent role queues or automatic audit execution.
 
 For each selected slice, record what was actually exercised, the current source/provider versions,
 confirmed findings, and evidence still owed. Link new findings to their original owners where
