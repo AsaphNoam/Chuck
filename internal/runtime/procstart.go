@@ -11,20 +11,22 @@ import (
 
 var errProcessStartUnknown = errors.New("runtime: process start time unavailable")
 
-// processBirthSlack absorbs Linux's derived boot-time jitter; Darwin reports
-// the kernel birth exactly. A reused PID cannot start this close to a process
-// that was still alive when its birth was recorded.
-const processBirthSlack = time.Second
-
 // ErrProcessUnverified marks a live PID whose identity as the recorded owned
 // process cannot be proved, so no destructive action may target it (FS-01.R54).
 var ErrProcessUnverified = errors.New("runtime: process identity is unverifiable")
 
 // ProcessUnverifiedError is the actionable refusal for an unproved live PID.
-type ProcessUnverifiedError struct{ PID int }
+type ProcessUnverifiedError struct {
+	PID int
+	// Leaderless: the recorded leader is gone but its group still has members.
+	Leaderless bool
+}
 
 func (e *ProcessUnverifiedError) Error() string {
-	return fmt.Sprintf("process %d from an earlier Chuck run is still running but cannot be verified as this agent's; stop it manually, then retry", e.PID)
+	if e.Leaderless {
+		return fmt.Sprintf("process group %d lost its leader but still has running members that cannot be verified as this agent's; stop them manually (kill -- -%d), then retry", e.PID, e.PID)
+	}
+	return fmt.Sprintf("process %d is still running but cannot be verified as this agent's; stop it manually, then retry", e.PID)
 }
 
 func (e *ProcessUnverifiedError) Unwrap() error { return ErrProcessUnverified }
@@ -43,8 +45,10 @@ const (
 )
 
 // ClassifyProcess compares a recorded leader PID and kernel birth with the
-// live process table (TS-02.R54, INV §9). A live PID with a different birth
-// was reused after the recorded process died.
+// live process table (TS-02.R54, INV §9). Births are compared exactly at the
+// stored microsecond precision, which both readers report without loss
+// (Darwin's kernel microseconds; Linux's boot second plus 10 ms ticks). A live
+// PID with any other birth was reused after the recorded process died.
 func ClassifyProcess(pid int, birth time.Time) ProcessState {
 	if !PidAlive(pid) {
 		return ProcessExited
@@ -56,10 +60,22 @@ func ClassifyProcess(pid int, birth time.Time) ProcessState {
 	if err != nil {
 		return ProcessUnverified
 	}
-	if d := started.Sub(birth); d > processBirthSlack || d < -processBirthSlack {
+	if started.UnixMicro() != birth.UnixMicro() {
 		return ProcessExited
 	}
 	return ProcessOwned
+}
+
+// LeaderlessGroup reports that the recorded leader PID is gone while a process
+// group with that ID still has members. Their continuity with the recorded
+// group cannot be proved once the leader is gone, so callers retain the record
+// and refuse cleanup rather than signal a possibly reused group (FS-01.R54).
+func LeaderlessGroup(pid int) bool {
+	if pid <= 0 || PidAlive(pid) {
+		return false
+	}
+	err := syscall.Kill(-pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 // ProcessBirth captures a freshly spawned child's kernel birth while the
@@ -103,10 +119,14 @@ func ContainCommand(cmd *exec.Cmd) {
 // server does not hold (FS-01.R21/R54). Identity is re-proved immediately
 // before each signal; there is no atomic identity-and-signal primitive on
 // Darwin. It returns nil once the leader is gone and the dedicated group has
-// been swept, and a ProcessUnverifiedError without signaling an unproved PID.
+// been swept, and a ProcessUnverifiedError without signaling an unproved PID
+// or a group whose leader was already gone before this call.
 func StopRecordedProcess(pid int, birth time.Time, grace time.Duration) error {
 	switch ClassifyProcess(pid, birth) {
 	case ProcessExited:
+		if LeaderlessGroup(pid) {
+			return &ProcessUnverifiedError{PID: pid, Leaderless: true}
+		}
 		return nil
 	case ProcessUnverified:
 		return &ProcessUnverifiedError{PID: pid}

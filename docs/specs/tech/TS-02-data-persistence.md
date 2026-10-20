@@ -786,9 +786,16 @@ primitive; unknown/mismatch fails closed. Do not manufacture proof for legacy ro
 *Implementation:* migration 56 adds `running.process_birth_us` (kernel birth of the dedicated group
 leader, unix microseconds; `0` is unknown). The PID column names that leader, so PGID equals PID.
 A token-bound `running` hook that changes the PID resets birth to unknown. The proof version is
-implicit in this column until a later proof field needs an explicit version. A token-bound
+implicit in this column until a later proof field needs an explicit version. Ownership requires
+the live birth to equal this value exactly in microseconds (both readers report it without loss);
+there is no tolerance. A recorded leader that is gone while its group ID still has members is
+leaderless: its continuity cannot be proved, so Stop refuses and reconciliation retains the row
+until the members are gone. A live terminal Stop that cannot prove its group refuses and keeps its
+view, row and registry claim; only a confirmed exit (never an unreadable birth) runs exit
+cleanup, and an xterm child is re-proved and never signaled after it is reaped. A token-bound
 SessionStart with a nonempty ID updates `sessions.last_session_id` in the same transaction as the
-running row; terminal teardown and orphan reconciliation delete running rows through
+running row; because the CLI can post it before the launching server writes that row, the hook
+poster retries a 401 SessionStart within a bounded ~3 s window; terminal teardown and orphan reconciliation delete running rows through
 `DeleteRunningRetainingSession`, which copies a nonempty running ID first. Terminal Resume with an
 empty ID refuses (409) instead of starting a fresh conversation. The hook token is minted per
 generation, so token binding is the generation condition. Bootstrap records live in a private

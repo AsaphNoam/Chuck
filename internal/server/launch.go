@@ -907,8 +907,8 @@ func (s *Server) cleanupHookSettings(agentID string) {
 // orphanStopGrace is how long an orphan group has to exit after SIGTERM.
 var orphanStopGrace = 5 * time.Second
 
-// orphanReapAPIError maps a failed orphan reap: an unverifiable process is an
-// actionable conflict, anything else an internal failure.
+// orphanReapAPIError maps a failed orphan reap or owned Stop: an unverifiable
+// process is an actionable conflict, anything else an internal failure.
 func orphanReapAPIError(prefix string, err error) *runtime.APIError {
 	if errors.Is(err, runtime.ErrProcessUnverified) {
 		return apiError(runtime.CodeConflict, err.Error())

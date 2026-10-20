@@ -63,6 +63,89 @@ func TestClassifyProcessRequiresExactBirth(t *testing.T) {
 	}
 }
 
+// ASW3-6: only the exact recorded birth proves ownership; the old one-second
+// slack accepted a different process's birth.
+func TestClassifyProcessRejectsNearBirthMismatch(t *testing.T) {
+	cmd, _ := spawnGroup(t, "exec sleep 30")
+	pid := cmd.Process.Pid
+	birth := requireStartTime(t, pid)
+
+	for _, d := range []time.Duration{time.Microsecond, 250 * time.Millisecond, time.Second} {
+		for _, off := range []time.Duration{d, -d} {
+			if got := ClassifyProcess(pid, birth.Add(off)); got != ProcessExited {
+				t.Fatalf("birth%+v = %v, want exited", off, got)
+			}
+		}
+	}
+	if err := StopRecordedProcess(pid, birth.Add(-250*time.Millisecond), 100*time.Millisecond); err != nil {
+		t.Fatalf("StopRecordedProcess: %v", err)
+	}
+	if !PidAlive(pid) || ClassifyProcess(pid, birth) != ProcessOwned {
+		t.Fatal("near-birth mismatch authorized a signal")
+	}
+}
+
+// ASW3-4 / ASRC-3: a group whose leader was already gone cannot be proved to
+// be the recorded one, so Stop and reconcile retain it instead of reporting
+// success or signaling it; once its members are gone both proceed.
+func TestStopRecordedProcessRefusesLeaderlessGroup(t *testing.T) {
+	cmd, out := spawnGroup(t, `sleep 30 & echo $!`)
+	pid := cmd.Process.Pid
+	birth := requireStartTime(t, pid)
+	line, err := out.ReadString('\n')
+	if err != nil {
+		t.Fatalf("read child pid: %v", err)
+	}
+	child, err := strconv.Atoi(strings.TrimSpace(line))
+	if err != nil {
+		t.Fatalf("child pid %q: %v", line, err)
+	}
+	for end := time.Now().Add(5 * time.Second); PidAlive(pid); time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(end) {
+			t.Fatal("leader did not exit")
+		}
+	}
+
+	st, err := state.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("state.Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := st.WriteAgent(state.Agent{AgentID: "a_lost", Name: "a", Role: "dev", Project: "p",
+		Backend: "claude", Model: "m", Interface: "chat", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.WriteRunning(state.RunningEntry{AgentID: "a_lost", PID: pid, ProcessBirth: birth,
+		Interface: "chat", StartedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+
+	err = StopRecordedProcess(pid, birth, 100*time.Millisecond)
+	var refusal *ProcessUnverifiedError
+	if !errors.As(err, &refusal) || !refusal.Leaderless {
+		t.Fatalf("err = %v, want leaderless refusal", err)
+	}
+	if !orphanAlive(t, child) {
+		t.Fatal("leaderless group member was signaled")
+	}
+	if pruned, err := ReconcileStale(st); err != nil || len(pruned) != 0 {
+		t.Fatalf("ReconcileStale = %v, %v; want leaderless row retained", pruned, err)
+	}
+
+	_ = syscall.Kill(child, syscall.SIGKILL)
+	for end := time.Now().Add(5 * time.Second); LeaderlessGroup(pid); time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(end) {
+			t.Fatal("group member did not exit")
+		}
+	}
+	if err := StopRecordedProcess(pid, birth, 100*time.Millisecond); err != nil {
+		t.Fatalf("StopRecordedProcess after manual stop: %v", err)
+	}
+	if pruned, err := ReconcileStale(st); err != nil || len(pruned) != 1 {
+		t.Fatalf("ReconcileStale after manual stop = %v, %v", pruned, err)
+	}
+}
+
 // ASRC-3: a recorded PID now naming an unrelated process must never be killed.
 func TestStopRecordedProcessSparesReusedPID(t *testing.T) {
 	cmd, _ := spawnGroup(t, "exec sleep 30")

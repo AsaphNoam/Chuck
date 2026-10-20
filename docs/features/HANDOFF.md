@@ -38,13 +38,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
   control, ambiguous replay and the config read-loop stall. ASW-1 is reviewed with eight Must-fix
   findings and one documentation finding open below; ASW-2 is closed (all eleven findings fixed or
-  decided 2026-10-20); ASW-3 is reviewed with six Must-fix findings open below.
+  decided 2026-10-20); ASW-3 is closed (all six findings fixed 2026-10-20).
   Other units remain waiting. The
   [systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
 - **Post-refactor synthesis:** [pre-fix assessment](AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md)
   connects ownership/refusal, conversation dispatch and controller recovery. Two additional probes
   confirm ASW1-9 (old terminal observation stops a current reporter) and ASW3-6 (birth mismatch
-  still authorizes signaling). Keep existing units; integrate exact execution identity and retained
+  still authorizes signaling; fixed 2026-10-20). Keep existing units; integrate exact execution identity and retained
   recovery owners rather than commissioning another broad rewrite. No product fix selected.
 - **Defect-origin and review-escape research:** [meta-analysis](AGENT-SURFACE-META-ANALYSIS.md)
   distinguishes unsafe designs, explicit implementation violations and unchanged consumers of new
@@ -91,8 +91,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–9 below keep that
   same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
-- ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19, extended 2026-10-20; six Must-fix findings
-  keep the unit open (Review findings). FS-07.A12 real tmux/iTerm2 receipts are owed.
+- ASW-3 (process and terminal-driver ownership) closed 2026-10-20 (Changelog); FS-07.A12 real
+  tmux/iTerm2 receipts, including early SessionStart → Stop → Resume, are owed.
 
 ## Acceptance gates still owed
 
@@ -214,7 +214,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-2 closed; ASW-1 and ASW-3 reviewed with findings open; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-2 and ASW-3 closed; ASW-1 reviewed with findings open; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are implemented and
 reviewed; their remaining findings select the same units for fixes:
 
@@ -222,7 +222,7 @@ reviewed; their remaining findings select the same units for fixes:
 |---|---|---|
 | ASW-1 | reviewed 2026-10-20 — findings open (ASW1-1–9) | One canonical commit boundary, ordered control observations and truthful history failure |
 | ASW-2 | closed 2026-10-20 — nine findings fixed, ASW2-1/5 resolved by human decision (Changelog) | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
-| ASW-3 | reviewed 2026-10-19/20 — six findings open (see Review findings) | Process/terminal ownership and native terminal identity; incomplete fail-closed control and launch-hook ordering |
+| ASW-3 | closed 2026-10-20 — six findings fixed (Changelog) | Process/terminal ownership and native terminal identity |
 
 The following cross-review §8 batches are explicitly authorized by the human's consolidation
 request. Their exact scope, required specs, regressions and closure rules are in the linked design.
@@ -276,12 +276,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
   ASRD-3's history suppression is corrected but its recovery/control obligations remain incomplete.
   ASRD-4 stays with ASF-2. Concurrent ASW-2 edits were excluded by finishing the probes in
   `/private/tmp/chuck-asw1-review-43da6bec`.
-
-- **ASW-3 — process and terminal-driver ownership** (`2609e903`, `3e7df682`, `e2cf34f8`,
-  `9a0bf119`, closure `3618df3e`) — **reviewed; findings open**. Reviewed
-  `a3bd6015..3618df3e` in an isolated snapshot; ongoing ASW-1 work is outside the unit.
-  ASW3-1–6 below retain this same unit for `/fix`; original ASRB-1 and ASRC-3 remain partially
-  resolved. FS-07.A12 real-driver receipts remain separately owed.
 
 ## Review findings
 
@@ -412,101 +406,6 @@ The room retry probe deliberately repeats terminal settlement to test monotonici
 duplicate-terminal receipt is claimed. Native/provider/device gates remain owed. No sibling fixes
 or product/spec edits were selected.
 
-### ASW-3 — Process and terminal-driver ownership — reviewed `3618df3e` — **Fix model:** difficult — Codex Sol.
-
-Six confirmed Must-fix findings keep this unit open. Fix sizing is independent of severity:
-ASW3-1/3/5 are medium, ASW3-2 is easy, and ASW3-4 is difficult because leaderless-group recovery
-must preserve ownership proof instead of blindly signaling a numeric PGID. All locations below
-refer to the reviewed snapshot, before ASW-1's later journal changes; ASW3-6 was added against
-`eaaf1c1f` and its unchanged process-proof helper.
-
-- **Must fix** — ASW3-1 — **Terminal Stop destroys the view after ownership verification fails**
-  (INV §4/§5/§9/§15). `internal/runtime/terminal/terminal.go:369–409,553–560`:
-  `terminate` discards `StopRecordedProcess`'s error, then Stop calls tmux `kill-session` or iTerm2
-  window close, deletes the running row and reports success. An unreadable live process birth
-  therefore bypasses FS-01.R54 / FS-07.R25 / TS-05.R28's fail-closed refusal. The runtime has
-  already removed its agent and set `stopped`; `Registry.Stop` (`registry.go:519–535`) also drops
-  its claim before calling the runtime. Propagate the refusal and preserve recoverable ownership,
-  row and registration until control succeeds; do not just add a return after ownership is lost.
-  Actual Stop probe with a test-owned external child and unknown proof returns nil and kills the
-  child through CloseTab. Regress unknown proof at Stop, retained ownership and a later safe retry.
-- **Must fix** — ASW3-2 — **An unverified external process is published as exited**
-  (INV §1/§4/§7/§9). `internal/runtime/terminal/terminal.go:220–237,508–530`:
-  `exitSignal` closes for every classification except `ProcessOwned`, including
-  `ProcessUnverified`. A transient failure to read a live tmux/iTerm2 process's birth triggers
-  watcher teardown, deletes its row and registration and frees the registry slot while the CLI
-  is alive. This violates FS-01.R54 / FS-07.R25 / TS-01.R41; only confirmed exit may run exit
-  cleanup. Retain the unknown process and recheck/surface its control refusal. The actual watcher
-  probe reports `runningErr=state: not found`, `processAlive=true` and an exit callback after
-  clearing the test child's birth proof. Regress unknown → recovered proof separately from exit.
-- **Must fix** — ASW3-3 / ASRB-1 remainder — **SessionStart can precede the row that authenticates it**
-  (INV §1/§4/§5/§11/§15/§17). `internal/runtime/terminal/terminal.go:246–269,296–319` starts
-  the CLI before opening persistence and writing `running`; `state.Manager.ApplyHook`
-  (`manager.go:96–103`) rejects SessionStart without that row. `_post.sh:48–53` swallows the
-  response with no retry. A fast terminal CLI can lose its sole native ID; Stop retains an empty
-  ID and later Resume refuses instead of reopening the conversation (FS-01.R54, FS-07.R25,
-  TS-02.R54). Establish reliable hook admission before provider execution, with rollback, or
-  bounded reliable delivery. A fake driver calling the real Manager during the actual StartTab
-  path observes `state: token mismatch`, then Runtime.Start still succeeds. Existing accepted-hook
-  persistence tests pass but pre-seed the row. Regress early SessionStart → Stop/restart → Resume.
-- **Must fix** — ASW3-4 / ASRC-3 remainder — **Already leaderless groups escape orphan teardown**
-  (INV §4/§9/§10). `internal/runtime/procstart.go:107–111` returns success immediately when the
-  recorded leader is gone; `runtime/reconcile.go:26–37` also prunes that row without accounting
-  for group members. After a dashboard crash, a CLI/adapter leader can exit while its tool child
-  remains in the dedicated group. Stop/Archive/Switch can then clear the record and proceed while
-  that descendant survives (FS-01.R21/R54, TS-01.R41/TS-02.R54). The actual
-  `TestASW3LeaderlessGroupActualStopRecordedProcess` fails: a reaped shell leader's background
-  sleep remains alive after StopRecordedProcess returns nil. The existing descendant regression
-  starts with a live leader. Preserve sufficient group continuity/ownership evidence or refuse
-  uncertain cleanup; an unconditional kill of the old numeric PGID would reintroduce reuse risk.
-- **Must fix** — ASW3-5 — **A nonnil xterm exit channel bypasses process proof even after reaping**
-  (INV §4/§5/§9). `internal/runtime/terminal/terminal.go:352–355,555–574` treats channel
-  existence as continuing ownership and sends SIGINT/TERM/KILL without birth verification.
-  `xterm.go:55–61` reaps the child before closing that channel; watcher/persistence cleanup can
-  leave the old handle reachable in the meantime. Cancel/Stop during that window can signal a
-  reused process group, contrary to FS-01.R54 / FS-07.R25 / TS-05.R28. Check settled exit state
-  and corroborate identity immediately before signals; preserve descendant containment. An actual
-  Runtime.Cancel probe with a closed exit channel and stale birth delivers SIGINT to a separate
-  test-owned group. No unowned process or forced OS PID reuse was used.
-
-- **Must fix** — ASW3-6 — **The shared identity comparison accepts a different process birth**
-  (INV §9/§12/§17). `internal/runtime/procstart.go:14–17,59–62` applies a one-second slack on
-  every platform; mismatches up to and including ±1 s return `ProcessOwned`, authorizing group
-  signaling in `StopRecordedProcess`. Darwin's reader returns kernel microseconds; Linux's
-  tick/boot-time reconstruction does not establish equivalence of different births. FS-01.R54 /
-  TS-02.R54 require equality at platform precision and mismatch to fail closed. Existing
-  `TestClassifyProcessRequiresExactBirth` and the reused-PID Stop test check only a one-hour mismatch.
-  Use exact native identity or narrowly proven platform normalization, not a broad tolerance;
-  regress small positive/negative mismatches, equality and the old slack boundary before relying on
-  this classifier for the other ASW-3 fixes. **Fix scope: medium.**
-  `TestSystemicNearBirthMismatchCannotAuthorizeControl` reports Owned for ±250 ms and ±1 s,
-  and `StopRecordedProcess` terminates its own child with an intentionally wrong -250 ms proof.
-  No actual PID reuse or signal to an unowned process was attempted. Evidence:
-  `/private/tmp/chuck-systemic-20261020-runtime_test.go` and its overlay JSON.
-
-Original-finding reconciliation: **ASRA-4, ASRB-4–7, ASRC-4 and ASRC-7 closed** against their
-original evidence. Setup cancellation/deadline uses the shared owned group and bounded drain;
-registry exit-before-commit and old-generation callbacks are fenced; startup/periodic exit outcomes
-agree; external driver exits, process proof, exact child env and same-title identities have source,
-fixture and PTY evidence. ASRB-1's accepted-hook durability is repaired but early delivery remains
-ASW3-3; ASRC-3's reused-PID reaping is repaired but leaderless containment remains ASW3-4. These
-remainders retain their original IDs and have ASW-3 as their one fix owner.
-
-Local choices accepted: migration 56's column is an explicit schema-level proof version with no
-legacy backfill; the dedicated leader PID also names PGID; retaining a chat running native ID during
-orphan deletion preserves the same identity; installation still controls offered drivers while
-per-launch proof gates success; unprovable iTerm2 foreground groups refuse launch. These do not
-close FS-07.A12. The shared bootstrap extends existing drivers and the current executable; no
-additional daemon/provider service was introduced. Terminal contract checklist: persistence and
-composed launch spec are shared; PTY drain/viewer detach remain separate; messaging stays excluded;
-turn hooks remain the existing producer; reconcile/teardown failures are recorded above.
-
-Invariant sweep: §1/§2/§4–§12/§14–§17 checked across lifecycle, migration, hooks, bootstrap,
-controls, bounded records and tests; findings identify their matching classes. No applicable §3
-one-shot persistence/form surface or §13 UI/CSS surface. Independent verification and probe paths
-are recorded in the changelog below; no product code/specs changed. Real tmux/iTerm2/provider
-receipts remain unclaimed.
-
 ### ASR-A — Instructions, configuration and execution environment — reviewed `4fbeb316` — **Fix model:** difficult — Codex Sol.
 
 Source/profile delivery must agree with native authentication,
@@ -597,9 +496,9 @@ log: `/tmp/chuck-asra-review-probes.log`. The native fixture probe separately us
 
 ### ASR-B — Codex and Claude native integration fidelity — reviewed `6b5de19b` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Audit complete; ASRB-1/2/3/8 keep this unit open. ASW-3's review closed ASRB-4–7;
-its new terminal control findings are recorded on ASW-3 above. Product code/specifications unchanged.
-Fix sizing is independent of severity: ASRB-3 is easy; ASRB-1/2/8 are medium.
+Audit complete; no findings remain open. ASW-3's review closed ASRB-4–7 and its fixes closed the
+ASRB-1 remainder (2026-10-20, Changelog). This section retains the evidence ledger and the owed
+live receipts named below.
 Source mode: repository source plus locally installed lockfile packages, Claude ACP
 0.85.1 / Agent SDK 0.3.286 and Codex ACP 2.1.1 / CLI 0.159.3. Assembly pins Node 22.22.0 and
 Codex's patched component `2.1.1+chuck.1`; local test Node is 22.23.1. No native model turn ran.
@@ -607,14 +506,6 @@ The pre-existing dirty ASR-C row and its concurrent administrative closure were 
 `07f201a3` changes review state, not the inspected implementation. Three bounded read-only audits
 covered Codex selection/profile, Claude negotiation and terminal drivers; findings were re-read
 and integrated here.
-
-- **Must fix** — ASRB-1 — **Terminal Stop loses the native conversation needed by Resume**
-  (INV §1/§2/§4/§5/§11/§15/§17). **Partially resolved by ASW-3, reviewed 2026-10-19.**
-  Accepted SessionStart now updates `sessions.last_session_id` transactionally; Stop/orphan
-  deletion retains it and empty-ID Resume refuses. The early-hook race still loses native
-  identity: see **ASW3-3** above for current location, actual-code reproduction and fix/test scope.
-  That remainder stays owned by ASW-3; do not implement a second fix from this originating unit.
-  No real-CLI receipt.
 
 ASRB-2/3/8 are verified closed as original reproductions by the ASW-2 review: Claude opens its
 returned fork before settings/prompt with exact-id delete on failure, Codex omits the new prompt
@@ -670,9 +561,8 @@ rendered-browser or quality/performance receipt ran. All named live gates remain
 
 ### ASR-C — Runtime execution, concurrency and control — reviewed `6b5de19b` — **Fix model:** difficult — Codex Sol.
 
-The leaderless-group containment remainder needs ownership machinery (ASW3-4); status settlement
-coordinates runtime/server state and other fixes extend existing seams. ASW-3's review closed
-ASRC-4/7; ASRC-3 is partially resolved. Audit complete; findings keep this same unit open. No product code
+Status settlement coordinates runtime/server state and other fixes extend existing seams. ASW-3's
+review closed ASRC-4/7 and its fixes closed ASRC-3 (2026-10-20). Audit complete; findings keep this same unit open. No product code
 or specifications changed. Source mode: repository source; real-adapter shapes read from the
 release lockfile packages (Claude ACP 0.85.1; Codex ACP 2.1.1 is a native binary, not inspected).
 Bounded discovery for catalogue 06/11/12 was delegated and every reported finding re-read in code.
@@ -702,12 +592,6 @@ Bounded discovery for catalogue 06/11/12 was delegated and every reported findin
   (overlay `/tmp/asrc/overlay.json`): (a) deterministic; (b) 299/300 under a 40-frame flood,
   0/300 without (real-world rate lower). Derive status from turn and pending ownership in one
   critical section; regress both interleavings.
-- **Must fix** — ASRC-3 — **Orphan reaping kills by bare PID liveness** (INV §9/§4).
-  **Partially resolved by ASW-3, reviewed 2026-10-19.** Recorded kernel birth and shared
-  classification now protect orphan signals and reused-PID reconciliation; existing unknown/
-  reused-PID regressions pass. The original descendant-containment promise still fails when the
-  leader exited before teardown: see **ASW3-4** for the actual-code failure and ownership constraint.
-  That remainder stays owned by ASW-3; do not add a parallel reaper in this originating unit.
 - **Worth fixing** — ASRC-5 — **ACP permission prompts can remain actionable after settlement**
   (INV §5/§8). `internal/runtime/permission.go:76–83` registers a pending request before
   publishing it, and the `published` gate (`host_permission.go:54`) covers host requests only:
@@ -1394,6 +1278,24 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Fixed and closed ASW-3 process/terminal ownership (ASW3-1–6; ASRB-1 and ASRC-3
+  remainders):** ASW3-6 (INV §9/§12/§17): `ClassifyProcess` requires the exact microsecond birth
+  (slack removed). ASW3-4 (INV §4/§9/§10): `LeaderlessGroup` makes `StopRecordedProcess` refuse
+  and `ReconcileStale` retain a row whose leader is gone while its group has members. ASW3-1
+  (INV §4/§5/§9/§15): terminal Stop propagates the refusal and keeps view, row, runtime agent and
+  `Registry` claim (restored on `ErrProcessUnverified`); server Stop/Switch/Archive map it to 409.
+  ASW3-2 (INV §1/§4/§7/§9): the external-view poll publishes only a confirmed exit; unknown proof
+  stays owned. ASW3-5 (INV §4/§5/§9): xterm Cancel/Stop re-prove the exact birth and never signal a
+  reaped child; xterm Stop now uses the shared group sweep. ASW3-3 (INV §1/§11/§15): `_post.sh`
+  retries a 401 SessionStart within ~3 s, so a fast CLI's native ID reaches the row written after
+  launch. Specs: FS-01.R54, TS-02.R54 implementation. Regressions: `TestClassifyProcessRejectsNearBirthMismatch`,
+  `TestStopRecordedProcessRefusesLeaderlessGroup`, terminal `ownership_test.go` (refused Stop and
+  retry on tmux/iTerm2 fakes, unknown → recovered → exit, reaped/stale xterm Cancel), hooks
+  `TestSessionStartRetriesUntilAdmitted`; the terminal Stop and xterm Cancel tests fail on the
+  previous code. Closure: serial `make test`, `make build`, focused `-race` (terminal ×3, proof
+  helpers). Still open: FS-07.A12 real tmux/iTerm2/CLI receipts, including early SessionStart →
+  Stop → Resume.
 
 - **2026-10-20 — Closed ASW-2 by human decision on ASW2-1/5 (INV §1/§2/§11/§17):** the human
   accepted both recommendations. ASW2-1: legacy unbound/explicit-switch rows keep taking the

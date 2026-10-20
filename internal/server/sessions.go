@@ -565,7 +565,7 @@ func (s *Server) stopAgentClaimed(ctx context.Context, id string) *runtime.APIEr
 	}
 	if err := s.registry.Stop(ctx, id); err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
-			return apiError(runtime.CodeInternal, err.Error())
+			return orphanReapAPIError("", err)
 		}
 		// Not currently running. If the identity still exists, the agent is
 		// already stopped — make stop idempotent so a double-click or a

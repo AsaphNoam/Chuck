@@ -539,6 +539,16 @@ func (r *Registry) Stop(ctx context.Context, agentID string) error {
 		return ErrNoHandle
 	}
 	if err := rt.Stop(ctx, agentID); err != nil {
+		if errors.Is(err, ErrProcessUnverified) {
+			// The runtime refused control and still owns the agent: restore the
+			// claim unless a newer generation took the slot (FS-01.R54).
+			r.mu.Lock()
+			if _, taken := r.rtByAgent[agentID]; !taken {
+				r.rtByAgent[agentID] = rt
+				r.generationByAgent[agentID] = generation
+			}
+			r.mu.Unlock()
+		}
 		return err
 	}
 	if extra != nil {

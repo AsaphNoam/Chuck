@@ -387,7 +387,8 @@ that required identity is unavailable. A failed start/old exit cannot claim or t
 generation. See TS-01.R41 and TS-02.R54.
 Running rows record the leader's kernel birth; orphan Stop/Switch/Archive/pipeline reaps, peer
 Stop, startup reconciliation and the periodic sweep share one proof check and R20's outcome
-(R20–R21). An exit before registry commit fails that launch/resume (TS-01.R41). A terminal's native
+(R20–R21). The check requires the exact recorded birth; a group that outlived its leader, or a
+live terminal whose group cannot be proved, is refused with the record and ownership retained. An exit before registry commit fails that launch/resume (TS-01.R41). A terminal's native
 conversation ID is durable from SessionStart; Resume without it refuses (FS-07.R25). Terminal
 launches are accepted only with a driver-proved group (FS-07.R25).
 

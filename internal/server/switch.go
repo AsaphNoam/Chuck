@@ -197,7 +197,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	s.cancelAndWait(r.Context(), id, switchCancelTimeout)
 	if err := s.registry.Stop(r.Context(), id); err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
-			writeAPIError(w, apiError(runtime.CodeInternal, "stop current runtime: "+err.Error()))
+			writeAPIError(w, orphanReapAPIError("stop current runtime: ", err))
 			return
 		}
 		// ErrNoHandle: no handler in registry, but check for orphan runtimes (invariant §4).

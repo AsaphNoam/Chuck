@@ -11,7 +11,8 @@ import (
 // ReconcileStale removes running rows whose recorded process has exited and
 // writes FS-01.R20's `done` / "process exited" outcome. Server start and the
 // periodic sweep share it. A live orphan, including one whose identity is
-// unverifiable, is retained and never adopted (FS-01.R54). Every row is
+// unverifiable or a group that outlived its leader, is retained and never
+// adopted (FS-01.R54). Every row is
 // visited; the first failure is returned with the agents already reconciled.
 func ReconcileStale(s *state.Store) ([]string, error) {
 	running, err := s.ListRunning()
@@ -21,7 +22,7 @@ func ReconcileStale(s *state.Store) ([]string, error) {
 	var pruned []string
 	var errs []error
 	for _, r := range running {
-		if ClassifyProcess(r.PID, r.ProcessBirth) != ProcessExited {
+		if ClassifyProcess(r.PID, r.ProcessBirth) != ProcessExited || LeaderlessGroup(r.PID) {
 			continue
 		}
 		slog.Info("runtime: reconciling exited running row", "agent", r.AgentID, "pid", r.PID)

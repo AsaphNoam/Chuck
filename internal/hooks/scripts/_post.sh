@@ -45,8 +45,23 @@ body="$(jq -nc \
 
 [ -n "$body" ] || exit 0
 
-curl -fsS --max-time 4 \
-  -H "Content-Type: application/json" \
-  -H "X-Chuck-Token: $CHUCK_HOOK_TOKEN" \
-  --data "$body" \
-  "$CHUCK_HOOK_URL" >/dev/null 2>&1 || true
+post() {
+  curl -sS --max-time 4 -o /dev/null -w '%{http_code}' \
+    -H "Content-Type: application/json" \
+    -H "X-Chuck-Token: $CHUCK_HOOK_TOKEN" \
+    --data "$body" \
+    "$CHUCK_HOOK_URL" 2>/dev/null
+}
+
+code="$(post)"
+# SessionStart carries the native conversation ID, which no later event
+# re-sends. A fast CLI can post it before the launching server has written the
+# running row that authenticates it (401), so retry only that rejection within
+# a bounded ~3 s window (FS-07.R25).
+[ "$event" = SessionStart ] || exit 0
+for delay in 0.1 0.2 0.4 0.8 1.6; do
+  [ "$code" = 401 ] || exit 0
+  sleep "$delay"
+  code="$(post)"
+done
+exit 0

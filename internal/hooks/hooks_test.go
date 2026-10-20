@@ -1,11 +1,14 @@
 package hooks
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -119,6 +122,71 @@ func TestInterfaceGate(t *testing.T) {
 	// Terminal agent on the same event → POST fires.
 	if !run("terminal", "PreToolUse") {
 		t.Fatalf("terminal PreToolUse did not POST")
+	}
+}
+
+// ASW3-3 / FS-07.R25: a SessionStart posted before the launching server has
+// written its authenticating running row (401) is retried until admitted;
+// other events and other rejections are posted once.
+func TestSessionStartRetriesUntilAdmitted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX sh hook scripts")
+	}
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Skip("no curl")
+	}
+	home := t.TempDir()
+	if err := Install(home); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	post := filepath.Join(Dir(home), "_post.sh")
+	shim := t.TempDir()
+	writeShim(t, filepath.Join(shim, "jq"), "#!/bin/sh\necho '{}'\n")
+
+	var mu sync.Mutex
+	var requests, admitAfter int
+	reject := http.StatusUnauthorized
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		requests++
+		if requests <= admitAfter {
+			w.WriteHeader(reject)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+
+	run := func(event string, rejected, status int) int {
+		mu.Lock()
+		requests, admitAfter, reject = 0, rejected, status
+		mu.Unlock()
+		cmd := exec.Command(post, event, "idle")
+		cmd.Env = append(os.Environ(),
+			"PATH="+shim+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"CHUCK_AGENT_ID=a_1", "CHUCK_HOOK_URL="+srv.URL, "CHUCK_HOOK_TOKEN=tok",
+			"CHUCK_INTERFACE=terminal",
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("_post.sh %s: %v\n%s", event, err, out)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		return requests
+	}
+
+	if n := run("SessionStart", 2, http.StatusUnauthorized); n != 3 {
+		t.Fatalf("SessionStart before its row: %d posts, want admitted on the third", n)
+	}
+	if n := run("SessionStart", 100, http.StatusUnauthorized); n != 6 {
+		t.Fatalf("never-admitted SessionStart: %d posts, want bounded at 6", n)
+	}
+	if n := run("SessionStart", 1, http.StatusBadRequest); n != 1 {
+		t.Fatalf("rejected SessionStart: %d posts, want 1", n)
+	}
+	if n := run("PreToolUse", 1, http.StatusUnauthorized); n != 1 {
+		t.Fatalf("PreToolUse: %d posts, want 1", n)
 	}
 }
 

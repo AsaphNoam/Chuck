@@ -61,8 +61,16 @@ type termAgent struct {
 	hub        *rt.Hub
 	ptyHub     *ptyHub // per-agent PTY broadcast hub (nil for non-PTY drivers, e.g. tmux)
 
-	mu      sync.Mutex
-	stopped bool
+	mu       sync.Mutex
+	stopped  bool          // teardown claimed by a successful Stop or a confirmed exit
+	stopping bool          // a Stop is attempting control; ownership is not yet released
+	exitSeen bool          // the process exited while a Stop was attempting control
+	done     chan struct{} // closed at teardown; ends the exit poll
+}
+
+func newTermAgent(spec rt.LaunchSpec, tab *Tab, drv TerminalDriver) *termAgent {
+	return &termAgent{agentID: spec.Agent.AgentID, generation: spec.Generation, tab: tab, driver: drv,
+		hub: rt.NewHub(), done: make(chan struct{})}
 }
 
 // startPTYHub creates the per-agent PTY broadcast hub over the tab's master and
@@ -198,6 +206,30 @@ func (r *Runtime) SetJournals(j *rt.Journals) {
 // (tmux/iTerm2) (TS-01.R41).
 var exitPollInterval = time.Second
 
+// classifyProcess is rt.ClassifyProcess; tests substitute a transient
+// unreadable birth.
+var classifyProcess = rt.ClassifyProcess
+
+// reaped reports that the xterm child has been reaped; its PID may then name
+// another process.
+func (t *Tab) reaped() bool {
+	if t.exited == nil {
+		return false
+	}
+	select {
+	case <-t.exited:
+		return true
+	default:
+		return false
+	}
+}
+
+// owned re-proves the tab's group leader immediately before a signal: an
+// unreaped child or external view with its exact recorded birth (FS-01.R54).
+func (t *Tab) owned() bool {
+	return t.PGID > 0 && !t.reaped() && classifyProcess(t.PGID, t.Birth) == rt.ProcessOwned
+}
+
 // startOwnedTab starts the driver view and refuses a result without a
 // provable dedicated process group, closing only that view (FS-07.R25). A
 // waitable xterm child is ours until reaped; an external view must still be
@@ -207,18 +239,18 @@ func startOwnedTab(drv TerminalDriver, spec TabSpec) (*Tab, error) {
 	if err != nil {
 		return nil, err
 	}
-	proved := tab.PGID > 0 && !tab.Birth.IsZero() &&
-		(tab.exited != nil || rt.ClassifyProcess(tab.PGID, tab.Birth) == rt.ProcessOwned)
-	if !proved {
+	if tab.Birth.IsZero() || !tab.owned() {
 		_ = drv.CloseTab(tab)
 		return nil, rt.ErrTerminalUnavailable
 	}
 	return tab, nil
 }
 
-// exitSignal closes when the agent's process exits: the xterm child's reap,
-// or a bounded identity poll for an external view. It also closes once the
-// agent is stopped so no watcher outlives Stop.
+// exitSignal closes when the agent's process has confirmably exited: the
+// xterm child's reap, or a bounded identity poll for an external view. An
+// unverifiable birth is not an exit; the view stays owned and its control
+// refuses until proof recovers or exit is confirmed (FS-01.R54). The poll
+// ends at teardown so no watcher outlives Stop.
 func (a *termAgent) exitSignal() <-chan struct{} {
 	if a.tab.exited != nil {
 		return a.tab.exited
@@ -226,12 +258,17 @@ func (a *termAgent) exitSignal() <-chan struct{} {
 	ch := make(chan struct{})
 	interval := exitPollInterval
 	go func() {
-		defer close(ch)
 		tick := time.NewTicker(interval)
 		defer tick.Stop()
-		for range tick.C {
-			if a.isStopped() || rt.ClassifyProcess(a.tab.PGID, a.tab.Birth) != rt.ProcessOwned {
+		for {
+			select {
+			case <-a.done:
 				return
+			case <-tick.C:
+				if classifyProcess(a.tab.PGID, a.tab.Birth) == rt.ProcessExited {
+					close(ch)
+					return
+				}
 			}
 		}
 	}()
@@ -249,7 +286,7 @@ func (r *Runtime) Start(ctx context.Context, spec rt.LaunchSpec) (*rt.Handle, er
 	if err != nil {
 		return nil, err
 	}
-	a := &termAgent{agentID: spec.Agent.AgentID, generation: spec.Generation, tab: tab, driver: drv, hub: rt.NewHub()}
+	a := newTermAgent(spec, tab, drv)
 
 	// Open the transcript + upsert the sessions row BEFORE the running row so a
 	// launched terminal agent is a first-class archive/resume citizen (Finding 7).
@@ -298,7 +335,7 @@ func (r *Runtime) Resume(ctx context.Context, spec rt.LaunchSpec, sessionID stri
 	if err != nil {
 		return nil, err
 	}
-	a := &termAgent{agentID: spec.Agent.AgentID, generation: spec.Generation, tab: tab, driver: drv, hub: rt.NewHub()}
+	a := newTermAgent(spec, tab, drv)
 
 	// Re-open the transcript in append mode and re-upsert the sessions row with the
 	// resumed session_id, mirroring the chat runtime so archive resume of a terminal
@@ -348,12 +385,13 @@ func (r *Runtime) Cancel(ctx context.Context, agentID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// An external view's PID is not our child: re-prove it before signaling.
-	if a.tab.PGID > 0 && (a.tab.exited != nil || rt.ClassifyProcess(a.tab.PGID, a.tab.Birth) == rt.ProcessOwned) {
-		_ = syscall.Kill(-a.tab.PGID, syscall.SIGINT)
-		return true, nil
+	// A reaped child's or external view's PID may name another process:
+	// re-prove it immediately before signaling.
+	if !a.tab.owned() {
+		return false, nil
 	}
-	return false, nil
+	_ = syscall.Kill(-a.tab.PGID, syscall.SIGINT)
+	return true, nil
 }
 
 // CancelGuarded is unavailable for terminal agents because the terminal driver
@@ -365,15 +403,12 @@ func (r *Runtime) CancelGuarded(ctx context.Context, agentID, expectedGeneration
 
 // Stop terminates the process group, closes the emulator tab, removes the
 // running row, and sets the status row to done (kept for the archive/UI). The
-// liveness watcher self-suppresses once stopped is set (§3.1).
+// liveness watcher defers to an in-progress Stop (§3.1). When the group cannot
+// be proved, Stop refuses and leaves the agent, view and row owned so a later
+// Stop can retry (FS-01.R54).
 func (r *Runtime) Stop(ctx context.Context, agentID string) error {
-	r.mu.Lock()
-	a, ok := r.agents[agentID]
-	if ok {
-		delete(r.agents, agentID)
-	}
-	r.mu.Unlock()
-	if !ok {
+	a, err := r.lookup(agentID)
+	if err != nil {
 		// The registry doesn't own this agent — typically after a dashboard restart,
 		// where ReconcileStale intentionally never re-adopts a still-live PID. Do NOT
 		// silently succeed: if the recorded process group is alive, kill it before
@@ -388,12 +423,27 @@ func (r *Runtime) Stop(ctx context.Context, agentID string) error {
 	}
 
 	a.mu.Lock()
-	already := a.stopped
+	if a.stopped {
+		a.mu.Unlock()
+		return nil // the exit watcher owns teardown
+	}
+	if a.stopping {
+		a.mu.Unlock()
+		return fmt.Errorf("terminal: stop of %s already in progress", agentID)
+	}
+	a.stopping = true
+	a.mu.Unlock()
+	err = r.terminate(a)
+	a.mu.Lock()
+	a.stopping = false
+	if err != nil && !a.exitSeen && !a.tab.reaped() {
+		a.mu.Unlock()
+		return err
+	}
 	a.stopped = true
 	a.mu.Unlock()
-	if !already {
-		r.terminate(a)
-	}
+	r.removeAgent(agentID)
+	close(a.done)
 	// Close the PTY hub (subscribers + master) so the always-on reader exits, then
 	// CloseTab (idempotent on the same master fd). The reader goroutine terminates
 	// on the master close — closePTYHub blocks nothing, but readLoop unblocks and
@@ -502,20 +552,28 @@ func (r *Runtime) removeAgent(agentID string) {
 }
 
 // startWatcher reaps an unexpected process exit (xterm has a waitable process;
-// tmux liveness is handled by the 6.6 sweep). On exit outside Stop it clears the
+// external views are polled). On a confirmed exit outside Stop it clears the
 // running row, marks the agent done, and tells the Registry to drop ownership.
 func (r *Runtime) startWatcher(a *termAgent) {
 	exited := a.exitSignal()
 	go func() {
-		<-exited
+		select {
+		case <-exited:
+		case <-a.done:
+			return
+		}
 		a.mu.Lock()
-		if a.stopped {
+		if a.stopping {
+			a.exitSeen = true // a refused Stop still finishes as stopped
+		}
+		if a.stopped || a.stopping {
 			a.mu.Unlock()
 			return // Stop owns the cleanup
 		}
 		a.stopped = true
 		a.mu.Unlock()
 
+		close(a.done)
 		a.closePTYHub()
 		_ = r.store.DeleteRunningRetainingSession(a.agentID)
 		r.setDone(a.agentID)
@@ -548,26 +606,29 @@ func (r *Runtime) scheduleInitialIdle(a *termAgent) {
 	}()
 }
 
-// terminate signals SIGTERM→(grace)→SIGKILL to the process group, waiting on the
-// driver's exited channel where available. An external view's group is
-// re-proved before each signal (FS-01.R54); CloseTab then releases the view.
-func (r *Runtime) terminate(a *termAgent) {
-	pgid := a.tab.PGID
-	if a.tab.exited == nil {
-		_ = rt.StopRecordedProcess(pgid, a.tab.Birth, stopGrace)
-		return
+// terminate signals SIGTERM→(grace)→SIGKILL to the process group and sweeps
+// its surviving members, re-proving the leader's exact birth before each
+// signal for xterm children and external views alike (FS-01.R54). A reaped
+// xterm child is never signaled again. It returns the refusal when the group
+// cannot be proved, so Stop keeps ownership; CloseTab then releases the view.
+func (r *Runtime) terminate(a *termAgent) error {
+	if a.tab.reaped() {
+		return nil
 	}
-	if pgid > 0 {
-		_ = syscall.Kill(-pgid, syscall.SIGTERM)
+	if classifyProcess(a.tab.PGID, a.tab.Birth) == rt.ProcessUnverified {
+		return &rt.ProcessUnverifiedError{PID: a.tab.PGID}
 	}
-	select {
-	case <-a.tab.exited:
-	case <-time.After(stopGrace):
-		if pgid > 0 {
-			_ = syscall.Kill(-pgid, syscall.SIGKILL)
+	if err := rt.StopRecordedProcess(a.tab.PGID, a.tab.Birth, stopGrace); err != nil {
+		return err
+	}
+	if a.tab.exited != nil {
+		// The leader is no longer alive, so the reaper is about to close this.
+		select {
+		case <-a.tab.exited:
+		case <-time.After(stopGrace):
 		}
-		<-a.tab.exited
 	}
+	return nil
 }
 
 // setDone sets the status row to done, keeping it so the archive/UI can show a

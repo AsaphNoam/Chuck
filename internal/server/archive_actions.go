@@ -14,7 +14,7 @@ import (
 func (s *Server) stopForArchive(ctx context.Context, id string) *runtime.APIError {
 	if err := s.registry.Stop(ctx, id); err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
-			return apiError(runtime.CodeInternal, "stop agent: "+err.Error())
+			return orphanReapAPIError("stop agent: ", err)
 		}
 		if err := s.reapOrphanRuntime(id); err != nil {
 			return orphanReapAPIError("reap orphan agent: ", err)
