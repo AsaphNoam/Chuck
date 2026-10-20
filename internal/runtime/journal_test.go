@@ -470,3 +470,35 @@ func TestJournalGenerationReplacement(t *testing.T) {
 		t.Fatalf("old writer kept %d, new writer %d; want 1 and 2", len(oldW.events), len(newW.events))
 	}
 }
+
+type blockedMetaIndexer struct {
+	removalIndexer
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (ix *blockedMetaIndexer) UpsertSessionMeta(string, SessionMetaData) error {
+	close(ix.entered)
+	<-ix.release
+	return nil
+}
+
+// TS-01.R39 / INV §4 (ASW1-3): an exit teardown that runs after the journal
+// attached a writer but before startup finished must not strand that writer:
+// later inactive appends still reach the conversation.
+func TestExitDuringPersistenceOpenClosesJournal(t *testing.T) {
+	c := NewChatRuntime(nil)
+	ix := &blockedMetaIndexer{entered: make(chan struct{}), release: make(chan struct{})}
+	c.SetPersistence(t.TempDir(), func(string, string, *SessionMetaData) (TranscriptWriter, error) { return &recordingWriter{}, nil }, ix)
+	as := &agentState{agentID: "a_attach", journals: c.journals}
+	as.journal = c.journals.Acquire(as.agentID)
+	opened := make(chan error, 1)
+	go func() { opened <- c.openPersistence(as, LaunchSpec{}, "s") }()
+	<-ix.entered
+	as.closePersistence() // the transport-closed teardown
+	close(ix.release)
+	<-opened
+	if _, err := c.CommitInactive(as.agentID, CommitRequest{Event: Event{Type: EvAnnotation}}); errors.Is(err, ErrJournalLive) {
+		t.Fatal("exited startup left a live writer with no owner; inactive history is wedged")
+	}
+}

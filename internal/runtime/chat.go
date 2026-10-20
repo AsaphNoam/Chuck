@@ -294,6 +294,7 @@ type agentState struct {
 	journal                *Journal
 	journals               *Journals
 	journalAttachment      uint64 // this generation's writer attachment, guarded by mu
+	journalClosed          bool   // teardown already closed this generation's journal, guarded by mu
 	journalRelease         sync.Once
 	control                *controlQueue // ordered control observations (TS-01.R39), guarded by mu
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
@@ -2333,14 +2334,23 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 	if err != nil {
 		return fmt.Errorf("runtime: open transcript: %w", err)
 	}
+	// Publish ownership before any further startup work, so a concurrent exit
+	// teardown closes this writer; one that already ran leaves it to us (INV §4).
+	as.mu.Lock()
+	closed := as.journalClosed
+	if !closed {
+		as.journalAttachment = attachment
+		as.seq = w.NextSeq() - 1
+	}
+	as.mu.Unlock()
+	if closed {
+		_ = as.journal.Close(attachment, spec.Fork != nil)
+		return errors.New("runtime: agent exited while opening its transcript")
+	}
 	if err := ix.UpsertSessionMeta(spec.Agent.AgentID, meta); err != nil {
-		_ = as.journal.Close(attachment, spec.Fork != nil) // a failed clone leaves no transcript (INV §15)
+		as.closeJournal(spec.Fork != nil) // a failed clone leaves no transcript (INV §15)
 		return fmt.Errorf("runtime: index session meta: %w", err)
 	}
-	as.mu.Lock()
-	as.journalAttachment = attachment
-	as.seq = w.NextSeq() - 1
-	as.mu.Unlock()
 	return nil
 }
 
@@ -2349,6 +2359,7 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 func (as *agentState) closeJournal(discard bool) {
 	as.mu.Lock()
 	attachment := as.journalAttachment
+	as.journalClosed = true
 	as.mu.Unlock()
 	if attachment == 0 {
 		return

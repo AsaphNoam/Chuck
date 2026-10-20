@@ -343,16 +343,6 @@ the reviewed snapshot, before concurrent ASW-2 work; ASW1-9 was added against `e
   while keeping failed records out of retained history. **Fix scope: medium.**
   `TestReviewUnsavedPermissionStillHasApprovalSurface` injects request-append failure and confirms
   live `tc_p` plus delivered `permission_required`, but no windowed pending request.
-- **Must fix** — ASW1-3 — **Exit during persistence setup leaves an ownerless live writer**
-  (INV §4/§5/§9/§16). `internal/runtime/chat.go:2318–2331,2337–2353`: `Journal.Open` attaches
-  before `UpsertSessionMeta`, but `journalAttachment` is assigned only after that write. An exit
-  in this window runs `closePersistence` with attachment zero, skips Close and releases the
-  generation reference. The attached writer keeps the journal alive with zero references and no
-  closer; later inactive annotations/notices return `ErrJournalLive` until replacement/restart.
-  TS-01.R39/TS-02.R52 require generation-fenced teardown here. Publish attachment ownership with
-  lifecycle state and close a writer whose owner already exited. **Fix scope: medium.**
-  `TestReviewExitDuringPersistenceAttachClosesJournal` blocks metadata indexing after Open,
-  runs exit teardown, releases indexing, and reproduces inactive-append refusal.
 - **Must fix** — ASW1-4 — **Failed room settlement forgets its exact capture failure**
   (INV §4/§5/§7/§9/§15). `internal/server/think_tank_capture.go:63–71,91–95`,
   `internal/server/think_tanks.go:466–491`: terminal handling deletes a failed capture before
@@ -1300,6 +1290,9 @@ and specifications are unchanged.
   allocation past a persisted `ReservedSeq` and a degraded clean close keeps it;
   `TestJournalReservedSequenceSurvivesCloseAndRestart` fails before the fix. ASW1-8 (INV §10) —
   TS-01.R39 now states the shipped inactive-writer fence (journal lock plus live-writer refusal).
+  ASW1-3 (INV §4) — `openPersistence` publishes the writer attachment right after `Journal.Open`
+  and closes it itself when exit teardown already ran; `TestExitDuringPersistenceOpenClosesJournal`
+  fails before the fix.
 
 - **2026-10-20 — Mapped the third core reliability audit:** two focused GPT-6 Luna research passes
   and parent integration produced [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review
