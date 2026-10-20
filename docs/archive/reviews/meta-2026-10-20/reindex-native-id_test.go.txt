@@ -1,0 +1,38 @@
+package index
+
+import (
+	"os"
+	"testing"
+	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+	"github.com/AsaphNoam/Chuck/internal/transcript"
+)
+
+// Map this artifact with Go -overlay to internal/index/meta_review_test.go.
+// Existing test helpers meta/openTestDB provide valid session metadata and a temp DB.
+func TestMetaReindexPreservesHookLearnedTerminalIdentity(t *testing.T) {
+	st, home := openTestDB(t)
+	m := meta()
+	m.Interface, m.SessionID = "terminal", ""
+	const id = "a_index"
+	if err := st.WriteAgent(state.Agent{AgentID: id, Name: m.Name, Role: m.Role, Project: m.Project,
+		Backend: m.Backend, Model: m.Model, Interface: "terminal", CreatedAt: time.Now().UTC()}); err != nil { t.Fatal(err) }
+	w, err := transcript.Open(home, id, &m)
+	if err != nil { t.Fatal(err) }
+	if err := w.Close(); err != nil { t.Fatal(err) }
+	if err := New(st.DB()).UpsertSessionMeta(id, m); err != nil { t.Fatal(err) }
+	if err := st.WriteRunning(state.RunningEntry{AgentID: id, PID: os.Getpid(), Interface: "terminal",
+		HookToken: "meta-token", Generation: "g_meta", StartedAt: time.Now().UTC()}); err != nil { t.Fatal(err) }
+	if _, err := state.NewManager(st, nil).ApplyHook("meta-token", state.HookPayload{
+		AgentID: id, Event: "SessionStart", State: "idle", SessionID: "native-learned-after-start"}); err != nil { t.Fatal(err) }
+	if err := st.DeleteRunningRetainingSession(id); err != nil { t.Fatal(err) }
+	before, err := st.ReadSession(id)
+	if err != nil || before.LastSessionID != "native-learned-after-start" { t.Fatalf("hook/teardown precondition: %+v, %v", before, err) }
+	if err := Reindex(home, st.DB()); err != nil { t.Fatal(err) }
+	after, err := st.ReadSession(id)
+	if err != nil { t.Fatal(err) }
+	if after.LastSessionID != before.LastSessionID {
+		t.Fatalf("offline reindex lost authoritative native session ID: before=%q after=%q", before.LastSessionID, after.LastSessionID)
+	}
+}
