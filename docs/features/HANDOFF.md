@@ -36,16 +36,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   The human explicitly authorized these cross-review batches; for this campaign select the new
   unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
   migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
-  control, ambiguous replay and the config read-loop stall. ASW-1 is reviewed with eight Must-fix
-  findings and one documentation finding open below; ASW-2 is closed (all eleven findings fixed or
+  control, ambiguous replay and the config read-loop stall. ASW-1 is closed (all nine findings
+  fixed 2026-10-20); ASW-2 is closed (all eleven findings fixed or
   decided 2026-10-20); ASW-3 is closed (all six findings fixed 2026-10-20).
   Other units remain waiting. The
   [systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
 - **Post-refactor synthesis:** [pre-fix assessment](AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md)
-  connects ownership/refusal, conversation dispatch and controller recovery. Two additional probes
-  confirm ASW1-9 (old terminal observation stops a current reporter) and ASW3-6 (birth mismatch
-  still authorizes signaling; fixed 2026-10-20). Keep existing units; integrate exact execution identity and retained
-  recovery owners rather than commissioning another broad rewrite. No product fix selected.
+  connects ownership/refusal, conversation dispatch and controller recovery; its two confirmed
+  probes (ASW1-9, ASW3-6) are fixed. Keep existing units rather than another broad rewrite.
 - **Defect-origin and review-escape research:** [meta-analysis](AGENT-SURFACE-META-ANALYSIS.md)
   distinguishes unsafe designs, explicit implementation violations and unchanged consumers of new
   authority. Six GPT-6 Luna investigations supported four workflow proposals; the later two-skill
@@ -102,8 +100,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   review is available below. CR-A1–CR-A7 are researched and waiting for review; audit planning is complete.
 - ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
   clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
-- ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–9 below keep that
-  same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
+- ASW-1 (conversation event commits) closed 2026-10-20 (Changelog); rendered unsaved-permission
+  prompt and live duplicate-terminal room receipts are owed.
 - ASW-3 (process and terminal-driver ownership) closed 2026-10-20 (Changelog); FS-07.A12 real
   tmux/iTerm2 receipts, including early SessionStart → Stop → Resume, are owed.
 
@@ -227,13 +225,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-2 and ASW-3 closed; ASW-1 reviewed with findings open; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1, ASW-2 and ASW-3 closed; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are implemented and
 reviewed; their remaining findings select the same units for fixes:
 
 | Unit | Invocation | Outcome |
 |---|---|---|
-| ASW-1 | reviewed 2026-10-20 — findings open (ASW1-1–9) | One canonical commit boundary, ordered control observations and truthful history failure |
+| ASW-1 | closed 2026-10-20 — nine findings fixed (Changelog) | One canonical commit boundary, ordered control observations and truthful history failure |
 | ASW-2 | closed 2026-10-20 — nine findings fixed, ASW2-1/5 resolved by human decision (Changelog) | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
 | ASW-3 | closed 2026-10-20 — six findings fixed (Changelog) | Process/terminal ownership and native terminal identity |
 
@@ -310,69 +308,12 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
   review solely due to those fixes. This is review of a substantive workflow/tooling change, not
   a queued core audit or review of its later administrative records.
 
-- **ASW-1 — conversation event commits** (`3f746c2a`, `69ef5951`, `1843470f`, `57af7f61`,
-  closure `43da6bec`) — **reviewed; findings open**. Reviewed `3618df3e..43da6bec`;
-  ASW1-1–9 below retain this same unit for `/fix`. Original ASRD-1/2/5 reproductions are corrected;
-  ASRD-3's history suppression is corrected but its recovery/control obligations remain incomplete.
-  ASRD-4 stays with ASF-2. Concurrent ASW-2 edits were excluded by finishing the probes in
-  `/private/tmp/chuck-asw1-review-43da6bec`.
 
 ## Review findings
 
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
-
-### ASW-1 — Conversation event commits — reviewed `43da6bec` — **Fix model:** difficult — Codex Sol.
-
-Eight Must-fix findings and one Worth-fixing documentation finding keep this unit open. Fix scope
-is assessed independently below; the hardest fixes coordinate conversation/generation ownership
-and durable failure recovery. No product code or specifications were changed. Locations refer to
-the reviewed snapshot, before concurrent ASW-2 work; ASW1-9 was added against `eaaf1c1f` below.
-
-- **Must fix** — ASW1-2 — **The failed-permission notification exposes no approval controls**
-  (INV §8/§10/§11/§15). `internal/server/server.go:424–427`, `internal/bus/bus.go:153–172`,
-  `ui/src/api/sse.ts:213–237`, `internal/server/sessions.go:391–411`: an unsaved permission
-  request stays pending in the runtime, but only a notification is published. Toast/notification
-  handling merely opens the conversation; desktop controls require a transcript event and phone
-  controls use the canonical window's `pending_permission`, which is null. Reload cannot discover
-  the request either. This violates FS-03.R99/TS-03.R73's reachable approvals. Add a bounded,
-  generation-scoped non-history pending-control projection, including resolutions and reload,
-  while keeping failed records out of retained history. **Fix scope: medium.**
-  `TestReviewUnsavedPermissionStillHasApprovalSurface` injects request-append failure and confirms
-  live `tc_p` plus delivered `permission_required`, but no windowed pending request.
-- **Must fix** — ASW1-4 — **Failed room settlement forgets its exact capture failure**
-  (INV §4/§5/§7/§9/§15). `internal/server/think_tank_capture.go:63–71,91–95`,
-  `internal/server/think_tanks.go:466–491`: terminal handling deletes a failed capture before
-  `FailThinkTankAttempt`. If that write and the fallback room-hold write fail, nothing retains the
-  exact failure for live retry. Restoring SQLite leaves the attempt running; terminal retry now
-  sees no failed capture and can finalize its staged contribution. TS-01.R39/TS-04.R100 require
-  monotonic failure and an exact recovery obligation; generic restart recovery is insufficient.
-  Retain the exact attempt failure until its idempotent failure/hold transition commits and fence
-  finalization on it; never replay activity appends. **Fix scope: difficult.**
-  `TestReviewFailedRoomSettlementRetainsFailure` aborts both writes with SQLite triggers, restores
-  them and retries the terminal event: the raw attempt row becomes `finalized`.
-
-Local-choice outcomes: a separate health table is justified because the open marker precedes a
-new session row; conservative unclean-stop gap notices and offline index repair are reasonable.
-The absent banner is covered by the refused-Send surface, but does not resolve ASW1-1/2. Gap
-notices temporarily lagging `as.seq` do not reuse allocation and appear in canonical HTTP reads.
-Unreserved enqueue is replaced by per-generation shedding (ASW1-7); the inactive fence is now specified.
-
-Invariant sweep: §1/§2/§4/§5/§7/§8/§9/§10/§11/§14/§15/§16/§17 apply and were checked; existing HTTP
-guards and owner-only persistence remain wired. §3 has no one-shot persisted field/form surface,
-§6 adds no external runtime/driver, §12 changes no external CLI invocation, and §13 changes no
-markup/selectors. History/control interfaces and terminal persistence retain existing contracts.
-The seven reproductions expose missing failure/lifecycle coverage in FS-03.A78 (INV §17).
-
-Evidence: clean-entry untagged runtime/server/state/transcript/bus suites passed (server needed
-approved loopback access after sandbox `::1` refusal); focused journal/control race tests passed.
-After ASW-2 edits appeared, all seven probes were reproduced against isolated `43da6bec` using
-`/private/tmp/chuck-asw1-review-overlay.json` and `chuck-asw1-review-server-overlay.json`.
-Focused existing runtime/server checks pass on that snapshot untagged and `sqlite_fts5`.
-The room retry probe deliberately repeats terminal settlement to test monotonicity; no live-provider
-duplicate-terminal receipt is claimed. Native/provider/device gates remain owed. No sibling fixes
-or product/spec edits were selected.
 
 ### ASR-A — Instructions, configuration and execution environment — reviewed `4fbeb316` — **Fix model:** difficult — Codex Sol.
 
@@ -620,8 +561,8 @@ interface), §7 (no record repair), §12 (no new external invocation), §13 (no 
 ### ASR-D — Conversation, input and history fidelity — reviewed `c12c4251` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 ASRD-4 remains open here and belongs to ASF-2. ASRD-1/2/5's original reproductions are corrected
-and independently reviewed in ASW-1; ASRD-3's history suppression is corrected, with remaining
-recovery/control obligations tracked only as ASW1-1–7 above. The retained audit evidence below
+and independently reviewed in ASW-1; ASRD-3's history suppression and its remaining
+recovery/control obligations closed with the ASW-1 fixes (Changelog, 2026-10-20). The retained audit evidence below
 describes the original snapshot. No product code or specifications changed during this audit.
 Tree clean at entry. Source mode: repository source at
 `c12c425109a7bdd5682451f02afe958477319e7a`; release lock pins Claude ACP 0.85.1 / Agent SDK
@@ -1286,7 +1227,7 @@ and specifications are unchanged.
   requirements. Spec, link/source/test-reference (24 named tests) and diff checks pass; no product
   tests were run. No audit, failure probe, product repair or release architecture receipt was performed.
 
-- **2026-10-20 — ASW-1 fixes (in progress):** ASW1-5 (INV §7/§9) — journal open advances
+- **2026-10-20 — Closed ASW-1 conversation event commits (all nine findings fixed):** ASW1-5 (INV §7/§9) — journal open advances
   allocation past a persisted `ReservedSeq` and a degraded clean close keeps it;
   `TestJournalReservedSequenceSurvivesCloseAndRestart` fails before the fix. ASW1-8 (INV §10) —
   TS-01.R39 now states the shipped inactive-writer fence (journal lock plus live-writer refusal).
@@ -1306,6 +1247,19 @@ and specifications are unchanged.
   (old generation and old same-generation turn) fails before the fix; task/pipeline tests ×4 pass.
   Not added: a reentrant-Stop regression (cleanup stays off the drainer, unchanged); the pipeline
   stage lookup still picks the latest stage, but only drives a state-derived `Reconcile`.
+  ASW1-2 (INV §8/§10, delegated, reviewed) — the server holds an uncommitted, still-pending
+  permission request as a live generation-scoped projection (`held_permissions.go`): windowed
+  `pending_permission`, full-read `unretained_permissions`, desktop re-read on a notification with
+  no loaded request; resolution/exit clears it; TS-01 §5 and TS-03.R73 updated.
+  `TestUnsavedPermissionStaysApprovable` and an `sse.test.ts` case fail before the fix. ASW1-4
+  (INV §5/§15, delegated, reviewed) — an attempt's failure is retained in memory until its
+  idempotent transition commits, fences finalization, keeps its first reason and is retried by the
+  room sweep; `TestThinkTankFailedSettlementRetainsCaptureFailure` (terminal and sweep retries)
+  failed before the fix on its branch. Residual: that retained failure is memory-only (restart
+  recovery still fences the attempt with the generic reason). Not checked: rendered desktop/phone
+  approval prompt for an unsaved request. Closure: `GOFLAGS=-p=1 make test`, `make build`,
+  `ui` `npm test` (980) and `npm run build` pass; one earlier full server run failed on an
+  unnamed test and two reruns plus task/pipeline ×4 passed.
 
 - **2026-10-20 — Mapped the third core reliability audit:** two focused GPT-6 Luna research passes
   and parent integration produced [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review
