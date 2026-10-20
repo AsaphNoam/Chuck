@@ -35,10 +35,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   native execution, ASW-3 process/driver ownership) and six consolidated `/fix` batches below.
   The human explicitly authorized these cross-review batches; for this campaign select the new
   unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
-  migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
-  control, ambiguous replay and the config read-loop stall. ASW-1 is closed (all nine findings
-  fixed 2026-10-20); ASW-2 is closed (all eleven findings fixed or
-  decided 2026-10-20); ASW-3 is closed (all six findings fixed 2026-10-20).
+  migration/security bounds and shared-file coordination are designed. Prioritize ambiguous
+  replay (ASF-2). ASW-1, ASW-2, ASW-3 and ASF-1 are closed (2026-10-20; Changelog).
   Other units remain waiting. The
   [systemic assessment](AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
 - **Post-refactor synthesis:** [pre-fix assessment](AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md)
@@ -71,8 +69,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
   original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.
-- **Former known risk confirmed:** the `SetSessionConfig`/`as.mu` read-loop stall is now ASRC-1
-  under Review findings.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
@@ -92,18 +88,18 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   `internal/server` `TestQuotaDispatcherContinuesSameConversationOnce/stopped` failed once
   (“reloaded transcript differs”, FTS5 variant) in the `v0.16.0` closure run; 40 isolated runs,
   30 `-race` runs and a full FTS5 package rerun pass. Range commit `9989fb88` touched ACP update
-  routing; whether it relates is uninvestigated.
+  routing; whether it relates is uninvestigated. Under `-race`, `internal/runtime`
+  `TestCancelDoesNotEndNextTurn` and `TestCanceledTurnsReleaseToolInput` fail deterministically,
+  also at `afc7ccf3`: they act right after observing `turn_end`, which is emitted while the turn
+  gate is still held by design. Plain runs pass.
 
 ## Active change
 
 - None in progress. Workflow skills and release-gate implementation are complete; normal change
   review is available below. CR-A1–CR-A7 are researched and waiting for review; audit planning is complete.
-- ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
-  clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
-- ASW-1 (conversation event commits) closed 2026-10-20 (Changelog); rendered unsaved-permission
-  prompt and live duplicate-terminal room receipts are owed.
-- ASW-3 (process and terminal-driver ownership) closed 2026-10-20 (Changelog); FS-07.A12 real
-  tmux/iTerm2 receipts, including early SessionStart → Stop → Resume, are owed.
+- Owed live receipts from closed units: ASW-2 native clone/check/adoption and unpatched idle-Steer
+  race; ASW-1 rendered unsaved-permission prompt and duplicate-terminal room; ASW-3 FS-07.A12
+  tmux/iTerm2 (incl. early SessionStart → Stop → Resume); ASF-1 live mid-turn setting change.
 
 ## Acceptance gates still owed
 
@@ -225,7 +221,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-1, ASW-2 and ASW-3 closed; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1, ASW-2, ASW-3 and ASF-1 closed; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are implemented and
 reviewed; their remaining findings select the same units for fixes:
 
@@ -243,7 +239,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 
 | Fix unit | Invocation / responsibility | Owned findings | Status / fix model |
 |---|---|---|---|
-| [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | **In progress** — ASRC-1, ASRG-3 fixed; ASRC-2/5 next — medium, Codex Terra or Claude Opus |
+| [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5) |
 | [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
@@ -471,45 +467,11 @@ rendered-browser or quality/performance receipt ran. All named live gates remain
 ### ASR-C — Runtime execution, concurrency and control — reviewed `6b5de19b` — **Fix model:** difficult — Codex Sol.
 
 Status settlement coordinates runtime/server state and other fixes extend existing seams. ASW-3's
-review closed ASRC-4/7 and its fixes closed ASRC-3 (2026-10-20). Audit complete; findings keep this same unit open. No product code
+review closed ASRC-4/7 and its fixes closed ASRC-3; ASF-1 closed ASRC-1/2/5 (2026-10-20, Changelog); ASRC-6 (ASF-4) remains. Audit complete; findings keep this same unit open. No product code
 or specifications changed. Source mode: repository source; real-adapter shapes read from the
 release lockfile packages (Claude ACP 0.85.1; Codex ACP 2.1.1 is a native binary, not inspected).
 Bounded discovery for catalogue 06/11/12 was delegated and every reported finding re-read in code.
 
-- **Must fix** — ASRC-1 — **A live effort/fast change stalls the read loop when any frame precedes
-  its reply** (INV §5/§15/§16). `internal/runtime/chat.go:1752–1795` holds `as.mu` across
-  `session/set_config_option`; `onNotification` takes `as.mu` first in `scopeFor`
-  (`subagent.go:79`), so the "mode updates never take mu" comment (`chat.go:1850`) is false. FS-03.R45/R47
-  allow applying during a running turn; one streamed chunk before the reply blocks the reader,
-  so the reply is never read. The HTTP handler passes `r.Context()` with no server or UI timeout
-  while holding the lifecycle claim (`session_config.go:33,83`): the turn freezes, permission
-  requests are unread, and Stop returns 409 until the browser aborts. The late success reply is then
-  dropped ("response for unknown request id"), so Chuck persists and reports the old value while the
-  provider runs the new one. Probe: `/tmp/chuck-asrc/{setconfig_probe_test.go,fakeacp_main.go,overlay.json}`
-  (`GOFLAGS="-p=1 -overlay=/tmp/chuck-asrc/overlay.json"`): control applies in 0 s; chunk-before-reply
-  fails at the 2 s deadline. Snapshot identity/advertisement under the lock, call unlocked
-  (as `SetSessionMode` does under the lifecycle claim), merge the returned option list after;
-  regress an interleaved update mid-turn plus the late-reply/persisted-value agreement.
-- **Must fix** — ASRC-2 — **Status writes are not owned by the turn or the open permission gate**
-  (INV §5/§1). `chat.go:2438–2459` writes `busy` for any tool call/result while `turnActive`,
-  ignoring `as.pending`; `updateStatus` (`chat.go:2480`) is an unlocked read-modify-write.
-  (a) A parallel or child tool frame after a permission request replaces `waiting_input` with
-  `busy`, so the actionable card treatment (FS-02.R3/R22) disappears while a human gate is open.
-  (b) A native background continuation frame (FS-01.R52) racing `finishTurn` — idle is written
-  before `turn_end` persists and `turnActive` clears (`chat.go:1158–1172`) — leaves the card `busy`
-  with no owning turn until the next turn. Delegated fake-ACP probes in `/tmp/asrc/probe_test.go`
-  (overlay `/tmp/asrc/overlay.json`): (a) deterministic; (b) 299/300 under a 40-frame flood,
-  0/300 without (real-world rate lower). Derive status from turn and pending ownership in one
-  critical section; regress both interleavings.
-- **Worth fixing** — ASRC-5 — **ACP permission prompts can remain actionable after settlement**
-  (INV §5/§8). `internal/runtime/permission.go:76–83` registers a pending request before
-  publishing it, and the `published` gate (`host_permission.go:54`) covers host requests only:
-  Cancel/Stop/timeout in that window persists `permission_resolved` before `permission_request`
-  and leaves `waiting_input`. Separately, approve/deny with no matching provider option
-  (`permission.go:99–108`) answers cancelled, emits only an error and no `permission_resolved`,
-  leaving a live card that returns 409. Delegated probes `/tmp/asrc/probe1_test.go`,
-  `probe3_test.go`. Extend the publication gate to ACP requests and route the no-option branch
-  through `resolvePending`.
 - **Worth fixing** — ASRC-6 — **Per-generation retention never frees completed native work**
   (INV §16). `subagent.go:148–154` caps `as.children` at 256 and never deletes a terminal child,
   so in a long-lived orchestrator child 257+ loses all output and its permission requests are
@@ -803,7 +765,7 @@ introduced; sibling review/fix queues remain unchanged.
 
 ### ASR-G — Failure, quota and continuation recovery — reviewed `fa092f63` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Audit complete; findings keep this same unit open. The fixes extend existing admission,
+ASF-1 closed ASRG-3 (2026-10-20, Changelog). Audit complete; findings keep this same unit open. The fixes extend existing admission,
 turn-ownership, room-abandonment and bounded-sweep seams; coordinated state/regression work is
 needed, without a new scheduler or provider client. Source snapshot `fa092f63`; tree clean at
 entry. Profiles: lockfile-pinned Claude ACP 0.85.1, Agent SDK 0.3.286/native 2.1.286, Codex ACP
@@ -836,18 +798,6 @@ code or specification changed.
   case plus lifecycle contention and current task/room ownership; accepted owner controls must
   still cancel the exact episode. Do not infer extra paused-room failures from source alone:
   successful existing controls normally invalidate those schedules.
-- **Must fix** — ASRG-3 — **Cancel can settle a late result as successful quota recovery**
-  (INV §5/§11/§15). `internal/runtime/permission.go:190–220`, `quota.go:80–90,147–174`:
-  Cancel claims an active turn and sends the native notification without retaining a cancelled
-  marker. A same-turn `end_turn` result arriving afterward still qualifies as success, calls
-  successful quota settlement and clears the runtime quota block. FS-03.R9 requires the claimed
-  cancellation to terminate with `cancelled`; provider completion/cancel races must not falsely
-  confirm continuation success. The temporary runtime probe calls Cancel, then supplies the
-  same turn's late completion, and observes `successful:true`. This proves host state behavior,
-  not a captured native race. Record/fence cancellation under the turn gate and revalidate at
-  settlement; test the terminal reason, quota receipt/block and inline-mail behavior. Held
-  follow-ups remain allowed after a cancelled turn under FS-03.R49. This is separate from
-  ASRC-2's late status writes and CI-1's already-fixed sticky fake cancellation.
 - **Worth fixing** — ASRG-5 — **Older cleanup failures starve later probe cleanup indefinitely**
   (INV §7/§9/§16). `internal/state/quota_checks.go:122–139`,
   `internal/server/quota_check.go:256–289`: the database always selects the oldest eight
@@ -1187,6 +1137,26 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Closed ASF-1 turn and control settlement (all four findings fixed):** ASRC-1
+  (INV §5/§15, `66c6a984`) — live effort/fast captures identity under `as.mu`, calls the provider
+  unlocked with a 30 s bound independent of the browser, folds confirmed options only into the
+  same live generation and reports a lost reply as `ErrSettingUnconfirmed` (TS-03.R37 updated);
+  `TestSetSessionConfigDoesNotStallTheReaderOnAFrameBeforeTheReply` fails before the fix.
+  ASRG-3 (INV §5/§11/§15, `60777c14`) — Cancel records its claimed turn and that turn settles
+  `cancelled`, unsuccessful, keeping the quota block;
+  `TestCancelledTurnLateCompletionDoesNotConfirmQuotaRecovery` fails before the fix. ASRC-2
+  (INV §5, `ad08b386`) — one per-agent status lock decides and writes busy only for an unsettled
+  owning turn with no open gate; `TestParallelToolFrameKeepsWaitingInput` fails before the fix,
+  `TestBackgroundFrameAfterTurnSettlesCannotReopenBusy` fixes the race window. ASRC-5 (INV §5/§8,
+  `ad08b386`) — ACP requests share the publication gate; a missing native option resolves the exact
+  request once as cancelled (`TestCancelBeforePermissionPublicationResolvesAfterRequest`,
+  `TestPermissionWithoutMatchingOptionResolvesCancelled`, the latter failing before the fix).
+  Focused runtime `-race` passes except two pre-existing deterministic `-race` failures (Known
+  flaky checks). `make test`: plain variant passed; FTS5 variant hit only the known
+  `TestQuotaDispatcherContinuesSameConversationOnce/stopped` flake, which passed 20 isolated runs
+  and a full FTS5 `internal/server` rerun. `make build` passed. No live provider ran; a live
+  mid-turn setting change receipt is owed.
 
 - **2026-10-20 — Mapped the seventh core reliability audit; planning complete:** two focused
   GPT-6 Luna research passes and parent integration produced
