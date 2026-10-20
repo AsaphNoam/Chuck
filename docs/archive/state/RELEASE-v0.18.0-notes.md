@@ -13,11 +13,14 @@
   recovery boundaries. Native model selection and continuation preserve the effective session
   configuration. Process and terminal control require proof of ownership.
 - Fix live effort/fast setting stalls and cancellation being mistaken for successful quota recovery.
+- Keep busy/idle status owned by the active turn, preserve open permission gates, and settle
+  permission requests in publication order.
 
 ## Release scope and exceptions
 
-This release starts from committed main at `60777c14`, after v0.17.0. Uncommitted runtime and
-ready-change edits in the operator checkout are excluded and preserved.
+This release includes committed main through `ad08b386`, after v0.17.0. The concurrent runtime
+fix was committed during release preparation and is included. Uncommitted ready-change edits in
+the operator checkout are excluded and preserved.
 
 On 2026-10-20 the operator explicitly authorized release and push despite pending fix items and
 approved skipping the architecture review for this cut. No architecture review was performed or
@@ -39,5 +42,5 @@ component version bump is required.
 - Specification checks, release-workflow YAML parsing, whitespace checks and all eight
   architectural-gate regression tests pass. The candidate gate itself refuses the absent receipt;
   publication uses the explicit version-specific waiver above.
-- Both Go test variants and static checks are in progress. Tagging and publication remain pending
-  the operator's version confirmation and successful required verification.
+- Static checks pass. Both Go test variants are in progress. The operator confirmed v0.18.0;
+  tagging and publication remain pending successful required verification.
