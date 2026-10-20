@@ -936,8 +936,10 @@ func (as *agentState) claimTurnLocked() (string, bool) {
 
 // claimIdleStop closes the turn gate before a generation-scoped cleanup stop.
 // A private prompt that won first keeps its turn; one arriving later cannot
-// claim or queue work on the runtime being removed.
-func (c *ChatRuntime) claimIdleStop(agentID string) bool {
+// claim or queue work on the runtime being removed. endingTurn, when set, also
+// admits the stop while exactly that turn is still settling its turn_end; any
+// other active turn keeps the runtime (TS-10.R19).
+func (c *ChatRuntime) claimIdleStop(agentID, endingTurn string) bool {
 	c.mu.Lock()
 	as := c.agents[agentID]
 	if as == nil {
@@ -947,7 +949,8 @@ func (c *ChatRuntime) claimIdleStop(agentID string) bool {
 	as.mu.Lock()
 	defer c.mu.Unlock()
 	defer as.mu.Unlock()
-	if as.turnActive || as.stopping {
+	settling := endingTurn != "" && as.execTurnID == endingTurn
+	if (as.turnActive && !settling) || as.stopping {
 		return false
 	}
 	as.stopping = true

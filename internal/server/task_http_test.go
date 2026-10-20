@@ -355,7 +355,7 @@ func TestRetryAndRearmRepairDifferentThings(t *testing.T) {
 			t.Fatalf("RecordAgentTaskResult: %v", err)
 		}
 		srv.evaluateTaskResult(prereq.task.TaskID)
-		srv.dispatchTurnEnd(running.AssignedAgentID, running.AssignedGeneration)
+		srv.dispatchTurnEnd(running.AssignedAgentID, running.AssignedGeneration, "")
 	}
 	parked, err := srv.stateStore.ReadTask(dependent.TaskID)
 	if err != nil {
@@ -471,7 +471,7 @@ func TestDeletionIsRefusedWhileATaskOwnsARuntime(t *testing.T) {
 		state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done"}); err != nil {
 		t.Fatalf("RecordAgentTaskResult: %v", err)
 	}
-	srv.dispatchTurnEnd(satisfiedRunning.AssignedAgentID, satisfiedRunning.AssignedGeneration)
+	srv.dispatchTurnEnd(satisfiedRunning.AssignedAgentID, satisfiedRunning.AssignedGeneration, "")
 	settled := createTaskHTTP(t, ts, map[string]any{
 		"project": "tmpproj", "display_name": "already satisfied", "instruction": "go",
 		"target_kind": "launch", "role": "impl",

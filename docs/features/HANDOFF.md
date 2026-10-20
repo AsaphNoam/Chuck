@@ -351,25 +351,6 @@ the reviewed snapshot, before concurrent ASW-2 work; ASW1-9 was added against `e
   `TestReviewFailedRoomSettlementRetainsFailure` aborts both writes with SQLite triggers, restores
   them and retries the terminal event: the raw attempt row becomes `finalized`.
 
-- **Must fix** — ASW1-9 — **A delayed terminal observation settles the current execution instead
-  of its original owner** (INV §1/§2/§5/§11/§15/§17). `internal/server/server.go:441–442` replaces
-  `ev.Generation` with `registry.Generation(ev.AgentID)` and starts asynchronous cleanup. Task
-  release/yield lookups (`internal/state/tasks.go:1739`, `internal/state/task_waits.go:180`) match only agent/generation;
-  the pipeline lookup deliberately chooses the latest stage for that pair. A stale callback can
-  therefore select a newer pending task and `finishTaskCleanup` calls unguarded `StopStage`
-  (`internal/server/task_dispatcher.go:556–560`) on the current runtime. ASW1-6's queue overlap makes
-  cross-generation delivery possible; detached cleanup also escapes FIFO settlement ordering.
-  TS-01.R39/TS-04.R100 and TS-10.R19/R35 require the reporting execution's boundary, not current
-  identity. Carry immutable event generation/turn and bind the exact task execution/release obligation;
-  preserve that identity through deferred work and effect-time lifecycle checks. Do not merely make
-  cleanup synchronous in the drainer: Stop can emit/wait on the same queue and deadlock it.
-  **Fix scope: difficult.** The temporary actual-installed-callback probe
-  `TestSystemicOldTerminalObservationCannotReleaseCurrentTask` fails for both an old generation and
-  an old turn in the current generation, stopping a task-created reporter whose fake-ACP prompt is
-  still held. It injects the stale observation; full native replacement/assignment scheduling was
-  not reenacted. Port it with a same-generation successive-assignment and reentrant Stop regression.
-  Evidence: `/private/tmp/chuck-systemic-20261020-server_test.go` and its overlay JSON.
-
 Local-choice outcomes: a separate health table is justified because the open marker precedes a
 new session row; conservative unclean-stop gap notices and offline index repair are reasonable.
 The absent banner is covered by the refused-Send surface, but does not resolve ASW1-1/2. Gap
@@ -1305,6 +1286,13 @@ and specifications are unchanged.
   blocks reclaim), and a generation cancelled while the queue is full is shed so the bound holds
   and its exit teardown settles cleanup; `TestControlOrderSpansGenerationReplacement` and
   `TestCancelledControlRemainsBounded` (focused `-race` ×3 passes; runtime/server suites pass).
+  ASW1-9 (INV §1/§5) — turn-end cleanup carries the observation's own generation and turn; the
+  task-owned runtime stop is generation-scoped, never stops a newer generation, and at a turn
+  boundary stops only while idle or settling that exact turn (`StopGuardedIdle` gained the ending
+  turn); person/cancel/retry paths keep R19's immediate stop. `TestStaleTurnEndCannotReleaseCurrentTask`
+  (old generation and old same-generation turn) fails before the fix; task/pipeline tests ×4 pass.
+  Not added: a reentrant-Stop regression (cleanup stays off the drainer, unchanged); the pipeline
+  stage lookup still picks the latest stage, but only drives a state-derived `Reconcile`.
 
 - **2026-10-20 — Mapped the third core reliability audit:** two focused GPT-6 Luna research passes
   and parent integration produced [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review

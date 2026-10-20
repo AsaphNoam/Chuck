@@ -438,8 +438,9 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 				if json.Unmarshal(ev.Data, &terminal) == nil && terminal.Quota != nil {
 					return // its exact owner was preserved by settleQuotaTurn
 				}
-				generation := registry.Generation(ev.AgentID)
-				go s.dispatchTurnEnd(ev.AgentID, generation)
+				// The observation's own generation and turn, never the current
+				// one: a delayed callback settles only its reporting execution.
+				go s.dispatchTurnEnd(ev.AgentID, ev.Generation, ev.TurnID)
 				// Seal room authority before the runtime releases this turn to a
 				// private/held successor (TS-14.R6).
 				s.finishThinkTankTurn(ev)

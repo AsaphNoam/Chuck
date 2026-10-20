@@ -532,7 +532,7 @@ func TestATaskForAStoppedAgentWakesIt(t *testing.T) {
 		state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done"}); err != nil {
 		t.Fatalf("RecordAgentTaskResult with runtime token: %v", err)
 	}
-	srv.dispatchTurnEnd(agentID, realGeneration)
+	srv.dispatchTurnEnd(agentID, realGeneration, "")
 	waitRunning(t, srv, agentID, false)
 }
 
@@ -556,7 +556,7 @@ func TestYieldedTaskReleasesThenResumesOnWatchedResult(t *testing.T) {
 		[]state.TaskWaitObservation{{TaskID: child.TaskID, AfterRevision: child.Revision}}); err != nil {
 		t.Fatalf("WaitForTasks: %v", err)
 	}
-	srv.dispatchTurnEnd(running.AssignedAgentID, running.AssignedGeneration)
+	srv.dispatchTurnEnd(running.AssignedAgentID, running.AssignedGeneration, "")
 	waiting := waitTaskState(t, srv, owner.TaskID, state.TaskWaiting)
 	if waiting.RuntimeClaim != "" || waiting.AssignedAgentID != running.AssignedAgentID {
 		t.Fatalf("yielded task lost assignment or capacity: %+v", waiting)
@@ -683,7 +683,7 @@ func TestFinishingStopsTheRuntimeTheTaskCreated(t *testing.T) {
 		t.Fatalf("the reporter was stopped inside its own call: %v", err)
 	}
 
-	srv.dispatchTurnEnd(agentID, generation)
+	srv.dispatchTurnEnd(agentID, generation, "")
 	waitRunning(t, srv, agentID, false)
 	released, err := srv.stateStore.ReadTask(task.TaskID)
 	if err != nil {
@@ -721,7 +721,7 @@ func TestFinishingLeavesABorrowedRuntimeAlone(t *testing.T) {
 		state.TaskResult{Outcome: state.OutcomeBlocked, Summary: "needs a decision"}); err != nil {
 		t.Fatalf("RecordAgentTaskResult: %v", err)
 	}
-	srv.dispatchTurnEnd(agentID, realGeneration)
+	srv.dispatchTurnEnd(agentID, realGeneration, "")
 
 	if _, err := srv.stateStore.ReadRunning(agentID); err != nil {
 		t.Fatalf("finishing a task killed a conversation it only borrowed: %v", err)
@@ -802,7 +802,7 @@ func TestADependentStartsWhenItsPrerequisiteRecordsItsResult(t *testing.T) {
 	if ready.State != state.TaskReady {
 		t.Fatalf("dependent = %s after its prerequisite succeeded, want ready", ready.State)
 	}
-	srv.dispatchTurnEnd(running.AssignedAgentID, generation)
+	srv.dispatchTurnEnd(running.AssignedAgentID, generation, "")
 	srv.dispatchReadyTasks(context.Background())
 	waitTaskState(t, srv, second.TaskID, state.TaskRunning)
 }
@@ -1276,6 +1276,48 @@ func TestALaunchTaskEffortReachesTheProviderOverASourceOverride(t *testing.T) {
 			}
 			if params.ConfigID != "effort" || params.Value != tt.want {
 				t.Fatalf("provider effort = %+v, want configId=effort value=%s", params, tt.want)
+			}
+		})
+	}
+}
+
+// TS-10.R19/R35 (ASW1-9): a delayed turn_end of an older generation, or of an
+// older turn of the current generation, cannot settle a release the current
+// reporter still owes: its held turn keeps running and the release stays.
+func TestStaleTurnEndCannotReleaseCurrentTask(t *testing.T) {
+	for _, sameGeneration := range []bool{false, true} {
+		name := map[bool]string{false: "old_generation", true: "old_turn_same_generation"}[sameGeneration]
+		t.Run(name, func(t *testing.T) {
+			srv := testServer(t, true)
+			srv.registry.Chat().SetCommand(buildFakeACP(t))
+			if err := srv.configStore.WriteProject("tmpproj", config.Project{Title: "Tmp", Cwd: t.TempDir()}); err != nil {
+				t.Fatal(err)
+			}
+			if err := srv.configStore.WriteRole("impl", config.Role{Title: "Impl", SystemPrompt: "be helpful"}); err != nil {
+				t.Fatal(err)
+			}
+			defer srv.registry.Shutdown(context.Background())
+			t.Setenv("FAKEACP_SCENARIO", "hold_turn")
+			t.Setenv("FAKEACP_HOLD_FILE", filepath.Join(t.TempDir(), "never-released"))
+			task := newLaunchTask(t, srv, "current-report")
+			srv.dispatchReadyTasks(context.Background())
+			running := waitTaskState(t, srv, task.TaskID, state.TaskRunning)
+			id, generation := running.AssignedAgentID, running.AssignedGeneration
+			finished, err := srv.stateStore.RecordAgentTaskResult(task.TaskID, id, generation, running.ExecutionHandle,
+				state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "tool response still pending"})
+			if err != nil || !finished.PendingRelease {
+				t.Fatalf("record pending release: %+v, %v", finished, err)
+			}
+			stale := "old-generation"
+			if sameGeneration {
+				stale = generation
+			}
+			srv.dispatchTurnEnd(id, stale, "old-turn")
+			if !srv.registry.Owns(id) {
+				t.Fatalf("stale turn_end stopped generation %q while its turn was running", generation)
+			}
+			if after, err := srv.stateStore.ReadTask(task.TaskID); err != nil || !after.PendingRelease {
+				t.Fatalf("stale turn_end settled the current release: %+v, %v", after, err)
 			}
 		})
 	}

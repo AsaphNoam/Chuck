@@ -187,7 +187,10 @@ parallel copy of them.
   and `pending_release` in one transaction while still holding the runtime claim and slot. The stop is
   the effect that follows, never part of the same transaction, because stopping a process cannot be
   transactional. Only the timing differs: an agent-reported result waits for that agent's turn to end,
-  checked generation-scoped against the recorded assignee, mirroring the `await_quiescence` boundary
+  checked generation-scoped against the recorded assignee using the observed turn_end's own
+  generation and turn, never the agent's current ones: its stop applies only to that generation
+  while idle or still settling that turn, so a delayed observation cannot stop a later turn or a
+  newer generation, mirroring the `await_quiescence` boundary
   pipelines already hold between `report_pipeline_stage_result` and stopping the reporter
   (TS-09.R9–R11) — without it an immediate stop would cut off the MCP response the reporting agent is
   still waiting on. A person-recorded result and a cancel have no turn to wait for and stop

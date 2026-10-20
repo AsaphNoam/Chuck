@@ -463,9 +463,9 @@ func (s *Server) taskConcurrencyBudget() int {
 // an agent that reported a result is still receiving that call's response, so
 // nothing may stop it until the turn ends — so this is one dispatch with two
 // subscribers rather than two paths (TS-10.R19, TS-09.R9–R11, INV §2).
-func (s *Server) dispatchTurnEnd(agentID, generation string) {
-	s.releaseYieldedTask(context.Background(), agentID, generation)
-	s.releaseReportedTask(context.Background(), agentID, generation)
+func (s *Server) dispatchTurnEnd(agentID, generation, turnID string) {
+	s.releaseYieldedTask(context.Background(), agentID, generation, turnID)
+	s.releaseReportedTask(context.Background(), agentID, generation, turnID)
 	if s.pipelineMgr != nil {
 		task, _, err := s.stateStore.PipelineStageTaskForAssignee(agentID, generation)
 		if err == nil {
@@ -480,7 +480,7 @@ func (s *Server) dispatchTurnEnd(agentID, generation string) {
 // turn has ended. Created/woke runtimes release capacity through the ordinary
 // stop path; borrowed conversations remain running and only release assignment
 // execution ownership.
-func (s *Server) releaseYieldedTask(ctx context.Context, agentID, generation string) {
+func (s *Server) releaseYieldedTask(ctx context.Context, agentID, generation, turnID string) {
 	task, err := s.stateStore.PendingYieldTask(agentID, generation)
 	if errors.Is(err, state.ErrNotFound) {
 		return
@@ -489,7 +489,7 @@ func (s *Server) releaseYieldedTask(ctx context.Context, agentID, generation str
 		s.log.Debug("read pending task yield failed", "agent", agentID, "err", err)
 		return
 	}
-	s.finishTaskCleanup(ctx, task)
+	s.finishTaskCleanupAt(ctx, task, turnID)
 }
 
 // releaseReportedTask completes the release a recorded result already promised:
@@ -497,7 +497,7 @@ func (s *Server) releaseYieldedTask(ctx context.Context, agentID, generation str
 // then drops the claim (FS-16.R4, TS-10.R19). A stop that cannot happen now
 // leaves the durable intent standing for recovery to finish, because dropping
 // the claim first would abandon a live runtime nothing owns (INV §15).
-func (s *Server) releaseReportedTask(ctx context.Context, agentID, generation string) {
+func (s *Server) releaseReportedTask(ctx context.Context, agentID, generation, turnID string) {
 	task, err := s.stateStore.PendingReleaseTask(agentID, generation)
 	if errors.Is(err, state.ErrNotFound) {
 		return
@@ -506,7 +506,7 @@ func (s *Server) releaseReportedTask(ctx context.Context, agentID, generation st
 		s.log.Debug("read pending task release failed", "agent", agentID, "err", err)
 		return
 	}
-	s.finishTaskCleanup(ctx, task)
+	s.finishTaskCleanupAt(ctx, task, turnID)
 }
 
 // reconcileTaskCleanup is the bounded durable retry pass. A timer only wakes
@@ -526,6 +526,13 @@ func (s *Server) reconcileTaskCleanup(ctx context.Context) {
 // effect with cancellation/start for this task and records a retryable failure
 // before returning, so no live runtime loses its durable owner (TS-10.R35).
 func (s *Server) finishTaskCleanup(ctx context.Context, task state.Task) {
+	s.finishTaskCleanupAt(ctx, task, "")
+}
+
+// finishTaskCleanupAt is finishTaskCleanup at a turn boundary: endingTurn is
+// the observed turn_end's own turn, which may still be settling when the
+// owned runtime is stopped; a later turn of that generation keeps it.
+func (s *Server) finishTaskCleanupAt(ctx context.Context, task state.Task, endingTurn string) {
 	unlock := s.lockTaskStart(task.TaskID)
 	defer unlock()
 	fresh, err := s.stateStore.ReadTask(task.TaskID)
@@ -554,8 +561,15 @@ func (s *Server) finishTaskCleanup(ctx context.Context, task state.Task) {
 		}
 	}
 	if task.RuntimeClaim == state.ClaimCreated || task.RuntimeClaim == state.ClaimWoke {
-		if err := s.StopStage(ctx, task.AssignedAgentID); err != nil {
+		settled, err := s.stopTaskRuntime(ctx, task, endingTurn)
+		if err != nil {
 			s.recordTaskCleanupFailureClassified(task, phase, err, isUnsafeTaskCleanupError(err))
+			return
+		}
+		if !settled {
+			// Another turn of the owned generation is running; its turn end or
+			// the generation's exit teardown settles this obligation.
+			s.log.Debug("task cleanup waits for its runtime to go idle", "task", task.TaskID, "phase", phase)
 			return
 		}
 	}
@@ -577,6 +591,34 @@ func (s *Server) finishTaskCleanup(ctx context.Context, task state.Task) {
 		return
 	}
 	s.reconcilePipelineForTask(task)
+}
+
+// stopTaskRuntime stops the exact generation a task's runtime claim owns. A
+// newer generation is never this obligation's to stop, and at a turn boundary
+// a live owner stops only while idle or settling endingTurn; settled=false
+// means it is still busy (TS-10.R19/R35, INV §5).
+func (s *Server) stopTaskRuntime(ctx context.Context, task state.Task, endingTurn string) (bool, error) {
+	agentID, generation := task.AssignedAgentID, task.AssignedGeneration
+	if !s.claimLifecycle(agentID) {
+		return false, errors.New("a lifecycle transition is already in progress")
+	}
+	defer s.releaseLifecycle(agentID)
+	switch current := s.registry.Generation(agentID); {
+	case current == "" || generation == "":
+		return true, s.stopStageLocked(ctx, agentID) // no live owner: reap any orphan
+	case current != generation:
+		return true, nil
+	case endingTurn == "":
+		// A person-recorded result, cancel or retry stops its own generation
+		// immediately; it has no turn to wait for (R19).
+		return true, s.stopStageLocked(ctx, agentID)
+	}
+	stopped, err := s.registry.StopGuardedIdle(ctx, agentID, generation, endingTurn)
+	if err != nil || !stopped {
+		return false, err
+	}
+	s.teardownAgentRegistration(agentID)
+	return true, nil
 }
 
 // reconcilePipelineForTask re-drives the run a settled cleanup effect belongs to.

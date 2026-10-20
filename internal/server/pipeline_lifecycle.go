@@ -173,7 +173,7 @@ func (s *Server) stopRoomOwnedGeneration(ctx context.Context, agentID, generatio
 		}
 		return nil
 	}
-	_, err := s.registry.StopGuardedIdle(ctx, agentID, generation)
+	_, err := s.registry.StopGuardedIdle(ctx, agentID, generation, "")
 	if err != nil {
 		return err
 	}
