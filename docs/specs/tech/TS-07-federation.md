@@ -132,7 +132,7 @@ successful item-create response supplies the validator for the resulting catalog
 draft can still save. A source failure after creation returns the saved backend as unbound rather
 than compensating away the successful create.
 
-**R19 (planned) — Frozen selection and executable setup are separate from inventory provenance.**
+**R19 — Frozen selection and executable setup are separate from inventory provenance.**
 TS-02.R53's explicit/native model choice is the single continuation authority; normalize empty
 override resets before existing precedence, retaining effective provider model IDs separately from
 catalogue keys. Pure resolution may inspect an approved root/profile, but execution support must
@@ -148,6 +148,10 @@ ACP profile field. Personal authentication origin and Chuck-owned native session
 TS-04.R20/R21/R71 ownership. Legacy ambiguous contracts require explicit refresh rather than
 current-catalogue reconstruction. Any later broader root/profile capability is a separate verified
 feature; a resolver preview alone is never evidence of native adoption.
+*Implementation:* `composeFederation` normalizes empty overrides, then `preflightSourceSetup`
+refuses a named profile or a root other than the resolver's discovered personal root with
+`422 source_invalid`, before registration and, for refresh, before any process work. The frozen
+choice lives in TS-02.R53's contract.
 
 ## 3. Interfaces & data shapes
 

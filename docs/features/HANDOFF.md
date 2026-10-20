@@ -82,7 +82,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   default `.git`; pinned binary strings + reviewer probe; nearer/custom-marker cases fixture-only).
   Slice 3 done: ASRB-2/ASRB-3 fixed pending review (fakeacp `FAKEACP_FORK_UNREGISTERED` mirrors
   the pinned Claude fork; `fork_purpose_test.go`); credentialed clone receipts still owed.
-  Slice 6 delegated (Steer artifact proof). Next: slice 2 (root/profile preflight), then 7.
+  Slice 6 done: ASRB-8 fixed pending review — Codex Steer only when the managed entrypoint hashes
+  to `CODEX_ACP_PATCHED_SHA256`; source/PATH builds now withhold Codex Steer (no reviewed source
+  artifact list yet); fakeacp cannot model the detached-turn race, so no race oracle ran.
+  Slice 2 done: ASRA-3 fixed pending review — distinct root or named profile refuses
+  `source_invalid` before registration (`source_setup_test.go`). Next: slice 7 (manifest).
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–8 below keep that
   same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
 - ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19; five Must-fix findings

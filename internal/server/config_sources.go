@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/bus"
@@ -575,6 +576,9 @@ func (s *Server) composeFederation(ctx context.Context, backendID string, req la
 	if err != nil {
 		return nil, nil, sourceAPIError(err)
 	}
+	if ae := s.preflightSourceSetup(ctx, binding, project); ae != nil {
+		return nil, nil, ae
+	}
 	// Reserved messaging-MCP collision preflight (§2.4): Chuck injects an MCP
 	// server with the reserved id messagingMCPName. If the native config already
 	// declares that exact id, injecting ours would shadow/duplicate it, so block
@@ -611,6 +615,39 @@ func (s *Server) composeFederation(ctx context.Context, backendID string, req la
 		fed.effortOverride = effortOverride
 	}
 	return data, fed, nil
+}
+
+// preflightSourceSetup refuses a binding the child cannot actually receive
+// (FS-08.R37, TS-07.R19). The proven matrix is the provider's personal native
+// setup root without a selected profile: a child loads that setup (Claude
+// directly, Codex mirrored into its private home), so the resolved provenance
+// is realizable. A distinct root or a named profile has no verified setup-only
+// delivery route; launching would run another setup than the one recorded.
+// The binding itself stays inspectable and repairable.
+func (s *Server) preflightSourceSetup(ctx context.Context, binding configsource.Binding, project config.Project) *runtime.APIError {
+	if binding.Profile != "" {
+		return apiError(runtime.CodeSourceInvalid,
+			"the selected profile "+binding.Profile+" cannot be delivered to agents yet; clear the profile or unlink the source")
+	}
+	candidates, err := s.sourceMgr.Discover(ctx, binding.Provider, project)
+	if err != nil || len(candidates) == 0 {
+		return apiError(runtime.CodeSourceInvalid, "the personal setup location for this source cannot be determined")
+	}
+	if samePath(candidates[0].Root, binding.Root) {
+		return nil
+	}
+	return apiError(runtime.CodeSourceInvalid,
+		"agents can only use the personal setup at "+candidates[0].Root+"; this source is bound to "+binding.Root)
+}
+
+func samePath(a, b string) bool {
+	canon := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return filepath.Clean(p)
+	}
+	return canon(a) == canon(b)
 }
 
 func nonEmpty(v *string) *string {

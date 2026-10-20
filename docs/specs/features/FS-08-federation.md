@@ -184,7 +184,7 @@ FS-04 and FS-09. OpenCode and OpenHands do not participate in federation.
   Settings retains its full editor. FS-04.R49 replaces R22's unsupported-provider explanation step
   with direct advancement to Launch. No connection is made merely by entering or skipping the step.
 
-**R37 (planned) — Resolution provenance must match a realizable child setup.** TS-07.R19
+**R37 — Resolution provenance must match a realizable child setup.** TS-07.R19
 separates the selected setup, existing personal authentication origin and private native session
 home. Binding/preview remains read-only; it does not grant a new authentication or native-home
 migration. A launch supports the current native personal setup path and documented overrides;
@@ -288,7 +288,7 @@ the existing effort precedence/default. This correction does not implement arbit
   same requests as Settings, no duplicate mutation, no hidden repair state and no write when skipped.
   *Verify by* source-panel/onboarding tests and FS-12.A24's rendered pass.
 
-**A14 (planned)** (R37) — Fixture roots with distinct personal/bound model and instruction
+**A14** (R37) — Fixture roots with distinct personal/bound model and instruction
 sentinels prove actual supported setup or preflight refusal, never misleading success. Exercise
 empty/nonempty/absent model and effort overrides, edited catalogue defaults, legacy snapshots,
 resume/switch/rollback and native ancestor project layers. Credentialed adoption remains separate.
