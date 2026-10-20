@@ -230,11 +230,14 @@ func (c *ChatRuntime) SetPersistence(home string, open TranscriptOpener, ix Pers
 type agentState struct {
 	agentID    string
 	generation string
-	cmd        *exec.Cmd
-	pgid       int
-	sessionID  string
-	transport  *Transport
-	adapter    backend.BackendAdapter
+	// adapterInfo is this process's initialize self-description, written once
+	// during startup before its session metadata is built.
+	adapterInfo adapterIdentity
+	cmd         *exec.Cmd
+	pgid        int
+	sessionID   string
+	transport   *Transport
+	adapter     backend.BackendAdapter
 	// configOptions is the live session's configuration advertisement, kept
 	// current by every set_config_option response because a model change rebuilds
 	// it (TS-04.R46). Guarded by mu, like every other live session field.
@@ -451,6 +454,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		return nil, err
 	}
 	as.setSteering(decodeSteeringSupport(initRes) && c.steerArtifactVerified(ad))
+	as.adapterInfo = decodeAdapterIdentity(initRes)
 	as.setCapabilities(negotiateCapabilities(initRes, offered))
 	var sess struct {
 		SessionID string `json:"sessionId"`
@@ -1484,6 +1488,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	// Re-decoded here, not carried across the boundary: resume spawns a new
 	// adapter process whose advertisement is its own (INV §1).
 	as.setSteering(decodeSteeringSupport(initRes) && c.steerArtifactVerified(ad))
+	as.adapterInfo = decodeAdapterIdentity(initRes)
 	as.setCapabilities(negotiateCapabilities(initRes, offered))
 
 	// Restore native context when an identity exists. A failed load must not
@@ -1588,6 +1593,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	// log has a resume boundary marker and the archive can track the session_id.
 	resumeNow := time.Now().UTC().Format(time.RFC3339)
 	resumedMeta := runtimeMeta(spec, resolvedSessionID)
+	resumedMeta.ExecutionManifest = executionManifest(spec, as.adapterInfo)
 	resumedMeta.ResumedAt = &resumeNow
 	resumedCaps := as.capabilities()
 	resumedMeta.RuntimeCapabilities = &resumedCaps
@@ -2313,6 +2319,7 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 		return nil
 	}
 	meta := runtimeMeta(spec, sessionID)
+	meta.ExecutionManifest = executionManifest(spec, as.adapterInfo)
 	caps := as.capabilities()
 	meta.RuntimeCapabilities = &caps
 	if spec.Fork != nil {

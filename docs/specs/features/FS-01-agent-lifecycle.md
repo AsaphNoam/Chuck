@@ -366,7 +366,7 @@ orphaned processes.
   reports quota again without a new reliable reset, hold for attention rather than repeating
   successful probes and failed wake-ups in the original conversation.
 
-**R53 (planned) — Native operation intent is preserved.** Fresh launch, ordinary/wake resume,
+**R53 — Native operation intent is preserved.** Fresh launch, ordinary/wake resume,
 same-provider switch/rollback, native fork and quota check use TS-01.R40's explicit purpose and
 frozen execution contract. Ordinary continuation preserves the effective provider model choice
 (including native inheritance), selected supported setup and permissions rather than rebuilding
@@ -679,7 +679,7 @@ transitions:
   *Verify:* adapter contract captures, disposable-home history/cleanup tests and bounded live
   provider receipts. Source flags alone do not establish live same-account admission or retention.
 
-**A35 (planned)** (R53) — Fixture and pinned-native contract tests compare actual child/model/
+**A35** (R53) — Fixture and pinned-native contract tests compare actual child/model/
 instruction choices with the frozen snapshot through launch, Stop/wake/resume, explicit model
 switch, rollback, both handoff directions, Claude/Codex fork and isolated quota check. Empty/inherit
 and nested native project layers are covered; unsupported custom roots/profiles and ambiguous old

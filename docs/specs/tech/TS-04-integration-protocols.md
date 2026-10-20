@@ -1452,7 +1452,7 @@ committed task-result cleanup still runs. TS-01.R39's ordered, reentrant-safe co
 settles turn-end before admitting its held successor. Load replay remains
 excluded from both new history and new control effects under R50.
 
-**R101 (planned) — Provider preparation follows a concrete purpose/delivery table.** For TS-01.R40:
+**R101 — Provider preparation follows a concrete purpose/delivery table.** For TS-01.R40:
 fresh/resume preserve the provider's native guidance and append the applicable frozen persona,
 bridge and runtime suffix; native fork omits those newly composed instruction/primer layers,
 retaining the source contract and installing only required generation-scoped directories/MCP.

@@ -331,7 +331,7 @@ publication/discovery and existing awareness behavior; no new skill, persona mig
 integration is added. Extend the producer-derived tool/permission inventories for the new tools,
 while verifying that native tool auto-approval never resolves the host gate (FS-06.A29/A32).
 
-**R24 (planned) — Execution manifests identify requested delivery, not model knowledge.**
+**R24 — Execution manifests identify requested delivery, not model knowledge.**
 Add a version-1 optional execution manifest to each process's normalized session metadata.
 Bound it to 16 KiB, at most 16 instruction-layer entries and existing bounded IDs. Retain purpose,
 catalogue/effective model choice, effort/permissions, supported setup selector, provider source,
@@ -347,6 +347,13 @@ retrofitted from current files. Resume appends a new process record while retain
 persona and conversation contract. Bounds cause explicit bounded unknown/truncation metadata,
 not a second instruction source or startup failure. Use the existing transcript/archive metadata
 path; no telemetry service, benchmark framework or prompt hot-rewrite is introduced.
+*Implementation:* `runtime.ExecutionManifest` rides each chat start/resume `session_meta` record
+(transcript only; not a sessions column). Layers are `persona`/`persona_override`, `bridge` and
+`runtime_guidance`; a Codex fork records none. Knowledge is `agentknowledge.PackageDigest`, tools
+the sorted auto-approved MCP tool names. The adapter name/version is its initialize `agentInfo`
+(observed, unverified); no adapter artifact digest is recorded yet, and native Codex instruction
+text merged ahead of the persona is not identified. Terminal starts carry no manifest. Delivery is
+always `requested`, adoption `unknown`; over-long text fields clip to 128 bytes and set `truncated`.
 
 ## 3. Interfaces & data shapes
 

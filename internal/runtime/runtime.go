@@ -86,6 +86,9 @@ type LaunchSpec struct {
 	// realizes (TS-02.R53); persisted with session_meta. ModelID is derived
 	// from it by the server composers.
 	ExecutionContract *state.ExecutionContract
+	// KnowledgeDigest identifies the operating package offered to this process
+	// (runtime-only; empty when unavailable). It feeds the execution manifest.
+	KnowledgeDigest string
 	// Fork, when set, makes Start open a native fork of another agent's
 	// provider session instead of a fresh one (FS-01.R36, TS-04.R65). It is
 	// one-shot launch input and never persisted as configuration (INV §3).

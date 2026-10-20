@@ -162,3 +162,17 @@ func TestEmbeddedSkillCarriesCurrentBranding(t *testing.T) {
 		}
 	}
 }
+
+// TS-11.R24: an installation names its package by a stable content digest.
+func TestInstallRecordsPackageDigest(t *testing.T) {
+	installation, err := Install(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installation.Digest) != 64 {
+		t.Fatalf("digest = %q", installation.Digest)
+	}
+	if again, _ := PackageDigest(); again != installation.Digest {
+		t.Fatalf("digest not stable: %q vs %q", again, installation.Digest)
+	}
+}

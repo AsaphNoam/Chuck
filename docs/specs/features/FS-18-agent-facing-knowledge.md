@@ -229,7 +229,7 @@ instruction preservation remains R17. No current process is restarted or hot-rew
   Awareness is configured only with the persona. No persona always receives the on behavior;
   ordinary agent creation offers no checkbox or launch override for it.
 
-**R21 (planned) — Requested guidance is identifiable without claiming adoption.** Each new
+**R21 — Requested guidance is identifiable without claiming adoption.** Each new
 process launch records TS-11.R24's bounded manifest of purpose, selected/observed settings,
 requested instruction-layer hashes/sizes, installed knowledge/tool revisions and provider/adapter
 artifact identity. The manifest distinguishes requested delivery from native observation and does
@@ -384,7 +384,7 @@ never advertises a verified skill path. *Verify:* role fixtures, server overlay/
 and the existing pinned native-provider instruction contracts; fake peers alone do not prove
 model behavior.
 
-**A17 (planned)** (R21) — Manifest fixtures distinguish frozen versus runtime additions,
+**A17** (R21) — Manifest fixtures distinguish frozen versus runtime additions,
 fork/check omissions and changed knowledge/tool/adapter artifacts across fresh/resumed records,
 while the frozen persona stays intact. Assert bounds/redaction and unknown legacy/adoption fields.
 A correct manifest does not close A12/A13 or establish output-quality causality.

@@ -328,9 +328,12 @@ type SessionMetaData struct {
 	// ExecutionContract is the frozen effective native selection
 	// (TS-02.R53); absent in older records, which stay unknown.
 	ExecutionContract *state.ExecutionContract `json:"execution_contract,omitempty"`
-	CreatedAt         string                   `json:"created_at"`
-	ResumedAt         *string                  `json:"resumed_at"`
-	SessionID         string                   `json:"session_id,omitempty"`
+	// ExecutionManifest is this process start's requested-delivery record
+	// (TS-11.R24); absent in older records, which stay unknown.
+	ExecutionManifest *ExecutionManifest `json:"execution_manifest,omitempty"`
+	CreatedAt         string             `json:"created_at"`
+	ResumedAt         *string            `json:"resumed_at"`
+	SessionID         string             `json:"session_id,omitempty"`
 	// RuntimeCapabilities is this handshake's normalized advertisement, replaced
 	// on every successful launch/resume (TS-02.R35). Nil in older records.
 	RuntimeCapabilities *SessionCapabilities `json:"runtime_capabilities,omitempty"`

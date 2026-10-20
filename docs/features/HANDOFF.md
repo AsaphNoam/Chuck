@@ -66,27 +66,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- **ASW-2 in progress** (2026-10-20) —
-  [`preserve-native-execution-contract.md`](../ready-changes/preserve-native-execution-contract.md).
-  Slices: (1) versioned execution contract (TS-02.R53) through launch/resume/switch/rollback/fork
-  with empty-override normalization — ASRA-1/2; (2) unsupported root/profile preflight — ASRA-3;
-  (3) fork purpose: Codex fork omits Chuck overlay, Claude fork loads the returned ID — ASRB-2/3;
-  (4) quota-check instruction sanitization — ASRG-4; (5) Codex ancestor project layers —
-  PROMPT-1; (6) Steer artifact proof — ASRB-8; (7) bounded execution manifest — PROMPT-2.
-  Slices 4 and 5 are delegated to isolated worktrees and integrated here.
-  Slice 1 done: TS-02.R53 contract + `continuedContract`; ASRA-1/ASRA-2 fixed pending review
-  (`internal/server/contract_test.go`, `internal/index/contract_test.go`).
-  Slice 4 done: ASRG-4 fixed pending review (Codex check blanks instructions; refuses
-  instruction-file/profile sources; live adoption of the blank override unproved).
-  Slice 5 done: PROMPT-1 ancestor variant fixed pending review (`project_root_markers` chain,
-  default `.git`; pinned binary strings + reviewer probe; nearer/custom-marker cases fixture-only).
-  Slice 3 done: ASRB-2/ASRB-3 fixed pending review (fakeacp `FAKEACP_FORK_UNREGISTERED` mirrors
-  the pinned Claude fork; `fork_purpose_test.go`); credentialed clone receipts still owed.
-  Slice 6 done: ASRB-8 fixed pending review — Codex Steer only when the managed entrypoint hashes
-  to `CODEX_ACP_PATCHED_SHA256`; source/PATH builds now withhold Codex Steer (no reviewed source
-  artifact list yet); fakeacp cannot model the detached-turn race, so no race oracle ran.
-  Slice 2 done: ASRA-3 fixed pending review — distinct root or named profile refuses
-  `source_invalid` before registration (`source_setup_test.go`). Next: slice 7 (manifest).
+- None in progress. ASW-2 (native execution contract) finished 2026-10-20 and awaits its
+  substantive review (Review queue).
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–8 below keep that
   same unit open for fixes. The original sequence/order/reconciliation reproductions are corrected.
 - ASW-3 (process and terminal-driver ownership) reviewed 2026-10-19; five Must-fix findings
@@ -212,14 +193,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-1 and ASW-3 reviewed with findings open; ASW-2 in progress; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1 and ASW-3 reviewed with findings open; ASW-2 finished (awaiting review); all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are ready in
 [`docs/ready-changes/`](../ready-changes/README.md):
 
 | Unit | Invocation | Outcome |
 |---|---|---|
 | ASW-1 | reviewed 2026-10-20 — findings open (ASW1-1–8) | One canonical commit boundary, ordered control observations and truthful history failure |
-| ASW-2 | `/work preserve-native-execution-contract` | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
+| ASW-2 | finished 2026-10-20 — awaiting review (see Review queue) | Frozen effective native selection and explicit fresh/resume/fork/check preparation |
 | ASW-3 | reviewed 2026-10-19 — five findings open (see Review findings) | Process/terminal ownership and native terminal identity; incomplete fail-closed control and launch-hook ordering |
 
 The following cross-review §8 batches are explicitly authorized by the human's consolidation
@@ -267,6 +248,15 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | reviewed — findings open (`d49a8f86`) |
 
 **Implementation review units (independent of the table above):**
+
+- **ASW-2 — native execution contract** (`66f1fe55`, `8e47d056`, `b2f5051c`, `5ebaa1be`,
+  `7a743d9d`, `4d4c7aa7`, closure commit) — **finished; awaiting substantive review**. Owns
+  ASRA-1/2/3, PROMPT-1 (ancestor), ASRB-2/3/8, ASRG-4 and PROMPT-2, all fixed pending review.
+  Evidence limits: no credentialed clone, check or adoption receipt; Codex blank-instruction
+  override adoption unproved; no fakeacp model of the unpatched idle-Steer race; source/PATH
+  builds now withhold Codex Steer; legacy unbound rows freeze the catalogue's current provider id
+  at first continuation (TS-02.R53 note); manifest records no adapter artifact digest or native
+  Codex instruction identity (TS-11.R24 note).
 
 - **ASW-1 — conversation event commits** (`3f746c2a`, `69ef5951`, `1843470f`, `57af7f61`,
   closure `43da6bec`) — **reviewed; findings open**. Reviewed `3618df3e..43da6bec`;
@@ -479,6 +469,7 @@ Source mode: repository source plus installed, lockfile-pinned packages: Claude 
 Claude Agent SDK 0.3.286, Codex ACP 2.1.1 and Codex CLI 0.159.3. Tree was clean at entry.
 
 - **Must fix** — ASRA-1 — **Source model overrides are lost on continuation** (INV §1/§2/§3/§11).
+  **Fixed pending ASW-2 review** (`66f1fe55`).
   `internal/server/config_sources.go:586–605`, `resume.go:321–328,519`,
   `switch.go:237–239,478`: a bound launch with `overrides.model:"native-sentinel"` sends that
   model, but stores the catalog key (`sonnet`) on the identity. Ordinary/wake resume and an
@@ -491,6 +482,7 @@ Claude Agent SDK 0.3.286, Codex ACP 2.1.1 and Codex CLI 0.159.3. Tree was clean 
   switch and rollback with changed catalog/source defaults. Temporary composer probes confirm
   both mechanisms; `/tmp/asr02_nonempty_test.go` captures the actual fresh/resume mismatch.
 - **Must fix** — ASRA-2 — **Empty effort overrides bypass the declared default** (INV §2/§11).
+  **Fixed pending ASW-2 review** (`66f1fe55`).
   `internal/server/config_sources.go:604–605`, `launch.go:550–560`: a binding with
   `overrides.effort:""` reaches `resolveEffort` as a present override and returns empty instead
   of falling through to the model's `default_effort`. This changes reset-to-inherit behavior and
@@ -499,6 +491,7 @@ Claude Agent SDK 0.3.286, Codex ACP 2.1.1 and Codex CLI 0.159.3. Tree was clean 
   empty versus absent versus nonempty override, with a declared default and explicit request.
   The isolated resolver probe observes empty with a `medium` model default.
 - **Must fix** — PROMPT-1 **reopened, ancestor-project variant** — **Codex guidance is still
+  **Fixed pending ASW-2 review** (`8e47d056`).
   replaced from nested working directories** (INV §2/§10/§12/§17).
   `internal/configsource/codex.go:200–221`, `internal/runtime/chat.go:2610–2620`: the merge reads
   only `<cwd>/.codex/config.toml`; pinned Codex also loads ancestor project layers between a
@@ -512,6 +505,7 @@ Claude Agent SDK 0.3.286, Codex ACP 2.1.1 and Codex CLI 0.159.3. Tree was clean 
   `/tmp/chuck-asra-native-config.mjs` and `/tmp/chuck-asra-native-config_test.go`; no model turn.
   The earlier user/exact-cwd correction remains valid; this is the same finding identity.
 - **Must fix** — ASRA-3 — **An accepted custom source/profile does not select the child's setup**
+  **Fixed pending ASW-2 review** (`4d4c7aa7`).
   (INV §2/§10/§11/§12). `internal/server/config_sources.go:569–605`, `launch.go:724–737`,
   `internal/config/codexprofile.go:83–92,180–202`: the supported source API can bind a distinct
   Codex root and named profile, resolve/freeze `bound-profile-sentinel`, and omit ACP model as
@@ -620,6 +614,7 @@ and integrated here.
   That remainder stays owned by ASW-3; do not implement a second fix from this originating unit.
   No real-CLI receipt.
 - **Must fix** — ASRB-2 — **Claude Clone never opens the forked conversation**
+  **Fixed pending ASW-2 review** (`5ebaa1be`).
   (INV §1/§6/§11/§12/§17). `internal/runtime/chat.go:430–467`, `fork.go:34–68`:
   pinned Claude ACP's `unstable_forkSession` performs an SDK persistence fork and returns only
   `{sessionId}` without registering `this.sessions[id]` (`claude-agent-acp/dist/acp-agent.js:1405–1412`,
@@ -633,6 +628,7 @@ and integrated here.
   config options and immediately activating the fork (`testdata/fakeacp/main.go:329–347`).
   Pinned source establishes the failure; no credentialed clone receipt is claimed.
 - **Must fix** — ASRB-3 — **Codex Clone reapplies a newly composed prompt and history primer**
+  **Fixed pending ASW-2 review** (`5ebaa1be`).
   (INV §1/§2/§11/§12). `internal/runtime/chat.go:160–178,2571–2623`,
   `internal/server/launch.go:417`: even with `spec.Fork`, process start merges
   `StartSystemPrompt()` into `CODEX_CONFIG.developer_instructions`. The pinned adapter parses
@@ -644,6 +640,7 @@ and integrated here.
   isolated helper probe observes both `SYSTEM_SENTINEL` and `PRIMER_SENTINEL` in that overlay;
   no duplicate visible transcript or model-quality effect is asserted.
 - **Must fix** — ASRB-8 — **Source Codex Steer exposes an incompatible detached-turn path**
+  **Fixed pending ASW-2 review** (`7a743d9d`).
   (INV §1/§10/§11/§12/§17). `internal/backend/adapter.go:423–432`,
   `internal/runtime/chat.go:791–808,844–877`, `scripts/release/assemble.sh:68–83`:
   documented source launches use PATH's unpatched `codex-acp`, while only release assembly adds
@@ -1089,6 +1086,7 @@ code or specification changed.
   follow-ups remain allowed after a cancelled turn under FS-03.R49. This is separate from
   ASRC-2's late status writes and CI-1's already-fixed sticky fake cancellation.
 - **Must fix** — ASRG-4 — **An isolated Codex check retains explicit work instructions**
+  **Fixed pending ASW-2 review** (`b2f5051c`).
   (INV §2/§10/§12). `internal/runtime/quota_check.go:501–575`: isolation reads the inherited
   `CODEX_CONFIG` but changes only MCP entries; with no servers it returns the environment
   unchanged. A backend/model overlay containing `developer_instructions` therefore carries
@@ -1389,6 +1387,7 @@ PROMPT-1's user/exact-cwd correction is shipped; ASR-A above reopens the same id
 ancestor-project guidance. PROMPT-2 remains owned here.
 
 - **Worth fixing** — PROMPT-2 — **confirmed diagnostic gap**, behavioral causality
+  **Fixed pending ASW-2 review** (`ASW-2 closure`).
   **undetermined** (no invariant class): `internal/runtime/chat.go:2387–2418` records/hashes only frozen
   `SystemPrompt`; the deliberately runtime-only operating suffix and installed knowledge/tool
   revisions are not identified in that prompt fingerprint. Consequently an archived task cannot
@@ -1448,6 +1447,13 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-20 — Implemented ASW-2 native execution contract:** sessions freeze a versioned
+  effective model/setup choice that every continuation and clone reuses; empty overrides reset to
+  inheritance; unrealizable roots/profiles and undecidable legacy rows refuse before effects
+  (INV §1/§2/§3/§11). Forks are prepared by purpose (Claude opens its fork by load, Codex keeps
+  inherited instructions); quota checks blank Codex work instructions; Codex project layers follow
+  the native root chain; Codex Steer requires the verified patched artifact; each process records a
+  bounded requested-delivery manifest. Slices 4–6 were delegated and integrated.
 - **2026-10-20 — Reviewed ASW-1 conversation event commits:** audited through `43da6bec`,
   excluding concurrent ASW-2 edits. Seven independent failure/lifecycle probes reproduce seven
   Must-fix findings; one Worth-fixing item aligns the inactive-writer spec with its accepted

@@ -2,7 +2,9 @@
 package agentknowledge
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
@@ -24,6 +26,29 @@ type Installation struct {
 	Available bool
 	Root      string
 	SkillDir  string
+	// Digest identifies the installed package contents (TS-11.R24); it proves
+	// what was offered, never what an agent read.
+	Digest string
+}
+
+// PackageDigest is the SHA-256 over the embedded package's sorted paths and
+// contents.
+func PackageDigest() (string, error) {
+	files, err := embeddedFiles()
+	if err != nil {
+		return "", err
+	}
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	h := sha256.New()
+	for _, path := range paths {
+		fmt.Fprintf(h, "%s\x00%d\x00", path, len(files[path]))
+		h.Write(files[path])
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // Install publishes two verified provider views beneath Chuck's owner-only cache.
@@ -92,6 +117,9 @@ func Install(home string) (Installation, error) {
 		}
 	}
 	if err := verifyTree(root); err != nil {
+		return result, err
+	}
+	if result.Digest, err = PackageDigest(); err != nil {
 		return result, err
 	}
 	result.Available = true

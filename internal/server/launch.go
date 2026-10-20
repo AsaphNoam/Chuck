@@ -488,6 +488,7 @@ func (s *Server) applyKnowledgeOverlay(spec runtime.LaunchSpec) runtime.LaunchSp
 		return spec
 	}
 	spec.RuntimeAddDirs = appendUnique(spec.RuntimeAddDirs, s.knowledge.Root)
+	spec.KnowledgeDigest = s.knowledge.Digest
 	if spec.IsChuckAware() {
 		spec.RuntimeSystemPromptSuffix = appendSystemPromptOnce(spec.RuntimeSystemPromptSuffix, fmt.Sprintf(knowledgePrompt, s.knowledge.SkillDir))
 	}

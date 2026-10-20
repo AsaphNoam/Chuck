@@ -574,7 +574,7 @@ A generic suppress-all-sinks-on-disk-error rule is prohibited. Non-transcript bo
 notification and FS-03.R99 recovery are outside the failing journal path, so errors cannot recurse.
 Use the current hubs, index repair and control services; do not add another workflow/event database.
 
-**R40 (planned) — Freeze native selection once; realize it by operation purpose.** A versioned
+**R40 — Freeze native selection once; realize it by operation purpose.** A versioned
 execution contract (TS-02.R53) separates catalogue/display identity from the effective provider
 model choice, effort/applied fast, permissions, native setup selector, personal authentication
 origin and private native session-home reference. Existing composers select it; ordinary resume,
