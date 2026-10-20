@@ -192,9 +192,11 @@ func (r *CodexResolver) resolve(ctx context.Context, binding Binding, project co
 
 // CodexDeveloperInstructions returns the native developer_instructions a Codex
 // session in cwd loads from codexHome, using the resolver's layer order: user
-// config, its active [profiles.<profile>] table, then the project's
-// .codex/config.toml. The project layer needs no user trust entry because
-// codex-acp marks every session root trusted. A later string value wins; a
+// config, its active [profiles.<profile>] table, then each project
+// .codex/config.toml from the project root (nearest ancestor holding a
+// project_root_markers entry, default .git) down to cwd, nearer layers last.
+// Project layers need no user trust entry because codex-acp marks every
+// session root trusted. A later string value wins; a
 // malformed layer or non-string value is an error so a launch fails closed
 // rather than silently dropping configured guidance (FS-09.R32, TS-04.R14).
 func CodexDeveloperInstructions(codexHome, cwd string) (string, error) {
@@ -210,11 +212,17 @@ func CodexDeveloperInstructions(codexHome, cwd string) (string, error) {
 		}
 	}
 	if cwd != "" {
-		project, err := readCodexConfig(filepath.Join(cwd, ".codex", "config.toml"))
+		markers, err := codexRootMarkers(user)
 		if err != nil {
 			return "", err
 		}
-		layers = append(layers, project)
+		for _, dir := range codexProjectChain(cwd, markers) {
+			project, err := readCodexConfig(filepath.Join(dir, ".codex", "config.toml"))
+			if err != nil {
+				return "", err
+			}
+			layers = append(layers, project)
+		}
 	}
 	value := ""
 	for _, layer := range layers {
@@ -229,6 +237,57 @@ func CodexDeveloperInstructions(codexHome, cwd string) (string, error) {
 		value = text
 	}
 	return value, nil
+}
+
+// codexRootMarkers returns the user config's project_root_markers, defaulting
+// to [".git"] like the pinned Codex. A non-list or non-string entry fails
+// closed. An explicit empty list disables the ancestor walk.
+func codexRootMarkers(user map[string]any) ([]string, error) {
+	raw, ok := user["project_root_markers"]
+	if !ok {
+		return []string{".git"}, nil
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: Codex project_root_markers must be a list of strings", ErrInvalidSource)
+	}
+	markers := make([]string, 0, len(items))
+	for _, item := range items {
+		marker, ok := item.(string)
+		if !ok {
+			return nil, fmt.Errorf("%w: Codex project_root_markers must be a list of strings", ErrInvalidSource)
+		}
+		markers = append(markers, marker)
+	}
+	return markers, nil
+}
+
+// codexProjectChain lists the directories whose .codex/config.toml layers a
+// session in cwd loads, ordered from the nearest ancestor holding a root marker
+// down to cwd. Without a marker (or with no markers configured) only cwd.
+// The upward walk is bounded by the path depth.
+func codexProjectChain(cwd string, markers []string) []string {
+	cwd = filepath.Clean(cwd)
+	chain := []string{cwd}
+	if len(markers) == 0 {
+		return chain
+	}
+	for dir := cwd; ; {
+		for _, marker := range markers {
+			if _, err := os.Lstat(filepath.Join(dir, marker)); err == nil {
+				for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
+					chain[i], chain[j] = chain[j], chain[i]
+				}
+				return chain
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return []string{cwd}
+		}
+		dir = parent
+		chain = append(chain, dir)
+	}
 }
 
 // readCodexConfig decodes one native Codex TOML file; a missing file is empty.

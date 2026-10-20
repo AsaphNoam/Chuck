@@ -1469,6 +1469,8 @@ native setup isolation. Do not copy authentication into a new home or mutate sha
 Resolve the actual trusted Codex project chain from repository root through nested cwd with native
 precedence before additive guidance, using bounded approved reads and pinned-native independent
 fixtures. Unsupported selected roots/profiles obey TS-07.R19, without a new home/auth loader.
+*Implementation (ancestor layers only):* `configsource.CodexDeveloperInstructions` reads each
+`.codex/config.toml` from the nearest `project_root_markers` ancestor (default `.git`) down to cwd.
 Steer requires reviewed artifact capability evidence for `idleBehavior:promptRequired`: accept
 the release's exact verified patched artifact or an equivalently reviewed source artifact. A
 version string or steering advertisement alone is insufficient. Source artifacts lacking proof
