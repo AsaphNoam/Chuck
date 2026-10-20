@@ -105,6 +105,9 @@ type Server struct {
 	// thinkTankCaptures maps an agent to its running room attempt capture.
 	thinkTankCaptureMu sync.Mutex
 	thinkTankCaptures  map[string]*thinkTankCapture
+	// thinkTankFailures retains attempt failures whose transition has not
+	// committed yet, also under thinkTankCaptureMu.
+	thinkTankFailures map[thinkTankAttemptKey]string
 	// taskStartMu protects taskStartLocks. The locks themselves are per task, so
 	// unrelated task launches retain the configured concurrency (INV §5).
 	taskStartMu    sync.Mutex
@@ -336,6 +339,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		thinkTankRooms:            map[string]struct{}{},
 		thinkTankOpeningSlots:     make(chan struct{}, thinkTankOpeningStartsTotal),
 		thinkTankCaptures:         map[string]*thinkTankCapture{},
+		thinkTankFailures:         map[thinkTankAttemptKey]string{},
 		taskStartLocks:            map[string]*taskStartLock{},
 		cfg:                       cfg,
 		log:                       log,

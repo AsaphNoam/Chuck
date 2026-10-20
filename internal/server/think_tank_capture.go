@@ -71,6 +71,58 @@ func (s *Server) endThinkTankCapture(agentID, generation, turnID string) (failed
 	return c.failed
 }
 
+// thinkTankAttemptKey names exactly one room attempt by its owner identity.
+type thinkTankAttemptKey struct{ agentID, generation, turnID string }
+
+// failThinkTankAttempt fails exactly this attempt, retaining the failure in
+// memory until its idempotent transition commits or the attempt is otherwise
+// terminal. A retained failure is monotonic: it fences finalization and keeps
+// its first reason, and the sweep retries it (TS-14.R6, R10).
+func (s *Server) failThinkTankAttempt(agentID, generation, turnID, reason string) (state.ThinkTankFinish, error) {
+	key := thinkTankAttemptKey{agentID, generation, turnID}
+	s.thinkTankCaptureMu.Lock()
+	if retained, ok := s.thinkTankFailures[key]; ok {
+		reason = retained
+	} else {
+		s.thinkTankFailures[key] = reason
+	}
+	s.thinkTankCaptureMu.Unlock()
+	finish, err := s.stateStore.FailThinkTankAttempt(agentID, generation, turnID, reason)
+	if err == nil || errors.Is(err, state.ErrNotFound) {
+		s.thinkTankCaptureMu.Lock()
+		delete(s.thinkTankFailures, key)
+		s.thinkTankCaptureMu.Unlock()
+	}
+	return finish, err
+}
+
+// retainedThinkTankFailure reports the uncommitted failure of exactly this attempt.
+func (s *Server) retainedThinkTankFailure(agentID, generation, turnID string) (string, bool) {
+	s.thinkTankCaptureMu.Lock()
+	defer s.thinkTankCaptureMu.Unlock()
+	reason, ok := s.thinkTankFailures[thinkTankAttemptKey{agentID, generation, turnID}]
+	return reason, ok
+}
+
+// retryThinkTankFailures retries each retained failure from the room sweep, so
+// the obligation does not depend on a repeated terminal event.
+func (s *Server) retryThinkTankFailures() {
+	s.thinkTankCaptureMu.Lock()
+	keys := make([]thinkTankAttemptKey, 0, len(s.thinkTankFailures))
+	for key := range s.thinkTankFailures {
+		keys = append(keys, key)
+	}
+	s.thinkTankCaptureMu.Unlock()
+	for _, key := range keys {
+		finish, err := s.failThinkTankAttempt(key.agentID, key.generation, key.turnID, "")
+		if err == nil {
+			s.publishThinkTankUpdate(finish.Detail)
+		} else if !errors.Is(err, state.ErrNotFound) {
+			s.log.Debug("retry think tank attempt failure", "agent", key.agentID, "err", err)
+		}
+	}
+}
+
 // captureThinkTankEvent runs on the runtime event sink, so capture order is
 // emission order. Events without the attempt's exact generation and turn are
 // never guessed into a room (TS-14.R4). Room output needs a committed canonical

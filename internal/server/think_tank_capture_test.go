@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -329,4 +330,59 @@ func TestThinkTankUncommittedSourceFailsAttempt(t *testing.T) {
 		}
 	}
 	t.Fatalf("attempt %s not found in %+v", a.AttemptID, d.Attempts)
+}
+
+// TS-14.R6, R10: a capture failure whose failure and hold writes both fail is
+// retained for exactly its attempt. Once SQLite works again, the room sweep or
+// a repeated terminal settlement commits that failure; neither finalizes the
+// staged contribution.
+func TestThinkTankFailedSettlementRetainsCaptureFailure(t *testing.T) {
+	for _, retry := range []string{"terminal", "sweep"} {
+		t.Run(retry, func(t *testing.T) {
+			srv, h := roomRESTServer(t)
+			rec := doJSON(t, h, http.MethodPost, "/api/think-tanks", roomBody("a_one", "a_two"))
+			var room thinkTankDetailWire
+			if err := json.Unmarshal(rec.Body.Bytes(), &room); err != nil {
+				t.Fatal(err)
+			}
+			a := beginCapturedTurn(t, srv, room.RoomID, "a_one", "t1", t.TempDir())
+			exec := func(sql string) {
+				t.Helper()
+				if _, err := srv.stateStore.DB().Exec(sql); err != nil {
+					t.Fatal(err)
+				}
+			}
+			exec(`CREATE TRIGGER fail_activity BEFORE INSERT ON think_tank_activity BEGIN SELECT RAISE(ABORT, 'activity write failure'); END`)
+			srv.captureThinkTankEvent(runtime.Observation{Event: roomEvent(t, "a_one", "g1", "t1", 1, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "c1", Name: "Bash"}), Outcome: runtime.CommitCommitted, IndexOK: true})
+			exec(`DROP TRIGGER fail_activity`)
+			if _, err := srv.stateStore.StageThinkTankTurn("a_one", a.Token, state.ThinkTankReply, "A", "ttr_"+strings.TrimPrefix(a.AttemptID, "tta_")+"_0"); err != nil {
+				t.Fatal(err)
+			}
+			end := roomEvent(t, "a_one", "g1", "t1", 2, runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn"})
+			exec(`CREATE TRIGGER fail_attempt BEFORE UPDATE ON think_tank_attempts BEGIN SELECT RAISE(ABORT, 'attempt write failure'); END`)
+			exec(`CREATE TRIGGER fail_hold BEFORE UPDATE ON think_tanks BEGIN SELECT RAISE(ABORT, 'hold write failure'); END`)
+			srv.finishThinkTankTurn(end)
+			exec(`DROP TRIGGER fail_attempt`)
+			exec(`DROP TRIGGER fail_hold`)
+			if retry == "terminal" {
+				srv.finishThinkTankTurn(end)
+			} else {
+				srv.progressThinkTanks(context.Background())
+			}
+			var got string
+			if err := srv.stateStore.DB().QueryRow(`SELECT state FROM think_tank_attempts WHERE attempt_id = ?`, a.AttemptID).Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			if got != state.ThinkTankAttemptFailed {
+				t.Fatalf("attempt with an unsaved capture is %q after %s retry, want failed", got, retry)
+			}
+			var replayed int
+			if err := srv.stateStore.DB().QueryRow(`SELECT COUNT(*) FROM think_tank_activity WHERE attempt_id = ? AND source_seq = 1`, a.AttemptID).Scan(&replayed); err != nil || replayed != 0 {
+				t.Fatalf("failed activity replayed: %d, %v", replayed, err)
+			}
+			if _, ok := srv.retainedThinkTankFailure("a_one", "g1", "t1"); ok {
+				t.Fatal("committed failure is still retained")
+			}
+		})
+	}
 }
