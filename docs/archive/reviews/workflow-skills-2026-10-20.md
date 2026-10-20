@@ -34,3 +34,40 @@ This checks useful level selection and restraint, not live-provider behavior or 
 Skill-creator's validator, launcher routing/twin checks and their missing-routing/companion mutations,
 `make check-specs`, link/reference checks and `git diff --check` pass. PyYAML for skill validation
 was installed only under `/private/tmp/chuck-skill-validation`; no project dependency changed.
+
+## Architectural review for the reliable development hub
+
+Only after committing the testing skill did two GPT-6 Luna researchers investigate architecture
+evaluation practice and the repository's release/fix mechanics. The human clarified the controlling
+rule: architecture review finds items → fix closes them → release must not force another
+architectural review for that release. That overrides the earlier proposal's ambiguous freshness rule.
+
+Primary sources informing the review method:
+
+- [SEI: ATAM](https://sei.cmu.edu/library/atam-method-for-architecture-evaluation/): evaluate the
+  architectural choices and tradeoffs that affect important quality attributes.
+- [SEI: Quality Attribute Workshop](https://www.sei.cmu.edu/asset_files/factsheet/2018_010_001_513488.pdf):
+  use concrete scenarios with stimulus, environment and response; prioritize consequential cases.
+- [AWS: review process](https://docs.aws.amazon.com/wellarchitected/latest/framework/the-review-process.html):
+  keep reviews lightweight, go deeper on uncertainty, and prioritize actions by customer and daily
+  operating impact. Chuck does not adopt cloud-specific infrastructure requirements or a formal
+  ATAM workshop bureaucracy.
+
+The skill starts with Chuck's core purpose: saved work, faithful delivery, progress, correct
+execution, truthful results/control and reasonable overhead. It follows assumptions into unchanged
+consumers and repair paths; speculative matrices and style changes do not count as core findings.
+The release gate verifies declared provenance, not architectural reasoning. Fixes append exact
+commits and focused evidence to the original receipt; no review rerun is required for remediation.
+
+An independent GPT-6 Luna evaluator used the skill against a small committed synthetic hub with
+a passing dispatch-helper test. It found a real startup liveness gap: persisted ready work was
+never dispatched after restart. It wrote a bounded failing startup probe and scoped report without
+editing production modules. Artifacts: `/private/tmp/chuck-architecture-eval/REVIEW-REPORT.md` and
+`startup-probe.test.mjs`. This is fixture evidence, not a newly claimed Chuck defect.
+
+Eight focused real-Git gate cases pass. They prove a completed review plus exact verified finding
+fixes succeeds without another architectural review, while missing/incomplete review, unresolved
+findings, live Must-fix entries, unrelated unrecorded changes and invalid provenance fail. Tag CI
+excludes the tag being published from the prior-release boundary. Independent Luna implementation
+review confirmed the no-loop path and found no material issue. Skill/twin/mutation, syntax,
+documentation/reference and diff checks pass. No real release receipt or core audit was produced.

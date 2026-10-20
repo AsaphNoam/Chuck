@@ -17,6 +17,10 @@ Use `write-tests` when behavior needs new verification or tests/fixtures materia
 read [its instructions](../write-tests/SKILL.md) and follow TS-06.R35. Reuse adequate evidence; each added test must
 protect a meaningful contract or plausible defect worth its runtime and maintenance cost.
 
+For architectural findings, follow workflow §8's receipt closure: commit verified repairs, then
+record their exact commits, finding IDs and focused evidence in the same architectural receipt.
+Fixing architectural findings does not require another architectural review for that release.
+
 `$ARGUMENTS` may scope the run to a finding priority or keyword; otherwise choose findings from any
 one available review and say which one you took, then handle its **Must fix** items first as the
 continuation of its originating change unit (workflow §1.4 and §8). Chronology and other role queues

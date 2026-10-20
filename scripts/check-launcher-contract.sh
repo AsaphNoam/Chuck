@@ -11,7 +11,7 @@ if [ "${1-}" = "--root" ]; then
 fi
 workflow="$ROOT/docs/features/AGENT-WORKFLOW.md"
 errors=0
-roles='design-feature work review fix usability-review investigate-bug release review-design'
+roles='design-feature work review fix usability-review investigate-bug release review-design architectural-review'
 
 fail() {
   printf 'launcher contract: %s\n' "$*" >&2
@@ -43,6 +43,15 @@ for tree in .agents .claude; do
     if [ "$role" = work ] || [ "$role" = fix ]; then
       if ! has_rule "$file" 'Use `write-tests` when behavior needs new verification or tests/fixtures materially change;'; then
         fail "$tree/$role: missing conditional write-tests routing"
+      fi
+    fi
+    if [ "$role" = release ] &&
+       ! has_rule "$file" 'Require `architectural-review` before every release'; then
+      fail "$tree/$role: missing mandatory architectural-review routing"
+    fi
+    if [ "$role" = release ] || [ "$role" = fix ] || [ "$role" = architectural-review ]; then
+      if ! has_rule "$file" 'Fixing architectural findings does not require another architectural review for that release.'; then
+        fail "$tree/$role: missing architectural fix no-rerun rule"
       fi
     fi
     if [ "$role" = review ]; then

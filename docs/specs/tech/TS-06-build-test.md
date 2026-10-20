@@ -313,6 +313,22 @@ large test frameworks or product abstractions only to test a small change. Use c
 synchronization where suitable, retaining bounded real-time tests for actual timing/OS contracts.
 Existing R5/R9 and INV §17 govern closure, isolation, live-gate limits and practical pre-fix proof.
 
+**R36 — Every release has one completed architectural review and bounded finding closure.**
+After release preparation, a fresh reviewer evaluates the combined candidate against Chuck's core
+value as a reliable development hub (FS-00.R3/R13–R15), including unchanged affected consumers.
+Workflow §18 owns the risk-based review and receipt. A completed review may have findings;
+Must-fix findings block release until fixed. Fixes to those findings do not require another
+architectural review for that release: the fix workflow records exact repair commits, focused
+verification and closure in the existing receipt. Unrelated substantive changes require explicit
+affected-coverage evidence, not a blanket exemption for all later changes.
+
+`scripts/check-architectural-review.mjs` validates the committed candidate's previous-release
+receipt, reviewed ancestry, closure evidence and post-review commit coverage before tagging and
+in release CI before publication. It admits narrow administrative-only commits and exact verified
+finding-fix commits without restarting review. It also rejects live Must-fix findings. The check
+validates declared provenance/closure, not the reasoning or correctness of a review. Missing,
+incomplete or uncovered evidence cannot be relabeled as an owed architectural review.
+
 ## 3. Interfaces & data shapes
 
 The canonical commands are:
@@ -354,6 +370,10 @@ shared target guarantees.
 
 ## 6. Traceability
 
+- Architectural release readiness (R36): workflow §§8/16/18, twinned `architectural-review` and
+  release skills, `scripts/check-architectural-review.mjs`, real-Git fixture tests in
+  `scripts/check-architectural-review.test.mjs`, and release CI. Research/forward checks are in
+  `docs/archive/reviews/workflow-skills-2026-10-20.md`.
 - Purposeful test authoring (R35): workflow §17 and the twinned `write-tests` skill; work/fix
   routing is guarded by `scripts/check-launcher-contract.sh`. Skill forward-testing and source
   research are retained in `docs/archive/reviews/workflow-skills-2026-10-20.md`.

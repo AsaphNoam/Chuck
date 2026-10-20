@@ -234,6 +234,13 @@ commit is part of that closure and does not become a new default review unit. A 
 unrelated behavior is a separate substantive change and must be recorded as one, not hidden inside
 the closure.
 
+For findings listed in a §18 architectural-review receipt, commit the verified repair first, then
+append its exact commit IDs, finding IDs and focused verification/closure evidence to that receipt
+in the administrative handoff-closure commit. Fixing architectural findings does not require another
+architectural review for that release. Do not invoke `architectural-review` again merely because a
+fix landed; the gate accepts recorded finding fixes. Unrelated new behavior needs its affected
+coverage updated and cannot be mislabeled as remediation.
+
 If the correct fix needs a user decision or cannot pass the required checks, leave the finding open and follow §3.
 
 ## 9. Usability reviews
@@ -668,8 +675,17 @@ behavior; when the release range needs one of those, that work happens first und
    Every shipped binary carries `sqlite_fts5` (TS-06.R2, TS-06.R13). Assembling the darwin/arm64
    archive with its private Node runtime belongs to release CI, not to a local step.
 
-5. **Cut it.** Commit the package refresh, any documentation the range falsified, and the state
-   files together, then create the annotated tag `vX.Y.Z` with the message `Release vX.Y.Z`. Pushing
+   Commit verified release preparation, then obtain the §18 architectural review if this release
+   has none. It runs after preparation so shipped knowledge/generated artifacts are included. If
+   the review already ran and its findings were fixed, reuse it with §8's recorded fix evidence;
+   do not force another architectural review for this release. Resolve Must-fix findings through
+   fix, commit the receipt/closure state, and run:
+   `node scripts/check-architectural-review.mjs --release-tag vX.Y.Z`.
+   A missing/incomplete review or uncovered substantive change blocks tagging. The receipt and
+   handoff alone do not require repeating the product closure matrix.
+
+5. **Cut it.** Commit remaining release state and rerun the architectural gate if the candidate
+   changed, then create the annotated tag `vX.Y.Z` with the message `Release vX.Y.Z`. Pushing
    `main` and that tag is what triggers assembly and publication, so it needs the explicit
    authorization §5 requires. Ask for it in the terms it actually has: pushing the branch publishes
    every unpushed commit on `main`, not only the release commit, and the tag needs them because it
@@ -714,3 +730,81 @@ Review checks the claimed evidence and its limits, including redundant/brittle t
 invoke a writing skill or change product code. Run focused checks while iterating, then the parent
 performs the applicable closure matrix once (§2). No testing project is added to a copy-only,
 cosmetic or documentation edit without a real behavioral risk.
+
+## 18. Review architecture for a reliable development hub
+
+Chuck exists to make real development dependable: saved work remains recoverable, instructions
+and messages reach the right agent, eligible work progresses, execution stays in its intended
+workspace, results/control tell the truth, and overhead remains reasonable. Without these promises
+Chuck fails its core purpose. This is the review's decision criterion; style preferences, cosmetic
+glitches and unsupported one-in-a-million scenarios are not its mission.
+
+Run once before every release, including fixes-only releases, after preparation at a stable
+committed candidate. Explicit `/architectural-review` can also select the next-release candidate
+between releases. Use a fresh reviewer rather than have an author certify their own combined work.
+This is distinct from §7's change review and §13's pre-implementation design review.
+An explicitly narrower audit records bounded evidence but does not claim a completed release
+review unless the required combined-system coverage was assessed.
+
+Read the current handoff/requirements, previous release and completed review/fix evidence, pinned
+runtime facts and the capability map in the previous architectural receipt. The
+`CORE-RELIABILITY-AUDIT-PLAN.md` map seeds the first run; FS/TS remain authoritative. The reviewer
+updates the compact coverage/map in this release's receipt; no parallel specification is created.
+
+For each selected high-consequence scenario, name the normal-use stimulus/condition, promised
+response, authority/owner and actual evidence. Follow changed assumptions through unchanged
+repairers, callers, schedulers and installed artifacts. Check unsafe design assumptions as well as
+implementation violations. Reuse sound evidence, investigate the most consequential uncertainties,
+and add small independent probes where they buy confidence. Do not merely summarize prior reports
+or reread every file; coverage/depth scales with risk. Cost/performance claims need representative
+measurement. Fake/source proof cannot become a native/provider/device receipt.
+
+Record real findings with §7 severity/fix-model rules in the live handoff, preserving an existing
+owner rather than duplicating it. New cross-system findings form one architectural fix unit. Link
+its receipt from that unit. A round can be complete with findings open; `/fix` then handles them
+under §8. A no-finding review adds no default change-review unit. Review changes no product code
+or normative specs; it may commit its receipt, bounded evidence report/reproducer and handoff.
+Reference existing release-blocking finding IDs in the receipt too, retaining their original
+owners; their repairs can then use the same no-rerun closure path.
+
+### Receipt and release gate
+
+Use one JSON receipt at `docs/archive/reviews/architecture/<previous-tag>-next.json` (or
+`initial-next.json` without an earlier release). The gate derives the highest merged `vX.Y.Z` tag,
+excluding `--release-tag` itself in tag CI. Keep the original reviewed commit after fixes. Example:
+
+```json
+{
+  "schema": 1,
+  "previous_release": "v0.17.0",
+  "reviewed_commit": "<full candidate commit ID>",
+  "review_complete": true,
+  "reviewer": "<independent reviewer>",
+  "coverage": ["Saved work: authority, scenario, evidence and limits; other core areas likewise"],
+  "findings": [{"id": "ARCH-1", "severity": "must_fix"}],
+  "updates": []
+}
+```
+
+`previous_release` is `null` for the initial case. `coverage` retains the current capability/owner
+map, assessed joins, evidence and limits; the gate checks presence, not semantic quality. Findings
+are references, with severity `must_fix` or `worth_fixing`; their full reports/live state stay in
+the handoff. All Must-fix entries need verified closure before release.
+
+After §8 repairs, the fixer appends an update with `kind: "fix"`, exact full `commits`, the original
+`finding_ids`, a `closes` subset, `verified: true`, and concise `evidence` of focused regression and
+affected-path checks. Multiple repair commits can share one evidence entry. No architectural
+rerun is required to write it. Partial fixes can leave `closes` empty. Unrelated substantive work
+uses `kind: "coverage"` with its exact commits and focused independent affected-coverage evidence;
+it cannot close findings or be silently admitted as a fix.
+
+Only the receipt directory, live handoff, and specifically named release-note/handoff archive files
+are administrative allowances. Every other post-review commit needs exact verified update coverage.
+The gate reads committed candidate files, checks prior-release/review ancestry and rejects open
+live Must-fix findings. Committing the receipt or later finding closure does not invalidate itself.
+It does not infer fix intent from commit subjects or broadly allow all files a fix happened to touch.
+
+**No review loop:** architectural review → findings → fix/verification → recorded closure → release.
+The gate never demands a second architectural review solely because those fixes occurred. A later
+release has its own review. Owed native/provider/device gates retain their existing policy and
+visibility; an actually failed gate remains a finding. Publishing authorization stays under §§5/16.

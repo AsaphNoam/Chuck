@@ -4,7 +4,8 @@ Guidance for coding agents working in this repository.
 
 ## Read order
 
-Before feature design, implementation, review, fix-review, usability-review, UX, or release work,
+Before feature design, implementation, test work, review, fix-review, architectural review,
+usability-review, UX, or release work,
 load only the state and rules that role needs:
 
 1. [`docs/features/HANDOFF.md`](docs/features/HANDOFF.md) — its **Current position** and **Active
@@ -46,6 +47,8 @@ rationale, history, or sequencing but do not override an FS/TS requirement.
 - **Release:** §16. `/release` tags a new version, refreshes the shipped `operating-chuck`
   package for what the release range changed, and publishes only with explicit authorization; it
   adds no feature and fixes no finding.
+- **Architectural review:** §18. Explicit or before every release; protect Chuck's core value as
+  a reliable development hub. Finding fixes close within that review without forcing a rerun.
 
 `docs/ideas.md` holds new ideas and known product improvements. `docs/ready-changes/` holds changes
 that are specified and ready to start. `HANDOFF.md` records the available and resumable role units.

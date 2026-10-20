@@ -1,215 +1,90 @@
-# Proposed testing and architectural-review workflow
+# Workflow reliability — implemented skills and rules
 
-Designed 2026-10-20 in response to the human's request for concrete implementation locations,
-a `write-tests` skill, and an `architectural-review` skill before every release. This builds on
-the [defect-origin research](AGENT-SURFACE-META-ANALYSIS.md). Three focused GPT-6 Luna readers
-researched the current workflow/testing rules and Chuck's operator/coordination architecture;
-the parent checked the specifications, launcher checker and release sequence.
+Implemented sequentially on 2026-10-20 after human approval: `write-tests` first, then
+`architectural-review`. Each used skill-creator, separate GPT-6 Luna research, primary engineering
+sources and an independent isolated forward test. The
+[research and validation record](../archive/reviews/workflow-skills-2026-10-20.md) retains sources
+and evidence. This replaces the earlier proposal; its history remains in Git.
 
-**Implementation status:** the purposeful `write-tests` companion, TS-06.R35 and workflow §17 are
-implemented and verified first. The architectural-review/gate sections below remain proposals
-until the second sequential skill is implemented. The [core audit plan](CORE-RELIABILITY-AUDIT-PLAN.md)
-remains deferred. This is a medium
-documentation/tooling change: two skills in both launcher trees, targeted existing-launcher edits,
-shared rule changes, and a small release-receipt check with negative tests. It needs no product
-architecture refactor.
+The [core audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) is recorded and deferred for human expansion
+and selection. Creating these skills did not run the real Chuck audits or a release review.
 
-## Recommended shape and exact homes
+## Where the rules live
 
-| Home | Proposed responsibility |
+| Home | Responsibility |
 |---|---|
-| `docs/specs/tech/TS-06-build-test.md` | Own the testing policy and evidence levels, extending existing R5–R9; append any new binding requirements without renumbering existing IDs. Own the mechanical architectural-review release requirement. |
-| `docs/features/INVARIANTS.md` §17 | Keep the existing independent-oracle rule authoritative. Link/reuse it; do not copy a competing version into every skill. |
-| `docs/features/AGENT-WORKFLOW.md` §§2/13 | Require an affected-path trace when a change alters durable information, execution ownership, admission, permissions or delivery. Call the test-authoring companion when relevant. |
-| Workflow §§7/8/10 | Review test evidence and unchanged affected consumers; keep confirmed probes; prevent notes from weakening requirements; independently verify consequential fixes within their originating unit. |
-| New `write-tests` launcher in `.agents/skills/` and `.claude/skills/` | Turn the shared test policy into a short authoring procedure used during work/fix. It owns no separate feature or test queue. |
-| New `architectural-review` launcher in both trees; new workflow section | Inspect the assembled release's cross-system correctness and unchanged affected paths, independently of the author. Allow focused explicit use between releases. |
-| Proposed `docs/archive/reviews/architecture/<candidate>.md` receipts | The architecture reviewer owns each versioned capability/authority map, coverage and result. Start from the prior successful receipt's map (this audit plan seeds the first run), update it against current FS/TS contracts, and retain the updated map in the new receipt. FS/TS remain product authority; no separate mutable map or duplicated specification is added. |
-| Workflow §16 plus both `release` launchers | Require a current architectural-review result before every release tag/publication; run it after release preparation can change shipped content. |
-| `AGENTS.md`, `CLAUDE.md` where applicable | Register the two roles/companions and their read scope; keep routing short. |
-| `scripts/check-launcher-contract.sh` and `scripts/check-launcher-contract-test.sh` | Check both launcher trees retain the required routing/gate statements and remain aligned; extend the existing checker rather than create a parallel launcher system. |
-| Proposed `scripts/check-architectural-review.sh` plus its tests; release CI | Check that a release-review receipt exists, is successful, belongs to the right release range, and has no unreviewed substantive changes after it. This checks provenance, not the quality of reasoning. |
+| TS-06.R35 | Test value, cost and appropriate evidence level; INV §17 remains the independent-oracle authority. |
+| Workflow §17 and twinned `write-tests` skills | Apply the test policy during relevant work/fix or explicit test work, without a new queue/author/approval cycle. |
+| Work/fix/review launchers | Route authors to the companion when relevant; reviewers challenge test value and evidence rather than demand more tests. |
+| TS-06.R36 and workflow §18 | Architectural review's core purpose, release requirement, bounded scope, evidence/receipt and no-loop closure. |
+| Twinned `architectural-review` skills | Inspect combined-system assumptions, unchanged consumers and realistic high-value scenarios through a fresh reviewer. |
+| Workflow §§8/16 plus fix/release launchers | Record verified architectural finding fixes and release from that same completed review. |
+| `scripts/check-architectural-review.mjs` | Validate committed review/fix provenance, open findings and post-review coverage. |
+| CI and release CI | Exercise real-Git gate fixtures; release CI fetches full history and enforces the gate before assembly/publication. |
+| Existing launcher checker/mutations | Guard twin alignment, conditional test routing, mandatory release review and no-rerun-after-fixes routing. |
 
-The product's embedded `internal/agentknowledge/operating-chuck/` is for agents **using** Chuck.
-Do not put repository development/testing/release instructions there. The repository skills are
-the `.agents`/`.claude` twins; the shared workflow remains their process authority.
+Repository launchers live in `.agents/skills/` and `.claude/skills/`. Product-managed
+`internal/agentknowledge/operating-chuck/` remains guidance for agents using Chuck; development
+workflow instructions were not added there.
 
-## Existing policy versus the actual gap
+## Purposeful tests
 
-TS-06 already requires both SQLite test variants, affected UI checks, focused race checks, temporary
-homes, deterministic fake providers and explicit live-provider gates. INV §17 already requires an
-independent oracle, a meaningful falsifier, realistic failure shapes, and pre-fix regression proof
-when practical. Reintroducing those as new ideas would add text without changing the failure mode.
+Each test must protect a meaningful behavior or plausible defect worth its development, runtime
+and maintenance cost. Before a nontrivial addition, identify the promised behavior, independent
+expected-answer authority, real boundary and smallest distinguishing case/schedule. Existing
+adequate evidence can justify adding nothing. Choose the smallest adequate evidence, not a
+helper-only test for a storage/process/delivery promise.
 
-The gap is consistent application: choosing the right level of test, reaching the real failing
-boundary, checking what remains after the operation, and having the reviewer challenge the evidence.
-Put the short level-selection policy in TS-06; have `write-tests` make the author apply it and
-ordinary review check the resulting evidence. No coverage percentage or test-per-function quota.
+Unit tests cover local decisions and transformations. Integration tests observe actual stores,
+wire/consumer boundaries and transitions. Real OS/driver and live-provider claims require their
+respective evidence. Relevant races are controlled, not hoped for through repeated green runs.
+No quotas, exhaustive matrices, duplicate happy-path layers or irrelevant structure assertions.
+The existing focused iteration and one applicable closure matrix remain.
 
-## Testing rules to put into practice
+## Architectural review protects the development hub
 
-| What is being claimed | Smallest useful evidence | What that evidence cannot establish alone |
-|---|---|---|
-| A local decision, parser, bound or transformation is correct | A deterministic unit test with expected values derived from the requirement or external format; include the relevant boundary/negative case. | Correct wiring into launch, persistence, another process or the real provider. |
-| State survives a transition or interruption | A package/integration test through the actual store/transcript/transition owner, checking durable before/after state and recoverability. | Native provider history adoption if only a fake peer runs. |
-| A protocol field or command reaches a consumer | Exercise actual serialization/argv/process I/O and a consumer-faithful decoder or pinned producer fixture; inspect the received value. | A permissive fake accepting a Chuck-authored field does not prove the provider uses it. |
-| A race, retry or partial failure is safe | Control the relevant ordering/failure point, then check durable outcome, ownership and side-effect/submission counts. Use channels/barriers or fake time where appropriate. | Repeating a happy-path test or running `-race` does not supply the missing schedule. |
-| Native OS/driver behavior works | An isolated owned real process/PTY/driver test for that platform contract. | This does not prove live-provider context, authentication or task adoption. |
-| A provider adopts the intended context/settings/actions | Bounded real-provider acceptance with the required credentials and pinned version. | Source inspection, a permissive protocol double or a working PTY does not close that gate. |
-| A script/operator journey or packaged release works | Real CLI/server wire and exit/output/side-effect evidence, or inspection/execution of the actual built artifact. | A copied command table, clean source build or UI stub does not prove the distributed artifact. |
+Its purpose is Chuck's core value: recoverable work, faithful instructions/messages, progressing
+assignments, correct execution/workspaces, truthful results/control and reasonable overhead.
+Without those guarantees Chuck is not a reliable hub for real development. Cosmetic preferences
+and implausible edge cases do not displace these consequences.
 
-Additional authoring rules:
+One completed review is required before every release, including fixes-only releases. It follows
+important assumptions into unchanged consumers, maintenance, scheduling and installed artifacts.
+Depth scales with consequence and uncertainty; reusable evidence reduces work. Source/fake checks
+do not certify native/provider adoption, and performance claims require measured workloads.
 
-- Test the externally meaningful behavior, not internal call order, field names or a copy of the
-  implementation's decision table. Use existing canonical builders/fixtures where appropriate,
-  but derive expected results independently of the helper under test.
-- Prefer a few cases that discriminate the guarantee. Add property/fuzz tests when they reveal
-  meaningful parser/bound/state-space errors; do not require them everywhere.
-- Make a bug regression fail on the old behavior when practical. For a native/race probe, retain
-  the minimized useful artifact and promote it into a permanent regression during fix. Do not
-  preserve all scratch logs or require a full mutation-testing framework.
-- Use controllable synchronization instead of sleep as the proof. Real timeout/OS contracts still
-  need bounded real-time tests; do not ban clocks, subprocesses or all timing assertions.
-- Keep user state and credentials isolated. Label evidence as automated, rendered, native/live or
-  still owed. Record an actual failed acceptance check as a finding under existing workflow §4.
-- Keep the existing focused iteration and one applicable full closure matrix. A reversible copy-
-  only or presentation-preserving edit does not gain a new testing project from this skill.
+The canonical JSON receipt is
+`docs/archive/reviews/architecture/<previous-tag>-next.json` (`initial-next.json` without a prior
+release). Workflow §18 defines its schema. It keeps the original reviewed commit and coverage,
+references findings owned in the live handoff, and accepts exact verified update commits.
 
-## `write-tests`: concrete skill contract
+## Human's controlling no-loop rule
 
-**Trigger:** explicit `/write-tests`, and a companion to `/work` or `/fix` when a behavioral change
-needs tests or tests/fixtures are materially changed. Do not load it for routine documentation,
-copy or cosmetic work. The existing launchers must explicitly route to it; do not depend on the
-model happening to discover it. Reviewers read the shared policy without invoking a writing skill.
+**Architectural review → findings → fix and verification → recorded closure → release.**
 
-**Inputs:** the selected change/finding, governing requirement, affected paths, and current test
-helpers. **Authorized work:** tests and necessary fixtures within that selected scope; product
-repairs remain under the invoking work/fix role. It never selects another queued feature or
-rewrites a requirement to accommodate a passing implementation.
+Fixing findings does **not** require another architectural review for that release. The fixer
+commits the repair, then records its exact commits, original finding IDs and focused verification
+in the same receipt. The gate accepts that remediation without moving the original review anchor
+or rerunning the skill. Multiple repair commits can share a bounded evidence entry.
 
-The skill asks the author to name four things before writing a nontrivial test: the promise,
-where the expected answer comes from, the production boundary being exercised, and the smallest
-case that would expose the wrong behavior. Then write the test, demonstrate its falsifier when
-practical, run focused checks, and state the evidence limit. This is one continuous work step,
-not another approval round or a mandatory separately delegated test writer.
+Unrelated new work needs explicit affected-coverage evidence rather than being disguised as a fix.
+A later release has its own review. Receipt/handoff/release-note-only commits do not invalidate
+themselves. Missing/incomplete reviews, unresolved Must-fix findings and unrecorded substantive
+changes block release; CI validates declarations/provenance rather than judging review quality.
 
-Example: for conversation-ID retention, use real hook/state/teardown/reindex operations and compare
-the retained ID afterward. A unit test showing that a map can store an ID would not establish it.
-For ACP configuration, inspect the consumer-decoded request rather than only the producer struct.
+This delivery does not impose a new general reviewer on every ordinary fix. Earlier broader
+workflow proposals about design traces or additional fix-review policy are not silently made
+binding by these two skills. Existing publishing authorization and native/live gate policy remain.
 
-The same worker may author tests. Independence concerns the expected authority and observation,
-not merely which agent typed the test. A separate agent given the same false model can reproduce
-the same bad oracle. Ordinary review checks test quality; consequential fixes receive the fresh
-semantic check below.
+## Verification
 
-## Changes inside existing skills
+- Skill-creator validation and twin/routing/mutation checks.
+- Test skill forward-check: one useful failing repair/Resume regression, no prose-only test.
+- Architecture skill forward-check: a startup integration stall found despite a passing local
+  dispatch test, with a bounded failing probe; only synthetic fixture state was used.
+- Eight focused real-Git gate cases, including successful review → fix → release without rerun,
+  unresolved findings, missing review, unrelated changes, tag CI and invalid provenance.
+- Independent Luna gate/closure review; documentation/reference, syntax and diff checks.
 
-**Work/design review:** for a changed important field/ownership boundary, record a compact trace:
-where it originates, where it becomes durable or applied, who consumes it, and who handles failure.
-Search the actual consumers, including old maintenance paths. This is not a new whole-system
-document for each change. Review-design challenges whether the proposed ordering/recovery is
-implementable, not just whether the desired outcome sounds right.
-
-**Review:** challenge one or more load-bearing test claims at the real consumer boundary, selected
-by consequence. Inspect new implementation/deviation notes against the surrounding requirements.
-Allow small versioned reproduction artifacts in addition to the handoff. No product fix in review.
-
-**Fix:** for repairs involving durable work, execution ownership, authorization or provider delivery,
-have a fresh reviewer verify the repaired guarantee and a nearby affected path before closing that
-finding. Keep this inside the same unit; do not create an automatic new review unit for every fix.
-The reviewer records the evidence and remaining gaps; the fixer still owns repair/closure. Low-risk
-fixes keep their existing closure. A new unrelated defect is recorded separately rather than
-silently expanding the selected fix.
-
-**Spec accuracy:** an implementation note cannot make a conflicting requirement optional. Identify
-the conflict and resolve a substantive product/correctness change under existing §3; ordinary
-implementation choices need no extra permission.
-
-## `architectural-review`: a release gate with a different question
-
-**Trigger:** before **every** release, and when explicitly requested between releases. It is
-mandatory even for a fixes-only release; repairs can change ownership and recovery just as features
-can. Small releases can have a short review, but no release gets an automatic exemption.
-
-Ordinary review asks whether a selected change meets its requirements. Review-design challenges a
-proposed design before implementation. This skill asks whether the **combined current system**
-still fulfills its core promises after all the changes and fixes are assembled. Its scope follows
-cross-system assumptions, including unchanged consumers, rather than stopping at the release diff.
-
-**Inputs:** previous release, candidate product revision and pinned runtime versions, release range,
-completed reviews/fixes, known findings/owed gates, and the capability/authority map from the prior
-successful architecture receipt (seeded from the core audit plan on first use).
-Use a fresh reviewer rather than have the release preparer certify their own work. Discovery can
-be delegated; the reviewer integrates the cross-system judgment.
-
-Required work:
-
-1. Reconcile the release changes and existing evidence against the core promises: saved work,
-   executable workspace/configuration, context/knowledge, admission/recovery, authoritative results,
-   truthful operator control, and resource cost. Show what changed and what proof is reusable.
-2. Follow changed assumptions into unchanged callers, repairers, schedulers and release artifacts.
-   Examine commit/acknowledgement, replacement and partial-failure boundaries. Explicitly search
-   for an implementation note or helper-level claim being mistaken for a stronger guarantee.
-3. Challenge the highest-consequence unproved joins with bounded independent probes. Reuse valid
-   prior evidence. Include latent risks outside the diff when current architecture/evidence gives
-   a concrete reason; do not merely summarize past reports or reread every file indiscriminately.
-4. Record coverage, actual source/runtime revisions, probes/results, limitations and findings.
-   A pass means no blocking finding in the assessed release, not proof that the whole product is
-   bug-free. Preserve all owed native/provider/device gates; an actual failure remains a finding.
-
-**Baseline and subsequent runs:** the first use reconstructs a capability/authority map and reviews
-the current core risk concentrations using the existing ASR evidence. Later runs update that map,
-challenge the assembled changes and remaining high-value gaps, and reuse unchanged proven paths.
-A full source audit of every subsystem on every release would be too expensive and still would
-not prove everything. Mandatory execution and explicit coverage prevent it becoming a no-op receipt.
-
-**Findings and finite closure:** use existing severity/fix-model rules. Deduplicate an existing
-finding and preserve its owner. New cross-system findings receive one architecture-review unit
-with clear responsibility so `/fix` can pick them up. Every Must-fix blocks release under §16.
-Fixes receive focused re-verification of their findings and affected joins; do not restart the
-entire audit solely because a finding-fix commit landed. Unrelated substantive changes do require
-the affected review coverage to be updated. Review writes no product fixes.
-
-## Enforcing the release gate
-
-Put the gate in the shared release workflow, not only in the new skill's description:
-
-1. Begin release readiness as today; retain the existing Must-fix and dirty-tree checks.
-2. Refresh the shipped operating knowledge/documentation and build/generated assets required by
-   the release. Commit verified preparation so the reviewer has a stable candidate.
-3. Run a fresh architectural review of that candidate before tagging. Store its compact receipt
-   under a proposed `docs/archive/reviews/architecture/` location; keep open findings/live gates in
-   the handoff. The receipt identifies the reviewed commit, prior-release boundary, component
-   revisions, covered joins, evidence limits, disposition and any fix re-verification.
-4. A proposed check script rejects a missing, blocked, wrong-range or stale receipt. A substantive
-   code, spec, runtime, packaging or shipped-knowledge change after the reviewed commit requires
-   updated affected coverage. Receipt/handoff/release-note-only commits do not invalidate it.
-   Use ancestry plus an explicit small administrative-path allowance, not an exact-HEAD equality
-   rule that invalidates the review merely by committing its receipt.
-5. Both release launchers call that check before tagging/publishing, and release CI calls it before
-   publishing artifacts. CI must fetch enough history. CI cannot assess the review's reasoning;
-   mechanical receipt validation complements the independent review and existing artifact checks.
-
-Publishing authorization, version choice and existing manual-gate rules remain unchanged. A failed
-receipt check cannot silently downgrade to an owed review. A missing live gate is reported with
-its actual existing blocking policy; this proposal does not relabel all historic owed gates as
-new defects or claim native acceptance from source-only evidence.
-
-## Implementation and verification sequence
-
-1. Update TS-06/shared workflow and add the two short skill twins plus the routing entries.
-2. Update work/fix/review/review-design/release twins and the existing launcher checker/mutation
-   tests for the new required routing and release gate. Keep expectations tied to the shared rule.
-3. Add the small receipt validator and meaningful fixtures: missing/blocked/wrong range, a valid
-   review, a later substantive change, and a later administrative-only commit. Do not test only
-   that a sentence appears.
-4. Add the release-CI gate. Exercise both skill designs on isolated real cases: a test whose
-   helper-only oracle would pass despite broken delivery, and a multi-change candidate with a
-   stale consumer outside its diff. Give the evaluator raw artifacts without the intended answer.
-5. Run documentation/spec/launcher checks and targeted checker/forward tests; perform applicable
-   closure for any implemented tooling. Keep product changes and the deferred audits separate.
-
-No further policy decision is hidden in this design: it recommends automatic companion use of
-`write-tests` for relevant work/fix, a fresh reviewer for consequential fixes, and an architectural
-review on every release. The human can approve or revise those concrete boundaries before they
-become enforced workflow.
+No fabricated passing receipt was created for Chuck's next release. Its actual architectural
+review remains a future explicitly selected/release-triggered task.

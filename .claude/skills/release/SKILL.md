@@ -14,6 +14,13 @@ FS-18 and TS-11 for the shipped `operating-chuck` package, and
 [`AGENT-WORKFLOW.md`](../../../docs/features/AGENT-WORKFLOW.md) §§2–6 and §16 completely. Then
 follow the shared workflow; the workflow and specs take precedence over this launcher.
 
+Require `architectural-review` before every release under workflow §18 and TS-06.R36, after
+committing verified release preparation. Reuse this release's completed review and recorded fixes.
+Fixing architectural findings does not require another architectural review for that release.
+Before tagging, run `node scripts/check-architectural-review.mjs --release-tag vX.Y.Z`; missing
+review, open Must-fix findings or uncovered substantive changes block release. The gate accepts
+exact verified finding fixes and administrative closure without rerunning the review skill.
+
 `$ARGUMENTS`, if present, names the intended version. Otherwise propose one from the release range
 and confirm it with the user before tagging.
 

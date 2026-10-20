@@ -48,8 +48,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   recovery owners rather than commissioning another broad rewrite. No product fix selected.
 - **Defect-origin and review-escape research:** [meta-analysis](AGENT-SURFACE-META-ANALYSIS.md)
   distinguishes unsafe designs, explicit implementation violations and unchanged consumers of new
-  authority. Six GPT-6 Luna investigations support four targeted workflow proposals; no policy or
-  skill changed. Its one confirmed finding, META-1 (offline reindex erased a hook-learned terminal
+  authority. Six GPT-6 Luna investigations supported four workflow proposals; the later two-skill
+  implementation is recorded below. Its confirmed META-1 (offline reindex erased a hook-learned terminal
   native ID), is fixed (Changelog). Archive repair is the first suggested wider audit; updater,
   remote revocation and retrieval performance remain candidates, not confirmed findings.
 - **Proposed core reliability audits:** [priorities and deferred scopes](CORE-RELIABILITY-AUDIT-PLAN.md)
@@ -58,9 +58,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   actions and sustained capacity. Existing ASR/ASW/ASF proofs/owners remain; audits are deferred.
   The [workflow design](WORKFLOW-RELIABILITY-DESIGN.md) specifies shared test rules, a `write-tests`
   companion and an `architectural-review` before every release, with candidate-bound receipts and
-  a mechanical release gate. `write-tests` is implemented first (TS-06.R35/workflow §17); architecture
-  research/creation follows next. No audit started. Human clarification: fixing architectural-review
-  findings must not force another architectural review for that release.
+  a mechanical release gate. Both skills are implemented sequentially (TS-06.R35–R36/workflow
+  §§17–18), researched and independently forward-tested. No real audit/release review started.
+  Finding fixes reuse the original architectural review and receipt; they do not force a rerun.
+  The audit plan stays recorded/deferred for human expansion and selection.
 - **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
   original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.
@@ -89,8 +90,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- Workflow skill creation in progress: `write-tests` verified; next research and create
-  `architectural-review` with the human's no-rerun-after-fixes rule. Core audits stay deferred.
+- None in progress. Workflow skills and release-gate implementation are complete; normal change
+  review is available below. Core audits stay deferred for human expansion/selection.
 - ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
   clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
 - ASW-1 (conversation event commits) reviewed 2026-10-20; ASW1-1–9 below keep that
@@ -273,6 +274,13 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | reviewed — findings open (`d49a8f86`) |
 
 **Implementation review units (independent of the table above):**
+
+- **Workflow reliability skills and architectural release gate** (`e96c47fe` plus architecture
+  implementation closure) — **waiting to start**. Review TS-06.R35–R36, workflow §§8/16–18,
+  skill twins/routing and the candidate gate/CI. Required no-loop behavior: original architectural
+  review → finding repairs/verification → receipt closure → release, without another architecture
+  review solely due to those fixes. This is review of a substantive workflow/tooling change, not
+  a queued core audit or review of its later administrative records.
 
 - **ASW-1 — conversation event commits** (`3f746c2a`, `69ef5951`, `1843470f`, `57af7f61`,
   closure `43da6bec`) — **reviewed; findings open**. Reviewed `3618df3e..43da6bec`;
@@ -1282,6 +1290,17 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-20 — Created architectural-review and enforced the no-loop release gate:** after
+  committing the testing skill, two Luna researchers supplied scenario/risk-based review practice
+  and gate design. Twinned skills and workflow §18 center Chuck's purpose as a reliable development
+  hub; TS-06.R36 and release routing/CI require one completed review. Exact verified finding-fix
+  commits close that original receipt without a new architectural review. Eight real-Git cases,
+  independent Luna implementation review and a synthetic startup-liveness forward test verify
+  behavior; skill/twin/mutation, syntax/spec/reference and diff checks pass. No product fix or real
+  audit/release review ran. The seven-slice audit plan is recorded/deferred for human expansion.
+  [Research/evidence](../archive/reviews/workflow-skills-2026-10-20.md). Four unrelated dirty ready-change
+  files remain outside the commits.
 
 - **2026-10-20 — Created purposeful test-authoring companion:** two Luna research slices informed
   twinned `write-tests` skills, TS-06.R35, workflow §17 and conditional work/fix routing. Each test

@@ -72,6 +72,16 @@ dir=$(fixture divergent-test-companion)
 mutate "$dir" .claude/skills/write-tests/SKILL.md 's/Test count and coverage percentage are not objectives./Test count is an objective./'
 expect_failure 'divergent test companion' 'write-tests: Claude and Codex companions differ' "$dir"
 
+# Release cannot omit the architecture gate; repairs cannot restart a full review loop.
+dir=$(fixture missing-architecture-routing)
+mutate_launcher "$dir" release '/^Require `architectural-review` before every release/d'
+expect_failure 'release missing architectural review' 'missing mandatory architectural-review routing' "$dir"
+for role in release fix architectural-review; do
+  dir=$(fixture "architecture-loop-$role")
+  mutate_launcher "$dir" "$role" 's/Fixing architectural findings does not require another/Fixing architectural findings requires another/'
+  expect_failure "$role architecture loop" 'missing architectural fix no-rerun rule' "$dir"
+done
+
 # The review launcher tells a no-op run to make the empty commit it must refuse.
 dir=$(fixture review-noop)
 mutate_launcher "$dir" review 's/report that and do not$/report that and/'

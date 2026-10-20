@@ -8,14 +8,14 @@ and checked source entry paths. The committed baseline for this expansion is `f7
 product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
 journey recommendation, which compressed distinct core architectures too much.
 
-**Status: proposed and deferred.** Finish defining the workflow/skill changes first. This list
-does not start an audit, create executable review units, change requirements, or authorize product
-repairs. At the next audit selection, refresh the current handoff and fix status; concurrent fixes
-are landing. Hypotheses below are questions to investigate, not new findings.
+**Status: recorded and deferred for human expansion/selection.** The purposeful testing and
+architectural-review skills are implemented. This list starts no audit or product repair and
+creates no executable audit queue. At the next selection, refresh current handoff/fix status;
+concurrent fixes are landing. Hypotheses below are questions to investigate, not new findings.
 
 The concrete workflow/skill proposal is in
 [WORKFLOW-RELIABILITY-DESIGN.md](WORKFLOW-RELIABILITY-DESIGN.md). This document maps the audit
-subjects that its future architectural-review role should understand; it does not install that role.
+subjects that the architectural-review role should understand; the plan itself starts no review.
 
 ## What matters
 
@@ -291,7 +291,7 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 
 ## How to use this list later
 
-Finish the workflow decisions, then select a small first tranche rather than commissioning every
+After the human expands/selects this recorded plan, choose a small first tranche rather than commissioning every
 possible audit. Start with A1's durable foundation and A2's deterministic work admission/recovery;
 A3's executable workspace is the next distinct high-value architecture. A7 can collect measurements
 independently. A4–A6 use prior findings and current changes to choose their highest-consequence
