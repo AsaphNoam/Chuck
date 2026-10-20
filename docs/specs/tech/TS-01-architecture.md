@@ -678,10 +678,12 @@ lost.
 ## 5. Deviations & open decisions
 
 - **Conversation journal shipped 2026-10-20 (ASW-1, R39):** `runtime.Journal`/`Journals` own every conversation's
-  writer, allocation and ordered publication; the control queue is `runtime.controlQueue`. Two
-  bounded deviations: when the generation context is cancelled before capacity is reserved, the
-  observation is still enqueued (unreserved) in commit order rather than latching a separate
-  recovery obligation, so shutdown never drops a terminal observation; and a permission
+  writer, allocation and ordered publication; the control queue is `runtime.controlQueue`, owned
+  by the conversation's journal so every generation shares one FIFO and drainer. When a
+  generation's context is cancelled while the queue is full, that generation is shed: none of its
+  later observations are delivered (so no consumer settles from a gapped stream) and its exit
+  teardown is the cleanup authority, keeping the 256-pending bound through shutdown. One bounded
+  deviation remains: a permission
   resolution that fails to commit is not in history — only its request raises the
   non-transcript `permission_required` notification.
 

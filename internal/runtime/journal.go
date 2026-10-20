@@ -85,6 +85,32 @@ type Journal struct {
 	reopenIx PersistenceIndexer
 	health   HistoryHealthStore
 	notify   func(agentID string, h HistoryHealth)
+
+	// control is the conversation's one control dispatcher, shared across
+	// generations so a replacement cannot overtake an older observation.
+	controlMu sync.Mutex
+	control   *controlQueue
+	owner     *Journals
+}
+
+// controlQueue returns the conversation's control dispatcher, creating it
+// with deliver on first use. A busy dispatcher keeps the journal from being
+// reclaimed, so a newer generation joins the same FIFO (TS-01.R39).
+func (j *Journal) controlQueue(deliver func(Observation)) *controlQueue {
+	j.controlMu.Lock()
+	defer j.controlMu.Unlock()
+	if j.control == nil {
+		j.control = newControlQueue(deliver)
+		j.control.idle = func() { j.owner.reclaim(j) }
+	}
+	return j.control
+}
+
+func (j *Journal) controlBusy() bool {
+	j.controlMu.Lock()
+	q := j.control
+	j.controlMu.Unlock()
+	return q != nil && q.busy()
 }
 
 // NewJournal returns an unattached journal for agentID. Until a writer is
@@ -522,7 +548,7 @@ func (s *Journals) Acquire(agentID string) *Journal {
 	j := s.m[agentID]
 	if j == nil {
 		j = NewJournal(agentID, s.publish)
-		j.health, j.notify = s.health, s.notify
+		j.health, j.notify, j.owner = s.health, s.notify, s
 		s.m[agentID] = j
 	}
 	j.refs++
@@ -542,7 +568,7 @@ func (s *Journals) Release(j *Journal) {
 	if j.refs > 0 {
 		j.refs--
 	}
-	if j.refs == 0 && !j.Durable() {
+	if j.refs == 0 && !j.Durable() && !j.controlBusy() {
 		delete(s.m, j.agentID)
 	}
 }
@@ -563,7 +589,7 @@ func (s *Journals) reclaim(j *Journal) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.m[j.agentID] == j && j.refs == 0 && !j.Durable() {
+	if s.m[j.agentID] == j && j.refs == 0 && !j.Durable() && !j.controlBusy() {
 		delete(s.m, j.agentID)
 	}
 }

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -252,6 +253,90 @@ func TestControlObservationsSettleInCommitOrder(t *testing.T) {
 		if seqs[i] <= seqs[i-1] {
 			t.Fatalf("control order %d after %d: observations must follow commit order", seqs[i], seqs[i-1])
 		}
+	}
+}
+
+// TS-01.R39 (ASW1-6): a replacement generation shares the conversation's one
+// control dispatcher, so its observation waits until the older generation's
+// observation has settled.
+func TestControlOrderSpansGenerationReplacement(t *testing.T) {
+	c, old, _ := newChatJournalState(t, &recordingWriter{})
+	newer := &agentState{agentID: old.agentID, generation: "g2", journal: old.journal, hub: NewHub()}
+	oldEntered, releaseOld, newEntered := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	c.SetEventSink(func(obs Observation) {
+		if obs.Event.Generation == "g1" {
+			close(oldEntered)
+			<-releaseOld
+			return
+		}
+		close(newEntered)
+	})
+	c.emit(old, EvAssistantText, AssistantTextData{Delta: "old"})
+	<-oldEntered
+	c.emit(newer, EvAssistantText, AssistantTextData{Delta: "new"})
+	select {
+	case <-newEntered:
+		t.Fatal("new generation's observation ran before the older one settled")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(releaseOld)
+	select {
+	case <-newEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("new generation's observation never delivered")
+	}
+}
+
+// TS-01.R39 (ASW1-7): a cancelled generation behind a stalled sink stays within
+// the queue bound; once shed, even a reserved later observation of that
+// generation is dropped with its terminal waiter released, while another
+// generation is still delivered.
+func TestCancelledControlRemainsBounded(t *testing.T) {
+	blocked := make(chan struct{})
+	var mu sync.Mutex
+	var delivered []string
+	q := newControlQueue(func(obs Observation) {
+		<-blocked
+		mu.Lock()
+		delivered = append(delivered, obs.Event.Generation)
+		mu.Unlock()
+	})
+	obs := Observation{Event: Event{Generation: "g1"}}
+	// A terminal observation that reserved before the shutdown shed.
+	early := controlItem{obs: obs, reserved: q.reserve(context.Background(), "g1"), done: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for i := 0; i < 600; i++ {
+		q.enqueue(controlItem{obs: obs, reserved: q.reserve(ctx, "g1")})
+	}
+	q.mu.Lock()
+	pending := len(q.items)
+	q.mu.Unlock()
+	if pending > controlQueueLimit {
+		t.Fatalf("cancelled generation retained %d pending observations; limit=%d", pending, controlQueueLimit)
+	}
+	close(blocked)
+	q.enqueue(early)
+	select {
+	case <-early.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("shed generation's terminal waiter was never released")
+	}
+	if !q.reserve(context.Background(), "g2") {
+		t.Fatal("another generation could not reserve after the shed drained")
+	}
+	g2done := make(chan struct{})
+	q.enqueue(controlItem{obs: Observation{Event: Event{Generation: "g2"}}, reserved: true, done: g2done})
+	<-g2done
+	mu.Lock()
+	defer mu.Unlock()
+	for i, g := range delivered[:len(delivered)-1] {
+		if g != "g1" {
+			t.Fatalf("delivery %d = %q", i, g)
+		}
+	}
+	if delivered[len(delivered)-1] != "g2" || len(delivered) > controlQueueLimit+2 {
+		t.Fatalf("delivered %d observations ending %q", len(delivered), delivered[len(delivered)-1])
 	}
 }
 

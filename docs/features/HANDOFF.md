@@ -346,24 +346,6 @@ the reviewed snapshot, before concurrent ASW-2 work; ASW1-9 was added against `e
   finalization on it; never replay activity appends. **Fix scope: difficult.**
   `TestReviewFailedRoomSettlementRetainsFailure` aborts both writes with SQLite triggers, restores
   them and retries the terminal event: the raw attempt row becomes `finalized`.
-- **Must fix** — ASW1-6 — **Control ordering ends at a generation boundary**
-  (INV §1/§2/§4/§5/§15/§16). `internal/runtime/chat.go:288,2132–2135`,
-  `internal/runtime/control.go:25–35`: the FIFO lives on `agentState`, so Stop/Resume or Switch
-  creates another dispatcher while old callbacks may still drain. A newer control observation can
-  run before an earlier one settles, with multiple sinks/queue budgets for the same conversation.
-  TS-01.R39 requires one per-conversation dispatcher. Share ownership/lifetime with the
-  conversation and retain captured generation checks. **Fix scope: difficult.**
-  `TestReviewControlOrderSurvivesGenerationReplacement` blocks the old observation and confirms
-  the new generation's callback runs concurrently on the same journal.
-- **Must fix** — ASW1-7 — **Cancellation removes the control queue's admission bound**
-  (INV §4/§5/§16). `internal/runtime/control.go:41–60`, `internal/runtime/chat.go:2146–2156`:
-  after capacity fills, cancellation makes `reserve` return false, yet every late emission is
-  appended unreserved. Buffered provider output/permission continuations can retain arbitrary
-  pending events behind a slow sink. TS-01 §5 calls this deviation bounded but supplies no other
-  bound or durable cancellation obligation, contrary to R39's 256 pending plus one in flight.
-  Keep admission bounded through shutdown and retain required cleanup through its exact domain
-  authority. **Fix scope: medium.** `TestReviewCancelledControlRemainsBounded` reproduces 599
-  pending observations against limit 256.
 
 - **Must fix** — ASW1-9 — **A delayed terminal observation settles the current execution instead
   of its original owner** (INV §1/§2/§5/§11/§15/§17). `internal/server/server.go:441–442` replaces
@@ -388,7 +370,7 @@ Local-choice outcomes: a separate health table is justified because the open mar
 new session row; conservative unclean-stop gap notices and offline index repair are reasonable.
 The absent banner is covered by the refused-Send surface, but does not resolve ASW1-1/2. Gap
 notices temporarily lagging `as.seq` do not reuse allocation and appear in canonical HTTP reads.
-Unreserved enqueue is rejected under ASW1-7; the inactive fence is now specified.
+Unreserved enqueue is replaced by per-generation shedding (ASW1-7); the inactive fence is now specified.
 
 Invariant sweep: §1/§2/§4/§5/§7/§8/§9/§10/§11/§14/§15/§16/§17 apply and were checked; existing HTTP
 guards and owner-only persistence remain wired. §3 has no one-shot persisted field/form surface,
@@ -1295,7 +1277,11 @@ and specifications are unchanged.
   and closes it itself when exit teardown already ran; `TestExitDuringPersistenceOpenClosesJournal`
   fails before the fix. ASW1-1 (INV §5) — a held successor refused by history admission is put
   back as the hold (never over a newer one) instead of failing unseen;
-  `TestHeldSurvivesHistoryRefusal` fails before the fix.
+  `TestHeldSurvivesHistoryRefusal` fails before the fix. ASW1-6/7 (INV §5/§16) — the control
+  queue now belongs to the conversation's journal (one FIFO across generations; a busy queue
+  blocks reclaim), and a generation cancelled while the queue is full is shed so the bound holds
+  and its exit teardown settles cleanup; `TestControlOrderSpansGenerationReplacement` and
+  `TestCancelledControlRemainsBounded` (focused `-race` ×3 passes; runtime/server suites pass).
 
 - **2026-10-20 — Mapped the third core reliability audit:** two focused GPT-6 Luna research passes
   and parent integration produced [CR-A3](CORE-RELIABILITY-REVIEW-A3.md), one frontier-sized review

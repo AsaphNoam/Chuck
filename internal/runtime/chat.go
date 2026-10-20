@@ -296,7 +296,6 @@ type agentState struct {
 	journalAttachment      uint64 // this generation's writer attachment, guarded by mu
 	journalClosed          bool   // teardown already closed this generation's journal, guarded by mu
 	journalRelease         sync.Once
-	control                *controlQueue // ordered control observations (TS-01.R39), guarded by mu
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
 	// replace-only live state, not a transcript event: each update overwrites it,
 	// an empty update clears it, and it dies with this agentState on stop/crash.
@@ -2162,11 +2161,9 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 
 		ActivityID: scope.ActivityID, ParentActivityID: scope.ParentActivityID,
 	}
-	if as.control == nil {
-		as.control = newControlQueue(c.deliverControl)
-	}
-	control, ctx := as.control, as.ctx
+	ctx := as.ctx
 	as.mu.Unlock()
+	control := as.journal.controlQueue(c.deliverControl)
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -2176,8 +2173,9 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 		req.Rollup = &TurnRollup{LastContextPct: last.pct, LastContext: last.counts}
 	}
 	// Reserve control capacity before entering the journal; the observation
-	// is enqueued in commit order, whatever the outcome (TS-04.R100).
-	item := controlItem{reserved: control.reserve(ctx)}
+	// is enqueued in commit order, whatever the outcome (TS-04.R100). A
+	// generation shed at shutdown is settled by its exit teardown instead.
+	item := controlItem{reserved: control.reserve(ctx, ev.Generation)}
 	var done chan struct{}
 	if typ == EvTurnEnd {
 		done = make(chan struct{})
