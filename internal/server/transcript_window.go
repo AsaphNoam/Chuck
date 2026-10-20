@@ -39,6 +39,9 @@ type transcriptWindow struct {
 	// runtime; one from an ended generation is never actionable (TS-04.R94,
 	// TS-03.R71). Nil treats every host request as ended.
 	hostPending func(toolCallID string) bool
+	// unretained are the live generation's pending requests whose record did
+	// not commit; they offer controls but never enter events (TS-03.R73).
+	unretained []runtime.Event
 }
 
 type pendingPermission struct {
@@ -113,6 +116,9 @@ func (tw *transcriptWindow) response(agentID string) map[string]any {
 		}
 		pending = &tw.pending[i].event
 		break
+	}
+	if n := len(tw.unretained); n > 0 && (pending == nil || tw.unretained[n-1].Seq > pending.Seq) {
+		pending = &tw.unretained[n-1]
 	}
 	latest := tw.current
 	if strings.TrimSpace(latest) == "" {

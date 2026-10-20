@@ -1033,7 +1033,11 @@ cancel/reload/disable and quiet-failure journeys under FS-01.A33–A34.
 **R73 — History health and applied lifecycle state are truthful.** Add bounded
 `history_state:ok|degraded` and optional sanitized `history_reason` to the existing conversation/
 session projection; absence means legacy unknown, not verified healthy. FS-03.R99's storage latch
-blocks new/automatic work without hiding Stop or approvals. Health errors travel via the existing
+blocks new/automatic work without hiding Stop or approvals. A permission request whose record did
+not commit is never returned in transcript `events`; while the current generation still awaits it,
+the windowed transcript's `pending_permission` may name it, and the full read adds it under
+`unretained_permissions`. Resolution or generation exit clears it; it is never persisted, and
+it holds at most that generation's pending set. Health errors travel via the existing
 non-transcript notification/error surface, avoiding recursive append. Successful canonical recovery
 and a durable gap notice permit future work without claiming missing output was recovered.
 

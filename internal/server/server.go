@@ -59,6 +59,7 @@ type Server struct {
 	knowledge            agentknowledge.Installation
 	permissionMu         sync.Mutex
 	permissionTools      map[string]string
+	heldPermissions      map[string]runtime.Event // live requests whose record did not commit (TS-03.R73)
 	peerStopMu           sync.Mutex
 	peerStopRequesters   map[string]bool // requesters with an outstanding peer Stop (TS-04.R94)
 	attachmentMu         sync.Mutex
@@ -340,6 +341,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		log:                       log,
 		knowledge:                 installedKnowledge,
 		permissionTools:           map[string]string{},
+		heldPermissions:           map[string]runtime.Event{},
 		peerStopRequesters:        map[string]bool{},
 		hookTokens:                map[string]string{},
 		mcpCleanups:               map[string]func(){},
@@ -424,6 +426,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 			if !obs.Committed() {
 				s.log.Error("runtime event not retained in history", "agent", ev.AgentID, "seq", ev.Seq, "type", ev.Type, "outcome", obs.Outcome)
 				// Approvals stay reachable without a history record.
+				s.holdUnretainedPermission(ev)
 				eventBus.PublishPermissionNotification(ev)
 			}
 			if err := s.confirmQuotaProgress(ev); err != nil {
@@ -496,6 +499,11 @@ func (s *Server) clearPermissionTools(agentID, generation string) {
 			delete(s.permissionTools, key)
 		}
 	}
+	for key := range s.heldPermissions {
+		if strings.HasPrefix(key, prefix) {
+			delete(s.heldPermissions, key)
+		}
+	}
 	s.permissionMu.Unlock()
 }
 
@@ -507,6 +515,9 @@ func permissionToolKey(agentID, generation, toolCallID string) string {
 }
 
 func (s *Server) handlePermissionEvent(ev runtime.Event) {
+	if ev.Type == runtime.EvPermissionResolved {
+		s.dropUnretainedPermission(ev)
+	}
 	if s.pipelineMgr == nil {
 		return
 	}

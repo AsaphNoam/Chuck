@@ -213,6 +213,7 @@ class SseClient {
   private onNotification(event: MessageEvent<string>) {
     const envelope = JSON.parse(event.data) as BusEvent<NotificationPayload>;
     const notification = envelope.data;
+    this.discoverUnsavedPermission(notification);
     const cfg = queryClient.getQueryData<Config>(QUERY_KEYS.config);
     if (cfg?.notifications?.muted?.[notification.notification_type]) return;
 
@@ -235,6 +236,20 @@ class SseClient {
       return;
     }
     useUiStore.getState().pushToast(notification);
+  }
+
+  // A permission notification with no loaded request means its record did not
+  // commit; the transcript read carries it beside history, so an open
+  // conversation re-reads to show its approval controls (FS-03.R99).
+  private discoverUnsavedPermission(notification: NotificationPayload) {
+    if (notification.notification_type !== "permission_required") return;
+    const agentId = notification.agent_id;
+    if (!agentId || !this.openAgents.has(agentId)) return;
+    const toolCallId = String(notification.detail?.tool_call_id ?? "");
+    const loaded = (useTranscriptStore.getState().byAgent[agentId] ?? []).some(
+      (event) => (event.kind ?? event.type) === "permission_request" && String(event.tool_call_id ?? "") === toolCallId,
+    );
+    if (!loaded) void this.refetchTranscript(agentId).catch(() => undefined);
   }
 
   private onPipelineUpdate(event: MessageEvent<string>) {
@@ -308,7 +323,11 @@ class SseClient {
     try {
       const transcript = await getTranscript(agentId);
       if (this.transcriptRequestToken[agentId] !== token || !this.openAgents.has(agentId)) return;
-      useTranscriptStore.getState().setTranscript(transcript.agent_id, transcript.events);
+      // An unsaved live request renders after history so its prompt stays
+      // approvable; one whose record did land is not shown twice (TS-03.R73).
+      const seqs = new Set(transcript.events.map((event) => event.seq));
+      const held = (transcript.unretained_permissions ?? []).filter((event) => !seqs.has(event.seq));
+      useTranscriptStore.getState().setTranscript(transcript.agent_id, [...transcript.events, ...held]);
       this.reconciled.add(agentId);
     } catch (err) {
       if (this.transcriptRequestToken[agentId] === token && this.openAgents.has(agentId)) {

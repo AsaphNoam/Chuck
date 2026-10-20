@@ -130,6 +130,33 @@ describe("SseClient watchdog reconnect", () => {
     expect(client.getTranscript).toHaveBeenCalledTimes(1);
   });
 
+  // FS-03.R99 / TS-03.R73 — a permission notification whose request never
+  // reached history re-reads the open transcript, and the unsaved request
+  // renders as an approvable prompt; a request already loaded does not re-read.
+  it("shows an unsaved permission request from a permission notification", async () => {
+    const { sseClient } = await import("./sse");
+    const client = await import("./client");
+    const { useTranscriptStore } = await import("../store/transcriptStore");
+    sseClient.connect();
+    const es = FakeEventSource.instances[0];
+    sseClient.registerOpenAgent("a_perm");
+    await vi.waitFor(() => expect(useTranscriptStore.getState().settled["a_perm"]).toBe(true));
+    const held = { agent_id: "a_perm", seq: 7, type: "permission_request", ts: "t", data: { tool_call_id: "tc_p", name: "Run ls" } };
+    (client.getTranscript as ReturnType<typeof vi.fn>).mockClear();
+    (client.getTranscript as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ agent_id: "a_perm", events: [], unretained_permissions: [held] });
+    const notify = JSON.stringify({ type: "notification", seq: 1, ts: 1, agent_id: "a_perm",
+      data: { type: "notification", notification_type: "permission_required", agent_id: "a_perm", title: "Needs you", detail: { tool_call_id: "tc_p" }, ts: "t" } });
+
+    es.emit("notification", notify);
+    expect(client.getTranscript).toHaveBeenCalledWith("a_perm");
+    await vi.waitFor(() => expect(useTranscriptStore.getState().byAgent["a_perm"]).toEqual([
+      expect.objectContaining({ kind: "permission_request", tool_call_id: "tc_p" }),
+    ]));
+
+    es.emit("notification", notify);
+    expect(client.getTranscript).toHaveBeenCalledTimes(1);
+  });
+
   // FS-03.A39 — reasoning has no seq: it never triggers gap recovery, reaches
   // only an open agent's memory-only store, and a reconnect discards it.
   it("routes live reasoning without a seq and discards it on reconnect", async () => {

@@ -683,9 +683,10 @@ lost.
   generation's context is cancelled while the queue is full, that generation is shed: none of its
   later observations are delivered (so no consumer settles from a gapped stream) and its exit
   teardown is the cleanup authority, keeping the 256-pending bound through shutdown. One bounded
-  deviation remains: a permission
-  resolution that fails to commit is not in history — only its request raises the
-  non-transcript `permission_required` notification.
+  deviation remains: a permission request or resolution that fails to commit is not in history.
+  The uncommitted request raises the non-transcript `permission_required` notification and is
+  held by the server as a derived, never-persisted control projection while the live generation
+  still awaits it (TS-03.R73).
 
 - **Mail delivery extension specified:** R31–R33, TS-02.R34 and TS-04.R53 implement the planned
   FS-00.R17 and FS-06.R30–R36 scope and intentionally replace the

@@ -399,6 +399,7 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
 			return
 		}
+		tw.unretained = s.unretainedPermissions(id)
 		writeJSON(w, http.StatusOK, tw.response(id))
 		return
 	}
@@ -410,7 +411,13 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"agent_id": id, "events": events})
+	body := map[string]any{"agent_id": id, "events": events}
+	// A live request whose record did not commit rides beside history, never
+	// in it, so the desktop prompt survives a reload (TS-03.R73).
+	if unretained := s.unretainedPermissions(id); len(unretained) > 0 {
+		body["unretained_permissions"] = unretained
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {

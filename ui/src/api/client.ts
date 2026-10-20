@@ -59,7 +59,9 @@ export function putLayout(layout: Layout) {
 
 export function getTranscript(agentId: string, includeMeta = false) {
   const suffix = includeMeta ? "?include_meta=true" : "";
-  return json<{ agent_id: string; events: TranscriptEvent[] }>(`/api/sessions/${agentId}/transcript${suffix}`);
+  // unretained_permissions are live requests whose record did not commit; they
+  // are approvable but never history (TS-03.R73).
+  return json<{ agent_id: string; events: TranscriptEvent[]; unretained_permissions?: TranscriptEvent[] }>(`/api/sessions/${agentId}/transcript${suffix}`);
 }
 
 /** A bounded transcript window (FS-20.R13); the pending permission and latest
