@@ -44,3 +44,6 @@ component version bump is required.
   publication uses the explicit version-specific waiver above.
 - Both Go test variants and static checks pass. The operator confirmed v0.18.0.
   Tagging and GitHub publication remain pending.
+- A concurrent FTS5 closure run hit the previously recorded quota-dispatch transcript flake;
+  the full release run passed, and five focused FTS5 repeats passed. The failure remains recorded
+  in the live handoff; no test repair is claimed by this release.

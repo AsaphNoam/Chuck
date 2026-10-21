@@ -36,10 +36,8 @@ in the [live handoff](../../features/HANDOFF.md).
   native execution, ASW-3 process/driver ownership) and six consolidated `/fix` batches below.
   The human explicitly authorized these cross-review batches; for this campaign select the new
   unit, not all findings from its old review. Planned FS/TS requirements, acceptance tests,
-  migration/security bounds and shared-file coordination are designed. Prioritize unsafe process
-  control, ambiguous replay and the config read-loop stall. ASW-1 is closed (all nine findings
-  fixed 2026-10-20); ASW-2 is closed (all eleven findings fixed or
-  decided 2026-10-20); ASW-3 is closed (all six findings fixed 2026-10-20).
+  migration/security bounds and shared-file coordination are designed. Prioritize ambiguous
+  replay (ASF-2). ASW-1, ASW-2, ASW-3 and ASF-1 are closed (2026-10-20; Changelog).
   Other units remain waiting. The
   [systemic assessment](../../features/AGENT-SURFACE-FIX-STRATEGY.md) retains the rationale.
 - **Post-refactor synthesis:** [pre-fix assessment](../../features/AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md)
@@ -72,8 +70,6 @@ in the [live handoff](../../features/HANDOFF.md).
 - **Prompt/harness investigation:** PROMPT-1 and PROMPT-2 are closed by the ASW-2 fixes. The
   original unit below retains separate process-policy recommendations.
   General output-quality regression remains unproven.
-- **Former known risk confirmed:** the `SetSessionConfig`/`as.mu` read-loop stall is now ASRC-1
-  under Review findings.
 - **Design prepared/TBD — subscription quota views:** FS-09.R80–R81/A49–A50,
   TS-04.R89/TS-03.R61. Full passive paired snapshots remain TBD for Claude and Codex; evidence is
   in [`ideas.md`](../../ideas.md). Not a ready unit. Do not implement a hidden prompt, command
@@ -93,20 +89,41 @@ in the [live handoff](../../features/HANDOFF.md).
   `internal/server` `TestQuotaDispatcherContinuesSameConversationOnce/stopped` failed once
   (“reloaded transcript differs”, FTS5 variant) in the `v0.16.0` closure run; 40 isolated runs,
   30 `-race` runs and a full FTS5 package rerun pass. Range commit `9989fb88` touched ACP update
-  routing; whether it relates is uninvestigated.
+  routing; whether it relates is uninvestigated. Under `-race`, `internal/runtime`
+  `TestCancelDoesNotEndNextTurn` and `TestCanceledTurnsReleaseToolInput` fail deterministically,
+  also at `afc7ccf3`: they act right after observing `turn_end`, which is emitted while the turn
+  gate is still held by design. Plain runs pass.
 
 ## Active change
 
 - None in progress. Workflow skills and release-gate implementation are complete; normal change
   review is available below. CR-A1–CR-A7 are researched and waiting for review; audit planning is complete.
-- ASW-2 (native execution contract) closed 2026-10-20 (Changelog); native
-  clone/check/adoption and unpatched idle-Steer race receipts remain unclaimed live evidence.
-- ASW-1 (conversation event commits) closed 2026-10-20 (Changelog); rendered unsaved-permission
-  prompt and live duplicate-terminal room receipts are owed.
-- ASW-3 (process and terminal-driver ownership) closed 2026-10-20 (Changelog); FS-07.A12 real
-  tmux/iTerm2 receipts, including early SessionStart → Stop → Resume, are owed.
+- Owed live receipts from closed units: ASW-2 native clone/check/adoption and unpatched idle-Steer
+  race; ASW-1 rendered unsaved-permission prompt and duplicate-terminal room; ASW-3 FS-07.A12
+  tmux/iTerm2 (incl. early SessionStart → Stop → Resume); ASF-1 live mid-turn setting change.
+
 
 ## Changelog
+
+- **2026-10-20 — Closed ASF-1 turn and control settlement (all four findings fixed):** ASRC-1
+  (INV §5/§15, `66c6a984`) — live effort/fast captures identity under `as.mu`, calls the provider
+  unlocked with a 30 s bound independent of the browser, folds confirmed options only into the
+  same live generation and reports a lost reply as `ErrSettingUnconfirmed` (TS-03.R37 updated);
+  `TestSetSessionConfigDoesNotStallTheReaderOnAFrameBeforeTheReply` fails before the fix.
+  ASRG-3 (INV §5/§11/§15, `60777c14`) — Cancel records its claimed turn and that turn settles
+  `cancelled`, unsuccessful, keeping the quota block;
+  `TestCancelledTurnLateCompletionDoesNotConfirmQuotaRecovery` fails before the fix. ASRC-2
+  (INV §5, `ad08b386`) — one per-agent status lock decides and writes busy only for an unsettled
+  owning turn with no open gate; `TestParallelToolFrameKeepsWaitingInput` fails before the fix,
+  `TestBackgroundFrameAfterTurnSettlesCannotReopenBusy` fixes the race window. ASRC-5 (INV §5/§8,
+  `ad08b386`) — ACP requests share the publication gate; a missing native option resolves the exact
+  request once as cancelled (`TestCancelBeforePermissionPublicationResolvesAfterRequest`,
+  `TestPermissionWithoutMatchingOptionResolvesCancelled`, the latter failing before the fix).
+  Focused runtime `-race` passes except two pre-existing deterministic `-race` failures (Known
+  flaky checks). `make test`: plain variant passed; FTS5 variant hit only the known
+  `TestQuotaDispatcherContinuesSameConversationOnce/stopped` flake, which passed 20 isolated runs
+  and a full FTS5 `internal/server` rerun. `make build` passed. No live provider ran; a live
+  mid-turn setting change receipt is owed.
 
 - **2026-10-20 — Mapped the seventh core reliability audit; planning complete:** two focused
   GPT-6 Luna research passes and parent integration produced
