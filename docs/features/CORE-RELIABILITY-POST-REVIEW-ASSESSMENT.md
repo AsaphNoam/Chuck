@@ -12,6 +12,11 @@ At entry the seven audits recorded 29 open findings. The dirty messaging handler
 contained CR-A4-1's enum correction; it was not validated or closed here. Four dirty ready-change
 documents were also preserved. Recheck current work before fixing any finding.
 
+**Operator follow-up, 2026-10-21:** CR-A4 was picked up by another agent; its worker has now
+closed the enum finding in `c515aea3` and the live handoff. That local correction is independent of
+the proposed refactors below. Keep its validation/closure with the existing worker; do not
+duplicate, reopen or absorb it into these recommendations.
+
 ## Conclusion
 
 Local fixes can start. Two boundaries deserve coordinated implementation rather than disconnected
@@ -25,6 +30,28 @@ for released runtime ownership, a checked project/profile for the actual child s
 stream for current state. Repair those consumer boundaries; another broad workflow rule alone would
 not resolve them. The current purposeful-test and architectural-review rules already ask for the
 independent boundary evidence that was missing.
+
+## Architectural refactor recommendation
+
+**Yes: two bounded refactors are justified, with different strength and scope.** These recommendations
+do not create implementation units, change finding ownership or authorize implementation.
+
+| Proposed refactor | What changes | Size and reason to do it now |
+|---|---|---|
+| Reindex transaction/recovery ownership — CR-A1-1/2 | One owner controls reset, replay, flush and retained-authority restoration, publishing a usable replacement only across an interruption-safe boundary. Missing sources preserve the existing snapshot or refuse the rebuild. | Medium-to-large, difficult. This is the strongest architectural case: derived projection rebuilding currently deletes non-replayable continuation inputs before their replacement is safe. Additional local restoration patches leave that design fault intact. |
+| Task execution ownership — CR-A2-1/2/3/5/9, coordinated with ASF-3 | Consolidate existing assignment, per-attempt runtime ownership, capacity and cleanup/admission decisions. A result does not release a live runtime; abandoning a later attempt does not erase confirmed membership; mail/manual continuation uses task admission. | Medium, with concurrency/recovery risk. Several entry points independently infer ownership from task state or absent turn data. Shared decisions and explicit cleanup timing remove that repeated source of defects while retaining the existing task tables, dispatcher and lifecycle services. |
+
+The first changes the rebuild's transaction/failure architecture. The second brings the existing
+specified task architecture under consistent implementation ownership; it does not require a new
+scheduler or a general state-machine framework. Design their boundaries and evidence together
+before implementing the coupled findings. Keep the small complete-record fix A1-3 independently
+executable and coordinate shared reader edits.
+
+Publication/reconnect/deduplication needs coordinated fixes and one convergence proof, but the
+current evidence does not warrant replacing the event bus. Workspace/profile findings call for
+validating the actual composed execution through current seams. Scan limits/cancellation,
+reconciliation eligibility and CR-A4's enum correction also fit existing owners without a new
+architectural layer. Sections below describe the constraints for those decisions.
 
 ## 1. Reindex must be one preservation boundary
 
@@ -161,8 +188,9 @@ recorded execution contract or passing server preflight alone cannot certify the
   avoid replaying unchanged/ineligible retained histories without weakening fallback repair or I/O
   errors. No new shared cache/index or global scheduler is needed just to close these findings.
   A7-5's generation tombstones should follow existing generation/journal teardown.
-- CR-A4-1 is a local enum/test correction, already dirty at synthesis entry; preserve actual
-  wake/activation assertions. It does not repair task admission or demonstrate mail loss.
+- CR-A4-1 is a local enum/test correction handled by its existing fix worker; the live handoff
+  now records it as fixed. Preserve that worker's validation/closure and actual wake/activation
+  assertions. It does not repair task admission or demonstrate mail loss.
   CR-A5-2 is specification alignment with already-settled native-load refusal; fix no runtime
   fallback and do not reopen ASW-2's decided behavior.
 
