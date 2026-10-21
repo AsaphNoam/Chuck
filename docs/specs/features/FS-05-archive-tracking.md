@@ -1,6 +1,6 @@
 # FS-05 — Session archive, search, resume & tracking
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/archive/`, `internal/index/`, `internal/state/` (sessions, tracked_files, tracked_commands), `internal/server/` (`archive.go`, `resume.go`, `files_commands.go`, `sessions.go`), `ui/src/features/archive/`, `ui/src/components/chat/FilesTab.tsx` · **Journeys:** J7, J8
 **Absorbed:** exact source mapping in the [phase archive manifest](../../archive/phases/README.md)
 
@@ -126,6 +126,29 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   requests and errors are not indexed, so a term that appears only in them finds nothing. File and
   command tracking (R16–R19) is unchanged. Documents written before this rule keep their content
   until `chuck reindex` rebuilds the archive index.
+
+### 2.7 Offline reindex preservation
+
+- **R43 — Repair preserves usable conversations.** `(planned)` `chuck reindex` remains an offline
+  archive/search/tracking repair. A failed or interrupted repair cannot remove a previously usable
+  session snapshot, replace its latest native conversation identity with an older recorded identity,
+  or reset its last confirmed effort/fast settings. After restart or an explicit rerun, a preserved
+  session can still use the existing Resume path with its frozen setup and original conversation;
+  repair does not substitute a new provider conversation. A repaired session exposes a complete
+  replacement or its preserved prior data, never a knowingly partial replacement presented as usable.
+- **R44 — Missing input is not evidence of deletion.** `(planned)` A missing/unreadable canonical
+  transcript or an absent source directory cannot by itself remove stored session data. Report the
+  affected conversation identity and preserve its previous usable archive/Resume data. If the whole
+  transcript root is unavailable while stored archive data exists, fail without replacing it.
+  A genuinely empty home remains an empty no-op. Reindex is not a pruning/deletion operation and
+  cannot report an incomplete repair as successful completion. The treatment of healthy sources
+  beside failed sources is awaiting the product decision recorded in §6.
+- **R45 — Preserve the existing repair boundary.** `(planned)` Repair uses the current local Chuck
+  home and command; it starts no agent/provider turn and does not rewrite or delete canonical
+  transcripts, provider history, attachment copies, project resources or agent/project archive flags.
+  Existing search capability and document boundaries, tracking attribution and native Resume
+  rules remain in force. No online repair, new UI/API, automatic replay or new retention policy for
+  conversation sources is introduced.
 
 ## 3. States & transitions
 
@@ -358,7 +381,28 @@ R22's `active` validation remain binding.
   shows its message and recovers through Retry: `ui/src/features/archive/ArchiveAgentPage.test.tsx`
   ("ArchiveAgentPage unavailable transcript"); J8.
 
+- **A26** (R43, R45) — `(planned)` Seed a stored session whose latest native identity and live
+  effort/fast differ from its canonical metadata; interrupt a real repair process after it begins
+  replacing derived data and before safe publication, then reopen and rerun. Verify preserved
+  authority and a complete old or rebuilt archive/search/tracking view, and observe the existing
+  Resume consumer use the retained native identity/frozen setup without a fresh conversation.
+  *Verify:* isolated process/store and fake-native Resume integration; reuse existing projection,
+  FTS5/fallback and continuation checks. This is wire/recovery proof, not live provider adoption.
+- **A27** (R43–R45) — `(planned)` With populated stored snapshots, exercise an absent transcript
+  root and an existing conversation whose directory or canonical log is missing/unreadable. Verify
+  identity-specific failure, preserved prior snapshot/Resume data and no deletion caused by source
+  absence. A genuinely empty home remains a no-op. *Verify:* focused populated-store/CLI failure
+  fixtures; do not rely on the existing empty-database missing-directory test. Mixed healthy/failed
+  source acceptance will follow the confirmed §6 policy.
+
 ## 6. Deviations & open decisions
+
+- **Offline reindex preservation is being defined.** R43–R45/A26–A27 are an unapproved feature
+  draft for CR-A1-1/2. Confirm the user-visible failure policy before technical design: repair
+  healthy conversations while retaining prior archive/search/tracking data for failed ones and
+  return an error naming them (recommended), or abort the entire rebuild on any failed source.
+  The recommended policy changes the current removal of rows whose source is absent; a missing
+  source is not proof of intentional deletion. No preservation mechanism or ready change is selected.
 
 - R39/A22 shipped 2026-10-06 (`features/thinktank/RoomList.tsx` in `ArchivePage`); room data and
   lifecycle are owned by FS-21 and TS-14.

@@ -33,6 +33,18 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Interruption-safe reindex preservation.** Selected by the operator through `/design-feature`
+  on 2026-10-21, from CR-A1-1/2 and the
+  [frontier-reviewed assessment](features/CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#frontier-challenge-and-primary-judgment).
+  Keep `chuck reindex` offline and preserve usable archive/Resume data, latest native conversation
+  identity and live effort/fast settings across interruption and missing source files. Feature
+  draft: FS-05.R43–R45/A26–A27. Awaiting product confirmation of partial failure policy: recommend
+  rebuilding healthy conversations while preserving failed conversations' prior data and reporting
+  incomplete repair, rather than aborting the whole rebuild. Missing source alone must not prune
+  an existing session. Technical design has not started; select the smallest proven preservation
+  mechanism after behavior confirmation. CR-A1-3's complete-record fix stays independent; no
+  ready change or implementation is active.
+
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;

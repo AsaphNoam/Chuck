@@ -34,6 +34,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   now reflects an independent Astra challenge and primary source checks: design a narrow reindex
   preservation boundary; specify task cleanup/continuation contracts within coordinated fixes.
   A separate task-ownership architecture project is not demonstrated. CR-A4 is closed below.
+  **Reindex design in progress:** the explicit `/design-feature` selected CR-A1-1/2 preservation;
+  [idea](../ideas.md#ideas-being-defined) and FS-05.R43–R45/A26–A27 hold the feature draft.
+  Awaiting the operator's failure-policy choice (repair healthy sources while preserving/reporting
+  failed ones, or abort the whole rebuild). Technical design/ready change have not started;
+  CR-A1-3 stays independent and no implementation is active for this design.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
@@ -161,6 +166,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   fake-runtime, release-CI assembly, and native-provider proofs passed; live receipts are owed.
 
 ## Decisions needing input
+
+- Reindex preservation design: confirm the offline behavior in FS-05.R43–R45/A26–A27 and choose
+  whether a failed/missing source preserves its prior data while healthy conversations are rebuilt
+  with a nonzero incomplete-repair result (recommended), or aborts the whole rebuild. See the
+  [idea being defined](../ideas.md#ideas-being-defined). No technical mechanism is selected yet.
 
 - Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID
   ownership (compatibility change).
@@ -1741,6 +1751,12 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-21 — Started reindex preservation feature design:** explicit `/design-feature` selected
+  CR-A1-1/2. Read current archive/CLI/replay behavior and independent frontier assessment; a focused
+  GPT-6 Luna reader supplied source/test facts. Drafted planned FS-05.R43–R45/A26–A27 and recorded
+  the idea as being defined. The operator is choosing partial-repair versus whole-rebuild failure
+  behavior before technical design; no ready change, TS update, product edit or finding closure.
 
 - **2026-10-21 — Clarified core repair pickup readiness:** checked the live queue and workflow §8.
   CR-A1-1/2 remain design-pending rather than implementation-ready; A1-3 remains independently
