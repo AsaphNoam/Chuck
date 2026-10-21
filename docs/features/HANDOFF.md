@@ -221,6 +221,12 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — six findings open |
 | [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — five findings open |
 
+**Fix/work pickup:** CR-A1-1/2 still need a settled preservation design and revised TS-02.R9;
+there is no implementation-ready reindex work unit. CR-A1-3 is separately actionable. A CR-A2 fix
+agent may start validation/design under §8, but must first record cleanup authorization and
+continuation delivery order before editing product code, keeping accounting coupled with cleanup
+and ASF-3 ownership separate. See [pickup readiness](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#pickup-readiness).
+
 The [audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) records all seven charters and the separate proposed
 cross-audit integration proof. These subsystem audits do not substitute for the candidate-bound
 architectural review before release or start any fix workflow.
@@ -1735,6 +1741,12 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-21 — Clarified core repair pickup readiness:** checked the live queue and workflow §8.
+  CR-A1-1/2 remain design-pending rather than implementation-ready; A1-3 remains independently
+  actionable. CR-A2 is selectable for fix validation/design with cleanup/continuation enforcement
+  specified before code, without creating a separate architecture unit or absorbing ASF-3.
+  The assessment/handoff now state that distinction. No product/spec change or new work unit.
 
 - **2026-10-21 — Frontier reassessment of refactor scope:** after the operator challenged relying
   on Luna for architectural judgment, a fresh-context GPT-6 Astra reviewer independently checked

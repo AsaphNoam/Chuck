@@ -35,6 +35,23 @@ independent boundary evidence that was missing.
 
 ## Architectural refactor recommendation
 
+### Pickup readiness
+
+- **CR-A1-1/2: design pending; not implementation-ready.** No ready change or executable `/work`
+  refactor unit has been created. Settle the preservation mechanism, whole-rebuild versus per-agent
+  failure/missing-source policy, transaction/resource behavior, revised TS-02.R9 and acceptance
+  evidence before handing implementation to a worker. The alternatives below are not a settled design.
+- **CR-A1-3: available as an ordinary focused fix.** Its complete-record correction is separable
+  from the reindex design; preserve the shared reader/writer contract.
+- **CR-A2: available for a fix agent, with a required first design step.** Under workflow §8,
+  first record the cleanup authorization/identity contract and continuation admission-before-input
+  order, updating the relevant specification before coding. Choose/prove enforcement rather than
+  assume existing fields suffice. Fix accounting before or with deferred cleanup. This stays within
+  CR-A2; coordinate shared seams with ASF-3 without absorbing its findings or creating a separate
+  ownership architecture project. No ready-change file is required merely to start that fix validation/design.
+- **CR-A4 is closed.** Other open CR findings remain available through their existing fix units and
+  normal validation/specification obligations; this assessment adds no global queue dependency.
+
 **Primary judgment after source checks and an independent Astra challenge: design the reindex
 boundary; require bounded task cleanup/continuation design within coordinated fixes, without a
 standalone ownership architecture project.** These recommendations do not create implementation
