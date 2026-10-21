@@ -22,7 +22,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-6 wait.
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
-  with six open admission/recovery findings; CR-A3 is reviewed with three open workspace/configuration
+  with nine open admission/recovery findings; CR-A3 is reviewed with three open workspace/configuration
   findings. CR-A4 is reviewed with one open mail-result contract finding; CR-A5–CR-A7 remain
   researched and waiting.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
@@ -206,7 +206,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A4 are reviewed; 
 | Unit | Responsibility | Status |
 |---|---|---|
 | [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) | Durable truth and recovery: conversation/session authority through Stop/restart, archive/Restore, interrupted reindex and native continuation | reviewed `da44be64` — three findings open |
-| [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | reviewed `f1c59961` — six findings open |
+| [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | reviewed `f1c59961` — nine findings open |
 | [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | reviewed `7ec20a01` — three findings open |
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — one finding open |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | waiting to start |
@@ -495,6 +495,64 @@ is unrelated and preserved. Product code and normative specifications are unchan
   Keep read/in-flight bounds while advancing across blocked prefixes over successive passes;
   regress more than one batch without changing blocked work's retry policy or admission order
   among eligible work. ASRG-5 retains the separate quota-probe cleanup queue mechanism.
+
+- **Must fix** — CR-A2-7 — **A failed turn silently blocks every later automatic turn for that agent**
+  (INV §7/§9). `internal/runtime/chat.go:1706–1709,2585–2586`: a provider-failed turn leaves the
+  live agent's status `error`, and `StartActivation` refuses anything but `idle` (only quota
+  continuation is exempt) with `(false, nil)`. A later waking message creates a new opportunity
+  that is released as pre-attempt contention on every sweep and never attempted; a dependency task
+  for that running agent likewise stays `ready` with zero attempts and no attention reason. Only
+  a person's prompt clears it. FS-06.R26 promises later new mail a new opportunity after a
+  provider failure, and FS-16.R8/R25 forbid silent indefinite deferral. Fake-provider probes
+  (`/tmp/cra2-mail/probe_test.go`, `TestCRA2MailAfterFailedTurnStatusError`,
+  `TestCRA2TaskForAgentInErrorStatus`) observe one provider prompt, a permanently pending
+  activation and an unattended `ready` task. Treat a settled failed turn with no active turn as
+  admissible for automatic activation (as quota continuation already does), or surface an
+  actionable attention reason; regress mail and borrowed task starts after a failed turn.
+
+- **Must fix** — CR-A2-8 — **Room Resume after a quota stop leaves a running room that never takes a turn**
+  (INV §1/§5/§7). `internal/server/quota_controls.go:302–306`,
+  `internal/runtime/chat.go:1695–1702`, `internal/server/think_tanks.go:292–296`,
+  `internal/state/think_tank_turns.go:847–855`: room Resume/Retry cancels the participant's
+  quota episode under FS-01.R43 and clears the "Quota reached" hold, but the participant's
+  runtime still refuses every non-continuation activation while its quota row is not `continued`
+  (and while its in-memory quota block remains). The room therefore shows running, no hold and no
+  active attempt, and no further turn is ever started; startup recovery then re-holds it as
+  "Quota reached" because the cancelled row matches `state != continued`. FS-01.R43/R44/R50 and
+  TS-10.R42/R43 require an owner control either to proceed under ordinary eligibility or to leave
+  an honest actionable hold. Probes (`/tmp/cra2-quota/probe_test.go`,
+  `TestProbeRoomResumeCancelledQuota`, `TestProbeRoomResumeAutoContinueOff`,
+  `TestProbeRestartRehold`) observe Resume 200, `cancelled` quota, running/no-hold/no-attempt with
+  one total prompt after repeated room sweeps, and the restart re-hold. When a room control
+  supersedes the episode, settle its runtime quota block as a manual turn does (or let the room
+  owner pass), and exclude cancelled rows from restart re-hold; regress Auto continue off,
+  pending check and needs-attention episodes. Distinct from ASRG-1's startup-failure compensation.
+
+- **Worth fixing** — CR-A2-9 — **Startup reap contention strands a starting task until the next restart**
+  (INV §5/§15). `internal/server/task_dispatcher.go:793–815`: `recoverStartAttempt` tries one
+  `StopStage` for a created/woke reservation; ordinary lifecycle contention (for example a mail
+  wake, whose loop starts before task recovery) returns early so the row keeps `starting`, its
+  exclusive assignee and a budget slot. The dispatcher only lists `ready` rows, so the comment's
+  "next recovery pass" is the next process restart. FS-16.R25 and TS-10.R15/R17 treat a busy
+  lifecycle as a free deferral, not a stranded start. The probe
+  (`/tmp/cra2-tasks/server_probe_test.go`,
+  `TestCRA2StartingRowSurvivesTransientLifecycleContentionAtStartup`) holds the claim during
+  recovery, releases it, and observes `starting/woke` after 15 dispatcher passes. Retry
+  pre-process `starting` reservations from the bounded dispatcher tick under the same reap
+  guard; keep the existing refusal for an unproved live process (the passing control above).
+
+Second independent pass (parallel session, same `f1c59961` source; recorded after `0ce045e7`):
+four focused Sonnet reviewers covered task admission/restart, waits/cleanup, mail and quota. Two
+of them independently reproduced CR-A2-1–6 with separate probes (`/tmp/cra2-{tasks,waits,mail}/`);
+the parent verified CR-A2-7–9 against source and reran their probes. The quota pass also found
+that task cancellation outside the HTTP quota wrapper (`cancel_task` tool, pipeline reconcile)
+still runs a paid check for cancelled work (`/tmp/cra2-quota/probe2_test.go`): this is ASRG-2's
+missing owner admission with a second trigger, not a new finding. Hypotheses, unproved: the
+unknown-reset check's selection key omits Claude settings-layer routing/login content
+(`internal/server/quota_check.go:82–91`; no live receipt of a provider effect); lifecycle
+contention during task cleanup counts toward cleanup-failure escalation; one unscannable
+activation/task row aborts a whole sweep (only via corruption or a manual edit); mail loops
+starting before `recoverTasks` can overlap a recovery reap. Fix model remains medium.
 
 Connected authority/evidence ledger:
 
@@ -1456,6 +1514,12 @@ and specifications are unchanged.
 Settled work through v0.18.0 is in
 [`HANDOFF-through-2026-10-20`](../archive/state/HANDOFF-through-2026-10-20.md).
 v0.18.0 was published 2026-10-21 with the explicit one-release architectural-review waiver.
+
+- **2026-10-21 — Review: admission, waiting and recovery (CR-A2, second pass).** A parallel
+  audit of the same `f1c59961` source independently reproduced CR-A2-1–6 and added CR-A2-7
+  (failed turn silently blocks automatic turns), CR-A2-8 (room Resume after quota never takes a
+  turn) and CR-A2-9 (startup reap contention strands a start). Probes rerun by the parent; fix
+  model stays medium. Only the handoff is committed; ready-change edits remain untouched.
 
 - **2026-10-21 — Review: information and operating knowledge (CR-A4).** Audited current HEAD
   `7e0e1a0a`; recorded one Must-fix mail-result enum mismatch. An independent specification-based
