@@ -36,7 +36,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 ## Active change
 
 - **Release v0.18.0:** both Go test variants, 980 UI tests, static/spec/link checks and the
-  distribution build pass. Version confirmed; integration, tag, push and publication confirmation
+  distribution build pass. Version confirmed; tag, push and publication confirmation
   remain.
 - Other available review/fix units and owed live receipts remain below.
 
