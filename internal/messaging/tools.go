@@ -231,7 +231,7 @@ func (s *Server) handleSendMessage(_ context.Context, req *mcp.CallToolRequest, 
 		"to":         toID,
 		"to_address": recipient.Role + "@" + recipient.Project,
 		"wake":       wake,
-		"delivery":   map[bool]string{true: "waking", false: "deferred"}[wake],
+		"delivery":   map[bool]string{true: "queued_waking", false: "queued_deferred"}[wake],
 	})
 }
 

@@ -172,13 +172,13 @@ func TestSendMessageWakeIntentDefaultsAndDefers(t *testing.T) {
 	result, failed := call(t, cs, "send_message", map[string]any{
 		"to": "a_rev", "body": "action needed",
 	})
-	if failed || result["wake"] != true || result["delivery"] != "waking" {
+	if failed || result["wake"] != true || result["delivery"] != "queued_waking" {
 		t.Fatalf("default waking send = %v failed=%v", result, failed)
 	}
 	result, failed = call(t, cs, "send_message", map[string]any{
 		"to": "a_rev", "body": "FYI only", "wake": false,
 	})
-	if failed || result["wake"] != false || result["delivery"] != "deferred" {
+	if failed || result["wake"] != false || result["delivery"] != "queued_deferred" {
 		t.Fatalf("deferred send = %v failed=%v", result, failed)
 	}
 
@@ -222,7 +222,7 @@ func TestDeferredMailAddressesStoppedChatWithoutWaking(t *testing.T) {
 	result, failed := call(t, cs, "send_message", map[string]any{
 		"to": "a_rev", "body": "FYI while stopped", "wake": false,
 	})
-	if failed || result["delivery"] != "deferred" {
+	if failed || result["delivery"] != "queued_deferred" {
 		t.Fatalf("deferred send to stopped chat = %v failed=%v", result, failed)
 	}
 	activations, err := st.PendingActivations(state.ActivationKindMail, "a_rev", 10)

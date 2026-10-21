@@ -85,7 +85,7 @@ func TestStoppedPipelineAgentRemainsAddressable(t *testing.T) {
 	res, isErr = call(t, coord, "send_message", map[string]any{
 		"to": "a_stage", "subject": "status", "body": "report when ready",
 	})
-	if isErr || res["ok"] != true || res["delivery"] != "waking" {
+	if isErr || res["ok"] != true || res["delivery"] != "queued_waking" {
 		t.Fatalf("send_message to stopped pipeline agent = %v (isErr=%v), want a waking delivery", res, isErr)
 	}
 }

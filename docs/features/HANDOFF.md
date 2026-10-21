@@ -23,13 +23,16 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
   with nine open admission/recovery findings; CR-A3 is reviewed with three open workspace/configuration
-  findings. CR-A4 is reviewed with one open mail-result contract finding; CR-A5 is reviewed
+  findings. CR-A4 is reviewed and closed (no open findings); CR-A5 is reviewed
   with two open supervision/specification findings. CR-A6 is reviewed with six open operator
   action/observation findings. CR-A7 is reviewed with five open capacity/cost findings.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   [Before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) connects preservation,
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
   CR-A7-1's acceptance scope without changing finding owners or starting fixes.
+  Its [refactor recommendation](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#architectural-refactor-recommendation)
+  identifies bounded reindex and task-ownership refactors for separate design; CR-A4's independent
+  local fix stays with its existing worker and is recorded closed below.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
@@ -212,7 +215,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) | Durable truth and recovery: conversation/session authority through Stop/restart, archive/Restore, interrupted reindex and native continuation | reviewed `da44be64` — three findings open |
 | [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | reviewed `f1c59961` — nine findings open |
 | [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | reviewed `7ec20a01` — three findings open |
-| [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — one finding open |
+| [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — closed; CR-A4-1 fixed |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — two findings open |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — six findings open |
 | [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — five findings open |
@@ -538,72 +541,6 @@ bounded room/read/sweep work and independently grounded evidence. New findings a
 known violations retain their existing owners. §6 has no new interface/runtime to enroll and §13
 has no material markup/CSS surface in this subsystem audit. Independent rendered verification
 does not apply to the state-only review result; no visual acceptance gate is claimed.
-
-### CR-A4 — Information and operating knowledge — reviewed `7e0e1a0a` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Subsystem audit complete at `7e0e1a0a739b1466029a4ba51d1c672c1275bb5b`; one finding keeps this
-same unit open. Three focused read-only reviewers traced content/access, mail/tools and managed
-knowledge; the parent checked their evidence, challenged proposed findings and exercised the
-connected consumers. Release source pins are Claude ACP 0.85.1 / Agent SDK 0.3.286 and Codex
-ACP 2.1.1 / CLI 0.159.3 (`scripts/release/package{,-lock}.json`); no installed-provider version or
-credentialed native adoption is claimed. The four entry dirty files under `docs/ready-changes/`
-are unrelated and preserved. No product code or normative specification changed.
-
-- **Must fix** — CR-A4-1 — **Mail send results return undocumented delivery enum values**
-  (INV §10/§11/§17). `internal/messaging/tools.go:234` returns `delivery:"waking"` for the
-  default/true wake and `delivery:"deferred"` for false. TS-04.R53 requires `queued_waking` /
-  `queued_deferred`, explicitly describing scheduling intent rather than confirmed execution.
-  Every ordinary agent send therefore violates the published result contract; a consumer following
-  its documented enum cannot classify the successful result. This does not demonstrate lost mail
-  or failed scheduling. `internal/messaging/messaging_test.go:175–182` and
-  `pipeline_agent_task_target_test.go:88` assert the implementation's stale spelling, masking the
-  drift. A disposable Go overlay changes the real MCP test's expected values to the independent
-  specification and collects both failures: `wake:true, delivery:waking` and
-  `wake:false, delivery:deferred`, each with `ok:true` and a retained message ID. Probe:
-  `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 go test -overlay=/tmp/chuck-cra4-review/enum-overlay.json
-  ./internal/messaging -run '^TestSendMessageWakeIntentDefaultsAndDefers$' -count=1`.
-  Fix the result literals at the existing handler and update transport assertions to the specified
-  enum, retaining assertions for actual wake/activation effects. This is a localized protocol/test
-  correction with no new lifecycle or storage mechanism.
-
-**Source, authority and consumer ledger**
-
-| Boundary | Reviewed behavior and evidence |
-|---|---|
-| Selected upload → accepted copy → native input | Server-owned immutable descriptors retain order/hash and recovery identity. `runtime/message.go` reopens each accepted descriptor and rejects identity changes; image blocks contain decoded owned bytes, ordinary files expose the exact owned path under normal tool permissions. Maximum-size native-wire/order and independent clone-copy tests pass. `@` paths remain text; historical images are not resent by a switch. |
-| Captured annotation → source record → recipient | Excerpts/anchors are captured once and formatting clips only excerpts with disclosure. Canonical agent/room records precede self prompt or reserved-user mail; source recording and target delivery remain distinct. Mixed-anchor replay, agent-delivery and clipping tests pass. Annotation New task uses launch/mail, not durable `create_task`. ASF-2 retains lost-response duplication and draft/withdraw/uncertain-Steer ownership. |
-| Reference/grant/attachment → bounded read | Immutable transcript spans and accepted report locators are independent of labels/grants. Token-derived callers and `ContextReadAuthorized` reauthorize every page, including durable task membership; cursors confer no authority. Fixed-source traversal, in-flight-share exclusion, cursor refusal and archive/deletion tombstone tests pass. Grant/list/attach does not inject or wake. |
-| Independent peer read → recorded consumer result | Peer transcript access intentionally remains independent of reference grants, including stopped/archived sources; fixed-prefix replacement is refused. Context-tool serialization returns source identity, bounded text and continuation/completion, through the shared text/structured result helper. Peer cursor and mail-budget independence checks pass. |
-| Mail/assignment → native prompt → receipt | One builder appends attributed whole-message JSON after the original objective, with 15-message/64 KiB mail bounds and retained overflow. Task launch preserves leading skill-command syntax; an existing assignee is directed to `get_assigned_task`. Reservation and settlement bind to the receiving turn's durable key; only a recognized non-cancelled completion confirms inline delivery. Store reservation/recovery and fake-native activation/receipt tests pass. A2 retains admission/retry ownership; ASF-3/4 retain watched-context/result-bounds findings. |
-| Embedded guidance → available package → runtime overlay | Verified owner-only `.agents`/`.claude` views share an embedded source/digest. Failed startup publication suppresses managed path/env claims despite stale files; later preparation retries without a provider turn. Shared overlay keeps user persona/awareness frozen and managed additions runtime-only; awareness opt-out retains tools/discovery. Publication, failure/retry, frozen-awareness and conditional-overlay tests pass. Exact-digest migration preserves custom content. |
-| Registered tools/guidance → provider request | Current managed references agree with registered messaging/task/context/peer/room capabilities and independent host Stop consent. Claude new/load append to the native preset; Codex merges native developer instructions before Chuck layers. Fork purpose retains the decided provider-specific inheritance. Serialized native instruction and registered result-contract tests pass; CR-A4-1 is the enum exception. |
-| Transcript history → handoff bridge → cold continuation | Canonical projection labels role/tool evidence, omissions and clipping, retaining newest turns first. One bridge stays separate from the frozen persona and survives target turns, Stop, cold resume and compaction. Primer and switch/Stop/restart capture tests pass; unsupported primer targets refuse before teardown. Requested manifests remain `delivery:requested`, `adoption:unknown`; their tool digest is not a complete native capability inventory. |
-
-**Evidence and limits.** Focused existing checks passed across `internal/contextref`,
-`internal/state`, `internal/runtime`, `internal/agentknowledge`, `internal/server`, `internal/cli`
-and `internal/messaging`. The parent ran the charter's named fixed-source/cursor/tombstone,
-attachment native-wire/clone, inline receipt/reservation, publication/overlay, annotation and
-tool-result tests, plus the switch-before-first-target-turn → Stop → cold Resume/compaction
-journey and additive native-instruction checks. Initial server/MCP runs could not bind `::1` in
-the sandbox; approved isolated loopback execution passed. The independent enum overlay fails
-against the unchanged source as described above; the existing stale-expectation test passes.
-Disposable probes remain under `/tmp/chuck-cra4-review/`, outside the repository.
-
-No smaller total prompt allowance is defined by the current consumer: R83's 64 KiB cap applies to
-the mail section, so primary-plus-mail exceeding that size alone is not a finding. Client-authored
-room anchor metadata was not treated as a new normal-use substitution defect without a real caller
-that creates the mismatch; captured excerpts deliberately do not reread mutable sources. No new
-implementation choice or product decision arose. No live Claude/Codex turn, physical-device
-selection or rendered acceptance journey ran. FS-18.A12/A13 and existing attachment, task-report,
-host-consent and handoff/compaction adoption receipts remain owed; consumer-decoded fake inputs
-and requested hashes do not prove model comprehension. Other audit/fix owners remain unchanged.
-
-**Invariant sweep.** §§1–5 and §9 cover lifecycle overlays, turn claims, persistence and teardown;
-§§7/8/10/11 cover reads, bounded feedback, guidance wiring and result meaning; §§12/14–16 cover
-native invocation, authorized file/tool access, effect ordering and input bounds; §17 covers the
-independent specification/transport oracle. CR-A4-1 is tagged above; no additional confirmed
-violation was established. §6 has no new runtime/interface contract and §13 no material CSS/markup
-surface in this audit. Independent visual review is not applicable to this state-only result.
 
 ### CR-A3 — Executable workspace and configuration — reviewed `7ec20a01` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -1797,6 +1734,12 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-21 — Fix: mail send result enum (CR-A4-1, INV §10/§11/§17).** `send_message` now
+  returns TS-04.R53's `delivery: queued_waking` / `queued_deferred`; the three messaging tests
+  that asserted the stale `waking`/`deferred` spelling now assert the specified enum alongside the
+  existing stored-wake and activation checks. No spec change (restores specified behavior). CR-A4
+  closes; other core-audit and ASF findings remain open. Ready-change edits preserved.
 
 - **2026-10-21 — Core audit before-fix synthesis:** two focused GPT-6 Luna readers and parent
   integration reconciled the completed CR-A1–CR-A7 findings against `3c8b0cec`.
