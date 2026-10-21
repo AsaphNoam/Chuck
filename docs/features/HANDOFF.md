@@ -25,7 +25,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   with nine open admission/recovery findings; CR-A3 is reviewed with three open workspace/configuration
   findings. CR-A4 is reviewed with one open mail-result contract finding; CR-A5 is reviewed
   with two open supervision/specification findings. CR-A6 is reviewed with six open operator
-  action/observation findings. CR-A7 remains researched and waiting.
+  action/observation findings. CR-A7 is reviewed with five open capacity/cost findings.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
@@ -202,7 +202,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 
 **Core reliability audit units:** explicitly requested subsystem reviews of the complete current
 implementation and callers, not reviews of planning commits. Read the selected charter, refresh
-current fix ownership and record the reviewed HEAD. CR-A1–CR-A6 are reviewed; CR-A7 has not started.
+current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed with findings open.
 
 | Unit | Responsibility | Status |
 |---|---|---|
@@ -212,7 +212,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A6 are reviewed; 
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — one finding open |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — two findings open |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — six findings open |
-| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | waiting to start |
+| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — five findings open |
 
 The [audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) records all seven charters and the separate proposed
 cross-audit integration proof. These subsystem audits do not substitute for the candidate-bound
@@ -252,6 +252,108 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### CR-A7 — Sustained capacity and cost — reviewed `8c837942` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Subsystem audit complete at `8c837942a20b4eb4769104aec9a0ad11a712c3c7`; five findings keep this
+same unit open. Three focused reviewers covered storage/reconciliation, browser consumers and runtime
+lifetimes; the parent reviewed their source/probes and measured reference/peer reads. Entry dirty
+ready-change edits are preserved. No product code or normative spec changed, and no local-choice
+or new product decision is introduced. Existing A1–A6 and ASW/ASF finding ownership is unchanged.
+
+- **Must fix** — CR-A7-1 — **SSE overflow loses agent state without resnapshot recovery**
+  (INV §1/§11). `internal/bus/bus.go:91–105` silently drops the oldest event at 256 queued
+  events; `internal/server/sse.go:54–65` continues the same stream and independent heartbeats.
+  `ui/src/api/sse.ts:148–172,175–190,300–315` repairs only transcript sequence gaps and reconnects
+  only on missing pings. A slow writer during a multi-agent burst can lose a terminal, permission
+  state or removal update; subsequent other-agent events and healthy pings never restore that
+  agent's state. Dashboard state/controls remain stale, contrary to TS-03.R9's drop/resnapshot
+  strategy. The disposable bus probe publishes terminal state, 256 unrelated notifications and a
+  ping: the subscriber receives the ping but no state/reset, while `Bus.Snapshot()` has the terminal
+  state. Source tracing confirms neither browser transport requests a resnapshot. Recover the
+  bounded subscriber through a reset/resnapshot or reconnect, and test lost state plus continued
+  heartbeat delivery through the browser recovery path.
+
+- **Must fix** — CR-A7-2 — **Reference transcript scans have no admission or cancellation lifetime**
+  (INV §4/§16). `internal/messaging/context_tools.go:68–74,118–124` discards request contexts;
+  `internal/contextref/service.go:165–217,356–379,428–452` scans the entire file for share/read
+  without a scan slot, cancellation check or fixed physical read boundary. The separate peer scan
+  cap does not govern this path. Concurrent delegated reference reads therefore multiply full-file
+  decoding, and cancelling their requests does not release that work. A 1,037-byte fixed reference
+  from a 111,372,895-byte/100,000-record transcript took 459 ms and 269.9 MB cumulative allocation
+  per warm read. A token-bound handler probe started 16 already-cancelled reads of the same
+  10,000-record transcript: all 16 completed successfully. This probe checks handler cancellation,
+  not real-provider Stop timing or cross-agent starvation. Add explicit reference-scan admission
+  and request/lifecycle cancellation through the shared reader seam; preserve fixed-source,
+  authorization and oversized-record edge semantics. Choose its own documented limit rather than
+  assuming the peer-specific eight-scan contract applies to every reader.
+
+- **Must fix** — CR-A7-3 — **Completed hydration keeps retaining every live state update**
+  (INV §16). `ui/src/api/sse.ts:35,148–172` appends an agent id to `hydrationIds` on every live
+  `state_update`, even after the hydrated marker consumed and cleared the snapshot list. Nothing
+  consumes that new list until another reconnect, whose `onopen` discards it anyway. A healthy
+  long-lived dashboard therefore retains traffic history rather than the current agent set.
+  The disposable UI probe completes hydration, delivers 10,000 updates for one agent, and observes
+  10,000 retained ids. Track ids only while snapshot hydration is active and release the list at
+  its boundary; extend the existing reconnect/hydration test. Separate per-agent request tokens
+  deliberately fence late responses: do not delete them blindly and introduce an ABA race.
+
+- **Worth fixing** — CR-A7-4 — **The idle reconciliation timer replays all retained history**
+  (INV §7/§16). Every 30 seconds `internal/server/reconcile.go:20–24,73–75,118–130` walks every
+  canonical transcript and fully reads it at `:85–100,162–190`, before
+  `internal/state/manager.go:175–205` checks running identity/status age. Unchanged, stopped or
+  archived history still incurs the read. With production stale timing and no corrections
+  (`applied=0`), three warm sweeps over 10/100/500 MB took 39–40/402–467/2,015–2,101 ms and
+  allocated 25.9/252.8/1,260.1 MB respectively. The 500 MB corpus spans 50 agents: roughly two
+  seconds of repeated background work every 30 seconds on unchanged data. This demonstrates idle
+  work amplification, not an invented latency SLO or proven control starvation. The fsnotify
+  single-path test does not cover the periodic fallback. Avoid replaying ineligible/unchanged
+  retained files while preserving missed-write repair, truthful I/O errors and restart behavior;
+  use the measured rationale for a separately scoped remedy, not a general cache/index rewrite.
+
+- **Worth fixing** — CR-A7-5 — **Control-queue generation tombstones outlive their work**
+  (INV §4/§16). `internal/runtime/control.go:31–34,63–79,88–95` inserts a `shed` map entry when
+  a full queue's reservation is cancelled and never removes an entry. If generations repeatedly
+  stop/replace while a slow sink holds the conversation FIFO full, each adds a marker. When a
+  current generation still owns the conversation journal, the map survives even after the queue
+  drains; full journal reclamation eventually releases it only when the conversation loses every
+  owner. A disposable extension of `TestCancelledControlRemainsBounded` records 32 distinct shed
+  generations, then zero pending items and `running=false`, with all 32 markers retained. Keep
+  late-generation shedding correct while bounding marker lifetime at generation teardown. Reuse
+  the existing journal/generation ownership; the 256-pending-plus-one-in-flight item cap itself holds.
+
+Cost/ownership ledger (Darwin 24.6.0 arm64, Go 1.26.6, source/default SQLite build, isolated
+temporary homes, no providers; fixture writes and one warm-up precede three measured repetitions):
+
+| Workload | Returned versus processed work and result |
+|---|---|
+| Fixed reference, early versus late span | 1,037 returned bytes in either position. At 1,000/10,000/100,000 records (1.11/11.13/111.37 MB), early warm medians were 4.3/45.0/459.1 ms; cumulative allocation 2.77/27.06/269.91 MB. All records are decoded, including later text outside the fixed span. This linear cost alone is not a finding; A7-2 owns unbounded concurrent/cancelled work. |
+| Peer first/second/incremental page | At 111.37 MB, first/second 32 KiB pages took 993/885 ms and allocated about 401.7 MB each; a 1,066-byte incremental result took 510 ms and 269.9 MB. Each hashes/decodes the whole captured prefix. Eight-scan admission, fixed-prefix verification and returned-page bounds remain distinct; the fingerprint cost is intentional, not a new defect. |
+| HTTP windows/full local reads and primer | 1,000/10,000/50,000-record window probes returned 100 events after visiting all records (about 2/14/69 ms). Local full reads intentionally materialize all events; primer retains bounded recent/older text despite full input scans. No standalone scan-latency finding or universal index requirement is inferred. |
+| Quiescent retained corpus | Periodic 10/100/500 MB sweeps process all bytes with zero corrections; A7-4 records the measured cost. The charter's unchanged-file-skip lead applies only to the fsnotify path, not the periodic sweep. |
+| Bus, views and temporary state | One server/worker snapshot row per live agent; 256 queued events per server subscriber; four desktop expanded cards; open-agent ref counts, request fencing and temporary reconciliation tails release correctly in focused tests. Phone response/client windows remain distinct. A7-1 and A7-3 qualify snapshot recovery and traffic retention; no real-browser memory measurement is claimed. |
+| Runtime/process ownership | Journal items and PTY fan-out remain bounded; PTY tests cover drain without viewers and close. Journal reclaim follows references/writer/drainer; A7-5 qualifies marker retention. ASW-3's real tmux/iTerm2 receipt remains owed; no repeated real native-generation/OS-process measurement ran. |
+| Starts/native effects | Mail and task caps are eight in their separate domains; quota has its own slots, room openings their own capacity. These are not one global cap. Context MCP tests assert no mail/activation/history side effect. The focused fake-provider mail journey observes one prompt for two coalesced messages, no replay across repeated sweeps, then a second prompt for new mail; admission-full and shutdown-join tests pass. No credentialed model work, provider usage, adoption, quality comparison or aggregate paid-work measurement ran; A2/ASR-I findings and experiment ownership remain unchanged. |
+
+Evidence: diagnostic overlays/probes in `/tmp/chuck-cra7-review/` (retrieval/cancelled handler logs),
+`/tmp/cr-a7-hydration-10000.patch` and `.log`, `/tmp/cr-a7-bus-overflow-probe_test.go` and `.log`,
+`/tmp/cra7_journal_test.go` plus `/tmp/cra7_overlay.json`, and
+`/private/tmp/a7-reconcile-sweep-probe.go.txt` / `a7-storage-cost.log`. They demonstrate current
+behavior, not committed regression coverage. `GOFLAGS=-p=1`, unset `CHUCK_RUNTIME_ROOT`; local
+MCP and mail-activation tests initially hit sandbox loopback `EPERM`, then passed with approved execution.
+Existing fixed-page/cursor/prefix contracts pass; 68 focused SSE/store/phone tests and focused
+bus/server window/snapshot tests pass; full runtime and terminal packages pass. Spec/finding/link
+integrity and `git diff --check` pass. No product repair,
+native/device gate closure, measured cross-agent Stop starvation, cold-cache claim or general
+performance pass is inferred. Allocation figures are cumulative bytes per operation, not peak RSS.
+
+Invariant sweep: §§1/2/4/5/7/8/9/10/11/14/15/16/17 apply to retrieval, recovery, publication,
+subscriptions, process/registration ownership, bounded producers and diagnostic evidence. Findings
+are tagged above; shared projections, safe error outcomes, source identity, token/route authority,
+publication order and targeted-test oracles supply no other new finding. §3 has no new persisted
+field/form surface, §6 no new interface/runtime and §13 no markup/selector surface. §12's external
+tool/version claims are retained ASW-3/native proof limits, not newly measured provider behavior.
+Independent rendered verification (§14.4) is not applicable to this state-only audit result.
 
 ### CR-A6 — Operator action and observation truth — reviewed `3334471d` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -1689,6 +1791,14 @@ and specifications are unchanged.
 Settled work through v0.18.0 is in
 [`HANDOFF-through-2026-10-20`](../archive/state/HANDOFF-through-2026-10-20.md).
 v0.18.0 was published 2026-10-21 with the explicit one-release architectural-review waiver.
+
+- **2026-10-21 — Review: sustained capacity and cost (CR-A7).** Audited source `8c837942`;
+  recorded three Must-fix findings for missing SSE overflow recovery, uncancelled/unadmitted
+  reference scans and post-hydration traffic retention, plus two Worth-fixing findings for idle
+  full-history reconciliation and shed-generation marker lifetime. Disposable corpora/probes
+  establish scan/allocation growth and retained-state mechanisms; focused existing contracts pass.
+  No native quality/usage or cross-agent starvation claim is made. Other audit/fix ownership and
+  live receipts remain unchanged; only the handoff is committed and ready-change edits preserved.
 
 - **2026-10-21 — Review: operator action and observation truth (CR-A6).** Audited product source at
   `3334471d`; recorded three Must-fix findings (refused attachment Steer reported as sent, phone run
