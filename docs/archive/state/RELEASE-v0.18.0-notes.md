@@ -43,7 +43,18 @@ component version bump is required.
   architectural-gate regression tests pass. The candidate gate itself refuses the absent receipt;
   publication uses the explicit version-specific waiver above.
 - Both Go test variants and static checks pass. The operator confirmed v0.18.0.
-  Tagging and GitHub publication remain pending.
+  Main and the annotated tag were pushed together.
 - A concurrent FTS5 closure run hit the previously recorded quota-dispatch transcript flake;
   the full release run passed, and five focused FTS5 repeats passed. The failure remains recorded
   in the live handoff; no test repair is claimed by this release.
+
+Published 2026-10-21: [v0.18.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.18.0).
+[Release CI 39542860225](https://github.com/AsaphNoam/Chuck/actions/runs/39542860225) passed
+assembly, transaction/bootstrap coverage, archive validation and fresh installation.
+The release carries `chuck-0.18.0-darwin-arm64.tar.gz`, `install.sh` and `manifest.json`.
+The published manifest matches the archive's 324,965,785-byte asset size and records SHA-256
+`7c3bca6f3af4d5f7ed5a55ff60fb9dfa819d864ccd55193c856f32af8264f289`.
+[Main CI 39542863948](https://github.com/AsaphNoam/Chuck/actions/runs/39542863948) also passed
+both Go variants, gate-contract checks, static checks, UI tests and UI build on the tagged source.
+The GitHub release body contains concise product notes; this file retains the detailed repository
+release record.

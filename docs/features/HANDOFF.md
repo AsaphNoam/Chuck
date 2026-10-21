@@ -6,10 +6,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Current position
 
-- **Release:** v0.18.0 in preparation from committed main through `ad08b386`. Notes and the
-  one-release operator waiver are in
+- **Release:** [v0.18.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.18.0) published
+  2026-10-21 from `722282dd`; release CI 39542860225 passed, and the archive, installer and
+  checksum manifest are attached. Notes and the one-release operator waiver are in
   [RELEASE-v0.18.0-notes.md](../archive/state/RELEASE-v0.18.0-notes.md).
-  v0.17.0 remains the latest confirmed publication until release CI succeeds.
+  Main CI 39542863948 also passed on the tagged source.
 - **Operator authorization (2026-10-20):** release and push with pending fix items; skip the
   architecture review for v0.18.0 only. No review receipt or finding closure is claimed.
   The operator also confirmed v0.18.0. All open findings, reviews and manual gates below remain live.
@@ -35,9 +36,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- **Release v0.18.0:** both Go test variants, 980 UI tests, static/spec/link checks and the
-  distribution build pass. Version confirmed; tag, push and publication confirmation
-  remain.
+- None. v0.18.0 is published; both Go variants, 980 UI tests, static/spec/link checks and
+  the distribution build passed.
 - Other available review/fix units and owed live receipts remain below.
 
 ## Acceptance gates still owed
@@ -1087,7 +1087,7 @@ and specifications are unchanged.
 
 Settled work through v0.18.0 is in
 [`HANDOFF-through-2026-10-20`](../archive/state/HANDOFF-through-2026-10-20.md).
-Release verification passed; tagging and publication remain pending.
+v0.18.0 was published 2026-10-21 with the explicit one-release architectural-review waiver.
 
 ## Blocked on human
 
@@ -1101,6 +1101,8 @@ The published `v0.11.0` release body remains empty; its notes are in
 Editing that older release is separate publication work.
 
 ## Release record
+
+See [RELEASE-v0.18.0-notes.md](../archive/state/RELEASE-v0.18.0-notes.md).
 
 See [`RELEASE-v0.17.0-notes.md`](../archive/state/RELEASE-v0.17.0-notes.md),
 [`RELEASE-v0.16.0-notes.md`](../archive/state/RELEASE-v0.16.0-notes.md),
