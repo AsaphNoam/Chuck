@@ -405,10 +405,11 @@ unchanged by them.
   row. Active-run orchestrator reservation prevents unrelated task admission; authorized stage
   dispatch and wait continuation use the ordinary lifecycle seam through that reservation. Once the
   run is terminal and cleaned, the reservation ends; historical membership cannot prevent wake.
-  The shared resume seam currently falls back from a rejected native session load to session/new
-  (`internal/runtime/chat.go`, Resume). Preserve that existing fallback with the same agent identity,
-  supply the persisted assignment/results again, and surface that native context was not restored;
-  never describe a fresh provider session as successful conversation restoration. No new provider
+  The shared resume seam fails a rejected native session load visibly rather than replacing the
+  conversation with `session/new` (FS-01.R10, `internal/runtime/chat.go`, Resume). The run keeps its
+  stage position and the agent its native identity for an explicit retry or standing replacement;
+  a deliberately fresh provider session receives the persisted assignment/results again and is
+  never described as successful conversation restoration. No new provider
   capability is assumed and no resume/registration logic is duplicated inside the pipeline.
 - **R39** (shipped 2026-09-13) — **Assignments are persisted, bounded handoffs.** Stage task creation freezes
   its objective, named input values, relevant prior report summaries, output declarations, and
@@ -632,7 +633,7 @@ unchanged by them.
   per-agent addition in `LaunchSpec.SystemPrompt` through ordinary session metadata; do not put it
   only in `RuntimeSystemPromptSuffix`, where it would be lost, or change saved role/project files.
   Fresh standing replacements and freshly launched bound coordinators resolve the same run
-  snapshot. Normal resume/wake/switch and fresh-native-session fallback reuse the frozen session
+  snapshot. Normal resume/wake/switch reuse the frozen session
   prompt, without another append or dependency on a retained run record. Assignment rendering,
   `get_assigned_task`, activation text and ordinary prompt sends do not copy the shared block.
   Existing-agent task targets retain their own frozen prompt and receive only normal assignments;

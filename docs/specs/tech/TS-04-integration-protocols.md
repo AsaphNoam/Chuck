@@ -1549,9 +1549,9 @@ durable/public contract. FS-01.A34 verifies these callbacks at the actual ACP fr
   overlay is process configuration (`CODEX_CONFIG`), not an ACP metadata extension.
 - Resume session ownership: a successful `session/load` keeps the *requested* session id
   authoritative. An adapter may echo a fresh `sessionId` (which then wins) or, like the pinned
-  `codex-acp`, return an empty result — an empty result is success, not failure. Resume re-mints via
-  `session/new` only when there is no prior session id or `session/load` errors; that fallback
-  abandons native history, so it is logged rather than silent. Treating an empty load success as a
+  `codex-acp`, return an empty result — an empty result is success, not failure. Resume mints via
+  `session/new` only when there is no prior session id; a `session/load` error fails Resume/wake
+  visibly and never abandons native history for a fresh session (FS-01.R10). Treating an empty load success as a
   failure once dropped the resumed conversation entirely (INV §11, the mock had returned a
   non-contract new-id shape).
 - Hook: `POST /api/hook` with a bearer/scoped token; accepted status vocabulary is the FS-02 state

@@ -80,6 +80,11 @@ type fakePublisher struct {
 	updates         []PipelineUpdate
 	notifications   []string
 	proposalUpdates int
+	taskUpdates     []state.Task
+}
+
+func (p *fakePublisher) PublishTaskUpdate(task state.Task) {
+	p.taskUpdates = append(p.taskUpdates, task)
 }
 
 func (p *fakePublisher) PublishPipelineUpdate(update PipelineUpdate) {

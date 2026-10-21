@@ -590,6 +590,9 @@ func (s *Server) finishTaskCleanupAt(ctx context.Context, task state.Task, endin
 		s.recordTaskCleanupFailureClassified(task, phase, err, isUnsafeTaskCleanupError(err))
 		return
 	}
+	// The release bumped the revision and may have cleared a cleanup attention
+	// reason; clients holding the pre-release row refetch it (TS-10.R11).
+	s.publishTaskUpdate(s.rereadTask(task))
 	s.reconcilePipelineForTask(task)
 }
 

@@ -794,7 +794,8 @@ func (s *Server) CreateAgentTask(req messaging.AgentTaskRequest) (state.Task, er
 // belongs here: an accepted stage result moved its run, and a boundary that
 // leaves derived state behind must republish it, or every client keeps showing
 // the pre-report run until something else happens to publish (TS-09.R17,
-// INV §1).
+// INV §1). The reported task itself is republished on both branches, so an open
+// Tasks view leaves its running row (TS-10.R11).
 func (s *Server) ReportAgentTaskResult(req messaging.AgentTaskResultRequest) (state.Task, error) {
 	task, err := s.stateStore.AssignedTask(req.AgentID)
 	if errors.Is(err, state.ErrNotFound) {
@@ -805,7 +806,12 @@ func (s *Server) ReportAgentTaskResult(req messaging.AgentTaskResultRequest) (st
 	}
 	stage, stageErr := s.stateStore.ReadPipelineStageTaskByTask(task.TaskID)
 	if errors.Is(stageErr, state.ErrNotFound) {
-		return s.stateStore.RecordAgentTaskResult(task.TaskID, req.AgentID, req.Generation, req.ExecutionHandle, req.Result)
+		finished, err := s.stateStore.RecordAgentTaskResult(task.TaskID, req.AgentID, req.Generation, req.ExecutionHandle, req.Result)
+		if err != nil {
+			return state.Task{}, err
+		}
+		s.publishTaskUpdate(finished)
+		return finished, nil
 	}
 	if stageErr != nil {
 		return state.Task{}, stageErr
@@ -831,7 +837,12 @@ func (s *Server) ReportAgentTaskResult(req messaging.AgentTaskResultRequest) (st
 		return state.Task{}, err
 	}
 	s.publishPipelineRun(updated)
-	return s.stateStore.ReadTask(task.TaskID)
+	finished, err := s.stateStore.ReadTask(task.TaskID)
+	if err != nil {
+		return state.Task{}, err
+	}
+	s.publishTaskUpdate(finished)
+	return finished, nil
 }
 
 // CancelAgentTask cancels a task the calling agent created. Authority is the

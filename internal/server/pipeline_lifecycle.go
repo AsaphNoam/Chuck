@@ -413,6 +413,10 @@ func (s *Server) PublishPipelineProposalUpdate() {
 	s.eventBus.Publish("pipeline_proposal_update", nil, map[string]any{})
 }
 
+func (s *Server) PublishTaskUpdate(task state.Task) {
+	s.publishTaskUpdate(task)
+}
+
 func (s *Server) PublishPipelineNotification(update pipeline.PipelineUpdate, kind string) {
 	s.eventBus.PublishPipelineNotification(update.RunID, update.DisplayName, update.CurrentAgentID, kind, update.AttentionReason, update.FinalOutcome)
 }

@@ -117,6 +117,9 @@ type Publisher interface {
 	PublishPipelineUpdate(PipelineUpdate)
 	PublishPipelineNotification(PipelineUpdate, string)
 	PublishPipelineProposalUpdate()
+	// PublishTaskUpdate republishes a stage task whose result the manager
+	// committed, through the server's single task publication (TS-10.R11).
+	PublishTaskUpdate(state.Task)
 }
 
 type PipelineUpdate struct {

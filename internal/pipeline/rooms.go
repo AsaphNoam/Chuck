@@ -113,6 +113,9 @@ func (m *Manager) acceptRoomOutput(ctx context.Context, runID string, explicit b
 	accepted, err := m.store.AcceptThinkTankStageOutput(current.TaskID, revision)
 	if err == nil {
 		m.publish(accepted)
+		if task, readErr := m.store.ReadTask(current.TaskID); readErr == nil && m.publisher != nil {
+			m.publisher.PublishTaskUpdate(task)
+		}
 		unlock()
 		return m.Reconcile(ctx, runID)
 	}

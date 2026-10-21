@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/bus"
 	"github.com/AsaphNoam/Chuck/internal/messaging"
 	"github.com/AsaphNoam/Chuck/internal/pipeline"
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -785,9 +786,57 @@ func TestAcceptedStageResultPublishesItsRunUpdate(t *testing.T) {
 			if update.RunID != runID || update.State != "finishing" {
 				t.Fatalf("published run update = %+v, want the finishing run this report committed", update)
 			}
+			// The run is published before the stage task it now carries.
+			requireSourceTaskUpdate(t, events, srv, stageTaskID)
 			return
 		case <-deadline:
 			t.Fatal("an accepted stage result published no run update")
+		}
+	}
+}
+
+// TS-10.R11, INV §1 — an accepted ordinary result changes only its own task, and
+// nothing else republished it: an open Tasks view kept the running row.
+func TestAcceptedOrdinaryResultPublishesItsTask(t *testing.T) {
+	srv := testServer(t, true)
+	taskID := newLaunchTask(t, srv, "ordinary result").TaskID
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'owner', assigned_generation = 'gen', execution_handle = 'handle' WHERE task_id = ?`,
+		state.TaskRunning, taskID); err != nil {
+		t.Fatal(err)
+	}
+	events, unsubscribe := srv.eventBus.Subscribe()
+	defer unsubscribe()
+	if _, err := srv.ReportAgentTaskResult(messaging.AgentTaskResultRequest{
+		AgentID: "owner", Generation: "gen", ExecutionHandle: "handle",
+		Result: state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	requireSourceTaskUpdate(t, events, srv, taskID)
+}
+
+// requireSourceTaskUpdate waits for the task_update carrying the committed
+// terminal row: its id, state, outcome and revision as stored.
+func requireSourceTaskUpdate(t *testing.T, events <-chan bus.Event, srv *Server, taskID string) {
+	t.Helper()
+	stored, err := srv.stateStore.ReadTask(taskID)
+	if err != nil || stored.State != state.TaskFinished || stored.Outcome != state.OutcomeSuccess {
+		t.Fatalf("stored task = %+v, %v", stored, err)
+	}
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case ev := <-events:
+			data, ok := ev.Data.(map[string]any)
+			if ev.Type != "task_update" || !ok || data["task_id"] != taskID {
+				continue
+			}
+			if data["state"] != stored.State || data["outcome"] != stored.Outcome || data["revision"] != stored.Revision {
+				t.Fatalf("task_update = %+v, want stored %s/%s revision %d", data, stored.State, stored.Outcome, stored.Revision)
+			}
+			return
+		case <-deadline:
+			t.Fatalf("accepted result for %s published no task_update", taskID)
 		}
 	}
 }

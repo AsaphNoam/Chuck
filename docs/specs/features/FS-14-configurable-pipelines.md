@@ -546,8 +546,9 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   recovery action and its consequence. The same standing orchestrator is the normal stage continuation target;
   any necessary replacement is explicit and receives the durable handoff. Persistence of identity
   does not promise that a provider process survives restart.
-  If normal provider resume starts a fresh native session, the agent receives its durable assignment
-  and work results again and supervision explicitly says native conversation context was not restored.
+  A rejected native load fails Resume/wake visibly without a fresh session (FS-01.R10); the stage
+  stays recoverable. When an explicit replacement starts a fresh native session, the agent receives
+  its durable assignment and work results again and is never presented as a restored conversation.
 - **R67** (shipped 2026-09-13) — Stage outputs live in Chuck's durable run/task records and remain
   inspectable after completion with no automatic expiry. Deleting a new-model run requires terminal
   state and completed cleanup; it removes the run's template snapshot and named-value projection,
@@ -768,8 +769,8 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   a bounded packaged Claude/Codex probe checks standing-guidance adoption separately from fake
   delivery proof, without claiming naming/grouping compliance from prompt emission alone.
 - **A55 (shipped 2026-10-09)** (R87–R89) — Start with guidance A, change the saved template to B, and exercise
-  next-stage dispatch, Continue/Retry, wait/wake, server restart/native resume, failed-load fresh
-  session fallback, runtime switch and explicit standing replacement. The original run's
+  next-stage dispatch, Continue/Retry, wait/wake, server restart/native resume, failed-load
+  refusal, runtime switch and explicit standing replacement. The original run's
   orchestrators retain A once; a new run receives B. End/delete the original run and resume its
   retained agent: its frozen prompt remains available. Sessions/runs without the field stay
   unchanged, and no recovery silently omits guidance after a stored-context read failure.
@@ -1118,7 +1119,7 @@ setup panel, live instruction editing, prompt templating/interpolation, automati
 inheritance or naming/grouping enforcement is included. A54/A55 evidence is fake-provider
 delivery (session/new and session/load capture, frozen session prompt) plus the existing
 provider-adapter tests; the bounded packaged Claude/Codex adoption probe is owed, and runtime
-switch, failed-load fallback and run-deletion cases rely on the shared frozen-prompt path rather
+switch, failed-load refusal and run-deletion cases rely on the shared frozen-prompt path rather
 than dedicated tests for this block.
 
 **Confirmed run-page direction, 2026-09-23.** R79 removed the setup and latest-value panels

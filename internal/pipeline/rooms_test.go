@@ -215,6 +215,18 @@ func TestMixedRoomStageAcceptsExactSynthesisOnce(t *testing.T) {
 	if err != nil || task.State != state.TaskFinished || task.Outcome != state.OutcomeSuccess || task.OutcomeSource != state.StageExecutionThinkTank || task.Outputs["decision"] != synthesis {
 		t.Fatalf("room task = %+v err=%v", task, err)
 	}
+	// The accepted stage task itself is republished, or an open Tasks view keeps
+	// its running row (TS-10.R11, CR-A5-1).
+	published := false
+	for _, update := range manager.publisher.(*fakePublisher).taskUpdates {
+		if update.TaskID == room.TaskID && update.State == state.TaskFinished &&
+			update.Outcome == state.OutcomeSuccess && update.Revision == task.Revision {
+			published = true
+		}
+	}
+	if !published {
+		t.Fatalf("accepted room stage task was not republished: %+v", manager.publisher.(*fakePublisher).taskUpdates)
+	}
 	values, _ := manager.store.ListPipelineValues(runID)
 	count := 0
 	for _, v := range values {
