@@ -31,9 +31,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
   CR-A7-1's acceptance scope without changing finding owners or starting fixes.
   Its [refactor recommendation](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#architectural-refactor-recommendation)
-  now reflects an independent clean-context challenge: design a narrow reindex preservation
-  boundary; fix task ownership in existing seams rather than create a separate refactor. CR-A4's
-  independent local fix is closed below.
+  now reflects an independent Astra challenge and primary source checks: design a narrow reindex
+  preservation boundary; specify task cleanup/continuation contracts within coordinated fixes.
+  A separate task-ownership architecture project is not demonstrated. CR-A4 is closed below.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
@@ -1735,6 +1735,15 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-21 — Frontier reassessment of refactor scope:** after the operator challenged relying
+  on Luna for architectural judgment, a fresh-context GPT-6 Astra reviewer independently checked
+  `516488c5`; the primary agent also checked transaction writers, task turn capture and stop gates.
+  The [assessment](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#frontier-challenge-and-primary-judgment)
+  retains narrow reindex design, including revision of TS-02.R9's unsafe preservation algorithm.
+  Task fixes require explicit retry authorization and continuation-delivery contracts; the earlier
+  blanket assertion that existing fields suffice is withdrawn. No standalone task architecture
+  project is yet justified. No implementation, new execution unit or finding closure occurred.
 
 - **2026-10-21 — Independent challenge of refactor recommendations:** a fresh-context GPT-6 Luna
   reviewer checked `72515c47` and rejected a standalone task-ownership refactor: the existing

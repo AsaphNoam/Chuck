@@ -20,8 +20,9 @@ duplicate, reopen or absorb it into these recommendations.
 ## Conclusion
 
 Local fixes can start. Interruption-safe reindexing warrants a separate preservation-boundary design.
-Task runtime ownership through result/yield/continuation needs coordinated fixes in its existing
-seams, not a standalone architectural refactor. The observable-state fixes also need one connected
+Task runtime ownership through result/yield/continuation needs explicit cleanup/admission contracts
+and coordinated fixes in existing seams; a standalone architectural refactor is not demonstrated.
+The observable-state fixes also need one connected
 recovery proof. The findings do not establish a need for a new global scheduler, event database,
 generic action framework or prompt rewrite.
 
@@ -34,24 +35,29 @@ independent boundary evidence that was missing.
 
 ## Architectural refactor recommendation
 
-**Revised after independent challenge: design the reindex boundary; do not create a separate task
-ownership refactor.** These recommendations do not create implementation units, change finding
-ownership or authorize implementation.
+**Primary judgment after source checks and an independent Astra challenge: design the reindex
+boundary; require bounded task cleanup/continuation design within coordinated fixes, without a
+standalone ownership architecture project.** These recommendations do not create implementation
+units, change finding ownership or authorize implementation.
 
 | Area | Recommended scope | Size and assessment |
 |---|---|---|
 | Reindex transaction/recovery ownership — CR-A1-1/2 | Approve narrow boundary design: preserve usable state across reset, replay, flush and retained-authority restoration. Compare transaction-bound replay with durable staging before choosing an implementation; missing sources preserve the existing snapshot or refuse the rebuild. | Medium-to-large, difficult. Committed deletion can destroy non-replayable continuation inputs. Missing-input guards alone do not solve interruption loss. The need for a preservation design is established; the minimal implementation is not yet settled. |
-| Task execution ownership — CR-A2-1/2/3/5/9, coordinated with ASF-3 | Reject a standalone refactor. Fix cleanup timing/accounting together, preserve confirmed membership on deferral, route mail/manual continuation through existing admission, and retry startup reap in existing bounded paths. Share only the minimal admission predicate needed for consistent normal/quota accounting. | Medium repair effort due to race/recovery evidence. Existing task rows already distinguish assignment, runtime claim, pending cleanup and execution identity. A broader ownership layer has no demonstrated benefit or specified factoring and would couple otherwise distinct transitions. |
+| Task execution ownership — CR-A2-1/2/3/5/9, coordinated with ASF-3 | No standalone architecture project demonstrated. First define cleanup authorization across callbacks/timer/restart and continuation admission-before-input delivery. Then fix accounting, membership and bounded rediscovery in existing paths, extracting only proven shared policy. | Medium repair effort with substantial race/recovery risk. Existing boundaries are useful, but current fields are not proven sufficient unchanged: cleanup provenance is lost through an empty argument and turn capture is best-effort after activation. A broader layer needs a concrete enforcement advantage before it is justified. |
 
 The reindex proposal changes the rebuild's transaction/failure boundary. Do not approve a single
 long transaction merely because it is conceptually simple: the current replay uses independently
 committed writes, and transaction propagation, write-lock duration and partial-agent failure policy
-need a deliberate choice. Keep the small complete-record fix A1-3 independently executable.
+need a deliberate choice. Reindex is offline, so ordinary server write-lock contention alone is not
+a reason to choose staging; assess transaction resources and the required failure policy. Keep the
+small complete-record fix A1-3 independently executable.
 
-For tasks, the ownership theme is useful repair guidance, not evidence for a missing architecture.
-Correct the existing predicates and transitions, coordinate A2-1/2 and ASF-3's overlapping work,
-and preserve each finding's focused evidence. No new task table, scheduler, state-machine framework
-or separate refactor work item is recommended.
+For tasks, the ownership theme does not by itself justify another architecture layer. The existing
+admission, cleanup and runtime gate are credible repair seams; that is not proof their present data
+and APIs enforce every required distinction. Specify the missing cleanup/continuation contract,
+coordinate A2-1/2 and ASF-3, and preserve each finding's focused evidence. Add narrowly scoped durable
+data only if the required authorization cannot safely be reconstructed; no new task table, scheduler,
+state-machine framework or separate broad refactor work item is currently recommended.
 
 Publication/reconnect/deduplication needs coordinated fixes and one convergence proof, but the
 current evidence does not warrant replacing the event bus. Workspace/profile findings call for
@@ -76,8 +82,42 @@ and ran no tests or probes. Its conclusions were:
   clearing, bypassed continuation admission and absent bounded reap rediscovery. The earlier
   proposal supplied no concrete factoring benefit to justify coupling these into another layer.
 
-The parent accepted that challenge and withdrew the task-refactor recommendation above. Sections
-1–2 retain the useful safety constraints without treating coordinated task fixes as a new architecture.
+The parent initially accepted that challenge and withdrew the task-refactor recommendation.
+The operator challenged giving a discovery model that degree of architectural authority. The
+frontier review below qualifies that conclusion; this record preserves the earlier reasoning
+rather than presenting it as the final decision.
+
+## Frontier challenge and primary judgment
+
+A GPT-6 Astra reviewer started with no conversation history, checked `516488c5`, requirements and
+actual source, and treated both the original proposal and Luna's verdict as contested arguments.
+It made no changes and ran no probes/tests. Its recommendation was narrow reindex preservation
+design plus coordinated task repairs with explicit ownership contracts. It found Luna's overall
+disposition defensible, but its high-confidence claim that existing task identity/fences suffice
+was stronger than the source supports.
+
+The primary agent separately checked the transaction writers, task settlement, turn capture and
+atomic stop gate. The resulting judgment is:
+
+- **Reindex needs a dedicated preservation design.** Independent indexer commits make the current
+  destructive boundary unsafe. TS-02.R9 itself prescribes process-local read-before-wipe and
+  restore-after-replay, so this is also a design-spec gap, not solely code violating adequate rules.
+  Revise that algorithm before implementation. Transaction-bound replay is a credible default to
+  compare with staging; do not approve either without its failure/resource policy.
+- **Tasks need bounded design inside the fixes; a separate ownership project remains unproven.**
+  The shared cleanup and `StopGuardedIdle` seams already provide concrete places to enforce the
+  promises. However, the timer's empty `endingTurn` loses deferred versus immediate authorization,
+  and `recordTaskExecutionTurn` reads/writes turn identity after activation with logged-only errors;
+  `SetTaskExecutionTurn` updates only `starting` rows. Neither a shared helper nor an existing field
+  alone proves safe retry authorization. Define those distinctions and continuation delivery order
+  before coding; demonstrate whether current outcome/pending fields plus the atomic idle gate are
+  sufficient before introducing more persistent state.
+
+This judgment is conditional on enforcement, not on how many requirements already describe the
+intended behavior. If a concrete task repair cannot route callers through existing admission/cleanup
+without duplicating policy or losing authorization, that would justify a narrow structural refactor.
+Conversely, a proven mapping from existing durable fields and runtime gates to the cleanup contract
+would keep the repair small. No new scheduler or blanket schema split is justified by current evidence.
 
 ## 1. Reindex must be one preservation boundary
 
@@ -103,6 +143,8 @@ Atomicity alone does not fix missing input. Refuse a missing canonical root befo
 missing/unreadable agent source, preserve its existing usable snapshot or abort the replacement and
 report the identity; do not commit its disappearance as an empty rebuild. Protect the three observed
 SQLite-only fields rather than declaring every replayable session column new authoritative state.
+Check existing retained identities whose entire source directory is missing as well as an absent
+log inside a present directory; enumerating the filesystem alone cannot establish complete inputs.
 
 Fix CR-A1-3's reader/writer newline agreement independently. Preserve malformed-middle tolerance;
 all readers, replay and writer reopen must agree on the same complete-record prefix. A7's read-cost
@@ -132,11 +174,22 @@ deferral from immediate person-result/cancel and restart orphan recovery. Every 
 retain that distinction and captured execution identity; current registry state cannot replace it.
 Preserve borrowed-runtime policy and independently committed results.
 
+Before implementation, define deferred report/yield cleanup, immediate person/cancel cleanup and
+restart orphan recovery explicitly. The current empty `endingTurn` sentinel must not grant new
+authority to timer retries. `execution_turn` is recorded after activation and can be absent; do not
+assume it is a durable report-turn settlement receipt. Existing outcome/pending fields and the
+atomic idle-stop gate are a candidate minimal solution, subject to callback-loss, replacement and
+restart proof. Introduce a narrowly scoped cleanup mode/identity only if that proof requires it.
+
 A2-3's lost assignee and A2-5's mail/manual wake bypass show the same assignment/runtime distinction
 on continuation. Preserve confirmed membership when abandoning a later reservation, and route input
 for a waiting assignment through its existing continuation admission. Do not replace these with
 untracked Resume, create another assignee, or copy mail's attempted-at-most-once policy to tasks.
+Specify the ordering: coalesced continuation and closure checks, capacity admission, confirmed
+execution, then input delivery. Retain mail's opportunity until its own attempt boundary.
 A2-9 needs bounded rediscovery after transient reap contention rather than another process restart.
+Rediscover only abandoned startup obligations; a live in-flight `starting` row is not automatically
+an orphan merely because a dispatcher tick sees it.
 
 A2-4/6/7/8 show why a row remaining durable is not sufficient recovery: missing watch reevaluation,
 blocked oldest batches, settled error status and cancelled quota ownership can leave valid work
