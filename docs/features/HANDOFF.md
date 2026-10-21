@@ -31,8 +31,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
   CR-A7-1's acceptance scope without changing finding owners or starting fixes.
   Its [refactor recommendation](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#architectural-refactor-recommendation)
-  identifies bounded reindex and task-ownership refactors for separate design; CR-A4's independent
-  local fix stays with its existing worker and is recorded closed below.
+  now reflects an independent clean-context challenge: design a narrow reindex preservation
+  boundary; fix task ownership in existing seams rather than create a separate refactor. CR-A4's
+  independent local fix is closed below.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
@@ -1734,6 +1735,14 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-21 — Independent challenge of refactor recommendations:** a fresh-context GPT-6 Luna
+  reviewer checked `72515c47` and rejected a standalone task-ownership refactor: the existing
+  architecture already represents the required claims/assignments/cleanup, and focused coordinated
+  fixes have less coupling risk. It approved narrow reindex preservation-boundary design while
+  leaving the transaction/staging choice open. The parent accepted the challenge and revised the
+  [assessment](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#independent-challenge-record).
+  No new execution unit, product/spec edit, test/probe, finding closure or architecture receipt.
 
 - **2026-10-21 — Fix: mail send result enum (CR-A4-1, INV §10/§11/§17).** `send_message` now
   returns TS-04.R53's `delivery: queued_waking` / `queued_deferred`; the three messaging tests

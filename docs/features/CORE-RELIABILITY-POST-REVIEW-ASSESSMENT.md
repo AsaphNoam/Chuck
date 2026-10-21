@@ -19,10 +19,11 @@ duplicate, reopen or absorb it into these recommendations.
 
 ## Conclusion
 
-Local fixes can start. Two boundaries deserve coordinated implementation rather than disconnected
-patches: interruption-safe reindexing and task runtime ownership through result/yield/continuation.
-The observable-state fixes also need one connected recovery proof. The findings do not establish
-a need for a new global scheduler, event database, generic action framework or prompt rewrite.
+Local fixes can start. Interruption-safe reindexing warrants a separate preservation-boundary design.
+Task runtime ownership through result/yield/continuation needs coordinated fixes in its existing
+seams, not a standalone architectural refactor. The observable-state fixes also need one connected
+recovery proof. The findings do not establish a need for a new global scheduler, event database,
+generic action framework or prompt rewrite.
 
 Most governing distinctions are already specified. The recurring implementation error is using an
 easy proxy for authority: a rebuilt session row for retained native identity, terminal task state
@@ -33,25 +34,50 @@ independent boundary evidence that was missing.
 
 ## Architectural refactor recommendation
 
-**Yes: two bounded refactors are justified, with different strength and scope.** These recommendations
-do not create implementation units, change finding ownership or authorize implementation.
+**Revised after independent challenge: design the reindex boundary; do not create a separate task
+ownership refactor.** These recommendations do not create implementation units, change finding
+ownership or authorize implementation.
 
-| Proposed refactor | What changes | Size and reason to do it now |
+| Area | Recommended scope | Size and assessment |
 |---|---|---|
-| Reindex transaction/recovery ownership — CR-A1-1/2 | One owner controls reset, replay, flush and retained-authority restoration, publishing a usable replacement only across an interruption-safe boundary. Missing sources preserve the existing snapshot or refuse the rebuild. | Medium-to-large, difficult. This is the strongest architectural case: derived projection rebuilding currently deletes non-replayable continuation inputs before their replacement is safe. Additional local restoration patches leave that design fault intact. |
-| Task execution ownership — CR-A2-1/2/3/5/9, coordinated with ASF-3 | Consolidate existing assignment, per-attempt runtime ownership, capacity and cleanup/admission decisions. A result does not release a live runtime; abandoning a later attempt does not erase confirmed membership; mail/manual continuation uses task admission. | Medium, with concurrency/recovery risk. Several entry points independently infer ownership from task state or absent turn data. Shared decisions and explicit cleanup timing remove that repeated source of defects while retaining the existing task tables, dispatcher and lifecycle services. |
+| Reindex transaction/recovery ownership — CR-A1-1/2 | Approve narrow boundary design: preserve usable state across reset, replay, flush and retained-authority restoration. Compare transaction-bound replay with durable staging before choosing an implementation; missing sources preserve the existing snapshot or refuse the rebuild. | Medium-to-large, difficult. Committed deletion can destroy non-replayable continuation inputs. Missing-input guards alone do not solve interruption loss. The need for a preservation design is established; the minimal implementation is not yet settled. |
+| Task execution ownership — CR-A2-1/2/3/5/9, coordinated with ASF-3 | Reject a standalone refactor. Fix cleanup timing/accounting together, preserve confirmed membership on deferral, route mail/manual continuation through existing admission, and retry startup reap in existing bounded paths. Share only the minimal admission predicate needed for consistent normal/quota accounting. | Medium repair effort due to race/recovery evidence. Existing task rows already distinguish assignment, runtime claim, pending cleanup and execution identity. A broader ownership layer has no demonstrated benefit or specified factoring and would couple otherwise distinct transitions. |
 
-The first changes the rebuild's transaction/failure architecture. The second brings the existing
-specified task architecture under consistent implementation ownership; it does not require a new
-scheduler or a general state-machine framework. Design their boundaries and evidence together
-before implementing the coupled findings. Keep the small complete-record fix A1-3 independently
-executable and coordinate shared reader edits.
+The reindex proposal changes the rebuild's transaction/failure boundary. Do not approve a single
+long transaction merely because it is conceptually simple: the current replay uses independently
+committed writes, and transaction propagation, write-lock duration and partial-agent failure policy
+need a deliberate choice. Keep the small complete-record fix A1-3 independently executable.
+
+For tasks, the ownership theme is useful repair guidance, not evidence for a missing architecture.
+Correct the existing predicates and transitions, coordinate A2-1/2 and ASF-3's overlapping work,
+and preserve each finding's focused evidence. No new task table, scheduler, state-machine framework
+or separate refactor work item is recommended.
 
 Publication/reconnect/deduplication needs coordinated fixes and one convergence proof, but the
 current evidence does not warrant replacing the event bus. Workspace/profile findings call for
 validating the actual composed execution through current seams. Scan limits/cancellation,
 reconciliation eligibility and CR-A4's enum correction also fit existing owners without a new
 architectural layer. Sections below describe the constraints for those decisions.
+
+## Independent challenge record
+
+At the operator's request, a GPT-6 Luna reviewer started with no conversation history and an explicit
+mandate to reject unnecessary refactoring. It checked HEAD `72515c47`, the current findings,
+requirements and source; only four unrelated ready-change documents were dirty. It made no edits
+and ran no tests or probes. Its conclusions were:
+
+- **Reindex: approve narrow design; high confidence in the need, medium in the eventual solution.**
+  `reindex.go` commits reset before restoring SQLite-only inputs; `Indexer` opens separate
+  transactions. The reproduced interruption and missing-source findings establish a real recovery
+  boundary problem. They do not select a whole-rebuild transaction or staging design automatically.
+- **Tasks: reject a separate refactor; high confidence.** Existing task claims, assignment fields,
+  execution identity, lifecycle fences and ASF-3 seams suffice. The defects have concrete local
+  causes: two incorrect capacity predicates, lost cleanup-turn identity, unconditional assignee
+  clearing, bypassed continuation admission and absent bounded reap rediscovery. The earlier
+  proposal supplied no concrete factoring benefit to justify coupling these into another layer.
+
+The parent accepted that challenge and withdrew the task-refactor recommendation above. Sections
+1–2 retain the useful safety constraints without treating coordinated task fixes as a new architecture.
 
 ## 1. Reindex must be one preservation boundary
 
