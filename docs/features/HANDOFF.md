@@ -22,7 +22,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-6 wait.
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
-  with six open admission/recovery findings. CR-A3–CR-A7 remain researched and waiting.
+  with six open admission/recovery findings; CR-A3 is reviewed with three open workspace/configuration
+  findings. CR-A4–CR-A7 remain researched and waiting.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
@@ -199,13 +200,13 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 
 **Core reliability audit units:** explicitly requested subsystem reviews of the complete current
 implementation and callers, not reviews of planning commits. Read the selected charter, refresh
-current fix ownership and record the reviewed HEAD. CR-A1 is reviewed; the other six have not started.
+current fix ownership and record the reviewed HEAD. CR-A1–CR-A3 are reviewed; the other four have not started.
 
 | Unit | Responsibility | Status |
 |---|---|---|
 | [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) | Durable truth and recovery: conversation/session authority through Stop/restart, archive/Restore, interrupted reindex and native continuation | reviewed `da44be64` — three findings open |
 | [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | reviewed `f1c59961` — six findings open |
-| [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | waiting to start |
+| [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | reviewed `7ec20a01` — three findings open |
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | waiting to start |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | waiting to start |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | waiting to start |
@@ -249,6 +250,95 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### CR-A3 — Executable workspace and configuration — reviewed `7ec20a01` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Subsystem audit complete at `7ec20a01536ab0afdcbab3385f48da188391e2a8`; findings keep this same
+unit open. Two focused read-only reviewers examined Git/readiness and native configuration; the
+parent challenged their evidence, traced the joins and reproduced the findings. Fixes extend the
+existing checkout validation, refresh and child-environment/preflight seams. Release source pins:
+Claude ACP 0.85.1 / Agent SDK 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3
+(`scripts/release/package{,-lock}.json`); host CLI versions observed were Claude 2.1.296 and
+Codex 0.161.0. Pinned Node consumer sources were unavailable locally, and no credentialed provider
+turn or real terminal-driver journey ran. The four entry dirty files under `docs/ready-changes/`
+are unrelated and preserved. Product code and normative specifications are unchanged.
+
+- **Must fix** — CR-A3-1 — **An existing owned path bypasses Git checkout identity validation**
+  (INV §1/§12/§15). `internal/server/worktree.go:166–172`: a real directory at the recorded
+  checkout path passes after filesystem-path validation alone. After out-of-band checkout loss,
+  reusing that path for another repository therefore admits work in the foreign repository while
+  Chuck still identifies the project by its recorded branch/repository. FS-19.R4/R5/R7 and
+  TS-12.R2/R4 make the owned Git checkout, rather than directory existence, the execution authority.
+  A real-Git/server probe removes the owned checkout, registers a worktree from a different
+  repository at the same path, and observes `ensureWorktreeCheckout` succeed without recreation.
+  Validate the actual common repository/registration at the shared start seam and refuse a
+  replacement rather than repairing or deleting its contents. Regress a foreign repository and
+  an ordinary directory, including frozen Resume. Same-repository branch replacement also passes
+  and can be consent-deleted; do not invent an automatic branch reset. Foreign-repository deletion
+  correctly refuses under the separate deletion guard.
+
+- **Must fix** — CR-A3-2 — **Latest-setup Resume resolves a different directory from the one it starts**
+  (INV §1/§3/§10/§11). `internal/server/resume.go:273–279,532–557`: after project `cwd` changes
+  from A to B, `config_refresh:true` resolves B's native project layers but the resume composer
+  and native load retain frozen A. The probe observes B's resolved model/fingerprints persisted
+  alongside A's `cwd`, and A in the actual decoded `session/load` request. Configuration validation
+  and reserved-MCP collision preflight likewise inspect B rather than the resumed workspace.
+  FS-01.R10/R12, FS-08.R18–R21/R37 and TS-07.R19 require refreshed provenance/preflight to
+  describe the realizable child setup while preserving Resume's frozen working directory.
+  Resolve refresh against the actual frozen execution cwd; do not silently move the conversation.
+  Regress distinct A/B settings and an invalid/conflicting layer only in the actual resumed cwd.
+
+- **Must fix** — CR-A3-3 — **Claude's child environment can redirect an accepted personal source**
+  (INV §2/§11/§12). `internal/server/config_sources.go:23–28,627–637`,
+  `internal/server/launch.go:771–772`: source resolution/preflight checks the server's personal
+  `.claude` root, but the final child environment retains ambient/backend/model `CLAUDE_CONFIG_DIR`
+  (and scoped `HOME`). A bound personal source can pass while its native child selects a different
+  profile, contradicting FS-08.R37 and TS-07.R19 and potentially selecting different settings or
+  authentication/session storage. The actual child observer receives an alternate backend
+  `CLAUDE_CONFIG_DIR` while the accepted session records the personal source's model. Claude's
+  [configuration-directory contract](https://code.claude.com/docs/en/claude-directory) confirms this
+  variable redirects the user configuration paths; this is source/documented behavior plus OS-env
+  evidence, not a credentialed adoption receipt. Make source preflight and the effective child
+  profile agree or refuse before effects, through the existing shared environment/setup seam.
+  Preserve deliberately supported unbound environment semantics; regress fresh and continuation
+  with ambient/backend/model redirects, without reading real profiles or copying authentication.
+
+Connected authority/evidence ledger:
+
+| Boundary | Reviewed behavior and evidence |
+|---|---|
+| Project → Git checkout → setup | Project config supplies fresh cwd/base/setup; SQLite supplies ownership and the recorded repository/branch/path. Real fork/base/rollback/recreation/deletion checks pass. Completed setup failure is deliberately warning-only, with bounded output and contained child cancellation. ASRA-6's unfinished-setup bypass remains present and is corroborated; ASF-5 retains that fix. CR-A3-1 covers replacement identity, a separate mechanism. |
+| Live callers → start seam | Manual/Think Tank launches use `launchAgent`; current pipeline stages create durable tasks, then dispatcher fresh launches or ordinary assignment wakes use the same composers. Explicit Resume, Send/mail wake, Switch and rollback use frozen cwd through `ensureWorktreeCheckout`. `ValidateStage` stays read-only. Obsolete `LaunchStage`/`ContinueStage` methods are not production execution proof; ASRF-2/ASF-3 retains their cleanup. |
+| Frozen continuation → actual child | A wrapper around the real fake-ACP child observes original cwd and read/write access to synthetic shared resources after project rename/cwd edit. Missing unowned frozen cwd refuses rather than jumping to the new project directory; a fresh child uses the new cwd. A disposable real-Git fork/setup/loss/Resume journey observes the actual resumed child at the original recreated checkout, recorded branch and completed setup marker, with a separate load-request dump; native adoption remains unproved. CR-A3-2 isolates explicit refresh's different resolution cwd. |
+| Stable shared resources | Immutable project id supplies the outside-checkout resource path; prompt/add_dirs freeze it and process env recomposes it. Creation failure, symlink/non-directory refusal, retention and opaque API behavior are covered by existing checks. The synthetic resource child proves OS access only, not native sandbox permission enforcement. Existing `0500` → `0700` validation is reproduced as ASRA-5; ASF-5 retains it. No real resource contents were scanned. |
+| Selection/source → executable setup | Fresh `ResolveFresh` blocks invalid input despite last-good display; personal-root/profile preflight, unavailable-executable refusal and failed-Switch source preservation checks pass. Model choice/policy/persona/source object freeze; explicit model/refresh selects anew, while executable and secret environment values are recomposed. A clone is a new launch using current project cwd/dirs while inheriting source contract/instructions; that is not a new finding. CR-A3-3 qualifies Claude's personal-root preflight. |
+| Purpose/overlays → native boundary | Existing contract/fork/check and knowledge-overlay seams retain purpose, native inheritance and runtime-only guidance; no new runtime/interface is introduced. Codex's reserved private `CODEX_HOME`, serialized refresh through spawn and observer-decoded fresh native instruction merge pass. External native files/auth/environment/executable contents are intentionally not immutable snapshots. Go wire/OS evidence does not close real-provider, auth, tmux/iTerm2 or native permission gates. |
+
+Evidence: temporary probes `/private/tmp/cra3_root_probe_test.go`,
+`/private/tmp/worktree_identity_test.go` and `/private/tmp/workspace_lifecycle_overlay_test.go`,
+loaded with their corresponding Go overlay JSON files; no probe is added to the repository.
+Reproduce with `go test -overlay=/private/tmp/cra3_root_overlay.json ./internal/server -run
+'^TestCRA3' -count=1 -v`; the Git overlays are `/private/tmp/worktree_identity_overlay.json`
+(`-run '^TestOverlayOwnedPath'`) and `/private/tmp/workspace_lifecycle_overlay.json`
+(`-run '^TestOverlay(Worktree|ASRA6)'`). The probes assert the observed faulty values explicitly.
+Root probes reproduce refresh/profile mismatches and ASRA-5 in both SQLite builds; the real-child
+frozen-cwd/resource control passes. Real-Git identity and recreation/setup probes pass separately.
+Focused config/server/runtime/source/worktree checks pass; the complete small `internal/worktree`
+and `internal/configsource` suites also pass. An initial selection matched no worktree tests and
+was replaced with the complete package run. Sandbox IPv6 listener denial was rerun with approved
+isolated loopback execution; source runs unset `CHUCK_RUNTIME_ROOT` and use `GOFLAGS=-p=1`.
+Spec/launcher checks and diff-whitespace validation pass. The owned-path probes also reproduce
+with `-tags sqlite_fts5`; focused purpose/fork/check/native-preset checks pass separately.
+The server fixture emitted asynchronous `database is closed` transcript-close logs at teardown
+after the asserted outcomes; no clean production-shutdown or provider-adoption claim follows.
+
+Invariant sweep: §§1–5, §§7–12 and §§14–17 apply to lifecycle/frozen fields, shared builders,
+registration/process cleanup, claims, ownership/config reads, warnings, SQLite/process lifetime,
+caller wiring, native protocol/env meaning, Git/provider commands, guarded filesystem/HTTP paths,
+publication order, bounded setup/source work and independent evidence. Findings are tagged above;
+existing ASRA-5/6 and ASRF-2 retain their owners. §6 has no new runtime/interface and §13 no UI/CSS
+surface. No implementation choice, human decision, product/spec repair, other audit closure or
+release architectural receipt was introduced.
 
 ### CR-A2 — Admission, waiting and recovery — reviewed `f1c59961` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -1299,6 +1389,15 @@ and specifications are unchanged.
 Settled work through v0.18.0 is in
 [`HANDOFF-through-2026-10-20`](../archive/state/HANDOFF-through-2026-10-20.md).
 v0.18.0 was published 2026-10-21 with the explicit one-release architectural-review waiver.
+
+- **2026-10-21 — Review: executable workspace and configuration (CR-A3).** Audited current HEAD
+  `7ec20a01`; recorded three Must-fix findings for accepting a foreign repository at an owned
+  path, resolving latest-setup Resume against a different cwd, and Claude environment redirection
+  bypassing personal-source validation. Real Git/server, native-wire and actual child observers
+  reproduce the mechanisms; root probes pass in both SQLite variants. The connected
+  fork/setup/loss/frozen-Resume child control and focused suites/spec checks pass. Existing
+  ASRA-5/6 remain with ASF-5; no other finding owner or live receipt is closed. Only the handoff
+  is committed; the operator's ready-change edits remain untouched.
 
 - **2026-10-21 — Review: admission, waiting and recovery (CR-A2).** Audited current HEAD
   `f1c59961`; recorded six Must-fix findings for premature cleanup, retained-slot undercount,
