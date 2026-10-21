@@ -8,13 +8,15 @@ and checked source entry paths. The committed baseline for this expansion is `f7
 product fixes are outside this discovery. This supersedes the earlier two-investigations-plus-one-
 journey recommendation, which compressed distinct core architectures too much.
 
-**Status: all seven subjects mapped, one at a time as requested.** A1–A7 have researched review charters
-and waiting review units, [CR-A1](CORE-RELIABILITY-REVIEW-A1.md),
+**Status: all seven subjects reviewed with findings, 2026-10-21.** Their researched charters remain
+[CR-A1](CORE-RELIABILITY-REVIEW-A1.md),
 [CR-A2](CORE-RELIABILITY-REVIEW-A2.md), [CR-A3](CORE-RELIABILITY-REVIEW-A3.md),
 [CR-A4](CORE-RELIABILITY-REVIEW-A4.md), [CR-A5](CORE-RELIABILITY-REVIEW-A5.md),
-[CR-A6](CORE-RELIABILITY-REVIEW-A6.md) and [CR-A7](CORE-RELIABILITY-REVIEW-A7.md), in the handoff.
-No audit or product repair from these charters has started. Existing
-remediation retains its own units. The purposeful testing and architectural-review skills are implemented.
+[CR-A6](CORE-RELIABILITY-REVIEW-A6.md) and [CR-A7](CORE-RELIABILITY-REVIEW-A7.md).
+The handoff owns live findings/fix status. The
+[before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) records cross-fix constraints
+and the additional run-detail recovery gap under CR-A7-1; it starts no fixes or new audit.
+Existing remediation retains its own units. The purposeful testing and architectural-review skills are implemented.
 Refresh current handoff/fix status before each review; concurrent fixes are landing. Hypotheses
 below are questions to investigate, not new findings.
 
@@ -79,9 +81,9 @@ priority; permission/Stop/failed-delivery observations matter on every operator 
 
 ## Audit scopes and planning progress
 
-A1–A7 are mapped into review-ready charters, each one independently selectable unit in the handoff.
-The sections below retain their research baselines; refresh current code and fix ownership before
-executing a review. This plan does not start one.
+A1–A7 have completed source reviews with findings recorded in the handoff. The sections below retain
+their original planning/research baselines, not current audit or fix status. Refresh current code,
+dirty work and finding ownership before fixes; this plan starts no workflow.
 
 ### A1. Preserve saved work through repair and interruption
 
@@ -233,11 +235,11 @@ active provider turn; verify the documented inbox/deferred-delivery behavior.
 
 ## How to continue
 
-All seven researched charters are ready as separately selectable handoff review units. A7's
-measurements can proceed independently of other review queues. The integration proof above spans
-the selected architectures after the relevant repairs; it remains a cross-audit proposal, not an
-eighth queued review or work started by this plan. The order is a proposed investment priority,
-not chronological gating of independent role queues or automatic audit execution.
+Use the completed findings and [before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md)
+for targeted fixes through the live handoff. The integration proof above spans the selected
+architectures after relevant repairs; it remains a cross-audit proposal, not an eighth queued review
+or work started by this plan. Priorities and shared-file coordination do not impose chronological
+gating on independent role queues or automatically rerun the completed audits.
 
 For each selected slice, record what was actually exercised, the current source/provider versions,
 confirmed findings, and evidence still owed. Link new findings to their original owners where

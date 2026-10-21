@@ -27,6 +27,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   with two open supervision/specification findings. CR-A6 is reviewed with six open operator
   action/observation findings. CR-A7 is reviewed with five open capacity/cost findings.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
+  [Before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) connects preservation,
+  task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
+  CR-A7-1's acceptance scope without changing finding owners or starting fixes.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
@@ -273,6 +276,13 @@ or new product decision is introduced. Existing A1–A6 and ASW/ASF finding owne
   state. Source tracing confirms neither browser transport requests a resnapshot. Recover the
   bounded subscriber through a reset/resnapshot or reconnect, and test lost state plus continued
   heartbeat delivery through the browser recovery path.
+  **2026-10-21 systemic follow-up (source-confirmed, no new probe):** reconnect invalidates
+  pipeline lists but omits `PIPELINE_QUERY_KEYS.runDetails` in `ui/src/api/sse.ts:55–80`;
+  `ui/src/api/pipelines.ts:16–21,221–227` uses a separate detail key and no polling interval.
+  A missed task/pipeline event can therefore leave an open run detail stale after reconnect.
+  Include detail-cache convergence in this finding's overflow/reset/reconnect repair and evidence,
+  alongside agent hydration and existing task/list/room invalidations. See the
+  [synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#3-published-state-transport-recovery-and-replay-must-converge-together).
 
 - **Must fix** — CR-A7-2 — **Reference transcript scans have no admission or cancellation lifetime**
   (INV §4/§16). `internal/messaging/context_tools.go:68–74,118–124` discards request contexts;
@@ -1787,6 +1797,16 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-21 — Core audit before-fix synthesis:** two focused GPT-6 Luna readers and parent
+  integration reconciled the completed CR-A1–CR-A7 findings against `3c8b0cec`.
+  [Assessment](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) records interruption-safe reindex
+  constraints, task claim/turn/capacity coupling, and publication/overflow/replay convergence;
+  bounded source checks identified missing desktop run-detail invalidation on reconnect, retained
+  under CR-A7-1. Finding owners/counts and executable units are unchanged. Existing dirty CR-A4-1
+  implementation and ready-change edits were preserved. Independent checks confirmed the scoped
+  source maps; spec, local-reference and diff checks passed. No product/spec edit, audit rerun,
+  probe, product test execution, fix closure or release architecture receipt was performed.
 
 Settled work through v0.18.0 is in
 [`HANDOFF-through-2026-10-20`](../archive/state/HANDOFF-through-2026-10-20.md).
