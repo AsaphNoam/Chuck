@@ -23,8 +23,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
   with nine open admission/recovery findings; CR-A3 is reviewed with three open workspace/configuration
-  findings. CR-A4 is reviewed with one open mail-result contract finding; CR-A5–CR-A7 remain
-  researched and waiting.
+  findings. CR-A4 is reviewed with one open mail-result contract finding; CR-A5 is reviewed
+  with two open supervision/specification findings. CR-A6–CR-A7 remain researched and waiting.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
@@ -201,7 +201,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 
 **Core reliability audit units:** explicitly requested subsystem reviews of the complete current
 implementation and callers, not reviews of planning commits. Read the selected charter, refresh
-current fix ownership and record the reviewed HEAD. CR-A1–CR-A4 are reviewed; the other three have not started.
+current fix ownership and record the reviewed HEAD. CR-A1–CR-A5 are reviewed; the other two have not started.
 
 | Unit | Responsibility | Status |
 |---|---|---|
@@ -209,7 +209,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A4 are reviewed; 
 | [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | reviewed `f1c59961` — nine findings open |
 | [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | reviewed `7ec20a01` — three findings open |
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — one finding open |
-| [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | waiting to start |
+| [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — two findings open |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | waiting to start |
 | [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | waiting to start |
 
@@ -251,6 +251,97 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### CR-A5 — Supervision and result authority — reviewed `785e3f4e` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Subsystem audit complete at `785e3f4e322d627c01d8cfa484130b1f5a3fee15`; two findings keep this
+same unit open. Entry HEAD was `d39cdc9d3e4f9ce9a8a6c6ac51ab037cacd2093d`; the concurrent
+`785e3f4e` commit changes only this handoff and was incorporated for current finding ownership.
+Three focused read-only reviewers traced task reports, pipeline closure/progression and room
+publication/acceptance; the parent checked their candidates, current callers and independent
+oracles, and reproduced the missing publication. The four entry dirty files under
+`docs/ready-changes/` are preserved. Release source pins are Claude ACP 0.85.1 / Agent SDK
+0.3.286 and Codex ACP 2.1.1 / CLI 0.159.3 (`scripts/release/package{,-lock}.json`); no installed
+provider version or credentialed native receipt is claimed. No product code or normative spec changed.
+
+- **Must fix** — CR-A5-1 — **Accepted agent reports leave task supervision showing the old state**
+  (INV §1/§10). `internal/server/task_handlers.go:806–808,826–834` commits ordinary task
+  results without publishing anything, and stage results with only `pipeline_update`.
+  The MCP post-commit callback (`internal/messaging/task_tools.go:174–180`, installed at
+  `internal/server/server.go:404`) calls `evaluateTaskResult`, which publishes changed dependents
+  and waiters, not the finished source task (`internal/server/task_dispatcher.go:673–686`).
+  Successful release also clears its intent without publishing that task. An open Tasks view
+  therefore keeps showing running work after its accepted success/failure/blocked report when
+  no other task mutation invalidates the query. `ui/src/api/sse.ts:90–93,255–267` invalidates task
+  reads on `task_update`; pipeline and agent-state updates do not refresh that cache, and
+  `ui/src/api/tasks.ts:83–96` has no polling fallback. This breaks TS-10.R11's committed-task
+  publication and supervision contract. The result itself is retained correctly; reconnect or
+  another task update can refresh the view. A parent-owned disposable Go overlay exercises the
+  real server acceptance plus installed result callback with no dependents: both cases retain
+  `finished/success`, revision 2, but ordinary emits `[]` and stage emits `[pipeline_update]`.
+  The independent expected `task_update` assertion fails in both cases. Probe:
+  `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 go test -overlay=/tmp/chuck-cra5-review/overlay.json
+  ./internal/server -run '^TestCRA5AcceptedResultPublishesSourceTask$' -count=1`.
+  Publish the accepted source task through the existing post-commit helper for both branches;
+  keep stage-run publication and rejected-report silence. Extend the existing acceptance/publication
+  proof to require the source task's id, terminal state, outcome and revision, without depending
+  on a later cleanup or unrelated mutation. Room-backed acceptance has the same task projection
+  seam and should be included when centralizing that publication.
+
+- **Worth fixing** — CR-A5-2 — **Pipeline recovery requirements still mandate replacing rejected native history**
+  (INV §10). `docs/specs/tech/TS-09-pipeline-control-plane.md:408–412` explicitly requires preserving
+  a rejected `session/load` → `session/new` fallback. FS-01.R10 instead requires a visible Resume/wake
+  refusal without a fresh conversation, which `internal/runtime/chat.go:1543–1575` implements for
+  every failed load. TS-04's protocol summary (`TS-04-integration-protocols.md:1550–1556`) also
+  retains the old error-fallback claim; TS-09.R58 still names that fallback. These binding instructions
+  disagree about ordinary standing-owner recovery, inviting a later pipeline change to discard
+  native history while claiming conformance. This is remaining specification drift, not a new
+  runtime regression or a reason to reopen ASW-2's settled behavior. Align the pipeline requirements
+  and protocol summary with FS-01.R10; remove or qualify FS-14.R66's older fresh-session wording
+  consistently. Existing `TestResumeNativeHistoryContinuityInvestigation` independently rejects
+  a fake provider load, observes failure/no runtime, and verifies no `session/new` request; it passes.
+  Successful empty-ID load and provider-incompatibility refusal controls also pass. The fix is
+  documentation reconciliation around the already-decided shared contract, with no new recovery engine.
+
+**Authority, settlement and progression ledger**
+
+| Boundary | Current authority, consumer and evidence |
+|---|---|
+| Ordinary/stage report → accepted result | Token-derived caller reaches `ReportAgentTaskResult`; state checks assignee/generation, optional ordinary or required stage execution handle, pending yield, open current binding and run revision. Stage reports atomically commit immutable task/work result, declared outputs, stage closure and `finishing/release_stage_task` (`state/pipeline_tasks.go:224–359`). Descendant/coordinator reports retain ordinary authority and cannot complete the standing assignment. Stale-handle/yield, output immutability and closed-run writer checks pass. CR-A5-1 is the missing live task projection. |
+| Accepted result → reporting-turn settlement → release | Typed observations carry their captured generation/turn independently of history success (`server/server.go:427–453`). `dispatchTurnEnd` and the shared cleanup seam retain runtime ownership through release/yield and guard generation/ending turn; borrowed unrelated work is preserved. CR-A2-1 already owns the ticker's premature Stop and CR-A2-2 the early budget release; neither is relabelled or closed here. Successful task-result authority does not require successful terminal-history append. |
+| Stage/run closure → descendants → next work | `pipeline/reconcile.go:43–185` keyset-pages exact run/stage/attempt lineage, cancels unfinished descendants, and waits for release/yield before approval/advance. Continue creates a new assignment after failed/blocked work; interrupted Retry reuses the task/owner; Replace fences the predecessor and retains run work. Unique stage-task/CAS transitions and terminal work-result registration preserve one successor/outcome. Existing manager/state checks pass; ASRF-1 retains failed post-result progression/restart ownership and ASRF-2 the obsolete executor. |
+| Room opportunity/read → staged disposition | `state/think_tank_turns.go:36–165,236–357` binds token, member/role, generation/executing turn, frozen context head and delivered read receipt. Submission is intent, charges no allowance and publishes no contribution. Concurrent openings keep distinct attempts and withhold bodies/activity until ordered/partial publication. Opening ordering and restart-fence tests pass. |
+| Matching successful room completion → canonical publication/judge projection | `server/think_tank_capture.go:132–170` requires committed exact-attempt sources; failed capture monotonically fences finalization. `state/think_tank_turns.go:416–455` commits disposition, allowance/checkpoint and canonical synthesis plus agent-owned retained result together. Missing submission, failure, cancellation or truncation cannot substitute assistant prose. Failed publication explicitly holds for Stop-speaker recovery; exact generation/turn and exit handling preserve private successors. Capture-failure, independent-opening, judge retention and integrated fake-provider controls pass. |
+| Published synthesis → bound stage acceptance → approval/progression | `state/pipeline_tasks.go:452–604` freezes the exact acceptance entry and retry count, validates room/task/stage/run and synthesis, then uses common task-result writes. `pipeline/rooms.go:27–143` owns bounded retry/exhaustion and explicit acceptance-only Retry. Stop fences even already-published synthesis; judging is not repeated. Exact-output, restart-budget, refusal/Stop and approval checks pass, plus the server participant → judge → exact output → terminal-result journey. Acceptance means synthesis was produced, without inferring agreement or development-goal success. |
+
+**Evidence and limits.** Focused parent checks passed for state/pipeline acceptance, immutable
+outputs, closure writers, descendant cancellation, Continue/Replace, cleanup fencing, retained
+terminal results, exact room acceptance, approval and acceptance retry budget in both SQLite
+builds. Native-load refusal/identity controls passed. The final vet-enabled isolated server run
+passed `TestPipelineThinkTankStageEndToEnd`,
+`TestPipelineStopRoomPreservesPrivateTurnOnSameGeneration`,
+`TestAcceptedStageResultPublishesItsRunUpdate`, `TestThinkTankUncommittedSourceFailsAttempt`
+and `TestThinkTankOpeningActivityIsWithheld`; loopback execution required sandbox escalation.
+The independent publication probe fails as described above and remains under
+`/tmp/chuck-cra5-review/`, outside the repository.
+
+Manager fixtures often seed accepted/interrupted state or explicitly complete a release; room
+acceptance fixtures often seed synthesis. They establish state/CAS promises, not native ordinary
+report → held reporting turn → descendant teardown → actual successor admission. The server
+room journey crosses fake-native publication/acceptance and counts three prompts; it does not
+prove credentialed provider adoption, all restart/race schedules or a real approval interaction.
+FS-16.A33, FS-14.A49–A50/A54 and existing FS-21 native/race/opening/result receipts remain owed.
+CR-A2-7–9, ASRE-1/2, ASRF-1/2 and ASRG-1/2/5 retain their current owners; no existing finding
+or live gate is closed. No implementation choice or new product decision was introduced.
+
+**Invariant sweep.** §§1/2/3 cover current projections, shared result/cleanup seams and frozen
+assignment inputs; §§4/5/7/9 cover exact effect ownership, CAS, retained retries and storage;
+§§8/10/11 cover supervision, recovery wording and serialized result/source meaning; §§12/14/15
+cover native refusal, token-scoped controls and authority before external effects; §§16/17 cover
+bounded room/read/sweep work and independently grounded evidence. New findings are tagged above;
+known violations retain their existing owners. §6 has no new interface/runtime to enroll and §13
+has no material markup/CSS surface in this subsystem audit. Independent rendered verification
+does not apply to the state-only review result; no visual acceptance gate is claimed.
 
 ### CR-A4 — Information and operating knowledge — reviewed `7e0e1a0a` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -1514,6 +1605,14 @@ and specifications are unchanged.
 Settled work through v0.18.0 is in
 [`HANDOFF-through-2026-10-20`](../archive/state/HANDOFF-through-2026-10-20.md).
 v0.18.0 was published 2026-10-21 with the explicit one-release architectural-review waiver.
+
+- **2026-10-21 — Review: supervision and result authority (CR-A5).** Audited product source at
+  `d39cdc9d` through state-only `785e3f4e`; recorded one Must-fix missing task-result publication
+  and one Worth-fixing conflict between pipeline fallback requirements and the shared native-load
+  refusal contract. The independent source-task event probe fails for ordinary and pipeline
+  reports; focused lifecycle, room/capture, native refusal and both SQLite state/pipeline checks
+  pass. Existing recovery/cleanup/result-bound owners and live provider gates remain unchanged.
+  Only the handoff is committed; the four ready-change edits are preserved.
 
 - **2026-10-21 — Review: admission, waiting and recovery (CR-A2, second pass).** A parallel
   audit of the same `f1c59961` source independently reproduced CR-A2-1–6 and added CR-A2-7
