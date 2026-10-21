@@ -23,7 +23,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1–CR-A7 are researched and waiting in the review queue; none has run.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
-  Workflow reliability skills/gate also await independent implementation review.
+  Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
+  no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
   subscription quota snapshots remain TBD, not ready work. PROMPT-1/2 and META-1 are closed.
 - **Source checks:** unset `CHUCK_RUNTIME_ROOT`; prefer `GOFLAGS=-p=1` for full Go closure.
@@ -241,16 +242,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | reviewed — findings open (`fa092f63`) |
 | [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | reviewed — findings open (`d49a8f86`) |
-
-**Implementation review units (independent of the table above):**
-
-- **Workflow reliability skills and architectural release gate** (`e96c47fe`, `97c67f39`)
-  — **waiting to start**. Review TS-06.R35–R36, workflow §§8/16–18,
-  skill twins/routing and the candidate gate/CI. Required no-loop behavior: original architectural
-  review → finding repairs/verification → receipt closure → release, without another architecture
-  review solely due to those fixes. This is review of a substantive workflow/tooling change, not
-  a queued core audit or review of its later administrative records.
-
 
 ## Review findings
 
@@ -1088,6 +1079,23 @@ and specifications are unchanged.
 Settled work through v0.18.0 is in
 [`HANDOFF-through-2026-10-20`](../archive/state/HANDOFF-through-2026-10-20.md).
 v0.18.0 was published 2026-10-21 with the explicit one-release architectural-review waiver.
+
+- **2026-10-21 — Review: workflow reliability skills and architectural release gate.**
+  Closed the substantive unit `e96c47fe` / `97c67f39` at current HEAD
+  `ff759c401020b63ff322c3796a89f745c8756525`, including current skill twins, callers and
+  the specified v0.18.0 waiver. No findings or local-choice questions; no fix model is needed.
+  Checked TS-06.R35–R36, FS-00.R3/R13–R15 and workflow §§8/16–18 in both directions.
+  Parent reviewed workflow/skill contracts; an independent focused reviewer checked gate/tests
+  and CI wiring. Real-Git fixtures prove original review → verified finding repair → recorded
+  closure → release without another architectural review, while missing/incomplete receipts,
+  invalid provenance, open findings and uncovered substantive work remain blocked.
+  INV sweep: §4 fixture cleanup, §10 twin/routing/CI wiring, §12 Git invocation/output handling,
+  §15 committed evidence before publication and §17 independent Git/mutation evidence apply
+  and pass; §§1–3, §§5–9, §11, §§13–14 and §16 have no applicable surface in this unit.
+  Eight gate tests, launcher/twin checks, launcher mutation fixtures and `make check-specs`
+  passed. No product code/spec changes, live release run, real architectural receipt or core
+  audit is claimed; other findings and gates retain their owners. Entry dirty-tree edits under
+  `docs/ready-changes/` remain untouched. This state-only closure creates no new review unit.
 
 ## Blocked on human
 
