@@ -21,8 +21,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   ownership and ASF-1 turn/control settlement are closed. Select remaining work through
   [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-6 wait.
   Their source reviews and open findings remain below; do not reopen completed refactors.
-- **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2–CR-A7
-  remain researched and waiting in the review queue.
+- **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
+  with six open admission/recovery findings. CR-A3–CR-A7 remain researched and waiting.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
@@ -204,7 +204,7 @@ current fix ownership and record the reviewed HEAD. CR-A1 is reviewed; the other
 | Unit | Responsibility | Status |
 |---|---|---|
 | [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) | Durable truth and recovery: conversation/session authority through Stop/restart, archive/Restore, interrupted reindex and native continuation | reviewed `da44be64` — three findings open |
-| [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | waiting to start |
+| [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | reviewed `f1c59961` — six findings open |
 | [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | waiting to start |
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | waiting to start |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | waiting to start |
@@ -249,6 +249,129 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### CR-A2 — Admission, waiting and recovery — reviewed `f1c59961` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Subsystem audit complete at `f1c59961323e545bc4fa48088d08eb57bf07a3a1`; findings keep this same
+unit open. Reviewed current implementation and callers, not the planning commit. Three focused
+read-only reviewers traced task readiness/waits, mail and quota; the parent challenged their
+conclusions, traced cleanup/startup and reproduced the findings below. Fixes extend existing
+assignment, continuation, cleanup and bounded-dispatch seams; no new scheduler is required.
+Release source pins: Claude ACP 0.85.1 / Agent SDK 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3
+(`scripts/release/package{,-lock}.json`). No credentialed provider run. Entry dirty work in
+`docs/ready-changes/{README,chat-images-and-file-attachments,compact-think-tank-chat-navigation,full-operator-cli-parity}.md`
+is unrelated and preserved. Product code and normative specifications are unchanged.
+
+- **Must fix** — CR-A2-1 — **The cleanup ticker stops a reporting or yielding turn before it ends**
+  (INV §4/§5/§15). `internal/state/tasks.go:1865–1873`,
+  `internal/server/task_dispatcher.go:514–529,600–616`: newly committed `pending_release` and
+  `pending_yield` intents are immediately due. The periodic sweep calls cleanup with an empty
+  ending-turn identity, which selects the immediate Stop branch instead of the guarded turn-end
+  branch. A task-owned agent still receiving its report/wait tool response, or doing final work
+  after that call, can be killed on the next two-second tick. FS-16.R4/R34 and TS-10.R19/R28
+  require the reporting turn to finish first; a later turn must also remain protected during
+  retries. The held-native-turn probe records a result, runs the real cleanup sweep without any
+  turn_end, and observes the running row/process disappear. Preserve the deferred-turn boundary
+  through live retries while retaining immediate person-result/cancel and restart recovery.
+  Regress both report and yield, plus a later turn racing a deferred cleanup retry.
+
+- **Must fix** — CR-A2-2 — **A finished task frees budget before its runtime is released**
+  (INV §2/§4/§5/§15). `internal/state/tasks.go:1387–1391,1714–1719`,
+  `internal/state/quota_admission.go:96–102`: agent reports make the row `finished` while retaining
+  `runtime_claim` and `pending_release`, but ordinary and quota-resume admission count only
+  `starting`/`running` rows. A slow reporting turn or failed Stop therefore admits additional
+  task runtimes beyond the configured budget. FS-16.R4/R21 and TS-10.R17/R19 hold the slot until
+  cleanup completes. The store probe sets budget one, confirms a created task, accepts its result
+  without release, then successfully admits a second created runtime. Count all outstanding
+  created/woke ownership through the common admission predicate, including terminal cleanup;
+  regress ordinary admission and borrowed-to-woke quota admission before and after release.
+
+- **Must fix** — CR-A2-3 — **A deferred retry forgets its confirmed assignee and launches a replacement**
+  (INV §1/§3/§15). `internal/state/tasks.go:1490–1516`,
+  `internal/server/task_dispatcher.go:94–120`: `AbandonTaskStart` and `FailTaskStart` unconditionally
+  clear `assigned_agent_id`, including when a previously confirmed launch-spec task is retried
+  or continued. If its resume loses the lifecycle claim or genuinely fails, the next plan sees
+  an unassigned launch target and creates a new agent, splitting its transcript and work-derived
+  context membership. FS-16.R23/R25/R34 and TS-10.R28/R29 require the same confirmed assignee.
+  The store probe confirms an assignee, interrupts and retries it, then tests both contention
+  deferral and resume failure: both return `ready` with an empty assignee despite a nonempty
+  `started_at`. Preserve confirmed membership separately from the abandoned runtime reservation;
+  regress Retry and wait continuation through contention/failure to the actual next native start.
+
+- **Must fix** — CR-A2-4 — **Actionable watched changes can strand a waiting assignment permanently**
+  (INV §1/§7/§9/§10/§15). `internal/server/task_dispatcher.go:724–784,824–865`,
+  `internal/server/task_handlers.go:615–629`: exit/restart interruption and task deletion publish
+  updates but never notify task waiters. Startup skips settled `waiting` tasks and re-evaluates
+  dependency arms only; it never rechecks saved watches. A child interruption/deletion, or a
+  crash after a child result commits but before the notification, leaves its owner waiting even
+  after further restarts. FS-16.R33/R34 and TS-10.R2/R27/R30 require actionable changes and
+  startup rediscovery to continue that same assignment. The server probes exercise runtime-exit
+  interruption, the deletion handler, and committed-result-before-recovery; all retain
+  `waiting/resume_needed=false`. Wire every actionable producer and add bounded durable watch
+  reconciliation, preserving watch versions, closure and cancellation fences. This is distinct
+  from ASRE-1, which owns missing context after a continuation has already been admitted.
+
+- **Must fix** — CR-A2-5 — **Waking mail resumes a waiting assignee outside task admission**
+  (INV §1/§2/§5/§10/§15). `internal/server/messaging_loops.go:72–137,181–224`,
+  `internal/server/attachments.go:493–500`: mail execution and manual Send/wake do not route a
+  waiting assignment through its continuation. After a created/woke task yields, waking mail
+  can resume its stopped agent while the task remains `waiting` with no runtime claim, bypassing
+  capacity and leaving task read/report execution identity unset. TS-10.R29 explicitly requires
+  mail/manual input to join the same assignment continuation before ordinary delivery;
+  FS-06.R30 preserves lifecycle/budget controls. The fake-wire server probe yields a real task
+  runtime, fills budget one, then observes a second provider prompt from waking mail while its
+  assignment still has no runtime ownership. Extend existing continuation admission for both
+  inputs, retaining the mail opportunity until admission and respecting closure/cancel. Regress
+  stopped and borrowed waits, full capacity, manual Send and Stop racing delivery; the native
+  reproduction here covers waking mail, while the manual path is source-traced.
+
+- **Must fix** — CR-A2-6 — **Blocked oldest batches hide unrelated eligible task and mail work**
+  (INV §7/§9/§16). `internal/state/tasks.go:1347–1349`,
+  `internal/state/activations.go:96–106`, `internal/server/task_dispatcher.go:56–65`,
+  `internal/server/messaging_loops.go:49–74`: both sweeps select only the oldest eight rows and
+  repeatedly leave quota-blocked targets at that same position. With eight such rows, a ninth
+  eligible task never reaches admission. A ninth mail opportunity whose fast-path hint was
+  dropped (or whose backlog survived restart) is likewise invisible to recovery sweeps. This
+  violates FS-16.R6/R7, TS-10.R2/R17 and TS-01.R20's progress/draining contract despite free
+  capacity. The server probe repeats three passes for each domain, observes the ninth remain
+  untouched, then directly selects the same mail opportunity and sees its provider prompt.
+  Keep read/in-flight bounds while advancing across blocked prefixes over successive passes;
+  regress more than one batch without changing blocked work's retry policy or admission order
+  among eligible work. ASRG-5 retains the separate quota-probe cleanup queue mechanism.
+
+Connected authority/evidence ledger:
+
+| Boundary / policy | Evidence and result |
+|---|---|
+| Source fact → readiness → assignment | Typed arms/results and signal transactions, source-specific evaluation, durable ready ordering, single-statement capacity/exclusivity and attempt tokens inspected. Focused fan-in/capacity/concurrent-admission/bounded-failure tests pass. Migration 28 (`schema.go:511–515`) extends the unique index to waiting/continuation-ready assignments; the independent two-state exclusion probe passes, rejecting the original-index-only hypothesis. CR-A2-2/3/6 expose different accounting/identity/progress gaps. |
+| Wait → yield → same-assignment continuation | Watch creation and source reads share one transaction; changes coalesce behind pending yield and run closure. Existing wait/yield tests pass but invoke `NotifyTaskWaiters` directly and do not prove the real actionable producers or startup rediscovery. CR-A2-1/4/5 reproduce the missing joins. ASRE-1 retains admitted-continuation context ownership. |
+| Waking/deferred mail → native turn → receipt | Waking content and opportunity commit together; deferred insert creates none. Token-scoped claims, lifecycle and runtime turn gates, attempted-at-most-once retirement, terminal exclusion, and independent inline-content receipt/recovery traced. Coalescing, failed-wake/restart, late lifecycle contention, fatal recovery, and runtime preparation/status tests pass. CR-A2-5/6 qualify owner admission and sweep progress, not mail's no-replay policy. |
+| Quota episode/check → owner continuation | Exact owner/generation/turn/revision/token, chain allowance, check selection, check cleanup, task capacity conversion and manual controls traced. Existing quota capacity/restart/control/ready-check/disable tests pass. ASRG-1/2/5 retain room compensation, check-before-capacity and probe-cleanup starvation; ASF-1's cancellation fix stays closed. A proposed stranded-reservation finding was not accepted: needs-attention is an explicit manual policy and `BindQuotaManualTurn` supplies same-task recovery; no irrecoverability was proved. |
+| Interrupted start → real-process recovery | The new disposable-process probe starts with an empty registry, a created reservation and a live child with missing birth proof: recovery refuses to kill it and retains `starting`/claim. After supplying the child's actual birth, the next recovery kills/reaps that exact process and returns the task ready with one spent failure. It passes in both SQLite builds. Existing real orphan/process-identity and stale-turn tests also pass; borrowed ambiguous work remains interrupted/manual rather than replayed. |
+| Result/yield/cancel → retained cleanup | Shared task lock, generation guard, cancellation turn guard, unsafe repair and exponential due retries inspected. Existing cleanup/backoff/unsafe-repair tests pass. Their direct turn-end/seeded-cleanup setup does not exercise the periodic sweep while a reporting native turn is held; CR-A2-1 reproduces that gap. ASRF-1 retains post-result pipeline progression ownership. |
+
+Evidence: temporary Go overlays `/private/tmp/cra2_{state,server}_probe_test.go` via
+`/private/tmp/cra2_overlay.json`; `go test -overlay=/private/tmp/cra2_overlay.json
+./internal/state ./internal/server -run '^TestCRA2' -count=1`, repeated with
+`-tags sqlite_fts5`. All six failure mechanisms reproduce in both builds; waiting-assignment
+exclusion and the real-process recovery control pass. Existing focused state/server/runtime
+checks pass separately; the first runtime selection matched no tests and was replaced with the
+explicit activation/mail/orphan/guarded-cancel names. Source checks unset `CHUCK_RUNTIME_ROOT`
+and use `GOFLAGS=-p=1`; spec/launcher and diff-whitespace checks pass.
+Local loopback/build-cache execution was approved after sandbox refusals;
+no external provider or user-home data was used. Fake-provider teardown emitted a few
+`sql: database is closed` diagnostics after the asserted failures; these are not counted as
+findings. Live Claude/Codex task reporting, quota adoption and paired-device gates remain owed;
+these host/store/wire probes do not close them. No material visual change or rendered gate is
+part of this unit.
+
+INV sweep: §§1/2/3/4/5/7/8/9/10/11/12/14/15/16/17 apply to lifecycle, persisted assignment,
+recovery, refusal/protocol/native boundaries, guarded HTTP producers, side effects, bounded
+queues and proof. Findings above identify the failing classes. Existing shared lifecycle,
+token/HTTP guards, closed activation contracts and typed error/status seams otherwise remain;
+no new protocol/security defect is claimed. §§6/13 have no applicable surface: this audit adds
+no interface/runtime or UI markup/CSS. No local implementation choice needs a human decision;
+the initial exclusivity and quota-reservation hypotheses were rejected as described above.
 
 ### CR-A1 — Durable truth and recovery — reviewed `da44be64` — **Fix model:** difficult — Codex Sol.
 
@@ -1176,6 +1299,14 @@ and specifications are unchanged.
 Settled work through v0.18.0 is in
 [`HANDOFF-through-2026-10-20`](../archive/state/HANDOFF-through-2026-10-20.md).
 v0.18.0 was published 2026-10-21 with the explicit one-release architectural-review waiver.
+
+- **2026-10-21 — Review: admission, waiting and recovery (CR-A2).** Audited current HEAD
+  `f1c59961`; recorded six Must-fix findings for premature cleanup, retained-slot undercount,
+  lost retry assignee, stranded watches, waking mail outside continuation admission and blocked
+  task/mail prefixes. Isolated store/fake-wire probes reproduce all six in both SQLite builds;
+  waiting-exclusivity and real-process failed-reap/recovery controls pass. Focused existing
+  admission, mail, quota and cleanup checks pass. Other audit/fix owners and live gates remain
+  unchanged. Only the handoff is committed; entry ready-change edits are preserved.
 
 - **2026-10-21 — Review: durable truth and recovery (CR-A1).** Audited current HEAD `da44be64`;
   recorded three Must-fix findings for interrupted reindex retention, destructive missing-input
