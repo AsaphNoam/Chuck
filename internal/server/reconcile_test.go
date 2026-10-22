@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -261,6 +262,48 @@ func TestReconcileSessionsOncePreservesDetailWithoutAssistantText(t *testing.T) 
 	}
 	if status.Detail != "keep me" {
 		t.Fatalf("detail = %q, want preserved %q", status.Detail, "keep me")
+	}
+}
+
+// CR-A7-4 (INV §16): the periodic sweep reads only transcripts whose stale
+// correction could apply. A stopped agent's retained history is a FIFO here,
+// so any read of it blocks the sweep; the live stale agent is still repaired.
+func TestReconcileSweepSkipsIneligibleRetainedHistory(t *testing.T) {
+	srv := testServer(t, true)
+	live := seedHookAgent(t, srv)
+	stopped := state.Agent{AgentID: "a_stopped1", Name: "Stopped", Role: "implementer", Project: "my-app",
+		Backend: "claude", Model: "sonnet-4-6", Interface: "chat", CreatedAt: time.Now().UTC()}
+	if err := srv.stateStore.WriteAgent(stopped); err != nil {
+		t.Fatalf("WriteAgent: %v", err)
+	}
+	old := time.Now().Add(-time.Hour).UnixMilli()
+	for _, id := range []string{live, stopped.AgentID} {
+		if err := srv.stateStore.WriteStatus(state.Status{AgentID: id, State: "idle", Detail: "old", LastTrace: "Stop", UpdatedAt: old}); err != nil {
+			t.Fatalf("WriteStatus: %v", err)
+		}
+	}
+	writeSessionTranscript(t, srv, live,
+		transcriptEvent(t, live, 1, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "live reply"}))
+	fifo := filepath.Join(srv.configStore.Home(), "sessions", stopped.AgentID, transcript.LogFileName)
+	if err := os.MkdirAll(filepath.Dir(fifo), 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Skipf("mkfifo unavailable: %v", err)
+	}
+
+	applied := make(chan int, 1)
+	go func() { applied <- srv.reconcileSessionsOnce(time.Now()) }()
+	select {
+	case got := <-applied:
+		if got != 1 {
+			t.Fatalf("reconcile applied = %d, want only the live stale agent", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("periodic sweep read a stopped agent's retained transcript")
+	}
+	if status, err := srv.stateStore.ReadStatus(stopped.AgentID); err != nil || status.Detail != "old" {
+		t.Fatalf("stopped agent status = %+v, %v; want untouched", status, err)
 	}
 }
 

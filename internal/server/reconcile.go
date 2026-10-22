@@ -117,9 +117,14 @@ func (s *Server) reconcileSessionsTimer(ctx context.Context) {
 
 func (s *Server) reconcileSessionsOnce(staleBefore time.Time) int {
 	sessionsDir := filepath.Join(s.configStore.Home(), "sessions")
+	due, err := s.stateMgr.StaleCorrectionCandidates(staleBefore)
+	if err != nil {
+		s.log.Warn("reconcile: select stale agents", "err", err)
+		return 0
+	}
 	applied := 0
 	_ = filepath.WalkDir(sessionsDir, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil || d.IsDir() || !due[agentIDFromSessionPath(sessionsDir, path)] {
 			return nil
 		}
 		if s.reconcileSessionPath(path, staleBefore) {

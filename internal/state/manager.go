@@ -172,6 +172,38 @@ ON CONFLICT(agent_id) DO UPDATE SET
 	})
 }
 
+// StaleCorrectionCandidates returns the agents ApplyStaleCorrection could
+// change at staleBefore: a running row and no status newer than staleBefore.
+// The periodic sweep reads only their transcripts, so stopped or archived
+// history is not replayed every interval (INV §16); apply rechecks each one.
+func (m *Manager) StaleCorrectionCandidates(staleBefore time.Time) (map[string]bool, error) {
+	if m == nil || m.store == nil {
+		return nil, errors.New("state: manager has no store")
+	}
+	rows, err := m.store.db.Query(`
+SELECT r.agent_id
+FROM running r
+JOIN agents a ON a.agent_id = r.agent_id
+LEFT JOIN status s ON s.agent_id = r.agent_id
+WHERE s.updated_at IS NULL OR s.updated_at < ?`, staleBefore.UnixMilli())
+	if err != nil {
+		return nil, fmt.Errorf("state: stale correction candidates: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("state: stale correction candidate row: %w", err)
+		}
+		out[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("state: stale correction candidates: %w", err)
+	}
+	return out, nil
+}
+
 // ApplyStaleCorrection applies a conservative status detail update for a live
 // agent only when the current status row predates staleBefore.
 func (m *Manager) ApplyStaleCorrection(agentID, detail string, staleBefore time.Time) (AgentStateUpdate, bool, error) {

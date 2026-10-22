@@ -21,20 +21,20 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   ownership and ASF-1 turn/control settlement are closed. Select remaining work through
   [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-6 wait.
   Their source reviews and open findings remain below; do not reopen completed refactors.
-- **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
-  with nine open admission/recovery findings. CR-A3, CR-A4, CR-A5 and CR-A6 are reviewed and closed
-  (no open findings). CR-A7 is reviewed with one open capacity/cost finding (A7-4).
+- **Core audits:** CR-A1 is reviewed with one open durable-recovery finding (CR-A1-3); CR-A2 is reviewed
+  with nine open admission/recovery findings. CR-A3, CR-A4, CR-A5, CR-A6 and CR-A7 are reviewed
+  and closed (no open findings).
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   [Before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) connects preservation,
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
-  CR-A7-1's acceptance scope without changing finding owners or starting fixes.
+  CR-A7-1's acceptance scope (fixed with CR-A7-1).
   Its [refactor recommendation](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#architectural-refactor-recommendation)
   now reflects an independent Astra challenge and primary source checks: design a narrow reindex
   preservation boundary; specify task cleanup/continuation contracts within coordinated fixes.
   A separate task-ownership architecture project is not demonstrated. CR-A4 is closed below.
   **Reindex preservation implemented:** FS-05.R43–R45/A26–A27 and TS-02.R56–R58 now use
   per-conversation atomic replay under the approved partial-repair policy. CR-A1-1/2 remain open
-  pending independent review of the implementation; CR-A1-3 stays independently actionable.
+  closed by independent review on 2026-10-22; CR-A1-3 stays independently actionable.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
@@ -49,7 +49,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None. Interruption-safe reindex is finished and available for independent review below.
+- None. Interruption-safe reindex is finished and independently reviewed without findings.
   Both Go variants and the build pass. The operator-requested worktree kept the main checkout's
   existing uncommitted ready-change edits separate.
 - Other available review/fix units and owed live receipts remain below.
@@ -211,27 +211,24 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 
 **Core reliability audit units:** explicitly requested subsystem reviews of the complete current
 implementation and callers, not reviews of planning commits. Read the selected charter, refresh
-current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed with findings open.
+current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed; CR-A1/A2 findings remain open.
 
 | Unit | Responsibility | Status |
 |---|---|---|
-| [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) | Durable truth and recovery: conversation/session authority through Stop/restart, archive/Restore, interrupted reindex and native continuation | reviewed `da44be64` — three findings open |
+| [CR-A1](CORE-RELIABILITY-REVIEW-A1.md) | Durable truth and recovery: conversation/session authority through Stop/restart, archive/Restore, interrupted reindex and native continuation | reviewed `da44be64` — one finding open (A1-1/2 closed by reindex review) |
 | [CR-A2](CORE-RELIABILITY-REVIEW-A2.md) | Admission, waiting and recovery: task/dependency eligibility, assignment/capacity, mail/quota retry policies, retained cleanup and startup progress | reviewed `f1c59961` — nine findings open |
 | [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | reviewed `7ec20a01` — closed; CR-A3-1/2/3 fixed |
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — closed; CR-A4-1 fixed |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — closed; CR-A5-1/2 fixed |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — closed; CR-A6-1–6 fixed |
-| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — one finding open (A7-1/2/3/5 fixed) |
+| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — closed; CR-A7-1–5 fixed |
 
-**Reindex implementation review available:** CR-A1-1/2 are covered together by the
-interruption-safe reindex implementation (FS-05.R43–R45/A26–A27; TS-02.R56–R58).
-Product range: `7b77dd25..467b70ba`; subsequent handoff closure adds no product change.
-Review the transaction boundary, source failure versus fatal storage failure, retained authority,
-and complete-record replay. Process-kill/reopen/retry and fake-native Resume wire proofs use
-separate fixtures; no same-fixture end-to-end process-kill/Resume claim is made. No new UI/runtime
-interface is introduced (INV §6's runtime contract checklist is inapplicable). Avoid a competing
-standalone fix of the same replay path. CR-A1-1/2 stay open until review establishes closure.
-CR-A1-3 is separately actionable. A CR-A2 fix
+**Reindex implementation review closed, 2026-10-22:** no findings in the interruption-safe
+reindex product changes `90caf6b4` / `467b70ba` within `7b77dd25..467b70ba`, checked at
+`0ac1c55c`. CR-A1-1/2 are closed (FS-05.R43–R45/A26–A27; TS-02.R56–R58).
+Process-kill/reopen/retry and fake-native Resume wire proofs use separate fixtures; no
+same-fixture end-to-end process-kill/Resume claim is made. This state-only closure adds no
+review obligation. CR-A1-3 is separately actionable. A CR-A2 fix
 agent may start validation/design under §8, but must first record cleanup authorization and
 continuation delivery order before editing product code, keeping accounting coupled with cleanup
 and ASF-3 ownership separate. See [pickup readiness](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#pickup-readiness).
@@ -274,60 +271,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
-
-### CR-A7 — Sustained capacity and cost — reviewed `8c837942` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Subsystem audit complete at `8c837942a20b4eb4769104aec9a0ad11a712c3c7`; open findings keep this
-same unit open. Three focused reviewers covered storage/reconciliation, browser consumers and runtime
-lifetimes; the parent reviewed their source/probes and measured reference/peer reads. Entry dirty
-ready-change edits are preserved. No product code or normative spec changed, and no local-choice
-or new product decision is introduced. Existing A1–A6 and ASW/ASF finding ownership is unchanged.
-
-- **Worth fixing** — CR-A7-4 — **The idle reconciliation timer replays all retained history**
-  (INV §7/§16). Every 30 seconds `internal/server/reconcile.go:20–24,73–75,118–130` walks every
-  canonical transcript and fully reads it at `:85–100,162–190`, before
-  `internal/state/manager.go:175–205` checks running identity/status age. Unchanged, stopped or
-  archived history still incurs the read. With production stale timing and no corrections
-  (`applied=0`), three warm sweeps over 10/100/500 MB took 39–40/402–467/2,015–2,101 ms and
-  allocated 25.9/252.8/1,260.1 MB respectively. The 500 MB corpus spans 50 agents: roughly two
-  seconds of repeated background work every 30 seconds on unchanged data. This demonstrates idle
-  work amplification, not an invented latency SLO or proven control starvation. The fsnotify
-  single-path test does not cover the periodic fallback. Avoid replaying ineligible/unchanged
-  retained files while preserving missed-write repair, truthful I/O errors and restart behavior;
-  use the measured rationale for a separately scoped remedy, not a general cache/index rewrite.
-
-Cost/ownership ledger (Darwin 24.6.0 arm64, Go 1.26.6, source/default SQLite build, isolated
-temporary homes, no providers; fixture writes and one warm-up precede three measured repetitions):
-
-| Workload | Returned versus processed work and result |
-|---|---|
-| Fixed reference, early versus late span | 1,037 returned bytes in either position. At 1,000/10,000/100,000 records (1.11/11.13/111.37 MB), early warm medians were 4.3/45.0/459.1 ms; cumulative allocation 2.77/27.06/269.91 MB. All records are decoded, including later text outside the fixed span. This linear cost alone is not a finding; A7-2 owns unbounded concurrent/cancelled work. |
-| Peer first/second/incremental page | At 111.37 MB, first/second 32 KiB pages took 993/885 ms and allocated about 401.7 MB each; a 1,066-byte incremental result took 510 ms and 269.9 MB. Each hashes/decodes the whole captured prefix. Eight-scan admission, fixed-prefix verification and returned-page bounds remain distinct; the fingerprint cost is intentional, not a new defect. |
-| HTTP windows/full local reads and primer | 1,000/10,000/50,000-record window probes returned 100 events after visiting all records (about 2/14/69 ms). Local full reads intentionally materialize all events; primer retains bounded recent/older text despite full input scans. No standalone scan-latency finding or universal index requirement is inferred. |
-| Quiescent retained corpus | Periodic 10/100/500 MB sweeps process all bytes with zero corrections; A7-4 records the measured cost. The charter's unchanged-file-skip lead applies only to the fsnotify path, not the periodic sweep. |
-| Bus, views and temporary state | One server/worker snapshot row per live agent; 256 queued events per server subscriber; four desktop expanded cards; open-agent ref counts, request fencing and temporary reconciliation tails release correctly in focused tests. Phone response/client windows remain distinct. A7-1 and A7-3 qualify snapshot recovery and traffic retention; no real-browser memory measurement is claimed. |
-| Runtime/process ownership | Journal items and PTY fan-out remain bounded; PTY tests cover drain without viewers and close. Journal reclaim follows references/writer/drainer; A7-5 qualifies marker retention. ASW-3's real tmux/iTerm2 receipt remains owed; no repeated real native-generation/OS-process measurement ran. |
-| Starts/native effects | Mail and task caps are eight in their separate domains; quota has its own slots, room openings their own capacity. These are not one global cap. Context MCP tests assert no mail/activation/history side effect. The focused fake-provider mail journey observes one prompt for two coalesced messages, no replay across repeated sweeps, then a second prompt for new mail; admission-full and shutdown-join tests pass. No credentialed model work, provider usage, adoption, quality comparison or aggregate paid-work measurement ran; A2/ASR-I findings and experiment ownership remain unchanged. |
-
-Evidence: diagnostic overlays/probes in `/tmp/chuck-cra7-review/` (retrieval/cancelled handler logs),
-`/tmp/cr-a7-hydration-10000.patch` and `.log`, `/tmp/cr-a7-bus-overflow-probe_test.go` and `.log`,
-`/tmp/cra7_journal_test.go` plus `/tmp/cra7_overlay.json`, and
-`/private/tmp/a7-reconcile-sweep-probe.go.txt` / `a7-storage-cost.log`. They demonstrate current
-behavior, not committed regression coverage. `GOFLAGS=-p=1`, unset `CHUCK_RUNTIME_ROOT`; local
-MCP and mail-activation tests initially hit sandbox loopback `EPERM`, then passed with approved execution.
-Existing fixed-page/cursor/prefix contracts pass; 68 focused SSE/store/phone tests and focused
-bus/server window/snapshot tests pass; full runtime and terminal packages pass. Spec/finding/link
-integrity and `git diff --check` pass. No product repair,
-native/device gate closure, measured cross-agent Stop starvation, cold-cache claim or general
-performance pass is inferred. Allocation figures are cumulative bytes per operation, not peak RSS.
-
-Invariant sweep: §§1/2/4/5/7/8/9/10/11/14/15/16/17 apply to retrieval, recovery, publication,
-subscriptions, process/registration ownership, bounded producers and diagnostic evidence. Findings
-are tagged above; shared projections, safe error outcomes, source identity, token/route authority,
-publication order and targeted-test oracles supply no other new finding. §3 has no new persisted
-field/form surface, §6 no new interface/runtime and §13 no markup/selector surface. §12's external
-tool/version claims are retained ASW-3/native proof limits, not newly measured provider behavior.
-Independent rendered verification (§14.4) is not applicable to this state-only audit result.
 
 ### CR-A2 — Admission, waiting and recovery — reviewed `f1c59961` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -510,7 +453,7 @@ no new protocol/security defect is claimed. §§6/13 have no applicable surface:
 no interface/runtime or UI markup/CSS. No local implementation choice needs a human decision;
 the initial exclusivity and quota-reservation hypotheses were rejected as described above.
 
-### CR-A1 — Durable truth and recovery — reviewed `da44be64` — **Fix model:** difficult — Codex Sol.
+### CR-A1 — Durable truth and recovery — reviewed `da44be64` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Subsystem audit complete at `da44be647f122f074b46c0a454d0e08c8c6552b1`; findings keep this same
 unit open. Reviewed current implementation and connected callers, not the planning commit.
@@ -523,31 +466,9 @@ META-1 and ASW-1/2/3 remain closed: these findings concern distinct maintenance/
 not their corrected original reproductions. The fix-unit map's old ASW-1 open row is superseded
 by this handoff's current closed state.
 
-- **Must fix** — CR-A1-1 — **Interrupted reindex permanently loses continuation authority**
-  (INV §7/§9/§15). `internal/index/reindex.go:37–61,174–223`: native ID and live effort/fast
-  are retained only in a process-local map before `resetTables` commits deletion of every session.
-  Killing the offline repair before per-agent restoration destroys those SQLite-only inputs;
-  another reindex reads the already-empty/partial table and cannot recover them from NDJSON.
-  This can strand a terminal conversation or select an obsolete transcript native ID, and violates
-  TS-02.R7/R9/R54 and FS-05.R11–R12. A real child-process probe seeds different transcript versus
-  SQLite native ID/effort/fast, blocks replay on a FIFO after the committed reset, kills the child,
-  then reruns repair: the row returns with transcript values, losing all three committed overrides.
-  Preserve authoritative inputs durably across the reset/replay boundary, with interruption-safe
-  replacement or recovery; regress a killed repair followed by rerun and the native Resume consumer.
-  Fix complexity: difficult (durable concurrent maintenance/authority boundary).
-
-- **Must fix** — CR-A1-2 — **Missing transcript inputs make repair erase usable snapshots and report success**
-  (INV §7/§9). `internal/index/reindex.go:28–31,46–61,193–200`,
-  `internal/transcript/reader.go:129–135`: a missing sessions root immediately resets the index,
-  without even retaining existing fields. A present agent directory with no canonical transcript
-  is treated as an empty successful replay; retained-field restoration updates zero rows without
-  reporting it. Existing session snapshots disappear, preventing Resume and removing archive
-  metadata even though stable identities/native histories can still exist. Violates TS-02.R7/R9
-  and FS-05.R11–R13. Populated-store probes confirm both cases return nil and remove the stored
-  session. Refuse/preserve affected existing rows when required canonical input is absent, and
-  report the affected identity rather than treating absence as a successful empty rebuild.
-  Regress populated missing-root and missing-agent-log fixtures alongside a healthy conversation.
-  Fix complexity: medium (bounded retention/error handling across replay and state).
+CR-A1-1/2 closed by the independent interruption-safe reindex review on 2026-10-22; the
+original reproductions and audit ledger below describe the pre-fix source. The sole remaining
+finding is CR-A1-3, so this unit's fix recommendation is now trivial/easy.
 
 - **Must fix** — CR-A1-3 — **Readback accepts a torn record that writer recovery removes**
   (INV §2/§7/§9/§11). `internal/transcript/reader.go:158–183`,
@@ -1433,6 +1354,32 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-22 — Review: interruption-safe reindex — closed without findings.** Reviewed
+  substantive commits `90caf6b4` / `467b70ba` at `0ac1c55c`, including shared live indexer and
+  removal callers, CLI diagnostics, source inventory/validation, complete-prefix replay and
+  retained-field authority. Two focused independent readers checked transaction routing and
+  source failure isolation; the parent checked their conclusions, specifications in both
+  directions, tests and native Resume consumer. No new local-choice question or product decision.
+  CR-A1-1/2 are closed; CR-A1-3 remains open with the recommendation recorded above. No fix
+  model is needed for the closed reindex implementation unit. Unrelated entry dirty work is
+  preserved; only this review's handoff delta is committed.
+  Independent verification: full `internal/index` / `internal/archive` suites, CLI
+  `TestReindexCommandPartialRepairAndRetry`, and server `TestFailedReindexPreservesNativeResume`
+  pass in both untagged and `sqlite_fts5` builds (`env -u CHUCK_RUNTIME_ROOT`,
+  `GOCACHE=/private/tmp/chuck-cache`, `GOFLAGS=-p=1`, `-count=1`). The server test initially
+  failed to bind `::1` under the sandbox; approved loopback reruns pass. Real process kill at
+  retained-field restoration, full old-projection comparisons, late storage abort, partial
+  repair/retry, annotation/partial-turn compatibility and actual native load serialization
+  provide distinct contract evidence under TS-06.R35 / INV §17. No same-fixture kill-to-Resume,
+  live-provider adoption, stronger offline exclusion or release architectural receipt is claimed.
+  Invariant sweep: §§1/2/4/7/8/9/10/11/15/16/17 apply to replacement state, shared builders,
+  transaction/buffer/fixture cleanup, failed-source reads and diagnostics, SQLite durability,
+  wiring, metadata meaning, publication order, streaming replay and independent oracles; no
+  findings. §§3/5/6/12/13/14 have no applicable surface: no transient persisted field, concurrent
+  claim, runtime contract, installed-tool invocation, markup or HTTP/security boundary changed.
+  No rendered gate applies. Spec and diff checks pass. This administrative closure adds no
+  review obligation and changes no product code or specification.
+
 - **2026-10-22 — Implemented interruption-safe offline reindex.** Each conversation replaces
   its session/search/tracking projections and restores native identity/live settings in one
   transaction. Missing/unusable sources preserve complete prior data; healthy neighbors rebuild;
@@ -1451,8 +1398,18 @@ and specifications are unchanged.
   the full bus package passes, and the build passes; the full matrix receipt above is for the
   pre-integration reindex source. Uncommitted context-reference work in main is excluded.
 
-- **2026-10-22 — Fix: sustained capacity and cost (CR-A7-1 INV §1/§11, CR-A7-2 INV §4/§16, CR-A7-5 INV §4/§16,
-  CR-A7-3 INV §16).**
+- **2026-10-22 — Fix: sustained capacity and cost (CR-A7-1 INV §1/§11, CR-A7-2 INV §4/§16,
+  CR-A7-3 INV §16, CR-A7-4 INV §7/§16, CR-A7-5 INV §4/§16).**
+  CR-A7-4: the periodic reconciliation sweep first asks `Manager.StaleCorrectionCandidates` for
+  agents with a running row and a status older than the stale window, and reads only their
+  transcripts; the fsnotify path, apply-time recheck and read-error logging are unchanged
+  (TS-01.R8). `TestReconcileSweepSkipsIneligibleRetainedHistory` (stopped agent's transcript is a
+  FIFO) hung with the filter disabled. Live agents with stale status are still re-read each
+  sweep; no unchanged-file skip was added. Closure: `make test` (both Go variants,
+  `GOFLAGS=-p=1`), `make build`, 984 UI tests and the UI build pass; bus and SSE overflow tests
+  pass under `-race`.
+  CR-A7 is closed. Its cost/ownership ledger and evidence limits remain in this file's history at
+  `0ac1c55c` and in the review charter.
   CR-A7-2: share/read transcript scans go through `Service.scanTranscript`, which takes one of
   four reference-scan slots (separate from the eight peer slots), refuses excess with transient
   `context_busy`, and stops on request cancellation; MCP handlers now pass their contexts.
