@@ -62,6 +62,8 @@ func federationServer(t *testing.T) (*Server, string, string) {
 	srv.sourceMgr = configsource.NewManager(srv.configStore, map[string]configsource.Resolver{
 		configsource.ProviderClaude: configsource.NewClaudeResolver(userHome),
 	}, nil)
+	// A bound child must select the fixture's personal root, not the real one.
+	t.Setenv("CLAUDE_CONFIG_DIR", root)
 	// Federation persists canonical (symlink-resolved) roots; on macOS t.TempDir()
 	// returns /var/... which is a symlink to /private/var/.... Canonicalize the
 	// fixture paths so bound roots and approved-root fixtures match the resolver.
@@ -360,6 +362,127 @@ func TestComposeResumeSpecCarriesFrozenLaunchConfig(t *testing.T) {
 	}
 	if string(spec.LaunchConfig) != string(frozen) {
 		t.Fatalf("resume LaunchConfig = %s, want frozen %s", spec.LaunchConfig, frozen)
+	}
+}
+
+// CR-A3-2 / FS-08.R37, TS-07.R19: "Resume with latest setup" keeps the frozen
+// working directory, so the refreshed source and its preflight read that
+// directory's native layers even after the project's cwd moved elsewhere.
+func TestResumeConfigRefreshResolvesFrozenCwd(t *testing.T) {
+	srv, root, dirA := federationServer(t)
+	fake := buildFakeACP(t)
+	t.Setenv("FAKEACP_SCENARIO", "stream_text")
+	srv.registry.Chat().SetCommand(fake)
+	bindFixture(t, srv, root, dirA)
+	dirB := canonicalPath(t, t.TempDir())
+	writeLayer := func(dir, body string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Join(dir, ".claude"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, ".claude", "settings.json"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeLayer(dirA, `{"model":"a-model"}`)
+	// B alone declares the reserved MCP id; it must not block a resume into A.
+	writeLayer(dirB, `{"model":"b-model","mcpServers":{"`+messagingMCPName+`":{"type":"http","url":"http://x"}}}`)
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+	t.Cleanup(func() { srv.registry.Shutdown(context.Background()) })
+	agentID := launchAndWaitIdle(t, ts, "implementer", "fed")
+	stop := func() {
+		t.Helper()
+		if resp, body := post(t, ts.URL+"/api/sessions/"+agentID+"/stop", nil); resp.StatusCode != http.StatusOK {
+			t.Fatalf("stop status = %d: %s", resp.StatusCode, body)
+		}
+	}
+	stop()
+	if err := srv.configStore.WriteProject("fed", config.Project{Title: "Fed", Cwd: dirB, AddDirs: []string{}}); err != nil {
+		t.Fatalf("WriteProject: %v", err)
+	}
+
+	resp, body := post(t, ts.URL+"/api/sessions/"+agentID+"/resume", map[string]any{"config_refresh": true})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("refresh resume status = %d: %s", resp.StatusCode, body)
+	}
+	snap, err := srv.stateStore.ReadSession(agentID)
+	if err != nil {
+		t.Fatalf("ReadSession: %v", err)
+	}
+	var doc launchConfigDoc
+	if err := json.Unmarshal(snap.LaunchConfig, &doc); err != nil {
+		t.Fatalf("launch config decode: %v", err)
+	}
+	if doc.Resolved.Model == nil || *doc.Resolved.Model != "a-model" || canonicalPath(t, snap.Cwd) != dirA {
+		t.Fatalf("refreshed model=%v cwd=%q, want a-model in %q", doc.Resolved.Model, snap.Cwd, dirA)
+	}
+
+	// The same conflict in the resumed directory itself does block.
+	stop()
+	writeLayer(dirA, `{"model":"a-model","mcpServers":{"`+messagingMCPName+`":{"type":"http","url":"http://x"}}}`)
+	resp, body = post(t, ts.URL+"/api/sessions/"+agentID+"/resume", map[string]any{"config_refresh": true})
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("refresh resume with a conflicting resumed layer = %d: %s, want 409", resp.StatusCode, body)
+	}
+}
+
+// CR-A3-3 / FS-08.R37, TS-07.R19: a bound Claude source was preflighted against
+// the personal root, so an ambient, backend or model CLAUDE_CONFIG_DIR/HOME
+// that points the child elsewhere refuses fresh and continued starts before
+// any effect. An unbound continuation keeps its environment's own selection.
+func TestBoundClaudeChildMustUseThePreflightedRoot(t *testing.T) {
+	srv, root, projectDir := federationServer(t)
+	bindFixture(t, srv, root, projectDir)
+	spec, _, ae := srv.composeLaunch(context.Background(), launchRequest{Role: "implementer", Project: "fed"})
+	if ae != nil {
+		t.Fatalf("composeLaunch: %s", ae.Message)
+	}
+	frozen := spec.LaunchConfig
+	elsewhere := t.TempDir()
+
+	cases := []struct {
+		name                 string
+		ambient, backend, md map[string]string
+	}{
+		{name: "ambient", ambient: map[string]string{"CLAUDE_CONFIG_DIR": elsewhere}},
+		{name: "backend", backend: map[string]string{"CLAUDE_CONFIG_DIR": elsewhere}},
+		{name: "model home", ambient: map[string]string{"CLAUDE_CONFIG_DIR": ""}, md: map[string]string{"HOME": elsewhere}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.ambient {
+				t.Setenv(k, v)
+			}
+			backends := config.DefaultBackends()
+			be := backends.Backends["claude"]
+			be.Env = tc.backend
+			model := be.Models[be.DefaultModel]
+			model.Env = tc.md
+			be.Models[be.DefaultModel] = model
+			backends.Backends["claude"] = be
+			if err := srv.configStore.WriteBackends(backends); err != nil {
+				t.Fatalf("WriteBackends: %v", err)
+			}
+			t.Cleanup(func() { _ = srv.configStore.WriteBackends(config.DefaultBackends()) })
+
+			if _, _, ae := srv.composeLaunch(context.Background(), launchRequest{Role: "implementer", Project: "fed"}); ae == nil || ae.Code != runtime.CodeSourceInvalid {
+				t.Fatalf("fresh launch ae = %+v, want source_invalid", ae)
+			}
+			agent := state.Agent{AgentID: "a_cont", Name: "Nova", Role: "implementer", Project: "fed",
+				Backend: "claude", Model: be.DefaultModel, Interface: "chat"}
+			snap := state.SessionSnapshot{AgentID: "a_cont", Role: "implementer", Project: "fed",
+				Backend: "claude", Model: be.DefaultModel, Interface: "chat", Cwd: projectDir, LaunchConfig: frozen,
+				ExecutionContract: &state.ExecutionContract{Version: 1, Backend: "claude", Model: be.DefaultModel, ModelChoice: state.ModelChoice{Kind: "native"}}}
+			if _, ae := srv.composeResumeSpec(agent, snap, be, model); ae == nil || ae.Code != runtime.CodeSourceInvalid {
+				t.Fatalf("continuation ae = %+v, want source_invalid", ae)
+			}
+			snap.LaunchConfig = nil
+			if _, ae := srv.composeResumeSpec(agent, snap, be, model); ae != nil {
+				t.Fatalf("unbound continuation refused: %s", ae.Message)
+			}
+		})
 	}
 }
 

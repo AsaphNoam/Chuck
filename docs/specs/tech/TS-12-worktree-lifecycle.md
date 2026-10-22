@@ -65,6 +65,9 @@ branch automation beyond creating the fork branch.
   the start with an actionable error. Resume and switch thread caller cancellation through this
   work and expose the same recreation/setup warning notice as launch; pipeline continuation uses
   the same context-aware composer even though its control-plane response has no session envelope.
+  A directory already present at the owned path is accepted only when its Git common directory is
+  the recorded repository; a plain directory or another repository's checkout reusing the path
+  fails the start with an actionable error and is neither repaired nor deleted.
 
   *Correction (2026-09-02, implementation):* the original text also called the helper from pipeline
   `ValidateStage`. That is the manager's read-only per-stage pre-flight, run before a run snapshot

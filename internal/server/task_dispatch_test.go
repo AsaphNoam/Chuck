@@ -1140,6 +1140,8 @@ func bindSourceEffortOverride(t *testing.T, srv *Server, override string) {
 	srv.sourceMgr = configsource.NewManager(srv.configStore, map[string]configsource.Resolver{
 		configsource.ProviderClaude: configsource.NewClaudeResolver(userHome),
 	}, nil)
+	// The child must select the fixture's personal root, not the real one.
+	t.Setenv("CLAUDE_CONFIG_DIR", root)
 	sources, _ := srv.readConfigSources()
 	canonicalRoot := canonicalPath(t, root)
 	sources.Sources["claude"] = config.SourceBinding{

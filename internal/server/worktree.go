@@ -168,6 +168,9 @@ func (s *Server) ensureWorktreeCheckout(ctx context.Context, projectID, cwd stri
 			if err := s.configStore.ValidateOwnedWorktreePath(projectID, row.CheckoutPath); err != nil {
 				return false, "", apiError(runtime.CodeValidation, "unsafe owned worktree path: "+err.Error())
 			}
+			if ae := s.verifyOwnedCheckoutRepo(ctx, projectID, row); ae != nil {
+				return false, "", ae
+			}
 		}
 		return false, "", nil
 	}
@@ -212,6 +215,21 @@ func (s *Server) ensureWorktreeCheckout(ctx context.Context, projectID, cwd stri
 	}
 	warning = s.runProjectSetup(ctx, projectID, row.CheckoutPath)
 	return true, warning, nil
+}
+
+// verifyOwnedCheckoutRepo refuses a directory at the owned checkout path that
+// is no longer a checkout of the recorded repository. After out-of-band loss
+// the path can be reused by another repository's worktree or by a plain
+// directory; either would run work outside the project Chuck records
+// (FS-19.R7, TS-12.R4). The contents are never repaired or deleted here.
+func (s *Server) verifyOwnedCheckoutRepo(ctx context.Context, projectID string, row state.ProjectWorktree) *runtime.APIError {
+	repo, err := s.worktreeGit().CommonDir(ctx, row.CheckoutPath)
+	if err == nil && sameCheckoutPath(repo, row.RepoPath) {
+		return nil
+	}
+	return apiError(runtime.CodeValidation, fmt.Sprintf(
+		"the checkout for project %q at %s is no longer a checkout of %s — move that directory aside so Chuck can recreate branch %q",
+		projectID, row.CheckoutPath, row.RepoPath, row.Branch))
 }
 
 // claimWorktreeRecreate takes the per-project recreation claim and returns its

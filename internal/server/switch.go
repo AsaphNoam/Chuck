@@ -387,10 +387,12 @@ func (s *Server) validateSwitchTarget(target state.Agent) *runtime.APIError {
 		return apiError(runtime.CodeTerminalUnavailable, terminalUnsupportedReason(be.Type))
 	}
 	// A missing target provider must not stop the working runtime (TS-04.R71).
-	if _, _, ae := providerLaunchLayer(be, be.Models[target.Model]); ae != nil {
+	providerEnv, _, ae := providerLaunchLayer(be, be.Models[target.Model])
+	if ae != nil {
 		return ae
 	}
-	return nil
+	// Nor may a bound Claude target whose child would read another profile.
+	return s.preflightClaudeChildProfile(context.Background(), be.Type, snap.LaunchConfig, s.quotaCheckEnv(be, be.Models[target.Model], providerEnv))
 }
 
 // composeSwitchSpec builds the resume LaunchSpec for the target identity from the

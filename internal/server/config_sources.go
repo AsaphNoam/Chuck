@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/bus"
@@ -638,6 +639,44 @@ func (s *Server) preflightSourceSetup(ctx context.Context, binding configsource.
 	}
 	return apiError(runtime.CodeSourceInvalid,
 		"agents can only use the personal setup at "+candidates[0].Root+"; this source is bound to "+binding.Root)
+}
+
+// preflightClaudeChildProfile refuses a bound Claude start whose child
+// environment would select another configuration root than the personal root
+// the source was resolved and preflighted against (FS-08.R37, TS-07.R19).
+// CLAUDE_CONFIG_DIR, or HOME when it is unset, redirects Claude Code's user
+// configuration, so an ambient, backend or model value could otherwise run a
+// different setup, authentication and session store than the one recorded.
+// childEnv is the composed provider environment; an unbound start keeps
+// whatever that environment selects.
+func (s *Server) preflightClaudeChildProfile(ctx context.Context, backendType string, launchConfig json.RawMessage, childEnv []string) *runtime.APIError {
+	if provider, _ := config.ProviderForBackendType(backendType); provider != configsource.ProviderClaude || s.sourceMgr == nil || len(launchConfig) == 0 {
+		return nil
+	}
+	var doc launchConfigDoc
+	if err := json.Unmarshal(launchConfig, &doc); err != nil || doc.Binding.Provider != configsource.ProviderClaude {
+		return nil
+	}
+	values := map[string]string{}
+	for _, kv := range childEnv {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			values[k] = v
+		}
+	}
+	root := values["CLAUDE_CONFIG_DIR"]
+	if root == "" && values["HOME"] != "" {
+		root = filepath.Join(values["HOME"], ".claude")
+	}
+	candidates, err := s.sourceMgr.Discover(ctx, configsource.ProviderClaude, config.Project{})
+	if err != nil || len(candidates) == 0 || root == "" {
+		return apiError(runtime.CodeSourceInvalid, "the Claude Code setup this agent would use cannot be determined")
+	}
+	if samePath(root, candidates[0].Root) {
+		return nil
+	}
+	return apiError(runtime.CodeSourceInvalid,
+		"this backend's environment points Claude Code at "+root+", but its linked source is "+candidates[0].Root+
+			"; remove the CLAUDE_CONFIG_DIR or HOME override, or unlink the source")
 }
 
 func samePath(a, b string) bool {

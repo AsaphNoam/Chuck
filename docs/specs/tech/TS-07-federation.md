@@ -153,6 +153,12 @@ refuses a named profile or a root other than the resolver's discovered personal 
 `422 source_invalid`, before registration and, for refresh, before any process work. The frozen
 choice lives in TS-02.R53's contract. Ordinary continuation of a frozen or legacy setup naming a
 profile refuses the same way in `continuedContract`, before registration or switch teardown.
+"Resume with latest setup" resolves and preflights against the resume's frozen working directory,
+not the project's current cwd. Every bound Claude start (launch, resume, switch validation) also
+checks the composed child environment through `preflightClaudeChildProfile`: an ambient, backend
+or model `CLAUDE_CONFIG_DIR`, or `HOME` when that is unset, that selects a root other than the
+discovered personal root refuses with `source_invalid` before registration. Unbound starts keep
+their environment's own selection.
 
 ## 3. Interfaces & data shapes
 

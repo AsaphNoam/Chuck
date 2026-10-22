@@ -501,6 +501,69 @@ func TestWorktreeCheckoutRecreationAndMissingBranch(t *testing.T) {
 	}
 }
 
+// CR-A3-1 / FS-19.R7: a directory reusing the owned checkout path is not the
+// project's checkout unless it belongs to the recorded repository. A foreign
+// repository's worktree refuses a frozen Resume, a plain directory refuses the
+// shared start step, and neither is repaired or deleted.
+func TestOwnedCheckoutPathReuseIsRefused(t *testing.T) {
+	repo := newWorktreeTestRepo(t)
+	foreign := newWorktreeTestRepo(t)
+	fake := buildFakeACP(t)
+	t.Setenv("FAKEACP_SCENARIO", "stream_text")
+	srv := testServer(t, true)
+	srv.registry.Chat().SetCommand(fake)
+	seedWorktreeSource(t, srv, "app", repo, config.Project{Title: "App"})
+	if err := srv.configStore.WriteRole("impl", config.Role{Title: "Impl"}); err != nil {
+		t.Fatalf("WriteRole: %v", err)
+	}
+	rec := forkProject(t, srv, "app", map[string]any{"title": "Fork", "branch": "chuck/reuse"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("fork status = %d body=%s", rec.Code, rec.Body)
+	}
+	var result forkResult
+	_ = json.Unmarshal(rec.Body.Bytes(), &result)
+	forkID, checkout := result.Project.ProjectID, result.Project.Cwd
+
+	ts := httptest.NewServer(srv.routes())
+	defer ts.Close()
+	t.Cleanup(func() { srv.registry.Shutdown(context.Background()) })
+	agentID := launchAndWaitIdle(t, ts, "impl", forkID)
+	if resp, body := post(t, ts.URL+"/api/sessions/"+agentID+"/stop", nil); resp.StatusCode != http.StatusOK {
+		t.Fatalf("stop status = %d: %s", resp.StatusCode, body)
+	}
+
+	if err := os.RemoveAll(checkout); err != nil {
+		t.Fatalf("RemoveAll: %v", err)
+	}
+	if out, err := exec.Command("git", "-C", foreign, "worktree", "add", "-b", "other", checkout).CombinedOutput(); err != nil {
+		t.Fatalf("foreign worktree add: %v\n%s", err, out)
+	}
+	resp, body := post(t, ts.URL+"/api/sessions/"+agentID+"/resume", nil)
+	if resp.StatusCode == http.StatusOK || !strings.Contains(string(body), "no longer a checkout") {
+		t.Fatalf("resume into a foreign repository = %d %s, want refusal", resp.StatusCode, body)
+	}
+	if out, err := exec.Command("git", "-C", checkout, "branch", "--show-current").Output(); err != nil || strings.TrimSpace(string(out)) != "other" {
+		t.Fatalf("foreign checkout was altered: branch=%q err=%v", out, err)
+	}
+
+	if err := exec.Command("git", "-C", foreign, "worktree", "remove", "--force", checkout).Run(); err != nil {
+		t.Fatalf("remove foreign worktree: %v", err)
+	}
+	if err := os.MkdirAll(checkout, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	marker := filepath.Join(checkout, "keep.txt")
+	if err := os.WriteFile(marker, []byte("mine\n"), 0o600); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+	if _, _, ae := srv.ensureWorktreeCheckout(t.Context(), forkID, checkout); ae == nil {
+		t.Fatal("a plain directory at the owned path was accepted as the checkout")
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("plain directory contents were touched: %v", err)
+	}
+}
+
 // A project that owns nothing keeps the plain missing-directory error, so an
 // ordinary misconfigured project is still diagnosable (INV §2 — one step, same
 // message).

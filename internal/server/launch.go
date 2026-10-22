@@ -370,6 +370,9 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 			setup = fedModel.setup
 		}
 	}
+	if ae := s.preflightClaudeChildProfile(ctx, backend.Type, launchConfig, s.quotaCheckEnv(backend, model, providerEnv)); ae != nil {
+		return runtime.LaunchSpec{}, state.Agent{}, ae
+	}
 	resolvedEffort, ae := resolveTargetEffort(target, req.Effort, fedModel)
 	if ae != nil {
 		return runtime.LaunchSpec{}, state.Agent{}, ae

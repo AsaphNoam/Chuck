@@ -275,6 +275,12 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 		if perr != nil {
 			return apiError(runtime.CodeValidation, "unknown project: "+agent.Project)
 		}
+		// Resume keeps its frozen working directory, so the refreshed source and
+		// its preflight must describe that directory, not the project's current
+		// cwd (FS-08.R37, TS-07.R19).
+		if snap.Cwd != "" {
+			project.Cwd = snap.Cwd
+		}
 		lc, fed, ae := s.composeFederation(ctx, backendID,
 			launchRequest{Project: agent.Project, Model: override.Model, Effort: override.Effort}, backend, project, modelKey)
 		if ae != nil {
@@ -333,14 +339,15 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 			return apiError(runtime.CodeInternal, err.Error())
 		}
 	}
+	// Override the frozen federation object with the freshly-resolved one when the
+	// caller asked to resume with the latest setup, so the composer preflights
+	// the object this start actually carries.
+	if refreshedConfig != nil {
+		snap.LaunchConfig = refreshedConfig
+	}
 	spec, ae := s.composeResumeSpecContext(ctx, resumeAgent, snap, backend, model, "", notice)
 	if ae != nil {
 		return ae
-	}
-	// Override the frozen federation object with the freshly-resolved one when the
-	// caller asked to resume with the latest setup.
-	if refreshedConfig != nil {
-		spec.LaunchConfig = refreshedConfig
 	}
 
 	// 7. Resume via the registry (double-resume is guarded by the registry sentinel
@@ -491,6 +498,9 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 	// missing provider fails the resume and keeps the conversation (FS-09.R70).
 	providerEnv, provider, ae := providerLaunchLayer(be, model)
 	if ae != nil {
+		return runtime.LaunchSpec{}, ae
+	}
+	if ae := s.preflightClaudeChildProfile(ctx, be.Type, snap.LaunchConfig, s.quotaCheckEnv(be, model, providerEnv)); ae != nil {
 		return runtime.LaunchSpec{}, ae
 	}
 	// Resolve the working directory through the one shared step before any

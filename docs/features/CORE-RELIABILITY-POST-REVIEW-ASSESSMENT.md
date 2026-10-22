@@ -256,7 +256,7 @@ Keep each original finding's local rejection/order proofs; one journey does not 
 
 ## 4. Validate the setup that will actually run
 
-**Findings:** CR-A3-1/2/3, coordinated with ASF-5's existing readiness fixes.
+**Findings:** CR-A3-1/2/3 (fixed 2026-10-22), coordinated with ASF-5's existing readiness fixes.
 **Size:** medium shared-seam corrections; no new configuration architecture is warranted.
 
 Directory existence is not owned Git identity; current project cwd is not frozen Resume cwd; the
