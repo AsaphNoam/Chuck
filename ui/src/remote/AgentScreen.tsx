@@ -23,6 +23,7 @@ import {
 } from "../api/client";
 import type { AgentState, AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../api/types";
 import { useAnnotationStore } from "../store/annotationStore";
+import { useHeldStore } from "../store/heldStore";
 import { useReasoningStore } from "../store/reasoningStore";
 import { foldTranscript, normalizeEvent } from "../store/transcriptStore";
 import { WorkingIndicator } from "../components/chat/WorkingIndicator";
@@ -66,6 +67,7 @@ const EARLIER_PAGES = 3;
 const EARLIER_EVENTS = TRANSCRIPT_PAGE * EARLIER_PAGES;
 const EARLIER_BYTES = 3 * 1024 * 1024;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const isDeliveryUncertain = (error: unknown) => typeof error === "object" && error !== null && (error as { code?: string }).code === "delivery_uncertain";
 const isAtLatest = () => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 48;
 
 function retainEarlier(events: TranscriptEvent[]) {
@@ -104,7 +106,7 @@ function sameAttachmentSet(left: DraftAttachment[], right: DraftAttachment[]) {
   return left.length === right.length && left.every((file) => right.some((candidate) => candidate.id === file.id));
 }
 
-function PhoneRecovery({ agentId, recovery, offline }: { agentId: string; recovery: { text: string; request_id: string; attachments: AttachmentDescriptor[] }; offline: boolean }) {
+function PhoneRecovery({ agentId, recovery, offline }: { agentId: string; recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string }; offline: boolean }) {
   const client = useQueryClient();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -116,7 +118,7 @@ function PhoneRecovery({ agentId, recovery, offline }: { agentId: string; recove
       else {
         let id = localStorage.getItem(key);
         if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); }
-        await sendRecoveredPrompt(agentId, recovery.text, recovery.attachments.map((item) => item.id), id);
+        await sendRecoveredPrompt(agentId, recovery.text, (recovery.attachments ?? []).map((item) => item.id), id);
       }
       localStorage.removeItem(key);
       await client.invalidateQueries({ queryKey: ["held", agentId] });
@@ -124,9 +126,9 @@ function PhoneRecovery({ agentId, recovery, offline }: { agentId: string; recove
     finally { setBusy(false); }
   };
   return <section className="phone-card" aria-label="Message available to restore">
-    <p className="phone-card-kicker">Message not delivered — choose whether to send it again</p>
+    <p className="phone-card-kicker">{recovery.delivery === "unknown" || recovery.delivery === "uncertain" || recovery.delivery === "delivery_uncertain" ? "This message may already have reached the agent — sending again may repeat it" : "Message not delivered — choose whether to send it again"}</p>
     {recovery.text && <p>{recovery.text}</p>}
-    <MessageAttachments agentId={agentId} attachments={recovery.attachments} />
+    <MessageAttachments agentId={agentId} attachments={recovery.attachments ?? []} />
     <div className="phone-actions"><button type="button" disabled={busy || offline} onClick={() => void act(false)}>Send recovered message</button><button type="button" disabled={busy || offline} onClick={() => void act(true)}>Dismiss</button></div>
     {error && <p className="phone-error" role="alert">{error}</p>}
   </section>;
@@ -668,7 +670,24 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     }
     if (!selected.length) {
       void act(
-        () => (matchingRetry?.steer ?? steeringMessage) ? steerPrompt(agentId, messageText) : sendPrompt(agentId, messageText),
+        async () => {
+          try {
+            return await ((matchingRetry?.steer ?? steeringMessage)
+              ? steerPrompt(agentId, messageText, [], request)
+              : sendPrompt(agentId, messageText, [], request));
+          } catch (err) {
+            if (isDeliveryUncertain(err) && (matchingRetry?.steer ?? steeringMessage)) {
+              // The promoted hold may already have been consumed. Keep the
+              // typed request recoverable, clear the stale local hold, and
+              // re-read the server's explicit recovery offer.
+              setRetryPhoneSend({ text: messageText, files: [], requestId: request, steer: true, revision: submittedRevision, retryable: false });
+              useHeldStore.getState().release(agentId);
+              await getHeldPrompt(agentId);
+              await client.invalidateQueries({ queryKey: ["held", agentId] });
+            }
+            throw err;
+          }
+        },
         true,
         (result) => {
           if (result && typeof result === "object" && "delivery" in result && result.delivery === "held") setNotice("Held — it will be sent when the current turn ends.");
@@ -685,7 +704,15 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           ? steerPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
           : sendPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
         ).catch(async (err: unknown) => {
-          if (isDefiniteSendRefusal(err)) {
+          if (isDeliveryUncertain(err)) {
+            const isSteer = matchingRetry?.steer ?? steeringMessage;
+            setRetryPhoneSend({ text: messageText, files: selected, requestId: request, steer: isSteer, revision: submittedRevision, retryable: false });
+            if (isSteer) useHeldStore.getState().release(agentId);
+            try {
+              await getHeldPrompt(agentId);
+              await client.invalidateQueries({ queryKey: ["held", agentId] });
+            } catch { /* the original typed uncertainty remains the user-visible result */ }
+          } else if (isDefiniteSendRefusal(err)) {
             setRetryPhoneSend(null);
             try { await clearPendingAttachmentSend(agentId, request); } catch { setAttachmentError(attachmentErrorForStorage()); }
           }
@@ -726,8 +753,10 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   };
   const closeTray = () => { setTrayOpen(false); setFocusNewest(0); };
   const heldText = held.data && typeof held.data === "object" && "text" in held.data ? String((held.data as { text?: string }).text ?? "") : "";
+  const heldId = held.data && typeof held.data === "object" && "held_id" in held.data ? String((held.data as { held_id?: string }).held_id ?? "") : undefined;
+  const heldRequestId = held.data && typeof held.data === "object" && "request_id" in held.data ? String((held.data as { request_id?: string }).request_id ?? "") : "";
   const heldAttachments = held.data && typeof held.data === "object" && Array.isArray((held.data as { attachments?: unknown }).attachments) ? (held.data as { attachments: AttachmentDescriptor[] }).attachments : [];
-  const recovery = held.data && typeof held.data === "object" && "recovery" in held.data ? (held.data as { recovery?: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }).recovery : undefined;
+  const recovery = held.data && typeof held.data === "object" && "recovery" in held.data ? (held.data as { recovery?: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } }).recovery : undefined;
   const releaseBlocked = retryPhoneSend?.retryable === false && retryPhoneSend.text === text && sameAttachmentSet(retryPhoneSend.files, attachments);
   const stateLabel = agent.running ? agent.state.replace("_", " ") : "Stopped";
   const runtimeLabel = [agent.backend, agent.model].filter(Boolean).join(" · ");
@@ -822,11 +851,28 @@ export function AgentScreen({ agentId }: { agentId: string }) {
               <MessageAttachments agentId={agentId} attachments={heldAttachments} />
               <div className="phone-actions">
                 {agent.steering_available && isBusy && (
-                  <button type="button" disabled={offline || busy} onClick={() => void act(() => steerPrompt(agentId, ""))}>
+                  <button type="button" disabled={offline || busy} onClick={() => void act(async () => {
+                    const requestId = heldRequestId || crypto.randomUUID();
+                    try {
+                      return await steerPrompt(agentId, "", [], requestId);
+                    } catch (err) {
+                      if (isDeliveryUncertain(err)) {
+                        setRetryPhoneSend({ text: heldText, files: [], requestId, steer: true, revision: chatDraftRevision(agentId), retryable: false });
+                        useHeldStore.getState().release(agentId);
+                        await getHeldPrompt(agentId);
+                        await client.invalidateQueries({ queryKey: ["held", agentId] });
+                      }
+                      throw err;
+                    }
+                  })}>
                     Send now
                   </button>
                 )}
-                <button type="button" disabled={offline || busy} onClick={() => void act(() => withdrawPrompt(agentId), false, () => { if (heldText && heldAttachments.length === 0) restoreChatDraft(agentId, heldText); })}>
+                <button type="button" disabled={offline || busy} onClick={() => void act(async () => {
+                  const result = await withdrawPrompt(agentId, heldId);
+                  if (result.message && (result.message.attachments ?? []).length === 0 && result.message.text) restoreChatDraft(agentId, result.message.text);
+                  return result;
+                }, false)}>
                   Withdraw
                 </button>
               </div>

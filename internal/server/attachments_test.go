@@ -340,6 +340,27 @@ func TestRefusedAttachmentSteerIsNotReportedSent(t *testing.T) {
 	}
 }
 
+// A definite refusal while promoting a held text message is still a refusal
+// response, while the original hold remains available for deliberate delivery.
+func TestRefusedPromotedTextSteerPreservesHoldAndIsNotAccepted(t *testing.T) {
+	t.Setenv("FAKEACP_STEERING", "1")
+	t.Setenv("FAKEACP_STEER_OUTCOME", "reject")
+	_, h, id, release := busyAttachmentTestServer(t)
+	defer release()
+	queued, queuedBody := postJSONHandler(t, h, "/api/sessions/"+id+"/prompt", map[string]string{"text": "held"})
+	if queued.StatusCode != http.StatusAccepted {
+		t.Fatalf("queue held prompt = %d %s", queued.StatusCode, queuedBody)
+	}
+	resp, body := postJSONHandler(t, h, "/api/sessions/"+id+"/steer", map[string]string{"text": ""})
+	if resp.StatusCode == http.StatusAccepted || !strings.Contains(string(body), "refused") {
+		t.Fatalf("promoted refusal = %d %s", resp.StatusCode, body)
+	}
+	get := serveLocal(t, h, http.MethodGet, "/api/sessions/"+id+"/prompt", nil)
+	if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), "held") {
+		t.Fatalf("restored hold = %d %s", get.Code, get.Body)
+	}
+}
+
 func TestAttachmentHoldWithdrawalReplacementAndRecoveryResubmit(t *testing.T) {
 	srv, h, id, _ := busyAttachmentTestServer(t)
 	upload := func(requestID, text string, data string) attachmentAcceptance {

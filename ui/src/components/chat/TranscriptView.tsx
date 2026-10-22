@@ -183,7 +183,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   );
 }
 
-function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }) {
+function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const client = useQueryClient();
@@ -198,7 +198,7 @@ function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { t
   const send = async () => {
     setBusy(true); setError("");
     try {
-      await sendRecoveredPrompt(agentId, recovery.text, recovery.attachments.map((item) => item.id), sendId());
+      await sendRecoveredPrompt(agentId, recovery.text, (recovery.attachments ?? []).map((item) => item.id), sendId());
       localStorage.removeItem(key);
       useHeldStore.getState().setRecovery(agentId, null);
       await client.invalidateQueries({ queryKey: ["held", agentId] });
@@ -216,9 +216,9 @@ function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { t
     finally { setBusy(false); }
   };
   return <div className="transcript-held" data-ui="transcript" data-variant="held">
-    <p className="transcript-held-label">Message not delivered — choose whether to send it again</p>
+    <p className="transcript-held-label">{recovery.delivery === "unknown" || recovery.delivery === "uncertain" || recovery.delivery === "delivery_uncertain" ? "This message may already have reached the agent — sending again may repeat it" : "Message not delivered — choose whether to send it again"}</p>
     {recovery.text && <p className="transcript-held-text">{recovery.text}</p>}
-    <MessageAttachments agentId={agentId} attachments={recovery.attachments} />
+    <MessageAttachments agentId={agentId} attachments={recovery.attachments ?? []} />
     <div className="transcript-held-actions"><button type="button" className="ad-button-primary" disabled={busy} onClick={() => void send()}>Send recovered message</button><button type="button" className="ad-button-secondary" disabled={busy} onClick={() => void dismiss()}>Dismiss</button></div>
     {error && <p className="transcript-held-error" role="alert">{error}</p>}
   </div>;

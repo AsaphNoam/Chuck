@@ -56,8 +56,9 @@ export function annotationAnchor(draft: AnnotationDraft) {
 
 // annotationBatch is the one request body every tray sends (FS-13.R4): the
 // desktop tray and the phone form differ only in presentation (FS-20.R32).
-export function annotationBatch(drafts: AnnotationDraft[], overall: string, agentId?: string): AnnotationBatch {
+export function annotationBatch(drafts: AnnotationDraft[], overall: string, agentId?: string, commandId?: string): AnnotationBatch {
   return {
+    ...(commandId ? { command_id: commandId } : {}),
     annotations: drafts,
     overall_instruction: overall || undefined,
     target: agentId ? { kind: "agent", agent_id: agentId } : { kind: "self" },

@@ -14,6 +14,8 @@ func TestStatusForCode(t *testing.T) {
 		CodeValidation:         http.StatusUnprocessableEntity,
 		CodeNotFound:           http.StatusNotFound,
 		CodeConflict:           http.StatusConflict,
+		CodeHeldChanged:        http.StatusConflict,
+		CodeDeliveryUncertain:  http.StatusConflict,
 		CodeNotImplemented:     http.StatusNotImplemented,
 		CodeRuntimeStartFailed: http.StatusBadGateway,
 		CodeInternal:           http.StatusInternalServerError,

@@ -69,6 +69,20 @@ func TestOperatorAgentWireInventory(t *testing.T) {
 					var got, want any
 					_ = json.Unmarshal(b, &got)
 					_ = json.Unmarshal([]byte(tc.body), &want)
+					if tc.args[0] == "send" {
+						fields := got.(map[string]any)
+						if id, ok := fields["request_id"].(string); !ok || !operatorValidReceiptID(id) {
+							t.Errorf("text input missing recovery identity: %s", b)
+						}
+						delete(fields, "request_id")
+					}
+					if tc.args[0] == "annotate" {
+						fields := got.(map[string]any)
+						if id, ok := fields["command_id"].(string); !ok || !operatorValidReceiptID(id) {
+							t.Errorf("annotation missing command identity: %s", b)
+						}
+						delete(fields, "command_id")
+					}
 					if !reflect.DeepEqual(got, want) {
 						t.Errorf("body %s want %s", b, tc.body)
 					}

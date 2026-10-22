@@ -18,8 +18,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   operator checkout's uncommitted ready-change edits. The concurrent runtime fix is now committed
   and included in the candidate.
 - **Runtime campaign:** ASW-1 event commits, ASW-2 frozen native execution and ASW-3 process/terminal
-  ownership and ASF-1 turn/control settlement are closed. Select remaining work through
-  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-5 wait; ASF-6 is closed.
+  ownership, ASF-1 turn/control settlement, ASF-2 input acceptance/recovery and ASF-6 CLI selection
+  are closed. Select remaining work through
+  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-3–ASF-5 wait.
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1–CR-A7 are reviewed and closed (no open findings). CR-A2's nine
   admission/recovery findings were fixed on 2026-10-22 (`0f911d74`, `de0ac20a`).
@@ -52,10 +53,22 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   build pass. TS-10.R48–R52 record cleanup, continuation, bounded queue and recovery contracts.
   The four unrelated ready-change edits remain preserved. ASF-6 closed concurrently in its
   own commits.
+- ASF-2 is finished in `/private/tmp/chuck-fix-asf-2`, branch `fix/asf-2`, based on
+  `31a06a0f`; implementation commits are `2268e279`, `f8338ac5` and `64bd3962`.
+  Now integrated with the completed CR-A2 and ASF-6 changes on main. Both Go variants, 995 UI tests, production
+  UI/embed/binary builds, focused race checks and desktop Chromium recovery journeys pass.
+  Native-provider and physical-phone receipts remain explicitly owed below.
+- Previously: interruption-safe reindex is finished and independently reviewed without findings.
+  Both Go variants and the build pass. The operator-requested worktree kept the main checkout's
+  existing uncommitted ready-change edits separate.
 - Other available review/fix units and owed live receipts remain below.
 
 ## Acceptance gates still owed
 
+- **ASF-2 native/device receipts:** deterministic fake-ACP wire counts, HTTP/CLI/component checks,
+  and isolated desktop Chromium withdrawal/unknown-recovery journeys establish the repaired input
+  boundaries. They do not establish credentialed Claude/Codex consumption timing or a physical
+  phone's background/reconnect behavior. Keep those existing native/phone gates open.
 - **Earlier carried checks:** phone component proof for definite-refusal Retry, live Claude
   receipt for late tool input, and rendered verification of the withdraw failed-recovery-read
   tail notice remain owed.
@@ -182,7 +195,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-1, ASW-2, ASW-3 and ASF-1 closed; all other units waiting.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1, ASW-2, ASW-3, ASF-1, ASF-2 and ASF-6 closed; ASF-3–ASF-5 wait.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are implemented and
 reviewed; their remaining findings select the same units for fixes:
 
@@ -201,7 +214,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 | Fix unit | Invocation / responsibility | Owned findings | Status / fix model |
 |---|---|---|---|
 | [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5) |
-| [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts remain owed |
 | [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | `/fix ASF-5` — checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Waiting — medium, Codex Terra or Claude Opus |
@@ -258,11 +271,9 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-A](AGENT-SURFACE-REVIEW.md#asr-a--instructions-configuration-and-execution-environment) | Instructions, configuration and execution environment | reviewed — findings open (`4fbeb316`) |
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
 | [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | reviewed — findings open (`6b5de19b`) |
-| [ASR-D](AGENT-SURFACE-REVIEW.md#asr-d--conversation-input-and-history-fidelity) | Conversation, input and history fidelity | reviewed — findings open (`c12c4251`) |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | reviewed — findings open (`fa092f63`) |
-| [ASR-H](AGENT-SURFACE-REVIEW.md#asr-h--human-intent-across-desktop-phone-cli-and-http) | Human intent across desktop, phone, CLI and HTTP | reviewed — findings open (`d49a8f86`) |
 
 ## Review findings
 
@@ -481,7 +492,7 @@ interface), §7 (no record repair), §12 (no new external invocation), §13 (no 
 
 ### ASR-D — Conversation, input and history fidelity — reviewed `c12c4251` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-ASRD-4 remains open here and belongs to ASF-2. ASRD-1/2/5's original reproductions are corrected
+ASRD-4 closed with ASF-2 on 2026-10-22; no ASR-D findings remain. ASRD-1/2/5's original reproductions are corrected
 and independently reviewed in ASW-1; ASRD-3's history suppression and its remaining
 recovery/control obligations closed with the ASW-1 fixes (Changelog, 2026-10-20). The retained audit evidence below
 describes the original snapshot. No product code or specifications changed during this audit.
@@ -489,19 +500,15 @@ Tree clean at entry. Source mode: repository source at
 `c12c425109a7bdd5682451f02afe958477319e7a`; release lock pins Claude ACP 0.85.1 / Agent SDK
 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. No credentialed provider run was performed.
 
-- **Must fix** — ASRD-4 — **Retrying an annotation after a lost response delivers it twice**
-  (INV §2/§11/§15). `ui/src/components/chat/annotationDelivery.ts:76–94`,
-  `ui/src/lib/annotations.ts:69–76`, `internal/server/sessions.go:232–262`: delivery inserts
-  reserved-user mail (or starts a self prompt) before the success response, but the request carries
-  no stable delivery identity or receipt. If that response is lost, the preserved tray's Retry
-  inserts another source event and another actionable mail/prompt. The isolated handler probe
-  discards the first successful response and retries the same body: both return 202 and the target
-  has two mail rows. This defeats FS-13.R3/R5's recoverable batch behavior and INV §15's harmless
-  replay rule. Extend the existing receipt/idempotency pattern across desktop/phone delivery and
-  launched-recipient retry; retain the deliberate new attempt after a definite pre-delivery
-  failure. Room annotations already carry a command id and atomically deduplicate their mail.
-  Regress lost responses for mail and self targets, including a reload and New task delivery.
-  Evidence: `/tmp/asrd_annotation_overlay.json`, `TestASRDAnnotationLostResponseRetryDuplicates`.
+**Closed ASRD-4 — `2268e279` / `f8338ac5` (INV §2/§7/§11/§15/§16).** Annotation commands now
+persist exact source/target/hash, canonical sequence and effect identity before delivery. Peer mail
+and its receipt commit together; self delivery claims uncertainty before native submission.
+Identical retries reuse the outcome; changed content conflicts, and canonical read failures refuse
+rather than append again. Desktop/phone persist the command, target and launched recipient through
+remount/reload. Server regressions cover peer/self replay, concurrency, canonical reconciliation and
+read failure; annotation store/delivery tests cover stable IDs and recipient recovery. Room command
+authority is unchanged. Retained regression coverage is in
+`internal/server/annotations_test.go` and the shared annotation UI tests.
 
 Connected evidence ledger and J5 (context in delegated work):
 
@@ -819,49 +826,37 @@ implementation choice or human decision was introduced, and sibling queues are u
 
 ### ASR-H — Human intent across desktop, phone, CLI and HTTP — reviewed `d49a8f86` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Audit complete; three Must-fix findings keep this same unit open; ASRH-3 is closed by ASF-6. The hardest fixes coordinate the
-existing hold/Steer and client recovery contracts; no new scheduler or provider client is needed.
+ASRH-1/2/4 closed with ASF-2 and ASRH-3 closed with ASF-6 on 2026-10-22; no ASR-H findings remain. The retained original
+audit evidence follows; the repairs use existing hold/Steer and client recovery contracts.
 Source snapshot `d49a8f86`; tree clean at entry. Repository source and release-lock profiles:
 Claude ACP 0.85.1 / Agent SDK 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. Three bounded discovery
 audits were integrated; the findings below were independently checked against source and probes.
-No product code or specifications changed.
+No product code or specifications changed during the original audit.
 
-- **Must fix** — ASRH-1 — **A successful text Steer erases a newer desktop draft**
-  (INV §1/§5). `ui/src/components/chat/Composer.tsx:290–305`: while text-only Steer awaits its
-  response, the textarea remains editable. Success unconditionally clears both the live textarea
-  and `discardChatDraft(agentId)`, deleting text typed after submission; ordinary Send and
-  attachment Steer already check the submitted draft revision. This violates FS-03.R36/A19.
-  The delayed-success component probe types a second draft before resolving the request and
-  observes an empty textarea instead. Capture/recheck the draft revision and current owner before
-  clearing text or changing visible feedback; regress same-agent edits and navigation away/back.
-  Fix complexity: easy; localized to the existing composer ownership seam.
-- **Must fix** — ASRH-2 — **Stale Withdraw removes one queued message but restores another**
-  (INV §1/§5/§11). `ui/src/lib/heldMessage.ts:24–32`,
-  `internal/server/sessions.go:84–102`, `internal/runtime/chat.go:571–583`: the browser saves its
-  cached held text A, then parameterless DELETE removes whatever is currently held. If another
-  device has replaced A with B, the successful response contains no withdrawn identity/content;
-  the browser restores A while B has been removed. A turn ending before DELETE similarly lets
-  a no-op success restore text already delivered. FS-03.R90 requires returning the withdrawn
-  message for editing, not an obsolete cached message. The actual server probe confirms B is
-  removed with a content-free response; the UI probe confirms A is restored. Make withdrawal
-  and recovery refer to the same authoritative hold (conditional identity/version or an atomic
-  returned message), preserving the documented idempotent no-hold behavior. Regress two-device
-  replacement and turn-end races, text/attachment combinations, and overlapping withdrawals.
-  Fix complexity: medium; coordinate the shared runtime/API and both clients.
-- **Must fix** — ASRH-4 — **Interrupted promoted Steer can automatically repeat consumed input**
-  (INV §5/§11/§15). `internal/runtime/chat.go:682–717,843–870,1191–1222`: an empty text Steer
-  takes the held text, but a cancelled HTTP/CLI request context can end its wait after native
-  consumption and before acknowledgement. With no attachment/request receipt, the ambiguous
-  error restores the message to the live hold; ordinary turn completion then submits it again
-  automatically. No human retry is needed. FS-03.R50 and TS-03.R39/R41 preserve the deliberate
-  Steer operation; an unconfirmed acknowledgement cannot authorize another consumption. The
-  controlled fake provider applies an injected Steer, withholds its success reply, then sends it
-  late after context cancellation. Its wire logs show one Steer and a second ordinary prompt
-  containing the same text. Restore automatic holding only after definite no-consumption;
-  preserve ambiguous input for explicit recovery without releasing it as a queued successor.
-  Regress context loss before/after consumption, late acknowledgement, original turn-end races
-  and definite refusal, with provider submission counts and durable transcript observations.
-  Fix complexity: medium; coordinate existing Steer/hold ownership and visible recovery.
+**Closed ASRH-1 — `2268e279` (INV §1/§5).** Steer clears only its submitted draft revision and
+current composer owner, including attachment cleanup/feedback. The delayed-reply/newer-draft and
+navigation regressions failed before repair and pass afterward in `Composer.test.tsx`.
+
+**Closed ASRH-2 — `2268e279` / `f8338ac5` / `64bd3962` (INV §1/§5/§11).** Every hold has an
+authoritative `held_id`; atomic conditional withdrawal returns the exact removed message or no
+message. Desktop/phone restore server-returned content only; stale/no-hold responses cannot revive
+cached text. Runtime/server/UI tests cover replacement, stale IDs, exact text/request ownership,
+overlapping withdrawal and no-hold recovery. Chromium verified withdrawn text plus a newer draft,
+and a stale two-device withdrawal that preserved then exactly restored the replacement.
+
+**Closed ASRH-3 — ASF-6 (`12899812`, `85e7abf2`).** CLI archive lookup now requires complete,
+certain selection; its original finding and verification closed independently before this merge.
+
+**Closed ASRH-4 — `2268e279` / `f8338ac5` / `64bd3962` (INV §5/§8/§11/§15).** Text shares the
+existing request receipts. Steer records uncertainty before native dispatch; only explicit
+pre-consumption refusal restores an automatic hold. Unknown text/media stays available for a
+deliberate new Send, with typed `delivery_uncertain`, truthful repeat-risk feedback and no automatic
+Steer retry. The lost-acknowledgement fake-ACP regression failed under the original legacy restore
+policy and now proves one Steer with no duplicate prompt after late success, both with and without
+request IDs. Definite-refusal, stale promotion, stopped/crashed input, HTTP replay/conflict, CLI ID,
+and desktop/phone recovery tests pass. Unrelated text cannot dismiss an older uncertain recovery.
+Rendered text-only recovery has no page errors. Physical-phone and live-provider receipts remain
+owed; deterministic fake consumption is not a native receipt.
 
 Catalogue 23 action map and connected evidence ledger:
 
@@ -1085,6 +1080,12 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-22 — Integration: ASF-2 on main (INV §5/§15).** Preserved CR-A2 and ASF-6 closure
+  while merging `fix/asf-2`. Existing input receipts replay before the task-continuation admission
+  gate; new prompts still require that admission. The real-store HTTP regression now installs a
+  waiting assignment between acceptance and retry and verifies the original acceptance survives.
+  Focused merge checks, specification checks, regenerated UI and tagged build pass. The four
+  pre-existing ready-change edits remain uncommitted and excluded from this merge.
 - **2026-10-22 — Fix: admission, waiting and recovery (CR-A2-1–9, INV §1/§2/§3/§4/§5/§7/§8/§9/§10/§11/§14/§15/§16/§17) — CR-A2 closed.**
   Repairs `0f911d74` and `de0ac20a` preserve deferred cleanup authority, outstanding-claim
   capacity and confirmed assignees; wire actionable watch producers and bounded rediscovery;
@@ -1108,6 +1109,18 @@ and specifications are unchanged.
   against the original launch code through a temporary Go build overlay. Focused CLI tests,
   both Go variants, spec checks and tagged build pass. ASF-6 is closed; ASF-2–ASF-5 and
   ASRH-1/2/4 remain open. Isolated worktree verification preserves concurrent main-checkout work.
+- **2026-10-22 — Fix: input acceptance and recovery (ASF-2, INV §1/§2/§5/§7/§8/§11/§15/§16/§17).**
+  ASRD-4 and ASRH-1/2/4 are closed by `2268e279`, `f8338ac5` and `64bd3962`; no ASF-2 finding
+  remains. Stable annotation/text command receipts prevent duplicate effects, successful replies
+  preserve newer drafts, withdrawal restores the exact removed input, and uncertain Steer never
+  automatically repeats consumed work. FS-03.R100/A79, FS-13.R32/A22, TS-02.R55 and TS-03.R74
+  describe the shipped contract. Both Go variants (`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 make test`),
+  995 UI tests, UI/embed/binary builds, focused runtime/server/state race checks and diff checks pass.
+  Chromium screenshots: `/private/tmp/asf2-withdraw.png`, `/private/tmp/asf2-two-device-withdraw.png`,
+  `/private/tmp/asf2-uncertain-recovery.png`. The known pipeline Stop journey failed earlier and then
+  passed in both full variants; no unrelated pipeline repair is claimed. Native/provider/device gates
+  remain above. Work is isolated on `fix/asf-2`; the other checkout is preserved. ASRH-3/ASF-6 and all
+  sibling fix queues remain independent; this fix closure adds no new review unit.
 - **2026-10-22 — Fix: torn transcript tail readback (CR-A1-3, INV §2/§7/§9/§11) — CR-A1 closed.**
   The shared transcript reader now stops at the last newline, so readback, reconciliation and
   replay consume the same complete-record prefix that writer Open keeps; malformed/oversized

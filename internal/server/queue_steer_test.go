@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +89,20 @@ func deleteJSON(t *testing.T, url string) (*http.Response, []byte) {
 		if err != nil {
 			break
 		}
+	}
+	return resp, body
+}
+
+func getJSON(t *testing.T, url string) (*http.Response, []byte) {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read GET %s: %v", url, err)
 	}
 	return resp, body
 }
@@ -189,6 +205,51 @@ func TestWithdrawPromptIsIdempotent(t *testing.T) {
 		if got := fieldOf(t, body, "delivery"); got != "withdrawn" {
 			t.Fatalf("withdraw attempt %d delivery = %q, want withdrawn", attempt, got)
 		}
+	}
+}
+
+func TestWithdrawPromptUsesAuthoritativeHeldIDAndMessage(t *testing.T) {
+	_, ts, id, _ := busyChatServer(t, nil)
+	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "first held", "request_id": "req-first"}); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("first hold = %d: %s", resp.StatusCode, body)
+	}
+	resp, body := getJSON(t, ts.URL+"/api/sessions/"+id+"/prompt")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("held GET = %d: %s", resp.StatusCode, body)
+	}
+	var snapshot struct {
+		HeldID string `json:"held_id"`
+	}
+	if err := json.Unmarshal(body, &snapshot); err != nil || snapshot.HeldID == "" {
+		t.Fatalf("held snapshot = %s (err %v)", body, err)
+	}
+	if resp, body = post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "replacement", "request_id": "req-replacement"}); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("replacement hold = %d: %s", resp.StatusCode, body)
+	}
+	resp, body = deleteJSON(t, ts.URL+"/api/sessions/"+id+"/prompt?held_id="+snapshot.HeldID)
+	if resp.StatusCode != http.StatusConflict || !strings.Contains(string(body), `"code":"held_changed"`) {
+		t.Fatalf("stale withdraw = %d: %s", resp.StatusCode, body)
+	}
+	resp, body = getJSON(t, ts.URL+"/api/sessions/"+id+"/prompt")
+	var current struct {
+		Text      string `json:"text"`
+		RequestID string `json:"request_id"`
+		HeldID    string `json:"held_id"`
+	}
+	if err := json.Unmarshal(body, &current); err != nil || current.Text != "replacement" || current.RequestID != "req-replacement" {
+		t.Fatalf("replacement after stale withdraw = %s (err %v)", body, err)
+	}
+	resp, body = deleteJSON(t, ts.URL+"/api/sessions/"+id+"/prompt?held_id="+snapshot.HeldID)
+	if resp.StatusCode != http.StatusConflict { // stale ID still cannot remove the replacement
+		t.Fatalf("second stale withdraw = %d: %s", resp.StatusCode, body)
+	}
+	resp, body = deleteJSON(t, ts.URL+"/api/sessions/"+id+"/prompt?held_id="+current.HeldID)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"text":"replacement"`) {
+		t.Fatalf("authoritative withdraw = %d: %s", resp.StatusCode, body)
+	}
+	resp, body = deleteJSON(t, ts.URL+"/api/sessions/"+id+"/prompt")
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"withdrawn":false`) {
+		t.Fatalf("no-hold withdraw = %d: %s", resp.StatusCode, body)
 	}
 }
 

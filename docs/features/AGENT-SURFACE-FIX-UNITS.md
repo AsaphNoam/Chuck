@@ -6,7 +6,7 @@ units are implemented and independently reviewed, with findings still open. Thei
 IDs below are historical provenance, not a claim that those original reproductions remain open.
 Current ASW closure uses ASW1-1–9, ASW2-1–11 and ASW3-1–6 in the handoff. See the
 [post-refactor assessment](AGENT-SURFACE-POST-REFACTOR-ASSESSMENT.md) for the additional joins and
-two new reproduced defects. No fix unit is currently in progress.
+two new reproduced defects. ASF-2 closed 2026-10-22 in the isolated `fix/asf-2` worktree.
 The six fix units below repair existing seams; their original evidence and severity remain in
 [HANDOFF.md](HANDOFF.md#review-findings). This is an execution index, not a replacement specification.
 
@@ -40,7 +40,7 @@ Ordinary fix-closure bookkeeping follows §8 and is not a new implementation rev
 | ASW-2 — `/fix ASW-2` (reviewed `9a15afa6`) | Frozen native contract, purpose-aware provider preparation and diagnostic provenance (FS-01.R53, FS-08.R37, FS-18.R21, TS-01.R40, TS-02.R53, TS-04.R101, TS-07.R19, TS-11.R24) | ASRA-1, ASRA-2, ASRA-3, PROMPT-1, ASRB-2, ASRB-3, ASRB-8, ASRG-4, PROMPT-2 | Reviewed; ASW2-1–11 open — medium, Codex Terra or Claude Opus |
 | ASW-3 — `/fix ASW-3` (reviewed `3618df3e`) | Owned process/driver proof, launch claim and native terminal identity (FS-01.R54, FS-07.R25, TS-01.R41, TS-02.R54, TS-04.R102, TS-05.R28, TS-12.R11) | ASRA-4, ASRB-1, ASRB-4, ASRB-5, ASRB-6, ASRB-7, ASRC-3, ASRC-4, ASRC-7 | Reviewed; ASW3-1–6 open — difficult, Codex Sol; FS-07.A12 receipts owed |
 | ASF-1 — `/fix ASF-1` | [Turn, status, permission and settings settlement](#asf-1--turn-and-control-settlement) | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5); live mid-turn setting receipt owed |
-| ASF-2 — `/fix ASF-2` | [Input acceptance, uncertain delivery and exact recovery](#asf-2--input-acceptance-and-recovery) | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Waiting — medium, Codex Terra or Claude Opus |
+| ASF-2 — `/fix ASF-2` | [Input acceptance, uncertain delivery and exact recovery](#asf-2--input-acceptance-and-recovery) | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts owed |
 | ASF-3 — `/fix ASF-3` | [Durable continuation and controller recovery](#asf-3--durable-continuation-and-controller-recovery) | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
 | ASF-4 — `/fix ASF-4` | [Bounded completed work and retained task results](#asf-4--retention-and-result-bounds) | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
 | ASF-5 — `/fix ASF-5` | [Project setup readiness and resource permissions](#asf-5--project-readiness-and-resource-permissions) | ASRA-5, ASRA-6 | Waiting — medium, Codex Terra or Claude Opus |

@@ -9,14 +9,16 @@ async function json<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
     // surface that message so callers can show a meaningful toast instead of a
     // bare status line. Fall back to the status text if the body isn't JSON.
     let message = `${response.status} ${response.statusText}`;
+    let code = "";
     try {
-      const body = (await response.json()) as { error?: { message?: string } };
+      const body = (await response.json()) as { error?: { code?: string; message?: string } };
+      code = body?.error?.code ?? "";
       if (body?.error?.message) message = body.error.message;
     } catch {
       /* non-JSON body — keep the status line */
     }
     // status lets a reader tell an unknown record (404) from a failed read.
-    throw Object.assign(new Error(message), { status: response.status });
+    throw Object.assign(new Error(message), { status: response.status, code });
   }
   return (await response.json()) as T;
 }
@@ -174,7 +176,10 @@ export type PromptDelivery = "sent" | "held";
  * running turn, or started a fresh turn because that one had already ended. */
 export type SteerOutcome = "steered" | "new_turn";
 
-export type PromptResult = { accepted: true; agent_id: string; delivery: PromptDelivery; after_seq: number; request_id?: string; attachments?: AttachmentDescriptor[]; attachment_delivery?: "held" | "submitted" | "released" | "failed" | "unknown" };
+export type PromptResult = { accepted: true; agent_id: string; delivery: PromptDelivery; after_seq: number; held_id?: string; request_id?: string; attachments?: AttachmentDescriptor[]; attachment_delivery?: "held" | "submitted" | "released" | "failed" | "unknown" };
+export type RecoveryPrompt = { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string };
+export type HeldPrompt = { agent_id: string; text: string; after_seq: number; held_id?: string; request_id?: string; attachments?: AttachmentDescriptor[]; recovery?: RecoveryPrompt };
+export type WithdrawnPrompt = { accepted: true; agent_id: string; withdrawn: boolean; message?: { held_id?: string; text: string; attachments: AttachmentDescriptor[]; request_id?: string } };
 export type PromptFile = { name: string; blob: Blob };
 
 function multipartBody(text: string, files: PromptFile[], requestId: string) {
@@ -191,7 +196,7 @@ export function sendPrompt(agentId: string, text: string, files: PromptFile[] = 
     return json<PromptResult>(url, { method: "POST", body: multipartBody(text, files, requestId ?? crypto.randomUUID()) });
   }
   return json<PromptResult>(url, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, request_id: requestId ?? crypto.randomUUID() }),
   });
 }
 
@@ -204,12 +209,13 @@ export function sendRecoveredPrompt(agentId: string, text: string, attachmentIds
 }
 
 export function getHeldPrompt(agentId: string) {
-  return json<{ agent_id: string; text: string; after_seq: number; request_id?: string; attachments?: AttachmentDescriptor[]; recovery?: { text: string; request_id: string; attachments: AttachmentDescriptor[] } }>(`/api/sessions/${encodeURIComponent(agentId)}/prompt`);
+  return json<HeldPrompt>(`/api/sessions/${encodeURIComponent(agentId)}/prompt`);
 }
 
 /** Withdraws the agent's held follow-up. A no-op when nothing is held. */
-export function withdrawPrompt(agentId: string) {
-  return json<{ accepted: true; agent_id: string }>(`/api/sessions/${agentId}/prompt`, { method: "DELETE" });
+export function withdrawPrompt(agentId: string, heldId?: string) {
+  const suffix = heldId ? `?held_id=${encodeURIComponent(heldId)}` : "";
+  return json<WithdrawnPrompt>(`/api/sessions/${encodeURIComponent(agentId)}/prompt${suffix}`, { method: "DELETE" });
 }
 
 export function dismissPromptRecovery(agentId: string, requestId: string) {
@@ -233,8 +239,8 @@ export function steerPrompt(agentId: string, text: string, files: PromptFile[] =
   if (files.length) {
     return json<SteerResult>(url, { method: "POST", body: multipartBody(text, files, requestId ?? crypto.randomUUID()) });
   }
-  return json<{ accepted: true; agent_id: string; outcome: SteerOutcome }>(url, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+  return json<SteerResult>(url, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, request_id: requestId ?? crypto.randomUUID() }),
   });
 }
 

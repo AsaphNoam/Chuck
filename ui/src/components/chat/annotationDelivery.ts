@@ -29,17 +29,23 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   const drafts = useAnnotationStore((state) => state.bySource[sourceId]);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
   const discardSent = useAnnotationStore((state) => state.discardSent);
-  const [chosenTarget, setTarget] = useState<AnnotationTarget>("self");
+  const ensureCommand = useAnnotationStore((state) => state.ensureCommand);
+  const resetCommand = useAnnotationStore((state) => state.resetCommand);
+  const storedTarget = useAnnotationStore((state) => state.targetBySource[sourceId] as AnnotationTarget | undefined);
+  const storedRecipient = useAnnotationStore((state) => state.recipientBySource[sourceId] ?? "");
+  const setDeliveryTarget = useAnnotationStore((state) => state.setDeliveryTarget);
+  const [chosenTarget, setChosenTarget] = useState<AnnotationTarget>(() => storedTarget ?? "self");
   // An inactive source cannot receive its own batch (FS-13.R15), so fall back
   // to an available target rather than leaving a disabled choice selected.
   const target = chosenTarget === "self" && !sourceActive
     ? (recipients.length > 0 || !source ? "agent" : "new")
     : chosenTarget;
-  const [recipientId, setRecipientId] = useState("");
+  const [recipientId, setRecipientId] = useState(storedRecipient);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLaunch, setShowLaunch] = useState(false);
-  const [launchedAgentId, setLaunchedAgentId] = useState<string | null>(null);
+  const launchedAgentId = useAnnotationStore((state) => state.launchedBySource[sourceId] ?? null);
+  const setLaunchedAgent = useAnnotationStore((state) => state.setLaunched);
   // The agent the last acknowledged batch went to; cleared by the next capture.
   const [sentTo, setSentTo] = useState<string | null>(null);
   const deliveredRef = useRef(onLaunchDelivered);
@@ -53,12 +59,11 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   const live = useRef<object | null>(null);
   useEffect(() => {
     live.current = token;
-    setTarget("self");
-    setRecipientId("");
+    setChosenTarget(storedTarget ?? "self");
+    setRecipientId(storedRecipient);
     setSending(false);
     setError(null);
     setShowLaunch(false);
-    setLaunchedAgentId(null);
     setSentTo(null);
     return () => { live.current = null; };
   }, [token]);
@@ -68,7 +73,17 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     if (count > 0) setSentTo(null);
   }, [count]);
 
-  const batch = (agentId?: string) => annotationBatch(drafts ?? [], overall, agentId);
+  const batch = (agentId?: string) => annotationBatch(drafts ?? [], overall, agentId, ensureCommand(sourceId));
+  const chooseTarget = (next: AnnotationTarget) => {
+    if (next !== chosenTarget) resetCommand(sourceId);
+    setChosenTarget(next);
+    setDeliveryTarget(sourceId, next, recipientId);
+  };
+  const chooseRecipient = (next: string) => {
+    if (next !== recipientId) resetCommand(sourceId);
+    setRecipientId(next);
+    setDeliveryTarget(sourceId, chosenTarget, next);
+  };
 
   // An acknowledged batch is cleared even after its owner went away, since it
   // was really sent; only UI state and navigation belong to the live owner.
@@ -80,7 +95,7 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
       await sendAnnotations(sourceId, batch(agentId));
       discardSent(sourceId, sent);
       if (!current()) return;
-      setLaunchedAgentId(null);
+      setLaunchedAgent(sourceId, null);
       setSentTo(agentId ?? sourceId);
       if (launched) deliveredRef.current?.(agentId!);
     } catch (err) {
@@ -129,11 +144,11 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   // it without launching another (FS-13.R9, R30). A launch that finishes after
   // its source changed or its owner unmounted sends nothing: the drafts stay.
   const onLaunched = (agentId: string) => {
+    setLaunchedAgent(sourceId, agentId);
     if (!current()) return;
     setShowLaunch(false);
-    setLaunchedAgentId(agentId);
     void deliver(agentId, true);
   };
 
-  return { sourceId, sourceActive, source, recipients, connected, target, setTarget, recipientId, setRecipientId, sending, error, showLaunch, setShowLaunch, launchedAgentId, sentTo, send, onLaunched };
+  return { sourceId, sourceActive, source, recipients, connected, target, setTarget: chooseTarget, recipientId, setRecipientId: chooseRecipient, sending, error, showLaunch, setShowLaunch, launchedAgentId, sentTo, send, onLaunched };
 }

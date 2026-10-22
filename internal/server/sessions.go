@@ -2,11 +2,14 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -43,7 +46,7 @@ func promptDelivery(held bool) string {
 // and never enters the transcript or database (FS-03.R48/R49, TS-08.R56).
 func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	msg, afterSeq, err := s.registry.HeldMessage(id)
+	msg, afterSeq, heldID, err := s.registry.HeldSnapshot(id)
 	if err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
 			writeAPIError(w, sessionOpError(err))
@@ -62,14 +65,18 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	msg.Attachments = append([]attachment.Descriptor{}, msg.Attachments...)
-	body := map[string]any{"agent_id": id, "text": msg.Text, "after_seq": afterSeq, "attachments": msg.Attachments, "request_id": msg.RequestID}
+	body := map[string]any{"agent_id": id, "text": msg.Text, "after_seq": afterSeq, "held_id": heldID, "attachments": msg.Attachments, "request_id": msg.RequestID}
 	if recovery, e := s.stateStore.AttachmentRecovery(id); e == nil {
 		var recovered runtime.Message
 		if e = json.Unmarshal([]byte(recovery.MessageJSON), &recovered); e != nil {
 			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read recovered message"))
 			return
 		}
-		body["recovery"] = recovered
+		body["recovery"] = map[string]any{
+			"text": recovered.Text, "request_id": recovered.RequestID,
+			"attachments": append([]attachment.Descriptor{}, recovered.Attachments...),
+			"delivery":    recovery.Delivery,
+		}
 	} else if !errors.Is(e, state.ErrNotFound) {
 		writeAPIError(w, apiError(runtime.CodeInternal, "cannot read message recovery"))
 		return
@@ -90,13 +97,20 @@ func (s *Server) handleWithdrawPrompt(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "agent_id": id, "delivery": "dismissed"})
 		return
 	}
-	if err := s.registry.WithdrawHeld(id); err != nil {
+	removed, withdrawn, err := s.registry.WithdrawHeldExpected(id, r.URL.Query().Get("held_id"))
+	if err != nil {
+		if errors.Is(err, runtime.ErrHeldChanged) {
+			writeAPIError(w, apiError(runtime.CodeHeldChanged, "held message changed"))
+			return
+		}
 		writeAPIError(w, sessionOpError(err))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"accepted": true, "agent_id": id, "delivery": "withdrawn",
-	})
+	body := map[string]any{"accepted": true, "agent_id": id, "delivery": "withdrawn", "withdrawn": withdrawn}
+	if withdrawn {
+		body["message"] = map[string]any{"held_id": removed.HeldID, "text": removed.Text, "attachments": removed.Attachments, "request_id": removed.RequestID}
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 // handleSteer implements POST /api/sessions/{id}/steer (TS-03.R39, FS-03.R50).
@@ -117,6 +131,8 @@ func steerError(err error) *runtime.APIError {
 		return apiError(runtime.CodeConflict, "this agent's adapter does not support steering")
 	case errors.Is(err, runtime.ErrNothingHeld):
 		return apiError(runtime.CodeConflict, "no message is held for this agent")
+	case errors.Is(err, runtime.ErrHeldChanged):
+		return apiError(runtime.CodeHeldChanged, "held message changed; reload before steering")
 	case errors.Is(err, runtime.ErrHistoryUnavailable), errors.Is(err, runtime.ErrTurnInFlight):
 		// The same recoverable refusals Send reports: nothing reached the agent.
 		return sessionOpError(err)
@@ -182,6 +198,58 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError(runtime.CodeValidation, "terminal agents cannot be annotation sources"))
 		return
 	}
+	commandID := strings.TrimSpace(body.CommandID)
+	if commandID != "" && !validRequestID(commandID) {
+		writeAPIError(w, apiError(runtime.CodeValidation, "invalid annotation command id"))
+		return
+	}
+	body.CommandID = commandID
+	targetID := body.Target.AgentID
+	if body.Target.Kind == "self" {
+		targetID = sourceID
+	}
+	var receipt state.AnnotationReceipt
+	if commandID != "" {
+		if !s.claimAttachmentUpload(sourceID) {
+			writeAPIError(w, apiError(runtime.CodeConflict, "another annotation is being prepared; retry shortly"))
+			return
+		}
+		defer s.releaseAttachmentUpload(sourceID)
+		body.Target.AgentID = targetID
+		hash := annotationPayloadHash(sourceID, body)
+		receipt, err = s.stateStore.AnnotationReceipt(sourceID, commandID)
+		if err == nil {
+			if receipt.PayloadHash != hash || receipt.TargetKind != body.Target.Kind || receipt.TargetAgentID != targetID {
+				writeAPIError(w, apiError(runtime.CodeConflict, "command id already belongs to different annotation content"))
+				return
+			}
+			if receipt.State == "unknown" {
+				writeAPIError(w, apiError(runtime.CodeConflict, "annotation delivery is uncertain; send a new command deliberately"))
+				return
+			}
+			if receipt.State == "recorded" && receipt.SourceSeq > 0 && body.Target.Kind == "self" {
+				writeAPIError(w, apiError(runtime.CodeConflict, "annotation delivery is uncertain; send a new command deliberately"))
+				return
+			}
+		} else if !errors.Is(err, state.ErrNotFound) {
+			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read annotation receipt"))
+			return
+		} else {
+			receipt = state.AnnotationReceipt{SourceAgentID: sourceID, CommandID: commandID, PayloadHash: hash,
+				TargetKind: body.Target.Kind, TargetAgentID: targetID, State: "prepared"}
+			if err := s.stateStore.CreateAnnotationReceipt(receipt); err != nil {
+				receipt, err = s.stateStore.AnnotationReceipt(sourceID, commandID)
+				if err != nil || receipt.PayloadHash != hash || receipt.TargetAgentID != targetID {
+					writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain annotation receipt"))
+					return
+				}
+			}
+		}
+		if receipt.State == "accepted" && receipt.SourceSeq > 0 {
+			writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "seq": receipt.SourceSeq, "command_id": commandID, "effect_id": receipt.EffectID})
+			return
+		}
+	}
 
 	// Every target is validated and its delivery payload composed before anything
 	// is released, so the durable source event can be written first (invariant
@@ -190,7 +258,6 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 	// after mail was inserted or a turn was started makes the natural retry
 	// duplicate that irreversible effect — and FS-13.R5's durable record would be
 	// missing for work an agent is already acting on.
-	var targetID string
 	var deliver func() *runtime.APIError
 	switch body.Target.Kind {
 	case "self":
@@ -204,7 +271,6 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		block := runtime.FormatAnnotationBlock(body)
-		targetID = sourceID
 		deliver = func() *runtime.APIError {
 			if err := s.registry.SendPrompt(r.Context(), sourceID, block); err != nil {
 				return sessionOpError(err)
@@ -232,6 +298,9 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		deliver = func() *runtime.APIError {
+			if commandID != "" {
+				return nil
+			}
 			if _, err := s.stateStore.InsertMessage(state.Message{
 				FromAgent: "user", FromAddress: "user@dashboard", FromName: "Dashboard user",
 				ToAgent: targetID, Subject: "Annotations", Body: mailBody,
@@ -252,16 +321,100 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.Target.AgentID = targetID
-	ev, err := s.appendAnnotation(sourceID, body)
-	if err != nil {
-		writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
-		return
+	var ev runtime.Event
+	if commandID != "" {
+		if receipt.SourceSeq > 0 {
+			ev.Seq = receipt.SourceSeq
+		} else {
+			// A canonical append may have completed while the receipt update or
+			// HTTP response was lost. Reconcile its embedded command id before
+			// attempting another append.
+			var found bool
+			readErr := transcript.ForEachFile(s.configStore.Home(), sourceID, transcript.ReadOptions{IncludeMeta: true}, func(candidate runtime.Event) error {
+				if candidate.Type != runtime.EvAnnotation {
+					return nil
+				}
+				var saved runtime.AnnotationData
+				if json.Unmarshal(candidate.Data, &saved) == nil && saved.CommandID == commandID {
+					ev, found = candidate, true
+				}
+				return nil
+			})
+			if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+				writeAPIError(w, apiError(runtime.CodeInternal, "cannot reconcile annotation history"))
+				return
+			}
+			if !found {
+				var appendErr error
+				ev, appendErr = s.appendAnnotation(sourceID, body)
+				if appendErr != nil {
+					writeAPIError(w, apiError(runtime.CodeInternal, appendErr.Error()))
+					return
+				}
+			}
+			if err := s.stateStore.SetAnnotationSourceSeq(sourceID, commandID, ev.Seq); err != nil {
+				writeAPIError(w, apiError(runtime.CodeInternal, "annotation recorded; receipt update failed"))
+				return
+			}
+		}
+	} else {
+		var appendErr error
+		ev, appendErr = s.appendAnnotation(sourceID, body)
+		if appendErr != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, appendErr.Error()))
+			return
+		}
+	}
+	if commandID != "" && body.Target.Kind == "self" {
+		if err := s.stateStore.ClaimAnnotationEffect(sourceID, commandID); err != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "annotation recorded; delivery claim failed"))
+			return
+		}
 	}
 	if apiErr := deliver(); apiErr != nil {
+		if commandID != "" && body.Target.Kind == "self" {
+			_ = s.stateStore.SetAnnotationEffect(sourceID, commandID, "", "unknown")
+		}
 		writeAPIError(w, apiErr)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "seq": ev.Seq})
+	if commandID != "" && body.Target.Kind == "agent" {
+		mailBody, _ := annotationMailBody(body)
+		receipt, err = s.stateStore.CommitAnnotationMail(sourceID, commandID, state.Message{
+			FromAgent: "user", FromAddress: "user@dashboard", FromName: "Dashboard user",
+			ToAgent: targetID, Subject: "Annotations", Body: mailBody,
+		})
+		if err != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "annotation recorded; mail delivery remains retryable"))
+			return
+		}
+		select {
+		case s.activationCh <- targetID:
+		default:
+		}
+		if _, err := s.stateMgr.Touch(targetID); err != nil {
+			s.log.Debug("touch annotation recipient failed", "agent", targetID, "err", err)
+		}
+	} else if commandID != "" {
+		if err := s.stateStore.SetAnnotationEffect(sourceID, commandID, fmt.Sprintf("prompt:%d", ev.Seq), "accepted"); err != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "annotation delivered; receipt update failed"))
+			return
+		}
+	}
+	response := map[string]any{"accepted": true, "seq": ev.Seq}
+	if commandID != "" {
+		response["command_id"] = commandID
+	}
+	writeJSON(w, http.StatusAccepted, response)
+}
+
+func annotationPayloadHash(sourceID string, data runtime.AnnotationData) string {
+	raw, _ := json.Marshal(struct {
+		Source string                 `json:"source"`
+		Data   runtime.AnnotationData `json:"data"`
+	}{sourceID, data})
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }
 
 func validateAnnotations(data *runtime.AnnotationData) error {

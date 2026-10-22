@@ -55,7 +55,7 @@ func operatorMessage(cmd *cobra.Command, method, path string, body map[string]js
 	if cmd.Name() == "send" && strings.TrimSpace(text) == "" && len(files) == 0 && len(owned) == 0 {
 		return operatorInvalid("Send requires text or attachments")
 	}
-	if len(owned) > 0 {
+	if text != "" || len(owned) > 0 {
 		if _, ok := body["request_id"]; !ok {
 			raw, _ := json.Marshal(newPipelineRequestID())
 			body["request_id"] = raw

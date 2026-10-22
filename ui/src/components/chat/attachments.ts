@@ -235,7 +235,8 @@ export type PendingAttachmentSend = { text: string; files: DraftAttachment[]; re
 // consuming it, so the draft stays but there is no unconfirmed send to retry.
 export function isDefiniteSendRefusal(error: unknown) {
   const status = error && typeof error === "object" && "status" in error ? (error as { status?: unknown }).status : undefined;
-  return typeof status === "number" && status >= 400 && status < 500 && status !== 408;
+  const code = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
+  return code !== "delivery_uncertain" && typeof status === "number" && status >= 400 && status < 500 && status !== 408;
 }
 
 export async function persistPendingAttachmentSend(agentId: string, pending: PendingAttachmentSend) {

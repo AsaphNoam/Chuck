@@ -333,7 +333,7 @@ describe("TranscriptView pending follow-up", () => {
     let withdrawn = 0;
     let reads = 0;
     mswServer.use(
-      http.delete("/api/sessions/a1/prompt", () => { withdrawn++; return HttpResponse.json({ accepted: true, agent_id: "a1" }); }),
+      http.delete("/api/sessions/a1/prompt", () => { withdrawn++; return HttpResponse.json({ accepted: true, agent_id: "a1", withdrawn: true, message: { held_id: "hold-1", text: "see image", attachments: [attachment] } }); }),
       http.get("/api/sessions/a1/prompt", () => {
         reads++;
         return reads === 1 ? HttpResponse.json({ error: "down" }, { status: 503 }) : HttpResponse.json({ agent_id: "a1", text: "", after_seq: 0, recovery });
@@ -348,6 +348,13 @@ describe("TranscriptView pending follow-up", () => {
     expect(await screen.findByText("Message not delivered — choose whether to send it again")).toBeInTheDocument();
     expect(screen.queryByText("Withdrawn, but the message and its attachments could not be loaded.")).toBeNull();
     expect(withdrawn).toBe(1);
+  });
+
+  it("labels text recovery with uncertain delivery and accepts empty attachments", async () => {
+    useHeldStore.getState().setRecovery("a1", { text: "check the deploy", request_id: "uncertain-1", delivery: "unknown" });
+    renderTranscript(true, events, true);
+    expect(await screen.findByText("This message may already have reached the agent — sending again may repeat it")).toBeInTheDocument();
+    expect(screen.queryByText("Message not delivered — choose whether to send it again")).toBeNull();
   });
 });
 
@@ -476,12 +483,13 @@ describe("TranscriptView mixed annotation tray (J13)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
 
     await waitFor(() => expect(useAnnotationStore.getState().bySource.a1).toBeUndefined());
-    expect(sentBody).toEqual({
+    expect(sentBody).toMatchObject({
       annotations: [
         { anchor_kind: "file", path: "src/a.go", start_line: 2, end_line: 4, excerpt: "file excerpt", instruction: "tighten this excerpt" },
       ],
       target: { kind: "self" },
     });
+    expect((sentBody as { command_id?: string }).command_id).toEqual(expect.any(String));
   });
 
   // A file annotation persisted with an anchor the server would reject (a

@@ -135,7 +135,7 @@ function AgentPanel({ id }: { id: string }) {
     let current = true;
     getHeldPrompt(id).then((snapshot) => {
       if (!current) return;
-      if (snapshot.text || snapshot.attachments?.length) hold(id, snapshot.text, snapshot.after_seq, snapshot.attachments);
+      if (snapshot.text || snapshot.attachments?.length) hold(id, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id);
       else releaseHeld(id);
       setRecovery(id, snapshot.recovery ?? null);
     }).catch(() => { /* SSE remains the primary agent-state path. */ });

@@ -812,7 +812,7 @@ or replace a known ID with empty. Legacy missing proof/ID stays recoverable as a
 not a fresh conversation. Bootstrap secrets live only in the one-use owner-only files/pipe, never
 in running rows, driver IDs or process arguments; cleanup of those files is generation-owned.
 
-**R55 (planned) — Retryable input commands retain authoritative acceptance and recovery.**
+**R55 — Retryable input commands retain authoritative acceptance and recovery.**
 Extend existing input/attachment receipts to text as well as media; use one bounded annotation
 command record with caller/source, command ID, canonical payload hash, exact target, source event
 reference and effect/result references. States distinguish prepared/recorded, submitted, accepted,
