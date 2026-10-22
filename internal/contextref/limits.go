@@ -32,6 +32,12 @@ const (
 	// scans (TS-04.R93).
 	MaxCursorBytes = 1024
 	MaxPeerScans   = 8
+
+	// MaxReferenceScans bounds the server-wide concurrent transcript scans that
+	// share_context and read_context_link run. It is its own pool: these scans
+	// decode a whole transcript per call and must not consume peer-read slots
+	// (TS-04.R28, INV §16).
+	MaxReferenceScans = 4
 )
 
 // OversizedRecordMarker replaces a physical transcript record the tolerant

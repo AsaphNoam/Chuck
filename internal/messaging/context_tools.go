@@ -66,12 +66,12 @@ type shareContextArgs struct {
 	Description string `json:"description,omitempty" jsonschema:"optional description for this share, <=1000 characters"`
 }
 
-func (s *Server) handleShareContext(_ context.Context, req *mcp.CallToolRequest, in shareContextArgs) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleShareContext(ctx context.Context, req *mcp.CallToolRequest, in shareContextArgs) (*mcp.CallToolResult, any, error) {
 	caller, svc, ok, result, extra, err := s.contextCaller(req)
 	if !ok {
 		return result, extra, err
 	}
-	res, shareErr := svc.Share(caller, in.Source, in.To, in.Label, in.Description)
+	res, shareErr := svc.Share(ctx, caller, in.Source, in.To, in.Label, in.Description)
 	if shareErr != nil {
 		return contextToolError(shareErr)
 	}
@@ -116,12 +116,12 @@ type readContextLinkArgs struct {
 	Cursor       string `json:"cursor,omitempty" jsonschema:"continuation cursor from a previous page"`
 }
 
-func (s *Server) handleReadContextLink(_ context.Context, req *mcp.CallToolRequest, in readContextLinkArgs) (*mcp.CallToolResult, any, error) {
+func (s *Server) handleReadContextLink(ctx context.Context, req *mcp.CallToolRequest, in readContextLinkArgs) (*mcp.CallToolResult, any, error) {
 	caller, svc, ok, result, extra, err := s.contextCaller(req)
 	if !ok {
 		return result, extra, err
 	}
-	res, readErr := svc.Read(caller, in.ContextRefID, in.Cursor)
+	res, readErr := svc.Read(ctx, caller, in.ContextRefID, in.Cursor)
 	if readErr != nil {
 		return contextToolError(readErr)
 	}

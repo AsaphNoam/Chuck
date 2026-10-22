@@ -1,6 +1,7 @@
 package contextref
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -90,7 +91,7 @@ func (f *fixture) conversation(t *testing.T, agentID string) {
 
 func mustShare(t *testing.T, f *fixture, caller Caller, selector, to string) ShareResult {
 	t.Helper()
-	res, err := f.svc.Share(caller, selector, to, "label", "description")
+	res, err := f.svc.Share(context.Background(), caller, selector, to, "label", "description")
 	if err != nil {
 		t.Fatalf("share %s: %v", selector, err)
 	}
@@ -130,7 +131,7 @@ func TestShareResolvesTranscriptSelectors(t *testing.T) {
 	// The snapshot is immutable through the share call: text emitted afterwards
 	// is deliberately outside the reference.
 	f.appendEvents(t, "a_src", ev(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: " and an afterthought"}))
-	page, err := f.svc.Read(Caller{AgentID: "a_dst"}, current.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, current.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -188,7 +189,7 @@ func TestCurrentTurnSpanExcludesTheInFlightShareCall(t *testing.T) {
 			codexShare.Source.FirstSeq, codexShare.Source.LastSeq)
 	}
 
-	page, err := claude.svc.Read(Caller{AgentID: "a_dst"}, claudeShare.ContextRefID, "")
+	page, err := claude.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, claudeShare.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -214,7 +215,7 @@ func TestCurrentTurnSpanExcludesTheInFlightShareCall(t *testing.T) {
 	if streamedShare.Source.LastSeq != codexShare.Source.LastSeq {
 		t.Fatalf("streamed span ends at %d, want %d", streamedShare.Source.LastSeq, codexShare.Source.LastSeq)
 	}
-	streamedPage, err := streamed.svc.Read(Caller{AgentID: "a_dst"}, streamedShare.ContextRefID, "")
+	streamedPage, err := streamed.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, streamedShare.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read streamed: %v", err)
 	}
@@ -228,7 +229,7 @@ func TestCurrentTurnSpanExcludesTheInFlightShareCall(t *testing.T) {
 	empty.agent(t, "a_src", "src")
 	empty.agent(t, "a_dst", "dst")
 	empty.appendEvents(t, "a_src", shareCall(t))
-	if _, err := empty.svc.Share(Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
+	if _, err := empty.svc.Share(context.Background(), Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
 		t.Fatalf("share from a turn holding only its own call = %v, want %s", err, CodeSourceUnavailable)
 	}
 }
@@ -243,11 +244,11 @@ func TestShareSelectorIsServerDerived(t *testing.T) {
 
 	// The peer has no transcript of its own, so no selector can reach a_src's.
 	f.agent(t, "a_peer", "peer")
-	_, err := f.svc.Share(Caller{AgentID: "a_peer"}, SelectorCurrentTurn, "a_dst", "", "")
+	_, err := f.svc.Share(context.Background(), Caller{AgentID: "a_peer"}, SelectorCurrentTurn, "a_dst", "", "")
 	if code(err) != CodeSourceUnavailable {
 		t.Fatalf("peer share = %v, want %s", err, CodeSourceUnavailable)
 	}
-	_, err = f.svc.Share(Caller{AgentID: "a_peer"}, "a_src:1-4", "a_dst", "", "")
+	_, err = f.svc.Share(context.Background(), Caller{AgentID: "a_peer"}, "a_src:1-4", "a_dst", "", "")
 	if code(err) != CodeValidation {
 		t.Fatalf("raw locator argument = %v, want %s", err, CodeValidation)
 	}
@@ -266,7 +267,7 @@ func TestShareRejectsUnknownAndArchivedRecipients(t *testing.T) {
 	f.conversation(t, "a_src")
 	caller := Caller{AgentID: "a_src"}
 
-	if _, err := f.svc.Share(caller, SelectorCurrentTurn, "nobody", "", ""); code(err) != CodeRecipientNotFound {
+	if _, err := f.svc.Share(context.Background(), caller, SelectorCurrentTurn, "nobody", "", ""); code(err) != CodeRecipientNotFound {
 		t.Fatalf("unknown recipient = %v", err)
 	}
 	// An archived identity is not a context recipient.
@@ -274,7 +275,7 @@ func TestShareRejectsUnknownAndArchivedRecipients(t *testing.T) {
 	if err := f.store.SetAgentsArchived([]string{"a_arch"}, true); err != nil {
 		t.Fatalf("archive: %v", err)
 	}
-	if _, err := f.svc.Share(caller, SelectorCurrentTurn, "a_arch", "", ""); code(err) != CodeRecipientNotFound {
+	if _, err := f.svc.Share(context.Background(), caller, SelectorCurrentTurn, "a_arch", "", ""); code(err) != CodeRecipientNotFound {
 		t.Fatalf("archived recipient = %v", err)
 	}
 	// So is a terminal agent.
@@ -282,7 +283,7 @@ func TestShareRejectsUnknownAndArchivedRecipients(t *testing.T) {
 		Backend: "claude-acp", Model: "sonnet", Interface: "terminal", CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("write terminal agent: %v", err)
 	}
-	if _, err := f.svc.Share(caller, SelectorCurrentTurn, "a_term", "", ""); code(err) != CodeRecipientNotFound {
+	if _, err := f.svc.Share(context.Background(), caller, SelectorCurrentTurn, "a_term", "", ""); code(err) != CodeRecipientNotFound {
 		t.Fatalf("terminal recipient = %v", err)
 	}
 }
@@ -330,8 +331,8 @@ func TestReadAuthorizationIsOpaque(t *testing.T) {
 	f.conversation(t, "a_src")
 	res := mustShare(t, f, Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst")
 
-	_, missing := f.svc.Read(Caller{AgentID: "a_snoop"}, "cr_doesnotexist", "")
-	_, unauthorized := f.svc.Read(Caller{AgentID: "a_snoop"}, res.ContextRefID, "")
+	_, missing := f.svc.Read(context.Background(), Caller{AgentID: "a_snoop"}, "cr_doesnotexist", "")
+	_, unauthorized := f.svc.Read(context.Background(), Caller{AgentID: "a_snoop"}, res.ContextRefID, "")
 	if code(missing) != CodeNotFound || code(unauthorized) != CodeNotFound {
 		t.Fatalf("missing = %v, unauthorized = %v; want the same %s", missing, unauthorized, CodeNotFound)
 	}
@@ -339,7 +340,7 @@ func TestReadAuthorizationIsOpaque(t *testing.T) {
 		t.Fatalf("outcomes distinguishable: %q vs %q", missing, unauthorized)
 	}
 
-	if _, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, ""); err != nil {
+	if _, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, ""); err != nil {
 		t.Fatalf("authorized read: %v", err)
 	}
 	var prefs int
@@ -354,7 +355,7 @@ func TestReadAuthorizationIsOpaque(t *testing.T) {
 	if err := f.svc.Revoke(Caller{AgentID: "a_src"}, res.GrantID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
-	if _, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, ""); code(err) != CodeNotFound {
+	if _, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, ""); code(err) != CodeNotFound {
 		t.Fatalf("read after revocation = %v", err)
 	}
 }
@@ -378,7 +379,7 @@ func TestReadPagesTraverseTheFixedSource(t *testing.T) {
 	cursor := ""
 	pages := 0
 	for {
-		page, err := f.svc.Read(reader, res.ContextRefID, cursor)
+		page, err := f.svc.Read(context.Background(), reader, res.ContextRefID, cursor)
 		if err != nil {
 			t.Fatalf("page %d: %v", pages, err)
 		}
@@ -409,18 +410,18 @@ func TestReadPagesTraverseTheFixedSource(t *testing.T) {
 	}
 
 	// A second traversal returns identical bytes: reading changes nothing.
-	repeat, err := f.svc.Read(reader, res.ContextRefID, "")
+	repeat, err := f.svc.Read(context.Background(), reader, res.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("repeat read: %v", err)
 	}
-	first, _ := f.svc.Read(reader, res.ContextRefID, "")
+	first, _ := f.svc.Read(context.Background(), reader, res.ContextRefID, "")
 	if repeat.Text != first.Text {
 		t.Fatal("repeated reads of a fixed source differ")
 	}
 
 	// A cursor is not a capability.
-	page, _ := f.svc.Read(reader, res.ContextRefID, "")
-	if _, err := f.svc.Read(Caller{AgentID: "a_snoop"}, res.ContextRefID, page.NextCursor); code(err) != CodeNotFound {
+	page, _ := f.svc.Read(context.Background(), reader, res.ContextRefID, "")
+	if _, err := f.svc.Read(context.Background(), Caller{AgentID: "a_snoop"}, res.ContextRefID, page.NextCursor); code(err) != CodeNotFound {
 		t.Fatalf("cursor granted access to an unauthorized reader: %v", err)
 	}
 }
@@ -435,10 +436,10 @@ func TestReadRejectsForeignAndMalformedCursors(t *testing.T) {
 	reader := Caller{AgentID: "a_dst"}
 
 	foreign := encodeCursor(two.ContextRefID, 0)
-	if _, err := f.svc.Read(reader, one.ContextRefID, foreign); code(err) != CodeInvalidCursor {
+	if _, err := f.svc.Read(context.Background(), reader, one.ContextRefID, foreign); code(err) != CodeInvalidCursor {
 		t.Fatalf("cross-reference cursor = %v, want %s", err, CodeInvalidCursor)
 	}
-	if _, err := f.svc.Read(reader, one.ContextRefID, "!!!not-base64!!!"); code(err) != CodeInvalidCursor {
+	if _, err := f.svc.Read(context.Background(), reader, one.ContextRefID, "!!!not-base64!!!"); code(err) != CodeInvalidCursor {
 		t.Fatalf("malformed cursor = %v", err)
 	}
 }
@@ -456,13 +457,13 @@ func TestArchiveKeepsContextAndDeletionTombstones(t *testing.T) {
 	if err := f.store.SetAgentsArchived([]string{"a_src"}, true); err != nil {
 		t.Fatalf("archive: %v", err)
 	}
-	if _, err := f.svc.Read(reader, res.ContextRefID, ""); err != nil {
+	if _, err := f.svc.Read(context.Background(), reader, res.ContextRefID, ""); err != nil {
 		t.Fatalf("archived source became unreadable: %v", err)
 	}
 	if err := f.store.DeleteAgent("a_src"); err != nil {
 		t.Fatalf("delete source: %v", err)
 	}
-	if _, err := f.svc.Read(reader, res.ContextRefID, ""); code(err) != CodeSourceGone {
+	if _, err := f.svc.Read(context.Background(), reader, res.ContextRefID, ""); code(err) != CodeSourceGone {
 		t.Fatalf("deleted source = %v, want %s", err, CodeSourceGone)
 	}
 	// The reference itself survives as an identifiable tombstone.
@@ -483,7 +484,7 @@ func TestReadMarksOversizedRecords(t *testing.T) {
 		ev(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "after"}),
 	)
 	res := mustShare(t, f, Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst")
-	page, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -505,7 +506,7 @@ func TestReadMarksUnknownEventKinds(t *testing.T) {
 		ev(t, "future_kind", map[string]string{"payload": "opaque"}),
 	)
 	res := mustShare(t, f, Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst")
-	page, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -530,7 +531,7 @@ func TestReadOmitsSessionMetadataAndSwitchMarkers(t *testing.T) {
 	if res.Source.FirstSeq != 2 {
 		t.Fatalf("span started at %d, want the first content event", res.Source.FirstSeq)
 	}
-	page, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -545,10 +546,10 @@ func TestSharePresentationBounds(t *testing.T) {
 	f.agent(t, "a_dst", "dst")
 	f.conversation(t, "a_src")
 	caller := Caller{AgentID: "a_src"}
-	if _, err := f.svc.Share(caller, SelectorCurrentTurn, "a_dst", strings.Repeat("l", MaxLabelRunes+1), ""); code(err) != CodeValidation {
+	if _, err := f.svc.Share(context.Background(), caller, SelectorCurrentTurn, "a_dst", strings.Repeat("l", MaxLabelRunes+1), ""); code(err) != CodeValidation {
 		t.Fatalf("over-limit label = %v", err)
 	}
-	if _, err := f.svc.Share(caller, SelectorCurrentTurn, "a_dst", "", strings.Repeat("d", MaxDescriptionRunes+1)); code(err) != CodeValidation {
+	if _, err := f.svc.Share(context.Background(), caller, SelectorCurrentTurn, "a_dst", "", strings.Repeat("d", MaxDescriptionRunes+1)); code(err) != CodeValidation {
 		t.Fatalf("over-limit description = %v", err)
 	}
 	var refs int
@@ -628,7 +629,7 @@ func TestSharePipelineReportWindow(t *testing.T) {
 	if res.Source.Kind != state.ContextSourcePipelineReport || res.Source.PipelineAttemptID != "pa_1" {
 		t.Fatalf("report source = %+v", res.Source)
 	}
-	page, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read report: %v", err)
 	}
@@ -648,10 +649,10 @@ func TestSharePipelineReportWindow(t *testing.T) {
 		"2026-08-22T10:05:00Z"); err != nil {
 		t.Fatalf("quiesce: %v", err)
 	}
-	if _, err := f.svc.Share(caller, SelectorCurrentPipelineReport, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
+	if _, err := f.svc.Share(context.Background(), caller, SelectorCurrentPipelineReport, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
 		t.Fatalf("post-quiescence share = %v, want %s", err, CodeSourceUnavailable)
 	}
-	if _, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, ""); err != nil {
+	if _, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, ""); err != nil {
 		t.Fatalf("existing reference stopped reading after quiescence: %v", err)
 	}
 }
@@ -699,7 +700,7 @@ func TestSharePipelineReportResolvesTaskBackedResult(t *testing.T) {
 	f.pipelineStageTask(t, "a_stage", "gen1", true)
 	caller := Caller{AgentID: "a_stage", Generation: "gen1"}
 
-	if _, err := f.svc.Share(Caller{AgentID: "a_stage", Generation: "gen2"},
+	if _, err := f.svc.Share(context.Background(), Caller{AgentID: "a_stage", Generation: "gen2"},
 		SelectorCurrentPipelineReport, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
 		t.Fatalf("foreign generation = %v, want %s", err, CodeSourceUnavailable)
 	}
@@ -707,7 +708,7 @@ func TestSharePipelineReportResolvesTaskBackedResult(t *testing.T) {
 	if res.Source.Kind != state.ContextSourcePipelineReport || res.Source.PipelineAttemptID != "tk_1" {
 		t.Fatalf("report source = %+v, want the immutable stage task result", res.Source)
 	}
-	page, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read report: %v", err)
 	}
@@ -722,10 +723,10 @@ func TestSharePipelineReportResolvesTaskBackedResult(t *testing.T) {
 	if _, err := f.store.DB().Exec(`UPDATE tasks SET pending_release = 0 WHERE task_id = 'tk_1'`); err != nil {
 		t.Fatalf("settle release: %v", err)
 	}
-	if _, err := f.svc.Share(caller, SelectorCurrentPipelineReport, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
+	if _, err := f.svc.Share(context.Background(), caller, SelectorCurrentPipelineReport, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
 		t.Fatalf("post-release share = %v, want %s", err, CodeSourceUnavailable)
 	}
-	if _, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, ""); err != nil {
+	if _, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, ""); err != nil {
 		t.Fatalf("existing reference stopped reading after release: %v", err)
 	}
 }
@@ -738,7 +739,7 @@ func TestSharePipelineReportRejectsUnreportedAndForeignGeneration(t *testing.T) 
 	f.agent(t, "a_dst", "dst")
 	f.pipelineAttempt(t, "a_stage", "gen1", false, false)
 
-	if _, err := f.svc.Share(Caller{AgentID: "a_stage", Generation: "gen1"},
+	if _, err := f.svc.Share(context.Background(), Caller{AgentID: "a_stage", Generation: "gen1"},
 		SelectorCurrentPipelineReport, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
 		t.Fatalf("unreported attempt = %v", err)
 	}
@@ -746,7 +747,7 @@ func TestSharePipelineReportRejectsUnreportedAndForeignGeneration(t *testing.T) 
 		"2026-08-22T10:00:00Z"); err != nil {
 		t.Fatalf("report: %v", err)
 	}
-	if _, err := f.svc.Share(Caller{AgentID: "a_stage", Generation: "gen2"},
+	if _, err := f.svc.Share(context.Background(), Caller{AgentID: "a_stage", Generation: "gen2"},
 		SelectorCurrentPipelineReport, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
 		t.Fatalf("foreign generation = %v", err)
 	}
@@ -775,7 +776,7 @@ func TestDeletedPipelineAttemptTombstones(t *testing.T) {
 	if err := f.store.DeletePipelineRun("pr_1"); err != nil {
 		t.Fatalf("delete run: %v", err)
 	}
-	if _, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, ""); code(err) != CodeSourceGone {
+	if _, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, ""); code(err) != CodeSourceGone {
 		t.Fatalf("deleted attempt = %v, want %s", err, CodeSourceGone)
 	}
 	if _, err := f.store.ReadContextReference(res.ContextRefID); err != nil {
@@ -797,7 +798,7 @@ func TestLatestCompletedTurnNeedsALaterTurn(t *testing.T) {
 	)
 	caller := Caller{AgentID: "a_src", Generation: "g1"}
 
-	if _, err := f.svc.Share(caller, SelectorLatestCompletedTurn, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
+	if _, err := f.svc.Share(context.Background(), caller, SelectorLatestCompletedTurn, "a_dst", "", ""); code(err) != CodeSourceUnavailable {
 		t.Fatalf("idle share = %v, want %s", err, CodeSourceUnavailable)
 	}
 	var refs, grants int
@@ -842,7 +843,7 @@ func TestCurrentTurnStartsAfterAResumeBoundary(t *testing.T) {
 		t.Fatalf("current span = %d..%d, want 7..8 (starting after the resume marker)",
 			res.Source.FirstSeq, res.Source.LastSeq)
 	}
-	page, err := f.svc.Read(Caller{AgentID: "a_dst"}, res.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -871,7 +872,7 @@ func TestReadMarksOversizedRecordsAtSpanEdges(t *testing.T) {
 	reader := Caller{AgentID: "a_dst"}
 
 	current := mustShare(t, f, Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst")
-	page, err := f.svc.Read(reader, current.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), reader, current.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read current turn: %v", err)
 	}
@@ -885,7 +886,7 @@ func TestReadMarksOversizedRecordsAtSpanEdges(t *testing.T) {
 	// The same skipped record sits outside the finished turn, which ends at its
 	// turn_end, so that page stays clean.
 	completed := mustShare(t, f, Caller{AgentID: "a_src"}, SelectorLatestCompletedTurn, "a_dst")
-	done, err := f.svc.Read(reader, completed.ContextRefID, "")
+	done, err := f.svc.Read(context.Background(), reader, completed.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("read completed turn: %v", err)
 	}
@@ -910,7 +911,7 @@ func TestReadRejectsForgedCursorOffsets(t *testing.T) {
 	res := mustShare(t, f, Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst")
 	reader := Caller{AgentID: "a_dst"}
 
-	page, err := f.svc.Read(reader, res.ContextRefID, "")
+	page, err := f.svc.Read(context.Background(), reader, res.ContextRefID, "")
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
@@ -924,19 +925,62 @@ func TestReadRejectsForgedCursorOffsets(t *testing.T) {
 
 	// One byte past the issued boundary lands inside a two-byte rune.
 	interior := encodeCursor(res.ContextRefID, offset+1)
-	if _, err := f.svc.Read(reader, res.ContextRefID, interior); code(err) != CodeInvalidCursor {
+	if _, err := f.svc.Read(context.Background(), reader, res.ContextRefID, interior); code(err) != CodeInvalidCursor {
 		t.Fatalf("interior-rune offset = %v, want %s", err, CodeInvalidCursor)
 	}
-	if _, err := f.svc.Read(reader, res.ContextRefID, encodeCursor(res.ContextRefID, 1<<30)); code(err) != CodeInvalidCursor {
+	if _, err := f.svc.Read(context.Background(), reader, res.ContextRefID, encodeCursor(res.ContextRefID, 1<<30)); code(err) != CodeInvalidCursor {
 		t.Fatalf("past-end offset = %v, want %s", err, CodeInvalidCursor)
 	}
 
 	// The honestly issued cursor still traverses the source.
-	next, err := f.svc.Read(reader, res.ContextRefID, page.NextCursor)
+	next, err := f.svc.Read(context.Background(), reader, res.ContextRefID, page.NextCursor)
 	if err != nil {
 		t.Fatalf("issued cursor stopped working: %v", err)
 	}
 	if !utf8.ValidString(next.Text) || next.Text == "" {
 		t.Fatalf("continuation page is not valid UTF-8 text: %q", next.Text[:min(64, len(next.Text))])
+	}
+}
+
+// CR-A7-2 (TS-04.R28, INV §16): reference scans have their own bounded
+// admission and stop with their request. A cancelled share creates nothing, a
+// cancelled read returns no page, excess scans are refused, and the separate
+// peer-read pool stays available while every reference slot is taken.
+func TestReferenceScansAreAdmittedAndCancellable(t *testing.T) {
+	f := newFixture(t)
+	f.agent(t, "a_src", "src")
+	f.agent(t, "a_dst", "dst")
+	f.conversation(t, "a_src")
+	caller := Caller{AgentID: "a_src", Generation: "g1"}
+	res := mustShare(t, f, caller, SelectorLatestCompletedTurn, "a_dst")
+	reader := Caller{AgentID: "a_dst"}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := f.svc.Read(cancelled, reader, res.ContextRefID, ""); err == nil {
+		t.Fatal("cancelled read still decoded and returned a page")
+	}
+	if _, err := f.svc.Share(cancelled, caller, SelectorCurrentTurn, "a_dst", "", ""); err == nil {
+		t.Fatal("cancelled share still created a reference")
+	}
+	if links, err := f.svc.List(reader, true, 0, ""); err != nil || len(links.Links) != 1 {
+		t.Fatalf("grants after cancelled share = %+v, %v; want only the first", links, err)
+	}
+
+	for i := 0; i < MaxReferenceScans; i++ {
+		f.svc.referenceScans <- struct{}{}
+	}
+	if _, err := f.svc.Read(context.Background(), reader, res.ContextRefID, ""); code(err) != CodeContextBusy {
+		t.Fatalf("read with every scan slot taken = %v, want %s", err, CodeContextBusy)
+	}
+	if _, err := f.svc.Share(context.Background(), caller, SelectorCurrentTurn, "a_dst", "", ""); code(err) != CodeContextBusy {
+		t.Fatalf("share with every scan slot taken = %v, want %s", err, CodeContextBusy)
+	}
+	if _, err := f.svc.ReadPeerTranscript(context.Background(), "a_src", 0, ""); err != nil {
+		t.Fatalf("peer read shared the reference pool: %v", err)
+	}
+	<-f.svc.referenceScans
+	if _, err := f.svc.Read(context.Background(), reader, res.ContextRefID, ""); err != nil {
+		t.Fatalf("read after a slot freed: %v", err)
 	}
 }

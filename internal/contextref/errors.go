@@ -20,6 +20,9 @@ const (
 	CodeValidation        = "validation"
 	// CodeUnavailable — the underlying store could not answer.
 	CodeUnavailable = "store_unavailable"
+	// CodeContextBusy — every reference transcript scan slot is in use; nothing
+	// was created or read, and the call may be retried.
+	CodeContextBusy = "context_busy"
 
 	// Direct peer reads (FS-06.R39, FS-17.R22).
 	CodeAgentNotFound         = "agent_not_found"

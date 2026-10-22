@@ -28,7 +28,8 @@ var retryClasses = map[string]RetryClass{
 	"wait_conflict":           RetryAfterChange,
 	"message_budget_exceeded": RetryNextTurn,
 	"internal":                RetryTransient, "store_unavailable": RetryTransient,
-	"context_unavailable": RetryTransient, "pipeline_unavailable": RetryTransient,
+	"context_unavailable": RetryTransient, "context_busy": RetryTransient,
+	"pipeline_unavailable": RetryTransient,
 	// Peer reads and approved Stop (FS-17.R22). A terminal Stop refusal never
 	// invites a retry: another Stop needs a fresh operator decision.
 	"agent_not_found":        RetryAfterChange,

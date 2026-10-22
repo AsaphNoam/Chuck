@@ -23,7 +23,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
   with nine open admission/recovery findings. CR-A3, CR-A4, CR-A5 and CR-A6 are reviewed and closed
-  (no open findings). CR-A7 is reviewed with three open capacity/cost findings (A7-2, A7-4, A7-5).
+  (no open findings). CR-A7 is reviewed with two open capacity/cost findings (A7-4, A7-5).
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   [Before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) connects preservation,
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
@@ -221,7 +221,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — closed; CR-A4-1 fixed |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — closed; CR-A5-1/2 fixed |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — closed; CR-A6-1–6 fixed |
-| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — three findings open (A7-1/3 fixed) |
+| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — two findings open (A7-1/2/3 fixed) |
 
 **Reindex implementation review available:** CR-A1-1/2 are covered together by the
 interruption-safe reindex implementation (FS-05.R43–R45/A26–A27; TS-02.R56–R58).
@@ -282,20 +282,6 @@ same unit open. Three focused reviewers covered storage/reconciliation, browser 
 lifetimes; the parent reviewed their source/probes and measured reference/peer reads. Entry dirty
 ready-change edits are preserved. No product code or normative spec changed, and no local-choice
 or new product decision is introduced. Existing A1–A6 and ASW/ASF finding ownership is unchanged.
-
-- **Must fix** — CR-A7-2 — **Reference transcript scans have no admission or cancellation lifetime**
-  (INV §4/§16). `internal/messaging/context_tools.go:68–74,118–124` discards request contexts;
-  `internal/contextref/service.go:165–217,356–379,428–452` scans the entire file for share/read
-  without a scan slot, cancellation check or fixed physical read boundary. The separate peer scan
-  cap does not govern this path. Concurrent delegated reference reads therefore multiply full-file
-  decoding, and cancelling their requests does not release that work. A 1,037-byte fixed reference
-  from a 111,372,895-byte/100,000-record transcript took 459 ms and 269.9 MB cumulative allocation
-  per warm read. A token-bound handler probe started 16 already-cancelled reads of the same
-  10,000-record transcript: all 16 completed successfully. This probe checks handler cancellation,
-  not real-provider Stop timing or cross-agent starvation. Add explicit reference-scan admission
-  and request/lifecycle cancellation through the shared reader seam; preserve fixed-source,
-  authorization and oversized-record edge semantics. Choose its own documented limit rather than
-  assuming the peer-specific eight-scan contract applies to every reader.
 
 - **Worth fixing** — CR-A7-4 — **The idle reconciliation timer replays all retained history**
   (INV §7/§16). Every 30 seconds `internal/server/reconcile.go:20–24,73–75,118–130` walks every
@@ -1476,7 +1462,15 @@ and specifications are unchanged.
   the full bus package passes, and the build passes; the full matrix receipt above is for the
   pre-integration reindex source. Uncommitted context-reference work in main is excluded.
 
-- **2026-10-22 — Fix: sustained capacity and cost (CR-A7-1 INV §1/§11, CR-A7-3 INV §16).**
+- **2026-10-22 — Fix: sustained capacity and cost (CR-A7-1 INV §1/§11, CR-A7-2 INV §4/§16,
+  CR-A7-3 INV §16).**
+  CR-A7-2: share/read transcript scans go through `Service.scanTranscript`, which takes one of
+  four reference-scan slots (separate from the eight peer slots), refuses excess with transient
+  `context_busy`, and stops on request cancellation; MCP handlers now pass their contexts.
+  TS-04.R28 and FS-17.R3 record the limit and code. `TestReferenceScansAreAdmittedAndCancellable`
+  covers cancelled share/read, full-pool refusal and peer-pool independence; the review probe
+  (16 cancelled reads all completing) is the pre-fix evidence. No physical read boundary was
+  added: fixed-span and oversized-record edge rendering are unchanged.
   CR-A7-1: a bus subscriber's overflow channel closes at its first dropped event and
   `/api/events` ends that stream instead of pinging on; the browser reconnect resnapshots and now
   also refetches open pipeline run details (TS-03.R9 documents the strategy).

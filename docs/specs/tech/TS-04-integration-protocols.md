@@ -513,13 +513,16 @@ caller and launch generation come from the existing token session:
 
 All tools return bounded structured JSON using stable outcomes including `context_not_found`,
 `context_source_unavailable`, `source_unavailable`, `recipient_not_found`,
-`ambiguous_recipient`, `invalid_cursor`, and `validation`; unauthorized and unknown reference/grant
+`ambiguous_recipient`, `invalid_cursor`, `context_busy`, and `validation`; unauthorized and unknown reference/grant
 reads both use `context_not_found`. `source_unavailable` means a share-time friendly selector has no
 eligible current source and no row was created; `context_source_unavailable` means an authorized,
 already-canonical reference now points to a deleted or unreadable source tombstone. Label is capped
 at 200 runes, description at 1,000 runes, and cursor/list/page bounds live in one context limits
 module shared by MCP, service, rendering, and tests. These calls do not consume the FS-06 mail
-budget.
+budget. Each `share_context` selector resolution and `read_context_link` transcript render is one
+full transcript scan that checks request cancellation on every record. At most four such reference
+scans run server-wide, in a pool separate from R93's eight peer scans; excess calls are refused with
+`context_busy` (transient under FS-17.R3), creating or reading nothing, instead of queuing.
 
 The initial implementation does not register MCP resources/templates or return ACP
 `Resource`/`ResourceLink` prompt blocks. The pinned adapters lower ACP resource blocks into

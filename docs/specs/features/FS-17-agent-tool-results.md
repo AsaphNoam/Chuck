@@ -54,7 +54,7 @@ remain supported.
   | `never` | `validation`, `invalid_body`, `invalid_subject`, `invalid_outcome`, `invalid_state`, `invalid_cursor`, `dependency_cycle`, `target_ineligible`, `already_reported`, `not_assigned`, `not_creator`, `retry_requires_rearm`, `task_not_found`, `context_not_found`, `context_source_unavailable`, `proposal_forbidden`, `session_unknown`, `assignment_unknown`, `stale_assignment` |
   | `after_change` | `ambiguous_recipient`, `recipient_not_found`, `source_unavailable`, `validation_failed` |
   | `next_turn` | `message_budget_exceeded` |
-  | `transient` | `internal`, `store_unavailable`, `context_unavailable`, `pipeline_unavailable` |
+  | `transient` | `internal`, `store_unavailable`, `context_unavailable`, `context_busy`, `pipeline_unavailable` |
 
   A refusal keeps every field it carries today; classification only adds `retry`.
 

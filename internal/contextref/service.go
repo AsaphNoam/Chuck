@@ -1,6 +1,7 @@
 package contextref
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -35,10 +36,37 @@ type Service struct {
 	// peerScans admits at most MaxPeerScans direct transcript scans at once
 	// (TS-04.R93, INV §16).
 	peerScans chan struct{}
+	// referenceScans admits at most MaxReferenceScans share/read transcript
+	// scans at once (TS-04.R28, INV §16).
+	referenceScans chan struct{}
 }
 
 func New(store *state.Store, home string) *Service {
-	return &Service{store: store, home: home, peerScans: make(chan struct{}, MaxPeerScans)}
+	return &Service{store: store, home: home,
+		peerScans:      make(chan struct{}, MaxPeerScans),
+		referenceScans: make(chan struct{}, MaxReferenceScans)}
+}
+
+// scanTranscript runs one admitted, cancellable full read of agentID's
+// transcript. Excess scans are refused rather than queued, and a cancelled
+// request stops decoding at the next record.
+func (s *Service) scanTranscript(ctx context.Context, agentID string, opts transcript.ReadOptions, fn func(runtime.Event) error) *Error {
+	select {
+	case s.referenceScans <- struct{}{}:
+		defer func() { <-s.referenceScans }()
+	default:
+		return failf(CodeContextBusy, "Too many context reads are in progress; retry shortly.")
+	}
+	err := transcript.ForEachFile(s.home, agentID, opts, func(ev runtime.Event) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return fn(ev)
+	})
+	if err != nil {
+		return unavailable(err)
+	}
+	return nil
 }
 
 // SourceDescriptor is the intrinsic, content-free description of a reference's
@@ -77,7 +105,7 @@ type ShareResult struct {
 // Share resolves a friendly selector to an exact locator, canonicalizes it, and
 // grants one resolvable chat agent access. It creates no mail, activation,
 // prompt, transcript event, or SSE payload (FS-15.R4–R5, R10).
-func (s *Service) Share(caller Caller, selector, to, label, description string) (ShareResult, error) {
+func (s *Service) Share(ctx context.Context, caller Caller, selector, to, label, description string) (ShareResult, error) {
 	if err := validatePresentation(label, description); err != nil {
 		return ShareResult{}, err
 	}
@@ -102,7 +130,7 @@ func (s *Service) Share(caller Caller, selector, to, label, description string) 
 		}
 	}
 
-	source, cerr := s.resolveSelector(caller, selector)
+	source, cerr := s.resolveSelector(ctx, caller, selector)
 	if cerr != nil {
 		return ShareResult{}, cerr
 	}
@@ -139,10 +167,10 @@ func validatePresentation(label, description string) *Error {
 	return nil
 }
 
-func (s *Service) resolveSelector(caller Caller, selector string) (state.ContextSource, *Error) {
+func (s *Service) resolveSelector(ctx context.Context, caller Caller, selector string) (state.ContextSource, *Error) {
 	switch selector {
 	case SelectorCurrentTurn, SelectorLatestCompletedTurn:
-		return s.resolveTranscriptSpan(caller.AgentID, selector)
+		return s.resolveTranscriptSpan(ctx, caller.AgentID, selector)
 	case SelectorCurrentPipelineReport:
 		return s.resolvePipelineReport(caller)
 	default:
@@ -162,14 +190,14 @@ type turnScan struct {
 	completedHas                  bool
 }
 
-func (s *Service) resolveTranscriptSpan(agentID, selector string) (state.ContextSource, *Error) {
+func (s *Service) resolveTranscriptSpan(ctx context.Context, agentID, selector string) (state.ContextSource, *Error) {
 	var scan turnScan
 	// IncludeMeta is true only so the scan can see session and backend-switch
 	// boundaries; their content never enters a span. A boundary closes whatever
 	// turn was left open on the other side of it, so a stop or crash without a
 	// turn_end cannot make the turn after the resume start inside the abandoned
 	// one (TS-04.R28, FS-15.R4/R15, INV §1).
-	err := transcript.ForEachFile(s.home, agentID, transcript.ReadOptions{IncludeMeta: true}, func(ev runtime.Event) error {
+	cerr := s.scanTranscript(ctx, agentID, transcript.ReadOptions{IncludeMeta: true}, func(ev runtime.Event) error {
 		switch ev.Type {
 		case runtime.EvSessionMeta, runtime.EvBackendSwitch:
 			scan.openHas = false
@@ -208,8 +236,8 @@ func (s *Service) resolveTranscriptSpan(agentID, selector string) (state.Context
 		scan.openLast = ev.Seq
 		return nil
 	})
-	if err != nil {
-		return state.ContextSource{}, unavailable(err)
+	if cerr != nil {
+		return state.ContextSource{}, cerr
 	}
 
 	span := state.ContextSource{Kind: state.ContextSourceTranscriptSpan, AgentID: agentID}
@@ -353,7 +381,7 @@ type ReadResult struct {
 // Read returns one deterministic bounded page. Authorization is re-evaluated on
 // every page, and a missing or unauthorized id shares one safe outcome
 // (FS-15.R9, TS-05.R16). Reading has no personal-state side effect.
-func (s *Service) Read(caller Caller, refID, cursor string) (ReadResult, error) {
+func (s *Service) Read(ctx context.Context, caller Caller, refID, cursor string) (ReadResult, error) {
 	ref, err := s.store.ReadContextReference(refID)
 	if errors.Is(err, state.ErrNotFound) {
 		return ReadResult{}, notFound()
@@ -376,7 +404,7 @@ func (s *Service) Read(caller Caller, refID, cursor string) (ReadResult, error) 
 	out := newPageWriter(offset, MaxPageBytes)
 	switch ref.Source.Kind {
 	case state.ContextSourceTranscriptSpan:
-		if cerr := s.renderSpan(ref.Source, out); cerr != nil {
+		if cerr := s.renderSpan(ctx, ref.Source, out); cerr != nil {
 			return ReadResult{}, cerr
 		}
 	case state.ContextSourcePipelineReport:
@@ -425,7 +453,7 @@ func (s *Service) Read(caller Caller, refID, cursor string) (ReadResult, error) 
 	return result, nil
 }
 
-func (s *Service) renderSpan(source state.ContextSource, out *pageWriter) *Error {
+func (s *Service) renderSpan(ctx context.Context, source state.ContextSource, out *pageWriter) *Error {
 	// The durable agent identity is the deletion test: archive is not deletion,
 	// so an archived agent's transcript still reads (FS-15.R12–R13).
 	if _, err := s.store.ReadAgent(source.AgentID); errors.Is(err, state.ErrNotFound) {
@@ -438,8 +466,8 @@ func (s *Service) renderSpan(source state.ContextSource, out *pageWriter) *Error
 	// as stream positions, so this read neither seeks past them nor lets the
 	// reader hide a session boundary from the oversized-record edge rules.
 	opts := transcript.ReadOptions{IncludeMeta: true, OnOversized: renderer.oversized}
-	if err := transcript.ForEachFile(s.home, source.AgentID, opts, renderer.event); err != nil {
-		return unavailable(err)
+	if cerr := s.scanTranscript(ctx, source.AgentID, opts, renderer.event); cerr != nil {
+		return cerr
 	}
 	renderer.done()
 	if renderer.empty {
