@@ -44,7 +44,7 @@ Ordinary fix-closure bookkeeping follows §8 and is not a new implementation rev
 | ASF-3 — `/fix ASF-3` | [Durable continuation and controller recovery](#asf-3--durable-continuation-and-controller-recovery) | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
 | ASF-4 — `/fix ASF-4` | [Bounded completed work and retained task results](#asf-4--retention-and-result-bounds) | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
 | ASF-5 — `/fix ASF-5` | [Project setup readiness and resource permissions](#asf-5--project-readiness-and-resource-permissions) | ASRA-5, ASRA-6 | Waiting — medium, Codex Terra or Claude Opus |
-| ASF-6 — `/fix ASF-6` | [Certain CLI archive selection](#asf-6--cli-archive-selection) | ASRH-3 | Waiting — medium, Codex Terra or Claude Opus |
+| ASF-6 — `/fix ASF-6` | [Certain CLI archive selection](#asf-6--cli-archive-selection) | ASRH-3 | Finished |
 
 Suggested first picks: ASF-1 (read-loop stall), ASF-2 (possibly consumed input replay) and ASW-3
 (unsafe process control). These are independently startable; no chronological queue gating is added.
@@ -244,6 +244,9 @@ waiter. Assert no provider prompt/start crosses unfinished setup and one setup o
 Keep A4 process-tree tests in ASW-3; run config/server/worktree checks and TS-06 closure.
 
 ## ASF-6 — CLI archive selection
+
+**Status:** Finished. Bare launch fails on archive uncertainty and only selects from a complete,
+bounded lookup; explicit `--new` bypasses lookup. Closure evidence is in HANDOFF.md.
 
 **Outcome:** bare CLI launch never interprets an unavailable/incomplete archive lookup as proof
 that a new conversation is wanted. This is deliberately isolated from runtime architecture.

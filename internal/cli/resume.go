@@ -77,6 +77,11 @@ type archiveResult struct {
 	Active  bool   `json:"active"`
 }
 
+const (
+	archiveLookupPageSize = 200
+	archiveLookupMaxPages = 10
+)
+
 // listInactiveSessions queries the archive endpoint for inactive sessions
 // matching the given role and project. When name is non-empty it also filters
 // by name, so a bare `role@project --name X` only auto-resumes the session
@@ -87,23 +92,61 @@ func listInactiveSessions(port int, role, project, name string) ([]archiveResult
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	client := &operatorClient{HTTP: &http.Client{}, BaseURL: fmt.Sprintf("http://127.0.0.1:%d", port)}
-	data, err := client.Request(ctx, http.MethodGet, "/api/archive/projects/"+url.PathEscape(project)+"?active=false&limit=200", nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var ar struct {
-		Results []archiveResult `json:"results"`
-	}
-	if err := json.Unmarshal(data, &ar); err != nil {
-		return nil, err
-	}
-
 	var matches []archiveResult
-	for _, r := range ar.Results {
-		if !r.Active && r.Role == role && r.Project == project && (name == "" || r.Name == name) {
-			matches = append(matches, r)
+	var total *int
+	for page := 0; page < archiveLookupMaxPages; page++ {
+		offset := page * archiveLookupPageSize
+		path := fmt.Sprintf("/api/archive/projects/%s?active=false&limit=%d", url.PathEscape(project), archiveLookupPageSize)
+		if offset > 0 {
+			path += fmt.Sprintf("&offset=%d", offset)
+		}
+		data, err := client.Request(ctx, http.MethodGet, path, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		var ar struct {
+			Total   *int            `json:"total"`
+			Results []archiveResult `json:"results"`
+		}
+		if err := json.Unmarshal(data, &ar); err != nil {
+			return nil, err
+		}
+		if ar.Total == nil {
+			return nil, fmt.Errorf("archive lookup response omitted total")
+		}
+		if *ar.Total < 0 || *ar.Total < offset+len(ar.Results) || len(ar.Results) > archiveLookupPageSize {
+			return nil, fmt.Errorf("archive lookup returned an invalid page at offset %d", offset)
+		}
+		if total != nil && *ar.Total != *total {
+			return nil, fmt.Errorf("archive lookup total changed during pagination")
+		}
+		if page == 0 && *ar.Total > archiveLookupPageSize*archiveLookupMaxPages {
+			return nil, fmt.Errorf("archive lookup exceeds the bounded search of %d sessions", archiveLookupPageSize*archiveLookupMaxPages)
+		}
+		if total == nil {
+			total = ar.Total
+		}
+		if len(ar.Results) == 0 {
+			if offset < *ar.Total {
+				return nil, fmt.Errorf("archive lookup returned an incomplete page at offset %d", offset)
+			}
+			return matches, nil
+		}
+		if len(ar.Results) < archiveLookupPageSize && offset+len(ar.Results) < *ar.Total {
+			return nil, fmt.Errorf("archive lookup returned an incomplete page at offset %d", offset)
+		}
+		for _, r := range ar.Results {
+			if !r.Active && r.Role == role && r.Project == project && (name == "" || r.Name == name) {
+				matches = append(matches, r)
+			}
+		}
+		if len(matches) > 1 {
+			return matches, nil
+		}
+		if offset+len(ar.Results) >= *ar.Total {
+			return matches, nil
 		}
 	}
-	return matches, nil
+	return nil, fmt.Errorf("archive lookup exceeded the bounded search of %d sessions", archiveLookupPageSize*archiveLookupMaxPages)
 }

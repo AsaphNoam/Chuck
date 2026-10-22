@@ -132,18 +132,22 @@ func runLaunch(args []string) int {
 	if !la.ForceNew {
 		// Bare-form: check for a single inactive match with the same role@project.
 		matches, merr := listInactiveSessions(port, la.Role, la.Project, la.Name)
-		if merr == nil && len(matches) == 1 {
+		if merr != nil {
+			fmt.Printf("could not determine inactive sessions: %v — specify one with --resume <id> or use --new\n", merr)
+			return 1
+		}
+		if len(matches) == 1 {
 			fmt.Printf("resuming existing session %s (%s)...\n", matches[0].Name, matches[0].AgentID)
 			return runResumeByID(matches[0].AgentID)
 		}
-		if merr == nil && len(matches) > 1 {
+		if len(matches) > 1 {
 			fmt.Printf("multiple inactive %s@%s sessions found — specify one with --resume <id> or use --new:\n", la.Role, la.Project)
 			for _, m := range matches {
 				fmt.Printf("  %s  %s\n", m.AgentID, m.Name)
 			}
 			return 1
 		}
-		// No inactive match or archive unavailable → fall through to new launch.
+		// No inactive match after a complete archive lookup → launch a new session.
 	}
 
 	resp, body, err := postLaunch(port, la.body())

@@ -168,7 +168,10 @@ orphaned processes.
 - **R11** — **Resume from the CLI**: `chuck <role>@<project> --resume <id>` resumes that
   `agent_id` directly. The bare form (`chuck <role>@<project>`) resumes when exactly one inactive
   session matches that `role@project`; multiple matches list the candidates and require `--resume` or
-  `--new`; no match falls through to a fresh launch.
+  `--new`; no match falls through to a fresh launch. Automatic selection requires a complete
+  archive lookup using bounded pagination (at most ten pages of 200 sessions, within ten seconds).
+  Lookup failure or exhaustion of the lookup bound
+  stops without launching or resuming and asks for explicit `--resume <id>` or `--new`.
 - **R12** — Resume optionally re-resolves a bound configuration source with the latest native setup
   (`config_refresh:true`); absent/false reproduces the frozen federation object (see FS-08).
 - **R33** — **Wake on message.** Sending a prompt to a stopped chat agent that passes
