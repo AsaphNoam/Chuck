@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { foldTranscript, useTranscriptStore } from "./transcriptStore";
 
 beforeEach(() => {
-  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {} });
+  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, appliedSeq: {} });
 });
 
 describe("card preview clipping", () => {
@@ -197,6 +197,17 @@ describe("transcriptStore", () => {
     useTranscriptStore.getState().appendMessage("a_7", { seq: 2, kind: "assistant_text", text: "new" });
     useTranscriptStore.getState().setTranscript("a_7", [{ seq: 1, kind: "assistant_text", text: "old" }]);
     expect(useTranscriptStore.getState().byAgent.a_7).toMatchObject([{ text: "oldnew" }]);
+  });
+
+  // TS-01.R39 — the read can include seq N before SSE delivers N on its own hop.
+  it("does not apply a streamed event the transcript read already included", () => {
+    useTranscriptStore.getState().setTranscript("a_dup", [
+      { seq: 1, kind: "assistant_text", text: "hello" },
+      { seq: 2, kind: "assistant_text", text: " world" },
+    ]);
+    useTranscriptStore.getState().appendMessage("a_dup", { seq: 2, kind: "assistant_text", text: " world" });
+    useTranscriptStore.getState().appendMessage("a_dup", { seq: 3, kind: "assistant_text", text: "!" });
+    expect(useTranscriptStore.getState().byAgent.a_dup).toMatchObject([{ text: "hello world!" }]);
   });
 
   it("retains raw deltas only while a reconciliation is in flight", () => {

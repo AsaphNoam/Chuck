@@ -8,7 +8,7 @@ import { TranscriptView } from "./TranscriptView";
 
 afterEach(() => {
   cleanup();
-  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, previewByAgent: {}, previewKindByAgent: {} });
+  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, previewByAgent: {}, previewKindByAgent: {}, appliedSeq: {} });
 });
 
 // Raw wire events as the server stores and streams them (TS-01.R35).

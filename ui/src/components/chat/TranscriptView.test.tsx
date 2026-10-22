@@ -22,7 +22,7 @@ afterEach(() => {
   cleanup();
   window.getSelection()?.removeAllRanges();
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
-  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, settled: {} });
+  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, settled: {}, appliedSeq: {} });
   useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {} });
   useAgentStore.setState({ agents: {} });
   mswServer.resetHandlers();

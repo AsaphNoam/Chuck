@@ -40,7 +40,7 @@ function renderArchive(id: string) {
 }
 
 beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
-beforeEach(() => useTranscriptStore.setState({ byAgent: {}, pending: {}, settled: {} }));
+beforeEach(() => useTranscriptStore.setState({ byAgent: {}, pending: {}, settled: {}, appliedSeq: {} }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();

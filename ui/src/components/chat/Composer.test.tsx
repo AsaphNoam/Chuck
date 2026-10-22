@@ -52,7 +52,7 @@ afterEach(() => {
   localStorage.clear();
   clearAttachmentDraftCacheForTests();
   useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {} });
-  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {} });
+  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, appliedSeq: {} });
   server.resetHandlers();
   promptBodies = [];
   attachmentRequests = [];

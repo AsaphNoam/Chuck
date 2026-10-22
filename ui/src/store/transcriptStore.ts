@@ -11,7 +11,10 @@ interface TranscriptStoreState {
   /** A full transcript read finished (or failed) for the agent: an absent
    *  event is no longer merely unloaded. */
   settled: Record<string, true>;
-  settle: (agentId: string) => void;
+  /** Highest sequence already applied per agent, so a streamed event the
+   *  transcript read already included is not applied twice (TS-01.R39). */
+  appliedSeq: Record<string, number>;
+  settle:(agentId: string) => void;
   appendMessage: (agentId: string, event: TranscriptEvent) => void;
   updatePreview: (agentId: string, event: TranscriptEvent) => void;
   beginReconciliation: (agentId: string) => void;
@@ -178,11 +181,15 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
   previewByAgent: {},
   previewKindByAgent: {},
   settled: {},
+  appliedSeq: {},
   settle: (agentId) => set((state) => (state.settled[agentId] ? state : { settled: { ...state.settled, [agentId]: true } })),
   appendMessage: (agentId, raw) =>
     set((state) => {
       const event = normalizeEvent(raw);
       const kind = kindOf(event);
+      const seq = Number(event.seq ?? 0);
+      if (seq > 0 && seq <= (state.appliedSeq[agentId] ?? 0)) return state;
+      const appliedSeq = seq > 0 ? { ...state.appliedSeq, [agentId]: seq } : state.appliedSeq;
       // This is a short-lived reconciliation tail, not a second transcript.
       // Mutate its private array in place so a burst received during a fetch is
       // linear rather than copying the growing tail for every delta.
@@ -197,6 +204,7 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
         return {
           byAgent: { ...state.byAgent, [agentId]: events },
           pending: { ...state.pending, [agentId]: null },
+          appliedSeq,
         };
       }
 
@@ -206,7 +214,7 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
 	      // live SSE delivery does not render the prompt twice.
       if (reconcileUserMessage(events, event)) {
         if (rawEvents && !reconcileUserMessage(rawEvents, event) && event.seq != null) rawEvents.push(event);
-        return { byAgent: { ...state.byAgent, [agentId]: events }, pending: state.pending };
+        return { byAgent: { ...state.byAgent, [agentId]: events }, pending: state.pending, appliedSeq };
       }
       // Streamed assistant deltas carry no message_id; merge consecutive
       // assistant_text events into a single bubble on the shared replay/live path.
@@ -215,6 +223,7 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
       return {
         byAgent: { ...state.byAgent, [agentId]: events },
         pending: kind === "permission_request" ? { ...state.pending, [agentId]: event } : state.pending,
+        appliedSeq,
       };
     }),
   updatePreview: (agentId, raw) =>
@@ -255,11 +264,13 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
       const rawByAgent = { ...state.rawByAgent };
       const pending = { ...state.pending };
       const settled = { ...state.settled };
+      const appliedSeq = { ...state.appliedSeq };
       delete byAgent[agentId];
       delete rawByAgent[agentId];
       delete pending[agentId];
       delete settled[agentId];
-      return { byAgent, rawByAgent, pending, settled };
+      delete appliedSeq[agentId];
+      return { byAgent, rawByAgent, pending, settled, appliedSeq };
     }),
   setTranscript: (agentId, events) =>
     set((state) => {
@@ -268,6 +279,7 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
         (event) => event.seq == null || Number(event.seq) > responseMaxSeq,
       );
       const reconciledRaw = [...events.map(normalizeEvent), ...newerDelivered];
+      const loadedSeq = reconciledRaw.reduce((max, event) => Math.max(max, Number(event.seq ?? 0)), 0);
       let folded = foldTranscript(reconciledRaw);
       for (const current of state.byAgent[agentId] ?? []) {
         if (kindOf(current) !== "permission_request" || !current.resolved) continue;
@@ -289,6 +301,7 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
         byAgent: { ...state.byAgent, [agentId]: folded },
         rawByAgent,
         settled: { ...state.settled, [agentId]: true },
+        appliedSeq: { ...state.appliedSeq, [agentId]: loadedSeq },
         previewByAgent: { ...state.previewByAgent, [agentId]: preview },
         previewKindByAgent: { ...state.previewKindByAgent, [agentId]: kindOf(lastReply ?? {}) },
       };

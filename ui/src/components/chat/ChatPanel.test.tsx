@@ -63,7 +63,7 @@ afterEach(() => {
   useAgentStore.setState({ agents: {}, order: [], hydrated: false, hydrating: false });
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {} });
   useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {} });
-  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {} });
+  useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, appliedSeq: {} });
   useUiStore.setState({ toasts: [] });
 });
 
