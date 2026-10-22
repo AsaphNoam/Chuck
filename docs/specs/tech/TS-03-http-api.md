@@ -861,6 +861,9 @@ message, distinct from a live hold. Text-only consumers remain valid. Acceptance
 current delivery/new-turn fields and add request id, normalized attachments and
 `attachment_delivery:held|submitted|released|failed|unknown` for attachment requests; retry responses
 report current receipt state without pretending that a formerly held message is still queued.
+Their `delivery` is `sent` only for a `submitted` receipt and otherwise names the receipt state, so
+`unknown`, `released` or `failed` never reads as sent. A refused attachment-bearing Steer (receipt
+`failed`) answers with R39's refusal envelope, on first response and on retry, not an acceptance.
 JSON prompt/steer additionally accept `{request_id,text,attachment_ids}` for explicit resubmission
 of owned recovered copies; client-supplied ids still undergo session ownership, limits and
 capability checks, and the new request id marks the user's explicit new delivery intent.

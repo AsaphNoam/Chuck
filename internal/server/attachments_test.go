@@ -324,6 +324,22 @@ func TestMultipartSendPersistsBytesAndRetryIsIdempotent(t *testing.T) {
 	}
 }
 
+// A refused attachment Steer is a refusal on first answer and on retry, never
+// an acceptance reported as sent (FS-03.R50, TS-03.R62).
+func TestRefusedAttachmentSteerIsNotReportedSent(t *testing.T) {
+	t.Setenv("FAKEACP_STEERING", "1")
+	t.Setenv("FAKEACP_STEER_OUTCOME", "reject")
+	_, h, id, _ := busyAttachmentTestServer(t)
+	part := uploadPart{field: "f1", name: "a.txt", data: []byte("hello")}
+	meta := messageMetadata(t, "steer-refused", "look", part)
+	for _, attempt := range []string{"first", "retry"} {
+		resp, body := postAttachmentMessage(t, h, "/api/sessions/"+id+"/steer", meta, part)
+		if resp.StatusCode != http.StatusInternalServerError || !strings.Contains(string(body), "refused") || strings.Contains(string(body), `"sent"`) {
+			t.Fatalf("%s refused steer = %d %s", attempt, resp.StatusCode, body)
+		}
+	}
+}
+
 func TestAttachmentHoldWithdrawalReplacementAndRecoveryResubmit(t *testing.T) {
 	srv, h, id, _ := busyAttachmentTestServer(t)
 	upload := func(requestID, text string, data string) attachmentAcceptance {

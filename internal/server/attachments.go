@@ -505,6 +505,12 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 			// Only a receipt still untouched by runtime delivery can roll back. Once
 			// submitted or held, return acceptance so a network retry cannot consume twice.
 			rec, readErr := s.stateStore.AttachmentReceipt(id, msg.RequestID)
+			if readErr == nil && rec.Action == "steer" && rec.Delivery == "failed" {
+				// A definite adapter refusal stays retained for recovery but is
+				// reported as the refusal, never as a sent message (FS-03.R50).
+				writeAPIError(w, apiError(runtime.CodeInternal, steerRefusalText(err)))
+				return
+			}
 			if readErr == nil && errors.Is(err, runtime.ErrMessageAccepted) {
 				s.writeAttachmentAcceptance(w, rec)
 				return
@@ -583,9 +589,43 @@ func sameAttachmentIDs(a, b runtime.Message) bool {
 	return true
 }
 
+// receiptDelivery reports only a submitted receipt as sent; an uncertain,
+// released or failed receipt keeps its own name so no caller reads it as sent.
+func receiptDelivery(delivery string) string {
+	if delivery == "submitted" {
+		return "sent"
+	}
+	return delivery
+}
+
+// steerRefusalText keeps the adapter's own reason without the runtime's
+// retained-bytes marker joined to it.
+func steerRefusalText(err error) string {
+	reason := ""
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range joined.Unwrap() {
+			if !errors.Is(e, runtime.ErrMessageAccepted) {
+				reason = e.Error()
+			}
+		}
+	}
+	if reason == "" && err != nil && !errors.Is(err, runtime.ErrMessageAccepted) {
+		reason = err.Error()
+	}
+	text := "The agent refused this steered message; nothing was delivered."
+	if reason != "" {
+		text += " " + reason
+	}
+	return text
+}
+
 func (s *Server) writeAttachmentAcceptance(w http.ResponseWriter, rec state.AttachmentReceipt) {
 	if rec.Delivery == "prepared" {
 		rec.Delivery = "unknown"
+	}
+	if rec.Action == "steer" && rec.Delivery == "failed" {
+		writeAPIError(w, apiError(runtime.CodeInternal, steerRefusalText(nil)))
+		return
 	}
 	var msg runtime.Message
 	_ = json.Unmarshal([]byte(rec.MessageJSON), &msg)
@@ -594,7 +634,7 @@ func (s *Server) writeAttachmentAcceptance(w http.ResponseWriter, rec state.Atta
 	if rec.Delivery == "held" {
 		_, after, _ = s.registry.Held(rec.AgentID)
 	}
-	body := map[string]any{"accepted": true, "agent_id": rec.AgentID, "request_id": rec.RequestID, "attachments": attachments, "attachment_delivery": rec.Delivery, "delivery": promptDelivery(rec.Delivery == "held"), "after_seq": after}
+	body := map[string]any{"accepted": true, "agent_id": rec.AgentID, "request_id": rec.RequestID, "attachments": attachments, "attachment_delivery": rec.Delivery, "delivery": receiptDelivery(rec.Delivery), "after_seq": after}
 	if rec.Action == "steer" {
 		body["outcome"] = rec.Outcome
 	}
