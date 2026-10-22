@@ -908,7 +908,9 @@ launch/resume/pipeline HTTP code. Existing entry points may delegate to that cli
 compatibility presentation adapters; retain FS-22.R1's legacy default behavior.
 Agent status composes existing raw server values as `{session,snapshot,held,permissions}`;
 the permissions projection retains raw pending events and an explicit completeness boolean from
-the bounded transcript window. No status read creates a session or a permanent transcript replica.
+the bounded transcript window. A host-origin (peer-Stop) request counts as pending only when it is
+the server's `pending_permission` (R71's liveness verdict); withholding another one marks the
+projection incomplete. No status read creates a session or a permanent transcript replica.
 
 **R65 — Preserve wire meaning and CLI output.** Implement FS-22.R2's stdout/stderr
 and exit contract without changing server error envelopes. Success JSON uses raw JSON values or
