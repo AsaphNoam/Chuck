@@ -19,7 +19,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   and included in the candidate.
 - **Runtime campaign:** ASW-1 event commits, ASW-2 frozen native execution and ASW-3 process/terminal
   ownership and ASF-1 turn/control settlement are closed. Select remaining work through
-  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-6 wait.
+  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-5 wait; ASF-6 is closed.
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A2 is reviewed with nine open admission/recovery findings. CR-A1, CR-A3,
   CR-A4, CR-A5, CR-A6 and CR-A7 are reviewed and closed (no open findings).
@@ -204,7 +204,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 | [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | `/fix ASF-5` — checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Waiting — medium, Codex Terra or Claude Opus |
-| [ASF-6](AGENT-SURFACE-FIX-UNITS.md#asf-6--cli-archive-selection) | `/fix ASF-6` — certain CLI resume/new selection | ASRH-3 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-6](AGENT-SURFACE-FIX-UNITS.md#asf-6--cli-archive-selection) | Certain CLI resume/new selection | ASRH-3 | Finished |
 
 ## Review queue
 
@@ -1001,7 +1001,7 @@ implementation choice or human decision was introduced, and sibling queues are u
 
 ### ASR-H — Human intent across desktop, phone, CLI and HTTP — reviewed `d49a8f86` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Audit complete; four Must-fix findings keep this same unit open. The hardest fixes coordinate the
+Audit complete; three Must-fix findings keep this same unit open; ASRH-3 is closed by ASF-6. The hardest fixes coordinate the
 existing hold/Steer and client recovery contracts; no new scheduler or provider client is needed.
 Source snapshot `d49a8f86`; tree clean at entry. Repository source and release-lock profiles:
 Claude ACP 0.85.1 / Agent SDK 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. Three bounded discovery
@@ -1030,18 +1030,6 @@ No product code or specifications changed.
   returned message), preserving the documented idempotent no-hold behavior. Regress two-device
   replacement and turn-end races, text/attachment combinations, and overlapping withdrawals.
   Fix complexity: medium; coordinate the shared runtime/API and both clients.
-- **Must fix** — ASRH-3 — **Bare CLI launch treats an uncertain archive lookup as no match**
-  (INV §7/§8/§11/§16). `internal/cli/launch.go:133–159`, `internal/cli/resume.go:85–117`:
-  the legacy `role@project` form silently falls through to a new launch after any lookup error.
-  Its successful lookup also reads only the first 200 inactive project rows, ignores `total`,
-  and filters role/name locally. An older match beyond that page is missed; one apparent match
-  can be selected despite a second match on a later page. This violates FS-01.R11's exact match
-  rule and FS-22.R1's legacy behavior preservation, creating a new conversation or selecting one
-  without establishing the required uniqueness. Both isolated CLI probes observe a new-agent
-  POST after a 500 or a valid 200-row page with `total:201` and the match on page two. Surface
-  lookup failure; use bounded pagination or require explicit selection/`--new` when completeness
-  cannot be established. Regress errors, late matching names/roles and two matches across pages.
-  Fix complexity: medium; preserve exact legacy selection with bounded, complete evidence.
 - **Must fix** — ASRH-4 — **Interrupted promoted Steer can automatically repeat consumed input**
   (INV §5/§11/§15). `internal/runtime/chat.go:682–717,843–870,1191–1222`: an empty text Steer
   takes the held text, but a cancelled HTTP/CLI request context can end its wait after native
@@ -1070,8 +1058,8 @@ Catalogue 23 action map and connected evidence ledger:
 
 J6 lead result: accepted attachment retries preserve their receipt, recovery reads do not repeat
 withdrawal, and reconnect refreshes current truth without automatic sends. ASRH-2/4 expose missing
-ownership/acknowledgement boundaries; ASRH-1 loses newer intent and ASRH-3 changes CLI intent on an
-incomplete read. J2/J4 challenges retain the existing permission/status, quota and owner-admission
+ownership/acknowledgement boundaries; ASRH-1 loses newer intent. ASF-6 closed ASRH-3's incomplete
+CLI lookup. J2/J4 challenges retain the existing permission/status, quota and owner-admission
 findings. ASRC's promoted-Steer hypothesis is confirmed as ASRH-4; its statement that the UI always
 sends `request_id` is corrected here: `api/client.ts` omits it for text-only Send/Steer, and ordinary
 CLI text also has no receipt. This finding concerns automatic re-consumption, not a universal text
@@ -1128,7 +1116,7 @@ All retained catalogue topics are accounted for:
 | 16/17/18 — E | Token/host authority, mail activation, assignment/report/wait and release retain ASRE-1/2. Peer Stop's host decision is independent of permissive provider settings; live adoption of that boundary remains owed. |
 | 19/20 — F | Ordinary stage-task progression and room/judge result capture retain ASRF-1/2, with E/G defects applying through shared services. Obsolete stage-executor tests do not prove the current dispatcher handoff. |
 | 22 — G | Quota evidence, check isolation/admission, source-owner continuation and cleanup retain ASRG-1–5. Passive quota snapshots remain planned; missing live receipts do not establish a parser/provider failure. |
-| 23 — H | Desktop/phone/CLI/local HTTP intent and recovery retain ASRH-1–4 and ASRD-4. Reconnect refreshes state without replaying mutations; physical-device suspension and native anchoring remain open. |
+| 23 — H | Desktop/phone/CLI/local HTTP intent and recovery retain ASRH-1/2/4 and ASRD-4; ASF-6 closed ASRH-3. Reconnect refreshes state without replaying mutations; physical-device suspension and native anchoring remain open. |
 | 24 — I | Frozen diagnostics, revision/adoption limits, combined failure costs and the paired experiment below were assessed. PROMPT-2 keeps its original owner; no measured general quality or excess-process conclusion is supported. |
 
 Whole-journey assurance ledger (J1–J7):
@@ -1140,7 +1128,7 @@ Whole-journey assurance ledger (J1–J7):
 | J3 — Chucky mail/task/report + host approval + late continuation | Durable mail/assignment claims precede native activation; reports commit before cleanup/readiness and old generations cannot authorize current work. Peer Stop still requires its separate host waiter. ASRE-1 loses the watched changes before resumed assignment read; ASRE-2 allows oversized retained outputs. Claude fork's missing loaded session and tmux's stale environment weaken native registration (B2/B6). Late-turn guards have fake/source proof, with ASRC-2's final-status race and FS-01.R52/FS-16.A33 live gates retained. |
 | J4 — ordinary/room stage + quota/Stop/restart | Task/run closure precedes cancellation; room capture binds generation/turn/attempt and accepted judge output, not arbitrary private prose. `Manager.Startup` → `pauseStartupRun` clears a failed post-result action (`manager.go:754–761,792–825`, ASRF-1). Quota room admission lacks ordinary-start compensation after creating its attempt (`quota_dispatch.go:154–237`, ASRG-1); G2–G5 retain check admission, cancellation settlement, isolation and cleanup defects. Terminal viewer detach preserves PTY work; terminal quota automation is unsupported and B1/B4/B5 recovery remains defective. |
 | J5 — context through delegation/handoff/compaction | Assignment references/grants and room read receipts stay scoped; private room input does not become public judge prose. The bounded bridge persists separately through immediate Stop/wake and compaction, but switch marker append opens a second writer after target Resume (`primer.go:65–81`, `switch.go:266–278`, ASRD-1). D2/D3 affect order/durability and B1–B3 affect terminal/fork context. A4/A6 additionally invalidate assumptions that a recreated checkout is ready. Actual live context adoption is still unproved. |
-| J6 — accepted-but-lost desktop/phone/CLI actions | Attachment request hash/receipt precedes native admission (`attachments.go:453–541`); identical explicit retry returns stored acceptance. Text-only sends have no universal idempotency promise. CLI reports uncertainty without automatic replay; phone recovery only rehydrates current truth. ASRD-4 annotation retry and ASRH-4 automatic held replay remain proven duplicate-effect paths; H1/H2/H3 retain lost/stale/incorrect human intent. Phone agent routes are keyed by identity (`PhoneApp.tsx:128`), so an old component's completion is not evidence of a new cross-agent draft bug. |
+| J6 — accepted-but-lost desktop/phone/CLI actions | Attachment request hash/receipt precedes native admission (`attachments.go:453–541`); identical explicit retry returns stored acceptance. Text-only sends have no universal idempotency promise. CLI reports uncertainty without automatic replay; phone recovery only rehydrates current truth. ASRD-4 annotation retry and ASRH-4 automatic held replay remain proven duplicate-effect paths; H1/H2 retain lost/stale human intent; ASF-6 closed H3. Phone agent routes are keyed by identity (`PhoneApp.tsx:128`), so an old component's completion is not evidence of a new cross-agent draft bug. |
 | J7 — cumulative harness cost and quality | Wrong native/frozen instructions (A/B), repeated input/annotation effects (H4/D4), blocked read loop (C1), lost continuation context (E1), stranded recovery (F1/G1), and unbounded retention (C6/D5/E2) are supported mechanisms for wrong work, extra work or delay. Their incidence, usage and output-quality effects have not been compared with native operation. Persona/repository process pressure is a hypothesis, not an additional defect. |
 
 Conflicting earlier statements are resolved explicitly. ASRC's suggestion that transcript
@@ -1279,6 +1267,14 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-22 — Fix: certain CLI archive selection (ASF-6 / ASRH-3, INV §7/§8/§11/§16).**
+  Bare launch now propagates archive errors and uses complete, validated pagination within
+  ten 200-row pages and ten seconds; uncertainty requires explicit `--resume` or `--new`.
+  Launch-boundary HTTP regressions cover failures, late unique matches, cross-page duplicates,
+  complete absence, lookup bound, malformed pages and explicit new; the HTTP-failure case fails
+  against the original launch code through a temporary Go build overlay. Focused CLI tests,
+  both Go variants, spec checks and tagged build pass. ASF-6 is closed; ASF-2–ASF-5 and
+  ASRH-1/2/4 remain open. Isolated worktree verification preserves concurrent main-checkout work.
 - **2026-10-22 — Fix: torn transcript tail readback (CR-A1-3, INV §2/§7/§9/§11) — CR-A1 closed.**
   The shared transcript reader now stops at the last newline, so readback, reconciliation and
   replay consume the same complete-record prefix that writer Open keeps; malformed/oversized
