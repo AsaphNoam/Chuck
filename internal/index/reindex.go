@@ -1,6 +1,7 @@
 package index
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -71,10 +72,10 @@ func reindexAgent(db *sql.DB, home, agentID string) error {
 		return fatalErr(agentID, "read retained", err)
 	}
 	hadPrior = err == nil
-	if err := deleteAgentTx(tx, agentID); err != nil {
+	ix := newTxIndexer(db, tx)
+	if err := ix.deleteAgentTx(tx, agentID); err != nil {
 		return fatalErr(agentID, "delete prior projection", err)
 	}
-	ix := newTxIndexer(db, tx)
 	var lastSeq int64
 	var lastContext float64
 	var lastCounts *state.ContextCounts
@@ -93,6 +94,9 @@ func reindexAgent(db *sql.DB, home, agentID string) error {
 		}
 		pendingFlush = true
 		if ev.Type == runtime.EvSessionMeta {
+			if raw := bytes.TrimSpace(ev.Data); len(raw) == 0 || raw[0] != '{' {
+				return sourceErr(nil, fmt.Sprintf("index: session metadata %s is not an object", agentID))
+			}
 			var meta runtime.SessionMetaData
 			if err := json.Unmarshal(ev.Data, &meta); err != nil {
 				return sourceErr(err, fmt.Sprintf("index: session metadata %s", agentID))
@@ -103,11 +107,6 @@ func reindexAgent(db *sql.DB, home, agentID string) error {
 			seenMeta = true
 			if meta.ResetContext {
 				lastContext, lastCounts = 0, nil
-			}
-		}
-		if ev.Type != runtime.EvSessionMeta {
-			if _, err := searchableText(ev); err != nil {
-				return sourceErr(err, fmt.Sprintf("index: malformed event %s seq %d", agentID, ev.Seq))
 			}
 		}
 		if ev.Type == runtime.EvAnnotation {
@@ -263,8 +262,8 @@ func readRetainedSessionTx(tx *sql.Tx, agentID string) (retainedSession, error) 
 	return r, err
 }
 
-func deleteAgentTx(tx *sql.Tx, agentID string) error {
-	if ok, err := ftsWritesAvailable(tx); err != nil {
+func (ix *Indexer) deleteAgentTx(tx *sql.Tx, agentID string) error {
+	if ok, err := ix.ftsWritable(tx); err != nil {
 		return fmt.Errorf("index: detect FTS for %s: %w", agentID, err)
 	} else if ok {
 		if _, err := tx.Exec(`DELETE FROM sessions_fts WHERE agent_id=?`, agentID); err != nil {
@@ -292,16 +291,8 @@ func (ix *Indexer) RemoveAgent(agentID string) error {
 		return fmt.Errorf("index: begin remove: %w", err)
 	}
 	defer tx.Rollback()
-	tables := []string{"tracked_commands", "tracked_files", "sessions"}
-	if ok, err := ix.ftsWritable(tx); err != nil {
+	if err := ix.deleteAgentTx(tx, agentID); err != nil {
 		return fmt.Errorf("index: remove: %w", err)
-	} else if ok {
-		tables = append(tables, "sessions_fts")
-	}
-	for _, table := range tables {
-		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE agent_id = ?`, agentID); err != nil {
-			return fmt.Errorf("index: remove %s: %w", table, err)
-		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("index: commit remove: %w", err)

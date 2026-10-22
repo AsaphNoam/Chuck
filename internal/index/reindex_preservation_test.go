@@ -88,7 +88,7 @@ func retainRepairAuthority(t *testing.T, db *sql.DB) {
 // FS-05.A27: missing and unusable sources must preserve every prior projection.
 // Late malformed metadata distinguishes rollback from preflight validation only.
 func TestReindexPreservesCompleteFailedProjection(t *testing.T) {
-	for _, fault := range []string{"missing-root", "missing-directory", "missing-log", "unreadable-log", "empty", "no-metadata", "unterminated-metadata", "late-invalid-metadata"} {
+	for _, fault := range []string{"missing-root", "missing-directory", "missing-log", "unreadable-log", "empty", "no-metadata", "null-metadata", "unterminated-metadata", "late-invalid-metadata"} {
 		t.Run(fault, func(t *testing.T) {
 			st, home := openTestDB(t)
 			indexFixture(t, st.DB())
@@ -112,6 +112,8 @@ func TestReindexPreservesCompleteFailedProjection(t *testing.T) {
 				err = os.WriteFile(path, nil, 0o600)
 			case "no-metadata":
 				err = os.WriteFile(path, []byte(`{"seq":1,"type":"assistant_text","data":{"delta":"orphan"}}`+"\n"), 0o600)
+			case "null-metadata":
+				err = os.WriteFile(path, []byte(`{"seq":0,"type":"session_meta","data":null}`+"\n"), 0o600)
 			case "unterminated-metadata":
 				e := fixtureEvents(t)[0]
 				b, _ := json.Marshal(e)
@@ -208,7 +210,8 @@ func TestReindexFailedNewSourceLeavesNoPartialRows(t *testing.T) {
 	}
 }
 
-// A real killed process proves SQLite recovery, rather than deferred Rollback.
+// FS-05.A26 / TS-02.R58: a real killed process proves SQLite recovery, rather
+// than deferred Rollback.
 // The trigger pauses only after replay has completed and retained fields are
 // being restored, while the transaction still holds every destructive write.
 func TestReindexKilledBeforePublication(t *testing.T) {

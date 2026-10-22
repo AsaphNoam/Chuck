@@ -32,11 +32,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   now reflects an independent Astra challenge and primary source checks: design a narrow reindex
   preservation boundary; specify task cleanup/continuation contracts within coordinated fixes.
   A separate task-ownership architecture project is not demonstrated. CR-A4 is closed below.
-  **Reindex design complete:** the
-  [waiting change](../ready-changes/interruption-safe-reindex.md) covers CR-A1-1/2 through
-  FS-05.R43–R45/A26–A27 and TS-02.R56–R58. The operator approved partial repair on 2026-10-22;
-  per-conversation atomic replay passed an independent Astra design challenge. No implementation
-  is active; findings remain open. CR-A1-3 stays independently actionable.
+  **Reindex preservation implemented:** FS-05.R43–R45/A26–A27 and TS-02.R56–R58 now use
+  per-conversation atomic replay under the approved partial-repair policy. CR-A1-1/2 remain open
+  pending independent review of the implementation; CR-A1-3 stays independently actionable.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
@@ -51,7 +49,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- **In progress — [interruption-safe reindex](../ready-changes/interruption-safe-reindex.md).**
+- **In progress — interruption-safe reindex.**
   Isolated in `/private/tmp/chuck-interruption-safe-reindex` on
   `work/interruption-safe-reindex` per operator request; merge into main after verification.
   Transaction-bound replay and per-conversation publication are implemented. Populated-store
@@ -230,10 +228,14 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — closed; CR-A6-1–6 fixed |
 | [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — five findings open |
 
-**Fix/work pickup:** CR-A1-1/2 are covered together by the
-[waiting reindex change](../ready-changes/interruption-safe-reindex.md), ready for `/work` or
-`/review-design`; avoid a competing standalone fix of the same replay path. They remain open until
-implementation/review establishes closure. CR-A1-3 is separately actionable. A CR-A2 fix
+**Reindex implementation review available:** CR-A1-1/2 are covered together by the
+interruption-safe reindex implementation (FS-05.R43–R45/A26–A27; TS-02.R56–R58).
+Review the transaction boundary, source failure versus fatal storage failure, retained authority,
+and complete-record replay. Process-kill/reopen/retry and fake-native Resume wire proofs use
+separate fixtures; no same-fixture end-to-end process-kill/Resume claim is made. No new UI/runtime
+interface is introduced (INV §6's runtime contract checklist is inapplicable). Avoid a competing
+standalone fix of the same replay path. CR-A1-1/2 stay open until review establishes closure.
+CR-A1-3 is separately actionable. A CR-A2 fix
 agent may start validation/design under §8, but must first record cleanup authorization and
 continuation delivery order before editing product code, keeping accounting coupled with cleanup
 and ASF-3 ownership separate. See [pickup readiness](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#pickup-readiness).
@@ -1490,6 +1492,14 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-22 — Implemented interruption-safe offline reindex.** Each conversation replaces
+  its session/search/tracking projections and restores native identity/live settings in one
+  transaction. Missing/unusable sources preserve complete prior data; healthy neighbors rebuild;
+  storage failures stop further repair. Added complete-projection, late storage failure,
+  process-kill/reopen/retry, CLI partial-result/retry and native Resume wire tests. The original
+  baseline fails the missing-root and late-invalid-metadata preservation regressions. No schema,
+  source format, UI, online repair or live-provider adoption change is claimed.
+
 - **2026-10-22 — Fix: operator action and observation truth (CR-A6-1 INV §8/§11, CR-A6-2 INV §1,
   CR-A6-3 INV §8/§10, CR-A6-4 INV §2, CR-A6-5 INV §1/§11, CR-A6-6 INV §8).**
   A refused attachment Steer (receipt `failed`) now answers with the TS-03.R39 refusal envelope on
@@ -1531,7 +1541,7 @@ and specifications are unchanged.
   per conversation, complete transaction routing, source inventory/validation and scoped errors.
   A focused Luna supplied source facts; independent clean-context Astra recommended and then
   challenged the concrete boundary without required changes. Created the
-  [waiting change](../ready-changes/interruption-safe-reindex.md), removed its source idea and
+  waiting reindex change (implemented above), removed its source idea and
   updated pickup guidance. Spec/twin-skill/diff checks pass. No product code, implementation start
   or CR-A1 finding closure; CR-A1-3 remains separate.
 

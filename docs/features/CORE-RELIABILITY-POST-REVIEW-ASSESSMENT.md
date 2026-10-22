@@ -37,12 +37,12 @@ independent boundary evidence that was missing.
 
 ### Pickup readiness
 
-- **CR-A1-1/2: design complete; ready as one `/work` unit.** The operator approved partial repair
-  on 2026-10-22. The [waiting change](../ready-changes/interruption-safe-reindex.md) links
+- **CR-A1-1/2: implementation complete; independent review due.** The operator approved partial repair
+  on 2026-10-22. The [implementation handoff](HANDOFF.md#review-queue) links
   FS-05.R43–R45/A26–A27 and TS-02.R56–R58, superseding R9's unsafe maintenance algorithm.
   One transaction per conversation covers deletion, replay and retained-authority restoration;
   failed sources preserve their full prior projections while healthy ones commit. Independent Astra
-  challenge passed. Findings stay open until implementation/review; do not launch competing fixes.
+  challenge passed. Findings stay open until independent review; do not launch competing fixes.
 - **CR-A1-3: available as an ordinary focused fix.** Its complete-record correction is separable
   from the reindex design; preserve the shared reader/writer contract.
 - **CR-A2: available for a fix agent, with a required first design step.** Under workflow §8,

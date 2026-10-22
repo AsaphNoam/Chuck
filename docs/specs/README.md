@@ -55,7 +55,7 @@ operates on all of this is [`AGENT-WORKFLOW.md`](../features/AGENT-WORKFLOW.md).
 | ID | Spec | Status | Covers |
 |----|------|--------|--------|
 | TS-01 | [tech/TS-01-architecture.md](tech/TS-01-architecture.md) | Partial | Process model, package boundaries, runtime abstraction, source-of-truth rules, planned direct action gateway |
-| TS-02 | [tech/TS-02-data-persistence.md](tech/TS-02-data-persistence.md) | Partial | SQLite schema, activations, context grants, transcripts, FTS and attachments; planned peer approval lifetime/audit and interruption-safe offline reindex |
+| TS-02 | [tech/TS-02-data-persistence.md](tech/TS-02-data-persistence.md) | Partial | SQLite schema, activations, context grants, transcripts, FTS, attachments and interruption-safe offline reindex; planned peer approval lifetime/audit |
 | TS-03 | [tech/TS-03-http-api.md](tech/TS-03-http-api.md) | Partial | REST, SSE, errors, attachments and private actions; planned host peer-Stop permission decisions |
 | TS-04 | [tech/TS-04-integration-protocols.md](tech/TS-04-integration-protocols.md) | Partial | ACP, images, hooks, MCP, PTY/WebSocket and CLI tolerance; planned peer reads and host-gated Stop |
 | TS-05 | [tech/TS-05-security.md](tech/TS-05-security.md) | Partial | Loopback/tokens, context authorization, attachments and images; planned broad peer reads and human-approved tool control |
