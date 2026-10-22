@@ -80,6 +80,7 @@ func TestOperatorHumanReceiptsAndStoredFailures(t *testing.T) {
 		{"steer", `{"agent_id":"a","outcome":"steered"}`, "outcome=steered", 0},
 		{"stop", `{"results":[{"agent_id":"a","ok":true,"stopped":true},{"agent_id":"b","ok":false,"error":{"code":"stop_failed","message":"Inspect b"},"warning":"Still active"}]}`, "Inspect b", 1},
 		{"list", `[{"id":"failed-run","state":"failed","ok":false}]`, "state=failed", 0},
+		{"archive", `{"project":{"id":"p"},"stopped_agent_ids":[],"archived_agent_ids":[],"checkout_warning":"the checkout could not be deleted: dirty"}`, "checkout not deleted: the checkout could not be deleted: dirty", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := &cobra.Command{Use: tc.name}

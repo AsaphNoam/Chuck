@@ -175,6 +175,13 @@ func operatorRow(row map[string]any, fallback string) string {
 	if warning, ok := row["warning"].(string); ok && warning != "" {
 		parts = append(parts, "warning: "+warning)
 	}
+	// Project archive reports a refused checkout deletion beside its success.
+	if deleted, ok := row["checkout_deleted"].(bool); ok && deleted {
+		parts = append(parts, "checkout_deleted")
+	}
+	if warning, ok := row["checkout_warning"].(string); ok && warning != "" {
+		parts = append(parts, "checkout not deleted: "+warning)
+	}
 	if worktree, ok := row["worktree"].(map[string]any); ok {
 		if warning, ok := worktree["warning"].(string); ok && warning != "" {
 			parts = append(parts, "worktree warning: "+warning)
