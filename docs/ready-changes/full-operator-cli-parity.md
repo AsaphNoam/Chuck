@@ -1,6 +1,6 @@
 # Full operator CLI parity
 
-**State:** Finished — 2026-10-13; available for independent review
+**State:** Finished — independent review queue cleared per operator request, 2026-10-20
 **Why:** `/design-feature` request on 2026-10-11: the CLI is outdated relative to chat;
 add all relevant capabilities. Full nonvisual web coverage and the concrete CLI
 input/output/consent/local-service contract were confirmed on 2026-10-12.
@@ -50,8 +50,8 @@ No CLI test substitutes for existing live-provider or tailnet receipts.
 
 ## Waiting on
 
-None. The completed [chat images and file attachments](chat-images-and-file-attachments.md) unit
-supplies the reused multipart, receipt, storage and read contracts.
+None. The completed chat images and file attachments unit supplies the reused multipart, receipt,
+storage and read contracts.
 
 ## Verification
 

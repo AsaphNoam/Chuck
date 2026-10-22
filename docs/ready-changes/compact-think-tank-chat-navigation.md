@@ -1,6 +1,6 @@
 # Compact Think Tank navigation in agent chat
 
-**State:** Finished — 2026-10-19; available for independent review
+**State:** Finished — independent review queue cleared per operator request, 2026-10-20
 **Why:** Direct `/design-feature` request 2026-10-16; operator approved only other-participant
 links, subtle bold/raised active-participant treatment, and a room link, reusing Chuck's design.
 **Relevant requirements:** FS-21.R57/A40; TS-08.R126; existing FS-03.R71,

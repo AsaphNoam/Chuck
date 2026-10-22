@@ -1,6 +1,6 @@
 # Chat images and file attachments
 
-**State:** Finished — 2026-10-13; available for independent review
+**State:** Finished — independent review queue cleared per operator request, 2026-10-20
 **Why:** Direct `/design-feature` request on 2026-10-12 for image display, file attachments,
 drag/drop and pasted images, with small clickable image previews opening a display modal.
 The operator approved feature scope and technical delivery/retention/limits, then delegated
