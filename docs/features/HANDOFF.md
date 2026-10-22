@@ -23,7 +23,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
   with nine open admission/recovery findings. CR-A3, CR-A4, CR-A5 and CR-A6 are reviewed and closed
-  (no open findings). CR-A7 is reviewed with two open capacity/cost findings (A7-4, A7-5).
+  (no open findings). CR-A7 is reviewed with one open capacity/cost finding (A7-4).
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   [Before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) connects preservation,
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
@@ -221,7 +221,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — closed; CR-A4-1 fixed |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — closed; CR-A5-1/2 fixed |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — closed; CR-A6-1–6 fixed |
-| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — two findings open (A7-1/2/3 fixed) |
+| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — one finding open (A7-1/2/3/5 fixed) |
 
 **Reindex implementation review available:** CR-A1-1/2 are covered together by the
 interruption-safe reindex implementation (FS-05.R43–R45/A26–A27; TS-02.R56–R58).
@@ -295,17 +295,6 @@ or new product decision is introduced. Existing A1–A6 and ASW/ASF finding owne
   single-path test does not cover the periodic fallback. Avoid replaying ineligible/unchanged
   retained files while preserving missed-write repair, truthful I/O errors and restart behavior;
   use the measured rationale for a separately scoped remedy, not a general cache/index rewrite.
-
-- **Worth fixing** — CR-A7-5 — **Control-queue generation tombstones outlive their work**
-  (INV §4/§16). `internal/runtime/control.go:31–34,63–79,88–95` inserts a `shed` map entry when
-  a full queue's reservation is cancelled and never removes an entry. If generations repeatedly
-  stop/replace while a slow sink holds the conversation FIFO full, each adds a marker. When a
-  current generation still owns the conversation journal, the map survives even after the queue
-  drains; full journal reclamation eventually releases it only when the conversation loses every
-  owner. A disposable extension of `TestCancelledControlRemainsBounded` records 32 distinct shed
-  generations, then zero pending items and `running=false`, with all 32 markers retained. Keep
-  late-generation shedding correct while bounding marker lifetime at generation teardown. Reuse
-  the existing journal/generation ownership; the 256-pending-plus-one-in-flight item cap itself holds.
 
 Cost/ownership ledger (Darwin 24.6.0 arm64, Go 1.26.6, source/default SQLite build, isolated
 temporary homes, no providers; fixture writes and one warm-up precede three measured repetitions):
@@ -1462,7 +1451,7 @@ and specifications are unchanged.
   the full bus package passes, and the build passes; the full matrix receipt above is for the
   pre-integration reindex source. Uncommitted context-reference work in main is excluded.
 
-- **2026-10-22 — Fix: sustained capacity and cost (CR-A7-1 INV §1/§11, CR-A7-2 INV §4/§16,
+- **2026-10-22 — Fix: sustained capacity and cost (CR-A7-1 INV §1/§11, CR-A7-2 INV §4/§16, CR-A7-5 INV §4/§16,
   CR-A7-3 INV §16).**
   CR-A7-2: share/read transcript scans go through `Service.scanTranscript`, which takes one of
   four reference-scan slots (separate from the eight peer slots), refuses excess with transient
@@ -1471,6 +1460,11 @@ and specifications are unchanged.
   covers cancelled share/read, full-pool refusal and peer-pool independence; the review probe
   (16 cancelled reads all completing) is the pre-fix evidence. No physical read boundary was
   added: fixed-span and oversized-record edge rendering are unchanged.
+  CR-A7-5 (INV §4/§16): `agentState.closePersistence`, which already runs after the generation's
+  last emit, now calls `Journal.forgetGeneration`, deleting that generation's control-queue shed
+  marker. `TestShedGenerationMarkersEndWithTheirGeneration` (32 shed generations against a full
+  FIFO, `-race`) keeps live markers until teardown and retains none after; it drives the journal
+  seam, not a real chat-runtime Stop.
   CR-A7-1: a bus subscriber's overflow channel closes at its first dropped event and
   `/api/events` ends that stream instead of pinging on; the browser reconnect resnapshots and now
   also refetches open pipeline run details (TS-03.R9 documents the strategy).

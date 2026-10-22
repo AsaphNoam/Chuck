@@ -2427,8 +2427,14 @@ func (as *agentState) closeJournal(discard bool) {
 	}
 }
 
+// closePersistence runs after this generation's last emit, so its control
+// shed marker is released here too.
 func (as *agentState) closePersistence() {
 	as.closeJournal(false)
+	as.mu.Lock()
+	generation := as.generation
+	as.mu.Unlock()
+	as.journal.forgetGeneration(generation)
 	as.releaseJournal()
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -337,6 +338,40 @@ func TestCancelledControlRemainsBounded(t *testing.T) {
 	}
 	if delivered[len(delivered)-1] != "g2" || len(delivered) > controlQueueLimit+2 {
 		t.Fatalf("delivered %d observations ending %q", len(delivered), delivered[len(delivered)-1])
+	}
+}
+
+// CR-A7-5 (INV §4/§16): a shed marker lives only as long as its generation.
+// Generations shed against a full FIFO keep refusing until their exit teardown
+// forgets them; after it, the conversation's journal retains no marker while
+// a current generation keeps it alive.
+func TestShedGenerationMarkersEndWithTheirGeneration(t *testing.T) {
+	blocked := make(chan struct{})
+	j := NewJournal("a1", nil)
+	q := j.controlQueue(func(Observation) { <-blocked })
+	for i := 0; i <= controlQueueLimit; i++ {
+		q.enqueue(controlItem{obs: Observation{Event: Event{Generation: "current"}}, reserved: q.reserve(context.Background(), "current")})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	const generations = 32
+	for i := 0; i < generations; i++ {
+		if q.reserve(ctx, fmt.Sprintf("g%d", i)) {
+			t.Fatal("a full queue admitted a shutting-down generation")
+		}
+	}
+	if !q.isShed("g0") {
+		t.Fatal("a live shed generation lost its marker before teardown")
+	}
+	for i := 0; i < generations; i++ {
+		j.forgetGeneration(fmt.Sprintf("g%d", i))
+	}
+	close(blocked)
+	q.mu.Lock()
+	retained := len(q.shed)
+	q.mu.Unlock()
+	if retained != 0 {
+		t.Fatalf("%d shed markers outlived their generations' teardown", retained)
 	}
 }
 

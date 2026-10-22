@@ -72,6 +72,14 @@ func (q *controlQueue) reserve(ctx context.Context, generation string) bool {
 	}
 }
 
+// forget drops generation's shed marker at its exit teardown, once it can emit
+// nothing more, so markers live no longer than their generation (INV §4/§16).
+func (q *controlQueue) forget(generation string) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	delete(q.shed, generation)
+}
+
 func (q *controlQueue) isShed(generation string) bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()

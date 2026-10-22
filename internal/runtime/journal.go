@@ -106,6 +106,16 @@ func (j *Journal) controlQueue(deliver func(Observation)) *controlQueue {
 	return j.control
 }
 
+// forgetGeneration releases a finished generation's control-queue state.
+func (j *Journal) forgetGeneration(generation string) {
+	j.controlMu.Lock()
+	q := j.control
+	j.controlMu.Unlock()
+	if q != nil {
+		q.forget(generation)
+	}
+}
+
 func (j *Journal) controlBusy() bool {
 	j.controlMu.Lock()
 	q := j.control
