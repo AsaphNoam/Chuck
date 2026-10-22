@@ -163,6 +163,21 @@ func (s *Server) ensureWorktreeCheckout(ctx context.Context, projectID, cwd stri
 	if err != nil {
 		return false, "", apiError(runtime.CodeInternal, "read worktree ownership: "+err.Error())
 	}
+	var readiness *worktreeLock
+	if owned && sameCheckoutPath(row.CheckoutPath, cwd) {
+		var release func()
+		readiness, release, err = s.claimWorktreeRecreate(ctx, projectID)
+		if err != nil {
+			return false, "", apiError(runtime.CodeInternal, "wait for worktree setup: "+err.Error())
+		}
+		defer func() {
+			if recreated {
+				readiness.recreated = true
+				readiness.warning = warning
+			}
+			release()
+		}()
+	}
 	if isExistingDir(cwd) {
 		if owned && sameCheckoutPath(row.CheckoutPath, cwd) {
 			if err := s.configStore.ValidateOwnedWorktreePath(projectID, row.CheckoutPath); err != nil {
@@ -171,21 +186,13 @@ func (s *Server) ensureWorktreeCheckout(ctx context.Context, projectID, cwd stri
 			if ae := s.verifyOwnedCheckoutRepo(ctx, projectID, row); ae != nil {
 				return false, "", ae
 			}
+			return readiness.recreated, readiness.warning, nil
 		}
 		return false, "", nil
 	}
 	if !owned || !sameCheckoutPath(row.CheckoutPath, cwd) {
 		return false, "", apiError(runtime.CodeValidation,
 			fmt.Sprintf("project directory %q does not exist — set project %q to an existing path", cwd, projectID))
-	}
-
-	// Two starts into the same project can observe the absence together. Claim
-	// the recreation per project so the loser waits for the winner instead of
-	// racing a second `git worktree add` at the same path (INV §5).
-	unlock := s.claimWorktreeRecreate(projectID)
-	defer unlock()
-	if isExistingDir(cwd) {
-		return false, "", nil
 	}
 
 	git := s.worktreeGit()
@@ -235,26 +242,37 @@ func (s *Server) verifyOwnedCheckoutRepo(ctx context.Context, projectID string, 
 // claimWorktreeRecreate takes the per-project recreation claim and returns its
 // release. The lock is per project, so unrelated projects still recreate in
 // parallel.
-func (s *Server) claimWorktreeRecreate(projectID string) func() {
+func (s *Server) claimWorktreeRecreate(ctx context.Context, projectID string) (*worktreeLock, func(), error) {
 	s.worktreeMu.Lock()
 	lock, ok := s.worktreeLocks[projectID]
 	if !ok {
-		lock = &worktreeLock{}
+		lock = &worktreeLock{ready: make(chan struct{}, 1)}
+		lock.ready <- struct{}{}
 		s.worktreeLocks[projectID] = lock
 	}
 	lock.refs++
 	s.worktreeMu.Unlock()
 
-	lock.mu.Lock()
-	return func() {
-		lock.mu.Unlock()
+	select {
+	case <-lock.ready:
+	case <-ctx.Done():
 		s.worktreeMu.Lock()
 		lock.refs--
 		if lock.refs == 0 {
 			delete(s.worktreeLocks, projectID)
 		}
 		s.worktreeMu.Unlock()
+		return nil, nil, ctx.Err()
 	}
+	return lock, func() {
+		lock.ready <- struct{}{}
+		s.worktreeMu.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(s.worktreeLocks, projectID)
+		}
+		s.worktreeMu.Unlock()
+	}, nil
 }
 
 // ---- Setup command (TS-12.R5) ----
@@ -767,6 +785,8 @@ func sameCheckoutPath(a, b string) bool {
 
 // worktreeLock is the per-project recreation claim.
 type worktreeLock struct {
-	mu   sync.Mutex
-	refs int
+	ready     chan struct{}
+	refs      int
+	recreated bool
+	warning   string
 }

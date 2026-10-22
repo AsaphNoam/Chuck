@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/AsaphNoam/Chuck/internal/config"
+	"github.com/AsaphNoam/Chuck/internal/runtime"
 )
 
 // FS-04.A25 / FS-04.R45: base_branch and setup_command round-trip through the
@@ -795,8 +796,8 @@ func TestWorktreeStatusAndListEnrichment(t *testing.T) {
 }
 
 // TS-12.R4 / INV §5: two starts observing the same missing checkout must not
-// both run `git worktree add` at that path. Exactly one recreates; the other
-// waits and finds the directory already there.
+// both run `git worktree add` at that path. Exactly one owns recreation; the
+// others wait for the same readiness result.
 func TestConcurrentCheckoutRecreationClaimsOnce(t *testing.T) {
 	repo := newWorktreeTestRepo(t)
 	srv := testServer(t, false)
@@ -815,6 +816,11 @@ func TestConcurrentCheckoutRecreationClaimsOnce(t *testing.T) {
 	}
 
 	const starts = 4
+	// Hold admission until every caller has joined the same readiness cohort.
+	_, releaseClaim, err := srv.claimWorktreeRecreate(t.Context(), forkID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var (
 		wg       sync.WaitGroup
 		mu       sync.Mutex
@@ -840,16 +846,141 @@ func TestConcurrentCheckoutRecreationClaimsOnce(t *testing.T) {
 		}()
 	}
 	close(start)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		srv.worktreeMu.Lock()
+		joined := srv.worktreeLocks[forkID].refs == starts+1
+		srv.worktreeMu.Unlock()
+		if joined || time.Now().After(deadline) {
+			releaseClaim()
+			if !joined {
+				t.Fatal("starts did not join readiness claim")
+			}
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
 	wg.Wait()
 
 	if len(failures) > 0 {
 		t.Fatalf("concurrent starts failed: %v", failures)
 	}
-	if creates != 1 {
-		t.Fatalf("recreations = %d, want exactly 1", creates)
+	if creates != starts {
+		t.Fatalf("recreation-ready starts = %d, want %d", creates, starts)
 	}
 	if _, err := os.Stat(filepath.Join(checkout, "README.md")); err != nil {
 		t.Fatalf("checkout missing after the race: %v", err)
+	}
+}
+
+// FS-19.R3/R7, TS-12.R4/R5: a start that arrives after git has created the
+// checkout still joins the setup owner. A canceled waiter leaves that owner
+// running, and later waiters receive the owner's setup warning.
+func TestCheckoutReadinessBracketsDirectoryCreationAndSharesSetupResult(t *testing.T) {
+	repo := newWorktreeTestRepo(t)
+	srv := testServer(t, false)
+	seedWorktreeSource(t, srv, "app", repo, config.Project{Title: "App"})
+	rec := forkProject(t, srv, "app", map[string]any{"title": "Fork", "branch": "chuck/readiness"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("fork status = %d body=%s", rec.Code, rec.Body)
+	}
+	var result forkResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode fork: %v", err)
+	}
+	forkID, checkout := result.Project.ProjectID, result.Project.Cwd
+	marker := filepath.Join(checkout, "setup-started")
+	release := filepath.Join(checkout, "setup-release")
+	project, err := srv.configStore.ReadProject(forkID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	project.SetupCommand = "printf started > setup-started; while [ ! -f setup-release ]; do sleep 0.01; done; echo setup-failed >&2; exit 3"
+	if err := srv.configStore.WriteProject(forkID, project); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(checkout); err != nil {
+		t.Fatal(err)
+	}
+
+	type outcome struct {
+		recreated bool
+		warning   string
+		ae        *runtime.APIError
+	}
+	ownerCtx, cancelOwner := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		_ = os.WriteFile(release, nil, 0o600)
+		cancelOwner()
+	})
+	ownerDone := make(chan outcome, 1)
+	go func() {
+		recreated, warning, ae := srv.ensureWorktreeCheckout(ownerCtx, forkID, checkout)
+		ownerDone <- outcome{recreated: recreated, warning: warning, ae: ae}
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("setup did not start")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	waitCtx, cancel := context.WithCancel(context.Background())
+	waiterDone := make(chan outcome, 1)
+	go func() {
+		recreated, warning, ae := srv.ensureWorktreeCheckout(waitCtx, forkID, checkout)
+		waiterDone <- outcome{recreated: recreated, warning: warning, ae: ae}
+	}()
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+	select {
+	case got := <-waiterDone:
+		if got.ae == nil || !strings.Contains(got.ae.Message, "context canceled") {
+			t.Fatalf("canceled waiter = %+v, want context cancellation", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("canceled waiter remained blocked")
+	}
+	select {
+	case got := <-ownerDone:
+		t.Fatalf("owner completed before setup release: %+v", got)
+	default:
+	}
+
+	laterDone := make(chan outcome, 1)
+	go func() {
+		recreated, warning, ae := srv.ensureWorktreeCheckout(context.Background(), forkID, checkout)
+		laterDone <- outcome{recreated: recreated, warning: warning, ae: ae}
+	}()
+	select {
+	case got := <-laterDone:
+		t.Fatalf("later waiter crossed unfinished setup: %+v", got)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := os.WriteFile(release, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	await := func(done <-chan outcome) outcome {
+		t.Helper()
+		select {
+		case got := <-done:
+			return got
+		case <-time.After(5 * time.Second):
+			t.Fatal("start did not complete after setup release")
+			return outcome{}
+		}
+	}
+	owner := await(ownerDone)
+	later := await(laterDone)
+	if owner.ae != nil || !owner.recreated || !strings.Contains(owner.warning, "setup command failed") {
+		t.Fatalf("owner = %+v, want recreation warning", owner)
+	}
+	if later.ae != nil || !later.recreated || !strings.Contains(later.warning, "setup command failed") {
+		t.Fatalf("later waiter = %+v, want shared setup warning", later)
 	}
 }
 

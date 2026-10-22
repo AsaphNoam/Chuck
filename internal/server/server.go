@@ -197,8 +197,8 @@ type Server struct {
 	onboardingCache   *onboardingCacheEntry
 
 	// worktreeMu guards worktreeLocks: the per-project claim on recreating a
-	// missing owned checkout. Two starts into the same project can observe the
-	// absence together, and only one may run `git worktree add` at that path
+	// missing owned checkout through setup completion. Starts join even after
+	// the directory appears, and only one may run `git worktree add` at that path
 	// (TS-12.R4, INV §5). The locks are per project so unrelated projects still
 	// recreate in parallel.
 	worktreeMu    sync.Mutex

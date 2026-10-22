@@ -59,8 +59,10 @@ branch automation beyond creating the fork branch.
   start paths inherit it: `LaunchStage` runs through `launchAgent`/`composeLaunch` and
   `ContinueStage` through `composeResumeSpec`. Resume and switch keep the frozen `snap.Cwd`; the
   helper only re-materializes the directory the frozen path names, never re-derives a different
-  path. Two starts that observe the same absence are serialized by a per-project recreation claim,
-  so exactly one runs `git worktree add` and the other finds the directory already there (INV §5).
+  path. Starts targeting an owned checkout share a per-project readiness claim, including starts
+  arriving after recreation has created the directory but before setup finishes. Exactly one runs
+  `git worktree add`; waiting starts observe setup completion and its warning before proceeding
+  (INV §5). Cancelling a waiter does not cancel another caller's setup.
   Recreation reports itself in the start response; a recorded branch that no longer exists fails
   the start with an actionable error. Resume and switch thread caller cancellation through this
   work and expose the same recreation/setup warning notice as launch; pipeline continuation uses

@@ -55,8 +55,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   both Go variants/build plus focused race closure. Entry tree was clean.
   ASRA-5's repair and regression are verified: existing `0500` remains unchanged and refuses;
   `0755` tightens to `0700`. The regression failed before repair; config suite and focused race
-  checks pass. ASRA-6 implementation and final closure remain in progress.
-- None. CR-A2 is closed: all nine findings are fixed, both complete Go variants and the tagged
+  checks pass. ASRA-6 now takes the readiness claim before checking directory existence and
+  shares recreation notices/warnings across waiting starts. Waiter cancellation leaves setup
+  running. Focused real-Git tests pass; an overlay probe fails on the original bypass and passes
+  on the repair. Tagged build passes. Both Go variants and focused race closure are running.
+- CR-A2 is closed: all nine findings are fixed, both complete Go variants and the tagged
   build pass. TS-10.R48–R52 record cleanup, continuation, bounded queue and recovery contracts.
   The four unrelated ready-change edits remain preserved. ASF-6 closed concurrently in its
   own commits.

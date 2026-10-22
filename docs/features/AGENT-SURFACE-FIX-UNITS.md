@@ -43,7 +43,7 @@ Ordinary fix-closure bookkeeping follows §8 and is not a new implementation rev
 | ASF-2 — `/fix ASF-2` | [Input acceptance, uncertain delivery and exact recovery](#asf-2--input-acceptance-and-recovery) | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts owed |
 | ASF-3 — `/fix ASF-3` | [Durable continuation and controller recovery](#asf-3--durable-continuation-and-controller-recovery) | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
 | ASF-4 — `/fix ASF-4` | [Bounded completed work and retained task results](#asf-4--retention-and-result-bounds) | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
-| ASF-5 — `/fix ASF-5` | [Project setup readiness and resource permissions](#asf-5--project-readiness-and-resource-permissions) | ASRA-5, ASRA-6 | Waiting — medium, Codex Terra or Claude Opus |
+| ASF-5 — `/fix ASF-5` | [Project setup readiness and resource permissions](#asf-5--project-readiness-and-resource-permissions) | ASRA-5, ASRA-6 | In progress — ASRA-5 fixed in `8db628c7`; ASRA-6 pending |
 | ASF-6 — `/fix ASF-6` | [Certain CLI archive selection](#asf-6--cli-archive-selection) | ASRH-3 | Finished |
 
 Suggested first picks: ASF-1 (read-loop stall), ASF-2 (possibly consumed input replay) and ASW-3
