@@ -1,6 +1,8 @@
 package state
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -40,6 +42,36 @@ func ValidateAgentReport(outcome, summary, details, checks string) error {
 		utf8.RuneCountInString(details) > MaxResultDetailsRunes ||
 		utf8.RuneCountInString(checks) > MaxResultChecksRunes {
 		return ErrInvalidReportFields
+	}
+	return nil
+}
+
+// MaxResultBytes bounds one accepted result's encoded size, named outputs
+// included, so a generated artifact cannot become unbounded retained result
+// data (TS-10.R33, INV §16).
+const MaxResultBytes = 256 << 10
+
+// ValidateAgentTaskResult extends ValidateAgentReport to the named outputs: each
+// value keeps the pipeline value limit and the encoded result its aggregate
+// bound. Ordinary and stage reports both call it before any write.
+func ValidateAgentTaskResult(result TaskResult) error {
+	if err := ValidateAgentReport(result.Outcome, result.Summary, result.Details, ""); err != nil {
+		return err
+	}
+	for name, value := range result.Outputs {
+		if utf8.RuneCountInString(value) > MaxStageValueRunes {
+			return fmt.Errorf("%w: output %q exceeds %d characters", ErrInvalidReportFields, name, MaxStageValueRunes)
+		}
+	}
+	// HTML escaping would count `<` as six bytes; only JSON's own escaping counts.
+	var encoded bytes.Buffer
+	enc := json.NewEncoder(&encoded)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(result); err != nil {
+		return fmt.Errorf("state: encode task result: %w", err)
+	}
+	if encoded.Len() > MaxResultBytes {
+		return fmt.Errorf("%w: result exceeds %d encoded bytes", ErrInvalidReportFields, MaxResultBytes)
 	}
 	return nil
 }

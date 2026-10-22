@@ -222,7 +222,7 @@ LIMIT 1`, agentID, TaskFinished))
 // asked to release this execution to watch child work, and accepting a result
 // in the same turn would commit simultaneous yield and release intents.
 func (s *Store) AcceptPipelineStageTaskResult(taskID, agentID, generation, executionHandle string, expectedRunRevision int64, result TaskResult) (PipelineRunRecord, error) {
-	if err := ValidateAgentReport(result.Outcome, result.Summary, result.Details, ""); err != nil {
+	if err := ValidateAgentTaskResult(result); err != nil {
 		return PipelineRunRecord{}, err
 	}
 	tx, err := s.db.Begin()

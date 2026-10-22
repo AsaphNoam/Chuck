@@ -1715,7 +1715,7 @@ const (
 // assignment that has already ended and must not land on the current one
 // (TS-10.R28/R31).
 func (s *Store) RecordAgentTaskResult(taskID, agentID, generation, executionHandle string, result TaskResult) (Task, error) {
-	if err := ValidateAgentReport(result.Outcome, result.Summary, result.Details, ""); err != nil {
+	if err := ValidateAgentTaskResult(result); err != nil {
 		return Task{}, err
 	}
 	tx, err := s.db.Begin()
@@ -2102,7 +2102,7 @@ func (s *Store) CancelTask(taskID string) (Task, error) {
 // an override of it, so it is accepted only where no agent will report: on a
 // running or interrupted task (FS-16.R22).
 func (s *Store) RecordPersonTaskResult(taskID string, result TaskResult) (Task, error) {
-	if err := ValidateAgentReport(result.Outcome, result.Summary, result.Details, ""); err != nil {
+	if err := ValidateAgentTaskResult(result); err != nil {
 		return Task{}, err
 	}
 	return s.finishTask(taskID, result, "person", []string{TaskRunning, TaskInterrupted})

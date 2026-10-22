@@ -714,3 +714,79 @@ func TestTaskResultOutputsAreImmutable(t *testing.T) {
 		t.Fatalf("outputs = %#v, %v", outputs, err)
 	}
 }
+
+// TS-10.R33, INV §16 — named outputs keep the per-value rune limit and the
+// encoded aggregate bound on ordinary and stage reports alike; a refusal finishes
+// nothing and persists no output.
+func TestTaskResultOutputsAreBounded(t *testing.T) {
+	st, _ := newTestStore(t)
+	report := func(t *testing.T, name string, outputs map[string]string) (Task, error) {
+		t.Helper()
+		task := newTask(t, st, "proj", name)
+		// One agent holds one running assignment, so each report has its own.
+		if _, err := st.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = 'g' WHERE task_id = ?`, TaskRunning, name, task.TaskID); err != nil {
+			t.Fatal(err)
+		}
+		_, err := st.RecordAgentTaskResult(task.TaskID, name, "g", "", TaskResult{Outcome: OutcomeSuccess, Summary: "done", Outputs: outputs})
+		after, readErr := st.ReadTask(task.TaskID)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		return after, err
+	}
+	refused := func(t *testing.T, what string, task Task, err error) {
+		t.Helper()
+		if !errors.Is(err, ErrInvalidReportFields) {
+			t.Fatalf("%s error = %v, want ErrInvalidReportFields", what, err)
+		}
+		if task.State != TaskRunning || task.Outcome != "" || len(task.Outputs) != 0 {
+			t.Fatalf("%s mutated the task: %+v", what, task)
+		}
+	}
+
+	// Runes, not bytes: 64,000 two-byte runes is the exact legal value.
+	if task, err := report(t, "exact", map[string]string{"artifact": strings.Repeat("é", MaxStageValueRunes)}); err != nil || task.State != TaskFinished {
+		t.Fatalf("exact-limit value: task=%s err=%v", task.State, err)
+	}
+	task, err := report(t, "over", map[string]string{"artifact": strings.Repeat("x", MaxStageValueRunes+1)})
+	refused(t, "a value one rune over", task, err)
+	// Three individually legal values: 150,000 raw bytes, but quotes double
+	// under JSON encoding, so the encoded result exceeds 256 KiB.
+	quoted := strings.Repeat(`"`, 50000)
+	task, err = report(t, "aggregate", map[string]string{"a": quoted, "b": quoted, "c": quoted})
+	refused(t, "an oversized encoded aggregate", task, err)
+
+	// The stage report shares the same bound.
+	runID, _ := st.NewPipelineRunID()
+	stageTaskID, _ := st.NewTaskID()
+	now := time.Now().UTC()
+	if _, _, err := st.CreatePipelineRun(CreatePipelineRunParams{Run: PipelineRunRecord{
+		RunID: runID, TemplateID: "bounded", TemplateSnapshot: json.RawMessage(`{"version":2,"stages":[{"id":"draft","title":"Draft","objective":"draft","outputs":[{"name":"draft","value":"draft"}]}]}`),
+		DisplayName: "Bounded", Project: "proj", Goal: "g", Inputs: json.RawMessage(`{}`), Assignments: json.RawMessage(`{}`),
+		State: "queued", Revision: 1, CurrentStageID: "draft", CreatedAt: now, UpdatedAt: now,
+	}, RequestID: "bounded", RequestHash: "bounded", InitialStageTask: &CreatePipelineStageTaskParams{
+		RunID: runID, ExpectedRevision: 1, StageIndex: 0, AttemptNumber: 1, StageID: "draft", OutputValues: map[string]string{"draft": "draft"}, Task: Task{
+			TaskID: stageTaskID, Project: "proj", DisplayName: "Draft", Instruction: "draft", TargetKind: TargetLaunch, Role: "orchestrator", CreatedByKind: "pipeline",
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'owner', assigned_generation = 'gen', execution_handle = 'handle' WHERE task_id = ?`, TaskRunning, stageTaskID); err != nil {
+		t.Fatal(err)
+	}
+	run, err := st.ReadPipelineRun(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.AcceptPipelineStageTaskResult(stageTaskID, "owner", "gen", "handle", run.Revision, TaskResult{
+		Outcome: OutcomeSuccess, Summary: "done", Outputs: map[string]string{"draft": strings.Repeat("x", MaxStageValueRunes+1)},
+	})
+	stageTask, readErr := st.ReadTask(stageTaskID)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	refused(t, "an oversized stage value", stageTask, err)
+	if after, err := st.ReadPipelineRun(runID); err != nil || after.Revision != run.Revision {
+		t.Fatalf("refused stage report moved the run: %+v %v", after, err)
+	}
+}
