@@ -20,8 +20,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Runtime campaign:** ASW-1 event commits, ASW-2 frozen native execution and ASW-3 process/terminal
   ownership, ASF-1 turn/control settlement, ASF-2 input acceptance/recovery and ASF-6 CLI selection
   are closed. Select remaining work through
-  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-3–ASF-5 wait.
-  Their source reviews and open findings remain below; do not reopen completed refactors.
+  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-5 is closed; ASF-3/4 wait.
+Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1–CR-A7 are reviewed and closed (no open findings). CR-A2's nine
   admission/recovery findings were fixed on 2026-10-22 (`0f911d74`, `de0ac20a`).
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
@@ -49,16 +49,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- ASF-5 is in progress: validate and repair resource owner-permission preservation (ASRA-5)
-  and owned-checkout setup readiness (ASRA-6). Focused independent implementation slices cover
-  config resources and the server readiness barrier; parent owns specification, integration and
-  both Go variants/build plus focused race closure. Entry tree was clean.
-  ASRA-5's repair and regression are verified: existing `0500` remains unchanged and refuses;
-  `0755` tightens to `0700`. The regression failed before repair; config suite and focused race
-  checks pass. ASRA-6 now takes the readiness claim before checking directory existence and
-  shares recreation notices/warnings across waiting starts. Waiter cancellation leaves setup
-  running. Focused real-Git tests pass; an overlay probe fails on the original bypass and passes
-  on the repair. Tagged build passes. Both Go variants and focused race closure are running.
+- ASF-5 is closed: resource owner-permission preservation (`8db628c7`) and owned-checkout
+  setup readiness (`c379b51c`) are repaired. Both full Go variants, tagged build and focused
+  config/server race checks pass. No native/device acceptance gate is closed by these repairs.
 - CR-A2 is closed: all nine findings are fixed, both complete Go variants and the tagged
   build pass. TS-10.R48–R52 record cleanup, continuation, bounded queue and recovery contracts.
   The four unrelated ready-change edits remain preserved. ASF-6 closed concurrently in its
@@ -205,7 +198,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Agent-surface work and fix queue
 
-**ASW-1, ASW-2, ASW-3, ASF-1, ASF-2 and ASF-6 closed; ASF-3–ASF-5 wait.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1, ASW-2, ASW-3, ASF-1, ASF-2, ASF-5 and ASF-6 closed; ASF-3/4 wait.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are implemented and
 reviewed; their remaining findings select the same units for fixes:
 
@@ -227,7 +220,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 | [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts remain owed |
 | [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
-| [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | `/fix ASF-5` — checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | Checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Closed — `8db628c7`, `c379b51c` |
 | [ASF-6](AGENT-SURFACE-FIX-UNITS.md#asf-6--cli-archive-selection) | Certain CLI resume/new selection | ASRH-3 | Finished |
 
 ## Review queue
@@ -262,7 +255,7 @@ architectural review before release or start any fix workflow.
 
 Nine integrated reviews are sized for frontier reviewers to follow interacting mechanisms and
 whole workflows. These are explicitly requested subsystem audits, not reviews of queue commits.
-ASR-I's source synthesis is complete; the eight domain units below remain open on their findings.
+ASR-I's source synthesis is complete; the remaining domain units below retain their open findings.
 Their remediation is now assigned to the work/fix units above; these rows retain review provenance,
 not a second competing implementation queue.
 Read the selected [charter and mandatory joins](AGENT-SURFACE-REVIEW.md), then its retained
@@ -278,7 +271,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 
 | Unit | Responsibility | Status |
 |---|---|---|
-| [ASR-A](AGENT-SURFACE-REVIEW.md#asr-a--instructions-configuration-and-execution-environment) | Instructions, configuration and execution environment | reviewed — findings open (`4fbeb316`) |
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
 | [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | reviewed — findings open (`6b5de19b`) |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
@@ -295,7 +287,7 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
 
 Source/profile delivery must agree with native authentication,
 session isolation and frozen continuation choices; the other fixes mostly extend existing seams.
-Audit complete; findings keep this same unit open. No product code or specifications changed.
+Audit and finding fixes are closed. The original review changed no product code or specifications.
 Source mode: repository source plus installed, lockfile-pinned packages: Claude ACP 0.85.1,
 Claude Agent SDK 0.3.286, Codex ACP 2.1.1 and Codex CLI 0.159.3. Tree was clean at entry.
 
@@ -304,20 +296,17 @@ and native inheritance through continuation, and empty effort resets use the dec
 
 PROMPT-1 and ASRA-3 are closed by the ASW-2 fixes (ASW2-7 effective root markers, ASW2-2 frozen
 profile refusal; Changelog 2026-10-20).
-ASRA-5 is fixed (2026-10-22, INV §10/§14): resource validation preserves existing owner bits and
-removes group/world access. The `0500` regression failed before repair; config suite and focused
-race tests pass. ASF-5 remains open for ASRA-6.
-- **Must fix** — ASRA-6 — **A second start bypasses unfinished checkout setup**
-  (INV §1/§5/§15). `internal/server/worktree.go:164–189,215`: after one caller recreates a
-  missing owned checkout and enters setup, another caller sees the newly existing directory and
-  returns before taking the recreation claim. Its agent can start while dependencies/bootstrap
-  work is still being installed, despite the first caller holding that claim (FS-19.R3/R7,
-  TS-12.R4/R5). A real temporary Git-worktree probe with a 600 ms setup returns the second
-  success in about 120 microseconds while the first setup is unfinished. Extend the existing
-  per-project readiness seam so every start encountering an in-progress recreation observes its
-  completion/warning, including when the directory has already appeared. Regress two starts
-  arriving on opposite sides of directory creation, with setup success/failure/cancellation;
-  `/tmp/chuck-asr-probe/recreate_setup_race_probe_test.go` preserves the reproduction.
+ASRA-5/6 are fixed (2026-10-22): `8db628c7` preserves existing owner permissions while removing
+group/world access (INV §10/§14); `c379b51c` shares the per-project readiness claim through setup
+completion, warning propagation and waiter cancellation (INV §1/§5/§15). The `0500` regression
+failed before repair. The isolated real-Git overlay probe fails on the original directory-exists
+bypass and passes after repair; retained tests cover post-directory arrival, setup warning and
+cancelled waiters. Both complete Go variants, tagged build and focused race checks pass.
+All ASR-A findings are closed; unrun native-provider gates remain open.
+
+Integration choice: failed Git recreation before a directory exists retains the existing retry
+behavior for the next caller. The barrier shares completed setup readiness, not a durable failed
+Git attempt; no scheduler or new retry policy was introduced.
 
 Effective contract and lifetime map (J1, including J5's execution context):
 
@@ -1085,6 +1074,12 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-22 — Fix: resource permissions and checkout readiness (ASF-5).** ASRA-5 (INV §10/§14,
+  `8db628c7`) preserves owner bits; ASRA-6 (INV §1/§5/§15, `c379b51c`) waits through setup and
+  shares its recreation notice/warning without letting waiter cancellation stop the owner.
+  Pre-fix filesystem and real-Git probes distinguish both repairs. Both Go variants, tagged
+  build and focused race checks pass. ASR-A and ASF-5 close; ASF-3/4 and live/device gates remain.
 
 - **2026-10-22 — Integration: ASF-2 on main (INV §5/§15).** Preserved CR-A2 and ASF-6 closure
   while merging `fix/asf-2`. Existing input receipts replay before the task-continuation admission
