@@ -16,6 +16,11 @@ var ErrAttachmentCapability = errors.New("runtime: this agent does not support n
 // message when receipt bookkeeping fails before its provider dispatch.
 var ErrMessageAccepted = errors.New("runtime: message retained but delivery is uncertain")
 
+// ErrSteerRefused identifies an explicit adapter refusal before provider
+// consumption. A promoted hold may be restored, but callers must not report the
+// operation as a successful steer or new turn.
+var ErrSteerRefused = errors.New("runtime: adapter refused steered message")
+
 // Runtime-state sentinels. The API layer maps these to 404/409 (techspec §7).
 var (
 	// ErrNoHandle: no live handle for the agent (not started / already stopped).
@@ -96,6 +101,7 @@ const (
 	CodeValidation           = "validation"           // 422
 	CodeNotFound             = "not_found"            // 404
 	CodeConflict             = "conflict"             // 409
+	CodeDeliveryUncertain    = "delivery_uncertain"   // 409
 	CodeNotImplemented       = "not_implemented"      // 501
 	CodeRuntimeStartFailed   = "runtime_start_failed" // 502
 	CodeInternal             = "internal"             // 500
@@ -207,7 +213,7 @@ func statusForCode(code string) int {
 		return http.StatusBadRequest // 400
 	case CodeNotFound, CodeGroupNotFound, CodeSourceNotFound:
 		return http.StatusNotFound // 404
-	case CodeConflict, CodeAgentNotRunning, CodeSwitchInProgress,
+	case CodeConflict, CodeDeliveryUncertain, CodeAgentNotRunning, CodeSwitchInProgress,
 		CodeSourceChanged, CodeSourceConflict, CodeApprovalRequired,
 		CodeAgentArchived, CodeAgentArchiving, CodeProjectArchived, CodeProjectArchiving,
 		CodeBackendExists, CodeBackendCatalogChanged, CodeDirectoryPickerBusy,

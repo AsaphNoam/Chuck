@@ -31,12 +31,17 @@ func (r *Registry) SteerMessage(ctx context.Context, id string, m Message) (Stee
 	return "", ErrSteeringUnsupported
 }
 func (r *Registry) HeldMessage(id string) (Message, int64, error) {
+	m, seq, _, err := r.HeldSnapshot(id)
+	return m, seq, err
+}
+
+func (r *Registry) HeldSnapshot(id string) (Message, int64, string, error) {
 	rt, err := r.ownerFor(id)
 	if err != nil {
-		return Message{}, 0, err
+		return Message{}, 0, "", err
 	}
 	if chat, ok := rt.(*ChatRuntime); ok {
-		return chat.HeldMessage(id)
+		return chat.HeldSnapshot(id)
 	}
-	return Message{}, 0, nil
+	return Message{}, 0, "", nil
 }

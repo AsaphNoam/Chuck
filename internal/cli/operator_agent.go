@@ -98,8 +98,11 @@ func newOperatorAgentCmd() *cobra.Command {
 	}
 	withdraw := agentOperation("withdraw <id>", "DELETE", "prompt", 1, false, false, nil)
 	withdraw.Flags().String("recovery-request-id", "", "dismiss only this owned recovered message")
+	withdraw.Flags().String("held-id", "", "withdraw only this exact held message")
 	parent.AddCommand(withdraw)
-	parent.AddCommand(agentOperation("annotate <id>", "POST", "annotations", 1, false, false, []string{"annotations", "target"}))
+	annotate := agentOperation("annotate <id>", "POST", "annotations", 1, false, false, []string{"annotations", "target"})
+	annotate.Flags().String("command-id", "", "receipt id; identical explicit retries reuse this id and batch")
+	parent.AddCommand(annotate)
 	search := agentOperation("file-search <id>", "GET", "file-search", 1, false, false, nil)
 	search.Flags().String("query", "", "workspace filename query")
 	parent.AddCommand(search)
@@ -147,7 +150,7 @@ func agentOperation(use, method, suffix string, nargs int, text, yes bool, requi
 		if err != nil {
 			return err
 		}
-		for _, field := range []string{"role", "project", "backend", "model", "effort", "interface", "driver", "name", "group", "mode", "fast", "target", "episode-id", "revision", "tool-call-id", "task-id", "activity-id", "request-id"} {
+		for _, field := range []string{"role", "project", "backend", "model", "effort", "interface", "driver", "name", "group", "mode", "fast", "target", "episode-id", "revision", "tool-call-id", "task-id", "activity-id", "request-id", "command-id"} {
 			if c.Flags().Lookup(field) == nil || !c.Flags().Changed(field) {
 				continue
 			}
@@ -187,6 +190,15 @@ func agentOperation(use, method, suffix string, nargs int, text, yes bool, requi
 				return operatorInvalid(err.Error())
 			}
 		}
+		if c.Name() == "annotate" {
+			if _, ok := body["command_id"]; !ok {
+				body["command_id"], _ = json.Marshal(newPipelineRequestID())
+			}
+			var commandID string
+			if json.Unmarshal(body["command_id"], &commandID) != nil || !operatorValidReceiptID(commandID) {
+				return operatorInvalid("command_id must be 1–128 ASCII letters, digits, - or _")
+			}
+		}
 		for _, key := range required {
 			if raw := body[key]; len(raw) == 0 || string(raw) == `""` || string(raw) == "null" {
 				return operatorInvalid(fmt.Sprintf("%s is required via a flag or --request-file", key))
@@ -200,7 +212,7 @@ func agentOperation(use, method, suffix string, nargs int, text, yes bool, requi
 			path += "/" + suffix
 		}
 		query := url.Values{}
-		for _, pair := range [][2]string{{"query", "q"}, {"path", "path"}, {"recovery-request-id", "recovery_request_id"}} {
+		for _, pair := range [][2]string{{"query", "q"}, {"path", "path"}, {"recovery-request-id", "recovery_request_id"}, {"held-id", "held_id"}} {
 			if c.Flags().Lookup(pair[0]) != nil && c.Flags().Changed(pair[0]) {
 				v, _ := c.Flags().GetString(pair[0])
 				query.Set(pair[1], v)

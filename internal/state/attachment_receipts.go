@@ -43,7 +43,7 @@ func (s *Store) RemoveAttachmentReceipt(agentID, requestID string) error {
 
 func (s *Store) AttachmentRecovery(agentID string) (AttachmentReceipt, error) {
 	var id string
-	err := s.db.QueryRow(`SELECT request_id FROM attachment_receipts WHERE agent_id=? AND delivery IN ('released','failed') AND dismissed=0 ORDER BY updated_at DESC,rowid DESC LIMIT 1`, agentID).Scan(&id)
+	err := s.db.QueryRow(`SELECT request_id FROM attachment_receipts WHERE agent_id=? AND delivery IN ('released','failed','unknown') AND dismissed=0 ORDER BY updated_at DESC,rowid DESC LIMIT 1`, agentID).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AttachmentReceipt{}, ErrNotFound
 	}
@@ -54,7 +54,7 @@ func (s *Store) AttachmentRecovery(agentID string) (AttachmentReceipt, error) {
 }
 
 func (s *Store) DismissAttachmentRecovery(agentID, requestID string) error {
-	_, err := s.db.Exec(`UPDATE attachment_receipts SET dismissed=1 WHERE agent_id=? AND request_id=? AND delivery IN ('released','failed')`, agentID, requestID)
+	_, err := s.db.Exec(`UPDATE attachment_receipts SET dismissed=1 WHERE agent_id=? AND request_id=? AND delivery IN ('released','failed','unknown')`, agentID, requestID)
 	return err
 }
 

@@ -177,6 +177,170 @@ func TestAnnotationAgentDeliveryPersistsUserMailAndTranscriptEvent(t *testing.T)
 	}
 }
 
+func TestAnnotationCommandRetryReusesCanonicalEventAndMail(t *testing.T) {
+	srv := testServer(t, true)
+	source, target := writeAnnotationPair(t, srv)
+	body := runtime.AnnotationData{CommandID: "annotation-retry-1", Annotations: []runtime.Annotation{{Seq: 4, Excerpt: "same", Instruction: "review once"}}, Target: runtime.AnnotationTarget{Kind: "agent", AgentID: target.AgentID}}
+	raw, _ := json.Marshal(body)
+	post := func(payload []byte) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, newLocalRequest(http.MethodPost, "/api/sessions/"+source.AgentID+"/annotations", bytes.NewReader(payload)))
+		return rec
+	}
+	first := post(raw)
+	if first.Code != http.StatusAccepted {
+		t.Fatalf("first annotation status = %d: %s", first.Code, first.Body.String())
+	}
+	second := post(raw) // models a lost successful response and browser retry.
+	if second.Code != http.StatusAccepted {
+		t.Fatalf("retry annotation status = %d: %s", second.Code, second.Body.String())
+	}
+	mail, err := srv.stateStore.ListMessages(target.AgentID, true, 10)
+	if err != nil || len(mail) != 1 {
+		t.Fatalf("mail after retry = %d, %v; want one", len(mail), err)
+	}
+	events, err := transcript.ReadFile(srv.configStore.Home(), source.AgentID, transcript.ReadOptions{})
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events after retry = %d, %v; want one", len(events), err)
+	}
+	var recorded runtime.AnnotationData
+	if err := json.Unmarshal(events[0].Data, &recorded); err != nil || recorded.CommandID != body.CommandID {
+		t.Fatalf("canonical command id = %q, %v; want %q", recorded.CommandID, err, body.CommandID)
+	}
+	changed := body
+	changed.Annotations[0].Instruction = "changed"
+	changedRaw, _ := json.Marshal(changed)
+	if conflict := post(changedRaw); conflict.Code != http.StatusConflict {
+		t.Fatalf("changed retry status = %d: %s; want conflict", conflict.Code, conflict.Body.String())
+	}
+	mail, _ = srv.stateStore.ListMessages(target.AgentID, true, 10)
+	if len(mail) != 1 {
+		t.Fatalf("mail after changed retry = %d; want one", len(mail))
+	}
+}
+
+func TestAnnotationCommandConcurrentRetryHasOneEffect(t *testing.T) {
+	srv := testServer(t, true)
+	source, target := writeAnnotationPair(t, srv)
+	body := runtime.AnnotationData{CommandID: "annotation-concurrent-1", Annotations: []runtime.Annotation{{Seq: 4, Excerpt: "same", Instruction: "review once"}}, Target: runtime.AnnotationTarget{Kind: "agent", AgentID: target.AgentID}}
+	raw, _ := json.Marshal(body)
+	results := make(chan int, 2)
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(rec, newLocalRequest(http.MethodPost, "/api/sessions/"+source.AgentID+"/annotations", bytes.NewReader(raw)))
+			results <- rec.Code
+		}()
+	}
+	wg.Wait()
+	close(results)
+	accepted, conflicts := 0, 0
+	for code := range results {
+		if code == http.StatusAccepted {
+			accepted++
+		}
+		if code == http.StatusConflict {
+			conflicts++
+		}
+	}
+	if accepted == 0 || accepted+conflicts != 2 {
+		t.Fatalf("concurrent statuses accepted=%d conflicts=%d", accepted, conflicts)
+	}
+	mail, _ := srv.stateStore.ListMessages(target.AgentID, true, 10)
+	if len(mail) != 1 {
+		t.Fatalf("concurrent mail rows = %d; want one", len(mail))
+	}
+	events, _ := transcript.ReadFile(srv.configStore.Home(), source.AgentID, transcript.ReadOptions{})
+	if len(events) != 1 {
+		t.Fatalf("concurrent annotation events = %d; want one", len(events))
+	}
+}
+
+func TestAnnotationCommandReconcilesCanonicalEventWithoutReceiptSequence(t *testing.T) {
+	srv := testServer(t, true)
+	source, target := writeAnnotationPair(t, srv)
+	body := runtime.AnnotationData{CommandID: "annotation-reconcile-1", Annotations: []runtime.Annotation{{Seq: 4, Excerpt: "same", Instruction: "review once"}}, Target: runtime.AnnotationTarget{Kind: "agent", AgentID: target.AgentID}}
+	if err := validateAnnotations(&body); err != nil {
+		t.Fatal(err)
+	}
+	body.Target.AgentID = target.AgentID
+	if err := srv.stateStore.CreateAnnotationReceipt(state.AnnotationReceipt{SourceAgentID: source.AgentID, CommandID: body.CommandID, PayloadHash: annotationPayloadHash(source.AgentID, body), TargetKind: "agent", TargetAgentID: target.AgentID, State: "prepared"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.appendAnnotation(source.AgentID, body); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(body)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, newLocalRequest(http.MethodPost, "/api/sessions/"+source.AgentID+"/annotations", bytes.NewReader(raw)))
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("reconcile status = %d: %s", rec.Code, rec.Body.String())
+	}
+	events, _ := transcript.ReadFile(srv.configStore.Home(), source.AgentID, transcript.ReadOptions{})
+	if len(events) != 1 {
+		t.Fatalf("reconciled events = %d; want one", len(events))
+	}
+	mail, _ := srv.stateStore.ListMessages(target.AgentID, true, 10)
+	if len(mail) != 1 {
+		t.Fatalf("reconciled mail = %d; want one", len(mail))
+	}
+	receipt, err := srv.stateStore.AnnotationReceipt(source.AgentID, body.CommandID)
+	if err != nil || receipt.SourceSeq != events[0].Seq || receipt.State != "accepted" {
+		t.Fatalf("reconciled receipt = %+v, %v", receipt, err)
+	}
+}
+
+func TestAnnotationCommandFailsClosedWhenCanonicalReadFails(t *testing.T) {
+	srv := testServer(t, true)
+	source, target := writeAnnotationPair(t, srv)
+	body := runtime.AnnotationData{CommandID: "annotation-read-failure-1", Annotations: []runtime.Annotation{{Seq: 4, Excerpt: "same", Instruction: "review once"}}, Target: runtime.AnnotationTarget{Kind: "agent", AgentID: target.AgentID}}
+	if err := validateAnnotations(&body); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.stateStore.CreateAnnotationReceipt(state.AnnotationReceipt{SourceAgentID: source.AgentID, CommandID: body.CommandID, PayloadHash: annotationPayloadHash(source.AgentID, body), TargetKind: "agent", TargetAgentID: target.AgentID, State: "prepared"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.appendAnnotation(source.AgentID, body); err != nil {
+		t.Fatal(err)
+	}
+	home := srv.configStore.Home()
+	path := filepath.Join(home, "sessions", source.AgentID, transcript.LogFileName)
+	backup := path + ".backup"
+	if err := os.Rename(path, backup); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o755); err != nil {
+		_ = os.Rename(backup, path)
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Remove(path)
+		_ = os.Rename(backup, path)
+	}()
+
+	raw, _ := json.Marshal(body)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, newLocalRequest(http.MethodPost, "/api/sessions/"+source.AgentID+"/annotations", bytes.NewReader(raw)))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("canonical read failure status = %d: %s", rec.Code, rec.Body.String())
+	}
+	mail, err := srv.stateStore.ListMessages(target.AgentID, true, 10)
+	if err != nil || len(mail) != 0 {
+		t.Fatalf("canonical read failure mail = %d, %v; want none", len(mail), err)
+	}
+	events, err := transcript.ReadFile(home, source.AgentID, transcript.ReadOptions{})
+	if err == nil {
+		t.Fatalf("canonical read failure unexpectedly succeeded with %d events", len(events))
+	}
+	receipt, err := srv.stateStore.AnnotationReceipt(source.AgentID, body.CommandID)
+	if err != nil || receipt.State != "prepared" || receipt.SourceSeq != 0 {
+		t.Fatalf("canonical read failure receipt = %+v, %v; want untouched prepared receipt", receipt, err)
+	}
+}
+
 // FS-20.R32 and TS-13.R16: a paired phone assigns diff-line annotations through
 // the shared FS-13 handler; the tailnet chain rejects any body field the phone
 // form does not send before the handler runs.
@@ -410,6 +574,7 @@ func TestSelfAnnotationTranscriptStillReturnsThePromptEvent(t *testing.T) {
 	waitForStatus(t, srv, id, "idle")
 
 	body := runtime.AnnotationData{
+		CommandID:   "self-replay-1",
 		Annotations: []runtime.Annotation{{Seq: 1, Excerpt: "target phrase", Instruction: "review this branch"}},
 		Target:      runtime.AnnotationTarget{Kind: "self"},
 	}
@@ -417,6 +582,10 @@ func TestSelfAnnotationTranscriptStillReturnsThePromptEvent(t *testing.T) {
 	resp, respBody := post(t, ts.URL+"/api/sessions/"+id+"/annotations", json.RawMessage(raw))
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("self annotation status = %d: %s", resp.StatusCode, respBody)
+	}
+	resp, respBody = post(t, ts.URL+"/api/sessions/"+id+"/annotations", json.RawMessage(raw))
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("self annotation replay status = %d: %s", resp.StatusCode, respBody)
 	}
 
 	sentinel := annotationBlockSentinelFromUI(t)
@@ -427,10 +596,15 @@ func TestSelfAnnotationTranscriptStillReturnsThePromptEvent(t *testing.T) {
 			t.Fatalf("ReadFile: %v", err)
 		}
 		var annotated, prompted bool
+		annotations, prompts := 0, 0
 		for i, ev := range events {
+			if ev.Type == runtime.EvUserPrompt {
+				prompts++
+			}
 			if ev.Type != runtime.EvAnnotation {
 				continue
 			}
+			annotations++
 			annotated = true
 			// The prompt the client hides is the one immediately after the
 			// annotation event; the endpoint must still hand it over.
@@ -448,6 +622,9 @@ func TestSelfAnnotationTranscriptStillReturnsThePromptEvent(t *testing.T) {
 			}
 		}
 		if annotated && prompted {
+			if annotations != 1 || prompts != 1 {
+				t.Fatalf("self replay effects annotations=%d prompts=%d; want one each", annotations, prompts)
+			}
 			return
 		}
 		if time.Now().After(deadline) {

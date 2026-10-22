@@ -194,6 +194,7 @@ export interface AnnotationTarget {
 }
 
 export interface AnnotationBatch {
+  command_id?: string;
   annotations: AnnotationDraft[];
   overall_instruction?: string;
   target: AnnotationTarget;

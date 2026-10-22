@@ -836,6 +836,25 @@ ALTER TABLE think_tanks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';`,
 		version: 58,
 		sql:     `ALTER TABLE sessions ADD COLUMN execution_contract_json TEXT;`,
 	},
+	{
+		// Annotation command receipts retain one canonical source event and its
+		// SQLite delivery effect so identical retries are harmless (TS-02.R55).
+		version: 59,
+		sql: `CREATE TABLE annotation_receipts (
+ source_agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+ command_id TEXT NOT NULL,
+ payload_hash TEXT NOT NULL,
+ target_kind TEXT NOT NULL CHECK(target_kind IN ('self','agent')),
+ target_agent_id TEXT NOT NULL,
+ source_seq INTEGER NOT NULL DEFAULT 0,
+ effect_id TEXT NOT NULL DEFAULT '',
+ state TEXT NOT NULL CHECK(state IN ('prepared','recorded','accepted','rejected','unknown')),
+ updated_at TEXT NOT NULL,
+ PRIMARY KEY(source_agent_id, command_id)
+);
+CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
+ WHERE effect_id != '';`,
+	},
 }
 
 // migrateQuotaChecks rebuilds quota_intents for the check chain and its

@@ -360,6 +360,7 @@ type agentState struct {
 }
 
 type heldMessage struct {
+	HeldID      string
 	recorded    bool
 	Text        string
 	Attachments []attachment.Descriptor
@@ -368,6 +369,10 @@ type heldMessage struct {
 	Ready       bool
 	TurnID      string
 }
+
+// ErrHeldChanged means a caller tried to withdraw an older hold after another
+// device replaced it. The current hold remains untouched.
+var ErrHeldChanged = errors.New("runtime: held message changed")
 
 // pendingPerm is a withheld session/request_permission awaiting a decision.
 type pendingPerm struct {
@@ -626,18 +631,32 @@ func (c *ChatRuntime) SendMessageOrHold(ctx context.Context, agentID string, mes
 // idempotent by construction: withdrawing nothing is success, so a double
 // withdraw is never an error (TS-03.R38).
 func (c *ChatRuntime) WithdrawHeld(agentID string) error {
+	_, _, err := c.WithdrawHeldExpected(agentID, "")
+	return err
+}
+
+func (c *ChatRuntime) WithdrawHeldExpected(agentID, expectedID string) (Message, bool, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
-		return err
+		return Message{}, false, err
 	}
 	as.mu.Lock()
+	if as.held.message().empty() {
+		as.mu.Unlock()
+		return Message{}, false, nil
+	}
+	if expectedID != "" && expectedID != as.held.HeldID {
+		as.mu.Unlock()
+		return Message{}, false, ErrHeldChanged
+	}
+	removed := as.held.message().copy()
 	if err := c.messageTransition(agentID, as.held.RequestID, "released"); err != nil {
 		as.mu.Unlock()
-		return err
+		return Message{}, false, err
 	}
 	as.held = heldMessage{}
 	as.mu.Unlock()
-	return nil
+	return removed, true, nil
 }
 
 // Held returns the authoritative live follow-up and the last transcript
@@ -650,13 +669,18 @@ func (c *ChatRuntime) Held(agentID string) (string, int64, error) {
 }
 
 func (c *ChatRuntime) HeldMessage(agentID string) (Message, int64, error) {
+	m, seq, _, err := c.HeldSnapshot(agentID)
+	return m, seq, err
+}
+
+func (c *ChatRuntime) HeldSnapshot(agentID string) (Message, int64, string, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
-		return Message{}, 0, err
+		return Message{}, 0, "", err
 	}
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	return as.held.message().copy(), as.held.AfterSeq, nil
+	return as.held.message().copy(), as.held.AfterSeq, as.held.HeldID, nil
 }
 
 // SteerOutcome is what the adapter did with a steered message (TS-04.R49). The
@@ -706,7 +730,15 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 			as.mu.Unlock()
 			return "", ErrNothingHeld
 		}
+		if message.HeldID != "" && message.HeldID != as.held.HeldID {
+			as.mu.Unlock()
+			return "", ErrHeldChanged
+		}
+		requestID := message.RequestID
 		message = as.held.message()
+		if message.RequestID == "" {
+			message.RequestID = requestID
+		}
 	}
 	if !as.steerFallback.message().empty() {
 		as.mu.Unlock()
@@ -722,7 +754,11 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		as.mu.Unlock()
 		return "", ErrNoHandle
 	}
-	if promoted && (as.held.message().empty() || !reflect.DeepEqual(as.held.message(), message)) {
+	heldSnapshot := as.held.message()
+	if heldSnapshot.RequestID == "" {
+		heldSnapshot.RequestID = message.RequestID
+	}
+	if promoted && (as.held.message().empty() || !reflect.DeepEqual(heldSnapshot, message)) {
 		as.mu.Unlock()
 		return "", ErrNothingHeld
 	}
@@ -749,7 +785,9 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		as.steerFallback.recorded = true
 		as.mu.Unlock()
 	}
-	if err := c.messageTransition(agentID, message.RequestID, "submitted"); err != nil {
+	// Reserve uncertainty durably before the native call. A failed receipt
+	// update after consumption must not leave a replay claiming confirmed success.
+	if err := c.messageTransition(agentID, message.RequestID, "unknown"); err != nil {
 		as.resolveSteerFallback("", err, promoted)
 		if persisted {
 			return "", fmt.Errorf("%w: delivery receipt unavailable", ErrMessageAccepted)
@@ -765,19 +803,25 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		},
 	})
 	outcome, err := mapSteerResult(res, callErr)
-	restorePromoted := promoted
+	restorePromoted := false
 	refused := false
 	var rpcErr *rpcError
 	if errors.As(callErr, &rpcErr) && (rpcErr.Code == -32602 || rpcErr.Code == -32601) {
 		refused = true
 	}
-	if persisted && err != nil && !refused {
-		restorePromoted = false
-	}
+	// Only an explicit pre-consumption refusal permits automatic holding again.
+	// A lost acknowledgement says nothing about whether the provider consumed
+	// the input, including legacy text without a request receipt.
+	restorePromoted = promoted && refused
 	nextMessage, nextTurnID := as.resolveSteerFallback(outcome, err, restorePromoted)
 	if !nextMessage.empty() {
 		if runErr := c.runMessageTurn(as, nextMessage, nextTurnID); runErr != nil {
 			err = runErr
+		}
+	}
+	if err == nil {
+		if receiptErr := c.messageTransition(agentID, message.RequestID, "submitted"); receiptErr != nil {
+			return outcome, errors.Join(ErrMessageAccepted, receiptErr)
 		}
 	}
 	if err == nil && outcome == steerPromptRequired {
@@ -791,6 +835,9 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		c.emit(as, EvUserPrompt, message.promptData())
 	}
 	if err != nil {
+		if refused {
+			err = errors.Join(ErrSteerRefused, err)
+		}
 		state := "unknown"
 		if refused {
 			state = "failed"

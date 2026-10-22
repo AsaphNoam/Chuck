@@ -3,7 +3,7 @@ import { pruneTrays, useAnnotationStore } from "./annotationStore";
 
 beforeEach(() => {
   localStorage.clear();
-  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
+  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {} });
 });
 
 describe("annotationStore", () => {
@@ -120,5 +120,19 @@ describe("annotationStore", () => {
     // The most recently edited sources are the ones kept.
     expect(pruned.bySource.a_0).toEqual(draft);
     expect(pruned.bySource.a_24).toBeUndefined();
+  });
+
+  it("rehydrates a launched recipient with the pending tray", () => {
+    const store = useAnnotationStore.getState();
+    store.add("a_source", { seq: 1, excerpt: "line", instruction: "review" });
+    store.setLaunched("a_source", "a_new");
+    const restored = pruneTrays({
+      bySource: useAnnotationStore.getState().bySource,
+      editedAt: useAnnotationStore.getState().editedAt,
+      commandBySource: { a_source: "command-1" },
+      launchedBySource: useAnnotationStore.getState().launchedBySource,
+    }, Date.now());
+    expect(restored.launchedBySource.a_source).toBe("a_new");
+    expect(restored.commandBySource.a_source).toBe("command-1");
   });
 });

@@ -344,15 +344,20 @@ func (r *Registry) SendPromptOrHold(ctx context.Context, agentID, text string) (
 // owner never holds, so withdrawing from one is the same no-op success that
 // withdrawing nothing from a chat agent is (TS-03.R38).
 func (r *Registry) WithdrawHeld(agentID string) error {
+	_, _, err := r.WithdrawHeldExpected(agentID, "")
+	return err
+}
+
+func (r *Registry) WithdrawHeldExpected(agentID, expectedID string) (Message, bool, error) {
 	rt, err := r.ownerFor(agentID)
 	if err != nil {
-		return err
+		return Message{}, false, err
 	}
 	chat, ok := rt.(*ChatRuntime)
 	if !ok {
-		return nil
+		return Message{}, false, nil
 	}
-	return chat.WithdrawHeld(agentID)
+	return chat.WithdrawHeldExpected(agentID, expectedID)
 }
 
 // Held returns the live chat hold for browser rehydration. Non-chat runtimes

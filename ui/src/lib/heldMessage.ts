@@ -24,9 +24,12 @@ export function withdrawHeldMessage(agentId: string): Promise<void> {
 
 async function withdrawOnce(agentId: string): Promise<void> {
   const store = useHeldStore.getState();
-  const text = store.byAgent[agentId] ?? "";
-  const hadAttachments = (store.attachmentsByAgent[agentId] ?? []).length > 0;
-  await withdrawPrompt(agentId);
+  const expectedID = store.heldIdByAgent[agentId];
+  const result = await withdrawPrompt(agentId, expectedID);
+  const message = result.withdrawn ? result.message : undefined;
+  const text = message?.text ?? "";
+  const attachments = message?.attachments ?? [];
+  const hadAttachments = attachments.length > 0;
   useHeldStore.getState().release(agentId);
   if (hadAttachments) await readHeldRecovery(agentId);
   else if (text) restoreChatDraft(agentId, text);

@@ -1066,7 +1066,7 @@ Do not generically report that no switch occurred, automatically repeat it, or r
 session solely to repair its marker. Before target activation, normal failure/rollback semantics
 remain unchanged. This adds no second mutation endpoint or silent replay policy.
 
-**R74 (planned) — Input command and withdrawal responses identify the authoritative operation.**
+**R74 — Input command and withdrawal responses identify the authoritative operation.**
 Desktop/phone annotation requests add stable `command_id`; input Send/Steer reuse `request_id`
 for text and attachments. Same ID/hash returns the retained receipt; different payload conflicts
 using a structured 409 with no effect. Legacy requests without an ID remain accepted as deliberate
@@ -1074,6 +1074,10 @@ new commands but receive no lost-response replay guarantee; bundled clients alwa
 retryable commands. Native unknown consumption uses typed `delivery_uncertain` (409 when a reply
 can still be sent) plus the existing recoverable-input reference. GET recovery survives reload;
 CLI uncertainty remains a non-success outcome with no implicit resend.
+The uncertainty envelope includes `details.agent_id`, `details.request_id` and the GET prompt
+recovery URL. The original receipt remains non-replayable; a deliberate recovered Send uses a new
+request ID. Empty Steer promotes the exact held snapshot and advances that hold's receipt rather
+than allocating an independently runnable copy.
 
 Held projections include `held_id`. DELETE held accepts optional `held_id` and atomically returns
 200 `{withdrawn:true,message:{held_id,text,attachments,request_id?}}` for the exact removed input,

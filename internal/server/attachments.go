@@ -379,6 +379,9 @@ func (s *Server) parseMessage(w http.ResponseWriter, r *http.Request, claimed *b
 	}
 	msg.Text = req.Text
 	msg.RequestID = req.RequestID
+	if msg.RequestID != "" && !validRequestID(msg.RequestID) {
+		return fail(fmt.Errorf("invalid request id"))
+	}
 	if len(msg.Attachments) > 0 {
 		encoded, err := json.Marshal(msg)
 		if err != nil || len(encoded) > 96<<10 || len(msg.Text) > attachmentMessageLimit {
@@ -450,32 +453,57 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 		writeAPIError(w, apiError(runtime.CodeValidation, "text or attachments are required"))
 		return
 	}
-	receiptBearing := len(msg.Attachments) > 0
+	// Legacy requests receive a recovery identity too, without promising that
+	// a later id-less request is a replay of this command.
+	promoting := action == "steer" && strings.TrimSpace(msg.Text) == "" && len(msg.Attachments) == 0
+	receiptMessage := msg
+	if promoting {
+		if heldMessage, _, heldErr := s.registry.HeldMessage(id); heldErr == nil {
+			receiptMessage = heldMessage
+		}
+	}
+	if receiptMessage.RequestID == "" && (receiptMessage.Text != "" || len(receiptMessage.Attachments) > 0) {
+		receiptMessage.RequestID = mintHookToken()
+	}
+	if promoting {
+		msg.RequestID = receiptMessage.RequestID
+		msg.HeldID = receiptMessage.HeldID
+	} else {
+		msg = receiptMessage
+	}
+	receiptBearing := receiptMessage.RequestID != "" && (receiptMessage.Text != "" || len(receiptMessage.Attachments) > 0)
 	if receiptBearing && s.attachmentStartupErr != nil {
 		writeAPIError(w, apiError(runtime.CodeInternal, "attachment recovery is unavailable; restart after repairing storage"))
 		return
 	}
-	hash := messagePayloadHash(action, msg)
+	hash := messagePayloadHash(action, receiptMessage)
 	if receiptBearing {
 		old, err := s.stateStore.AttachmentReceipt(id, msg.RequestID)
+		promoteReceipt := err == nil && promoting && old.Delivery == "held"
 		if err == nil {
-			if old.PayloadHash != hash {
+			// Promoting an existing hold advances its original receipt through
+			// the runtime; it is not a second submission of that Send.
+			if !promoteReceipt && old.PayloadHash != hash {
 				writeAPIError(w, apiError(runtime.CodeConflict, "request id already belongs to different content"))
 				return
 			}
-			s.writeAttachmentAcceptance(w, old)
-			return
+			if !promoteReceipt {
+				s.writeAttachmentAcceptance(w, old)
+				return
+			}
 		}
-		if !errors.Is(err, state.ErrNotFound) {
+		if err != nil && !errors.Is(err, state.ErrNotFound) {
 			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read message receipt"))
 			return
 		}
-		data, _ := json.Marshal(msg)
-		if err := s.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}); err != nil {
-			writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain message receipt"))
-			return
+		if !promoteReceipt {
+			data, _ := json.Marshal(receiptMessage)
+			if err := s.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}); err != nil {
+				writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain message receipt"))
+				return
+			}
+			owned = true
 		}
-		owned = true
 		// The receipt remains authoritative if removing the provisional marker
 		// fails; startup retains its referenced bytes before pruning anything.
 		if err := attachment.New(s.configStore.Home()).Retain(id, created); err != nil {
@@ -505,10 +533,20 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 			// Only a receipt still untouched by runtime delivery can roll back. Once
 			// submitted or held, return acceptance so a network retry cannot consume twice.
 			rec, readErr := s.stateStore.AttachmentReceipt(id, msg.RequestID)
-			if readErr == nil && rec.Action == "steer" && rec.Delivery == "failed" {
+			if action == "steer" && errors.Is(err, runtime.ErrSteerRefused) {
+				writeAPIError(w, apiError(runtime.CodeInternal, steerRefusalText(err)))
+				return
+			}
+			if readErr == nil && rec.Delivery == "failed" {
 				// A definite adapter refusal stays retained for recovery but is
 				// reported as the refusal, never as a sent message (FS-03.R50).
-				writeAPIError(w, apiError(runtime.CodeInternal, steerRefusalText(err)))
+				if action == "steer" {
+					writeAPIError(w, apiError(runtime.CodeInternal, steerRefusalText(err)))
+				} else if ae, ok := err.(*runtime.APIError); ok {
+					writeAPIError(w, ae)
+				} else {
+					writeAPIError(w, sessionOpError(err))
+				}
 				return
 			}
 			if readErr == nil && errors.Is(err, runtime.ErrMessageAccepted) {
@@ -562,6 +600,9 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 					_ = s.stateStore.DismissAttachmentRecovery(id, recovered.RequestID)
 				}
 			}
+		}
+		if action == "steer" {
+			rec.Action = "steer"
 		}
 		s.writeAttachmentAcceptance(w, rec)
 		return
@@ -623,18 +664,29 @@ func (s *Server) writeAttachmentAcceptance(w http.ResponseWriter, rec state.Atta
 	if rec.Delivery == "prepared" {
 		rec.Delivery = "unknown"
 	}
-	if rec.Action == "steer" && rec.Delivery == "failed" {
-		writeAPIError(w, apiError(runtime.CodeInternal, steerRefusalText(nil)))
+	if rec.Delivery == "unknown" {
+		err := apiError(runtime.CodeDeliveryUncertain, "This message may already have reached the agent. Inspect history; recover it only with a deliberate new Send.")
+		err.Details = map[string]any{"agent_id": rec.AgentID, "request_id": rec.RequestID, "recovery": "/api/sessions/" + rec.AgentID + "/prompt"}
+		writeAPIError(w, err)
+		return
+	}
+	if rec.Delivery == "failed" {
+		if rec.Action == "steer" {
+			writeAPIError(w, apiError(runtime.CodeInternal, steerRefusalText(nil)))
+		} else {
+			writeAPIError(w, apiError(runtime.CodeConflict, "The message was refused and was not delivered; send it again deliberately."))
+		}
 		return
 	}
 	var msg runtime.Message
 	_ = json.Unmarshal([]byte(rec.MessageJSON), &msg)
 	attachments := append([]attachment.Descriptor{}, msg.Attachments...)
 	after := int64(0)
+	heldID := ""
 	if rec.Delivery == "held" {
-		_, after, _ = s.registry.Held(rec.AgentID)
+		_, after, heldID, _ = s.registry.HeldSnapshot(rec.AgentID)
 	}
-	body := map[string]any{"accepted": true, "agent_id": rec.AgentID, "request_id": rec.RequestID, "attachments": attachments, "attachment_delivery": rec.Delivery, "delivery": receiptDelivery(rec.Delivery), "after_seq": after}
+	body := map[string]any{"accepted": true, "agent_id": rec.AgentID, "request_id": rec.RequestID, "attachments": attachments, "attachment_delivery": rec.Delivery, "delivery": receiptDelivery(rec.Delivery), "after_seq": after, "held_id": heldID}
 	if rec.Action == "steer" {
 		body["outcome"] = rec.Outcome
 	}

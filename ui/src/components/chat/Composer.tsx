@@ -2,7 +2,7 @@ import { AutoGrowTextarea } from "../ui";
 import { SendIcon, StopIcon } from "../ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { cancelTurn, sendPrompt, steerPrompt } from "../../api/client";
-import { withdrawHeldMessage } from "../../lib/heldMessage";
+import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
@@ -23,6 +23,11 @@ function alreadyDelivered(agentId: string, text: string, beforeSeq: number, requ
     event.kind === "user_text" && (requestId && event.request_id
       ? event.request_id === requestId
       : event.seq != null && event.seq > beforeSeq && event.text === text));
+}
+
+function isDeliveryUncertain(error: unknown): boolean {
+  const code = error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : undefined;
+  return code === "delivery_uncertain" || (error instanceof Error && /delivery[_ ]uncertain|may already have reached/i.test(error.message));
 }
 
 export function Composer({ agentId, busy, running = true, steerable = false, variant, attachmentCapabilities }: {
@@ -148,7 +153,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         : await sendPrompt(agentId, prompt, requestFiles, requestId);
       const acceptedAttachments = "attachments" in result ? result.attachments ?? [] : [];
       const acceptedRequestId = "request_id" in result ? result.request_id : undefined;
-      if (!steeringMessage && "delivery" in result && result.delivery === "held") hold(agentId, prompt, result.after_seq, acceptedAttachments);
+      if (!steeringMessage && "delivery" in result && result.delivery === "held") hold(agentId, prompt, result.after_seq, acceptedAttachments, "held_id" in result ? result.held_id : undefined);
       const attachmentStatus = "attachment_delivery" in result ? result.attachment_delivery : undefined;
       if (!steeringMessage && (!selected.length || attachmentStatus === "submitted") &&
           !alreadyDelivered(agentId, prompt, beforeSeq, acceptedRequestId ?? requestId)) {
@@ -168,16 +173,33 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       }
       if (chatDraftRevision(agentId) === submittedRevision) {
         discardChatDraft(agentId);
-        setText("");
+        if (currentAgentId.current === agentId) setText("");
       }
       if (selected.length) {
         try { await removeAcceptedAttachments(agentId, selected.map((file) => file.id), getChatDraft(agentId) !== ""); }
         catch { setAttachmentError("Message was accepted, but attachment cleanup could not be saved. Remove any sent files before sending again."); }
       }
-      setRetry(null);
-      void clearPendingAttachmentSend(agentId, requestId).catch(() => setAttachmentError("Message was sent, but its retry receipt could not be cleared from browser storage."));
-      if (steeringMessage) setNotice("Delivered into the running turn.");
+      if (currentAgentId.current === agentId) {
+        setRetry(null);
+        if (steeringMessage) setNotice("Delivered into the running turn.");
+      }
+      void clearPendingAttachmentSend(agentId, requestId).catch(() => {
+        if (currentAgentId.current === agentId) setAttachmentError("Message was sent, but its retry receipt could not be cleared from browser storage.");
+      });
     } catch (err) {
+      if (steeringMessage && isDeliveryUncertain(err)) {
+        releaseHeld(agentId);
+        void readHeldRecovery(agentId);
+        const pendingRecovery = { text: prompt, files: selected, requestId, steer: true, revision: submittedRevision, retryable: false };
+        void persistPendingAttachmentSend(agentId, pendingRecovery).catch(() => {
+          if (currentAgentId.current === agentId) setAttachmentError(attachmentErrorForStorage());
+        });
+        if (currentAgentId.current === agentId) {
+          setRetry(pendingRecovery);
+          setError("Steer delivery is uncertain — the message may have reached the agent. Do not retry Steer; use Send deliberately if needed.");
+        }
+        return;
+      }
       const reason = err instanceof Error && err.message ? err.message : "the agent may have stopped";
       if (isDefiniteSendRefusal(err)) {
         setError(`Could not send — ${reason}.`);
@@ -236,20 +258,32 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     // that newer draft alone instead of discarding or overwriting it (INV §1/§5).
     const draftRev = chatDraftRevision(agentId);
     const beforeSeq = latestTranscriptSeq(agentId);
+    const requestId = chatDraftRequestId(agentId) || crypto.randomUUID();
     setText("");
     autocomplete.clearTrigger();
     try {
       // A stopped chat agent is woken by this same request (FS-03.R35), so the
       // composer submits normally and only the reply takes longer to start.
-      const result = await sendPrompt(agentId, prompt);
+      const result = await sendPrompt(agentId, prompt, [], requestId);
       // The server's answer decides whether this ran or is waiting, so the
       // pending state is rendered from what happened rather than inferred from
       // agent status (TS-03.R38).
-      if (result.delivery === "held") hold(agentId, prompt, result.after_seq);
-      else if (!alreadyDelivered(agentId, prompt, beforeSeq)) append(agentId, { kind: "user_text", text: prompt, message_id: `local-${Date.now()}` });
+      if (result.delivery === "held") hold(agentId, prompt, result.after_seq, result.attachments ?? [], result.held_id);
+      else if (!alreadyDelivered(agentId, prompt, beforeSeq, result.request_id ?? requestId)) append(agentId, { kind: "user_text", text: prompt, message_id: result.request_id ?? requestId });
       // Only clear the draft we actually sent; a newer same-agent draft survives.
       if (chatDraftRevision(agentId) === draftRev) discardChatDraft(agentId);
     } catch (err) {
+      if (isDeliveryUncertain(err)) {
+        releaseHeld(agentId);
+        void readHeldRecovery(agentId);
+        const ownsDraft = chatDraftRevision(agentId) === draftRev;
+        if (ownsDraft) setChatDraft(agentId, prompt);
+        if (currentAgentId.current === agentId) {
+          setError("Send delivery is uncertain — the message may have reached the agent. Check recovery/history, then use Send deliberately if needed.");
+          if (ownsDraft) setText(prompt);
+        }
+        return;
+      }
       // A newer same-agent draft typed while the request was pending wins: leave
       // it and its live composer untouched rather than restoring the sent text.
       if (chatDraftRevision(agentId) !== draftRev) return;
@@ -278,27 +312,38 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     if (capabilityError) { setError(capabilityError); return; }
     if (steeringAgents.current.has(agentId)) return;
     const steeringAgentId = agentId;
+    const submittedRevision = chatDraftRevision(steeringAgentId);
     steeringAgents.current.add(steeringAgentId);
     setSteering(true);
     setError(null);
     setNotice(null);
     try {
       if (files.length) {
-        await onSubmitFiles(typed, files, chatDraftRequestId(agentId) || crypto.randomUUID(), true);
+        await onSubmitFiles(typed, files, chatDraftRequestId(agentId) || crypto.randomUUID(), true, submittedRevision);
         return;
       }
-      const result = await steerPrompt(steeringAgentId, typed);
-      if (typed) {
-        setText("");
-        autocomplete.clearTrigger();
-        discardChatDraft(agentId);
-      } else {
+      const requestId = chatDraftRequestId(steeringAgentId) || crypto.randomUUID();
+      const result = await steerPrompt(steeringAgentId, typed, [], requestId);
+      const ownsComposer = currentAgentId.current === steeringAgentId;
+      if (typed && chatDraftRevision(steeringAgentId) === submittedRevision) {
+        discardChatDraft(steeringAgentId);
+        if (ownsComposer) {
+          setText("");
+          autocomplete.clearTrigger();
+        }
+      } else if (!typed) {
         releaseHeld(agentId);
       }
-      setNotice(result.outcome === "steered"
-        ? "Delivered into the running turn."
-        : "That turn had already ended — sent as a new turn.");
+      if (ownsComposer) setNotice(result.outcome === "steered"
+          ? "Delivered into the running turn."
+          : "That turn had already ended — sent as a new turn.");
     } catch (err) {
+      if (isDeliveryUncertain(err)) {
+        releaseHeld(steeringAgentId);
+        void readHeldRecovery(steeringAgentId);
+        if (currentAgentId.current === steeringAgentId) setError("Steer delivery is uncertain — the message may have reached the agent. Do not retry Steer; use Send deliberately if needed.");
+        return;
+      }
       // A refused message is not downgraded to a queue and not discarded: the
       // composer keeps exactly what the person typed, with the reason (INV §8).
       const reason = err instanceof Error && err.message ? err.message : "the agent may have stopped";

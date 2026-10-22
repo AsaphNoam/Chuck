@@ -232,6 +232,29 @@ func TestWithdrawnFollowUpIsNeverSent(t *testing.T) {
 	}
 }
 
+func TestWithdrawHeldExpectedIDLeavesReplacementUntouched(t *testing.T) {
+	c, h, _, release, _ := busyAgent(t)
+	ctx := context.Background()
+	if held, err := c.SendPromptOrHold(ctx, h.AgentID, "first held"); err != nil || !held {
+		t.Fatalf("first hold = %v, %v", held, err)
+	}
+	snapshot, _, heldID, err := c.HeldSnapshot(h.AgentID)
+	if err != nil || heldID == "" || snapshot.Text != "first held" {
+		t.Fatalf("snapshot = %#v/%q/%v", snapshot, heldID, err)
+	}
+	if held, err := c.SendPromptOrHold(ctx, h.AgentID, "replacement"); err != nil || !held {
+		t.Fatalf("replacement hold = %v, %v", held, err)
+	}
+	if _, removed, err := c.WithdrawHeldExpected(h.AgentID, heldID); !errors.Is(err, ErrHeldChanged) || removed {
+		t.Fatalf("stale withdraw = removed %v, err %v", removed, err)
+	}
+	current, _, currentID, err := c.HeldSnapshot(h.AgentID)
+	if err != nil || current.Text != "replacement" || currentID == heldID {
+		t.Fatalf("replacement after stale withdraw = %#v/%q/%v", current, currentID, err)
+	}
+	release()
+}
+
 // TestCancelDeliversTheHeldFollowUp is FS-03.A32's runtime half: cancelling is
 // "stop that, do this instead", so the already-submitted correction runs as the
 // next turn rather than being discarded with the turn it replaced.
@@ -450,6 +473,8 @@ func TestRefusedSteerRestoresThePromotedFollowUp(t *testing.T) {
 	}
 	if _, err := c.Steer(ctx, h.AgentID, ""); err == nil {
 		t.Fatal("Steer against a refusing adapter = nil, want the adapter's reason")
+	} else if !errors.Is(err, ErrSteerRefused) {
+		t.Fatalf("refused steer error = %v, want ErrSteerRefused", err)
 	}
 
 	release()

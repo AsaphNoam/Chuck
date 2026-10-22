@@ -79,7 +79,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   FTS5 build they are searchable from the archive (FS-05.R25-R27); the untagged fallback build limits
   search per FS-05.R6.
 
-**R32 (planned) — Annotation delivery retries reuse one command.** Desktop and phone allocate
+**R32 — Annotation delivery retries reuse one command.** Desktop and phone allocate
 one stable command ID for an attempted batch before its first request and keep it through lost
 responses, reload and launched-recipient recovery. TS-03.R74 binds it to the exact canonical source,
 target and payload hash; the same ID returns the retained result without duplicate source event,
@@ -362,7 +362,7 @@ Each acceptance item names its delivered verification.
   remains covered. *Verify by:* shared delivery and phone launch/card component tests plus the
   rendered fake-provider phone journey.
 
-**A22 (planned)** (R32) — Discard a successful response, reload/retry the same batch and verify
+**A22** (R32) — Discard a successful response, reload/retry the same batch and verify
 one canonical annotation plus one target effect for peer mail, self, new-task and launched targets,
 desktop and phone. Test payload mismatch, target refusal before effects, index repair and caller
 authorization; use real handler/receipt paths rather than a mock that deduplicates only requests.

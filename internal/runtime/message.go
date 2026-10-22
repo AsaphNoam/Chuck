@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"io"
@@ -13,6 +14,7 @@ type Message struct {
 	Text        string                  `json:"text"`
 	Attachments []attachment.Descriptor `json:"attachments,omitempty"`
 	RequestID   string                  `json:"request_id,omitempty"`
+	HeldID      string                  `json:"held_id,omitempty"`
 }
 
 func (m Message) empty() bool { return m.Text == "" && len(m.Attachments) == 0 }
@@ -25,10 +27,11 @@ func (m Message) promptData() UserPromptData {
 }
 
 func hold(m Message, seq int64) heldMessage {
-	return heldMessage{Text: m.Text, Attachments: m.Attachments, RequestID: m.RequestID, AfterSeq: seq, recorded: m.recorded}
+	id := "hold_" + rand.Text()
+	return heldMessage{HeldID: id, Text: m.Text, Attachments: m.Attachments, RequestID: m.RequestID, AfterSeq: seq, recorded: m.recorded}
 }
 func (h heldMessage) message() Message {
-	return Message{Text: h.Text, Attachments: h.Attachments, RequestID: h.RequestID, recorded: h.recorded}
+	return Message{Text: h.Text, Attachments: h.Attachments, RequestID: h.RequestID, HeldID: h.HeldID, recorded: h.recorded}
 }
 func (c *ChatRuntime) messageTransition(agentID, requestID, outcome string) error {
 	if requestID == "" {

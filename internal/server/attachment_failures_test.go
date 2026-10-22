@@ -2,6 +2,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
-	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 func TestReceiptFailureAfterDurableMessagePreservesCopiesAndRetry(t *testing.T) {
@@ -23,12 +23,16 @@ func TestReceiptFailureAfterDurableMessagePreservesCopiesAndRetry(t *testing.T) 
 	part := uploadPart{field: "f", name: "failure.txt", data: []byte("immutable bytes before failed receipt")}
 	meta := messageMetadata(t, "receipt-failure", "exact message", part)
 	resp, body := postAttachmentMessage(t, h, "/api/sessions/"+id+"/prompt", meta, part)
-	if resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("accepted local message became retryable failure: %d %s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("unconfirmed message did not report uncertainty: %d %s", resp.StatusCode, body)
 	}
-	accepted := decodeAttachmentAcceptance(t, body)
-	if accepted.AttachmentDelivery != "unknown" || len(accepted.Attachments) != 1 {
-		t.Fatalf("receipt %+v", accepted)
+	receipt, err := srv.stateStore.AttachmentReceipt(id, "receipt-failure")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var accepted runtime.Message
+	if err := json.Unmarshal([]byte(receipt.MessageJSON), &accepted); err != nil || len(accepted.Attachments) != 1 {
+		t.Fatalf("retained message %+v: %v", accepted, err)
 	}
 	events := readEvents(t, srv, id)
 	count := 0
@@ -45,11 +49,11 @@ func TestReceiptFailureAfterDurableMessagePreservesCopiesAndRetry(t *testing.T) 
 		t.Fatal("durable event lost attachment bytes")
 	}
 	resp, body = postAttachmentMessage(t, h, "/api/sessions/"+id+"/prompt", meta, part)
-	if resp.StatusCode != http.StatusAccepted {
+	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("retry %d %s", resp.StatusCode, body)
 	}
-	retry := decodeAttachmentAcceptance(t, body)
-	if retry.Attachments[0].ID != accepted.Attachments[0].ID {
+	retried, err := srv.stateStore.AttachmentReceipt(id, "receipt-failure")
+	if err != nil || retried.MessageJSON != receipt.MessageJSON {
 		t.Fatal("retry reassigned owned copy")
 	}
 	count = 0
@@ -62,7 +66,8 @@ func TestReceiptFailureAfterDurableMessagePreservesCopiesAndRetry(t *testing.T) 
 		t.Fatalf("retry duplicated accepted event: %d", count)
 	}
 	// No provider frame was released before the failed hook. Startup offers
-	// this prepared copy for explicit recovery; unknown dispatched ones stay out.
+	// this prepared copy for explicit recovery; unknown consumption also requires
+	// a deliberate new Send, never replay of the original command.
 	if err := srv.stateStore.ReleaseRestartedAttachments(); err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +78,8 @@ func TestReceiptFailureAfterDurableMessagePreservesCopiesAndRetry(t *testing.T) 
 	if err = srv.stateStore.SetAttachmentDelivery(id, recovered.RequestID, "unknown"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = srv.stateStore.AttachmentRecovery(id); !errors.Is(err, state.ErrNotFound) {
-		t.Fatalf("ambiguous consumed request offered recovery: %v", err)
+	if recovered, err = srv.stateStore.AttachmentRecovery(id); err != nil || recovered.RequestID != "receipt-failure" {
+		t.Fatalf("ambiguous input lost explicit recovery: %+v %v", recovered, err)
 	}
 }
 

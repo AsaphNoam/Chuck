@@ -799,7 +799,7 @@ complete history after a later successful append. The latch does not silently di
 manual Send: storage refusal preserves recoverable input and explains it. Stop and permission
 controls remain reachable.
 
-**R100 (planned) — Ambiguous delivery and withdrawal preserve the actual input.** Extending
+**R100 — Ambiguous delivery and withdrawal preserve the actual input.** Extending
 R36/R48–R50/R90, request timeout/lost response is not definite provider refusal. Possibly consumed
 Steer is retained for explicit recovery and is never restored to an automatically sent hold.
 Recovery uses the existing composer/recoverable-input treatment and requires a deliberate new Send;
@@ -807,6 +807,11 @@ no new automatic retry policy is introduced. Held messages have authoritative id
 returns the exact message atomically removed or no message, never the caller's stale copy.
 A successful reply clears only the submitted draft revision. TS-03.R74 defines the additive wire
 contract; attachment descriptors and receipt ownership follow the same message as its text.
+Text with a receipt now follows the same explicit recovery lifetime as media: a released or
+uncertain receipt survives reload/restart, superseding R49's restart-loss rule for that input.
+Unknown consumption remains labelled uncertain; restoring it creates a new deliberate Send,
+never another Steer or an automatically runnable hold. Legacy requests receive recovery identity
+when accepted by HTTP but an id-less repeat is still a new command.
 
 ## 3. States & transitions
 
@@ -1460,7 +1465,7 @@ reentrant notice safety and no successor before terminal acknowledgement. Inject
 required-sync and index failures separately; verify truthful health/gap recovery, no ambiguous
 input replay and correctly authorized task/room/quota cleanup, including failed room-state writes.
 
-**A79 (planned)** (R100) — Delayed/lost Steer replies, turn completion and two-device hold
+**A79** (R100) — Delayed/lost Steer replies, turn completion and two-device hold
 replacement preserve newer drafts and actual withdrawn text/attachments. A promoted Steer applied
 before timeout is not followed by an automatic duplicate prompt. Definite pre-consumption refusal
 can restore its original hold; unknown consumption requires explicit recovery. Test desktop,

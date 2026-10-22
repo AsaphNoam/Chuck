@@ -467,7 +467,7 @@ describe("Composer queued follow-up and steering", () => {
 
   it("does not echo a message when an idle-looking submit is held by the server", async () => {
     server.use(http.post("/api/sessions/:id/prompt", () =>
-      HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held", after_seq: 8 }, { status: 202 })));
+      HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held", after_seq: 8, held_id: "hold-authoritative" }, { status: 202 })));
     render(<Composer agentId="a_1" busy={false} />);
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
 
@@ -475,7 +475,44 @@ describe("Composer queued follow-up and steering", () => {
     fireEvent.keyDown(ta, { key: "Enter" });
 
     await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBe("raced with another turn"));
+    expect(useHeldStore.getState().heldIdByAgent.a_1).toBe("hold-authoritative");
     expect(useTranscriptStore.getState().byAgent.a_1 ?? []).toHaveLength(0);
+  });
+
+  it("sends ordinary text with the stable draft request ID and uses the accepted ID in history", async () => {
+    let body: { text?: string; request_id?: string } = {};
+    server.use(http.post("/api/sessions/:id/prompt", async ({ request }) => {
+      body = await request.json() as typeof body;
+      return HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "sent", after_seq: 0, request_id: "accepted-id" }, { status: 202 });
+    }));
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "send once");
+    const expectedRequestId = JSON.parse(localStorage.getItem("chuck-chat-draft-index") ?? "{}").a_1.requestId;
+    fireEvent.keyDown(ta, { key: "Enter" });
+
+    await waitFor(() => expect(body.text).toBe("send once"));
+    expect(body.request_id).toBe(expectedRequestId);
+    expect(useTranscriptStore.getState().byAgent.a_1).toEqual([expect.objectContaining({ text: "send once", message_id: "accepted-id" })]);
+  });
+
+  it("keeps ordinary Send recoverable when delivery is uncertain", async () => {
+    server.use(
+      http.post("/api/sessions/:id/prompt", () => HttpResponse.json({ error: { code: "delivery_uncertain", message: "This message may already have reached the agent." } }, { status: 409 })),
+      http.get("/api/sessions/:id/prompt", () => HttpResponse.json({
+        agent_id: "a_1", text: "", after_seq: 0,
+        recovery: { text: "send uncertain", request_id: "send-1", attachments: [] },
+      })),
+    );
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "send uncertain");
+    fireEvent.keyDown(ta, { key: "Enter" });
+
+    expect(await screen.findByText(/Send delivery is uncertain/)).toBeInTheDocument();
+    await waitFor(() => expect(ta.value).toBe("send uncertain"));
+    await waitFor(() => expect(useHeldStore.getState().recoveryByAgent.a_1?.text).toBe("send uncertain"));
+    expect(screen.queryByRole("button", { name: "Retry previous send" })).not.toBeInTheDocument();
   });
 
   // The server's sequenced event can win the race with the prompt response; the
@@ -551,7 +588,7 @@ describe("Composer queued follow-up and steering", () => {
         HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held" }, { status: 202 })),
       http.delete("/api/sessions/:id/prompt", () => {
         withdrawn++;
-        return HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "withdrawn" });
+        return HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "withdrawn", withdrawn: true, message: { held_id: "hold-1", text: "never mind", attachments: [] } });
       }),
     );
     render(<Composer agentId="a_1" busy />);
@@ -571,7 +608,7 @@ describe("Composer queued follow-up and steering", () => {
     server.use(
       http.post("/api/sessions/:id/prompt", () =>
         HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held" }, { status: 202 })),
-      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1" })),
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1", withdrawn: true, message: { held_id: "hold-1", text: "first thought", attachments: [] } })),
     );
     render(<Composer agentId="a_1" busy />);
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
@@ -588,7 +625,7 @@ describe("Composer queued follow-up and steering", () => {
     const attachment: AttachmentDescriptor = { id: "att_1", name: "shot.png", kind: "image", mime_type: "image/png", size: 4, sha256: "abcd" };
     const recovery = { text: "see image", request_id: "req_1", attachments: [attachment] };
     server.use(
-      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1" })),
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1", withdrawn: true, message: { held_id: "hold-1", text: "see image", attachments: [attachment] } })),
       http.get("/api/sessions/:id/prompt", () => HttpResponse.json({ agent_id: "a_1", text: "", after_seq: 0, recovery })),
     );
     useHeldStore.getState().hold("a_1", "see image", 0, [attachment]);
@@ -604,7 +641,7 @@ describe("Composer queued follow-up and steering", () => {
     server.use(
       http.post("/api/sessions/:id/prompt", () =>
         HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held" }, { status: 202 })),
-      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1" })),
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1", withdrawn: true, message: { held_id: "hold-1", text: "first thought", attachments: [] } })),
     );
     render(<Composer agentId="a_1" busy />);
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
@@ -621,7 +658,7 @@ describe("Composer queued follow-up and steering", () => {
   it("reports a recovery read that fails after the withdrawal succeeded", async () => {
     const attachment: AttachmentDescriptor = { id: "att_1", name: "shot.png", kind: "image", mime_type: "image/png", size: 4, sha256: "abcd" };
     server.use(
-      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1" })),
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1", withdrawn: true, message: { held_id: "hold-1", text: "see image", attachments: [attachment] } })),
       http.get("/api/sessions/:id/prompt", () => HttpResponse.json({ error: "down" }, { status: 503 })),
     );
     useHeldStore.getState().hold("a_1", "see image", 0, [attachment]);
@@ -633,13 +670,24 @@ describe("Composer queued follow-up and steering", () => {
     expect(screen.queryByText(/Could not withdraw/)).toBeNull();
   });
 
+  it("does not restore stale local content when the server reports no hold", async () => {
+    server.use(
+      http.delete("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1", withdrawn: false })),
+    );
+    useHeldStore.getState().hold("a_1", "already delivered");
+    render(<Composer agentId="a_1" busy />);
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
+    await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBeUndefined());
+    expect(screen.getByRole("textbox")).toHaveValue("");
+  });
+
   it("restores the held text once when withdrawals overlap across both controls", async () => {
     let withdrawn = 0;
     let finish: (() => void) | null = null;
     server.use(http.delete("/api/sessions/:id/prompt", async () => {
       withdrawn++;
       await new Promise<void>((resolve) => { finish = resolve; });
-      return HttpResponse.json({ accepted: true, agent_id: "a_1" });
+      return HttpResponse.json({ accepted: true, agent_id: "a_1", withdrawn: true, message: { held_id: "hold-1", text: "held text", attachments: [] } });
     }));
     useHeldStore.getState().hold("a_1", "held text");
     render(<Composer agentId="a_1" busy />);
@@ -722,6 +770,78 @@ describe("Composer queued follow-up and steering", () => {
     expect(steerButton).toBeDisabled();
     finishSteer?.();
     await waitFor(() => expect(steerButton).toBeEnabled());
+  });
+
+  it("keeps a newer draft when a delayed Steer succeeds", async () => {
+    let finishSteer: (() => void) | undefined;
+    server.use(http.post("/api/sessions/:id/steer", async () => {
+      await new Promise<void>((resolve) => { finishSteer = resolve; });
+      return HttpResponse.json({ accepted: true, agent_id: "a_1", outcome: "steered" }, { status: 202 });
+    }));
+
+    render(<Composer agentId="a_1" busy steerable />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "first direction");
+    fireEvent.click(screen.getByRole("button", { name: "Steer" }));
+    await waitFor(() => expect(finishSteer).toBeDefined());
+
+    type(ta, "newer direction");
+    finishSteer?.();
+
+    await waitFor(() => expect(screen.getByText("Delivered into the running turn.")).toBeInTheDocument());
+    expect(ta.value).toBe("newer direction");
+    expect(getChatDraft("a_1")).toBe("newer direction");
+  });
+
+  it("does not let a delayed Steer response change the composer after navigation", async () => {
+    let finishSteer: (() => void) | undefined;
+    server.use(http.post("/api/sessions/:id/steer", async () => {
+      await new Promise<void>((resolve) => { finishSteer = resolve; });
+      return HttpResponse.json({ accepted: true, agent_id: "a_1", outcome: "steered" }, { status: 202 });
+    }));
+
+    const view = render(<Composer agentId="a_1" busy steerable />);
+    const oldTextarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(oldTextarea, "old agent direction");
+    fireEvent.click(screen.getByRole("button", { name: "Steer" }));
+    await waitFor(() => expect(finishSteer).toBeDefined());
+
+    view.rerender(<Composer agentId="a_2" busy steerable />);
+    const currentTextarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(currentTextarea, "current agent draft");
+    finishSteer?.();
+
+    await waitFor(() => expect(currentTextarea.value).toBe("current agent draft"));
+    expect(screen.queryByText("Delivered into the running turn.")).not.toBeInTheDocument();
+    expect(getChatDraft("a_2")).toBe("current agent draft");
+  });
+
+  it("keeps uncertain text for recovery without retrying Steer", async () => {
+    let requestBody: { text?: string; request_id?: string } = {};
+    server.use(
+      http.post("/api/sessions/:id/steer", async ({ request }) => {
+        requestBody = await request.json() as typeof requestBody;
+        return HttpResponse.json({ error: { code: "delivery_uncertain", message: "This message may already have reached the agent." } }, { status: 409 });
+      }),
+      http.get("/api/sessions/:id/prompt", () => HttpResponse.json({
+        agent_id: "a_1", text: "", after_seq: 0,
+        recovery: { text: "uncertain direction", request_id: "steer-1", attachments: [] },
+      })),
+    );
+    useHeldStore.getState().hold("a_1", "promoted mirror");
+
+    render(<Composer agentId="a_1" busy steerable />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "uncertain direction");
+    const expectedRequestId = JSON.parse(localStorage.getItem("chuck-chat-draft-index") ?? "{}").a_1.requestId;
+    fireEvent.click(screen.getByRole("button", { name: "Steer" }));
+
+    expect(await screen.findByText(/Steer delivery is uncertain/)).toBeInTheDocument();
+    expect(ta.value).toBe("uncertain direction");
+    expect(requestBody).toEqual({ text: "uncertain direction", request_id: expectedRequestId });
+    await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBeUndefined());
+    await waitFor(() => expect(useHeldStore.getState().recoveryByAgent.a_1?.text).toBe("uncertain direction"));
+    expect(screen.queryByRole("button", { name: "Retry previous send" })).not.toBeInTheDocument();
   });
 
   it("steers the held message when the composer is empty, and keeps typed text on a refusal", async () => {

@@ -59,6 +59,12 @@ func TestAttachmentReceiptsRestartAndRecovery(t *testing.T) {
 	if err = s.DismissAttachmentRecovery(a.AgentID, "prepared"); err != nil {
 		t.Fatal(err)
 	}
+	if recovery, err = s.AttachmentRecovery(a.AgentID); err != nil || recovery.RequestID != "unknown" {
+		t.Fatalf("uncertain input is not recoverable: %+v %v", recovery, err)
+	}
+	if err = s.DismissAttachmentRecovery(a.AgentID, "unknown"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = s.AttachmentRecovery(a.AgentID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("dismissed recovery %v", err)
 	}

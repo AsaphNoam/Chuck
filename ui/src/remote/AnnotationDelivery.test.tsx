@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.validate.mockResolvedValue({ valid: true });
   mocks.send.mockResolvedValue({ accepted: true });
-  useAnnotationStore.setState({ bySource: { a1: [draft] }, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
+  useAnnotationStore.setState({ bySource: { a1: [draft] }, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {} });
   useConnection.setState({ link: "connected", agents: { a1: agent } });
   window.history.replaceState(null, "", "/agent/a1");
   window.scrollTo = vi.fn();
@@ -147,4 +147,28 @@ it("keeps a new event capture made while an earlier send is pending", async () =
   await act(async () => { pending.resolve({ accepted: true }); await pending.promise; });
   expect(mocks.send.mock.calls[0][1].annotations).toHaveLength(1);
   expect(useAnnotationStore.getState().bySource.a1).toEqual([expect.objectContaining({ seq: 2, excerpt: "second response" })]);
+});
+
+it("reuses the persisted command id after a lost delivery response", async () => {
+  mocks.send.mockRejectedValueOnce(new Error("response lost")).mockResolvedValueOnce({ accepted: true });
+  const { result } = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+  await act(async () => { await result.current.send(); });
+  await act(async () => { await result.current.send(); });
+  expect(mocks.send).toHaveBeenCalledTimes(2);
+  expect(mocks.send.mock.calls[0][1].command_id).toBeTruthy();
+  expect(mocks.send.mock.calls[1][1].command_id).toBe(mocks.send.mock.calls[0][1].command_id);
+});
+
+it("rehydrates a launched recipient after the delivery owner remounts", async () => {
+  const pending = deferred<{ accepted: boolean }>();
+  mocks.send.mockReturnValue(pending.promise);
+  const first = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+  act(() => { first.result.current.setTarget("new"); first.result.current.onLaunched("a3"); });
+  first.unmount();
+  const second = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+  expect(second.result.current.launchedAgentId).toBe("a3");
+  const retry = second.result.current.send();
+  expect(mocks.launch).not.toHaveBeenCalled();
+  expect(mocks.send).toHaveBeenCalledWith("a1", expect.objectContaining({ target: { kind: "agent", agent_id: "a3" } }));
+  await act(async () => { pending.resolve({ accepted: true }); await retry; });
 });

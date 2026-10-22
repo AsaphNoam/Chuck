@@ -311,8 +311,8 @@ describe("AgentScreen", () => {
   it("withdraw returns the held text to the message box (FS-03.A70)", async () => {
     let held = "rerun the linter";
     server.use(
-      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, after_seq: 0 })),
-      http.delete("/api/sessions/a1/prompt", () => { held = ""; return HttpResponse.json({ accepted: true, agent_id: "a1" }); }),
+      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, held_id: "hold-1", after_seq: 0 })),
+      http.delete("/api/sessions/a1/prompt", () => { held = ""; return HttpResponse.json({ accepted: true, agent_id: "a1", withdrawn: true, message: { held_id: "hold-1", text: "rerun the linter", attachments: [] } }); }),
     );
     useConnection.setState({ agents: { a1: { ...agent, state: "busy", detail: "" } } });
     renderScreen();
@@ -326,8 +326,8 @@ describe("AgentScreen", () => {
   it("withdraw keeps text typed while browser storage refuses to save it (FS-03.A70)", async () => {
     let held = "rerun the linter";
     server.use(
-      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, after_seq: 0 })),
-      http.delete("/api/sessions/a1/prompt", () => { held = ""; return HttpResponse.json({ accepted: true, agent_id: "a1" }); }),
+      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, held_id: "hold-1", after_seq: 0 })),
+      http.delete("/api/sessions/a1/prompt", () => { held = ""; return HttpResponse.json({ accepted: true, agent_id: "a1", withdrawn: true, message: { held_id: "hold-1", text: "rerun the linter", attachments: [] } }); }),
     );
     useConnection.setState({ agents: { a1: { ...agent, state: "busy", detail: "" } } });
     renderScreen();
@@ -987,7 +987,8 @@ describe("AgentScreen annotation capture", () => {
     expect(await screen.findByText("Annotations sent to this agent.")).toBeInTheDocument();
     const sent = posts.filter((post) => post.startsWith("annotations ")).map((post) => JSON.parse(post.slice("annotations ".length)));
     // jsdom's selection text includes the gutter's line number; browsers do not.
-    expect(sent).toEqual([{
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
       annotations: [
         { anchor_kind: "file", path: "docs/guide.md", excerpt: "First line", instruction: "expand" },
         { anchor_kind: "file", path: "docs/guide.md", excerpt: expect.stringMatching(/^First line\n\d*Second line$/), instruction: "merge", start_line: 3, end_line: 4 },
@@ -995,7 +996,8 @@ describe("AgentScreen annotation capture", () => {
       ],
       overall_instruction: "one pass",
       target: { kind: "self" },
-    }]);
+    });
+    expect(sent[0].command_id).toEqual(expect.any(String));
   });
 });
 
@@ -1031,7 +1033,10 @@ describe("AgentScreen diff annotations", () => {
     await annotateLine();
     fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
     expect(await screen.findByText("Annotations sent to this agent.")).toBeInTheDocument();
-    expect(posts).toContain(`annotations ${JSON.stringify({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "self" } })}`);
+    const delivery = posts.filter((post) => post.startsWith("annotations ")).map((post) => JSON.parse(post.slice("annotations ".length)));
+    expect(delivery).toHaveLength(1);
+    expect(delivery[0]).toMatchObject({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "self" } });
+    expect(delivery[0].command_id).toEqual(expect.any(String));
     expect(useAnnotationStore.getState().bySource.a1).toBeUndefined();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -1075,7 +1080,10 @@ describe("AgentScreen diff annotations", () => {
     fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "a2" } });
     fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
     expect(await screen.findByText("the recipient agent is not running")).toBeInTheDocument();
-    expect(posts).toContain(`annotations ${JSON.stringify({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "agent", agent_id: "a2" } })}`);
+    const delivery = posts.filter((post) => post.startsWith("annotations ")).map((post) => JSON.parse(post.slice("annotations ".length)));
+    expect(delivery).toHaveLength(1);
+    expect(delivery[0]).toMatchObject({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "agent", agent_id: "a2" } });
+    expect(delivery[0].command_id).toEqual(expect.any(String));
     expect(instruction).toHaveValue("rename this");
     expect(useAnnotationStore.getState().bySource.a1).toEqual([{ ...draft, instruction: "rename this" }]);
   });
@@ -1168,7 +1176,12 @@ describe("AgentScreen diff annotations", () => {
       expect(launches).toHaveLength(2);
       expect(launches[1]).toBe(`launch ${JSON.stringify({ project: "other", role: "reviewer", name: "Fixer", backend: "", model: "", effort: "", fast: false })}`);
       const deliveries = posts.filter((post) => post.startsWith("annotations"));
-      expect(deliveries).toEqual([0, 1].map(() => `annotations ${JSON.stringify({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "agent", agent_id: "a3" } })}`));
+      expect(deliveries).toHaveLength(2);
+      const payloads = deliveries.map((post) => JSON.parse(post.slice("annotations ".length)));
+      expect(payloads[0]).toMatchObject({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "agent", agent_id: "a3" } });
+      expect(payloads[1]).toMatchObject({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "agent", agent_id: "a3" } });
+      expect(payloads[0].command_id).toEqual(expect.any(String));
+      expect(payloads[1].command_id).toBe(payloads[0].command_id);
       expect(useAnnotationStore.getState().bySource.a1).toBeUndefined();
     });
   });

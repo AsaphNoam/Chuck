@@ -232,6 +232,7 @@ const QuotaContinuationNoticeTitle = "Chuck automatically continued this convers
 // to an agent. It deliberately stores the excerpt, rather than a live file
 // reference, so later file edits cannot change what was reviewed.
 type AnnotationData struct {
+	CommandID          string           `json:"command_id,omitempty"`
 	Annotations        []Annotation     `json:"annotations"`
 	OverallInstruction string           `json:"overall_instruction,omitempty"`
 	Target             AnnotationTarget `json:"target"`

@@ -48,7 +48,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None. Interruption-safe reindex is finished and independently reviewed without findings.
+- **ASF-2 in progress (2026-10-22):** isolated worktree `/private/tmp/chuck-fix-asf-2`,
+  branch `fix/asf-2`, based on `31a06a0f`; the main checkout's concurrent work is untouched.
+  Scope: ASRD-4 and ASRH-1/2/4 only. Parallel slices: annotation receipts and persisted command
+  identity; draft-revision preservation; authoritative held identity/withdrawal. Parent integrates
+  text receipts and uncertain Steer recovery, then runs focused race and applicable closure checks.
+  Draft and legacy lost-acknowledgement regressions failed before repair and pass afterward.
+  Focused runtime/server/state/CLI ASF-2 tests pass; full closure and rendered recovery checks are owed.
+- Previously: interruption-safe reindex is finished and independently reviewed without findings.
   Both Go variants and the build pass. The operator-requested worktree kept the main checkout's
   existing uncommitted ready-change edits separate.
 - Other available review/fix units and owed live receipts remain below.

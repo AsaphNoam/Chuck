@@ -476,6 +476,16 @@ func handle(msg *rpcMessage) {
 			return
 		}
 		steerOnce.Do(func() { close(steeredCh) })
+		// Model consumption before acknowledgement, independently of the
+		// promptRequired path which guarantees no consumption.
+		if wait := os.Getenv("FAKEACP_STEER_ACK_FILE"); wait != "" {
+			for {
+				if _, err := os.Stat(wait); err == nil {
+					break
+				}
+				time.Sleep(time.Millisecond)
+			}
+		}
 		respond(*msg.ID, map[string]any{"outcome": outcome})
 	case "session/prompt":
 		id := *msg.ID
