@@ -33,11 +33,11 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   now reflects an independent Astra challenge and primary source checks: design a narrow reindex
   preservation boundary; specify task cleanup/continuation contracts within coordinated fixes.
   A separate task-ownership architecture project is not demonstrated. CR-A4 is closed below.
-  **Reindex design in progress:** the explicit `/design-feature` selected CR-A1-1/2 preservation;
-  [idea](../ideas.md#ideas-being-defined) and FS-05.R43–R45/A26–A27 hold the feature draft.
-  Awaiting the operator's failure-policy choice (repair healthy sources while preserving/reporting
-  failed ones, or abort the whole rebuild). Technical design/ready change have not started;
-  CR-A1-3 stays independent and no implementation is active for this design.
+  **Reindex design complete:** the
+  [waiting change](../ready-changes/interruption-safe-reindex.md) covers CR-A1-1/2 through
+  FS-05.R43–R45/A26–A27 and TS-02.R56–R58. The operator approved partial repair on 2026-10-22;
+  per-conversation atomic replay passed an independent Astra design challenge. No implementation
+  is active; findings remain open. CR-A1-3 stays independently actionable.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
 - **Other state:** direct-action migration remains paused on its transport blocker; passive
@@ -166,11 +166,6 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Decisions needing input
 
-- Reindex preservation design: confirm the offline behavior in FS-05.R43–R45/A26–A27 and choose
-  whether a failed/missing source preserves its prior data while healthy conversations are rebuilt
-  with a nonzero incomplete-repair result (recommended), or aborts the whole rebuild. See the
-  [idea being defined](../ideas.md#ideas-being-defined). No technical mechanism is selected yet.
-
 - Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID
   ownership (compatibility change).
 - Whether a pipeline stage paused after failed launch/resume continues withholding **Open agent**,
@@ -230,8 +225,10 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — six findings open |
 | [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — five findings open |
 
-**Fix/work pickup:** CR-A1-1/2 still need a settled preservation design and revised TS-02.R9;
-there is no implementation-ready reindex work unit. CR-A1-3 is separately actionable. A CR-A2 fix
+**Fix/work pickup:** CR-A1-1/2 are covered together by the
+[waiting reindex change](../ready-changes/interruption-safe-reindex.md), ready for `/work` or
+`/review-design`; avoid a competing standalone fix of the same replay path. They remain open until
+implementation/review establishes closure. CR-A1-3 is separately actionable. A CR-A2 fix
 agent may start validation/design under §8, but must first record cleanup authorization and
 continuation delivery order before editing product code, keeping accounting coupled with cleanup
 and ASF-3 ownership separate. See [pickup readiness](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#pickup-readiness).
@@ -1659,6 +1656,16 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-22 — Completed reindex preservation design:** the operator accepted partial repair.
+  FS-05.R43–R45/A26–A27 now define healthy rebuild, failed-source preservation and nonzero partial
+  results. Planned TS-02.R56–R58 supersede R9's wipe/restore algorithm with one atomic transaction
+  per conversation, complete transaction routing, source inventory/validation and scoped errors.
+  A focused Luna supplied source facts; independent clean-context Astra recommended and then
+  challenged the concrete boundary without required changes. Created the
+  [waiting change](../ready-changes/interruption-safe-reindex.md), removed its source idea and
+  updated pickup guidance. Spec/twin-skill/diff checks pass. No product code, implementation start
+  or CR-A1 finding closure; CR-A1-3 remains separate.
 
 - **2026-10-21 — Started reindex preservation feature design:** explicit `/design-feature` selected
   CR-A1-1/2. Read current archive/CLI/replay behavior and independent frontier assessment; a focused

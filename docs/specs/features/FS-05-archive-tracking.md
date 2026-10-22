@@ -141,8 +141,11 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   affected conversation identity and preserve its previous usable archive/Resume data. If the whole
   transcript root is unavailable while stored archive data exists, fail without replacing it.
   A genuinely empty home remains an empty no-op. Reindex is not a pruning/deletion operation and
-  cannot report an incomplete repair as successful completion. The treatment of healthy sources
-  beside failed sources is awaiting the product decision recorded in §6.
+  cannot report an incomplete repair as successful completion. Rebuild healthy conversations while
+  retaining each failed conversation's complete prior session/search/tracking data; report the
+  failures by identity and return a nonzero exit. A retry repairs available sources without requiring
+  the operator to delete preserved data first. Print the ordinary completion message only when the
+  repair fully succeeds.
 - **R45 — Preserve the existing repair boundary.** `(planned)` Repair uses the current local Chuck
   home and command; it starts no agent/provider turn and does not rewrite or delete canonical
   transcripts, provider history, attachment copies, project resources or agent/project archive flags.
@@ -392,17 +395,20 @@ R22's `active` validation remain binding.
   root and an existing conversation whose directory or canonical log is missing/unreadable. Verify
   identity-specific failure, preserved prior snapshot/Resume data and no deletion caused by source
   absence. A genuinely empty home remains a no-op. *Verify:* focused populated-store/CLI failure
-  fixtures; do not rely on the existing empty-database missing-directory test. Mixed healthy/failed
-  source acceptance will follow the confirmed §6 policy.
+  fixtures; do not rely on the existing empty-database missing-directory test. Include a healthy
+  changed transcript beside a failed source: the healthy conversation is rebuilt, the failed one's
+  full prior session/search/tracking data remains usable, and the CLI returns nonzero naming the
+  failed identity without printing full success. Restoring the source and rerunning completes repair.
 
 ## 6. Deviations & open decisions
 
-- **Offline reindex preservation is being defined.** R43–R45/A26–A27 are an unapproved feature
-  draft for CR-A1-1/2. Confirm the user-visible failure policy before technical design: repair
-  healthy conversations while retaining prior archive/search/tracking data for failed ones and
-  return an error naming them (recommended), or abort the entire rebuild on any failed source.
-  The recommended policy changes the current removal of rows whose source is absent; a missing
-  source is not proof of intentional deletion. No preservation mechanism or ready change is selected.
+- **Offline reindex preservation:** the operator approved R43–R45/A26–A27's partial-repair policy
+  on 2026-10-22 for CR-A1-1/2. Healthy conversations are rebuilt; failed ones retain their prior data
+  and the command reports incomplete repair with a nonzero exit. This intentionally replaces the
+  current removal of rows whose source is absent: missing input is not proof of deletion.
+  TS-02.R56–R58 specify per-conversation atomic repair; the
+  [ready change](../../ready-changes/interruption-safe-reindex.md) waits to start. No implementation
+  or finding closure is claimed.
 
 - R39/A22 shipped 2026-10-06 (`features/thinktank/RoomList.tsx` in `ArchivePage`); room data and
   lifecycle are owned by FS-21 and TS-14.

@@ -37,10 +37,12 @@ independent boundary evidence that was missing.
 
 ### Pickup readiness
 
-- **CR-A1-1/2: design pending; not implementation-ready.** No ready change or executable `/work`
-  refactor unit has been created. Settle the preservation mechanism, whole-rebuild versus per-agent
-  failure/missing-source policy, transaction/resource behavior, revised TS-02.R9 and acceptance
-  evidence before handing implementation to a worker. The alternatives below are not a settled design.
+- **CR-A1-1/2: design complete; ready as one `/work` unit.** The operator approved partial repair
+  on 2026-10-22. The [waiting change](../ready-changes/interruption-safe-reindex.md) links
+  FS-05.R43–R45/A26–A27 and TS-02.R56–R58, superseding R9's unsafe maintenance algorithm.
+  One transaction per conversation covers deletion, replay and retained-authority restoration;
+  failed sources preserve their full prior projections while healthy ones commit. Independent Astra
+  challenge passed. Findings stay open until implementation/review; do not launch competing fixes.
 - **CR-A1-3: available as an ordinary focused fix.** Its complete-record correction is separable
   from the reindex design; preserve the shared reader/writer contract.
 - **CR-A2: available for a fix agent, with a required first design step.** Under workflow §8,
@@ -54,20 +56,19 @@ independent boundary evidence that was missing.
 
 **Primary judgment after source checks and an independent Astra challenge: design the reindex
 boundary; require bounded task cleanup/continuation design within coordinated fixes, without a
-standalone ownership architecture project.** These recommendations do not create implementation
-units, change finding ownership or authorize implementation.
+standalone ownership architecture project.** The reindex design is now a waiting implementation
+unit; the assessment itself does not start implementation or close findings.
 
 | Area | Recommended scope | Size and assessment |
 |---|---|---|
-| Reindex transaction/recovery ownership — CR-A1-1/2 | Approve narrow boundary design: preserve usable state across reset, replay, flush and retained-authority restoration. Compare transaction-bound replay with durable staging before choosing an implementation; missing sources preserve the existing snapshot or refuse the rebuild. | Medium-to-large, difficult. Committed deletion can destroy non-replayable continuation inputs. Missing-input guards alone do not solve interruption loss. The need for a preservation design is established; the minimal implementation is not yet settled. |
+| Reindex transaction/recovery ownership — CR-A1-1/2 | Settled in TS-02.R56–R58: atomic replacement per conversation, failed-source preservation and explicit incomplete result. Existing replay helpers participate in one transaction; no staging/schema split. | Medium-to-large, difficult. Transaction routing spans metadata, events, tracking, cwd lookup, flush and retained-field restoration. The waiting change defines interruption/Resume and mixed-source proof. |
 | Task execution ownership — CR-A2-1/2/3/5/9, coordinated with ASF-3 | No standalone architecture project demonstrated. First define cleanup authorization across callbacks/timer/restart and continuation admission-before-input delivery. Then fix accounting, membership and bounded rediscovery in existing paths, extracting only proven shared policy. | Medium repair effort with substantial race/recovery risk. Existing boundaries are useful, but current fields are not proven sufficient unchanged: cleanup provenance is lost through an empty argument and turn capture is best-effort after activation. A broader layer needs a concrete enforcement advantage before it is justified. |
 
-The reindex proposal changes the rebuild's transaction/failure boundary. Do not approve a single
-long transaction merely because it is conceptually simple: the current replay uses independently
-committed writes, and transaction propagation, write-lock duration and partial-agent failure policy
-need a deliberate choice. Reindex is offline, so ordinary server write-lock contention alone is not
-a reason to choose staging; assess transaction resources and the required failure policy. Keep the
-small complete-record fix A1-3 independently executable.
+The selected reindex design scopes transactions to one conversation, retaining completed repair
+progress across interruption and avoiding archive-wide transaction lifetime. Source failures roll
+back locally; database errors stop further repair while preserving prior completed transactions.
+Staging adds no required capability for this offline policy. Keep the small complete-record fix
+A1-3 independently executable.
 
 For tasks, the ownership theme does not by itself justify another architecture layer. The existing
 admission, cleanup and runtime gate are credible repair seams; that is not proof their present data
@@ -138,7 +139,7 @@ would keep the repair small. No new scheduler or blanket schema split is justifi
 
 ## 1. Reindex must be one preservation boundary
 
-**Findings:** CR-A1-1/2; CR-A1-3 is the shared complete-record prerequisite.
+**Findings:** CR-A1-1/2; CR-A1-3 independently owns the shared reader/writer complete-record fix.
 **Size:** medium-to-large, difficult; transaction/executor and replay/error semantics span the indexer.
 
 `internal/index/reindex.go` commits `resetTables` before replay and keeps the latest native ID,
@@ -148,13 +149,11 @@ empty replacement and report success. This is more serious than stale archive se
 can remove the authority needed to continue development work.
 
 Handle A1-1/2 together around a boundary that preserves prior usable state or publishes a complete
-replacement. One transaction in the existing database is a plausible minimal design **only if every
-reset, replay, flush and retained-field restoration uses it**. The current `Indexer` owns `*sql.DB`
-and starts independent transactions
-(`internal/index/indexer.go`); wrapping only `resetTables` cannot make replay atomic. A transaction-
-bound executor would need intentional whole-rebuild failure or per-agent savepoint semantics and
-consideration of long write-lock duration. Durable staging is an alternative if those constraints
-make a long transaction unsuitable; it adds recovery state and is not automatically preferable.
+replacement. The 2026-10-22 design chooses **one transaction per conversation, including every
+delete, replay, flush, query and retained-field restoration**. The current `Indexer` owns `*sql.DB`
+and starts independent transactions (`internal/index/indexer.go`); wrapping only `resetTables`
+cannot make replay atomic. TS-02.R56–R58 define the shared transaction seam and failure policy.
+No archive-wide transaction/savepoints or durable staging is needed.
 
 Atomicity alone does not fix missing input. Refuse a missing canonical root before mutation. For a
 missing/unreadable agent source, preserve its existing usable snapshot or abort the replacement and

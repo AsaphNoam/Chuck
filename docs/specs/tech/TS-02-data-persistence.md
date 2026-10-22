@@ -58,6 +58,8 @@ native conversation ID (R54) and live effort/fast settings — are durable input
 reindex reads them before the wipe (a read failure leaves the archive untouched) and restores them
 after each agent's replay, including one whose replay fails; an empty retained ID never replaces
 the transcript's (`TestReindexRetainsSQLiteOnlySessionFields`).
+The wipe/restore mechanism in this paragraph is the shipped baseline; planned R56–R58 supersede
+that maintenance mechanism, without changing the authority of the retained fields or projections.
 
 **R10 — Both FTS capabilities are supported.** Release binaries compile with `sqlite_fts5`; the
 untagged test/build path must degrade to metadata `LIKE` search without surfacing a missing-module
@@ -826,6 +828,75 @@ canonical payload/result sizes within existing input limits and avoid retaining 
 Receipts follow the owning conversation's existing retention/permanent-deletion lifecycle;
 archival/reload does not erase the acceptance needed for harmless retry.
 
+**R56 (planned) — Offline repair publishes one complete conversation at a time.** For
+FS-05.R43–R45, replace global reset followed by independently committed replay with one `sql.Tx`
+per agent. The transaction reads that agent's prior retained fields before deletion, removes only
+its `sessions`, writable `sessions_fts`, `tracked_files` and `tracked_commands` rows, replays its
+canonical events, restores its retained fields and commits only a complete replacement. A nonempty
+prior native ID wins over transcript metadata; prior effort and fast win even when empty/false.
+If there was no prior session, use the canonical metadata rather than fabricated retained defaults.
+Check that replay produced a session row and retained-field restoration affected that row; an empty
+replay or a successful zero-row update cannot count as repair. Commit is the publication boundary.
+Rollback or process interruption leaves that agent's old rows intact; earlier committed agents
+remain repaired. An unsuccessful commit is never reported as success.
+
+Reuse the live indexer's event, tracking, metadata, document-boundary and rollup logic (R16/INV §2),
+with transaction-taking helpers or a narrow transaction-bound replay mode. Every replay SQL write
+and read participates in the owning transaction, including metadata/flush operations and cwd lookup
+for path normalization. Do not open nested transactions or escape to `sql.DB` while replay holds
+the connection; the store has one connection. Unexpected query/scan errors must propagate rather
+than silently changing tracked paths. Live incremental operations retain their existing transaction
+ownership. Use fresh, per-agent replay buffers and release them on commit/rollback; do not retain a
+second whole-history copy or move the retained authority into a process-wide rescue map.
+
+**R57 (planned) — Source absence preserves existing repair state.** Discover the union of stored
+session IDs and canonical source directories; check SQL iteration errors and close inventory rows
+before opening a repair transaction. Failure to enumerate either inventory reliably stops repair
+before replacement. An absent transcript root with stored sessions returns incomplete repair
+without mutation, identifying the affected agents; an absent root with no stored sessions is a
+successful empty no-op. A source directory's absence, a missing/unreadable log, or a log without
+usable session metadata never authorizes pruning an existing session. Replay of a source-only agent
+that cannot yield a session similarly fails without leaving partial rows.
+
+Replay must actually read a readable canonical log through its complete-record prefix; a tolerant
+reader's missing-file/empty success is insufficient. Use the existing transcript prefix/parser
+seams, detect source unavailability at the read boundary and require decoded session metadata that
+creates the replacement row. Preserve legacy metadata normalization, safe malformed/oversized-record
+skips (R8), final partial-turn flushing and annotation boundaries; introduce no second parser or new
+required legacy metadata fields. CR-A1-3 independently owns the common reader/writer newline fix;
+repair must use the same complete-record truth without waiting for all ordinary-reader fixes.
+
+Conversation-local source/metadata/replay-validation errors roll back that conversation's entire
+replacement, report its agent identity and preserve all its old session, search and tracking rows;
+continue repairing healthy neighbors. Database/capability/transaction errors stop further repair
+with nonzero exit, rolling back the current transaction rather than disguising storage failure as
+bad source. Earlier successful commits remain valid. Aggregate source failures separately from a
+fatal stop; neither path reports full completion. Restoring the source and rerunning is harmless:
+replace that conversation's projections without duplicating documents, file/command counts or
+rollups. Repair creates no agent turn and does not mutate unrelated durable tables or source files.
+
+**R58 (planned) — Preserve repair compatibility and prove the destructive boundary.** Keep
+`index.Reindex(home, db) error`, the current `chuck reindex` command/home resolution and live-server
+refusal. Its separate database writer remains an offline maintenance exception to R2, not an online
+repair API or a stronger mutual-exclusion claim than the existing server guard. Keep the existing
+SQLite journal/durability configuration, schema and transcript format. Detect `sessions_fts`
+capability on the same transaction through the state-owned detector (R10). Full-text and plain
+fallback objects are replaced using existing helpers; an unavailable FTS5 module skips only its
+FTS deletion/writes while session/tracking repair proceeds under the existing metadata-search mode.
+Never delete inaccessible FTS rows through a global reset. Real detector/SQL errors remain errors.
+
+Return an error for incomplete repair, naming failed agent IDs and whether their prior data was
+preserved or there was no prior snapshot; tell the operator to restore readable sources and rerun.
+A fatal database error names the failing operation and agent when known without claiming that all
+prior repairs rolled back. Only complete success prints `reindexed archive`; no new output format,
+confirmation, CLI flag or UI is needed. FS-05.A26–A27 require a populated-store real-process kill
+after destructive work but before commit, reopen/rerun and the existing native Resume consumer;
+a mixed healthy/failed-source CLI case; and source-restoration retry. Add focused transaction
+failure evidence for rollback, including a failure after replay before publication. Compare complete
+prior rows/documents/tracking against independent fixture expectations, not only retained fields.
+Reuse existing replay equivalence, annotation/partial-turn, tracking, FTS5/fallback and continuation
+coverage; add no exhaustive phase/provider/build Cartesian matrix or live-provider requirement.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For
@@ -899,6 +970,12 @@ R1–R26 and must be reflected here when its contract changes.
   than independently rebuilding the environment, prompt, or additional directories.
 
 ## 5. Deviations & open decisions
+
+- **Offline reindex preservation is planned (R56–R58).** The operator approved partial repair
+  on 2026-10-22 (FS-05.R43–R45). R9's current committed wipe/process-local retention does not
+  survive interruption or unavailable input. The replacement uses per-agent atomic replay within
+  the existing database; no schema migration, durable staging or archive-wide transaction is needed.
+  CR-A1-1/2 remain open until implementation and verification; CR-A1-3 remains separately owned.
 
 - **Journal outcomes shipped 2026-10-20 (ASW-1, R52):** health lives in its own `conversation_health` table
   (migration 57) rather than `sessions` columns, because the open-writer marker must be recordable
