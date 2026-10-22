@@ -20,7 +20,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Runtime campaign:** ASW-1 event commits, ASW-2 frozen native execution and ASW-3 process/terminal
   ownership, ASF-1 turn/control settlement, ASF-2 input acceptance/recovery and ASF-6 CLI selection
   are closed. Select remaining work through
-  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-5 is closed; ASF-3/4 wait.
+  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-4/5 are closed; ASF-3 waits.
 Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1–CR-A7 are reviewed and closed (no open findings). CR-A2's nine
   admission/recovery findings were fixed on 2026-10-22 (`0f911d74`, `de0ac20a`).
@@ -49,6 +49,10 @@ Their source reviews and open findings remain below; do not reopen completed ref
 
 ## Active change
 
+- ASF-4 is closed: task result outputs are bounded before commit (`91f30979`, ASRE-2) and
+  ended native children/finished tool names are freed (`65de12ce`, ASRC-6). ASR-C is closed;
+  ASR-E keeps ASRE-1 under ASF-3. `TestCanceledTurnsReleaseToolInput` fails under `-race` on
+  unmodified HEAD too (turn end publishes before its inputs are released); not addressed here.
 - ASF-5 is closed: resource owner-permission preservation (`8db628c7`) and owned-checkout
   setup readiness (`c379b51c`) are repaired. Both full Go variants, tagged build and focused
   config/server race checks pass. No native/device acceptance gate is closed by these repairs.
@@ -198,7 +202,7 @@ Their source reviews and open findings remain below; do not reopen completed ref
 
 ## Agent-surface work and fix queue
 
-**ASW-1, ASW-2, ASW-3, ASF-1, ASF-2, ASF-5 and ASF-6 closed; ASF-3/4 wait.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**ASW-1, ASW-2, ASW-3, ASF-1, ASF-2, ASF-4, ASF-5 and ASF-6 closed; ASF-3 waits.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are implemented and
 reviewed; their remaining findings select the same units for fixes:
 
@@ -219,7 +223,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 | [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5) |
 | [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts remain owed |
 | [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
-| [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Closed 2026-10-22 — `91f30979` (ASRE-2), `65de12ce` (ASRC-6) |
 | [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | Checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Closed — `8db628c7`, `c379b51c` |
 | [ASF-6](AGENT-SURFACE-FIX-UNITS.md#asf-6--cli-archive-selection) | Certain CLI resume/new selection | ASRH-3 | Finished |
 
@@ -272,7 +276,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | Unit | Responsibility | Status |
 |---|---|---|
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
-| [ASR-C](AGENT-SURFACE-REVIEW.md#asr-c--runtime-execution-concurrency-and-control) | Runtime execution, concurrency and control | reviewed — findings open (`6b5de19b`) |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
 | [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | reviewed — findings open (`fa092f63`) |
@@ -432,19 +435,11 @@ rendered-browser or quality/performance receipt ran. All named live gates remain
 ### ASR-C — Runtime execution, concurrency and control — reviewed `6b5de19b` — **Fix model:** difficult — Codex Sol.
 
 Status settlement coordinates runtime/server state and other fixes extend existing seams. ASW-3's
-review closed ASRC-4/7 and its fixes closed ASRC-3; ASF-1 closed ASRC-1/2/5 (2026-10-20, Changelog); ASRC-6 (ASF-4) remains. Audit complete; findings keep this same unit open. No product code
+review closed ASRC-4/7 and its fixes closed ASRC-3; ASF-1 closed ASRC-1/2/5 (2026-10-20, Changelog); ASF-4 closed ASRC-6 (`65de12ce`, 2026-10-22).
+All ASR-C findings are closed; this ledger is retained provenance. The original review changed no product code
 or specifications changed. Source mode: repository source; real-adapter shapes read from the
 release lockfile packages (Claude ACP 0.85.1; Codex ACP 2.1.1 is a native binary, not inspected).
 Bounded discovery for catalogue 06/11/12 was delegated and every reported finding re-read in code.
-
-- **Worth fixing** — ASRC-6 — **Per-generation retention never frees completed native work**
-  (INV §16). `subagent.go:148–154` caps `as.children` at 256 and never deletes a terminal child,
-  so in a long-lived orchestrator child 257+ loses all output and its permission requests are
-  silently cancelled (`permission.go:32–36`); `as.toolNames` (`chat.go:2442`) grows per tool call.
-  TS-04.R63 bounds children to the active generation, not lifetime count. Delegated probe
-  `/tmp/asrc/probe_test.go`: 300 sequential children → 256 retained, child 299 dropped.
-  Evict terminal children (keeping a bounded tombstone for late frames) and prune tool names
-  with tool inputs.
 
 J2 (lead) result — one conversation under concurrent control: Send/hold, withdraw, Steer
 promotion and turn-end successor transfer decide under `as.mu` with single-owner hand-off; Stop
@@ -546,7 +541,8 @@ decision was introduced. Sibling reviews and fixes were not selected.
 ### ASR-E — Agent tools, communication and durable delegation — reviewed `5eb574d9` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 The continuation fix joins durable wait settlement, assignment projection and MCP reads; report
-bounds extend existing shared validation. Audit complete; findings keep this same unit open.
+bounds extend existing shared validation. Audit complete; ASF-4 closed ASRE-2 (`91f30979`,
+2026-10-22); ASRE-1 (ASF-3) keeps this unit open.
 Source mode: current repository source at `5eb574d9`, initially clean. Release lockfile: Claude
 ACP 0.85.1 / Agent SDK 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. Three bounded read-only audits
 covered tools/authority, peer delivery and tasks; the lead reconciled interactions and independently
@@ -568,21 +564,6 @@ reproduced both findings. No product code or specifications changed.
   reads, multiple/deleted sources, restart and scope isolation. Evidence:
   `/tmp/asre_assignment_probe_test.go`, `/tmp/asre_assignment_overlay.json`,
   `TestASREAssignmentExposesWatchedResultAfterContinuation` (intentionally failing).
-- **Must fix** — ASRE-2 — **Task report outputs bypass the result size limits**
-  (INV §2/§11/§16). `internal/state/tasks.go:1677–1733,2116–2125`,
-  `internal/state/pipeline_tasks.go:224–285`: reporting validates summary/details but never
-  bounds the output map's values or aggregate result. The shared insert helper checks only that
-  names are nonblank; ordinary reports store arbitrary output keys/values, and stage reports
-  check declarations/required values without the generic size checks. TS-10.R33 requires the
-  pipeline text limit (64,000 runes per value) and a 256 KiB aggregate result limit. Serialized
-  ordinary-task MCP probes accept and persist both one 64,001-character output and five
-  individually legal 60,000-character outputs (300,000 bytes), marking each task finished/success.
-  A large generated artifact can therefore become immutable retained result data and be loaded
-  whole by task reads/lists and downstream consumers. Extend shared report validation to named
-  outputs and aggregate encoded size before committing any result, with a typed non-mutating
-  refusal. Regress individual and aggregate boundaries, Unicode/encoding overhead, and ordinary
-  versus stage reports. Evidence: the same temporary overlay's
-  `TestASRETaskReportRejectsOversizedOutputs` (both cases intentionally failing).
 
 Connected evidence ledger and J3 (authority through native execution):
 
@@ -1074,6 +1055,13 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-22 — Fix: retention and result bounds (ASF-4) — ASR-C closed.** ASRE-2 (INV §2/§11/§16,
+  `91f30979`): ordinary, person and stage reports share `ValidateAgentTaskResult`, bounding each
+  named output to 64,000 runes and the encoded result to 256 KiB with the typed refusal and no
+  write. ASRC-6 (INV §16, `65de12ce`): ended children free their live slot behind a 64-entry
+  tombstone; tool names are released with their inputs (TS-04.R63 updated). Both regressions
+  failed before repair. Focused race checks, both Go variants and the build pass.
 
 - **2026-10-22 — Fix: resource permissions and checkout readiness (ASF-5).** ASRA-5 (INV §10/§14,
   `8db628c7`) preserves owner bits; ASRA-6 (INV §1/§5/§15, `c379b51c`) waits through setup and
