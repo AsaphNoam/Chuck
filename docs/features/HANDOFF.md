@@ -19,7 +19,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   and included in the candidate.
 - **Runtime campaign:** ASW-1 event commits, ASW-2 frozen native execution and ASW-3 process/terminal
   ownership and ASF-1 turn/control settlement are closed. Select remaining work through
-  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-6 wait.
+  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2 is in progress; ASF-3–ASF-6 wait.
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A2 is reviewed with nine open admission/recovery findings. CR-A1, CR-A3,
   CR-A4, CR-A5, CR-A6 and CR-A7 are reviewed and closed (no open findings).
@@ -54,7 +54,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   identity; draft-revision preservation; authoritative held identity/withdrawal. Parent integrates
   text receipts and uncertain Steer recovery, then runs focused race and applicable closure checks.
   Draft and legacy lost-acknowledgement regressions failed before repair and pass afterward.
-  Focused runtime/server/state/CLI ASF-2 tests pass; full closure and rendered recovery checks are owed.
+  Implementation checkpoint `2268e279`; focused runtime/server/state/CLI and race checks pass.
+  All 994 UI tests and production build passed before the final uncertainty-classifier correction;
+  their final rerun and both Go closure variants remain in progress. Rendered Chromium checks passed
+  exact withdrawal plus newer draft, stale two-device withdrawal, and truthful text-only unknown recovery
+  with no page errors. Evidence: `/private/tmp/asf2-{withdraw,two-device-withdraw,uncertain-recovery}.png`.
+  Real-provider consumption and physical-phone/background-return receipts remain unrun.
 - Previously: interruption-safe reindex is finished and independently reviewed without findings.
   Both Go variants and the build pass. The operator-requested worktree kept the main checkout's
   existing uncommitted ready-change edits separate.
@@ -207,7 +212,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 | Fix unit | Invocation / responsibility | Owned findings | Status / fix model |
 |---|---|---|---|
 | [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5) |
-| [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | In progress — isolated `fix/asf-2` worktree |
 | [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Waiting — medium, Codex Terra or Claude Opus |
 | [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | `/fix ASF-5` — checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Waiting — medium, Codex Terra or Claude Opus |

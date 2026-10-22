@@ -622,6 +622,11 @@ func sameAttachmentIDs(a, b runtime.Message) bool {
 	if len(a.Attachments) != len(b.Attachments) {
 		return false
 	}
+	// Text-only messages have no asset identity to establish recovery ownership.
+	// An unrelated Send must not dismiss a possibly consumed earlier input.
+	if len(a.Attachments) == 0 && a.Text != b.Text {
+		return false
+	}
 	for i := range a.Attachments {
 		if a.Attachments[i].ID != b.Attachments[i].ID {
 			return false

@@ -261,7 +261,7 @@ func TestStoppedOrCrashedInflightSteerIsNeverReleasedForRecovery(t *testing.T) {
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			if len(states) < 2 || states[0] != "submitted" || states[len(states)-1] != "unknown" {
+			if len(states) < 2 || states[0] != "unknown" || states[len(states)-1] != "unknown" {
 				t.Fatalf("in-flight outcomes=%v", states)
 			}
 			for _, state := range states {

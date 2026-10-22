@@ -227,7 +227,7 @@ func TestWithdrawPromptUsesAuthoritativeHeldIDAndMessage(t *testing.T) {
 		t.Fatalf("replacement hold = %d: %s", resp.StatusCode, body)
 	}
 	resp, body = deleteJSON(t, ts.URL+"/api/sessions/"+id+"/prompt?held_id="+snapshot.HeldID)
-	if resp.StatusCode != http.StatusConflict {
+	if resp.StatusCode != http.StatusConflict || !strings.Contains(string(body), `"code":"held_changed"`) {
 		t.Fatalf("stale withdraw = %d: %s", resp.StatusCode, body)
 	}
 	resp, body = getJSON(t, ts.URL+"/api/sessions/"+id+"/prompt")

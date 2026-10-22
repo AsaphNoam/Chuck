@@ -100,7 +100,7 @@ func (s *Server) handleWithdrawPrompt(w http.ResponseWriter, r *http.Request) {
 	removed, withdrawn, err := s.registry.WithdrawHeldExpected(id, r.URL.Query().Get("held_id"))
 	if err != nil {
 		if errors.Is(err, runtime.ErrHeldChanged) {
-			writeAPIError(w, apiError(runtime.CodeConflict, "held message changed"))
+			writeAPIError(w, apiError(runtime.CodeHeldChanged, "held message changed"))
 			return
 		}
 		writeAPIError(w, sessionOpError(err))
@@ -131,6 +131,8 @@ func steerError(err error) *runtime.APIError {
 		return apiError(runtime.CodeConflict, "this agent's adapter does not support steering")
 	case errors.Is(err, runtime.ErrNothingHeld):
 		return apiError(runtime.CodeConflict, "no message is held for this agent")
+	case errors.Is(err, runtime.ErrHeldChanged):
+		return apiError(runtime.CodeHeldChanged, "held message changed; reload before steering")
 	case errors.Is(err, runtime.ErrHistoryUnavailable), errors.Is(err, runtime.ErrTurnInFlight):
 		// The same recoverable refusals Send reports: nothing reached the agent.
 		return sessionOpError(err)

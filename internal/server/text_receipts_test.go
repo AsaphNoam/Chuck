@@ -91,6 +91,15 @@ func TestUnknownTextReceiptIsConflictAndRecoverable(t *testing.T) {
 		snapshot.Recovery.Text != msg.Text || snapshot.Recovery.Delivery != "unknown" || snapshot.Recovery.Attachments == nil {
 		t.Fatalf("text recovery wire: %d %s: %v", read.Code, read.Body.String(), err)
 	}
+	res, body = postJSONHandler(t, handler, "/api/sessions/"+id+"/prompt", map[string]string{
+		"text": "independent later input", "request_id": "independent-send",
+	})
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("independent send: %d %s", res.StatusCode, body)
+	}
+	if recovery, err = srv.stateStore.AttachmentRecovery(id); err != nil || recovery.RequestID != msg.RequestID {
+		t.Fatalf("unrelated send dismissed uncertain input: %+v %v", recovery, err)
+	}
 }
 
 // A definite prompt refusal remains a non-success on replay; a failed receipt

@@ -102,6 +102,7 @@ const (
 	CodeNotFound             = "not_found"            // 404
 	CodeConflict             = "conflict"             // 409
 	CodeDeliveryUncertain    = "delivery_uncertain"   // 409
+	CodeHeldChanged          = "held_changed"         // 409
 	CodeNotImplemented       = "not_implemented"      // 501
 	CodeRuntimeStartFailed   = "runtime_start_failed" // 502
 	CodeInternal             = "internal"             // 500
@@ -213,7 +214,7 @@ func statusForCode(code string) int {
 		return http.StatusBadRequest // 400
 	case CodeNotFound, CodeGroupNotFound, CodeSourceNotFound:
 		return http.StatusNotFound // 404
-	case CodeConflict, CodeDeliveryUncertain, CodeAgentNotRunning, CodeSwitchInProgress,
+	case CodeConflict, CodeDeliveryUncertain, CodeHeldChanged, CodeAgentNotRunning, CodeSwitchInProgress,
 		CodeSourceChanged, CodeSourceConflict, CodeApprovalRequired,
 		CodeAgentArchived, CodeAgentArchiving, CodeProjectArchived, CodeProjectArchiving,
 		CodeBackendExists, CodeBackendCatalogChanged, CodeDirectoryPickerBusy,

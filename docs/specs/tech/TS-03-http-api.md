@@ -1081,7 +1081,7 @@ than allocating an independently runnable copy.
 
 Held projections include `held_id`. DELETE held accepts optional `held_id` and atomically returns
 200 `{withdrawn:true,message:{held_id,text,attachments,request_id?}}` for the exact removed input,
-or existing 204 for no hold; an expected-ID mismatch returns 409 `held_changed` without removal.
+or 200 `{withdrawn:false}` for no hold; an expected-ID mismatch returns 409 `held_changed` without removal.
 Bundled clients use the returned content, never cached content. Fields are additive; legacy callers
 omitting the expectation can still withdraw the current hold but must use the authoritative reply.
 No-hold is idempotent and cannot revive already delivered content.

@@ -704,7 +704,15 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           ? steerPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
           : sendPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
         ).catch(async (err: unknown) => {
-          if (isDefiniteSendRefusal(err)) {
+          if (isDeliveryUncertain(err)) {
+            const isSteer = matchingRetry?.steer ?? steeringMessage;
+            setRetryPhoneSend({ text: messageText, files: selected, requestId: request, steer: isSteer, revision: submittedRevision, retryable: false });
+            if (isSteer) useHeldStore.getState().release(agentId);
+            try {
+              await getHeldPrompt(agentId);
+              await client.invalidateQueries({ queryKey: ["held", agentId] });
+            } catch { /* the original typed uncertainty remains the user-visible result */ }
+          } else if (isDefiniteSendRefusal(err)) {
             setRetryPhoneSend(null);
             try { await clearPendingAttachmentSend(agentId, request); } catch { setAttachmentError(attachmentErrorForStorage()); }
           }
