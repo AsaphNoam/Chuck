@@ -78,7 +78,9 @@ nothing; readers return newest-first bounded results as specified by FS-06.
 **R13** — Project resources are opaque filesystem data at
 `$CHUCK_HOME/project-resources/{project-id}/`, not JSON configuration, SQLite state, a cache,
 or an index. `internal/config` owns one shared helper that validates the project id, returns the
-absolute path, and ensures the parent and leaf directories exist as owner-only directories. It
+absolute path, and ensures the parent and leaf directories exist as owner-only directories. New
+directories use `0700`; existing directories retain their owner permission bits while group/world
+access is removed. Validation never grants missing owner permissions to make a target usable. It
 rejects a parent or leaf that is a non-directory or symlink. To prove an existing leaf is writable,
 it creates and removes one private zero-byte probe; otherwise it never lists, reads, writes, deletes,
 or repairs resource contents. Project creation calls this helper after validation and before writing

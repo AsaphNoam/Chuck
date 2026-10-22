@@ -49,6 +49,61 @@ func TestEnsureProjectResourcesCreatesOwnerOnly(t *testing.T) {
 	}
 }
 
+// FS-11.R9 / ASRA-5: validation may tighten group/world access on an existing
+// directory, but it must preserve restrictive owner bits and report an
+// unwritable resource instead of widening them.
+func TestEnsureProjectResourcesPreservesRestrictiveOwnerMode(t *testing.T) {
+	home := t.TempDir()
+	s := NewWithHome(home)
+	root := filepath.Join(home, "project-resources")
+	leaf := filepath.Join(root, "myproj")
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatalf("mkdir root: %v", err)
+	}
+	if err := os.Mkdir(leaf, 0o500); err != nil {
+		t.Fatalf("mkdir leaf: %v", err)
+	}
+
+	if _, err := s.EnsureProjectResources("myproj"); err == nil {
+		t.Fatal("EnsureProjectResources accepted an owner-read/execute-only leaf")
+	}
+	fi, err := os.Stat(leaf)
+	if err != nil {
+		t.Fatalf("stat leaf: %v", err)
+	}
+	if got := fi.Mode().Perm(); got != 0o500 {
+		t.Fatalf("leaf mode = %o after failed ensure, want 0500", got)
+	}
+}
+
+// FS-11.R9 / ASRA-5: an existing permissive directory is tightened without
+// changing the owner permission bits needed for the writability probe.
+func TestEnsureProjectResourcesTightensExistingExposure(t *testing.T) {
+	home := t.TempDir()
+	s := NewWithHome(home)
+	root := filepath.Join(home, "project-resources")
+	leaf := filepath.Join(root, "myproj")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatalf("mkdir root: %v", err)
+	}
+	if err := os.Mkdir(leaf, 0o755); err != nil {
+		t.Fatalf("mkdir leaf: %v", err)
+	}
+
+	if _, err := s.EnsureProjectResources("myproj"); err != nil {
+		t.Fatalf("EnsureProjectResources: %v", err)
+	}
+	for _, dir := range []string{root, leaf} {
+		fi, err := os.Stat(dir)
+		if err != nil {
+			t.Fatalf("stat %q: %v", dir, err)
+		}
+		if got := fi.Mode().Perm(); got != 0o700 {
+			t.Errorf("%q mode = %o, want 0700", dir, got)
+		}
+	}
+}
+
 // FS-11.R8: an id that fails slug validation never constructs a path.
 func TestEnsureProjectResourcesRejectsInvalidID(t *testing.T) {
 	s := NewWithHome(t.TempDir())

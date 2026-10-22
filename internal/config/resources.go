@@ -50,17 +50,20 @@ func (s *Store) EnsureProjectResources(projectID string) (string, error) {
 	return leaf, nil
 }
 
-// ensureOwnerDir makes dir an owner-only (0700) directory, creating it if absent.
+// ensureOwnerDir makes dir an owner-only directory, creating it if absent.
 // It uses Lstat so an existing symlink is rejected rather than followed, and it
-// refuses a non-directory. An existing directory is tightened to 0700 so a looser
-// umask or an older build cannot leave it group/world-accessible.
+// refuses a non-directory. An existing directory is tightened by removing only
+// group/world access, preserving its owner permission bits so validation cannot
+// widen a restrictive directory.
 func ensureOwnerDir(dir string) error {
 	fi, err := os.Lstat(dir)
+	mode := os.FileMode(0o700)
 	switch {
 	case err == nil:
 		if err := checkOwnerDir(dir, fi); err != nil {
 			return err
 		}
+		mode = fi.Mode().Perm()
 	case os.IsNotExist(err):
 		if mkErr := os.Mkdir(dir, 0o700); mkErr != nil {
 			// Another launch into the same project can create it between the Lstat
@@ -77,12 +80,14 @@ func ensureOwnerDir(dir string) error {
 			if err := checkOwnerDir(dir, raced); err != nil {
 				return err
 			}
+			mode = raced.Mode().Perm()
 		}
 	default:
 		return fmt.Errorf("config: stat %q: %w", dir, err)
 	}
-	// Guarantee owner-only regardless of umask or a pre-existing looser mode.
-	if err := os.Chmod(dir, 0o700); err != nil {
+	// Guarantee owner-only regardless of umask or a pre-existing looser mode,
+	// without adding owner permissions to an existing directory.
+	if err := os.Chmod(dir, mode&0o700); err != nil {
 		return fmt.Errorf("config: chmod %q: %w", dir, err)
 	}
 	return nil

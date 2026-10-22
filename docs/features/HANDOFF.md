@@ -49,6 +49,13 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
+- ASF-5 is in progress: validate and repair resource owner-permission preservation (ASRA-5)
+  and owned-checkout setup readiness (ASRA-6). Focused independent implementation slices cover
+  config resources and the server readiness barrier; parent owns specification, integration and
+  both Go variants/build plus focused race closure. Entry tree was clean.
+  ASRA-5's repair and regression are verified: existing `0500` remains unchanged and refuses;
+  `0755` tightens to `0700`. The regression failed before repair; config suite and focused race
+  checks pass. ASRA-6 implementation and final closure remain in progress.
 - None. CR-A2 is closed: all nine findings are fixed, both complete Go variants and the tagged
   build pass. TS-10.R48–R52 record cleanup, continuation, bounded queue and recovery contracts.
   The four unrelated ready-change edits remain preserved. ASF-6 closed concurrently in its
@@ -294,13 +301,9 @@ and native inheritance through continuation, and empty effort resets use the dec
 
 PROMPT-1 and ASRA-3 are closed by the ASW-2 fixes (ASW2-7 effective root markers, ASW2-2 frozen
 profile refusal; Changelog 2026-10-20).
-- **Worth fixing** — ASRA-5 — **Resource validation widens existing owner permissions**
-  (INV §10/§14). `internal/config/resources.go:53–89`: an existing resource directory set to
-  `0500` is chmodded to `0700` before its writability probe and launch is allowed. FS-11.R9
-  requires an existing unreadable/unwritable target to fail actionably. Tightening group/world
-  access under TS-02.R13/TS-05.R13 does not require adding owner write permission. Preserve that
-  distinction at the shared helper and test restrictive owner modes as well as permissive umasks;
-  `/tmp/chuck-asra-resource-mode_test.go` confirms the mode change. No resource contents were read.
+ASRA-5 is fixed (2026-10-22, INV §10/§14): resource validation preserves existing owner bits and
+removes group/world access. The `0500` regression failed before repair; config suite and focused
+race tests pass. ASF-5 remains open for ASRA-6.
 - **Must fix** — ASRA-6 — **A second start bypasses unfinished checkout setup**
   (INV §1/§5/§15). `internal/server/worktree.go:164–189,215`: after one caller recreates a
   missing owned checkout and enters setup, another caller sees the newly existing directory and
