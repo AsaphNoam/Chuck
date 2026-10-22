@@ -49,14 +49,9 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- **In progress — interruption-safe reindex.**
-  Isolated in `/private/tmp/chuck-interruption-safe-reindex` on
-  `work/interruption-safe-reindex` per operator request; merge into main after verification.
-  Transaction-bound replay and per-conversation publication are implemented. Populated-store
-  source failures, post-replay storage rollback, real process kill/reopen/retry and fake-native
-  Resume proof pass focused checks. The prior baseline fails the new preservation regression.
-  Next: finish both Go variants and build closure, then merge without including main's dirty work.
-  No schema, UI, provider or source-file mutation is introduced.
+- None. Interruption-safe reindex is finished and available for independent review below.
+  Both Go variants and the build pass. The operator-requested worktree kept the main checkout's
+  existing uncommitted ready-change edits separate.
 - Other available review/fix units and owed live receipts remain below.
 
 ## Acceptance gates still owed
@@ -230,6 +225,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 
 **Reindex implementation review available:** CR-A1-1/2 are covered together by the
 interruption-safe reindex implementation (FS-05.R43–R45/A26–A27; TS-02.R56–R58).
+Product range: `7b77dd25..467b70ba`; subsequent handoff closure adds no product change.
 Review the transaction boundary, source failure versus fatal storage failure, retained authority,
 and complete-record replay. Process-kill/reopen/retry and fake-native Resume wire proofs use
 separate fixtures; no same-fixture end-to-end process-kill/Resume claim is made. No new UI/runtime
@@ -1499,6 +1495,12 @@ and specifications are unchanged.
   process-kill/reopen/retry, CLI partial-result/retry and native Resume wire tests. The original
   baseline fails the missing-root and late-invalid-metadata preservation regressions. No schema,
   source format, UI, online repair or live-provider adoption change is claimed.
+  Closure: unset `CHUCK_RUNTIME_ROOT`, `GOCACHE=/private/tmp/chuck-cache`, `GOFLAGS=-p=1`;
+  `make test` (both Go variants), `make build` and diff checks pass. One parallel tagged run hit
+  the already-recorded `TestOrdinaryStageAgentStopPausesPipelineRun` timing flake: Stop returned
+  409, "a resume is already in progress" (`pipeline_handlers_test.go:347`). The independent full
+  tagged run passed; five focused repeats passed; the final `make test` passed using successful
+  test-cache results. No pipeline repair or live-provider proof is claimed.
 
 - **2026-10-22 — Fix: operator action and observation truth (CR-A6-1 INV §8/§11, CR-A6-2 INV §1,
   CR-A6-3 INV §8/§10, CR-A6-4 INV §2, CR-A6-5 INV §1/§11, CR-A6-6 INV §8).**
