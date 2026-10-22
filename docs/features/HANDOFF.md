@@ -52,8 +52,14 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None. v0.18.0 is published; both Go variants, 980 UI tests, static/spec/link checks and
-  the distribution build passed.
+- **In progress — [interruption-safe reindex](../ready-changes/interruption-safe-reindex.md).**
+  Isolated in `/private/tmp/chuck-interruption-safe-reindex` on
+  `work/interruption-safe-reindex` per operator request; merge into main after verification.
+  Transaction-bound replay and per-conversation publication are implemented. Populated-store
+  source failures, post-replay storage rollback, real process kill/reopen/retry and fake-native
+  Resume proof pass focused checks. The prior baseline fails the new preservation regression.
+  Next: finish both Go variants and build closure, then merge without including main's dirty work.
+  No schema, UI, provider or source-file mutation is introduced.
 - Other available review/fix units and owed live receipts remain below.
 
 ## Acceptance gates still owed

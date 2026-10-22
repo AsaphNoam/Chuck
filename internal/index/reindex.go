@@ -7,69 +7,74 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
-// Reindex wipes and rebuilds the archive index (sessions, sessions_fts,
+// Reindex repairs the archive index (sessions, sessions_fts,
 // tracked_files, tracked_commands) from raw transcript.ndjson files.
-// It is NOT safe to run while the server is live: resetTables deletes all
-// sessions rows outside the replay transaction, so any agents active during
-// the wipe are permanently lost from the index. Always stop the server before
+// It is NOT safe to run while the server is live; always stop the server before
 // running reindex. Session fields that only SQLite records (retainedSession)
-// are carried across the rebuild rather than replayed.
+// are carried across each replacement rather than replayed.
 func Reindex(home string, db *sql.DB) error {
 	if home == "" {
 		return fmt.Errorf("index: home is required")
 	}
 	root := filepath.Join(home, "sessions")
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return resetTables(db)
-		}
-		return fmt.Errorf("index: read sessions dir: %w", err)
-	}
-	// Read the authoritative fields before the wipe; failing here leaves the
-	// archive untouched rather than rebuilding without them.
-	retained, err := readRetainedSessions(db)
+	ids, err := reindexInventory(root, db)
 	if err != nil {
 		return err
 	}
-	if err := resetTables(db); err != nil {
-		return err
-	}
-	ix := New(db)
 	var failures []error
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		agentID := entry.Name()
-		// Isolate each agent: a bad transcript (unreadable, or an OnEvent/
-		// OnTurnEnd/flush error) is captured and skipped so the remaining
-		// agents are still reindexed rather than leaving the archive wiped.
-		if err := reindexAgent(ix, root, agentID); err != nil {
-			failures = append(failures, err)
-		}
-		if r, ok := retained[agentID]; ok {
-			if err := restoreRetainedSession(db, agentID, r); err != nil {
+	fatal := false
+	for _, agentID := range ids {
+		if err := reindexAgent(db, home, agentID); err != nil {
+			if isFatalReindexError(err) {
 				failures = append(failures, err)
+				fatal = true
+				break
 			}
+			failures = append(failures, err)
 		}
 	}
 	if len(failures) > 0 {
-		return fmt.Errorf("index: reindex skipped %d agent(s): %w", len(failures), errors.Join(failures...))
+		if fatal {
+			return fmt.Errorf("index: reindex stopped after %d source failure(s); earlier repairs committed: %w", len(failures)-1, errors.Join(failures...))
+		}
+		return fmt.Errorf("index: reindex skipped %d agent(s); restore readable sources and rerun: %w", len(failures), errors.Join(failures...))
 	}
 	return nil
 }
 
-// reindexAgent replays one agent's transcript into the index. Any error is
-// returned (not fatal to the whole reindex) so the caller can continue.
-func reindexAgent(ix *Indexer, root, agentID string) error {
-	path := filepath.Join(root, agentID, "transcript.ndjson")
+// reindexAgent publishes one complete replacement. Source failures leave the
+// prior snapshot intact; fatalReindexError stops the remaining repair work.
+func reindexAgent(db *sql.DB, home, agentID string) error {
+	var prior int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE agent_id=?`, agentID).Scan(&prior); err != nil {
+		return fatalErr(agentID, "inspect prior snapshot", err)
+	}
+	hadPrior := prior != 0
+	limit, err := transcript.CompletePrefix(home, agentID)
+	if err != nil || limit == 0 {
+		return sourceErr(err, fmt.Sprintf("index: source %s: transcript unavailable (%s)", agentID, snapshotStatus(hadPrior)))
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return fatalErr(agentID, "begin reindex", err)
+	}
+	defer tx.Rollback()
+	retained, err := readRetainedSessionTx(tx, agentID)
+	if err != nil && err != sql.ErrNoRows {
+		return fatalErr(agentID, "read retained", err)
+	}
+	hadPrior = err == nil
+	if err := deleteAgentTx(tx, agentID); err != nil {
+		return fatalErr(agentID, "delete prior projection", err)
+	}
+	ix := newTxIndexer(db, tx)
 	var lastSeq int64
 	var lastContext float64
 	var lastCounts *state.ContextCounts
@@ -80,7 +85,8 @@ func reindexAgent(ix *Indexer, root, agentID string) error {
 	// (crash-truncated) turn — otherwise the partial turn's assistant text sits
 	// only in the in-memory buffer and is silently dropped from sessions_fts.
 	var pendingFlush bool
-	err := transcript.NewReader(path).ForEach(transcript.ReadOptions{IncludeMeta: true}, func(ev runtime.Event) error {
+	seenMeta := false
+	err = transcript.ForEachFilePrefix(home, agentID, limit, transcript.ReadOptions{IncludeMeta: true}, func(ev runtime.Event) error {
 		if ev.Seq > lastSeq {
 			lastSeq = ev.Seq
 			updatedAt = ev.Ts
@@ -89,39 +95,185 @@ func reindexAgent(ix *Indexer, root, agentID string) error {
 		if ev.Type == runtime.EvSessionMeta {
 			var meta runtime.SessionMetaData
 			if err := json.Unmarshal(ev.Data, &meta); err != nil {
-				return fmt.Errorf("index: session metadata %s: %w", agentID, err)
+				return sourceErr(err, fmt.Sprintf("index: session metadata %s", agentID))
 			}
+			if _, err := state.EncodeExecutionContract(meta.ExecutionContract); err != nil {
+				return sourceErr(err, fmt.Sprintf("index: invalid execution contract %s", agentID))
+			}
+			seenMeta = true
 			if meta.ResetContext {
 				lastContext, lastCounts = 0, nil
 			}
 		}
+		if ev.Type != runtime.EvSessionMeta {
+			if _, err := searchableText(ev); err != nil {
+				return sourceErr(err, fmt.Sprintf("index: malformed event %s seq %d", agentID, ev.Seq))
+			}
+		}
 		if ev.Type == runtime.EvAnnotation {
 			if err := ix.OnEventAndFlushContent(agentID, ev, ev.Seq, ev.Ts); err != nil {
-				return fmt.Errorf("index: annotation flush %s seq %d: %w", agentID, ev.Seq, err)
+				return classifyReplayError(agentID, fmt.Sprintf("annotation flush seq %d", ev.Seq), err)
 			}
 			pendingFlush = false
 		}
 		if ev.Type == runtime.EvTurnEnd {
 			var d runtime.TurnEndData
-			_ = json.Unmarshal(ev.Data, &d)
+			if err := json.Unmarshal(ev.Data, &d); err != nil {
+				return sourceErr(err, fmt.Sprintf("index: malformed turn_end %s seq %d", agentID, ev.Seq))
+			}
 			lastContext, lastCounts = d.ContextPct, d.ContextCounts
 			if err := ix.OnEventAndTurnEnd(agentID, ev, runtime.TurnRollup{LastSeq: ev.Seq, LastContextPct: d.ContextPct, LastContext: d.ContextCounts, UpdatedAt: ev.Ts}); err != nil {
-				return fmt.Errorf("index: turn_end %s seq %d: %w", agentID, ev.Seq, err)
+				return classifyReplayError(agentID, fmt.Sprintf("turn_end seq %d", ev.Seq), err)
 			}
 			pendingFlush = false
 		} else if ev.Type != runtime.EvAnnotation {
 			if err := ix.OnEvent(agentID, ev); err != nil {
-				return fmt.Errorf("index: event %s seq %d: %w", agentID, ev.Seq, err)
+				return classifyReplayError(agentID, fmt.Sprintf("event seq %d", ev.Seq), err)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("index: replay %s: %w", agentID, err)
+		if isFatalReindexError(err) {
+			return err
+		}
+		return sourceErr(err, fmt.Sprintf("index: replay %s (%s)", agentID, snapshotStatus(hadPrior)))
+	}
+	if !seenMeta {
+		return sourceErr(nil, fmt.Sprintf("index: source %s has no usable session metadata (%s)", agentID, snapshotStatus(hadPrior)))
 	}
 	if lastSeq > 0 && updatedAt != "" && pendingFlush {
 		if err := ix.flush(agentID, runtime.TurnRollup{LastSeq: lastSeq, LastContextPct: lastContext, LastContext: lastCounts, UpdatedAt: updatedAt}, false, "partial"); err != nil {
-			return fmt.Errorf("index: final flush %s: %w", agentID, err)
+			return fatalErr(agentID, "final flush", err)
+		}
+	}
+	var exists int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sessions WHERE agent_id=?`, agentID).Scan(&exists); err != nil {
+		return fatalErr(agentID, "verify session", err)
+	}
+	if exists != 1 {
+		return sourceErr(nil, fmt.Sprintf("index: replay %s produced no session (%s)", agentID, snapshotStatus(hadPrior)))
+	}
+	if hadPrior {
+		res, err := tx.Exec(`UPDATE sessions SET last_session_id=CASE WHEN ?<>'' THEN ? ELSE last_session_id END, effort=?, fast=? WHERE agent_id=?`, retained.nativeID, retained.nativeID, retained.effort, retained.fast, agentID)
+		if err != nil {
+			return fatalErr(agentID, "restore retained fields", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil || n != 1 {
+			if err == nil {
+				err = fmt.Errorf("affected %d rows", n)
+			}
+			return fatalErr(agentID, "restore retained fields", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fatalErr(agentID, "commit reindex", err)
+	}
+	return nil
+}
+
+func snapshotStatus(prior bool) string {
+	if prior {
+		return "prior snapshot preserved"
+	}
+	return "no prior snapshot"
+}
+
+func sourceErr(cause error, msg string) error {
+	if cause == nil {
+		return errors.New(msg)
+	}
+	return fmt.Errorf("%s: %w", msg, cause)
+}
+
+func classifyReplayError(agent, op string, err error) error {
+	var syntax *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &syntax) || errors.As(err, &typeErr) {
+		return sourceErr(err, fmt.Sprintf("index: %s %s", op, agent))
+	}
+	return fatalErr(agent, op, err)
+}
+
+type fatalReindexError struct {
+	msg   string
+	cause error
+}
+
+func (e *fatalReindexError) Error() string { return e.msg + ": " + e.cause.Error() }
+func (e *fatalReindexError) Unwrap() error { return e.cause }
+func fatalErr(agent, op string, err error) error {
+	return &fatalReindexError{msg: fmt.Sprintf("index: %s %s", op, agent), cause: err}
+}
+func isFatalReindexError(err error) bool {
+	var fatal *fatalReindexError
+	return errors.As(err, &fatal)
+}
+
+func reindexInventory(root string, db *sql.DB) ([]string, error) {
+	seen := map[string]bool{}
+	rows, err := db.Query(`SELECT agent_id FROM sessions`)
+	if err != nil {
+		return nil, fmt.Errorf("index: inventory sessions: %w", err)
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("index: inventory sessions: %w", err)
+		}
+		seen[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("index: inventory sessions: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("index: inventory sessions: %w", err)
+	}
+	entries, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		out := make([]string, 0, len(seen))
+		for id := range seen {
+			out = append(out, id)
+		}
+		sort.Strings(out)
+		return out, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("index: read sessions dir: %w", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			seen[e.Name()] = true
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func readRetainedSessionTx(tx *sql.Tx, agentID string) (retainedSession, error) {
+	var r retainedSession
+	err := tx.QueryRow(`SELECT last_session_id, effort, fast FROM sessions WHERE agent_id=?`, agentID).Scan(&r.nativeID, &r.effort, &r.fast)
+	return r, err
+}
+
+func deleteAgentTx(tx *sql.Tx, agentID string) error {
+	if ok, err := ftsWritesAvailable(tx); err != nil {
+		return fmt.Errorf("index: detect FTS for %s: %w", agentID, err)
+	} else if ok {
+		if _, err := tx.Exec(`DELETE FROM sessions_fts WHERE agent_id=?`, agentID); err != nil {
+			return fmt.Errorf("index: delete FTS for %s: %w", agentID, err)
+		}
+	}
+	for _, table := range []string{"tracked_commands", "tracked_files", "sessions"} {
+		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE agent_id=?`, agentID); err != nil {
+			return fmt.Errorf("index: delete %s for %s: %w", table, agentID, err)
 		}
 	}
 	return nil
@@ -165,59 +317,4 @@ type retainedSession struct {
 	nativeID string
 	effort   string
 	fast     bool
-}
-
-func readRetainedSessions(db *sql.DB) (map[string]retainedSession, error) {
-	rows, err := db.Query(`SELECT agent_id, last_session_id, effort, fast FROM sessions`)
-	if err != nil {
-		return nil, fmt.Errorf("index: read retained session fields: %w", err)
-	}
-	defer rows.Close()
-	out := map[string]retainedSession{}
-	for rows.Next() {
-		var id string
-		var r retainedSession
-		if err := rows.Scan(&id, &r.nativeID, &r.effort, &r.fast); err != nil {
-			return nil, fmt.Errorf("index: scan retained session fields: %w", err)
-		}
-		out[id] = r
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("index: read retained session fields: %w", err)
-	}
-	return out, nil
-}
-
-// restoreRetainedSession reapplies retained fields to the replayed row. An
-// empty retained ID never replaces the transcript's.
-func restoreRetainedSession(db *sql.DB, agentID string, r retainedSession) error {
-	if _, err := db.Exec(`
-UPDATE sessions SET last_session_id = CASE WHEN ? <> '' THEN ? ELSE last_session_id END,
-  effort = ?, fast = ?
-WHERE agent_id = ?`, r.nativeID, r.nativeID, r.effort, r.fast, agentID); err != nil {
-		return fmt.Errorf("index: restore retained session fields %s: %w", agentID, err)
-	}
-	return nil
-}
-
-func resetTables(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("index: begin reset: %w", err)
-	}
-	defer tx.Rollback()
-	for _, stmt := range []string{
-		`DELETE FROM sessions_fts`,
-		`DELETE FROM tracked_commands`,
-		`DELETE FROM tracked_files`,
-		`DELETE FROM sessions`,
-	} {
-		if _, err := tx.Exec(stmt); err != nil {
-			return fmt.Errorf("index: reset tables: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("index: commit reset: %w", err)
-	}
-	return nil
 }

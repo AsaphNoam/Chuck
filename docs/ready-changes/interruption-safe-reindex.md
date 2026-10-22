@@ -1,6 +1,6 @@
 # Preserve conversations during offline reindex
 
-**State:** Waiting to start
+**State:** In progress — isolated worktree, 2026-10-22
 **Why:** Explicit `/design-feature` on 2026-10-21 for CR-A1-1/2; the operator approved partial
 repair on 2026-10-22. Origin and reproduced failure evidence:
 [core-reliability assessment](../features/CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#1-reindex-must-be-one-preservation-boundary)

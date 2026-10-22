@@ -55,11 +55,10 @@ rollup projections can be rebuilt from durable identity/session/transcript input
 the final partial turn and replaces a session's indexed content atomically enough that readers never
 observe a knowingly mixed generation. Session fields committed only to SQLite — the hook-learned
 native conversation ID (R54) and live effort/fast settings — are durable inputs, not projections:
-reindex reads them before the wipe (a read failure leaves the archive untouched) and restores them
-after each agent's replay, including one whose replay fails; an empty retained ID never replaces
-the transcript's (`TestReindexRetainsSQLiteOnlySessionFields`).
-The wipe/restore mechanism in this paragraph is the shipped baseline; planned R56–R58 supersede
-that maintenance mechanism, without changing the authority of the retained fields or projections.
+reindex reads them inside each conversation's replacement transaction and restores them before
+publication. Failed replay rolls back the entire replacement; an empty retained ID never replaces
+the transcript's (`TestReindexRetainsSQLiteOnlySessionFields`). R56–R58 define the maintenance
+mechanism without changing the authority of the retained fields or projections.
 
 **R10 — Both FTS capabilities are supported.** Release binaries compile with `sqlite_fts5`; the
 untagged test/build path must degrade to metadata `LIKE` search without surfacing a missing-module
@@ -828,7 +827,7 @@ canonical payload/result sizes within existing input limits and avoid retaining 
 Receipts follow the owning conversation's existing retention/permanent-deletion lifecycle;
 archival/reload does not erase the acceptance needed for harmless retry.
 
-**R56 (planned) — Offline repair publishes one complete conversation at a time.** For
+**R56 — Offline repair publishes one complete conversation at a time.** For
 FS-05.R43–R45, replace global reset followed by independently committed replay with one `sql.Tx`
 per agent. The transaction reads that agent's prior retained fields before deletion, removes only
 its `sessions`, writable `sessions_fts`, `tracked_files` and `tracked_commands` rows, replays its
@@ -849,7 +848,7 @@ than silently changing tracked paths. Live incremental operations retain their e
 ownership. Use fresh, per-agent replay buffers and release them on commit/rollback; do not retain a
 second whole-history copy or move the retained authority into a process-wide rescue map.
 
-**R57 (planned) — Source absence preserves existing repair state.** Discover the union of stored
+**R57 — Source absence preserves existing repair state.** Discover the union of stored
 session IDs and canonical source directories; check SQL iteration errors and close inventory rows
 before opening a repair transaction. Failure to enumerate either inventory reliably stops repair
 before replacement. An absent transcript root with stored sessions returns incomplete repair
@@ -875,7 +874,7 @@ fatal stop; neither path reports full completion. Restoring the source and rerun
 replace that conversation's projections without duplicating documents, file/command counts or
 rollups. Repair creates no agent turn and does not mutate unrelated durable tables or source files.
 
-**R58 (planned) — Preserve repair compatibility and prove the destructive boundary.** Keep
+**R58 — Preserve repair compatibility and prove the destructive boundary.** Keep
 `index.Reindex(home, db) error`, the current `chuck reindex` command/home resolution and live-server
 refusal. Its separate database writer remains an offline maintenance exception to R2, not an online
 repair API or a stronger mutual-exclusion claim than the existing server guard. Keep the existing
@@ -971,11 +970,13 @@ R1–R26 and must be reflected here when its contract changes.
 
 ## 5. Deviations & open decisions
 
-- **Offline reindex preservation is planned (R56–R58).** The operator approved partial repair
-  on 2026-10-22 (FS-05.R43–R45). R9's current committed wipe/process-local retention does not
-  survive interruption or unavailable input. The replacement uses per-agent atomic replay within
-  the existing database; no schema migration, durable staging or archive-wide transaction is needed.
-  CR-A1-1/2 remain open until implementation and verification; CR-A1-3 remains separately owned.
+- **Offline reindex preservation implemented 2026-10-22 (R56–R58).** The approved partial-repair
+  policy uses per-agent atomic replay within the existing database, without a schema migration.
+  `TestReindexKilledBeforePublication` proves real-process interruption/reopen/retry;
+  `TestReindexPreservesCompleteFailedProjection` and `TestReindexStorageFailureBeforePublication`
+  prove complete failed-projection preservation and fatal storage rollback. The CLI partial-repair
+  test and server Resume wire test cover operator results and native continuation. CR-A1-1/2
+  await independent review; CR-A1-3 remains separately owned.
 
 - **Journal outcomes shipped 2026-10-20 (ASW-1, R52):** health lives in its own `conversation_health` table
   (migration 57) rather than `sessions` columns, because the open-writer marker must be recordable

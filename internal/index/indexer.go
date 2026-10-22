@@ -22,8 +22,18 @@ type execer interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
 
+type queryRower interface {
+	QueryRow(query string, args ...any) *sql.Row
+}
+type sqlRunner interface {
+	execer
+	queryRower
+}
+
 type Indexer struct {
 	db          *sql.DB
+	runner      sqlRunner
+	tx          *sql.Tx
 	mu          sync.Mutex
 	content     map[string][]bufferedText
 	fileCalls   map[string]map[string]fileCall // agent -> open toolCallID -> counted file
@@ -52,7 +62,11 @@ type fileCall struct {
 const maxOpenFileCalls = 64
 
 func New(db *sql.DB) *Indexer {
-	return &Indexer{db: db, content: map[string][]bufferedText{}, fileCalls: map[string]map[string]fileCall{}, ftsWritable: ftsWritesAvailable}
+	return &Indexer{db: db, runner: db, content: map[string][]bufferedText{}, fileCalls: map[string]map[string]fileCall{}, ftsWritable: ftsWritesAvailable}
+}
+
+func newTxIndexer(db *sql.DB, tx *sql.Tx) *Indexer {
+	return &Indexer{db: db, runner: tx, tx: tx, content: map[string][]bufferedText{}, fileCalls: map[string]map[string]fileCall{}, ftsWritable: ftsWritesAvailable}
 }
 
 func (ix *Indexer) UpsertSessionMeta(agentID string, meta runtime.SessionMetaData) error {
@@ -93,11 +107,16 @@ func (ix *Indexer) UpsertSessionMeta(agentID string, meta runtime.SessionMetaDat
 	chuckAware := meta.IsChuckAware()
 	// Put the session upsert and metadata document replacement in one
 	// transaction so both succeed or both roll back (TS-02.R16, INV §15).
-	tx, err := ix.db.Begin()
-	if err != nil {
-		return fmt.Errorf("index: begin metadata transaction: %w", err)
+	tx := ix.tx
+	owned := tx == nil
+	if owned {
+		var err error
+		tx, err = ix.db.Begin()
+		if err != nil {
+			return fmt.Errorf("index: begin metadata transaction: %w", err)
+		}
+		defer tx.Rollback()
 	}
-	defer tx.Rollback()
 	_, err = tx.Exec(`
 INSERT INTO sessions(agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware, env_keys, skip_permissions, add_dirs, launch_config_json, runtime_capabilities_json, forked_from_agent_id, forked_from_seq, last_session_id, created_at, updated_at, history_primer, execution_contract_json)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), ?, ?, ?, ?, ?)
@@ -142,8 +161,10 @@ ON CONFLICT(agent_id) DO UPDATE SET
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("index: commit metadata transaction: %w", err)
+	if owned {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("index: commit metadata transaction: %w", err)
+		}
 	}
 	return nil
 }
@@ -178,7 +199,7 @@ func (ix *Indexer) onEventLocked(agentID string, ev runtime.Event) error {
 	if err := ix.trackEvent(agentID, ev); err != nil {
 		return err
 	}
-	_, err = updateEventCounters(ix.db, agentID, ev)
+	_, err = updateEventCounters(ix.runner, agentID, ev)
 	return err
 }
 
@@ -337,11 +358,16 @@ func (ix *Indexer) flushLocked(agentID string, rollup runtime.TurnRollup, countT
 	}
 	content := strings.Join(parts, "\n")
 
-	tx, err := ix.db.Begin()
-	if err != nil {
-		return fmt.Errorf("index: begin turn flush: %w", err)
+	tx := ix.tx
+	owned := tx == nil
+	if owned {
+		var err error
+		tx, err = ix.db.Begin()
+		if err != nil {
+			return fmt.Errorf("index: begin turn flush: %w", err)
+		}
+		defer tx.Rollback()
 	}
-	defer tx.Rollback()
 
 	if content != "" {
 		ftsWritable, err := ix.ftsWritable(tx)
@@ -378,8 +404,10 @@ WHERE agent_id = ?`,
 		turnInc, rollup.LastSeq, rollup.LastSeq, rollup.LastContextPct, lastUsed, lastSize, rollup.UpdatedAt, rollup.UpdatedAt, agentID, agentID, agentID); err != nil {
 		return fmt.Errorf("index: update turn rollup: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("index: commit turn flush: %w", err)
+	if owned {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("index: commit turn flush: %w", err)
+		}
 	}
 	if len(retained) == 0 {
 		delete(ix.content, agentID)
@@ -454,7 +482,7 @@ func (ix *Indexer) trackEvent(agentID string, ev runtime.Event) error {
 			ix.noteFileCallLocked(agentID, d.ToolCallID, display, ev)
 		}
 		if cmd := commandFromArgs(d.Args); cmd != "" && isCommandTool(d.Name) {
-			if _, err := ix.db.Exec(`
+			if _, err := ix.runner.Exec(`
 INSERT OR REPLACE INTO tracked_commands(agent_id, seq, ts, tool_call_id, command, exit_status, exit_error)
 VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID, cmd); err != nil {
 				return fmt.Errorf("index: insert command: %w", err)
@@ -469,7 +497,11 @@ VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID
 			return fmt.Errorf("index: track tool_call_update: %w", err)
 		}
 		if p := pathFromArgs(d.Args); p != "" && isFileTool(d.Name) {
-			if display, _ := ix.normalizePath(agentID, p); ix.fileCalls[agentID][d.ToolCallID].path != display {
+			display, _, err := ix.normalizePath(agentID, p)
+			if err != nil {
+				return err
+			}
+			if ix.fileCalls[agentID][d.ToolCallID].path != display {
 				if _, err := ix.upsertFile(agentID, p, ev, d.ToolCallID, false); err != nil {
 					return err
 				}
@@ -477,12 +509,12 @@ VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID
 			}
 		}
 		if cmd := commandFromArgs(d.Args); cmd != "" && isCommandTool(d.Name) {
-			res, err := ix.db.Exec(`UPDATE tracked_commands SET command = ? WHERE agent_id = ? AND tool_call_id = ?`, cmd, agentID, d.ToolCallID)
+			res, err := ix.runner.Exec(`UPDATE tracked_commands SET command = ? WHERE agent_id = ? AND tool_call_id = ?`, cmd, agentID, d.ToolCallID)
 			if err != nil {
 				return fmt.Errorf("index: update command: %w", err)
 			}
 			if n, _ := res.RowsAffected(); n == 0 {
-				if _, err := ix.db.Exec(`
+				if _, err := ix.runner.Exec(`
 INSERT OR REPLACE INTO tracked_commands(agent_id, seq, ts, tool_call_id, command, exit_status, exit_error)
 VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID, cmd); err != nil {
 					return fmt.Errorf("index: insert command: %w", err)
@@ -495,7 +527,7 @@ VALUES (?, ?, ?, ?, ?, 'in_progress', '')`, agentID, ev.Seq, ev.Ts, d.ToolCallID
 			return fmt.Errorf("index: track tool_result: %w", err)
 		}
 		ix.releaseFileCallsLocked(agentID, func(id string, _ fileCall) bool { return id == d.ToolCallID })
-		if _, err := ix.db.Exec(`
+		if _, err := ix.runner.Exec(`
 UPDATE tracked_commands
 SET exit_status = ?, exit_error = ?
 WHERE agent_id = ? AND tool_call_id = ?`, strutil.FirstNonEmpty(d.Status, "completed"), d.Error, agentID, d.ToolCallID); err != nil {
@@ -510,8 +542,11 @@ WHERE agent_id = ? AND tool_call_id = ?`, strutil.FirstNonEmpty(d.Status, "compl
 			return fmt.Errorf("index: track file report: %w", err)
 		}
 		for _, p := range d.Paths {
-			display, abs := ix.normalizePath(agentID, p)
-			if _, err := ix.db.Exec(`
+			display, abs, err := ix.normalizePath(agentID, p)
+			if err != nil {
+				return err
+			}
+			if _, err := ix.runner.Exec(`
 INSERT INTO tracked_files(agent_id, path, abs_path, edit_count, first_seq, last_seq, first_ts, last_ts, has_diff, diff_refs)
 VALUES (?, ?, ?, 1, ?, ?, ?, ?, 0, '[]')
 ON CONFLICT(agent_id, path) DO NOTHING`, agentID, display, abs, ev.Seq, ev.Seq, ev.Ts, ev.Ts); err != nil {
@@ -573,13 +608,16 @@ func (ix *Indexer) releaseFileCallsLocked(agentID string, release func(string, f
 
 // upsertFile counts one edit of p and returns its display path.
 func (ix *Indexer) upsertFile(agentID, p string, ev runtime.Event, toolCallID string, hasDiff bool) (string, error) {
-	display, abs := ix.normalizePath(agentID, p)
+	display, abs, err := ix.normalizePath(agentID, p)
+	if err != nil {
+		return "", err
+	}
 	diffRefs := "[]"
 	if hasDiff {
 		ref, _ := json.Marshal([]map[string]any{{"seq": ev.Seq, "tool_call_id": toolCallID}})
 		diffRefs = string(ref)
 	}
-	_, err := ix.db.Exec(`
+	_, err = ix.runner.Exec(`
 INSERT INTO tracked_files(agent_id, path, abs_path, edit_count, first_seq, last_seq, first_ts, last_ts, has_diff, diff_refs)
 VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(agent_id, path) DO UPDATE SET
@@ -599,17 +637,19 @@ ON CONFLICT(agent_id, path) DO UPDATE SET
 	return display, nil
 }
 
-func (ix *Indexer) normalizePath(agentID, p string) (display, abs string) {
+func (ix *Indexer) normalizePath(agentID, p string) (display, abs string, err error) {
 	cwd := ""
-	_ = ix.db.QueryRow(`SELECT cwd FROM sessions WHERE agent_id = ?`, agentID).Scan(&cwd)
+	if err := ix.runner.QueryRow(`SELECT cwd FROM sessions WHERE agent_id = ?`, agentID).Scan(&cwd); err != nil && err != sql.ErrNoRows {
+		return "", "", fmt.Errorf("index: read session cwd: %w", err)
+	}
 	if filepath.IsAbs(p) {
 		abs = filepath.Clean(p)
 		if cwd != "" {
 			if rel, err := filepath.Rel(cwd, abs); err == nil && !strings.HasPrefix(rel, "..") {
-				return filepath.ToSlash(rel), abs
+				return filepath.ToSlash(rel), abs, nil
 			}
 		}
-		return abs, abs
+		return abs, abs, nil
 	}
 	display = filepath.ToSlash(filepath.Clean(p))
 	if cwd != "" {
@@ -617,7 +657,7 @@ func (ix *Indexer) normalizePath(agentID, p string) (display, abs string) {
 	} else {
 		abs = p
 	}
-	return display, abs
+	return display, abs, nil
 }
 
 func pathFromArgs(raw json.RawMessage) string {

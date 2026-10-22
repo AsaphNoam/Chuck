@@ -386,15 +386,15 @@ func TestReindexRebuildsFromRawLogs(t *testing.T) {
 	if _, err := st.DB().Exec(`INSERT INTO sessions(agent_id, name, role, project, backend, model, interface, cwd, system_prompt, created_at, updated_at) VALUES ('stale','stale','r','p','b','m','chat','','','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`); err != nil {
 		t.Fatalf("insert stale row: %v", err)
 	}
-	if err := Reindex(home, st.DB()); err != nil {
-		t.Fatalf("Reindex: %v", err)
+	if err := Reindex(home, st.DB()); err == nil || !strings.Contains(err.Error(), "stale") {
+		t.Fatalf("Reindex error = %v, want missing-source identity", err)
 	}
 	var count int
 	if err := st.DB().QueryRow(`SELECT COUNT(*) FROM sessions WHERE agent_id = 'stale'`).Scan(&count); err != nil {
 		t.Fatalf("count stale: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("stale sessions count = %d, want 0", count)
+	if count != 1 {
+		t.Fatalf("source-absent sessions count = %d, want 1 (not a pruning operation)", count)
 	}
 	var agentID string
 	if err := st.DB().QueryRow(`SELECT agent_id FROM sessions_fts WHERE content LIKE ?`, `%distinctive quartz%`).Scan(&agentID); err != nil {
