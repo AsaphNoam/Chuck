@@ -112,6 +112,14 @@ type Server struct {
 	// unrelated task launches retain the configured concurrency (INV §5).
 	taskStartMu    sync.Mutex
 	taskStartLocks map[string]*taskStartLock
+	taskSweepMu    sync.Mutex
+	taskSweepAfter state.Task
+	mailSweepMu    sync.Mutex
+	mailSweepAfter state.Activation
+	// startupStartRetries contains only reservations whose startup reap failed;
+	// live admissions never enter this set.
+	startupStartRetries    map[string]string
+	startupStartRetryOrder []string
 
 	hookMu      sync.Mutex
 	hookTokens  map[string]string // agent_id -> per-launch hook token (Phase 2 persists these)
@@ -341,6 +349,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		thinkTankCaptures:         map[string]*thinkTankCapture{},
 		thinkTankFailures:         map[thinkTankAttemptKey]string{},
 		taskStartLocks:            map[string]*taskStartLock{},
+		startupStartRetries:       map[string]string{},
 		cfg:                       cfg,
 		log:                       log,
 		knowledge:                 installedKnowledge,

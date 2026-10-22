@@ -512,6 +512,7 @@ func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request) {
 				writeAPIError(w, apiError(runtime.CodeConflict, "quota continuation changed; refresh and try again"))
 				return
 			}
+			s.registry.ClearQuotaBlock(id, q.SourceGeneration, q.ExecutingTurn)
 			cancelled = true
 			_, _ = s.stateMgr.Touch(id)
 		}

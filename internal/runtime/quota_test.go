@@ -311,6 +311,26 @@ func TestRepairedQuotaCompletionUnblocksOnlyItsExactTuple(t *testing.T) {
 	}
 }
 
+func TestCancelledQuotaEpisodeAllowsAutomaticActivationAfterBlockClear(t *testing.T) {
+	c, h, ch, as := startQuotaTestAgent(t, "stream_text")
+	as.mu.Lock()
+	as.quotaBlocked = true
+	as.quotaBlockedGeneration = as.generation
+	as.quotaBlockedTurnID = "failed-turn"
+	as.mu.Unlock()
+	c.ClearQuotaBlock(h.AgentID, as.generation, "failed-turn")
+	if _, err := c.store.InsertMessage(state.Message{FromAgent: "sender", FromAddress: "test", ToAgent: h.AgentID, Subject: "wake", Body: "wake"}); err != nil {
+		t.Fatal(err)
+	}
+	started, err := c.StartActivation(context.Background(), h.AgentID, "mail", func(turn string) error {
+		return c.store.ResetTurnBudget(h.AgentID, turn)
+	})
+	if err != nil || !started {
+		t.Fatalf("StartActivation after cancelled quota = %v, %v; want started", started, err)
+	}
+	drainTurn(t, ch)
+}
+
 func TestQuotaActivationLeavesInlineMailUnread(t *testing.T) {
 	quota := quotaFailure("activation:error", 1, "limit", "error")
 	c, h, ch, as := startQuotaTestAgent(t, "stream_text", "FAKEACP_FAILURE_UPDATE="+quota, "FAKEACP_FAILURE_RESULT="+quota)

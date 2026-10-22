@@ -36,6 +36,26 @@ func TestTaskWaitYieldsAndWakesAfterWatchedResult(t *testing.T) {
 	}
 }
 
+// TS-10.R29 / CR-A2-5: external input prepares the same durable assignment
+// continuation and does not grant a direct runtime turn.
+func TestExternalInputPreparesWaitingAssignmentContinuation(t *testing.T) {
+	st, _ := newTestStore(t)
+	task := newTask(t, st, "proj", "waiting continuation")
+	if _, err := st.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ? WHERE task_id = ?`, TaskWaiting, "a_owner", "g1", task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	prepared, changed, err := st.PrepareTaskContinuation("a_owner")
+	if err != nil || !changed {
+		t.Fatalf("PrepareTaskContinuation = %+v, %v, changed=%v", prepared, err, changed)
+	}
+	if prepared.State != TaskReady || !prepared.ContinuationPending || !prepared.ResumeNeeded || prepared.AssignedAgentID != "a_owner" {
+		t.Fatalf("prepared continuation = %+v", prepared)
+	}
+	if _, changed, err := st.PrepareTaskContinuation("a_owner"); err != nil || changed {
+		t.Fatalf("second preparation = changed=%v err=%v, want idempotent no-op", changed, err)
+	}
+}
+
 func TestTaskCleanupFailureBacksOffWithoutChangingTaskOutcome(t *testing.T) {
 	st, _ := newTestStore(t)
 	task := newTask(t, st, "proj", "cleanup")

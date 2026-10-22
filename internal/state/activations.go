@@ -98,12 +98,24 @@ SELECT ?, agent_id, ?, ?, ? FROM agents WHERE agent_id = ?`,
 // much of a backlog one sweep admits, and whatever it leaves stays pending for
 // the next one (TS-01.R20, INV §9).
 func (s *Store) PendingActivations(kind, agentID string, limit int) ([]Activation, error) {
-	rows, err := s.db.Query(`
+	return s.PendingActivationsAfter(kind, agentID, limit, Activation{})
+}
+
+// PendingActivationsAfter uses only the cursor's creation time and ID, so
+// deleting earlier opportunities cannot skip later pending work.
+func (s *Store) PendingActivationsAfter(kind, agentID string, limit int, after Activation) ([]Activation, error) {
+	query := `
 SELECT activation_id, agent_id, kind, state, claim_token, source_id, created_at, claimed_at, attempted_at
 FROM activations
-WHERE kind = ? AND state = ? AND (? = '' OR agent_id = ?)
-ORDER BY created_at, activation_id
-LIMIT ?`, kind, ActivationPending, agentID, agentID, limit)
+WHERE kind = ? AND state = ? AND (? = '' OR agent_id = ?)`
+	args := []any{kind, ActivationPending, agentID, agentID}
+	if after.ActivationID != "" {
+		query += ` AND (created_at, activation_id) > (?, ?)`
+		args = append(args, formatTime(after.CreatedAt), after.ActivationID)
+	}
+	query += ` ORDER BY created_at, activation_id LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("state: list pending activations: %w", err)
 	}

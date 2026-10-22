@@ -367,6 +367,35 @@ func TestRecoverThinkTanksPreservesQuotaRoomHold(t *testing.T) {
 	}
 }
 
+func TestRecoverThinkTanksDoesNotReholdCancelledRoomQuota(t *testing.T) {
+	st, _ := newTestStore(t)
+	d, source, _ := quotaRoomSetup(t, st, ThinkTankTurnDiscussion)
+	now := timeNow().UTC().Truncate(time.Second)
+	reset := now.Add(time.Minute)
+	due := reset.Add(time.Minute)
+	if _, err := st.ObserveOwnedQuota(QuotaObservation{AgentID: source.AgentID, EpisodeID: "quota-cancelled-restart",
+		SourceGeneration: source.Generation, ExecutingTurn: source.TurnID, ObservedAt: now,
+		ResetAt: &reset, DueAt: &due, State: QuotaScheduled}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := st.SnapshotAgentQuota(source.AgentID)
+	if err != nil || snapshot == nil {
+		t.Fatalf("quota snapshot=%+v err=%v", snapshot, err)
+	}
+	if _, err := st.CancelQuotaSnapshot(*snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ResumeThinkTank(d.Room.RoomID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.RecoverThinkTanks(); err != nil {
+		t.Fatal(err)
+	}
+	if room := mustTT(t, st, d.Room.RoomID).Room; room.Hold == "Quota reached" {
+		t.Fatalf("cancelled quota was reheld after restart: %+v", room)
+	}
+}
+
 func TestRecoverThinkTanksFencesQuotaContinuationWithoutGenericSettlement(t *testing.T) {
 	st, _ := newTestStore(t)
 	d, source, completed := quotaRoomSetup(t, st, ThinkTankTurnDiscussion)

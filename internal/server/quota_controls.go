@@ -251,6 +251,13 @@ func (s *Server) cancelQuotaSnapshots(snapshots []state.QuotaControlSnapshot) er
 	if err != nil {
 		return err
 	}
+	for _, snapshot := range snapshots {
+		for _, id := range changed {
+			if snapshot.AgentID == id {
+				s.registry.ClearQuotaBlock(id, snapshot.SourceGeneration, snapshot.ExecutingTurn)
+			}
+		}
+	}
 	return s.publishQuotaAgents(changed)
 }
 

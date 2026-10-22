@@ -396,7 +396,14 @@ func (s *Server) wakeAgent(ctx context.Context, agentID string) (bool, *runtime.
 	if !ok {
 		return false, nil
 	}
-	if ae := s.resumeSession(ctx, agentID, resumeOverride{}); ae != nil {
+	if ae := s.resumeSessionWithHooks(ctx, agentID, resumeOverride{}, func() error {
+		if blocked, err := s.assignmentNeedsAdmission(agentID); err != nil {
+			return err
+		} else if blocked {
+			return apiError(runtime.CodeConflict, "the assigned task must resume before this prompt can be delivered; retry shortly")
+		}
+		return nil
+	}, nil); ae != nil {
 		return false, ae
 	}
 	return true, nil

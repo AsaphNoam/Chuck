@@ -570,6 +570,107 @@ func TestAdmissionTakesCapacityInTheStatementThatGrantsIt(t *testing.T) {
 	}
 }
 
+// CR-A2-2 / FS-16.R4, TS-10.R17 — an agent-reported result or a yield keeps
+// its runtime's slot until that release actually completes. Counting only
+// starting/running rows let a slow reporting turn admit past the budget.
+func TestPendingCleanupKeepsItsBudgetSlot(t *testing.T) {
+	for _, yield := range []bool{false, true} {
+		t.Run(map[bool]string{false: "release", true: "yield"}[yield], func(t *testing.T) {
+			st, _ := newTestStore(t)
+			owner := newTask(t, st, "my-app", "owner")
+			admitted, ok, err := st.AdmitReadyTask(owner.TaskID, reservation("at_owner", "a_owner", ClaimCreated), 1)
+			if err != nil || !ok {
+				t.Fatalf("admit owner = %v, %v", ok, err)
+			}
+			running, ok, err := st.ConfirmTaskStart(owner.TaskID, admitted.StartAttemptID)
+			if err != nil || !ok {
+				t.Fatalf("confirm owner = %v, %v", ok, err)
+			}
+			if yield {
+				childID, _ := st.NewTaskID()
+				child, err := st.CreateTask(Task{TaskID: childID, Project: "my-app", DisplayName: "child",
+					Instruction: "work", TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "agent",
+					CreatedByAgentID: "a_owner", Arms: []TaskArm{{Kind: ArmSignal, SignalName: "never"}}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, _, err := st.WaitForTasks("a_owner", running.AssignedGeneration, running.ExecutionHandle,
+					[]TaskWaitObservation{{TaskID: child.TaskID, AfterRevision: child.Revision}}); err != nil {
+					t.Fatalf("WaitForTasks: %v", err)
+				}
+			} else if _, err := st.RecordAgentTaskResult(owner.TaskID, "a_owner", running.AssignedGeneration,
+				running.ExecutionHandle, TaskResult{Outcome: OutcomeSuccess, Summary: "done"}); err != nil {
+				t.Fatalf("RecordAgentTaskResult: %v", err)
+			}
+			next := newTask(t, st, "my-app", "next")
+			if _, ok, err := st.AdmitReadyTask(next.TaskID, reservation("at_next", "a_next", ClaimCreated), 1); err != nil || ok {
+				t.Fatalf("second runtime admitted before cleanup completed: ok=%v err=%v", ok, err)
+			}
+			if yield {
+				_, err = st.CompleteTaskYield(owner.TaskID)
+			} else {
+				err = st.CompleteTaskRelease(owner.TaskID)
+			}
+			if err != nil {
+				t.Fatalf("complete cleanup: %v", err)
+			}
+			if _, ok, err := st.AdmitReadyTask(next.TaskID, reservation("at_next2", "a_next", ClaimCreated), 1); err != nil || !ok {
+				t.Fatalf("freed slot did not admit: ok=%v err=%v", ok, err)
+			}
+		})
+	}
+}
+
+// CR-A2-3 / FS-16.R23 — a deferred or failed retry clears only that attempt's
+// reservation. The assignee an earlier start confirmed stays, so the next plan
+// resumes it rather than launching a second agent.
+func TestSettledRetryKeepsConfirmedAssignee(t *testing.T) {
+	settle := map[string]func(*Store, string, string) (Task, bool, error){
+		"abandon": func(st *Store, id, attempt string) (Task, bool, error) { return st.AbandonTaskStart(id, attempt) },
+		"fail": func(st *Store, id, attempt string) (Task, bool, error) {
+			return st.FailTaskStart(id, attempt, "resume failed")
+		},
+	}
+	for name, fn := range settle {
+		t.Run(name, func(t *testing.T) {
+			st, _ := newTestStore(t)
+			task := newTask(t, st, "my-app", "retried")
+			if _, ok, err := st.AdmitReadyTask(task.TaskID, reservation("at_first", "a_original", ClaimCreated), 10); err != nil || !ok {
+				t.Fatalf("admit = %v, %v", ok, err)
+			}
+			if _, ok, err := st.ConfirmTaskStart(task.TaskID, "at_first"); err != nil || !ok {
+				t.Fatalf("confirm = %v, %v", ok, err)
+			}
+			if _, _, err := st.InterruptTask(task.TaskID, "process exited"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := st.RetryTask(task.TaskID); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok, err := st.AdmitReadyTask(task.TaskID, reservation("at_retry", "a_original", ClaimWoke), 10); err != nil || !ok {
+				t.Fatalf("retry admit = %v, %v", ok, err)
+			}
+			settled, ok, err := fn(st, task.TaskID, "at_retry")
+			if err != nil || !ok {
+				t.Fatalf("settle = %v, %v", ok, err)
+			}
+			if settled.State != TaskReady || settled.AssignedAgentID != "a_original" || settled.RuntimeClaim != "" {
+				t.Fatalf("settled retry = state %s assignee %q claim %q, want ready a_original with no claim",
+					settled.State, settled.AssignedAgentID, settled.RuntimeClaim)
+			}
+		})
+	}
+	// A start that never confirmed leaves nothing behind.
+	st, _ := newTestStore(t)
+	task := newTask(t, st, "my-app", "fresh")
+	if _, ok, err := st.AdmitReadyTask(task.TaskID, reservation("at_fresh", "a_fresh", ClaimCreated), 10); err != nil || !ok {
+		t.Fatalf("admit = %v, %v", ok, err)
+	}
+	if settled, _, err := st.AbandonTaskStart(task.TaskID, "at_fresh"); err != nil || settled.AssignedAgentID != "" {
+		t.Fatalf("unconfirmed reservation kept assignee %q: %v", settled.AssignedAgentID, err)
+	}
+}
+
 // FS-16.R2 / TS-10.R18 — two tasks admitted for the same agent leave exactly
 // one active. The loser is refused by the durable index rather than by ordering
 // luck, stays ready, and spends no attempt.

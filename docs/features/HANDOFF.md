@@ -48,9 +48,15 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Active change
 
-- None. Interruption-safe reindex is finished and independently reviewed without findings.
-  Both Go variants and the build pass. The operator-requested worktree kept the main checkout's
-  existing uncommitted ready-change edits separate.
+- CR-A2 fix resumed on 2026-10-22 from the interrupted dirty tree. All nine repairs are
+  implemented; focused store and fake-provider integration tests pass, including held-turn
+  cleanup, original-assignee native resume, actionable watch recovery, capacity/manual/mail
+  continuation, shrinking blocked backlogs, failed-turn mail/task activation, all three room
+  quota recovery states, and rotating startup retries. TS-10.R48–R52 record the contracts.
+  Final `GOFLAGS=-p=1 make test` (both SQLite variants) and tagged build are running; closure
+  and finding removal remain owed. Logs: `/tmp/chuck-cr-a2-test-final.log`. The first full
+  pass exposed an old state-only capacity fixture; it now exercises actual result/release.
+  Preserve the four unrelated ready-change edits. ASF-6 closed concurrently in its own commits.
 - Other available review/fix units and owed live receipts remain below.
 
 ## Acceptance gates still owed

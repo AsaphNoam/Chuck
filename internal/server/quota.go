@@ -99,5 +99,5 @@ func (s *Server) quotaBlocksAgent(agentID string) (bool, error) {
 	if errors.Is(err, state.ErrNotFound) {
 		return false, nil
 	}
-	return err == nil && q.State != state.QuotaContinued, err
+	return err == nil && q.State != state.QuotaContinued && q.State != state.QuotaCancelled, err
 }

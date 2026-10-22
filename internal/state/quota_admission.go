@@ -96,9 +96,9 @@ FROM tasks WHERE task_id=?`+taskRunOpenClause, q.Owner.TaskID).Scan(&state, &age
 	res, err := tx.Exec(`UPDATE tasks SET runtime_claim=?, revision=revision+1, updated_at=?
 WHERE task_id=? AND state=? AND assigned_agent_id=? AND assigned_generation=? AND runtime_claim=?
 AND pending_release=0 AND pending_yield=0
-AND (SELECT COUNT(*) FROM tasks AS live WHERE live.runtime_claim IN (?,?) AND live.state IN (?,?)) < ?`+taskRunOpenClause,
+AND `+taskCapacityFreeClause+taskRunOpenClause,
 		ClaimWoke, formatTime(timeNow()), q.Owner.TaskID, TaskRunning, q.AgentID, q.SourceGeneration, ClaimBorrowed,
-		ClaimCreated, ClaimWoke, TaskStarting, TaskRunning, budget)
+		ClaimCreated, ClaimWoke, budget)
 	if err != nil {
 		return false, err
 	}

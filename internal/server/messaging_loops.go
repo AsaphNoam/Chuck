@@ -46,7 +46,13 @@ func (s *Server) executePendingMailActivations(ctx context.Context, onlyAgentID 
 	if s.registry == nil {
 		return
 	}
-	activations, err := s.stateStore.PendingActivations(state.ActivationKindMail, onlyAgentID, messaging.ActivationBatch)
+	s.mailSweepMu.Lock()
+	defer s.mailSweepMu.Unlock()
+	after := state.Activation{}
+	if onlyAgentID == "" {
+		after = s.mailSweepAfter
+	}
+	activations, err := s.stateStore.PendingActivationsAfter(state.ActivationKindMail, onlyAgentID, messaging.ActivationBatch, after)
 	if err != nil {
 		s.log.Debug("activation list pending mail failed", "err", err)
 		return
@@ -60,6 +66,9 @@ func (s *Server) executePendingMailActivations(ctx context.Context, onlyAgentID 
 		select {
 		case s.activationSlots <- struct{}{}:
 		default:
+			if onlyAgentID == "" {
+				s.mailSweepAfter = state.Activation{}
+			}
 			return
 		}
 		go func() {
@@ -67,9 +76,44 @@ func (s *Server) executePendingMailActivations(ctx context.Context, onlyAgentID 
 			s.executeMailActivation(ctx, activation)
 		}()
 	}
+	if onlyAgentID == "" {
+		if len(activations) == 0 {
+			s.mailSweepAfter = state.Activation{}
+		} else {
+			last := activations[len(activations)-1]
+			s.mailSweepAfter = state.Activation{ActivationID: last.ActivationID, CreatedAt: last.CreatedAt}
+		}
+	}
 }
 
 func (s *Server) executeMailActivation(ctx context.Context, activation state.Activation) {
+	if task, err := s.stateStore.TaskAssignment(activation.AgentID); err == nil {
+		if task.PendingYield || task.PendingRelease {
+			return
+		}
+		switch task.State {
+		case state.TaskWaiting:
+			prepared, changed, err := s.stateStore.PrepareTaskContinuation(activation.AgentID)
+			if err != nil {
+				s.log.Debug("prepare task continuation for mail failed", "agent", activation.AgentID, "err", err)
+				return
+			} else if changed {
+				s.publishTaskUpdate(prepared)
+				go s.dispatchReadyTasks(context.Background())
+			}
+			return
+		case state.TaskStarting:
+			// The dependency admission owns the next turn. Leave mail pending.
+			return
+		case state.TaskReady:
+			if task.ContinuationPending {
+				return
+			}
+		}
+	} else if !errors.Is(err, state.ErrNotFound) {
+		s.log.Debug("task assignment lookup failed", "agent", activation.AgentID, "err", err)
+		return
+	}
 	if blocked, err := s.quotaBlocksAgent(activation.AgentID); err != nil || blocked {
 		return
 	}
@@ -98,6 +142,13 @@ func (s *Server) executeMailActivation(ctx context.Context, activation state.Act
 		return
 	}
 	if !claimed {
+		return
+	}
+	if task, err := s.stateStore.TaskAssignment(activation.AgentID); err == nil && (task.PendingYield || task.PendingRelease || task.State == state.TaskWaiting || task.State == state.TaskReady || task.State == state.TaskStarting) {
+		s.releaseMailActivation(activation, token)
+		return
+	} else if err != nil && !errors.Is(err, state.ErrNotFound) {
+		s.releaseMailActivation(activation, token)
 		return
 	}
 	// A pending activation can outlive the recipient's eligibility: a runtime
@@ -164,6 +215,11 @@ func (s *Server) runActivationTurn(ctx context.Context, kind string, activation 
 		return false, false
 	}
 	defer s.releaseLifecycle(activation.AgentID)
+	if kind == state.ActivationKindMail {
+		if blocked, err := s.assignmentNeedsAdmission(activation.AgentID); err != nil || blocked {
+			return false, false
+		}
+	}
 	started, err := s.registry.StartActivation(ctx, activation.AgentID, kind, func(turnID string) error {
 		var err error
 		attempted, err = s.stateStore.AttemptActivation(kind, activation.ActivationID, token, turnID)
@@ -217,6 +273,13 @@ func (s *Server) startStoppedMailActivation(ctx context.Context, activation stat
 func (s *Server) wakeForActivation(ctx context.Context, kind string, activation state.Activation, token string) (bool, *runtime.APIError) {
 	attempted := false
 	ae := s.resumeSessionWithHooks(ctx, activation.AgentID, resumeOverride{}, func() error {
+		if kind == state.ActivationKindMail {
+			if blocked, err := s.assignmentNeedsAdmission(activation.AgentID); err != nil {
+				return err
+			} else if blocked {
+				return errors.New("task continuation requires admission")
+			}
+		}
 		var err error
 		attempted, err = s.stateStore.AttemptActivation(kind, activation.ActivationID, token, "")
 		if err == nil && !attempted {
@@ -239,6 +302,19 @@ func (s *Server) wakeForActivation(ctx context.Context, kind string, activation 
 		s.log.Debug("start stopped activation failed", "kind", kind, "agent", activation.AgentID, "err", ae.Message)
 	}
 	return attempted, ae
+}
+
+// Recheck under the lifecycle claim immediately before a mail side effect.
+// A waiting task may have appeared since the executor's initial hint read.
+func (s *Server) assignmentNeedsAdmission(agentID string) (bool, error) {
+	task, err := s.stateStore.TaskAssignment(agentID)
+	if errors.Is(err, state.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return task.PendingYield || task.PendingRelease || task.State != state.TaskRunning, nil
 }
 
 func (s *Server) releaseMailActivation(activation state.Activation, token string) {

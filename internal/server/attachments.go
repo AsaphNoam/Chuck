@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -449,6 +450,26 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 	if action == "prompt" && strings.TrimSpace(msg.Text) == "" && len(msg.Attachments) == 0 {
 		writeAPIError(w, apiError(runtime.CodeValidation, "text or attachments are required"))
 		return
+	}
+	if action == "prompt" {
+		task, taskErr := s.stateStore.TaskAssignment(id)
+		if taskErr != nil && !errors.Is(taskErr, state.ErrNotFound) {
+			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read task assignment"))
+			return
+		}
+		if taskErr == nil && (task.State == state.TaskWaiting || task.State == state.TaskReady || task.State == state.TaskStarting || task.PendingYield) {
+			prepared, changed, err := s.stateStore.PrepareTaskContinuation(id)
+			if err != nil {
+				writeAPIError(w, apiError(runtime.CodeInternal, "cannot prepare task continuation"))
+				return
+			}
+			if changed {
+				s.publishTaskUpdate(prepared)
+				go s.dispatchReadyTasks(context.Background())
+			}
+			writeAPIError(w, apiError(runtime.CodeConflict, "the assigned task must resume before this prompt can be delivered; retry shortly"))
+			return
+		}
 	}
 	receiptBearing := len(msg.Attachments) > 0
 	if receiptBearing && s.attachmentStartupErr != nil {

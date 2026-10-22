@@ -848,20 +848,20 @@ WHERE judge_status = ?`, ThinkTankJudgeFailed, "Chuck restarted while the judge 
 	// A pause/end requested by the user remains authoritative above.
 	if _, err := tx.Exec(`UPDATE think_tanks SET hold='Quota reached', revision=revision+1
 WHERE phase != ? AND control = ? AND hold = ''
-AND EXISTS (SELECT 1 FROM quota_intents q WHERE q.state != ?
+AND EXISTS (SELECT 1 FROM quota_intents q WHERE q.state NOT IN (?, ?)
   AND json_extract(q.owner_json,'$.kind')='room'
   AND json_extract(q.owner_json,'$.room_id')=think_tanks.room_id `+quotaRoomOwnerCurrentClause+`)`,
-		ThinkTankPhaseEnded, ThinkTankRunning, QuotaContinued); err != nil {
+		ThinkTankPhaseEnded, ThinkTankRunning, QuotaContinued, QuotaCancelled); err != nil {
 		return fmt.Errorf("state: restore quota room hold: %w", err)
 	}
 	// Don't apply the generic restart pause to a room whose only open work is
 	// the durable quota continuation obligation.
 	if _, err := tx.Exec(`UPDATE think_tanks SET control=?, hold=CASE WHEN hold='' THEN 'Chuck restarted; resume to continue.' ELSE hold END,
 revision=revision+1 WHERE phase != ? AND control IN (?, ?) AND NOT EXISTS (
-SELECT 1 FROM quota_intents q WHERE q.state != ?
+SELECT 1 FROM quota_intents q WHERE q.state NOT IN (?, ?)
 AND json_extract(q.owner_json,'$.kind')='room'
 AND json_extract(q.owner_json,'$.room_id')=think_tanks.room_id `+quotaRoomOwnerCurrentClause+`)`,
-		ThinkTankPaused, ThinkTankPhaseEnded, ThinkTankRunning, ThinkTankPauseRequested, QuotaContinued); err != nil {
+		ThinkTankPaused, ThinkTankPhaseEnded, ThinkTankRunning, ThinkTankPauseRequested, QuotaContinued, QuotaCancelled); err != nil {
 		return fmt.Errorf("state: hold non-quota think tanks: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -887,9 +887,9 @@ func (s *Store) ReleaseQuotaRoomHold(roomID string) error {
 
 func releaseQuotaRoomHoldTx(tx *sql.Tx, roomID string) error {
 	var pending int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM quota_intents q WHERE q.state!=?
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM quota_intents q WHERE q.state NOT IN (?, ?)
 AND json_extract(q.owner_json,'$.kind')='room' AND json_extract(q.owner_json,'$.room_id')=?`+quotaRoomOwnerCurrentClause,
-		QuotaContinued, roomID).Scan(&pending); err != nil {
+		QuotaContinued, QuotaCancelled, roomID).Scan(&pending); err != nil {
 		return fmt.Errorf("state: read pending quota room owners: %w", err)
 	}
 	if pending == 0 {

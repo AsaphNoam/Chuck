@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -91,6 +92,96 @@ func insertMail(t *testing.T, srv *Server, to string, bodies ...string) {
 		}); err != nil {
 			t.Fatalf("InsertMessage %q: %v", body, err)
 		}
+	}
+}
+
+// CR-A2-5 / TS-10.R29: waking mail prepares a waiting assignment and cannot
+// resume the conversation directly. The later dispatcher admission owns the
+// first continuation turn.
+func TestWakingMailUsesWaitingAssignmentContinuation(t *testing.T) {
+	for _, mode := range []string{"borrowed", "stopped", "cancelled"} {
+		t.Run(mode, func(t *testing.T) {
+			srv, ts, promptLog := activationTestServer(t)
+			id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+			generation := srv.taskGeneration(id)
+			if mode != "borrowed" {
+				if err := srv.StopStage(context.Background(), id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Hold dispatch before admission, while allowing the real mail executor
+			// to prepare the continuation. A direct mail wake would still bypass this.
+			for i := 0; i < cap(srv.taskStartSlots); i++ {
+				srv.taskStartSlots <- struct{}{}
+			}
+			taskID, err := srv.stateStore.NewTaskID()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := srv.stateStore.CreateTask(state.Task{TaskID: taskID, Project: "tmpproj", DisplayName: "waiting", Instruction: "continue", TargetKind: state.TargetAgent, TargetAgentID: id, CreatedByKind: "person"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, started_at=created_at WHERE task_id = ?`, state.TaskWaiting, id, generation, taskID); err != nil {
+				t.Fatal(err)
+			}
+			insertMail(t, srv, id, "wake")
+			pending := pendingActivations(t, srv, id)
+			if len(pending) != 1 {
+				t.Fatal("missing waking opportunity")
+			}
+			srv.executeMailActivation(context.Background(), pending[0])
+			task, err := srv.stateStore.ReadTask(taskID)
+			if err != nil || task.State != state.TaskReady || !task.ContinuationPending {
+				t.Fatalf("mail bypassed waiting assignment: %+v %v", task, err)
+			}
+			if got := promptCount(t, promptLog); got != 0 {
+				t.Fatalf("mail produced %d prompts before continuation admission", got)
+			}
+			if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "manual wake"}); resp.StatusCode != http.StatusConflict {
+				t.Fatalf("manual input bypassed continuation: %d %s", resp.StatusCode, body)
+			}
+			for i := 0; i < cap(srv.taskStartSlots); i++ {
+				<-srv.taskStartSlots
+			}
+			if mode == "cancelled" {
+				if _, err := srv.stateStore.CancelTask(taskID); err != nil {
+					t.Fatal(err)
+				}
+				srv.dispatchReadyTasks(context.Background())
+				if srv.registry.Owns(id) || promptCount(t, promptLog) != 0 {
+					t.Fatal("cancelled continuation woke runtime")
+				}
+				return
+			}
+			if mode == "stopped" {
+				cfg, err := srv.configStore.ReadConfig()
+				if err != nil {
+					t.Fatal(err)
+				}
+				cfg.TaskConcurrency = 1
+				if err := srv.configStore.WriteConfig(cfg); err != nil {
+					t.Fatal(err)
+				}
+				occupant := newLaunchTask(t, srv, "capacity occupant")
+				if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state=?, runtime_claim=?, pending_release=1, assigned_agent_id='a_occupant' WHERE task_id=?`, state.TaskFinished, state.ClaimCreated, occupant.TaskID); err != nil {
+					t.Fatal(err)
+				}
+				srv.dispatchReadyTasks(context.Background())
+				srv.executeMailActivation(context.Background(), pending[0])
+				if srv.registry.Owns(id) || promptCount(t, promptLog) != 0 {
+					t.Fatal("mail bypassed full runtime budget")
+				}
+				if err := srv.stateStore.CompleteTaskRelease(occupant.TaskID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			srv.dispatchReadyTasks(context.Background())
+			running := dispatchUntilTaskState(t, srv, taskID, state.TaskRunning)
+			waitPrompts(t, promptLog, 1)
+			if running.AssignedAgentID != id || running.ExecutionHandle == "" || running.RuntimeClaim == "" {
+				t.Fatalf("mail did not use admitted assignment: %+v", running)
+			}
+		})
 	}
 }
 

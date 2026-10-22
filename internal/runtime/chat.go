@@ -1698,13 +1698,13 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		if err != nil && !errors.Is(err, state.ErrNotFound) {
 			return false, err
 		}
-		if err == nil && q.State != state.QuotaContinued {
+		if err == nil && q.State != state.QuotaContinued && q.State != state.QuotaCancelled {
 			return false, nil
 		}
 		currentQuota = q
 	}
 	st, err := c.store.ReadStatus(as.agentID)
-	if err != nil || st.State != "idle" && !(quotaContinuation && st.State == "error") {
+	if err != nil || st.State != "idle" && st.State != "error" {
 		return false, err
 	}
 	as.mu.Lock()
@@ -1713,9 +1713,12 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		return false, nil
 	}
 	if as.quotaBlocked && !quotaContinuation {
-		if currentQuota.State == state.QuotaContinued && as.quotaBlockedGeneration == as.generation &&
+		continuedMatch := currentQuota.State == state.QuotaContinued && as.quotaBlockedGeneration == as.generation &&
 			((currentQuota.ContinuedGeneration == as.quotaBlockedGeneration && currentQuota.ContinuedTurn == as.quotaBlockedTurnID) ||
-				(currentQuota.ManualGeneration == as.quotaBlockedGeneration && currentQuota.ManualTurn == as.quotaBlockedTurnID)) {
+				(currentQuota.ManualGeneration == as.quotaBlockedGeneration && currentQuota.ManualTurn == as.quotaBlockedTurnID))
+		cancelledMatch := currentQuota.State == state.QuotaCancelled &&
+			currentQuota.SourceGeneration == as.quotaBlockedGeneration && currentQuota.ExecutingTurn == as.quotaBlockedTurnID
+		if continuedMatch || cancelledMatch {
 			as.quotaBlocked = false
 			as.quotaBlockedGeneration = ""
 			as.quotaBlockedTurnID = ""

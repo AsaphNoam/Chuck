@@ -96,7 +96,7 @@ OR (json_extract(owner_json,'$.kind')='room' AND json_extract(owner_json,'$.room
 
 func quotaControlCancellable(state string) bool {
 	switch state {
-	case QuotaDisabled, QuotaUnknownReset, QuotaScheduled, QuotaDeferred, QuotaClaimed:
+	case QuotaDisabled, QuotaUnknownReset, QuotaScheduled, QuotaDeferred, QuotaClaimed, QuotaNeedsAttention:
 		return true
 	default:
 		return false
@@ -116,9 +116,9 @@ type quotaControlDB interface {
 
 func cancelQuotaSnapshotTx(db quotaControlDB, snapshot QuotaControlSnapshot) (bool, error) {
 	var revision int64
-	err := db.QueryRow(`SELECT revision FROM quota_intents WHERE agent_id=? AND episode_id=? AND source_generation=? AND executing_turn=? AND attempt_token=? AND provider_started=0 AND state IN (?,?,?,?,?)`,
+	err := db.QueryRow(`SELECT revision FROM quota_intents WHERE agent_id=? AND episode_id=? AND source_generation=? AND executing_turn=? AND attempt_token=? AND provider_started=0 AND state IN (?,?,?,?,?,?)`,
 		snapshot.AgentID, snapshot.EpisodeID, snapshot.SourceGeneration, snapshot.ExecutingTurn, snapshot.AttemptToken,
-		QuotaDisabled, QuotaUnknownReset, QuotaScheduled, QuotaDeferred, QuotaClaimed).Scan(&revision)
+		QuotaDisabled, QuotaUnknownReset, QuotaScheduled, QuotaDeferred, QuotaClaimed, QuotaNeedsAttention).Scan(&revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -126,9 +126,9 @@ func cancelQuotaSnapshotTx(db quotaControlDB, snapshot QuotaControlSnapshot) (bo
 		return false, err
 	}
 	res, err := db.Exec(`UPDATE quota_intents SET state='cancelled', revision=revision+1, due_at=NULL, updated_at=?
-WHERE agent_id=? AND episode_id=? AND revision=? AND source_generation=? AND executing_turn=? AND attempt_token=? AND provider_started=0 AND state IN (?,?,?,?,?)`,
+	WHERE agent_id=? AND episode_id=? AND revision=? AND source_generation=? AND executing_turn=? AND attempt_token=? AND provider_started=0 AND state IN (?,?,?,?,?,?)`,
 		formatTime(timeNow()), snapshot.AgentID, snapshot.EpisodeID, revision, snapshot.SourceGeneration, snapshot.ExecutingTurn,
-		snapshot.AttemptToken, QuotaDisabled, QuotaUnknownReset, QuotaScheduled, QuotaDeferred, QuotaClaimed)
+		snapshot.AttemptToken, QuotaDisabled, QuotaUnknownReset, QuotaScheduled, QuotaDeferred, QuotaClaimed, QuotaNeedsAttention)
 	if err != nil {
 		return false, err
 	}

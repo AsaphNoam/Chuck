@@ -400,7 +400,54 @@ parallel copy of them.
   variant to task wire shapes, UI parsing/status/actions,
   fixtures, migrations and validation together; source room/entry is provenance, never caller authority.
 
+- **R48 (implemented 2026-10-22) — Cleanup authority comes from the committed intent, and capacity follows
+  the claim.** A retained release or yield takes its stop mode from durable facts, never from the
+  caller that happens to run it. An agent-reported result (`outcome_source = agent`) and every
+  `pending_yield` are *deferred*: a matching turn_end, the dispatcher's retry pass and any other
+  retry all stop the owned generation only through the guarded idle-stop gate, which admits the stop
+  while that generation is idle or settling exactly the observed ending turn. A busy generation moves
+  the effect's next due time without counting a cleanup failure, so the turn that reported, and any
+  later turn, receives its response first. A person-recorded result or a cancel is *immediate* and
+  stops its own generation right after the commit. With no live registry owner (restart, exit) every
+  mode reaps through the ordinary stop seam, and a newer generation is never stopped. Capacity counts
+  every created/woke runtime claim whatever the task state, including finished or yielding rows whose
+  effect is still pending, through one predicate shared by ordinary admission and quota's
+  borrowed-to-woke conversion; only completed release or yield, abandonment, or interruption frees
+  the slot. Abandoning, failing or parking a start clears only that attempt's reservation: an assignee
+  an earlier start confirmed (`started_at` set) remains the task's assignee, so Retry and wait
+  continuation resume that agent rather than launching another (FS-16.R23).
+
+- **R49 (implemented 2026-10-22) — Watched facts remain discoverable after a lost notification.**
+  Result, interruption, park and deletion producers notify current-version watches after committing.
+  Startup and each dispatcher tick also reconcile a bounded batch of actionable saved watches,
+  excluding closed runs and already-coalesced wakes before the limit. Recovery preserves the
+  assignee and wait version and uses R29's ordinary continuation admission; cancellation and
+  pending yield retain their existing fences. Notifications are latency hints, never the sole
+  evidence that work changed.
+
+- **R50 (implemented 2026-10-22) — Blocked prefixes cannot hide eligible work.** Task and mail
+  recovery scans retain a process-local cursor of ordering time and row ID across bounded passes,
+  so deletion or admission of earlier rows cannot skip later work, and wrap after the backlog
+  ends. They preserve pending rows and their retry policy, keep at most eight effects in flight,
+  and revisit older work after progress rather than permanently selecting the same blocked prefix.
+  Restart may reset the scan position; durable work remains discoverable without a fast-path hint.
+- **R51 (implemented 2026-10-22) — Startup reap contention is retried in this process.** Retain the
+  exact task/attempt identities whose startup reap could not finish. This finite startup cohort
+  admits no newly created reservations, drains at most eight identities per dispatcher pass, rotates
+  unresolved entries and retires settled or superseded attempts. Read/write errors retain the retry.
+  Per-task serialization and the existing generation/PID-checked stop seam still apply; recovery
+  never reaps a newly admitted in-process start or abandons an unproved live process.
+
 ### 2.2 Quota continuation within the existing server (implemented 2026-10-11; provider reset input remains unknown)
+
+- **R52 (implemented 2026-10-22) — Superseding quota recovery releases only that episode's hold.**
+  Owner controls may supersede pending checks, disabled recovery and needs-attention episodes
+  before provider continuation starts. A successful cancellation clears the runtime block only when its source
+  generation and executing turn match the cancelled episode. A later block remains protected.
+  Cancelled episodes neither block ordinary activation nor recreate a quota room hold on restart;
+  later room work uses ordinary admission. A settled failed turn with status `error` and no active
+  turn is eligible for later automatic mail/task/room activation under the usual journal, quota
+  and runtime turn gates; failure does not silently disable every future automatic turn.
 
 - **R39 (implemented 2026-10-11)** — FS-01.R40–R45 extends this server-owned control plane to timed recovery
   for every chat agent, including one without a durable task. A quota continuation is a domain

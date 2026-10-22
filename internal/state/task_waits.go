@@ -26,6 +26,28 @@ type TaskWaitChange struct {
 	AttentionReason string `json:"attention_reason,omitempty"`
 }
 
+// PrepareTaskContinuation admits an external waking input to the same
+// assignment continuation used by watched changes. It retains assignment
+// identity while releasing any old runtime claim; the dispatcher must perform
+// the actual lifecycle/capacity admission before a turn is delivered.
+func (s *Store) PrepareTaskContinuation(agentID string) (Task, bool, error) {
+	now := formatTime(timeNow())
+	var taskID string
+	err := s.db.QueryRow(`UPDATE tasks
+SET state = ?, continuation_pending = 1, resume_needed = 1,
+  ready_at = ?, revision = revision + 1, updated_at = ?
+WHERE assigned_agent_id = ? AND state = ? AND pending_yield = 0
+	AND pending_release = 0`+taskRunOpenClause+` RETURNING task_id`, TaskReady, now, now, agentID, TaskWaiting).Scan(&taskID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Task{}, false, nil
+	}
+	if err != nil {
+		return Task{}, false, err
+	}
+	task, err := s.ReadTask(taskID)
+	return task, err == nil, err
+}
+
 // WaitForTasks atomically observes readable child work or records a durable
 // watch and yield intent. Result registration and subscription therefore cannot
 // cross without one side seeing the other's revision.
@@ -114,8 +136,9 @@ func (s *Store) WaitForTasks(agentID, generation, executionHandle string, observ
 // NotifyTaskWaiters coalesces a watched change. A task whose old runtime still
 // owns capacity records resume_needed; a settled waiter becomes ready once.
 func (s *Store) NotifyTaskWaiters(sourceTaskID string) ([]Task, error) {
-	now := formatTime(timeNow())
-	rows, err := s.db.Query(`SELECT DISTINCT waiting_task_id FROM task_waits WHERE source_task_id = ?`, sourceTaskID)
+	rows, err := s.db.Query(`SELECT DISTINCT w.waiting_task_id FROM task_waits w
+JOIN tasks ON tasks.task_id = w.waiting_task_id AND tasks.wait_version = w.wait_version
+WHERE w.source_task_id = ?`, sourceTaskID)
 	if err != nil {
 		return nil, err
 	}
@@ -137,12 +160,18 @@ func (s *Store) NotifyTaskWaiters(sourceTaskID string) ([]Task, error) {
 	if err := rows.Close(); err != nil {
 		return nil, err
 	}
+	return s.wakeTaskWaiters(ids)
+}
+
+// wakeTaskWaiters commits the coalesced resume-needed marker for each waiter.
+// A watched change can fire long after the stage that authorized the wait
+// completed or its run was stopped. Waking the waiter then is the same escape a
+// ready child is, so it takes the same inherited-closure fence (TS-09.R42,
+// TS-10.R29). The durable watch row is untouched.
+func (s *Store) wakeTaskWaiters(ids []string) ([]Task, error) {
+	now := formatTime(timeNow())
 	var changed []Task
 	for _, id := range ids {
-		// A watched change can fire long after the stage that authorized the wait
-		// completed or its run was stopped. Waking the waiter then is the same
-		// escape a ready child is, so it takes the same inherited-closure fence
-		// (TS-09.R42, TS-10.R29). The durable watch row is untouched.
 		res, err := s.db.Exec(`UPDATE tasks SET resume_needed = 1, state = CASE WHEN state = ? AND pending_yield = 0 THEN ? ELSE state END, continuation_pending = CASE WHEN state = ? AND pending_yield = 0 THEN 1 ELSE continuation_pending END, ready_at = CASE WHEN state = ? AND pending_yield = 0 THEN ? ELSE ready_at END, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state IN (?, ?) AND resume_needed = 0`+taskRunOpenClause, TaskWaiting, TaskReady, TaskWaiting, TaskWaiting, now, now, id, TaskRunning, TaskWaiting)
 		if err != nil {
 			return nil, err
@@ -160,6 +189,45 @@ func (s *Store) NotifyTaskWaiters(sourceTaskID string) ([]Task, error) {
 		}
 	}
 	return changed, nil
+}
+
+// ReconcileTaskWaits is the durable half of wake delivery: it finds a bounded
+// batch of unwoken waiters whose saved watch already names actionable work — a
+// result, an interruption, a park, or a deleted source — and wakes them. A
+// notification lost to a crash or a dropped hint therefore costs latency, never
+// the assignment (TS-10.R2/R30/R49). Closed-run waiters are excluded by the same
+// fence the wake applies, so they cannot pin the head of the batch.
+func (s *Store) ReconcileTaskWaits(limit int) ([]Task, error) {
+	if limit <= 0 || limit > 8 {
+		limit = 8
+	}
+	rows, err := s.db.Query(`SELECT DISTINCT tasks.task_id FROM tasks
+JOIN task_waits w ON w.waiting_task_id = tasks.task_id AND w.wait_version = tasks.wait_version
+LEFT JOIN tasks src ON src.task_id = w.source_task_id
+WHERE tasks.state IN (?, ?) AND tasks.resume_needed = 0
+  AND (src.task_id IS NULL OR src.state IN (?, ?, ?))`+taskRunOpenClause+`
+ORDER BY tasks.task_id LIMIT ?`,
+		TaskRunning, TaskWaiting, TaskFinished, TaskInterrupted, TaskDependencyFailed, limit)
+	if err != nil {
+		return nil, fmt.Errorf("state: list actionable task waits: %w", err)
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("state: iterate actionable task waits: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	return s.wakeTaskWaiters(ids)
 }
 
 // CompleteTaskYield drops runtime ownership after the reporting turn safely

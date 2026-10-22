@@ -76,6 +76,30 @@ func (r *Registry) SetQuotaManualBind(fn func(string, string, string) error) {
 	}
 }
 
+// ClearQuotaBlock releases the in-memory hold after an owner control cancels
+// the durable quota episode.
+func (c *ChatRuntime) ClearQuotaBlock(agentID, generation, turnID string) {
+	as, err := c.lookup(agentID)
+	if err != nil {
+		return
+	}
+	as.mu.Lock()
+	if !as.quotaBlocked || as.quotaBlockedGeneration != generation || as.quotaBlockedTurnID != turnID {
+		as.mu.Unlock()
+		return
+	}
+	as.quotaBlocked = false
+	as.quotaBlockedGeneration = ""
+	as.quotaBlockedTurnID = ""
+	as.mu.Unlock()
+}
+
+func (r *Registry) ClearQuotaBlock(agentID, generation, turnID string) {
+	if r != nil && r.chat != nil {
+		r.chat.ClearQuotaBlock(agentID, generation, turnID)
+	}
+}
+
 // completePromptTurn is shared by user prompts and every owned activation.
 // Streaming failure metadata becomes terminal evidence only at completion.
 func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey string, result json.RawMessage, promptErr error) {

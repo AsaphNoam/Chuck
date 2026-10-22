@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -350,17 +351,15 @@ func TestTheBudgetLimitsRuntimesWithoutNarrowingReadiness(t *testing.T) {
 		}
 	}
 
-	// A finished task releases its slot, and the oldest ready task takes it.
-	done, err := srv.stateStore.ReadTask(first.TaskID)
+	// Finishing and releasing its runtime frees the slot for the oldest ready
+	// task. A state-only terminal write must not free an outstanding claim.
+	done, err := srv.stateStore.RecordPersonTaskResult(first.TaskID, state.TaskResult{
+		Outcome: state.OutcomeSuccess, Summary: "finished",
+	})
 	if err != nil {
-		t.Fatalf("ReadTask: %v", err)
-	}
-	outcome := state.OutcomeSuccess
-	if _, err := srv.stateStore.UpdateTaskCAS(done.TaskID, done.Revision, state.TaskUpdate{
-		State: state.TaskFinished, Outcome: &outcome,
-	}); err != nil {
 		t.Fatalf("finish first: %v", err)
 	}
+	srv.finishTaskCleanup(context.Background(), done)
 	srv.dispatchReadyTasks(context.Background())
 	waitTaskState(t, srv, second.TaskID, state.TaskRunning)
 	last, err := srv.stateStore.ReadTask(third.TaskID)
@@ -963,6 +962,87 @@ func TestRestartResolvesUnfinishedTasksFromTheirOwnRows(t *testing.T) {
 	}
 }
 
+// CR-A2-9 / TS-10.R15 — a startup reap that meets lifecycle contention is
+// retried by the bounded dispatcher recovery pass after the contention clears.
+func TestStartingTaskRecoveryRetriesAfterLifecycleContention(t *testing.T) {
+	srv := testServer(t, true)
+	task := newLaunchTask(t, srv, "reap after contention")
+	if _, ok, err := srv.stateStore.AdmitReadyTask(task.TaskID,
+		state.TaskReservation{AttemptID: "ta_recovery", AgentID: "a_recovery",
+			Generation: "g_recovery", Claim: state.ClaimCreated}, 10); err != nil || !ok {
+		t.Fatalf("admit starting task: %v, %v", err, ok)
+	}
+	startUnlock := srv.lockTaskStart(task.TaskID)
+	srv.recoverStartingTasks(context.Background())
+	startUnlock()
+	untouched, err := srv.stateStore.ReadTask(task.TaskID)
+	if err != nil || untouched.State != state.TaskStarting {
+		t.Fatalf("in-process starting task was reaped: %+v, %v", untouched, err)
+	}
+	if !srv.claimLifecycle("a_recovery") {
+		t.Fatal("claim lifecycle for contention")
+	}
+	if err := srv.recoverTasks(context.Background()); err != nil {
+		t.Fatalf("recoverTasks: %v", err)
+	}
+	starting, err := srv.stateStore.ReadTask(task.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if starting.State != state.TaskStarting {
+		t.Fatalf("startup recovery state = %q, want starting during contention", starting.State)
+	}
+	srv.releaseLifecycle("a_recovery")
+	srv.recoverStartingTasks(context.Background())
+	retried, err := srv.stateStore.ReadTask(task.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retried.State != state.TaskReady || retried.StartAttemptCount != 1 {
+		t.Fatalf("retry state = %+v, want ready with one spent attempt", retried)
+	}
+}
+
+func TestStartingTaskRecoveryRetainsEveryStartupFailure(t *testing.T) {
+	srv := testServer(t, true)
+	const total = taskDispatchBatch + 1
+	tasks := make([]state.Task, 0, total)
+	for i := 0; i < total; i++ {
+		task := newLaunchTask(t, srv, fmt.Sprintf("reap-%d", i))
+		agentID := fmt.Sprintf("a_recovery_%d", i)
+		attemptID := fmt.Sprintf("ta_recovery_%d", i)
+		if _, ok, err := srv.stateStore.AdmitReadyTask(task.TaskID,
+			state.TaskReservation{AttemptID: attemptID, AgentID: agentID,
+				Generation: attemptID, Claim: state.ClaimCreated}, 20); err != nil || !ok {
+			t.Fatalf("admit starting task %d: %v, %v", i, err, ok)
+		}
+		if !srv.claimLifecycle(agentID) {
+			t.Fatalf("claim lifecycle %d", i)
+		}
+		tasks = append(tasks, task)
+	}
+	if err := srv.recoverTasks(context.Background()); err != nil {
+		t.Fatalf("recoverTasks: %v", err)
+	}
+	for i := range tasks {
+		srv.releaseLifecycle(fmt.Sprintf("a_recovery_%d", i))
+	}
+	held := srv.lockTaskStart(tasks[0].TaskID)
+	srv.recoverStartingTasks(context.Background())
+	srv.recoverStartingTasks(context.Background())
+	held()
+	srv.recoverStartingTasks(context.Background())
+	for i, task := range tasks {
+		retried, err := srv.stateStore.ReadTask(task.TaskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if retried.State != state.TaskReady || retried.StartAttemptCount != 1 {
+			t.Fatalf("task %d retry state = %+v, want ready with one spent attempt", i, retried)
+		}
+	}
+}
+
 // newLaunchTaskWithEffort creates launch-spec work that names the reasoning
 // level its agent should run at (FS-16.R27).
 func newLaunchTaskWithEffort(t *testing.T, srv *Server, name, effort string) state.Task {
@@ -1278,6 +1358,88 @@ func TestALaunchTaskEffortReachesTheProviderOverASourceOverride(t *testing.T) {
 			}
 			if params.ConfigID != "effort" || params.Value != tt.want {
 				t.Fatalf("provider effort = %+v, want configId=effort value=%s", params, tt.want)
+			}
+		})
+	}
+}
+
+// CR-A2-1 / FS-16.R4, TS-10.R19/R48: the cleanup tick carries the deferred
+// authority of an agent report or yield. While any turn of the owned generation
+// is still running it waits without spending a failure; once the turn ends the
+// runtime is stopped and released. A person-recorded result stays immediate.
+func TestCleanupTickWaitsForDeferredTurnEnd(t *testing.T) {
+	for _, mode := range []string{"report", "yield", "person"} {
+		t.Run(mode, func(t *testing.T) {
+			srv := testServer(t, true)
+			srv.registry.Chat().SetCommand(buildFakeACP(t))
+			if err := srv.configStore.WriteProject("tmpproj", config.Project{Title: "Tmp", Cwd: t.TempDir()}); err != nil {
+				t.Fatal(err)
+			}
+			if err := srv.configStore.WriteRole("impl", config.Role{Title: "Impl", SystemPrompt: "be helpful"}); err != nil {
+				t.Fatal(err)
+			}
+			defer srv.registry.Shutdown(context.Background())
+			hold := filepath.Join(t.TempDir(), "release")
+			t.Setenv("FAKEACP_SCENARIO", "hold_turn")
+			t.Setenv("FAKEACP_HOLD_FILE", hold)
+			task := newLaunchTask(t, srv, "deferred-"+mode)
+			srv.dispatchReadyTasks(context.Background())
+			running := waitTaskState(t, srv, task.TaskID, state.TaskRunning)
+			id, generation := running.AssignedAgentID, running.AssignedGeneration
+			switch mode {
+			case "report":
+				if _, err := srv.stateStore.RecordAgentTaskResult(task.TaskID, id, generation, running.ExecutionHandle,
+					state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "tool response still pending"}); err != nil {
+					t.Fatal(err)
+				}
+			case "yield":
+				childID, _ := srv.stateStore.NewTaskID()
+				child, err := srv.stateStore.CreateTask(state.Task{
+					TaskID: childID, Project: "tmpproj", DisplayName: "child", Instruction: "x",
+					TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: id,
+					Arms: []state.TaskArm{{Kind: state.ArmSignal, SignalName: "never"}},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, _, err := srv.stateStore.WaitForTasks(id, generation, running.ExecutionHandle,
+					[]state.TaskWaitObservation{{TaskID: child.TaskID, AfterRevision: child.Revision}}); err != nil {
+					t.Fatal(err)
+				}
+			case "person":
+				if _, err := srv.stateStore.RecordPersonTaskResult(task.TaskID,
+					state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "recorded by a person"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			srv.reconcileTaskCleanup(context.Background()) // the periodic dispatcher pass
+			if mode == "person" {
+				if srv.registry.Owns(id) {
+					t.Fatal("a person-recorded result did not stop its runtime immediately")
+				}
+				return
+			}
+			if !srv.registry.Owns(id) {
+				t.Fatalf("cleanup tick stopped the runtime while its %s turn was still running", mode)
+			}
+			busy, err := srv.stateStore.ReadTask(task.TaskID)
+			if err != nil || busy.RuntimeClaim != state.ClaimCreated || busy.CleanupFailureCount != 0 || busy.AttentionReason != "" {
+				t.Fatalf("busy deferral released, failed or flagged cleanup: %+v, %v", busy, err)
+			}
+			if err := os.WriteFile(hold, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				srv.reconcileTaskCleanup(context.Background())
+				settled, err := srv.stateStore.ReadTask(task.TaskID)
+				if err == nil && !srv.registry.Owns(id) && settled.RuntimeClaim == "" && !settled.PendingRelease && !settled.PendingYield {
+					return
+				}
+				if time.Now().After(deadline) {
+					t.Fatalf("cleanup never settled after the turn ended: owned=%v %+v, %v", srv.registry.Owns(id), settled, err)
+				}
+				time.Sleep(20 * time.Millisecond)
 			}
 		})
 	}

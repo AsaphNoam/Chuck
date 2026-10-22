@@ -106,6 +106,14 @@ const taskRunOpenClause = `
       AND (r.state IN ('stopping', 'stopped', 'completed')
         OR p.state IS NULL OR p.state <> 'open'))`
 
+// taskCapacityFreeClause is the one budget predicate every admission path
+// shares. It counts each created/woke runtime claim whatever the task state, so
+// a finished or yielding task still holds its slot until its release or yield
+// actually completes (FS-16.R4/R21, TS-10.R17/R48). Bind ClaimCreated,
+// ClaimWoke, then the budget.
+const taskCapacityFreeClause = `(SELECT COUNT(*) FROM tasks AS live
+    WHERE live.runtime_claim IN (?, ?)) < ?`
+
 // ErrTaskRunClosed refuses new descendant work after its inherited pipeline
 // stage/run closure fence has committed.
 var ErrTaskRunClosed = errors.New("state: governing pipeline run or stage is closed")
@@ -1341,8 +1349,21 @@ type TaskReservation struct {
 // at most limit of them. The limit is the caller's: whatever one dispatch pass
 // leaves is still ready for the next one.
 func (s *Store) ReadyTasks(limit int) ([]Task, error) {
-	rows, err := s.db.Query(taskSelect+`
-WHERE state = ? ORDER BY ready_at, task_id LIMIT ?`, TaskReady, limit)
+	return s.ReadyTasksAfter(limit, Task{})
+}
+
+// ReadyTasksAfter uses only the cursor's ready time and ID. Stable ordering
+// keys keep a bounded sweep moving even when earlier rows leave the queue.
+func (s *Store) ReadyTasksAfter(limit int, after Task) ([]Task, error) {
+	query := taskSelect + ` WHERE state = ?`
+	args := []any{TaskReady}
+	if after.TaskID != "" {
+		query += ` AND (ready_at, task_id) > (?, ?)`
+		args = append(args, formatOptionalTime(after.ReadyAt), after.TaskID)
+	}
+	query += ` ORDER BY ready_at, task_id LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("state: list ready tasks: %w", err)
 	}
@@ -1381,14 +1402,12 @@ SET state = ?, assigned_agent_id = ?, assigned_generation = ?, runtime_claim = ?
   start_attempt_id = ?, start_claimed_at = ?, revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ?
   AND NOT EXISTS (SELECT 1 FROM think_tank_attempts WHERE agent_id = ? AND state = 'running')
-  AND (? = ? OR (
-    SELECT COUNT(*) FROM tasks AS live
-    WHERE live.runtime_claim IN (?, ?) AND live.state IN (?, ?)) < ?)`+taskRunOpenClause,
+  AND (? = ? OR `+taskCapacityFreeClause+`)`+taskRunOpenClause,
 		TaskStarting, reservation.AgentID, reservation.Generation, reservation.Claim,
 		reservation.AttemptID, stamp, stamp,
 		taskID, TaskReady, reservation.AgentID,
 		reservation.Claim, ClaimBorrowed,
-		ClaimCreated, ClaimWoke, TaskStarting, TaskRunning, budget)
+		ClaimCreated, ClaimWoke, budget)
 	if isUniqueViolation(err) {
 		// The partial unique index over an active assignee refused the claim:
 		// another task is already starting or running on this agent (TS-10.R18).
@@ -1483,6 +1502,12 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ? AND assigned_generation
 	return task, err == nil, err
 }
 
+// keepConfirmedAssignee clears only a start's reservation. An assignee an
+// earlier start already confirmed is durable membership, so a deferred or failed
+// retry or continuation resumes that same agent instead of minting another
+// (FS-16.R23, TS-10.R4/R48).
+const keepConfirmedAssignee = `assigned_agent_id = CASE WHEN started_at IS NULL THEN NULL ELSE assigned_agent_id END`
+
 // AbandonTaskStart returns a task whose start produced no confirmed runtime to
 // ready, releasing its assignment claim and its slot and spending no attempt.
 // This is the deferral path — a lost lifecycle claim, a start the caller gave up
@@ -1490,7 +1515,7 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ? AND assigned_generation
 // (FS-16.R25, TS-10.R15).
 func (s *Store) AbandonTaskStart(taskID, attemptID string) (Task, bool, error) {
 	return s.settleTaskStart(taskID, attemptID, `
-UPDATE tasks SET state = ?, assigned_agent_id = NULL, assigned_generation = '',
+UPDATE tasks SET state = ?, `+keepConfirmedAssignee+`, assigned_generation = '',
   runtime_claim = '', start_attempt_id = '', start_claimed_at = NULL,
   revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
@@ -1508,7 +1533,7 @@ UPDATE tasks SET
   state = CASE WHEN start_attempt_count + 1 >= ? THEN ? ELSE ? END,
   attention_reason = CASE WHEN start_attempt_count + 1 >= ? THEN ? ELSE attention_reason END,
   start_attempt_count = start_attempt_count + 1,
-  assigned_agent_id = NULL, assigned_generation = '', runtime_claim = '',
+  `+keepConfirmedAssignee+`, assigned_generation = '', runtime_claim = '',
   start_attempt_id = '', start_claimed_at = NULL,
   revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
@@ -1522,7 +1547,7 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 // (FS-16.R8, R19).
 func (s *Store) ParkTaskStart(taskID, attemptID, reason string) (Task, bool, error) {
 	return s.settleTaskStart(taskID, attemptID, `
-UPDATE tasks SET state = ?, attention_reason = ?, assigned_agent_id = NULL,
+UPDATE tasks SET state = ?, attention_reason = ?, `+keepConfirmedAssignee+`,
   assigned_generation = '', runtime_claim = '', start_attempt_id = '',
   start_claimed_at = NULL, revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
@@ -1568,6 +1593,21 @@ WHERE assigned_agent_id = ? AND state IN (?, ?, ?)`, agentID, TaskStarting, Task
 	}
 	task.Arms = arms
 	return task, nil
+}
+
+// TaskAssignment returns the active assignment, including a continuation that
+// is ready or starting but has not yet reacquired runtime ownership.
+func (s *Store) TaskAssignment(agentID string) (Task, error) {
+	task, err := scanTask(s.db.QueryRow(taskSelect+`
+WHERE assigned_agent_id = ? AND (state IN (?, ?, ?) OR (state = ? AND continuation_pending = 1))`, agentID, TaskStarting, TaskRunning, TaskWaiting, TaskReady))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Task{}, ErrNotFound
+	}
+	if err != nil {
+		return Task{}, err
+	}
+	task.Arms, err = s.readTaskArms(task.TaskID)
+	return task, err
 }
 
 // ListTaskAttachments returns a task's context attachments, oldest first. The
@@ -1858,6 +1898,18 @@ WHERE task_id = ? AND cleanup_unsafe = 1 AND (pending_release = 1 OR pending_yie
 		return Task{}, ErrTaskConflict
 	}
 	return s.ReadTask(taskID)
+}
+
+// DeferTaskCleanup moves a retained effect's next due time without counting a
+// failure: its runtime is busy with a turn the effect must not interrupt
+// (TS-10.R35/R48). Only an unresolved, safe effect is touched.
+func (s *Store) DeferTaskCleanup(taskID string, until time.Time) error {
+	if _, err := s.db.Exec(`UPDATE tasks SET cleanup_next_retry_at = ?
+WHERE task_id = ? AND cleanup_unsafe = 0 AND (pending_release = 1 OR pending_yield = 1)`,
+		formatTime(until), taskID); err != nil {
+		return fmt.Errorf("state: defer task cleanup: %w", err)
+	}
+	return nil
 }
 
 // DueTaskCleanup returns a bounded batch of unresolved effects whose durable

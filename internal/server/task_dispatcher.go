@@ -40,8 +40,60 @@ func (s *Server) runTaskDispatcher(ctx context.Context) {
 			}
 			s.dispatchQuotaContinuations(ctx)
 			s.reconcileTaskCleanup(ctx)
+			s.reconcileTaskWaits()
+			s.recoverStartingTasks(ctx)
 			s.dispatchReadyTasks(ctx)
 		}
+	}
+}
+
+// recoverStartingTasks retries the bounded set of reservations that startup
+// could not reap. A task-start lock is acquired before the durable row is
+// re-read, so an in-process start either finishes first or is prevented from
+// beginning while recovery owns the reservation (INV §5, §15).
+func (s *Server) recoverStartingTasks(ctx context.Context) {
+	s.taskStartMu.Lock()
+	retries := make(map[string]string, taskDispatchBatch)
+	ids := make([]string, 0, taskDispatchBatch)
+	for _, taskID := range s.startupStartRetryOrder {
+		if len(ids) == taskDispatchBatch {
+			break
+		}
+		attemptID, ok := s.startupStartRetries[taskID]
+		if !ok {
+			continue
+		}
+		retries[taskID] = attemptID
+		ids = append(ids, taskID)
+	}
+	s.taskStartMu.Unlock()
+	for _, taskID := range ids {
+		attemptID := retries[taskID]
+		unlock, ok := s.tryLockTaskStart(taskID)
+		if !ok {
+			s.taskStartMu.Lock()
+			s.rotateStartupStartRetryLocked(taskID)
+			s.taskStartMu.Unlock()
+			continue
+		}
+		fresh, err := s.stateStore.ReadTask(taskID)
+		retain := err != nil && !errors.Is(err, state.ErrNotFound)
+		if err == nil && fresh.State == state.TaskStarting && fresh.StartAttemptID == attemptID {
+			retain = s.recoverStartAttempt(ctx, fresh)
+		} else if err == nil {
+			// The reservation settled or was superseded; it no longer belongs to
+			// startup recovery.
+			retain = false
+		}
+		s.taskStartMu.Lock()
+		if retain {
+			s.rotateStartupStartRetryLocked(taskID)
+		} else {
+			delete(s.startupStartRetries, taskID)
+			s.removeStartupStartRetryLocked(taskID)
+		}
+		s.taskStartMu.Unlock()
+		unlock()
 	}
 }
 
@@ -53,11 +105,14 @@ func (s *Server) dispatchReadyTasks(ctx context.Context) {
 	if s.registry == nil {
 		return
 	}
-	ready, err := s.stateStore.ReadyTasks(taskDispatchBatch)
+	s.taskSweepMu.Lock()
+	defer s.taskSweepMu.Unlock()
+	ready, err := s.stateStore.ReadyTasksAfter(taskDispatchBatch, s.taskSweepAfter)
 	if err != nil {
 		s.log.Debug("task dispatch list ready failed", "err", err)
 		return
 	}
+	advanced := false
 	budget := s.taskConcurrencyBudget()
 	for _, task := range ready {
 		plan, ok := s.planTaskStart(task)
@@ -69,6 +124,7 @@ func (s *Server) dispatchReadyTasks(ctx context.Context) {
 		select {
 		case s.taskStartSlots <- struct{}{}:
 		default:
+			s.taskSweepAfter = state.Task{}
 			return
 		}
 		admitted, ok, err := s.stateStore.AdmitReadyTask(task.TaskID, plan, budget)
@@ -81,10 +137,17 @@ func (s *Server) dispatchReadyTasks(ctx context.Context) {
 			<-s.taskStartSlots
 			continue
 		}
+		advanced = true
 		go func(task state.Task) {
 			defer func() { <-s.taskStartSlots }()
 			s.startAdmittedTask(ctx, task)
 		}(admitted)
+	}
+	if len(ready) == 0 || advanced {
+		s.taskSweepAfter = state.Task{}
+	} else {
+		last := ready[len(ready)-1]
+		s.taskSweepAfter = state.Task{TaskID: last.TaskID, ReadyAt: last.ReadyAt}
 	}
 }
 
@@ -190,6 +253,35 @@ func (s *Server) lockTaskStart(taskID string) func() {
 		}
 		s.taskStartMu.Unlock()
 	}
+}
+
+func (s *Server) tryLockTaskStart(taskID string) (func(), bool) {
+	s.taskStartMu.Lock()
+	lock := s.taskStartLocks[taskID]
+	if lock == nil {
+		lock = &taskStartLock{}
+		s.taskStartLocks[taskID] = lock
+	}
+	lock.refs++
+	s.taskStartMu.Unlock()
+	if !lock.mu.TryLock() {
+		s.taskStartMu.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(s.taskStartLocks, taskID)
+		}
+		s.taskStartMu.Unlock()
+		return nil, false
+	}
+	return func() {
+		lock.mu.Unlock()
+		s.taskStartMu.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(s.taskStartLocks, taskID)
+		}
+		s.taskStartMu.Unlock()
+	}, true
 }
 
 // startLaunchedTask brings up a new agent for a launch-spec task and then settles
@@ -540,7 +632,10 @@ func (s *Server) finishTaskCleanupAt(ctx context.Context, task state.Task, endin
 		return
 	}
 	task = fresh
-	if task.CleanupNextRetryAt != nil && task.CleanupNextRetryAt.After(time.Now().UTC()) {
+	// A busy deferral is not a failure backoff: the turn end it waited for
+	// may settle the effect at once.
+	busyDeferral := endingTurn != "" && task.CleanupFailureCount == 0
+	if task.CleanupNextRetryAt != nil && task.CleanupNextRetryAt.After(time.Now().UTC()) && !busyDeferral {
 		return
 	}
 	phase := "release"
@@ -567,8 +662,13 @@ func (s *Server) finishTaskCleanupAt(ctx context.Context, task state.Task, endin
 			return
 		}
 		if !settled {
-			// Another turn of the owned generation is running; its turn end or
-			// the generation's exit teardown settles this obligation.
+			// A turn of the owned generation is running; its turn end, the
+			// generation's exit teardown or a later idle retry settles this
+			// obligation. Moving the deadline is not a failure; it only keeps a
+			// busy runtime from holding the head of the bounded retry batch.
+			if err := s.stateStore.DeferTaskCleanup(task.TaskID, time.Now().UTC().Add(taskDispatchInterval)); err != nil {
+				s.log.Debug("defer busy task cleanup", "task", task.TaskID, "err", err)
+			}
 			s.log.Debug("task cleanup waits for its runtime to go idle", "task", task.TaskID, "phase", phase)
 			return
 		}
@@ -597,10 +697,13 @@ func (s *Server) finishTaskCleanupAt(ctx context.Context, task state.Task, endin
 }
 
 // stopTaskRuntime stops the exact generation a task's runtime claim owns. A
-// newer generation is never this obligation's to stop, and at a turn boundary
-// a live owner stops only while idle or settling endingTurn; settled=false
-// means it is still busy (TS-10.R19/R35, INV §5).
+// newer generation is never this obligation's to stop. The stop's authority
+// comes from the committed intent, not from the caller: an agent-reported
+// result or a yield is deferred, so even a timer retry with no observed turn
+// stops a live owner only while idle or settling endingTurn; settled=false
+// means it is still busy (TS-10.R19/R35/R48, INV §5).
 func (s *Server) stopTaskRuntime(ctx context.Context, task state.Task, endingTurn string) (bool, error) {
+	deferred := task.PendingYield || task.OutcomeSource == "agent"
 	agentID, generation := task.AssignedAgentID, task.AssignedGeneration
 	if !s.claimLifecycle(agentID) {
 		return false, errors.New("a lifecycle transition is already in progress")
@@ -611,8 +714,8 @@ func (s *Server) stopTaskRuntime(ctx context.Context, task state.Task, endingTur
 		return true, s.stopStageLocked(ctx, agentID) // no live owner: reap any orphan
 	case current != generation:
 		return true, nil
-	case endingTurn == "":
-		// A person-recorded result, cancel or retry stops its own generation
+	case !deferred:
+		// A person-recorded result or cancel stops its own generation
 		// immediately; it has no turn to wait for (R19).
 		return true, s.stopStageLocked(ctx, agentID)
 	}
@@ -675,11 +778,33 @@ func isUnsafeTaskCleanupError(err error) bool {
 // (TS-10.R3).
 func (s *Server) evaluateTaskResult(taskID string) {
 	s.evaluateSourceResult(state.SourceTask, taskID)
+	s.notifyTaskWaiters(taskID)
+}
+
+// notifyTaskWaiters is the fast path for every actionable watched change — a
+// result, an interruption, a park or a deletion (FS-16.R33, TS-10.R27). It is
+// only a hint: reconcileTaskWaits rediscovers anything it drops (TS-10.R49).
+func (s *Server) notifyTaskWaiters(taskID string) {
 	changed, err := s.stateStore.NotifyTaskWaiters(taskID)
 	if err != nil {
 		s.log.Debug("notify task waiters failed", "task", taskID, "err", err)
 		return
 	}
+	s.publishWokenWaiters(changed)
+}
+
+// reconcileTaskWaits wakes a bounded batch of waiters whose saved watches
+// already name actionable work, so a crash or a lost hint never strands one.
+func (s *Server) reconcileTaskWaits() {
+	changed, err := s.stateStore.ReconcileTaskWaits(taskDispatchBatch)
+	if err != nil {
+		s.log.Debug("reconcile task waits failed", "err", err)
+		return
+	}
+	s.publishWokenWaiters(changed)
+}
+
+func (s *Server) publishWokenWaiters(changed []state.Task) {
 	for _, task := range changed {
 		s.publishTaskUpdate(task)
 		if task.State == state.TaskReady {
@@ -712,6 +837,7 @@ func (s *Server) propagateTaskFailure(task state.Task) {
 		s.publishTaskUpdate(dependent)
 		s.propagateTaskFailure(dependent)
 	}
+	s.notifyTaskWaiters(task.TaskID)
 }
 
 // recoverTasks is the one bounded startup sweep over dependent work. It never
@@ -761,7 +887,9 @@ func (s *Server) recoverTasks(ctx context.Context) error {
 			s.interruptTask(task, "the server restarted while this task was running")
 			continue
 		}
-		s.recoverStartAttempt(ctx, task)
+		if s.recoverStartAttempt(ctx, task) {
+			s.rememberStartupStartRetry(task)
+		}
 	}
 	// Arms may have been satisfied by a result committed just before the crash.
 	// Re-evaluating is a no-op when nothing changed, because evaluation reads the
@@ -784,6 +912,9 @@ func (s *Server) recoverTasks(ctx context.Context) error {
 			s.evaluateSourceResult(arm.SourceKind, arm.SourceID)
 		}
 	}
+	// A watched change committed just before the crash lost its notification.
+	// The first batch is rediscovered here; the dispatcher tick continues it.
+	s.reconcileTaskWaits()
 	return nil
 }
 
@@ -794,10 +925,10 @@ func (s *Server) recoverTasks(ctx context.Context) error {
 // feature's promise does not lapse because Chuck restarted. That task becomes
 // interrupted, since whether the assignment reached that conversation cannot be
 // known and delivering it twice is worse than asking a person (FS-16.R4, R17).
-func (s *Server) recoverStartAttempt(ctx context.Context, task state.Task) {
+func (s *Server) recoverStartAttempt(ctx context.Context, task state.Task) bool {
 	if task.RuntimeClaim == state.ClaimBorrowed {
 		s.interruptTask(task, "the server restarted while this task was starting in an existing conversation")
-		return
+		return false
 	}
 	if task.AssignedAgentID != "" {
 		if err := s.StopStage(ctx, task.AssignedAgentID); err != nil {
@@ -805,15 +936,40 @@ func (s *Server) recoverStartAttempt(ctx context.Context, task state.Task) {
 			// The starting row still owns this runtime. Do not clear that only
 			// durable claim after a failed reap; the next recovery pass can try
 			// again without admitting a second agent (INV §4/§15).
-			return
+			return true
 		}
 	}
 	if failed, ok, err := s.stateStore.FailTaskStart(task.TaskID, task.StartAttemptID,
 		"the server restarted during this start attempt"); err != nil {
 		s.log.Warn("recover start attempt failed", "task", task.TaskID, "err", err)
+		return true
 	} else if ok {
 		s.publishTaskUpdate(failed)
 		s.propagateTaskFailure(failed)
+	}
+	return false
+}
+
+func (s *Server) rememberStartupStartRetry(task state.Task) {
+	s.taskStartMu.Lock()
+	defer s.taskStartMu.Unlock()
+	if _, exists := s.startupStartRetries[task.TaskID]; !exists {
+		s.startupStartRetries[task.TaskID] = task.StartAttemptID
+		s.startupStartRetryOrder = append(s.startupStartRetryOrder, task.TaskID)
+	}
+}
+
+func (s *Server) rotateStartupStartRetryLocked(taskID string) {
+	s.removeStartupStartRetryLocked(taskID)
+	s.startupStartRetryOrder = append(s.startupStartRetryOrder, taskID)
+}
+
+func (s *Server) removeStartupStartRetryLocked(taskID string) {
+	for i, id := range s.startupStartRetryOrder {
+		if id == taskID {
+			s.startupStartRetryOrder = append(s.startupStartRetryOrder[:i], s.startupStartRetryOrder[i+1:]...)
+			return
+		}
 	}
 }
 
@@ -829,6 +985,7 @@ func (s *Server) interruptTask(task state.Task, reason string) {
 		s.log.Warn("interrupt task failed", "task", task.TaskID, "err", err)
 	} else if ok {
 		s.publishTaskUpdate(interrupted)
+		s.notifyTaskWaiters(interrupted.TaskID)
 		if s.pipelineMgr != nil {
 			if err := s.pipelineMgr.OnStageTaskInterrupted(interrupted.TaskID, "restart_interrupted"); err != nil {
 				s.log.Warn("pause pipeline after restart interrupted stage task", "task", interrupted.TaskID, "err", err)
@@ -858,6 +1015,7 @@ func (s *Server) interruptTaskOnExit(agentID, generation, cause string) {
 		s.log.Warn("interrupt task on agent exit", "agent_id", agentID, "err", err)
 	} else if ok {
 		s.publishTaskUpdate(task)
+		s.notifyTaskWaiters(task.TaskID)
 		if s.pipelineMgr != nil {
 			if err := s.pipelineMgr.OnStageTaskInterrupted(task.TaskID, "interrupted"); err != nil {
 				s.log.Warn("pause pipeline after stage task exit", "task", task.TaskID, "err", err)

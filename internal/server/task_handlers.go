@@ -626,6 +626,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		s.publishTaskUpdate(dependent)
 		s.propagateTaskFailure(dependent)
 	}
+	s.notifyTaskWaiters(r.PathValue("id"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
