@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { RunScreen } from "./RunScreen";
+import { screenFor } from "./PhoneApp";
 import { useConnection } from "./connection";
 
 const template = { version: 2, title: "Delivery", orchestrator_role: "implementer", inputs: [{ name: "feature", description: "Feature", required: true }], stages: [
@@ -90,6 +91,23 @@ describe("RunScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
     fireEvent.click(screen.getByRole("dialog", { name: "Stop this pipeline?" }).querySelector(".btn-danger")!);
     await waitFor(() => expect(posts).toEqual(['retry {"revision":7}', 'stop {"revision":7}']));
+  });
+
+  // FS-20 exact target — moving between runs (a notification open) never carries
+  // one run's open Stop confirmation or typed input into another.
+  it("resets dialogs and input when the phone navigates to another run", async () => {
+    server.use(http.get("/api/pipeline-runs/run_2", () => HttpResponse.json({ ...detail, run: { ...run, run_id: "run_2", display_name: "Other", revision: 3 } })));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(<QueryClientProvider client={client}>{screenFor("/run/run_1")}</QueryClientProvider>);
+    fireEvent.change(await screen.findByRole("textbox", { name: "Input for the stage (optional)" }), { target: { value: "for run one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
+    expect(screen.getByRole("dialog", { name: "Stop this pipeline?" })).toBeInTheDocument();
+    view.rerender(<QueryClientProvider client={client}>{screenFor("/run/run_2")}</QueryClientProvider>);
+    expect(screen.queryByRole("heading", { name: "Ship" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Other" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Stop this pipeline?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Input for the stage (optional)" })).toHaveValue("");
+    expect(posts).toEqual([]);
   });
 
   // FS-20.R52, TS-13.R29 — a refresh after reconnecting keeps an entered form.

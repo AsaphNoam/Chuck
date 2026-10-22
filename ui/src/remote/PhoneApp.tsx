@@ -123,13 +123,13 @@ export function PhoneApp() {
   return <Shell back={path !== "/"}>{screenFor(path)}</Shell>;
 }
 
-function screenFor(path: string) {
+export function screenFor(path: string) {
   const agentId = match(path, "agent");
   if (agentId) return <AgentScreen key={agentId} agentId={agentId} />;
   const projectId = match(path, "project");
   if (projectId) return <ProjectScreen key={projectId} projectID={projectId} />;
   const runId = match(path, "run");
-  if (runId) return <RunScreen runId={runId} />;
+  if (runId) return <RunScreen key={runId} runId={runId} />;
   if (path === "/phone") return <PhoneSettings />;
   return <HomeScreen />;
 }
