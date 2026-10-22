@@ -334,8 +334,11 @@ type agentState struct {
 	spanOpen map[string]string
 	spans    int
 	// children maps announced provider child session ids to their activity
-	// scope for this generation only (TS-04.R63); bounded by maxChildren.
+	// scope for this generation only (TS-04.R63); bounded by maxChildren live
+	// children plus endedChildren, the oldest-first tombstones that keep late
+	// frames of the last maxEndedChildren ended children routed.
 	children           map[string]activityScope
+	endedChildren      []string
 	unknownChildFrames int
 	// roots are the working directory then additional directories: the scope a
 	// file-change report path must fall inside (TS-04.R66).
@@ -2595,19 +2598,13 @@ func envKeys(env []string) []string {
 // cannot reopen busy, because only a turn end restores idle and Cancel has no
 // turn to interrupt (FS-01.R52, INV §1/§11).
 func (c *ChatRuntime) applyEventStatus(as *agentState, m mappedEvent) {
-	if m.Type == EvToolCall {
-		as.mu.Lock()
-		d := m.Data.(ToolCallData)
-		as.toolNames[d.ToolCallID] = d.Name
-		as.mu.Unlock()
-	}
 	switch m.Type {
 	case EvToolCall:
 		d := m.Data.(ToolCallData)
 		c.updateOwnedBusy(as, "Running "+d.Name, "PreToolUse: "+d.Name)
 	case EvToolResult:
 		d := m.Data.(ToolResultData)
-		name := as.toolNameFor(d.ToolCallID)
+		name := as.endToolCall(d.ToolCallID)
 		c.updateOwnedBusy(as, name+" done", "PostToolUse: "+name)
 	}
 	// assistant_text / diff carry no status transition (agent stays busy).
@@ -2925,6 +2922,7 @@ func (as *agentState) admitToolInput(scope activityScope, m mappedEvent) (mapped
 	case ToolCallData:
 		if as.toolInputs == nil {
 			as.toolInputs = map[string]*openToolInput{}
+			as.toolNames = map[string]string{}
 		}
 		in := &openToolInput{title: d.Title, args: string(d.Args), activityID: scope.ActivityID}
 		if scope.ActivityID == "" {
@@ -2934,6 +2932,7 @@ func (as *agentState) admitToolInput(scope activityScope, m mappedEvent) (mapped
 		as.toolInputSeq++
 		in.seq = as.toolInputSeq
 		as.toolInputs[d.ToolCallID] = in
+		as.toolNames[d.ToolCallID] = d.Name
 		as.toolInputBytes += len(in.title) + len(in.args)
 		as.boundToolInputsLocked(d.ToolCallID)
 	case ToolCallUpdateData:
@@ -2958,16 +2957,23 @@ func (as *agentState) admitToolInput(scope activityScope, m mappedEvent) (mapped
 		}
 		m.Data = d
 	case ToolResultData:
-		as.forgetToolInputLocked(d.ToolCallID)
+		// The name stays until applyEventStatus reports the result with it.
+		as.dropToolInputLocked(d.ToolCallID)
 	}
 	return m, true
 }
 
-func (as *agentState) forgetToolInputLocked(id string) {
+func (as *agentState) dropToolInputLocked(id string) {
 	if in, ok := as.toolInputs[id]; ok {
 		as.toolInputBytes -= len(in.title) + len(in.args)
 		delete(as.toolInputs, id)
 	}
+}
+
+// forgetToolInputLocked ends one call's memory: its input and its name.
+func (as *agentState) forgetToolInputLocked(id string) {
+	as.dropToolInputLocked(id)
+	delete(as.toolNames, id)
 }
 
 // boundToolInputsLocked forgets the oldest other calls until both limits hold;
@@ -3005,13 +3011,16 @@ func (as *agentState) releaseActivityToolInputsLocked(activityID string) {
 	}
 }
 
-func (as *agentState) toolNameFor(id string) string {
+// endToolCall forgets a call's name at its result, returning it for status.
+func (as *agentState) endToolCall(id string) string {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	if n, ok := as.toolNames[id]; ok && n != "" {
-		return n
+	n := as.toolNames[id]
+	delete(as.toolNames, id)
+	if n == "" {
+		return "tool"
 	}
-	return "tool"
+	return n
 }
 
 func (as *agentState) isStopped() bool {

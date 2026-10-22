@@ -17,6 +17,7 @@ import (
 
 const (
 	maxChildren       = 256
+	maxEndedChildren  = 64
 	maxActivityName   = 120
 	maxActivityTask   = 500
 	maxChildDiagnosis = 3
@@ -146,7 +147,7 @@ func (c *ChatRuntime) onSubagentUpdate(as *agentState, params json.RawMessage) b
 			scope.TurnID = as.execTurnID
 		}
 		_, known := as.children[u.SubagentSessionID]
-		full := len(as.children) >= maxChildren
+		full := len(as.children)-len(as.endedChildren) >= maxChildren
 		if !known && !full {
 			if as.children == nil {
 				as.children = map[string]activityScope{}
@@ -178,12 +179,30 @@ func (c *ChatRuntime) onSubagentUpdate(as *agentState, params json.RawMessage) b
 		if state != "disconnected" {
 			as.mu.Lock()
 			as.releaseActivityToolInputsLocked(scope.ActivityID)
+			as.retireChildLocked(u.SubagentSessionID)
 			as.mu.Unlock()
 		}
 		c.emitIn(as, scope, EvActivityState, ActivityStateData{State: state})
 		return true
 	}
 	return false
+}
+
+// retireChildLocked frees an ended child's live slot. Its scope stays as a
+// tombstone, so late output and permissions keep their attribution, until
+// maxEndedChildren later endings forget it; only ended children are forgotten,
+// never a live permission owner (TS-04.R63, INV §16).
+func (as *agentState) retireChildLocked(sessionID string) {
+	for _, ended := range as.endedChildren {
+		if ended == sessionID {
+			return
+		}
+	}
+	as.endedChildren = append(as.endedChildren, sessionID)
+	if len(as.endedChildren) > maxEndedChildren {
+		delete(as.children, as.endedChildren[0])
+		as.endedChildren = append([]string(nil), as.endedChildren[1:]...)
+	}
 }
 
 // scopeMapped rewrites a child's mapped tool identities to the composite id.

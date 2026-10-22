@@ -102,6 +102,71 @@ func TestEndedChildReleasesToolInput(t *testing.T) {
 	}
 }
 
+// TS-04.R63, INV §16: a long-lived orchestrator keeps using native children.
+// Ended children free their live slot and leave a bounded tombstone that still
+// routes their late frames; live children are never forgotten to make room,
+// and finished calls leave no tool name behind.
+func TestEndedChildrenFreeTheirSlots(t *testing.T) {
+	c, h, _, ch := startPermAgent(t, false, "")
+	go func() {
+		for range ch {
+		}
+	}()
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	as.mu.Lock()
+	as.caps.Subagents = true
+	root := as.sessionID
+	as.mu.Unlock()
+	update := func(session, body string) {
+		c.onNotification(as, "session/update", json.RawMessage(fmt.Sprintf(`{"sessionId":%q,"update":%s}`, session, body)))
+	}
+	spawn := func(child string) {
+		update(root, fmt.Sprintf(`{"sessionUpdate":"subagent_spawned","subagentSessionId":%q,"name":"worker"}`, child))
+	}
+	routed := func(child string) bool {
+		scope, ok := as.scopeFor(child)
+		return ok && scope.ActivityID == activityIDFor(child)
+	}
+
+	const live = maxChildren - 1
+	for i := 0; i < live; i++ {
+		spawn(fmt.Sprintf("live-%d", i))
+	}
+	for i := 0; i < 300; i++ {
+		child := fmt.Sprintf("done-%d", i)
+		spawn(child)
+		if !routed(child) {
+			t.Fatalf("child %d was not admitted beside %d live children", i, live)
+		}
+		update(child, `{"sessionUpdate":"tool_call","toolCallId":"tc","title":"grep","kind":"search","rawInput":{}}`)
+		update(child, `{"sessionUpdate":"tool_call_update","toolCallId":"tc","status":"completed"}`)
+		update(root, fmt.Sprintf(`{"sessionUpdate":"subagent_state_update","subagentSessionId":%q,"state":"completed"}`, child))
+	}
+	if !routed("done-299") || routed("done-0") {
+		t.Fatalf("tombstones: latest routed=%v oldest routed=%v, want the latest only", routed("done-299"), routed("done-0"))
+	}
+	for i := 0; i < live; i++ {
+		if !routed(fmt.Sprintf("live-%d", i)) {
+			t.Fatalf("live child %d was forgotten", i)
+		}
+	}
+	as.mu.Lock()
+	children, names, inputs := len(as.children), len(as.toolNames), len(as.toolInputs)
+	as.mu.Unlock()
+	if children != live+maxEndedChildren || names != 0 || inputs != 0 {
+		t.Fatalf("children=%d names=%d inputs=%d, want %d, 0, 0", children, names, inputs, live+maxEndedChildren)
+	}
+	// The live bound still holds once every slot is live.
+	spawn("live-last")
+	spawn("over")
+	if !routed("live-last") || routed("over") {
+		t.Fatalf("live bound: last routed=%v over routed=%v", routed("live-last"), routed("over"))
+	}
+}
+
 // Active input retention is bounded by call count and bytes; the oldest call
 // is forgotten first and the newest is kept even when it alone is large.
 func TestOpenToolInputIsBounded(t *testing.T) {

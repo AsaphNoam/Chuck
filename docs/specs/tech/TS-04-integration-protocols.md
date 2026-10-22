@@ -863,7 +863,10 @@ later update is routed by its ACP child session id, and `subagent_state_update` 
 under its immediate parent. Child text/tools/diffs/permissions reuse root mapping with activity
 scope. The mapper replaces each child provider tool-call id with TS-01.R35's stable activity-scoped
 id across call/update/result/diff/permission events and retains the reverse map only for the active
-runtime generation. Child permission and elicitation requests still resolve through the root
+runtime generation. Within it, at most 256 live children are admitted; a completed, failed or
+stopped child frees its slot and keeps an oldest-first tombstone for the last 64 ended children so
+late frames keep their attribution, and a live child is never forgotten to make room. A call's tool
+name is retained only with its open input and is released at its result (INV §16). Child permission and elicitation requests still resolve through the root
 transport and single-winner permission gate using that normalized id. Without bilateral
 negotiation, the adapter's legacy ordinary tool call passes through unchanged. History orphans map
 to the explicit durable `disconnected` state; unknown live child ids produce a bounded protocol
