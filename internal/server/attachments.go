@@ -529,6 +529,13 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 		}
 	}
 	if err != nil {
+		// A hold replaced or consumed between the snapshot and the atomic
+		// promotion was not steered. Its older receipt must not turn this
+		// definite refusal into an accepted response with an empty outcome.
+		if action == "steer" && (errors.Is(err, runtime.ErrHeldChanged) || errors.Is(err, runtime.ErrNothingHeld)) {
+			writeAPIError(w, steerError(err))
+			return
+		}
 		if receiptBearing {
 			// Only a receipt still untouched by runtime delivery can roll back. Once
 			// submitted or held, return acceptance so a network retry cannot consume twice.

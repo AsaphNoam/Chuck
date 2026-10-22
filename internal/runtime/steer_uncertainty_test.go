@@ -2,10 +2,36 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestPromotedSteerRejectsReplacedHeldSnapshot(t *testing.T) {
+	steerLog := filepath.Join(t.TempDir(), "steer.log")
+	c, h, _, _, _ := busyAgent(t, "FAKEACP_STEERING=1", "FAKEACP_STEER_LOG="+steerLog)
+	if _, err := c.SendPromptOrHold(context.Background(), h.AgentID, "device A"); err != nil {
+		t.Fatal(err)
+	}
+	old, _, err := c.HeldMessage(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SendPromptOrHold(context.Background(), h.AgentID, "device B"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SteerMessage(context.Background(), h.AgentID, Message{HeldID: old.HeldID}); !errors.Is(err, ErrHeldChanged) {
+		t.Fatalf("stale promotion = %v; want held changed", err)
+	}
+	current, _, err := c.HeldMessage(h.AgentID)
+	if err != nil || current.Text != "device B" {
+		t.Fatalf("replacement = %+v %v", current, err)
+	}
+	if _, err := os.Stat(steerLog); !os.IsNotExist(err) {
+		t.Fatalf("stale promotion reached the provider: %v", err)
+	}
+}
 
 // FS-03.R100: a consumed Steer with a lost acknowledgement must never become
 // an automatically delivered prompt. The wire logs, rather than receipt state,

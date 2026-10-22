@@ -67,6 +67,10 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 
 ## Acceptance gates still owed
 
+- **ASF-2 native/device receipts:** deterministic fake-ACP wire counts, HTTP/CLI/component checks,
+  and isolated desktop Chromium withdrawal/unknown-recovery journeys establish the repaired input
+  boundaries. They do not establish credentialed Claude/Codex consumption timing or a physical
+  phone's background/reconnect behavior. Keep those existing native/phone gates open.
 - **Earlier carried checks:** phone component proof for definite-refusal Retry, live Claude
   receipt for late tool input, and rendered verification of the withdraw failed-recovery-read
   tail notice remain owed.
