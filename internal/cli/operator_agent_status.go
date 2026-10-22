@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/spf13/cobra"
 )
 
@@ -178,6 +179,7 @@ func operatorStatusPermissions(ctx context.Context, client *operatorClient, id s
 
 	pending := make([]json.RawMessage, 0, 4)
 	toolIDs := make([]string, 0, 4)
+	hostIDs := map[string]bool{}
 	for _, raw := range page.Events {
 		var event struct {
 			AgentID    string          `json:"agent_id"`
@@ -193,9 +195,13 @@ func operatorStatusPermissions(ctx context.Context, client *operatorClient, id s
 		}
 		var permission struct {
 			ToolCallID string `json:"tool_call_id"`
+			Origin     string `json:"origin"`
 		}
 		if json.Unmarshal(event.Data, &permission) != nil || permission.ToolCallID == "" {
 			return operatorPendingPermissions{}, &operatorError{Code: "invalid_response", Message: "dashboard returned an invalid permission event", ExitCode: 1}
+		}
+		if event.Type == "permission_request" && permission.Origin == runtime.PermissionOriginPeerStop {
+			hostIDs[permission.ToolCallID] = true
 		}
 		index := -1
 		for i, toolID := range toolIDs {
@@ -219,6 +225,7 @@ func operatorStatusPermissions(ctx context.Context, client *operatorClient, id s
 			}
 		}
 	}
+	canonical := ""
 	if len(page.PendingPermission) > 0 && !bytes.Equal(bytes.TrimSpace(page.PendingPermission), []byte("null")) {
 		var event struct {
 			AgentID string          `json:"agent_id"`
@@ -231,6 +238,7 @@ func operatorStatusPermissions(ctx context.Context, client *operatorClient, id s
 		if json.Unmarshal(page.PendingPermission, &event) != nil || event.Type != "permission_request" || event.AgentID != id || json.Unmarshal(event.Data, &permission) != nil || permission.ToolCallID == "" {
 			return operatorPendingPermissions{}, &operatorError{Code: "invalid_response", Message: "dashboard returned an invalid pending permission", ExitCode: 1}
 		}
+		canonical = permission.ToolCallID
 		found := false
 		for _, toolID := range toolIDs {
 			if toolID == permission.ToolCallID {
@@ -242,8 +250,20 @@ func operatorStatusPermissions(ctx context.Context, client *operatorClient, id s
 			pending = append(pending, append(json.RawMessage(nil), page.PendingPermission...))
 		}
 	}
+	// Only the server knows whether a peer-Stop wait is still live (TS-03.R71):
+	// keep such a request only when it is the server's pending permission, and
+	// report coverage incomplete when an unverified one was withheld.
+	complete := page.HasMore != nil && !*page.HasMore
+	kept := pending[:0]
+	for i, raw := range pending {
+		if i < len(toolIDs) && hostIDs[toolIDs[i]] && toolIDs[i] != canonical {
+			complete = false
+			continue
+		}
+		kept = append(kept, raw)
+	}
 	return operatorPendingPermissions{
-		Pending:  pending,
-		Complete: page.HasMore != nil && !*page.HasMore,
+		Pending:  kept,
+		Complete: complete,
 	}, nil
 }

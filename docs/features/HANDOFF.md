@@ -22,9 +22,8 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-2–ASF-6 wait.
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
-  with nine open admission/recovery findings. CR-A3, CR-A4 and CR-A5 are reviewed and closed
-  (no open findings). CR-A6 is reviewed
-  with one open operator action/observation finding. CR-A7 is reviewed with five open capacity/cost findings.
+  with nine open admission/recovery findings. CR-A3, CR-A4, CR-A5 and CR-A6 are reviewed and closed
+  (no open findings). CR-A7 is reviewed with five open capacity/cost findings.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   [Before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) connects preservation,
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
@@ -228,7 +227,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | reviewed `7ec20a01` — closed; CR-A3-1/2/3 fixed |
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — closed; CR-A4-1 fixed |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — closed; CR-A5-1/2 fixed |
-| [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — one finding open |
+| [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — closed; CR-A6-1–6 fixed |
 | [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — five findings open |
 
 **Fix/work pickup:** CR-A1-1/2 are covered together by the
@@ -386,39 +385,6 @@ publication order and targeted-test oracles supply no other new finding. §3 has
 field/form surface, §6 no new interface/runtime and §13 no markup/selector surface. §12's external
 tool/version claims are retained ASW-3/native proof limits, not newly measured provider behavior.
 Independent rendered verification (§14.4) is not applicable to this state-only audit result.
-
-### CR-A6 — Operator action and observation truth — reviewed `3334471d` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Subsystem audit complete at `3334471d1a248916c296527794151cdf07bf4fd4`; one finding keeps this
-same unit open. Four focused read-only reviewers traced CLI action/output/exit, CLI status/follow,
-conversation intervention controls and desktop/phone recovery; the parent checked every candidate
-against current source and reproduced CR-A6-1. The four entry dirty files under
-`docs/ready-changes/` are preserved. Release pins are Claude ACP 0.85.1 and Codex ACP 2.1.1 / CLI
-0.159.3; no installed provider, paired device or OS suspension evidence is claimed. No product code
-or normative spec changed.
-
-Ledger (held): group/bulk member outcomes and nonzero CLI exit (`groups.go:253–292`,
-`operator_client.go:390–427`); `result_unknown` without replay or redirect (`operator_client.go:48,136–171`);
-`--yes` never supplies checkout/dirty/ETag/preview consent; exact escaped IDs; Switch history-marker
-failure names the active target; owned download temp-publish with cleanup; follow subscribes before
-read, dedupes by per-agent seq, recovers a dropped tail on ping and exits on Ctrl-C/EPIPE without
-mutation; journal publishes only after append under one lock (`journal.go:442–466`); held-read 404
-versus empty hold; exact permission call IDs and single-use host admission; Cancel/Stop/quota-cancel
-guards and the ASF-1 fixes; desktop `onopen` resets and token-fenced refetch; phone `gen` fencing,
-offline gating, no mutation replay, notification opens current truth, route allowlist covers phone calls.
-Evidence limits: project archive's mid-stop failure returns a generic error without naming already
-stopped members (no requirement demands group-style member outcomes there); degraded history with
-two unretained permission requests exposes only the newest while status reports `complete`; a crash
-leaving an ordinary unresolved `permission_request` still renders Approve/Deny that the broker refuses.
-
-- **Worth fixing** — CR-A6-4 — **CLI status lists dead peer-Stop approvals as pending** (INV §2).
-  The server withholds a host-origin request whose generation ended (`transcript_window.go:111–118`,
-  TS-03.R71/TS-04.R94), but `internal/cli/operator_agent_status.go:177–231` independently derives
-  pending requests from in-window events and treats any unresolved `permission_request` as pending.
-  After a Chuck restart during a peer-Stop wait, `chuck agent status` reports a pending,
-  `complete:true` approval the broker cannot act on. Code-confirmed; no existing test uses a
-  host-origin request. Carry the server's liveness verdict or `origin` through and mark unverified
-  host entries rather than re-deriving them.
 
 ### CR-A2 — Admission, waiting and recovery — reviewed `f1c59961` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -1524,7 +1490,8 @@ and specifications are unchanged.
 
 ## Changelog
 
-- **2026-10-22 — Fix (in progress): operator action and observation truth (CR-A6-1 INV §8/§11, CR-A6-2 INV §1, CR-A6-3 INV §8/§10, CR-A6-5 INV §1/§11, CR-A6-6 INV §8).**
+- **2026-10-22 — Fix: operator action and observation truth (CR-A6-1 INV §8/§11, CR-A6-2 INV §1,
+  CR-A6-3 INV §8/§10, CR-A6-4 INV §2, CR-A6-5 INV §1/§11, CR-A6-6 INV §8).**
   A refused attachment Steer (receipt `failed`) now answers with the TS-03.R39 refusal envelope on
   first response and retry, so the CLI exits nonzero; receipt `delivery` is `sent` only for
   `submitted` (TS-03.R62). `TestRefusedAttachmentSteerIsNotReportedSent` failed before the fix.
@@ -1537,6 +1504,13 @@ and specifications are unchanged.
   CR-A6-5 (INV §1/§11): the desktop transcript store records the highest applied seq per agent and
   drops a streamed event at or below it; the new reducer test failed before. End-to-end timing
   across the SSE hop was not reproduced.
+  CR-A6-4 (INV §2): `chuck agent status` keeps a peer-Stop request only when it is the server's
+  live `pending_permission` and otherwise reports coverage incomplete (TS-03 status projection);
+  `TestOperatorStatusTrustsServerLivenessForPeerStopRequests` covers dead and live waits.
+  Closure: `make test` (both Go variants, `GOFLAGS=-p=1`), `make build`, 982 UI tests and UI build pass.
+  CR-A6 is closed. The review's non-finding evidence limits (generic project-archive mid-stop
+  error, newest-only unretained permission under `complete`, crash-left ordinary request still
+  showing Approve/Deny) remain recorded in its review file, not as open findings.
 
 - **2026-10-22 — Fix: executable workspace and configuration (CR-A3-1 INV §1/§12/§15, CR-A3-2
   INV §1/§3/§10/§11, CR-A3-3 INV §2/§11/§12).** `ensureWorktreeCheckout` now requires an existing

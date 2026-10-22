@@ -277,6 +277,34 @@ func TestOperatorStatusPermissionResolutionUsesExactToolCallID(t *testing.T) {
 	}
 }
 
+// TS-03.R71 — a peer-Stop request whose wait ended (e.g. after a restart) is
+// not reported as pending; only the server's live verdict keeps one.
+func TestOperatorStatusTrustsServerLivenessForPeerStopRequests(t *testing.T) {
+	for _, tc := range []struct {
+		name, canonical string
+		want            int
+		complete        bool
+	}{
+		{"dead", `null`, 0, false},
+		{"live", `{"agent_id":"a","type":"permission_request","data":{"tool_call_id":"stop:1","origin":"chuck_peer_stop"}}`, 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			page := `{"agent_id":"a","events":[{"type":"permission_request","data":{"tool_call_id":"stop:1","origin":"chuck_peer_stop"}}],"has_more":false,"pending_permission":` + tc.canonical + `}`
+			fixture := newOperatorStatusFixture(t, func(w http.ResponseWriter, r *http.Request) {
+				operatorStatusWriteJSON(w, http.StatusOK, page)
+			})
+			client := &operatorClient{BaseURL: fixture.URL, HTTP: &http.Client{}}
+			permissions, err := operatorStatusPermissions(context.Background(), client, "a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(permissions.Pending) != tc.want || permissions.Complete != tc.complete {
+				t.Fatalf("permissions = %+v", permissions)
+			}
+		})
+	}
+}
+
 func TestOperatorStatusIncludesCanonicalPendingPermissionOutsidePartialWindow(t *testing.T) {
 	page := `{"agent_id":"a","events":[{"agent_id":"a","seq":90,"type":"assistant_text","data":{"delta":"working"}}],"has_more":true,"pending_permission":{"agent_id":"a","seq":12,"type":"permission_request","activity_id":"native-child","parent_activity_id":"root","data":{"tool_call_id":"native:12","name":"Bash","args":{"count":9007199254740993}}}}`
 	fixture := newOperatorStatusFixture(t, func(w http.ResponseWriter, r *http.Request) {
