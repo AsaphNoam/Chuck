@@ -33,7 +33,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   preservation boundary; specify task cleanup/continuation contracts within coordinated fixes.
   A separate task-ownership architecture project is not demonstrated. CR-A4 is closed below.
   **Reindex preservation implemented:** FS-05.R43–R45/A26–A27 and TS-02.R56–R58 now use
-  per-conversation atomic replay under the approved partial-repair policy. CR-A1-1/2 remain open
+  per-conversation atomic replay under the approved partial-repair policy. CR-A1-1/2 were
   closed by independent review on 2026-10-22; CR-A1-3 stays independently actionable.
   Workflow reliability skills/gate passed independent implementation review on 2026-10-21;
   no findings remain for that unit. This does not supply a release architectural receipt.
@@ -1362,7 +1362,8 @@ and specifications are unchanged.
   directions, tests and native Resume consumer. No new local-choice question or product decision.
   CR-A1-1/2 are closed; CR-A1-3 remains open with the recommendation recorded above. No fix
   model is needed for the closed reindex implementation unit. Unrelated entry dirty work is
-  preserved; only this review's handoff delta is committed.
+  preserved. Concurrent commit `4d437bac` captured this review's handoff receipt; the review's
+  final state-only commit corrects its summary and changes only the handoff.
   Independent verification: full `internal/index` / `internal/archive` suites, CLI
   `TestReindexCommandPartialRepairAndRetry`, and server `TestFailedReindexPreservesNativeResume`
   pass in both untagged and `sqlite_fts5` builds (`env -u CHUCK_RUNTIME_ROOT`,
