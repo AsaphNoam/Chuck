@@ -30,7 +30,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	// not lost (it would otherwise be in neither the snapshot nor this client).
 	// The channel is buffered, so events published while we write the snapshot
 	// below queue until the select loop drains them.
-	snapshot, ch, unsub := s.eventBus.SubscribeWithSnapshot()
+	snapshot, ch, overflow, unsub := s.eventBus.SubscribeWithSnapshot()
 	defer unsub()
 
 	for _, update := range snapshot {
@@ -50,6 +50,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-overflow:
+			// This stream lost an event, so the client's state can no longer be
+			// trusted to converge; healthy pings would hide that. Ending it makes
+			// the browser reconnect into a fresh snapshot and refetch (TS-03.R9).
 			return
 		case ev, open := <-ch:
 			if !open {

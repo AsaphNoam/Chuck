@@ -314,6 +314,45 @@ describe("SseClient watchdog reconnect", () => {
     expect(agents["a_gone"]).toBeUndefined();
   });
 
+  // CR-A7-3 (INV §16): only an active hydration collects snapshot ids, so a
+  // long-lived dashboard retains the agent set, not its live traffic history.
+  it("stops collecting hydration ids once the hydrated marker settles", async () => {
+    const { sseClient } = await import("./sse");
+    const { useAgentStore } = await import("../store/agentStore");
+    sseClient.connect();
+    const es = FakeEventSource.instances[0];
+    const upd = (id: string) =>
+      JSON.stringify({ type: "state_update", seq: 1, ts: 1, agent_id: id, data: { agent_id: id } });
+    const hydrated = JSON.stringify({ type: "state_update", seq: 2, ts: 2, agent_id: "", data: { hydrated: true } });
+    es.onopen?.();
+    es.emit("state_update", upd("a_live"));
+    es.emit("state_update", hydrated);
+    for (let i = 0; i < 1_000; i++) es.emit("state_update", upd("a_live"));
+    expect((sseClient as unknown as { hydrationIds: unknown }).hydrationIds).toBeNull();
+
+    // The next generation still prunes against its own snapshot alone.
+    es.emit("state_update", upd("a_later"));
+    es.onopen?.();
+    es.emit("state_update", upd("a_live"));
+    es.emit("state_update", hydrated);
+    expect(Object.keys(useAgentStore.getState().agents)).toEqual(["a_live"]);
+  });
+
+  // TS-03.R9 (CR-A7-1): the server ends a stream that dropped events, so every
+  // reopen must refetch what an event could have changed, open run details included.
+  it("refetches open pipeline run details on every reopen", async () => {
+    const { sseClient } = await import("./sse");
+    const { queryClient } = await import("./config");
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+    sseClient.connect();
+    const es = FakeEventSource.instances[0];
+    es.onopen?.();
+    spy.mockClear();
+    es.onopen?.();
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["pipelines", "run-detail"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks"] });
+  });
+
   // FS-13.R16 / FS-03.A19: deletion drops browser-local state keyed to the
   // agent and leaves other agents' state alone.
   it("drops a deleted agent's annotation tray and chat draft", async () => {

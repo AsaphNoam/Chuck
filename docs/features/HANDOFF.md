@@ -23,7 +23,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
   with nine open admission/recovery findings. CR-A3, CR-A4, CR-A5 and CR-A6 are reviewed and closed
-  (no open findings). CR-A7 is reviewed with five open capacity/cost findings.
+  (no open findings). CR-A7 is reviewed with three open capacity/cost findings (A7-2, A7-4, A7-5).
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   [Before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) connects preservation,
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
@@ -222,7 +222,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — closed; CR-A4-1 fixed |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — closed; CR-A5-1/2 fixed |
 | [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — closed; CR-A6-1–6 fixed |
-| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — five findings open |
+| [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — three findings open (A7-1/3 fixed) |
 
 **Fix/work pickup:** CR-A1-1/2 are covered together by the
 [waiting reindex change](../ready-changes/interruption-safe-reindex.md), ready for `/work` or
@@ -273,31 +273,11 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
 
 ### CR-A7 — Sustained capacity and cost — reviewed `8c837942` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Subsystem audit complete at `8c837942a20b4eb4769104aec9a0ad11a712c3c7`; one finding keeps this
+Subsystem audit complete at `8c837942a20b4eb4769104aec9a0ad11a712c3c7`; open findings keep this
 same unit open. Three focused reviewers covered storage/reconciliation, browser consumers and runtime
 lifetimes; the parent reviewed their source/probes and measured reference/peer reads. Entry dirty
 ready-change edits are preserved. No product code or normative spec changed, and no local-choice
 or new product decision is introduced. Existing A1–A6 and ASW/ASF finding ownership is unchanged.
-
-- **Must fix** — CR-A7-1 — **SSE overflow loses agent state without resnapshot recovery**
-  (INV §1/§11). `internal/bus/bus.go:91–105` silently drops the oldest event at 256 queued
-  events; `internal/server/sse.go:54–65` continues the same stream and independent heartbeats.
-  `ui/src/api/sse.ts:148–172,175–190,300–315` repairs only transcript sequence gaps and reconnects
-  only on missing pings. A slow writer during a multi-agent burst can lose a terminal, permission
-  state or removal update; subsequent other-agent events and healthy pings never restore that
-  agent's state. Dashboard state/controls remain stale, contrary to TS-03.R9's drop/resnapshot
-  strategy. The disposable bus probe publishes terminal state, 256 unrelated notifications and a
-  ping: the subscriber receives the ping but no state/reset, while `Bus.Snapshot()` has the terminal
-  state. Source tracing confirms neither browser transport requests a resnapshot. Recover the
-  bounded subscriber through a reset/resnapshot or reconnect, and test lost state plus continued
-  heartbeat delivery through the browser recovery path.
-  **2026-10-21 systemic follow-up (source-confirmed, no new probe):** reconnect invalidates
-  pipeline lists but omits `PIPELINE_QUERY_KEYS.runDetails` in `ui/src/api/sse.ts:55–80`;
-  `ui/src/api/pipelines.ts:16–21,221–227` uses a separate detail key and no polling interval.
-  A missed task/pipeline event can therefore leave an open run detail stale after reconnect.
-  Include detail-cache convergence in this finding's overflow/reset/reconnect repair and evidence,
-  alongside agent hydration and existing task/list/room invalidations. See the
-  [synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md#3-published-state-transport-recovery-and-replay-must-converge-together).
 
 - **Must fix** — CR-A7-2 — **Reference transcript scans have no admission or cancellation lifetime**
   (INV §4/§16). `internal/messaging/context_tools.go:68–74,118–124` discards request contexts;
@@ -312,16 +292,6 @@ or new product decision is introduced. Existing A1–A6 and ASW/ASF finding owne
   and request/lifecycle cancellation through the shared reader seam; preserve fixed-source,
   authorization and oversized-record edge semantics. Choose its own documented limit rather than
   assuming the peer-specific eight-scan contract applies to every reader.
-
-- **Must fix** — CR-A7-3 — **Completed hydration keeps retaining every live state update**
-  (INV §16). `ui/src/api/sse.ts:35,148–172` appends an agent id to `hydrationIds` on every live
-  `state_update`, even after the hydrated marker consumed and cleared the snapshot list. Nothing
-  consumes that new list until another reconnect, whose `onopen` discards it anyway. A healthy
-  long-lived dashboard therefore retains traffic history rather than the current agent set.
-  The disposable UI probe completes hydration, delivers 10,000 updates for one agent, and observes
-  10,000 retained ids. Track ids only while snapshot hydration is active and release the list at
-  its boundary; extend the existing reconnect/hydration test. Separate per-agent request tokens
-  deliberately fence late responses: do not delete them blindly and introduce an ABA race.
 
 - **Worth fixing** — CR-A7-4 — **The idle reconciliation timer replays all retained history**
   (INV §7/§16). Every 30 seconds `internal/server/reconcile.go:20–24,73–75,118–130` walks every
@@ -1483,6 +1453,15 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-22 — Fix: sustained capacity and cost (CR-A7-1 INV §1/§11, CR-A7-3 INV §16).**
+  CR-A7-1: a bus subscriber's overflow channel closes at its first dropped event and
+  `/api/events` ends that stream instead of pinging on; the browser reconnect resnapshots and now
+  also refetches open pipeline run details (TS-03.R9 documents the strategy).
+  `TestSSEOverflowEndsStreamAndReconnectCarriesLostState` (stalled writer, lost terminal state,
+  257 later events) failed with the overflow case disabled; the reopen run-detail UI test failed
+  before. CR-A7-3: `hydrationIds` exists only between `onopen` and the `hydrated` marker; the
+  1,000-update retention test failed before. Per-agent transcript tokens are unchanged.
 
 - **2026-10-22 — Fix: operator action and observation truth (CR-A6-1 INV §8/§11, CR-A6-2 INV §1,
   CR-A6-3 INV §8/§10, CR-A6-4 INV §2, CR-A6-5 INV §1/§11, CR-A6-6 INV §8).**

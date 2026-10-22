@@ -32,7 +32,8 @@ class SseClient {
   private receivedSharedWorkerMessage = false;
   private opened = false;
   private sharedStreamUnavailable = false;
-  private hydrationIds: string[] = [];
+  /** Snapshot ids of the hydration in progress; null once its marker settles it (INV §16). */
+  private hydrationIds: string[] | null = null;
   private openAgents = new Map<string, number>();
   private transcriptRequestToken: Record<string, number> = {};
   private lastAgentSeq: Record<string, number> = {};
@@ -72,7 +73,10 @@ class SseClient {
       for (const agentId of this.openAgents.keys()) {
         void this.refetchTranscript(agentId).catch(() => undefined);
       }
+      // The server also ends an overflowed stream to land here: anything that
+      // stream dropped is recovered only by these refetches (TS-03.R9).
       queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runs });
+      queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runDetails });
       queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.proposals });
       queryClient.invalidateQueries({ queryKey: TASK_QUERY_KEYS.all });
       queryClient.invalidateQueries({ queryKey: THINK_TANK_KEYS.all });
@@ -149,8 +153,8 @@ class SseClient {
   private onStateUpdate(event: MessageEvent<string>) {
     const envelope = JSON.parse(event.data) as BusEvent<AgentState>;
     if (envelope.data.hydrated) {
-      useAgentStore.getState().hydrateComplete(this.hydrationIds);
-      this.hydrationIds = [];
+      useAgentStore.getState().hydrateComplete(this.hydrationIds ?? []);
+      this.hydrationIds = null;
       return;
     }
     if (envelope.data.removed && envelope.agent_id) {
@@ -169,7 +173,7 @@ class SseClient {
       const sentAt = envelope.data.last_sent_at;
       window.setTimeout(() => useAgentStore.getState().clearLastSentAt(envelope.agent_id!, sentAt), 2_000);
     }
-    if (envelope.agent_id) this.hydrationIds.push(envelope.agent_id);
+    if (envelope.agent_id) this.hydrationIds?.push(envelope.agent_id);
   }
 
   private onNewMessage(event: MessageEvent<string>) {

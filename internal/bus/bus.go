@@ -24,6 +24,14 @@ type Event struct {
 type client struct {
 	ch      chan Event
 	dropped atomic.Uint64
+	// overflow is closed at the first dropped event: the subscriber's view is
+	// no longer complete, so a stream consumer must end and resnapshot (TS-03.R9).
+	overflow     chan struct{}
+	overflowOnce sync.Once
+}
+
+func newClient() *client {
+	return &client{ch: make(chan Event, BufferSize), overflow: make(chan struct{})}
 }
 
 type Bus struct {
@@ -48,7 +56,7 @@ func (b *Bus) Subscribe() (<-chan Event, func()) {
 	defer b.mu.Unlock()
 	id := b.nextID
 	b.nextID++
-	c := &client{ch: make(chan Event, BufferSize)}
+	c := newClient()
 	b.clients[id] = c
 	return c.ch, func() { b.unsubscribe(id) }
 }
@@ -60,8 +68,10 @@ func (b *Bus) Subscribe() (<-chan Event, func()) {
 // connecting client shows stale state until the next update. Holding the write
 // lock for both closes that gap — a concurrent Publish (which needs the read lock)
 // either completes fully before, and is reflected in the snapshot, or fully after,
-// and is delivered to the now-registered channel.
-func (b *Bus) SubscribeWithSnapshot() ([]state.AgentStateUpdate, <-chan Event, func()) {
+// and is delivered to the now-registered channel. The returned overflow channel
+// closes once this subscriber has lost an event; the snapshot it was built from
+// can then only be repaired by ending the subscription and taking a new one.
+func (b *Bus) SubscribeWithSnapshot() ([]state.AgentStateUpdate, <-chan Event, <-chan struct{}, func()) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	out := make([]state.AgentStateUpdate, 0, len(b.snapshot))
@@ -70,9 +80,9 @@ func (b *Bus) SubscribeWithSnapshot() ([]state.AgentStateUpdate, <-chan Event, f
 	}
 	id := b.nextID
 	b.nextID++
-	c := &client{ch: make(chan Event, BufferSize)}
+	c := newClient()
 	b.clients[id] = c
-	return out, c.ch, func() { b.unsubscribe(id) }
+	return out, c.ch, c.overflow, func() { b.unsubscribe(id) }
 }
 
 func (b *Bus) unsubscribe(id int) {
@@ -101,6 +111,7 @@ func (b *Bus) Publish(typ string, agentID *string, data any) Event {
 			default:
 			}
 			n := c.dropped.Add(1)
+			c.overflowOnce.Do(func() { close(c.overflow) })
 			slog.Warn("bus: slow consumer, event dropped", "total_dropped", n)
 		}
 	}
