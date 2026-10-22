@@ -684,12 +684,22 @@ func TestFinishingStopsTheRuntimeTheTaskCreated(t *testing.T) {
 
 	srv.dispatchTurnEnd(agentID, generation, "")
 	waitRunning(t, srv, agentID, false)
-	released, err := srv.stateStore.ReadTask(task.TaskID)
-	if err != nil {
-		t.Fatalf("ReadTask: %v", err)
-	}
-	if released.PendingRelease || released.RuntimeClaim != "" {
-		t.Fatalf("the release never completed: %+v", released)
+	// The real turn-end callback may be finishing cleanup concurrently: the
+	// running row disappears during Stop, before its durable release commits.
+	var released state.Task
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		released, err = srv.stateStore.ReadTask(task.TaskID)
+		if err != nil {
+			t.Fatalf("ReadTask: %v", err)
+		}
+		if !released.PendingRelease && released.RuntimeClaim == "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the release never completed: %+v", released)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	if released.AssignedAgentID != agentID {
 		t.Fatalf("assignee provenance = %q, want it retained", released.AssignedAgentID)

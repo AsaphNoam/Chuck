@@ -53,9 +53,12 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
   cleanup, original-assignee native resume, actionable watch recovery, capacity/manual/mail
   continuation, shrinking blocked backlogs, failed-turn mail/task activation, all three room
   quota recovery states, and rotating startup retries. TS-10.R48–R52 record the contracts.
-  Final `GOFLAGS=-p=1 make test` (both SQLite variants) and tagged build are running; closure
-  and finding removal remain owed. Logs: `/tmp/chuck-cr-a2-test-final.log`. The first full
-  pass exposed an old state-only capacity fixture; it now exercises actual result/release.
+  Final Go closure (both SQLite variants) remains running; finding removal is owed. The tagged
+  build passes. Earlier logs: `/tmp/chuck-cr-a2-{test-final,closure}.log`. Full passes exposed
+  old state-only capacity and process-removal-before-durable-release test assumptions; both now
+  exercise actual committed cleanup. Five release repeats pass. The final wake admission hook
+  preserves its retryable conflict; its focused guard regression passes. The known bootstrap
+  download-start flake occurred once and passed its focused rerun; no installer repair is claimed.
   Preserve the four unrelated ready-change edits. ASF-6 closed concurrently in its own commits.
 - Other available review/fix units and owed live receipts remain below.
 

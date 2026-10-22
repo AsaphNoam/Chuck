@@ -6,8 +6,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
+
+// A wait discovered at the final wake guard remains a retryable conflict and
+// cannot start the stopped runtime, even after the earlier candidacy read.
+func TestWakeGuardPreservesAdmissionConflict(t *testing.T) {
+	srv, ts := wakeTestServer(t)
+	id := launchThenStop(t, srv, ts)
+	ae := srv.resumeSessionWithHooks(context.Background(), id, resumeOverride{}, func() error {
+		return apiError(runtime.CodeConflict, "task continuation requires admission")
+	}, nil)
+	if ae == nil || ae.Code != runtime.CodeConflict || srv.registry.Owns(id) {
+		t.Fatalf("wake crossed admission guard or lost conflict: owned=%v error=%+v", srv.registry.Owns(id), ae)
+	}
+}
 
 // FS-16.R33/R34: exercise the actual producers and startup rediscovery rather
 // than invoking NotifyTaskWaiters, which cannot prove the wiring exists.

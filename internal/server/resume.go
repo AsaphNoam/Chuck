@@ -336,6 +336,10 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 	// All preceding validation must leave the claimed opportunity releasable.
 	if before != nil {
 		if err := before(); err != nil {
+			var ae *runtime.APIError
+			if errors.As(err, &ae) {
+				return ae
+			}
 			return apiError(runtime.CodeInternal, err.Error())
 		}
 	}
