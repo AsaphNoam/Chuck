@@ -48,7 +48,9 @@ needed for resume and switch.
 
 **R8 — Transcript append is ordered and durable.** Every normalized event has a per-agent monotonic
 sequence and is appended as one JSON object per line. Readers skip a malformed or oversized record
-when safe, report scanner/I/O errors, and always return arrays rather than JSON `null`.
+when safe, report scanner/I/O errors, and always return arrays rather than JSON `null`. Readers
+and writer recovery share one complete-record boundary: bytes after the last newline are a torn
+append that readers never surface and writer Open truncates.
 
 **R9 — Search data is derived and repairable.** `sessions_fts`, tracked-file, tracked-command, and
 rollup projections can be rebuilt from durable identity/session/transcript inputs. Reindex preserves
@@ -862,8 +864,7 @@ reader's missing-file/empty success is insufficient. Use the existing transcript
 seams, detect source unavailability at the read boundary and require decoded session metadata that
 creates the replacement row. Preserve legacy metadata normalization, safe malformed/oversized-record
 skips (R8), final partial-turn flushing and annotation boundaries; introduce no second parser or new
-required legacy metadata fields. CR-A1-3 independently owns the common reader/writer newline fix;
-repair must use the same complete-record truth without waiting for all ordinary-reader fixes.
+required legacy metadata fields. Repair uses R8's shared complete-record boundary.
 
 Conversation-local source/metadata/replay-validation errors roll back that conversation's entire
 replacement, report its agent identity and preserve all its old session, search and tracking rows;

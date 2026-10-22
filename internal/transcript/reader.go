@@ -156,6 +156,11 @@ func forEachBuffered(br *bufio.Reader, opts ReadOptions, visit func(runtime.Even
 	var lastSeq int64
 	for {
 		line, oversized, err := readLine(br)
+		if err == io.EOF {
+			// Bytes after the last '\n' are a torn append that writer recovery
+			// truncates; readers consume the same complete-record prefix.
+			break
+		}
 		if oversized && opts.OnOversized != nil {
 			if skipErr := opts.OnOversized(lastSeq); skipErr != nil {
 				return fmt.Errorf("transcript: report oversized record after seq %d: %w", lastSeq, skipErr)
@@ -179,9 +184,6 @@ func forEachBuffered(br *bufio.Reader, opts ReadOptions, visit func(runtime.Even
 				}
 			}
 		}
-		if err == io.EOF {
-			break
-		}
 		if err != nil {
 			return fmt.Errorf("transcript: scan: %w", err)
 		}
@@ -194,7 +196,8 @@ func forEachBuffered(br *bufio.Reader, opts ReadOptions, visit func(runtime.Even
 // discarded, but the stream is still consumed up to the next newline so the
 // reader stays aligned to the following record. The returned line has any
 // trailing '\n' stripped. err is nil for a normal line, io.EOF at end of
-// stream (possibly with a final unterminated fragment), or a real read error.
+// stream (possibly with a final unterminated fragment, which callers discard as
+// a torn record), or a real read error.
 func readLine(br *bufio.Reader) (line []byte, oversized bool, err error) {
 	var buf []byte
 	for {

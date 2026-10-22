@@ -237,6 +237,62 @@ func TestOpenTruncatesTornTrailingLine(t *testing.T) {
 	}
 }
 
+// A crash can tear an append right after its JSON body, before the newline.
+// Readback must already exclude that record, so Open's truncation never makes
+// a displayed or indexed event vanish from canonical history (CR-A1-3).
+func TestReadbackMatchesWriterRecoveryForUnterminatedRecord(t *testing.T) {
+	home := t.TempDir()
+	w, err := Open(home, "a_test", meta())
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := w.Append(event(t, 1, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "kept"})); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	torn, err := json.Marshal(event(t, 2, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "torn"}))
+	if err != nil {
+		t.Fatalf("marshal torn: %v", err)
+	}
+	f, err := os.OpenFile(w.Path(), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatalf("OpenFile append: %v", err)
+	}
+	if _, err := f.Write(torn); err != nil {
+		t.Fatalf("write torn record: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close torn file: %v", err)
+	}
+
+	seqs := func() []int64 {
+		t.Helper()
+		evs, err := ReadFile(home, "a_test", ReadOptions{})
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		out := make([]int64, 0, len(evs))
+		for _, ev := range evs {
+			out = append(out, ev.Seq)
+		}
+		return out
+	}
+	before := seqs()
+	w2, err := Open(home, "a_test", meta())
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	if err := w2.Close(); err != nil {
+		t.Fatalf("Close reopen: %v", err)
+	}
+	after := seqs()
+	if len(before) != 1 || before[0] != 1 || len(after) != 1 || after[0] != 1 {
+		t.Fatalf("readback before Open = %v, after Open = %v; want [1] for both", before, after)
+	}
+}
+
 // TestOpenLeavesWellFormedLogUntouched ensures a normal log ending in '\n' is
 // not truncated when reopened.
 func TestOpenLeavesWellFormedLogUntouched(t *testing.T) {
