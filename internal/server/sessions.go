@@ -117,6 +117,9 @@ func steerError(err error) *runtime.APIError {
 		return apiError(runtime.CodeConflict, "this agent's adapter does not support steering")
 	case errors.Is(err, runtime.ErrNothingHeld):
 		return apiError(runtime.CodeConflict, "no message is held for this agent")
+	case errors.Is(err, runtime.ErrHistoryUnavailable), errors.Is(err, runtime.ErrTurnInFlight):
+		// The same recoverable refusals Send reports: nothing reached the agent.
+		return sessionOpError(err)
 	default:
 		return apiError(runtime.CodeInternal, err.Error())
 	}

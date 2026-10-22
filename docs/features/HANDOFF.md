@@ -24,7 +24,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Core audits:** CR-A1 is reviewed with three open durable-recovery findings; CR-A2 is reviewed
   with nine open admission/recovery findings. CR-A3, CR-A4 and CR-A5 are reviewed and closed
   (no open findings). CR-A6 is reviewed
-  with three open operator action/observation findings. CR-A7 is reviewed with five open capacity/cost findings.
+  with two open operator action/observation findings. CR-A7 is reviewed with five open capacity/cost findings.
   [CORE-RELIABILITY-AUDIT-PLAN.md](CORE-RELIABILITY-AUDIT-PLAN.md) owns the charters.
   [Before-fix synthesis](CORE-RELIABILITY-POST-REVIEW-ASSESSMENT.md) connects preservation,
   task ownership/capacity and observable-state recovery; it adds open run-detail recovery to
@@ -222,7 +222,7 @@ current fix ownership and record the reviewed HEAD. CR-A1–CR-A7 are reviewed w
 | [CR-A3](CORE-RELIABILITY-REVIEW-A3.md) | Executable workspace/configuration: checkout/setup readiness, shared resources, fresh/frozen selection and actual native cwd/environment/setup | reviewed `7ec20a01` — closed; CR-A3-1/2/3 fixed |
 | [CR-A4](CORE-RELIABILITY-REVIEW-A4.md) | Information/operating knowledge: selected content and source identity, authorized reads, mail receipts, managed guidance and actual native delivery | reviewed `7e0e1a0a` — closed; CR-A4-1 fixed |
 | [CR-A5](CORE-RELIABILITY-REVIEW-A5.md) | Supervision/result authority: accepted reports, matching execution settlement, descendant closure, judge publication, room-stage acceptance and retained progression | reviewed `785e3f4e` — closed; CR-A5-1/2 fixed |
-| [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — three findings open |
+| [CR-A6](CORE-RELIABILITY-REVIEW-A6.md) | Operator action/observation truth: exact targets/guards, acceptance versus completion, partial/unknown effects, CLI output and current-state recovery | reviewed `3334471d` — two findings open |
 | [CR-A7](CORE-RELIABILITY-REVIEW-A7.md) | Sustained capacity/cost: retrieval scan work, accumulated data/views, shared pressure, temporary resource lifetime and unnecessary native work | reviewed `8c837942` — five findings open |
 
 **Fix/work pickup:** CR-A1-1/2 are covered together by the
@@ -274,7 +274,7 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
 
 ### CR-A7 — Sustained capacity and cost — reviewed `8c837942` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Subsystem audit complete at `8c837942a20b4eb4769104aec9a0ad11a712c3c7`; three findings keep this
+Subsystem audit complete at `8c837942a20b4eb4769104aec9a0ad11a712c3c7`; two findings keep this
 same unit open. Three focused reviewers covered storage/reconciliation, browser consumers and runtime
 lifetimes; the parent reviewed their source/probes and measured reference/peer reads. Entry dirty
 ready-change edits are preserved. No product code or normative spec changed, and no local-choice
@@ -383,7 +383,7 @@ Independent rendered verification (§14.4) is not applicable to this state-only 
 
 ### CR-A6 — Operator action and observation truth — reviewed `3334471d` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Subsystem audit complete at `3334471d1a248916c296527794151cdf07bf4fd4`; three findings keep this
+Subsystem audit complete at `3334471d1a248916c296527794151cdf07bf4fd4`; two findings keep this
 same unit open. Four focused read-only reviewers traced CLI action/output/exit, CLI status/follow,
 conversation intervention controls and desktop/phone recovery; the parent checked every candidate
 against current source and reproduced CR-A6-1. The four entry dirty files under
@@ -424,13 +424,6 @@ leaving an ordinary unresolved `permission_request` still renders Approve/Deny t
   `"hello world world"`); end-to-end timing not reproduced. Drop sequenced events at or below the
   loaded max seq.
 
-- **Worth fixing** — CR-A6-6 — **Steer storage and in-flight refusals surface as internal errors**
-  (INV §8). `steerError` (`internal/server/sessions.go:112–125`) has no case for
-  `ErrHistoryUnavailable` or `ErrTurnInFlight`, so Steer returns 500 `internal` with raw runtime text
-  where Send returns 409 "Nothing was sent… your message is kept" via `sessionOpError`. No false
-  success, but FS-03.R99's recoverable-input explanation and TS-03.R3's envelope are missed.
-  Code-confirmed; map both through the shared refusal wording and add a Steer case to the existing
-  history-unavailable test.
 
 ### CR-A2 — Admission, waiting and recovery — reviewed `f1c59961` — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -1536,7 +1529,7 @@ and specifications are unchanged.
 
 ## Changelog
 
-- **2026-10-22 — Fix (in progress): operator action and observation truth (CR-A6-1 INV §8/§11, CR-A6-2 INV §1, CR-A6-3 INV §8/§10).**
+- **2026-10-22 — Fix (in progress): operator action and observation truth (CR-A6-1 INV §8/§11, CR-A6-2 INV §1, CR-A6-3 INV §8/§10, CR-A6-6 INV §8).**
   A refused attachment Steer (receipt `failed`) now answers with the TS-03.R39 refusal envelope on
   first response and retry, so the CLI exits nonzero; receipt `delivery` is `sent` only for
   `submitted` (TS-03.R62). `TestRefusedAttachmentSteerIsNotReportedSent` failed before the fix.
@@ -1544,6 +1537,8 @@ and specifications are unchanged.
   run's Stop dialog, input and placeholder data; the new `RunScreen` navigation test failed before.
   CR-A6-3 (INV §8/§10): the human operator row renders `checkout not deleted: <reason>` (and
   `checkout_deleted`) for project archive; covered in `TestOperatorHumanReceiptsAndStoredFailures`.
+  CR-A6-6 (INV §8): `steerError` maps history-unavailable and in-flight refusals through Send's
+  409 wording; `TestHistoryUnavailableIsADefiniteRefusal` now covers Steer.
 
 - **2026-10-22 — Fix: executable workspace and configuration (CR-A3-1 INV §1/§12/§15, CR-A3-2
   INV §1/§3/§10/§11, CR-A3-3 INV §2/§11/§12).** `ensureWorktreeCheckout` now requires an existing

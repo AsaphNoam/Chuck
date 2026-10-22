@@ -37,11 +37,17 @@ func TestAgentStateProjectsHistoryHealth(t *testing.T) {
 // FS-03.R99: the storage latch is a definite refusal, so the composer keeps
 // the draft and shows why, and no raw storage error crosses the API.
 func TestHistoryUnavailableIsADefiniteRefusal(t *testing.T) {
-	ae := sessionOpError(errors.Join(errors.New("write /x: no space left on device"), runtime.ErrHistoryUnavailable))
-	if ae.HTTPStatus() != http.StatusConflict || ae.Code != runtime.CodeConflict {
-		t.Fatalf("latch maps to %d %s", ae.HTTPStatus(), ae.Code)
+	latch := errors.Join(errors.New("write /x: no space left on device"), runtime.ErrHistoryUnavailable)
+	// Steer reports the same recoverable refusal as Send (CR-A6-6).
+	for name, ae := range map[string]*runtime.APIError{"send": sessionOpError(latch), "steer": steerError(latch)} {
+		if ae.HTTPStatus() != http.StatusConflict || ae.Code != runtime.CodeConflict {
+			t.Fatalf("%s latch maps to %d %s", name, ae.HTTPStatus(), ae.Code)
+		}
+		if ae.Message == "" || strings.Contains(ae.Message, "no space") || strings.Contains(ae.Message, "/x") {
+			t.Fatalf("%s latch message = %q", name, ae.Message)
+		}
 	}
-	if ae.Message == "" || strings.Contains(ae.Message, "no space") || strings.Contains(ae.Message, "/x") {
-		t.Fatalf("latch message = %q", ae.Message)
+	if ae := steerError(runtime.ErrTurnInFlight); ae.HTTPStatus() != http.StatusConflict {
+		t.Fatalf("steer in flight maps to %d", ae.HTTPStatus())
 	}
 }
