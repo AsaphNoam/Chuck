@@ -190,7 +190,7 @@ func TestGroupArchivePublishesMixedQuotaMembers(t *testing.T) {
 			t.Fatalf("%s updates=%d, want one", id, counts[id])
 		}
 	}
-	snapshot, _, disconnect := s.eventBus.SubscribeWithSnapshot()
+	snapshot, _, _, disconnect := s.eventBus.SubscribeWithSnapshot()
 	disconnect()
 	if len(snapshot) != 2 {
 		t.Fatalf("reconnect members: %+v", snapshot)

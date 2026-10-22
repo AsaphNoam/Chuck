@@ -93,7 +93,7 @@ func TestQuotaConfigLiveDisableAndValidation(t *testing.T) {
 	default:
 		t.Fatal("disable did not publish cancellation")
 	}
-	snapshot, _, disconnect := s.eventBus.SubscribeWithSnapshot()
+	snapshot, _, _, disconnect := s.eventBus.SubscribeWithSnapshot()
 	disconnect()
 	if len(snapshot) != 1 || snapshot[0].Quota == nil || snapshot[0].Quota.ContinuationState != state.QuotaCancelled || snapshot[0].Quota.Revision != q.Revision {
 		t.Fatalf("disable reconnect projection: %+v", snapshot)

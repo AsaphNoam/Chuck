@@ -78,9 +78,12 @@ path through a server outage. That tab counts against the origin's connection po
 `ping`, and the live-only `runtime_activity` (R44). Unknown event types
 are ignored by clients. Producers publish only after authoritative state is committed.
 
-**R9 — Slow subscribers cannot block the server.** Bus/subscription buffers are bounded; overflow
-uses the documented drop/resnapshot strategy. Shutdown cancels request contexts so open SSE streams
-do not hold the server past its grace period.
+**R9 — Slow subscribers cannot block the server.** Bus/subscription buffers are bounded (256
+events per subscriber). A full buffer drops its oldest event, and an `/api/events` stream that has
+dropped any event ends instead of continuing with pings. The browser's reconnect receives a fresh
+snapshot and `hydrated` marker, and every reopen refetches the open transcripts and the task,
+pipeline run list/detail, proposal, room and remote queries an event could have changed. Shutdown
+cancels request contexts so open SSE streams do not hold the server past its grace period.
 
 **R10 — WebSocket upgrade is route-specific.** Only
 `GET /api/sessions/{id}/terminal/ws` upgrades. Pre-upgrade errors are JSON; an agent without an

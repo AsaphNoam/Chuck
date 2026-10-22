@@ -40,7 +40,7 @@ func TestSubscribeWithSnapshotReturnsSnapshotAndLiveChannel(t *testing.T) {
 	b := New()
 	b.SetSnapshot(state.AgentStateUpdate{AgentState: state.AgentState{AgentID: "a1", State: "idle"}})
 
-	snap, ch, unsub := b.SubscribeWithSnapshot()
+	snap, ch, _, unsub := b.SubscribeWithSnapshot()
 	defer unsub()
 	if len(snap) != 1 || snap[0].AgentID != "a1" {
 		t.Fatalf("snapshot = %+v, want one entry for a1", snap)
