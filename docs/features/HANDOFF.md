@@ -1471,6 +1471,10 @@ and specifications are unchanged.
   409, "a resume is already in progress" (`pipeline_handlers_test.go:347`). The independent full
   tagged run passed; five focused repeats passed; the final `make test` passed using successful
   test-cache results. No pipeline repair or live-provider proof is claimed.
+  After closure, integrated concurrent main commit `44633fbf` at `08470872`, preserving both
+  changelog entries. On the combined source, focused reindex/SSE checks pass in both Go variants,
+  the full bus package passes, and the build passes; the full matrix receipt above is for the
+  pre-integration reindex source. Uncommitted context-reference work in main is excluded.
 
 - **2026-10-22 — Fix: sustained capacity and cost (CR-A7-1 INV §1/§11, CR-A7-3 INV §16).**
   CR-A7-1: a bus subscriber's overflow channel closes at its first dropped event and
