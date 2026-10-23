@@ -25,29 +25,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- **In progress — [timed and recurring task starts](../ready-changes/timed-and-recurring-task-starts.md)**
-  (FS-16.R51–R58, TS-10.R54–R60), started 2026-10-23 by `/work`. Slices:
-  1. `internal/recurrence` pure rule: validate, next occurrence in a zone, DST, words (A37 unit).
-  2. Time arms: migration, `start_at` on create/re-arm, due query on the dispatcher tick,
-     `missed_start_time` park / `late_start` (A35, A36 one-time).
-  3. `task_schedules`: store, due transaction (create-once, missed coalescing, auto-pause),
-     edit/pause/resume/delete (A36 schedule, A37, A38).
-  4. HTTP routes, MCP schedule tools, `schedule_update` SSE (A39).
-  5. Desktop Tasks Schedules section and one-time start in the create form (A40).
-- Done: slices 1–4. Store `internal/state/task_schedules.go`; tick steps and target check in
-  `internal/server/task_time.go`; routes in `schedule_handlers.go`; tools in
-  `internal/messaging/schedule_tools.go` (schedule routes are phone-denied). Checks passed:
-  `go test ./internal/{recurrence,state,messaging,server}` (full server package).
-- Next: slice 5 — UI `ui/src/api/schedules.ts`, `schedule_update` in `sse.ts` and
-  `sse-shared-worker.ts`, a Schedules section in `TasksPage.tsx`, start time in
-  `CreateTaskForm`, paused-with-reason schedules in the needs-attention count (`taskWork.ts`,
-  `CardGrid.tsx`). Then mark FS-16/TS-10 items shipped (rule_json, `project` in the SSE payload,
-  `display_name` tool argument, `not_creator` for unknown ids) and run the closure matrix. Server
-  tests have no fake clock: drive due work by writing `due_at`/`next_due_at` via SQL.
-- Local choices for review: the rule is one `rule_json` column (`recurrence.Rule`) instead of
-  per-field columns; `schedule_id` is `NOT NULL DEFAULT ''`; the missed-start reason is the
-  words "missed start time".
-- v0.18.1 is published; REL-CI-1 below remains available for fix.
+- No change in progress. Timed and recurring task starts finished 2026-10-23 and wait in the
+  review queue. v0.18.1 is published; REL-CI-1 below remains available for fix.
 
 ## Acceptance gates still owed
 
@@ -181,8 +160,21 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
-No open substantive review unit. Completed campaign/audit reports are in the archive; current
-release verification and architectural closure are the only selected units.
+- **Timed and recurring task starts** (FS-16.R51–R58/A35–A40, TS-10.R54–R60), commits
+  `32f1702c`..this closure. Entry points: `internal/recurrence`, `internal/state/task_time.go`,
+  `task_schedules.go`, `internal/server/task_time.go`, `schedule_handlers.go`,
+  `internal/messaging/schedule_tools.go`, `ui/src/features/tasks/scheduleForms.tsx`. Notes for
+  the reviewer: the rule is one `rule_json` column (`recurrence.Rule`) rather than per-field
+  columns; `tasks.schedule_id` is `NOT NULL DEFAULT ''`; the missed-start attention reason is
+  the words "missed start time"; `schedule_update` also carries `project`; edit is `PUT`
+  (whole-template replacement under `revision`); `not_creator` answers unknown ids too; the
+  Create schedule project picker shows project ids like the existing task form. Closure: both
+  Go variants, `make build`, 1000 UI tests and UI build pass; focused `-race` on
+  state/recurrence and server schedule/dispatch tests pass. Intermittent, unrelated-looking
+  failures seen once each and passing on repeat: `TestOrdinaryStageAgentStopPausesPipelineRun`,
+  `TestDeferredAssignmentResumesOriginalAgent/continuation_failure` (FTS variant) and
+  `ProjectScreen new agent` (UI); not repaired. Rendered review covered three skins at 1440/1024;
+  a self-paused schedule row was not rendered (UI test only).
 
 ## Review findings
 
@@ -210,9 +202,10 @@ Owner: runtime permission settlement / next fix run.
   and tag at `dc979057`. Release CI 39959315460 passed; archive, manifest and installer are
   attached, and downloaded archive checksum/size match. Main CI failed twice on REL-CI-1;
   the failure is retained as an open finding. Manual acceptance gates remain owed.
-- **2026-10-23 — Design:** timed and recurring task starts are specified and waiting to start
-  ([ready change](../ready-changes/timed-and-recurring-task-starts.md); FS-16.R51–R58/A35–A40,
-  TS-10.R54–R60). The operator confirmed the product decisions. No product code changed.
+- **2026-10-23 — Implementation:** timed and recurring task starts shipped (FS-16.R51–R58/A35–A40,
+  TS-10.R54–R60): clock-time arms with Run only on time, closed-rule schedules that create
+  ordinary tasks, HTTP routes, agent tools and the desktop Schedules section. FS-16 and TS-10 are
+  now Current. Waiting for review.
 
 - **2026-10-23 — Release preparation:** ARCH-1 repair `69082b39`, exact post-review coverage,
   truthful failed-check records and approved fixture corrections `001ba8b5` are committed.

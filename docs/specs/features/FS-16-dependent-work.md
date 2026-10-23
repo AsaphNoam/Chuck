@@ -1,6 +1,6 @@
 # FS-16 — Dependent work and armed starts
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks` · **Journeys:** —
 **Absorbed:** —
 
@@ -811,10 +811,11 @@ Each names the verification that demonstrates it.
   pauses the schedule with a reason and raises the needs-attention count. *Verify:*
   `internal/server/schedule_http_test.go`, `internal/messaging/task_tools_test.go`,
   `ui/src/features/tasks/TasksPage.test.tsx`.
-- **A40 (planned)** (R51–R52, R56) — In the desktop Tasks view, create a one-time 17:30 task and a
+- **A40 (shipped 2026-10-23)** (R51–R52, R56) — In the desktop Tasks view, create a one-time 17:30 task and a
   weekly schedule, see the rule in words with its next occurrence, toggle Run only on time, and
-  pause and resume it, by keyboard in all three skins. *Verify:* UI tests plus a rendered
-  Chromium journey.
+  pause and resume it, by keyboard in all three skins. *Verify:*
+  `ui/src/features/tasks/TasksPage.test.tsx` plus a rendered Chromium journey (2026-10-23, Core,
+  Sky & Grove and Studio at 1440 and 1024; a self-paused row is covered by the UI test only).
 
 ## 6. Deviations & open decisions
 

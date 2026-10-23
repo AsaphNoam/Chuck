@@ -211,10 +211,8 @@ function ScheduleRow({ schedule, tasks, projects }: { schedule: Schedule; tasks:
 
   return (
     <li className="schedule-row" data-slot="schedule" data-state={schedule.state} data-variant={attention ? "attention" : undefined} aria-labelledby={nameID}>
-      <div className="task-row-top">
-        <span className="task-name" id={nameID}>{schedule.display_name}</span>
-        <span className="schedule-rule-text">{schedule.rule_text}</span>
-      </div>
+      <span className="task-name" id={nameID}>{schedule.display_name}</span>
+      <span className="schedule-rule-text">{schedule.rule_text}</span>
       {attention && <p className="task-attention" data-slot="attention">Paused: {schedule.pause_reason}. Resume when the target can run again.</p>}
       <dl className="schedule-meta">
         <div><dt>Next</dt><dd>{nextOccurrence(schedule)}</dd></div>
