@@ -11,7 +11,7 @@ import { taskActions } from "../../schemas/task";
 import { useAgentStore } from "../../store/agentStore";
 import { CreateTaskForm, FireSignalForm, RearmForm, RecordResultForm, errorMessage } from "./taskForms";
 import {
-  needsAttention, projectWork, rowVisibility, taskReason, taskStatus,
+  needsAttention, projectWork, rowVisibility, startTimeLabel, taskReason, taskStatus,
   type DescendantSummary, type HiddenBy, type ProjectWork, type RowVisibility, type TaskLink, type WorkGroup, type WorkRow,
 } from "./taskWork";
 import { collapsedIdsForProject, pruneProject, setCollapsed } from "./collapseStore";
@@ -202,6 +202,12 @@ function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
               <li key={`e${index}`}>
                 signal {wait.name} ({wait.state === "satisfied" ? "fired" : ended ? "not fired" : "waiting"})
                 {wait.state === "unsatisfied" && !ended && <Button onClick={() => onSignal(task.project, wait.name)}>Go to signal control</Button>}
+              </li>
+            ) : wait.kind === "time" ? (
+              <li key={`e${index}`}>
+                starts at {startTimeLabel(wait.dueAt)} ({wait.state === "satisfied" ? (task.late_start ? "started late" : "reached")
+                  : wait.state === "unsatisfiable" ? "missed" : ended ? "not reached" : "waiting"})
+                {wait.onTimeOnly && " · run only on time"}
               </li>
             ) : (
               <li key={`e${index}`}>pipeline run <Link to={`/pipelines/runs/${encodeURIComponent(wait.runID)}`}>{wait.runID}</Link> → {wait.outcomes.join(" or ")} ({ended && wait.state === "unsatisfied" ? "not met" : wait.state})</li>

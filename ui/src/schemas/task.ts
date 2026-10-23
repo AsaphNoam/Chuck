@@ -19,11 +19,14 @@ export const TASK_ATTENTION_STATES = ["dependency_failed", "interrupted"] as con
 export const taskArmSchema = z.object({
   arm_id: z.string(),
   task_id: z.string(),
-  kind: z.enum(["work_result", "signal"]),
+  kind: z.enum(["work_result", "signal", "time"]),
   source_kind: z.string().optional().default(""),
   source_id: z.string().optional().default(""),
   signal_name: z.string().optional().default(""),
   satisfying_outcomes: z.array(z.string()).nullable().optional().default([]),
+  // A time arm's instant and Run only on time (FS-16.R51–R52).
+  due_at: z.string().optional(),
+  on_time_only: z.boolean().optional().default(false),
   state: z.enum(["unsatisfied", "satisfied", "unsatisfiable"]),
   satisfied_at: z.string().optional(),
 });
@@ -67,6 +70,11 @@ export const taskSchema = z.object({
   assigned_agent_id: z.string().optional().default(""),
   start_attempt_count: z.number().optional().default(0),
   retry_eligible: z.boolean().optional().default(false),
+  // Schedule provenance and a start observed after its on-time window
+  // (FS-16.R52–R53).
+  schedule_id: z.string().optional().default(""),
+  scheduled_for: z.string().optional(),
+  late_start: z.boolean().optional().default(false),
   revision: z.number(),
   created_at: z.string(),
   updated_at: z.string().optional().default(""),

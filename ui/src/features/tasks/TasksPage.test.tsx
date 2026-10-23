@@ -139,7 +139,7 @@ describe("Tasks work in motion", () => {
     const other = screen.getByRole("heading", { name: "Other" }).closest("section") as HTMLElement;
     expect(screen.queryByRole("heading", { name: "Quiet" })).not.toBeInTheDocument();
     await within(myApp).findByText("Implement API");
-    expect(within(myApp).getByText(/11 unfinished tasks/)).toBeInTheDocument();
+    expect(within(myApp).getByText(/12 unfinished tasks/)).toBeInTheDocument();
     expect(within(myApp).getByText("2 need attention")).toBeInTheDocument();
     expect(within(other).getByText("Rotate keys")).toBeInTheDocument();
 

@@ -442,6 +442,22 @@ func TestCreateTaskDerivesItsCreatorAndResolvesItsTarget(t *testing.T) {
 	if len(got.Arms) != 1 || got.Arms[0].SourceID != "tk_first" {
 		t.Fatalf("arms = %+v", got.Arms)
 	}
+	if got.StartAt != "" || got.RunOnlyOnTime != nil {
+		t.Fatalf("start without start_at = %q/%v", got.StartAt, got.RunOnlyOnTime)
+	}
+
+	// FS-16.R51–R52 — the one-time start reaches the control plane unparsed,
+	// with an explicit Run only on time kept distinct from an omitted one.
+	res, isErr = call(t, impl, "create_task", map[string]any{
+		"display_name": "at five", "instruction": "x", "to": "reviewer@my-app",
+		"start_at": "2026-10-23T17:30", "run_only_on_time": false,
+	})
+	if isErr || res["ok"] != true {
+		t.Fatalf("create_task with start_at = %v", res)
+	}
+	if got := control.created; got.StartAt != "2026-10-23T17:30" || got.RunOnlyOnTime == nil || *got.RunOnlyOnTime {
+		t.Fatalf("start = %q/%v", got.StartAt, got.RunOnlyOnTime)
+	}
 
 	res, isErr = call(t, impl, "create_task", map[string]any{
 		"display_name": "x", "instruction": "x", "to": "nobody@my-app",

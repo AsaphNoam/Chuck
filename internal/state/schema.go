@@ -859,6 +859,68 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 60,
 		apply:   addPipelineControllerFields,
 	},
+	{
+		// Timed arms and recurring schedules (TS-10.R54–R60). Existing rows keep
+		// their shapes; the new columns default to "no time, not late, not
+		// scheduled".
+		version: 61,
+		apply:   addTimedStarts,
+	},
+}
+
+// addTimedStarts follows addPipelineControllerFields: a synthetic legacy
+// database without the task tables has nothing to extend.
+func addTimedStarts(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'task_arms'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE task_arms ADD COLUMN due_at TEXT;
+ALTER TABLE task_arms ADD COLUMN on_time_only INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX idx_task_arms_due ON task_arms(due_at, arm_id)
+ WHERE kind = 'time' AND state = 'unsatisfied';
+ALTER TABLE tasks ADD COLUMN schedule_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE tasks ADD COLUMN scheduled_for TEXT;
+ALTER TABLE tasks ADD COLUMN late_start INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE task_schedules (
+ schedule_id TEXT PRIMARY KEY,
+ project TEXT NOT NULL,
+ display_name TEXT NOT NULL,
+ instruction TEXT NOT NULL,
+ target_kind TEXT NOT NULL,
+ target_agent_id TEXT NOT NULL DEFAULT '',
+ role TEXT NOT NULL DEFAULT '',
+ backend TEXT NOT NULL DEFAULT '',
+ model TEXT NOT NULL DEFAULT '',
+ effort TEXT NOT NULL DEFAULT '',
+ fast INTEGER NOT NULL DEFAULT 0,
+ group_name TEXT NOT NULL DEFAULT '',
+ rule_json TEXT NOT NULL,
+ on_time_only INTEGER NOT NULL DEFAULT 1,
+ state TEXT NOT NULL CHECK(state IN ('active','paused','finished')),
+ pause_reason TEXT NOT NULL DEFAULT '',
+ created_by_kind TEXT NOT NULL,
+ created_by_agent_id TEXT NOT NULL DEFAULT '',
+ created_by_generation TEXT NOT NULL DEFAULT '',
+ next_due_at TEXT,
+ occurrences_elapsed INTEGER NOT NULL DEFAULT 0,
+ last_occurrence_at TEXT,
+ last_disposition TEXT NOT NULL DEFAULT '',
+ last_task_id TEXT NOT NULL DEFAULT '',
+ revision INTEGER NOT NULL DEFAULT 1,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_task_schedules_due ON task_schedules(state, next_due_at, schedule_id);
+CREATE INDEX idx_task_schedules_project ON task_schedules(project, created_at, schedule_id);
+CREATE TABLE task_schedule_attachments (
+ schedule_id TEXT NOT NULL REFERENCES task_schedules(schedule_id) ON DELETE CASCADE,
+ context_ref_id TEXT NOT NULL,
+ label TEXT NOT NULL DEFAULT '',
+ description TEXT NOT NULL DEFAULT '',
+ PRIMARY KEY (schedule_id, context_ref_id)
+);`)
+	return err
 }
 
 func addPipelineControllerFields(tx *sql.Tx) error {

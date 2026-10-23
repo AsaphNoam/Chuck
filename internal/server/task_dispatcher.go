@@ -44,6 +44,7 @@ func (s *Server) runTaskDispatcher(ctx context.Context) {
 				s.pipelineMgr.ReconcilePending(ctx)
 			}
 			s.reconcileTaskWaits()
+			s.resolveDueTimeArms()
 			s.recoverStartingTasks(ctx)
 			s.dispatchReadyTasks(ctx)
 		}

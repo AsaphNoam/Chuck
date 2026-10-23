@@ -1101,3 +1101,70 @@ func TestAgentCreatedTaskChecksItsLaunchSpecification(t *testing.T) {
 		t.Fatalf("rejected creates left %d tasks, want only the accepted one", len(tasks))
 	}
 }
+
+// FS-16.A35/A36 (HTTP and tick) — start_at becomes the task's time arm in
+// either accepted form; a past start is refused without writing a task. A start
+// first observed ten minutes late parks with Run only on time on, taking its
+// dependent with it, and starts marked late with it off.
+func TestStartAtArmsTasksAndTheTickSettlesLateStarts(t *testing.T) {
+	srv, ts := wakeTestServer(t)
+	future := time.Now().Add(time.Hour)
+
+	withStart := func(name, startAt string, onTime *bool) map[string]any {
+		body := launchTaskBody(name)
+		body["start_at"] = startAt
+		if onTime != nil {
+			body["run_only_on_time"] = *onTime
+		}
+		return body
+	}
+	off := false
+	strict := createTaskHTTP(t, ts, withStart("strict", future.Format(time.RFC3339), nil))
+	lenient := createTaskHTTP(t, ts, withStart("lenient", future.In(time.Local).Format("2006-01-02T15:04"), &off))
+	if strict.State != state.TaskArmed || len(strict.Arms) != 1 || strict.Arms[0].Kind != state.ArmTime || !strict.Arms[0].OnTimeOnly {
+		t.Fatalf("strict = %+v", strict)
+	}
+	if lenient.Arms[0].OnTimeOnly || lenient.Arms[0].DueAt == nil {
+		t.Fatalf("lenient arm = %+v", lenient.Arms[0])
+	}
+	dependent := createTaskHTTP(t, ts, map[string]any{
+		"project": "tmpproj", "display_name": "after", "instruction": "after strict",
+		"target_kind": "launch", "role": "impl",
+		"arms": []map[string]any{{
+			"kind": "work_result", "source_kind": "task", "source_id": strict.TaskID,
+			"satisfying_outcomes": []string{"success"},
+		}},
+	})
+
+	resp, body := post(t, ts.URL+"/api/tasks", withStart("past", time.Now().Add(-time.Minute).Format(time.RFC3339), nil))
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(string(body), "invalid_start_time") {
+		t.Fatalf("past start = %d: %s", resp.StatusCode, body)
+	}
+	resp, body = post(t, ts.URL+"/api/tasks", withStart("garbled", "tomorrow at five", nil))
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("garbled start = %d: %s", resp.StatusCode, body)
+	}
+	tasks, err := srv.stateStore.ListTasks("tmpproj")
+	if err != nil || len(tasks) != 3 {
+		t.Fatalf("refused creates wrote tasks: %d, %v", len(tasks), err)
+	}
+
+	// Chuck was "off" across the start: the instant is first observed ten
+	// minutes after it passed.
+	if _, err := srv.stateStore.DB().Exec(`UPDATE task_arms SET due_at = ? WHERE kind = 'time'`,
+		time.Now().Add(-10*time.Minute).UTC().Format(time.RFC3339)); err != nil {
+		t.Fatal(err)
+	}
+	srv.resolveDueTimeArms()
+
+	got, _ := srv.stateStore.ReadTask(strict.TaskID)
+	if got.State != state.TaskDependencyFailed || got.AttentionReason != state.MissedStartTimeReason {
+		t.Fatalf("strict after missed start = %s %q", got.State, got.AttentionReason)
+	}
+	if got, _ := srv.stateStore.ReadTask(dependent.TaskID); got.State != state.TaskDependencyFailed {
+		t.Fatalf("dependent of a missed start = %s", got.State)
+	}
+	if got, _ := srv.stateStore.ReadTask(lenient.TaskID); got.State != state.TaskReady || !got.LateStart {
+		t.Fatalf("lenient after missed start = %s late=%v", got.State, got.LateStart)
+	}
+}

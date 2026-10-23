@@ -34,7 +34,15 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
      edit/pause/resume/delete (A36 schedule, A37, A38).
   4. HTTP routes, MCP schedule tools, `schedule_update` SSE (A39).
   5. Desktop Tasks Schedules section and one-time start in the create form (A40).
-- Next: slice 1 and the subsystem map are underway; then slice 2.
+- Done: slices 1–2 (migration 61 already adds the schedule tables; time-arm display in the
+  Tasks view). Checks: `go test ./internal/{recurrence,state,messaging}` and the server
+  `Task|Signal|Rearm|StartAt` tests; task UI vitest.
+- Next: slice 3 — `internal/state/task_schedules.go` store + due transaction, tick step next to
+  `resolveDueTimeArms` (`internal/server/task_time.go`). Server tests have no fake clock: drive
+  due work by writing `due_at`/`next_due_at` via SQL; state tests use `withFixedNow`.
+- Local choices for review: the rule is one `rule_json` column (`recurrence.Rule`) instead of
+  per-field columns; `schedule_id` is `NOT NULL DEFAULT ''`; the missed-start reason is the
+  words "missed start time".
 - v0.18.1 is published; REL-CI-1 below remains available for fix.
 
 ## Acceptance gates still owed

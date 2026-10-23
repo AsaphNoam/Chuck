@@ -36,6 +36,7 @@ const (
 const (
 	ArmWorkResult = "work_result"
 	ArmSignal     = "signal"
+	ArmTime       = "time"
 
 	ArmUnsatisfied   = "unsatisfied"
 	ArmSatisfied     = "satisfied"
@@ -74,6 +75,10 @@ var ErrTaskCycle = errors.New("state: task arms would create a cycle")
 // ErrTaskArmSource is returned when an arm names a prerequisite that does not
 // exist or belongs to another project.
 var ErrTaskArmSource = errors.New("state: task arm names an unusable source")
+
+// ErrTaskStartTime refuses a time arm that is missing its instant, is not in the
+// future, or is a task's second time arm (FS-16.R51, TS-10.R55).
+var ErrTaskStartTime = errors.New("state: invalid start time")
 
 // ErrTaskAttachmentReference is returned when an attachment names a context
 // reference that does not exist.
@@ -172,6 +177,13 @@ type Task struct {
 	StartAttemptID        string     `json:"start_attempt_id,omitempty"`
 	StartAttemptCount     int        `json:"start_attempt_count"`
 
+	// ScheduleID and ScheduledFor link an occurrence task to the schedule that
+	// created it; LateStart marks a time arm or occurrence observed after its
+	// five-minute on-time window with Run only on time off (FS-16.R52–R53).
+	ScheduleID   string     `json:"schedule_id,omitempty"`
+	ScheduledFor *time.Time `json:"scheduled_for,omitempty"`
+	LateStart    bool       `json:"late_start"`
+
 	Revision int `json:"revision"`
 
 	ReadyAt        *time.Time `json:"ready_at,omitempty"`
@@ -207,6 +219,10 @@ type TaskArm struct {
 	// work_result arm. It is stored sorted and comma-separated so the closed
 	// vocabulary stays greppable in the database.
 	SatisfyingOutcomes []string `json:"satisfying_outcomes,omitempty"`
+
+	// DueAt and OnTimeOnly belong to a time arm only (FS-16.R51–R52).
+	DueAt      *time.Time `json:"due_at,omitempty"`
+	OnTimeOnly bool       `json:"on_time_only,omitempty"`
 
 	State       string     `json:"state"`
 	SatisfiedAt *time.Time `json:"satisfied_at,omitempty"`
@@ -374,11 +390,12 @@ func insertTaskRowTx(tx *sql.Tx, task Task) error {
 	if _, err := tx.Exec(`
 INSERT INTO tasks(task_id, project, display_name, instruction, target_kind, target_agent_id,
   role, backend, model, effort, fast, group_name, state, attention_reason, created_by_kind, created_by_agent_id,
-  created_by_generation, revision, ready_at, created_at, updated_at)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  created_by_generation, schedule_id, scheduled_for, late_start, revision, ready_at, created_at, updated_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		task.TaskID, task.Project, task.DisplayName, task.Instruction, task.TargetKind,
 		task.TargetAgentID, task.Role, task.Backend, task.Model, task.Effort, task.Fast, task.Group, task.State,
 		task.AttentionReason, task.CreatedByKind, task.CreatedByAgentID, task.CreatedByGeneration,
+		task.ScheduleID, formatOptionalTime(task.ScheduledFor), task.LateStart,
 		task.Revision, formatOptionalTime(task.ReadyAt), formatTime(task.CreatedAt),
 		formatTime(task.UpdatedAt)); err != nil {
 		return fmt.Errorf("state: insert task: %w", err)
@@ -462,7 +479,7 @@ ORDER BY a.created_at DESC LIMIT 1`, task.CreatedByAgentID, task.CreatedByGenera
 	task.CreatedAt, task.UpdatedAt = now, now
 	task.Revision = 1
 
-	if err := validateTaskArms(tx, task); err != nil {
+	if err := validateTaskArms(tx, task, now); err != nil {
 		return Task{}, err
 	}
 	stamped, err := stampArmsFromResults(tx, task.Arms, now)
@@ -590,11 +607,11 @@ func insertTaskArms(tx *sql.Tx, taskID string, arms []TaskArm) error {
 		}
 		if _, err := tx.Exec(`
 INSERT INTO task_arms(arm_id, task_id, kind, source_kind, source_id, satisfying_outcomes,
-  signal_name, state, satisfied_at)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  signal_name, due_at, on_time_only, state, satisfied_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			arm.ArmID, taskID, arm.Kind, arm.SourceKind, arm.SourceID,
-			encodeOutcomeSet(arm.SatisfyingOutcomes), arm.SignalName, arm.State,
-			formatOptionalTime(arm.SatisfiedAt)); err != nil {
+			encodeOutcomeSet(arm.SatisfyingOutcomes), arm.SignalName, formatOptionalTime(arm.DueAt),
+			arm.OnTimeOnly, arm.State, formatOptionalTime(arm.SatisfiedAt)); err != nil {
 			return fmt.Errorf("state: insert task arm: %w", err)
 		}
 	}
@@ -603,8 +620,21 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 
 // validateTaskArms runs every graph check inside the caller's transaction so a
 // concurrent writer cannot slip a back edge in between the check and the write.
-func validateTaskArms(tx *sql.Tx, task Task) error {
+func validateTaskArms(tx *sql.Tx, task Task, now time.Time) error {
+	timeArms := 0
 	for _, arm := range task.Arms {
+		if arm.Kind == ArmTime {
+			timeArms++
+			switch {
+			case timeArms > 1:
+				return fmt.Errorf("%w: a task can wait for only one start time", ErrTaskStartTime)
+			case arm.DueAt == nil:
+				return fmt.Errorf("%w: time arm has no start time", ErrTaskStartTime)
+			case !arm.DueAt.After(now):
+				return fmt.Errorf("%w: start time is not in the future", ErrTaskStartTime)
+			}
+			continue
+		}
 		if arm.Kind == ArmSignal {
 			if arm.SignalName == "" {
 				return fmt.Errorf("%w: signal arm has no name", ErrTaskArmSource)
@@ -903,7 +933,7 @@ ORDER BY created_at DESC, task_id LIMIT ?`, project, "agent", agentID, limit)
 func (s *Store) readTaskArms(taskID string) ([]TaskArm, error) {
 	rows, err := s.db.Query(`
 SELECT arm_id, task_id, kind, source_kind, source_id, satisfying_outcomes, signal_name,
-  state, satisfied_at
+  due_at, on_time_only, state, satisfied_at
 FROM task_arms WHERE task_id = ? ORDER BY arm_id`, taskID)
 	if err != nil {
 		return nil, fmt.Errorf("state: list task arms: %w", err)
@@ -913,9 +943,9 @@ FROM task_arms WHERE task_id = ? ORDER BY arm_id`, taskID)
 	for rows.Next() {
 		var arm TaskArm
 		var outcomes string
-		var satisfiedAt sql.NullString
+		var dueAt, satisfiedAt sql.NullString
 		if err := rows.Scan(&arm.ArmID, &arm.TaskID, &arm.Kind, &arm.SourceKind, &arm.SourceID,
-			&outcomes, &arm.SignalName, &arm.State, &satisfiedAt); err != nil {
+			&outcomes, &arm.SignalName, &dueAt, &arm.OnTimeOnly, &arm.State, &satisfiedAt); err != nil {
 			return nil, fmt.Errorf("state: scan task arm: %w", err)
 		}
 		arm.SatisfyingOutcomes = decodeOutcomeSet(outcomes)
@@ -924,6 +954,9 @@ FROM task_arms WHERE task_id = ? ORDER BY arm_id`, taskID)
 			return nil, wrapTimeErr("task arm satisfied_at", err)
 		}
 		arm.SatisfiedAt = t
+		if arm.DueAt, err = parseOptionalTime(dueAt); err != nil {
+			return nil, wrapTimeErr("task arm due_at", err)
+		}
 		arms = append(arms, arm)
 	}
 	if err := rows.Err(); err != nil {
@@ -940,15 +973,15 @@ SELECT task_id, project, display_name, instruction, target_kind, target_agent_id
   pending_yield, wait_version, resume_needed, execution_turn, cleanup_phase, cleanup_effect_key,
   cleanup_failure_count, cleanup_first_failure_at, cleanup_next_retry_at, cleanup_last_error,
   cleanup_unsafe,
-  start_attempt_id, start_attempt_count,
+  start_attempt_id, start_attempt_count, schedule_id, scheduled_for, late_start,
   revision, ready_at, start_claimed_at, created_at, updated_at, started_at, finished_at
 FROM tasks`
 
 func scanTask(row rowScanner) (Task, error) {
 	var t Task
 	var assignedAgentID sql.NullString
-	var pendingRelease, continuationPending, pendingYield, resumeNeeded, cleanupUnsafe int
-	var readyAt, startClaimedAt, startedAt, finishedAt, cleanupFirstFailureAt, cleanupNextRetryAt sql.NullString
+	var pendingRelease, continuationPending, pendingYield, resumeNeeded, cleanupUnsafe, lateStart int
+	var readyAt, startClaimedAt, startedAt, finishedAt, cleanupFirstFailureAt, cleanupNextRetryAt, scheduledFor sql.NullString
 	var createdAt, updatedAt string
 	if err := row.Scan(&t.TaskID, &t.Project, &t.DisplayName, &t.Instruction, &t.TargetKind,
 		&t.TargetAgentID, &t.Role, &t.Backend, &t.Model, &t.Effort, &t.Fast, &t.Group, &t.State, &t.Outcome, &t.OutcomeSource,
@@ -958,7 +991,7 @@ func scanTask(row rowScanner) (Task, error) {
 		&t.WaitVersion, &resumeNeeded, &t.ExecutionTurn, &t.CleanupPhase, &t.CleanupEffectKey,
 		&t.CleanupFailureCount, &cleanupFirstFailureAt, &cleanupNextRetryAt, &t.CleanupLastError,
 		&cleanupUnsafe,
-		&t.StartAttemptID, &t.StartAttemptCount, &t.Revision,
+		&t.StartAttemptID, &t.StartAttemptCount, &t.ScheduleID, &scheduledFor, &lateStart, &t.Revision,
 		&readyAt, &startClaimedAt, &createdAt, &updatedAt, &startedAt, &finishedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Task{}, err
@@ -971,6 +1004,7 @@ func scanTask(row rowScanner) (Task, error) {
 	t.PendingYield = pendingYield != 0
 	t.ResumeNeeded = resumeNeeded != 0
 	t.CleanupUnsafe = cleanupUnsafe != 0
+	t.LateStart = lateStart != 0
 
 	var err error
 	if t.CreatedAt, err = parseTime(createdAt); err != nil {
@@ -990,6 +1024,7 @@ func scanTask(row rowScanner) (Task, error) {
 		{"task finished_at", finishedAt, &t.FinishedAt},
 		{"task cleanup_first_failure_at", cleanupFirstFailureAt, &t.CleanupFirstFailureAt},
 		{"task cleanup_next_retry_at", cleanupNextRetryAt, &t.CleanupNextRetryAt},
+		{"task scheduled_for", scheduledFor, &t.ScheduledFor},
 	} {
 		v, err := parseOptionalTime(opt.raw)
 		if err != nil {
@@ -2310,10 +2345,10 @@ func (s *Store) RearmTask(taskID string, arms []TaskArm) (Task, error) {
 		return Task{}, fmt.Errorf("state: clear task arms: %w", err)
 	}
 	candidate := Task{TaskID: taskID, Project: project, Arms: arms}
-	if err := validateTaskArms(tx, candidate); err != nil {
+	now := timeNow()
+	if err := validateTaskArms(tx, candidate, now); err != nil {
 		return Task{}, err
 	}
-	now := timeNow()
 	stamped, err := stampArmsFromResults(tx, arms, now)
 	if err != nil {
 		return Task{}, err
@@ -2332,8 +2367,8 @@ func (s *Store) RearmTask(taskID string, arms []TaskArm) (Task, error) {
 		reason = parkedAttentionReason
 	}
 	if _, err := tx.Exec(`
-UPDATE tasks SET state = ?, attention_reason = ?, ready_at = ?, revision = revision + 1,
-  updated_at = ?
+UPDATE tasks SET state = ?, attention_reason = ?, ready_at = ?, late_start = 0,
+  revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ?`, next, reason, readyAt, stamp, taskID, taskState); err != nil {
 		return Task{}, fmt.Errorf("state: rearm task: %w", err)
 	}

@@ -222,6 +222,10 @@ type AgentTaskRequest struct {
 	Group         string
 	Arms          []state.TaskArm
 	Attachments   []state.TaskAttachment
+	// StartAt and RunOnlyOnTime are the unparsed one-time start; the control
+	// plane resolves them exactly as its HTTP surface does (TS-10.R56).
+	StartAt       string
+	RunOnlyOnTime *bool
 }
 
 // AgentTaskResultRequest is one agent-reported result after identity
@@ -276,6 +280,9 @@ type createTaskArgs struct {
 	// Attachments are context_ref_ids you can already read; the assignee reads
 	// them through its own assignment, not through a share to it.
 	Attachments []createAttachmentInput `json:"attachments,omitempty" jsonschema:"context references to attach for the assignee"`
+	StartAt     string                  `json:"start_at,omitempty" jsonschema:"optional start time: RFC 3339, or YYYY-MM-DDTHH:MM in the Mac's local time; must be in the future"`
+	// RunOnlyOnTime is a pointer so an omitted value keeps the default of true.
+	RunOnlyOnTime *bool `json:"run_only_on_time,omitempty" jsonschema:"default true: if Chuck was off or asleep at start_at, park the task instead of starting it late"`
 }
 
 type createAttachmentInput struct {
@@ -285,7 +292,7 @@ type createAttachmentInput struct {
 }
 
 type createArmInput struct {
-	Kind               string   `json:"kind" jsonschema:"work_result or signal"`
+	Kind               string   `json:"kind" jsonschema:"work_result or signal; use start_at for a start time"`
 	SourceKind         string   `json:"source_kind,omitempty" jsonschema:"task or pipeline_run"`
 	SourceID           string   `json:"source_id,omitempty" jsonschema:"the prerequisite task or pipeline run id"`
 	SatisfyingOutcomes []string `json:"satisfying_outcomes,omitempty" jsonschema:"outcomes of the prerequisite that satisfy this arm"`
@@ -351,6 +358,7 @@ func (s *Server) handleCreateTask(_ context.Context, req *mcp.CallToolRequest, i
 			Description: attachment.Description,
 		})
 	}
+	request.StartAt, request.RunOnlyOnTime = input.StartAt, input.RunOnlyOnTime
 	task, err := control.CreateAgentTask(request)
 	if err != nil {
 		return taskToolError(err)
@@ -499,7 +507,7 @@ func taskToolError(err error) (*mcp.CallToolResult, any, error) {
 	case errors.Is(err, state.ErrTaskCycle):
 		return errResult(map[string]any{"ok": false, "error": "dependency_cycle",
 			"message": "These prerequisites would make the task graph cyclic."})
-	case errors.Is(err, state.ErrTaskArmSource):
+	case errors.Is(err, state.ErrTaskArmSource), errors.Is(err, state.ErrTaskStartTime):
 		return errResult(map[string]any{"ok": false, "error": "validation", "message": err.Error()})
 	case errors.Is(err, state.ErrTaskNotAssigned):
 		return errResult(map[string]any{"ok": false, "error": "validation", "message": "You cannot read that context reference."})

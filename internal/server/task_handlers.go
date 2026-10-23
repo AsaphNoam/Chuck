@@ -41,6 +41,11 @@ type createTaskRequest struct {
 
 	Arms        []createArmRequest        `json:"arms,omitempty"`
 	Attachments []createAttachmentRequest `json:"attachments,omitempty"`
+
+	// StartAt adds the task's one time arm; RunOnlyOnTime defaults to true
+	// (FS-16.R51–R52, TS-10.R60).
+	StartAt       string `json:"start_at,omitempty"`
+	RunOnlyOnTime *bool  `json:"run_only_on_time,omitempty"`
 }
 
 type createArmRequest struct {
@@ -167,7 +172,7 @@ func (s *Server) composeTask(req createTaskRequest) (state.Task, *runtime.APIErr
 		return state.Task{}, apiError(runtime.CodeValidation, "target_kind must be agent or launch")
 	}
 
-	arms, ae := composeTaskArms(req.Arms)
+	arms, ae := composeTaskArms(req.Arms, req.StartAt, req.RunOnlyOnTime)
 	if ae != nil {
 		return state.Task{}, ae
 	}
@@ -181,13 +186,20 @@ func (s *Server) composeTask(req createTaskRequest) (state.Task, *runtime.APIErr
 	return task, nil
 }
 
-func composeTaskArms(requested []createArmRequest) ([]state.TaskArm, *runtime.APIError) {
-	arms := make([]state.TaskArm, 0, len(requested))
+func composeTaskArms(requested []createArmRequest, startAt string, runOnlyOnTime *bool) ([]state.TaskArm, *runtime.APIError) {
+	arms := make([]state.TaskArm, 0, len(requested)+1)
 	for _, arm := range requested {
 		arms = append(arms, state.TaskArm{
 			Kind: arm.Kind, SourceKind: arm.SourceKind, SourceID: arm.SourceID,
 			SatisfyingOutcomes: arm.SatisfyingOutcomes, SignalName: strings.TrimSpace(arm.SignalName),
 		})
+	}
+	timeArm, ae := startTimeArm(startAt, runOnlyOnTime)
+	if ae != nil {
+		return nil, ae
+	}
+	if timeArm != nil {
+		arms = append(arms, *timeArm)
 	}
 	if ae := validateTaskArmSet(arms); ae != nil {
 		return nil, ae
@@ -205,6 +217,12 @@ func validateTaskArmSet(arms []state.TaskArm) *runtime.APIError {
 	}
 	for _, arm := range arms {
 		switch arm.Kind {
+		case state.ArmTime:
+			// A time arm is only ever composed from start_at, which carries its
+			// instant; one named in the arm list has none.
+			if arm.DueAt == nil {
+				return apiError(runtime.CodeValidation, "use start_at for a start time")
+			}
 		case state.ArmSignal:
 			if arm.SignalName == "" || utf8.RuneCountInString(arm.SignalName) > maxSignalNameRunes {
 				return apiError(runtime.CodeValidation, "signal_name is required and bounded")
@@ -428,6 +446,10 @@ func (s *Server) writeTaskError(w http.ResponseWriter, err error) {
 		ae := apiError(runtime.CodeValidation, err.Error())
 		ae.Details = map[string]any{"code": "unusable_source"}
 		writeAPIError(w, ae)
+	case errors.Is(err, state.ErrTaskStartTime):
+		ae := apiError(runtime.CodeValidation, err.Error())
+		ae.Details = map[string]any{"code": "invalid_start_time"}
+		writeAPIError(w, ae)
 	case errors.Is(err, state.ErrTaskAttachmentReference):
 		ae := apiError(runtime.CodeValidation, "unknown context reference")
 		ae.Details = map[string]any{"code": "context_not_found"}
@@ -579,7 +601,9 @@ func (s *Server) retryAssigneeGate(task state.Task) *runtime.APIError {
 }
 
 type rearmRequest struct {
-	Arms []createArmRequest `json:"arms"`
+	Arms          []createArmRequest `json:"arms"`
+	StartAt       string             `json:"start_at,omitempty"`
+	RunOnlyOnTime *bool              `json:"run_only_on_time,omitempty"`
 }
 
 // handleRearmTask implements POST /api/tasks/{id}/rearm (FS-16.R23).
@@ -593,7 +617,7 @@ func (s *Server) handleRearmTask(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError(runtime.CodeValidation, "too many prerequisites"))
 		return
 	}
-	arms, ae := composeTaskArms(req.Arms)
+	arms, ae := composeTaskArms(req.Arms, req.StartAt, req.RunOnlyOnTime)
 	if ae != nil {
 		writeAPIError(w, ae)
 		return
@@ -709,6 +733,13 @@ func (s *Server) CreateAgentTask(req messaging.AgentTaskRequest) (state.Task, er
 	}
 	if task.Instruction == "" || utf8.RuneCountInString(task.Instruction) > maxTaskInstructionRunes {
 		return state.Task{}, &messaging.ToolError{Code: "validation", Message: "instruction is required and bounded"}
+	}
+	timeArm, ae := startTimeArm(req.StartAt, req.RunOnlyOnTime)
+	if ae != nil {
+		return state.Task{}, &messaging.ToolError{Code: "validation", Message: ae.Message}
+	}
+	if timeArm != nil {
+		task.Arms = append(append([]state.TaskArm{}, task.Arms...), *timeArm)
 	}
 	if ae := validateTaskArmSet(task.Arms); ae != nil {
 		return state.Task{}, &messaging.ToolError{Code: "validation", Message: ae.Message}

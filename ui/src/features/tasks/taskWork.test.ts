@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { taskListSchema, type Task } from "../../schemas/task";
 import fixture from "./fixtures/taskLists.json";
-import { childIndex, projectWork, rowVisibility, taskReason, taskStatus, type WorkRow } from "./taskWork";
+import { childIndex, projectWork, rowVisibility, startTimeLabel, taskReason, taskStatus, type WorkRow } from "./taskWork";
 
 // The fixture is marshalled by Go (internal/server/task_wire_fixture_test.go),
 // so these assertions run against the server's real task wire shape.
@@ -108,7 +108,7 @@ describe("projectWork", () => {
 
   it("counts unfinished and attention work and puts attention groups first", () => {
     expect(work.attention).toBe(2);
-    expect(work.unfinished).toBe(11);
+    expect(work.unfinished).toBe(12);
     expect(work.active[0].attention).toBeGreaterThan(0);
   });
 });
@@ -204,5 +204,12 @@ describe("taskStatus and taskReason", () => {
     expect(taskReason(row("tk_t"))).toBe("Waits for signal ci-green; run pr_1 → success");
     expect(taskReason(row("tk_s"))).toBe("a prerequisite can no longer be satisfied");
     expect(taskReason(row("tk_k"))).toBe("Cleanup retrying: agent did not stop");
+  });
+
+  it("names a start time as a wait in the viewer's local time (FS-16.R51)", () => {
+    const timed = row("tk_v");
+    expect(timed.external).toEqual([{ kind: "time", dueAt: "2026-10-01T17:30:00Z", onTimeOnly: true, state: "unsatisfied" }]);
+    expect(taskReason(timed)).toBe(`Waits for ${startTimeLabel("2026-10-01T17:30:00Z")}`);
+    expect(startTimeLabel("2026-10-01T17:30:00Z")).not.toContain("2026-10-01");
   });
 });

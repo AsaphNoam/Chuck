@@ -116,6 +116,10 @@ func taskWireFixture() map[string]map[string][]taskDetailResponse {
 					SatisfyingOutcomes: []string{state.OutcomeSuccess}, State: state.ArmUnsatisfied},
 			}
 		}),
+		task("tk_v", "my-app", "Start at half five", 12, func(value *state.Task) {
+			value.Arms = []state.TaskArm{{ArmID: "tk_v_arm00", TaskID: "tk_v", Kind: state.ArmTime,
+				DueAt: ptr(time.Date(2026, 10, 1, 17, 30, 0, 0, time.UTC)), OnTimeOnly: true, State: state.ArmUnsatisfied}}
+		}),
 		task("tk_u", "my-app", "Build stage", 13, func(value *state.Task) {
 			value.State, value.AssignedAgentID = state.TaskRunning, "ag_u"
 			value.Lineage = lineage("tk_u", "", "pr_1", "build", 13)

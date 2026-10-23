@@ -23,7 +23,15 @@ export type TaskLink =
  *  pipeline run, or a task reference that is not in the loaded project. */
 export type ExternalWait =
   | { kind: "signal"; name: string; state: TaskArm["state"] }
-  | { kind: "run"; runID: string; outcomes: string[]; state: TaskArm["state"] };
+  | { kind: "run"; runID: string; outcomes: string[]; state: TaskArm["state"] }
+  | { kind: "time"; dueAt: string; onTimeOnly: boolean; state: TaskArm["state"] };
+
+/** startTimeLabel is a start instant in the viewer's local words, e.g. "Fri 23 Oct, 17:30". */
+export function startTimeLabel(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
 
 export interface WorkRow {
   task: Task;
@@ -159,6 +167,8 @@ export function projectWork(project: string, tasks: Task[], pinned: ReadonlySet<
     for (const arm of task.arms ?? []) {
       if (arm.kind === "signal") {
         outside.push({ kind: "signal", name: arm.signal_name, state: arm.state });
+      } else if (arm.kind === "time") {
+        outside.push({ kind: "time", dueAt: arm.due_at ?? "", onTimeOnly: arm.on_time_only, state: arm.state });
       } else if (arm.source_kind === "pipeline_run") {
         outside.push({ kind: "run", runID: arm.source_id, outcomes: arm.satisfying_outcomes ?? [], state: arm.state });
       } else {
@@ -386,7 +396,9 @@ export function taskReason(row: WorkRow): string {
       ...row.links.filter((link): link is Extract<TaskLink, { kind: "prerequisite" }> => link.kind === "prerequisite" && link.state === "unsatisfied")
         .map((link) => `${link.source?.display_name ?? "unavailable task"} → ${link.outcomes.join(" or ")}`),
       ...row.external.filter((wait) => wait.state === "unsatisfied")
-        .map((wait) => wait.kind === "signal" ? `signal ${wait.name}` : `run ${wait.runID} → ${wait.outcomes.join(" or ")}`),
+        .map((wait) => wait.kind === "signal" ? `signal ${wait.name}`
+          : wait.kind === "time" ? startTimeLabel(wait.dueAt)
+          : `run ${wait.runID} → ${wait.outcomes.join(" or ")}`),
     ];
     if (waits.length > 0) return `Waits for ${waits.join("; ")}`;
   }

@@ -15,6 +15,7 @@ import { usePipelineRuns } from "../../api/pipelines";
 import type { PipelineRunSummary } from "../../schemas/pipeline";
 import type { Task, TaskArm } from "../../schemas/task";
 import { WORK_RESULT_OUTCOMES } from "../../schemas/task";
+import { startTimeLabel } from "./taskWork";
 import { useAgentStore } from "../../store/agentStore";
 
 type WorkSourceKind = "task" | "pipeline_run";
@@ -62,6 +63,7 @@ function sourceLabel(sourceKind: WorkSourceKind, sourceID: string, tasks: Task[]
 
 function armDescription(arm: TaskArm, tasks: Task[], runs: PipelineRunSummary[]): string {
   if (arm.kind === "signal") return `Signal: ${arm.signal_name}`;
+  if (arm.kind === "time") return `Start time: ${startTimeLabel(arm.due_at ?? "")} (${arm.state})`;
   const kind = arm.source_kind === "pipeline_run" ? "pipeline_run" : "task";
   const outcomes = (arm.satisfying_outcomes ?? []).join(" or ") || "no outcomes recorded";
   return `${kind === "task" ? "Task" : "Pipeline run"}: ${sourceLabel(kind, arm.source_id, tasks, runs)} → ${outcomes} (${arm.state})`;
