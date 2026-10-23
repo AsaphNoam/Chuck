@@ -1,7 +1,7 @@
 # Chuck v0.18.1
 
-Status: blocked on approval for verification-only fixture corrections; version and publication
-approval also remain pending. No tag or publication.
+Status: verification-only fixture corrections approved and undergoing checks; version and
+publication approval remain pending. No tag or publication.
 Previous release: v0.18.0. This is a fixes-only patch release.
 
 ## What improves
@@ -36,7 +36,10 @@ reporting turn was still live; TS-10.R19/R48 require deferred cleanup in that co
 fixture does not actually remove the runtime registry as a restart would. That server suite
 passed on the full no-tag retry and in the FTS5 run. No product regression or fixture repair is
 claimed. A reviewable two-test proposal is `/private/tmp/chuck-release-test-proposal.patch`;
-approval was requested under the operator's separate-fix rule. Its application remains pending.
+the operator approved both changes under the separate-fix rule on 2026-10-23. The test-only
+corrections pass three focused CLI repeats, five recovery repeats and independent assertion
+review. Final full Go checks remain next. The recovery test proves settled cleanup and retained
+finished state, not immutable result/summary preservation by itself.
 
 Source/checkpoint commits: guard repair `69082b39`; preparation `0e533e0c`. The existing
 architecture receipt records focused repair evidence and exact affected coverage; ARCH-1's

@@ -949,9 +949,19 @@ func TestRestartResolvesUnfinishedTasksFromTheirOwnRows(t *testing.T) {
 	if retryable.StartAttemptCount != 1 {
 		t.Fatalf("a restarted start attempt spent %d attempts, want 1", retryable.StartAttemptCount)
 	}
-	released := check(reported.TaskID, state.TaskFinished)
-	if released.PendingRelease || released.RuntimeClaim != "" {
-		t.Fatalf("recovery did not finish the promised release: %+v", released)
+	// This fixture still owns a live reporting turn. TS-10.R19/R48 allow
+	// recovery to defer its release until idle; drive the ordinary retry owner.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		released := check(reported.TaskID, state.TaskFinished)
+		if !released.PendingRelease && released.RuntimeClaim == "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("recovery did not finish the promised release: %+v", released)
+		}
+		srv.reconcileTaskCleanup(context.Background())
+		time.Sleep(10 * time.Millisecond)
 	}
 	waitRunning(t, srv, reportedRunning.AssignedAgentID, false)
 

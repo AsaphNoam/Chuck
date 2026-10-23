@@ -64,7 +64,9 @@ Their source reviews and open findings remain below; do not reopen completed ref
   immediate-release assertion: the fixture retained a live busy reporting turn, so R19/R48
   correctly deferred cleanup. No test/product edit made. The full FTS5 variant passes; the full
   no-tag retry's server suite passes, but bootstrap readiness fails again. REL-VERIFY-1 remains
-  open pending test-only approval and verified closure. No tag/publish. Exact focused repair/
+  open pending verified closure. The operator approved both test-only corrections; focused
+  CLI checks pass three repeats and recovery passes five; both full Go variants are next.
+  No tag/publish. Exact focused repair/
   affected coverage is recorded in the existing receipt; ARCH-1 administrative closure is deferred.
 
 - **Next-release architectural review completed, 2026-10-23:** committed candidate `eb56b0c2`
@@ -325,8 +327,9 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
   TS-10.R19/R48 correctly defer that cleanup. The test never simulates losing the registry.
   Proposed bounded test-only corrections keep the lock contention/final release assertions:
   wait up to 10 seconds for bootstrap readiness, and drive/wait for ordinary deferred cleanup.
-  No product regression or repair is claimed. Approval requested under the operator's separate-fix
-  instruction; reviewable patch `/private/tmp/chuck-release-test-proposal.patch`. Keep release
+  No product regression or repair is claimed. The operator approved both corrections under the
+  separate-fix instruction on 2026-10-23; patch `/private/tmp/chuck-release-test-proposal.patch`.
+  The two tests pass focused repeats and independent assertion review; full verification is next. Keep release
   blocked until checks pass. Logs are `/private/tmp/chuck-v0.18.1-{go-closure,go-retry,bootstrap-diagnostic}.log`.
 
 ### Next-release architecture — reviewed `eb56b0c2` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
@@ -1395,12 +1398,6 @@ v0.18.0 was published 2026-10-21 with the explicit one-release architectural-rev
   `docs/ready-changes/` remain untouched. This state-only closure creates no new review unit.
 
 ## Blocked on human
-
-- **v0.18.1 verification-only fixes:** approval requested to correct the two pre-existing
-  fixture assumptions in REL-VERIFY-1 (~20 lines, no product behavior change). The ARCH-1 repair
-  is committed as `69082b39`; full FTS5/distribution/995 UI tests/vet pass. The no-tag Go checkpoint
-  remains blocked by bootstrap readiness. Proposal: `/private/tmp/chuck-release-test-proposal.patch`.
-  Version and publishing approval will be requested only after the candidate is verified.
 
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).

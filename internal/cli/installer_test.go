@@ -332,15 +332,16 @@ case "$url" in *manifest.json) cp "$CHUCK_TEST_MANIFEST" "$out" ;; *) cp "$CHUCK
 	if err := first.Start(); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 50; i++ {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
 		if _, err := os.Stat(started); err == nil {
 			break
 		}
-		time.Sleep(20 * time.Millisecond)
-		if i == 49 {
+		if time.Now().After(deadline) {
 			_ = first.Process.Kill()
 			t.Fatal("first bootstrap did not begin downloading")
 		}
+		time.Sleep(20 * time.Millisecond)
 	}
 
 	second := exec.Command("bash", installer, "--version", "1.0.0", "--non-interactive")
