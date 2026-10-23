@@ -1656,6 +1656,42 @@ func TestStartActivationRetiresDeferredOnlyMailOpportunity(t *testing.T) {
 	}
 }
 
+// A cleanup stop claims the runtime without changing its idle/error status, so
+// StartActivation must honor the same stopping gate as every other turn path:
+// waking mail cannot run a turn on a runtime being removed (TS-10.R19).
+func TestStartActivationRefusesStoppingRuntime(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	dump := filepath.Join(t.TempDir(), "prompt.json")
+	spec.Env = append(spec.Env, "FAKEACP_PROMPT_DUMP="+dump)
+	ctx := context.Background()
+
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { c.Stop(ctx, h.AgentID) })
+	if _, err := c.store.InsertMessage(state.Message{
+		FromAgent: "a_sender", FromAddress: "reviewer@test", FromName: "Nova",
+		ToAgent: h.AgentID, Subject: "Review", Body: "Please review the durable result.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !c.claimIdleStop(h.AgentID, "") {
+		t.Fatal("idle runtime did not admit cleanup stop")
+	}
+	called := false
+	started, err := c.StartActivation(ctx, h.AgentID, "mail", func(string) error {
+		called = true
+		return nil
+	})
+	if err != nil || started || called {
+		t.Fatalf("StartActivation on stopping runtime = %v, %v (before called %v); want refused", started, err, called)
+	}
+	if _, err := os.ReadFile(dump); err == nil {
+		t.Fatal("a provider prompt was sent to a stopping runtime")
+	}
+}
+
 // TS-01.R21 / INV §15 — the ordinary busy turn state commits before the provider
 // frame. StartActivation used to discard the status write's error and prompt the
 // model anyway, so a store failure left durable and UI state `idle` while the

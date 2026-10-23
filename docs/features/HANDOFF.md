@@ -1005,6 +1005,14 @@ and specifications are unchanged.
 
 ## Changelog
 
+- **2026-10-23 — Fix: activations honor a claimed cleanup stop (INV §2/§15, TS-10.R19).**
+  `StartActivation` checked only `turnActive`; a cleanup stop that had claimed an idle/error
+  runtime still admitted mail/task activations. It now refuses stopping/stopped runtimes like
+  `claimTurnLocked`. `TestStartActivationRefusesStoppingRuntime` failed before the fix. Found
+  while comparing abandoned CR-A2-6/7 worktrees with main; their remaining content is
+  superseded by `0f911d74`. One extra behavior was not ported: releasing a room whose quota
+  retry is waiting on a person (`needs_attention`).
+
 - **2026-10-23 — Fix: resumed-assignment continuation context (ASRE-1, INV §1/§10/§11/§15) —
   ASF-3 and ASR-E closed.** `5091d0d3` keeps the wait set through confirmation and projects it
   as `get_assigned_task.observed_changes`, including deleted sources' retained outcomes

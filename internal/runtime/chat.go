@@ -1758,7 +1758,9 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		return false, err
 	}
 	as.mu.Lock()
-	if as.turnActive {
+	// A cleanup stop claims the runtime without changing its status; like
+	// claimTurnLocked, no activation may enter it (TS-10.R19).
+	if as.turnActive || as.stopping || as.stopped {
 		as.mu.Unlock()
 		return false, nil
 	}
