@@ -1,6 +1,8 @@
 # Chuck v0.18.1
 
-Status: verified and ready for version/publication confirmation. No tag or publication.
+Status: [published](https://github.com/AsaphNoam/Chuck/releases/tag/v0.18.1) on 2026-10-23,
+annotated tag at `dc9790575fa7c1f043b86318d1431db459104ad0` after explicit operator approval
+of the version, all 23 unpushed commits and tag.
 Previous release: v0.18.0. This is a fixes-only patch release.
 
 ## What improves
@@ -49,8 +51,20 @@ no second architectural review is required for its finding repair.
 
 Credentialed Claude/Codex adoption, physical-phone behavior, real terminal-driver ownership and
 other explicit acceptance receipts remain owed in the live handoff. Automated/fake-provider
-checks do not establish those behaviors. Private runtime archive assembly and fresh-install
-verification belong to release CI after an authorized push.
+checks do not establish those behaviors.
 
-The review and release are scoped to committed source. Publication must explicitly authorize
-pushing all currently unpushed main commits and the new version tag.
+## Publication receipts
+
+[Release CI 39959315460](https://github.com/AsaphNoam/Chuck/actions/runs/39959315460) passed
+architecture closure, private runtime assembly, release/bootstrap tests, FTS5 archive verification
+and fresh installation preserving the existing home. Archive, installer and manifest are attached.
+The downloaded `chuck-0.18.1-darwin-arm64.tar.gz` matches manifest size `325053538` and SHA256
+`7724309786110ae3de645f61562f1ab45996f36a5f789c0977b3b00f11fb33ee`.
+
+[Main CI 39959316204](https://github.com/AsaphNoam/Chuck/actions/runs/39959316204) failed on
+both original and unchanged rerun attempts at `TestCancelBeforePermissionPublicationResolvesAfterRequest`:
+observed `[permission_request]`, expected request then resolution. Local full-suite success does
+not waive this failure. REL-CI-1 remains an open Must-fix in the live handoff; fixture versus
+runtime cause is undiagnosed. No further code changes or cancellation repair are claimed.
+
+Concurrent uncommitted scheduling design remains excluded from the published source.

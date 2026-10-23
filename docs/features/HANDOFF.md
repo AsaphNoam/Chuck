@@ -6,11 +6,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Current position
 
-- **Published:** [v0.18.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.18.0),
-  2026-10-21, source `722282dd`; release CI 39542860225 and main CI 39542863948 passed.
-- **Candidate:** proposed fixes-only `v0.18.1`. Product repair `69082b39` refuses unreadable or
+- **Published:** [v0.18.1](https://github.com/AsaphNoam/Chuck/releases/tag/v0.18.1),
+  2026-10-23, source `dc979057`; release CI 39959315460 passed. Published archive size and
+  SHA256 match the manifest. Main CI 39959316204 failed twice; REL-CI-1 below remains open.
+- **Released repair:** fixes-only `v0.18.1`. Product repair `69082b39` refuses unreadable or
   malformed dashboard PID files before offline reindex opens SQLite. Approved test-only corrections
-  are `001ba8b5`. Version and publication remain unconfirmed; nothing is tagged/published.
+  are `001ba8b5`. The operator approved the version, 23 unpushed commits and annotated tag.
 - **Review state:** ASW/ASF and CR-A1–A7 are closed. The combined next-release architecture review
   covers `eb56b0c2` with exact later coverage/repair updates in
   [its receipt](../archive/reviews/architecture/v0.18.0-next.json).
@@ -34,8 +35,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   `/private/tmp/chuck-v0.18.1-approved-{go-full,fts-full,static}.log`.
   Distribution build, 995 UI tests, tagged runtime guard race check, spec/static and relative-link
   checks pass. Generated UI/product source is unchanged; latest edits are tests/docs only.
-- ARCH-1 and REL-VERIFY-1 are closed with exact evidence in the existing receipt. Confirm version
-  and explicit publication scope; then tag/push and verify release CI/assets if authorized.
+- ARCH-1 and REL-VERIFY-1 are closed with exact evidence in the existing receipt. The approved
+  candidate is published; release CI and asset verification passed. Main CI reproduced a separate
+  permission-cancellation failure twice; REL-CI-1 is available for fix, not waived by publication.
   [Release notes](../archive/state/RELEASE-v0.18.1-notes.md) preserve earlier failures and owed gates.
 
 ## Acceptance gates still owed
@@ -175,13 +177,30 @@ release verification and architectural closure are the only selected units.
 
 ## Review findings
 
-None. ARCH-1 is repaired by `69082b39`; REL-VERIFY-1 is closed by the explicitly approved
+ARCH-1 is repaired by `69082b39`; REL-VERIFY-1 is closed by the explicitly approved
 test corrections `001ba8b5`. Both full Go variants pass. Original reports and prior failed runs
 remain in the archive/release notes; exact repair and affected coverage are in the
 [architecture receipt](../archive/reviews/architecture/v0.18.0-next.json).
 
+### REL-CI — post-publication verification — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Owner: runtime permission settlement / next fix run.
+
+- **Must fix** — REL-CI-1: `internal/runtime/permission_test.go:278`,
+  `TestCancelBeforePermissionPublicationResolvesAfterRequest`, failed on both attempts of
+  [main CI 39959316204](https://github.com/AsaphNoam/Chuck/actions/runs/39959316204)
+  at unchanged released source `dc979057`. Cancel while permission publication is blocked
+  produces only `[permission_request]` before turn end, where the assertion requires request
+  then resolution (FS-03.R9, INV §5). This leaves the required ordering unverified despite local
+  suite success. Diagnose fixture/provider timing versus runtime settlement and retain a
+  deterministic regression; no product cause or repair is claimed. Release CI independently passed.
+
 ## Changelog
 
+- **2026-10-23 — v0.18.1 published:** explicit operator approval covered the 23-commit push
+  and tag at `dc979057`. Release CI 39959315460 passed; archive, manifest and installer are
+  attached, and downloaded archive checksum/size match. Main CI failed twice on REL-CI-1;
+  the failure is retained as an open finding. Manual acceptance gates remain owed.
 - **2026-10-23 — Design:** timed and recurring task starts are specified and waiting to start
   ([ready change](../ready-changes/timed-and-recurring-task-starts.md); FS-16.R51–R58/A35–A40,
   TS-10.R54–R60). The operator confirmed the product decisions. No product code changed.
@@ -194,9 +213,6 @@ remain in the archive/release notes; exact repair and affected coverage are in t
 
 ## Blocked on human
 
-- **v0.18.1 version/publication:** candidate verified; proposed patch version and explicit
-  permission to push the reviewed main range plus its tag remain pending. No tag or publication.
-
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
   The four requested product changes are committed and independently reviewable. No unrelated
@@ -208,6 +224,5 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-Latest published notes: [v0.18.0](../archive/state/RELEASE-v0.18.0-notes.md).
-Current preparation: [v0.18.1](../archive/state/RELEASE-v0.18.1-notes.md).
+Latest published notes: [v0.18.1](../archive/state/RELEASE-v0.18.1-notes.md).
 Earlier publication/campaign records remain in the archived handoff.
