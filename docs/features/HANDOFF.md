@@ -182,6 +182,10 @@ remain in the archive/release notes; exact repair and affected coverage are in t
 
 ## Changelog
 
+- **2026-10-23 — Design:** timed and recurring task starts are specified and waiting to start
+  ([ready change](../ready-changes/timed-and-recurring-task-starts.md); FS-16.R51–R58/A35–A40,
+  TS-10.R54–R60). The operator confirmed the product decisions. No product code changed.
+
 - **2026-10-23 — Release preparation:** ARCH-1 repair `69082b39`, exact post-review coverage,
   truthful failed-check records and approved fixture corrections `001ba8b5` are committed.
   Both full Go variants, focused repeats and static checks pass; ARCH-1 (INV §7/§9) and

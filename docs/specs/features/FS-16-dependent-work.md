@@ -1,6 +1,6 @@
 # FS-16 — Dependent work and armed starts
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks` · **Journeys:** —
 **Absorbed:** —
 
@@ -376,6 +376,67 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   rejected at creation without writing a task. HTTP task authoring and the Tasks view do not gain
   this field; task HTTP reads report the stored group beside the other launch inputs.
 
+### 2.5 Timed and recurring starts (planned)
+
+- **R51 (planned) — A task can wait for a clock time.** A fourth arm type, **time**, names one
+  instant: a local wall-clock date and time interpreted in the Mac's current time zone when the
+  arm is created and stored as that absolute instant. It is satisfied when Chuck observes that the
+  instant has passed, and it combines with the other arm types by the same conjunction as R5, so
+  "at 17:30 and after task X succeeds" needs nothing else. A task carries at most one time arm. A
+  time already in the past at creation is rejected under R20 rather than satisfied immediately.
+  Waiting for capacity or for another arm after the time arm is satisfied is never "late" (R19).
+- **R52 (planned) — "Run only on time" decides what a missed time means.** Every time arm and
+  every schedule (R53) carries a **Run only on time** choice, on by default. A time is *missed*
+  when Chuck was not running, or the Mac was asleep, at the scheduled instant and first observes it
+  more than five minutes later. With the choice on, a missed one-time arm becomes `unsatisfiable`
+  with the reason "missed start time", which parks its task under R8 for a person or creator to
+  re-arm or cancel; a missed schedule occurrence is recorded as missed and creates no task. With
+  the choice off, a missed one-time arm is satisfied on first observation and the task is marked
+  *started late*; a schedule that missed one or more occurrences creates exactly one late
+  occurrence task for the most recent of them and records the older ones as missed. Chuck never
+  wakes the Mac and never creates a burst of catch-up tasks.
+- **R53 (planned) — A schedule creates a new task at each occurrence.** A finished task is never
+  re-run (§3), so repetition is a separate durable, project-scoped **schedule**: a display name,
+  a task template (instruction, existing-agent or launch-specification target with R27/R29/R50
+  launch inputs, and context attachments under R10), a recurrence rule (R54), Run only on time
+  (R52), its creator (R24), and an active or paused state. At each occurrence Chuck creates one
+  ordinary task from the template — no other arm, creator recorded as the schedule — linked to its
+  schedule and occurrence instant. That task then follows every rule in this specification: it
+  is budgeted, gated, reported, and can be a prerequisite for other work. A schedule never starts
+  an agent itself and never starts a pipeline run.
+- **R54 (planned) — Recurrence is a small closed rule, not cron.** A rule names a start date, one
+  or more times of day, a frequency — daily, weekdays (Monday–Friday), weekly on one or more
+  chosen weekdays, or every N days or N weeks — and an end: never, after N occurrences, or after a
+  last date. Every scheduled occurrence counts toward N whether it ran, was missed, or was paused
+  through, so "every Sunday for 3 weeks" ends after the third Sunday. Times are local wall-clock
+  times in the Mac's current time zone, so "9 AM daily" stays 9 AM across daylight-saving changes;
+  a time skipped by a change occurs at the first valid minute after it, and a repeated time occurs
+  once. No cron expression, sub-daily interval, calendar exception, or OR is accepted.
+- **R55 (planned) — Overlap is allowed.** An occurrence creates its task even when an earlier
+  occurrence's task is unfinished. Existing-agent targets still serialize through R2's per-agent
+  claim and launch-spec occurrences through R7's budget; nothing about one occurrence cancels,
+  skips, or waits for another.
+- **R56 (planned) — Schedules are managed like tasks.** People manage every schedule over the
+  local HTTP API and in a Schedules section of the Tasks view that shows each schedule's rule in
+  words, next occurrence, last occurrence with its task state or "missed", and Run only on time,
+  with Create, Edit, Pause, Resume, and Delete. A token-bound agent creates schedules through a
+  scoped tool with the same target, selector, and validation rules as `create_task` (R12), and
+  may pause, resume, or delete only schedules it created (R24). Editing changes only future
+  occurrences; pausing records the occurrences it passes over as paused, and resuming never
+  replays them. Deleting a schedule stops future occurrences and leaves every task it created as an
+  ordinary task. A schedule whose rule has ended is retained as finished until deleted.
+- **R57 (planned) — A schedule that cannot run pauses visibly.** When an occurrence comes due while
+  the schedule's existing-agent target is archived or deleted, or its project is archived, the
+  schedule pauses itself with that reason and counts toward the Tasks needs-attention indicator
+  (FS-02.R44) instead of creating an occurrence task that would park at once. Resuming revalidates the target. Invalid schedules —
+  empty rule, zero or excessive times per day, N outside its bound, an end before the start, a
+  terminal-interface target, or a group with an existing-agent target — are rejected under R20 and
+  create nothing.
+- **R58 (planned) — Times survive restart without guessing.** Time arms and schedules are durable
+  rows; after a restart or wake Chuck re-evaluates them against the clock and applies R52 to any
+  instant it did not observe. No occurrence is created twice, including across a crash between
+  creating an occurrence task and recording that the occurrence was handled.
+
 ## 3. States & transitions
 
 - **Task:** `armed` (at least one arm unsatisfied) → `ready` (every arm satisfied; eligible, and
@@ -726,6 +787,31 @@ Each names the verification that demonstrates it.
 - **A34 (shipped 2026-10-18)** (R50) — An agent's `create_task` naming a new group launches its agent inside that group;
   the reserved label and a group on an existing-agent target are refused without creating a task.
   *Verify:* `internal/server/task_dispatch_test.go` and `internal/messaging/task_tools_test.go`.
+- **A35 (planned)** (R51, R5) — With a controllable clock, a task armed on 17:30 and on another
+  task's `success` stays `armed` after 17:30 until that success, then starts once; a past time is
+  refused without writing a task. *Verify:* `internal/state/tasks_test.go`,
+  `internal/server/task_dispatch_test.go`.
+- **A36 (planned)** (R52, R58) — With Chuck stopped across the start instant and restarted ten
+  minutes later: Run only on time on parks the one-time task as "missed start time" and records
+  a schedule occurrence as missed; off starts the task once marked late and, after three missed
+  daily occurrences, creates exactly one late occurrence task. A restart three minutes late counts
+  as on time. *Verify:* `internal/server/task_dispatch_test.go`.
+- **A37 (planned)** (R53–R54) — "Every Sunday at 9 AM for 3 weeks" creates ordinary tasks on
+  exactly three Sundays and finishes; "daily at 9 AM" stays at 9 AM local across both
+  daylight-saving transitions, and a time skipped by the change runs once at the next valid
+  minute. *Verify:* recurrence unit tests with fixed time zones.
+- **A38 (planned)** (R55) — A daily schedule whose previous occurrence is still `running` creates
+  the next task anyway; an existing-agent target leaves it ready and waiting, not failed.
+  *Verify:* `internal/server/task_dispatch_test.go`.
+- **A39 (planned)** (R56–R57) — Over HTTP and the scoped tool: create, edit, pause, resume, and
+  delete a schedule; an agent cannot pause or delete a schedule it did not create; paused
+  occurrences are not replayed on resume; deleting keeps its tasks; archiving the target agent
+  pauses the schedule with a reason and raises the needs-attention count. *Verify:*
+  `internal/server/task_http_test.go`, `internal/messaging/task_tools_test.go`.
+- **A40 (planned)** (R51–R52, R56) — In the desktop Tasks view, create a one-time 17:30 task and a
+  weekly schedule, see the rule in words with its next occurrence, toggle Run only on time, and
+  pause and resume it, by keyboard in all three skins. *Verify:* UI tests plus a rendered
+  Chromium journey.
 
 ## 6. Deviations & open decisions
 
@@ -775,7 +861,9 @@ Each names the verification that demonstrates it.
   remove; an agent that wants to act on an outcome arms a task on it instead.
 - **No time-based, recurring, or externally triggered starts.** There is no cron, timer, delay, or
   webhook. Firing a signal (R9) is the only way an external system advances work, and it is a
-  deliberate API call rather than an observed condition.
+  deliberate API call rather than an observed condition. *Planned supersession:* R51–R58 add
+  clock-time arms and closed-rule recurring schedules; cron, sub-daily intervals, webhooks, waking
+  a sleeping Mac, and scheduled pipeline runs remain excluded.
 - **Pipelines converge only at the result layer.** FS-14 keeps its own template snapshot, sequential
   routing, revisits, and recovery. Absorbing pipeline runs into tasks outright would require the task
   graph to grow revisit and back-edge semantics it does not otherwise need, which is the cyclic

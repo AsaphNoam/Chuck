@@ -71,6 +71,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
   room cards, standard chat composition and shared mentions, stable speaker tints, concurrent
   isolated openings, live ceilings, retained judge-chat results and grouping of new room agents.
 
+- [`timed-and-recurring-task-starts.md`](timed-and-recurring-task-starts.md) — clock-time task
+  arms and closed-rule recurring schedules that create ordinary tasks, with Run only on time,
+  overlap allowed and person/agent authoring.
+
 ## Paused changes
 
 - [`migrate-internal-actions-from-mcp.md`](migrate-internal-actions-from-mcp.md) — replace only
