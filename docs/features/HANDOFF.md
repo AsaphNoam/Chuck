@@ -8,7 +8,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 - **Published:** [v0.18.1](https://github.com/AsaphNoam/Chuck/releases/tag/v0.18.1),
   2026-10-23, source `dc979057`; release CI 39959315460 passed. Published archive size and
-  SHA256 match the manifest. Main CI 39959316204 failed twice; REL-CI-1 below remains open.
+  SHA256 match the manifest. Main CI 39959316204 failed twice; REL-CI-1 is repaired locally
+  by `1b998b24`, with both full Go variants passing. The repair has not been pushed.
 - **Released repair:** fixes-only `v0.18.1`. Product repair `69082b39` refuses unreadable or
   malformed dashboard PID files before offline reindex opens SQLite. Approved test-only corrections
   are `001ba8b5`. The operator approved the version, 23 unpushed commits and annotated tag.
@@ -25,11 +26,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- REL-CI-1 repair: pending permission settlement now precedes cooperative cancellation;
-  concurrent cancellations serialize and recheck turn ownership before notification.
-  The strengthened regression fails on the original code; three focused runs, ten race runs,
-  the full untagged suite and build pass. Final `make test` FTS variant is running.
-  TTS-1–3 remain available as a separate fix unit.
+- No change in progress. REL-CI-1 is closed by `1b998b24` and verified with both full Go
+  variants, build, three focused runs and ten focused race runs. TTS-1–3 remain available
+  as a separate fix unit; this repair creates no new review unit.
 
 ## Acceptance gates still owed
 
@@ -237,21 +236,16 @@ test corrections `001ba8b5`. Both full Go variants pass. Original reports and pr
 remain in the archive/release notes; exact repair and affected coverage are in the
 [architecture receipt](../archive/reviews/architecture/v0.18.0-next.json).
 
-### REL-CI — post-publication verification — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Owner: runtime permission settlement / next fix run.
-
-- **Must fix** — REL-CI-1: `internal/runtime/permission_test.go:278`,
-  `TestCancelBeforePermissionPublicationResolvesAfterRequest`, failed on both attempts of
-  [main CI 39959316204](https://github.com/AsaphNoam/Chuck/actions/runs/39959316204)
-  at unchanged released source `dc979057`. Cancel while permission publication is blocked
-  produces only `[permission_request]` before turn end, where the assertion requires request
-  then resolution (FS-03.R9, INV §5). This leaves the required ordering unverified despite local
-  suite success. Diagnose fixture/provider timing versus runtime settlement and retain a
-  deterministic regression; no product cause or repair is claimed. Release CI independently passed.
-
 ## Changelog
 
+- **2026-10-23 — REL-CI-1 closed (INV §5/§17):** `1b998b24` settles pending permissions
+  before cooperative cancellation, serializes concurrent cancellations and rechecks the captured
+  turn before notification. The strengthened wire-order regression fails on the original code;
+  controlled publication/claim barriers replace its scheduling sleep. Three focused permission/
+  cancellation runs and ten focused race runs pass. `make test` passes both full variants with
+  approved loopback access; the first sandboxed attempt was stopped after loopback bind failures.
+  `make build` and diff checks pass. FS-03.A5 records the coverage. REL-CI is closed; TTS-1–3
+  remain open. No live-provider receipt or new CI run is claimed.
 - **2026-10-23 — v0.18.1 published:** explicit operator approval covered the 23-commit push
   and tag at `dc979057`. Release CI 39959315460 passed; archive, manifest and installer are
   attached, and downloaded archive checksum/size match. Main CI failed twice on REL-CI-1;
