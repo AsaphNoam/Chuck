@@ -280,9 +280,7 @@ limits together. Remove a row when its review is finished, retaining findings/li
 changelog record. ASR-I can start early, but its final synthesis must reconcile A–H evidence and
 J1–J7 before the campaign is described as reviewed. Do not select fixes as part of this backlog.
 
-| Unit | Responsibility | Status |
-|---|---|---|
-| [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
+No review rows remain; ASR-A–I are reviewed with no open findings. Owed live receipts stay below.
 
 ## Review findings
 
