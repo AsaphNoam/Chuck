@@ -49,16 +49,11 @@ Their source reviews and open findings remain below; do not reopen completed ref
 
 ## Active change
 
-- ASR-G fix in progress: ASRG-1/2/5 (quota room startup compensation, eligibility before
-  check allowance, fair bounded cleanup). ASRE-1 is owned by another agent and excluded.
-  Validate with fault-injected room startup, full task capacity/lifecycle contention and
-  more than one cleanup batch; then run the shared Go/build closure.
-  ASRG-1 now shares exact room-start compensation with ordinary dispatch; focused running/
-  resumed fault tests pass, and the running case fails with the original dispatcher overlaid.
-  ASRG-2/5 focused quota/state tests pass; original-code overlays fail capacity, lifecycle
-  and ninth-cleanup regressions. Owner changes after preflight and compensation retry are
-  covered. Tagged build and focused `-race -tags sqlite_fts5` quota/state checks pass.
-  Both full Go variants are running; final finding closure remains pending their result.
+- ASR-G is closed: ASRG-1 in `63a723e5`, ASRG-2/5 in `8b7db7ed` repair quota room-start
+  compensation, eligibility before check allowance and fair bounded cleanup. Both full Go
+  variants, tagged build, focused tagged quota/state race checks and documentation/launcher
+  checks pass. Original-code overlays fail the room, capacity/lifecycle and ninth-cleanup
+  regressions. ASRE-1 was excluded and left with its separate agent; ASRF-1/2 remain available.
 
 - ASF-4 is closed: task result outputs are bounded before commit (`91f30979`, ASRE-2) and
   ended native children/finished tool names are freed (`65de12ce`, ASRC-6). ASR-C is closed;
@@ -233,7 +228,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 |---|---|---|---|
 | [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5) |
 | [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts remain owed |
-| [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Waiting — medium, Codex Terra or Claude Opus |
+| [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | ASRG-1/2/5 closed (`63a723e5`, `8b7db7ed`); ASRE-1 separately owned, ASRF-1/2 waiting — medium, Codex Terra or Claude Opus |
 | [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Closed 2026-10-22 — `91f30979` (ASRE-2), `65de12ce` (ASRC-6) |
 | [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | Checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Closed — `8db628c7`, `c379b51c` |
 | [ASF-6](AGENT-SURFACE-FIX-UNITS.md#asf-6--cli-archive-selection) | Certain CLI resume/new selection | ASRH-3 | Finished |
@@ -289,7 +284,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
 | [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
-| [ASR-G](AGENT-SURFACE-REVIEW.md#asr-g--failure-quota-and-continuation-recovery) | Failure, quota and continuation recovery | reviewed — findings open (`fa092f63`) |
 
 ## Review findings
 
@@ -718,50 +712,18 @@ introduced; sibling review/fix queues remain unchanged.
 
 ### ASR-G — Failure, quota and continuation recovery — reviewed `fa092f63` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-ASF-1 closed ASRG-3 (2026-10-20, Changelog). Audit complete; findings keep this same unit open. The fixes extend existing admission,
-turn-ownership, room-abandonment and bounded-sweep seams; coordinated state/regression work is
-needed, without a new scheduler or provider client. Source snapshot `fa092f63`; tree clean at
-entry. Profiles: lockfile-pinned Claude ACP 0.85.1, Agent SDK 0.3.286/native 2.1.286, Codex ACP
-2.1.1 and Codex 0.159.3. Two bounded read-only audits were independently integrated; no product
-code or specification changed.
-
-- **Must fix** — ASRG-1 — **Quota room startup failure leaves a phantom running opportunity**
-  (INV §2/§4/§15). `internal/server/quota_dispatch.go:154–180,216–236`,
-  `internal/runtime/chat.go:1644–1696`: the quota activation's `before` callback commits a linked
-  room attempt and starts capture, then prompt preparation or busy-status persistence can fail
-  before any provider prompt. The quota caller only holds the quota row; it never abandons that
-  exact attempt/capture. The room retains a running turn with no provider to finish it, obstructing
-  further recovery (FS-01.R42/R44, TS-10.R42, TS-14.R6). Ordinary room dispatch already has the
-  compensating `abandon` path (`think_tanks.go:262–297`); extend that seam to quota continuation
-  for running and resumed agents. The temporary server probe injects a failure only into the
-  activation's status write: zero provider prompts, quota needs-attention, one running room attempt.
-  Regress prompt-preparation/status/start failure and assert exact attempt/capture cleanup with
-  no published contribution, charged allowance or replacement work.
-- **Must fix** — ASRG-2 — **Unknown-reset checks spend allowance before task capacity is available**
-  (INV §2/§5/§15). `internal/server/quota_check.go:194–251`,
-  `quota_dispatch.go:24–38`, `internal/state/quota_checks.go:31–45`: check admission validates
-  policy, the episode, agent/project and provider, then charges a check without the original
-  work's lifecycle/owner/capacity admission. Mutex keys are serialization, not eligibility.
-  A stopped borrowed task with a full task runtime budget therefore spends one of its six
-  checks and can issue a paid probe even though its continuation must defer. The deterministic
-  server probe observes `admitted=true, checks_started=1` at a budget of one already occupied
-  by another assignment. This violates FS-01.R49/R50 and TS-10.R45/R46's no-check-on-capacity
-  rule. Share a side-effect-free eligibility check with continuation, revalidate under admission,
-  and defer without charging/reserving a runtime or changing owner state. Regress this capacity
-  case plus lifecycle contention and current task/room ownership; accepted owner controls must
-  still cancel the exact episode. Do not infer extra paused-room failures from source alone:
-  successful existing controls normally invalidate those schedules.
-- **Worth fixing** — ASRG-5 — **Older cleanup failures starve later probe cleanup indefinitely**
-  (INV §7/§9/§16). `internal/state/quota_checks.go:122–139`,
-  `internal/server/quota_check.go:256–289`: the database always selects the oldest eight
-  references, then the server skips in-flight/cooldown entries or leaves failed attempts at the
-  same ordering position. Eight persistently unresolved references can therefore prevent a ninth
-  healthy cleanup from ever being selected, keeping its conversation undeletable and further
-  checking blocked (TS-02.R50, TS-10.R47). The nine-reference probe repeats three sweeps and
-  leaves the ninth untouched; freeing one earlier batch slot lets the same cleanup succeed.
-  Keep bounded work but advance fairly over skipped/failed rows, with per-reference backoff and
-  no unrelated-history scan. Regress more than one batch with permanent failures/cooldowns
-  ahead of a cleanable session.
+ASRG-1 is repaired in `63a723e5`; ASRG-2/5 in `8b7db7ed` (2026-10-23).
+The room path shares exact-attempt startup compensation and its retryable failure owner;
+checks share continuation eligibility and atomically revalidate ownership/capacity before
+charging, without reserving a task runtime; cleanup advances a bounded agent-key cursor past
+in-flight, cooldown and failed rows. TS-14.R6 and TS-10.R45/R47 record these contracts.
+Focused quota/state tests and tagged race checks pass. Original-code overlays fail the room,
+capacity/lifecycle and ninth-cleanup regressions. Running/resumed startup, failed compensation
+retry, changed task/room owners and mixed blocked cleanup rows are covered.
+Both full Go variants, tagged build and documentation/launcher checks pass.
+ASRG-3 was closed by ASF-1; ASRG-4 was closed with ASW-2. No ASR-G findings remain;
+native-provider receipts remain owed. The ledger below records the original source audit
+(`fa092f63`), rather than current open defects. ASRE-1 remains with its separate agent.
 
 Failure/admission/retry ownership map and catalogue 22 evidence ledger:
 
@@ -1066,6 +1028,18 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-23 — Fix: quota recovery (ASRG-1 INV §2/§4/§15; ASRG-2 INV §2/§5/§15;
+  ASRG-5 INV §7/§9/§16).** `63a723e5` shares ordinary/quota room-start compensation;
+  `8b7db7ed` shares side-effect-free continuation eligibility, revalidates owner/capacity in
+  the check-charge transaction, and rotates bounded cleanup past failed/skipped references.
+  Running/resumed status-write faults and compensation retry preserve exact ownership without
+  prompts, contributions or completed allowance. Capacity/lifecycle tests spend no check;
+  changed task/room ownership is refused at charge; a ninth healthy cleanup progresses behind
+  in-flight/cooldown/failing rows. Original-code overlays fail the corresponding regressions.
+  Focused quota/state tests, tagged race checks, both full Go variants, tagged build and
+  documentation/launcher checks pass. No native-provider receipt is claimed.
+  ASRE-1 is excluded and remains with its separate agent; ASRF-1/2 are not selected.
 
 - **2026-10-22 — Fix: retention and result bounds (ASF-4) — ASR-C closed.** ASRE-2 (INV §2/§11/§16,
   `91f30979`): ordinary, person and stage reports share `ValidateAgentTaskResult`, bounding each
