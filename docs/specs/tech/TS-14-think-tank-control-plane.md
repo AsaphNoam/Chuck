@@ -65,6 +65,10 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   the room actor. Missing submission, cancellation, error, truncation, lost completion or capture
   failure holds for explicit intervention, without charging or automatically retrying. Assistant
   output is never silently substituted for an absent staged reply.
+  Ordinary and quota-continuation startup share exact-attempt compensation when admission
+  commits but prompt preparation or status/start fails before provider delivery: remove its
+  capture and fail its captured generation/turn through the existing retryable failure sweep.
+  Such failure publishes no contribution and charges no completed allowance.
 - **R7** — Read checkpoints are per-member rows. Turn admission freezes the published
   conversation head. Bounded ordered reads record contiguous delivered progress for that attempt,
   not the committed checkpoint; submission requires delivery of its full new conversation view.

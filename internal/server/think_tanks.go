@@ -264,17 +264,7 @@ func (s *Server) startThinkTankTurn(ctx context.Context, d state.ThinkTankDetail
 	// out has no turn end to settle it; fail it now so the room shows the
 	// intervention instead of a turn that never finishes (TS-14.R6).
 	abandon := func(cause error) {
-		if begun == nil {
-			return
-		}
-		s.endThinkTankCapture(agentID, begun.Generation, begun.TurnID)
-		reason := "The room turn could not start."
-		if cause != nil {
-			reason = "The room turn could not start: " + cause.Error()
-		}
-		if f, err := s.failThinkTankAttempt(agentID, begun.Generation, begun.TurnID, reason); err == nil {
-			s.publishThinkTankUpdate(f.Detail)
-		}
+		s.abandonThinkTankStart(agentID, begun, cause)
 	}
 	if _, err := s.stateStore.ReadRunning(agentID); err == nil {
 		if !s.claimLifecycle(agentID) {

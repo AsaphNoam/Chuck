@@ -159,10 +159,22 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		}
 		if q.Owner.Kind == "room" {
 			kind = state.ActivationKindQuotaThinkTank
-			before = func(turn string) error { return s.beginQuotaRoomTurn(q, s.registry.Generation(q.AgentID), turn) }
+		}
+		var begun *state.ThinkTankAttempt
+		if q.Owner.Kind == "room" {
+			before = func(turn string) error {
+				a, err := s.beginQuotaRoomTurn(q, s.registry.Generation(q.AgentID), turn)
+				if err == nil {
+					begun = &a
+				}
+				return err
+			}
 		}
 		var err error
 		started, err = s.registry.StartActivation(ctx, q.AgentID, kind, before)
+		if !started {
+			s.abandonThinkTankStart(q.AgentID, begun, err)
+		}
 		return err
 	}
 	if _, err := s.stateStore.ReadRunning(q.AgentID); err == nil {
@@ -213,10 +225,10 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 	}
 }
 
-func (s *Server) beginQuotaRoomTurn(q state.QuotaIntent, generation, turn string) error {
+func (s *Server) beginQuotaRoomTurn(q state.QuotaIntent, generation, turn string) (state.ThinkTankAttempt, error) {
 	d, err := s.stateStore.ReadThinkTank(q.Owner.RoomID)
 	if err != nil {
-		return err
+		return state.ThinkTankAttempt{}, err
 	}
 	a, err := s.stateStore.BeginThinkTankAttempt(state.ThinkTankBegin{
 		RoomID: q.Owner.RoomID, Revision: d.Room.Revision, AgentID: q.AgentID, Turn: q.Owner.Turn,
@@ -225,7 +237,7 @@ func (s *Server) beginQuotaRoomTurn(q state.QuotaIntent, generation, turn string
 			AttemptToken: q.AttemptToken, SourceAttemptID: q.Owner.AttemptID},
 	})
 	if err != nil {
-		return err
+		return state.ThinkTankAttempt{}, err
 	}
 	name, project := "", ""
 	for _, m := range d.Members {
@@ -234,5 +246,5 @@ func (s *Server) beginQuotaRoomTurn(q state.QuotaIntent, generation, turn string
 		}
 	}
 	s.beginThinkTankCapture(q.AgentID, a, name, project)
-	return nil
+	return a, nil
 }

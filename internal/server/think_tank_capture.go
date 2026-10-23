@@ -74,6 +74,22 @@ func (s *Server) endThinkTankCapture(agentID, generation, turnID string) (failed
 // thinkTankAttemptKey names exactly one room attempt by its owner identity.
 type thinkTankAttemptKey struct{ agentID, generation, turnID string }
 
+// abandonThinkTankStart compensates an admitted room turn that never reached
+// its provider. Failed storage compensation retains the ordinary sweep owner.
+func (s *Server) abandonThinkTankStart(agentID string, begun *state.ThinkTankAttempt, cause error) {
+	if begun == nil {
+		return
+	}
+	s.endThinkTankCapture(agentID, begun.Generation, begun.TurnID)
+	reason := "The room turn could not start."
+	if cause != nil {
+		reason = "The room turn could not start: " + cause.Error()
+	}
+	if f, err := s.failThinkTankAttempt(agentID, begun.Generation, begun.TurnID, reason); err == nil {
+		s.publishThinkTankUpdate(f.Detail)
+	}
+}
+
 // failThinkTankAttempt fails exactly this attempt, retaining the failure in
 // memory until its idempotent transition commits or the attempt is otherwise
 // terminal. A retained failure is monotonic: it fences finalization and keeps
