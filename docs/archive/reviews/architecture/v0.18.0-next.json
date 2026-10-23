@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "previous_release": "v0.18.0",
+  "reviewed_commit": "eb56b0c2289e4d9195df68e781d118ae2aa8f4c0",
+  "review_complete": true,
+  "reviewer": "Independent Codex reviewer with three fresh-context GPT-6 Luna readers; parent integration and installed-runtime checks, 2026-10-23",
+  "coverage": [
+    "Authority/scenario/evidence map: docs/archive/reviews/architecture/v0.18.0-next.md. Explicit between-release review of v0.18.0..eb56b0c2289e4d9195df68e781d118ae2aa8f4c0 using a committed source archive. Concurrent dirty runtime/handoff work excluded. Later substantive release preparation needs exact affected coverage.",
+    "Saved work: canonical transcripts plus SQLite-only continuation fields. Per-conversation reindex, source-failure rollback, real process kill/reopen/retry and separate fake-native Resume checks passed. Archive/Restore/native identity reuse prior CR-A1 evidence. ARCH-1 bounds PID inspection failure; TS-02.R58 disclaims stronger startup exclusion. No observed data loss/live-native adoption claim.",
+    "Workspace: project JSON, project_worktrees identity and frozen execution contract own cwd/setup/config. Real Git/concurrent recreation and setup-readiness, failed-reindex Resume and resource-mode evidence passed; launch/resume and fresh/frozen provider selection traced. Setup remains warning-only by contract. Native/terminal receipts remain owed.",
+    "Work progress: durable task assignment/wait/release, mail activation and quota intent/check own separate retry authority. State/runtime/server tests cover capacity, exact cleanup, wait/restart, lifecycle revalidation, room compensation and fair bounded cleanup. Current lifecycle callers fence cleanup/activation; direct-runtime stopping weakness has no demonstrated production path. Fake/store proof is not native consumption.",
+    "Supervision: accepted task result/lineage, pipeline cursor/controller and room attempt/read/judge rows own progression. State/pipeline/server evidence and cleanup-to-reconcile trace cover frozen dispatch, controller recovery and exact room acceptance. Idle/exit never implies success. Credentialed pipeline/room receipts remain owed.",
+    "Information: annotation canonical event/receipt/outbox, context-reference grants/fixed cursors and mailbox reservations own source/recipient identity. Handler/context/runtime evidence covers exact retry/conflict, durable-before-effect order and deferred-mail non-waking. Delivery is not understanding/adoption.",
+    "Human control/observation: hold/Steer gates and request receipts, shared HTTP/CLI/phone callers and atomic bus snapshot. Receipt/withdraw/Steer/SSE checks and five UI suites (116 tests) passed; unknown stays explicit, newer drafts survive, overflow refetches. Physical-phone/native-anchoring/credentialed timing gates remain owed.",
+    "Overhead: bounded queues, separate context/peer scan admission, 750-event/about-1-MiB transcript window, bounded hydration/cleanup, shared-stream and native-child/name teardown assessed with source/existing regressions. No representative throughput, scan-latency, provider-cost or quality measurement; no performance claim inferred.",
+    "Installed runtime: manifest/lockfile/wrapper/activation and knowledge digest are authoritative. Release/knowledge/backend/CLI/lifecycle-overlay tests and eight real-Git gate fixtures passed. Audit binary independently inspected for FTS5. Pins: Node 22.22.0, Claude ACP 0.85.1/SDK 0.3.286, Codex ACP 2.1.1+chuck.1, Codex CLI 0.159.3. Host Go 1.26.6/Node 22.23.1 darwin-arm64. Fixtures/source binary do not prove a fresh distribution or credentialed support. Existing handoff gates retained."
+  ],
+  "findings": [
+    { "id": "ARCH-1", "severity": "worth_fixing" }
+  ],
+  "updates": []
+}

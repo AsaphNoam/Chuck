@@ -49,6 +49,14 @@ Their source reviews and open findings remain below; do not reopen completed ref
 
 ## Active change
 
+- **Next-release architectural review completed, 2026-10-23:** committed candidate `eb56b0c2`
+  since v0.18.0; [receipt](../archive/reviews/architecture/v0.18.0-next.json) and
+  [coverage/evidence](../archive/reviews/architecture/v0.18.0-next.md). No Must-fix finding;
+  ARCH-1 below is Worth fixing. Existing native/device/terminal gates remain owed. Concurrent
+  uncommitted runtime/handoff work was excluded and preserved. Later substantive release
+  preparation/work needs exact affected coverage; finding fixes use recorded closure without
+  restarting the review.
+
 - ASR-G is closed: ASRG-1 in `63a723e5`, ASRG-2/5 in `8b7db7ed` repair quota room-start
   compensation, eligibility before check allowance and fair bounded cleanup. Both full Go
   variants, tagged build, focused tagged quota/state race checks and documentation/launcher
@@ -287,6 +295,21 @@ No review rows remain; ASR-A–I are reviewed with no open findings. Owed live r
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### Next-release architecture — reviewed `eb56b0c2` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+[Candidate receipt](../archive/reviews/architecture/v0.18.0-next.json) and
+[scenario/evidence report](../archive/reviews/architecture/v0.18.0-next.md).
+
+- **Worth fixing** — **ARCH-1: fail closed when repair cannot inspect the dashboard PID file.**
+  `internal/cli/reindex.go:14–19` maps corrupt/unreadable PID files to “not running,” so offline
+  repair opens a second writer while a dashboard can still be healthy (TS-02.R2/R58; INV §7/§9).
+  A disposable real-dashboard process correctly refused reindex with its healthy PID file;
+  malformed JSON and mode `000` each changed the command to exit 0/`reindexed archive` while
+  `/api/health` still returned 200. This requires a PID-file/filesystem fault; the empty test home
+  demonstrated no lost data. Propagate a read/decode error and refuse before opening the repair
+  writer, preserving absent/stale-PID behavior. Add focused command-level corruption and
+  unreadable-file coverage. No new lock or stronger startup-exclusion guarantee is requested.
 
 ### ASR-A — Instructions, configuration and execution environment — reviewed `4fbeb316` — **Fix model:** difficult — Codex Sol.
 
@@ -988,6 +1011,15 @@ and specifications are unchanged.
   (TS-10.R53). The MCP probe and state continuation/restart regressions failed before the repair.
   Both full Go variants, the build and state/messaging race checks pass. Parallel ASRF/ASRG
   worker branches duplicated work another session had already landed. They were discarded unmerged.
+
+- **2026-10-23 — Architectural review: combined next-release candidate `eb56b0c2`.**
+  Three fresh domain readers plus parent integration assessed preservation/workspaces,
+  admission/recovery/supervision, information/input/control, bounded overhead and installed runtime.
+  Focused store/process/wire/UI tests, release transactions, tagged binary metadata and gate
+  fixtures pass. ARCH-1 records the PID inspection failure as Worth fixing; no Must-fix finding
+  or data loss was established. Receipt and coverage are in `docs/archive/reviews/architecture/`.
+  No product/spec edit, release assembly or provider/device acceptance closure. Concurrent dirty
+  runtime/handoff work was preserved and excluded.
 
 - **2026-10-23 — Fix: quota recovery (ASRG-1 INV §2/§4/§15; ASRG-2 INV §2/§5/§15;
   ASRG-5 INV §7/§9/§16).** `63a723e5` shares ordinary/quota room-start compensation;
