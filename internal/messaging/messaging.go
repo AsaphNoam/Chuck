@@ -238,6 +238,22 @@ func New(store *state.Store, log *slog.Logger) *Server {
 		Description: "Create durable work that Chuck starts when its prerequisites are satisfied. Assign it to an existing agent by role@project, name, or agent_id, or omit the target to have a new agent launched. A new agent receives the instruction verbatim, so a leading /name is its provider's native command; invoke a Codex skill as $name (for example $review), because native /review cannot call Chuck tools or report.",
 	}, s.handleCreateTask)
 	addTool(s, &mcp.Tool{
+		Name:        "create_schedule",
+		Description: "Create a recurring start: at each occurrence of a simple rule (daily, weekdays, weekly on chosen days, or every N days or weeks, at local times of day, ending never, after N occurrences, or after a date) Chuck creates one ordinary task from this template. Targets and launch inputs work as in create_task. Overlapping occurrences still run.",
+	}, s.handleCreateSchedule)
+	addTool(s, &mcp.Tool{
+		Name:        "pause_schedule",
+		Description: "Pause a schedule you created. Occurrences while paused are skipped, never replayed.",
+	}, s.handlePauseSchedule)
+	addTool(s, &mcp.Tool{
+		Name:        "resume_schedule",
+		Description: "Resume a schedule you created from its next occurrence after now.",
+	}, s.handleResumeSchedule)
+	addTool(s, &mcp.Tool{
+		Name:        "delete_schedule",
+		Description: "Delete a schedule you created. Tasks it already created are kept.",
+	}, s.handleDeleteSchedule)
+	addTool(s, &mcp.Tool{
 		Name:        "cancel_task",
 		Description: "Cancel a task you created. Its outcome becomes cancelled and anything waiting on it is resolved.",
 	}, s.handleCancelTask)

@@ -34,12 +34,16 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
      edit/pause/resume/delete (A36 schedule, A37, A38).
   4. HTTP routes, MCP schedule tools, `schedule_update` SSE (A39).
   5. Desktop Tasks Schedules section and one-time start in the create form (A40).
-- Done: slices 1–2 (migration 61 already adds the schedule tables; time-arm display in the
-  Tasks view). Checks: `go test ./internal/{recurrence,state,messaging}` and the server
-  `Task|Signal|Rearm|StartAt` tests; task UI vitest.
-- Next: slice 3 — `internal/state/task_schedules.go` store + due transaction, tick step next to
-  `resolveDueTimeArms` (`internal/server/task_time.go`). Server tests have no fake clock: drive
-  due work by writing `due_at`/`next_due_at` via SQL; state tests use `withFixedNow`.
+- Done: slices 1–4. Store `internal/state/task_schedules.go`; tick steps and target check in
+  `internal/server/task_time.go`; routes in `schedule_handlers.go`; tools in
+  `internal/messaging/schedule_tools.go` (schedule routes are phone-denied). Checks passed:
+  `go test ./internal/{recurrence,state,messaging,server}` (full server package).
+- Next: slice 5 — UI `ui/src/api/schedules.ts`, `schedule_update` in `sse.ts` and
+  `sse-shared-worker.ts`, a Schedules section in `TasksPage.tsx`, start time in
+  `CreateTaskForm`, paused-with-reason schedules in the needs-attention count (`taskWork.ts`,
+  `CardGrid.tsx`). Then mark FS-16/TS-10 items shipped (rule_json, `project` in the SSE payload,
+  `display_name` tool argument, `not_creator` for unknown ids) and run the closure matrix. Server
+  tests have no fake clock: drive due work by writing `due_at`/`next_due_at` via SQL.
 - Local choices for review: the rule is one `rule_json` column (`recurrence.Rule`) instead of
   per-field columns; `schedule_id` is `NOT NULL DEFAULT ''`; the missed-start reason is the
   words "missed start time".

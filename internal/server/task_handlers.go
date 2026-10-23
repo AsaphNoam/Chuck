@@ -721,6 +721,30 @@ func rejectLiveSettingsOnExistingTarget(effort string, fast bool) *runtime.APIEr
 // the project are the session's, so no tool argument can name another creator
 // or reach into another project.
 func (s *Server) CreateAgentTask(req messaging.AgentTaskRequest) (state.Task, error) {
+	task, err := s.composeAgentTask(req)
+	if err != nil {
+		return state.Task{}, err
+	}
+	id, err := s.stateStore.NewTaskID()
+	if err != nil {
+		return state.Task{}, err
+	}
+	task.TaskID = id
+	created, err := s.stateStore.CreateTaskWithAttachments(task, req.Attachments, req.CreatorAgentID)
+	if errors.Is(err, state.ErrTaskRunClosed) {
+		return state.Task{}, &messaging.ToolError{Code: "invalid_state", Message: "the governing pipeline stage is closing and cannot accept new work"}
+	}
+	if err != nil {
+		return state.Task{}, err
+	}
+	s.publishTaskUpdate(created)
+	return created, nil
+}
+
+// composeAgentTask is every check an agent's task or schedule template passes
+// before it is written, so create_task and create_schedule cannot accept
+// different targets (FS-16.R56, INV §2).
+func (s *Server) composeAgentTask(req messaging.AgentTaskRequest) (state.Task, error) {
 	task := state.Task{
 		Project: req.Project, DisplayName: strings.TrimSpace(req.DisplayName),
 		Instruction:   strings.TrimSpace(req.Instruction),
@@ -801,20 +825,7 @@ func (s *Server) CreateAgentTask(req messaging.AgentTaskRequest) (state.Task, er
 			}
 		}
 	}
-	id, err := s.stateStore.NewTaskID()
-	if err != nil {
-		return state.Task{}, err
-	}
-	task.TaskID = id
-	created, err := s.stateStore.CreateTaskWithAttachments(task, req.Attachments, req.CreatorAgentID)
-	if errors.Is(err, state.ErrTaskRunClosed) {
-		return state.Task{}, &messaging.ToolError{Code: "invalid_state", Message: "the governing pipeline stage is closing and cannot accept new work"}
-	}
-	if err != nil {
-		return state.Task{}, err
-	}
-	s.publishTaskUpdate(created)
-	return created, nil
+	return task, nil
 }
 
 // ReportAgentTaskResult records the caller's result for its own assignment. This

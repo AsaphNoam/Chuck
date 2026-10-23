@@ -249,6 +249,10 @@ type TaskControl interface {
 	ReadAgentTask(taskID, creatorAgentID string) (state.Task, error)
 	RetryAgentTask(taskID, creatorAgentID string) (state.Task, error)
 	RearmAgentTask(taskID, creatorAgentID string, arms []state.TaskArm) (state.Task, error)
+	CreateAgentSchedule(req AgentScheduleRequest) (state.TaskSchedule, error)
+	PauseAgentSchedule(scheduleID, creatorAgentID string) (state.TaskSchedule, error)
+	ResumeAgentSchedule(scheduleID, creatorAgentID string) (state.TaskSchedule, error)
+	DeleteAgentSchedule(scheduleID, creatorAgentID string) error
 }
 
 // SetTaskControl wires the task tools to the control plane.
@@ -305,17 +309,44 @@ type createArmInput struct {
 // token; the target is a friendly selector resolved server-side against durable
 // identities, exactly as a message recipient is (FS-16.R12, R24).
 func (s *Server) handleCreateTask(_ context.Context, req *mcp.CallToolRequest, input createTaskArgs) (*mcp.CallToolResult, any, error) {
-	identity, ok := s.caller(req)
-	if !ok {
+	if _, ok := s.caller(req); !ok {
 		return sessionUnknown()
 	}
 	control := s.taskControl()
 	if control == nil {
 		return errResult(map[string]any{"ok": false, "error": "internal", "message": "Task control plane is unavailable."})
 	}
+	request, refusal := s.agentTaskRequest(req, input)
+	if refusal != nil {
+		return refusal()
+	}
+	task, err := control.CreateAgentTask(request)
+	if err != nil {
+		return taskToolError(err)
+	}
+	return jsonResult(map[string]any{
+		"ok": true, "task_id": task.TaskID, "state": task.State,
+	})
+}
+
+// agentTaskRequest resolves the caller's identity and friendly target into the
+// request create_task and create_schedule both send, so the two tools cannot
+// resolve a selector differently (FS-16.R56, INV §2). A non-nil refusal is the
+// tool result to return instead.
+func (s *Server) agentTaskRequest(req *mcp.CallToolRequest, input createTaskArgs) (AgentTaskRequest, func() (*mcp.CallToolResult, any, error)) {
+	identity, ok := s.caller(req)
+	if !ok {
+		return AgentTaskRequest{}, sessionUnknown
+	}
+	refuse := func(v map[string]any) func() (*mcp.CallToolResult, any, error) {
+		return func() (*mcp.CallToolResult, any, error) { return errResult(v) }
+	}
+	unavailable := func(err error) func() (*mcp.CallToolResult, any, error) {
+		return func() (*mcp.CallToolResult, any, error) { return storeUnavailable(err) }
+	}
 	creator, err := s.store.ReadAgent(identity.AgentID)
 	if err != nil {
-		return storeUnavailable(err)
+		return AgentTaskRequest{}, unavailable(err)
 	}
 	request := AgentTaskRequest{
 		CreatorAgentID: creator.AgentID, CreatorGeneration: identity.Generation,
@@ -326,22 +357,22 @@ func (s *Server) handleCreateTask(_ context.Context, req *mcp.CallToolRequest, i
 	if strings.TrimSpace(input.To) != "" {
 		addressable, err := s.addressableAgents()
 		if err != nil {
-			return storeUnavailable(err)
+			return AgentTaskRequest{}, unavailable(err)
 		}
 		toID, candidates, err := state.ResolveRecipient(addressable, input.To)
 		if err != nil {
 			var ambiguous *state.AmbiguousError
 			switch {
 			case errors.As(err, &ambiguous):
-				return errResult(map[string]any{"ok": false, "error": "ambiguous_recipient",
+				return AgentTaskRequest{}, refuse(map[string]any{"ok": false, "error": "ambiguous_recipient",
 					"message":    fmt.Sprintf("Multiple agents match %q; name an agent_id.", input.To),
 					"candidates": ambiguous.Candidates})
 			case errors.Is(err, state.ErrRecipientNotFound):
-				return errResult(map[string]any{"ok": false, "error": "recipient_not_found",
+				return AgentTaskRequest{}, refuse(map[string]any{"ok": false, "error": "recipient_not_found",
 					"message":    fmt.Sprintf("No agent matches %q.", input.To),
 					"candidates": candidates})
 			default:
-				return storeUnavailable(err)
+				return AgentTaskRequest{}, unavailable(err)
 			}
 		}
 		request.TargetAgentID = toID
@@ -359,13 +390,7 @@ func (s *Server) handleCreateTask(_ context.Context, req *mcp.CallToolRequest, i
 		})
 	}
 	request.StartAt, request.RunOnlyOnTime = input.StartAt, input.RunOnlyOnTime
-	task, err := control.CreateAgentTask(request)
-	if err != nil {
-		return taskToolError(err)
-	}
-	return jsonResult(map[string]any{
-		"ok": true, "task_id": task.TaskID, "state": task.State,
-	})
+	return request, nil
 }
 
 type cancelTaskArgs struct {

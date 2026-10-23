@@ -344,7 +344,39 @@ type stubTaskControl struct {
 		arms            []state.TaskArm
 	}
 	reported AgentTaskResultRequest
-	err      error
+	schedule AgentScheduleRequest
+	// scheduleOps records each pause/resume/delete as "op schedule_id creator".
+	scheduleOps []string
+	err         error
+}
+
+func (s *stubTaskControl) CreateAgentSchedule(req AgentScheduleRequest) (state.TaskSchedule, error) {
+	s.schedule = req
+	if s.err != nil {
+		return state.TaskSchedule{}, s.err
+	}
+	return state.TaskSchedule{ScheduleID: "sc_new", State: state.ScheduleActive, RuleText: "Daily at 9:00 AM"}, nil
+}
+
+func (s *stubTaskControl) scheduleOp(op, id, creator string) (state.TaskSchedule, error) {
+	s.scheduleOps = append(s.scheduleOps, op+" "+id+" "+creator)
+	if s.err != nil {
+		return state.TaskSchedule{}, s.err
+	}
+	return state.TaskSchedule{ScheduleID: id, State: state.SchedulePaused}, nil
+}
+
+func (s *stubTaskControl) PauseAgentSchedule(id, creator string) (state.TaskSchedule, error) {
+	return s.scheduleOp("pause", id, creator)
+}
+
+func (s *stubTaskControl) ResumeAgentSchedule(id, creator string) (state.TaskSchedule, error) {
+	return s.scheduleOp("resume", id, creator)
+}
+
+func (s *stubTaskControl) DeleteAgentSchedule(id, creator string) error {
+	_, err := s.scheduleOp("delete", id, creator)
+	return err
 }
 
 func (s *stubTaskControl) ReportAgentTaskResult(req AgentTaskResultRequest) (state.Task, error) {
@@ -633,5 +665,53 @@ func TestCreateTaskCarriesTheRequestedEffort(t *testing.T) {
 	// FS-16.A34 (R50) — the dashboard group reaches the task control plane.
 	if got := control.created.Group; got != "reviewers" {
 		t.Fatalf("group = %q, want reviewers", got)
+	}
+}
+
+// FS-16.A39 (tool part) — create_schedule resolves its target like create_task
+// and passes the rule through; pause, resume and delete name the caller as
+// creator, and the control plane's not-creator refusal is the stable code.
+func TestScheduleToolsCarryTheCallerAsCreator(t *testing.T) {
+	f := newContextFixture(t)
+	liveAgent(t, f.store, "a_impl", "Atlas", "implementer", "my-app")
+	liveAgent(t, f.store, "a_rev", "Nova", "reviewer", "my-app")
+	f.srv.RegisterSession("tok-impl", "a_impl", "gen-a_impl")
+	f.srv.SetAddressableAgents(func() ([]state.LiveAgent, error) {
+		return f.store.AddressableAgents()
+	})
+	control := &stubTaskControl{}
+	f.srv.SetTaskControl(control)
+	impl := connect(t, f.srv, "tok-impl")
+
+	res, isErr := call(t, impl, "create_schedule", map[string]any{
+		"display_name": "weekly review", "instruction": "review open PRs", "to": "reviewer@my-app",
+		"rule": map[string]any{"start_date": "2026-11-01", "times": []string{"09:00"}, "frequency": "weekly",
+			"weekdays": []string{"sun"}, "end_kind": "count", "end_count": 3},
+		"run_only_on_time": false,
+	})
+	if isErr || res["ok"] != true || res["schedule_id"] != "sc_new" || res["rule"] != "Daily at 9:00 AM" {
+		t.Fatalf("create_schedule = %v", res)
+	}
+	got := control.schedule
+	if got.Template.CreatorAgentID != "a_impl" || got.Template.Project != "my-app" || got.Template.TargetAgentID != "a_rev" {
+		t.Fatalf("template = %+v", got.Template)
+	}
+	if got.Rule.Frequency != "weekly" || got.Rule.EndCount != 3 || got.RunOnlyOnTime == nil || *got.RunOnlyOnTime {
+		t.Fatalf("rule = %+v run_only_on_time=%v", got.Rule, got.RunOnlyOnTime)
+	}
+
+	for _, tool := range []string{"pause_schedule", "resume_schedule", "delete_schedule"} {
+		if res, isErr := call(t, impl, tool, map[string]any{"schedule_id": "sc_7"}); isErr || res["ok"] != true {
+			t.Fatalf("%s = %v", tool, res)
+		}
+	}
+	if want := []string{"pause sc_7 a_impl", "resume sc_7 a_impl", "delete sc_7 a_impl"}; strings.Join(control.scheduleOps, ",") != strings.Join(want, ",") {
+		t.Fatalf("ops = %v", control.scheduleOps)
+	}
+
+	control.err = ErrScheduleNotCreator
+	res, isErr = call(t, impl, "pause_schedule", map[string]any{"schedule_id": "sc_other"})
+	if !isErr || res["error"] != "not_creator" {
+		t.Fatalf("not creator = %v", res)
 	}
 }

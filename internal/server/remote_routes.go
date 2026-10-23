@@ -59,7 +59,7 @@ var remoteAllowed = map[string][]string{
 	"POST /api/sessions/{id}/identity":                   {"group"},
 	// Diff-line annotate-and-assign (FS-20.R32, TS-13.R16); nested anchors,
 	// limits, and targets are validated by the shared FS-13 handler.
-	"POST /api/sessions/{id}/annotations": {"annotations", "overall_instruction", "target"},
+	"POST /api/sessions/{id}/annotations":          {"annotations", "overall_instruction", "target"},
 	"POST /api/sessions/{id}/annotations/validate": {"annotations", "overall_instruction", "target"},
 
 	"GET /api/pipeline-runs":                      nil,
@@ -112,8 +112,12 @@ var remoteDenied = map[string]bool{
 	"GET /api/tasks":                 true, "POST /api/tasks": true, "GET /api/tasks/{id}": true,
 	"DELETE /api/tasks/{id}": true, "POST /api/tasks/{id}/cancel": true,
 	"POST /api/tasks/{id}/result": true, "POST /api/tasks/{id}/retry": true,
-	"POST /api/tasks/{id}/rearm":                   true,
-	"POST /api/signals":                            true,
+	"POST /api/tasks/{id}/rearm": true,
+	"POST /api/signals":          true,
+	// Schedules have no phone UI (FS-16.R56; ready-change scope).
+	"GET /api/schedules": true, "POST /api/schedules": true, "GET /api/schedules/{id}": true,
+	"PUT /api/schedules/{id}": true, "DELETE /api/schedules/{id}": true,
+	"POST /api/schedules/{id}/pause": true, "POST /api/schedules/{id}/resume": true,
 	"POST /api/sessions/{id}/background-task-stop": true,
 	"POST /api/sessions/{id}/restore":              true,
 	"GET /api/sessions/{id}/file-search":           true,

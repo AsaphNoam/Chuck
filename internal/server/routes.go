@@ -110,6 +110,14 @@ func (s *Server) routeTable() []routeEntry {
 	api("POST /api/tasks/{id}/result", s.refuseRoomStageTask(s.handleRecordTaskResult))
 	api("POST /api/tasks/{id}/retry", s.refuseRoomStageTask(s.handleRetryTask))
 	api("POST /api/tasks/{id}/rearm", s.refuseRoomStageTask(s.handleRearmTask))
+	// Recurring starts that create ordinary tasks (FS-16.R53–R57, TS-10.R60).
+	api("GET /api/schedules", s.handleSchedules)
+	api("POST /api/schedules", s.handleCreateSchedule)
+	api("GET /api/schedules/{id}", s.handleScheduleDetail)
+	api("PUT /api/schedules/{id}", s.handleEditSchedule)
+	api("DELETE /api/schedules/{id}", s.handleDeleteSchedule)
+	api("POST /api/schedules/{id}/pause", s.handlePauseSchedule)
+	api("POST /api/schedules/{id}/resume", s.handleResumeSchedule)
 	// Think Tank rooms (FS-21, TS-14 §3). Local only; not in the phone allowlist.
 	api("GET /api/think-tanks", s.handleThinkTanks)
 	api("POST /api/think-tanks", s.handleCreateThinkTank)
