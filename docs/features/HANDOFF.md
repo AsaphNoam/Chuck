@@ -16,9 +16,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   covers `eb56b0c2` with exact later coverage/repair updates in
   [its receipt](../archive/reviews/architecture/v0.18.0-next.json).
   ARCH-1 and REL-VERIFY-1 are verified closed; no second architecture review is needed.
-- **Checkout:** `main`, repository `AsaphNoam/Chuck`. Uncommitted task-scheduling design in
-  `docs/ideas.md`, `docs/specs/README.md` and `FS-16-dependent-work.md` is preserved/excluded.
-  Clean release verification uses `/private/tmp/chuck-release-v0.18.1`.
+- **Checkout:** `main`, repository `AsaphNoam/Chuck`. Clean release verification uses `/private/tmp/chuck-release-v0.18.1`.
 - **Future work:** direct-action migration remains paused on its transport blocker; passive quota
   snapshots remain TBD. No future implementation is selected by this release.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`; use `GOFLAGS=-p=1` and a writable isolated Go cache.
@@ -27,18 +25,17 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- The operator requested ARCH-1 repair then `/release`, and explicitly approved both verification-only
-  fixture corrections on 2026-10-23. Focused CLI checks passed three repeats; recovery passed five.
-  Independent review confirmed the original final assertions remain; the recovery fixture does not
-  itself prove immutable result/summary preservation.
-- Both final full no-tag and FTS5 Go checks pass against clean source `001ba8b5`; logs:
-  `/private/tmp/chuck-v0.18.1-approved-{go-full,fts-full,static}.log`.
-  Distribution build, 995 UI tests, tagged runtime guard race check, spec/static and relative-link
-  checks pass. Generated UI/product source is unchanged; latest edits are tests/docs only.
-- ARCH-1 and REL-VERIFY-1 are closed with exact evidence in the existing receipt. The approved
-  candidate is published; release CI and asset verification passed. Main CI reproduced a separate
-  permission-cancellation failure twice; REL-CI-1 is available for fix, not waived by publication.
-  [Release notes](../archive/state/RELEASE-v0.18.1-notes.md) preserve earlier failures and owed gates.
+- **In progress — [timed and recurring task starts](../ready-changes/timed-and-recurring-task-starts.md)**
+  (FS-16.R51–R58, TS-10.R54–R60), started 2026-10-23 by `/work`. Slices:
+  1. `internal/recurrence` pure rule: validate, next occurrence in a zone, DST, words (A37 unit).
+  2. Time arms: migration, `start_at` on create/re-arm, due query on the dispatcher tick,
+     `missed_start_time` park / `late_start` (A35, A36 one-time).
+  3. `task_schedules`: store, due transaction (create-once, missed coalescing, auto-pause),
+     edit/pause/resume/delete (A36 schedule, A37, A38).
+  4. HTTP routes, MCP schedule tools, `schedule_update` SSE (A39).
+  5. Desktop Tasks Schedules section and one-time start in the create form (A40).
+- Next: slice 1 and the subsystem map are underway; then slice 2.
+- v0.18.1 is published; REL-CI-1 below remains available for fix.
 
 ## Acceptance gates still owed
 

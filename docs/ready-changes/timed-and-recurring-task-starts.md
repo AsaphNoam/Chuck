@@ -1,6 +1,6 @@
 # Timed and recurring task starts
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator request on 2026-10-23 (`/design-feature`): "start this at 17:30" and repeating
 starts such as "every day at 9 AM" or "every Sunday for 3 weeks".
 **Relevant requirements:** FS-16.R51–R58, A35–A40; TS-10.R54–R60 and §3 timed-start shapes;
