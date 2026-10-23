@@ -86,11 +86,12 @@ type Server struct {
 	// quotaChecked holds each agent's last ready check selection fingerprint
 	// (by episode) for continuation revalidation; quotaCleanupSpecs keeps the
 	// exact selection that created each probe session (TS-10.R46/R47).
-	quotaCheckMu      sync.Mutex
-	quotaChecks       map[string]bool
-	quotaCleanupTried map[string]time.Time
-	quotaChecked      map[string]string
-	quotaCleanupSpecs map[string]runtime.QuotaCheckSpec
+	quotaCheckMu       sync.Mutex
+	quotaChecks        map[string]bool
+	quotaCleanupTried  map[string]time.Time
+	quotaCleanupCursor string // last visited agent, including skipped/failed cleanup rows
+	quotaChecked       map[string]string
+	quotaCleanupSpecs  map[string]runtime.QuotaCheckSpec
 	// thinkTankKick nudges the Think Tank progression dispatcher.
 	thinkTankKick chan struct{}
 	// thinkTankSlots bounds rooms progressing at once; thinkTankRooms keeps

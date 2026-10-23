@@ -5,6 +5,97 @@ import (
 	"errors"
 )
 
+// QuotaWorkEligible is a read-only preflight shared by checks and actual
+// continuation. Admission revalidates its transactional predicates before effects.
+func (s *Store) QuotaWorkEligible(q QuotaIntent, budget int) (bool, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	return quotaWorkEligibleTx(tx, q, budget)
+}
+
+func quotaWorkEligibleTx(tx *sql.Tx, q QuotaIntent, budget int) (bool, error) {
+	var exists int
+	if err := tx.QueryRow(`SELECT 1 FROM agents WHERE agent_id=? AND archived=0 AND interface='chat'`, q.AgentID).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrQuotaOwner
+		}
+		return false, err
+	}
+	switch q.Owner.Kind {
+	case "ordinary":
+		return quotaUnassignedTx(tx, q.AgentID)
+	case "task":
+		claim, err := quotaTaskClaimTx(tx, q)
+		if err != nil {
+			return false, err
+		}
+		if claim == ClaimCreated || claim == ClaimWoke {
+			return true, nil
+		}
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM running WHERE agent_id=?`, q.AgentID).Scan(&exists); err != nil {
+			return false, err
+		}
+		if exists != 0 {
+			return true, nil
+		}
+		if err := tx.QueryRow(`SELECT `+taskCapacityFreeClause, ClaimCreated, ClaimWoke, budget).Scan(&exists); err != nil {
+			return false, err
+		}
+		return exists != 0, nil
+	case "room":
+		if err := requirePipelineRoomOpenTx(tx, q.Owner.RoomID); err != nil {
+			if errors.Is(err, ErrThinkTankConflict) || errors.Is(err, ErrNotFound) {
+				return false, ErrQuotaOwner
+			}
+			return false, err
+		}
+		d, err := readThinkTankDetail(tx, q.Owner.RoomID)
+		if err != nil {
+			return false, err
+		}
+		_, err = validateQuotaThinkTankContinuationTx(tx, ThinkTankBegin{RoomID: q.Owner.RoomID, Revision: d.Room.Revision,
+			AgentID: q.AgentID, Turn: q.Owner.Turn, QuotaContinuation: &ThinkTankQuotaContinuation{
+				EpisodeID: q.EpisodeID, Revision: q.Revision, AttemptToken: q.AttemptToken, SourceAttemptID: q.Owner.AttemptID}}, d)
+		if err != nil {
+			if errors.Is(err, ErrThinkTankConflict) {
+				return false, ErrQuotaOwner
+			}
+			return false, err
+		}
+		return quotaUnassignedTx(tx, q.AgentID)
+	default:
+		return false, ErrQuotaOwner
+	}
+}
+
+func quotaUnassignedTx(tx *sql.Tx, agentID string) (bool, error) {
+	var assigned, rooms int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent_id=? AND state IN (?,?,?)`, agentID, TaskStarting, TaskRunning, TaskWaiting).Scan(&assigned); err != nil {
+		return false, err
+	}
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM think_tank_attempts WHERE agent_id=? AND state=?`, agentID, ThinkTankAttemptRunning).Scan(&rooms); err != nil {
+		return false, err
+	}
+	if assigned != 0 || rooms != 0 {
+		return false, ErrQuotaOwner
+	}
+	return true, nil
+}
+
+func quotaTaskClaimTx(tx *sql.Tx, q QuotaIntent) (string, error) {
+	var taskState, agentID, generation, claim string
+	var pendingRelease, pendingYield int
+	err := tx.QueryRow(`SELECT state, assigned_agent_id, assigned_generation, runtime_claim, pending_release, pending_yield
+FROM tasks WHERE task_id=?`+taskRunOpenClause, q.Owner.TaskID).Scan(&taskState, &agentID, &generation, &claim, &pendingRelease, &pendingYield)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && (taskState != TaskRunning || agentID != q.AgentID || generation != q.SourceGeneration || pendingRelease != 0 || pendingYield != 0 || claim != ClaimBorrowed && claim != ClaimCreated && claim != ClaimWoke) {
+		return "", ErrQuotaOwner
+	}
+	return claim, err
+}
+
 // AdmitQuotaTurn revalidates the domain's current exclusivity and closure under
 // the same transaction that records the provider boundary and executing tuple.
 func (s *Store) AdmitQuotaTurn(q QuotaIntent, generation, turn string) error {
@@ -19,17 +110,8 @@ func (s *Store) AdmitQuotaTurn(q QuotaIntent, generation, turn string) error {
 	}
 	switch q.Owner.Kind {
 	case "ordinary":
-		if err := tx.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent_id=? AND state IN (?,?,?)`, q.AgentID, TaskStarting, TaskRunning, TaskWaiting).Scan(&exists); err != nil {
+		if _, err := quotaUnassignedTx(tx, q.AgentID); err != nil {
 			return err
-		}
-		if exists != 0 {
-			return ErrQuotaOwner
-		}
-		if err := tx.QueryRow(`SELECT COUNT(*) FROM think_tank_attempts WHERE agent_id=? AND state=?`, q.AgentID, ThinkTankAttemptRunning).Scan(&exists); err != nil {
-			return err
-		}
-		if exists != 0 {
-			return ErrQuotaOwner
 		}
 	case "task":
 		var assigned, source string
@@ -77,13 +159,7 @@ func (s *Store) AdmitQuotaTaskResume(q QuotaIntent, budget int) (bool, error) {
 		fresh.State != QuotaClaimed || fresh.ProviderStarted || fresh.Owner != q.Owner || fresh.SourceGeneration != q.SourceGeneration {
 		return false, nil
 	}
-	var state, agentID, generation, claim string
-	var pendingRelease, pendingYield int
-	err = tx.QueryRow(`SELECT state, assigned_agent_id, assigned_generation, runtime_claim, pending_release, pending_yield
-FROM tasks WHERE task_id=?`+taskRunOpenClause, q.Owner.TaskID).Scan(&state, &agentID, &generation, &claim, &pendingRelease, &pendingYield)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && (state != TaskRunning || agentID != q.AgentID || generation != q.SourceGeneration || pendingRelease != 0 || pendingYield != 0) {
-		return false, ErrQuotaOwner
-	}
+	claim, err := quotaTaskClaimTx(tx, q)
 	if err != nil {
 		return false, err
 	}

@@ -1,9 +1,70 @@
 package state
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
+
+// ASRG-2: ownership can change after preflight. The allowance transaction
+// must reject a finished task or paused room without charging the check.
+func TestQuotaCheckRevalidatesOwnerWhenCharging(t *testing.T) {
+	for _, kind := range []string{"task", "room"} {
+		t.Run(kind, func(t *testing.T) {
+			st, _ := newTestStore(t)
+			now := timeNow().UTC()
+			var q QuotaIntent
+			var err error
+			var invalidate func()
+			if kind == "task" {
+				id := "quota_task_check"
+				if err := st.WriteAgent(testAgent(id, now)); err != nil {
+					t.Fatal(err)
+				}
+				task := newTask(t, st, "proj", "unfinished quota task")
+				if _, err := st.db.Exec(`UPDATE tasks SET state=?, assigned_agent_id=?, assigned_generation='source', runtime_claim=? WHERE task_id=?`, TaskRunning, id, ClaimBorrowed, task.TaskID); err != nil {
+					t.Fatal(err)
+				}
+				q, err = st.ObserveQuota(QuotaObservation{AgentID: id, EpisodeID: "task-check", SourceGeneration: "source", ExecutingTurn: "turn",
+					Owner: QuotaOwner{Kind: "task", TaskID: task.TaskID}, ObservedAt: now.Add(-61 * time.Minute), State: QuotaUnknownReset, Check: true})
+				invalidate = func() {
+					if _, err := st.db.Exec(`UPDATE tasks SET state=?, outcome=? WHERE task_id=?`, TaskFinished, OutcomeSuccess, task.TaskID); err != nil {
+						t.Fatal(err)
+					}
+				}
+			} else {
+				d, source, _ := quotaRoomSetup(t, st, ThinkTankTurnDiscussion)
+				q, err = st.ObserveOwnedQuota(QuotaObservation{AgentID: source.AgentID, EpisodeID: "room-check", SourceGeneration: source.Generation,
+					ExecutingTurn: source.TurnID, ObservedAt: now.Add(-61 * time.Minute), State: QuotaUnknownReset, Check: true})
+				invalidate = func() {
+					if _, err := st.db.Exec(`UPDATE think_tanks SET control=? WHERE room_id=?`, ThinkTankPaused, d.Room.RoomID); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := st.ClaimQuota(q.AgentID, q.EpisodeID, q.Revision, "check-claim"); err != nil {
+				t.Fatal(err)
+			}
+			q, err = st.GetQuota(q.AgentID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if eligible, err := st.QuotaWorkEligible(q, 2); err != nil || !eligible {
+				t.Fatalf("initial eligibility=%v err=%v", eligible, err)
+			}
+			invalidate()
+			if eligible, err := st.StartEligibleQuotaCheck(q, "codex-acp", 2); eligible || !errors.Is(err, ErrQuotaOwner) {
+				t.Fatalf("changed owner admitted=%v err=%v", eligible, err)
+			}
+			if got, err := st.GetQuota(q.AgentID); err != nil || got.ChecksStarted != 0 || got.CheckStarted {
+				t.Fatalf("check charged: %+v err=%v", got, err)
+			}
+		})
+	}
+}
 
 // FS-01.A25/A27: waking borrowed owned work must reserve runtime capacity;
 // capacity deferral preserves the task and its start-attempt allowance.

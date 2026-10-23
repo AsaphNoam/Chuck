@@ -1,6 +1,7 @@
 package state
 
 import (
+	"database/sql"
 	"time"
 	"unicode/utf8"
 )
@@ -31,10 +32,43 @@ type QuotaCheckResult struct {
 // StartQuotaCheck charges the chain's allowance once, before the provider
 // process exists. A pending cleanup reference must resolve first.
 func (s *Store) StartQuotaCheck(agentID, episode string, revision int64, token, backend string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := startQuotaCheckTx(tx, agentID, episode, revision, token, backend); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// StartEligibleQuotaCheck rechecks owner/capacity and charges in one transaction,
+// without borrowing or reserving a runtime on behalf of an isolated probe.
+func (s *Store) StartEligibleQuotaCheck(q QuotaIntent, backend string, budget int) (bool, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	eligible, err := quotaWorkEligibleTx(tx, q, budget)
+	if err != nil || !eligible {
+		return false, err
+	}
+	if err := startQuotaCheckTx(tx, q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, backend); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func startQuotaCheckTx(tx *sql.Tx, agentID, episode string, revision int64, token, backend string) error {
 	if backend != "claude-acp" && backend != "codex-acp" {
 		return ErrQuotaConflict
 	}
-	res, err := s.db.Exec(`UPDATE quota_intents SET revision=revision+1, check_started=1, checks_started=checks_started+1, check_backend=?, updated_at=?
+	res, err := tx.Exec(`UPDATE quota_intents SET revision=revision+1, check_started=1, checks_started=checks_started+1, check_backend=?, updated_at=?
 WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt_token=? AND next_action='check'
 AND check_started=0 AND provider_started=0 AND checks_started<? AND check_session=''`,
 		backend, formatTime(timeNow()), agentID, episode, revision, token, MaxQuotaChecks)
@@ -120,10 +154,16 @@ WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt
 // PendingQuotaCheckCleanups lists exact probe references awaiting cleanup. The
 // caller skips any whose check is still running in this process.
 func (s *Store) PendingQuotaCheckCleanups(limit int) ([]QuotaIntent, error) {
+	return s.PendingQuotaCheckCleanupsAfter(limit, "")
+}
+
+// PendingQuotaCheckCleanupsAfter pages a stable key so failed, busy and cooling
+// references cannot monopolize every bounded cleanup sweep.
+func (s *Store) PendingQuotaCheckCleanupsAfter(limit int, afterAgentID string) ([]QuotaIntent, error) {
 	if limit < 1 || limit > MaxQuotaDueBatch {
 		return nil, ErrQuotaConflict
 	}
-	rows, err := s.db.Query(quotaSelect+` WHERE check_session<>'' ORDER BY updated_at, agent_id LIMIT ?`, limit)
+	rows, err := s.db.Query(quotaSelect+` WHERE check_session<>'' AND agent_id>? ORDER BY agent_id LIMIT ?`, afterAgentID, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -152,6 +152,18 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		return
 	}
 	started := false
+	if eligible, err := s.quotaWorkEligible(q); err != nil {
+		if errors.Is(err, state.ErrQuotaOwner) {
+			hold("owner_unavailable")
+		} else {
+			s.log.Error("read quota continuation eligibility", "agent", q.AgentID, "err", err)
+			hold("store_failure")
+		}
+		return
+	} else if !eligible {
+		deferBusy()
+		return
+	}
 	start := func() error {
 		kind := state.ActivationKindQuotaContinue
 		before := func(turn string) error {
@@ -223,6 +235,23 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 	if !started {
 		deferBusy()
 	}
+}
+
+// quotaWorkEligible has no owner/runtime side effects. Both check admission
+// and continuation use the same current owner, capacity and busy predicates.
+func (s *Server) quotaWorkEligible(q state.QuotaIntent) (bool, error) {
+	if _, err := s.stateStore.ReadRunning(q.AgentID); err == nil {
+		status, err := s.stateStore.ReadStatus(q.AgentID)
+		if err != nil {
+			return false, err
+		}
+		if status.State != "idle" && status.State != "error" {
+			return false, nil
+		}
+	} else if !errors.Is(err, state.ErrNotFound) {
+		return false, err
+	}
+	return s.stateStore.QuotaWorkEligible(q, s.taskConcurrencyBudget())
 }
 
 func (s *Server) beginQuotaRoomTurn(q state.QuotaIntent, generation, turn string) (state.ThinkTankAttempt, error) {

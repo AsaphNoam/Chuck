@@ -549,8 +549,13 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   an unknown reset schedules `check` at observation/completion plus one hour with `reset_at` null.
   Never fabricate a reset to pass scheduled-state validation. Apply Auto continue, same-work owner,
   archive/project and lifecycle eligibility before either effect. A busy or unavailable-capacity
-  deferral creates no provider check and spends no allowance. Explicit non-renewing credit/plan/
-  spend-cap errors hold for manual action, whether first observed on the interrupted turn or on a
+  deferral creates no provider check and spends no allowance.
+  Check admission shares continuation's side-effect-free owner, busy and capacity predicates;
+  it holds the existing lifecycle/archive guards through admission, then revalidates owner and
+  task capacity in the allowance transaction. Checking never converts a borrowed task claim or
+  reserves an original-work runtime. Release these guards before the isolated request.
+  Explicit non-renewing credit/plan/spend-cap errors hold for manual action, whether first observed
+  on the interrupted turn or on a
   later check (`unknown_reset`, `continue`, no due time); promotional upgrade alternatives alongside a valid
   reset do not become false intervention requirements. Do not activate pre-upgrade unknown rows,
   reuse cancelled records, create replacement tasks/agents, coalesce accounts heuristically or add
@@ -590,6 +595,9 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   active check's cancellation/timeout teardown close process resources; never equate bare PID
   existence with ownership. Cleanup references remain after cancellation until resolved, without
   reviving the cancelled intent. Independent records continue dispatching when one cleanup fails.
+  Each bounded cleanup sweep advances a stable agent-key cursor past every selected row,
+  including in-flight, cooldown and failed references, and wraps after reaching the end.
+  Per-reference backoff remains in force; later references cannot starve behind a failed batch.
 
 ## 3. Interfaces & data shapes
 

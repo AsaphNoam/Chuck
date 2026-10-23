@@ -240,6 +240,31 @@ func (s *Server) admitQuotaCheck(q state.QuotaIntent, spec runtime.QuotaCheckSpe
 	if specErr != nil || spec.BackendType != "claude-acp" && spec.BackendType != "codex-acp" {
 		return hold("check_unsupported")
 	}
+	deferBusy := func() (state.QuotaIntent, bool) {
+		if err := s.stateStore.DeferQuota(fresh.AgentID, fresh.EpisodeID, fresh.Revision, fresh.AttemptToken, time.Now().UTC().Add(taskDispatchInterval), "busy"); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
+			s.log.Error("defer ineligible quota check", "err", err)
+		}
+		return state.QuotaIntent{}, false
+	}
+	// Hold the lifecycle and archive gates only through eligibility/charging,
+	// never during the isolated provider request.
+	if !s.claimLifecycle(q.AgentID) {
+		return deferBusy()
+	}
+	defer s.releaseLifecycle(q.AgentID)
+	if ae := s.acquireAgentStart(a.Project, q.AgentID); ae != nil {
+		return deferBusy()
+	}
+	defer s.releaseAgentStart(a.Project, q.AgentID)
+	if eligible, err := s.quotaWorkEligible(fresh); err != nil {
+		if errors.Is(err, state.ErrQuotaOwner) {
+			return hold("owner_unavailable")
+		}
+		s.log.Error("read quota check eligibility", "agent", q.AgentID, "err", err)
+		return hold("store_failure")
+	} else if !eligible {
+		return deferBusy()
+	}
 	if fresh.CheckSession != "" {
 		// One exact cleanup reference at a time; the cleanup pass resolves it.
 		if err := s.stateStore.DeferQuota(fresh.AgentID, fresh.EpisodeID, fresh.Revision, fresh.AttemptToken, time.Now().UTC().Add(quotaCleanupRetry), "busy"); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
@@ -247,8 +272,17 @@ func (s *Server) admitQuotaCheck(q state.QuotaIntent, spec runtime.QuotaCheckSpe
 		}
 		return state.QuotaIntent{}, false
 	}
-	if err := s.stateStore.StartQuotaCheck(fresh.AgentID, fresh.EpisodeID, fresh.Revision, fresh.AttemptToken, spec.BackendType); err != nil {
+	if eligible, err := s.stateStore.StartEligibleQuotaCheck(fresh, spec.BackendType, s.taskConcurrencyBudget()); err != nil {
+		if errors.Is(err, state.ErrQuotaOwner) {
+			return hold("owner_unavailable")
+		}
+		if !errors.Is(err, state.ErrQuotaConflict) {
+			s.log.Error("admit quota check", "agent", q.AgentID, "err", err)
+			return hold("store_failure")
+		}
 		return state.QuotaIntent{}, false
+	} else if !eligible {
+		return deferBusy()
 	}
 	started, err := s.stateStore.GetQuota(q.AgentID)
 	if err != nil {
@@ -260,7 +294,16 @@ func (s *Server) admitQuotaCheck(q state.QuotaIntent, spec runtime.QuotaCheckSpe
 // cleanupQuotaChecks retries exact disposal of recorded probe sessions that no
 // running check owns, never loading, prompting or scanning other history.
 func (s *Server) cleanupQuotaChecks(ctx context.Context) {
-	pending, err := s.stateStore.PendingQuotaCheckCleanups(state.MaxQuotaDueBatch)
+	s.quotaCheckMu.Lock()
+	pending, err := s.stateStore.PendingQuotaCheckCleanupsAfter(state.MaxQuotaDueBatch, s.quotaCleanupCursor)
+	if err == nil {
+		if len(pending) == 0 {
+			s.quotaCleanupCursor = ""
+		} else {
+			s.quotaCleanupCursor = pending[len(pending)-1].AgentID
+		}
+	}
+	s.quotaCheckMu.Unlock()
 	if err != nil {
 		s.log.Error("read pending quota check cleanups", "err", err)
 		return

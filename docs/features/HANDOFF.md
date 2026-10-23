@@ -55,7 +55,10 @@ Their source reviews and open findings remain below; do not reopen completed ref
   more than one cleanup batch; then run the shared Go/build closure.
   ASRG-1 now shares exact room-start compensation with ordinary dispatch; focused running/
   resumed fault tests pass, and the running case fails with the original dispatcher overlaid.
-  ASRG-2/5 and final closure remain in progress.
+  ASRG-2/5 focused quota/state tests pass; original-code overlays fail capacity, lifecycle
+  and ninth-cleanup regressions. Owner changes after preflight and compensation retry are
+  covered. Tagged build and focused `-race -tags sqlite_fts5` quota/state checks pass.
+  Both full Go variants are running; final finding closure remains pending their result.
 
 - ASF-4 is closed: task result outputs are bounded before commit (`91f30979`, ASRE-2) and
   ended native children/finished tool names are freed (`65de12ce`, ASRC-6). ASR-C is closed;
