@@ -20,7 +20,7 @@ Follow [`AGENT-WORKFLOW.md`](AGENT-WORKFLOW.md).
 - **Runtime campaign:** ASW-1 event commits, ASW-2 frozen native execution and ASW-3 process/terminal
   ownership, ASF-1 turn/control settlement, ASF-2 input acceptance/recovery and ASF-6 CLI selection
   are closed. Select remaining work through
-  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-4/5 are closed; ASF-3 waits.
+  [AGENT-SURFACE-FIX-UNITS.md](AGENT-SURFACE-FIX-UNITS.md); ASF-3/4/5 are closed.
 Their source reviews and open findings remain below; do not reopen completed refactors.
 - **Core audits:** CR-A1–CR-A7 are reviewed and closed (no open findings). CR-A2's nine
   admission/recovery findings were fixed on 2026-10-22 (`0f911d74`, `de0ac20a`).
@@ -53,12 +53,12 @@ Their source reviews and open findings remain below; do not reopen completed ref
   compensation, eligibility before check allowance and fair bounded cleanup. Both full Go
   variants, tagged build, focused tagged quota/state race checks and documentation/launcher
   checks pass. Original-code overlays fail the room, capacity/lifecycle and ninth-cleanup
-  regressions. ASRE-1 was excluded and left with its separate agent; ASRF-1/2 are closed in
+  regressions. ASRE-1 closed in `5091d0d3` (ASR-E closed); ASRF-1/2 are closed in
   `473d74dd` with durable controller recovery and task-owned pipeline dispatch evidence.
 
 - ASF-4 is closed: task result outputs are bounded before commit (`91f30979`, ASRE-2) and
   ended native children/finished tool names are freed (`65de12ce`, ASRC-6). ASR-C is closed;
-  ASR-E keeps ASRE-1 under ASF-3. `TestCanceledTurnsReleaseToolInput` fails under `-race` on
+  `TestCanceledTurnsReleaseToolInput` fails under `-race` on
   unmodified HEAD too (turn end publishes before its inputs are released); not addressed here.
 - ASF-5 is closed: resource owner-permission preservation (`8db628c7`) and owned-checkout
   setup readiness (`c379b51c`) are repaired. Both full Go variants, tagged build and focused
@@ -209,7 +209,7 @@ Their source reviews and open findings remain below; do not reopen completed ref
 
 ## Agent-surface work and fix queue
 
-**ASW-1, ASW-2, ASW-3, ASF-1, ASF-2, ASF-4, ASF-5 and ASF-6 closed; ASF-3 waits.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
+**All ASW and ASF units are closed.** The complete [unit designs and primary finding map](AGENT-SURFACE-FIX-UNITS.md)
 are the selection authority for this campaign. Three substantive refactors are implemented and
 reviewed; their remaining findings select the same units for fixes:
 
@@ -229,7 +229,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 |---|---|---|---|
 | [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5) |
 | [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts remain owed |
-| [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | ASRG-1/2/5 closed (`63a723e5`, `8b7db7ed`); ASRF-1/2 closed (`473d74dd`); ASRE-1 separately owned — medium, Codex Terra or Claude Opus |
+| [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | Closed 2026-10-23 — `5091d0d3` (ASRE-1), `473d74dd` (ASRF-1/2), `63a723e5` (ASRG-1), `8b7db7ed` (ASRG-2/5) |
 | [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Closed 2026-10-22 — `91f30979` (ASRE-2), `65de12ce` (ASRC-6) |
 | [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | Checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Closed — `8db628c7`, `c379b51c` |
 | [ASF-6](AGENT-SURFACE-FIX-UNITS.md#asf-6--cli-archive-selection) | Certain CLI resume/new selection | ASRH-3 | Finished |
@@ -256,7 +256,7 @@ reindex product changes `90caf6b4` / `467b70ba` within `7b77dd25..467b70ba`, che
 Process-kill/reopen/retry and fake-native Resume wire proofs use separate fixtures; no
 same-fixture end-to-end process-kill/Resume claim is made. This state-only closure adds no
 review obligation. CR-A2's fix closed its cleanup/accounting and continuation-delivery contracts
-within the existing seams (TS-10.R48–R52); ASF-3 retains its separate findings and ownership.
+within the existing seams (TS-10.R48–R52); ASF-3 closed its own findings separately.
 
 The [audit plan](CORE-RELIABILITY-AUDIT-PLAN.md) records all seven charters and the separate proposed
 cross-audit integration proof. These subsystem audits do not substitute for the candidate-bound
@@ -283,7 +283,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 | Unit | Responsibility | Status |
 |---|---|---|
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
-| [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
 
 ## Review findings
 
@@ -545,30 +544,20 @@ decision was introduced. Sibling reviews and fixes were not selected.
 
 ### ASR-E — Agent tools, communication and durable delegation — reviewed `5eb574d9` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-The continuation fix joins durable wait settlement, assignment projection and MCP reads; report
-bounds extend existing shared validation. Audit complete; ASF-4 closed ASRE-2 (`91f30979`,
-2026-10-22); ASRE-1 (ASF-3) keeps this unit open.
-Source mode: current repository source at `5eb574d9`, initially clean. Release lockfile: Claude
+**Closed.** ASF-4 closed ASRE-2 (`91f30979`, 2026-10-22). ASRE-1 (INV §1/§10/§11/§15) is
+repaired in `5091d0d3` (2026-10-23): confirmation no longer deletes the wait set. It stays the
+resumed execution's continuation context, at most 64 rows, until the next wait or a terminal
+result. `get_assigned_task` returns `observed_changes` with each watched source's id, revisions,
+state, outcome and summary. A deleted source shows `deleted` with its retained outcome. Waits
+re-wake only waiting or yield-pending work (TS-10.R53, §3). State and MCP regressions cover early
+and late reads, multiple and deleted sources, store reopen, no re-wake and caller scoping. The MCP
+probe failed before the repair. The view is live: `after_revision`/`changed` let the agent see a
+later retry. `continuation_reason` is not projected. No native-provider receipt is claimed. The
+ledger below records the original audit.
+Historical source mode: current repository source at `5eb574d9`, initially clean. Release lockfile: Claude
 ACP 0.85.1 / Agent SDK 0.3.286, Codex ACP 2.1.1 / CLI 0.159.3. Three bounded read-only audits
 covered tools/authority, peer delivery and tasks; the lead reconciled interactions and independently
 reproduced both findings. No product code or specifications changed.
-
-- **Must fix** — ASRE-1 — **A resumed assignment loses the watched changes that woke it**
-  (INV §1/§10/§11/§15). `internal/messaging/task_tools.go:28–66`,
-  `internal/state/tasks.go:1425–1442`, `internal/runtime/activation_kinds.go:55–58`:
-  after `wait_for_tasks` yields and a child reports, the dependency activation tells the parent
-  to read `get_assigned_task`, but that result contains only the original instruction, identity,
-  state, execution handle and attachments. It exposes neither `observed_changes` nor the retained
-  result/continuation context required by TS-10.R29/§3 and FS-16.R30–R34. Confirmation deletes
-  the watches as though the new execution had observed them, without retaining those changes.
-  The parent must reconstruct the wait from conversation history and individually inspect children;
-  the promised durable continuation context is absent. A serialized MCP probe runs wait → child
-  failure → notify → yield release → re-admit/confirm → assignment read and gets no child id,
-  revision or outcome. Preserve a bounded authorized continuation snapshot through confirmation
-  and expose the watched changes/results through the existing assignment read; test early/late
-  reads, multiple/deleted sources, restart and scope isolation. Evidence:
-  `/tmp/asre_assignment_probe_test.go`, `/tmp/asre_assignment_overlay.json`,
-  `TestASREAssignmentExposesWatchedResultAfterContinuation` (intentionally failing).
 
 Connected evidence ledger and J3 (authority through native execution):
 
@@ -689,7 +678,7 @@ retry, changed task/room owners and mixed blocked cleanup rows are covered.
 Both full Go variants, tagged build and documentation/launcher checks pass.
 ASRG-3 was closed by ASF-1; ASRG-4 was closed with ASW-2. No ASR-G findings remain;
 native-provider receipts remain owed. The ledger below records the original source audit
-(`fa092f63`), rather than current open defects. ASRE-1 remains with its separate agent.
+(`fa092f63`), rather than current open defects. ASRE-1 closed in `5091d0d3`.
 
 Failure/admission/retry ownership map and catalogue 22 evidence ledger:
 
@@ -994,6 +983,13 @@ capture proves actual provider precedence. Spec lint, formatting and diff checks
 and specifications are unchanged.
 
 ## Changelog
+
+- **2026-10-23 — Fix: resumed-assignment continuation context (ASRE-1, INV §1/§10/§11/§15) —
+  ASF-3 and ASR-E closed.** `5091d0d3` keeps the wait set through confirmation and projects it
+  as `get_assigned_task.observed_changes`, including deleted sources' retained outcomes
+  (TS-10.R53). The MCP probe and state continuation/restart regressions failed before the repair.
+  Both full Go variants, the build and state/messaging race checks pass. Parallel ASRF/ASRG
+  worker branches duplicated work another session had already landed. They were discarded unmerged.
 
 - **2026-10-23 — Fix: quota recovery (ASRG-1 INV §2/§4/§15; ASRG-2 INV §2/§5/§15;
   ASRG-5 INV §7/§9/§16).** `63a723e5` shares ordinary/quota room-start compensation;
