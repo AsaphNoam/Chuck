@@ -58,12 +58,14 @@ Their source reviews and open findings remain below; do not reopen completed ref
   focused affected-coverage evidence in the existing receipt, not another architectural review.
   Clean verification checkout: `/private/tmp/chuck-release-v0.18.1`, source `69082b39`.
   Distribution build, unchanged generated UI, 995 UI tests, runtime guard race test and vet pass.
-  Full Go closure is running; the first no-tag CLI package hit the known bootstrap download-start
+  The first no-tag CLI package hit the known bootstrap download-start
   deadline, and three focused repeats passed twice/failed once. Logs: `/private/tmp/chuck-v0.18.1-*`.
   The same no-tag run also failed `TestRestartResolvesUnfinishedTasksFromTheirOwnRows`'s
   immediate-release assertion: the fixture retained a live busy reporting turn, so R19/R48
-  correctly deferred cleanup. No test/product edit made; full no-tag retry and FTS5 variant
-  are running. Keep these failures visible until the release checkpoint is resolved.
+  correctly deferred cleanup. No test/product edit made. The full FTS5 variant passes; the full
+  no-tag retry's server suite passes, but bootstrap readiness fails again. REL-VERIFY-1 remains
+  open pending test-only approval and verified closure. No tag/publish. Exact focused repair/
+  affected coverage is recorded in the existing receipt; ARCH-1 administrative closure is deferred.
 
 - **Next-release architectural review completed, 2026-10-23:** committed candidate `eb56b0c2`
   since v0.18.0; [receipt](../archive/reviews/architecture/v0.18.0-next.json) and
@@ -314,7 +316,7 @@ Closed reviews through the `v0.17.0` cut are in the archive above.
 
 ### v0.18.1 release verification — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-- **Must fix** — **REL-VERIFY-1: release closure is blocked by pre-existing fixture assumptions.**
+- **Must fix** — **REL-VERIFY-1: release closure is blocked by pre-existing fixture assumptions** (INV §17).
   `internal/cli/installer_test.go:334–343` allows only one second for the bootstrap subprocess
   to reach its download marker; it failed in the initial and retry no-tag suites, while focused
   repeats passed twice/failed once and the tagged CLI suite passed. The installer and test are
@@ -1396,7 +1398,8 @@ v0.18.0 was published 2026-10-21 with the explicit one-release architectural-rev
 
 - **v0.18.1 verification-only fixes:** approval requested to correct the two pre-existing
   fixture assumptions in REL-VERIFY-1 (~20 lines, no product behavior change). The ARCH-1 repair
-  is committed as `69082b39`; distribution/995 UI tests/vet pass. Full Go checks remain blocked.
+  is committed as `69082b39`; full FTS5/distribution/995 UI tests/vet pass. The no-tag Go checkpoint
+  remains blocked by bootstrap readiness. Proposal: `/private/tmp/chuck-release-test-proposal.patch`.
   Version and publishing approval will be requested only after the candidate is verified.
 
 - **File reader full UI closure:** permission requested through the asynchronous question to

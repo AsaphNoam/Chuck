@@ -1,6 +1,7 @@
 # Chuck v0.18.1
 
-Status: preparation; version and publication approval pending.
+Status: blocked on approval for verification-only fixture corrections; version and publication
+approval also remain pending. No tag or publication.
 Previous release: v0.18.0. This is a fixes-only patch release.
 
 ## What improves
@@ -25,15 +26,22 @@ is included; the concurrent planning edits remain outside the candidate.
 
 ## Verification and limits
 
-The clean candidate's distribution build and all 995 UI tests pass; generated UI files match
-the committed copy. `make vet` passes. Full Go closure and architecture-receipt closure remain
-in progress. The first no-tag Go run hit the already-known bootstrap download-start timing
-failure; focused repeats passed twice and failed once. No installer/test change or waiver is
-claimed. Final closure must resolve the failed check before tagging.
+The clean candidate's full FTS5 Go suite, distribution build and all 995 UI tests pass; generated
+UI files match the committed copy. `make vet` and the focused runtime-guard race test pass.
+The no-tag run and its full retry failed the already-known bootstrap download-start timing
+check; focused repeats passed twice and failed once. No installer/test change or waiver is
+claimed. Final closure must resolve that failed check before tagging.
 The same run also failed the restart-recovery fixture's immediate-release assertion while its
 reporting turn was still live; TS-10.R19/R48 require deferred cleanup in that condition. The
-fixture does not actually remove the runtime registry as a restart would. No product regression
-or fixture repair is claimed; its full-suite retry is still pending.
+fixture does not actually remove the runtime registry as a restart would. That server suite
+passed on the full no-tag retry and in the FTS5 run. No product regression or fixture repair is
+claimed. A reviewable two-test proposal is `/private/tmp/chuck-release-test-proposal.patch`;
+approval was requested under the operator's separate-fix rule. Its application remains pending.
+
+Source/checkpoint commits: guard repair `69082b39`; preparation `0e533e0c`. The existing
+architecture receipt records focused repair evidence and exact affected coverage; ARCH-1's
+administrative closure is deferred until required verification is complete. Logs:
+`/private/tmp/chuck-v0.18.1-{go-closure,go-retry,fts-closure,bootstrap-diagnostic,ui-closure,dist,vet}.log`.
 The existing architecture review is reused with exact verified fix/affected-coverage entries;
 no second architectural review is required for its finding repair.
 

@@ -18,5 +18,26 @@
   "findings": [
     { "id": "ARCH-1", "severity": "worth_fixing" }
   ],
-  "updates": []
+  "updates": [
+    {
+      "kind": "coverage",
+      "commits": ["6050f2ce4c92b6f33dcd0e8bbff4ff5a62037ae2"],
+      "verified": true,
+      "evidence": "Independent focused reader and parent inspected the narrow runtime stopping/stopped gate and current lifecycle callers. TestStartActivationRefusesStoppingRuntime passes, including the parent's tagged race run. This is a defensive runtime seam, not a new reachable production race claim. The full FTS5 suite, distribution build and 995 UI tests pass on source 69082b39; no native-provider claim."
+    },
+    {
+      "kind": "fix",
+      "commits": ["69082b39d8fe785b55bd4f3c4153d1a0c8fcbe94"],
+      "finding_ids": ["ARCH-1"],
+      "closes": [],
+      "verified": true,
+      "evidence": "PID-file read/decode failures now return before state.Open. Final command regressions fail on exact pre-fix reindex.go/cli_test.go overlays for both malformed JSON and OS-unreadable regular files, and pass after repair; no state.db is created. Absent/live/stale PID and partial repair/retry checks pass. A fresh independent reader confirmed the boundary. Full FTS5 suite passes; no-tag closure is still blocked by unrelated bootstrap fixture timing (REL-VERIFY-1), so administrative finding closure is intentionally deferred."
+    },
+    {
+      "kind": "coverage",
+      "commits": ["0e533e0c039d23c4cdc4eb224d6a18d13721a795"],
+      "verified": true,
+      "evidence": "Independent release-range reader confirmed the README offline-repair correction, existing embedded coordination guidance and unchanged runtime pins; no additional operating-chuck edit was needed. Other changes are release notes and truthful handoff blockers. Clean source 69082b39 make dist VERSION=0.18.1 passes and regenerates byte-identical tracked UI; binary reports 0.18.1/darwin-arm64 and sqlite_fts5. All 995 UI tests and make vet pass. No new archive, tag, version approval or publication is claimed."
+    }
+  ]
 }
