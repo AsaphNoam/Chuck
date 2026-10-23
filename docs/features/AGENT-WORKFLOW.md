@@ -58,21 +58,29 @@ For each piece:
    checkpoints until the whole request passes final closure.
 
 At request completion, run the applicable closure matrix once after the final relevant edit,
-before the final closure commit. Product-code changes run:
+before the final closure commit (TS-06.R5):
 
-```bash
-make test
-make build                          # unless make dist follows
-(cd ui && npm test)                 # when ui/ changed
-(cd ui && npm run build)            # when ui/ changed and make dist does not follow
-make dist  # when producing a distributable or refreshing embedded UI output
-```
+| Changed behavior | Local completion checks |
+|---|---|
+| Go product code, Go dependencies or Go build behavior | `make test` and `make build`; omit the latter when `make dist` follows. Add affected UI checks and focused race tests for concurrency hot spots. |
+| UI-only source | `make check-specs`, then `(cd ui && npm test && npm run build)`; omit the UI build when `make dist` follows. Add focused Go integration checks for a changed Go-facing contract, not both full Go suites. |
+| Documentation, workflow or verification tooling | `make check-specs`, appropriate link/syntax checks and focused checks of changed tooling or claims; no unrelated product suites. |
+
+Use `make dist` when producing a distributable or refreshing embedded UI output. Generated embed
+changes alone do not trigger Go suites. For a focused UI check, use `npm test -- <file-or-filter>`;
+style/presentation checks run once through the completion build's `prebuild` hook.
 
 `make test` already runs `make check-specs`; do not repeat it separately in the same closure pass.
-`make dist` already rebuilds the UI and binary. Run it only when producing a distributable or
-refreshing embedded UI output. Documentation-only work runs `make check-specs`, appropriate
-syntax or rendering checks, and `git diff --check`. Re-run a closure check only after a relevant
-edit or when diagnosing a failure.
+`make dist` already rebuilds the UI and binary. Run `git diff --check` for every change.
+Reuse a passing check across work, fix and release when its relevant source, dependencies,
+command/flags and environment are unchanged. Record the command, result and checked revision or
+scope briefly in the existing handoff; bookkeeping-only commits do not invalidate it. If this
+evidence is missing or affected inputs changed, rerun that check. Reuse never turns a failed,
+blocked or unrun check into a pass. CI still runs its full clean-clone checks (TS-06.R8).
+
+Capture verbose test/build output in a temporary log. Inspect the summary on success and bounded
+failure excerpts on failure; retain the log path when useful. Do not load or repeat entire passing
+suite logs in the conversation.
 
 Commit final specification/handoff closure and any remaining verified work. When the substantive
 change finishes, add it to the available review units without replacing or blocking units already
@@ -228,6 +236,9 @@ findings, then stop rather than continuing into another unit unless the user ask
 2. If it is false or already fixed, remove the finding and record the short evidence in the changelog and human update; do not change code.
 3. If it is real, fix it, add or keep a regression test, run the required checks, and update the relevant specification if the correct fix changes behavior or fills missing coverage. Use `write-tests` (§17) when behavior needs new verification or tests/fixtures materially change.
 4. When the work is verified, remove the finding, update the handoff, and commit.
+
+Use focused regression checks per finding; run §2's applicable completion checks once after the
+final repair in the selected review unit.
 
 When every finding from the review is closed, close the originating change unit. The finding-fix
 commit is part of that closure and does not become a new default review unit. A fix that adds
@@ -671,7 +682,10 @@ behavior; when the release range needs one of those, that work happens first und
    user-visible capability. Say which number you propose and why, and wait for confirmation:
    publishing is outward-facing and cannot be cleanly withdrawn.
 
-4. **Verify the release build.** Run the §2 product-code checks plus `make dist VERSION=<version>`.
+4. **Verify the release build.** Ensure `make test` and the UI tests have passed for the candidate,
+   reusing recorded passing checks under §2 when their relevant inputs and environment are unchanged.
+   Run any missing or invalidated checks, then `make dist VERSION=<version>` for the release build;
+   its UI build includes the style gate, so do not run another UI build/style pass alongside it.
    Every shipped binary carries `sqlite_fts5` (TS-06.R2, TS-06.R13). Assembling the darwin/arm64
    archive with its private Node runtime belongs to release CI, not to a local step.
 

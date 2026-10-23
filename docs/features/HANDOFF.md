@@ -29,6 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - No change in progress. REL-CI-1 is closed by `1b998b24` and verified with both full Go
   variants, build, three focused runs and ten focused race runs. TTS-1–3 remain available
   as a separate fix unit; this repair creates no new review unit.
+- Workflow verification cleanup is finished and waiting for review in the separate unit below.
 
 ## Acceptance gates still owed
 
@@ -162,6 +163,18 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
+- **Workflow verification cleanup** (TS-06.R5, TS-08.R17), waiting for review. UI-only changes
+  no longer require full Go suites; local checks follow the changed source/tooling, valid checks
+  can be reused across roles, fix runs close once, and successful logs stay compact. `npm test`
+  runs Vitest directly; `prebuild` retains the style gate. Entry points: workflow §§2/8/16,
+  mirrored release skills, `ui/package.json` and the presentation checker. Verification on this
+  unit's exact changed scope: `make check-specs` passes; focused `npm test --
+  src/presentation/VisualMatrix.test.tsx --reporter=dot` passes 8 tests; `npm run build` passes
+  Stylelint, 47 script tests, presentation audit, TypeScript and Vite. The new regression fails
+  against the pre-change checker for its obsolete `pretest` requirement. Release skill metadata
+  and twin parity pass via Node YAML; the Python validator is unavailable without PyYAML.
+  CI retains full coverage; no full product suites or live-provider checks were needed here.
+
 - **Timed and recurring task starts** (FS-16.R51–R58/A35–A40, TS-10.R54–R60), commits
   `32f1702c`..`4bcfa1b9`, reviewed 2026-10-23; TTS-1–3 remain open. Entry points:
   `internal/recurrence`, `internal/state/task_time.go`,
@@ -237,6 +250,11 @@ remain in the archive/release notes; exact repair and affected coverage are in t
 [architecture receipt](../archive/reviews/architecture/v0.18.0-next.json).
 
 ## Changelog
+
+- **2026-10-23 — Workflow verification cleanup:** scoped local checks, removed duplicate UI
+  style runs, allowed reuse of unchanged passing evidence, and clarified one completion pass per
+  fix unit plus compact test logs. Focused command/build and spec/launcher checks pass; waiting
+  for review. Existing product findings and manual gates are unchanged.
 
 - **2026-10-23 — REL-CI-1 closed (INV §5/§17):** `1b998b24` settles pending permissions
   before cooperative cancellation, serializes concurrent cancellations and rechecks the captured

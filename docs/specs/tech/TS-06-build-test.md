@@ -25,10 +25,18 @@ app and copies `ui/dist` into `internal/server/ui/dist`; agents never edit the e
 runs spec lint plus both Go variants; `make dist` builds UI, refreshes embed output, and builds the
 tagged binary; `make check-specs` runs the mechanical spec contract.
 
-**R5 — Required checks match the work but are never selective.** A product-code change runs both Go
-test variants and any affected UI build/tests; concurrency hot spots add focused race tests. A docs-only
-spec/workflow change runs spec lint and link/reference checks plus any build/test needed to
-validate claims it changed. Failures may not be hidden by removing or weakening tests.
+**R5 — Local checks follow the affected behavior.** Go product-code, Go dependency or Go build-behavior
+changes run both Go test variants and the tagged build; concurrency hot spots add focused race tests.
+UI-only source changes run UI tests/build and spec lint, adding focused Go integration checks when a
+Go-facing contract changes. Refreshing generated UI embed output alone does not require Go suites.
+Documentation, workflow and verification-tooling changes run spec/link checks and the focused checks
+needed to validate the changed claims or tooling, without inheriting unrelated product suites.
+Run focused checks while iterating and the applicable completion checks once after final relevant edits.
+Passing checks may be reused across work, fix and release when their relevant source, dependencies,
+command/flags and environment are unchanged and the prior command, result and checked revision/scope
+are recorded. CI retains R8's full clean-clone checks; release requires full Go/UI evidence under
+workflow §16, allowing this reuse. Failures remain visible and may not be hidden by removing or
+weakening tests.
 
 **R6 — Acceptance tests name the requirement they prove.** New or materially touched tests that prove
 a feature acceptance item include an exact `FS-nn.Ak` comment. Specs point back to load-bearing
@@ -336,7 +344,8 @@ acceptance gates remain live. R36 and its mechanical gate apply to subsequent re
 
 ## 3. Interfaces & data shapes
 
-The canonical commands are:
+The canonical commands are below; select the applicable ones through R5 and workflow §2 rather
+than running this list as a sequence:
 
 ```sh
 make check-specs

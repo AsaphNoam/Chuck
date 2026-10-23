@@ -601,7 +601,6 @@ export function auditPresentation(root) {
   if (!routes.includes("import.meta.env.DEV") || !routes.includes('import("./presentation/VisualMatrix")')) add("src/routes.tsx", "fixture-gate", "visual matrix must remain development-only");
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-  if (packageJson.scripts?.pretest !== "npm run check:styles") add("package.json", "wiring", "pretest must run check:styles");
   if (packageJson.scripts?.prebuild !== "npm run check:styles") add("package.json", "wiring", "prebuild must run check:styles");
   if (!packageJson.scripts?.["check:styles"]?.includes("--max-warnings 0")) add("package.json", "wiring", "check:styles must reject Stylelint warnings");
 

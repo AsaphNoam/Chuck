@@ -31,8 +31,10 @@ and never this repository's own skill launchers. State plainly when the range ch
 agent-facing. Do not add features or fix findings here; an open **Must fix** finding returns to
 `/fix` before a release.
 
-Publishing is outward-facing and irreversible. Verify with the full product checks plus `make dist`,
-and push `main` and the tag only with explicit authorization; stop at the unpushed tag otherwise.
+Publishing is outward-facing and irreversible. Follow workflow §§2/16: reuse recorded passing
+checks whose relevant inputs and environment are unchanged, run missing or invalidated full Go/UI
+checks, then `make dist`. Push `main` and the tag only with explicit authorization; stop at the
+unpushed tag otherwise.
 Close with the handoff update, commit, and concise human update written as readable release notes.
 
 Archiving the handoff is part of closing a release (workflow §16.7): move what this version settled

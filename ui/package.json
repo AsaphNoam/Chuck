@@ -11,7 +11,6 @@
     "check:styles": "stylelint \"src/**/*.css\" --max-warnings 0 && node --test scripts/*.test.mjs && node scripts/check-presentation-contract.mjs",
     "prebuild": "npm run check:styles",
     "build": "tsc -b && vite build",
-    "pretest": "npm run check:styles",
     "test": "vitest run",
     "preview": "vite preview"
   },

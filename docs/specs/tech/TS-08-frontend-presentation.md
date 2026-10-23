@@ -88,8 +88,10 @@ primitive seam; the rejected alternatives are recorded in §5.
 ### 2.1 Maintenance safeguards
 
 - **R17** — Stylelint and a repository-owned dependency-light contract checker run as
-  `npm run check:styles`. NPM `pretest` and `prebuild` both invoke it, so UI tests, CI, `make embed`,
-  and `make dist` cannot bypass presentation validation. Tool versions are pinned in the UI lockfile.
+  `npm run check:styles`. NPM `prebuild` invokes it, so the UI completion build, CI, `make embed`,
+  and `make dist` retain presentation validation. `npm test` runs Vitest directly, including focused
+  file/case selections, without repeating style checks before the build. Tool versions are pinned
+  in the UI lockfile.
 - **R18** — Stylelint rejects invalid CSS, duplicate properties/selectors where unsafe,
   id selectors, unbounded specificity, `!important`, unknown custom properties, and rules outside
   the declared cascade layers. Narrow third-party exceptions live in the machine-readable exception

@@ -50,7 +50,6 @@ function fixture({
   fs.writeFileSync(path.join(root, "src", "routes.tsx"), 'const routes = import.meta.env.DEV ? import("./presentation/VisualMatrix") : [];');
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ scripts: {
     "check:styles": "stylelint src/**/*.css --max-warnings 0 && node --test scripts/*.test.mjs && node scripts/check-presentation-contract.mjs",
-    pretest: "npm run check:styles",
     prebuild: "npm run check:styles",
   } }));
   return root;
@@ -65,6 +64,17 @@ function expectFailure(root, fragment) {
 
 test("accepts a complete minimal contract", () => {
   assert.deepEqual(auditPresentation(fixture()), []);
+});
+
+test("requires the build style gate without requiring a test hook", () => {
+  // TS-08.R17: focused tests can skip styles, but the completion build cannot.
+  const root = fixture();
+  assert.deepEqual(auditPresentation(root), []);
+  const file = path.join(root, "package.json");
+  const config = JSON.parse(fs.readFileSync(file, "utf8"));
+  delete config.scripts.prebuild;
+  fs.writeFileSync(file, JSON.stringify(config));
+  expectFailure(root, "prebuild must run check:styles");
 });
 
 test("accepts a declared, statically imported, scoped built-in skin", () => {
