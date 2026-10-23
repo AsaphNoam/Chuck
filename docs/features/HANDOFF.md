@@ -53,7 +53,8 @@ Their source reviews and open findings remain below; do not reopen completed ref
   compensation, eligibility before check allowance and fair bounded cleanup. Both full Go
   variants, tagged build, focused tagged quota/state race checks and documentation/launcher
   checks pass. Original-code overlays fail the room, capacity/lifecycle and ninth-cleanup
-  regressions. ASRE-1 was excluded and left with its separate agent; ASRF-1/2 remain available.
+  regressions. ASRE-1 was excluded and left with its separate agent; ASRF-1/2 are closed in
+  `473d74dd` with durable controller recovery and task-owned pipeline dispatch evidence.
 
 - ASF-4 is closed: task result outputs are bounded before commit (`91f30979`, ASRE-2) and
   ended native children/finished tool names are freed (`65de12ce`, ASRC-6). ASR-C is closed;
@@ -228,7 +229,7 @@ reimplement an ASW refactor as a local fix. The existing launcher/workflow remai
 |---|---|---|---|
 | [ASF-1](AGENT-SURFACE-FIX-UNITS.md#asf-1--turn-and-control-settlement) | `/fix ASF-1` — settings, status, permission and cancellation settlement | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5) |
 | [ASF-2](AGENT-SURFACE-FIX-UNITS.md#asf-2--input-acceptance-and-recovery) | `/fix ASF-2` — annotation receipts, drafts, exact withdraw and uncertain Steer | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts remain owed |
-| [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | ASRG-1/2/5 closed (`63a723e5`, `8b7db7ed`); ASRE-1 separately owned, ASRF-1/2 waiting — medium, Codex Terra or Claude Opus |
+| [ASF-3](AGENT-SURFACE-FIX-UNITS.md#asf-3--durable-continuation-and-controller-recovery) | `/fix ASF-3` — task/pipeline/quota recovery and obsolete executor removal | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | ASRG-1/2/5 closed (`63a723e5`, `8b7db7ed`); ASRF-1/2 closed (`473d74dd`); ASRE-1 separately owned — medium, Codex Terra or Claude Opus |
 | [ASF-4](AGENT-SURFACE-FIX-UNITS.md#asf-4--retention-and-result-bounds) | `/fix ASF-4` — native-child retention and task-result bounds | ASRC-6, ASRE-2 | Closed 2026-10-22 — `91f30979` (ASRE-2), `65de12ce` (ASRC-6) |
 | [ASF-5](AGENT-SURFACE-FIX-UNITS.md#asf-5--project-readiness-and-resource-permissions) | Checkout readiness and restrictive resource modes | ASRA-5, ASRA-6 | Closed — `8db628c7`, `c379b51c` |
 | [ASF-6](AGENT-SURFACE-FIX-UNITS.md#asf-6--cli-archive-selection) | Certain CLI resume/new selection | ASRH-3 | Finished |
@@ -283,7 +284,6 @@ J1–J7 before the campaign is described as reviewed. Do not select fixes as par
 |---|---|---|
 | [ASR-B](AGENT-SURFACE-REVIEW.md#asr-b--codex-and-claude-native-integration-fidelity) | Codex and Claude native integration fidelity | reviewed — findings open (`6b5de19b`) |
 | [ASR-E](AGENT-SURFACE-REVIEW.md#asr-e--agent-tools-communication-and-durable-delegation) | Agent tools, communication and durable delegation | reviewed — findings open (`5eb574d9`) |
-| [ASR-F](AGENT-SURFACE-REVIEW.md#asr-f--pipelines-think-tanks-and-orchestration) | Pipelines, Think Tanks and orchestration | reviewed — findings open (`b8157f13`) |
 
 ## Review findings
 
@@ -615,59 +615,25 @@ implementation choice or human decision was introduced; sibling reviews/fixes re
 
 ### ASR-F — Pipelines, Think Tanks and orchestration — reviewed `b8157f13` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Recovery needs coordinated controller/dispatcher changes at the existing durable-action seam;
-removing the obsolete execution methods and updating their tests is localized. Audit complete;
-findings keep this same unit open. Source mode: current repository at `b8157f13`, clean at entry.
+**Closed ASRF-1/2 — `473d74dd` (INV §2/§7/§10/§15/§17).** Post-result cursor actions now retain
+their durable owner through startup and live callback faults, retry on the task dispatcher's bounded
+schedule with attention after ten failures, and preserve Stop's closure fence. The obsolete direct
+stage executor is removed; a real run → stage task → dispatcher test proves frozen/applied fast mode
+and run-name grouping. Focused pipeline/state/server tests, both full Go variants, tagged build,
+spec lint and diff checks pass. Provider/device receipts remain unchanged.
+
+Historical review evidence: source mode at `b8157f13`, clean at entry.
 Release lockfile pins Claude ACP 0.85.1 / Agent SDK 0.3.286 and Codex ACP 2.1.1 / CLI 0.159.3;
 this audit exercised source and isolated fake-provider tests, not installed/native provider behavior.
 Two bounded readers traced ordinary stages and room lifecycle; the lead integrated the ownership,
 interruption and context joins and independently reproduced the recovery failure. Product code and
 specifications unchanged.
 
-- **Must fix** — ASRF-1 — **A failed post-result transition loses its recovery owner**
-  (INV §7/§8/§9/§15). `internal/pipeline/manager.go:754–761,792–823`,
-  `internal/server/task_dispatcher.go:575–600`, `internal/pipeline/reconcile.go:142–185`:
-  after a stage result and runtime release commit, startup reconciliation can fail while creating
-  the next stage or recording the final/approval boundary. `pauseStartupRun` then replaces
-  `finishing/release_stage_task` with `paused/""`. The successful current task permits neither
-  Continue nor Retry, cleanup repair is ineligible, and further reconciliation/restart skips the
-  lost action. A temporary store/transition failure can therefore strand an otherwise completed
-  stage permanently. Related live-path source tracing shows that the final cleanup callback only
-  logs a controller error after clearing the task's pending release; the cleanup ticker no longer
-  selects that task, and the room-output sweep does not retry ordinary-stage transitions.
-  FS-14.R66/R71/R77 and TS-09.R41–R43 require retained, automatically retryable bookkeeping and
-  valid recovery. Preserve the durable action until progression commits and give failed controller
-  actions bounded retry/recovery ownership through the existing dispatcher; retain the current
-  stopping fence and never rerun accepted stage work. Regress transient next-task/final/approval
-  writes both at runtime and restart, including Stop racing recovery and exhausted retry attention.
-  Evidence: `/tmp/asrf_startup_probe_test.go`, `/tmp/asrf_overlay.json`,
-  `TestASRFStartupPreservesAcceptedStageProgression`. The probe accepts success, settles release,
-  injects an abort at next-stage insertion, runs Startup, removes the fault and reconciles again:
-  `paused`, empty pending action, one stage, Continue/Retry refused and cleanup repair false.
-  The injected case fails in both Go variants; the same fixture without the fault passes and
-  creates the queued second stage. The runtime callback gap is source-backed, not a separate
-  provider-failure receipt.
-- **Worth fixing** — ASRF-2 — **The removed stage executor survives in production source and tests**
-  (INV §2/§10/§17). `internal/server/pipeline_lifecycle.go:236–355,382–384`,
-  `internal/pipeline/manager_types.go:101–104`, `internal/server/pipeline_fast_test.go:15–55`,
-  `internal/server/pipeline_handlers_test.go:833–852`: a tree-wide caller audit finds no production
-  caller of `LaunchStage` or `ContinueStage`; `IsRunning` serves only the latter. Yet the public
-  lifecycle interface still requires the old launch/resume machinery, and tests use it as evidence
-  for pipeline fast-mode/group behavior without creating a run or dispatching a stage task. The
-  group test even asserts the superseded stage-group contract. TS-09.R35/R46 requires task-owned
-  execution and removal of those paths; TS-12.R4 still describes them as active. Keeping this code
-  duplicates lifecycle policy and preserves acceptance tests that cannot detect a broken real
-  pipeline-to-task handoff. Remove the unused methods/interface obligations, retain `StopStage`
-  used by task cleanup and legacy-runtime reaping, and exercise actual run → stage task → dispatcher
-  behavior for frozen/applied fast mode and current run grouping (FS-14.R72/R74). Update the stale
-  lifecycle tests/docs at the same seam. Ordinary-task fast-mode tests already cover the shared
-  dispatcher, so the missing proof is the pipeline handoff, not all fast-mode behavior.
-
 Connected evidence ledger (catalogue topics 19 and 20):
 
 | Retained topic | State, authority and effect trace |
 |---|---|
-| 19 — Ordered stages and standing orchestration | Frozen template/runtime/input snapshot → unique stage task and optional managed coordinator child → ordinary task capacity/identity claim → launch or same-identity resume → assignment/report/wait → immutable stage result and closure → release/cancel descendants → approval/next task/final result. Read Start/Continue/Retry/Replace/Stop, dispatcher, report transaction, lineage projections, cleanup and startup. A coordinator's child result cannot substitute for the standing stage report; replacement retains coordinator binding and predecessor work. ASRF-1 breaks recovery after accepted work; ASRF-2 retains the old executor. |
+| 19 — Ordered stages and standing orchestration | Frozen template/runtime/input snapshot → unique stage task and optional managed coordinator child → ordinary task capacity/identity claim → launch or same-identity resume → assignment/report/wait → immutable stage result and closure → release/cancel descendants → approval/next task/final result. Read Start/Continue/Retry/Replace/Stop, dispatcher, report transaction, lineage projections, cleanup and startup. A coordinator's child result cannot substitute for the standing stage report; replacement retains coordinator binding and predecessor work. Durable controller recovery and task-owned dispatch are closed in `473d74dd`. |
 | 20 — Rooms and judge capture | Room/stage binding and reserved new identities commit before setup launches. Independent openings use bounded concurrent starts and withheld publication; discussion uses one floor. Read receipt/head/token plus exact generation/executing turn bind staged reply to successful completion. Completion atomically publishes the judge entry and retained result; trusted stage acceptance binds that exact entry and named output once, followed by ordinary cleanup/approval/progression. Failed/oversized/staged replies never become accepted synthesis. Inspected setup/turn/judge retry, ceilings/pass/leave, End/Pause, capture/privacy, queued input, restart and output-acceptance sweep. |
 
 J3 authority: token-bound membership and task/handle/generation authority remain separate. Only the
@@ -681,7 +647,7 @@ J4 interruption: traced quota failure → preserved task/room owner → exact co
 room attempt/token or ordinary task activation → actual completion. Pause/End/Stop and stage closure
 revalidate before delivery; quota cannot synthesize a report or successor. Startup task recovery and
 room recovery fence uncertain work, retain withheld/published history, and recover finalized output
-acceptance without rejudging. ASRF-1 is the missing post-result controller recovery. The recorded
+acceptance without rejudging. The recorded
 `TestOrdinaryStageAgentStopPausesPipelineRun` 409 did not reproduce in 25 isolated repeats or the
 focused suites; its intermittent cause remains unproven and the existing note remains live.
 
@@ -876,7 +842,7 @@ All retained catalogue topics are accounted for:
 | 06/08/09/10/11/12 — C | Runtime claims, held/steered input, RPC callbacks, permission settlement, cancellation and native background events retain ASRC-1–7. CI-1's corrected test double remains closed; passing cancellation tests do not settle the distinct late-success quota issue. |
 | 07/13/14/15 — D | Native/history bridge, durable/live ordering, exact input bytes, scoped reads and annotation retry retain ASRD-1–5. Attachment recovery has its own receipt; neither a visible transcript nor a copied bridge proves native consumption. |
 | 16/17/18 — E | Token/host authority, mail activation, assignment/report/wait and release retain ASRE-1/2. Peer Stop's host decision is independent of permissive provider settings; live adoption of that boundary remains owed. |
-| 19/20 — F | Ordinary stage-task progression and room/judge result capture retain ASRF-1/2, with E/G defects applying through shared services. Obsolete stage-executor tests do not prove the current dispatcher handoff. |
+| 19/20 — F | Ordinary stage-task progression and room/judge result capture use durable controller recovery and the shared task dispatcher (`473d74dd`); E/G defects apply through shared services. |
 | 22 — G | Quota evidence, check isolation/admission, source-owner continuation and cleanup retain ASRG-1–5. Passive quota snapshots remain planned; missing live receipts do not establish a parser/provider failure. |
 | 23 — H | Desktop/phone/CLI/local HTTP intent and recovery retain ASRH-1/2/4 and ASRD-4; ASF-6 closed ASRH-3. Reconnect refreshes state without replaying mutations; physical-device suspension and native anchoring remain open. |
 | 24 — I | Frozen diagnostics, revision/adoption limits, combined failure costs and the paired experiment below were assessed. PROMPT-2 keeps its original owner; no measured general quality or excess-process conclusion is supported. |
@@ -888,7 +854,7 @@ Whole-journey assurance ledger (J1–J7):
 | J1 — selected contract across fresh/resume/wake/switch/rollback | Frozen base plus runtime-only overlay reaches the provider start seam; model/root/profile/native ancestor defects remain ASRA-1/3/PROMPT-1. `applyKnowledgeOverlay` (`launch.go:434–454`) is rebuilt per process, not every turn. Clone/fork has its separate B2/B3 contract. Account/model/preset adoption remains a native gate. |
 | J2 — manual multimodal queue/Steer + permission wait + Stop/resume | Runtime holds retain exact descriptors; Stop releases attachment receipts, and restart makes held/prepared copies explicitly recoverable (`chat.go:1264–1284`, `state/attachment_receipts.go:44–65`). ASRC-1/2/5 break read-loop/status/permission truth; ASRH-1/2 break draft/withdraw ownership. ASRH-4 (`chat.go:682–717,843–870`) restores an ambiguously consumed text Steer to automatic holding. These are existing failures, not a second attachment-loss finding. |
 | J3 — Chucky mail/task/report + host approval + late continuation | Durable mail/assignment claims precede native activation; reports commit before cleanup/readiness and old generations cannot authorize current work. Peer Stop still requires its separate host waiter. ASRE-1 loses the watched changes before resumed assignment read; ASRE-2 allows oversized retained outputs. Claude fork's missing loaded session and tmux's stale environment weaken native registration (B2/B6). Late-turn guards have fake/source proof, with ASRC-2's final-status race and FS-01.R52/FS-16.A33 live gates retained. |
-| J4 — ordinary/room stage + quota/Stop/restart | Task/run closure precedes cancellation; room capture binds generation/turn/attempt and accepted judge output, not arbitrary private prose. `Manager.Startup` → `pauseStartupRun` clears a failed post-result action (`manager.go:754–761,792–825`, ASRF-1). Quota room admission lacks ordinary-start compensation after creating its attempt (`quota_dispatch.go:154–237`, ASRG-1); G2–G5 retain check admission, cancellation settlement, isolation and cleanup defects. Terminal viewer detach preserves PTY work; terminal quota automation is unsupported and B1/B4/B5 recovery remains defective. |
+| J4 — ordinary/room stage + quota/Stop/restart | Task/run closure precedes cancellation; room capture binds generation/turn/attempt and accepted judge output, not arbitrary private prose. Pipeline controller recovery retains accepted post-result actions through startup/live faults and Stop (`473d74dd`). Quota room admission lacks ordinary-start compensation after creating its attempt (`quota_dispatch.go:154–237`, ASRG-1); G2–G5 retain check admission, cancellation settlement, isolation and cleanup defects. Terminal viewer detach preserves PTY work; terminal quota automation is unsupported and B1/B4/B5 recovery remains defective. |
 | J5 — context through delegation/handoff/compaction | Assignment references/grants and room read receipts stay scoped; private room input does not become public judge prose. The bounded bridge persists separately through immediate Stop/wake and compaction, but switch marker append opens a second writer after target Resume (`primer.go:65–81`, `switch.go:266–278`, ASRD-1). D2/D3 affect order/durability and B1–B3 affect terminal/fork context. A4/A6 additionally invalidate assumptions that a recreated checkout is ready. Actual live context adoption is still unproved. |
 | J6 — accepted-but-lost desktop/phone/CLI actions | Attachment request hash/receipt precedes native admission (`attachments.go:453–541`); identical explicit retry returns stored acceptance. Text-only sends have no universal idempotency promise. CLI reports uncertainty without automatic replay; phone recovery only rehydrates current truth. ASRD-4 annotation retry and ASRH-4 automatic held replay remain proven duplicate-effect paths; H1/H2 retain lost/stale human intent; ASF-6 closed H3. Phone agent routes are keyed by identity (`PhoneApp.tsx:128`), so an old component's completion is not evidence of a new cross-agent draft bug. |
 | J7 — cumulative harness cost and quality | Wrong native/frozen instructions (A/B), repeated input/annotation effects (H4/D4), blocked read loop (C1), lost continuation context (E1), stranded recovery (F1/G1), and unbounded retention (C6/D5/E2) are supported mechanisms for wrong work, extra work or delay. Their incidence, usage and output-quality effects have not been compared with native operation. Persona/repository process pressure is a hypothesis, not an additional defect. |
@@ -906,7 +872,7 @@ already interrupts unreported task/room ownership (`server.go:463–464`), while
 cleanup has a durable retry pass (`task_dispatcher.go:466–528`). No loss or duplicate effect
 beyond the retained findings was established. The intermittent ordinary-stage Stop 409 remains
 unresolved; isolated passing runs do not close that note. No contradictory product requirement
-was silently selected; ASRC-7's outcome drift is now closed by ASW-3; ASRF-2 remains open.
+was silently selected; ASRC-7's outcome drift is now closed by ASW-3; ASRF-2 is closed in `473d74dd`.
 
 Diagnostic sufficiency and bounded performance experiment:
 

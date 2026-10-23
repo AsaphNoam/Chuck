@@ -41,7 +41,7 @@ Ordinary fix-closure bookkeeping follows §8 and is not a new implementation rev
 | ASW-3 — `/fix ASW-3` (reviewed `3618df3e`) | Owned process/driver proof, launch claim and native terminal identity (FS-01.R54, FS-07.R25, TS-01.R41, TS-02.R54, TS-04.R102, TS-05.R28, TS-12.R11) | ASRA-4, ASRB-1, ASRB-4, ASRB-5, ASRB-6, ASRB-7, ASRC-3, ASRC-4, ASRC-7 | Reviewed; ASW3-1–6 open — difficult, Codex Sol; FS-07.A12 receipts owed |
 | ASF-1 — `/fix ASF-1` | [Turn, status, permission and settings settlement](#asf-1--turn-and-control-settlement) | ASRC-1, ASRC-2, ASRC-5, ASRG-3 | Closed 2026-10-20 — `66c6a984` (ASRC-1), `60777c14` (ASRG-3), `ad08b386` (ASRC-2/5); live mid-turn setting receipt owed |
 | ASF-2 — `/fix ASF-2` | [Input acceptance, uncertain delivery and exact recovery](#asf-2--input-acceptance-and-recovery) | ASRD-4, ASRH-1, ASRH-2, ASRH-4 | Closed 2026-10-22 — `2268e279`, `f8338ac5`, `64bd3962`; native/device receipts owed |
-| ASF-3 — `/fix ASF-3` | [Durable continuation and controller recovery](#asf-3--durable-continuation-and-controller-recovery) | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | ASRG-1/2/5 closed (`63a723e5`, `8b7db7ed`); ASRE-1 separately owned; ASRF-1/2 waiting — medium, Codex Terra or Claude Opus |
+| ASF-3 — `/fix ASF-3` | [Durable continuation and controller recovery](#asf-3--durable-continuation-and-controller-recovery) | ASRE-1, ASRF-1, ASRF-2, ASRG-1, ASRG-2, ASRG-5 | ASRG-1/2/5 closed (`63a723e5`, `8b7db7ed`); ASRE-1 separately owned; ASRF-1/2 closed (`473d74dd`) — medium, Codex Terra or Claude Opus |
 | ASF-4 — `/fix ASF-4` | [Bounded completed work and retained task results](#asf-4--retention-and-result-bounds) | ASRC-6, ASRE-2 | Closed 2026-10-22 — `91f30979` (ASRE-2), `65de12ce` (ASRC-6) |
 | ASF-5 — `/fix ASF-5` | [Project setup readiness and resource permissions](#asf-5--project-readiness-and-resource-permissions) | ASRA-5, ASRA-6 | Closed 2026-10-22 — `8db628c7`, `c379b51c` |
 | ASF-6 — `/fix ASF-6` | [Certain CLI archive selection](#asf-6--cli-archive-selection) | ASRH-3 | Finished |
@@ -165,7 +165,7 @@ browser/device checks without representing jsdom/fake ACP as native receipts. No
 Focused quota/state and tagged race tests, both full Go variants, tagged build and
 documentation/launcher checks pass; original-code overlays fail the new regressions.
 The operator excluded separately owned
-ASRE-1 from this run. ASRF-1/2 remain available; this does not close all of ASF-3.
+ASRE-1 from this run. ASRF-1/2 are closed in `473d74dd`; this does not close all of ASF-3.
 
 **Outcome:** every accepted result, deferred continuation and cleanup retains its next recovery
 owner. A transient bookkeeping failure cannot require repeating successful agent work.
@@ -181,13 +181,9 @@ do not introduce another scheduler or replay engine.
    release → re-admit/confirm → assignment read. Include watched source IDs/revisions/outcomes and
    retained result context, including deleted-source truth. Confirmation cannot erase the context
    before the resumed execution can read it. Use existing task scope and read projection.
-2. **ASRF-1:** clear post-result pending action only when next-stage, approval or final progression
-   commits. Keep the exact action/owner through startup and live callback failure, using current
-   dispatcher retry/backoff and attention states. Stop's fence wins; retry bookkeeping, never the
-   accepted stage. No action may disappear merely because runtime release already succeeded.
-3. **ASRF-2:** remove unused `LaunchStage`/`ContinueStage`/dependent `IsRunning` obligations and
-   obsolete direct-executor tests; retain used `StopStage` cleanup. Prove frozen/applied fast and
-   grouping through real run → stage task → task dispatcher. Update TS-12.R4's stale path description.
+**Closed ASRF-1/2 (`473d74dd`):** retained controller actions now use the existing dispatcher
+backoff and attention policy across startup/live faults while Stop retains its fence; the obsolete
+executor and tests are removed, and real task dispatch proves frozen/applied fast and run grouping.
 4. **ASRG-1:** prompt-preparation/status/start failure after quota's room `before` callback must
    abandon that exact room attempt/capture, using ordinary room dispatch's compensation seam.
    Failed compensation remains retryable; no published contribution or phantom running opportunity.
