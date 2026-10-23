@@ -429,7 +429,7 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   the schedule's existing-agent target is archived or deleted, or its project is archived, the
   schedule pauses itself with that reason and counts toward the Tasks needs-attention indicator
   (FS-02.R44) instead of creating an occurrence task that would park at once. Resuming revalidates the target. Invalid schedules —
-  empty rule, zero or excessive times per day, N outside its bound, an end before the start, a
+  empty rule, no time of day or a repeated one, N below 1, an end before the start, a
   terminal-interface target, or a group with an existing-agent target — are rejected under R20 and
   create nothing.
 - **R58 (planned) — Times survive restart without guessing.** Time arms and schedules are durable

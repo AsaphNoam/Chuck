@@ -658,9 +658,11 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   and delete refuse `not_creator` for a schedule the caller did not create, and an unknown schedule
   is indistinguishable from an unauthorized one. `create_task` and HTTP task create/re-arm gain
   optional `start_at` and `run_only_on_time` (default true). A `schedule_update` SSE event follows
-  each committed schedule change with `{schedule_id, revision, state, pause_reason}` (R11). Bounds
-  live in the shared limits module: at most 8 times per day, an N-day interval up to 365 or N-week
-  interval up to 52, an occurrence count up to 1000, and at most 64 active schedules per project.
+  each committed schedule change with `{schedule_id, revision, state, pause_reason}` (R11). Rules
+  have no product count limits. The only checks are well-formedness: at least one time, distinct
+  `HH:MM` values (at most 1440 per day as a result), N ≥ 1, and an end not before the start. R54's
+  per-pass batch and R57's per-pass enumeration cap only pace processing, and a schedule left
+  behind by a cap catches up on later passes.
 
 ## 3. Interfaces & data shapes
 
