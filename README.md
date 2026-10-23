@@ -124,7 +124,7 @@ cd ui && npm ci && npm run dev   # http://localhost:5173
 | `chuck update [--check\|--yes\|--rollback]` | explicitly check, install, or roll back a release |
 | `chuck <role>@<project> [--backend B] [--model M] [--name N]` | launch an agent (resumes a single inactive match by default; `--new` forces a fresh one) |
 | `chuck resume <agent_id>` | resume a specific inactive persisted session |
-| `chuck reindex` | rebuild the archive search index from `sessions/` |
+| `chuck reindex` | repair the archive/search index offline from saved transcript logs |
 
 The [operator CLI](docs/operator-cli.md) also exposes conversations, projects/groups/worktrees,
 archive, pipelines, tasks, Think Tanks, configuration and remote administration through the running

@@ -56,6 +56,14 @@ Their source reviews and open findings remain below; do not reopen completed ref
   Uncommitted task-scheduling design edits are preserved and excluded; release verification
   will use a clean committed checkout. The post-review runtime guard commit `6050f2ce` needs
   focused affected-coverage evidence in the existing receipt, not another architectural review.
+  Clean verification checkout: `/private/tmp/chuck-release-v0.18.1`, source `69082b39`.
+  Distribution build, unchanged generated UI, 995 UI tests, runtime guard race test and vet pass.
+  Full Go closure is running; the first no-tag CLI package hit the known bootstrap download-start
+  deadline, and three focused repeats passed twice/failed once. Logs: `/private/tmp/chuck-v0.18.1-*`.
+  The same no-tag run also failed `TestRestartResolvesUnfinishedTasksFromTheirOwnRows`'s
+  immediate-release assertion: the fixture retained a live busy reporting turn, so R19/R48
+  correctly deferred cleanup. No test/product edit made; full no-tag retry and FTS5 variant
+  are running. Keep these failures visible until the release checkpoint is resolved.
 
 - **Next-release architectural review completed, 2026-10-23:** committed candidate `eb56b0c2`
   since v0.18.0; [receipt](../archive/reviews/architecture/v0.18.0-next.json) and
@@ -303,6 +311,21 @@ No review rows remain; ASR-A–I are reviewed with no open findings. Owed live r
 The `NewAgentModal`/phone gap-test race fix is confirmed remotely (main CI run 39007164597).
 
 Closed reviews through the `v0.17.0` cut are in the archive above.
+
+### v0.18.1 release verification — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — **REL-VERIFY-1: release closure is blocked by pre-existing fixture assumptions.**
+  `internal/cli/installer_test.go:334–343` allows only one second for the bootstrap subprocess
+  to reach its download marker; it failed in the initial and retry no-tag suites, while focused
+  repeats passed twice/failed once and the tagged CLI suite passed. The installer and test are
+  unchanged since v0.18.0. `internal/server/task_dispatch_test.go:952–955` additionally asserted
+  immediate release after recovery while the same live reporting turn still owned the runtime;
+  TS-10.R19/R48 correctly defer that cleanup. The test never simulates losing the registry.
+  Proposed bounded test-only corrections keep the lock contention/final release assertions:
+  wait up to 10 seconds for bootstrap readiness, and drive/wait for ordinary deferred cleanup.
+  No product regression or repair is claimed. Approval requested under the operator's separate-fix
+  instruction; reviewable patch `/private/tmp/chuck-release-test-proposal.patch`. Keep release
+  blocked until checks pass. Logs are `/private/tmp/chuck-v0.18.1-{go-closure,go-retry,bootstrap-diagnostic}.log`.
 
 ### Next-release architecture — reviewed `eb56b0c2` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -1370,6 +1393,11 @@ v0.18.0 was published 2026-10-21 with the explicit one-release architectural-rev
   `docs/ready-changes/` remain untouched. This state-only closure creates no new review unit.
 
 ## Blocked on human
+
+- **v0.18.1 verification-only fixes:** approval requested to correct the two pre-existing
+  fixture assumptions in REL-VERIFY-1 (~20 lines, no product behavior change). The ARCH-1 repair
+  is committed as `69082b39`; distribution/995 UI tests/vet pass. Full Go checks remain blocked.
+  Version and publishing approval will be requested only after the candidate is verified.
 
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
