@@ -25,8 +25,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- No change in progress. Timed and recurring task starts finished 2026-10-23 and wait in the
-  review queue. v0.18.1 is published; REL-CI-1 below remains available for fix.
+- No change in progress. Timed and recurring task starts were reviewed 2026-10-23;
+  TTS-1–3 below keep that unit open for fixes. v0.18.1 is published; REL-CI-1 remains available.
 
 ## Acceptance gates still owed
 
@@ -161,10 +161,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 ## Review queue
 
 - **Timed and recurring task starts** (FS-16.R51–R58/A35–A40, TS-10.R54–R60), commits
-  `32f1702c`..this closure. Entry points: `internal/recurrence`, `internal/state/task_time.go`,
+  `32f1702c`..`4bcfa1b9`, reviewed 2026-10-23; TTS-1–3 remain open. Entry points:
+  `internal/recurrence`, `internal/state/task_time.go`,
   `task_schedules.go`, `internal/server/task_time.go`, `schedule_handlers.go`,
-  `internal/messaging/schedule_tools.go`, `ui/src/features/tasks/scheduleForms.tsx`. Notes for
-  the reviewer: the rule is one `rule_json` column (`recurrence.Rule`) rather than per-field
+  `internal/messaging/schedule_tools.go`, `ui/src/features/tasks/scheduleForms.tsx`. Local choices
+  accepted in review: the rule is one `rule_json` column (`recurrence.Rule`) rather than per-field
   columns; `tasks.schedule_id` is `NOT NULL DEFAULT ''`; the missed-start attention reason is
   the words "missed start time"; `schedule_update` also carries `project`; edit is `PUT`
   (whole-template replacement under `revision`); `not_creator` answers unknown ids too; the
@@ -173,10 +174,60 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   state/recurrence and server schedule/dispatch tests pass. Intermittent, unrelated-looking
   failures seen once each and passing on repeat: `TestOrdinaryStageAgentStopPausesPipelineRun`,
   `TestDeferredAssignmentResumesOriginalAgent/continuation_failure` (FTS variant) and
-  `ProjectScreen new agent` (UI); not repaired. Rendered review covered three skins at 1440/1024;
-  a self-paused schedule row was not rendered (UI test only).
+  `ProjectScreen new agent` (UI); not repaired. Implementation rendering covered three skins at
+  1440/1024; independent review now also rendered a self-paused schedule row at both widths.
 
 ## Review findings
+
+### TTS — timed and recurring task starts — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Owner: next fix run; reviewed `32f1702c^..4bcfa1b9`. Product code and specs were not changed.
+
+- **Must fix** — TTS-1 (INV §1): `internal/state/task_schedules.go:319–322, 360–371`
+  trusts the persisted absolute `next_due_at` before recomputing occurrences in the current zone.
+  After changing the Mac's zone and restarting, the first future occurrence can run at the old
+  zone's time. A temporary store/reopen regression creates daily 09:00 in UTC, reopens in New York,
+  and observes a task at 04:00 local (`scheduled_for=2026-01-02T09:00Z`). This violates FS-16.R54/R58
+  and TS-10.R56's explicit restart behavior. Rebase unhandled schedule occurrences to the current
+  zone without replaying handled occurrences; cover both directions of zone change and preserve
+  count/missed semantics. Reproduction: `/private/tmp/chuck-tz-review-overlay.json` and
+  `/private/tmp/chuck-tz-review_test.go` (test fails on this source).
+- **Must fix** — TTS-2 (INV §7/§8/§11): `ui/src/features/tasks/TasksPage.tsx:428–429, 455–461`
+  discards schedule loading/error state and reads an unavailable list as `[]`;
+  `ui/src/components/grid/CardGrid.tsx:39–46` likewise ignores the schedule query error. A failed
+  `/api/schedules` read hides all schedule controls and reports zero attention with no error or
+  retry, even when a self-paused schedule needs action. This breaks FS-16.R56/R57 and the truthful
+  attention/read-state contract of FS-02.R44 and FS-16.R41. Carry schedule query state through the
+  page and attention link; distinguish initial failure, stale refresh and empty success. Test
+  failed schedule reads independently of successful task reads, including stale cached attention.
+  Chromium reproduction and screenshot: `/private/tmp/chuck-timed-review-evidence/`.
+- **Must fix** — TTS-3 (INV §10): `ui/src/features/tasks/taskForms.tsx:194–245` and
+  `ui/src/api/tasks.ts:159–161` cannot supply `start_at` or `run_only_on_time` when re-arming.
+  After a timed task misses its start, the offered recovery can remove its time wait or replace it
+  with a task/signal dependency, but cannot move it to a future time. FS-16.R14/R23/R51–R52 and
+  TS-10.R55/R60 require re-arming the missed time arm; the HTTP handler already supports it.
+  Extend the existing re-arm form/request with the same optional time and default-on policy used
+  at creation, include it in the replacement preview, and verify a missed timed task can be
+  rescheduled while retaining another chosen prerequisite. Rendered evidence:
+  `/private/tmp/chuck-timed-review-evidence/time-rearm.png`.
+
+Review verification: focused state/recurrence and HTTP/MCP schedule tests pass; 60 TasksPage/taskWork
+UI tests and style/presentation checks (46 script tests) pass. The tagged real binary built.
+Initial loopback-denied tests were rerun successfully with approved loopback execution; an initial
+build ran out of disk, then passed after review-owned duplicate caches were removed. The deliberate
+timezone regression fails as described above. Independent Chromium used the current Vite UI and
+real isolated server/home: 24 checks cover keyboard task/schedule creation, edit, pause/resume,
+Run only on time, self-paused attention, and layout without page errors in Core, Sky & Grove and
+Studio at 1024/1440. The self-paused presentation was seeded directly in review-owned SQLite;
+the actual unavailable-target transition is covered by the passing server tests. Two additional
+browser probes reproduce TTS-2/TTS-3; screenshots/report and the driver
+`/private/tmp/chuck-timed-review.mjs` retain that evidence. No live provider was required for future starts. Prior implementation
+full-suite/race receipts and their transient failures above remain unchanged.
+
+Invariant sweep: §1–3, §5, §7–11, §13–17 apply and were checked; findings are tagged above.
+§4 has no new registration-owned resource, §6 no new runtime/interface, and §12 no external-CLI
+invocation in this diff. Changed tests use controlled clocks, actual SQLite transitions, actual
+HTTP/MCP boundaries and Go-marshalled UI fixtures; no additional test-cost finding (TS-06.R35/INV §17).
 
 ARCH-1 is repaired by `69082b39`; REL-VERIFY-1 is closed by the explicitly approved
 test corrections `001ba8b5`. Both full Go variants pass. Original reports and prior failed runs
@@ -206,6 +257,10 @@ Owner: runtime permission settlement / next fix run.
   TS-10.R54–R60): clock-time arms with Run only on time, closed-rule schedules that create
   ordinary tasks, HTTP routes, agent tools and the desktop Schedules section. FS-16 and TS-10 are
   now Current. Waiting for review.
+
+- **2026-10-23 — Review:** timed and recurring task starts remain open for TTS-1–3: timezone
+  restart scheduling, silent schedule-read failures, and missing time re-arm controls. Focused
+  automated checks pass; the timezone regression reproduces. Fix routing is recorded with the unit.
 
 - **2026-10-23 — Release preparation:** ARCH-1 repair `69082b39`, exact post-review coverage,
   truthful failed-check records and approved fixture corrections `001ba8b5` are committed.
