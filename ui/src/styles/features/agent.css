@@ -1504,6 +1504,8 @@ a.agent-mini-card:focus-visible {
 
 .annotation-draft textarea,
 .annotation-overall textarea {
+  font-family: var(--ad-font-text);
+  font-size: 1rem;
   min-height: 54px;
 }
 

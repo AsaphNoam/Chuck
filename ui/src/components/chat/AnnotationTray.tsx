@@ -101,7 +101,7 @@ function AnnotationDraftRow({ draft, index, sourceId, onRemove, onUpdate, disabl
           rather than bold text sharing a line with a control (FS-13.R22). */}
       <div className="annotation-draft-head"><h3 className="annotation-draft-anchor">{anchor}</h3><button type="button" className="ad-button-danger" onClick={() => onRemove(sourceId, index)} disabled={disabled}>Remove</button></div>
       <blockquote>{draft.excerpt}</blockquote>
-      <label>Instruction<AutoGrowTextarea value={draft.instruction} maxLength={2000} onChange={(event) => onUpdate(sourceId, index, event.target.value)} disabled={disabled} /></label>
+      <label>Instruction<AutoGrowTextarea autoFocus value={draft.instruction} maxLength={2000} onChange={(event) => onUpdate(sourceId, index, event.target.value)} disabled={disabled} /></label>
     </li>
   );
 }

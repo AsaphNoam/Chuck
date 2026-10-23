@@ -254,6 +254,11 @@ identity and authority; no common receipt grants broader target/source access.
   suppression of a self-targeted machine prompt applies unchanged, including legacy blocks.
   Receiving an annotation card does not create a draft or a new selectable annotation source.
 
+- **R33 — Desktop annotation entry.** Instruction and overall instruction fields use the
+  regular application text font at the standard input size. A newly mounted draft instruction
+  receives keyboard focus in agent and room trays so typing can begin immediately. Editing
+  existing fields does not move focus.
+
 ## 5. Acceptance criteria
 
 Each acceptance item names its delivered verification.
@@ -366,6 +371,10 @@ Each acceptance item names its delivered verification.
 one canonical annotation plus one target effect for peer mail, self, new-task and launched targets,
 desktop and phone. Test payload mismatch, target refusal before effects, index repair and caller
 authorization; use real handler/receipt paths rather than a mock that deduplicates only requests.
+
+- **A23** (R33) — Desktop annotation instruction and overall instruction fields use the regular
+  input font and size. Adding a draft focuses its instruction immediately, including in a
+  room tray; editing an existing draft does not move focus.
 
 ## 6. Deviations & open decisions
 

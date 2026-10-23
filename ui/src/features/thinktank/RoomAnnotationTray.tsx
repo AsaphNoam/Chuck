@@ -85,7 +85,7 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
                 <button type="button" className="ad-button-danger" onClick={() => remove(sourceId, index)} disabled={send.isPending}>Remove</button>
               </div>
               <blockquote>{draft.excerpt}</blockquote>
-              <label>Instruction<AutoGrowTextarea value={draft.instruction} maxLength={2000} onChange={(event) => updateInstruction(sourceId, index, event.target.value)} disabled={send.isPending} /></label>
+              <label>Instruction<AutoGrowTextarea autoFocus value={draft.instruction} maxLength={2000} onChange={(event) => updateInstruction(sourceId, index, event.target.value)} disabled={send.isPending} /></label>
             </li>
           ))}
         </ol>

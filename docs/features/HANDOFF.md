@@ -163,6 +163,13 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
+- **Annotation input font and focus** (FS-13.R33/A23), waiting for review. Desktop agent
+  and room instruction fields focus on mount; instruction and overall fields use the regular
+  text font at 1rem. Focus regression and full UI suite pass (99 files, 1001 tests).
+  Spec checks, production build (including presentation/style checks), and diff checks pass.
+  Native macOS keyboard verification remains unclaimed. Existing unrelated design edits are
+  preserved outside this unit's commit.
+
 - **Workflow verification cleanup** (TS-06.R5, TS-08.R17), waiting for review. UI-only changes
   no longer require full Go suites; local checks follow the changed source/tooling, valid checks
   can be reused across roles, fix runs close once, and successful logs stay compact. `npm test`

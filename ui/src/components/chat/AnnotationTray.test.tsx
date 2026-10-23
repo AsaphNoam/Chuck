@@ -52,6 +52,18 @@ function agentStylesheet() {
 }
 
 describe("AnnotationTray", () => {
+  it("focuses a new instruction and preserves focus while editing", () => {
+    seedTray(1);
+    renderTray();
+    expect(screen.getByLabelText("Instruction")).toHaveFocus();
+    const overall = screen.getByLabelText("Overall instruction (optional)");
+    overall.focus();
+    fireEvent.change(overall, { target: { value: "Keep this focus" } });
+    expect(overall).toHaveFocus();
+    act(() => { useAnnotationStore.getState().add("source", { seq: 2, excerpt: "Next", instruction: "" }); });
+    expect(screen.getAllByLabelText("Instruction")[1]).toHaveFocus();
+  });
+
   it("validates the batch before opening launch, leaving an invalid tray intact", async () => {
     seedTray(1);
     useAnnotationStore.getState().updateInstruction("source", 0, "  ");
