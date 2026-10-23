@@ -187,30 +187,97 @@ func TestTaskWaitRefusesSameAssigneeAndCancellationWinsYield(t *testing.T) {
 	}
 }
 
-func TestConfirmTaskStartDiscardsPriorWaits(t *testing.T) {
-	st, _ := newTestStore(t)
+// TS-10.R29/R53 (ASRE-1): the watched changes that woke an assignment survive
+// wait → child failure/deletion → yield release → re-admission → confirmation
+// and a store reopen, so the resumed execution can read which work changed and
+// how. Confirmation settles the wake without re-waking the new execution.
+func TestContinuationContextSurvivesConfirmationAndRestart(t *testing.T) {
+	home := t.TempDir()
+	st, err := Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.Close() }()
 	owner := newTask(t, st, "proj", "owner")
-	child := newTask(t, st, "proj", "child")
-	if _, err := st.DB().Exec(`UPDATE tasks SET created_by_kind = 'agent', created_by_agent_id = 'a_owner' WHERE task_id = ?`, child.TaskID); err != nil {
+	if _, err := st.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, runtime_claim = ?, execution_handle = ? WHERE task_id = ?`, TaskRunning, "a_owner", "g1", ClaimCreated, "exec1", owner.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, runtime_claim = ?, execution_handle = ?, wait_version = 1 WHERE task_id = ?`, TaskRunning, "a_owner", "g1", ClaimBorrowed, "exec1", owner.TaskID); err != nil {
+	failed, deleted := newTask(t, st, "proj", "failing child"), newTask(t, st, "proj", "deleted child")
+	if _, err := st.DB().Exec(`UPDATE tasks SET created_by_kind = 'agent', created_by_agent_id = 'a_owner' WHERE task_id IN (?, ?)`, failed.TaskID, deleted.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.WaitForTasks("a_owner", "g1", "exec1", []TaskWaitObservation{{TaskID: child.TaskID, AfterRevision: child.Revision}}); err != nil {
+	if _, _, err := st.WaitForTasks("a_owner", "g1", "exec1", []TaskWaitObservation{
+		{TaskID: failed.TaskID, AfterRevision: failed.Revision}, {TaskID: deleted.TaskID, AfterRevision: deleted.Revision},
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.DB().Exec(`UPDATE tasks SET state = ?, pending_yield = 0, continuation_pending = 1, resume_needed = 1, start_attempt_id = ?, assigned_generation = ? WHERE task_id = ?`, TaskStarting, "next", "g2", owner.TaskID); err != nil {
+	if _, err := st.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_child', assigned_generation = 'gc', runtime_claim = ? WHERE task_id = ?`, TaskRunning, ClaimBorrowed, failed.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := st.ConfirmTaskStart(owner.TaskID, "next"); err != nil || !ok {
+	failedDone, err := st.RecordPersonTaskResult(failed.TaskID, TaskResult{Outcome: OutcomeFailure, Summary: "tests broke"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.NotifyTaskWaiters(failed.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.CancelTask(deleted.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DeleteTask(deleted.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.CompleteTaskYield(owner.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := st.AdmitReadyTask(owner.TaskID, TaskReservation{AttemptID: "att2", AgentID: "a_owner", Generation: "g2", Claim: ClaimCreated}, 4); err != nil || !ok {
+		t.Fatalf("admit continuation = ok %v err %v", ok, err)
+	}
+
+	want := map[string]TaskObservedChange{
+		failed.TaskID:  {TaskID: failed.TaskID, AfterRevision: failed.Revision, Revision: failedDone.Revision, State: TaskFinished, Outcome: OutcomeFailure, Summary: "tests broke", Changed: true},
+		deleted.TaskID: {TaskID: deleted.TaskID, AfterRevision: deleted.Revision, Outcome: OutcomeCancelled, Summary: "cancelled", Deleted: true, Changed: true},
+	}
+	check := func(when string, s *Store) {
+		t.Helper()
+		got, err := s.TaskContinuationContext(owner.TaskID)
+		if err != nil {
+			t.Fatalf("%s: continuation context: %v", when, err)
+		}
+		if len(got) != len(want) {
+			t.Fatalf("%s: continuation context = %+v, want %d sources", when, got, len(want))
+		}
+		for _, change := range got {
+			if change != want[change.TaskID] {
+				t.Fatalf("%s: observed change = %+v, want %+v", when, change, want[change.TaskID])
+			}
+		}
+	}
+	check("before confirmation", st)
+	if _, ok, err := st.ConfirmTaskStart(owner.TaskID, "att2"); err != nil || !ok {
 		t.Fatalf("confirm = ok %v err %v", ok, err)
 	}
-	var count int
-	if err := st.DB().QueryRow(`SELECT COUNT(*) FROM task_waits WHERE waiting_task_id = ?`, owner.TaskID).Scan(&count); err != nil {
+	check("after confirmation", st)
+
+	// The settled watch must not wake the execution that already observed it.
+	if woken, err := st.NotifyTaskWaiters(failed.TaskID); err != nil || len(woken) != 0 {
+		t.Fatalf("notify after confirmation woke %+v err %v", woken, err)
+	}
+	if woken, err := st.ReconcileTaskWaits(8); err != nil || len(woken) != 0 {
+		t.Fatalf("reconcile after confirmation woke %+v err %v", woken, err)
+	}
+
+	if err := st.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if count != 0 {
-		t.Fatalf("prior waits remain after confirmation: %d", count)
+	reopened, err := Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st = reopened
+	check("after reopen", reopened)
+	running, err := reopened.ReadTask(owner.TaskID)
+	if err != nil || running.State != TaskRunning || running.ResumeNeeded {
+		t.Fatalf("resumed owner = %+v err %v", running, err)
 	}
 }

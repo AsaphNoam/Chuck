@@ -26,6 +26,59 @@ type TaskWaitChange struct {
 	AttentionReason string `json:"attention_reason,omitempty"`
 }
 
+// TaskObservedChange is one source of an assignment's current watch set as the
+// resumed execution reads it. A deleted source keeps its immutable registered
+// result, if any, and is reported as deleted rather than silently dropped.
+type TaskObservedChange struct {
+	TaskID          string `json:"task_id"`
+	AfterRevision   int    `json:"after_revision"`
+	Revision        int    `json:"revision"`
+	State           string `json:"state,omitempty"`
+	Outcome         string `json:"outcome,omitempty"`
+	Summary         string `json:"summary,omitempty"`
+	AttentionReason string `json:"attention_reason,omitempty"`
+	Deleted         bool   `json:"deleted,omitempty"`
+	Changed         bool   `json:"changed"`
+}
+
+// TaskContinuationContext projects the assignment's current wait set: each
+// watched source, the revision it was watched after, and its current state and
+// result. Watch rows outlive confirmation until the next wait replaces them or
+// the assignment ends, so the context is readable before and after the resumed
+// execution is confirmed and across restart (TS-10.R29/R53). At most
+// MaxTaskWaitSources rows exist per version; result details stay behind get_task.
+func (s *Store) TaskContinuationContext(taskID string) ([]TaskObservedChange, error) {
+	rows, err := s.db.Query(`SELECT w.source_task_id, w.after_revision, src.task_id IS NULL,
+  COALESCE(src.revision, 0), COALESCE(src.state, ''),
+  CASE WHEN src.task_id IS NULL THEN COALESCE(wr.outcome, '') ELSE COALESCE(src.outcome, '') END,
+  CASE WHEN src.task_id IS NULL THEN COALESCE(wr.summary, '') ELSE COALESCE(src.outcome_summary, '') END,
+  COALESCE(src.attention_reason, '')
+FROM task_waits w
+JOIN tasks t ON t.task_id = w.waiting_task_id AND t.wait_version = w.wait_version
+LEFT JOIN tasks src ON src.task_id = w.source_task_id
+LEFT JOIN work_results wr ON wr.source_kind = ? AND wr.source_id = w.source_task_id
+WHERE w.waiting_task_id = ?
+ORDER BY w.source_task_id LIMIT ?`, SourceTask, taskID, MaxTaskWaitSources)
+	if err != nil {
+		return nil, fmt.Errorf("state: read continuation context: %w", err)
+	}
+	defer rows.Close()
+	changes := make([]TaskObservedChange, 0)
+	for rows.Next() {
+		var c TaskObservedChange
+		if err := rows.Scan(&c.TaskID, &c.AfterRevision, &c.Deleted, &c.Revision, &c.State, &c.Outcome, &c.Summary, &c.AttentionReason); err != nil {
+			return nil, fmt.Errorf("state: scan continuation context: %w", err)
+		}
+		c.Changed = c.Deleted || c.Revision > c.AfterRevision || c.State == TaskFinished ||
+			c.State == TaskInterrupted || c.State == TaskDependencyFailed
+		changes = append(changes, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("state: iterate continuation context: %w", err)
+	}
+	return changes, nil
+}
+
 // PrepareTaskContinuation admits an external waking input to the same
 // assignment continuation used by watched changes. It retains assignment
 // identity while releasing any old runtime claim; the dispatcher must perform
@@ -118,6 +171,10 @@ func (s *Store) WaitForTasks(agentID, generation, executionHandle string, observ
 		return changes, waiting, nil
 	}
 	version := waiting.WaitVersion + 1
+	// The new wait set replaces the previous continuation context (TS-10.R33).
+	if _, err := tx.Exec(`DELETE FROM task_waits WHERE waiting_task_id = ? AND wait_version < ?`, waiting.TaskID, version); err != nil {
+		return nil, Task{}, err
+	}
 	for _, observation := range observations {
 		if _, err := tx.Exec(`INSERT INTO task_waits(waiting_task_id, wait_version, source_task_id, after_revision) VALUES (?, ?, ?, ?)`, waiting.TaskID, version, observation.TaskID, observation.AfterRevision); err != nil {
 			return nil, Task{}, err
@@ -167,12 +224,15 @@ WHERE w.source_task_id = ?`, sourceTaskID)
 // A watched change can fire long after the stage that authorized the wait
 // completed or its run was stopped. Waking the waiter then is the same escape a
 // ready child is, so it takes the same inherited-closure fence (TS-09.R42,
-// TS-10.R29). The durable watch row is untouched.
+// TS-10.R29). The durable watch row is untouched. Only an unsettled watch wakes:
+// a waiting assignment, or a running one still yielding. A running execution
+// without a pending yield was confirmed after this wait set and already reads
+// it as continuation context, so it must not be woken again (TS-10.R53).
 func (s *Store) wakeTaskWaiters(ids []string) ([]Task, error) {
 	now := formatTime(timeNow())
 	var changed []Task
 	for _, id := range ids {
-		res, err := s.db.Exec(`UPDATE tasks SET resume_needed = 1, state = CASE WHEN state = ? AND pending_yield = 0 THEN ? ELSE state END, continuation_pending = CASE WHEN state = ? AND pending_yield = 0 THEN 1 ELSE continuation_pending END, ready_at = CASE WHEN state = ? AND pending_yield = 0 THEN ? ELSE ready_at END, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state IN (?, ?) AND resume_needed = 0`+taskRunOpenClause, TaskWaiting, TaskReady, TaskWaiting, TaskWaiting, now, now, id, TaskRunning, TaskWaiting)
+		res, err := s.db.Exec(`UPDATE tasks SET resume_needed = 1, state = CASE WHEN state = ? AND pending_yield = 0 THEN ? ELSE state END, continuation_pending = CASE WHEN state = ? AND pending_yield = 0 THEN 1 ELSE continuation_pending END, ready_at = CASE WHEN state = ? AND pending_yield = 0 THEN ? ELSE ready_at END, revision = revision + 1, updated_at = ? WHERE task_id = ? AND (state = ? OR (state = ? AND pending_yield = 1)) AND resume_needed = 0`+taskRunOpenClause, TaskWaiting, TaskReady, TaskWaiting, TaskWaiting, now, now, id, TaskWaiting, TaskRunning)
 		if err != nil {
 			return nil, err
 		}
@@ -204,10 +264,10 @@ func (s *Store) ReconcileTaskWaits(limit int) ([]Task, error) {
 	rows, err := s.db.Query(`SELECT DISTINCT tasks.task_id FROM tasks
 JOIN task_waits w ON w.waiting_task_id = tasks.task_id AND w.wait_version = tasks.wait_version
 LEFT JOIN tasks src ON src.task_id = w.source_task_id
-WHERE tasks.state IN (?, ?) AND tasks.resume_needed = 0
+WHERE (tasks.state = ? OR (tasks.state = ? AND tasks.pending_yield = 1)) AND tasks.resume_needed = 0
   AND (src.task_id IS NULL OR src.state IN (?, ?, ?))`+taskRunOpenClause+`
 ORDER BY tasks.task_id LIMIT ?`,
-		TaskRunning, TaskWaiting, TaskFinished, TaskInterrupted, TaskDependencyFailed, limit)
+		TaskWaiting, TaskRunning, TaskFinished, TaskInterrupted, TaskDependencyFailed, limit)
 	if err != nil {
 		return nil, fmt.Errorf("state: list actionable task waits: %w", err)
 	}

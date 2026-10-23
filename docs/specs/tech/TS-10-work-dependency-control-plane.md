@@ -437,6 +437,15 @@ parallel copy of them.
   unresolved entries and retires settled or superseded attempts. Read/write errors retain the retry.
   Per-task serialization and the existing generation/PID-checked stop seam still apply; recovery
   never reaps a newly admitted in-process start or abandons an unproved live process.
+- **R53 (implemented 2026-10-23) — The wait set is the resumed execution's continuation context.**
+  Confirmation settles a wake without deleting the current wait set; this narrows R33's discard
+  after completed continuation. The set remains until the assignment's next yielding wait replaces it,
+  a terminal result, or task deletion. Only a waiting assignment, or a running one with
+  `pending_yield`, is woken by it. `get_assigned_task` projects it as `observed_changes` from the
+  caller's own assignment before and after confirmation and across restart. Each of at most 64
+  entries gives source id, `after_revision`, current revision/state/outcome/summary/attention, and
+  `changed`; a deleted source reports `deleted` with its retained registered outcome and summary.
+  Details and outputs stay behind `get_task`. No snapshot copy, replay log or scheduler is added.
 
 ### 2.2 Quota continuation within the existing server (implemented 2026-10-11; provider reset input remains unknown)
 
@@ -602,6 +611,8 @@ wait_for_tasks: execution_handle, observations[{task_id,after_revision}]
 report_task_result: outcome, summary, details?, checks?, outputs?, execution_handle?
 get_assigned_task: existing fields + execution_handle, stage?, inputs{}, output_declarations[],
                    prior_results[], observed_changes[], continuation_reason?
+observed_changes[] (R53): task_id, after_revision, revision, state?, outcome?, summary?,
+                   attention_reason?, deleted?, changed
 ```
 
 Reads page oversized collections; task ids/handles select records but never grant access. The

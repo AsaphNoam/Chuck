@@ -231,7 +231,7 @@ func New(store *state.Store, log *slog.Logger) *Server {
 	}, s.handleProposePipelineRun)
 	addTool(s, &mcp.Tool{
 		Name:        "get_assigned_task",
-		Description: "Read the task you are currently assigned: its instruction and the context references attached to it. Returns assigned=false when you have none.",
+		Description: "Read the task you are currently assigned: its instruction, the context references attached to it, and observed_changes for the tasks your last wait_for_tasks watched. Returns assigned=false when you have none.",
 	}, s.handleGetAssignedTask)
 	addTool(s, &mcp.Tool{
 		Name:        "create_task",

@@ -54,7 +54,17 @@ func (s *Server) handleGetAssignedTask(_ context.Context, req *mcp.CallToolReque
 			ContextRefID: a.ContextRefID, Label: a.Label, Description: a.Description,
 		})
 	}
+	// The watched work behind a wait continuation. It is keyed by the caller's
+	// own assignment, so no other agent's watches are reachable (TS-10.R29/R53).
+	observed, err := s.store.TaskContinuationContext(task.TaskID)
+	if err != nil {
+		s.log.Debug("read continuation context failed", "task", task.TaskID, "err", err)
+		return errResult(map[string]any{
+			"ok": false, "error": "internal", "message": "Could not read your assignment.",
+		})
+	}
 	return jsonResult(map[string]any{
+		"observed_changes": observed,
 		"ok":               true,
 		"assigned":         true,
 		"task_id":          task.TaskID,

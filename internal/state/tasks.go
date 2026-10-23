@@ -1454,11 +1454,10 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 	if n == 0 {
 		return Task{}, false, nil
 	}
-	// A new continuation has observed its saved changes. Do not let a watch
-	// from the prior execution wake this one again (TS-10.R29/R33).
-	if _, err := tx.Exec(`DELETE FROM task_waits WHERE waiting_task_id = ?`, taskID); err != nil {
-		return Task{}, false, fmt.Errorf("state: settle task waits: %w", err)
-	}
+	// The saved wait set stays as this execution's continuation context: the
+	// resumed agent reads it through get_assigned_task after confirmation. A
+	// running task without a pending yield is never woken by it, and the next
+	// wait, terminal result or deletion replaces it (TS-10.R29/R33/R53).
 	if err := tx.Commit(); err != nil {
 		return Task{}, false, fmt.Errorf("state: commit confirm task start: %w", err)
 	}

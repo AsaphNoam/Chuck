@@ -144,6 +144,76 @@ func TestWaitForTasksReturnsChangesOrPersistsYield(t *testing.T) {
 	}
 }
 
+// FS-16.R30/R32, TS-10.R29/R53 (ASRE-1) — after a yielded wait resumes, the
+// assignment read names which watched child changed, at what revision and with
+// what outcome. Another agent's assignment read never carries that context.
+func TestResumedAssignmentReadExposesObservedChanges(t *testing.T) {
+	f := newContextFixture(t)
+	liveAgent(t, f.store, "a_impl", "Atlas", "implementer", "my-app")
+	liveAgent(t, f.store, "a_other", "Nova", "reviewer", "my-app")
+	f.srv.RegisterSession("tok-impl", "a_impl", "gen-a_impl")
+	f.srv.RegisterSession("tok-other", "a_other", "gen-a_other")
+	owner := assignTask(t, f.store, "a_impl", "coordinate", "wait for child", state.TaskRunning)
+	assignTask(t, f.store, "a_other", "unrelated", "other work", state.TaskRunning)
+	if _, err := f.store.DB().Exec(`UPDATE tasks SET execution_handle = ? WHERE task_id = ?`, "exec-1", owner.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	childID, err := f.store.NewTaskID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := f.store.CreateTask(state.Task{TaskID: childID, Project: "my-app", DisplayName: "child", Instruction: "do work", TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_impl"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	impl := connect(t, f.srv, "tok-impl")
+	if result, isErr := call(t, impl, "wait_for_tasks", map[string]any{"execution_handle": "exec-1", "tasks": []any{map[string]any{"task_id": child.TaskID, "after_revision": child.Revision}}}); isErr || result["yielding"] != true {
+		t.Fatalf("wait = %v", result)
+	}
+	if _, err := f.store.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_child', assigned_generation = 'gc', runtime_claim = ? WHERE task_id = ?`, state.TaskRunning, state.ClaimBorrowed, child.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	done, err := f.store.RecordPersonTaskResult(child.TaskID, state.TaskResult{Outcome: state.OutcomeFailure, Summary: "tests broke"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.NotifyTaskWaiters(child.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.CompleteTaskYield(owner.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := f.store.AdmitReadyTask(owner.TaskID, state.TaskReservation{AttemptID: "att-2", AgentID: "a_impl", Generation: "gen-a_impl", Claim: state.ClaimBorrowed}, 4); err != nil || !ok {
+		t.Fatalf("admit = ok %v err %v", ok, err)
+	}
+	if _, ok, err := f.store.ConfirmTaskStart(owner.TaskID, "att-2"); err != nil || !ok {
+		t.Fatalf("confirm = ok %v err %v", ok, err)
+	}
+
+	res, isErr := call(t, impl, "get_assigned_task", map[string]any{})
+	if isErr || res["task_id"] != owner.TaskID {
+		t.Fatalf("resumed assignment = %v", res)
+	}
+	observed, _ := res["observed_changes"].([]any)
+	if len(observed) != 1 {
+		t.Fatalf("observed_changes = %v, want the failed child", res["observed_changes"])
+	}
+	change, _ := observed[0].(map[string]any)
+	if change["task_id"] != child.TaskID || change["revision"] != float64(done.Revision) ||
+		change["outcome"] != state.OutcomeFailure || change["summary"] != "tests broke" || change["changed"] != true {
+		t.Fatalf("observed change = %v, want child %s revision %d failure", change, child.TaskID, done.Revision)
+	}
+
+	other, isErr := call(t, connect(t, f.srv, "tok-other"), "get_assigned_task", map[string]any{})
+	if isErr || other["assigned"] != true {
+		t.Fatalf("other assignment = %v", other)
+	}
+	if got, _ := other["observed_changes"].([]any); len(got) != 0 {
+		t.Fatalf("another agent read observed changes %v", got)
+	}
+}
+
 // FS-16.R3, R20 / TS-10.R7 — an agent records the authoritative outcome for its
 // own assignment. The vocabulary is the one a pipeline stage report accepts, the
 // caller is the session token, and a second report is refused because a recorded
