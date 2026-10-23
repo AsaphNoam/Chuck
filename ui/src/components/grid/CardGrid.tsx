@@ -17,6 +17,8 @@ import { ThinkTankSetupDialog } from "../../features/thinktank/ThinkTankSetupDia
 import { useProjects, useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
 import { useTasks } from "../../api/tasks";
+import { useSchedules } from "../../api/schedules";
+import { scheduleNeedsAttention } from "../../schemas/schedule";
 import { needsAttention } from "../../features/tasks/taskWork";
 import { Button, IconButton, PageHeader } from "../ui";
 import { groupAgents } from "../../lib/groups";
@@ -34,7 +36,10 @@ import { CollapseAllIcon } from "../ui/icons";
  *  itself gains no task object — an armed task has no agent and so no card. */
 function TaskAttentionLink({ projectID }: { projectID?: string }) {
   const { data: tasks, isError } = useTasks(projectID);
-  const count = (tasks ?? []).filter((task) => needsAttention(task)).length;
+  const { data: schedules } = useSchedules(projectID);
+  // A schedule that paused itself counts like parked work (FS-16.R57).
+  const count = (tasks ?? []).filter((task) => needsAttention(task)).length
+    + (schedules ?? []).filter(scheduleNeedsAttention).length;
   if (!projectID) return null;
   return (
     <Link className="task-attention-link" to={`/tasks?project=${encodeURIComponent(projectID)}`}>

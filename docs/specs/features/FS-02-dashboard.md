@@ -330,7 +330,7 @@ project that is not repo-backed, or is archived, shows no such action.
 
 - **R44** — The dashboard shows how many tasks in view need attention, covering parked
   `dependency_failed` work and `interrupted` work whose agent went away without a result (FS-16.R8,
-  R16).
+  R16), plus schedules that paused themselves because their target cannot run (FS-16.R57).
   The indicator opens the Tasks view (FS-16.R14); the card grid itself gains no task object, and the
   state badge vocabulary in R3 is unchanged, because an armed task has no agent and therefore no card.
   If the task query fails, the indicator says attention is unavailable rather than asserting a zero count.

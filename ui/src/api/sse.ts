@@ -3,6 +3,7 @@ import { QUERY_KEYS, queryClient } from "./config";
 import { REMOTE_QUERY_KEY } from "./remote";
 import { PIPELINE_QUERY_KEYS } from "./pipelines";
 import { TASK_QUERY_KEYS } from "./tasks";
+import { SCHEDULE_QUERY_KEYS } from "./schedules";
 import { THINK_TANK_KEYS, noteThinkTankActivity } from "./thinkTanks";
 import { thinkTankUpdateSchema } from "../schemas/thinkTank";
 import type { Config } from "../schemas/config";
@@ -95,6 +96,8 @@ class SseClient {
       queryClient.invalidateQueries({ queryKey: TASK_QUERY_KEYS.all });
       queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runDetails });
     });
+    // schedule_update is the same refetch signal for schedules (TS-10.R60).
+    this.es.addEventListener("schedule_update", () => queryClient.invalidateQueries({ queryKey: SCHEDULE_QUERY_KEYS.all }));
     // Room events are notifications only: committed room state comes back over
     // REST, and a reconnect refills it the same way (TS-14.R16).
     this.es.addEventListener("think_tank_update", (event) => this.onThinkTankUpdate(event as MessageEvent<string>));

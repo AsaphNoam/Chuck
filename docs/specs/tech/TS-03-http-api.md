@@ -40,7 +40,7 @@ delta; clients must not assume every existing endpoint already uses R3.
 | Archive/tracking | `GET /api/archive`, `GET /api/archive/projects/{project}`, session files/commands/messages |
 | Composer autocomplete | session-scoped file search and available-command snapshot reads |
 | Coordination | `POST /api/projects/{project}/groups/stop|archive` with `{group}`, `/mcp` GET/POST/DELETE |
-| Dependent work | `GET/POST /api/tasks`, `GET/DELETE /api/tasks/{id}`, task `cancel`/`result`/`retry`/`rearm`; `POST /api/signals`; (planned, TS-10.R60) `GET/POST /api/schedules`, `GET/PATCH/DELETE /api/schedules/{id}`, schedule `pause`/`resume` |
+| Dependent work | `GET/POST /api/tasks`, `GET/DELETE /api/tasks/{id}`, task `cancel`/`result`/`retry`/`rearm`; `POST /api/signals`; `GET/POST /api/schedules`, `GET/PUT/DELETE /api/schedules/{id}`, schedule `pause`/`resume` (TS-10.R60; desktop-only, phone-denied) |
 | Federation | config-source list, preview, bind, refresh, delete |
 | Producers/terminal | `POST /api/hook`, terminal WebSocket |
 

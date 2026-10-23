@@ -599,7 +599,9 @@
         "authoring",
         "controls",
         "collapse-toggle",
-        "boundary"
+        "boundary",
+        "schedules",
+        "schedule"
       ],
       "states": [
         "armed",
@@ -609,12 +611,15 @@
         "waiting",
         "interrupted",
         "finished",
-        "dependency_failed"
+        "dependency_failed",
+        "active",
+        "paused"
       ],
       "variants": [
         "prerequisite",
         "delegation",
-        "next"
+        "next",
+        "attention"
       ]
     },
     "pipelines": {

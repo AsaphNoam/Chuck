@@ -422,4 +422,132 @@
 .tasks-empty {
   color: var(--ad-text-muted);
 }
+
+/* Schedules sit quietly after a project's live work: they create work rather
+   than being work, so they read as a compact list, not as task rows. */
+.tasks-schedules {
+  display: grid;
+  gap: var(--ad-space-2);
+}
+
+.tasks-schedules h3 {
+  color: var(--ad-text-secondary);
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+.tasks-schedules ul {
+  display: grid;
+  gap: var(--ad-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.schedule-row {
+  border-inline-start: 2px solid var(--ad-border-default);
+  display: grid;
+  gap: var(--ad-space-2);
+  min-width: 0;
+  padding: var(--ad-space-2) var(--ad-space-4);
+}
+
+/* A schedule that paused itself needs a person, like parked work. */
+.schedule-row[data-variant="attention"] {
+  background: var(--ad-surface-emphasis);
+  border-inline-start: 3px solid var(--ad-state-busy);
+}
+
+.schedule-row[data-state="finished"] .task-name {
+  color: var(--ad-text-secondary);
+  font-weight: 500;
+}
+
+.schedule-rule-text {
+  color: var(--ad-text-secondary);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.schedule-meta {
+  color: var(--ad-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  gap: var(--ad-space-1) var(--ad-space-4);
+  margin: 0;
+}
+
+.schedule-meta div {
+  display: flex;
+  gap: var(--ad-space-1);
+}
+
+.schedule-meta dt {
+  font-weight: 600;
+}
+
+.schedule-meta dd {
+  margin: 0;
+}
+
+.schedule-toggle,
+.schedule-weekdays label {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.8rem;
+  gap: var(--ad-space-1);
+}
+
+.schedule-form {
+  margin-top: var(--ad-space-2);
+}
+
+.schedule-rule {
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  display: grid;
+  gap: var(--ad-space-3);
+  margin: 0;
+  padding: var(--ad-space-3) var(--ad-space-4);
+}
+
+.schedule-rule legend {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0 var(--ad-space-1);
+}
+
+.schedule-rule label {
+  display: grid;
+  font-size: 0.8rem;
+  gap: var(--ad-space-2);
+}
+
+.schedule-rule small,
+.task-check small {
+  color: var(--ad-text-muted);
+  font-size: 0.75rem;
+}
+
+.schedule-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-space-2) var(--ad-space-4);
+}
+
+.schedule-rule .schedule-weekdays label {
+  display: inline-flex;
+}
+
+.task-check {
+  display: grid;
+  gap: var(--ad-space-1);
+}
+
+.task-check label {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.8rem;
+  gap: var(--ad-space-1);
+}
 }

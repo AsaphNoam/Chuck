@@ -139,6 +139,11 @@ func (s *Server) handleEditSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	edit.ScheduleID = current.ScheduleID
+	// The HTTP template has no group field (as for a task); a launch target
+	// keeps the group an agent chose rather than losing it on edit.
+	if edit.TargetKind == state.TargetLaunch {
+		edit.Group = current.Group
+	}
 	// An agent-created schedule keeps its creator's attachment authority.
 	updated, err := s.stateStore.UpdateSchedule(edit, req.Revision, current.CreatedByAgentID, time.Local)
 	if err != nil {

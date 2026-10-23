@@ -270,6 +270,76 @@ export function RecordResultForm({ task, onError }: { task: Task; onError: (mess
   );
 }
 
+/** TargetDraft is the target half of a task or schedule template: an existing
+ *  agent, or a role to launch with optional launch inputs (FS-16.R2, R27). */
+export type TargetDraft = { kind: "launch" | "agent"; agentID: string; role: string; backend: string; model: string; effort: string; fast: boolean };
+export const EMPTY_TARGET: TargetDraft = { kind: "launch", agentID: "", role: "", backend: "", model: "", effort: "", fast: false };
+
+/** useTargetPayload resolves a draft into the request fields task create and
+ *  schedule create share, filling the configured default role. */
+export function useTargetPayload(draft: TargetDraft) {
+  const { data: roles } = useRoles();
+  const { data: config } = useConfig();
+  const roleNames = Object.keys(roles ?? {});
+  const configuredRole = config?.default_role && roleNames.includes(config.default_role) ? config.default_role : "";
+  const role = draft.role || configuredRole || roleNames[0] || "";
+  const launch = draft.kind === "launch";
+  return {
+    role,
+    payload: {
+      target_kind: draft.kind,
+      target_agent_id: launch ? undefined : draft.agentID,
+      role: launch ? role : undefined,
+      backend: launch ? draft.backend : undefined,
+      model: launch ? draft.model : undefined,
+      effort: launch ? draft.effort : undefined,
+      fast: launch ? draft.fast : undefined,
+    },
+  };
+}
+
+/** TargetFields is the one target editor for tasks and schedules, so the two
+ *  cannot offer different targets (FS-16.R56). */
+export function TargetFields({ project, draft, onChange }: { project: string; draft: TargetDraft; onChange: (draft: TargetDraft) => void }) {
+  const { data: roles } = useRoles();
+  const { data: backends } = useBackends();
+  const agents = useAgentStore((state) => state.agents);
+  const { role } = useTargetPayload(draft);
+  const set = (patch: Partial<TargetDraft>) => onChange({ ...draft, ...patch });
+  const defaultBackendID = Object.entries(backends?.backends ?? {}).find(([, item]) => item.default)?.[0] ?? "";
+  const effectiveBackend = backends?.backends[draft.backend || defaultBackendID];
+  const effectiveModel = effectiveBackend?.models[draft.model || effectiveBackend.default_model];
+  return (
+    <>
+      <label>Target<select value={draft.kind} onChange={(e) => set({ kind: e.target.value as "launch" | "agent" })}><option value="launch">Launch a new agent</option><option value="agent">Use an existing agent</option></select></label>
+      {draft.kind === "agent" ? <label>Existing agent<select value={draft.agentID} onChange={(e) => set({ agentID: e.target.value })} required><option value="">Choose an agent</option>{Object.values(agents).filter((agent) => agent.project === project && agent.interface === "chat" && !agent.archived).map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>)}</select></label> : <>
+        <label>
+          Role to launch
+          <select value={role} onChange={(e) => set({ role: e.target.value })}>
+            {Object.keys(roles ?? {}).map((item) => <option key={item} value={item}>{personaLabel(item, roles?.[item])}</option>)}
+          </select>
+        </label>
+        <label>Backend (optional)<input value={draft.backend} onChange={(e) => set({ backend: e.target.value, fast: false })} /></label>
+        <label>Model (optional)<input value={draft.model} onChange={(e) => set({ model: e.target.value, fast: false })} /></label>
+        <label>Effort (optional)<input value={draft.effort} onChange={(e) => set({ effort: e.target.value })} placeholder="a level the model declares" /></label>
+        {effectiveModel?.fast && <label><input type="checkbox" checked={draft.fast} onChange={(e) => set({ fast: e.target.checked })} /> Fast mode — higher provider usage</label>}
+      </>}
+    </>
+  );
+}
+
+/** RunOnlyOnTimeField explains the one choice a timed start carries
+ *  (FS-16.R52); it is on by default. */
+export function RunOnlyOnTimeField({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  const hintID = useId();
+  return (
+    <div className="task-check">
+      <label><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} aria-describedby={hintID} /> Run only on time</label>
+      <small id={hintID}>If Chuck is off or the Mac is asleep at that time, skip it instead of starting late.</small>
+    </div>
+  );
+}
+
 /** CreateTaskForm owns its concrete project. Changing the project clears only the
  *  dependency choice that belonged to the old project (FS-16.R40/R45). */
 export function CreateTaskForm({ projects, initialProject }: { projects: string[]; initialProject: string }) {
@@ -277,34 +347,20 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
   const create = useCreateTask(project || undefined);
   const tasksQuery = useTasks(project || undefined);
   const runsQuery = usePipelineRuns();
-  const { data: roles } = useRoles();
-  const { data: config } = useConfig();
-  const { data: backends } = useBackends();
   const [name, setName] = useState("");
   const [instruction, setInstruction] = useState("");
-  const [role, setRole] = useState("");
   const [signal, setSignal] = useState("");
-  const [targetKind, setTargetKind] = useState<"launch" | "agent">("launch");
-  const [targetAgentID, setTargetAgentID] = useState("");
-  const [backend, setBackend] = useState("");
-  const [model, setModel] = useState("");
-  const [effort, setEffort] = useState("");
-  const [fast, setFast] = useState(false);
+  const [target, setTarget] = useState<TargetDraft>(EMPTY_TARGET);
+  const { payload } = useTargetPayload(target);
+  const [startAt, setStartAt] = useState("");
+  const [onTimeOnly, setOnTimeOnly] = useState(true);
   const [selection, setSelection] = useState<WorkPrerequisiteSelection>(EMPTY_SELECTION);
   const [contextRefID, setContextRefID] = useState("");
   const [contextLabel, setContextLabel] = useState("");
   const [contextDescription, setContextDescription] = useState("");
-  const agents = useAgentStore((state) => state.agents);
   const [error, setError] = useState("");
   const [validationError, setValidationError] = useState("");
   const [created, setCreated] = useState("");
-
-  const roleNames = Object.keys(roles ?? {});
-  const configuredRole = config?.default_role && roleNames.includes(config.default_role) ? config.default_role : "";
-  const chosenRole = role || configuredRole || roleNames[0] || "";
-  const defaultBackendID = Object.entries(backends?.backends ?? {}).find(([, item]) => item.default)?.[0] ?? "";
-  const effectiveBackend = backends?.backends[backend || defaultBackendID];
-  const effectiveModel = effectiveBackend?.models[model || effectiveBackend.default_model];
 
   return (
     <form
@@ -325,21 +381,20 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
             project,
             display_name: name,
             instruction,
-            target_kind: targetKind,
-            target_agent_id: targetKind === "agent" ? targetAgentID : undefined,
-            role: targetKind === "launch" ? chosenRole : undefined,
-            backend: targetKind === "launch" ? backend : undefined,
-            model: targetKind === "launch" ? model : undefined,
-            effort: targetKind === "launch" ? effort : undefined,
-            fast: targetKind === "launch" ? fast : undefined,
+            ...payload,
             arms: dependencyArms(selection, signal),
             attachments: contextRefID.trim() ? [{ context_ref_id: contextRefID.trim(), label: contextLabel, description: contextDescription }] : [],
+            // The offset-free local form is read in the server's own zone, the
+            // same Mac this browser runs on (TS-10.R56).
+            start_at: startAt || undefined,
+            run_only_on_time: startAt ? onTimeOnly : undefined,
           })
           .then(() => {
             setCreated(`Created “${name}” in ${project}.`);
             setName("");
             setInstruction("");
             setSignal("");
+            setStartAt("");
           })
           .catch((err: unknown) => setError(errorMessage(err)));
       }}
@@ -352,7 +407,7 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
           onChange={(e) => {
             setProject(e.target.value);
             setSelection(EMPTY_SELECTION);
-            setTargetAgentID("");
+            setTarget((current) => ({ ...current, agentID: "" }));
           }}
         >
           <option value="">Choose a project</option>
@@ -367,19 +422,9 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
         Instruction
         <AutoGrowTextarea value={instruction} onChange={(e) => setInstruction(e.target.value)} required />
       </label>
-      <label>Target<select value={targetKind} onChange={(e) => setTargetKind(e.target.value as "launch" | "agent")}><option value="launch">Launch a new agent</option><option value="agent">Use an existing agent</option></select></label>
-      {targetKind === "agent" ? <label>Existing agent<select value={targetAgentID} onChange={(e) => setTargetAgentID(e.target.value)} required><option value="">Choose an agent</option>{Object.values(agents).filter((agent) => agent.project === project && agent.interface === "chat" && !agent.archived).map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>)}</select></label> : <>
-        <label>
-          Role to launch
-          <select value={chosenRole} onChange={(e) => setRole(e.target.value)}>
-            {roleNames.map((item) => <option key={item} value={item}>{personaLabel(item, roles?.[item])}</option>)}
-          </select>
-        </label>
-        <label>Backend (optional)<input value={backend} onChange={(e) => { setBackend(e.target.value); setFast(false); }} /></label>
-        <label>Model (optional)<input value={model} onChange={(e) => { setModel(e.target.value); setFast(false); }} /></label>
-        <label>Effort (optional)<input value={effort} onChange={(e) => setEffort(e.target.value)} placeholder="a level the model declares" /></label>
-        {effectiveModel?.fast && <label><input type="checkbox" checked={fast} onChange={(e) => setFast(e.target.checked)} /> Fast mode — higher provider usage</label>}
-      </>}
+      <TargetFields project={project} draft={target} onChange={setTarget} />
+      <label>Start at (optional)<input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} /></label>
+      {startAt && <RunOnlyOnTimeField checked={onTimeOnly} onChange={setOnTimeOnly} />}
       {project && <PrerequisitePicker project={project} selection={selection} onChange={setSelection} tasksQuery={tasksQuery} runsQuery={runsQuery} idPrefix="create" />}
       <details className="task-advanced">
         <summary>Advanced signal and context</summary>

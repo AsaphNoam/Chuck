@@ -1,0 +1,106 @@
+{
+  "schedules": [
+    {
+      "schedule_id": "sc_weekly",
+      "project": "my-app",
+      "display_name": "Weekly review",
+      "instruction": "Instruction for Weekly review.",
+      "target_kind": "launch",
+      "role": "implementer",
+      "fast": false,
+      "rule": {
+        "start_date": "2026-10-04",
+        "times": [
+          "09:00"
+        ],
+        "frequency": "weekly",
+        "weekdays": [
+          "sun"
+        ],
+        "end_kind": "count",
+        "end_count": 3
+      },
+      "rule_text": "Every Sunday at 9:00 AM, 3 times",
+      "run_only_on_time": true,
+      "state": "active",
+      "created_by_kind": "person",
+      "next_due_at": "2026-10-11T09:00:00Z",
+      "occurrences_elapsed": 1,
+      "last_occurrence_at": "2026-10-04T09:00:00Z",
+      "last_disposition": "created",
+      "last_task_id": "tk_u",
+      "revision": 3,
+      "created_at": "2026-10-01T09:00:00Z",
+      "updated_at": "2026-10-01T09:00:00Z",
+      "attachments": []
+    },
+    {
+      "schedule_id": "sc_paused",
+      "project": "my-app",
+      "display_name": "Daily standup notes",
+      "instruction": "Instruction for Daily standup notes.",
+      "target_kind": "agent",
+      "target_agent_id": "ag_gone",
+      "fast": false,
+      "rule": {
+        "start_date": "2026-10-01",
+        "times": [
+          "09:00",
+          "17:30"
+        ],
+        "frequency": "weekdays",
+        "end_kind": "never"
+      },
+      "rule_text": "Weekdays at 9:00 AM and 5:30 PM starting 2026-10-01",
+      "run_only_on_time": false,
+      "state": "paused",
+      "pause_reason": "the target agent is archived",
+      "created_by_kind": "person",
+      "next_due_at": "2026-10-03T09:00:00Z",
+      "occurrences_elapsed": 4,
+      "last_occurrence_at": "2026-10-02T09:00:00Z",
+      "last_disposition": "paused",
+      "revision": 3,
+      "created_at": "2026-10-01T09:00:00Z",
+      "updated_at": "2026-10-01T09:00:00Z",
+      "attachments": [
+        {
+          "task_id": "",
+          "context_ref_id": "cx_notes",
+          "label": "Notes",
+          "created_at": "0001-01-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "schedule_id": "sc_done",
+      "project": "my-app",
+      "display_name": "Quarter close",
+      "instruction": "Instruction for Quarter close.",
+      "target_kind": "launch",
+      "role": "implementer",
+      "fast": false,
+      "rule": {
+        "start_date": "2026-09-01",
+        "times": [
+          "08:00"
+        ],
+        "frequency": "every_n_days",
+        "interval": 10,
+        "end_kind": "until",
+        "end_date": "2026-09-30"
+      },
+      "rule_text": "Every 10 days at 8:00 AM, until 2026-09-30",
+      "run_only_on_time": true,
+      "state": "finished",
+      "created_by_kind": "person",
+      "occurrences_elapsed": 3,
+      "last_occurrence_at": "2026-09-29T09:00:00Z",
+      "last_disposition": "missed",
+      "revision": 3,
+      "created_at": "2026-10-01T09:00:00Z",
+      "updated_at": "2026-10-01T09:00:00Z",
+      "attachments": []
+    }
+  ]
+}

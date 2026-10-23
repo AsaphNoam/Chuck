@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/recurrence"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
@@ -150,4 +151,72 @@ func taskWireFixture() map[string]map[string][]taskDetailResponse {
 		out[project]["tasks"] = append(out[project]["tasks"], all[index])
 	}
 	return out
+}
+
+// scheduleWireFixturePath is the GET /api/schedules payload the Schedules
+// section tests read, encoded by Go like the task fixture (INV §11, §17).
+const scheduleWireFixturePath = "../../ui/src/features/tasks/fixtures/scheduleLists.json"
+
+// TestScheduleWireFixtureMatchesServerEncoding keeps the schedule fixture
+// identical to what handleSchedules would marshal. Regenerate with
+// CHUCK_UPDATE_TASK_FIXTURE=1 after a deliberate change to state.TaskSchedule.
+func TestScheduleWireFixtureMatchesServerEncoding(t *testing.T) {
+	got, err := json.MarshalIndent(map[string]any{"schedules": scheduleWireFixture()}, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = append(got, '\n')
+	if os.Getenv("CHUCK_UPDATE_TASK_FIXTURE") == "1" {
+		if err := os.WriteFile(scheduleWireFixturePath, got, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(scheduleWireFixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("%s is stale; regenerate with CHUCK_UPDATE_TASK_FIXTURE=1", scheduleWireFixturePath)
+	}
+}
+
+// scheduleWireFixture covers FS-16.A40's states: an active weekly schedule
+// whose last occurrence is a running task, one that paused itself because its
+// target was archived, and a finished one whose last occurrence was missed.
+func scheduleWireFixture() []state.TaskSchedule {
+	base := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+	ptr := func(value time.Time) *time.Time { return &value }
+	schedule := func(id, name string, rule recurrence.Rule, mutate func(*state.TaskSchedule)) state.TaskSchedule {
+		value := state.TaskSchedule{
+			ScheduleID: id, Project: "my-app", DisplayName: name, Instruction: "Instruction for " + name + ".",
+			TargetKind: state.TargetLaunch, Role: "implementer", Rule: rule, RuleText: rule.Describe(),
+			OnTimeOnly: true, State: state.ScheduleActive, CreatedByKind: "person", Revision: 3,
+			CreatedAt: base, UpdatedAt: base, Attachments: []state.TaskAttachment{},
+		}
+		mutate(&value)
+		return value
+	}
+	return []state.TaskSchedule{
+		schedule("sc_weekly", "Weekly review", recurrence.Rule{StartDate: "2026-10-04", Times: []string{"09:00"},
+			Frequency: recurrence.FreqWeekly, Weekdays: []string{"sun"}, EndKind: recurrence.EndCount, EndCount: 3},
+			func(value *state.TaskSchedule) {
+				value.NextDueAt, value.LastOccurrenceAt = ptr(base.AddDate(0, 0, 10)), ptr(base.AddDate(0, 0, 3))
+				value.OccurrencesElapsed, value.LastDisposition, value.LastTaskID = 1, state.OccurrenceCreated, "tk_u"
+			}),
+		schedule("sc_paused", "Daily standup notes", recurrence.Rule{StartDate: "2026-10-01", Times: []string{"09:00", "17:30"},
+			Frequency: recurrence.FreqWeekdays, EndKind: recurrence.EndNever},
+			func(value *state.TaskSchedule) {
+				value.TargetKind, value.TargetAgentID, value.Role = state.TargetAgent, "ag_gone", ""
+				value.State, value.PauseReason, value.OnTimeOnly = state.SchedulePaused, "the target agent is archived", false
+				value.NextDueAt, value.LastOccurrenceAt = ptr(base.AddDate(0, 0, 2)), ptr(base.AddDate(0, 0, 1))
+				value.OccurrencesElapsed, value.LastDisposition = 4, state.OccurrencePaused
+				value.Attachments = []state.TaskAttachment{{ContextRefID: "cx_notes", Label: "Notes"}}
+			}),
+		schedule("sc_done", "Quarter close", recurrence.Rule{StartDate: "2026-09-01", Times: []string{"08:00"},
+			Frequency: recurrence.FreqEveryNDays, Interval: 10, EndKind: recurrence.EndUntil, EndDate: "2026-09-30"},
+			func(value *state.TaskSchedule) {
+				value.State, value.LastOccurrenceAt = state.ScheduleFinished, ptr(base.AddDate(0, 0, -2))
+				value.OccurrencesElapsed, value.LastDisposition = 3, state.OccurrenceMissed
+			}),
+	}
 }

@@ -6,10 +6,13 @@ import { useProjects, useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
 import { limitConcurrency, taskListOptions, useCancelTask, useDeleteTask, useRetryTask } from "../../api/tasks";
 import { usePipelineRun } from "../../api/pipelines";
+import { scheduleListOptions } from "../../api/schedules";
+import { scheduleNeedsAttention, type Schedule } from "../../schemas/schedule";
 import type { Task } from "../../schemas/task";
 import { taskActions } from "../../schemas/task";
 import { useAgentStore } from "../../store/agentStore";
 import { CreateTaskForm, FireSignalForm, RearmForm, RecordResultForm, errorMessage } from "./taskForms";
+import { ScheduleForm, ScheduleList } from "./scheduleForms";
 import {
   needsAttention, projectWork, rowVisibility, startTimeLabel, taskReason, taskStatus,
   type DescendantSummary, type HiddenBy, type ProjectWork, type RowVisibility, type TaskLink, type WorkGroup, type WorkRow,
@@ -306,10 +309,12 @@ function GroupView({ group, open, onToggle, onSignal, collapsed, pinned, onToggl
   );
 }
 
-function ProjectSection({ project, title, query, focused, open, onToggle, onSignal, busy, onBusyChange }: {
+function ProjectSection({ project, title, query, schedules, projects, focused, open, onToggle, onSignal, busy, onBusyChange }: {
   project: string;
   title: string;
   query: { data?: Task[]; isLoading: boolean; isError: boolean; error: unknown; refetch: () => unknown };
+  schedules: Schedule[];
+  projects: string[];
   focused: boolean;
   open: Set<string>;
   onToggle: (id: string) => void;
@@ -362,7 +367,9 @@ function ProjectSection({ project, title, query, focused, open, onToggle, onSign
   }, [project, query.data]);
   const pinned = useMemo(() => new Set([...open, ...busy]), [open, busy]);
   const headingID = `tasks-project-${project}`;
-  if (work && query.data!.length === 0 && !focused && !query.isError) return null;
+  if (work && query.data!.length === 0 && schedules.length === 0 && !focused && !query.isError) return null;
+  // A schedule that paused itself is attention like parked work (FS-16.R57).
+  const attention = (work?.attention ?? 0) + schedules.filter(scheduleNeedsAttention).length;
 
   return (
     <section className="tasks-project" data-slot="project" aria-labelledby={headingID}>
@@ -371,7 +378,7 @@ function ProjectSection({ project, title, query, focused, open, onToggle, onSign
         {work && (
           <span className="tasks-project-counts">
             {plural(work.unfinished, "unfinished task")}
-            {work.attention > 0 && <> · <span className="tasks-attention-count" data-slot="attention">{work.attention} need{work.attention === 1 ? "s" : ""} attention</span></>}
+            {attention > 0 && <> · <span className="tasks-attention-count" data-slot="attention">{attention} need{attention === 1 ? "s" : ""} attention</span></>}
           </span>
         )}
       </header>
@@ -391,6 +398,7 @@ function ProjectSection({ project, title, query, focused, open, onToggle, onSign
           ))}
         </div>
       )}
+      <ScheduleList project={project} schedules={schedules} tasks={query.data ?? []} projects={projects} />
       {work && work.history.length > 0 && (
         <details className="tasks-history" data-slot="history">
           <summary>Completed history · {plural(work.history.length, "group")}, {plural(work.history.reduce((total, group) => total + group.rows.length, 0), "task")}</summary>
@@ -417,6 +425,8 @@ export function TasksPage() {
   const archivedFocus = focus !== ALL && Boolean(catalog[focus]?.archived);
   const scope = focus === ALL ? projectNames : [focus];
   const queries = useQueries({ queries: scope.map((project) => taskListOptions(project, projectReads)) });
+  const scheduleQueries = useQueries({ queries: scope.map((project) => scheduleListOptions(project)) });
+  const schedulesOf = (index: number): Schedule[] => scheduleQueries[index]?.data ?? [];
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [signalOpen, setSignalOpen] = useState(false);
@@ -445,8 +455,10 @@ export function TasksPage() {
   const loaded = queries.filter((query) => query.data);
   const incomplete = loaded.length < queries.length || queries.some((query) => query.isError);
   const unfinished = loaded.reduce((total, query) => total + query.data!.filter((task) => task.state !== "finished").length, 0);
-  const attention = loaded.reduce((total, query) => total + query.data!.filter(needsAttention).length, 0);
-  const globallyEmpty = focus === ALL && queries.length > 0 && !incomplete && loaded.every((query) => query.data!.length === 0);
+  const attention = loaded.reduce((total, query) => total + query.data!.filter(needsAttention).length, 0)
+    + scope.reduce((total, _, index) => total + schedulesOf(index).filter(scheduleNeedsAttention).length, 0);
+  const globallyEmpty = focus === ALL && queries.length > 0 && !incomplete && loaded.every((query) => query.data!.length === 0)
+    && scheduleQueries.every((query) => (query.data ?? []).length === 0);
 
   return (
     <div className="tasks-page" data-ui="tasks">
@@ -480,6 +492,8 @@ export function TasksPage() {
           project={project}
           title={catalog[project]?.title || project}
           query={queries[index]}
+          schedules={schedulesOf(index)}
+          projects={projectNames}
           focused={focus !== ALL}
           open={open}
           onToggle={toggle}
@@ -493,6 +507,10 @@ export function TasksPage() {
         <details className="tasks-disclosure">
           <summary>Create task manually</summary>
           <CreateTaskForm projects={projectNames} initialProject={focus === ALL || unknownFocus ? "" : focus} />
+        </details>
+        <details className="tasks-disclosure">
+          <summary>Create schedule</summary>
+          <ScheduleForm projects={projectNames} initialProject={focus === ALL || unknownFocus ? "" : focus} />
         </details>
         <details className="tasks-disclosure" id="tasks-signal" open={signalOpen} onToggle={(event) => setSignalOpen(event.currentTarget.open)}>
           <summary>Fire a signal</summary>

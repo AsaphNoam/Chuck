@@ -9,6 +9,7 @@ import { TasksPage, needsAttention } from "./TasksPage";
 import { useAgentStore } from "../../store/agentStore";
 import { resetCollapseStoreForTests } from "./collapseStore";
 import fixture from "./fixtures/taskLists.json";
+import scheduleFixture from "./fixtures/scheduleLists.json";
 
 // Task lists come from the Go-marshalled fixture (internal/server/
 // task_wire_fixture_test.go), so the view is tested against the server's real
@@ -25,6 +26,8 @@ const runSummary = {
 
 let lastRequest: { url: string; body: unknown } | null = null;
 let taskLists: Record<string, unknown[] | "error"> = {};
+let scheduleLists: Record<string, unknown[]> = {};
+const wireSchedules = () => structuredClone(scheduleFixture.schedules);
 
 const server = setupServer(
   http.get("/api/projects", () => HttpResponse.json({
@@ -42,6 +45,23 @@ const server = setupServer(
     const list = taskLists[project] ?? [];
     if (list === "error") return HttpResponse.json({ error: { code: "internal", message: "store unavailable" } }, { status: 500 });
     return HttpResponse.json({ tasks: list });
+  }),
+  http.get("/api/schedules", ({ request }) => {
+    const project = new URL(request.url).searchParams.get("project") ?? "";
+    return HttpResponse.json({ schedules: scheduleLists[project] ?? [] });
+  }),
+  http.post("/api/schedules/:id/:action", ({ params }) => {
+    lastRequest = { url: `${params.action}:${params.id}`, body: null };
+    const current = wireSchedules().find((item) => item.schedule_id === params.id)!;
+    return HttpResponse.json({ ...current, state: params.action === "pause" ? "paused" : "active", pause_reason: "" });
+  }),
+  http.put("/api/schedules/:id", async ({ params, request }) => {
+    lastRequest = { url: `edit:${params.id}`, body: await request.json() };
+    return HttpResponse.json(wireSchedules().find((item) => item.schedule_id === params.id));
+  }),
+  http.post("/api/schedules", async ({ request }) => {
+    lastRequest = { url: "create-schedule", body: await request.json() };
+    return HttpResponse.json(wireSchedules()[0], { status: 201 });
   }),
   http.get("/api/pipeline-runs", () => HttpResponse.json([runSummary], { headers: { "X-Total-Count": "1" } })),
   http.get("/api/pipeline-runs/:id", () => HttpResponse.json({ error: { code: "internal", message: "run unavailable" } }, { status: 500 })),
@@ -70,6 +90,7 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   taskLists = { "my-app": wire("my-app"), other: wire("other"), quiet: [] };
+  scheduleLists = {};
   useAgentStore.setState({ agents: {}, order: [], hydrated: true, hydrating: false });
   resetCollapseStoreForTests();
 });
@@ -629,6 +650,93 @@ describe("Per-parent lineage collapse", () => {
     cleanup();
     renderPage("/tasks?project=my-app");
     expect((await rowOf("Review the work"))).toHaveAttribute("hidden");
+  });
+});
+
+describe("Timed and recurring starts", () => {
+  const schedulesSection = async () =>
+    within((await screen.findByRole("heading", { name: "Schedules" })).closest("section") as HTMLElement);
+  const scheduleRow = async (name: string) => (await screen.findByText(name)).closest("li") as HTMLElement;
+
+  // FS-16.A40 — each schedule shows its rule in words, next and last
+  // occurrence (with the created task's live state), and Run only on time; a
+  // schedule that paused itself says why and counts as attention.
+  it("shows schedules after the project's work and counts a self-paused one as attention", async () => {
+    scheduleLists["my-app"] = wireSchedules();
+    renderPage("/tasks?project=my-app");
+    const section = await schedulesSection();
+    expect(section.getByText("Every Sunday at 9:00 AM, 3 times")).toBeInTheDocument();
+    const weekly = within(await scheduleRow("Weekly review"));
+    expect(weekly.getByText(/· Running$/)).toBeInTheDocument();
+    expect(weekly.getByRole("checkbox", { name: "Run only on time" })).toBeChecked();
+    expect(weekly.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+
+    const paused = within(await scheduleRow("Daily standup notes"));
+    expect(paused.getByText(/Paused: the target agent is archived/)).toBeInTheDocument();
+    expect(paused.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(within(await scheduleRow("Quarter close")).getByText(/· missed$/)).toBeInTheDocument();
+    // Two parked or interrupted tasks plus the self-paused schedule.
+    expect(within(document.querySelector("[data-slot=\"toolbar\"]") as HTMLElement).getByText(/3 need attention/)).toBeInTheDocument();
+  });
+
+  it("pauses, toggles Run only on time without losing attachments, and confirms delete", async () => {
+    scheduleLists["my-app"] = wireSchedules();
+    renderPage("/tasks?project=my-app");
+    const weekly = within(await scheduleRow("Weekly review"));
+    fireEvent.click(weekly.getByRole("button", { name: "Pause" }));
+    await waitFor(() => expect(lastRequest?.url).toBe("pause:sc_weekly"));
+
+    const paused = within(await scheduleRow("Daily standup notes"));
+    fireEvent.click(paused.getByRole("checkbox", { name: "Run only on time" }));
+    await waitFor(() => expect(lastRequest?.url).toBe("edit:sc_paused"));
+    expect(lastRequest?.body).toMatchObject({
+      run_only_on_time: true, revision: 3, target_kind: "agent", target_agent_id: "ag_gone",
+      attachments: [{ context_ref_id: "cx_notes", label: "Notes" }],
+      rule: { frequency: "weekdays", times: ["09:00", "17:30"] },
+    });
+
+    fireEvent.click(weekly.getByRole("button", { name: "Delete…" }));
+    expect(weekly.getByText("Tasks this schedule already created are kept.")).toBeInTheDocument();
+    expect(weekly.getByRole("button", { name: "Delete schedule" })).toBeInTheDocument();
+  });
+
+  it("creates a weekly schedule that ends after three occurrences", async () => {
+    renderPage("/tasks?project=my-app");
+    // The required project choice exists once projects load.
+    await screen.findByRole("heading", { name: "My App" });
+    const form = within(screen.getByText("Create schedule", { selector: "summary" }).closest("details") as HTMLElement);
+    fireEvent.change(form.getByLabelText("Name"), { target: { value: "Weekly review" } });
+    fireEvent.change(form.getByLabelText("Instruction"), { target: { value: "review open work" } });
+    fireEvent.change(form.getByLabelText("How often"), { target: { value: "weekly" } });
+    fireEvent.click(form.getByLabelText("Sun"));
+    fireEvent.change(form.getByLabelText("Times of day"), { target: { value: "09:00, 17:30" } });
+    fireEvent.change(form.getByLabelText("Starting"), { target: { value: "2026-11-01" } });
+    fireEvent.change(form.getByLabelText("Ends"), { target: { value: "count" } });
+    fireEvent.change(form.getByLabelText("Occurrences"), { target: { value: "3" } });
+    expect(form.getByRole("checkbox", { name: "Run only on time" })).toBeChecked();
+    fireEvent.click(form.getByRole("button", { name: "Create schedule" }));
+    await waitFor(() => expect(lastRequest?.url).toBe("create-schedule"));
+    expect(lastRequest?.body).toMatchObject({
+      project: "my-app", display_name: "Weekly review", target_kind: "launch", role: "impl", run_only_on_time: true,
+      rule: { start_date: "2026-11-01", times: ["09:00", "17:30"], frequency: "weekly", weekdays: ["sun"], end_kind: "count", end_count: 3 },
+    });
+    expect(await form.findByText(/Created “Weekly review”: Every Sunday/)).toBeInTheDocument();
+  });
+
+  // FS-16.A40 — a one-time start sends the local wall time; Run only on time
+  // appears only once a time is chosen and defaults on.
+  it("creates a task that starts at a local time", async () => {
+    renderPage("/tasks?project=my-app");
+    await screen.findByRole("heading", { name: "My App" });
+    const create = createForm();
+    fireEvent.change(create.getByLabelText("Name"), { target: { value: "at half five" } });
+    fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "ship it" } });
+    expect(create.queryByRole("checkbox", { name: "Run only on time" })).not.toBeInTheDocument();
+    fireEvent.change(create.getByLabelText("Start at (optional)"), { target: { value: "2026-10-24T17:30" } });
+    fireEvent.click(create.getByRole("checkbox", { name: "Run only on time" }));
+    fireEvent.click(create.getByRole("button", { name: "Create task" }));
+    await waitFor(() => expect(lastRequest?.url).toBe("create"));
+    expect(lastRequest?.body).toMatchObject({ start_at: "2026-10-24T17:30", run_only_on_time: false });
   });
 });
 

@@ -1,6 +1,6 @@
 # TS-10 — Work dependency control plane
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks`
 **Absorbed:** —
 
@@ -599,9 +599,9 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   including in-flight, cooldown and failed references, and wraps after reaching the end.
   Per-reference backoff remains in force; later references cannot starve behind a failed batch.
 
-### 2.3 Timed arms and recurring schedules (planned)
+### 2.3 Timed arms and recurring schedules (implemented 2026-10-23)
 
-- **R54 (planned) — Time is due-work on the existing tick, not a timer service.** FS-16.R51–R58
+- **R54 (shipped 2026-10-23) — Time is due-work on the existing tick, not a timer service.** FS-16.R51–R58
   extend R1/R3: the existing two-second dispatcher tick (`runTaskDispatcher`) gains two indexed due
   queries, time arms and active schedules, each ordered by due instant and stable id and bounded to
   `taskDispatchBatch` per pass. No goroutine, `time.Timer`, or sleeping wait per arm or schedule,
@@ -609,22 +609,22 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   transaction; a lost tick or bus notification only delays it (R2). The clock is read through
   the store's existing `timeNow` seam so tests drive due work, lateness, and daylight-saving
   transitions deterministically.
-- **R55 (planned) — A time arm is an ordinary arm with a due instant.** `task_arms.kind` gains
+- **R55 (shipped 2026-10-23) — A time arm is an ordinary arm with a due instant.** `task_arms.kind` gains
   `time` with `due_at` (UTC instant) and `on_time_only`. Due resolution reuses `resolveArms`, so
   satisfying the last arm advances `armed → ready` in the same transaction (INV §5). Observation
   `now − due_at ≤ 5 min` satisfies the arm. Later observation with `on_time_only` marks it
-  `unsatisfiable` with attention reason `missed_start_time` and parks the task through the existing
-  R8 path; without it the arm is satisfied and the task's `late_start` is set. Re-arm (FS-16.R23)
+  `unsatisfiable` with the attention reason "missed start time" and parks the task through the
+  existing R8 path, in the same transaction; without it the arm is satisfied and the task's `late_start` is set. Re-arm (FS-16.R23)
   may replace a missed time arm with a future one. Creation rejects a second time arm, a `due_at`
   not after the creation instant, or an unparseable time with `validation`.
-- **R56 (planned) — Wall-clock input is resolved once, in the server's zone.** HTTP and MCP accept
+- **R56 (shipped 2026-10-23) — Wall-clock input is resolved once, in the server's zone.** HTTP and MCP accept
   a one-time `start_at` as RFC 3339 with an offset, or as offset-free `YYYY-MM-DDTHH:MM` interpreted
   in the server process's `time.Local`; the stored instant is UTC. Schedule rules store wall-clock
   `HH:MM` times and calendar dates, never instants, and each occurrence is computed in `time.Local`
   when it is due. Go's `time.Date` does not define which result it returns for a skipped or repeated
   wall time (`go doc time.Date`), so occurrence computation must not rely on it: a skipped time
   resolves to the first valid minute after the gap, and a repeated time to its earlier instant.
-- **R57 (planned) — A schedule is one durable row that advances by compare-and-set.**
+- **R57 (shipped 2026-10-23) — A schedule is one durable row that advances by compare-and-set.**
   `task_schedules` stores the FS-16.R53 template, the R54 rule, `on_time_only`, creator
   provenance (R20), `state` (`active` | `paused` | `finished`), `pause_reason`, `next_due_at`
   (indexed for `state='active'`), `occurrences_elapsed`, the last occurrence summary, and a
@@ -635,14 +635,16 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   sets `finished` when the end is reached, and advances `next_due_at` under the observed revision.
   Task creation and schedule advancement commit together, so a crash produces neither or both
   and no occurrence is created twice (FS-16.R58, INV §15).
-- **R58 (planned) — Occurrence tasks are ordinary tasks with schedule provenance.** `tasks` gains
-  nullable `schedule_id` and `scheduled_for` (logical references without cascade, R16) and
-  `late_start`. An occurrence task is created through the same validated creation path as any task
-  (R23–R24, FS-16.R50) with zero arms and its template attachments, so it becomes `ready` at once and
-  waits for capacity or the per-agent claim like any other (FS-16.R55). Its creator authority is the
+- **R58 (shipped 2026-10-23) — Occurrence tasks are ordinary tasks with schedule provenance.** `tasks` gains
+  `schedule_id` (empty when none) and nullable `scheduled_for` (logical references without
+  cascade, R16) and `late_start`. The template was validated by the same checks as a task create
+  (R23–R24, FS-16.R50) when the schedule was created or edited; the due transaction writes the
+  occurrence through the shared task-row writer with zero arms and the template attachments, so it
+  becomes `ready` at once and waits for capacity or the per-agent claim like any other
+  (FS-16.R55). Its creator authority is the
   schedule's creator: that person or agent may cancel it exactly as they could a task they created
   (FS-16.R24). Deleting a schedule deletes its row and template attachments only.
-- **R59 (planned) — An unavailable target pauses the schedule in the due transaction.** Before it
+- **R59 (shipped 2026-10-23) — An unavailable target pauses the schedule in the due transaction.** Before it
   creates an occurrence task, the due transaction checks the same target and project eligibility
   that task creation checks. An archived or deleted existing-agent target, or an archived project,
   sets `paused` with `pause_reason` in place of creating the task. That occurrence is counted as
@@ -651,14 +653,14 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   Resume revalidates the target, counts the occurrences passed while paused, and sets `next_due_at`
   to the first occurrence after now without replaying any. Edit replaces the template and rule
   under the revision, keeps `occurrences_elapsed`, and recomputes `next_due_at` from now.
-- **R60 (planned) — Schedules use the existing authority and surfaces.** HTTP adds schedule create,
+- **R60 (shipped 2026-10-23) — Schedules use the existing authority and surfaces.** HTTP adds schedule create,
   list, read, edit, pause, resume, and delete under R14. The existing `/mcp` server adds
   `create_schedule`, `pause_schedule`, `resume_schedule`, and `delete_schedule` under R13. Their
   target selector, launch inputs, attachments, and refusal codes match `create_task`; pause, resume,
-  and delete refuse `not_creator` for a schedule the caller did not create, and an unknown schedule
-  is indistinguishable from an unauthorized one. `create_task` and HTTP task create/re-arm gain
+  and delete refuse `not_creator` for a schedule the caller did not create and for an unknown one,
+  so the two are indistinguishable. `create_task` and HTTP task create/re-arm gain
   optional `start_at` and `run_only_on_time` (default true). A `schedule_update` SSE event follows
-  each committed schedule change with `{schedule_id, revision, state, pause_reason}` (R11). Rules
+  each committed schedule change with `{schedule_id, project, revision, state, pause_reason}` (R11). Rules
   have no product count limits. The only checks are well-formedness: at least one time, distinct
   `HH:MM` values (at most 1440 per day as a result), N ≥ 1, and an end not before the start. R54's
   per-pass batch and R57's per-pass enumeration cap only pace processing, and a schedule left
@@ -666,25 +668,32 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
 
 ## 3. Interfaces & data shapes
 
-**Planned timed-start additions (R54–R60):**
+**Timed-start additions (R54–R60, implemented 2026-10-23):**
 
 ```text
 task_arms: + kind 'time', due_at?, on_time_only INTEGER; partial index (due_at, arm_id)
            WHERE kind='time' AND state='unsatisfied'
-tasks: + schedule_id?, scheduled_for?, late_start INTEGER NOT NULL DEFAULT 0
-task_schedules: schedule_id PK, project, display_name, instruction, target_kind, target_agent_id?,
-           role, backend, model, effort, fast, group, start_date, times (sorted HH:MM list),
-           frequency (daily|weekdays|weekly|every_n_days|every_n_weeks), weekdays, interval,
-           end_kind (never|count|until), end_count?, end_date?, on_time_only, state, pause_reason,
-           created_by_kind, created_by_agent_id?, created_by_generation?, next_due_at?,
-           occurrences_elapsed, last_occurrence_at?, last_disposition?, last_task_id?, revision,
-           created_at, updated_at; index (state, next_due_at, schedule_id)
+tasks: + schedule_id (''), scheduled_for?, late_start INTEGER NOT NULL DEFAULT 0
+task_schedules: schedule_id PK, project, display_name, instruction, target_kind, target_agent_id,
+           role, backend, model, effort, fast, group_name, rule_json, on_time_only, state
+           (active|paused|finished), pause_reason, created_by_kind, created_by_agent_id,
+           created_by_generation, next_due_at?, occurrences_elapsed, last_occurrence_at?,
+           last_disposition (created|missed|paused), last_task_id, revision, created_at,
+           updated_at; index (state, next_due_at, schedule_id)
+rule_json: {start_date YYYY-MM-DD, times [sorted HH:MM], frequency (daily|weekdays|weekly|
+           every_n_days|every_n_weeks), weekdays [mon..sun], interval, end_kind
+           (never|count|until), end_count, end_date} — internal/recurrence.Rule
 task_schedule_attachments: (schedule_id, context_ref_id) PK, label, description; cascade
-create_schedule: name, instruction, to | role/backend/model/effort/fast/group, rule,
+HTTP: GET/POST /api/schedules?project=, GET/PUT/DELETE /api/schedules/{id},
+           POST /api/schedules/{id}/pause|resume; PUT replaces the template under `revision`
+schedule JSON: the row above with `rule`, `rule_text` (the rule in words), `run_only_on_time`
+           and `attachments`
+create_schedule: display_name, instruction, to | role/backend/model/effort/fast/group, rule,
            run_only_on_time?, attachments[]
 pause_schedule | resume_schedule | delete_schedule: schedule_id
 create_task / HTTP create, rearm: + start_at?, run_only_on_time?
-SSE schedule_update: {schedule_id, revision, state, pause_reason} | {schedule_id, deleted: true}
+SSE schedule_update: {schedule_id, project, revision, state, pause_reason}
+           | {schedule_id, project, deleted: true}
 ```
 
 One forward-only migration adds these columns and tables with non-null defaults for existing rows;
@@ -828,11 +837,11 @@ graph or task state carries a typed `error.details.code` — `dependency_cycle`,
   entirely by arms; the budget only decides when a ready task is admitted. Nothing about the budget
   may narrow, reorder, or fail a dependency, so a graph's meaning is identical at any budget value and
   the setting can be changed at any time without changing what the graph says.
-- **Time-zone changes apply on restart (planned R56).** Go resolves `time.Local` once per process,
+- **Time-zone changes apply on restart (R56).** Go resolves `time.Local` once per process,
   so moving the Mac to another zone moves future schedule occurrences only after Chuck restarts.
   Stored one-time instants are absolute and do not move. Re-reading the zone on every tick is
   deliberately avoided until a person needs it.
-- **No occurrence ledger (planned R57).** A schedule keeps its elapsed count and last occurrence
+- **No occurrence ledger (R57).** A schedule keeps its elapsed count and last occurrence
   summary. Its created tasks carry `schedule_id`/`scheduled_for`. Missed and paused occurrences are
   counted rather than stored as rows, so a schedule adds no unbounded history or new retention
   policy.

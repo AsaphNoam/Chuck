@@ -27,6 +27,8 @@ export interface CreateTaskInput {
   effort?: string;
   fast?: boolean;
   arms?: TaskArmInput[];
+  start_at?: string;
+  run_only_on_time?: boolean;
 	attachments?: { context_ref_id: string; label?: string; description?: string }[];
 }
 
@@ -43,7 +45,7 @@ export class TaskAPIError extends Error {
   }
 }
 
-async function request<S extends z.ZodTypeAny>(url: string, schema: S, init?: RequestInit): Promise<z.output<S>> {
+export async function request<S extends z.ZodTypeAny>(url: string, schema: S, init?: RequestInit): Promise<z.output<S>> {
   const response = await fetch(url, init);
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as {
