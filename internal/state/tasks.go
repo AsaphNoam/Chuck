@@ -515,23 +515,33 @@ ORDER BY a.created_at DESC LIMIT 1`, task.CreatedByAgentID, task.CreatedByGenera
 	return s.ReadTask(task.TaskID)
 }
 
+// checkTaskAttachment is the one attachment check for tasks and schedules: the
+// reference exists and an agent creator can already read it (FS-16.R10).
+func checkTaskAttachment(tx *sql.Tx, refID, creatorAgentID string) error {
+	var exists int
+	if err := tx.QueryRow(`SELECT 1 FROM context_references WHERE context_ref_id = ?`, refID).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrTaskAttachmentReference
+		}
+		return fmt.Errorf("state: read task context reference: %w", err)
+	}
+	if creatorAgentID == "" {
+		return nil
+	}
+	authorized, err := contextReadAuthorized(tx, refID, creatorAgentID)
+	if err != nil {
+		return fmt.Errorf("state: authorize task context attachment: %w", err)
+	}
+	if !authorized {
+		return ErrTaskNotAssigned
+	}
+	return nil
+}
+
 func insertTaskAttachments(tx *sql.Tx, taskID string, attachments []TaskAttachment, creatorAgentID string, now time.Time) error {
 	for _, attachment := range attachments {
-		var exists int
-		if err := tx.QueryRow(`SELECT 1 FROM context_references WHERE context_ref_id = ?`, attachment.ContextRefID).Scan(&exists); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrTaskAttachmentReference
-			}
-			return fmt.Errorf("state: read task context reference: %w", err)
-		}
-		if creatorAgentID != "" {
-			authorized, err := contextReadAuthorized(tx, attachment.ContextRefID, creatorAgentID)
-			if err != nil {
-				return fmt.Errorf("state: authorize task context attachment: %w", err)
-			}
-			if !authorized {
-				return ErrTaskNotAssigned
-			}
+		if err := checkTaskAttachment(tx, attachment.ContextRefID, creatorAgentID); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(`INSERT INTO task_attachments(task_id, context_ref_id, label, description, created_at) VALUES(?, ?, ?, ?, ?)`, taskID, attachment.ContextRefID, attachment.Label, attachment.Description, formatTime(now)); err != nil {
 			return fmt.Errorf("state: attach task context: %w", err)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
@@ -53,4 +54,56 @@ func (s *Server) resolveDueTimeArms() {
 			s.propagateTaskFailure(task)
 		}
 	}
+}
+
+// scheduleUnavailable is the due transaction's target check (TS-10.R59): the
+// same eligibility task creation enforces, read when the occurrence comes due
+// rather than fanned out when an agent or project is archived.
+func (s *Server) scheduleUnavailable(sched state.TaskSchedule) string {
+	if ae := s.projectArchiveGate(sched.Project, ""); ae != nil && ae.Code == runtime.CodeProjectArchived {
+		return "the project is archived"
+	}
+	if sched.TargetKind != state.TargetAgent {
+		return ""
+	}
+	agent, err := s.stateStore.ReadAgent(sched.TargetAgentID)
+	switch {
+	case errors.Is(err, state.ErrNotFound):
+		return "the target agent was deleted"
+	case err != nil:
+		// Unknown is not unavailable: the occurrence task parks on its own if
+		// the agent really cannot run it.
+		s.log.Error("read schedule target", "schedule", sched.ScheduleID, "err", err)
+		return ""
+	case agent.Archived:
+		return "the target agent is archived"
+	}
+	return ""
+}
+
+// processDueSchedules is the tick's due-work step for schedules (TS-10.R54,
+// R57). Occurrences are computed in the process's zone (TS-10.R56).
+func (s *Server) processDueSchedules() {
+	outcomes, err := s.stateStore.ProcessDueSchedules(taskDispatchBatch, time.Local, s.scheduleUnavailable)
+	if err != nil {
+		s.log.Error("process due schedules", "err", err)
+	}
+	for _, outcome := range outcomes {
+		if outcome.Task != nil {
+			s.publishTaskUpdate(*outcome.Task)
+		}
+		s.publishScheduleUpdate(outcome.Schedule)
+	}
+}
+
+// publishScheduleUpdate follows each committed schedule change with the
+// bounded fields a client needs to decide whether to refetch (TS-10.R60).
+func (s *Server) publishScheduleUpdate(sched state.TaskSchedule) {
+	s.eventBus.Publish("schedule_update", nil, map[string]any{
+		"schedule_id":  sched.ScheduleID,
+		"project":      sched.Project,
+		"revision":     sched.Revision,
+		"state":        sched.State,
+		"pause_reason": sched.PauseReason,
+	})
 }

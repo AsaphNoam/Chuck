@@ -45,6 +45,7 @@ func (s *Server) runTaskDispatcher(ctx context.Context) {
 			}
 			s.reconcileTaskWaits()
 			s.resolveDueTimeArms()
+			s.processDueSchedules()
 			s.recoverStartingTasks(ctx)
 			s.dispatchReadyTasks(ctx)
 		}
