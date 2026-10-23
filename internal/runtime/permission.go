@@ -184,8 +184,8 @@ func (c *ChatRuntime) Cancel(ctx context.Context, agentID string) (bool, error) 
 
 // CancelGuarded interrupts only the expected launch generation and active turn.
 // It is the task-cleanup path: a stale task must leave a resumed generation or
-// later human turn untouched. The guard is checked while the turn lock remains
-// held through the initial ACP cancel notification.
+// later human turn untouched. The captured turn is rechecked under the turn
+// lock before the ACP cancel notification.
 func (c *ChatRuntime) CancelGuarded(ctx context.Context, agentID, expectedGeneration, expectedTurn string) (bool, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
@@ -195,6 +195,8 @@ func (c *ChatRuntime) CancelGuarded(ctx context.Context, agentID, expectedGenera
 }
 
 func (c *ChatRuntime) cancel(as *agentState, expectedGeneration, expectedTurn string) (bool, error) {
+	as.cancelMu.Lock()
+	defer as.cancelMu.Unlock()
 	guarded := expectedGeneration != "" || expectedTurn != ""
 
 	as.mu.Lock()
@@ -210,19 +212,22 @@ func (c *ChatRuntime) cancel(as *agentState, expectedGeneration, expectedTurn st
 	active := as.turnActive
 	armedTurn := as.turnSeq
 	cancelled := active || len(ids) > 0
-	// Keep the turn lock through the initial cancel. A turn cannot settle and a
-	// later turn cannot start between the guarded check and this side effect.
 	if active {
 		as.cancelledTurnSeq = armedTurn
-	}
-	if cancelled {
-		_ = as.transport.Notify("session/cancel", map[string]any{"sessionId": as.sessionID})
 	}
 	as.mu.Unlock()
 
 	for _, id := range ids {
 		c.resolvePending(as, id, "cancelled", "")
 	}
+	// A cooperative peer can finish immediately on session/cancel. Record and
+	// answer permissions first, then recheck the captured turn under its lock so
+	// a successor cannot receive the old turn's cancellation.
+	as.mu.Lock()
+	if active && as.turnActive && as.turnSeq == armedTurn {
+		_ = as.transport.Notify("session/cancel", map[string]any{"sessionId": as.sessionID})
+	}
+	as.mu.Unlock()
 
 	if active {
 		c.escalateCancel(as, armedTurn)

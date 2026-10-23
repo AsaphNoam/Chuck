@@ -960,7 +960,9 @@ when accepted by HTTP but an id-less repeat is still a new command.
   `permission_resolved` (decision `cancelled`) and a cancelled turn, becomes a no-op once idle, and
   identifies a peer killed by escalation as a cancellation-caused process exit:
   `internal/runtime/permission_test.go::TestCancelDuringPendingPermission` and
-  `TestCancelEscalatesToSIGINT`.
+  `TestCancelEscalatesToSIGINT`. `TestCancelBeforePermissionPublicationResolvesAfterRequest`
+  holds request publication and verifies the permission response precedes the cooperative
+  cancel notification, with request then resolution recorded before turn end.
 - **A6** (R4, R10–R12) — Nested wire events normalize, assistant deltas fold on live append and
   replay, and all four permission labels fold on live/replay paths and render distinctly:
   `ui/src/store/transcriptStore.test.ts` and

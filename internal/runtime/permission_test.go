@@ -242,11 +242,15 @@ func TestCancelBeforePermissionPublicationResolvesAfterRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	writes := make(chan []byte, 8)
+	releasePrompt := make(chan struct{})
+	as.transport.w = permissionCancelWriter{Writer: as.transport.w, writes: writes, release: releasePrompt}
 	if err := c.SendPrompt(context.Background(), h.AgentID, "run ls"); err != nil {
 		t.Fatal(err)
 	}
 	// Hold the status lock so the request registers but cannot publish.
 	as.statusMu.Lock()
+	close(releasePrompt)
 	deadline := time.Now().Add(3 * time.Second)
 	for !c.PermissionPending(h.AgentID, "tc_p") {
 		if time.Now().After(deadline) {
@@ -260,9 +264,26 @@ func TestCancelBeforePermissionPublicationResolvesAfterRequest(t *testing.T) {
 		_, _ = c.Cancel(context.Background(), h.AgentID)
 		close(done)
 	}()
-	time.Sleep(50 * time.Millisecond) // let Cancel reach the publication gate
+	deadline = time.Now().Add(3 * time.Second)
+	for c.PermissionPending(h.AgentID, "tc_p") {
+		if time.Now().After(deadline) {
+			as.statusMu.Unlock()
+			t.Fatal("cancel never claimed the permission")
+		}
+		time.Sleep(time.Millisecond)
+	}
 	as.statusMu.Unlock()
 	<-done
+	// The prompt itself is the first write. After that, cancellation must
+	// answer the permission before telling a cooperative peer to end its turn.
+	<-writes
+	var first rpcMessage
+	if err := json.Unmarshal(<-writes, &first); err != nil {
+		t.Fatal(err)
+	}
+	if first.Method == "session/cancel" || first.ID == nil || len(first.Result) == 0 {
+		t.Fatalf("first cancellation write = %+v, want permission response", first)
+	}
 
 	var order []string
 	for {
@@ -280,6 +301,18 @@ func TestCancelBeforePermissionPublicationResolvesAfterRequest(t *testing.T) {
 	if got := readState(t, c, h.AgentID); got == "waiting_input" {
 		t.Fatal("waiting_input survived a cancelled permission")
 	}
+}
+
+type permissionCancelWriter struct {
+	io.Writer
+	writes  chan<- []byte
+	release <-chan struct{}
+}
+
+func (w permissionCancelWriter) Write(p []byte) (int, error) {
+	<-w.release
+	w.writes <- append([]byte(nil), p...)
+	return w.Writer.Write(p)
 }
 
 // ASRC-5, INV §8 — approving a request whose provider offers no allow option

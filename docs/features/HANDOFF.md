@@ -25,8 +25,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- No change in progress. Timed and recurring task starts were reviewed 2026-10-23;
-  TTS-1–3 below keep that unit open for fixes. v0.18.1 is published; REL-CI-1 remains available.
+- REL-CI-1 repair: pending permission settlement now precedes cooperative cancellation;
+  concurrent cancellations serialize and recheck turn ownership before notification.
+  The strengthened regression fails on the original code; three focused runs, ten race runs,
+  the full untagged suite and build pass. Final `make test` FTS variant is running.
+  TTS-1–3 remain available as a separate fix unit.
 
 ## Acceptance gates still owed
 

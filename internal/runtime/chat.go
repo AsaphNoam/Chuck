@@ -288,6 +288,7 @@ type agentState struct {
 	toolInputSeq           uint64
 	toolInputBytes         int
 	pending                map[string]*pendingPerm    // toolCallID -> withheld permission request
+	cancelMu               sync.Mutex                 // serialize cancellation through permission settlement
 	resolved               map[string]struct{}        // toolCallIDs already settled this turn
 	hostApproved           map[string]*HostPermission // approved host requests not yet admitted
 	hostVoidSeq            uint64                     // bumped by requester cancellation; voids open host requests
