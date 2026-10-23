@@ -49,6 +49,14 @@ Their source reviews and open findings remain below; do not reopen completed ref
 
 ## Active change
 
+- **2026-10-23 — ARCH-1 repair, then release requested:** the offline PID inspection guard now
+  refuses read/decode failures before opening SQLite. Malformed/unreadable command regressions
+  fail before repair and pass afterward; full clean-candidate release checks and receipt closure
+  are next. Proposed patch `v0.18.1`; version and publication confirmation remain pending.
+  Uncommitted task-scheduling design edits are preserved and excluded; release verification
+  will use a clean committed checkout. The post-review runtime guard commit `6050f2ce` needs
+  focused affected-coverage evidence in the existing receipt, not another architectural review.
+
 - **Next-release architectural review completed, 2026-10-23:** committed candidate `eb56b0c2`
   since v0.18.0; [receipt](../archive/reviews/architecture/v0.18.0-next.json) and
   [coverage/evidence](../archive/reviews/architecture/v0.18.0-next.md). No Must-fix finding;

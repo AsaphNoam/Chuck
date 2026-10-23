@@ -10,13 +10,18 @@ import (
 )
 
 // serverRunning reports whether a chuck server appears to be running by
-// checking the pidfile and probing the process with signal 0.
-func serverRunning(home string) bool {
+// checking the pidfile and probing the process with signal 0. A pidfile read
+// error is distinct from an absent file: callers must not treat an
+// uninspectable pidfile as proof that the server is offline.
+func serverRunning(home string) (bool, error) {
 	info, ok, err := readPidfile(home)
-	if err != nil || !ok {
-		return false
+	if err != nil {
+		return false, err
 	}
-	return processAlive(info.PID)
+	if !ok {
+		return false, nil
+	}
+	return processAlive(info.PID), nil
 }
 
 func newReindexCmd() *cobra.Command {
@@ -31,10 +36,15 @@ func newReindexCmd() *cobra.Command {
 			}
 			// reindex opens its own writer and replaces conversation projections — running
 			// it against a live server violates the sole-writer invariant and can
-			// corrupt/rewind live archive data. Refuse rather than warn. (A stale
-			// pidfile is handled by serverRunning's signal-0 liveness probe, so this
-			// only fires when the daemon is actually up.)
-			if serverRunning(cfgStore.Home()) {
+			// corrupt/rewind live archive data. Refuse rather than warn. A stale
+			// pidfile is handled by serverRunning's signal-0 liveness probe, so a
+			// stale pidfile does not block repair. Inspection errors fail closed
+			// because they cannot establish that no server is running.
+			running, err := serverRunning(cfgStore.Home())
+			if err != nil {
+				return fmt.Errorf("cannot inspect dashboard pidfile before reindex: %w", err)
+			}
+			if running {
 				return fmt.Errorf("chuck server is running — stop it before reindex " +
 					"(reindex rebuilds the archive index and must be the sole DB writer)")
 			}

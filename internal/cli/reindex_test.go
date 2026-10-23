@@ -85,3 +85,69 @@ func TestReindexCommandPartialRepairAndRetry(t *testing.T) {
 		t.Fatalf("restored source = %+v, %v", snap, err)
 	}
 }
+
+// ARCH-1: a corrupt or unreadable dashboard pidfile cannot prove that the
+// server is absent. The command must refuse before opening its SQLite writer.
+func TestReindexCommandRefusesUninspectablePidfile(t *testing.T) {
+	tests := []struct {
+		name       string
+		unreadable bool
+		setup      func(string) error
+	}{
+		{
+			name: "malformed JSON",
+			setup: func(home string) error {
+				return os.WriteFile(pidfilePath(home), []byte("{"), 0o600)
+			},
+		},
+		{
+			name:       "unreadable file",
+			unreadable: true,
+			setup: func(home string) error {
+				path := pidfilePath(home)
+				if err := os.WriteFile(path, []byte(`{"pid":2000000000}`), 0o600); err != nil {
+					return err
+				}
+				return os.Chmod(path, 0)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("CHUCK_HOME", home)
+			t.Setenv("CHUCK_RUNTIME_ROOT", "")
+			cfg := config.NewWithHome(home)
+			if err := cfg.EnsureLayout(); err != nil {
+				t.Fatal(err)
+			}
+			if err := cfg.SeedIfAbsent(); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.setup(home); err != nil {
+				t.Fatal(err)
+			}
+			if tt.unreadable {
+				if _, err := os.ReadFile(pidfilePath(home)); err == nil {
+					t.Skip("the test process can read a mode-000 file")
+				}
+			}
+
+			root := NewRootCmd()
+			root.SetArgs([]string{"reindex"})
+			var out bytes.Buffer
+			root.SetOut(&out)
+			root.SetErr(&out)
+			err := root.Execute()
+			if err == nil || !strings.Contains(err.Error(), "dashboard pidfile") {
+				t.Fatalf("reindex error = %v, want actionable pidfile inspection error; output=%q", err, out.String())
+			}
+			if strings.Contains(out.String(), "reindexed archive") {
+				t.Fatalf("reindex reported success: %q", out.String())
+			}
+			if _, err := os.Stat(filepath.Join(home, "state.db")); !os.IsNotExist(err) {
+				t.Fatalf("state.db stat error = %v, want no database writer opened", err)
+			}
+		})
+	}
+}

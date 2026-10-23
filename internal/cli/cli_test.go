@@ -119,19 +119,19 @@ func TestDashboardLoggerRejectsUnavailableLog(t *testing.T) {
 // pidfile — a dead pid — must not block reindex).
 func TestServerRunningDetectsLiveProcess(t *testing.T) {
 	home := t.TempDir()
-	if serverRunning(home) {
+	if running, err := serverRunning(home); err != nil || running {
 		t.Fatal("serverRunning with no pidfile = true")
 	}
 	if err := writePidfile(home, pidInfo{PID: os.Getpid(), Port: 4317}); err != nil {
 		t.Fatal(err)
 	}
-	if !serverRunning(home) {
+	if running, err := serverRunning(home); err != nil || !running {
 		t.Fatal("serverRunning with a live pid = false")
 	}
 	if err := writePidfile(home, pidInfo{PID: 2_000_000_000, Port: 4317}); err != nil {
 		t.Fatal(err)
 	}
-	if serverRunning(home) {
+	if running, err := serverRunning(home); err != nil || running {
 		t.Fatal("serverRunning with a dead pid = true (a stale pidfile must not block reindex)")
 	}
 }
