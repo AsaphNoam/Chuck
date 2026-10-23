@@ -54,10 +54,8 @@ branch automation beyond creating the fork branch.
   `ensureWorktreeCheckout(project, cwd)` helper consults the ownership record and recreates a
   missing owned checkout from its recorded branch (FS-19.R7) before any process starts. It is
   called from `composeLaunch`, `composeResumeSpec`, and `composeSwitchSpec` — replacing the two
-  currently duplicated cwd stat checks (`internal/server/launch.go`,
-  `internal/server/pipeline_lifecycle.go`) with one seam, per INV §2 and TS-01.R6/R9. Both pipeline
-  start paths inherit it: `LaunchStage` runs through `launchAgent`/`composeLaunch` and
-  `ContinueStage` through `composeResumeSpec`. Resume and switch keep the frozen `snap.Cwd`; the
+  currently duplicated cwd stat checks with one seam, per INV §2 and TS-01.R6/R9. Pipeline stage
+  tasks inherit it through the ordinary task launch/resume dispatcher. Resume and switch keep the frozen `snap.Cwd`; the
   helper only re-materializes the directory the frozen path names, never re-derives a different
   path. Starts targeting an owned checkout share a per-project readiness claim, including starts
   arriving after recreation has created the directory but before setup finishes. Exactly one runs

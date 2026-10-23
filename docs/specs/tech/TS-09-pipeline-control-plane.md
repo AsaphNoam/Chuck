@@ -345,27 +345,12 @@ unchanged by them.
   collections after the server publishes the committed `pipeline_proposal_update`, and derives no
   proposal state from transcript tool results or browser-local pointers.
 
-- **R33** — **The stage group label is the stage agent's own name, reused on
-  an existing field.** A stage's group label is `stage.Title + " — " + run.DisplayName`, which is the
-  string `stageExecution` already composes as that stage agent's name
-  (`internal/pipeline/reconcile.go`). It is computed once there and used for both, because writing
-  the convention a second time would be two paths building the same string and would let the group
-  and the agent name drift apart under a later edit to either (INV §2); `StageExecution` therefore
-  gains no field. `LaunchStage` passes that value as the existing `launchRequest.Group`
-  (`internal/server/pipeline_lifecycle.go`), where it lands on the same `state.Agent.Group` the
-  identity endpoint already writes. That is the whole mechanism: no new launch field, request or
-  response shape, durable column, migration, or grid code, and the dashboard's existing label-keyed
-  sectioning renders it with no pipeline awareness. A section header consequently repeats the text
-  of its single card until a retry or loop revisit adds a second agent, which is accepted rather than
-  worked around. No
-  guard is needed for a reused agent id, because the only path that reuses one is a blocked
-  continuation, which reconciles to `resume_blocked` and reaches `ContinueStage` — a resume that
-  reads the stored agent and never composes a launch request. No guard is needed for an empty label
-  either: a stage title is validated required, and an omitted run display name defaults to the
-  template title at run start, so both halves are non-empty — and the grid already renders an empty
-  or a literal `_ungrouped` label as the Ungrouped section in any case. R6 is
-  unchanged: the pipeline-state join stays the sole authority for run/stage association, and no read
-  path infers membership from a group label.
+- **R33** — **Pipeline task launch uses the ordinary run-name group.** The
+  controller stores the frozen run display name in each ordinary stage task's
+  existing `group` field. The shared task dispatcher passes it to the normal
+  launch request, so every run-created standing agent initially appears in the
+  same ordinary dashboard group. Task provenance remains the sole authority for
+  run/stage association; no read infers membership from a group label.
 
 ### 2.1 Task-backed ordered progression
 
@@ -451,8 +436,11 @@ unchanged by them.
   outcomes and release intents through the shared task cancellation helper, and executes existing
   stop/turn-cancel seams. In-flight starts either lose their claim or are immediately released; no
   list-then-stop race can admit escaping children. Cleanup failure retains stopping/finishing with a
-  recorded retry schedule governed by TS-10.R35; transient failure resumes automatically. Only
-  persistent/non-recoverable conditions expose human attention and a cleanup-only repair control.
+  recorded retry schedule governed by TS-10.R35; transient failure resumes automatically. A failed
+  post-result cursor transition retains `release_stage_task` with its own bounded controller retry
+  record; the shared dispatcher retries only that durable action on TS-10.R35's backoff and exposes controller-recovery
+  attention after ten failures. Only persistent/non-recoverable conditions expose human
+  attention and a cleanup-only repair control.
   Only completed cleanup permits next-stage creation or terminal `stopped` and
   its shared cancelled result. Immutable completed child results remain untouched. This is lifecycle
   cleanup, not a requirement that every child succeed. Replacement in R41 closes only the old

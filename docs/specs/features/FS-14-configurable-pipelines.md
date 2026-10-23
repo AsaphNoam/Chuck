@@ -1053,9 +1053,8 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   outputs within that attempt's entry, and the run's named values are expanded without a click. An
   attempt that declared no output renders unchanged. — `ui/src/features/pipelines/RunBrowser.test.tsx`.
 
-- **A33** (R58) — A fake run whose second stage is retried creates each stage agent
-  with that stage's group label stored on it, putting the retried stage's two agents in one section
-  and each other stage's agent in its own; those sections carry the member count, per-state summary,
+- **A33** (R74) — A fake run whose second stage is retried creates each run agent
+  with the frozen run-name group stored on it; that section carries the member count, per-state summary,
   persisted collapse, and **Stop group**/**Archive group**; a member moved out with **Move to group** keeps both
   its run/stage card badge and its place on the run's page; and stopping a stage's group stops its
   members and leaves the run paused with recovery actions rather than finished. —

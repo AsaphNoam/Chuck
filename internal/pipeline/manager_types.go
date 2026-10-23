@@ -98,10 +98,7 @@ type Lifecycle interface {
 	// StopRoom closes a stopped run's stage room and cancels only that room's
 	// in-flight turn (TS-09.R54).
 	StopRoom(context.Context, string) error
-	LaunchStage(context.Context, StageExecution) error
-	ContinueStage(context.Context, StageExecution) error
 	StopStage(context.Context, string) error
-	IsRunning(string) bool
 }
 
 // ProjectGateError preserves the lifecycle gate's public conflict vocabulary

@@ -233,125 +233,6 @@ func (s *Server) ValidateStage(_ context.Context, execution pipeline.StageExecut
 	return nil
 }
 
-// LaunchStage uses the exact manual launch transaction with a pre-associated
-// durable agent id, then starts the assignment as an ordinary user turn.
-func (s *Server) LaunchStage(ctx context.Context, execution pipeline.StageExecution) error {
-	// Launch mints the same agent-keyed registration as resume, so the claim
-	// covers both Registry.Launch and the first assignment prompt. A concurrent
-	// Stop otherwise reads the registry's launch sentinel as an already-stopped
-	// agent and tears down this launch's registration (TS-01.R16, INV §4/§5).
-	if !s.claimLifecycle(execution.AgentID) {
-		return errors.New("a lifecycle transition is already in progress")
-	}
-	defer s.releaseLifecycle(execution.AgentID)
-
-	if !s.registry.Owns(execution.AgentID) {
-		if _, err := s.stateStore.ReadRunning(execution.AgentID); err == nil {
-			if err := s.reapOrphanRuntime(execution.AgentID); err != nil {
-				return err
-			}
-			s.teardownAgentRegistration(execution.AgentID)
-		}
-	}
-	_, ae := s.launchAgent(ctx, launchRequest{
-		Role: execution.Role, Project: execution.Project, Backend: execution.Backend,
-		Model: execution.Model, Effort: execution.Effort, Fast: execution.Fast, Interface: "chat", Name: execution.AgentName,
-		// The stage agent's own name is also its ordinary group label, so a
-		// stage's agents land in one dashboard section (FS-14.R58, TS-09.R33).
-		Group: execution.AgentName,
-	}, launchOptions{AgentID: execution.AgentID, Generation: execution.Generation})
-	if ae != nil {
-		return errors.New(ae.Message)
-	}
-	if err := s.registry.SendPrompt(ctx, execution.AgentID, execution.Assignment); err != nil {
-		// The claim is already held, so use the unclaimed core rather than
-		// StopStage, which would reject its own claim.
-		_ = s.stopStageLocked(ctx, execution.AgentID)
-		return err
-	}
-	return nil
-}
-
-// ContinueStage reuses a live blocked agent or resumes its ordinary persisted
-// session after restart, then submits the durable continuation assignment.
-func (s *Server) ContinueStage(ctx context.Context, execution pipeline.StageExecution) error {
-	// Resuming a stage agent mints a fresh registration, so it takes the shared
-	// exclusive lifecycle claim (TS-01.R16, INV §4/§5) before any registration side
-	// effect — acquireAgentStart is only a counting lease. Without it an explicit
-	// stop/resume of the same agent could tear down or duplicate the registration
-	// inside this resume window.
-	if !s.claimLifecycle(execution.AgentID) {
-		return errors.New("a lifecycle transition is already in progress")
-	}
-	defer s.releaseLifecycle(execution.AgentID)
-	if ae := s.acquireAgentStart(execution.Project, execution.AgentID); ae != nil {
-		return errors.New(ae.Message)
-	}
-	defer s.releaseAgentStart(execution.Project, execution.AgentID)
-	if project, err := s.configStore.ReadProject(execution.Project); err != nil || project.Archived {
-		return errors.New("project is archived")
-	}
-	if s.IsRunning(execution.AgentID) {
-		return s.registry.SendPrompt(ctx, execution.AgentID, execution.Assignment)
-	}
-	if _, err := s.stateStore.ReadRunning(execution.AgentID); err == nil {
-		if err := s.reapOrphanRuntime(execution.AgentID); err != nil {
-			return err
-		}
-		s.teardownAgentRegistration(execution.AgentID)
-	}
-	agent, err := s.stateStore.ReadAgent(execution.AgentID)
-	if err != nil {
-		return err
-	}
-	snapshot, err := s.stateStore.ReadSession(execution.AgentID)
-	if err != nil {
-		return err
-	}
-	backends, err := s.configStore.ReadBackends()
-	if err != nil {
-		if errors.Is(err, config.ErrNotFound) || errors.Is(err, config.ErrCorrupt) {
-			backends = config.DefaultBackends()
-		} else {
-			return err
-		}
-	}
-	backend, ok := backends.Backends[execution.Backend]
-	if !ok {
-		return fmt.Errorf("unknown backend %q", execution.Backend)
-	}
-	model, ok := backend.Models[execution.Model]
-	if !ok {
-		return fmt.Errorf("unknown model %q", execution.Model)
-	}
-	agent.Backend = execution.Backend
-	agent.Model = execution.Model
-	agent.Effort = execution.Effort
-	agent.Fast = execution.Fast
-	agent.Interface = "chat"
-	spec, ae := s.composeResumeSpecContext(ctx, agent, snapshot, backend, model, execution.Generation, nil)
-	if ae != nil {
-		return errors.New(ae.Message)
-	}
-	handle, err := s.registry.Resume(ctx, spec)
-	if err != nil {
-		s.teardownAgentRegistration(agent.AgentID)
-		return err
-	}
-	agent.Fast = handle.Fast
-	if err := s.stateStore.WriteAgent(agent); err != nil {
-		_ = s.stopStageLocked(ctx, agent.AgentID)
-		return err
-	}
-	if err := s.registry.SendPrompt(ctx, agent.AgentID, execution.Assignment); err != nil {
-		// Already holding the lifecycle claim here — tear down through the unclaimed
-		// core rather than the public StopStage, which would fail to re-take it.
-		_ = s.stopStageLocked(ctx, agent.AgentID)
-		return err
-	}
-	return nil
-}
-
 // StopStage stops a pipeline stage agent under the shared exclusive lifecycle
 // claim (TS-01.R16, INV §4/§5), so its Stop + teardown cannot race an explicit
 // resume/stop or a switch of the same agent.
@@ -364,8 +245,7 @@ func (s *Server) StopStage(ctx context.Context, agentID string) error {
 }
 
 // stopStageLocked performs the stop + teardown. The caller must already hold the
-// lifecycle claim for the agent (ContinueStage calls it from inside its own claim
-// on a failed send).
+// lifecycle claim for the agent.
 func (s *Server) stopStageLocked(ctx context.Context, agentID string) error {
 	if err := s.registry.Stop(ctx, agentID); err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
@@ -377,10 +257,6 @@ func (s *Server) stopStageLocked(ctx context.Context, agentID string) error {
 	}
 	s.teardownAgentRegistration(agentID)
 	return nil
-}
-
-func (s *Server) IsRunning(agentID string) bool {
-	return s.registry != nil && s.registry.Owns(agentID)
 }
 
 func (s *Server) PublishPipelineUpdate(update pipeline.PipelineUpdate) {

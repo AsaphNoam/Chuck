@@ -345,6 +345,9 @@ type PipelineRunRecord struct {
 	CurrentAttemptID    string          `json:"current_attempt_id"`
 	CurrentAgentID      string          `json:"current_agent_id"`
 	AttentionReason     string          `json:"attention_reason"`
+	ControllerFailures  int             `json:"controller_failures"`
+	ControllerRetryAt   *time.Time      `json:"controller_retry_at,omitempty"`
+	ControllerLastError string          `json:"controller_last_error"`
 	FinalOutcome        string          `json:"final_outcome"`
 	CreatedAt           time.Time       `json:"created_at"`
 	UpdatedAt           time.Time       `json:"updated_at"`

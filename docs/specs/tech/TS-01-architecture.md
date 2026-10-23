@@ -212,8 +212,8 @@ path reintroduces the identical defect through a different door.
 
 **Every lifecycle transition that starts, stops, or resumes an agent's registration takes this one
 claim**, not only explicit resume/wake and Stop: runtime switch's stop→resume window
-(`handleSwitchRuntime`), pipeline stage launch/initial prompt (`LaunchStage`), and pipeline stage
-resume/stop (`ContinueStage`/`StopStage`) all take it before any registration side effect and hold it
+(`handleSwitchRuntime`) and ordinary task-dispatch launch/resume/stop all take it before any
+registration side effect and hold it
 across the whole transition. Bulk project group actions (`groupAction`) first reserve every member's
 claim, then stops and cleans them up in parallel; if one member is busy it releases its reservations
 and returns conflict before stopping any member. Because wake-on-message makes a stopped agent's transient window

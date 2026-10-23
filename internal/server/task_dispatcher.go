@@ -40,6 +40,9 @@ func (s *Server) runTaskDispatcher(ctx context.Context) {
 			}
 			s.dispatchQuotaContinuations(ctx)
 			s.reconcileTaskCleanup(ctx)
+			if s.pipelineMgr != nil {
+				s.pipelineMgr.ReconcilePending(ctx)
+			}
 			s.reconcileTaskWaits()
 			s.recoverStartingTasks(ctx)
 			s.dispatchReadyTasks(ctx)
@@ -562,6 +565,7 @@ func (s *Server) dispatchTurnEnd(agentID, generation, turnID string) {
 		task, _, err := s.stateStore.PipelineStageTaskForAssignee(agentID, generation)
 		if err == nil {
 			if err := s.pipelineMgr.Reconcile(context.Background(), task.RunID); err != nil {
+				s.pipelineMgr.RecordReconcileFailure(task.RunID, err)
 				s.log.Warn("pipeline task release reconcile", "task", task.TaskID, "err", err)
 			}
 		}
@@ -745,6 +749,7 @@ func (s *Server) reconcilePipelineForTask(task state.Task) {
 		return
 	}
 	if err := s.pipelineMgr.Reconcile(context.Background(), lineage.PipelineRunID); err != nil {
+		s.pipelineMgr.RecordReconcileFailure(lineage.PipelineRunID, err)
 		s.log.Warn("pipeline cleanup reconcile", "task", task.TaskID, "run", lineage.PipelineRunID, "err", err)
 	}
 }

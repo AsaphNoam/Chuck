@@ -17,7 +17,6 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/hooks"
 	"github.com/AsaphNoam/Chuck/internal/messaging"
-	"github.com/AsaphNoam/Chuck/internal/pipeline"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
@@ -879,72 +878,4 @@ func TestReleaseGroupRespectsLifecycleClaim(t *testing.T) {
 	}
 	waitRunning(t, srv, id, true)
 	waitRunning(t, srv, otherID, true)
-}
-
-// TS-01.R16 (INV §4/§5) — LaunchStage holds the shared lifecycle claim from
-// registration through its initial prompt, so a concurrent ordinary Stop returns
-// 409 and cannot tear down the fresh hook/MCP/settings registration.
-func TestPipelineLaunchStageRespectsLifecycleClaim(t *testing.T) {
-	srv, ts := wakeTestServer(t)
-	id := "a_pipeline_launch"
-	srv.registry.Chat().SetCommand(slowACP(t, "1", 0))
-
-	done := make(chan error, 1)
-	go func() {
-		done <- srv.LaunchStage(context.Background(), pipeline.StageExecution{
-			AgentID: id, Generation: "g_pipeline_launch", Role: "impl", Project: "tmpproj",
-			Backend: "claude", Model: "sonnet", AgentName: "Pipeline launch", Assignment: "begin",
-		})
-	}()
-	waitLifecycleClaim(t, srv, id)
-
-	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/stop", nil)
-	if resp.StatusCode != http.StatusConflict || apiErrorCode(t, body) != runtime.CodeConflict {
-		t.Fatalf("stop during pipeline launch = %d %s, want 409 conflict", resp.StatusCode, body)
-	}
-	if err := <-done; err != nil {
-		t.Fatalf("LaunchStage: %v", err)
-	}
-	waitRunning(t, srv, id, true)
-
-	srv.hookMu.Lock()
-	token := srv.hookTokens[id]
-	_, mcpOK := srv.mcpCleanups[id]
-	srv.hookMu.Unlock()
-	if token == "" || !mcpOK {
-		t.Fatalf("pipeline launch registration was torn down: token=%q mcp=%v", token, mcpOK)
-	}
-	settingsPath := filepath.Join(hooks.Dir(srv.configStore.Home()), "agents", id+".json")
-	if _, err := os.Stat(settingsPath); err != nil {
-		t.Fatalf("pipeline launch hook settings missing: %v", err)
-	}
-}
-
-// TS-01.R16 (INV §4/§5) — the pipeline stage stop/continue seams take the shared
-// exclusive lifecycle claim, so they refuse an agent already inside another
-// lifecycle transition instead of racing its registration.
-func TestPipelineStageRespectsLifecycleClaim(t *testing.T) {
-	srv, ts := wakeTestServer(t)
-	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
-
-	if !srv.claimLifecycle(id) {
-		t.Fatalf("could not take the lifecycle claim")
-	}
-	defer srv.releaseLifecycle(id)
-
-	if err := srv.StopStage(context.Background(), id); err == nil {
-		t.Fatalf("StopStage under a held claim = nil, want a conflict error")
-	}
-	if err := srv.ContinueStage(context.Background(), pipeline.StageExecution{AgentID: id, Project: "tmpproj"}); err == nil {
-		t.Fatalf("ContinueStage under a held claim = nil, want a conflict error")
-	}
-
-	// The claimed registration is intact and the agent is still running.
-	srv.hookMu.Lock()
-	token := srv.hookTokens[id]
-	srv.hookMu.Unlock()
-	if token == "" {
-		t.Fatalf("pipeline stage stop/continue tore down a claimed agent's registration")
-	}
-	waitRunning(t, srv, id, true)
 }

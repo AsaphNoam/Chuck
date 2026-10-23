@@ -93,7 +93,7 @@ func (m *Manager) continueTaskStage(run state.PipelineRunRecord, detail RunDetai
 			TaskID: taskID, Project: run.Project, DisplayName: stage.Title, Instruction: instruction,
 			TargetKind: targetKind, TargetAgentID: current.StandingAgentID, Role: detail.Template.OrchestratorRole,
 			Backend: assignment.Backend, Model: assignment.Model, Effort: assignment.Effort, Fast: assignment.Fast,
-			CreatedByKind: "pipeline",
+			Group: run.DisplayName, CreatedByKind: "pipeline",
 		},
 	})
 	if err == nil {

@@ -19,6 +19,9 @@ import (
 
 const (
 	maxReconcileSteps = 16
+	// reconcileBatch bounds periodic recovery work. The task dispatcher owns the
+	// timer; a durable pending action remains the retry owner between passes.
+	reconcileBatch = 8
 	// cleanupPageSize bounds one keyset page of cleanup members. A run's lineage
 	// is unbounded, so cleanup pages it rather than loading it whole (INV §16).
 	cleanupPageSize = 32
@@ -97,7 +100,7 @@ func (m *Manager) Start(ctx context.Context, request StartRequest) (RunDetail, b
 		return RunDetail{}, false, err
 	}
 	assignmentText, assignmentHash := renderAssignment(run, record.Template, first, values, assignmentContext{Coordinator: coordinatorContext(coordinator, first)})
-	initial := state.CreatePipelineStageTaskParams{RunID: runID, ExpectedRevision: 1, StageIndex: 0, AttemptNumber: 1, StageID: first.ID, AssignmentDigest: assignmentHash, OutputValues: stageOutputValues(first), Coordinator: coordinator, Task: state.Task{TaskID: taskID, Project: request.Project, DisplayName: first.Title, Instruction: assignmentText, TargetKind: state.TargetLaunch, Role: record.Template.OrchestratorRole, Backend: assignment.Backend, Model: assignment.Model, Effort: assignment.Effort, Fast: assignment.Fast, CreatedByKind: "pipeline"}}
+	initial := state.CreatePipelineStageTaskParams{RunID: runID, ExpectedRevision: 1, StageIndex: 0, AttemptNumber: 1, StageID: first.ID, AssignmentDigest: assignmentHash, OutputValues: stageOutputValues(first), Coordinator: coordinator, Task: state.Task{TaskID: taskID, Project: request.Project, DisplayName: first.Title, Instruction: assignmentText, TargetKind: state.TargetLaunch, Role: record.Template.OrchestratorRole, Backend: assignment.Backend, Model: assignment.Model, Effort: assignment.Effort, Fast: assignment.Fast, Group: run.DisplayName, CreatedByKind: "pipeline"}}
 	if StageCoordination(first) == CoordinationThinkTank {
 		room, err := m.roomStage(ctx, run, first, values, 1, request.Assignments)
 		if err != nil {
@@ -756,12 +759,91 @@ func (m *Manager) Startup(ctx context.Context) error {
 			continue
 		}
 		if err := m.Reconcile(ctx, run.RunID); err != nil {
+			current, readErr := m.store.ReadPipelineRun(run.RunID)
+			if readErr == nil {
+				run = current
+			}
+			// A reported stage has already committed its result and release. Keep
+			// that cursor durable when controller bookkeeping is temporarily
+			// unavailable; the shared task dispatcher retries it after startup.
+			if run.State == "finishing" && run.PendingAction == "release_stage_task" {
+				if updated, recordErr := m.store.RecordPipelineControllerFailure(run, err, time.Now().UTC().Add(taskControllerRetryDelay(run.ControllerFailures))); recordErr != nil {
+					return errors.Join(err, recordErr)
+				} else {
+					m.publish(updated)
+					if updated.ControllerFailures == 10 {
+						m.notify(updated, "needs_attention")
+					}
+				}
+				slog.Warn("pipeline: startup reconcile deferred", "run", run.RunID, "err", err)
+				continue
+			}
 			if pauseErr := m.pauseStartupRun(ctx, run.RunID, "restart_reconcile_failed"); pauseErr != nil {
 				return errors.Join(err, pauseErr)
 			}
 		}
 	}
 	return nil
+}
+
+// ReconcilePending gives durable controller actions the same bounded retry
+// owner as task cleanup. It deliberately replays only existing cursor effects:
+// a settled stage result is never submitted or launched again.
+func (m *Manager) ReconcilePending(ctx context.Context) {
+	runs, err := m.store.ListDuePipelineControllerActions(time.Now().UTC(), reconcileBatch)
+	if err != nil {
+		slog.Debug("pipeline: list pending reconciliation", "err", err)
+		return
+	}
+	for _, run := range runs {
+		before := run.Revision
+		if err := m.Reconcile(ctx, run.RunID); err != nil {
+			if updated, recordErr := m.store.RecordPipelineControllerFailure(run, err, time.Now().UTC().Add(taskControllerRetryDelay(run.ControllerFailures))); recordErr == nil {
+				m.publish(updated)
+				if updated.ControllerFailures == 10 {
+					m.notify(updated, "needs_attention")
+				}
+			}
+			slog.Debug("pipeline: deferred reconcile", "run", run.RunID, "action", run.PendingAction, "err", err)
+		} else if current, readErr := m.store.ReadPipelineRun(run.RunID); readErr == nil && current.Revision == before && current.PendingAction == run.PendingAction {
+			// Cleanup can be correctly unfinished. Yield its unchanged action for
+			// one dispatcher interval rather than consuming every immediate batch.
+			_ = m.store.DeferPipelineControllerAction(current, time.Now().UTC().Add(taskDispatchDelay))
+		}
+	}
+}
+
+// RecordReconcileFailure gives callbacks that already attempted a controller
+// action the same durable retry owner as the periodic dispatcher.
+func (m *Manager) RecordReconcileFailure(runID string, cause error) {
+	run, err := m.store.ReadPipelineRun(runID)
+	if err != nil {
+		return
+	}
+	switch run.PendingAction {
+	case "release_stage_task", "cleanup_run", "activate_replacement":
+		updated, err := m.store.RecordPipelineControllerFailure(run, cause, time.Now().UTC().Add(taskControllerRetryDelay(run.ControllerFailures)))
+		if err != nil {
+			return
+		}
+		m.publish(updated)
+		if updated.ControllerFailures == 10 {
+			m.notify(updated, "needs_attention")
+		}
+	}
+}
+
+const taskDispatchDelay = 2 * time.Second
+
+func taskControllerRetryDelay(failures int) time.Duration {
+	delay := 2 * time.Second
+	for i := 0; i < failures && delay < time.Minute; i++ {
+		delay *= 2
+	}
+	if delay > time.Minute {
+		return time.Minute
+	}
+	return delay
 }
 
 // resetLegacyPipelines is the authorized v1 cutover. It stops recorded legacy

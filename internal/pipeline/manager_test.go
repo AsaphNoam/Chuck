@@ -20,7 +20,6 @@ type fakeLifecycle struct {
 	launches       []StageExecution
 	continuations  []StageExecution
 	stops          []string
-	failNextLaunch bool
 	startErr       error
 	roomStops      []string
 	roomStopErrors int
@@ -45,35 +44,12 @@ func (f *fakeLifecycle) RoomLaunchConfig(_ context.Context, execution StageExecu
 	raw, err := json.Marshal(map[string]any{"role": execution.Role, "project": execution.Project, "backend": execution.Backend, "model": execution.Model, "name": execution.AgentName, "interface": "chat"})
 	return string(raw), err
 }
-func (f *fakeLifecycle) LaunchStage(_ context.Context, execution StageExecution) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.failNextLaunch {
-		f.failNextLaunch = false
-		return errors.New("injected launch failure")
-	}
-	f.running[execution.AgentID] = true
-	f.launches = append(f.launches, execution)
-	return nil
-}
-func (f *fakeLifecycle) ContinueStage(_ context.Context, execution StageExecution) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.running[execution.AgentID] = true
-	f.continuations = append(f.continuations, execution)
-	return nil
-}
 func (f *fakeLifecycle) StopStage(_ context.Context, agentID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.running, agentID)
 	f.stops = append(f.stops, agentID)
 	return nil
-}
-func (f *fakeLifecycle) IsRunning(agentID string) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.running[agentID]
 }
 
 type fakePublisher struct {
@@ -167,7 +143,7 @@ func startStagePipeline(t *testing.T, manager *Manager, requestID, agentID, gene
 }
 
 func TestStartCreatesOneStandingStageTaskWithoutDirectLaunch(t *testing.T) {
-	manager, lifecycle, _ := pipelineManagerFixture(t)
+	manager, _, _ := pipelineManagerFixture(t)
 	detail, replay, err := manager.Start(context.Background(), StartRequest{
 		RequestID: "v2-start", TemplateID: "quality", Project: "proj", Goal: "ship",
 		Inputs:      map[string]string{"spec": "implement it"},
@@ -175,9 +151,6 @@ func TestStartCreatesOneStandingStageTaskWithoutDirectLaunch(t *testing.T) {
 	})
 	if err != nil || replay {
 		t.Fatalf("Start = %#v, replay=%v, err=%v", detail, replay, err)
-	}
-	if lifecycle.launches != nil {
-		t.Fatalf("v2 Start launched directly: %#v", lifecycle.launches)
 	}
 	var taskID string
 	if err := manager.store.DB().QueryRow(`SELECT task_id FROM pipeline_stage_tasks WHERE run_id = ?`, detail.Run.RunID).Scan(&taskID); err != nil {
@@ -493,6 +466,182 @@ func TestFailedStartupRecoveryRetainsTheStopFence(t *testing.T) {
 	}
 	if _, err := manager.Retry(context.Background(), run.RunID, run.Revision); err == nil {
 		t.Fatal("Retry became available on a stopping run")
+	}
+}
+
+// TS-09.R42/R43, INV §7/§15 — a controller write can fail after the standing
+// task result and release are committed. Recovery keeps the cursor, retries it
+// through the dispatcher-owned action, and never accepts the stage again.
+func TestStartupRetainsAcceptedStageCursorAfterControllerFailure(t *testing.T) {
+	manager, _, _ := pipelineManagerFixture(t)
+	detail, stage := startStagePipeline(t, manager, "startup-controller-retry", "a_owner", "gen-1")
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET execution_handle = 'turn_1' WHERE task_id = ?`, stage.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.store.AcceptPipelineStageTaskResult(stage.TaskID, "a_owner", "gen-1", "turn_1", detail.Run.Revision, state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done", Outputs: map[string]string{"implementation": "done"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.store.CompleteTaskRelease(stage.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET template_snapshot_json = '{' WHERE run_id = ?`, detail.Run.RunID); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Startup(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	held, err := manager.store.ReadPipelineRun(detail.Run.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if held.State != "finishing" || held.PendingAction != "release_stage_task" {
+		t.Fatalf("startup lost accepted cursor: %+v", held)
+	}
+	if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET template_snapshot_json = ?, controller_retry_at = ? WHERE run_id = ?`, `{"version":2,"title":"Quality","orchestrator_role":"orchestrator","inputs":[{"name":"spec","description":"Specification","required":true}],"stages":[{"id":"work","title":"Work","objective":"Implement.","instruction":"Implement.","inputs":[{"name":"specification","value":"spec","required":true}],"outputs":[{"name":"implementation","value":"implementation","description":"What changed"}]},{"id":"review","title":"Review","objective":"Review.","instruction":"Review.","inputs":[{"name":"implementation","value":"implementation","required":true}],"outputs":[]}]}`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339Nano), detail.Run.RunID); err != nil {
+		t.Fatal(err)
+	}
+	manager.ReconcilePending(context.Background())
+	stages, err := manager.store.ListPipelineStageTasks(detail.Run.RunID)
+	if err != nil || len(stages) != 2 {
+		t.Fatalf("recovery stages = %#v, %v", stages, err)
+	}
+	recovered, err := manager.store.ReadPipelineRun(detail.Run.RunID)
+	if err != nil || recovered.ControllerFailures != 0 || recovered.ControllerRetryAt != nil || recovered.ControllerLastError != "" {
+		t.Fatalf("successful cursor transition retained retry metadata: %+v, %v", recovered, err)
+	}
+}
+
+// TS-09.R41–R43 / INV §15 — live controller faults after an accepted result
+// retain the release cursor for both next-stage and approval writes. Removing
+// the one-shot store fault lets the dispatcher finish the recorded action.
+func TestLiveControllerFaultRetainsAcceptedStageProgression(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		prepare  func(t *testing.T, manager *Manager, runID string)
+		trigger  string
+		stopRace bool
+		startup  bool
+	}{
+		{
+			name: "next stage", trigger: `CREATE TRIGGER asrf_fail BEFORE INSERT ON pipeline_stage_tasks WHEN NEW.stage_index = 1 BEGIN SELECT RAISE(ABORT, 'injected next stage'); END;`,
+		},
+		{
+			name: "next stage Stop fence", trigger: `CREATE TRIGGER asrf_fail BEFORE INSERT ON pipeline_stage_tasks WHEN NEW.stage_index = 1 BEGIN SELECT RAISE(ABORT, 'injected next stage'); END;`, stopRace: true,
+		},
+		{
+			name: "approval", trigger: `CREATE TRIGGER asrf_fail BEFORE UPDATE ON pipeline_runs WHEN NEW.pending_action = 'await_approval' BEGIN SELECT RAISE(ABORT, 'injected approval'); END;`, startup: true,
+			prepare: func(t *testing.T, manager *Manager, runID string) {
+				run, err := manager.store.ReadPipelineRun(runID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var template Template
+				if err := json.Unmarshal(run.TemplateSnapshot, &template); err != nil {
+					t.Fatal(err)
+				}
+				template.Stages[0].ApprovalAfterSuccess = true
+				raw, err := json.Marshal(template)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET template_snapshot_json = ? WHERE run_id = ?`, raw, runID); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "final", trigger: `CREATE TRIGGER asrf_fail BEFORE UPDATE ON pipeline_runs WHEN NEW.state = 'completed' BEGIN SELECT RAISE(ABORT, 'injected final'); END;`, startup: true,
+			prepare: func(t *testing.T, manager *Manager, runID string) {
+				run, err := manager.store.ReadPipelineRun(runID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var template Template
+				if err := json.Unmarshal(run.TemplateSnapshot, &template); err != nil {
+					t.Fatal(err)
+				}
+				template.Stages = template.Stages[:1]
+				raw, err := json.Marshal(template)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET template_snapshot_json = ? WHERE run_id = ?`, raw, runID); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			manager, _, _ := pipelineManagerFixture(t)
+			detail, stage := startStagePipeline(t, manager, "live-controller-"+tc.name, "a_owner", "gen-1")
+			if tc.prepare != nil {
+				tc.prepare(t, manager, detail.Run.RunID)
+			}
+			if _, err := manager.store.DB().Exec(`UPDATE tasks SET execution_handle = 'turn_1' WHERE task_id = ?`, stage.TaskID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.store.AcceptPipelineStageTaskResult(stage.TaskID, "a_owner", "gen-1", "turn_1", detail.Run.Revision, state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done", Outputs: map[string]string{"implementation": "done"}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := manager.store.CompleteTaskRelease(stage.TaskID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.store.DB().Exec(tc.trigger); err != nil {
+				t.Fatal(err)
+			}
+			if tc.startup {
+				if err := manager.Startup(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := manager.Reconcile(context.Background(), detail.Run.RunID); err == nil {
+					t.Fatal("Reconcile succeeded through injected controller fault")
+				}
+				manager.RecordReconcileFailure(detail.Run.RunID, errors.New("injected controller fault"))
+			}
+			held, err := manager.store.ReadPipelineRun(detail.Run.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if held.State != "finishing" || held.PendingAction != "release_stage_task" || held.ControllerFailures != 1 {
+				t.Fatalf("held run = %+v", held)
+			}
+			if tc.stopRace {
+				stopped, err := manager.Stop(context.Background(), detail.Run.RunID, held.Revision)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if stopped.Run.State != "stopping" && stopped.Run.State != "stopped" {
+					t.Fatalf("Stop lost the closure fence: %+v", stopped.Run)
+				}
+				if _, err := manager.store.DB().Exec(`DROP TRIGGER asrf_fail; UPDATE pipeline_runs SET controller_retry_at = ? WHERE run_id = ?`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339Nano), detail.Run.RunID); err != nil {
+					t.Fatal(err)
+				}
+				manager.ReconcilePending(context.Background())
+				stages, err := manager.store.ListPipelineStageTasks(detail.Run.RunID)
+				if err != nil || len(stages) != 1 {
+					t.Fatalf("Stop recovery replayed accepted work: %#v, %v", stages, err)
+				}
+				return
+			}
+			if _, err := manager.store.DB().Exec(`DROP TRIGGER asrf_fail; UPDATE pipeline_runs SET controller_retry_at = ? WHERE run_id = ?`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339Nano), detail.Run.RunID); err != nil {
+				t.Fatal(err)
+			}
+			manager.ReconcilePending(context.Background())
+			recovered, err := manager.Detail(detail.Run.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.name == "next stage" && recovered.Run.CurrentStageID != "review" {
+				t.Fatalf("next stage recovery = %+v", recovered.Run)
+			}
+			if tc.name == "approval" && recovered.Run.PendingAction != "await_approval" {
+				t.Fatalf("approval recovery = %+v", recovered.Run)
+			}
+			if tc.name == "final" && recovered.Run.State != "completed" {
+				t.Fatalf("final recovery = %+v", recovered.Run)
+			}
+		})
 	}
 }
 

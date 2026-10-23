@@ -187,6 +187,53 @@ func TestListActivePipelineRunsExcludesTerminalHistory(t *testing.T) {
 	}
 }
 
+// TS-09.R42/R43 / INV §15 — controller recovery keeps its action durable,
+// advances its revision when publishing attention, and backs one failed run
+// off so later due actions fit the bounded pass.
+func TestPipelineControllerRecoveryIsDurableAndFair(t *testing.T) {
+	store, _ := newTestStore(t)
+	now := time.Date(2026, 10, 23, 8, 0, 0, 0, time.UTC)
+	for _, id := range []string{"pr_failed", "pr_ready"} {
+		if _, _, err := store.CreatePipelineRun(CreatePipelineRunParams{Run: PipelineRunRecord{
+			RunID: id, TemplateID: "t", DisplayName: id, Project: "app", Goal: "goal", State: "finishing",
+			PendingAction: "release_stage_task", CreatedAt: now, UpdatedAt: now,
+		}, RequestID: id, RequestHash: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	failed, err := store.ReadPipelineRun("pr_failed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := store.RecordPipelineControllerFailure(failed, errors.New("temporary write failure"), now.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Revision != failed.Revision+1 || updated.ControllerFailures != 1 || updated.ControllerRetryAt == nil {
+		t.Fatalf("failed recovery = %+v", updated)
+	}
+	for i := 0; i < 9; i++ {
+		updated, err = store.RecordPipelineControllerFailure(updated, errors.New("temporary write failure"), now.Add(time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if updated.AttentionReason != "controller_recovery_failed" || updated.ControllerFailures != 10 {
+		t.Fatalf("exhausted recovery = %+v", updated)
+	}
+	due, err := store.ListDuePipelineControllerActions(now, 1)
+	if err != nil || len(due) != 1 || due[0].RunID != "pr_ready" {
+		t.Fatalf("due actions = %+v, %v; want the later ready run", due, err)
+	}
+	if err := store.DeferPipelineControllerAction(due[0], now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	due, err = store.ListDuePipelineControllerActions(now, 8)
+	if err != nil || len(due) != 0 {
+		t.Fatalf("deferred actions = %+v, %v", due, err)
+	}
+}
+
 // FS-14.R34 / FS-16.R13 / TS-09.R27, TS-10.R21 — a run registers its terminal
 // outcome in the same commit that makes it terminal, mapped onto the shared
 // vocabulary with its template-defined label kept as a display detail. That

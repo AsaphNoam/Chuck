@@ -855,6 +855,21 @@ ALTER TABLE think_tanks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]';`,
 CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
  WHERE effect_id != '';`,
 	},
+	{
+		version: 60,
+		apply:   addPipelineControllerFields,
+	},
+}
+
+func addPipelineControllerFields(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_runs'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE pipeline_runs ADD COLUMN controller_failures INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pipeline_runs ADD COLUMN controller_retry_at TEXT;
+ALTER TABLE pipeline_runs ADD COLUMN controller_last_error TEXT NOT NULL DEFAULT '';`)
+	return err
 }
 
 // migrateQuotaChecks rebuilds quota_intents for the check chain and its

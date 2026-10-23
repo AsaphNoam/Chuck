@@ -648,7 +648,8 @@ func (s *Store) CreatePipelineStageTask(p CreatePipelineStageTaskParams) (Pipeli
 	if p.Room != nil {
 		runState, pending = "running", ""
 	}
-	if _, err := tx.Exec(`UPDATE pipeline_runs SET state = ?, pending_action = ?, current_stage_id = ?, revision = revision + 1, updated_at = ? WHERE run_id = ? AND revision = ?`, runState, pending, p.StageID, formatTime(now), p.RunID, revision); err != nil {
+	if _, err := tx.Exec(`UPDATE pipeline_runs SET state = ?, pending_action = ?, current_stage_id = ?, revision = revision + 1,
+	controller_failures = 0, controller_retry_at = NULL, controller_last_error = '', updated_at = ? WHERE run_id = ? AND revision = ?`, runState, pending, p.StageID, formatTime(now), p.RunID, revision); err != nil {
 		return PipelineStageTask{}, Task{}, false, err
 	}
 	if err := tx.Commit(); err != nil {

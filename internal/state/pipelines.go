@@ -516,7 +516,7 @@ const pipelineRunColumns = `
 run_id, template_id, template_snapshot_json, display_name, project, goal,
 inputs_json, assignments_json, state, revision, pending_action,
 current_stage_id, current_attempt_id, current_agent_id, attention_reason,
-final_outcome, created_at, updated_at`
+final_outcome, created_at, updated_at, controller_failures, controller_retry_at, controller_last_error`
 
 func readPipelineRunQuery(q pipelineRunQueryer, runID string) (PipelineRunRecord, error) {
 	run, err := scanPipelineRun(q.QueryRow(`SELECT `+pipelineRunColumns+` FROM pipeline_runs WHERE run_id = ?`, runID))
@@ -529,11 +529,12 @@ func readPipelineRunQuery(q pipelineRunQueryer, runID string) (PipelineRunRecord
 func scanPipelineRun(row rowScanner) (PipelineRunRecord, error) {
 	var run PipelineRunRecord
 	var snapshot, inputs, assignments, createdAt, updatedAt string
+	var retryAt sql.NullString
 	err := row.Scan(
 		&run.RunID, &run.TemplateID, &snapshot, &run.DisplayName, &run.Project, &run.Goal,
 		&inputs, &assignments, &run.State, &run.Revision, &run.PendingAction,
 		&run.CurrentStageID, &run.CurrentAttemptID, &run.CurrentAgentID, &run.AttentionReason,
-		&run.FinalOutcome, &createdAt, &updatedAt,
+		&run.FinalOutcome, &createdAt, &updatedAt, &run.ControllerFailures, &retryAt, &run.ControllerLastError,
 	)
 	if err != nil {
 		return PipelineRunRecord{}, fmt.Errorf("state: read pipeline run: %w", err)
@@ -546,6 +547,13 @@ func scanPipelineRun(row rowScanner) (PipelineRunRecord, error) {
 	}
 	if run.UpdatedAt, err = parseTime(updatedAt); err != nil {
 		return PipelineRunRecord{}, wrapTimeErr("pipeline_run.updated_at", err)
+	}
+	if retryAt.Valid {
+		at, parseErr := parseTime(retryAt.String)
+		if parseErr != nil {
+			return PipelineRunRecord{}, wrapTimeErr("pipeline_run.controller_retry_at", parseErr)
+		}
+		run.ControllerRetryAt = &at
 	}
 	return run, nil
 }
@@ -671,11 +679,100 @@ ORDER BY created_at, run_id`)
 	for _, id := range ids {
 		run, err := s.ReadPipelineRun(id)
 		if err != nil {
-			return nil, err
+			slog.Warn("state: skip unreadable pipeline controller action", "run", id, "err", err)
+			continue
 		}
 		out = append(out, run)
 	}
 	return out, nil
+}
+
+// ListDuePipelineControllerActions selects a fair bounded batch of retained
+// cursor actions. A failure moves its deadline forward, so one bad run cannot
+// keep later recoverable runs behind it.
+func (s *Store) ListDuePipelineControllerActions(now time.Time, limit int) ([]PipelineRunRecord, error) {
+	if limit <= 0 {
+		return []PipelineRunRecord{}, nil
+	}
+	rows, err := s.db.Query(`SELECT run_id FROM pipeline_runs
+WHERE pending_action IN ('release_stage_task', 'cleanup_run', 'activate_replacement')
+  AND (controller_retry_at IS NULL OR controller_retry_at <= ?)
+ORDER BY COALESCE(controller_retry_at, updated_at), updated_at, run_id LIMIT ?`, formatTime(now), limit)
+	if err != nil {
+		return nil, fmt.Errorf("state: list due pipeline controller actions: %w", err)
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]PipelineRunRecord, 0, len(ids))
+	for _, id := range ids {
+		run, err := s.ReadPipelineRun(id)
+		if err != nil {
+			slog.Warn("state: skip unreadable pipeline controller action", "run", id, "err", err)
+			continue
+		}
+		out = append(out, run)
+	}
+	return out, nil
+}
+
+// RecordPipelineControllerFailure retains bounded retry ownership for a cursor
+// action after its stage result has been accepted.
+func (s *Store) RecordPipelineControllerFailure(run PipelineRunRecord, cause error, next time.Time) (PipelineRunRecord, error) {
+	result, err := s.db.Exec(`UPDATE pipeline_runs SET controller_failures = controller_failures + 1,
+ controller_retry_at = ?, controller_last_error = ?, attention_reason = CASE WHEN controller_failures + 1 >= 10 THEN 'controller_recovery_failed' ELSE attention_reason END,
+ revision = revision + 1, updated_at = ? WHERE run_id = ? AND revision = ? AND pending_action = ?`,
+		formatTime(next), clipStateError(cause), formatTime(timeNow()), run.RunID, run.Revision, run.PendingAction)
+	if err != nil {
+		return PipelineRunRecord{}, fmt.Errorf("state: record pipeline controller failure: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return PipelineRunRecord{}, err
+	}
+	if n == 0 {
+		return PipelineRunRecord{}, ErrPipelineConflict
+	}
+	return s.ReadPipelineRun(run.RunID)
+}
+
+// DeferPipelineControllerAction yields a retained action that made no progress
+// in this pass, so another ready action can use the bounded dispatcher slot.
+func (s *Store) DeferPipelineControllerAction(run PipelineRunRecord, next time.Time) error {
+	result, err := s.db.Exec(`UPDATE pipeline_runs SET controller_retry_at = ?
+WHERE run_id = ? AND revision = ? AND pending_action = ?`, formatTime(next), run.RunID, run.Revision, run.PendingAction)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrPipelineConflict
+	}
+	return nil
+}
+
+func clipStateError(err error) string {
+	if err == nil {
+		return ""
+	}
+	text := err.Error()
+	runes := []rune(text)
+	if len(runes) > 512 {
+		return string(runes[:512])
+	}
+	return text
 }
 
 func (s *Store) UpdatePipelineRunCAS(runID string, expectedRevision int64, update PipelineRunUpdate) (PipelineRunRecord, error) {
@@ -691,7 +788,8 @@ func (s *Store) UpdatePipelineRunCAS(runID string, expectedRevision int64, updat
 UPDATE pipeline_runs SET
   state = ?, revision = revision + 1, pending_action = ?, current_stage_id = ?,
   current_attempt_id = ?, current_agent_id = ?, attention_reason = ?,
-  final_outcome = ?, updated_at = ?
+  final_outcome = ?, controller_failures = 0, controller_retry_at = NULL,
+  controller_last_error = '', updated_at = ?
 WHERE run_id = ? AND revision = ?`,
 		update.State, update.PendingAction, update.CurrentStageID, update.CurrentAttemptID,
 		update.CurrentAgentID, update.AttentionReason, update.FinalOutcome, formatTime(update.UpdatedAt),
