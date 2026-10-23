@@ -1,7 +1,6 @@
 # Chuck v0.18.1
 
-Status: verification-only fixture corrections approved and undergoing checks; version and
-publication approval remain pending. No tag or publication.
+Status: verified and ready for version/publication confirmation. No tag or publication.
 Previous release: v0.18.0. This is a fixes-only patch release.
 
 ## What improves
@@ -26,25 +25,25 @@ is included; the concurrent planning edits remain outside the candidate.
 
 ## Verification and limits
 
-The clean candidate's full FTS5 Go suite, distribution build and all 995 UI tests pass; generated
-UI files match the committed copy. `make vet` and the focused runtime-guard race test pass.
-The no-tag run and its full retry failed the already-known bootstrap download-start timing
-check; focused repeats passed twice and failed once. No installer/test change or waiver is
-claimed. Final closure must resolve that failed check before tagging.
-The same run also failed the restart-recovery fixture's immediate-release assertion while its
+Both complete Go variants now pass at clean source `001ba8b5`. The distribution build and all
+995 UI tests pass on identical product source; generated UI matches the committed copy.
+`make vet`, spec/link/diff checks and the focused runtime-guard race test pass.
+
+Earlier no-tag runs failed the existing bootstrap download-start deadline; the initial focused
+repeats passed twice and failed once. An early run also failed immediate release while its
 reporting turn was still live; TS-10.R19/R48 require deferred cleanup in that condition. The
 fixture does not actually remove the runtime registry as a restart would. That server suite
-passed on the full no-tag retry and in the FTS5 run. No product regression or fixture repair is
-claimed. A reviewable two-test proposal is `/private/tmp/chuck-release-test-proposal.patch`;
-the operator approved both changes under the separate-fix rule on 2026-10-23. The test-only
-corrections pass three focused CLI repeats, five recovery repeats and independent assertion
-review. Final full Go checks remain next. The recovery test proves settled cleanup and retained
+passed on the full no-tag retry and in the FTS5 run. These failures are preserved as evidence,
+not waived or attributed to the PID guard. The operator approved both test-only corrections
+under the separate-fix rule on 2026-10-23. They now pass three focused CLI repeats, five recovery
+repeats, independent assertion review and both full suites. The recovery test proves settled cleanup and retained
 finished state, not immutable result/summary preservation by itself.
 
 Source/checkpoint commits: guard repair `69082b39`; preparation `0e533e0c`. The existing
-architecture receipt records focused repair evidence and exact affected coverage; ARCH-1's
-administrative closure is deferred until required verification is complete. Logs:
+architecture receipt records exact repair/affected coverage and verified ARCH-1 closure.
+REL-VERIFY-1 is also closed; no product behavior changed in its test correction. Earlier logs:
 `/private/tmp/chuck-v0.18.1-{go-closure,go-retry,fts-closure,bootstrap-diagnostic,ui-closure,dist,vet}.log`.
+Final logs: `/private/tmp/chuck-v0.18.1-approved-{go-full,fts-full,static,cli-focus,recovery-focus}.log`.
 The existing architecture review is reused with exact verified fix/affected-coverage entries;
 no second architectural review is required for its finding repair.
 

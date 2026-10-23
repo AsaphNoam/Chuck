@@ -14,7 +14,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Review state:** ASW/ASF and CR-A1–A7 are closed. The combined next-release architecture review
   covers `eb56b0c2` with exact later coverage/repair updates in
   [its receipt](../archive/reviews/architecture/v0.18.0-next.json).
-  Current verification/finding closure remains below; no second architecture review is needed.
+  ARCH-1 and REL-VERIFY-1 are verified closed; no second architecture review is needed.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`. Uncommitted task-scheduling design in
   `docs/ideas.md`, `docs/specs/README.md` and `FS-16-dependent-work.md` is preserved/excluded.
   Clean release verification uses `/private/tmp/chuck-release-v0.18.1`.
@@ -30,12 +30,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   fixture corrections on 2026-10-23. Focused CLI checks passed three repeats; recovery passed five.
   Independent review confirmed the original final assertions remain; the recovery fixture does not
   itself prove immutable result/summary preservation.
-- Final full no-tag and FTS5 Go checks are running against clean source `001ba8b5`; logs:
+- Both final full no-tag and FTS5 Go checks pass against clean source `001ba8b5`; logs:
   `/private/tmp/chuck-v0.18.1-approved-{go-full,fts-full,static}.log`.
-  The previous product candidate's full FTS5 suite, distribution build, 995 UI tests, tagged runtime
-  guard race check and vet passed. Generated UI is unchanged; latest edits are tests/docs only.
-- Finish checks; close REL-VERIFY-1 and ARCH-1 with exact evidence in the existing receipt; confirm
-  version and explicit publication scope; then tag/push and verify release CI/assets if authorized.
+  Distribution build, 995 UI tests, tagged runtime guard race check, spec/static and relative-link
+  checks pass. Generated UI/product source is unchanged; latest edits are tests/docs only.
+- ARCH-1 and REL-VERIFY-1 are closed with exact evidence in the existing receipt. Confirm version
+  and explicit publication scope; then tag/push and verify release CI/assets if authorized.
   [Release notes](../archive/state/RELEASE-v0.18.1-notes.md) preserve earlier failures and owed gates.
 
 ## Acceptance gates still owed
@@ -175,45 +175,23 @@ release verification and architectural closure are the only selected units.
 
 ## Review findings
 
-### v0.18.1 release verification — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Must fix** — **REL-VERIFY-1: release closure is blocked by pre-existing fixture assumptions** (INV §17).
-  `internal/cli/installer_test.go:334–343` allows only one second for the bootstrap subprocess
-  to reach its download marker; it failed in the initial and retry no-tag suites, while focused
-  repeats passed twice/failed once and the tagged CLI suite passed. The installer and test are
-  unchanged since v0.18.0. `internal/server/task_dispatch_test.go:952–955` additionally asserted
-  immediate release after recovery while the same live reporting turn still owned the runtime;
-  TS-10.R19/R48 correctly defer that cleanup. The test never simulates losing the registry.
-  Proposed bounded test-only corrections keep the lock contention/final release assertions:
-  wait up to 10 seconds for bootstrap readiness, and drive/wait for ordinary deferred cleanup.
-  No product regression or repair is claimed. The operator approved both corrections under the
-  separate-fix instruction on 2026-10-23; patch `/private/tmp/chuck-release-test-proposal.patch`.
-  The two tests pass focused repeats and independent assertion review; full verification is next. Keep release
-  blocked until checks pass. Logs are `/private/tmp/chuck-v0.18.1-{go-closure,go-retry,bootstrap-diagnostic}.log`.
-
-### Next-release architecture — reviewed `eb56b0c2` — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-[Candidate receipt](../archive/reviews/architecture/v0.18.0-next.json) and
-[scenario/evidence report](../archive/reviews/architecture/v0.18.0-next.md).
-
-- **Worth fixing** — **ARCH-1: fail closed when repair cannot inspect the dashboard PID file.**
-  `internal/cli/reindex.go:14–19` maps corrupt/unreadable PID files to “not running,” so offline
-  repair opens a second writer while a dashboard can still be healthy (TS-02.R2/R58; INV §7/§9).
-  A disposable real-dashboard process correctly refused reindex with its healthy PID file;
-  malformed JSON and mode `000` each changed the command to exit 0/`reindexed archive` while
-  `/api/health` still returned 200. This requires a PID-file/filesystem fault; the empty test home
-  demonstrated no lost data. Propagate a read/decode error and refuse before opening the repair
-  writer, preserving absent/stale-PID behavior. Add focused command-level corruption and
-  unreadable-file coverage. No new lock or stronger startup-exclusion guarantee is requested.
+None. ARCH-1 is repaired by `69082b39`; REL-VERIFY-1 is closed by the explicitly approved
+test corrections `001ba8b5`. Both full Go variants pass. Original reports and prior failed runs
+remain in the archive/release notes; exact repair and affected coverage are in the
+[architecture receipt](../archive/reviews/architecture/v0.18.0-next.json).
 
 ## Changelog
 
 - **2026-10-23 — Release preparation:** ARCH-1 repair `69082b39`, exact post-review coverage,
   truthful failed-check records and approved fixture corrections `001ba8b5` are committed.
-  Full final checks remain in progress. Settled campaign history moved out of the live handoff.
+  Both full Go variants, focused repeats and static checks pass; ARCH-1 (INV §7/§9) and
+  REL-VERIFY-1 (INV §17) are closed. Settled campaign history moved out of the live handoff.
   No publication or manual acceptance closure is claimed.
 
 ## Blocked on human
+
+- **v0.18.1 version/publication:** candidate verified; proposed patch version and explicit
+  permission to push the reviewed main range plus its tag remain pending. No tag or publication.
 
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).

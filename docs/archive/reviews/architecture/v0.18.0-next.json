@@ -38,6 +38,20 @@
       "commits": ["0e533e0c039d23c4cdc4eb224d6a18d13721a795"],
       "verified": true,
       "evidence": "Independent release-range reader confirmed the README offline-repair correction, existing embedded coordination guidance and unchanged runtime pins; no additional operating-chuck edit was needed. Other changes are release notes and truthful handoff blockers. Clean source 69082b39 make dist VERSION=0.18.1 passes and regenerates byte-identical tracked UI; binary reports 0.18.1/darwin-arm64 and sqlite_fts5. All 995 UI tests and make vet pass. No new archive, tag, version approval or publication is claimed."
+    },
+    {
+      "kind": "coverage",
+      "commits": ["001ba8b5c608587a579871e674117588064d048b"],
+      "verified": true,
+      "evidence": "Operator explicitly approved both verification-only changes. Bootstrap still requires the download marker before asserting contender failure, with a bounded 10-second readiness wait. Recovery drives the ordinary cleanup retry and retains finished-state, settled-release/runtime-claim, process-gone and borrowed-runtime assertions. A fresh reader confirmed these boundaries; this test alone does not assert immutable result/summary preservation. Three focused CLI repeats, five recovery repeats, both complete Go variants and static/spec checks pass at clean source 001ba8b5. No product code changed; prior 995 UI tests and make dist remain applicable to the identical product source/generated UI. REL-VERIFY-1 is closed in the live handoff."
+    },
+    {
+      "kind": "fix",
+      "commits": ["69082b39d8fe785b55bd4f3c4153d1a0c8fcbe94"],
+      "finding_ids": ["ARCH-1"],
+      "closes": ["ARCH-1"],
+      "verified": true,
+      "evidence": "Final closure: both full Go variants now pass with the approved fixture corrections at 001ba8b5, in addition to original-code overlay failure and fixed command-level PID inspection/no-writer regressions, absent/live/stale PID coverage and independent source review. The product source is unchanged from the verified FTS5 distribution build and 995 passing UI tests. Spec/static/link/diff checks pass. No new mutual-exclusion mechanism, data-loss reproduction or native/provider/device acceptance closure is claimed."
     }
   ]
 }
