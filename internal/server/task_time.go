@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
@@ -60,6 +61,10 @@ func (s *Server) resolveDueTimeArms() {
 // same eligibility task creation enforces, read when the occurrence comes due
 // rather than fanned out when an agent or project is archived.
 func (s *Server) scheduleUnavailable(sched state.TaskSchedule) string {
+	// The archive gate passes a missing project; task creation refuses it.
+	if _, err := s.configStore.ReadProject(sched.Project); errors.Is(err, config.ErrNotFound) {
+		return "the project was deleted"
+	}
 	if ae := s.projectArchiveGate(sched.Project, ""); ae != nil && ae.Code == runtime.CodeProjectArchived {
 		return "the project is archived"
 	}

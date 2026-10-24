@@ -426,7 +426,7 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   replays them. Deleting a schedule stops future occurrences and leaves every task it created as an
   ordinary task. A schedule whose rule has ended is retained as finished until deleted.
 - **R57 (shipped 2026-10-23) — A schedule that cannot run pauses visibly.** When an occurrence comes due while
-  the schedule's existing-agent target is archived or deleted, or its project is archived, the
+  the schedule's existing-agent target is archived or deleted, or its project is archived or deleted, the
   schedule pauses itself with that reason and counts toward the Tasks needs-attention indicator
   (FS-02.R44) instead of creating an occurrence task that would park at once. Resuming revalidates the target. Invalid schedules —
   empty rule, no time of day or a repeated one, N below 1, an end before the start, a
@@ -808,7 +808,7 @@ Each names the verification that demonstrates it.
 - **A39 (shipped 2026-10-23)** (R56–R57) — Over HTTP and the scoped tool: create, edit, pause, resume, and
   delete a schedule; an agent cannot pause or delete a schedule it did not create; paused
   occurrences are not replayed on resume; deleting keeps its tasks; archiving the target agent
-  pauses the schedule with a reason and raises the needs-attention count. *Verify:*
+  or deleting the project pauses the schedule with a reason and raises the needs-attention count. *Verify:*
   `internal/server/schedule_http_test.go`, `internal/messaging/task_tools_test.go`,
   `ui/src/features/tasks/TasksPage.test.tsx`.
 - **A40 (shipped 2026-10-23)** (R51–R52, R56) — In the desktop Tasks view, create a one-time 17:30 task and a

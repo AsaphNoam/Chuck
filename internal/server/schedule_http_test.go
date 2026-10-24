@@ -178,6 +178,33 @@ func TestSchedulesOverHTTP(t *testing.T) {
 	}
 }
 
+// FS-16.A39 (deleted project) — a schedule whose project was deleted pauses
+// when its occurrence comes due instead of creating a task the project's own
+// task create would refuse, and resume keeps refusing it.
+func TestDeletedProjectPausesSchedule(t *testing.T) {
+	srv, ts := wakeTestServer(t)
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	resp, raw := post(t, ts.URL+"/api/schedules", map[string]any{
+		"project": "tmpproj", "display_name": "nightly", "instruction": "build",
+		"target_kind": "launch", "role": "impl",
+		"rule": map[string]any{"start_date": tomorrow, "times": []string{"09:00"}, "frequency": "daily", "end_kind": "never"},
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create = %d: %s", resp.StatusCode, raw)
+	}
+	sched := decodeSchedule(t, raw)
+	if err := srv.configStore.DeleteProject("tmpproj"); err != nil {
+		t.Fatal(err)
+	}
+	paused := makeDue(t, srv, sched.ScheduleID)
+	if paused.State != state.SchedulePaused || paused.PauseReason != "the project was deleted" || len(scheduleTasks(t, srv, sched.ScheduleID)) != 0 {
+		t.Fatalf("deleted project = %+v", paused)
+	}
+	if resp, raw := post(t, ts.URL+"/api/schedules/"+sched.ScheduleID+"/resume", nil); resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(string(raw), "target_ineligible") {
+		t.Fatalf("resume with deleted project = %d: %s", resp.StatusCode, raw)
+	}
+}
+
 // FS-16.A39 (authority) — an agent may pause, resume and delete only schedules
 // it created; another creator's schedule and an unknown one get the same
 // refusal.

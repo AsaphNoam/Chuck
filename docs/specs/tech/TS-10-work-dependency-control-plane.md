@@ -648,7 +648,7 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   (FS-16.R24). Deleting a schedule deletes its row and template attachments only.
 - **R59 (shipped 2026-10-23) — An unavailable target pauses the schedule in the due transaction.** Before it
   creates an occurrence task, the due transaction checks the same target and project eligibility
-  that task creation checks. An archived or deleted existing-agent target, or an archived project,
+  that task creation checks. An archived or deleted existing-agent target, or an archived or deleted project,
   sets `paused` with `pause_reason` in place of creating the task. That occurrence is counted as
   paused, and the dashboard attention count includes the paused schedule. The pause lands when the
   next occurrence comes due, not when the archive happens, so archiving needs no new fan-out.
