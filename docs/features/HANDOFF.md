@@ -188,8 +188,44 @@ test corrections `001ba8b5`. Both full Go variants pass. Original reports and pr
 remain in the archive/release notes; exact repair and affected coverage are in the
 [architecture receipt](../archive/reviews/architecture/v0.18.0-next.json).
 
+### ARCH-v019 — v0.19.0 candidate architecture review — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed `c1979ed3` (range v0.18.1..c1979ed3;
+[receipt](../archive/reviews/architecture/v0.18.1-next.json)). ARCH-v019-1 blocks release.
+
+- **Must fix** — ARCH-v019-1 (INV §2): a deleted project's schedules keep creating tasks
+  (`internal/server/task_time.go` `scheduleUnavailable`; `projectArchiveGate` returns nil for
+  `config.ErrNotFound`). Trigger: a person deletes a project (including `?force=true` with running
+  agents) that has an active schedule. Each occurrence still inserts an ordinary task, while direct
+  task create in that project is refused 404 `unknown project`. Probe: after
+  `configStore.DeleteProject`, a due pass left the schedule `active` with disposition `created` and
+  one new task. Why it matters: work keeps being launched or sent to an existing agent every
+  occurrence for a project the person removed, and the schedule is no longer reachable in the
+  per-project Schedules section, so nobody sees or stops it (TS-10.R59 "same target and project
+  eligibility that task creation checks"; FS-16.R57; INV §2). Fix: treat a missing project as
+  unavailable ("the project was deleted") so the due transaction pauses instead of creating; resume
+  then refuses through the same check. Test: server test that deletes the project, runs
+  `processDueSchedules`, and asserts paused with reason and no new task.
+- **Worth fixing** — ARCH-v019-2 (INV §17): cancel/turn_end runtime tests fail intermittently in
+  main CI (`internal/runtime/tool_input_test.go:36–44` `TestCanceledTurnsReleaseToolInput`,
+  `internal/runtime/permission_test.go:147–150` `TestCancelDoesNotEndNextTurn`). Trigger: ordinary
+  `make test`. `finishTurn` (`internal/runtime/chat.go:1280–1296`) intentionally emits `turn_end`
+  before releasing turn tool inputs and the turn gate; both tests act on `turn_end` alone.
+  Evidence: main CI runs 39101397073, 39543793191 and 39826115800 failed in
+  `TestCanceledTurnsReleaseToolInput`; REL-CI-1's repair covered only the sibling permission-order
+  test. Locally each test fails about 1 in 20 unraced runs and in every `-race` run, identically at
+  `v0.18.1` and the candidate (not a regression of this range). Why it matters: main/release CI stays
+  intermittently red, masking real failures (TS-06.R5, INV §17). Fix: wait for the settled gate and
+  released inputs rather than the `turn_end` event, or confirm a product ordering need first. Test:
+  `-race -count=20` on both tests passes. The one CI symptom where turn 3's live input was already
+  released (run 39101397073, line 37) is unexplained and needs that check.
+
 ## Changelog
 
+- **2026-10-24 — Architecture review: v0.19.0 candidate `c1979ed3`:** complete; receipt
+  `v0.18.1-next.json`. ARCH-v019-1 (Must fix, deleted project keeps schedules running) and
+  ARCH-v019-2 (Worth fixing, pre-existing intermittent cancel/turn_end CI tests) are open above.
+  Schedule crash/outage/migration/cost probes found no duplicate or lost occurrence.
 - **2026-10-24 — Fix: timed and recurring task starts closed (TTS-1 INV §1, TTS-2 INV §7/§8/§11,
   TTS-3 INV §10):** schedules store their pending occurrence's date and rule time (migration 62)
   and rebase it to the process zone on the first due pass, so a restart in another zone runs at
