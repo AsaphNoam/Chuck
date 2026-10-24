@@ -5,7 +5,7 @@ import { getRuntimeOptions, phoneFetch } from "./api";
 import { useConnection } from "./connection";
 import { navigate } from "./router";
 import { useSuggestedName } from "../features/launch/useSuggestedName";
-import { GroupPicker } from "../components/ui/GroupPicker";
+import { GroupPicker, groupNameError, projectGroupLabels } from "../components/ui/GroupPicker";
 import { isCanonicalNoPersona, personaLabel } from "../lib/personas";
 import { displayLabel, displayLabels } from "../lib/labels";
 
@@ -65,8 +65,9 @@ export function NewAgentForm({ project: initialProject, initialGroup = "", initi
   const selectedModel = selectedBackend?.models.find((item) => item.id === runtime.model)
     ?? selectedBackend?.models.find((item) => item.id === selectedBackend.default_model) ?? selectedBackend?.models[0];
   const allAgents = useConnection((state) => state.agents);
-  const groups = useMemo(() => Object.values(allAgents).filter((agent) => !agent.archived).map((agent) => agent.group?.trim()).filter((label): label is string => !!label), [allAgents]);
+  const groups = useMemo(() => projectGroupLabels(allAgents, project), [allAgents, project]);
   const [group, setGroup] = useState(initialGroup);
+  const groupInvalid = !!groupNameError(group);
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const roleEntries = Object.entries(roles.data ?? {});
@@ -85,7 +86,7 @@ export function NewAgentForm({ project: initialProject, initialGroup = "", initi
     else setRole(roleEntries[0]?.[0] ?? "");
   }, [config.data, config.isError, role, roleEntries, roles.data]);
   const submit = async () => {
-    if (!roleID || roleInvalid || projectInvalid) return;
+    if (!roleID || roleInvalid || projectInvalid || groupInvalid) return;
     setBusy(true); setError(""); onBusyChange?.(true);
     try {
       const result = await launchAgent({ project, role: roleID, name: name.trim() || undefined, group: group.trim() || undefined, ...runtime });
@@ -101,7 +102,7 @@ export function NewAgentForm({ project: initialProject, initialGroup = "", initi
     {summary && <p className="phone-meta">{summary}</p>}
     <details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
       <summary>Advanced</summary>
-      {chooseProject && <label className="phone-field">Project<select value={project} onChange={(event) => setProject(event.target.value)}>
+      {chooseProject && <label className="phone-field">Project<select value={project} onChange={(event) => { setProject(event.target.value); setGroup(""); }}>
         {!projects.data?.[project] && <option value={project}>{project}{projects.data ? " (unavailable)" : ""}</option>}
         {projectChoices.map(([id, value]) => <option key={id} value={id}>{value.title || id}{value.archived ? " (archived)" : ""}</option>)}
       </select></label>}
@@ -116,6 +117,6 @@ export function NewAgentForm({ project: initialProject, initialGroup = "", initi
       <RuntimeFields value={runtime} onChange={setRuntime} />
     </details>
     {error && <p className="phone-error" role="alert">{error}</p>}
-    <div className="phone-actions"><button type="button" onClick={onClose} disabled={busy}>Cancel</button><button className="ad-button-primary" type="submit" disabled={offline || busy || !roleID || roleInvalid || projectInvalid}>{onLaunched ? "Launch and send" : "Create agent"}</button></div>
+    <div className="phone-actions"><button type="button" onClick={onClose} disabled={busy}>Cancel</button><button className="ad-button-primary" type="submit" disabled={offline || busy || !roleID || roleInvalid || projectInvalid || groupInvalid}>{onLaunched ? "Launch and send" : "Create agent"}</button></div>
   </form>;
 }

@@ -1,6 +1,6 @@
 # Project-scoped groups and selectors
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator `/design-feature`, 2026-10-24: confusing group entry and cross-project choices;
 scope confirmed with an explicit request to keep the change small.
 **Relevant requirements:** FS-02.R80–R82/A61–A63; FS-13.R34/A24; FS-21.R58/A41;
@@ -28,4 +28,4 @@ browser pass covering the cited acceptance criteria. Reuse existing tests/journe
 product redesign or security audit.
 
 ## Waiting on
-Nothing. Design only; implementation has not started.
+Nothing. Progress and next step are in the handoff.

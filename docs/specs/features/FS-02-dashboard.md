@@ -622,12 +622,12 @@ placement of R6 without the grayscale, shows `status.detail` as its preview (R5)
 "Send a message or Resume to restart it." ("Resume to restart it." for a terminal agent). A plain
 stop keeps the **Stopped** marker.
 
-**R80 (planned) — Project-only groups.** Desktop and phone group pickers suggest labels only
+**R80 — Project-only groups.** Desktop and phone group pickers suggest labels only
 from non-archived agents in the target project, including stopped agents. No target project means
 no group entry. Changing the launch project clears the group, retaining other form values.
 This supersedes R72's all-project suggestions; existing labels, validation and memberships remain.
 
-**R81 (planned) — Direct group entry.** Typed text is the pending group: Tab, blur and parent
+**R81 — Direct group entry.** Typed text is the pending group: Tab, blur and parent
 submission retain it without a separate Create choice. Enter in the open picker accepts that
 text, or an explicitly arrow-highlighted suggestion, and closes the list without submitting the
 form. Blank means Ungrouped; exact trimmed matches reuse a label. Escape dismisses suggestions;

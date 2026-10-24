@@ -13,7 +13,7 @@ import { displayLabel } from "../../lib/labels";
 import { describeProviderRuntime, hasProviderSource } from "../../lib/providerRuntime";
 import { useSuggestedName } from "./useSuggestedName";
 import { useAgentStore } from "../../store/agentStore";
-import { GroupPicker } from "../../components/ui/GroupPicker";
+import { GroupPicker, groupNameError, projectGroupLabels } from "../../components/ui/GroupPicker";
 import { isCanonicalNoPersona, personaLabel } from "../../lib/personas";
 
 interface NewAgentModalProps {
@@ -69,7 +69,10 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
   const [terminalAvailable, setTerminalAvailable] = useState(true);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [group, setGroup] = useState("");
-  const groups = useMemo(() => Object.values(agents).filter((agent) => !agent.archived).map((agent) => agent.group?.trim()).filter((label): label is string => !!label), [agents]);
+  const groups = useMemo(() => projectGroupLabels(agents, project), [agents, project]);
+  const groupInvalid = groupPicker && !!groupNameError(group);
+  // A group belongs to its launch project, so a project change clears it (FS-02.R80).
+  useEffect(() => setGroup(""), [project]);
 
   const [name, setName] = useSuggestedName(role);
 
@@ -198,7 +201,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLaunchError(null);
-    if (unverifiedSelection || roleInvalid || !role) return;
+    if (unverifiedSelection || roleInvalid || !role || groupInvalid) return;
     const params: LaunchParams = {
       name: name || undefined, role, project, backend: backendId || undefined, model: modelId || undefined,
       effort: (offerEffort && effort) || undefined, fast: offerFast && fast, interface: agentInterface,
@@ -285,7 +288,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
                 {groupPicker && (
                   <div className="form-field">
                     <label htmlFor="new-agent-group">Group</label>
-                    <GroupPicker id="new-agent-group" value={group} groups={groups} onChange={setGroup} />
+                    <GroupPicker id="new-agent-group" value={group} groups={groups} onChange={setGroup} disabled={!project} />
                     <span className="form-hint">Leave blank to launch ungrouped.</span>
                   </div>
                 )}
@@ -369,7 +372,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
               <button
                 type="submit"
                 className="ad-button-primary"
-                disabled={launch.isPending || !role || roleInvalid || !project || unverifiedSelection}
+                disabled={launch.isPending || !role || roleInvalid || !project || unverifiedSelection || groupInvalid}
               >
                 {onConfigure ? "Use these settings" : launch.isPending ? "Launching…" : "Launch"}
               </button>

@@ -1,7 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { AgentState } from "../../api/types";
 
 const RESERVED_GROUP = "_ungrouped";
+const MAX_GROUP_RUNES = 256;
 
+/** Existing group labels of the target project's non-archived agents (FS-02.R80). */
+export function projectGroupLabels(agents: Record<string, AgentState>, project: string): string[] {
+  if (!project) return [];
+  return Object.values(agents)
+    .filter((agent) => !agent.archived && agent.project === project)
+    .map((agent) => agent.group?.trim())
+    .filter((label): label is string => !!label);
+}
+
+/** The reason a pending group cannot be submitted, matching the server's normalizeGroup. */
+export function groupNameError(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed === RESERVED_GROUP) return "“_ungrouped” is reserved.";
+  if ([...trimmed].length > MAX_GROUP_RUNES) return `Group name must be at most ${MAX_GROUP_RUNES} characters.`;
+  return null;
+}
+
+/** Typed text is the pending group; suggestions only fill it in (FS-02.R81). */
 export function GroupPicker({
   value,
   groups,
@@ -15,31 +35,22 @@ export function GroupPicker({
   id?: string;
   disabled?: boolean;
 }) {
-  const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(-1);
   const [filtering, setFiltering] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const labels = useMemo(() => [...new Set(groups.map((group) => group.trim()).filter((group) => group && group !== RESERVED_GROUP))].sort(), [groups]);
   const filtered = useMemo(() => {
-    const needle = filtering ? query.trim().toLowerCase() : "";
+    const needle = filtering ? value.trim().toLowerCase() : "";
     return labels.filter((label) => label.toLowerCase().includes(needle));
-  }, [labels, query, filtering]);
-  const trimmed = query.trim();
-  const exact = labels.find((label) => label === trimmed);
-  const reserved = trimmed === RESERVED_GROUP;
-  const choices = [
-    { kind: "ungrouped" as const, label: "Ungrouped", value: "" },
-    ...filtered.map((label) => ({ kind: "existing" as const, label, value: label })),
-    ...(trimmed && !exact && !reserved ? [{ kind: "create" as const, label: `Create group “${trimmed}”`, value: trimmed }] : []),
-  ];
-
-  useEffect(() => setQuery(value), [value]);
+  }, [labels, value, filtering]);
+  const choices = ["", ...filtered];
+  const error = groupNameError(value);
 
   const choose = (next: string) => {
     onChange(next);
-    setQuery(next);
     setOpen(false);
+    setActive(-1);
   };
 
   return (
@@ -50,40 +61,33 @@ export function GroupPicker({
         aria-label="Group"
         aria-expanded={open}
         aria-controls={`${id}-options`}
-        aria-activedescendant={open ? `${id}-option-${active}` : undefined}
+        aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined}
         aria-autocomplete="list"
-        value={query}
+        aria-invalid={error ? true : undefined}
+        value={value}
         disabled={disabled}
-        onFocus={() => { setOpen(true); setActive(0); setFiltering(false); }}
+        onFocus={() => { setOpen(true); setActive(-1); setFiltering(false); }}
         onBlur={() => window.setTimeout(() => {
-          if (!rootRef.current?.contains(document.activeElement)) { setQuery(value); setOpen(false); }
+          if (!rootRef.current?.contains(document.activeElement)) setOpen(false);
         }, 0)}
-        onChange={(event) => { setQuery(event.target.value); setOpen(true); setActive(0); setFiltering(true); }}
+        onChange={(event) => { onChange(event.target.value); setOpen(true); setActive(-1); setFiltering(true); }}
         onKeyDown={(event) => {
-          if (event.key === "Escape") { setQuery(value); setOpen(false); return; }
+          if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); return; }
           if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActive((index) => Math.min(index + 1, choices.length - 1)); return; }
-          if (event.key === "ArrowUp") { event.preventDefault(); setActive((index) => Math.max(index - 1, 0)); return; }
-          if (event.key === "Enter" && open && choices[active] !== undefined) { event.preventDefault(); if (!reserved || choices[active].kind === "ungrouped") choose(choices[active].value); }
+          if (event.key === "ArrowUp") { event.preventDefault(); setActive((index) => Math.max(index - 1, -1)); return; }
+          if (event.key === "Enter" && open) { event.preventDefault(); choose(active >= 0 ? choices[active] : value.trim()); }
         }}
       />
       {open && (
         <ul id={`${id}-options`} role="listbox" className="group-picker-options">
-          <li id={`${id}-option-0`} role="option" aria-selected={active === 0}>
-            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose("")}>Ungrouped</button>
-          </li>
-          {filtered.map((label, index) => (
-            <li id={`${id}-option-${index + 1}`} key={label} role="option" aria-selected={active === index + 1}>
-              <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose(label)}>{label}</button>
+          {choices.map((label, index) => (
+            <li id={`${id}-option-${index}`} key={label || "_ungrouped"} role="option" aria-selected={active === index}>
+              <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose(label)}>{label || "Ungrouped"}</button>
             </li>
           ))}
-          {trimmed && !exact && !reserved && (
-            <li id={`${id}-option-${filtered.length + 1}`} role="option" aria-selected={active === filtered.length + 1}>
-              <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => choose(trimmed)}>Create group “{trimmed}”</button>
-            </li>
-          )}
-          {reserved && <li className="form-error" role="status">“_ungrouped” is reserved.</li>}
         </ul>
       )}
+      {error && <p className="form-error" role="alert">{error}</p>}
     </div>
   );
 }

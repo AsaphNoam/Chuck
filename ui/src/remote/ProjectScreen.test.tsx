@@ -258,12 +258,13 @@ describe("ProjectScreen groups", () => {
   });
 
   it("sends explicit existing, new, and blank group values and retains a refused launch", async () => {
-    useConnection.setState({ agents: { existing: phoneAgent("existing", "Existing", true) } });
+    useConnection.setState({ agents: { existing: phoneAgent("existing", "Existing", true), elsewhere: { ...phoneAgent("elsewhere", "Elsewhere", true), project: "other" } } });
     renderScreen();
     fireEvent.click(await screen.findByRole("button", { name: "New agent" }));
     fireEvent.click(await screen.findByText("Advanced"));
     const picker = await screen.findByRole("combobox", { name: "Group" });
     fireEvent.focus(picker);
+    expect(screen.queryByRole("button", { name: "Elsewhere" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Existing" }));
     fireEvent.click(screen.getByRole("button", { name: "Create agent" }));
     await waitFor(() => expect(launches[0]).toEqual(expect.objectContaining({ group: "Existing" })));
@@ -274,7 +275,6 @@ describe("ProjectScreen groups", () => {
     fireEvent.click(await screen.findByText("Advanced"));
     const secondPicker = await screen.findByRole("combobox", { name: "Group" });
     fireEvent.change(secondPicker, { target: { value: "Fresh" } });
-    fireEvent.click(screen.getByRole("button", { name: 'Create group “Fresh”' }));
     fireEvent.click(screen.getByRole("button", { name: "Create agent" }));
     expect(await screen.findByText("unknown model")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Group" })).toHaveValue("Fresh");

@@ -52,7 +52,7 @@ import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraf
 import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
-import { GroupPicker } from "../components/ui/GroupPicker";
+import { GroupPicker, groupNameError, projectGroupLabels } from "../components/ui/GroupPicker";
 import { useRoles } from "../api/config";
 import { personaIdentityLabel } from "../lib/personas";
 import type { RoleResponse } from "../schemas/role";
@@ -971,8 +971,9 @@ export function AgentManagement({ agent, offline, busy, act, rename, setRename, 
   const options = useQuery({ queryKey: ["runtime-options"], queryFn: getRuntimeOptions });
   const [runtime, setRuntime] = useState({ backend: agent.backend, model: agent.model, effort: agent.effort ?? "" });
   const allAgents = useConnection((state) => state.agents);
-  const groups = useMemo(() => Object.values(allAgents).filter((item) => !item.archived).map((item) => item.group?.trim()).filter((label): label is string => !!label), [allAgents]);
+  const groups = useMemo(() => projectGroupLabels(allAgents, agent.project), [allAgents, agent.project]);
   const [group, setGroup] = useState(agent.group ?? "");
+  const groupInvalid = !!groupNameError(group);
   const [archiveConfirm, setArchiveConfirm] = useState(false);
   // A runtime change from either device restarts the switch draft from the
   // agent's live runtime (FS-20.R17).
@@ -995,9 +996,9 @@ export function AgentManagement({ agent, offline, busy, act, rename, setRename, 
         <label className="phone-field">Name<input value={rename} placeholder={agent.name || personaIdentityLabel(agent.role, roles?.[agent.role])} onChange={(event) => setRename(event.target.value)} /></label>
         <button type="submit" disabled={offline || busy || !rename.trim()}>Rename</button>
       </form>}
-      {(!action || action === "group") && <form className="phone-card phone-form phone-manage-group" onSubmit={(event) => { event.preventDefault(); act(() => updateAgentIdentity(agent.agent_id, { group: group.trim() }), false, () => setGroup(group.trim())); }}>
+      {(!action || action === "group") && <form className="phone-card phone-form phone-manage-group" onSubmit={(event) => { event.preventDefault(); if (groupInvalid) return; act(() => updateAgentIdentity(agent.agent_id, { group: group.trim() }), false, () => setGroup(group.trim())); }}>
         <label className="phone-field">Group<GroupPicker id="phone-manage-group" value={group} groups={groups} onChange={setGroup} disabled={offline || busy} /></label>
-        <button type="submit" disabled={offline || busy}>Save group</button>
+        <button type="submit" disabled={offline || busy || groupInvalid}>Save group</button>
       </form>}
       {(!action || action === "runtime") && agent.running && agent.interface === "chat" && (
         <form className="phone-card phone-form" onSubmit={(event) => { event.preventDefault(); act(() => switchRuntime(agent.agent_id, runtime)); }}>

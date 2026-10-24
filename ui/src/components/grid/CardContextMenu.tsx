@@ -12,7 +12,7 @@ import { useAgentStore } from "../../store/agentStore";
 import { useUiStore } from "../../store/uiStore";
 import { ConfirmDialog } from "../ui";
 import { displayLabels } from "../../lib/labels";
-import { GroupPicker, RESERVED_GROUP } from "../ui/GroupPicker";
+import { GroupPicker, groupNameError, projectGroupLabels } from "../ui/GroupPicker";
 
 type DialogKind = "rename" | "stop" | "switch" | "group";
 type ActiveDialog = { kind: DialogKind; agent: AgentState };
@@ -62,10 +62,7 @@ export function CardContextMenu() {
     setRuntime({ interface: dialog.agent.interface, backend: dialog.agent.backend, model: dialog.agent.model, effort: dialog.agent.effort ?? "" });
   }, [dialog]);
 
-  const groupLabels = useMemo(
-    () => [...new Set(Object.values(agents).filter((item) => !item.archived).map((item) => item.group?.trim()).filter((label): label is string => !!label))].sort(),
-    [agents],
-  );
+  const groupLabels = useMemo(() => projectGroupLabels(agents, dialog?.agent.project ?? ""), [agents, dialog?.agent.project]);
   const selectedBackend = backends?.backends[runtime.backend];
   const modelEntries = Object.entries(selectedBackend?.models ?? {});
   // Terminal needs the host and the server's adapter launch support (FS-09.R63).
@@ -105,10 +102,7 @@ export function CardContextMenu() {
   };
   const submitMoveGroup = () => {
     if (!dialog) return;
-    if (group.trim().toLowerCase() === RESERVED_GROUP) {
-      setDialogError("_ungrouped is reserved.");
-      return;
-    }
+    if (groupNameError(group)) return;
     updateAgentIdentity(dialog.agent.agent_id, { group: group.trim() }).then(closeDialog).catch((err) => reportError("Move to group failed", err));
   };
   const submitSwitch = () => {
@@ -206,7 +200,7 @@ export function CardContextMenu() {
                 <form className="config-form" onSubmit={(event) => { event.preventDefault(); submitMoveGroup(); }}>
                   <div className="form-field"><label htmlFor="agent-group">Group</label><GroupPicker id="agent-group" value={group} groups={groupLabels} onChange={setGroup} /><span className="form-hint">Leave blank to remove this agent from its group.</span></div>
                   {dialogError && <p className="form-error">{dialogError}</p>}
-                  <div className="form-actions" data-slot="actions"><button type="button" onClick={closeDialog}>Cancel</button><button type="submit" className="ad-button-primary">Move</button></div>
+                  <div className="form-actions" data-slot="actions"><button type="button" onClick={closeDialog}>Cancel</button><button type="submit" className="ad-button-primary" disabled={!!groupNameError(group)}>Move</button></div>
                 </form>
               )}
               {dialog.kind === "switch" && (
