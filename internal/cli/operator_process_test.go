@@ -70,6 +70,7 @@ func TestOperatorBuiltBinaryRealServerJourney(t *testing.T) {
 	port := ln.Addr().(*net.TCPAddr).Port
 	_ = ln.Close()
 	cfg := config.DefaultConfig()
+	cfg.SkipPermissions = false // This journey exercises explicit permission approval and denial.
 	cfg.Port = port
 	cfg.OnboardingComplete = true
 	if err := cfgStore.WriteConfig(cfg); err != nil {

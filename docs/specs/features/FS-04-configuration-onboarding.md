@@ -196,6 +196,12 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   restores the saved value and shows the readable error. Chuck's policy remains independent of
   provider-native approval settings (R1).
 
+- **R61 (implemented 2026-10-24)** — Fresh installations seed global `skip_permissions: true`. No persona
+  and all other seeded personas inherit that policy through `skip_permissions: null`, so their
+  default is to skip permission prompts. Existing configuration files and explicit persona
+  overrides remain authoritative under R1/R14; this change does not migrate saved preferences
+  or alter existing agents' frozen launch policy (R13).
+
 - **R13.** Editing a role, project, backend, or the global config affects **new launches only**.
   A running agent and its ordinary resume/switch paths keep the frozen launch snapshot; an explicit
   federation refresh may re-resolve only the source-owned portion described by FS-08. A newly added
@@ -596,6 +602,11 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   failed save restores the prior value and shows the server reason. The persona form's inheriting
   option reads **Use default permissions**. *Verify:* `PermissionPolicyEditor.test.tsx` and
   `RoleForm.test.tsx`.
+
+- **A40 (implemented 2026-10-24)** (R61) — Seed an empty home and read its configuration from disk: global
+  `skip_permissions` is true and all five seeded personas inherit it. Set the saved global policy
+  and a persona override to false, seed again, and verify both choices survive. *Verify:*
+  `TestSeedIfAbsentNoClobber`, with `TestResolveSkip` retaining role-over-global precedence.
 
 ## 6. Deviations & open decisions
 

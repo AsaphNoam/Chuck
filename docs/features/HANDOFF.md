@@ -25,7 +25,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- No change in progress. Two units wait for review (Review queue).
+- No change in progress. Three units wait for review (Review queue).
 
 ## Acceptance gates still owed
 
@@ -161,6 +161,18 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
+- **Skip permissions by default** (FS-04.R61/A40), waiting for review. Fresh/fallback global
+  configuration now enables `skip_permissions`; No persona and all seeded personas inherit it.
+  Existing saved global choices, persona overrides and frozen sessions retain their policy.
+  The fresh-home/no-clobber regression fails against the old default and passes after the change.
+  Three existing CLI/server permission journeys now explicitly select manual prompting.
+  Final `go test ./...` and `go test -tags sqlite_fts5 ./...` pass with `GOFLAGS=-p=1`,
+  `GOCACHE=/private/tmp/chuck-permission-default-gocache` and approved loopback access.
+  `make build`, `make check-specs` and diff checks pass for the changed scope. Logs:
+  `/private/tmp/chuck-permission-default-{go-final,fts-final,build,spec}.log`.
+  An initial task lifecycle-contention failure passes both its focused recheck and final full
+  variants; no lifecycle repair was made. No new credentialed-provider claim is made.
+
 - **Annotation input font and focus** (FS-13.R33/A23), waiting for review. Desktop agent
   and room instruction fields focus on mount; instruction and overall fields use the regular
   text font at 1rem. Focus regression and full UI suite pass (99 files, 1001 tests).
@@ -185,6 +197,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 None open. Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
+
+- **2026-10-24 — Default permissions:** fresh installs now skip permission prompts for No
+  persona and all seeded personas through the inherited global policy. Saved settings and
+  explicit overrides survive. Both Go variants, build, spec and diff checks pass; ready for review.
 
 - **2026-10-24 — v0.19.0 published:** the operator approved the version and asked to release;
   `main` and tag `v0.19.0` at `308ad23f` were pushed (23 commits). Release and main CI passed;

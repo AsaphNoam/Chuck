@@ -174,6 +174,10 @@ Seeding is per-file and if-absent: new roles appear on the next `dashboard start
 and your edits to existing ones are never overwritten. Edit them in Settings or
 directly in `roles/{role}.json`.
 
+Fresh installs skip permission prompts by default. No persona and all seeded personas inherit
+that setting. Change it in Settings → Roles → Default permissions, or set a persona override.
+Existing saved settings are preserved on upgrade.
+
 - **`default`** — no specialized persona (shown as No persona). It is the default for new agents.
 - **`chucky`** — built-in Chuck expert and coordinator. Ask it how anything works
   (launch syntax, config files, switch-runtime, archive, messaging), or hand it

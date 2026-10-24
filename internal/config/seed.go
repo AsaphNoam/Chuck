@@ -30,7 +30,7 @@ func DefaultConfig() Config {
 		Port:            4317,
 		DefaultProject:  "my-app",
 		DefaultRole:     "default",
-		SkipPermissions: false,
+		SkipPermissions: true,
 		AutoContinue:    true,
 		Notifications: NotificationsConfig{
 			DesktopEnabled: true,

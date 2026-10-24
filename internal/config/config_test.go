@@ -460,6 +460,9 @@ func TestSeedIfAbsentNoClobber(t *testing.T) {
 	if cfg, err := s.ReadConfig(); err != nil || cfg.DefaultRole != "default" {
 		t.Fatalf("default role = %q, %v; want default", cfg.DefaultRole, err)
 	}
+	if cfg, err := s.ReadConfig(); err != nil || !cfg.SkipPermissions {
+		t.Fatalf("seeded skip_permissions = %v, %v; want true", cfg.SkipPermissions, err)
+	}
 	chucky, err := s.ReadRole("chucky")
 	if err != nil || chucky.SystemPrompt != chuckyPrompt || strings.Contains(chucky.SystemPrompt, "propose_pipeline") {
 		t.Fatalf("seeded Chucky prompt is not the thin role: role=%+v err=%v", chucky, err)
@@ -481,8 +484,19 @@ func TestSeedIfAbsentNoClobber(t *testing.T) {
 	if err := s.WriteRole("reviewer", mutated); err != nil {
 		t.Fatal(err)
 	}
+	cfg, err := s.ReadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.SkipPermissions = false
+	if err := s.WriteConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.SeedIfAbsent(); err != nil {
 		t.Fatalf("re-seed: %v", err)
+	}
+	if cfg, err := s.ReadConfig(); err != nil || cfg.SkipPermissions {
+		t.Fatalf("saved skip_permissions = %v, %v; want false", cfg.SkipPermissions, err)
 	}
 	got, err := s.ReadRole("reviewer")
 	if err != nil {
