@@ -1,4 +1,5 @@
 import { AutoGrowTextarea } from "../components/ui";
+import { IncludeOtherProjects, useProjectFirst } from "../components/ui/IncludeOtherProjects";
 import { useRef, useState } from "react";
 import type { AgentState, AnnotationDraft } from "../api/types";
 import { annotationAnchor } from "../lib/annotations";
@@ -98,6 +99,8 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
   const remove = useAnnotationStore((state) => state.remove);
   const discard = useAnnotationStore((state) => state.discard);
   const list = useRef<HTMLOListElement>(null);
+  // The sheet mounts on each opening, so reopening resets the choice (FS-13.R34).
+  const choices = useProjectFirst({ items: recipients, project: source?.project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: sourceId });
 
   // A new capture opens the sheet at its instruction, never on Discard.
   const newestField = () => {
@@ -163,21 +166,22 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
           ))}
         </div>
         {!sourceActive && <p className="phone-meta">This agent is stopped, so it cannot receive its own annotations.</p>}
+        {target === "agent" && <IncludeOtherProjects className="phone-check" checked={choices.includeOthers} onChange={choices.setIncludeOthers} disabled={sending} />}
         {target === "agent" &&
-          (recipients.length > 0 ? (
+          (choices.visible.length > 0 ? (
             <label className="phone-field">
               Agent
               <select value={recipientId} disabled={sending} onChange={(event) => setRecipientId(event.target.value)}>
                 <option value="">Choose a running chat agent</option>
-                {recipients.map((other) => (
+                {choices.visible.map((other) => (
                   <option key={other.agent_id} value={other.agent_id}>
-                    {other.name || `${personaIdentityLabel(other.role, roles?.[other.role])}@${other.project}`}
+                    {`${other.name || personaIdentityLabel(other.role, roles?.[other.role])}${other.project !== source?.project || !other.name ? `@${other.project}` : ""}`}
                   </option>
                 ))}
               </select>
             </label>
           ) : (
-            <p className="phone-empty">No other chat agent is running.</p>
+            <p className="phone-empty">{choices.includeOthers ? "No other chat agent is running." : "No other chat agent is running in this project."}</p>
           ))}
         {target === "new" && !launched && <p className="phone-meta">Checks the batch, then lets you review the new agent before it launches.</p>}
         {!connected && <p className="phone-meta" role="status">Reconnect to send. Your annotations stay here.</p>}

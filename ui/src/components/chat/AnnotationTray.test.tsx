@@ -24,7 +24,7 @@ afterAll(() => server.close());
 afterEach(() => {
   cleanup();
   useAgentStore.setState({ agents: {} });
-  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
+  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, targetBySource: {}, recipientBySource: {} });
   server.resetHandlers();
   launches = 0;
 });
@@ -112,6 +112,30 @@ describe("AnnotationTray", () => {
 
   // FS-13.R15: an archived source cannot be the target, so the tray defaults to
   // an available target instead of a checked-but-disabled Current agent.
+  // FS-13.A24 — the recipient list starts at the source project; outside agents
+  // appear only on request, and hiding them clears an outside choice.
+  it("lists the source project's recipients until other projects are included", () => {
+    seedTray(1);
+    useAgentStore.setState({ agents: {
+      source: sourceAgent,
+      near: { ...sourceAgent, agent_id: "near", name: "Near" },
+      far: { ...sourceAgent, agent_id: "far", name: "Far", project: "other" },
+    } as never });
+    renderTray();
+    fireEvent.click(screen.getByLabelText(/Another agent/));
+    const recipient = () => screen.getByLabelText("Annotation recipient") as HTMLSelectElement;
+    const names = () => [...recipient().options].map((option) => option.textContent);
+    expect(names()).toEqual(["Choose an agent", expect.stringContaining("Near")]);
+    fireEvent.click(screen.getByLabelText("Include other projects"));
+    expect(names()).toContainEqual(expect.stringContaining("Far ("));
+    expect(names().find((name) => name?.startsWith("Far"))).toContain("@other");
+    fireEvent.change(recipient(), { target: { value: "far" } });
+    fireEvent.click(screen.getByLabelText("Include other projects"));
+    expect(recipient()).toHaveValue("");
+    expect(names()).not.toContainEqual(expect.stringContaining("Far"));
+    expect(screen.getByLabelText("Instruction")).toHaveValue("Instruction 1");
+  });
+
   it("defaults an archived source to another running agent", () => {
     seedTray(1);
     useAgentStore.setState({ agents: {

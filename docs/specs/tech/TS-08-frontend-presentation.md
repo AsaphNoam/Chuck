@@ -1721,7 +1721,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   FS-12.A40 with a real-browser pass using `fakeacp` agents at 1024px and 1440px in all three
   appearances. Run TS-06 UI closure, style/presentation checks and `make embed`; never edit dist.
 
-- **R139 (planned) — Project-first controls reuse existing state and mutations.** For
+- **R139 — Project-first controls reuse existing state and mutations.** For
   FS-02.R80–R82, filter group labels by explicit target project through one shared helper and
   update GroupPicker's existing draft/keyboard handling; reset the group on project change.
   Preserve launch/identity APIs, validation and server error handling. Extend existing layout

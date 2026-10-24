@@ -341,7 +341,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   header/cue, transcript, private composer and Send/Steer behavior. No room data, scheduling,
   agent authority, retention or API behavior changes.
 
-- **R58 (planned) — Project-first participant choices.** Existing-agent selection in setup
+- **R58 — Project-first participant choices.** Existing-agent selection in setup
   defaults to the originating project. An unchecked **Include other projects** control reveals
   other eligible agents with project attribution; reset it on opening/project change and clear
   any unadded outside selection when hidden. Already-added participants remain visible.

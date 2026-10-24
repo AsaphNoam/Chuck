@@ -60,6 +60,41 @@ describe("ThinkTankSetupDialog", () => {
     expect(screen.queryByLabelText("Synthesis instructions")).toBeNull();
   });
 
+  // FS-21.A41 (R58): origin-project agents first; outside agents only on request,
+  // an added outside row survives hiding them, and reopening resets the choice.
+  it("lists the origin project's agents until other projects are included", async () => {
+    server.use(http.get("/api/projects", () => HttpResponse.json({ alpha: { title: "Alpha", cwd: "/tmp" }, beta: { title: "Beta", cwd: "/tmp" } })));
+    useAgentStore.setState({ agents: {
+      a_one: agent("a_one", "Ari"),
+      b_one: agent("b_one", "Cy", { project: "beta" }),
+      b_two: agent("b_two", "Dee", { project: "beta" }),
+    } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = (open: boolean) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter><ThinkTankSetupDialog open={open} onClose={() => undefined} originProject="alpha" /></MemoryRouter>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view(true));
+    const picker = () => screen.getByRole("combobox", { name: "Existing agent" }) as HTMLSelectElement;
+    const names = () => [...picker().options].map((option) => option.textContent ?? "");
+    await waitFor(() => expect(names().some((name) => name.startsWith("Ari"))).toBe(true));
+    expect(names().some((name) => name.startsWith("Cy") || name.startsWith("Dee"))).toBe(false);
+
+    fireEvent.click(screen.getByLabelText("Include other projects"));
+    await waitFor(() => expect(names()).toContain("Cy (Beta) · opus · high"));
+    fireEvent.change(picker(), { target: { value: "b_one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.change(picker(), { target: { value: "b_two" } });
+    fireEvent.click(screen.getByLabelText("Include other projects"));
+    expect(picker()).toHaveValue("");
+    expect(screen.getByText("Cy")).toBeTruthy();
+
+    rerender(view(false));
+    rerender(view(true));
+    expect(screen.getByLabelText("Include other projects")).not.toBeChecked();
+  });
+
   it("sends attached goal files with the room metadata", async () => {
     // The multipart body is inspected as sent; jsdom's FormData does not cross
     // into the node request interceptor.

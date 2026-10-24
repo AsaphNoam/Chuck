@@ -1,4 +1,5 @@
 import { AutoGrowTextarea } from "../../components/ui";
+import { IncludeOtherProjects, useProjectFirst } from "../../components/ui/IncludeOtherProjects";
 import { useState } from "react";
 import { newCommandID, useThinkTankAnnotations, type RoomAnnotationWire } from "../../api/thinkTanks";
 import type { AnnotationDraft } from "../../api/types";
@@ -31,9 +32,10 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
   const [showLaunch, setShowLaunch] = useState(false);
   const [commandID, setCommandID] = useState(newCommandID);
   const send = useThinkTankAnnotations(room.room_id);
+  const recipients = Object.values(agents).filter((agent) => agent.running && agent.interface === "chat");
+  const choices = useProjectFirst({ items: recipients, project: room.origin_project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: room.room_id });
 
   if (drafts.length === 0) return null;
-  const recipients = Object.values(agents).filter((agent) => agent.running && agent.interface === "chat");
   const effectiveTarget = ended && target === "room" ? "agent" : target;
 
   const deliver = (agentId?: string) => {
@@ -101,10 +103,11 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
           </label>
           <label><input type="radio" checked={effectiveTarget === "agent"} disabled={send.isPending} onChange={() => setTarget("agent")} /> An agent</label>
           <label><input type="radio" checked={effectiveTarget === "new"} disabled={send.isPending} onChange={() => setTarget("new")} /> New task</label>
+          {effectiveTarget === "agent" && <IncludeOtherProjects checked={choices.includeOthers} onChange={choices.setIncludeOthers} disabled={send.isPending} />}
           {effectiveTarget === "agent" && (
             <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} disabled={send.isPending} aria-label="Annotation recipient">
               <option value="">Choose an agent</option>
-              {recipients.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({personaIdentityLabel(agent.role, roles?.[agent.role])}@{agent.project})</option>)}
+              {choices.visible.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({personaIdentityLabel(agent.role, roles?.[agent.role])}@{agent.project})</option>)}
             </select>
           )}
         </div>

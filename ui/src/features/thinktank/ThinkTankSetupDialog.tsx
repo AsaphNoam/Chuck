@@ -1,4 +1,5 @@
 import { AutoGrowTextarea } from "../../components/ui";
+import { IncludeOtherProjects, useProjectFirst } from "../../components/ui/IncludeOtherProjects";
 import { useMemo, useRef, useState } from "react";
 import { addFiles, type DraftAttachment } from "../../components/chat/attachments";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -50,6 +51,8 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
     .filter((a) => a.interface === "chat" && !a.archived && !projects.data?.[a.project]?.archived)
     .filter((a) => !rows.some((r) => r.agentID === a.agent_id))
     .sort((a, b) => (a.project + a.name).localeCompare(b.project + b.name)), [agents, projects.data, rows]);
+  // Added rows stay in `rows` whatever this list shows (FS-21.R58).
+  const choices = useProjectFirst({ items: candidates, project: originProject, selected: pick, clearSelected: () => setPick(""), resetKey: `${open}:${originProject}` });
 
   const update = (key: string, patch: Partial<Row>) => setRows((current) => current.map((r) => r.key === key ? { ...r, ...patch } : r));
   const move = (index: number, delta: number) => setRows((current) => {
@@ -163,10 +166,11 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
                     <div className="think-tank-setup-add">
                       <select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Existing agent">
                         <option value="">Or choose an existing agent</option>
-                        {candidates.map((a) => <option key={a.agent_id} value={a.agent_id}>{[`${a.name} (${projectTitle(a.project)})`, runtimeLabel(a.model, a.effort), a.state === "busy" && "busy"].filter(Boolean).join(" · ")}</option>)}
+                        {choices.visible.map((a) => <option key={a.agent_id} value={a.agent_id}>{[`${a.name} (${projectTitle(a.project)})`, runtimeLabel(a.model, a.effort), a.state === "busy" && "busy"].filter(Boolean).join(" · ")}</option>)}
                       </select>
                       <button type="button" onClick={addExisting} disabled={!pick}>Add</button>
                     </div>
+                    <IncludeOtherProjects className="think-tank-check" checked={choices.includeOthers} onChange={choices.setIncludeOthers} />
                   </>
                 )}
                 <p className="form-hint">A limit is a ceiling, not a target. Busy agents join without being interrupted.</p>

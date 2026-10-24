@@ -1,4 +1,5 @@
 import { AutoGrowTextarea } from "../ui";
+import { IncludeOtherProjects, useProjectFirst } from "../ui/IncludeOtherProjects";
 import type { AnnotationDraft } from "../../api/types";
 import { annotationAnchor } from "../../lib/annotations";
 import { useAgentStore } from "../../store/agentStore";
@@ -32,6 +33,7 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
   const setOverall = useAnnotationStore((state) => state.setOverall);
   const collapsed = useAnnotationStore((state) => state.collapsedBySource[sourceId] ?? false);
   const setCollapsed = useAnnotationStore((state) => state.setCollapsed);
+  const choices = useProjectFirst({ items: recipients, project: source?.project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: sourceId });
 
   if (drafts.length === 0) return null;
 
@@ -71,10 +73,11 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
           <label><input type="radio" checked={target === "self"} disabled={!sourceActive || sending} onChange={() => setTarget("self")} /> Current agent</label>
           <label><input type="radio" checked={target === "agent"} disabled={sending} onChange={() => setTarget("agent")} /> Another agent</label>
           <label><input type="radio" checked={target === "new"} disabled={!source || sending} onChange={() => setTarget("new")} /> New task</label>
+          {target === "agent" && <IncludeOtherProjects checked={choices.includeOthers} onChange={choices.setIncludeOthers} disabled={sending} />}
           {target === "agent" && (
             <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} disabled={sending} aria-label="Annotation recipient">
               <option value="">Choose an agent</option>
-              {recipients.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({personaIdentityLabel(agent.role, roles?.[agent.role])}@{agent.project})</option>)}
+              {choices.visible.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({personaIdentityLabel(agent.role, roles?.[agent.role])}@{agent.project})</option>)}
             </select>
           )}
         </div>

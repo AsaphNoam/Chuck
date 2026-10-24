@@ -259,7 +259,7 @@ identity and authority; no common receipt grants broader target/source access.
   receives keyboard focus in agent and room trays so typing can begin immediately. Editing
   existing fields does not move focus.
 
-- **R34 (planned) — Project-first recipients.** Desktop/phone annotation recipient lists
+- **R34 — Project-first recipients.** Desktop/phone annotation recipient lists
   default to the source agent's project, or the originating project for room annotations.
   An unchecked **Include other projects** control explicitly reveals other eligible agents,
   labelled by project. Reset the control on source change/reopening; hiding a selected outside

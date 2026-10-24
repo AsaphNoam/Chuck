@@ -35,9 +35,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
     as `project_groups`); `uiStore.groupCollapsed` falls back to legacy `groups`; `CardGrid`
     toggles write the scoped project only. `go test ./internal/server -run Layout` and grid/store
     vitest pass.
-  - **Next:** FS-13.R34 (AnnotationTray/AnnotationForm) and FS-21.R58 (ThinkTankSetupDialog)
-    Include other projects toggles, then one two-project desktop/phone browser pass (A61–A63,
-    A24, A41) and UI + Go closure.
+    FS-13.R34/FS-21.R58 — `useProjectFirst`/`IncludeOtherProjects`
+    (`ui/src/components/ui/IncludeOtherProjects.tsx`) scope desktop/room/phone annotation
+    recipients and room setup's existing-agent picker; chat/thinktank/remote vitest pass.
+  - **Next:** one two-project desktop/phone browser pass (A61–A63, A24, A41), then UI + Go
+    closure (`make test`, `cd ui && npm test && npm run build`, `make build`).
 
 ## Acceptance gates still owed
 
