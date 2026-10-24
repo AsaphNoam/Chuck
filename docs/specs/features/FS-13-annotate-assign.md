@@ -382,10 +382,13 @@ authorization; use real handler/receipt paths rather than a mock that deduplicat
   input font and size. Adding a draft focuses its instruction immediately, including in a
   room tray; editing an existing draft does not move focus.
 
-- **A24 (planned)** (R34) — With eligible agents in two projects, open agent/room annotation
+- **A24** (R34) — With eligible agents in two projects, open agent/room annotation
   recipient lists: only the source project appears until Include other projects is enabled.
   Verify attribution, selection clearing and reset on reopening/source change without losing
-  drafts. *Verify:* recipient tests and desktop/phone browser journeys.
+  drafts. *Verify:* recipient tests and desktop/phone browser journeys. — `AnnotationTray.test.tsx`
+  "lists the source project's recipients…"; desktop agent tray and phone sheet in
+  `ui/scripts/project-scope-journey.mjs`. The room tray shares `useProjectFirst` but has no
+  separate rendered receipt.
 
 ## 6. Deviations & open decisions
 

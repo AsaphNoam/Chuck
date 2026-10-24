@@ -25,21 +25,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- **In progress:** [project-scoped groups and selectors](../ready-changes/project-scoped-groups-and-selectors.md).
-  Three other units wait for review (Review queue).
-  - **Done:** R80/R81 — `GroupPicker` is controlled (typed text is the value; Enter accepts text
-    or arrow-highlighted suggestion, no Create option); `projectGroupLabels`/`groupNameError`
-    live in `ui/src/components/ui/GroupPicker.tsx` and serve all four callers. Focused
-    `GroupPicker`/`NewAgentModal`/`ProjectScreen`/grid/remote tests and `tsc` pass.
-    R82 — layout carries optional `projectGroups` (Go `layoutResponse`/`config.Layout.ProjectGroups`
-    as `project_groups`); `uiStore.groupCollapsed` falls back to legacy `groups`; `CardGrid`
-    toggles write the scoped project only. `go test ./internal/server -run Layout` and grid/store
-    vitest pass.
-    FS-13.R34/FS-21.R58 — `useProjectFirst`/`IncludeOtherProjects`
-    (`ui/src/components/ui/IncludeOtherProjects.tsx`) scope desktop/room/phone annotation
-    recipients and room setup's existing-agent picker; chat/thinktank/remote vitest pass.
-  - **Next:** one two-project desktop/phone browser pass (A61–A63, A24, A41), then UI + Go
-    closure (`make test`, `cd ui && npm test && npm run build`, `make build`).
+- No change in progress. Four units wait for review (Review queue).
 
 ## Acceptance gates still owed
 
@@ -175,6 +161,25 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
+- **Project-scoped groups and selectors** (FS-02.R80–R82/A61–A63, FS-13.R34/A24,
+  FS-21.R58/A41, TS-08.R139), waiting for review. `GroupPicker` is controlled (typed text is
+  the value; Enter accepts it or an arrow-highlighted suggestion; no Create option);
+  `projectGroupLabels`/`groupNameError` serve all four desktop/phone callers. Layout gains
+  optional `projectGroups` (stored `project_groups`) with legacy `groups` fallback via
+  `uiStore.groupCollapsed`. `useProjectFirst`/`IncludeOtherProjects`
+  (`ui/src/components/ui/IncludeOtherProjects.tsx`) scope desktop/room/phone annotation
+  recipients and room setup. Evidence: new `ui/scripts/project-scope-journey.mjs` on the
+  `TestGroupBrowserFixture` embedded desktop + phone passes 26/26 (core appearance, 1024px
+  desktop, 360/390/430px phone; `/tmp/project-scope-run`). `group-journey.mjs` was updated
+  for the removed Create choice and the renamed Advanced disclosure but not rerun. UI suite
+  (99 files, 1012 tests) and build pass; `make test` passes both Go variants except
+  `TestStopRecordedProcessRefusesLeaderlessGroup` (`read |0: file already closed`), unrelated
+  runtime code that passes 10× alone and on a full `-tags sqlite_fts5 ./internal/runtime`
+  rerun; `make build` passes. Reviewer notes: Escape in the picker now only dismisses
+  suggestions (the dialog stays open); the desktop Include checkbox wraps beside New task at
+  1024px; room-tray recipients and physical touch selection have no rendered receipt.
+  Generated embed was not committed.
+
 - **Skip permissions by default** (FS-04.R61/A40), waiting for review. Fresh/fallback global
   configuration now enables `skip_permissions`; No persona and all seeded personas inherit it.
   Existing saved global choices, persona overrides and frozen sessions retain their policy.
@@ -221,10 +226,9 @@ None open. Closed findings through v0.19.0 are archived with their receipts.
   archive checksum/size match. The shipped operator guidance covers start times and schedules.
   Settled history moved to the 2026-10-24 archive. Manual gates remain owed.
 
-- **2026-10-24 — Design ready:** [project-scoped groups and selectors](../ready-changes/project-scoped-groups-and-selectors.md)
-  is waiting to start: direct group entry, project-only suggestions, independent collapse and
-  project-first annotation/room pickers. Scope confirmed; keep existing controls and data,
-  with no cross-project permission change. No product code changed.
+- **2026-10-24 — Project-scoped groups and selectors:** typed group names are kept, group
+  suggestions and collapse follow the project, and annotation/room pickers start at the current
+  project with Include other projects. Browser journey, UI and Go suites pass; ready for review.
 - **2026-10-24 — Design ready:** [saved file-viewer tabs](../ready-changes/file-viewer-tabs.md)
   are waiting to start: FS-03.R101–R106/A80–A82, FS-20.R56/A28, FS-21.R59/A42 and
   TS-08.R140–R145. The operator confirmed browser/device persistence, existing phone access/screens,

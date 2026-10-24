@@ -1,6 +1,6 @@
 # FS-02 — Dashboard (card grid home view)
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src/components/grid/`, `ui/src/store/`, `ui/src/components/shell/NotificationCenter.tsx`, `ui/src/features/settings/NotificationsEditor.tsx`, `ui/src/api/sse.ts` · `internal/bus/`, `internal/state/`, `internal/server/handlers.go` (layout, reconcile) · **Journeys:** J5 (grid & layout), J11 (failure & recovery), J12 (restart durability)
 **Absorbed:** [`agent-dashboard-prd.md`](../../archive/agent-dashboard-prd.md) F1/F2/F11 and the [phase archive manifest](../../archive/phases/README.md)
 
@@ -1013,23 +1013,30 @@ stored manual order alone".
 **Error** card (`data-state="error"`) with that detail and the restart hint, and no **Stopped**
 marker. — `AgentCard.test.tsx` "distinguishes an agent stopped on error from a plain stop"; J11.
 
-**A61 (planned)** (R80) — With unique/shared labels in two projects, verify project-only
+**A61** (R80) — With unique/shared labels in two projects, verify project-only
 suggestions on desktop/phone creation and group editing, including stopped/archived members.
 Switch the launch project: group clears, other fields survive. *Verify:* focused form tests
 and a two-project desktop/phone browser journey; retain A57's bulk-action isolation check.
+— `GroupPicker.test.tsx` "suggests only the target project's…", `NewAgentModal.test.tsx`
+"suggests only the launch project's groups…", `ProjectScreen.test.tsx` group launch;
+`ui/scripts/project-scope-journey.mjs` (A57 stays in `group-journey.mjs`).
 
-**A62 (planned)** (R81) — Enter accepts a typed new/exact/partial-match name without choosing
+**A62** (R81) — Enter accepts a typed new/exact/partial-match name without choosing
 Ungrouped or submitting the form; arrow-selected, pointer and touch choices work. Tab, blur and
 parent submit preserve text; check clear, Escape, Cancel, invalid input and failed-operation
-retry. *Verify:* picker/host-form tests and the A61 browser journey.
+retry. *Verify:* picker/host-form tests and the A61 browser journey. — `GroupPicker.test.tsx`,
+`NewAgentModal.test.tsx` group launch/refusal cases, `project-scope-journey.mjs`. A physical
+touch-device selection receipt is not claimed.
 
-**A63 (planned)** (R82) — Load legacy collapse choices, toggle a same-named group/Ungrouped
+**A63** (R82) — Load legacy collapse choices, toggle a same-named group/Ungrouped
 in one project, visit the other and reload. Only the first project's choice changes; density,
 order and membership remain. *Verify:* layout round-trip tests and the A61 browser journey.
+— `TestPutLayoutRoundTripsProjectGroupOverrides`, `CardGrid.test.tsx` "collapses a same-named
+group in one project only…", `project-scope-journey.mjs`.
 
 ## 6. Deviations & open decisions
 
-- **Confirmed 2026-10-24:** R80–R82/A61–A63 are planned; keep this a small change using
+- **Confirmed 2026-10-24 (shipped 2026-10-24):** R80–R82/A61–A63; keep this a small change using
   existing controls and persistence. Project-only annotation/room defaults are FS-13.R34 and
   FS-21.R58; global navigation/search and agent cross-project permissions remain unchanged.
 

@@ -52,10 +52,10 @@ try {
     await desktop.screenshot({path:join(out,`${name}-desktop-1024.png`),fullPage:true});
     await phone.screenshot({path:join(out,`${name}-phone-390.png`),fullPage:true});
     await desktop.getByRole("button",{name:"New agent",exact:true}).click();
-    await desktop.getByText("Options",{exact:true}).click();
+    await desktop.getByText("Advanced",{exact:true}).click();
     const newGroup = desktop.getByRole("combobox",{name:"Group",exact:true});
     await newGroup.fill(`New group ${name}`);
-    await desktop.getByRole("button",{name:`Create group “New group ${name}”`,exact:true}).click();
+    await newGroup.press("Enter");
     await desktop.getByRole("textbox",{name:"Name",exact:true}).focus();
     await newGroup.focus();
     await desktop.screenshot({path:join(out,`${name}-desktop-picker.png`),fullPage:true});

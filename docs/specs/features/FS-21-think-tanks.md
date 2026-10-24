@@ -624,10 +624,12 @@ completion; R37 defines partial opening publication and pending input on End.
   with adjacent Chuck controls at 1024px/wide desktop and a narrow expanded chat pane in Core,
   Sky & Grove and Studio; no clipping, layout jump or motion is required for active emphasis.
 
-- **A41 (planned)** (R58) — From project A, setup initially lists only A's eligible agents.
+- **A41** (R58) — From project A, setup initially lists only A's eligible agents.
   Reveal B's agents explicitly, add one, then hide outside choices: the added row remains and
   an unadded outside selection clears. Reopen and verify project-only defaults. *Verify:*
-  setup component tests and the existing room-creation browser journey.
+  setup component tests and the existing room-creation browser journey. —
+  `ThinkTankSetupDialog.test.tsx` "lists the origin project's agents…"; setup step in
+  `ui/scripts/project-scope-journey.mjs` (in place of `room-journey.mjs`).
 
 - **A42 (planned)** (R59) — Complete FS-03.A80–A82 in a room whose participants link to
   the same relative filename in different workspaces. Verify distinct source labels and reads,
