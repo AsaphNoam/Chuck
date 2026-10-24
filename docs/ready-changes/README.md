@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`project-scoped-groups-and-selectors.md`](project-scoped-groups-and-selectors.md) — fix group
+  entry/Enter, scope suggestions and collapse by project, and default annotation/room pickers
+  to the current project with explicit access to others.
+
 - [`quiet-quota-recovery.md`](quiet-quota-recovery.md) — verified structured/text reset scheduling
   and bounded isolated quota checks; preserve the original conversation, with non-persistent
   Claude sessions and approved named Codex native archive records.

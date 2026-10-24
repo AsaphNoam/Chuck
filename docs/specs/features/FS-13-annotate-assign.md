@@ -259,6 +259,12 @@ identity and authority; no common receipt grants broader target/source access.
   receives keyboard focus in agent and room trays so typing can begin immediately. Editing
   existing fields does not move focus.
 
+- **R34 (planned) — Project-first recipients.** Desktop/phone annotation recipient lists
+  default to the source agent's project, or the originating project for room annotations.
+  An unchecked **Include other projects** control explicitly reveals other eligible agents,
+  labelled by project. Reset the control on source change/reopening; hiding a selected outside
+  recipient clears that selection. Existing eligibility, delivery and New task behavior remain.
+
 ## 5. Acceptance criteria
 
 Each acceptance item names its delivered verification.
@@ -375,6 +381,11 @@ authorization; use real handler/receipt paths rather than a mock that deduplicat
 - **A23** (R33) — Desktop annotation instruction and overall instruction fields use the regular
   input font and size. Adding a draft focuses its instruction immediately, including in a
   room tray; editing an existing draft does not move focus.
+
+- **A24 (planned)** (R34) — With eligible agents in two projects, open agent/room annotation
+  recipient lists: only the source project appears until Include other projects is enabled.
+  Verify attribution, selection clearing and reset on reopening/source change without losing
+  drafts. *Verify:* recipient tests and desktop/phone browser journeys.
 
 ## 6. Deviations & open decisions
 

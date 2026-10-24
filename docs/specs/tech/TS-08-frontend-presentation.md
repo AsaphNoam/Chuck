@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1720,6 +1720,18 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   `ChatPanel`/breadcrumb component tests including live join/leave and keyboard overflow, and
   FS-12.A40 with a real-browser pass using `fakeacp` agents at 1024px and 1440px in all three
   appearances. Run TS-06 UI closure, style/presentation checks and `make embed`; never edit dist.
+
+- **R139 (planned) — Project-first controls reuse existing state and mutations.** For
+  FS-02.R80–R82, filter group labels by explicit target project through one shared helper and
+  update GroupPicker's existing draft/keyboard handling; reset the group on project change.
+  Preserve launch/identity APIs, validation and server error handling. Extend existing layout
+  storage/GET/PUT with optional `projectGroups[project][label] = {collapsed: boolean}`; retain
+  legacy `groups` as the initial fallback, writing only the selected project's override.
+  Round-trip overrides without changing order/density/expanded panes; missing maps mean no
+  overrides. Phone retains its existing project-keyed state. FS-13.R34/FS-21.R58 use local,
+  initially false Include other projects state over existing eligible lists, not new endpoints
+  or authorization rules. This supersedes R118's global suggestions/explicit create requirement.
+  Verify the cited acceptance criteria with focused tests and one two-project browser pass.
 
 ## 3. Interfaces & data shapes
 

@@ -1,6 +1,6 @@
 # FS-02 — Dashboard (card grid home view)
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src/components/grid/`, `ui/src/store/`, `ui/src/components/shell/NotificationCenter.tsx`, `ui/src/features/settings/NotificationsEditor.tsx`, `ui/src/api/sse.ts` · `internal/bus/`, `internal/state/`, `internal/server/handlers.go` (layout, reconcile) · **Journeys:** J5 (grid & layout), J11 (failure & recovery), J12 (restart durability)
 **Absorbed:** [`agent-dashboard-prd.md`](../../archive/agent-dashboard-prd.md) F1/F2/F11 and the [phase archive manifest](../../archive/phases/README.md)
 
@@ -622,6 +622,24 @@ placement of R6 without the grayscale, shows `status.detail` as its preview (R5)
 "Send a message or Resume to restart it." ("Resume to restart it." for a terminal agent). A plain
 stop keeps the **Stopped** marker.
 
+**R80 (planned) — Project-only groups.** Desktop and phone group pickers suggest labels only
+from non-archived agents in the target project, including stopped agents. No target project means
+no group entry. Changing the launch project clears the group, retaining other form values.
+This supersedes R72's all-project suggestions; existing labels, validation and memberships remain.
+
+**R81 (planned) — Direct group entry.** Typed text is the pending group: Tab, blur and parent
+submission retain it without a separate Create choice. Enter in the open picker accepts that
+text, or an explicitly arrow-highlighted suggestion, and closes the list without submitting the
+form. Blank means Ungrouped; exact trimmed matches reuse a label. Escape dismisses suggestions;
+pointer/touch selection still works. Invalid names show an error and block submission. Cancel
+changes nothing; a failed operation retains the entry. Only successful parent submission creates
+membership, never an empty group. This supersedes R72's explicit Create-choice prerequisite.
+
+**R82 (planned) — Independent collapse.** Desktop group collapse, including Ungrouped, is
+project-specific and survives navigation/reload. Existing saved choices supply the initial
+value until a project overrides it; subsequent toggles affect that project only. Phone keeps
+FS-20.R47. This supersedes R19's shared collapse scope, leaving density/order unchanged.
+
 ## 5. Acceptance criteria
 
 **A1.** Launching an agent adds its card within ~1s with no manual refresh; a status change flips the
@@ -995,7 +1013,25 @@ stored manual order alone".
 **Error** card (`data-state="error"`) with that detail and the restart hint, and no **Stopped**
 marker. — `AgentCard.test.tsx` "distinguishes an agent stopped on error from a plain stop"; J11.
 
+**A61 (planned)** (R80) — With unique/shared labels in two projects, verify project-only
+suggestions on desktop/phone creation and group editing, including stopped/archived members.
+Switch the launch project: group clears, other fields survive. *Verify:* focused form tests
+and a two-project desktop/phone browser journey; retain A57's bulk-action isolation check.
+
+**A62 (planned)** (R81) — Enter accepts a typed new/exact/partial-match name without choosing
+Ungrouped or submitting the form; arrow-selected, pointer and touch choices work. Tab, blur and
+parent submit preserve text; check clear, Escape, Cancel, invalid input and failed-operation
+retry. *Verify:* picker/host-form tests and the A61 browser journey.
+
+**A63 (planned)** (R82) — Load legacy collapse choices, toggle a same-named group/Ungrouped
+in one project, visit the other and reload. Only the first project's choice changes; density,
+order and membership remain. *Verify:* layout round-trip tests and the A61 browser journey.
+
 ## 6. Deviations & open decisions
+
+- **Confirmed 2026-10-24:** R80–R82/A61–A63 are planned; keep this a small change using
+  existing controls and persistence. Project-only annotation/room defaults are FS-13.R34 and
+  FS-21.R58; global navigation/search and agent cross-project permissions remain unchanged.
 
 - R72–R76/A54–A57 scope confirmed: all-project suggestions, desktop/phone creation,
   collapsible phone sections, bidirectional membership updates, project-only bulk actions,

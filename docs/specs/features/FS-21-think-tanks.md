@@ -341,6 +341,12 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   header/cue, transcript, private composer and Send/Steer behavior. No room data, scheduling,
   agent authority, retention or API behavior changes.
 
+- **R58 (planned) — Project-first participant choices.** Existing-agent selection in setup
+  defaults to the originating project. An unchecked **Include other projects** control reveals
+  other eligible agents with project attribution; reset it on opening/project change and clear
+  any unadded outside selection when hidden. Already-added participants remain visible.
+  This narrows R27/R34's initial list only; mixed-project rooms remain supported.
+
 ## 3. States & transitions
 
 The workspace/control upgrade in R43–R51 extends the existing room lifecycle;
@@ -607,6 +613,11 @@ completion; R37 defines partial opening publication and pending input on End.
   absent. *Verify:* focused ChatPanel/ThinkTankTab tests plus keyboard and rendered comparison
   with adjacent Chuck controls at 1024px/wide desktop and a narrow expanded chat pane in Core,
   Sky & Grove and Studio; no clipping, layout jump or motion is required for active emphasis.
+
+- **A41 (planned)** (R58) — From project A, setup initially lists only A's eligible agents.
+  Reveal B's agents explicitly, add one, then hide outside choices: the added row remains and
+  an unadded outside selection clears. Reopen and verify project-only defaults. *Verify:*
+  setup component tests and the existing room-creation browser journey.
 
 ## 6. Deviations & open decisions
 

@@ -203,6 +203,10 @@ evidence is in [their receipt](../archive/reviews/architecture/v0.18.1-next.json
   `v0.18.1-next.json`. ARCH-v019-1 (Must fix, deleted project keeps schedules running) and
   ARCH-v019-2 (Worth fixing, pre-existing intermittent cancel/turn_end CI tests) were reported.
   Schedule crash/outage/migration/cost probes found no duplicate or lost occurrence.
+- **2026-10-24 — Design ready:** [project-scoped groups and selectors](../ready-changes/project-scoped-groups-and-selectors.md)
+  is waiting to start: direct group entry, project-only suggestions, independent collapse and
+  project-first annotation/room pickers. Scope confirmed; keep existing controls and data,
+  with no cross-project permission change. No product code changed.
 - **2026-10-24 — Fix: timed and recurring task starts closed (TTS-1 INV §1, TTS-2 INV §7/§8/§11,
   TTS-3 INV §10):** schedules store their pending occurrence's date and rule time (migration 62)
   and rebase it to the process zone on the first due pass, so a restart in another zone runs at
