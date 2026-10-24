@@ -172,15 +172,25 @@ func (r Rule) Normalize() (Rule, error) {
 // ignores EndCount; callers count occurrences themselves. The rule must be
 // normalized.
 func (r Rule) Next(after time.Time, loc *time.Location) (time.Time, bool) {
+	at, _, ok := r.NextWall(after, loc)
+	return at, ok
+}
+
+// WallLayout names one occurrence by its calendar date and rule time, which
+// stay the same occurrence in any zone.
+const WallLayout = "2006-01-02T15:04"
+
+// NextWall is Next that also names the occurrence in WallLayout.
+func (r Rule) NextWall(after time.Time, loc *time.Location) (time.Time, string, bool) {
 	start, err := parseDate(r.StartDate)
 	if err != nil {
-		return time.Time{}, false
+		return time.Time{}, "", false
 	}
 	var end time.Time
 	hasEnd := r.EndKind == EndUntil
 	if hasEnd {
 		if end, err = parseDate(r.EndDate); err != nil {
-			return time.Time{}, false
+			return time.Time{}, "", false
 		}
 	}
 	type clock struct{ h, m int }
@@ -188,7 +198,7 @@ func (r Rule) Next(after time.Time, loc *time.Location) (time.Time, bool) {
 	for _, s := range r.Times {
 		h, m, err := parseClock(s)
 		if err != nil {
-			return time.Time{}, false
+			return time.Time{}, "", false
 		}
 		clocks = append(clocks, clock{h, m})
 	}
@@ -208,14 +218,24 @@ func (r Rule) Next(after time.Time, loc *time.Location) (time.Time, bool) {
 		if skip == 0 {
 			for _, c := range clocks {
 				if t := wallInstant(day, c.h, c.m, loc); t.After(after) {
-					return t, true
+					return t, time.Date(day.Year(), day.Month(), day.Day(), c.h, c.m, 0, 0, time.UTC).Format(WallLayout), true
 				}
 			}
 			skip = 1
 		}
 		day = day.AddDate(0, 0, skip)
 	}
-	return time.Time{}, false
+	return time.Time{}, "", false
+}
+
+// WallAt returns the instant of a WallLayout occurrence in loc, resolving a
+// skipped or repeated wall time as Next does.
+func WallAt(wall string, loc *time.Location) (time.Time, error) {
+	t, err := time.Parse(WallLayout, wall)
+	if err != nil {
+		return time.Time{}, invalid("occurrence %q must be %s", wall, WallLayout)
+	}
+	return wallInstant(t, t.Hour(), t.Minute(), loc), nil
 }
 
 // daysToEligible is 0 when day (>= start) is an occurrence day, otherwise the

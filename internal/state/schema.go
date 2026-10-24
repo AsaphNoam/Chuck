@@ -866,6 +866,24 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 61,
 		apply:   addTimedStarts,
 	},
+	{
+		// The pending occurrence's calendar date and rule time, so a restart
+		// in another zone recomputes its instant (TS-10.R56). Existing rows
+		// are named from next_due_at on their first pass.
+		version: 62,
+		apply:   addScheduleNextDueWall,
+	},
+}
+
+// addScheduleNextDueWall follows addTimedStarts: a synthetic legacy database
+// without the schedule table has nothing to extend.
+func addScheduleNextDueWall(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'task_schedules'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE task_schedules ADD COLUMN next_due_wall TEXT NOT NULL DEFAULT ''`)
+	return err
 }
 
 // addTimedStarts follows addPipelineControllerFields: a synthetic legacy

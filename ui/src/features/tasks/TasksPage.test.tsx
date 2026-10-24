@@ -26,7 +26,7 @@ const runSummary = {
 
 let lastRequest: { url: string; body: unknown } | null = null;
 let taskLists: Record<string, unknown[] | "error"> = {};
-let scheduleLists: Record<string, unknown[]> = {};
+let scheduleLists: Record<string, unknown[] | "error"> = {};
 const wireSchedules = () => structuredClone(scheduleFixture.schedules);
 
 const server = setupServer(
@@ -48,7 +48,9 @@ const server = setupServer(
   }),
   http.get("/api/schedules", ({ request }) => {
     const project = new URL(request.url).searchParams.get("project") ?? "";
-    return HttpResponse.json({ schedules: scheduleLists[project] ?? [] });
+    const list = scheduleLists[project] ?? [];
+    if (list === "error") return HttpResponse.json({ error: { code: "internal", message: "schedules unavailable" } }, { status: 500 });
+    return HttpResponse.json({ schedules: list });
   }),
   http.post("/api/schedules/:id/:action", ({ params }) => {
     lastRequest = { url: `${params.action}:${params.id}`, body: null };
@@ -314,6 +316,25 @@ describe("Tasks work in motion", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Re-arm" }));
     await waitFor(() => expect(lastRequest?.url).toBe("rearm:tk_s"));
     expect(lastRequest?.body).toEqual({ arms: [] });
+  });
+
+  // FS-16.R23/R51-R52, TS-10.R55/R60 — a missed time arm is re-armed to a future time.
+  it("re-arms to a future time while keeping another prerequisite", async () => {
+    renderPage("/tasks?project=my-app");
+    const row = await openTask("Follow up on removed work");
+    const named = within(row).getByLabelText("Named prerequisite");
+    await within(named).findByRole("option", { name: "Tidy fixtures · ready · tk_r" });
+    fireEvent.change(named, { target: { value: "tk_r" } });
+    fireEvent.change(within(row).getByLabelText(/Start at/), { target: { value: "2030-01-15T09:30" } });
+    expect(within(row).getByLabelText(/Run only on time/)).toBeChecked();
+    expect(within(row).getByText(/Start time: .*\(run only on time\)/)).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Re-arm" }));
+    await waitFor(() => expect(lastRequest?.url).toBe("rearm:tk_s"));
+    expect(lastRequest?.body).toEqual({
+      arms: [{ kind: "work_result", source_kind: "task", source_id: "tk_r", satisfying_outcomes: ["success"] }],
+      start_at: "2030-01-15T09:30",
+      run_only_on_time: true,
+    });
   });
 
   it("keeps a disappeared named source visible after a list refresh", async () => {
@@ -677,6 +698,29 @@ describe("Timed and recurring starts", () => {
     expect(within(await scheduleRow("Quarter close")).getByText(/· missed$/)).toBeInTheDocument();
     // Two parked or interrupted tasks plus the self-paused schedule.
     expect(within(document.querySelector("[data-slot=\"toolbar\"]") as HTMLElement).getByText(/3 need attention/)).toBeInTheDocument();
+  });
+
+  // INV §7/§8: a failed schedule read beside a good task read is an error with retry, never empty or zero.
+  it("reports a failed schedule read with retry instead of an empty list", async () => {
+    scheduleLists["my-app"] = "error";
+    renderPage("/tasks?project=my-app");
+    expect(await screen.findByText("Implement API")).toBeInTheDocument();
+    expect(await screen.findByText(/Schedules for My App could not be loaded/)).toBeInTheDocument();
+    expect(screen.getByText(/\(some projects not loaded\)/)).toBeInTheDocument();
+    scheduleLists["my-app"] = wireSchedules();
+    fireEvent.click(within(screen.getByText(/Schedules for My App could not be loaded/).closest("p") as HTMLElement).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Daily standup notes")).toBeInTheDocument();
+    expect(screen.queryByText(/could not be loaded/)).not.toBeInTheDocument();
+  });
+
+  it("keeps cached schedules and marks them stale when a refresh fails", async () => {
+    scheduleLists["my-app"] = wireSchedules();
+    const { client } = renderPage("/tasks?project=my-app");
+    await screen.findByText("Daily standup notes");
+    scheduleLists["my-app"] = "error";
+    await client.invalidateQueries({ queryKey: ["schedules", "my-app"] });
+    expect(await screen.findByText(/Refreshing failed; showing the last loaded schedules/)).toBeInTheDocument();
+    expect(screen.getByText("Daily standup notes")).toBeInTheDocument();
   });
 
   it("pauses, toggles Run only on time without losing attachments, and confirms delete", async () => {

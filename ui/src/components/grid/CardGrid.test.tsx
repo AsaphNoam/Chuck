@@ -8,6 +8,7 @@ import { MemoryRouter } from "react-router-dom";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { CardGrid, mergeScopedOrder } from "./CardGrid";
+import scheduleFixture from "../../features/tasks/fixtures/scheduleLists.json";
 import { useAgentStore } from "../../store/agentStore";
 import { useUiStore } from "../../store/uiStore";
 import type { AgentState } from "../../api/types";
@@ -489,6 +490,33 @@ describe("CardGrid", () => {
     renderWithQuery(<CardGrid projectID="my-app" projectTitle="My App" />);
     expect(await screen.findByText("Task attention unavailable")).toHaveAttribute("href", "/tasks?project=my-app");
     expect(screen.queryByText("0 tasks need attention")).not.toBeInTheDocument();
+  });
+
+  it("does not claim zero attention when only the schedule query fails", async () => {
+    server.use(
+      http.get("/api/tasks", () => HttpResponse.json({ tasks: [] })),
+      http.get("/api/schedules", () => HttpResponse.json({ error: "unavailable" }, { status: 500 })),
+    );
+    act(() => useAgentStore.setState({ agents: { a_1: agent("a_1") }, order: ["a_1"] }));
+    renderWithQuery(<CardGrid projectID="my-app" projectTitle="My App" />);
+    expect(await screen.findByText("Task attention unavailable")).toHaveAttribute("href", "/tasks?project=my-app");
+    expect(screen.queryByText("0 tasks need attention")).not.toBeInTheDocument();
+  });
+
+  it("keeps cached attention and marks it stale when a refresh fails", async () => {
+    const paused = scheduleFixture.schedules.find((item) => item.state === "paused")!;
+    let fail = false;
+    server.use(
+      http.get("/api/tasks", () => HttpResponse.json({ tasks: [] })),
+      http.get("/api/schedules", () => fail ? HttpResponse.json({ error: "unavailable" }, { status: 500 }) : HttpResponse.json({ schedules: [paused] })),
+    );
+    act(() => useAgentStore.setState({ agents: { a_1: agent("a_1") }, order: ["a_1"] }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+    render(<QueryClientProvider client={qc}><MemoryRouter><CardGrid projectID="my-app" projectTitle="My App" /></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByText("1 task needs attention")).toBeInTheDocument();
+    fail = true;
+    await act(() => qc.invalidateQueries({ queryKey: ["schedules", "my-app"] }));
+    expect(await screen.findByText("1 task needs attention (may be stale)")).toBeInTheDocument();
   });
 
 	 it("keeps task attention visible when the project has no agents", async () => {

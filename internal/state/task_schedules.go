@@ -65,7 +65,9 @@ type TaskSchedule struct {
 	CreatedByAgentID    string `json:"created_by_agent_id,omitempty"`
 	CreatedByGeneration string `json:"created_by_generation,omitempty"`
 
-	NextDueAt          *time.Time `json:"next_due_at,omitempty"`
+	NextDueAt *time.Time `json:"next_due_at,omitempty"`
+	// NextDueWall names NextDueAt's occurrence in recurrence.WallLayout.
+	NextDueWall        string     `json:"-"`
 	OccurrencesElapsed int        `json:"occurrences_elapsed"`
 	LastOccurrenceAt   *time.Time `json:"last_occurrence_at,omitempty"`
 	LastDisposition    string     `json:"last_disposition,omitempty"`
@@ -96,7 +98,7 @@ func (s *Store) CreateSchedule(sched TaskSchedule, creatorAgentID string, loc *t
 		return TaskSchedule{}, fmt.Errorf("%w: %v", ErrScheduleRule, err)
 	}
 	now := timeNow()
-	next, ok := firstOccurrence(rule, now, 0, loc)
+	next, wall, ok := firstOccurrence(rule, now, 0, loc)
 	if !ok {
 		return TaskSchedule{}, fmt.Errorf("%w: the rule has no future occurrence", ErrScheduleRule)
 	}
@@ -115,12 +117,13 @@ func (s *Store) CreateSchedule(sched TaskSchedule, creatorAgentID string, loc *t
 	if _, err := tx.Exec(`
 INSERT INTO task_schedules(schedule_id, project, display_name, instruction, target_kind,
   target_agent_id, role, backend, model, effort, fast, group_name, rule_json, on_time_only, state,
-  created_by_kind, created_by_agent_id, created_by_generation, next_due_at, revision, created_at, updated_at)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  created_by_kind, created_by_agent_id, created_by_generation, next_due_at, next_due_wall, revision,
+  created_at, updated_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sched.ScheduleID, sched.Project, sched.DisplayName, sched.Instruction, sched.TargetKind,
 		sched.TargetAgentID, sched.Role, sched.Backend, sched.Model, sched.Effort, sched.Fast, sched.Group,
 		string(ruleJSON), sched.OnTimeOnly, sched.State, sched.CreatedByKind, sched.CreatedByAgentID,
-		sched.CreatedByGeneration, formatTime(next), sched.Revision, formatTime(now), formatTime(now)); err != nil {
+		sched.CreatedByGeneration, formatTime(next), wall, sched.Revision, formatTime(now), formatTime(now)); err != nil {
 		return TaskSchedule{}, fmt.Errorf("state: insert schedule: %w", err)
 	}
 	if err := insertScheduleAttachments(tx, sched.ScheduleID, sched.Attachments, creatorAgentID); err != nil {
@@ -147,11 +150,11 @@ func insertScheduleAttachments(tx *sql.Tx, scheduleID string, attachments []Task
 
 // firstOccurrence is the next occurrence strictly after `after`, or none when
 // the rule's date end has passed or its count is already used up.
-func firstOccurrence(rule recurrence.Rule, after time.Time, elapsed int, loc *time.Location) (time.Time, bool) {
+func firstOccurrence(rule recurrence.Rule, after time.Time, elapsed int, loc *time.Location) (time.Time, string, bool) {
 	if rule.EndKind == recurrence.EndCount && elapsed >= rule.EndCount {
-		return time.Time{}, false
+		return time.Time{}, "", false
 	}
-	return rule.Next(after, loc)
+	return rule.NextWall(after, loc)
 }
 
 // UpdateSchedule replaces the template and rule under the observed revision.
@@ -168,7 +171,7 @@ func (s *Store) UpdateSchedule(edit TaskSchedule, revision int, creatorAgentID s
 		return TaskSchedule{}, err
 	}
 	now := timeNow()
-	next, ok := firstOccurrence(rule, now, current.OccurrencesElapsed, loc)
+	next, wall, ok := firstOccurrence(rule, now, current.OccurrencesElapsed, loc)
 	nextState := current.State
 	if !ok {
 		nextState = ScheduleFinished
@@ -191,11 +194,11 @@ func (s *Store) UpdateSchedule(edit TaskSchedule, revision int, creatorAgentID s
 	res, err := tx.Exec(`
 UPDATE task_schedules SET display_name = ?, instruction = ?, target_kind = ?, target_agent_id = ?,
   role = ?, backend = ?, model = ?, effort = ?, fast = ?, group_name = ?, rule_json = ?, on_time_only = ?,
-  state = ?, next_due_at = ?, revision = revision + 1, updated_at = ?
+  state = ?, next_due_at = ?, next_due_wall = ?, revision = revision + 1, updated_at = ?
 WHERE schedule_id = ? AND revision = ?`,
 		edit.DisplayName, edit.Instruction, edit.TargetKind, edit.TargetAgentID, edit.Role, edit.Backend,
 		edit.Model, edit.Effort, edit.Fast, edit.Group, string(ruleJSON), edit.OnTimeOnly, nextState, nextDue,
-		formatTime(now), edit.ScheduleID, revision)
+		wall, formatTime(now), edit.ScheduleID, revision)
 	if err != nil {
 		return TaskSchedule{}, fmt.Errorf("state: edit schedule: %w", err)
 	}
@@ -243,7 +246,7 @@ func (s *Store) ResumeSchedule(scheduleID string, loc *time.Location) (TaskSched
 	now := timeNow()
 	elapsed, last := sched.OccurrencesElapsed, sched.LastOccurrenceAt
 	disposition := sched.LastDisposition
-	cursor := sched.NextDueAt
+	cursor, _ := sched.pendingDue(loc)
 	// Count what the pause passed over; the count also ends a count rule.
 	for passed := 0; cursor != nil && !cursor.After(now) && passed < 100*scheduleEnumerationCap; passed++ {
 		if sched.Rule.EndKind == recurrence.EndCount && elapsed >= sched.Rule.EndCount {
@@ -258,17 +261,17 @@ func (s *Store) ResumeSchedule(scheduleID string, loc *time.Location) (TaskSched
 		}
 		cursor = &next
 	}
-	state, nextDue := ScheduleActive, any(nil)
-	if next, ok := firstOccurrence(sched.Rule, now, elapsed, loc); ok {
-		nextDue = formatTime(next)
+	state, nextDue, nextWall := ScheduleActive, any(nil), ""
+	if next, wall, ok := firstOccurrence(sched.Rule, now, elapsed, loc); ok {
+		nextDue, nextWall = formatTime(next), wall
 	} else {
 		state = ScheduleFinished
 	}
 	res, err := s.db.Exec(`
-UPDATE task_schedules SET state = ?, pause_reason = '', next_due_at = ?, occurrences_elapsed = ?,
-  last_occurrence_at = ?, last_disposition = ?, revision = revision + 1, updated_at = ?
+UPDATE task_schedules SET state = ?, pause_reason = '', next_due_at = ?, next_due_wall = ?,
+  occurrences_elapsed = ?, last_occurrence_at = ?, last_disposition = ?, revision = revision + 1, updated_at = ?
 WHERE schedule_id = ? AND revision = ? AND state = ?`,
-		state, nextDue, elapsed, formatOptionalTime(last), disposition, formatTime(now),
+		state, nextDue, nextWall, elapsed, formatOptionalTime(last), disposition, formatTime(now),
 		scheduleID, sched.Revision, SchedulePaused)
 	if err != nil {
 		return TaskSchedule{}, fmt.Errorf("state: resume schedule: %w", err)
@@ -317,6 +320,12 @@ type ScheduleOutcome struct {
 // returns why the schedule's target cannot run now, or "" when it can; a
 // non-empty reason pauses the schedule instead of creating a task (R59).
 func (s *Store) ProcessDueSchedules(limit int, loc *time.Location, unavailable func(TaskSchedule) string) ([]ScheduleOutcome, error) {
+	if s.scheduleZone.Load() != loc {
+		if err := s.rebaseSchedules(loc); err != nil {
+			return nil, err
+		}
+		s.scheduleZone.Store(loc)
+	}
 	rows, err := s.db.Query(`
 SELECT schedule_id FROM task_schedules WHERE state = ? AND next_due_at <= ?
 ORDER BY next_due_at, schedule_id LIMIT ?`, ScheduleActive, formatTime(timeNow()), limit)
@@ -356,6 +365,69 @@ ORDER BY next_due_at, schedule_id LIMIT ?`, ScheduleActive, formatTime(timeNow()
 	return outcomes, firstErr
 }
 
+// pendingDue is the unhandled occurrence's instant in loc and its name. A
+// row written before names were stored is named from its instant in loc.
+func (sched TaskSchedule) pendingDue(loc *time.Location) (*time.Time, string) {
+	if sched.NextDueAt == nil {
+		return nil, ""
+	}
+	wall := sched.NextDueWall
+	if wall == "" {
+		wall = sched.NextDueAt.In(loc).Format(recurrence.WallLayout)
+	}
+	at, err := recurrence.WallAt(wall, loc)
+	if err != nil {
+		return sched.NextDueAt, wall
+	}
+	return &at, wall
+}
+
+// rebaseSchedules moves each pending occurrence to its instant in loc, so a
+// restart in another zone neither runs it at the old zone's time nor replays
+// a handled one (FS-16.R54/R58, TS-10.R56).
+func (s *Store) rebaseSchedules(loc *time.Location) error {
+	rows, err := s.db.Query(`SELECT schedule_id, next_due_at, next_due_wall FROM task_schedules
+WHERE state IN (?, ?) AND next_due_at IS NOT NULL`, ScheduleActive, SchedulePaused)
+	if err != nil {
+		return fmt.Errorf("state: list schedules to rebase: %w", err)
+	}
+	type move struct {
+		id   string
+		at   time.Time
+		wall string
+	}
+	var moves []move
+	for rows.Next() {
+		var sched TaskSchedule
+		var nextDue string
+		if err := rows.Scan(&sched.ScheduleID, &nextDue, &sched.NextDueWall); err != nil {
+			rows.Close()
+			return fmt.Errorf("state: scan schedule to rebase: %w", err)
+		}
+		stored, err := parseTime(nextDue)
+		if err != nil {
+			// One bad row is left for its own pass to report (INV §7).
+			continue
+		}
+		sched.NextDueAt = &stored
+		if at, wall := sched.pendingDue(loc); !at.Equal(stored) || wall != sched.NextDueWall {
+			moves = append(moves, move{sched.ScheduleID, *at, wall})
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return fmt.Errorf("state: iterate schedules to rebase: %w", err)
+	}
+	for _, m := range moves {
+		if _, err := s.db.Exec(`UPDATE task_schedules SET next_due_at = ?, next_due_wall = ? WHERE schedule_id = ?`,
+			formatTime(m.at), m.wall, m.id); err != nil {
+			return fmt.Errorf("state: rebase schedule %s: %w", m.id, err)
+		}
+	}
+	return nil
+}
+
 func (s *Store) processDueSchedule(id string, loc *time.Location, unavailable func(TaskSchedule) string) (ScheduleOutcome, bool, error) {
 	sched, err := s.ReadSchedule(id)
 	if err != nil || sched.State != ScheduleActive || sched.NextDueAt == nil {
@@ -365,14 +437,15 @@ func (s *Store) processDueSchedule(id string, loc *time.Location, unavailable fu
 	// Enumerate every elapsed occurrence up to now, bounded by the rule's end
 	// and the per-pass cap.
 	var due []time.Time
-	cursor, more := *sched.NextDueAt, true
+	start, wall := sched.pendingDue(loc)
+	cursor, more := *start, true
 	for more && !cursor.After(now) && len(due) < scheduleEnumerationCap {
 		if sched.Rule.EndKind == recurrence.EndCount && sched.OccurrencesElapsed+len(due) >= sched.Rule.EndCount {
 			more = false
 			break
 		}
 		due = append(due, cursor)
-		cursor, more = sched.Rule.Next(cursor, loc)
+		cursor, wall, more = sched.Rule.NextWall(cursor, loc)
 	}
 	if len(due) == 0 {
 		return ScheduleOutcome{}, false, nil
@@ -399,8 +472,9 @@ func (s *Store) processDueSchedule(id string, loc *time.Location, unavailable fu
 		state = ScheduleFinished
 	}
 	var nextDue any
+	nextWall := ""
 	if more {
-		nextDue = formatTime(cursor)
+		nextDue, nextWall = formatTime(cursor), wall
 	}
 
 	// The store has one connection, so the id is minted before the
@@ -428,10 +502,11 @@ func (s *Store) processDueSchedule(id string, loc *time.Location, unavailable fu
 	// Task creation and schedule advancement commit together under the
 	// observed revision, so no occurrence is created twice (FS-16.R58, INV §15).
 	res, err := tx.Exec(`
-UPDATE task_schedules SET state = ?, pause_reason = ?, next_due_at = ?, occurrences_elapsed = ?,
-  last_occurrence_at = ?, last_disposition = ?, last_task_id = ?, revision = revision + 1, updated_at = ?
+UPDATE task_schedules SET state = ?, pause_reason = ?, next_due_at = ?, next_due_wall = ?,
+  occurrences_elapsed = ?, last_occurrence_at = ?, last_disposition = ?, last_task_id = ?,
+  revision = revision + 1, updated_at = ?
 WHERE schedule_id = ? AND revision = ? AND state = ?`,
-		state, reason, nextDue, elapsed, formatTime(latest), disposition, lastTaskID, formatTime(now),
+		state, reason, nextDue, nextWall, elapsed, formatTime(latest), disposition, lastTaskID, formatTime(now),
 		id, sched.Revision, ScheduleActive)
 	if err != nil {
 		return ScheduleOutcome{}, false, fmt.Errorf("state: advance schedule: %w", err)
@@ -485,7 +560,7 @@ func insertOccurrenceTask(tx *sql.Tx, id string, sched TaskSchedule, occurrence 
 const scheduleSelect = `
 SELECT schedule_id, project, display_name, instruction, target_kind, target_agent_id, role, backend,
   model, effort, fast, group_name, rule_json, on_time_only, state, pause_reason, created_by_kind,
-  created_by_agent_id, created_by_generation, next_due_at, occurrences_elapsed, last_occurrence_at,
+  created_by_agent_id, created_by_generation, next_due_at, next_due_wall, occurrences_elapsed, last_occurrence_at,
   last_disposition, last_task_id, revision, created_at, updated_at
 FROM task_schedules`
 
@@ -556,7 +631,7 @@ func scanSchedule(row rowScanner) (TaskSchedule, error) {
 		&sched.TargetKind, &sched.TargetAgentID, &sched.Role, &sched.Backend, &sched.Model, &sched.Effort,
 		&sched.Fast, &sched.Group, &ruleJSON, &sched.OnTimeOnly, &sched.State, &sched.PauseReason,
 		&sched.CreatedByKind, &sched.CreatedByAgentID, &sched.CreatedByGeneration, &nextDue,
-		&sched.OccurrencesElapsed, &lastAt, &sched.LastDisposition, &sched.LastTaskID, &sched.Revision,
+		&sched.NextDueWall, &sched.OccurrencesElapsed, &lastAt, &sched.LastDisposition, &sched.LastTaskID, &sched.Revision,
 		&createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return TaskSchedule{}, err

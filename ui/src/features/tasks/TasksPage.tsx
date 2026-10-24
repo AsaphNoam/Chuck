@@ -309,11 +309,13 @@ function GroupView({ group, open, onToggle, onSignal, collapsed, pinned, onToggl
   );
 }
 
-function ProjectSection({ project, title, query, schedules, projects, focused, open, onToggle, onSignal, busy, onBusyChange }: {
+type ScheduleRead = { data?: Schedule[]; isError: boolean; refetch: () => unknown };
+
+function ProjectSection({ project, title, query, scheduleQuery, projects, focused, open, onToggle, onSignal, busy, onBusyChange }: {
   project: string;
   title: string;
   query: { data?: Task[]; isLoading: boolean; isError: boolean; error: unknown; refetch: () => unknown };
-  schedules: Schedule[];
+  scheduleQuery: ScheduleRead;
   projects: string[];
   focused: boolean;
   open: Set<string>;
@@ -367,7 +369,9 @@ function ProjectSection({ project, title, query, schedules, projects, focused, o
   }, [project, query.data]);
   const pinned = useMemo(() => new Set([...open, ...busy]), [open, busy]);
   const headingID = `tasks-project-${project}`;
-  if (work && query.data!.length === 0 && schedules.length === 0 && !focused && !query.isError) return null;
+  const schedules = scheduleQuery.data ?? [];
+  // An unavailable schedule list is not an empty one: the section stays so the failure and retry show.
+  if (work && query.data!.length === 0 && scheduleQuery.data && schedules.length === 0 && !focused && !query.isError && !scheduleQuery.isError) return null;
   // A schedule that paused itself is attention like parked work (FS-16.R57).
   const attention = (work?.attention ?? 0) + schedules.filter(scheduleNeedsAttention).length;
 
@@ -397,6 +401,12 @@ function ProjectSection({ project, title, query, schedules, projects, focused, o
               collapsed={collapsed} pinned={pinned} onToggleCollapse={toggleCollapse} onReveal={reveal} onBusyChange={onBusyChange} />
           ))}
         </div>
+      )}
+      {scheduleQuery.isError && (
+        <p className="form-error" role="alert">
+          {scheduleQuery.data ? "Refreshing failed; showing the last loaded schedules, which may be stale. " : `Schedules for ${title} could not be loaded. `}
+          <Button onClick={() => void scheduleQuery.refetch()}>Try again</Button>
+        </p>
       )}
       <ScheduleList project={project} schedules={schedules} tasks={query.data ?? []} projects={projects} />
       {work && work.history.length > 0 && (
@@ -453,12 +463,13 @@ export function TasksPage() {
   };
 
   const loaded = queries.filter((query) => query.data);
-  const incomplete = loaded.length < queries.length || queries.some((query) => query.isError);
+  const incomplete = loaded.length < queries.length || queries.some((query) => query.isError)
+    || scheduleQueries.some((query) => !query.data || query.isError);
   const unfinished = loaded.reduce((total, query) => total + query.data!.filter((task) => task.state !== "finished").length, 0);
   const attention = loaded.reduce((total, query) => total + query.data!.filter(needsAttention).length, 0)
     + scope.reduce((total, _, index) => total + schedulesOf(index).filter(scheduleNeedsAttention).length, 0);
   const globallyEmpty = focus === ALL && queries.length > 0 && !incomplete && loaded.every((query) => query.data!.length === 0)
-    && scheduleQueries.every((query) => (query.data ?? []).length === 0);
+    && scheduleQueries.every((query) => query.data && !query.isError && query.data.length === 0);
 
   return (
     <div className="tasks-page" data-ui="tasks">
@@ -492,7 +503,7 @@ export function TasksPage() {
           project={project}
           title={catalog[project]?.title || project}
           query={queries[index]}
-          schedules={schedulesOf(index)}
+          scheduleQuery={scheduleQueries[index]}
           projects={projectNames}
           focused={focus !== ALL}
           open={open}

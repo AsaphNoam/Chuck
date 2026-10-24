@@ -198,6 +198,8 @@ export function RearmForm({ task, onError }: { task: Task; onError: (message: st
   const runsQuery = usePipelineRuns();
   const [selection, setSelection] = useState<WorkPrerequisiteSelection>(EMPTY_SELECTION);
   const [signal, setSignal] = useState("");
+  const [startAt, setStartAt] = useState("");
+  const [onTimeOnly, setOnTimeOnly] = useState(true);
   const [validationError, setValidationError] = useState("");
   const tasks = tasksQuery.data ?? [];
   const runs = (runsQuery.data?.pages ?? []).flatMap((page) => page.runs);
@@ -216,10 +218,16 @@ export function RearmForm({ task, onError }: { task: Task; onError: (message: st
         setValidationError("");
         onError("");
         rearm
-          .mutateAsync({ taskID: task.task_id, arms: dependencyArms(selection, signal) })
+          .mutateAsync({
+            taskID: task.task_id,
+            arms: dependencyArms(selection, signal),
+            start_at: startAt || undefined,
+            run_only_on_time: startAt ? onTimeOnly : undefined,
+          })
           .then(() => {
             setSelection(EMPTY_SELECTION);
             setSignal("");
+            setStartAt("");
           })
           .catch((err: unknown) => onError(errorMessage(err)));
       }}
@@ -229,13 +237,15 @@ export function RearmForm({ task, onError }: { task: Task; onError: (message: st
         {currentArms.length === 0 ? <p>None.</p> : <ul>{currentArms.map((arm) => <li key={arm.arm_id}>{armDescription(arm, tasks, runs)}</li>)}</ul>}
         <p>Re-arm replaces this entire wait set. Any wait not listed below will be removed. An empty replacement removes all waits.</p>
         <strong>Proposed replacement</strong>
-        {selection.sourceID.trim() || signal.trim() ? (
+        {selection.sourceID.trim() || signal.trim() || startAt ? (
           <ul>
+            {startAt && <li>Start time: {startTimeLabel(startAt)}{onTimeOnly ? " (run only on time)" : ""}</li>}
             {selection.sourceID.trim() && <li>{sourceLabel(selection.sourceKind, selection.sourceID.trim(), tasks, runs)} → {selection.outcomes.join(" or ") || "no outcomes selected"}</li>}
             {signal.trim() && <li>Signal: {signal.trim()}</li>}
           </ul>
         ) : <p>None — this removes all waits.</p>}
       </div>
+      <StartAtFields startAt={startAt} onTimeOnly={onTimeOnly} onStartAt={setStartAt} onOnTimeOnly={setOnTimeOnly} />
       <PrerequisitePicker project={project} selection={selection} onChange={setSelection} tasksQuery={tasksQuery} runsQuery={runsQuery} omitTaskID={task.task_id} idPrefix={`rearm-${task.task_id}`} />
       <details className="task-advanced">
         <summary>Advanced signals</summary>
@@ -340,6 +350,21 @@ export function RunOnlyOnTimeField({ checked, onChange }: { checked: boolean; on
   );
 }
 
+/** StartAtFields is the one timed-start input for task create and re-arm. */
+function StartAtFields({ startAt, onTimeOnly, onStartAt, onOnTimeOnly }: {
+  startAt: string;
+  onTimeOnly: boolean;
+  onStartAt: (value: string) => void;
+  onOnTimeOnly: (checked: boolean) => void;
+}) {
+  return (
+    <>
+      <label>Start at (optional)<input type="datetime-local" value={startAt} onChange={(e) => onStartAt(e.target.value)} /></label>
+      {startAt && <RunOnlyOnTimeField checked={onTimeOnly} onChange={onOnTimeOnly} />}
+    </>
+  );
+}
+
 /** CreateTaskForm owns its concrete project. Changing the project clears only the
  *  dependency choice that belonged to the old project (FS-16.R40/R45). */
 export function CreateTaskForm({ projects, initialProject }: { projects: string[]; initialProject: string }) {
@@ -423,8 +448,7 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
         <AutoGrowTextarea value={instruction} onChange={(e) => setInstruction(e.target.value)} required />
       </label>
       <TargetFields project={project} draft={target} onChange={setTarget} />
-      <label>Start at (optional)<input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} /></label>
-      {startAt && <RunOnlyOnTimeField checked={onTimeOnly} onChange={setOnTimeOnly} />}
+      <StartAtFields startAt={startAt} onTimeOnly={onTimeOnly} onStartAt={setStartAt} onOnTimeOnly={setOnTimeOnly} />
       {project && <PrerequisitePicker project={project} selection={selection} onChange={setSelection} tasksQuery={tasksQuery} runsQuery={runsQuery} idPrefix="create" />}
       <details className="task-advanced">
         <summary>Advanced signal and context</summary>

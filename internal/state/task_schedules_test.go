@@ -2,6 +2,7 @@ package state
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -231,5 +232,79 @@ func TestScheduleWithoutAFutureOccurrenceIsRefused(t *testing.T) {
 	}
 	if list, _ := st.ListSchedules("p"); len(list) != 0 {
 		t.Fatalf("refused schedule was written: %+v", list)
+	}
+}
+
+// reopenStore closes st and opens the same home again, as a restart does.
+func reopenStore(t *testing.T, st *Store, home string) *Store {
+	t.Helper()
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	st, err := Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	return st
+}
+
+// FS-16.R54/R58, TS-10.R56 — after a restart in a zone west of the one that
+// handled an occurrence, the next occurrence runs at the new zone's 09:00,
+// and the occurrence already handled is not replayed.
+func TestScheduleRestartWestMovesPendingOccurrenceWithoutReplay(t *testing.T) {
+	home := t.TempDir()
+	setNow(t, time.UTC, "2026-01-01 12:00:00")
+	st, err := Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sched := newSchedule(t, st, time.UTC, recurrence.Rule{StartDate: "2026-01-02", Times: []string{"09:00"},
+		Frequency: recurrence.FreqDaily, EndKind: recurrence.EndNever}, true)
+	if got := processAt(t, st, time.UTC, "2026-01-02 09:00:01", nil); len(got) != 1 || got[0].Task == nil {
+		t.Fatalf("first occurrence in UTC: %+v", got)
+	}
+
+	st = reopenStore(t, st, home)
+	loc := newYork(t)
+	for _, wall := range []string{"2026-01-02 09:00:01", "2026-01-03 04:00:01"} {
+		if got := processAt(t, st, loc, wall, nil); len(got) != 0 {
+			t.Fatalf("New York %s created %+v", wall, got)
+		}
+	}
+	got := processAt(t, st, loc, "2026-01-03 09:00:01", nil)
+	if len(got) != 1 || got[0].Task == nil || got[0].Task.LateStart ||
+		!got[0].Task.ScheduledFor.Equal(time.Date(2026, 1, 3, 9, 0, 0, 0, loc)) ||
+		got[0].Schedule.OccurrencesElapsed != 2 {
+		t.Fatalf("schedule %s at New York 09:00: %+v", sched.ScheduleID, got)
+	}
+}
+
+// FS-16.R54/R58, TS-10.R56 — after a restart east of the creating zone, an
+// on-time-only occurrence runs at the new zone's 09:00 rather than being
+// missed at the old instant, and the count still ends the rule.
+func TestScheduleRestartEastRunsOnTimeAndKeepsCount(t *testing.T) {
+	home := t.TempDir()
+	loc := newYork(t)
+	setNow(t, loc, "2026-01-01 12:00:00")
+	st, err := Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newSchedule(t, st, loc, recurrence.Rule{StartDate: "2026-01-02", Times: []string{"09:00"},
+		Frequency: recurrence.FreqDaily, EndKind: recurrence.EndCount, EndCount: 2}, true)
+
+	st = reopenStore(t, st, home)
+	for _, day := range []int{2, 3} {
+		got := processAt(t, st, time.UTC, fmt.Sprintf("2026-01-%02d 09:00:01", day), nil)
+		if len(got) != 1 || got[0].Task == nil || got[0].Task.LateStart ||
+			!got[0].Task.ScheduledFor.Equal(time.Date(2026, 1, day, 9, 0, 0, 0, time.UTC)) ||
+			got[0].Schedule.OccurrencesElapsed != day-1 {
+			t.Fatalf("UTC 09:00 on Jan %d: %+v", day, got)
+		}
+	}
+	list, _ := st.ListSchedules("p")
+	if len(list) != 1 || list[0].State != ScheduleFinished {
+		t.Fatalf("count rule did not finish: %+v", list)
 	}
 }

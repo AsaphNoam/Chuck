@@ -43,7 +43,8 @@ func putJSON(t *testing.T, url string, body any) (*http.Response, []byte) {
 // pass first; either way the durable row is the result.
 func makeDue(t *testing.T, srv *Server, scheduleID string) state.TaskSchedule {
 	t.Helper()
-	if _, err := srv.stateStore.DB().Exec(`UPDATE task_schedules SET next_due_at = ? WHERE schedule_id = ?`,
+	// Clearing the occurrence name makes the rewritten instant authoritative.
+	if _, err := srv.stateStore.DB().Exec(`UPDATE task_schedules SET next_due_at = ?, next_due_wall = '' WHERE schedule_id = ?`,
 		time.Now().Add(-time.Second).UTC().Format(time.RFC3339), scheduleID); err != nil {
 		t.Fatal(err)
 	}

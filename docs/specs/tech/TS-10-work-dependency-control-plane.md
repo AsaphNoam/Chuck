@@ -621,7 +621,9 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   a one-time `start_at` as RFC 3339 with an offset, or as offset-free `YYYY-MM-DDTHH:MM` interpreted
   in the server process's `time.Local`; the stored instant is UTC. Schedule rules store wall-clock
   `HH:MM` times and calendar dates, never instants, and each occurrence is computed in `time.Local`
-  when it is due. Go's `time.Date` does not define which result it returns for a skipped or repeated
+  when it is due. The pending occurrence is also stored by name (`next_due_wall`, its date and rule
+  time), so the first due pass in a process rebases it to that zone: after a restart in another
+  zone it occurs at its wall time there, and no handled occurrence is replayed or recounted. Go's `time.Date` does not define which result it returns for a skipped or repeated
   wall time (`go doc time.Date`), so occurrence computation must not rely on it: a skipped time
   resolves to the first valid minute after the gap, and a repeated time to its earlier instant.
 - **R57 (shipped 2026-10-23) — A schedule is one durable row that advances by compare-and-set.**

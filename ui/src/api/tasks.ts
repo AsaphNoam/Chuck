@@ -157,8 +157,9 @@ export function useRecordTaskResult(project: string | undefined) {
 }
 
 export function useRearmTask(project: string | undefined) {
-  return useTaskAction(project, (input: { taskID: string; arms: TaskArmInput[] }) =>
-    request(`/api/tasks/${encodeURIComponent(input.taskID)}/rearm`, taskSchema, json({ arms: input.arms })));
+  return useTaskAction(project, (input: { taskID: string; arms: TaskArmInput[]; start_at?: string; run_only_on_time?: boolean }) =>
+    request(`/api/tasks/${encodeURIComponent(input.taskID)}/rearm`, taskSchema,
+      json({ arms: input.arms, start_at: input.start_at, run_only_on_time: input.run_only_on_time })));
 }
 
 export function useDeleteTask(project: string | undefined) {

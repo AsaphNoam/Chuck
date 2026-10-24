@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -13,6 +15,8 @@ import (
 type Store struct {
 	db   *sql.DB
 	home string
+	// scheduleZone is the zone schedule due times were last rebased to.
+	scheduleZone atomic.Pointer[time.Location]
 }
 
 // Open opens home/state.db, enables WAL and foreign keys, applies migrations,

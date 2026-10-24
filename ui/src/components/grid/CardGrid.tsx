@@ -35,15 +35,18 @@ import { CollapseAllIcon } from "../ui/icons";
  *  in view need a person, opening the Tasks view (FS-02.R44). The card grid
  *  itself gains no task object — an armed task has no agent and so no card. */
 function TaskAttentionLink({ projectID }: { projectID?: string }) {
-  const { data: tasks, isError } = useTasks(projectID);
-  const { data: schedules } = useSchedules(projectID);
+  const { data: tasks, isError: tasksError } = useTasks(projectID);
+  const { data: schedules, isError: schedulesError } = useSchedules(projectID);
+  // A failed read with nothing cached is unavailable, never zero; a failed refresh keeps the cached count marked stale.
+  const unavailable = (tasksError && !tasks) || (schedulesError && !schedules);
+  const stale = !unavailable && (tasksError || schedulesError);
   // A schedule that paused itself counts like parked work (FS-16.R57).
   const count = (tasks ?? []).filter((task) => needsAttention(task)).length
     + (schedules ?? []).filter(scheduleNeedsAttention).length;
   if (!projectID) return null;
   return (
     <Link className="task-attention-link" to={`/tasks?project=${encodeURIComponent(projectID)}`}>
-      {isError ? "Task attention unavailable" : `${count} task${count === 1 ? "" : "s"} ${count === 1 ? "needs" : "need"} attention`}
+      {unavailable ? "Task attention unavailable" : `${count} task${count === 1 ? "" : "s"} ${count === 1 ? "needs" : "need"} attention${stale ? " (may be stale)" : ""}`}
     </Link>
   );
 }
