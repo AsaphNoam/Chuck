@@ -212,6 +212,9 @@ remain in the archive/release notes; exact repair and affected coverage are in t
   approved loopback access; the first sandboxed attempt was stopped after loopback bind failures.
   `make build` and diff checks pass. FS-03.A5 records the coverage. REL-CI is closed; TTS-1–3
   remain open. No live-provider receipt or new CI run is claimed.
+- **2026-10-23 — Design in progress:** file-viewer tabs recorded under Ideas being defined.
+  The requested open/close/reorder behavior needs scope confirmation for duplicate files,
+  reader lifetime and supported surfaces before technical design. No product code changed.
 - **2026-10-23 — v0.18.1 published:** explicit operator approval covered the 23-commit push
   and tag at `dc979057`. Release CI 39959315460 passed; archive, manifest and installer are
   attached, and downloaded archive checksum/size match. Main CI failed twice on REL-CI-1;

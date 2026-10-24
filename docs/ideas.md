@@ -33,6 +33,12 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **File-viewer tabs.** Requested 2026-10-23 through `/design-feature`: opening a file or
+  following a file link should retain the previous file in a tab; tabs can be closed and
+  reordered. Shape this within the existing reader rather than adding another file browser.
+  Pending scope confirmation: duplicate-file behavior, reader lifetime and restoration,
+  desktop/phone/room coverage, and per-tab reading-position retention. No technical design or
+  implementation is approved yet.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;
