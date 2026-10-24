@@ -32,6 +32,14 @@
       "closes": ["ARCH-v019-1", "ARCH-v019-2"],
       "verified": true,
       "evidence": "ARCH-v019-1: scheduleUnavailable treats a missing project as 'the project was deleted'; TestDeletedProjectPausesSchedule failed before the fix (schedule active, disposition created, one task) and passes after, with resume refused target_ineligible; server Schedule tests pass. ARCH-v019-2: both cancel tests wait for the turn gate after turn_end; before, -race -count=20 failed 38 of 40; after, -race -count=20 and unraced -count=100 pass. The run 39101397073 line-37 symptom ran at f54ce47a, before a60a0b33 scoped fakeacp cancel to the in-flight prompt (sticky cancel ended turn 3 early). make test (both variants) and make build pass."
+    },
+    {
+      "kind": "coverage",
+      "commits": [
+        "0f6fe87d7586af484da62c976f82684d8c197946"
+      ],
+      "verified": true,
+      "evidence": "Design-only commit: every changed file is under docs/ (planned FS-02.R80-R82/A61-A63 and related planned FS-13/FS-21/TS-08 items, ready-change brief, handoff). No product code, generated UI, migration, shipped operating-chuck package or release-matched install text changed, so no shipped behavior is affected. make check-specs and git diff --check pass on a clean worktree at that commit's descendant main."
     }
   ]
 }
