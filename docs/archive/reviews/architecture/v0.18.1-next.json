@@ -21,5 +21,17 @@
     { "id": "ARCH-v019-1", "severity": "must_fix" },
     { "id": "ARCH-v019-2", "severity": "worth_fixing" }
   ],
-  "updates": []
+  "updates": [
+    {
+      "kind": "fix",
+      "commits": [
+        "4b2158148e9307b0c69325268fece2e78a7f6b20",
+        "bdaa43e9642f438f9b1bc5d080779223455f00b2"
+      ],
+      "finding_ids": ["ARCH-v019-1", "ARCH-v019-2"],
+      "closes": ["ARCH-v019-1", "ARCH-v019-2"],
+      "verified": true,
+      "evidence": "ARCH-v019-1: scheduleUnavailable treats a missing project as 'the project was deleted'; TestDeletedProjectPausesSchedule failed before the fix (schedule active, disposition created, one task) and passes after, with resume refused target_ineligible; server Schedule tests pass. ARCH-v019-2: both cancel tests wait for the turn gate after turn_end; before, -race -count=20 failed 38 of 40; after, -race -count=20 and unraced -count=100 pass. The run 39101397073 line-37 symptom ran at f54ce47a, before a60a0b33 scoped fakeacp cancel to the in-flight prompt (sticky cancel ended turn 3 early). make test (both variants) and make build pass."
+    }
+  ]
 }
