@@ -204,6 +204,7 @@ export interface Layout {
   order: string[];
   density: { perRow: number; gap: number };
   groups?: Record<string, { collapsed: boolean }>;
+  projectGroups?: Record<string, Record<string, { collapsed: boolean }>>;
   expanded?: string[];
 }
 

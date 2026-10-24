@@ -31,9 +31,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
     or arrow-highlighted suggestion, no Create option); `projectGroupLabels`/`groupNameError`
     live in `ui/src/components/ui/GroupPicker.tsx` and serve all four callers. Focused
     `GroupPicker`/`NewAgentModal`/`ProjectScreen`/grid/remote tests and `tsc` pass.
-  - **Next:** R82 — optional `projectGroups[project][label].collapsed` in layout (Go
-    `handlers.go` layout/config round-trip + UI `CardGrid` collapse), legacy `groups` fallback.
-    Then FS-13.R34 (AnnotationTray/AnnotationForm) and FS-21.R58 (ThinkTankSetupDialog)
+    R82 — layout carries optional `projectGroups` (Go `layoutResponse`/`config.Layout.ProjectGroups`
+    as `project_groups`); `uiStore.groupCollapsed` falls back to legacy `groups`; `CardGrid`
+    toggles write the scoped project only. `go test ./internal/server -run Layout` and grid/store
+    vitest pass.
+  - **Next:** FS-13.R34 (AnnotationTray/AnnotationForm) and FS-21.R58 (ThinkTankSetupDialog)
     Include other projects toggles, then one two-project desktop/phone browser pass (A61–A63,
     A24, A41) and UI + Go closure.
 

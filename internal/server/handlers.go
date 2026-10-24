@@ -168,12 +168,15 @@ func (s *Server) handleLayout(w http.ResponseWriter, _ *http.Request) {
 }
 
 type layoutResponse struct {
-	Order   []string      `json:"order"`
-	Density layoutDensity `json:"density"`
-	Groups  map[string]struct {
-		Collapsed bool `json:"collapsed"`
-	} `json:"groups,omitempty"`
-	Expanded []string `json:"expanded"`
+	Order         []string                          `json:"order"`
+	Density       layoutDensity                     `json:"density"`
+	Groups        map[string]layoutGroup            `json:"groups,omitempty"`
+	ProjectGroups map[string]map[string]layoutGroup `json:"projectGroups,omitempty"`
+	Expanded      []string                          `json:"expanded"`
+}
+
+type layoutGroup struct {
+	Collapsed bool `json:"collapsed"`
 }
 
 type layoutDensity struct {
@@ -182,21 +185,28 @@ type layoutDensity struct {
 }
 
 func layoutFromConfig(l config.Layout) layoutResponse {
-	groups := map[string]struct {
-		Collapsed bool `json:"collapsed"`
-	}{}
+	groups := map[string]layoutGroup{}
 	for name, g := range l.Groups {
-		groups[name] = struct {
-			Collapsed bool `json:"collapsed"`
-		}{Collapsed: g.Collapsed}
+		groups[name] = layoutGroup{Collapsed: g.Collapsed}
+	}
+	var projectGroups map[string]map[string]layoutGroup
+	if len(l.ProjectGroups) > 0 {
+		projectGroups = map[string]map[string]layoutGroup{}
+		for project, labels := range l.ProjectGroups {
+			projectGroups[project] = map[string]layoutGroup{}
+			for name, g := range labels {
+				projectGroups[project][name] = layoutGroup{Collapsed: g.Collapsed}
+			}
+		}
 	}
 	order := append([]string{}, l.Order...)
 	expanded := append([]string{}, l.Expanded...)
 	return layoutResponse{
-		Order:    order,
-		Density:  layoutDensity{PerRow: l.Density.CardsPerRow, Gap: l.Density.Gap},
-		Groups:   groups,
-		Expanded: expanded,
+		Order:         order,
+		Density:       layoutDensity{PerRow: l.Density.CardsPerRow, Gap: l.Density.Gap},
+		Groups:        groups,
+		ProjectGroups: projectGroups,
+		Expanded:      expanded,
 	}
 }
 
@@ -205,13 +215,24 @@ func (l layoutResponse) toConfig() config.Layout {
 	for name, g := range l.Groups {
 		groups[name] = config.GroupLayout{Collapsed: g.Collapsed}
 	}
+	var projectGroups map[string]map[string]config.GroupLayout
+	if len(l.ProjectGroups) > 0 {
+		projectGroups = map[string]map[string]config.GroupLayout{}
+		for project, labels := range l.ProjectGroups {
+			projectGroups[project] = map[string]config.GroupLayout{}
+			for name, g := range labels {
+				projectGroups[project][name] = config.GroupLayout{Collapsed: g.Collapsed}
+			}
+		}
+	}
 	order := append([]string{}, l.Order...)
 	expanded := append([]string{}, l.Expanded...)
 	return config.Layout{
-		Order:    order,
-		Density:  config.Density{CardsPerRow: l.Density.PerRow, Gap: l.Density.Gap},
-		Groups:   groups,
-		Expanded: expanded,
+		Order:         order,
+		Density:       config.Density{CardsPerRow: l.Density.PerRow, Gap: l.Density.Gap},
+		Groups:        groups,
+		ProjectGroups: projectGroups,
+		Expanded:      expanded,
 	}
 }
 

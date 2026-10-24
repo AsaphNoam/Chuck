@@ -16,12 +16,15 @@ export interface ToastItem {
 interface UiStoreState {
   density: { perRow: number; gap: number };
   groupLayout: Record<string, { collapsed: boolean }>;
+  /** Per-project collapse overrides; a missing entry falls back to groupLayout (FS-02.R82). */
+  projectGroupLayout: Record<string, Record<string, { collapsed: boolean }>>;
   connection: "connecting" | "open" | "reconnecting" | "down";
   contextMenu: { agentId: string; x: number; y: number } | null;
   toasts: ToastItem[];
   setDensity: (density: { perRow: number; gap: number }) => void;
-  setGroupLayout: (groups: Record<string, { collapsed: boolean }>) => void;
-  toggleGroupCollapsed: (group: string) => void;
+  setGroupLayout: (groups: Record<string, { collapsed: boolean }>, projectGroups?: Record<string, Record<string, { collapsed: boolean }>>) => void;
+  /** Toggles one project's choice, or the shared choice where no project scopes the grid. */
+  toggleGroupCollapsed: (group: string, project?: string) => void;
   setConnection: (connection: UiStoreState["connection"]) => void;
   openContextMenu: (agentId: string, x: number, y: number) => void;
   closeContextMenu: () => void;
@@ -31,21 +34,31 @@ interface UiStoreState {
   dismissToast: (id: string) => void;
 }
 
+/** A project's own choice wins; otherwise the legacy shared choice applies (FS-02.R82). */
+export function groupCollapsed(state: Pick<UiStoreState, "groupLayout" | "projectGroupLayout">, group: string, project?: string): boolean {
+  return (project ? state.projectGroupLayout[project]?.[group]?.collapsed : undefined) ?? state.groupLayout[group]?.collapsed ?? false;
+}
+
 export const useUiStore = create<UiStoreState>((set) => ({
   density: { perRow: 3, gap: 16 },
   groupLayout: {},
+  projectGroupLayout: {},
   connection: "connecting",
   contextMenu: null,
   toasts: [],
   setDensity: (density) => set({ density }),
-  setGroupLayout: (groupLayout) => set({ groupLayout }),
-  toggleGroupCollapsed: (group) =>
-    set((state) => ({
-      groupLayout: {
-        ...state.groupLayout,
-        [group]: { collapsed: !state.groupLayout[group]?.collapsed },
-      },
-    })),
+  setGroupLayout: (groupLayout, projectGroupLayout = {}) => set({ groupLayout, projectGroupLayout }),
+  toggleGroupCollapsed: (group, project) =>
+    set((state) => {
+      const collapsed = !groupCollapsed(state, group, project);
+      if (!project) return { groupLayout: { ...state.groupLayout, [group]: { collapsed } } };
+      return {
+        projectGroupLayout: {
+          ...state.projectGroupLayout,
+          [project]: { ...state.projectGroupLayout[project], [group]: { collapsed } },
+        },
+      };
+    }),
   setConnection: (connection) => set({ connection }),
   openContextMenu: (agentId, x, y) => set({ contextMenu: { agentId, x, y } }),
   closeContextMenu: () => set({ contextMenu: null }),

@@ -111,10 +111,13 @@ func (m Model) SupportsEffort(effort string) bool {
 
 // Layout is the dashboard card arrangement.
 type Layout struct {
-	Order    []string               `json:"order"` // agent_id card order
-	Density  Density                `json:"density"`
-	Groups   map[string]GroupLayout `json:"groups,omitempty"`
-	Expanded []string               `json:"expanded,omitempty"` // expanded chat pane agent ids
+	Order   []string               `json:"order"` // agent_id card order
+	Density Density                `json:"density"`
+	Groups  map[string]GroupLayout `json:"groups,omitempty"`
+	// ProjectGroups overrides Groups per project; a missing entry falls back to
+	// Groups (FS-02.R82).
+	ProjectGroups map[string]map[string]GroupLayout `json:"project_groups,omitempty"`
+	Expanded      []string                          `json:"expanded,omitempty"` // expanded chat pane agent ids
 }
 
 // Density controls card grid spacing.

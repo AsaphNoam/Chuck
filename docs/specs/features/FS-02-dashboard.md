@@ -635,7 +635,7 @@ pointer/touch selection still works. Invalid names show an error and block submi
 changes nothing; a failed operation retains the entry. Only successful parent submission creates
 membership, never an empty group. This supersedes R72's explicit Create-choice prerequisite.
 
-**R82 (planned) — Independent collapse.** Desktop group collapse, including Ungrouped, is
+**R82 — Independent collapse.** Desktop group collapse, including Ungrouped, is
 project-specific and survives navigation/reload. Existing saved choices supply the initial
 value until a project overrides it; subsequent toggles affect that project only. Phone keeps
 FS-20.R47. This supersedes R19's shared collapse scope, leaving density/order unchanged.

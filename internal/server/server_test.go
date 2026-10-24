@@ -212,6 +212,42 @@ func TestLayoutDefault(t *testing.T) {
 	}
 }
 
+// FS-02.A63: per-project collapse overrides round-trip beside the legacy
+// shared choices, and a body without them stores no overrides.
+func TestPutLayoutRoundTripsProjectGroupOverrides(t *testing.T) {
+	srv := testServer(t, false)
+	h := srv.routes()
+	put := func(body string) *httptest.ResponseRecorder {
+		req := newLocalRequest(http.MethodPut, "/api/layout", bytes.NewBufferString(body))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("PUT layout status = %d body=%s", rec.Code, rec.Body.String())
+		}
+		return rec
+	}
+	put(`{"order":["a_1"],"density":{"perRow":4,"gap":20},"groups":{"Core":{"collapsed":true}},"projectGroups":{"alpha":{"Core":{"collapsed":false},"_ungrouped":{"collapsed":true}}}}`)
+	got, err := srv.configStore.ReadLayout()
+	if err != nil {
+		t.Fatalf("ReadLayout: %v", err)
+	}
+	if !got.Groups["Core"].Collapsed || got.ProjectGroups["alpha"]["Core"].Collapsed || !got.ProjectGroups["alpha"]["_ungrouped"].Collapsed || len(got.Order) != 1 || got.Density.CardsPerRow != 4 {
+		t.Fatalf("persisted layout = %+v", got)
+	}
+	var l layoutResponse
+	if err := json.Unmarshal(doGET(t, h, "/api/layout").Body.Bytes(), &l); err != nil {
+		t.Fatalf("layout body: %v", err)
+	}
+	if !l.Groups["Core"].Collapsed || l.ProjectGroups["alpha"]["Core"].Collapsed || !l.ProjectGroups["alpha"]["_ungrouped"].Collapsed {
+		t.Fatalf("GET layout = %+v", l)
+	}
+
+	put(`{"order":[],"density":{"perRow":4,"gap":20}}`)
+	if got, err = srv.configStore.ReadLayout(); err != nil || got.ProjectGroups != nil {
+		t.Fatalf("omitted overrides persisted = %+v, err=%v", got.ProjectGroups, err)
+	}
+}
+
 // FS-02.A5: layout bounds are validated and accepted values persist.
 func TestPutLayoutValidatesAndPersists(t *testing.T) {
 	srv := testServer(t, false)

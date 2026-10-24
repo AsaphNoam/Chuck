@@ -2,7 +2,7 @@ import React from "react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, cleanup, act, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { setupServer } from "msw/node";
@@ -151,6 +151,44 @@ describe("CardGrid", () => {
 
   // FS-02.A39 — the whole-grid action appears only when useful, closes panes
   // across group sections, and preserves retained ids outside this project.
+  // FS-02.A63 — legacy shared choices seed every project; a toggle writes only that
+  // project's override, leaving the shared choice, order and density untouched.
+  it("collapses a same-named group in one project only, falling back to legacy choices", async () => {
+    server.use(http.get("/api/layout", () => HttpResponse.json({
+      order: ["a_mine", "a_theirs"], density: { perRow: 4, gap: 20 }, groups: { Core: { collapsed: true } },
+    })));
+    const saved: Record<string, unknown>[] = [];
+    server.use(http.put("/api/layout", async ({ request }) => {
+      const body = await request.json() as Record<string, unknown>;
+      saved.push(body);
+      return HttpResponse.json(body);
+    }));
+    act(() => useAgentStore.setState({
+      agents: {
+        a_mine: agent("a_mine", { group: "Core" }),
+        a_loose: agent("a_loose"),
+        a_theirs: agent("a_theirs", { group: "Core", project: "other" }),
+      },
+      order: ["a_mine", "a_theirs"], hydrated: true, hydrating: false,
+    }));
+    const view = renderWithQuery(<CardGrid projectID="my-app" />);
+    const core = () => screen.getByRole("region", { name: "Group Core" });
+    await waitFor(() => expect(core()).toHaveAttribute("data-state", "collapsed"));
+    fireEvent.click(within(core()).getByRole("button", { expanded: false }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Group Ungrouped" })).getByRole("button", { expanded: true }));
+    expect(core()).toHaveAttribute("data-state", "expanded");
+    await waitFor(() => expect(saved.at(-1)).toEqual(expect.objectContaining({
+      order: ["a_mine", "a_theirs"],
+      density: { perRow: 4, gap: 20 },
+      groups: { Core: { collapsed: true } },
+      projectGroups: { "my-app": { Core: { collapsed: false }, _ungrouped: { collapsed: true } } },
+    })));
+
+    view.unmount();
+    renderWithQuery(<CardGrid projectID="other" />);
+    await waitFor(() => expect(core()).toHaveAttribute("data-state", "collapsed"));
+  });
+
   it("collapses every pane on this grid while retaining out-of-project ids", async () => {
     server.use(http.get("/api/layout", () => HttpResponse.json({
       order: ["a_alpha", "a_beta", "a_elsewhere"], density: { perRow: 3, gap: 16 }, groups: {},

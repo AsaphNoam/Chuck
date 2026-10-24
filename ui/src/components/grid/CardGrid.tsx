@@ -6,7 +6,7 @@ import { getLayout, putLayout, updateAgentIdentity } from "../../api/client";
 import type { AgentState, AgentStatus } from "../../api/types";
 import { useAgentStore } from "../../store/agentStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
-import { useUiStore } from "../../store/uiStore";
+import { groupCollapsed, useUiStore } from "../../store/uiStore";
 import { AgentCard } from "./AgentCard";
 import { CardContextMenu } from "./CardContextMenu";
 import { DensityControl } from "./DensityControl";
@@ -64,6 +64,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const density = useUiStore((state) => state.density);
   const setDensity = useUiStore((state) => state.setDensity);
   const groupLayout = useUiStore((state) => state.groupLayout);
+  const projectGroupLayout = useUiStore((state) => state.projectGroupLayout);
   const setGroupLayout = useUiStore((state) => state.setGroupLayout);
   const toggleGroupCollapsed = useUiStore((state) => state.toggleGroupCollapsed);
   const pushError = useUiStore((state) => state.pushError);
@@ -96,10 +97,10 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   useEffect(() => {
     void getLayout()
       .then((layout) => {
-        const next = { order: layout.order ?? [], density: layout.density, groups: layout.groups ?? {}, expanded: (layout.expanded ?? []).slice(0, 4) };
+        const next = { order: layout.order ?? [], density: layout.density, groups: layout.groups ?? {}, projectGroups: layout.projectGroups ?? {}, expanded: (layout.expanded ?? []).slice(0, 4) };
         setOrder(next.order);
         setDensity(next.density);
-        setGroupLayout(next.groups);
+        setGroupLayout(next.groups, next.projectGroups);
         setExpanded(next.expanded);
         stored.current = JSON.stringify(next);
         loaded.current = true;
@@ -112,7 +113,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
 
   useEffect(() => {
     if (!loaded.current) return;
-    const layout = { order, density, groups: groupLayout, expanded };
+    const layout = { order, density, groups: groupLayout, projectGroups: projectGroupLayout, expanded };
     const serialized = JSON.stringify(layout);
     if (serialized === stored.current) return;
     const handle = window.setTimeout(() => {
@@ -122,7 +123,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
       );
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [density, expanded, groupLayout, order, pushError]);
+  }, [density, expanded, groupLayout, order, projectGroupLayout, pushError]);
 
   useEffect(() => {
     if (!agentsHydrated) return;
@@ -167,12 +168,12 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const openableIDs = useMemo(
     () => new Set(
       grouped
-        .filter((group) => !(groupLayout[group.key]?.collapsed ?? false))
+        .filter((group) => !groupCollapsed({ groupLayout, projectGroupLayout }, group.key, projectID))
         .flatMap((group) => group.agents)
         .filter((agent) => agent.interface === "chat")
         .map((agent) => agent.agent_id),
     ),
-    [grouped, groupLayout],
+    [grouped, groupLayout, projectGroupLayout, projectID],
   );
 
   // The transition is read from the durable `state` every `state_update` carries, not
@@ -341,12 +342,12 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
       <DndContext collisionDetection={(args) => args.pointerCoordinates ? pointerWithin(args) : rectIntersection(args)} onDragStart={() => setDragging(true)} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragCancel={() => { setDragging(false); setRefusedDrop(false); setDropGroup(null); }}>
           <div className="group-stack" data-slot="groups" data-drop={refusedDrop ? "refused" : undefined} onKeyDown={cyclePaneFocus}>
             {grouped.map((group) => {
-              const collapsed = groupLayout[group.key]?.collapsed ?? false;
+              const collapsed = groupCollapsed({ groupLayout, projectGroupLayout }, group.key, projectID);
               return (
                 <GroupDropSection group={group.key} disabled={moving} key={group.key}>
                 <section className={`agent-group${dropGroup === group.key ? " agent-group-drop" : ""}`} data-ui="agent-group" data-state={collapsed ? "collapsed" : "expanded"} aria-label={`Group ${group.label}`}>
                   <header className="agent-group-header" data-slot="header">
-                    <button type="button" className="ad-button-icon" onClick={() => toggleGroupCollapsed(group.key)} aria-expanded={!collapsed}>
+                    <button type="button" className="ad-button-icon" onClick={() => toggleGroupCollapsed(group.key, projectID)} aria-expanded={!collapsed}>
                       {collapsed ? ">" : "v"}
                     </button>
                     <strong>{group.label}</strong>
