@@ -1733,6 +1733,112 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   or authorization rules. This supersedes R118's global suggestions/explicit create requirement.
   Verify the cited acceptance criteria with focused tests and one two-project browser pass.
 
+### 2.18 Persistent file-viewer tabs
+
+- **R140 (planned) — One feature-owned tab model serves all existing reader surfaces.**
+  Implement FS-03.R101–R106, FS-20.R56 and FS-21.R59 with a shared typed tab reducer/controller,
+  identity helper and storage codec beside the existing file reader, not separate room/phone
+  implementations. An owner is a tagged conversation or room id; desktop live/archive share the
+  conversation owner, while the phone uses its own origin's saved state. A descriptor has a stable
+  tab id, path, optional cited line, room source id when applicable, selected display mode and
+  bounded Rendered/Formatted/Source reading anchors. The owner record carries ordered tabs and
+  active id. Canonical identity is `(owner kind, owner id, room source_id when applicable,
+  normalized path)`. Identity compares normalized path spelling within the owner/read source; retain room
+  `source_id`, not a participant display name or current agent selection. Keep the originating
+  tracked-path request spelling on phone: TS-13.R22 requires a byte-equal tracked path. Resolve
+  nested relative links through existing `resolveFromFile` before admission. Aliases need no new
+  filesystem identity endpoint. Duplicate admission selects the existing tab; a new citation
+  becomes a one-shot navigation command rather than resetting the scroll on every activation.
+  This supersedes R127/R129's sole-route identity and no-global-descriptor-map restrictions only.
+- **R141 (planned) — Browser persistence contains descriptors, never file snapshots.** Use
+  one versioned, feature-owned `localStorage` record (`chuck.file-tabs.v1`) with a shared codec and
+  in-document subscription path. Persist owner records, order, active id, modes and per-mode
+  reading anchors, excluding bytes, rendered DOM, Blob URLs, read timestamps, errors, loading
+  promises, focus/divider state and annotations. Validate version, owner/source shape, unique tab
+  ids, mode enum, positive source lines and finite bounded anchors before use; invalid records
+  cannot supply a loader or override source authorization. Unknown versions/corruption report
+  recovery feedback and fall back to an empty in-memory set without breaking the conversation.
+  Storage read/write/quota failures produce one deduplicated notice explaining that changes may
+  reset after closing/reloading; operations remain usable within the in-memory limits. Persist
+  membership/order/selection/mode changes promptly; coalesce scroll writes and flush the current
+  anchor on tab switch and route teardown. Release the descriptor when closed and the owner on
+  an authoritative conversation/room deletion, never on a filtered list, stop, archive or room
+  completion. No TTL or LRU deletion. Reload/route remount restores descriptors, then lazily reads
+  the active tab with current authority. Other browser windows may restore the same saved state;
+  live cross-window synchronization/merge is excluded, with the last successful save authoritative.
+- **R142 (planned) — Per-tab read ownership extends the current hook.** Keep `useFileReader`
+  and `FileViewerView` as the shared read/render path, with one stable keyed reader host per tab
+  visited during a mounted workspace. Initialize that host's mode/anchors from its descriptor and
+  capture them before switching. Restored inactive tabs have no read host until selected. Hosts
+  retain snapshots while another tab is selected; only the active view renders. Adjacent/focused
+  presentations share these hosts, the same annotation owner and one active view. Preserve the
+  existing read token; bind completion, failure and normalized-path callbacks to owner, tab id,
+  immutable source and mount/read generation. Closing, source change or unmount invalidates work;
+  stale replies cannot change another tab, URL, selection or stored descriptor. Normalization
+  updates the initiating tab, not the active tab. If normalization finds a duplicate, keep the
+  existing matching tab's identity/state, merge away the newly resolved duplicate, and select the
+  existing tab only if the duplicate was active. No normalization-only reread is introduced.
+  Closing/unmount drops snapshots and revokes their Blob URLs through existing cleanup. Leaving
+  a workspace drops all read hosts; returning rereads lazily rather than persisting file bytes.
+  Layout changes and switching loaded tabs do not read. Reload replaces only its tab's snapshot
+  and clamps anchors; the annotation store retains point-in-time drafts under its own contract.
+- **R143 (planned) — Existing routes project the active tab without owning the set.** Adapt
+  `ChatPanel`, `ArchiveAgentPage`, `ReaderWorkspace` and `ThinkTankPage` to the shared controller.
+  Accept the existing desktop `file`/`fileLine` and room `file`/`source`/`line` query keys; preserve
+  unrelated query state. On mount an explicit target opens/selects before saved active-state
+  restoration. Without one, restore the saved active tab and replace the current address with
+  its projection. First explicit open from a closed reader pushes one entry; further open/select,
+  normalization and active-tab closure replace its projection, while reorder changes no URL.
+  Closing the last tab clears only reader query keys and deletes the empty saved owner record.
+  A same-owner POP to a file-free address hides the reader without deleting saved tabs or
+  immediately rewriting the URL; distinguish POP from initial mount so restoration cannot fight
+  Back. The hidden flag belongs to that route instance, is cleared on leaving the owner, and
+  does not suppress restoration on a fresh owner mount or non-POP navigation without a target.
+  Forward/explicit targets still request an open. Room source is required in a file URL; missing
+  or unavailable sources show an error rather than borrowing another participant's context.
+  Focus state remains transient and adds no history. Dashboard entry keeps its full-page route.
+  On phone, `AgentScreen` adapts its existing Files entry/loader to the same controller, renders
+  one tabbed reader above the list and restores it only when Files is shown. Tabs add no phone
+  route/query scheme. All requests still use TS-13.R22's filtered read; nested links never use
+  desktop/room fallback. Wire the phone's explicit `onOpenFile` callback to validate nested
+  targets against that agent's tracked-file list before admission, reporting refusal visibly;
+  server-side TS-13.R22 remains authoritative for every resulting read. Room reads keep the
+  retained-source loader under TS-14.R12; room routes
+  remain outside the phone allowlist. No server/wire/storage migration is required.
+- **R144 (planned) — Admission and read work are bounded without eviction.** Enforce
+  FS-03.R105's 50-per-owner/500-total caps before adding a descriptor or initiating its read.
+  Bound the serialized record to 2 MiB of UTF-16 storage (1,048,576 code units), checking raw
+  length before parse and encoded size before save; over-budget saved input is rejected with
+  feedback, and new admission that exceeds the byte budget is refused without evicting tabs.
+  Decoding validates counts before constructing reader hosts. Snapshots use existing per-read
+  file/image limits, live only for visited tabs in the mounted owner and never enter a global
+  content cache. At most four loads per mounted owner may be outstanding, including stale ones;
+  pending work is one latest open/reload intent per admitted tab, not an unbounded request queue.
+  When all slots are occupied, the selected tab displays loading and waits on its existing
+  intent; it does not admit another tab or issue a duplicate request. Serve selected work first,
+  dropping unstarted activation-only intents for tabs no longer selected.
+  Only selected or explicitly reloaded tabs initiate work; no restoration fan-out, file watching,
+  polling or prefetch. Repeated Reload coalesces while pending. Closing/unmount discards pending
+  intents and releases settled payloads; existing generation guards discard stale responses.
+- **R145 (planned) — Tab presentation and evidence extend existing seams.** Use existing
+  semantic tokens, feature CSS, icons and installed drag primitives, without a new dependency,
+  theme provider or motion library. Keep document content dominant: one compact horizontal strip,
+  active indication beyond color, path/source disclosure, named Close and Move left/right actions,
+  contained overflow and active-tab reveal. Desktop focus shares the strip; phone uses touch-sized
+  controls and horizontal scrolling without page overflow. Use tablist/tab/panel semantics and
+  roving keyboard focus; keep Close outside a nested tab button and restore focus to the selected
+  neighbor or Files/conversation on final closure. Reuse drag activation distance and cancellation
+  to distinguish a click/scroll from reorder; native touch scrolling remains possible. Reordering
+  has brief spatial feedback only where useful, respecting reduced motion; ordinary selection is
+  instant. Existing sanitized Markdown/JSON/image rendering and annotation handlers stay shared.
+  Extend FS-03.A80–A82, FS-20.A28 and FS-21.A42 with independent storage/history/count/read oracles,
+  stale completions, source isolation, failure states and actual rendered overflow/focus/drag.
+  Browser proof covers live/archive/focus/rooms at 1024px and 1440px and phone Files at
+  360/390/430px in all three appearances. Actual phone touch/reconnect remains a separate gate.
+  Implementation closure follows TS-06.R3–R6: spec checks, focused/full UI evidence, applicable
+  remote filter/room-loader integration checks, presentation checks and `make embed`. Never edit
+  generated `internal/server/ui/dist` directly.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

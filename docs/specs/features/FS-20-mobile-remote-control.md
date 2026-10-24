@@ -416,6 +416,14 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   Think Tank annotation phone surfaces are outside this change. Stopped sources can still assign captured context to another
   running chat agent or a new task; current-agent delivery retains FS-13.R6's idle/running rule.
 
+- **R56 (planned) — Saved file tabs extend the existing Files view.** Apply
+  FS-03.R101–R106 to the phone's permitted tracked files, with one tabbed reader above the list.
+  This supersedes only R37's single preview moving between rows; tab closure is explicit and
+  Open file opens/selects instead of toggling a preview closed. Restore membership, active tab,
+  modes and positions from this phone browser's site data on entering Files after navigation or
+  reload. R37's tracked-path/no-follow access, R55's annotation scope and the existing offline
+  rules remain unchanged. Tabs add no arbitrary-file route, archive reader or phone room screen.
+
 ## 5. Acceptance criteria
 
 - **A1 (planned)** (R1–R4, R29) — Turning remote control on joins the tailnet, shows each connection
@@ -570,6 +578,15 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   inventory: annotation support grants no additional file-reading authority. *Verify by:* phone
   component tests, remote-file/annotation route tests, a phone browser journey and the paired-device
   selection/keyboard gates in FS-13.A19.
+
+- **A28 (planned)** (R56) — Complete FS-03.A80–A82's phone portions at 360/390/430px:
+  open two tracked files, select/reorder/close tabs by touch/pointer and keyboard controls,
+  navigate away and reload, and return to Files with saved order/mode/position. Long names and
+  overflow keep controls reachable. Untracked, symbolic-link and unavailable reads remain
+  refused even when requested from a restored descriptor or a rendered-file link. Offline
+  restored tabs do not show a saved file snapshot as current, and reconnect uses normal read
+  authority. *Verify:* phone component/storage integration and existing remote-filter tests,
+  phone browser journeys in each appearance; actual-device touch/reconnect remains a manual gate.
 
 ## 6. Deviations & open decisions
 

@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`file-viewer-tabs.md`](file-viewer-tabs.md) — saved, closable and reorderable file tabs for
+  desktop conversations/rooms and the phone's existing tracked-file reader, with per-tab reading
+  state and browser-local navigation/reload restoration.
+
 - [`project-scoped-groups-and-selectors.md`](project-scoped-groups-and-selectors.md) — fix group
   entry/Enter, scope suggestions and collapse by project, and default annotation/room pickers
   to the current project with explicit access to others.

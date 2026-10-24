@@ -347,6 +347,16 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   any unadded outside selection when hidden. Already-added participants remain visible.
   This narrows R27/R34's initial list only; mixed-project rooms remain supported.
 
+- **R59 (planned) — Room file inspection keeps source-qualified tabs.** Apply
+  FS-03.R101–R106 to the existing desktop room reader. Tabs belong to the room and retain their
+  immutable source context under R26, including retained history. Opening a link from another
+  participant preserves prior tabs; equal relative paths from distinct sources remain distinct
+  and identify their source. Saved descriptors restore after leaving/reloading, with current file
+  reads through the retained source. Removed/unreadable sources show normal failures without
+  substituting another participant or deleting a tab. Annotations retain their actual originating
+  source independently of the active tab. Room deletion removes its saved tab set in that browser;
+  ending a room does not. No phone room screen or new room layout is introduced.
+
 ## 3. States & transitions
 
 The workspace/control upgrade in R43–R51 extends the existing room lifecycle;
@@ -618,6 +628,14 @@ completion; R37 defines partial opening publication and pending input on End.
   Reveal B's agents explicitly, add one, then hide outside choices: the added row remains and
   an unadded outside selection clears. Reopen and verify project-only defaults. *Verify:*
   setup component tests and the existing room-creation browser journey.
+
+- **A42 (planned)** (R59) — Complete FS-03.A80–A82 in a room whose participants link to
+  the same relative filename in different workspaces. Verify distinct source labels and reads,
+  nested relative links, correct annotation source, independent mode/position, close/reorder and
+  navigation/reload restoration. A late read or normalization from a closed tab or prior room
+  cannot change another tab; unavailable retained sources show their own refusal. Ending retains
+  saved tabs; deleting the room clears its set on that browser. *Verify:* room integration tests
+  with actual source-qualified loader arguments and a rendered room journey in all appearances.
 
 ## 6. Deviations & open decisions
 

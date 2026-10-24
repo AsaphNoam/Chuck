@@ -813,6 +813,74 @@ Unknown consumption remains labelled uncertain; restoring it creates a new delib
 never another Steer or an automatically runnable hold. Legacy requests receive recovery identity
 when accepted by HTTP but an id-less repeat is still a new command.
 
+### 2.13 File-viewer tabs
+
+- **R101 (planned) — Following files preserves the reading trail in tabs.** Desktop live
+  and archived conversations, desktop Think Tank rooms and the phone's file reader use internal
+  file tabs. Opening a file or following an eligible local-file link opens and selects a new tab
+  without replacing the previous one. Opening the same file in the same read context selects its
+  existing tab by normalized path spelling; a cited line takes precedence over its saved reading
+  position. Alternate symlink/absolute path spellings need not merge. Room tabs retain
+  their participant/project source, so equal relative paths from different sources stay distinct.
+  Each conversation or room owns a separate tab set; desktop live/archive views of the same
+  conversation share its set in that browser. Web links retain their existing behavior.
+  This supersedes R52/R95/R96's single-file replacement and no-tabs clauses only.
+- **R102 (planned) — Tabs support fast return, close and reorder.** Selecting a tab restores
+  its loaded snapshot, display mode and separate per-mode reading positions without another read.
+  Reload reads only that tab. Tabs show filenames, a non-color active indication, discoverable
+  full paths and room-source attribution where needed to distinguish them. Each tab has a named
+  close control. Closing the active tab selects its right neighbor, or its left neighbor when no
+  right neighbor remains; closing a background tab leaves the active file unchanged. Closing the
+  final tab closes the reader. Pointer dragging reorders tabs without accidentally activating or
+  closing them; keyboard-accessible controls also select, close and move tabs. Overflow keeps every
+  tab and action reachable at supported desktop and phone widths without widening the page.
+  Focus file uses the same tabs as the adjacent reader. Closing one tab there leaves focus open
+  if another remains; closing the last returns to the conversation. Existing annotation drafts
+  remain point-in-time captures and are not deleted by closing their file's tab.
+- **R103 (planned) — Tabs survive navigation and reload.** Returning to a conversation or
+  room restores its open tab membership, order and active file. Reload also restores those choices,
+  display modes and approximate reading positions. File contents are read again after reload
+  or returning to an unmounted workspace; restoring tabs loads only the selected file, with other
+  restored tabs read when selected. Tabs do not become retained copies of files. Missing or
+  refused files show their normal error
+  inside their tab without blocking other files or the conversation. Existing explicit file URLs
+  still open/select their target and take precedence over the restored active file. Tab details
+  live only in this browser/device's site data until closed, that site data is cleared or their
+  owning conversation/room is explicitly deleted, with no automatic expiry or cross-device
+  synchronization. Persist paths, source identity, order, active
+  tab, display modes and reading positions, never file bytes or read timestamps. A missing file
+  does not silently remove its tab. Explicit deletion of the owning conversation/room removes its
+  saved set; stopping, archiving or completing it does not. Storage failure leaves the reader
+  usable in memory and visibly explains that changes cannot survive closing/reloading the page.
+  This supersedes R54/R55/R96's no-browser-storage and sole-URL-identity clauses only; there is
+  no new server record, transcript event, agent/API action, file authority or annotation retention.
+- **R104 (planned) — Phone tabs stay within existing file access.** The phone adds tabs
+  to its existing Files view for that agent's tracked files only. One tabbed reader sits above
+  the tracked-file list rather than moving a single preview between rows; Open file selects or
+  opens a tab, and each tab's close control closes it. Eligible local-file links inside the
+  preview may open tabs only through the same tracked-file read authority; refused targets stay
+  visibly refused and never fall back to an unrestricted route. The phone gains no room screen,
+  archive reader, arbitrary-file authority or file browser. Its existing annotation and
+  offline/recovery rules remain in force. Restoring tabs does not navigate away from Chat by
+  itself: the saved reader is shown on entering Files. Desktop dashboard links still navigate
+  to the full conversation and select the linked file in that conversation's set.
+- **R105 (planned) — Saved tabs are bounded without silent eviction.** Allow up to 50 tabs
+  per conversation/room and 500 saved tabs across the browser origin. Opening another at either
+  limit leaves the existing set and active file intact and explains that a tab must be closed
+  first. Existing tabs remain selectable, movable and closable at the limit. No automatic expiry
+  or least-recently-used eviction removes saved tabs. Malformed saved data is not file authority;
+  it is rejected with readable recovery feedback, never allowed to block the conversation.
+- **R106 (planned) — Browser history hides the reader without closing saved tabs.** The
+  first explicit open from a closed desktop conversation/room reader adds an addressable history
+  entry; tab selection, subsequent opens, normalization, closing and reordering do not add history
+  entries. Back to that owner's prior file-free address hides the reader while preserving its
+  tab set. Navigating away and returning restores it. A normal visit without a file parameter
+  restores saved tabs; an explicit file URL wins. Forward/file URLs may reopen their file even
+  after its tab was closed. On phone, router Back keeps its current screen-navigation behavior;
+  tab actions add no history and saved tabs return in Files. This refines R54's single-file Back
+  behavior without turning browser history into tab history. Focus and divider choices remain
+  temporary under R96 and are not persisted with tabs.
+
 ## 3. States & transitions
 
 - **Open/reload:** panel fetches durable events → normalizes/folds them → subscribes to live SSE
@@ -1473,7 +1541,38 @@ before timeout is not followed by an automatic duplicate prompt. Definite pre-co
 can restore its original hold; unknown consumption requires explicit recovery. Test desktop,
 phone and CLI callers with actual provider-submission counts in controlled fixtures.
 
+- **A80 (planned)** (R101–R102) — Follow A → B → C in a mounted conversation, return to A and
+  verify its in-memory snapshot/read timestamp, display mode and scroll. Reopen A at a cited line
+  without creating a duplicate. Reorder by pointer and keyboard; close background, middle-active and final tabs.
+  Repeat in Focus file, archived chat, a room with equal relative paths from two sources, and
+  the phone's permitted file reader. Annotation drafts survive. *Verify:* shared tab-controller
+  and surface integration tests plus desktop/room/phone browser journeys, including long names,
+  overflow, focus restoration and all supported appearances.
+- **A81 (planned)** (R103) — Open and reorder several files, leave for another conversation
+  or room, return, then reload. Verify isolated tab sets, restored active tab/modes/positions and
+  fresh file reads. Open a direct file/line URL against a saved set and verify target precedence.
+  Remove one file and refuse another; each error stays in its own closable tab. *Verify:* saved
+  state/URL integration tests and navigation/reload browser journeys in desktop conversations,
+  rooms and phone Files. Test unavailable/corrupt browser storage without losing the current
+  reading task, and confirm saved data contains no file contents or read timestamps.
+- **A82 (planned)** (R104–R106) — Open 50 files in one owner and fill 500 saved tabs across
+  owners: one more is refused without eviction or an unwanted read, while opening an existing
+  tab works. Close a tab and admit another; close the final one and reload to verify it stays
+  closed. Back hides an open desktop reader without deleting tabs; revisit restores them, and
+  direct/Forward file URLs select their requested file. At phone widths, use Files tabs,
+  follow permitted and refused links, then navigate and reload. Assert reads stay on the
+  tracked-file route, source/path data never grants authority, and no room screen appears.
+  *Verify:* independently specified cap/history/storage tests, surface integration tests,
+  unchanged remote route/filter tests and real desktop/phone browser journeys; retain a paired
+  phone gate for touch reordering and reconnect on an actual device.
+
 ## 6. Deviations & open decisions
+
+- **File tabs approved, 2026-10-24:** R101–R106/A80–A82 are unimplemented. The operator
+  confirmed navigation/reload survival, browser/device-only storage until closed/site-data
+  clearance, desktop rooms and the phone's existing tracked-file access/screens, 50/500 admission
+  limits without eviction, and Back hiding the reader while retaining saved tabs. No product
+  decision remains; the ready change and TS-08.R140–R145 govern implementation.
 
 - **History commit boundary shipped 2026-10-20 (ASW-1, R99/A78):** A78 is covered by runtime journal tests (concurrent
   commit order, append/sync/index failure, degrade → repair with gap notice, open-marker recovery,

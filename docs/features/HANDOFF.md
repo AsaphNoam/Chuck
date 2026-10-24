@@ -17,8 +17,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   shipped unreviewed at the operator's choice and remain in the review queue.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
   verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
-- **Future work:** project-scoped groups and selectors are design-ready; file-viewer tabs are in
-  design. Direct-action migration remains paused on its transport blocker; passive quota
+- **Future work:** project-scoped groups and selectors and file-viewer tabs are design-ready.
+  Direct-action migration remains paused on its transport blocker; passive quota
   snapshots remain TBD.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`; use `GOFLAGS=-p=1` and a writable isolated Go cache.
   Native/device/credentialed limitations remain in the owed gates.
@@ -195,6 +195,12 @@ None open. Closed findings through v0.19.0 are archived with their receipts.
   is waiting to start: direct group entry, project-only suggestions, independent collapse and
   project-first annotation/room pickers. Scope confirmed; keep existing controls and data,
   with no cross-project permission change. No product code changed.
+- **2026-10-24 — Design ready:** [saved file-viewer tabs](../ready-changes/file-viewer-tabs.md)
+  are waiting to start: FS-03.R101–R106/A80–A82, FS-20.R56/A28, FS-21.R59/A42 and
+  TS-08.R140–R145. The operator confirmed browser/device persistence, existing phone access/screens,
+  desktop rooms, 50/500 caps without eviction and Back hiding without deleting tabs. No product
+  code changed. Spec lint, design-feature twin comparison and `git diff --check` pass; rendered
+  and actual-device checks are implementation gates, not claimed by this design-only unit.
 - **2026-10-23 — Workflow verification cleanup:** scoped local checks, removed duplicate UI
   style runs, allowed reuse of unchanged passing evidence, and clarified one completion pass per
   fix unit plus compact test logs. Focused command/build and spec/launcher checks pass; waiting
