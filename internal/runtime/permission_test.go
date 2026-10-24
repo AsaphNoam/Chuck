@@ -97,6 +97,30 @@ func waitForEvent(t *testing.T, ch <-chan Event, typ string) Event {
 	}
 }
 
+// waitTurnSettled waits past turn_end for the turn gate to open. finishTurn
+// emits turn_end before it releases the turn's tool inputs and its gate, so a
+// test that acts on turn_end alone races that settlement.
+func waitTurnSettled(t *testing.T, c *ChatRuntime, agentID string) {
+	t.Helper()
+	as, err := c.lookup(agentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		as.mu.Lock()
+		active := as.turnActive
+		as.mu.Unlock()
+		if !active {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("turn did not settle after turn_end")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 func TestPermissionApprove(t *testing.T) {
@@ -145,6 +169,7 @@ func TestCancelDoesNotEndNextTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForEvent(t, ch, EvTurnEnd)
+	waitTurnSettled(t, c, h.AgentID)
 
 	if err := c.SendPrompt(ctx, h.AgentID, "run ls"); err != nil {
 		t.Fatal(err)

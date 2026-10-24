@@ -40,6 +40,7 @@ func TestCanceledTurnsReleaseToolInput(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForEvent(t, ch, EvTurnEnd)
+		waitTurnSettled(t, c, h.AgentID)
 		if n := openToolInputs(as); n != 0 {
 			t.Fatalf("after canceled turn %d: retained %d input bodies, want 0", i+1, n)
 		}
