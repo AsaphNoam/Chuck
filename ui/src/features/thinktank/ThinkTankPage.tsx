@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   sourceFileURL,
@@ -19,7 +19,10 @@ import { Button, ConfirmDialog } from "../../components/ui";
 import { BackIcon, CommandIcon, FileIcon, PauseIcon, RoomIcon } from "../../components/ui/icons";
 import { useAgentStore } from "../../store/agentStore";
 import { AnnotationContextMenu, type AnnotationMenuState } from "../../components/chat/AnnotationContextMenu";
-import { FileViewer } from "../../components/chat/FileViewer";
+import { FileViewerView } from "../../components/chat/FileViewer";
+import { FileTabsReader } from "../fileTabs/FileTabs";
+import { ownerKey, type FileTab } from "../fileTabs/model";
+import { ROOM_FILE_KEYS, useFileTabRoute } from "../fileTabs/useFileTabRoute";
 import { SanitizedMarkdown } from "../../components/chat/renderers/SanitizedMarkdown";
 import type { FileLink } from "../../components/chat/renderers/filePath";
 import { eventRenderer } from "../../components/chat/TranscriptView";
@@ -106,37 +109,28 @@ function Room({ room }: { room: ThinkTankDetail }) {
   const [judgeRepair, setJudgeRepair] = useState(false);
   const [actionError, setActionError] = useState("");
   const [menu, setMenu] = useState<AnnotationMenuState | null>(null);
-  const [search, setSearch] = useSearchParams();
   const addAnnotation = useAnnotationStore((state) => state.add);
   const discardDrafts = useAnnotationStore((state) => state.discard);
   const pushError = useUiStore((state) => state.pushError);
   const sourceKey = roomAnnotationSource(id);
 
-  const openFile = search.get("file");
-  const openSource = search.get("source") ?? "";
-  const openLine = Number(search.get("line") ?? "") || undefined;
-  const setFile = (link: FileLink | null, source = openSource) => {
-    const next = new URLSearchParams(search);
-    if (!link) {
-      next.delete("file");
-      next.delete("source");
-      next.delete("line");
-    } else {
-      next.set("file", link.path);
-      next.set("source", source);
-      if (link.line) next.set("line", String(link.line));
-      else next.delete("line");
-    }
-    setSearch(next);
-  };
+  // The room's saved file tabs, each tied to the retained source it was opened
+  // from; `?file=&source=&line=` name the active one (FS-21.R59, TS-08.R143).
+  const fileTabs = useFileTabRoute(ownerKey("room", id), ROOM_FILE_KEYS);
+  const openFile = (link: FileLink, source: string) => fileTabs.open({ ...link, source });
 
   // A participant's links open from that participant's retained workspace, so
   // equal relative paths in different workspaces never collide (FS-21.R26).
-  const sourceFor = (attemptID: string) => (files.data?.sources ?? []).find((s) => s.attempt_ids.includes(attemptID))?.source_id;
+  const sources = files.data?.sources ?? [];
+  const sourceFor = (attemptID: string) => sources.find((s) => s.attempt_ids.includes(attemptID))?.source_id;
   const openFrom = (attemptID: string) => (link: FileLink | null) => {
     const source = sourceFor(attemptID);
     if (!source) { pushError("The retained workspace source is unavailable. Try again after the room finishes loading."); return; }
-    setFile(link, source);
+    if (link) openFile(link, source);
+  };
+  const sourceLabel = (tab: FileTab) => {
+    const source = sources.find((s) => s.source_id === tab.source);
+    return source ? `${source.agent_name} · ${projects.data?.[source.project]?.title ?? source.project}` : "Unavailable workspace";
   };
 
   const act = (run: () => Promise<unknown>) => {
@@ -422,7 +416,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
                     <li key={`${f.source_id}-${f.path}`}>
                       <FileIcon />
                       <div><code>{f.path}</code><span>{f.agent_name} · {projectTitle(f.project)}</span></div>
-                      <Button type="button" aria-label={f.path} onClick={() => { setPanel(""); setFile({ path: f.path }, f.source_id); }}>Open read-only ↗</Button>
+                      <Button type="button" aria-label={f.path} onClick={() => { setPanel(""); openFile({ path: f.path }, f.source_id); }}>Open read-only ↗</Button>
                     </li>
                   ))}
                 </ul>
@@ -451,21 +445,37 @@ function Room({ room }: { room: ThinkTankDetail }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      {openFile && (
-        <FileViewer
-          agentId={openSource}
-          link={{ path: openFile, line: openLine }}
-          load={(path) => loadSourceFile(id, openSource, path)}
-          onClose={() => setFile(null)}
-          onOpenFile={(link) => setFile(link)}
-          onSelectionMenu={({ x, y, text, draft, link }) => setMenu({
-            x,
-            y,
-            label: "Annotate selection",
-            copy: () => copyText(text, pushError),
-            annotate: () => addAnnotation(sourceKey, { ...draft, room_anchor: "file", source_id: openSource } as AnnotationDraft),
-            link,
-          })}
+      {fileTabs.tabs.length > 0 && (
+        <FileTabsReader
+          key={fileTabs.owner}
+          tabs={fileTabs.tabs}
+          active={fileTabs.active}
+          jumps={fileTabs.jumps}
+          onSelect={fileTabs.select}
+          onClose={fileTabs.close}
+          onMove={fileTabs.move}
+          onResolved={fileTabs.resolved}
+          // Saved data names a source; the read still goes through this room's
+          // retained-source route for it (TS-14.R12).
+          contextFor={(tab) => tab.source ?? ""}
+          loadFor={(tab) => (path) => loadSourceFile(id, tab.source ?? "", path)}
+          sourceLabel={sourceLabel}
+          renderView={(reader, strip, tab) => (
+            <FileViewerView
+              reader={reader}
+              tabs={strip}
+              onClose={() => fileTabs.close(tab.id)}
+              onOpenFile={(link) => openFile(link, tab.source ?? "")}
+              onSelectionMenu={({ x, y, text, draft, link }) => setMenu({
+                x,
+                y,
+                label: "Annotate selection",
+                copy: () => copyText(text, pushError),
+                annotate: () => addAnnotation(sourceKey, { ...draft, room_anchor: "file", source_id: tab.source } as AnnotationDraft),
+                link,
+              })}
+            />
+          )}
         />
       )}
       <RoomAnnotationTray room={room} />
@@ -490,6 +500,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
           act(async () => {
             await remove.mutateAsync(undefined);
             discardDrafts(sourceKey);
+            fileTabs.forget();
             navigate(`/project/${encodeURIComponent(room.origin_project)}`);
           });
         }}

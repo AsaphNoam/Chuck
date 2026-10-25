@@ -16,6 +16,8 @@ import { openTurnKey } from "../components/chat/turnActivity";
 import { useTranscriptStore } from "../store/transcriptStore";
 import { useUiStore } from "../store/uiStore";
 import { discardChatDraft } from "../components/chat/drafts";
+import { ownerKey } from "../features/fileTabs/model";
+import { fileTabs } from "../features/fileTabs/store";
 import { notificationAgentId, openAgentConversation } from "../lib/agentConversation";
 
 function parseBusData(raw: string): unknown {
@@ -124,6 +126,7 @@ class SseClient {
       queryClient.removeQueries({ queryKey: THINK_TANK_KEYS.room(parsed.data.room_id) });
       // Room drafts are browser state with no other cleanup boundary (INV §1).
       useAnnotationStore.getState().discard(`room:${parsed.data.room_id}`);
+      fileTabs.dropOwner(ownerKey("room", parsed.data.room_id));
       return;
     }
     queryClient.invalidateQueries({ queryKey: THINK_TANK_KEYS.room(parsed.data.room_id) });
@@ -166,6 +169,7 @@ class SseClient {
       // 404s on it — so its pending tray is dropped with the rest of the state
       // derived from that agent (FS-13.R16). Nothing else ever clears it.
       useAnnotationStore.getState().discard(envelope.agent_id);
+      fileTabs.dropOwner(ownerKey("conversation", envelope.agent_id));
       useTranscriptStore.getState().discardAgent(envelope.agent_id);
       useReasoningStore.getState().discard(envelope.agent_id);
       discardChatDraft(envelope.agent_id);

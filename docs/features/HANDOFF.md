@@ -44,7 +44,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   never reads the saved active tab first), `testing.tsx` harness. `useFileReader` gained
   `initialView`/`jump`/`onViewChange`/`schedule`; Reload coalesces while loading. Full UI suite
   (102 files, 1044 tests), `tsc -p tsconfig.app.json` and `npm run check:styles` pass.
-  Next: slice 3 (rooms). Four other units wait for review (Review queue).
+  Slice 3a done: `ThinkTankPage` uses `useFileTabRoute(room, ROOM_FILE_KEYS)` + `FileTabsReader`
+  with per-tab `loadSourceFile(room, tab.source)` and source labels; room/agent deletion drops the
+  saved owner (`api/sse.ts`, `remote/connection.ts`, room Delete). Room tests pass (30).
+  Next: phone Files (`remote/AgentScreen.tsx`). Four other units wait for review (Review queue).
 
 ## Acceptance gates still owed
 

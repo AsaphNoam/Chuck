@@ -11,6 +11,7 @@ import { thinkTankDetailSchema } from "../../schemas/thinkTank";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import fixture from "./fixtures/room.json";
+import { loadFileTabs } from "../fileTabs/store";
 import { THINK_TANK_KEYS, fetchAllActivity, noteThinkTankActivity, useThinkTankActivity } from "../../api/thinkTanks";
 
 // The room comes from the Go-encoded fixture (internal/server/
@@ -69,6 +70,46 @@ afterEach(() => {
 afterAll(() => server.close());
 
 describe("ThinkTankPage", () => {
+  // FS-21.A42: equal relative paths from two participants stay two tabs, each
+  // read through its own retained source and restored after a reload.
+  it("keeps source-qualified file tabs and restores them after reload", async () => {
+    const reads: string[] = [];
+    const entries = [
+      { ...fixture.entries[0], seq: 1, body: "[notes](notes.md)", attempt_id: "tta_a" },
+      { ...fixture.entries[0], seq: 2, body: "[notes](notes.md)", attempt_id: "tta_b" },
+    ];
+    server.use(
+      http.get("/api/think-tanks/tt_fixture/entries", () => HttpResponse.json({ entries, complete: true })),
+      http.get("/api/think-tanks/tt_fixture/files", () => HttpResponse.json({ sources: [
+        { source_id: "src_a", agent_id: "a_one", agent_name: "Ari", project: "alpha", attempt_ids: ["tta_a"] },
+        { source_id: "src_b", agent_id: "a_two", agent_name: "Bo", project: "alpha", attempt_ids: ["tta_b"] },
+      ], files: [] })),
+      http.get("/api/think-tanks/tt_fixture/sources/:source/file", ({ params, request }) => {
+        const path = new URL(request.url).searchParams.get("path");
+        reads.push(`${params.source}:${path}`);
+        return HttpResponse.json({ agent_id: "x", path, content: `text from ${params.source}`, language: "text", size: 13, line_count: 1, truncated: false, mod_time: "2026-10-06T09:00:00Z" });
+      }),
+    );
+    const first = renderRoom();
+    const links = await screen.findAllByRole("button", { name: "notes" });
+    fireEvent.click(links[0]);
+    await screen.findByText("text from src_a");
+    fireEvent.click(links[1]);
+    await screen.findByText("text from src_b");
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["notes.mdAri · Alpha", "notes.mdBo · Alpha"]);
+    fireEvent.click(screen.getByRole("tab", { name: /Ari/ }));
+    expect(await screen.findByText("text from src_a")).toBeInTheDocument();
+    expect(reads).toEqual(["src_a:notes.md", "src_b:notes.md"]);
+
+    first.unmount();
+    reads.length = 0;
+    loadFileTabs();
+    renderRoom();
+    expect(await screen.findByText("text from src_a")).toBeInTheDocument();
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+    expect(reads).toEqual(["src_a:notes.md"]);
+  });
+
   it("opens a deleted participant's retained source directly and annotates its file", async () => {
     const entry = { ...fixture.entries[0], agent_id: "a_gone", body: "[notes](notes.md)", attempt_id: "tta_deleted" };
     server.use(

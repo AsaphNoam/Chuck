@@ -5,6 +5,8 @@ import { useAnnotationStore } from "../store/annotationStore";
 import { discardChatDraft } from "../components/chat/drafts";
 import { discardAttachmentDraft } from "../components/chat/attachments";
 import { useReasoningStore } from "../store/reasoningStore";
+import { ownerKey } from "../features/fileTabs/model";
+import { fileTabs } from "../features/fileTabs/store";
 import { checkPaired, PhoneAPIError } from "./api";
 
 // The phone's view of its link to the Mac (FS-20 §3). A plain EventSource with
@@ -302,6 +304,7 @@ function open(gen: number) {
     if (agent.removed) {
       discardChatDraft(agent.agent_id);
       void discardAttachmentDraft(agent.agent_id).catch(() => undefined);
+      fileTabs.dropOwner(ownerKey("conversation", agent.agent_id));
     }
     if (hydratingAgents) {
       if (agent.removed) delete hydratingAgents[agent.agent_id];

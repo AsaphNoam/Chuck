@@ -134,6 +134,10 @@ export function useFileTabRoute(owner: string, keys: FileTabKeys, options: { onO
     move(id: string, to: number) {
       fileTabs.move(owner, id, to);
     },
+    /** The owner was explicitly deleted here; its saved set goes with it. */
+    forget() {
+      fileTabs.dropOwner(owner);
+    },
     resolved(id: string, path: string) {
       const kept = fileTabs.resolve(owner, id, path);
       const current = useFileTabsStore.getState().owners[owner];
