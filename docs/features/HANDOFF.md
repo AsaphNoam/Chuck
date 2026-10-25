@@ -20,7 +20,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   Annotation font/focus review is closed: AIF-R1 reveals a collapsed tray on capture and focuses
   the new instruction. Workflow verification cleanup shipped unreviewed at the operator's
   choice; its review is now closed with no findings.
-  The v0.20.0 architectural review is complete at `bc9cc82e`; ARCH-v020-1 remains open
+  The v0.20.0 architectural review is complete at `bc9cc82e`; ARCH-v020-1 is fixed and verified
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)).
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
   verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
@@ -32,24 +32,21 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- Release preparation for proposed v0.20.0 (version confirmation pending; push authorized).
-  Prepared candidate: `bc9cc82e` after v0.19.0; substantive unit reviews are closed.
-  Independent architecture review is complete with ARCH-v020-1 open; verify its localized repair
-  and append exact closure to the existing receipt without rerunning architecture review.
-  Isolated checkout: `/private/tmp/chuck-release-v0.20.0`; the primary checkout's pre-existing
-  generated UI index edit is preserved. Refresh shipped operator guidance and generated UI,
-  verify release and close the architectural finding before tagging.
-  User authorized subagents to repair minor architectural findings.
-  Preparation evidence: operator package tests pass; UI suite passes 102 files/1053 tests;
-  production UI/style/presentation build passes and embed is generated. Source scope is
-  77888420 plus the operator-reference refresh; logs `/private/tmp/chuck-v020-{knowledge,ui-test,dist}.log`.
-  Untagged `make test` failed `TestBootstrapContenderExitsDuringDownload` download readiness
-  (19.67s), then timed out after 10m while `TestOperatorBuiltBinaryRealServerJourney` was
-  building an executable. The tagged distribution binary is also still building slowly; the
-  release owner is investigating these failures/pending results with
-  `CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1`, `GOCACHE=/private/tmp/chuck-pdef-fix-cache`.
-  No full-Go/distribution pass is claimed. UI, knowledge and independent bounded architecture
-  probes passed; existing native/device/credentialed gates remain open.
+- Release v0.20.0: version and push authorized by the operator's keep-going instruction.
+  Prepared candidate `bc9cc82e`; independent architectural review complete.
+  ARCH-v020-1 fixed by `92930083`, embedded by `b8034e83`; exact closure is recorded in
+  [the existing receipt](../archive/reviews/architecture/v0.19.0-next.json), with no review rerun.
+- Verification: focused regressions fail before/pass after; full UI 103 files/1055 tests,
+  untagged Go suite and final `make dist VERSION=0.20.0` pass.
+  FTS5 Go suite still running in `/private/tmp/chuck-v020-go-final.log`.
+  Earlier overloaded Go runs failed timing gates and were stopped; no pass is inferred from them.
+  Final logs: `/private/tmp/chuck-v020-{ui-final,dist-final,go-final}.log`.
+  Environment: unset `CHUCK_RUNTIME_ROOT`, `GOFLAGS=-p=1`,
+  `GOCACHE=/private/tmp/chuck-pdef-fix-cache`.
+- Isolated release checkout: `/private/tmp/chuck-release-v0.20.0`.
+  Preserve the primary checkout's pre-existing generated UI index edit during integration.
+  Next: finish FTS5 checks, run committed architectural gate, integrate, tag/push, verify
+  publication/assets, archive settled handoff and record release.
 
 ## Acceptance gates still owed
 
@@ -191,29 +188,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review findings
 
-### v0.20.0 architectural review — saved-tab failure feedback
-
-**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Must fix — ARCH-v020-1:** `ui/src/features/fileTabs/FileTabs.tsx` renders the store's
-  notices only inside `TabStrip`; desktop `ReaderWorkspace`, room `ThinkTankPage` and phone
-  `AgentScreen` mount that strip only for nonempty owners. With 500 tabs saved in other owners,
-  the first open in an empty owner is correctly refused but silently does nothing. Corrupt saved
-  data also resets to empty with no visible reset feedback until a later successful open.
-  FS-03.R103/R105, TS-08.R141/R144 and INV §8 require visible refusal/recovery. A focused component
-  probe through the real transcript link/controller/store confirms the refusal and retained
-  count of 500, then fails its visible `role=status` expectation; DOM contains only transcript/link.
-  Render the existing shared notice from an always-mounted surface independent of membership,
-  retaining deduplication/dismissal and current authority/bounds. Regression: ten owners of fifty
-  tabs, first open in empty eleventh owner → visible close-a-tab feedback, no read or eviction.
-  Probe retained outside product tree at `/private/tmp/chuck-v020-notice.probe.test.tsx`.
-  [Receipt/evidence](../archive/reviews/architecture/v0.19.0-next.json).
-
-Project-scoped groups/selectors PSG-R1/2 closed on 2026-10-25.
-
-Closed findings through v0.19.0 are archived with their receipts.
+No open findings. ARCH-v020-1 and all change-review findings are closed with verified fixes.
 
 ## Changelog
+
+- **2026-10-25 — ARCH-v020-1 fixed (INV §8/§10/§17):** empty conversation/room/phone Files owners show the existing saved-tab refusal/recovery notice. Existing populated/focused readers keep their notice placement. Both regressions fail against pre-fix product files; focused 38-test and full 1055-test UI suites pass, as does final distribution build. Original architectural review reused with exact repair/embed commits and focused evidence in its receipt. Full release Go verification remains pending only for the FTS5 variant.
 
 - **2026-10-25 — Architectural review for v0.20.0:** reviewed committed preparation `bc9cc82e`
   across saved work, execution, admission, supervision, information, control, bounds and installed

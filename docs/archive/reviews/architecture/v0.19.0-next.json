@@ -18,5 +18,14 @@
   "findings": [
     { "id": "ARCH-v020-1", "severity": "must_fix" }
   ],
-  "updates": []
+  "updates": [
+    {
+      "kind": "fix",
+      "commits": ["92930083c7814e6cb3ba8479685525bdbbfdd1f1", "b8034e83827d9de11b27912d88b99d8ee0dc7162"],
+      "finding_ids": ["ARCH-v020-1"],
+      "closes": ["ARCH-v020-1"],
+      "verified": true,
+      "evidence": "Shared FileTabsNotice remains in TabStrip for populated/focused readers and mounts on empty conversation, room and phone Files owners. Both new real-transcript/controller/store regressions failed against pre-fix product files and passed after; focused file-tabs checks pass 4 files/38 tests. Parent reviewed all three owner integrations and preserved existing portal placement. Full UI suite passes 103 files/1055 tests with two workers (/private/tmp/chuck-v020-ui-final.log); final make dist VERSION=0.20.0 passes (/private/tmp/chuck-v020-dist-final.log), including style/presentation validation and generated embed. Binary metadata confirms sqlite_fts5. No browser/native/device or credentialed-provider claim is added. Release Go verification is tracked separately in HANDOFF."
+    }
+  ]
 }

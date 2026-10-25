@@ -14,6 +14,7 @@
 - Capturing an annotation reveals a collapsed tray and focuses the new instruction. Annotation
   input uses the regular text font.
 - File-tab fixes preserve Back/Forward behavior, cited-line navigation and keyboard focus.
+  Tab-limit refusals and damaged-storage recovery remain visible even before a first tab opens.
 
 ## Verification and limits
 
