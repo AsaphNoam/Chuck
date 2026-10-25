@@ -37,16 +37,18 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ARCH-v020-1 fixed by `92930083`, embedded by `b8034e83`; exact closure is recorded in
   [the existing receipt](../archive/reviews/architecture/v0.19.0-next.json), with no review rerun.
 - Verification: focused regressions fail before/pass after; full UI 103 files/1055 tests,
-  untagged Go suite and final `make dist VERSION=0.20.0` pass.
-  FTS5 Go suite still running in `/private/tmp/chuck-v020-go-final.log`.
+  untagged and `sqlite_fts5` Go suites and final `make dist VERSION=0.20.0` pass.
   Earlier overloaded Go runs failed timing gates and were stopped; no pass is inferred from them.
   Final logs: `/private/tmp/chuck-v020-{ui-final,dist-final,go-final}.log`.
   Environment: unset `CHUCK_RUNTIME_ROOT`, `GOFLAGS=-p=1`,
   `GOCACHE=/private/tmp/chuck-pdef-fix-cache`.
-- Isolated release checkout: `/private/tmp/chuck-release-v0.20.0`.
-  Preserve the primary checkout's pre-existing generated UI index edit during integration.
-  Next: finish FTS5 checks, run committed architectural gate, integrate, tag/push, verify
-  publication/assets, archive settled handoff and record release.
+- `check-architectural-review.mjs --release-tag v0.20.0`: ready at `a774d128`.
+  Annotated tag `v0.20.0` created locally at `a774d128`; **unpushed**. The agent's push of
+  `main` (28 commits ahead of `origin/main`) and the tag was blocked by the session permission
+  classifier — needs the operator to push or allow it.
+- Preserve the primary checkout's pre-existing generated UI index edit.
+  Next: push `main` then `v0.20.0`, verify release CI and attached archive/checksum/manifest,
+  archive settled handoff and record release.
 
 ## Acceptance gates still owed
 
