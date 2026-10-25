@@ -1,6 +1,6 @@
 # Saved file-viewer tabs
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator `/design-feature` request on 2026-10-23: following one file to another loses
 the previous file; add tabs that open from file links, close and reorder. Confirmed 2026-10-24:
 survive navigation/reload in this browser/device, cover desktop conversations and rooms plus

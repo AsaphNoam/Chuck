@@ -25,7 +25,18 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- No change in progress. Four units wait for review (Review queue).
+- **Saved file-viewer tabs** ([change](../ready-changes/file-viewer-tabs.md); FS-03.R101–R106,
+  FS-20.R56, FS-21.R59, TS-08.R140–R145), in progress. Plan:
+  1. Feature-owned model in `ui/src/features/fileTabs/` — reducer/identity, versioned
+     `chuck.file-tabs.v1` codec with caps/byte budget, store with failure notice, read limiter.
+  2. Per-tab reader hosts (`useFileReader` initial view/limiter) and the tab strip; desktop
+     `ReaderWorkspace` + live/archive URL projection/history.
+  3. Rooms (source-qualified), then phone Files, then owner-deletion cleanup.
+  4. CSS/presentation, browser journeys, closure matrix, spec `(planned)` removal.
+  Slice 1 done: `model.ts` (pure reducer/identity/codec), `store.ts` (zustand owners + non-reactive
+  per-tab views, coalesced saves, inline `notice`), `readLimiter.ts`; `src/test/setup.ts` resets
+  the store after each test. `npx vitest run src/features/fileTabs` passes (24).
+  Next: slice 2. Four other units wait for review (Review queue).
 
 ## Acceptance gates still owed
 

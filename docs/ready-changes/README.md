@@ -43,10 +43,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
-- [`file-viewer-tabs.md`](file-viewer-tabs.md) — saved, closable and reorderable file tabs for
-  desktop conversations/rooms and the phone's existing tracked-file reader, with per-tab reading
-  state and browser-local navigation/reload restoration.
-
 - [`quiet-quota-recovery.md`](quiet-quota-recovery.md) — verified structured/text reset scheduling
   and bounded isolated quota checks; preserve the original conversation, with non-persistent
   Claude sessions and approved named Codex native archive records.
