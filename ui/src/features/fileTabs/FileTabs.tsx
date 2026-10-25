@@ -112,15 +112,19 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, focusA
   const button = (id: string) => [...(list.current?.querySelectorAll<HTMLElement>("[data-tab-id]") ?? [])]
     .find((tab) => tab.dataset.tabId === id)?.querySelector<HTMLButtonElement>("[role=\"tab\"]");
 
-  // The selected tab stays in view, and a close hands focus to its neighbour.
+  // The selected tab, close control included, stays in view — again after the
+  // strip's first layout settles — and a close hands focus to its neighbour.
   useLayoutEffect(() => {
-    if (!active) return;
+    if (!active) return undefined;
     const tab = button(active.id);
-    tab?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    const reveal = () => tab?.closest(".file-tab")?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    reveal();
     if (focusAfterClose.current) {
       focusAfterClose.current = false;
-      tab?.focus();
+      tab?.focus({ preventScroll: true });
     }
+    const frame = requestAnimationFrame(reveal);
+    return () => cancelAnimationFrame(frame);
   }, [active?.id, tabs.length]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {

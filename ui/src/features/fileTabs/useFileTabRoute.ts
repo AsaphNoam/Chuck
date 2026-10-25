@@ -64,7 +64,13 @@ export function useFileTabRoute(owner: string, keys: FileTabKeys, options: { onO
     setParams((current) => writeFileTarget(current, keys, tab), { replace: !push, state: { [PROJECTED]: true } });
   const jump = (id: string) => setJumps((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
 
+  // Each address is applied once; a repeated run for the same location (React's
+  // development double effect) must not read the restore's own POP as Back.
+  const handled = useRef("");
   useEffect(() => {
+    const visit = `${owner}\u0000${location.key}`;
+    if (handled.current === visit) return;
+    handled.current = visit;
     const fresh = seenOwner.current !== owner;
     seenOwner.current = owner;
     if (fresh) setHidden(false);

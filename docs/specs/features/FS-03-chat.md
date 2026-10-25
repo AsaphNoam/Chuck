@@ -1541,21 +1541,21 @@ before timeout is not followed by an automatic duplicate prompt. Definite pre-co
 can restore its original hold; unknown consumption requires explicit recovery. Test desktop,
 phone and CLI callers with actual provider-submission counts in controlled fixtures.
 
-- **A80 (planned)** (R101–R102) — Follow A → B → C in a mounted conversation, return to A and
+- **A80** (R101–R102) — Follow A → B → C in a mounted conversation, return to A and
   verify its in-memory snapshot/read timestamp, display mode and scroll. Reopen A at a cited line
   without creating a duplicate. Reorder by pointer and keyboard; close background, middle-active and final tabs.
   Repeat in Focus file, archived chat, a room with equal relative paths from two sources, and
   the phone's permitted file reader. Annotation drafts survive. *Verify:* shared tab-controller
   and surface integration tests plus desktop/room/phone browser journeys, including long names,
   overflow, focus restoration and all supported appearances.
-- **A81 (planned)** (R103) — Open and reorder several files, leave for another conversation
+- **A81** (R103) — Open and reorder several files, leave for another conversation
   or room, return, then reload. Verify isolated tab sets, restored active tab/modes/positions and
   fresh file reads. Open a direct file/line URL against a saved set and verify target precedence.
   Remove one file and refuse another; each error stays in its own closable tab. *Verify:* saved
   state/URL integration tests and navigation/reload browser journeys in desktop conversations,
   rooms and phone Files. Test unavailable/corrupt browser storage without losing the current
   reading task, and confirm saved data contains no file contents or read timestamps.
-- **A82 (planned)** (R104–R106) — Open 50 files in one owner and fill 500 saved tabs across
+- **A82** (R104–R106) — Open 50 files in one owner and fill 500 saved tabs across
   owners: one more is refused without eviction or an unwanted read, while opening an existing
   tab works. Close a tab and admit another; close the final one and reload to verify it stays
   closed. Back hides an open desktop reader without deleting tabs; revisit restores them, and
@@ -1568,11 +1568,12 @@ phone and CLI callers with actual provider-submission counts in controlled fixtu
 
 ## 6. Deviations & open decisions
 
-- **File tabs approved, 2026-10-24:** R101–R106/A80–A82 are unimplemented. The operator
-  confirmed navigation/reload survival, browser/device-only storage until closed/site-data
-  clearance, desktop rooms and the phone's existing tracked-file access/screens, 50/500 admission
-  limits without eviction, and Back hiding the reader while retaining saved tabs. No product
-  decision remains; the ready change and TS-08.R140–R145 govern implementation.
+- **File tabs shipped, 2026-10-25:** R101–R106/A80–A82 (with FS-20.R56/A28 and
+  FS-21.R59/A42) are covered by `ui/src/features/fileTabs` model/store/route/surface tests,
+  room and phone integration tests, and `ui/scripts/file-tabs-journey.mjs` (desktop live,
+  archive, Focus file and rooms at 1024/1440px; phone Files at 360/390/430px; all appearances).
+  Not yet claimed: physical-phone touch reordering and reconnect, non-Chromium engines, and
+  rendered proof of the 500-total/2 MiB limits and storage-unavailable notice (unit-tested only).
 
 - **History commit boundary shipped 2026-10-20 (ASW-1, R99/A78):** A78 is covered by runtime journal tests (concurrent
   commit order, append/sync/index failure, degrade → repair with gap notice, open-marker recovery,

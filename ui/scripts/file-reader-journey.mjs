@@ -420,11 +420,19 @@ async function run(browser, skin, width, archived) {
     await dialog.getByRole("button", { name: "other" }).click();
     await dialog.getByRole("heading", { name: "Other file" }).waitFor();
     record(`${label}: replacing file stays in focus`, await dialog.count() === 1 && reads.at(-1) === OTHER_PATH);
+    // Each file tab is its own mounted reader, so the dev page's StrictMode may
+    // replay a tab's first read; Reload itself must add exactly one.
+    const otherReads = reads.filter((p) => p === OTHER_PATH).length;
     await dialog.getByRole("button", { name: "Reload" }).click();
     await page.waitForTimeout(100);
-    record(`${label}: Reload reads once`, reads.filter((p) => p === OTHER_PATH).length === 2);
+    record(`${label}: Reload reads once`, reads.filter((p) => p === OTHER_PATH).length === otherReads + 1);
     const english = await chromeText(page, ".file-focus .file-viewer-header button, .file-focus .file-focus-tray-toggle, .workspace-divider");
     record(`${label}: reader chrome is English`, english.length > 0 && english.every((text) => !CJK.test(text)), english.join(" | "));
+    // Replacing the file opened a second tab, so the first Close file closes only
+    // that tab and Focus stays open; the second closes the last tab and the reader.
+    await dialog.getByRole("button", { name: "Close file" }).click();
+    await page.waitForTimeout(100);
+    record(`${label}: Close file closes only the active tab`, await dialog.count() === 1 && await dialog.locator(".file-tab").count() === 1);
     await dialog.getByRole("button", { name: "Close file" }).click();
     await dialog.waitFor({ state: "detached" });
     await page.waitForTimeout(100);
@@ -436,7 +444,7 @@ async function run(browser, skin, width, archived) {
     await page.locator(".file-viewer-rendered").waitFor();
     r = await rects(page);
     record(`${label}: reload restores default sizing`, Math.abs(r.file.width - dragged) > 20 || r.tray_mode === "overlay", `${r.file.width} vs dragged ${dragged}`);
-    const stored = await page.evaluate(() => Object.keys(localStorage).filter((key) => !["chuck-annotation-tray"].includes(key)));
+    const stored = await page.evaluate(() => Object.keys(localStorage).filter((key) => !["chuck-annotation-tray", "chuck.file-tabs.v1"].includes(key)));
     record(`${label}: no new browser storage`, stored.every((key) => !/reader|split|focus|file/i.test(key)), stored.join(","));
 
     // Refusal and partial states remain readable in focus.

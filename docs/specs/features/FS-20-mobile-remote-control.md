@@ -579,7 +579,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   component tests, remote-file/annotation route tests, a phone browser journey and the paired-device
   selection/keyboard gates in FS-13.A19.
 
-- **A28 (planned)** (R56) — Complete FS-03.A80–A82's phone portions at 360/390/430px:
+- **A28** (R56) — Complete FS-03.A80–A82's phone portions at 360/390/430px:
   open two tracked files, select/reorder/close tabs by touch/pointer and keyboard controls,
   navigate away and reload, and return to Files with saved order/mode/position. Long names and
   overflow keep controls reachable. Untracked, symbolic-link and unavailable reads remain

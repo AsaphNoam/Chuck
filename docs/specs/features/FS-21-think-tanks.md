@@ -631,7 +631,7 @@ completion; R37 defines partial opening publication and pending input on End.
   `ThinkTankSetupDialog.test.tsx` "lists the origin project's agents…"; setup step in
   `ui/scripts/project-scope-journey.mjs` (in place of `room-journey.mjs`).
 
-- **A42 (planned)** (R59) — Complete FS-03.A80–A82 in a room whose participants link to
+- **A42** (R59) — Complete FS-03.A80–A82 in a room whose participants link to
   the same relative filename in different workspaces. Verify distinct source labels and reads,
   nested relative links, correct annotation source, independent mode/position, close/reorder and
   navigation/reload restoration. A late read or normalization from a closed tab or prior room

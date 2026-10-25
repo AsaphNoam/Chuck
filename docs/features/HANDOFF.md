@@ -18,7 +18,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   shipped unreviewed at the operator's choice and remain in the review queue.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
   verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
-- **Future work:** project-scoped groups and selectors and file-viewer tabs are design-ready.
+- **Future work:** project-scoped groups/selectors and saved file-viewer tabs are implemented and in the review queue.
   Direct-action migration remains paused on its transport blocker; passive quota
   snapshots remain TBD.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`; use `GOFLAGS=-p=1` and a writable isolated Go cache.
@@ -26,34 +26,13 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- **Saved file-viewer tabs** ([change](../ready-changes/file-viewer-tabs.md); FS-03.R101–R106,
-  FS-20.R56, FS-21.R59, TS-08.R140–R145), in progress. Plan:
-  1. Feature-owned model in `ui/src/features/fileTabs/` — reducer/identity, versioned
-     `chuck.file-tabs.v1` codec with caps/byte budget, store with failure notice, read limiter.
-  2. Per-tab reader hosts (`useFileReader` initial view/limiter) and the tab strip; desktop
-     `ReaderWorkspace` + live/archive URL projection/history.
-  3. Rooms (source-qualified), then phone Files, then owner-deletion cleanup.
-  4. CSS/presentation, browser journeys, closure matrix, spec `(planned)` removal.
-  Slice 1 done: `model.ts` (pure reducer/identity/codec), `store.ts` (zustand owners + non-reactive
-  per-tab views, coalesced saves, inline `notice`), `readLimiter.ts`; `src/test/setup.ts` resets
-  the store after each test. `npx vitest run src/features/fileTabs` passes (24).
-  Slice 2 done: `FileTabs.tsx` (`FileTabsReader` keyed hosts portalled into the docked slot or
-  Focus file's `.file-focus-reader`; strip with dnd-kit Mouse/Touch sensors, Move left/right,
-  Delete key, inline notice), `useFileTabRoute.ts` (address projection marked by navigation
-  state; first explicit open pushes; POP to file-free hides; `applied` gate so an explicit URL
-  never reads the saved active tab first), `testing.tsx` harness. `useFileReader` gained
-  `initialView`/`jump`/`onViewChange`/`schedule`; Reload coalesces while loading. Full UI suite
-  (102 files, 1044 tests), `tsc -p tsconfig.app.json` and `npm run check:styles` pass.
-  Slice 3a done: `ThinkTankPage` uses `useFileTabRoute(room, ROOM_FILE_KEYS)` + `FileTabsReader`
-  with per-tab `loadSourceFile(room, tab.source)` and source labels; room/agent deletion drops the
-  saved owner (`api/sse.ts`, `remote/connection.ts`, room Delete). Room tests pass (30).
-  Slice 3b done: phone `AgentScreen` Files renders one `FileTabsReader` above the tracked list via
-  `useFileTabSet` (no address); nested links open only byte-equal tracked paths, otherwise an
-  inline refusal; final close focuses the Files heading; 44px tab controls. Phone tests pass (128).
-  Next: slice 4 — rendered browser journeys (desktop 1024/1440, rooms, phone 360/390/430, all
-  appearances), then closure and spec `(planned)` removal. Four other units wait for review.
+- No change in progress. Saved file-viewer tabs finished and wait for review (Review queue).
 
 ## Acceptance gates still owed
+
+- **FS-03.A80–A82 / FS-20.A28 / FS-21.A42 (file tabs):** physical-phone touch reordering and
+  reconnect, non-Chromium engines, and rendered proof of the 500-total/2 MiB limits and the
+  storage-unavailable notice (unit-tested only) remain owed.
 
 - **ASF-2 native/device receipts:** deterministic fake-ACP wire counts, HTTP/CLI/component checks,
   and isolated desktop Chromium withdrawal/unknown-recovery journeys establish the repaired input
@@ -187,6 +166,25 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
+- **Saved file-viewer tabs** (FS-03.R101–R106/A80–A82, FS-20.R56/A28, FS-21.R59/A42,
+  TS-08.R140–R145), waiting for review. Shared `ui/src/features/fileTabs/`: pure model/codec
+  (`chuck.file-tabs.v1`, 50/500/2 MiB admission, no eviction), store (reactive owners,
+  non-reactive per-tab views, coalesced saves, inline notice), 4-slot read limiter,
+  `FileTabsReader` (keyed per-tab `useFileReader` hosts portalled into the docked slot or Focus
+  file), `useFileTabRoute` (desktop/room address projection; first open pushes, POP to a
+  file-free address hides; applied once per location) and `useFileTabSet` (phone, no address).
+  `lib/fileLinkParams.ts` was folded into `readFileTarget`/`writeFileTarget`. Evidence: UI suite
+  (102 files, 1045 tests), build and presentation checks pass; `ui/scripts/file-tabs-journey.mjs`
+  passes 612/612 (`/tmp/file-tabs-journey`) and `file-reader-journey.mjs` 999/999 after three
+  tab-behaviour edits. The journey first caught three defects, fixed before closure: the active
+  tab not revealed after restore, its close control clipped, and dev StrictMode hiding restored
+  tabs. Reviewer notes: Focus file's view is portalled from outside the dialog's React tree
+  (menus get `MenuPortalContext` explicitly; "Return to chat" no longer uses `Dialog.Close`);
+  Reload is ignored while a read is pending; phone link refusal is inline, desktop room-source
+  refusal is a toast. `make check-specs` fails only on the PSG-R1/R2 finding format recorded by
+  the separate review session (missing `###` unit and **Fix model:**), which this unit left alone.
+  Generated embed was not committed.
+
 - **Project-scoped groups and selectors** (FS-02.R80–R82/A61–A63, FS-13.R34/A24,
   FS-21.R58/A41, TS-08.R139), reviewed 2026-10-25; awaiting fixes for PSG-R1/2 below.
   **Fix model:** medium — Codex Terra or Claude Opus.
@@ -279,6 +277,9 @@ Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
 
+- **2026-10-25 — Saved file-viewer tabs implemented:** desktop conversations (live/archive,
+  Focus file), rooms and phone Files share one tabbed reader with browser-saved tabs.
+
 - **2026-10-25 — Project-scoped groups/selectors reviewed:** two Must-fix findings: collapse
   persistence on rapid navigation and annotation scope reset on a fresh batch. Independent
   26-check browser journey passes; targeted browser reproductions confirm the gaps. Room,
@@ -296,7 +297,7 @@ Closed findings through v0.19.0 are archived with their receipts.
 - **2026-10-24 — Project-scoped groups and selectors:** typed group names are kept, group
   suggestions and collapse follow the project, and annotation/room pickers start at the current
   project with Include other projects. Browser journey, UI and Go suites pass; ready for review.
-- **2026-10-24 — Design ready:** [saved file-viewer tabs](../ready-changes/file-viewer-tabs.md)
+- **2026-10-24 — Design ready:** saved file-viewer tabs
   are waiting to start: FS-03.R101–R106/A80–A82, FS-20.R56/A28, FS-21.R59/A42 and
   TS-08.R140–R145. The operator confirmed browser/device persistence, existing phone access/screens,
   desktop rooms, 50/500 caps without eviction and Back hiding without deleting tabs. No product
