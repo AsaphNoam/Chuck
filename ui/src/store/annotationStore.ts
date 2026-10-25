@@ -79,7 +79,9 @@ export const useAnnotationStore = create<AnnotationStoreState>()(
       add: (sourceId, draft) => {
         const current = get().bySource[sourceId] ?? [];
         if (current.length >= maxDrafts) return false;
-        set({ bySource: { ...get().bySource, [sourceId]: [...current, draft] }, editedAt: touch(get().editedAt, sourceId), commandBySource: without(get().commandBySource, sourceId) });
+        // Capturing into a collapsed tray must reveal the new instruction
+        // before it mounts, so its autoFocus can place the keyboard there.
+        set({ bySource: { ...get().bySource, [sourceId]: [...current, draft] }, editedAt: touch(get().editedAt, sourceId), collapsedBySource: without(get().collapsedBySource, sourceId), commandBySource: without(get().commandBySource, sourceId) });
         return true;
       },
       updateInstruction: (sourceId, index, instruction) =>

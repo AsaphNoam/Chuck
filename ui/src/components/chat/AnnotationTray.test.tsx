@@ -99,6 +99,21 @@ describe("AnnotationTray", () => {
     expect(screen.getAllByLabelText("Instruction")[1]).toHaveFocus();
   });
 
+  it("reveals and focuses a captured instruction when its source tray was collapsed", () => {
+    seedTray(1);
+    act(() => { useAnnotationStore.getState().setCollapsed("source", true); });
+    act(() => { useAnnotationStore.getState().setCollapsed("other-source", true); });
+    const { container } = renderTray();
+    expect(container.querySelector(".annotation-tray")).toHaveAttribute("data-state", "collapsed");
+
+    act(() => { useAnnotationStore.getState().add("source", { seq: 2, excerpt: "Captured event", instruction: "" }); });
+
+    expect(container.querySelector(".annotation-tray")).toHaveAttribute("data-state", "expanded");
+    expect(screen.getAllByLabelText("Instruction")[1]).toHaveFocus();
+    expect(useAnnotationStore.getState().collapsedBySource.source).toBeUndefined();
+    expect(useAnnotationStore.getState().collapsedBySource["other-source"]).toBe(true);
+  });
+
   it("validates the batch before opening launch, leaving an invalid tray intact", async () => {
     seedTray(1);
     useAnnotationStore.getState().updateInstruction("source", 0, "  ");
