@@ -15,6 +15,7 @@ function EmptyConversation() {
   return <TranscriptView agentId="new" events={[{ kind: "assistant_text", seq: 1, text: "[Read file](new.md)" }]} fileTabs={tabs} onOpenFile={link => { if (link) tabs.open(link); }} />;
 }
 
+// FS-03.A82: refusing another tab preserves existing tabs and explains recovery.
 it("explains total-cap refusal when this conversation has no existing tabs", () => {
   const owners = Object.fromEntries(Array.from({ length: 10 }, (_, owner) => [
     `conversation:a${owner}`,
@@ -29,6 +30,7 @@ it("explains total-cap refusal when this conversation has no existing tabs", () 
   expect(screen.getByRole("status")).toHaveTextContent(/500 file tabs.*Close a tab/);
 });
 
+// FS-03.A82: malformed saved data gives visible recovery without blocking chat.
 it("shows damaged-storage recovery feedback on an empty conversation", () => {
   localStorage.setItem(STORAGE_KEY, "{not json");
   loadFileTabs();
