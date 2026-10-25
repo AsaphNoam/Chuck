@@ -15,6 +15,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.18.1-next.json)) is closed: ARCH-v019-1/2
   fixed and verified. Project-scoped groups/selectors review is closed; PSG-R1/2 repaired.
   Saved file-viewer tabs review FVT-R1–R4 is closed with verified fixes.
+  Skip-permissions default review is complete with PDEF-R1 open: the documented global
+  Settings opt-out is ignored by the configuration API.
   Annotation font/focus and workflow verification cleanup
   shipped unreviewed at the operator's choice and remain in the review queue.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
@@ -167,7 +169,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
-- **Skip permissions by default** (FS-04.R61/A40), waiting for review. Fresh/fallback global
+- **Skip permissions by default** (FS-04.R61/A40), reviewed 2026-10-25; PDEF-R1 awaits fix below.
+  Fresh/fallback global
   configuration now enables `skip_permissions`; No persona and all seeded personas inherit it.
   Existing saved global choices, persona overrides and frozen sessions retain their policy.
   The fresh-home/no-clobber regression fails against the old default and passes after the change.
@@ -198,11 +201,48 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   and twin parity pass via Node YAML; the Python validator is unavailable without PyYAML.
   CI retains full coverage; no full product suites or live-provider checks were needed here.
 
+## Review findings
+
+### Skip permissions by default (`ebb22b4a`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — **PDEF-R1 (INV §10): the documented Settings opt-out cannot change the policy.**
+  `README.md:177–179` directs fresh installations to Settings → Roles → Default permissions,
+  but `internal/server/config_handlers.go`'s `configPutBody` and `handlePutConfig` merge omit
+  `skip_permissions`. The UI submits this field; the decoder silently ignores it and returns
+  HTTP 200 with the unchanged configuration. Turning the new default off therefore leaves
+  both disk and future launches at `true`; the toggle returns to checked. This missing wiring
+  predates the default change (`b93f462d`), but the selected unit newly defaults to skipping
+  and documents this broken opt-out. Violates FS-04.R60/A39 and the selected unit's README
+  promise. Accept an optional boolean, merge it when present, and verify both directions and
+  omission preserving the saved policy through the actual handler. Reuse existing frozen-session
+  coverage and check the next launch uses the saved value.
+
+Review evidence: an isolated Go overlay test against `134b4ef5` seeds a fresh temp home and
+PUTs `{"skip_permissions":false}` through the real routes. It fails as expected: HTTP 200,
+response/disk/effective launch configuration all remain `true`. Command:
+`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-permission-default-gocache go test -overlay /private/tmp/chuck-review-permission-overlay.json ./internal/server -run '^TestReviewPermissionDefaultToggle$' -count=1 -v`;
+log `/private/tmp/chuck-review-permission-repro.log`. No repository test or product source was
+changed. Seed/preservation assertions independently enumerate the five personas and inspect
+real saved files; explicit manual-prompt fixtures retain their intended coverage. Launch role
+precedence and frozen resume/switch paths match R1/R13/R61. No local-choice note requires a
+human decision. Prior implementation suite results remain recorded with the queue unit;
+this review does not claim fresh full-suite or live-provider verification.
+
+Invariant sweep: §3 persisted-policy handling and §17 changed tests have no additional findings;
+§10 has PDEF-R1. The configuration API serialization boundary (§11), reached by the documented
+opt-out, confirms the same finding. No applicable changed surface for §§1, 2, 4–9, 12–16.
+The unrelated generated `internal/server/ui/dist/index.html` edit is preserved.
+
 Project-scoped groups/selectors PSG-R1/2 closed on 2026-10-25.
 
 Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
+
+- **2026-10-25 — Skip-permissions default reviewed:** one Must-fix finding, PDEF-R1: the
+  documented Settings opt-out is silently ignored by the API. A real-handler reproduction
+  confirms the unchanged saved/effective policy. Seed inheritance, saved preferences and frozen
+  sessions otherwise match the requirements. Same review unit remains open for the localized fix.
 
 - **2026-10-25 — Saved file-viewer tabs fixes (INV §1/§2/§10):** FVT-R1–R4 are closed.
   Delayed normalization preserves descriptors without rewriting Back on conversation and room
