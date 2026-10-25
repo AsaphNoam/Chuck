@@ -7,6 +7,8 @@ import type { FileLink } from "./renderers/filePath";
 import type { AnnotationDraft } from "../../api/types";
 import { clipAnnotationExcerpt } from "../../lib/annotations";
 import { claimWebLink } from "../../lib/linkActions";
+import { emptyAnchors, type Anchors, type DisplayMode, type ReadingAnchor, type TabView } from "../../features/fileTabs/model";
+import { ReadDropped, type ReadKind } from "../../features/fileTabs/readLimiter";
 
 // The read-only, one-file viewer that opens beside the transcript (FS-03.R52).
 // It holds no durable state: `?file=`/`?fileLine=` on the route are the open
@@ -20,11 +22,6 @@ type ViewState =
   | { status: "error"; reason: string }
   | { status: "loaded"; file: FileContent; readAt: Date };
 
-type DisplayMode = "rendered" | "formatted" | "source";
-/** A reading location: the first visible source line or rendered top-level
- *  block, and how far its top sits below the body's top edge (TS-08.R130). */
-type ReadingAnchor = { key: number; offset: number };
-
 export type FileReader = ReturnType<typeof useFileReader>;
 
 /**
@@ -32,16 +29,28 @@ export type FileReader = ReturnType<typeof useFileReader>;
  * The agent workspace keeps it mounted while the same view moves between the
  * adjacent column and Focus file, so a layout change never reads the file
  * again (TS-08.R127). A null link closes the file and drops its snapshot.
+ *
+ * A file tab's reader starts from its saved view, reports view changes back to
+ * the saved tab, and reads through its owner's limiter (TS-08.R142/R144).
+ * `jump` changes when the tab is reopened at a citation, which then wins over
+ * the saved position once.
  */
-export function useFileReader({ agentId, link, load, onPathResolved }: {
+export function useFileReader({ agentId, link, load, onPathResolved, initialView, jump = 0, onViewChange, schedule }: {
   agentId: string;
   link: FileLink | null;
   load?: (path: string) => Promise<FileContent>;
   onPathResolved?: (path: string) => void;
+  initialView?: TabView;
+  jump?: number;
+  onViewChange?: (view: TabView) => void;
+  schedule?: (kind: ReadKind, start: () => Promise<FileContent>) => Promise<FileContent>;
 }) {
   const [view, setView] = useState<ViewState>({ status: "loading" });
-  const [rendered, setRendered] = useState(true);
+  const [rendered, setRenderedState] = useState(initialView?.rendered ?? true);
   const [reloadKey, setReloadKey] = useState(0);
+  // A tab's read that its limiter dropped before it started; it reads again
+  // when the tab is next selected.
+  const [dropped, setDropped] = useState(false);
   // Per-read request token: opening another file, switching agents, closing, or
   // reloading must not be overwritten by a slower earlier read landing
   // afterwards — the same guard FilesTab/CommandsTab already carry (TS-08.R57, INV §1).
@@ -50,10 +59,19 @@ export function useFileReader({ agentId, link, load, onPathResolved }: {
   loadRef.current = load;
   const resolvedRef = useRef(onPathResolved);
   resolvedRef.current = onPathResolved;
+  const viewChangeRef = useRef(onViewChange);
+  viewChangeRef.current = onViewChange;
+  const scheduleRef = useRef(schedule);
+  scheduleRef.current = schedule;
   // One position per display mode for the current file, and a cited line still
   // waiting to be shown (FS-03.R95).
-  const positions = useRef<Record<DisplayMode, ReadingAnchor | null>>({ rendered: null, formatted: null, source: null });
-  const pendingLine = useRef<number | null>(null);
+  const positions = useRef<Anchors>(initialView ? { ...initialView.anchors } : emptyAnchors());
+  const pendingLine = useRef<number | null>(initialView && jump > 0 ? link?.line ?? null : null);
+  const seenJump = useRef(jump);
+  if (jump !== seenJump.current) {
+    seenJump.current = jump;
+    if (link?.line) pendingLine.current = link.line;
+  }
 
   // The server returns the normalized path it actually read. Publishing that
   // spelling back to the route makes header, URL, reload, and annotation anchors
@@ -66,9 +84,11 @@ export function useFileReader({ agentId, link, load, onPathResolved }: {
   // over any stored position. Republishing the same file's spelling is neither.
   // The previous file's snapshot is dropped in the same render, so neither the
   // cited line nor a scroll is ever applied to the file being replaced.
-  const seen = useRef<{ path: string | null; line: number | null }>({ path: null, line: null });
+  // A tab's reader begins already showing its own file, so its saved position
+  // is not mistaken for a previous file's.
+  const seen = useRef<{ path: string | null; line: number | null }>(initialView ? { path, line } : { path: null, line: null });
   if (path !== seen.current.path && path !== republished.current) {
-    positions.current = { rendered: null, formatted: null, source: null };
+    positions.current = emptyAnchors();
     pendingLine.current = line;
     if (view.status !== "loading") setView({ status: "loading" });
   } else if (line !== seen.current.line && line !== null) {
@@ -94,7 +114,9 @@ export function useFileReader({ agentId, link, load, onPathResolved }: {
     republished.current = null;
     const token = ++readToken.current;
     setView({ status: "loading" });
-    (loadRef.current ? loadRef.current(path) : getFileContent(agentId, path))
+    setDropped(false);
+    const start = () => (loadRef.current ? loadRef.current(path) : getFileContent(agentId, path));
+    (scheduleRef.current ? scheduleRef.current(reloadKey > 0 ? "reload" : "open", start) : start())
       .then((file) => {
         if (readToken.current !== token) return;
         setView({ status: "loaded", file, readAt: new Date() });
@@ -105,18 +127,29 @@ export function useFileReader({ agentId, link, load, onPathResolved }: {
       })
       .catch((error: unknown) => {
         if (readToken.current !== token) return;
-        setView({ status: "error", reason: error instanceof Error ? error.message : "That file could not be read." });
+        if (error instanceof ReadDropped) setDropped(true);
+        else setView({ status: "error", reason: error instanceof Error ? error.message : "That file could not be read." });
       });
   }, [agentId, path, reloadKey]);
+  // An unmounted reader's late reply must not report a path for a closed tab.
+  useEffect(() => () => { readToken.current += 1; }, []);
 
+  const setRendered = (next: boolean) => {
+    setRenderedState(next);
+    viewChangeRef.current?.({ rendered: next, anchors: positions.current });
+  };
   return {
     link,
     view,
     rendered,
     setRendered,
-    reload: () => setReloadKey((key) => key + 1),
+    // A Reload already reading is the same request (TS-08.R144).
+    reload: () => { if (view.status !== "loading" || dropped) setReloadKey((key) => key + 1); },
+    dropped,
     positions,
     pendingLine,
+    jump,
+    positionsChanged: () => viewChangeRef.current?.({ rendered, anchors: positions.current }),
   };
 }
 
@@ -137,7 +170,7 @@ export function FileViewer({ agentId, link, onClose, onOpenFile, onPathResolved,
 
 /** The one reader view. The agent workspace shows it docked beside the
  *  conversation or inside Focus file; the room shows it alone. */
-export function FileViewerView({ reader, variant, onClose, closeLabel = "Close", onOpenFile, onSelectionMenu, onAnnotateSelection, actions }: {
+export function FileViewerView({ reader, variant, onClose, closeLabel = "Close", onOpenFile, onSelectionMenu, onAnnotateSelection, actions, tabs }: {
   reader: FileReader;
   variant?: "docked" | "focused";
   /** Omitted where the surrounding surface owns closing, as on the phone. */
@@ -149,6 +182,8 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
   onAnnotateSelection?: (draft: AnnotationDraft) => void;
   /** Presentation controls placed before Close, such as Focus file. */
   actions?: ReactNode;
+  /** The owner's file-tab strip, above the open file's header. */
+  tabs?: ReactNode;
 }) {
   const { view, rendered, setRendered, positions } = reader;
   const link = reader.link as FileLink;
@@ -192,6 +227,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
 
   return (
     <aside className="file-viewer" data-ui="file-viewer" data-state={view.status} data-variant={variant} aria-label="Open file">
+      {tabs}
       <header className="file-viewer-header" data-slot="header">
         <span className="file-viewer-path" title={shownPath}>{shownPath}</span>
         <div className="file-viewer-actions" data-slot="actions">
@@ -226,7 +262,11 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
         onContextMenu={openSelectionMenu}
         // Only the loaded document records a position: the Reading… or error
         // placeholder's own scroll (clamped to its top) must not replace it.
-        onScroll={() => { if (bodyRef.current && view.status === "loaded") positions.current[mode] = captureAnchor(bodyRef.current, mode); }}
+        onScroll={() => {
+          if (!bodyRef.current || view.status !== "loaded") return;
+          positions.current[mode] = captureAnchor(bodyRef.current, mode);
+          reader.positionsChanged();
+        }}
       >
         {view.status === "loading" && <p className="tab-placeholder">Reading…</p>}
         {view.status === "error" && <p className="file-viewer-error" role="alert">{view.reason}</p>}
@@ -316,7 +356,7 @@ function useReadingPosition(bodyRef: RefObject<HTMLDivElement | null>, reader: F
     observer.observe(body);
     if (body.firstElementChild) observer.observe(body.firstElementChild);
     return () => observer.disconnect();
-  }, [view, mode, reader.link?.line]);
+  }, [view, mode, reader.link?.line, reader.jump]);
 }
 
 function anchorTargets(body: HTMLElement, mode: DisplayMode): HTMLElement[] {

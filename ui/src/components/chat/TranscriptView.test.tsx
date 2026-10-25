@@ -13,6 +13,7 @@ import { useHeldStore } from "../../store/heldStore";
 import { foldTranscript, useTranscriptStore } from "../../store/transcriptStore";
 import { annotationBlockSentinel } from "../../lib/annotations";
 import { TranscriptView } from "./TranscriptView";
+import { ConversationTabsRoute } from "../../features/fileTabs/testing";
 
 const mswServer = setupServer();
 beforeAll(() => mswServer.listen({ onUnhandledRequest: "bypass" }));
@@ -390,14 +391,18 @@ describe("TranscriptView file annotation integration (J13)", () => {
     const client_ = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
     render(
       <QueryClientProvider client={client_}>
-        <TranscriptView
-          agentId="a1"
-          events={events}
-          sourceActive
-          annotationsEnabled
-          openFile={{ path: "internal/state/messages.go" }}
-          onOpenFile={onOpenFile}
-        />
+        <ConversationTabsRoute agentId="a1" initial={{ path: "internal/state/messages.go" }}>
+          {(tabs) => (
+            <TranscriptView
+              agentId="a1"
+              events={events}
+              sourceActive
+              annotationsEnabled
+              fileTabs={tabs}
+              onOpenFile={onOpenFile}
+            />
+          )}
+        </ConversationTabsRoute>
       </QueryClientProvider>,
     );
 

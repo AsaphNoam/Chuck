@@ -37,7 +37,14 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   Slice 1 done: `model.ts` (pure reducer/identity/codec), `store.ts` (zustand owners + non-reactive
   per-tab views, coalesced saves, inline `notice`), `readLimiter.ts`; `src/test/setup.ts` resets
   the store after each test. `npx vitest run src/features/fileTabs` passes (24).
-  Next: slice 2. Four other units wait for review (Review queue).
+  Slice 2 done: `FileTabs.tsx` (`FileTabsReader` keyed hosts portalled into the docked slot or
+  Focus file's `.file-focus-reader`; strip with dnd-kit Mouse/Touch sensors, Move left/right,
+  Delete key, inline notice), `useFileTabRoute.ts` (address projection marked by navigation
+  state; first explicit open pushes; POP to file-free hides; `applied` gate so an explicit URL
+  never reads the saved active tab first), `testing.tsx` harness. `useFileReader` gained
+  `initialView`/`jump`/`onViewChange`/`schedule`; Reload coalesces while loading. Full UI suite
+  (102 files, 1044 tests), `tsc -p tsconfig.app.json` and `npm run check:styles` pass.
+  Next: slice 3 (rooms). Four other units wait for review (Review queue).
 
 ## Acceptance gates still owed
 

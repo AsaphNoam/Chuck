@@ -25,6 +25,7 @@ import { projectTurns } from "./turnActivity";
 import { TurnList, useFocusReturn, useTurnChoices } from "./TurnList";
 import { AnnotationContextMenu, type AnnotationMenuState } from "./AnnotationContextMenu";
 import { ReaderWorkspace } from "./ReaderWorkspace";
+import type { FileTabRoute } from "../../features/fileTabs/useFileTabRoute";
 import type { PanelSlots } from "./AgentStage";
 import { mergeThinkTankResults, THINK_TANK_RESULT_KIND, ThinkTankResultRow } from "./thinkTankResults";
 import { useThinkTankResults } from "../../api/thinkTanks";
@@ -38,15 +39,15 @@ import { useUiStore } from "../../store/uiStore";
 import { dismissPromptRecovery, sendRecoveredPrompt } from "../../api/client";
 import { useQueryClient } from "@tanstack/react-query";
 
-// openFile/onOpenFile are per-surface, exactly as annotationsEnabled already is
-// (TS-08.R57). The agent and archived-agent screens pass the file their route
-// carries and a handler that writes it back to the route; the dashboard chat pane
-// passes no open file and a handler that navigates to the agent screen instead,
+// fileTabs/onOpenFile are per-surface, exactly as annotationsEnabled already is
+// (TS-08.R57). The agent and archived-agent screens pass their route's saved file
+// tabs and a handler that opens a tab there; the dashboard chat pane
+// passes no tabs and a handler that navigates to the agent screen instead,
 // which is that pane's existing route to the full surface (FS-03.R53).
 // taskControl offers targeted background-task Stop; only a live session whose
 // runtime negotiated it passes true, and the archive never does (FS-03.R59).
 // reveal names an event the caller is about to scroll to; a fresh object per request.
-export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, openFile = null, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; openFile?: FileLink | null; onOpenFile?: (link: FileLink | null, options?: { replace?: boolean }) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
+export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, fileTabs, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; fileTabs?: FileTabRoute; onOpenFile?: (link: FileLink | null) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -171,8 +172,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
       <ReaderWorkspace
         key={agentId}
         agentId={agentId}
-        openFile={openFile}
-        onOpenFile={onOpenFile}
+        tabs={fileTabs}
         annotationsEnabled={annotationsEnabled}
         sourceActive={sourceActive}
         panelSlots={panelSlots}

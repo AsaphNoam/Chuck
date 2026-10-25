@@ -10,6 +10,7 @@ import { AgentStage, type PanelSlots } from "./AgentStage";
 import { TranscriptView } from "./TranscriptView";
 import type { FileLink } from "./renderers/filePath";
 import { MenuPortalContext, PointerContextMenu } from "../ui/PointerContextMenu";
+import { ConversationTabsRoute } from "../../features/fileTabs/testing";
 
 let reads: string[] = [];
 let releaseSend: (() => void) | null = null;
@@ -48,16 +49,19 @@ const events = [{ kind: "assistant_text", seq: 7, text: "Reply" }];
 // transcript, with the route's open file owned above both (FS-03.R54).
 // `shown` false stands for another agent tab replacing the transcript.
 function Page({ initial, agentId = "a1", shown = true }: { initial: FileLink | null; agentId?: string; shown?: boolean }) {
-  const [file, setFile] = useState<FileLink | null>(initial);
   const [slots, setSlots] = useState<PanelSlots | undefined>(undefined);
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 0 } } }));
   return (
     <QueryClientProvider client={client}>
-      <AgentStage source={agentId} onSlots={setSlots}>
-        <div className="chat-card">
-          {shown && <TranscriptView agentId={agentId} events={events} sourceActive annotationsEnabled openFile={file} onOpenFile={setFile} panelSlots={slots} />}
-        </div>
-      </AgentStage>
+      <ConversationTabsRoute agentId={agentId} initial={initial}>
+        {(tabs) => (
+          <AgentStage source={agentId} onSlots={setSlots}>
+            <div className="chat-card">
+              {shown && <TranscriptView agentId={agentId} events={events} sourceActive annotationsEnabled fileTabs={tabs} onOpenFile={(link) => { if (link) tabs.open(link); }} panelSlots={slots} />}
+            </div>
+          </AgentStage>
+        )}
+      </ConversationTabsRoute>
     </QueryClientProvider>
   );
 }
@@ -95,17 +99,21 @@ describe("reader workspace", () => {
     expect(reads).toEqual(["docs/notes.md"]);
   });
 
-  it("replaces the file inside focus, reloads only on request, and closes it there", async () => {
+  it("opens a followed file as a tab inside focus, reloads only on request, and closes tabs there", async () => {
     render(<Page initial={{ path: "docs/notes.md" }} />);
     await screen.findByRole("heading", { name: /Notes/ });
     fireEvent.click(screen.getByRole("button", { name: "Focus file" }));
     const dialog = await screen.findByRole("dialog", { name: "Focus file" });
     fireEvent.click(within(dialog).getByRole("button", { name: "other" }));
     await waitFor(() => expect(reads).toEqual(["docs/notes.md", "docs/other.md"]));
-    expect(screen.getByRole("dialog", { name: "Focus file" })).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["notes.md", "other.md"]);
     fireEvent.click(within(dialog).getByRole("button", { name: "Reload" }));
     await waitFor(() => expect(reads).toHaveLength(3));
 
+    // Closing one of two tabs keeps Focus file on the other, from memory (FS-03.R102).
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close file" }));
+    expect(await within(dialog).findByRole("heading", { name: /Notes/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("tab", { name: "notes.md" })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(within(dialog).getByRole("button", { name: "Close file" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.querySelector(".file-viewer")).toBeNull();

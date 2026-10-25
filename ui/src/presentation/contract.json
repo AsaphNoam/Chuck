@@ -333,6 +333,11 @@
         "focused"
       ]
     },
+    "file-tabs": {
+      "slots": [],
+      "states": [],
+      "variants": []
+    },
     "workspace-divider": {
       "slots": [],
       "states": [],

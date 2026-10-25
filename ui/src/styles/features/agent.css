@@ -1578,6 +1578,132 @@ a.agent-mini-card:focus-visible {
   padding: var(--ad-space-3);
 }
 
+/* File tabs: one quiet strip above the open file. The strip scrolls sideways
+   inside the reader instead of widening it; the selected tab is marked by an
+   underline and weight as well as colour (FS-03.R102, TS-08.R145). */
+.file-tabs {
+  border-bottom: var(--ad-border-thin) solid var(--ad-border-default);
+  flex: none;
+  min-width: 0;
+}
+
+.file-tabs-row {
+  align-items: stretch;
+  display: flex;
+  min-width: 0;
+}
+
+.file-tabs-list {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.file-tab {
+  align-items: center;
+  border-bottom: var(--ad-border-thick) solid transparent;
+  border-right: var(--ad-border-thin) solid var(--ad-border-default);
+  display: flex;
+  flex: none;
+  max-width: 14rem;
+  touch-action: pan-x;
+}
+
+.file-tab[data-state="active"] {
+  background: var(--ad-surface-raised);
+  border-bottom-color: var(--ad-action-secondary);
+}
+
+.file-tab[data-dragging="true"] {
+  opacity: 0.7;
+  position: relative;
+  z-index: 1;
+}
+
+.file-tab-select {
+  align-items: baseline;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--ad-text-secondary);
+  display: flex;
+  font-family: var(--ad-font-mono);
+  font-size: 0.72rem;
+  gap: var(--ad-space-1);
+  min-height: 2rem;
+  min-width: 0;
+  padding: var(--ad-space-1) var(--ad-space-1) var(--ad-space-1) var(--ad-space-3);
+}
+
+.file-tab[data-state="active"] .file-tab-select {
+  color: var(--ad-text-primary);
+  font-weight: 600;
+}
+
+.file-tab-name,
+.file-tab-source {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tab-source {
+  color: var(--ad-text-muted);
+  font-family: var(--ad-font-text);
+  font-size: 0.66rem;
+  font-weight: 400;
+}
+
+.file-tab-close,
+.file-tabs-icon {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--ad-radius-small);
+  color: var(--ad-text-muted);
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  min-height: 1.75rem;
+  min-width: 1.75rem;
+  padding: 0;
+}
+
+.file-tab-close:hover,
+.file-tabs-icon:hover:not(:disabled) {
+  background: var(--ad-surface-subtle);
+  color: var(--ad-text-primary);
+}
+
+.file-tabs-move {
+  align-items: center;
+  border-left: var(--ad-border-thin) solid var(--ad-border-default);
+  display: flex;
+  flex: none;
+  padding: 0 var(--ad-space-1);
+}
+
+.file-tabs-notice {
+  align-items: center;
+  border-top: var(--ad-border-thin) solid var(--ad-border-default);
+  color: var(--ad-text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  gap: var(--ad-space-2);
+  justify-content: space-between;
+  margin: 0;
+  padding: var(--ad-space-2) var(--ad-space-3);
+}
+
+/* Focus file's reader slot takes part in the dialog's grid directly. */
+.file-focus-reader {
+  display: contents;
+}
+
 .file-viewer-path {
   direction: rtl;
   flex: 1 1 10rem;

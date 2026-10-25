@@ -363,8 +363,11 @@ function matrixReader(): FileReader {
     rendered: true,
     setRendered: () => undefined,
     reload: () => undefined,
+    dropped: false,
     positions: { current: { rendered: null, formatted: null, source: null } },
     pendingLine: { current: null },
+    jump: 0,
+    positionsChanged: () => undefined,
   };
 }
 

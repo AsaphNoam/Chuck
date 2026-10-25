@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { getTranscript, restoreAgent, resumeAgent } from "../../api/client";
 import { useProjects } from "../../api/config";
 import { AgentBreadcrumb, AgentIdentity } from "../../components/chat/ChatPanel";
@@ -8,12 +8,12 @@ import { useTranscriptStore } from "../../store/transcriptStore";
 import { useAgentStore } from "../../store/agentStore";
 import { TranscriptView } from "../../components/chat/TranscriptView";
 import type { FileLink } from "../../components/chat/renderers/filePath";
-import { fileLinkFromParams, writeFileLinkParams } from "../../lib/fileLinkParams";
+import { ownerKey } from "../fileTabs/model";
+import { CONVERSATION_FILE_KEYS, useFileTabRoute } from "../fileTabs/useFileTabRoute";
 
 export function ArchiveAgentPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
   const events = useTranscriptStore((state) => state.byAgent[id] ?? []);
   const setTranscript = useTranscriptStore((state) => state.setTranscript);
   const settle = useTranscriptStore((state) => state.settle);
@@ -25,11 +25,10 @@ export function ArchiveAgentPage() {
   // uses the most recent one. Reading the first record would show the original
   // backend/model beside Resume for a switched session (FS-05.R31/A15).
   const metadata = latestSessionMeta(events);
-  // An archived session reads from the working directory it recorded, so its file
-  // links open the same viewer through the same address (FS-03.R54/R55).
-  const openFile = fileLinkFromParams(params);
-  const openFileInViewer = (link: FileLink | null, options?: { replace?: boolean }) =>
-    setParams((current) => writeFileLinkParams(current, link), options);
+  // An archived session reads from the working directory it recorded, and shares
+  // the live conversation's saved file tabs and address (FS-03.R55/R101).
+  const fileTabs = useFileTabRoute(ownerKey("conversation", id), CONVERSATION_FILE_KEYS);
+  const openFileInViewer = (link: FileLink | null) => { if (link) fileTabs.open(link); };
   const archivedName = textField(metadata?.name) || "Archived session";
   const project = textField(metadata?.project);
   const backend = textField(metadata?.backend);
@@ -90,7 +89,7 @@ export function ArchiveAgentPage() {
   };
 
   return (
-    <section className="chat-panel" data-ui="agent-workspace" data-state="archived" data-file-open={openFile ? "true" : undefined} data-variant="chat">
+    <section className="chat-panel" data-ui="agent-workspace" data-state="archived" data-file-open={fileTabs.shown ? "true" : undefined} data-variant="chat">
       <AgentBreadcrumb backTarget="/archive" backLabel="Back to Archive" project={projectTitle} name={archivedName} agentId={id} />
       <AgentStage source={id} onSlots={setPanelSlots}>
       <div className="chat-card">
@@ -117,7 +116,7 @@ export function ArchiveAgentPage() {
         )}
       </header>
       {error ? <p className="archive-error">{error}</p> : <LoadNotice load={load} onRetry={() => setAttempt((n) => n + 1)} />}
-      <div data-slot="content">{!unknown && <TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} openFile={openFile} onOpenFile={openFileInViewer} inlineDiffs panelSlots={panelSlots} />}</div>
+      <div data-slot="content">{!unknown && <TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} fileTabs={fileTabs} onOpenFile={openFileInViewer} inlineDiffs panelSlots={panelSlots} />}</div>
       {/* No Composer — read-only view */}
       <div />
       </div>

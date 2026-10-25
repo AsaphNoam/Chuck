@@ -5,6 +5,11 @@
     "reason": "Transform/transition are live drag state"
   },
   {
+    "file": "src/features/fileTabs/FileTabs.tsx",
+    "rule": "inline-style",
+    "reason": "Transform/transition are live tab-reorder drag state"
+  },
+  {
     "file": "src/components/grid/CardGrid.tsx",
     "rule": "inline-style",
     "reason": "Grid columns and gap are persisted dashboard density data"

@@ -23,7 +23,8 @@ import { FilesTab } from "./FilesTab";
 import { PermissionModeToggle } from "./PermissionModeToggle";
 import { TerminalTab } from "./TerminalTab";
 import { resetRuntimeForBackend, resetRuntimeForModel, type RuntimeSelection } from "../../lib/runtimeSelection";
-import { fileLinkFromParams, writeFileLinkParams } from "../../lib/fileLinkParams";
+import { ownerKey } from "../../features/fileTabs/model";
+import { CONVERSATION_FILE_KEYS, useFileTabRoute } from "../../features/fileTabs/useFileTabRoute";
 import { copyText } from "../../lib/copyText";
 import { RoomCue, ThinkTankTab } from "../../features/thinktank/RoomTurnNotice";
 import { useAgentThinkTanks } from "../../api/thinkTanks";
@@ -66,7 +67,7 @@ export function ChatPanel() {
 }
 
 function AgentPanel({ id }: { id: string }) {
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const agent = useAgentStore((state) => state.agents[id]);
   const agentsHydrated = useAgentStore((state) => state.hydrated);
   // Keep the previous list while id/name/state are unchanged so other agents'
@@ -153,14 +154,11 @@ function AgentPanel({ id }: { id: string }) {
     if (delivered) releaseHeld(id);
   }, [events, held, heldAfterSeq, id, releaseHeld]);
 
-  // ?file=/?fileLine= are the open file's single source of truth, so a reload
-  // reopens it and browser Back closes it (FS-03.R54). Opening from the Files tab
-  // also switches to the transcript, where the viewer's grid track lives.
-  const openFile = fileLinkFromParams(params);
-  const openFileInViewer = (link: FileLink | null, options?: { replace?: boolean }) => {
-    setTab("transcript");
-    setParams((current) => writeFileLinkParams(current, link), options);
-  };
+  // The conversation's saved file tabs; ?file=/?fileLine= name the active one,
+  // so a file URL opens it and Back hides the reader (FS-03.R101–R106). Opening
+  // from the Files tab also switches to the transcript, where the reader lives.
+  const fileTabs = useFileTabRoute(ownerKey("conversation", id), CONVERSATION_FILE_KEYS, { onOpen: () => setTab("transcript") });
+  const openFileInViewer = (link: FileLink | null) => { if (link) fileTabs.open(link); };
 
   // Reveal a transcript event from the Files tab's "Diff" action: switch to the
   // transcript tab (its content is unmounted while another tab is active), then
@@ -302,7 +300,7 @@ function AgentPanel({ id }: { id: string }) {
     // is open. .chat-panel's max-width is set outside the transcript container, so
     // a container query cannot reach it; this is a state attribute of the kind the
     // annotation tray already carries, not a measurement (FS-03.R53, TS-08.R57).
-    <section className="chat-panel" data-ui="agent-workspace" data-state="active" data-file-open={openFile ? "true" : undefined} data-variant={agent.interface === "terminal" ? "terminal" : "chat"}>
+    <section className="chat-panel" data-ui="agent-workspace" data-state="active" data-file-open={fileTabs.shown ? "true" : undefined} data-variant={agent.interface === "terminal" ? "terminal" : "chat"}>
       <AgentBreadcrumb backTarget={backTarget} backLabel={projectActive ? "Back to project" : "Back"} project={projectTitle} name={agent.name} agentId={agent.agent_id} siblings={siblings} />
       <AgentStage source={agent.agent_id} onSlots={setPanelSlots}>
       <div className="chat-card">
@@ -413,7 +411,7 @@ function AgentPanel({ id }: { id: string }) {
           {agent.interface === "terminal" && <Tabs.Trigger value="terminal">Terminal</Tabs.Trigger>}
         </Tabs.List>
         <Tabs.Content value="transcript" className="chat-tab-content" data-slot="content">
-          <TranscriptView agentId={id} events={events} sourceActive={agent.running && agent.state === "idle"} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} openFile={openFile} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} panelSlots={panelSlots} />
+          <TranscriptView agentId={id} events={events} sourceActive={agent.running && agent.state === "idle"} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} fileTabs={fileTabs} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} panelSlots={panelSlots} />
         </Tabs.Content>
         <Tabs.Content value="files" className="chat-tab-content" data-slot="content">
           <FilesTab agentId={id} onReveal={revealInTranscript} onOpenFile={openFileInViewer} />

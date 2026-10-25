@@ -53,3 +53,15 @@ export function RoomIcon() {
 export function CollapseAllIcon() {
   return <Icon><path d="M4 8.5 8 4.5l4 4M4 12.5l4-4 4 4" /></Icon>;
 }
+
+export function CloseIcon() {
+  return <Icon><path d="m4.5 4.5 7 7m0-7-7 7" /></Icon>;
+}
+
+export function MoveLeftIcon() {
+  return <Icon><path d="M10 4 6 8l4 4" /></Icon>;
+}
+
+export function MoveRightIcon() {
+  return <Icon><path d="m6 4 4 4-4 4" /></Icon>;
+}
