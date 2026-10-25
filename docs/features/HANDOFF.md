@@ -47,7 +47,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   Slice 3a done: `ThinkTankPage` uses `useFileTabRoute(room, ROOM_FILE_KEYS)` + `FileTabsReader`
   with per-tab `loadSourceFile(room, tab.source)` and source labels; room/agent deletion drops the
   saved owner (`api/sse.ts`, `remote/connection.ts`, room Delete). Room tests pass (30).
-  Next: phone Files (`remote/AgentScreen.tsx`). Four other units wait for review (Review queue).
+  Slice 3b done: phone `AgentScreen` Files renders one `FileTabsReader` above the tracked list via
+  `useFileTabSet` (no address); nested links open only byte-equal tracked paths, otherwise an
+  inline refusal; final close focuses the Files heading; 44px tab controls. Phone tests pass (128).
+  Next: slice 4 — rendered browser journeys (desktop 1024/1440, rooms, phone 360/390/430, all
+  appearances), then closure and spec `(planned)` removal. Four other units wait for review.
 
 ## Acceptance gates still owed
 

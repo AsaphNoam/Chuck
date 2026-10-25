@@ -821,31 +821,50 @@ describe("AgentScreen management and views", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Chat", "Files", "Manage"]);
   });
 
-  it("opens current text beneath the selected file and collapses it in place", async () => {
+  // FS-20.R56/A28: one tabbed reader above the tracked list, tracked reads only.
+  it("opens tracked files as saved tabs above the list and refuses untracked links", async () => {
     const paths: string[] = [];
     server.use(
-      http.get("/api/sessions/a1/files", () => HttpResponse.json({ agent_id: "a1", files: ["src/main.go", "src/other.go"].map((path) => ({ path, edit_count: 2, last_ts: "2026-10-02T00:00:00Z", has_diff: false, diff_refs: [] })) })),
+      http.get("/api/sessions/a1/files", () => HttpResponse.json({ agent_id: "a1", files: ["src/main.md", "src/other.go"].map((path) => ({ path, edit_count: 2, last_ts: "2026-10-02T00:00:00Z", has_diff: false, diff_refs: [] })) })),
       http.get("/api/sessions/a1/file", ({ request }) => {
         const path = new URL(request.url).searchParams.get("path") ?? "";
         paths.push(path);
-        return HttpResponse.json({ path, content: `package main\n// ${path}`, truncated: false });
+        return path.endsWith(".md")
+          ? HttpResponse.json({ path, content: "# Main\n\n[other](other.go) [secret](../secret.md)\n", truncated: false, language: "markdown" })
+          : HttpResponse.json({ path, content: `package main\n// ${path}`, truncated: false });
       }),
     );
     renderScreen();
     fireEvent.click(screen.getByRole("tab", { name: "Files" }));
-    const firstRow = (await screen.findByText("src/main.go")).closest("li")!;
+    const firstRow = (await screen.findByText("src/main.md")).closest("li")!;
     const secondRow = screen.getByText("src/other.go").closest("li")!;
     fireEvent.click(within(firstRow).getByRole("button", { name: "Open file" }));
     const content = await screen.findByRole("region", { name: "File content" });
-    await waitFor(() => expect(content).toHaveTextContent("package main"));
-    expect(firstRow).toContainElement(content);
-    expect(secondRow).not.toContainElement(content);
-    expect(paths).toEqual(["src/main.go"]);
+    await within(content).findByRole("heading", { name: "Main" });
+    expect(firstRow).not.toContainElement(content);
+
+    // A link to another tracked file opens a tab; one outside the list is refused, unread.
+    fireEvent.click(within(content).getByRole("button", { name: "other" }));
+    await waitFor(() => expect(content).toHaveTextContent("src/other.go"));
+    fireEvent.click(within(content).getByRole("tab", { name: "main.md" }));
+    fireEvent.click(within(content).getByRole("button", { name: "secret" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("secret.md is not one of this agent's tracked files");
+    expect(paths).toEqual(["src/main.md", "src/other.go"]);
+
+    // Open file on an open tab selects it; leaving Files and returning restores the set lazily.
     fireEvent.click(within(secondRow).getByRole("button", { name: "Open file" }));
-    await waitFor(() => expect(within(secondRow).getByRole("region", { name: "File content" })).toHaveTextContent("src/other.go"));
-    expect(within(firstRow).queryByRole("region", { name: "File content" })).not.toBeInTheDocument();
-    fireEvent.click(within(secondRow).getByRole("button", { name: "Close" }));
+    expect(within(content).getByRole("tab", { name: "other.go" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("tab", { name: "Chat" }));
     expect(screen.queryByRole("region", { name: "File content" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /^Files/ }));
+    const restored = await screen.findByRole("region", { name: "File content" });
+    await waitFor(() => expect(restored).toHaveTextContent("package main"));
+    expect(within(restored).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["main.md", "other.go"]);
+    expect(paths).toEqual(["src/main.md", "src/other.go", "src/other.go"]);
+    fireEvent.click(within(restored).getByRole("button", { name: "Close other.go" }));
+    fireEvent.click(within(restored).getByRole("button", { name: "Close main.md" }));
+    expect(screen.queryByRole("region", { name: "File content" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Files" })).toHaveFocus();
   });
 });
 
@@ -946,11 +965,11 @@ describe("AgentScreen annotation capture", () => {
     fireEvent.click(screen.getByRole("tab", { name: /^Files/ }));
     const row = (await screen.findByText("./docs/guide.md")).closest("li")!;
     fireEvent.click(within(row).getByRole("button", { name: "Open file" }));
-    const preview = await within(row).findByRole("region", { name: "File content" });
+    const preview = await screen.findByRole("region", { name: "File content" });
     // Nothing selected names what the action needs.
     const annotateFile = await within(preview).findByRole("button", { name: "Annotate selection" });
     fireEvent.click(annotateFile);
-    expect(within(preview).getByRole("status")).toHaveTextContent("Select text in the file to annotate it.");
+    expect(within(preview).getByText("Select text in the file to annotate it.")).toHaveAttribute("role", "status");
     // Rendered Markdown captures the normalized path only.
     const words = textNodeWith("First line");
     selectRange(words, 0, words, 10);

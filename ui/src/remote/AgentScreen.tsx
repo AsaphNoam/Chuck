@@ -30,7 +30,11 @@ import { WorkingIndicator } from "../components/chat/WorkingIndicator";
 import { AssistantText } from "../components/chat/renderers/AssistantText";
 import { DiffBlock } from "../components/chat/renderers/DiffBlock";
 import { AnnotationCard } from "../components/chat/renderers/AnnotationCard";
-import { FileViewerView, useFileReader } from "../components/chat/FileViewer";
+import { FileViewerView } from "../components/chat/FileViewer";
+import type { FileLink } from "../components/chat/renderers/filePath";
+import { FileTabsReader } from "../features/fileTabs/FileTabs";
+import { ownerKey } from "../features/fileTabs/model";
+import { useFileTabSet } from "../features/fileTabs/useFileTabSet";
 import { canAnnotate, eventDraft, selectionWithin } from "../lib/annotations";
 import { NoticeRow } from "../components/chat/renderers/NoticeRow";
 import { ToolCall } from "../components/chat/renderers/ToolCall";
@@ -312,13 +316,23 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const runtimeOptions = useQuery({ queryKey: ["runtime-options"], queryFn: getRuntimeOptions });
   const [tab, setTab] = useState<"chat" | "files" | "manage">("chat");
   const [rename, setRename] = useState("");
-  const [filePath, setFilePath] = useState<string | null>(null);
   const [diffSeq, setDiffSeq] = useState<number | null>(null);
   const chat = agent?.interface !== "terminal";
   const files = useQuery({ queryKey: ["tracked-files", agentId, rev], queryFn: () => getTrackedFiles(agentId), enabled: tab === "files" });
-  // The shared reader keeps the tracked path as its read key, so Reload asks for
-  // exactly that path even when the response names a normalized one (TS-13.R31).
-  const fileReader = useFileReader({ agentId, link: filePath ? { path: filePath } : null });
+  // This phone's saved file tabs for the agent. Each tab keeps its tracked
+  // path as its read key, so Reload asks for exactly that path even when the
+  // response names a normalized one (TS-13.R31, FS-20.R56).
+  const fileTabs = useFileTabSet(ownerKey("conversation", agentId));
+  const [fileRefusal, setFileRefusal] = useState<string | null>(null);
+  const filesHeading = useRef<HTMLHeadingElement>(null);
+  // A link inside a tracked file opens only another tracked file; the server's
+  // filtered read stays the authority for every read (TS-08.R143, TS-13.R22).
+  const openLinkedFile = (link: FileLink) => {
+    if ((files.data?.files ?? []).some((tracked) => tracked.path === link.path)) {
+      setFileRefusal(null);
+      fileTabs.open({ path: link.path });
+    } else setFileRefusal(`${link.path} is not one of this agent's tracked files, so the phone cannot open it.`);
+  };
   // Open diff reads exactly the requested event, wherever it falls (FS-20.R37).
   const focusedDiff = useQuery({
     queryKey: ["focused-diff", agentId, diffSeq],
@@ -803,7 +817,24 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       <PhoneAnnotations delivery={delivery} open={trayOpen} focusNewest={focusNewest} onClose={closeTray} />
       {!agent.running && tab !== "manage" && error && <p className="phone-error" role="alert">{error}</p>}
       {tab === "files" && <section className="phone-section phone-files" aria-label="Files">
-        <h2>Files</h2>
+        <h2 ref={filesHeading} tabIndex={-1}>Files</h2>
+        {fileTabs.tabs.length > 0 && <section className="phone-file-preview" aria-label="File content">
+          <FileTabsReader
+            key={fileTabs.owner}
+            tabs={fileTabs.tabs}
+            active={fileTabs.active}
+            jumps={fileTabs.jumps}
+            onSelect={fileTabs.select}
+            onClose={fileTabs.close}
+            onMove={fileTabs.move}
+            contextFor={() => agentId}
+            onEmptied={() => filesHeading.current?.focus()}
+            renderView={(reader, strip, open) => (
+              <FileViewerView reader={reader} tabs={strip} onClose={() => fileTabs.close(open.id)} onOpenFile={openLinkedFile} onAnnotateSelection={chat ? annotate : undefined} />
+            )}
+          />
+        </section>}
+        {fileRefusal && <p className="phone-error" role="alert">{fileRefusal}</p>}
         {files.isError ? <p className="phone-error">{errorText(files.error)}</p> : <ul className="phone-list">
           {(files.data?.files ?? []).map((tracked) => <li key={tracked.path}>
             <div className="phone-row">
@@ -811,11 +842,8 @@ export function AgentScreen({ agentId }: { agentId: string }) {
               <span className="phone-row-meta">{tracked.edit_count} edits · {new Date(tracked.last_ts).toLocaleString()}</span>
               <div className="phone-actions phone-file-actions">
                 {tracked.has_diff && tracked.diff_refs[0] && <button type="button" onClick={() => { setDiffSeq(tracked.diff_refs[0].seq); setTab("chat"); }}>Open diff</button>}
-                <button type="button" aria-expanded={filePath === tracked.path} onClick={() => setFilePath(filePath === tracked.path ? null : tracked.path)}>{filePath === tracked.path ? "Close" : "Open file"}</button>
+                <button type="button" onClick={() => { setFileRefusal(null); fileTabs.open({ path: tracked.path }); }}>Open file</button>
               </div>
-              {filePath === tracked.path && <section className="phone-file-preview" aria-label="File content">
-                <FileViewerView reader={fileReader} onAnnotateSelection={chat ? annotate : undefined} />
-              </section>}
             </div>
           </li>)}
         </ul>}
