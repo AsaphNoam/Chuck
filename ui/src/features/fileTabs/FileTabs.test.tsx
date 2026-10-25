@@ -8,13 +8,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { TranscriptView } from "../../components/chat/TranscriptView";
 import { ownerKey, STORAGE_KEY } from "./model";
 import { loadFileTabs, useFileTabsStore } from "./store";
-import { CONVERSATION_FILE_KEYS, useFileTabRoute } from "./useFileTabRoute";
+import { CONVERSATION_FILE_KEYS, ROOM_FILE_KEYS, useFileTabRoute } from "./useFileTabRoute";
 
 // FS-03.A80–A82 (desktop conversation portions) against the real route hook,
 // reader and file endpoint. Reads are counted at the HTTP boundary.
 
 let reads: string[] = [];
 let hold: Record<string, Promise<void>> = {};
+let normalizedPaths: Record<string, string> = {};
 const server = setupServer(
   http.get("/api/sessions/:id/file", async ({ request }) => {
     const path = new URL(request.url).searchParams.get("path") ?? "";
@@ -23,8 +24,8 @@ const server = setupServer(
     if (path === "missing.md") return HttpResponse.json({ error: { code: "not_found", message: "That file no longer exists." } }, { status: 404 });
     const name = path.replace(/\.md$/, "");
     return HttpResponse.json({
-      agent_id: "a1", path, size: 20, mod_time: "2026-10-25T09:00:00Z", line_count: 40,
-      content: `# Title ${name}\n\n${Array.from({ length: 30 }, (_, i) => `Paragraph ${i}.`).join("\n\n")}\n`,
+      agent_id: "a1", path: normalizedPaths[path] ?? path.replace(/^\.\//, ""), size: 20, mod_time: "2026-10-25T09:00:00Z", line_count: 40,
+      content: `# Title ${name.replace(/^\.\//, "")}\n\n${Array.from({ length: 30 }, (_, i) => `Paragraph ${i}.`).join("\n\n")}\n`,
       truncated: false, language: "markdown",
     });
   }),
@@ -37,6 +38,7 @@ afterEach(() => {
   cleanup();
   reads = [];
   hold = {};
+  normalizedPaths = {};
   server.resetHandlers();
 });
 afterAll(() => server.close());
@@ -54,7 +56,12 @@ function Probe() {
 
 function Conversation({ agentId }: { agentId: string }) {
   const tabs = useFileTabRoute(ownerKey("conversation", agentId), CONVERSATION_FILE_KEYS);
-  return <TranscriptView agentId={agentId} events={events} annotationsEnabled fileTabs={tabs} onOpenFile={(link) => { if (link) tabs.open(link); }} />;
+  return <><output data-testid="jumps">{JSON.stringify(tabs.jumps)}</output><TranscriptView agentId={agentId} events={events} annotationsEnabled fileTabs={tabs} onOpenFile={(link) => { if (link) tabs.open(link); }} /></>;
+}
+
+function RoomConversation() {
+  const tabs = useFileTabRoute(ownerKey("room", "r1"), ROOM_FILE_KEYS);
+  return <><button type="button" onClick={() => tabs.open({ path: "./a.md", source: "s1" })}>Open room file</button><output data-testid="jumps">{JSON.stringify(tabs.jumps)}</output><TranscriptView agentId="a1" events={[]} annotationsEnabled fileTabs={tabs} /></>;
 }
 
 function App({ initial = "/agent/a1", agentId = "a1" }: { initial?: string; agentId?: string }) {
@@ -67,6 +74,11 @@ function App({ initial = "/agent/a1", agentId = "a1" }: { initial?: string; agen
       </MemoryRouter>
     </QueryClientProvider>
   );
+}
+
+function RoomApp() {
+  const [client] = useState(() => new QueryClient());
+  return <QueryClientProvider client={client}><MemoryRouter initialEntries={["/room/r1"]}><Probe /><RoomConversation /></MemoryRouter></QueryClientProvider>;
 }
 
 const tabNames = () => screen.queryAllByRole("tab").map((tab) => tab.textContent);
@@ -143,6 +155,62 @@ describe("file tabs on a conversation (FS-03.A80–A82)", () => {
     await heading("a");
     expect(tabNames()).toEqual(["a.md", "b.md"]);
     expect(address).toBe("?file=a.md");
+  });
+
+  it("does not project a delayed normalized path after Back hides the reader", async () => {
+    let release!: () => void;
+    hold["a.md"] = new Promise<void>((resolve) => { release = resolve; });
+    normalizedPaths["a.md"] = "normalized/a.md";
+    render(<App />);
+    fireEvent.click(link("A"));
+    await waitFor(() => expect(reads).toContain("a.md"));
+    act(() => navigate(-1));
+    await waitFor(() => expect(address).toBe(""));
+    await act(async () => { release(); });
+    await waitFor(() => expect(useFileTabsStore.getState().owners["conversation:a1"].tabs[0].path).toBe("normalized/a.md"));
+    expect(address).toBe("");
+    expect(document.querySelector(".file-viewer")).toBeNull();
+  });
+
+  it("keeps a delayed room normalization from rewriting the file-free Back address", async () => {
+    let release!: () => void;
+    hold["./a.md"] = new Promise<void>((resolve) => { release = resolve; });
+    normalizedPaths["./a.md"] = "normalized/a.md";
+    render(<RoomApp />);
+    fireEvent.click(screen.getByRole("button", { name: "Open room file" }));
+    await waitFor(() => expect(reads).toContain("./a.md"));
+    act(() => navigate(-1));
+    await waitFor(() => expect(address).toBe(""));
+    await act(async () => { release(); });
+    await waitFor(() => expect(useFileTabsStore.getState().owners["room:r1"].tabs[0].path).toBe("normalized/a.md"));
+    expect(address).toBe("");
+    expect(document.querySelector(".file-viewer")).toBeNull();
+  });
+
+  it("reapplies a cited line on remount even when the saved descriptor has that line", async () => {
+    const first = render(<App initial="/agent/a1?file=./a.md&fileLine=12" />);
+    await heading("a");
+    first.unmount();
+    const owner = useFileTabsStore.getState().owners["conversation:a1"];
+    useFileTabsStore.setState({ owners: { ...useFileTabsStore.getState().owners, "conversation:a1": { ...owner, tabs: owner.tabs.map((tab) => ({ ...tab, anchors: { Rendered: 1200 } })) } } });
+    reads = [];
+    render(<App initial="/agent/a1?file=./a.md&fileLine=12" />);
+    await heading("a");
+    expect(reads).toEqual(["a.md"]);
+    const tabId = useFileTabsStore.getState().owners["conversation:a1"].active!;
+    expect(JSON.parse(screen.getByTestId("jumps").textContent ?? "{}")[tabId]).toBeGreaterThan(0);
+  });
+
+  it("reapplies a cited line when Forward returns to the same citation", async () => {
+    render(<App />);
+    fireEvent.click(link("A12"));
+    await heading("a");
+    act(() => navigate(-1));
+    await waitFor(() => expect(address).toBe(""));
+    act(() => navigate(1));
+    await waitFor(() => expect(address).toBe("?file=a.md&fileLine=12"));
+    const tabId = useFileTabsStore.getState().owners["conversation:a1"].active!;
+    expect(JSON.parse(screen.getByTestId("jumps").textContent ?? "{}")[tabId]).toBeGreaterThan(1);
   });
 
   it("restores the saved set after reload, reading only the selected tab", async () => {

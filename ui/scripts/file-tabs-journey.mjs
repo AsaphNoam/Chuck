@@ -292,6 +292,18 @@ async function flowMain(browser, skin, width) {
     await page.getByRole("button", { name: "Move a.md left", exact: true }).click();
     record(`${label}: Move left twice`, sameList(await tabNames(page), ["a.md", "c.md", "b.md"]), (await tabNames(page)).join(","));
     record(`${label}: moves add no reads`, reads.length === 3);
+    const aTab = tab(page, "a.md");
+    await aTab.focus();
+    await page.keyboard.press("ArrowRight");
+    const focusedB = await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.textContent?.trim());
+    await page.keyboard.press("Enter");
+    await settle(page, 100);
+    const focusRetained = await page.evaluate(() => document.activeElement?.getAttribute("role") === "tab" && document.activeElement?.getAttribute("aria-selected") === "true");
+    await page.keyboard.press("ArrowLeft");
+    const focusedPrevious = await page.evaluate(() => document.activeElement?.getAttribute("role") === "tab" && document.activeElement?.textContent?.includes("a.md"));
+    record(`${label}: ArrowRight → Enter → ArrowLeft retains keyboard tab focus`, focusedB?.includes("c.md") && focusRetained && focusedPrevious, `initial neighbor ${focusedB}; selected focus ${focusRetained}; previous focus ${focusedPrevious}`);
+    await page.keyboard.press("Enter");
+    await settle(page, 100);
     await shot("reordered");
 
     // Close a background tab, the middle active tab, then the end.

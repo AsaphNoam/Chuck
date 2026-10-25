@@ -330,7 +330,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const openLinkedFile = (link: FileLink) => {
     if ((files.data?.files ?? []).some((tracked) => tracked.path === link.path)) {
       setFileRefusal(null);
-      fileTabs.open({ path: link.path });
+      fileTabs.open(link);
     } else setFileRefusal(`${link.path} is not one of this agent's tracked files, so the phone cannot open it.`);
   };
   // Open diff reads exactly the requested event, wherever it falls (FS-20.R37).

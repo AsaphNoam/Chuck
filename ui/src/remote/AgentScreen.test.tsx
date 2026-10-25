@@ -8,6 +8,7 @@ import { AgentScreen } from "./AgentScreen";
 import { useConnection } from "./connection";
 import type { AgentState } from "../api/types";
 import { useAnnotationStore } from "../store/annotationStore";
+import { useFileTabsStore } from "../features/fileTabs/store";
 import { clearAttachmentDraftCacheForTests } from "../components/chat/attachments";
 
 // jsdom has no layout for the diff library; a tap on its line number is what
@@ -101,6 +102,7 @@ beforeEach(() => {
   live = fullWindow;
   useConnection.setState({ link: "connected", agents: { a1: agent }, transcriptRev: {} });
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
+  useFileTabsStore.setState({ owners: {}, notice: null });
   Object.defineProperty(window, "scrollY", { value: 300, writable: true, configurable: true });
   window.scrollTo = vi.fn();
 });
@@ -830,7 +832,7 @@ describe("AgentScreen management and views", () => {
         const path = new URL(request.url).searchParams.get("path") ?? "";
         paths.push(path);
         return path.endsWith(".md")
-          ? HttpResponse.json({ path, content: "# Main\n\n[other](other.go) [secret](../secret.md)\n", truncated: false, language: "markdown" })
+          ? HttpResponse.json({ path, content: "# Main\n\n[other](./other.go:12) [secret](../secret.md)\n", truncated: false, language: "markdown" })
           : HttpResponse.json({ path, content: `package main\n// ${path}`, truncated: false });
       }),
     );
@@ -846,6 +848,9 @@ describe("AgentScreen management and views", () => {
     // A link to another tracked file opens a tab; one outside the list is refused, unread.
     fireEvent.click(within(content).getByRole("button", { name: "other" }));
     await waitFor(() => expect(content).toHaveTextContent("src/other.go"));
+    const linkedTab = useFileTabsStore.getState().owners["conversation:a1"].tabs.find((tab) => tab.path === "src/other.go");
+    expect(linkedTab?.line).toBe(12);
+    expect(within(content).getByRole("tab", { name: "other.go" })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(within(content).getByRole("tab", { name: "main.md" }));
     fireEvent.click(within(content).getByRole("button", { name: "secret" }));
     expect(screen.getByRole("alert")).toHaveTextContent("secret.md is not one of this agent's tracked files");

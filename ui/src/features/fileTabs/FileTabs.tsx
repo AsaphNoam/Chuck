@@ -49,14 +49,14 @@ export function FileTabsReader(props: TabReaderProps) {
   useEffect(() => { flushFileTabs(); }, [active?.id]);
   useEffect(() => () => { limiter.clear(); flushFileTabs(); }, [limiter]);
 
-  const focusAfterClose = useRef(false);
+  const restoreTabFocus = useRef(false);
   const close = (id: string) => {
-    focusAfterClose.current = true;
+    restoreTabFocus.current = true;
     const last = tabs.length === 1;
     props.onClose(id);
     if (last) props.onEmptied?.();
   };
-  const strip = <TabStrip {...props} onClose={close} focusAfterClose={focusAfterClose} />;
+  const strip = <TabStrip {...props} onClose={close} restoreTabFocus={restoreTabFocus} />;
   const byId = new Map(tabs.map((tab) => [tab.id, tab]));
   return (
     <>
@@ -98,7 +98,7 @@ function TabHost({ tab, selected, props, limiter, strip, target }: {
 const reducedMotion = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const fileName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
-function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, focusAfterClose }: TabReaderProps & { focusAfterClose: { current: boolean } }) {
+function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, restoreTabFocus }: TabReaderProps & { restoreTabFocus: { current: boolean } }) {
   const notice = useFileTabsStore((state) => state.notice);
   const list = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -119,8 +119,8 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, focusA
     const tab = button(active.id);
     const reveal = () => tab?.closest(".file-tab")?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     reveal();
-    if (focusAfterClose.current) {
-      focusAfterClose.current = false;
+    if (restoreTabFocus.current) {
+      restoreTabFocus.current = false;
       tab?.focus({ preventScroll: true });
     }
     const frame = requestAnimationFrame(reveal);
@@ -166,7 +166,11 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, focusA
                     title={[tab.path, sourceLabel?.(tab)].filter(Boolean).join(" — ")}
                     selected={tab.id === active?.id}
                     tabbable={tab.id === roving}
-                    onSelect={() => { if (!dragged.current) onSelect(tab.id); }}
+                    onSelect={() => {
+                      if (dragged.current) return;
+                      if (tab.id !== active?.id && document.activeElement?.getAttribute("role") === "tab") restoreTabFocus.current = true;
+                      onSelect(tab.id);
+                    }}
                     onClose={() => onClose(tab.id)}
                     onKeyDown={(event) => onKeyDown(event, index)}
                   />

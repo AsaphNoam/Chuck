@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigationType, useSearchParams } from "react-router-dom";
-import { findTab, type FileTab, type FileTarget, type OwnerTabs } from "./model";
+import { type FileTab, type FileTarget, type OwnerTabs } from "./model";
 import { fileTabs, useFileTabsStore } from "./store";
 import { useUiStore } from "../../store/uiStore";
 
@@ -86,14 +86,15 @@ export function useFileTabRoute(owner: string, keys: FileTabKeys, options: { onO
       return;
     }
     if (target) {
-      const before = findTab(saved, target);
       const opened = fileTabs.open(owner, target);
       if (!opened) {
         project(activeOf(useFileTabsStore.getState().owners[owner]));
         return;
       }
       setHidden(false);
-      if (target.line && (opened.added || before?.line !== target.line)) jump(opened.tab.id);
+      // Every externally applied citation is a navigation command, including
+      // remounts and Forward to a URL whose descriptor already has this line.
+      if (target.line) jump(opened.tab.id);
       return;
     }
     if (!fresh && navigation === "POP") {
@@ -147,7 +148,7 @@ export function useFileTabRoute(owner: string, keys: FileTabKeys, options: { onO
     resolved(id: string, path: string) {
       const kept = fileTabs.resolve(owner, id, path);
       const current = useFileTabsStore.getState().owners[owner];
-      if (kept && current?.active === kept) project(activeOf(current));
+      if (!hidden && kept && current?.active === kept) project(activeOf(current));
     },
   };
 }

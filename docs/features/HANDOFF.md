@@ -14,12 +14,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Review state:** the v0.19.0 architecture review
   ([receipt](../archive/reviews/architecture/v0.18.1-next.json)) is closed: ARCH-v019-1/2
   fixed and verified. Project-scoped groups/selectors review is closed; PSG-R1/2 repaired.
-  Saved file-viewer tabs have four open findings (FVT-R1–R4).
+  Saved file-viewer tabs review FVT-R1–R4 is closed with verified fixes.
   Annotation font/focus and workflow verification cleanup
   shipped unreviewed at the operator's choice and remain in the review queue.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
   verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
-- **Future work:** saved file-viewer tabs are implemented and awaiting fixes for FVT-R1–R4.
+- **Future work:** saved file-viewer tabs are implemented and the FVT-R1–R4 review is closed.
   Direct-action migration remains paused on its transport blocker; passive quota
   snapshots remain TBD.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`; use `GOFLAGS=-p=1` and a writable isolated Go cache.
@@ -27,7 +27,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- No change in progress. Saved file-viewer tabs reviewed; FVT-R1–R4 await fixes.
+- No change in progress.
 
 ## Acceptance gates still owed
 
@@ -167,43 +167,6 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
-- **Saved file-viewer tabs** (FS-03.R101–R106/A80–A82, FS-20.R56/A28, FS-21.R59/A42,
-  TS-08.R140–R145), reviewed 2026-10-25; awaiting fixes for FVT-R1–R4 below.
-  Shared `ui/src/features/fileTabs/`: pure model/codec
-  (`chuck.file-tabs.v1`, 50/500/2 MiB admission, no eviction), store (reactive owners,
-  non-reactive per-tab views, coalesced saves, inline notice), 4-slot read limiter,
-  `FileTabsReader` (keyed per-tab `useFileReader` hosts portalled into the docked slot or Focus
-  file), `useFileTabRoute` (desktop/room address projection; first open pushes, POP to a
-  file-free address hides; applied once per location) and `useFileTabSet` (phone, no address).
-  `lib/fileLinkParams.ts` was folded into `readFileTarget`/`writeFileTarget`. Evidence: UI suite
-  (102 files, 1045 tests), build and presentation checks pass; `ui/scripts/file-tabs-journey.mjs`
-  passes 612/612 (`/tmp/file-tabs-journey`) and `file-reader-journey.mjs` 999/999 after three
-  tab-behaviour edits. The journey first caught three defects, fixed before closure: the active
-  tab not revealed after restore, its close control clipped, and dev StrictMode hiding restored
-  tabs. Reviewer notes: Focus file's view is portalled from outside the dialog's React tree
-  (menus get `MenuPortalContext` explicitly; "Return to chat" no longer uses `Dialog.Close`);
-  Reload is ignored while a read is pending; phone link refusal is inline, desktop room-source
-  refusal is a toast.
-  Independent review covered `56ecd6e4`, `1935914a`, `80613f8b`, `abb54bff`, `0c143ee5`
-  and `7f67f533`; administrative `1869ed6f` is outside the unit. Focused model/store tests
-  pass (24 tests). Independent Chromium journeys pass desktop main (23 checks), Focus file
-  (5), room at 1024px (9), Core phone at 360px (18) and Sky & Grove phone at 390px (18); existing full-suite/build
-  evidence is reused.
-  Additional keyboard/citation checks use the working UI through a loopback Vite proxy to
-  the isolated `TestGroupBrowserFixture` fake-provider server: Enter drops focus to BODY,
-  and a repeated line-12 URL restores line 100 instead. Evidence:
-  `/private/tmp/chuck-tabs-review-live/` (report and Core/Sky & Grove screenshots),
-  `/private/tmp/chuck-tabs-review-{core,render,room,phone,phone360}/` (journey reports/screenshots).
-  The pre-existing embedded bundle predates tabs and was not rebuilt or committed.
-  Temporary negative route/phone tests reproduce FVT-R1–R3 and were removed after review.
-  Accepted local choices: explicit menu portal context in Focus file, coalesced Reload while
-  pending, inline phone refusal and desktop room-source toast. Storage denial reports on
-  first open while retaining memory operation; no material defect there.
-  Invariant sweep: applicable classes 1–4, 7–11, 13–14, 16–17; no applicable surface for
-  classes 5–6, 12 or 15. No other violation found. Physical-phone touch/reconnect,
-  non-Chromium engines, and rendered 500-total/2 MiB/storage-failure gates remain owed above.
-  Generated embed was not committed.
-
 - **Skip permissions by default** (FS-04.R61/A40), waiting for review. Fresh/fallback global
   configuration now enables `skip_permissions`; No persona and all seeded personas inherit it.
   Existing saved global choices, persona overrides and frozen sessions retain their policy.
@@ -235,59 +198,25 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   and twin parity pass via Node YAML; the Python validator is unavailable without PyYAML.
   CI retains full coverage; no full product suites or live-provider checks were needed here.
 
-## Review findings
-
-### Saved file-viewer tabs — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Four open findings; same review unit as above.
-
-- **Must fix** — **FVT-R1 (INV §1/§10): late normalization rewrites the address after Back.**
-  `ui/src/features/fileTabs/useFileTabRoute.ts:147–150` projects the active tab after a
-  normalized read without respecting the route's hidden state. Open a file with a delayed
-  read, press Back to the same owner's file-free address, then let the normalized reply
-  finish: its still-mounted TabHost calls `resolved`, replacing the address with `?file=`.
-  Temporary hook regressions fail for conversation and room owners: expected empty search,
-  observed `?file=a.md` and `?file=a.md&source=s1`. This violates FS-03.R106/TS-08.R143's
-  promise to keep Back file-free. Preserve descriptor normalization while suppressing
-  projection for the hidden reader; cover a delayed read completion after Back on both routes.
-
-- **Must fix** — **FVT-R2 (INV §1/§10): a repeated explicit citation loses to the saved position.**
-  `ui/src/features/fileTabs/useFileTabRoute.ts:96` emits a jump only for a new tab or a
-  different stored line. Revisit an explicit `?file=a.txt&fileLine=12` URL when the saved tab
-  already records line 12 but was subsequently scrolled elsewhere: `useFileReader` receives
-  an initial view with jump zero (`FileViewer.tsx:68`) and restores the old anchor instead.
-  Browser-confirmed with line 100 saved: scrollTop 1992, cited line 12 above the viewport at
-  -1513px. A temporary hook test likewise finds no jump command. FS-03.R101/R103 and
-  TS-08.R140/R143 require explicit citations to take precedence. Treat every externally
-  applied cited URL as a navigation command; test remount and Forward with the same citation.
-
-- **Must fix** — **FVT-R3 (INV §2/§10): phone nested links drop their cited line.**
-  `ui/src/remote/AgentScreen.tsx:333` validates the tracked path, then opens only
-  `{ path: link.path }`. Follow a local link to `./other.go:12` inside a tracked file: the right
-  file opens but its line is discarded, contrary to FS-03.R101/FS-20.R56/TS-08.R140.
-  The real AgentScreen integration reproduces this: the admitted `src/other.go` descriptor
-  has `line: undefined`, expected 12. Preserve the parsed line alongside the validated path
-  without changing tracked-file authority; extend the existing permitted/refused link test
-  to assert the destination citation and subsequent jump.
-
-- **Must fix** — **FVT-R4 (INV §1/§10): keyboard tab selection discards keyboard focus.**
-  `ui/src/features/fileTabs/FileTabs.tsx:59–64,93–95` renders the strip inside the selected
-  TabHost. Selecting another tab removes the focused strip and mounts another; only closing
-  sets the focus-restoration flag. In Chromium at 1024px, focus A, ArrowRight to B, Enter:
-  B selects but activeElement becomes BODY, and ArrowLeft can no longer navigate the tabs.
-  This breaks FS-03.R102/TS-08.R145's keyboard/roving-focus contract on the shared reader.
-  Retain strip focus or deliberately transfer it to the selected tab after activation;
-  add an ArrowRight → Enter → ArrowLeft browser regression that checks focus at each step.
-
 Project-scoped groups/selectors PSG-R1/2 closed on 2026-10-25.
 
 Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
 
-- **2026-10-25 — Saved file-viewer tabs reviewed:** four Must-fix findings cover Back,
-  repeated citations, phone citation preservation and keyboard focus. Storage/model checks
-  and focused rendered journeys pass; the same unit remains open for fixes.
+- **2026-10-25 — Saved file-viewer tabs fixes (INV §1/§2/§10):** FVT-R1–R4 are closed.
+  Delayed normalization preserves descriptors without rewriting Back on conversation and room
+  routes; cited URLs replay their jump on remount and Forward; phone nested links preserve the
+  citation under tracked-file validation; tab focus survives ArrowRight → Enter → ArrowLeft.
+  Old-behavior regressions fail for R1 conversation/room (`/tmp/fvt-r1-old2.log`), R2 remount/
+  Forward (`/tmp/fvt-r2-old.log`), R3 phone (`/tmp/fvt-r3-old.log`) and R4 Chromium
+  (`/tmp/fvt-r4-old/report.json`). Final focused UI tests pass 67/67
+  (`/tmp/fvt-final-focused.log`); full UI suite passes 102 files / 1052 tests
+  (`/tmp/fvt-final-ui-tests.log`); build, including Stylelint and presentation checks, passes
+  (`/tmp/fvt-final-ui-build.log`); `make check-specs` passes (`/tmp/fvt-final-specs.log`);
+  Chromium main journey passes 24/24 (`/tmp/fvt-browser-final2.log`). Physical-phone touch and
+  reconnect, non-Chromium engines, and rendered 500-total/2 MiB/storage-failure gates remain owed.
+  Pre-existing embedded index edit preserved; no generated embed.
 
 - **2026-10-25 — Project-scoped groups/selectors fixes (INV §1/§9/§10):** PSG-R1 flushes
   pending layout on navigation and orders saves before reopening reads; PSG-R2 resets outside
