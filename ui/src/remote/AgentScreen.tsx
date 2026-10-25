@@ -32,7 +32,7 @@ import { DiffBlock } from "../components/chat/renderers/DiffBlock";
 import { AnnotationCard } from "../components/chat/renderers/AnnotationCard";
 import { FileViewerView } from "../components/chat/FileViewer";
 import type { FileLink } from "../components/chat/renderers/filePath";
-import { FileTabsReader } from "../features/fileTabs/FileTabs";
+import { FileTabsNotice, FileTabsReader } from "../features/fileTabs/FileTabs";
 import { ownerKey } from "../features/fileTabs/model";
 import { useFileTabSet } from "../features/fileTabs/useFileTabSet";
 import { canAnnotate, eventDraft, selectionWithin } from "../lib/annotations";
@@ -818,6 +818,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       {!agent.running && tab !== "manage" && error && <p className="phone-error" role="alert">{error}</p>}
       {tab === "files" && <section className="phone-section phone-files" aria-label="Files">
         <h2 ref={filesHeading} tabIndex={-1}>Files</h2>
+        {fileTabs.tabs.length === 0 && <FileTabsNotice />}
         {fileTabs.tabs.length > 0 && <section className="phone-file-preview" aria-label="File content">
           <FileTabsReader
             key={fileTabs.owner}

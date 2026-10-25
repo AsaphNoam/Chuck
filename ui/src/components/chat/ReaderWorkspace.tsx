@@ -9,7 +9,7 @@ import type { PanelSlots } from "./AgentStage";
 import { AnnotationContextMenu, type AnnotationMenuState } from "./AnnotationContextMenu";
 import { AnnotationTrayView, useDesktopAnnotationDelivery } from "./AnnotationTray";
 import { FileViewerView } from "./FileViewer";
-import { FileTabsReader } from "../../features/fileTabs/FileTabs";
+import { FileTabsNotice, FileTabsReader } from "../../features/fileTabs/FileTabs";
 import type { FileTabRoute } from "../../features/fileTabs/useFileTabRoute";
 
 // The transcript's reader workspace: the conversation's file tabs and the
@@ -96,6 +96,7 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
 
   return (
     <>
+      {tabs?.tabs.length === 0 && <FileTabsNotice />}
       {readers}
       {focused ? (
         <FocusFile

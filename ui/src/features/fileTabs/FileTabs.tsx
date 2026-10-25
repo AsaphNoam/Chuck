@@ -35,6 +35,18 @@ export type TabReaderProps = {
   target?: HTMLElement | null;
 };
 
+/** Shared saved-tab feedback, mounted by each owner surface even with no tabs. */
+export function FileTabsNotice() {
+  const notice = useFileTabsStore((state) => state.notice);
+  if (!notice) return null;
+  return (
+    <p className="file-tabs-notice" role="status">
+      <span>{notice}</span>
+      <button type="button" className="ad-button-secondary" onClick={fileTabs.dismissNotice}>Dismiss</button>
+    </p>
+  );
+}
+
 export function FileTabsReader(props: TabReaderProps) {
   const { tabs, active, target } = props;
   const [limiter] = useState(createReadLimiter);
@@ -99,7 +111,6 @@ const reducedMotion = () => typeof window.matchMedia === "function" && window.ma
 const fileName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
 function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, restoreTabFocus }: TabReaderProps & { restoreTabFocus: { current: boolean } }) {
-  const notice = useFileTabsStore((state) => state.notice);
   const list = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const dragged = useRef(false);
@@ -186,12 +197,7 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, restor
           </div>
         )}
       </div>
-      {notice && (
-        <p className="file-tabs-notice" role="status">
-          <span>{notice}</span>
-          <button type="button" className="ad-button-secondary" onClick={fileTabs.dismissNotice}>Dismiss</button>
-        </p>
-      )}
+      <FileTabsNotice />
     </div>
   );
 }

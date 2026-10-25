@@ -20,7 +20,7 @@ import { BackIcon, CommandIcon, FileIcon, PauseIcon, RoomIcon } from "../../comp
 import { useAgentStore } from "../../store/agentStore";
 import { AnnotationContextMenu, type AnnotationMenuState } from "../../components/chat/AnnotationContextMenu";
 import { FileViewerView } from "../../components/chat/FileViewer";
-import { FileTabsReader } from "../fileTabs/FileTabs";
+import { FileTabsNotice, FileTabsReader } from "../fileTabs/FileTabs";
 import { ownerKey, type FileTab } from "../fileTabs/model";
 import { ROOM_FILE_KEYS, useFileTabRoute } from "../fileTabs/useFileTabRoute";
 import { SanitizedMarkdown } from "../../components/chat/renderers/SanitizedMarkdown";
@@ -445,6 +445,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+      {fileTabs.tabs.length === 0 && <FileTabsNotice />}
       {fileTabs.tabs.length > 0 && (
         <FileTabsReader
           key={fileTabs.owner}
