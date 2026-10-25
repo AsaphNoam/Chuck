@@ -20,6 +20,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   Annotation font/focus review is closed: AIF-R1 reveals a collapsed tray on capture and focuses
   the new instruction. Workflow verification cleanup shipped unreviewed at the operator's
   choice; its review is now closed with no findings.
+  The v0.20.0 architectural review is complete at `bc9cc82e`; ARCH-v020-1 remains open
+  ([receipt](../archive/reviews/architecture/v0.19.0-next.json)).
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
   verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
 - **Future work:** saved file-viewer tabs are implemented and the FVT-R1–R4 review is closed.
@@ -31,17 +33,23 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 ## Active change
 
 - Release preparation for proposed v0.20.0 (version confirmation pending; push authorized).
-  Range: v0.19.0..77888420, all substantive review units closed, no open findings.
+  Prepared candidate: `bc9cc82e` after v0.19.0; substantive unit reviews are closed.
+  Independent architecture review is complete with ARCH-v020-1 open; verify its localized repair
+  and append exact closure to the existing receipt without rerunning architecture review.
   Isolated checkout: `/private/tmp/chuck-release-v0.20.0`; the primary checkout's pre-existing
   generated UI index edit is preserved. Refresh shipped operator guidance and generated UI,
-  verify release, then obtain a fresh independent architectural review before tagging.
+  verify release and close the architectural finding before tagging.
   User authorized subagents to repair minor architectural findings.
   Preparation evidence: operator package tests pass; UI suite passes 102 files/1053 tests;
   production UI/style/presentation build passes and embed is generated. Source scope is
   77888420 plus the operator-reference refresh; logs `/private/tmp/chuck-v020-{knowledge,ui-test,dist}.log`.
-  Full `make test` and the tagged distribution binary are still running, with
+  Untagged `make test` failed `TestBootstrapContenderExitsDuringDownload` download readiness
+  (19.67s), then timed out after 10m while `TestOperatorBuiltBinaryRealServerJourney` was
+  building an executable. The tagged distribution binary is also still building slowly; the
+  release owner is investigating these failures/pending results with
   `CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1`, `GOCACHE=/private/tmp/chuck-pdef-fix-cache`.
-  No Go failure is recorded; these in-progress runs are not yet claimed as passes.
+  No full-Go/distribution pass is claimed. UI, knowledge and independent bounded architecture
+  probes passed; existing native/device/credentialed gates remain open.
 
 ## Acceptance gates still owed
 
@@ -183,11 +191,36 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review findings
 
+### v0.20.0 architectural review — saved-tab failure feedback
+
+**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix — ARCH-v020-1:** `ui/src/features/fileTabs/FileTabs.tsx` renders the store's
+  notices only inside `TabStrip`; desktop `ReaderWorkspace`, room `ThinkTankPage` and phone
+  `AgentScreen` mount that strip only for nonempty owners. With 500 tabs saved in other owners,
+  the first open in an empty owner is correctly refused but silently does nothing. Corrupt saved
+  data also resets to empty with no visible reset feedback until a later successful open.
+  FS-03.R103/R105, TS-08.R141/R144 and INV §8 require visible refusal/recovery. A focused component
+  probe through the real transcript link/controller/store confirms the refusal and retained
+  count of 500, then fails its visible `role=status` expectation; DOM contains only transcript/link.
+  Render the existing shared notice from an always-mounted surface independent of membership,
+  retaining deduplication/dismissal and current authority/bounds. Regression: ten owners of fifty
+  tabs, first open in empty eleventh owner → visible close-a-tab feedback, no read or eviction.
+  Probe retained outside product tree at `/private/tmp/chuck-v020-notice.probe.test.tsx`.
+  [Receipt/evidence](../archive/reviews/architecture/v0.19.0-next.json).
+
 Project-scoped groups/selectors PSG-R1/2 closed on 2026-10-25.
 
 Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
+
+- **2026-10-25 — Architectural review for v0.20.0:** reviewed committed preparation `bc9cc82e`
+  across saved work, execution, admission, supervision, information, control, bounds and installed
+  artifacts. ARCH-v020-1 confirmed missing visible saved-tab refusal/recovery on empty owners;
+  one localized fix unit recorded. Existing native/provider/device gates retained. Codec/limiter
+  probe passed; UI/style/build knowledge evidence reused. Go failure/build delay stays open with
+  the release owner; no full-suite/distribution pass is inferred.
 
 - **2026-10-25 — PDEF-R1 fixed (INV §10 wiring; §§3/4/7/11/17 checked):** the configuration API
   merges optional `skip_permissions`; new launches read the saved global policy before resource
