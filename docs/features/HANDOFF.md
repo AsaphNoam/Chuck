@@ -19,7 +19,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   Settings opt-out is ignored by the configuration API.
   Annotation font/focus review is complete with AIF-R1 open: capture while collapsed cannot
   focus the new instruction. Workflow verification cleanup shipped unreviewed at the operator's
-  choice and remains in the review queue.
+  choice; its review is now closed with no findings.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
   verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
 - **Future work:** saved file-viewer tabs are implemented and the FVT-R1–R4 review is closed.
@@ -190,18 +190,6 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   Native macOS keyboard verification remains unclaimed. Existing unrelated design edits are
   preserved outside this unit's commit.
 
-- **Workflow verification cleanup** (TS-06.R5, TS-08.R17), waiting for review. UI-only changes
-  no longer require full Go suites; local checks follow the changed source/tooling, valid checks
-  can be reused across roles, fix runs close once, and successful logs stay compact. `npm test`
-  runs Vitest directly; `prebuild` retains the style gate. Entry points: workflow §§2/8/16,
-  mirrored release skills, `ui/package.json` and the presentation checker. Verification on this
-  unit's exact changed scope: `make check-specs` passes; focused `npm test --
-  src/presentation/VisualMatrix.test.tsx --reporter=dot` passes 8 tests; `npm run build` passes
-  Stylelint, 47 script tests, presentation audit, TypeScript and Vite. The new regression fails
-  against the pre-change checker for its obsolete `pretest` requirement. Release skill metadata
-  and twin parity pass via Node YAML; the Python validator is unavailable without PyYAML.
-  CI retains full coverage; no full product suites or live-provider checks were needed here.
-
 ## Review findings
 
 ### Annotation input font and focus (`709c8475`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
@@ -272,6 +260,22 @@ Project-scoped groups/selectors PSG-R1/2 closed on 2026-10-25.
 Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
+
+- **2026-10-25 — Workflow verification cleanup reviewed (`2fd50115`):** no findings; unit
+  closed. **Fix model:** none required (no open fixes). The scoped completion matrix and
+  recorded-check reuse match TS-06.R5; release still requires full Go/UI evidence and a fresh
+  distribution build. Both release launchers agree. CI and Makefile paths reach presentation
+  validation through `prebuild`; focused tests run Vitest directly as TS-08.R17 requires.
+  Fresh review checks at `c2391868` on this unit's unchanged tooling: `make check-specs` passes;
+  `cd ui && npm run check:styles` passes Stylelint, 47 script tests and the presentation audit;
+  `npm test -- src/presentation/VisualMatrix.test.tsx --reporter=dot` passes 8/8. Logs:
+  `/private/tmp/chuck-workflow-review-spec.log` and `/private/tmp/chuck-workflow-review-focused.log`.
+  The new gate regression fails against the pre-change checker for its obsolete `pretest`
+  requirement (`/private/tmp/agentdeck-before-proof.dDx39N/result.log`), establishing defect
+  discrimination under TS-06.R35/INV §17. Invariant sweep: §§10/17 apply and pass; no applicable
+  changed surface for §§1–9/11–16. No local-choice decision or rendered-product verification
+  was needed. Full product/build results from implementation are not claimed as fresh review
+  runs. Concurrent permission-fix edits and the unrelated generated UI index are preserved.
 
 - **2026-10-25 — Annotation input font and focus reviewed:** one Must-fix finding, AIF-R1:
   capture while collapsed leaves the new instruction hidden; expansion still does not focus it.
