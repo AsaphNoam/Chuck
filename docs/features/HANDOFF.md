@@ -13,7 +13,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   [Notes](../archive/state/RELEASE-v0.19.0-notes.md).
 - **Review state:** the v0.19.0 architecture review
   ([receipt](../archive/reviews/architecture/v0.18.1-next.json)) is closed: ARCH-v019-1/2
-  fixed and verified. No open findings. Annotation font/focus and workflow verification cleanup
+  fixed and verified. Project-scoped groups/selectors has two open findings (PSG-R1/2).
+  Annotation font/focus and workflow verification cleanup
   shipped unreviewed at the operator's choice and remain in the review queue.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
   verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
@@ -173,7 +174,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 ## Review queue
 
 - **Project-scoped groups and selectors** (FS-02.R80–R82/A61–A63, FS-13.R34/A24,
-  FS-21.R58/A41, TS-08.R139), waiting for review. `GroupPicker` is controlled (typed text is
+  FS-21.R58/A41, TS-08.R139), reviewed 2026-10-25; awaiting fixes for PSG-R1/2 below.
+  **Fix model:** medium — Codex Terra or Claude Opus.
+  `GroupPicker` is controlled (typed text is
   the value; Enter accepts it or an arrow-highlighted suggestion; no Create option);
   `projectGroupLabels`/`groupNameError` serve all four desktop/phone callers. Layout gains
   optional `projectGroups` (stored `project_groups`) with legacy `groups` fallback via
@@ -186,9 +189,18 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   (99 files, 1012 tests) and build pass; `make test` passes both Go variants except
   `TestStopRecordedProcessRefusesLeaderlessGroup` (`read |0: file already closed`), unrelated
   runtime code that passes 10× alone and on a full `-tags sqlite_fts5 ./internal/runtime`
-  rerun; `make build` passes. Reviewer notes: Escape in the picker now only dismisses
-  suggestions (the dialog stays open); the desktop Include checkbox wraps beside New task at
-  1024px; room-tray recipients and physical touch selection have no rendered receipt.
+  rerun; `make build` passes. Independent review of `40c8a369`, `93c2e1f1`, `178a3b91`,
+  `234e3ec0`: the 26-check project-scope journey passes against the working tree's embedded UI
+  with the isolated loopback/fake-ACP fixture. Additional browser checks reproduce both findings;
+  Core and Sky & Grove agent/room trays and phone sheet render without a new material layout issue.
+  Room recipients default locally, reveal labelled outside agents and clear the outside selection
+  when hidden without losing instructions. Evidence: `/private/tmp/chuck-project-review-render/`,
+  `/private/tmp/chuck-project-review-{extra,room}.json` and companion `.mjs` reproduction scripts.
+  Existing full-suite/build evidence above is reused; no product code changed during review.
+  Local choices accepted: Escape dismisses suggestions before the dialog (FS-02.R81), and the
+  Include checkbox wraps beside New task at 1024px without overlap. Physical touch remains owed.
+  Invariant sweep: applicable classes 1–3, 7–11, 13–14, 16–17; no applicable surface for
+  classes 4–6, 12 or 15. Findings are tagged below; no other violation found.
   Generated embed was not committed.
 
 - **Skip permissions by default** (FS-04.R61/A40), waiting for review. Fresh/fallback global
@@ -224,9 +236,39 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review findings
 
-None open. Closed findings through v0.19.0 are archived with their receipts.
+Project-scoped groups and selectors — two open findings; same review unit as above.
+
+- **Must fix — PSG-R1 (INV §1/§9): collapse changes disappear on immediate navigation.**
+  `ui/src/components/grid/CardGrid.tsx:119–125` cancels the pending 400ms layout save when
+  the grid unmounts. Toggle a group or Ungrouped, immediately open Settings/an agent, then
+  return: the new grid reads the old layout (`:98–103`) and overwrites the choice. Independent
+  browser reproduction freezes timers before the debounce: expanded → collapsed → Settings →
+  Back yields expanded, with no corresponding project override stored. The inherited save
+  mechanism fails FS-02.R82/A63's newly delivered navigation-durability promise. Preserve or
+  flush the pending layout across unmount with appropriate write ordering; add a controlled
+  toggle/navigation-before-400ms/reopen regression. Existing component/browser cases wait for
+  persistence first, so do not cover this schedule.
+
+- **Must fix — PSG-R2 (INV §1/§10): a new desktop annotation batch retains outside recipients.**
+  `ui/src/components/chat/AnnotationTray.tsx:36–38` and
+  `ui/src/features/thinktank/RoomAnnotationTray.tsx:36–38` keep `useProjectFirst` mounted while
+  an empty tray returns null, with only the source/room ID as its reset key. Reveal other
+  projects and select an outside agent, clear/send the batch, then annotate again in the same
+  conversation: Include other projects and the previous outside recipient remain selected,
+  contrary to FS-13.R34/A24's reset-on-reopening requirement. Browser-confirmed on the agent
+  tray after Discard all → right-click a transcript event → Annotate whole event; the room
+  tray has the same lifecycle. Reset scope and hidden outside selection when a fresh batch
+  reopens, preserving drafts and in-flight delivery ownership. Add a close-to-empty/new-capture
+  regression for agent and room trays; the phone sheet already remounts on reopening.
+
+Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
+
+- **2026-10-25 — Project-scoped groups/selectors reviewed:** two Must-fix findings: collapse
+  persistence on rapid navigation and annotation scope reset on a fresh batch. Independent
+  26-check browser journey passes; targeted browser reproductions confirm the gaps. Room,
+  desktop and phone rendering checked in Core and Sky & Grove. Same unit remains open for fixes.
 
 - **2026-10-24 — Default permissions:** fresh installs now skip permission prompts for No
   persona and all seeded personas through the inherited global policy. Saved settings and
