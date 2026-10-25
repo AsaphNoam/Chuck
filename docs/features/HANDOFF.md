@@ -30,7 +30,18 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-- No change in progress.
+- Release preparation for proposed v0.20.0 (version confirmation pending; push authorized).
+  Range: v0.19.0..77888420, all substantive review units closed, no open findings.
+  Isolated checkout: `/private/tmp/chuck-release-v0.20.0`; the primary checkout's pre-existing
+  generated UI index edit is preserved. Refresh shipped operator guidance and generated UI,
+  verify release, then obtain a fresh independent architectural review before tagging.
+  User authorized subagents to repair minor architectural findings.
+  Preparation evidence: operator package tests pass; UI suite passes 102 files/1053 tests;
+  production UI/style/presentation build passes and embed is generated. Source scope is
+  77888420 plus the operator-reference refresh; logs `/private/tmp/chuck-v020-{knowledge,ui-test,dist}.log`.
+  Full `make test` and the tagged distribution binary are still running, with
+  `CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1`, `GOCACHE=/private/tmp/chuck-pdef-fix-cache`.
+  No Go failure is recorded; these in-progress runs are not yet claimed as passes.
 
 ## Acceptance gates still owed
 
