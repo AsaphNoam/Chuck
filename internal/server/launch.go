@@ -384,6 +384,13 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeInvalidField, "fast mode is unavailable for terminal agents")
 	}
 
+	globalSkipPermissions := s.cfg.SkipPermissions
+	if savedConfig, err := s.configStore.ReadConfig(); err == nil {
+		globalSkipPermissions = savedConfig.SkipPermissions
+	} else if !errors.Is(err, config.ErrNotFound) && !errors.Is(err, config.ErrCorrupt) {
+		return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeInternal, "read config: "+err.Error())
+	}
+
 	agentID := options.AgentID
 	if agentID == "" {
 		agentID, err = s.stateStore.NewAgentID()
@@ -426,7 +433,7 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 	if options.ChuckAware != nil {
 		aware = *options.ChuckAware
 	}
-	skip := resolveSkip(s.cfg.SkipPermissions, role.SkipPermissions)
+	skip := resolveSkip(globalSkipPermissions, role.SkipPermissions)
 	if sourceSkip != nil {
 		skip = *sourceSkip // a fork keeps its source's frozen permission choice (FS-01.R53)
 	}

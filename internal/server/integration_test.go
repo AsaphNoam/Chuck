@@ -334,7 +334,11 @@ func TestLaunchPromptPermissionFlow(t *testing.T) {
 	t.Setenv("FAKEACP_SENTINEL", sentinel)
 
 	srv := testServer(t, true)
-	srv.cfg.SkipPermissions = false // Exercise manual approval rather than the fresh-install default.
+	manualConfig := srv.cfg
+	manualConfig.SkipPermissions = false // Exercise manual approval rather than the fresh-install default.
+	if err := srv.configStore.WriteConfig(manualConfig); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
 	srv.registry.Chat().SetCommand(fake)
 	// A project whose cwd actually exists (the fake CLI is spawned there).
 	if err := srv.configStore.WriteProject("tmpproj", config.Project{Title: "Tmp", Cwd: t.TempDir()}); err != nil {
@@ -446,7 +450,11 @@ func TestPermissionDenyReturnsIdleAfterTurnEnd(t *testing.T) {
 	t.Setenv("FAKEACP_SCENARIO", "permission")
 
 	srv := testServer(t, true)
-	srv.cfg.SkipPermissions = false // Exercise manual denial rather than the fresh-install default.
+	manualConfig := srv.cfg
+	manualConfig.SkipPermissions = false // Exercise manual denial rather than the fresh-install default.
+	if err := srv.configStore.WriteConfig(manualConfig); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
 	srv.registry.Chat().SetCommand(fake)
 	if err := srv.configStore.WriteProject("tmpproj", config.Project{Title: "Tmp", Cwd: t.TempDir()}); err != nil {
 		t.Fatalf("WriteProject: %v", err)

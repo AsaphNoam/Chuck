@@ -601,7 +601,9 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   on and off: each change sends only `skip_permissions` and reloading shows the saved value. A
   failed save restores the prior value and shows the server reason. The persona form's inheriting
   option reads **Use default permissions**. *Verify:* `PermissionPolicyEditor.test.tsx` and
-  `RoleForm.test.tsx`.
+  `RoleForm.test.tsx`; `TestPutConfigSkipPermissionsRoundTripsAndPreservesOmission` verifies the
+  real configuration handler persists both boolean values, preserves the policy when omitted,
+  and supplies the saved policy to the next launch without restarting the server.
 
 - **A40 (implemented 2026-10-24)** (R61) — Seed an empty home and read its configuration from disk: global
   `skip_permissions` is true and all five seeded personas inherit it. Set the saved global policy

@@ -228,6 +228,69 @@ func TestPutConfigMergesFields(t *testing.T) {
 	}
 }
 
+func TestPutConfigSkipPermissionsRoundTripsAndPreservesOmission(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{name: "true to false", want: false},
+		{name: "false to true", want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, _, _ := federationServer(t)
+			h := srv.routes()
+			initial := config.DefaultConfig()
+			initial.SkipPermissions = !tc.want
+			srv.cfg.SkipPermissions = !tc.want // emulate the server's startup snapshot
+			if err := srv.configStore.WriteConfig(initial); err != nil {
+				t.Fatalf("WriteConfig: %v", err)
+			}
+
+			rec := doRequest(t, h, http.MethodPut, "/api/config", map[string]any{"skip_permissions": tc.want})
+			if rec.Code != http.StatusOK {
+				t.Fatalf("PUT /api/config status = %d body=%s", rec.Code, rec.Body)
+			}
+			var response config.Config
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode PUT response: %v", err)
+			}
+			if response.SkipPermissions != tc.want {
+				t.Errorf("response skip_permissions = %v, want %v", response.SkipPermissions, tc.want)
+			}
+
+			saved, err := srv.configStore.ReadConfig()
+			if err != nil {
+				t.Fatalf("ReadConfig: %v", err)
+			}
+			if saved.SkipPermissions != tc.want {
+				t.Errorf("disk skip_permissions = %v, want %v", saved.SkipPermissions, tc.want)
+			}
+			spec, _, apiErr := srv.composeLaunch(t.Context(), launchRequest{Role: "implementer", Project: "fed"})
+			if apiErr != nil {
+				t.Fatalf("compose next launch: %s", apiErr.Message)
+			}
+			if spec.SkipPerms != tc.want {
+				t.Errorf("next-launch SkipPerms = %v, want %v", spec.SkipPerms, tc.want)
+			}
+
+			rec = doRequest(t, h, http.MethodPut, "/api/config", map[string]any{"default_role": ""})
+			if rec.Code != http.StatusOK {
+				t.Fatalf("PUT omission status = %d body=%s", rec.Code, rec.Body)
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode omission response: %v", err)
+			}
+			if response.SkipPermissions != tc.want {
+				t.Errorf("omission response skip_permissions = %v, want preserved %v", response.SkipPermissions, tc.want)
+			}
+			saved, err = srv.configStore.ReadConfig()
+			if err != nil || saved.SkipPermissions != tc.want {
+				t.Errorf("omission disk skip_permissions = %v, %v; want preserved %v", saved.SkipPermissions, err, tc.want)
+			}
+		})
+	}
+}
+
 // FS-04.A23 — the dependent-work runtime budget round-trips and invalid values
 // cannot replace the durable setting.
 func TestTaskConcurrencySettingRoundTripsAndRejectsNonPositive(t *testing.T) {

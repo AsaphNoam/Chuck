@@ -15,8 +15,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.18.1-next.json)) is closed: ARCH-v019-1/2
   fixed and verified. Project-scoped groups/selectors review is closed; PSG-R1/2 repaired.
   Saved file-viewer tabs review FVT-R1–R4 is closed with verified fixes.
-  Skip-permissions default review is complete with PDEF-R1 open: the documented global
-  Settings opt-out is ignored by the configuration API.
+  Skip-permissions default review is closed: PDEF-R1 repaired the Settings policy write and
+  refreshed the saved default for new launches.
   Annotation font/focus review is complete with AIF-R1 open: capture while collapsed cannot
   focus the new instruction. Workflow verification cleanup shipped unreviewed at the operator's
   choice; its review is now closed with no findings.
@@ -170,19 +170,6 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Review queue
 
-- **Skip permissions by default** (FS-04.R61/A40), reviewed 2026-10-25; PDEF-R1 awaits fix below.
-  Fresh/fallback global
-  configuration now enables `skip_permissions`; No persona and all seeded personas inherit it.
-  Existing saved global choices, persona overrides and frozen sessions retain their policy.
-  The fresh-home/no-clobber regression fails against the old default and passes after the change.
-  Three existing CLI/server permission journeys now explicitly select manual prompting.
-  Final `go test ./...` and `go test -tags sqlite_fts5 ./...` pass with `GOFLAGS=-p=1`,
-  `GOCACHE=/private/tmp/chuck-permission-default-gocache` and approved loopback access.
-  `make build`, `make check-specs` and diff checks pass for the changed scope. Logs:
-  `/private/tmp/chuck-permission-default-{go-final,fts-final,build,spec}.log`.
-  An initial task lifecycle-contention failure passes both its focused recheck and final full
-  variants; no lifecycle repair was made. No new credentialed-provider claim is made.
-
 - **Annotation input font and focus** (FS-13.R33/A23), reviewed 2026-10-25; AIF-R1 awaits fix
   below. Desktop agent and room instruction fields focus on mount; instruction and overall fields use the regular
   text font at 1rem. Focus regression and full UI suite pass (99 files, 1001 tests).
@@ -225,41 +212,23 @@ but omits the collapsed browser boundary covered by AIF-R1. No applicable change
 §§1–7, 9, 11–12, 14–16. Prior full-suite/build results remain with the queue unit; they are not
 claimed as fresh review checks. The unrelated generated UI index edit is preserved.
 
-### Skip permissions by default (`ebb22b4a`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Must fix** — **PDEF-R1 (INV §10): the documented Settings opt-out cannot change the policy.**
-  `README.md:177–179` directs fresh installations to Settings → Roles → Default permissions,
-  but `internal/server/config_handlers.go`'s `configPutBody` and `handlePutConfig` merge omit
-  `skip_permissions`. The UI submits this field; the decoder silently ignores it and returns
-  HTTP 200 with the unchanged configuration. Turning the new default off therefore leaves
-  both disk and future launches at `true`; the toggle returns to checked. This missing wiring
-  predates the default change (`b93f462d`), but the selected unit newly defaults to skipping
-  and documents this broken opt-out. Violates FS-04.R60/A39 and the selected unit's README
-  promise. Accept an optional boolean, merge it when present, and verify both directions and
-  omission preserving the saved policy through the actual handler. Reuse existing frozen-session
-  coverage and check the next launch uses the saved value.
-
-Review evidence: an isolated Go overlay test against `134b4ef5` seeds a fresh temp home and
-PUTs `{"skip_permissions":false}` through the real routes. It fails as expected: HTTP 200,
-response/disk/effective launch configuration all remain `true`. Command:
-`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-permission-default-gocache go test -overlay /private/tmp/chuck-review-permission-overlay.json ./internal/server -run '^TestReviewPermissionDefaultToggle$' -count=1 -v`;
-log `/private/tmp/chuck-review-permission-repro.log`. No repository test or product source was
-changed. Seed/preservation assertions independently enumerate the five personas and inspect
-real saved files; explicit manual-prompt fixtures retain their intended coverage. Launch role
-precedence and frozen resume/switch paths match R1/R13/R61. No local-choice note requires a
-human decision. Prior implementation suite results remain recorded with the queue unit;
-this review does not claim fresh full-suite or live-provider verification.
-
-Invariant sweep: §3 persisted-policy handling and §17 changed tests have no additional findings;
-§10 has PDEF-R1. The configuration API serialization boundary (§11), reached by the documented
-opt-out, confirms the same finding. No applicable changed surface for §§1, 2, 4–9, 12–16.
-The unrelated generated `internal/server/ui/dist/index.html` edit is preserved.
-
 Project-scoped groups/selectors PSG-R1/2 closed on 2026-10-25.
 
 Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
+
+- **2026-10-25 — PDEF-R1 fixed (INV §10 wiring; §§3/4/7/11/17 checked):** the configuration API
+  merges optional `skip_permissions`; new launches read the saved global policy before resource
+  registration. Both toggle directions, omission preservation, response/disk values and actual
+  next-launch policy are covered by `TestPutConfigSkipPermissionsRoundTripsAndPreservesOmission`.
+  The regression failed before the handler repair and again with the stale launch snapshot;
+  focused manual approval/denial and frozen resume/switch tests pass. Existing manual-policy
+  fixtures now save their explicit policy. Final `make test` (no-tag and FTS5 suites), `make build`
+  and diff checks pass for this scope with `CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1`,
+  `GOCACHE=/private/tmp/chuck-pdef-fix-cache` and approved loopback access. Logs:
+  `/private/tmp/chuck-pdef-fix-{test,build}.log`. No new native/provider claim. Unit closed;
+  AIF-R1 remains open. Unrelated generated UI index edit preserved.
 
 - **2026-10-25 — Workflow verification cleanup reviewed (`2fd50115`):** no findings; unit
   closed. **Fix model:** none required (no open fixes). The scoped completion matrix and

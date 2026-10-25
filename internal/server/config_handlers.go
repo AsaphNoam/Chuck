@@ -866,6 +866,7 @@ func normalizeMessageBudget(cfg *config.Config) {
 // Only the user-editable subset; version and port are rejected.
 type configPutBody struct {
 	OnboardingComplete   *bool                       `json:"onboarding_complete"`
+	SkipPermissions      *bool                       `json:"skip_permissions"`
 	DefaultProject       *string                     `json:"default_project"`
 	DefaultRole          *string                     `json:"default_role"`
 	AppearanceSkin       *string                     `json:"appearance_skin"`
@@ -969,6 +970,9 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		s.onboardingCacheMu.Lock()
 		s.onboardingCache = nil
 		s.onboardingCacheMu.Unlock()
+	}
+	if body.SkipPermissions != nil {
+		cfg.SkipPermissions = *body.SkipPermissions
 	}
 	if body.DefaultProject != nil {
 		cfg.DefaultProject = *body.DefaultProject
