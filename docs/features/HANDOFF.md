@@ -191,16 +191,21 @@ Closed findings through v0.19.0 are archived with their receipts.
   unrelated generated UI index edit preserved.
 
 - **2026-10-25 — AIF-R1 fixed (INV §10 wiring; §§8/13/17 checked):** adding a captured draft
-  clears only its source's collapsed flag in the same store update, so its instruction mounts
-  visible and existing autoFocus works without a focus effect. The component regression checks
-  focus on capture and preserves another source's collapse setting. The supplied Chromium journey
-  captures a real transcript event from the context menu, then confirms the instruction is visible,
-  focused and accepts sequential typing. Pre-fix reproduction: `/private/tmp/chuck-annotation-collapsed-review.log`;
-  fixed browser journey: `/private/tmp/chuck-annotation-collapsed-fix.log`.
-  `make check-specs`, full UI suite (102 files/1053 tests), `npm run build`, and `git diff --check`
-  pass. Check logs: `/private/tmp/aif-check-specs.log`, `/private/tmp/aif-npm-test.log`,
-  `/private/tmp/aif-npm-build.log`. Native macOS keyboard focus remains unverified; browser API/SSE
-  fixtures do not claim live-provider behavior. Unit closed after parent review.
+  clears only its source's collapsed flag in the same store update. A frame after the new row mounts,
+  focus returns to its instruction if focus is unchanged or fell to `body` while the docked stage
+  reports its new expanded state; it does not override an intentional focus elsewhere. The component regression
+  preserves another source's collapse setting. Corrected Chromium journey captures a real transcript
+  event from the context menu, asserts visible/focused before typing, then uses `page.keyboard.type`
+  without locator focus; it passes at `/private/tmp/chuck-annotation-collapsed-fix3.log`. The earlier
+  `/private/tmp/chuck-annotation-collapsed-fix.log` is superseded because `pressSequentially` focused
+  its locator and did not prove capture focus. Pre-fix reproduction:
+  `/private/tmp/chuck-annotation-collapsed-review.log`. Focused test, `make check-specs`, full UI
+  suite (102 files/1053 tests), `npm run build`, and `git diff --check` pass. The first final UI run
+  had two CardGrid composer-focus failures; that unchanged file passes 41/41 on focused rerun and
+  the full suite passes on retry. Logs: `/private/tmp/aif-npm-test-final.log`,
+  `/private/tmp/aif-npm-test-retry.log`, `/private/tmp/aif-check-specs-final.log`, and
+  `/private/tmp/aif-npm-build-final.log`. Native macOS keyboard focus remains unverified; browser
+  API/SSE fixtures do not claim live-provider behavior. Unit closed after parent review.
   Unrelated generated UI index edit preserved.
 
 - **2026-10-25 — Workflow verification cleanup reviewed (`2fd50115`):** no findings; unit

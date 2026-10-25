@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { AutoGrowTextarea } from "../ui";
 import { IncludeOtherProjects, useProjectFirst } from "../ui/IncludeOtherProjects";
 import type { AnnotationDraft } from "../../api/types";
@@ -97,6 +98,19 @@ function AnnotationDraftRow({ draft, index, sourceId, onRemove, onUpdate, disabl
   onUpdate: (sourceId: string, index: number, instruction: string) => void;
   disabled: boolean;
 }) {
+  const instructionRef = useRef<HTMLTextAreaElement>(null);
+  // A docked stage may still apply its previous collapsed CSS state during the
+  // commit that mounts this row. Retry after the stage reports the expansion;
+  // this runs only for a new row, never while editing an existing one.
+  useEffect(() => {
+    const focusAtMount = document.activeElement;
+    const frame = requestAnimationFrame(() => {
+      if (document.activeElement === focusAtMount || document.activeElement === document.body) {
+        instructionRef.current?.focus();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const anchor = annotationAnchor(draft);
   return (
     <li className="annotation-draft">
@@ -104,7 +118,7 @@ function AnnotationDraftRow({ draft, index, sourceId, onRemove, onUpdate, disabl
           rather than bold text sharing a line with a control (FS-13.R22). */}
       <div className="annotation-draft-head"><h3 className="annotation-draft-anchor">{anchor}</h3><button type="button" className="ad-button-danger" onClick={() => onRemove(sourceId, index)} disabled={disabled}>Remove</button></div>
       <blockquote>{draft.excerpt}</blockquote>
-      <label>Instruction<AutoGrowTextarea autoFocus value={draft.instruction} maxLength={2000} onChange={(event) => onUpdate(sourceId, index, event.target.value)} disabled={disabled} /></label>
+      <label>Instruction<AutoGrowTextarea autoFocus ref={instructionRef} value={draft.instruction} maxLength={2000} onChange={(event) => onUpdate(sourceId, index, event.target.value)} disabled={disabled} /></label>
     </li>
   );
 }
