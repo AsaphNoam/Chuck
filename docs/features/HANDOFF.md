@@ -17,8 +17,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   Saved file-viewer tabs review FVT-R1–R4 is closed with verified fixes.
   Skip-permissions default review is complete with PDEF-R1 open: the documented global
   Settings opt-out is ignored by the configuration API.
-  Annotation font/focus and workflow verification cleanup
-  shipped unreviewed at the operator's choice and remain in the review queue.
+  Annotation font/focus review is complete with AIF-R1 open: capture while collapsed cannot
+  focus the new instruction. Workflow verification cleanup shipped unreviewed at the operator's
+  choice and remains in the review queue.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through `308ad23f`. Clean release
   verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
 - **Future work:** saved file-viewer tabs are implemented and the FVT-R1–R4 review is closed.
@@ -182,8 +183,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   An initial task lifecycle-contention failure passes both its focused recheck and final full
   variants; no lifecycle repair was made. No new credentialed-provider claim is made.
 
-- **Annotation input font and focus** (FS-13.R33/A23), waiting for review. Desktop agent
-  and room instruction fields focus on mount; instruction and overall fields use the regular
+- **Annotation input font and focus** (FS-13.R33/A23), reviewed 2026-10-25; AIF-R1 awaits fix
+  below. Desktop agent and room instruction fields focus on mount; instruction and overall fields use the regular
   text font at 1rem. Focus regression and full UI suite pass (99 files, 1001 tests).
   Spec checks, production build (including presentation/style checks), and diff checks pass.
   Native macOS keyboard verification remains unclaimed. Existing unrelated design edits are
@@ -202,6 +203,39 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   CI retains full coverage; no full product suites or live-provider checks were needed here.
 
 ## Review findings
+
+### Annotation input font and focus (`709c8475`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — **AIF-R1 (INV §10): capture into a collapsed tray misses the promised instruction focus.**
+  `ui/src/components/chat/AnnotationTray.tsx:107` applies `autoFocus` only when the textarea
+  mounts. In a docked agent tray, collapse an existing batch, then choose **Annotate whole event**
+  on a transcript event. Capture appends the draft without expanding the tray
+  (`annotationStore.ts`'s `add` preserves the collapsed flag), so its instruction mounts under
+  `display: none` and cannot receive focus. Expanding afterward leaves focus on the expand
+  button; the textarea is already mounted, so autofocus never retries. This violates
+  FS-13.R33/A23's immediate keyboard-entry promise on a normal supported path. Make capture
+  reveal the new instruction and focus it after it is visible, while preserving focus during
+  edits and the existing per-source collapse behavior outside capture. Add a bounded regression
+  for collapse → real event capture → immediate typing; a jsdom-only focus assertion cannot
+  establish visibility.
+
+Review evidence: the current `AnnotationTray.test.tsx` suite passes 12/12. Independent Chromium
+inspection of the actual Vite agent and room routes passes initial/new-draft focus, instruction
+editing and overall-field focus retention, and computed application-text font/16px size in Core,
+Sky & Grove and Studio. Screenshots and the review-only harness are under
+`/private/tmp/chuck-annotation-review/` and `/private/tmp/chuck-annotation-review.mjs`.
+The bounded real-context-menu reproduction (`node /private/tmp/chuck-annotation-review.mjs
+--collapsed`, log `/private/tmp/chuck-annotation-collapsed-review.log`) confirms the new field
+is hidden and unfocused after capture, then visible but still unfocused after expansion.
+API/SSE fixtures isolate this UI check; no live-provider or native macOS keyboard receipt is
+claimed. No product/specification edit or local-choice decision was needed.
+
+Invariant sweep: §10 has AIF-R1. The changed rendered fields/styles (§§8/13) otherwise use the
+existing vocabulary, defined selectors and text token on both trays. The changed test (§17,
+TS-06.R35) observes actual DOM focus with an independent expected result and a small fixture,
+but omits the collapsed browser boundary covered by AIF-R1. No applicable changed surface for
+§§1–7, 9, 11–12, 14–16. Prior full-suite/build results remain with the queue unit; they are not
+claimed as fresh review checks. The unrelated generated UI index edit is preserved.
 
 ### Skip permissions by default (`ebb22b4a`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -238,6 +272,11 @@ Project-scoped groups/selectors PSG-R1/2 closed on 2026-10-25.
 Closed findings through v0.19.0 are archived with their receipts.
 
 ## Changelog
+
+- **2026-10-25 — Annotation input font and focus reviewed:** one Must-fix finding, AIF-R1:
+  capture while collapsed leaves the new instruction hidden; expansion still does not focus it.
+  Expanded agent/room typing and computed typography pass independent Chromium checks in all
+  three appearances; focused component tests pass 12/12. Same unit remains open for its fix.
 
 - **2026-10-25 — Skip-permissions default reviewed:** one Must-fix finding, PDEF-R1: the
   documented Settings opt-out is silently ignored by the API. A real-handler reproduction
