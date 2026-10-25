@@ -815,7 +815,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
 
 ### 2.13 File-viewer tabs
 
-- **R101 (planned) — Following files preserves the reading trail in tabs.** Desktop live
+- **R101 — Following files preserves the reading trail in tabs.** Desktop live
   and archived conversations, desktop Think Tank rooms and the phone's file reader use internal
   file tabs. Opening a file or following an eligible local-file link opens and selects a new tab
   without replacing the previous one. Opening the same file in the same read context selects its
@@ -825,7 +825,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   Each conversation or room owns a separate tab set; desktop live/archive views of the same
   conversation share its set in that browser. Web links retain their existing behavior.
   This supersedes R52/R95/R96's single-file replacement and no-tabs clauses only.
-- **R102 (planned) — Tabs support fast return, close and reorder.** Selecting a tab restores
+- **R102 — Tabs support fast return, close and reorder.** Selecting a tab restores
   its loaded snapshot, display mode and separate per-mode reading positions without another read.
   Reload reads only that tab. Tabs show filenames, a non-color active indication, discoverable
   full paths and room-source attribution where needed to distinguish them. Each tab has a named
@@ -837,7 +837,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   Focus file uses the same tabs as the adjacent reader. Closing one tab there leaves focus open
   if another remains; closing the last returns to the conversation. Existing annotation drafts
   remain point-in-time captures and are not deleted by closing their file's tab.
-- **R103 (planned) — Tabs survive navigation and reload.** Returning to a conversation or
+- **R103 — Tabs survive navigation and reload.** Returning to a conversation or
   room restores its open tab membership, order and active file. Reload also restores those choices,
   display modes and approximate reading positions. File contents are read again after reload
   or returning to an unmounted workspace; restoring tabs loads only the selected file, with other
@@ -854,7 +854,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   usable in memory and visibly explains that changes cannot survive closing/reloading the page.
   This supersedes R54/R55/R96's no-browser-storage and sole-URL-identity clauses only; there is
   no new server record, transcript event, agent/API action, file authority or annotation retention.
-- **R104 (planned) — Phone tabs stay within existing file access.** The phone adds tabs
+- **R104 — Phone tabs stay within existing file access.** The phone adds tabs
   to its existing Files view for that agent's tracked files only. One tabbed reader sits above
   the tracked-file list rather than moving a single preview between rows; Open file selects or
   opens a tab, and each tab's close control closes it. Eligible local-file links inside the
@@ -864,13 +864,13 @@ when accepted by HTTP but an id-less repeat is still a new command.
   offline/recovery rules remain in force. Restoring tabs does not navigate away from Chat by
   itself: the saved reader is shown on entering Files. Desktop dashboard links still navigate
   to the full conversation and select the linked file in that conversation's set.
-- **R105 (planned) — Saved tabs are bounded without silent eviction.** Allow up to 50 tabs
+- **R105 — Saved tabs are bounded without silent eviction.** Allow up to 50 tabs
   per conversation/room and 500 saved tabs across the browser origin. Opening another at either
   limit leaves the existing set and active file intact and explains that a tab must be closed
   first. Existing tabs remain selectable, movable and closable at the limit. No automatic expiry
   or least-recently-used eviction removes saved tabs. Malformed saved data is not file authority;
   it is rejected with readable recovery feedback, never allowed to block the conversation.
-- **R106 (planned) — Browser history hides the reader without closing saved tabs.** The
+- **R106 — Browser history hides the reader without closing saved tabs.** The
   first explicit open from a closed desktop conversation/room reader adds an addressable history
   entry; tab selection, subsequent opens, normalization, closing and reordering do not add history
   entries. Back to that owner's prior file-free address hides the reader while preserving its

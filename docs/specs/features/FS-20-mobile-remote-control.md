@@ -416,7 +416,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   Think Tank annotation phone surfaces are outside this change. Stopped sources can still assign captured context to another
   running chat agent or a new task; current-agent delivery retains FS-13.R6's idle/running rule.
 
-- **R56 (planned) — Saved file tabs extend the existing Files view.** Apply
+- **R56 — Saved file tabs extend the existing Files view.** Apply
   FS-03.R101–R106 to the phone's permitted tracked files, with one tabbed reader above the list.
   This supersedes only R37's single preview moving between rows; tab closure is explicit and
   Open file opens/selects instead of toggling a preview closed. Restore membership, active tab,

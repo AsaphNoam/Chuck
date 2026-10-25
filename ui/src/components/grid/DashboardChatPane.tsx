@@ -6,7 +6,7 @@ import { useTranscriptStore } from "../../store/transcriptStore";
 import { Composer } from "../chat/Composer";
 import { TranscriptView } from "../chat/TranscriptView";
 import type { FileLink } from "../chat/renderers/filePath";
-import { writeFileLinkParams } from "../../lib/fileLinkParams";
+import { CONVERSATION_FILE_KEYS, writeFileTarget } from "../../features/fileTabs/useFileTabRoute";
 
 export function DashboardChatPane({ agent }: { agent: AgentState }) {
   const events = useTranscriptStore((state) => state.byAgent[agent.agent_id] ?? []);
@@ -19,7 +19,7 @@ export function DashboardChatPane({ agent }: { agent: AgentState }) {
   // to the full surface, with the file already open (FS-03.R53).
   const openOnAgentScreen = (link: FileLink | null) => {
     if (!link) return;
-    const query = writeFileLinkParams(new URLSearchParams(), link);
+    const query = writeFileTarget(new URLSearchParams(), CONVERSATION_FILE_KEYS, link);
     navigate(`/agent/${agent.agent_id}?${query}`);
   };
 

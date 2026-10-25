@@ -347,7 +347,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   any unadded outside selection when hidden. Already-added participants remain visible.
   This narrows R27/R34's initial list only; mixed-project rooms remain supported.
 
-- **R59 (planned) — Room file inspection keeps source-qualified tabs.** Apply
+- **R59 — Room file inspection keeps source-qualified tabs.** Apply
   FS-03.R101–R106 to the existing desktop room reader. Tabs belong to the room and retain their
   immutable source context under R26, including retained history. Opening a link from another
   participant preserves prior tabs; equal relative paths from distinct sources remain distinct

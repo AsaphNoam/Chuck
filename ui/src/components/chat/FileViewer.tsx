@@ -10,10 +10,9 @@ import { claimWebLink } from "../../lib/linkActions";
 import { emptyAnchors, type Anchors, type DisplayMode, type ReadingAnchor, type TabView } from "../../features/fileTabs/model";
 import { ReadDropped, type ReadKind } from "../../features/fileTabs/readLimiter";
 
-// The read-only, one-file viewer that opens beside the transcript (FS-03.R52).
-// It holds no durable state: `?file=`/`?fileLine=` on the route are the open
-// file's single source of truth (FS-03.R54), so this component is told which file
-// to show and reports Close upward rather than owning either.
+// The read-only viewer for one open file (FS-03.R52). It holds no durable state:
+// the surface's saved file tabs decide which file it shows (FS-03.R101–R103,
+// `features/fileTabs`), so it is told which file to show and reports Close upward.
 
 const MARKDOWN_LANGUAGES = new Set(["markdown"]);
 

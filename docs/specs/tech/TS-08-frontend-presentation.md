@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1735,7 +1735,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
 
 ### 2.18 Persistent file-viewer tabs
 
-- **R140 (planned) — One feature-owned tab model serves all existing reader surfaces.**
+- **R140 — One feature-owned tab model serves all existing reader surfaces.**
   Implement FS-03.R101–R106, FS-20.R56 and FS-21.R59 with a shared typed tab reducer/controller,
   identity helper and storage codec beside the existing file reader, not separate room/phone
   implementations. An owner is a tagged conversation or room id; desktop live/archive share the
@@ -1750,7 +1750,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   filesystem identity endpoint. Duplicate admission selects the existing tab; a new citation
   becomes a one-shot navigation command rather than resetting the scroll on every activation.
   This supersedes R127/R129's sole-route identity and no-global-descriptor-map restrictions only.
-- **R141 (planned) — Browser persistence contains descriptors, never file snapshots.** Use
+- **R141 — Browser persistence contains descriptors, never file snapshots.** Use
   one versioned, feature-owned `localStorage` record (`chuck.file-tabs.v1`) with a shared codec and
   in-document subscription path. Persist owner records, order, active id, modes and per-mode
   reading anchors, excluding bytes, rendered DOM, Blob URLs, read timestamps, errors, loading
@@ -1766,7 +1766,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   completion. No TTL or LRU deletion. Reload/route remount restores descriptors, then lazily reads
   the active tab with current authority. Other browser windows may restore the same saved state;
   live cross-window synchronization/merge is excluded, with the last successful save authoritative.
-- **R142 (planned) — Per-tab read ownership extends the current hook.** Keep `useFileReader`
+- **R142 — Per-tab read ownership extends the current hook.** Keep `useFileReader`
   and `FileViewerView` as the shared read/render path, with one stable keyed reader host per tab
   visited during a mounted workspace. Initialize that host's mode/anchors from its descriptor and
   capture them before switching. Restored inactive tabs have no read host until selected. Hosts
@@ -1782,7 +1782,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   a workspace drops all read hosts; returning rereads lazily rather than persisting file bytes.
   Layout changes and switching loaded tabs do not read. Reload replaces only its tab's snapshot
   and clamps anchors; the annotation store retains point-in-time drafts under its own contract.
-- **R143 (planned) — Existing routes project the active tab without owning the set.** Adapt
+- **R143 — Existing routes project the active tab without owning the set.** Adapt
   `ChatPanel`, `ArchiveAgentPage`, `ReaderWorkspace` and `ThinkTankPage` to the shared controller.
   Accept the existing desktop `file`/`fileLine` and room `file`/`source`/`line` query keys; preserve
   unrelated query state. On mount an explicit target opens/selects before saved active-state
@@ -1805,7 +1805,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   server-side TS-13.R22 remains authoritative for every resulting read. Room reads keep the
   retained-source loader under TS-14.R12; room routes
   remain outside the phone allowlist. No server/wire/storage migration is required.
-- **R144 (planned) — Admission and read work are bounded without eviction.** Enforce
+- **R144 — Admission and read work are bounded without eviction.** Enforce
   FS-03.R105's 50-per-owner/500-total caps before adding a descriptor or initiating its read.
   Bound the serialized record to 2 MiB of UTF-16 storage (1,048,576 code units), checking raw
   length before parse and encoded size before save; over-budget saved input is rejected with
@@ -1820,7 +1820,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Only selected or explicitly reloaded tabs initiate work; no restoration fan-out, file watching,
   polling or prefetch. Repeated Reload coalesces while pending. Closing/unmount discards pending
   intents and releases settled payloads; existing generation guards discard stale responses.
-- **R145 (planned) — Tab presentation and evidence extend existing seams.** Use existing
+- **R145 — Tab presentation and evidence extend existing seams.** Use existing
   semantic tokens, feature CSS, icons and installed drag primitives, without a new dependency,
   theme provider or motion library. Keep document content dominant: one compact horizontal strip,
   active indication beyond color, path/source disclosure, named Close and Move left/right actions,

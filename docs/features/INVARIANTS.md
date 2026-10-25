@@ -549,6 +549,7 @@ the old behavior before relying on it.
 | `capVisible` / `OverflowMenu` | `ui/src/lib/navCap.ts`, `ui/src/components/shell/OverflowMenu.tsx` | every compact nav's five-cap with current-visible and its `+n` disclosure (§2) |
 | `displayLabel` / `displayLabels` | `ui/src/lib/labels.ts` | every model/backend/project/role/template label; the id appears only for duplicate names (§2) |
 | `AutoGrowTextarea` | `ui/src/components/ui/AutoGrowTextarea.tsx` | every multi-line text field in `ui/src`; a source-scan test rejects raw `<textarea>` (§2) |
+| `FileTabsReader` / `fileTabs` / `useFileTabRoute` / `readFileTarget` / `writeFileTarget` | `ui/src/features/fileTabs/` | every file reader surface, saved file-tab mutation and `?file=` address read/write (§2, §16) |
 | `localOnly` | `internal/server/security.go` | wraps the whole mux; every new route inherits it (§14) |
 | `notificationPayload` | `internal/bus/` | all notification payloads (§8) |
 | `fakeacp` test double | `internal/runtime/testdata/fakeacp` | env-driven protocol-level repros (`FAKEACP_LOAD_DUMP`, `FAKEACP_PROTO_VERSION`, `ignore_cancel`); it drops out-of-schema session-request members like the pinned peer (§17) |

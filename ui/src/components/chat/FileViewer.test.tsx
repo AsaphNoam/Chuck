@@ -7,7 +7,7 @@ import { http, HttpResponse } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { FileViewer } from "./FileViewer";
-import { fileLinkFromParams, writeFileLinkParams } from "../../lib/fileLinkParams";
+import { CONVERSATION_FILE_KEYS, readFileTarget, writeFileTarget } from "../../features/fileTabs/useFileTabRoute";
 
 const GO_SOURCE = "package state\n\nfunc Read() {}\n";
 
@@ -323,11 +323,11 @@ describe("FileViewer", () => {
     let location = "";
     function Harness() {
       const [params, setParams] = useSearchParams();
-      const link = fileLinkFromParams(params);
+      const link = readFileTarget(params, CONVERSATION_FILE_KEYS);
       location = params.toString();
       if (!link) return null;
       return <FileViewer agentId="a_1" link={link} onClose={vi.fn()} onSelectionMenu={onSelectionMenu}
-        onPathResolved={(path) => setParams((current) => writeFileLinkParams(current, { ...link, path }), { replace: true })} />;
+        onPathResolved={(path) => setParams((current) => writeFileTarget(current, CONVERSATION_FILE_KEYS, { ...link, path }), { replace: true })} />;
     }
     const url = `/?${new URLSearchParams({ file: requested, fileLine: "2" })}`;
     const view = render(<MemoryRouter initialEntries={[url]}><Harness /></MemoryRouter>);
@@ -447,26 +447,26 @@ function selectBetween(start: HTMLElement, end: HTMLElement) {
 // forms are one component in two CSS states.
 describe("the open file as part of the address", () => {
   it("round-trips ?file= and ?fileLine= and clears both on Close", () => {
-    expect(fileLinkFromParams(new URLSearchParams("tab=files"))).toBeNull();
-    expect(fileLinkFromParams(new URLSearchParams("file=main.go"))).toEqual({ path: "main.go" });
-    expect(fileLinkFromParams(new URLSearchParams("file=main.go&fileLine=12"))).toEqual({ path: "main.go", line: 12 });
+    expect(readFileTarget(new URLSearchParams("tab=files"), CONVERSATION_FILE_KEYS)).toBeNull();
+    expect(readFileTarget(new URLSearchParams("file=main.go"), CONVERSATION_FILE_KEYS)).toEqual({ path: "main.go" });
+    expect(readFileTarget(new URLSearchParams("file=main.go&fileLine=12"), CONVERSATION_FILE_KEYS)).toEqual({ path: "main.go", line: 12 });
     // A parameter that cannot be resolved opens the viewer rather than failing
     // silently; a nonsense line just drops the anchor (FS-03.R54).
-    expect(fileLinkFromParams(new URLSearchParams("file=main.go&fileLine=nope"))).toEqual({ path: "main.go" });
+    expect(readFileTarget(new URLSearchParams("file=main.go&fileLine=nope"), CONVERSATION_FILE_KEYS)).toEqual({ path: "main.go" });
 
-    const opened = writeFileLinkParams(new URLSearchParams("tab=transcript"), { path: "a/b.go", line: 4 });
+    const opened = writeFileTarget(new URLSearchParams("tab=transcript"), CONVERSATION_FILE_KEYS, { path: "a/b.go", line: 4 });
     expect(opened.get("tab")).toBe("transcript");
     expect(opened.get("file")).toBe("a/b.go");
     expect(opened.get("fileLine")).toBe("4");
 
-    const closed = writeFileLinkParams(opened, null);
+    const closed = writeFileTarget(opened, CONVERSATION_FILE_KEYS, null);
     expect(closed.get("tab")).toBe("transcript");
     expect(closed.get("file")).toBeNull();
     expect(closed.get("fileLine")).toBeNull();
 
     // The two keys are always written together, so a stale line cannot outlive
     // the file that cited it.
-    expect(writeFileLinkParams(opened, { path: "c.go" }).get("fileLine")).toBeNull();
+    expect(writeFileTarget(opened, CONVERSATION_FILE_KEYS, { path: "c.go" }).get("fileLine")).toBeNull();
   });
 
   // jsdom evaluates no CSS and knows nothing of container queries, so the
