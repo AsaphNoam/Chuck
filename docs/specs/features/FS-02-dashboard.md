@@ -1032,7 +1032,9 @@ touch-device selection receipt is not claimed.
 in one project, visit the other and reload. Only the first project's choice changes; density,
 order and membership remain. *Verify:* layout round-trip tests and the A61 browser journey.
 — `TestPutLayoutRoundTripsProjectGroupOverrides`, `CardGrid.test.tsx` "collapses a same-named
-group in one project only…", `project-scope-journey.mjs`.
+group in one project only…" and "persists collapse on immediate navigation before a slow save
+finishes" (controlled pre-debounce departure, queued writes and reopen),
+`project-scope-journey.mjs`.
 
 ## 6. Deviations & open decisions
 

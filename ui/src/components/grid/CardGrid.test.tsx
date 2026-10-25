@@ -116,6 +116,61 @@ async function cardOf(id: string) {
 }
 
 describe("CardGrid", () => {
+  // FS-02.R82/A63: leaving before the debounce must retain the toggle, even
+  // when reopening races a slow save. The server's retained layout is the oracle.
+  it("persists collapse on immediate navigation before a slow save finishes", async () => {
+    let layout = { order: ["a_1", "a_2"], density: { perRow: 3, gap: 16 }, groups: {}, projectGroups: {} };
+    let reads = 0;
+    let writes = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    server.use(
+      http.get("/api/layout", () => { reads++; return HttpResponse.json(layout); }),
+      http.put("/api/layout", async ({ request }) => {
+        const next = await request.json() as typeof layout;
+        writes++;
+        await gate;
+        layout = next;
+        return HttpResponse.json(layout);
+      }),
+    );
+    act(() => useAgentStore.setState({ agents: { a_1: agent("a_1"), a_2: agent("a_2", { group: "Core" }) }, order: ["a_1", "a_2"] }));
+    const first = renderWithQuery(<CardGrid projectID="my-app" />);
+    await screen.findByText("a_1");
+    // A previous debounced save is still in flight when the final choice leaves.
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(within(screen.getByRole("region", { name: "Group Core" })).getByRole("button", { expanded: true }));
+      act(() => { vi.advanceTimersByTime(400); });
+    } finally {
+      vi.useRealTimers();
+    }
+    await waitFor(() => expect(writes).toBe(1));
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(within(screen.getByRole("region", { name: "Group Ungrouped" })).getByRole("button", { expanded: true }));
+      first.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+    const fetchCalls = vi.spyOn(globalThis, "fetch");
+    renderWithQuery(<CardGrid projectID="my-app" />);
+    try {
+      // Both the next PUT and new GET must wait for the earlier PUT.
+      await act(async () => { await Promise.resolve(); });
+      expect(fetchCalls.mock.calls.filter(([url]) => url === "/api/layout")).toHaveLength(0);
+      expect(writes).toBe(1);
+      expect(reads).toBe(1);
+    } finally {
+      fetchCalls.mockRestore();
+      release();
+    }
+    await waitFor(() => expect(reads).toBe(2));
+    expect(writes).toBe(2);
+    await waitFor(() => expect(screen.getByRole("region", { name: "Group Ungrouped" })).toHaveAttribute("data-state", "collapsed"));
+    expect(screen.getByRole("region", { name: "Group Core" })).toHaveAttribute("data-state", "collapsed");
+    expect(layout.projectGroups).toEqual({ "my-app": { Core: { collapsed: true }, _ungrouped: { collapsed: true } } });
+  });
 
   // FS-02.A29/A37 — the render and interaction half only: click-to-expand, header
   // click to collapse, the one-track footprint, and a terminal card still

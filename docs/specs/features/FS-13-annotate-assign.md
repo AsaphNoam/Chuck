@@ -386,9 +386,10 @@ authorization; use real handler/receipt paths rather than a mock that deduplicat
   recipient lists: only the source project appears until Include other projects is enabled.
   Verify attribution, selection clearing and reset on reopening/source change without losing
   drafts. *Verify:* recipient tests and desktop/phone browser journeys. — `AnnotationTray.test.tsx`
-  "lists the source project's recipients…"; desktop agent tray and phone sheet in
-  `ui/scripts/project-scope-journey.mjs`. The room tray shares `useProjectFirst` but has no
-  separate rendered receipt.
+  "lists the source project's recipients…" and "resets outside recipients when a fresh
+  agent/room batch opens" (rendered discard-to-empty/recapture, retaining the existing batch
+  on additions); desktop agent tray and phone sheet in `ui/scripts/project-scope-journey.mjs`.
+  The room tray has component coverage but no separate browser-rendered receipt.
 
 ## 6. Deviations & open decisions
 

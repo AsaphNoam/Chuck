@@ -9,6 +9,10 @@ import { setupServer } from "msw/node";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { AnnotationTray } from "./AnnotationTray";
+import { RoomAnnotationTray } from "../../features/thinktank/RoomAnnotationTray";
+import { roomAnnotationSource } from "../../features/thinktank/roomText";
+import { thinkTankDetailSchema } from "../../schemas/thinkTank";
+import roomFixture from "../../features/thinktank/fixtures/room.json";
 
 let launches = 0;
 vi.mock("../../features/launch/NewAgentModal", async () => {
@@ -52,6 +56,37 @@ function agentStylesheet() {
 }
 
 describe("AnnotationTray", () => {
+  // FS-13.R34/A24: empty -> capture is a new opening, while adding to a
+  // nonempty batch preserves the chosen scope, instructions and recipient.
+  it.each(["agent", "room"])("resets outside recipients when a fresh %s batch opens", (kind) => {
+    const room = thinkTankDetailSchema.parse(roomFixture.room);
+    const sourceId = kind === "agent" ? "source" : roomAnnotationSource(room.room_id);
+    const project = kind === "agent" ? "app" : room.origin_project;
+    useAgentStore.setState({ agents: {
+      source: { ...sourceAgent, project },
+      near: { ...sourceAgent, agent_id: "near", name: "Near", project },
+      far: { ...sourceAgent, agent_id: "far", name: "Far", project: "outside" },
+    } });
+    act(() => { useAnnotationStore.getState().add(sourceId, { seq: 1, excerpt: "First", instruction: "Keep" }); });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+    render(<QueryClientProvider client={client}>{kind === "agent"
+      ? <AnnotationTray sourceId={sourceId} sourceActive />
+      : <RoomAnnotationTray room={room} />}</QueryClientProvider>);
+    fireEvent.click(screen.getByLabelText(kind === "agent" ? "Another agent" : "An agent"));
+    fireEvent.click(screen.getByLabelText("Include other projects"));
+    fireEvent.change(screen.getByLabelText("Annotation recipient"), { target: { value: "far" } });
+    act(() => { useAnnotationStore.getState().add(sourceId, { seq: 2, excerpt: "Second", instruction: "Also keep" }); });
+    expect(screen.getByLabelText("Include other projects")).toBeChecked();
+    expect(screen.getByLabelText("Annotation recipient")).toHaveValue("far");
+    expect(screen.getAllByLabelText("Instruction")[0]).toHaveValue("Keep");
+    fireEvent.click(screen.getByRole("button", { name: "Discard all" }));
+    expect(screen.queryByLabelText("Annotation recipient")).toBeNull();
+    act(() => { useAnnotationStore.getState().add(sourceId, { seq: 3, excerpt: "New capture", instruction: "New instruction" }); });
+    expect(screen.getByLabelText("Include other projects")).not.toBeChecked();
+    expect(screen.getByLabelText("Annotation recipient")).toHaveValue("");
+    expect(screen.queryByRole("option", { name: /Far/ })).toBeNull();
+    expect(screen.getByLabelText("Instruction")).toHaveValue("New instruction");
+  });
   it("focuses a new instruction and preserves focus while editing", () => {
     seedTray(1);
     renderTray();

@@ -47,16 +47,25 @@ export function reportWorktreeRecreated<T extends { worktree?: WorktreeStartNoti
   return resp;
 }
 
-export function getLayout() {
+// Layout replaces the whole record. Keep writes ordered across grid mounts,
+// and let a newly opened grid read only after the departing grid's save settles.
+let layoutWrites: Promise<void> = Promise.resolve();
+
+export async function getLayout() {
+  await layoutWrites;
   return json<Layout>("/api/layout");
 }
 
 export function putLayout(layout: Layout) {
-  return json<Layout>("/api/layout", {
+  const body = JSON.stringify(layout);
+  const result = layoutWrites.then(() => json<Layout>("/api/layout", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(layout),
-  });
+    body,
+  }));
+  // Callers still receive failures; one failed save cannot block later work.
+  layoutWrites = result.then(() => undefined, () => undefined);
+  return result;
 }
 
 export function getTranscript(agentId: string, includeMeta = false) {

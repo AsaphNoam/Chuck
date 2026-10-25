@@ -33,7 +33,7 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
   const [commandID, setCommandID] = useState(newCommandID);
   const send = useThinkTankAnnotations(room.room_id);
   const recipients = Object.values(agents).filter((agent) => agent.running && agent.interface === "chat");
-  const choices = useProjectFirst({ items: recipients, project: room.origin_project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: room.room_id });
+  const choices = useProjectFirst({ items: recipients, project: room.origin_project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: JSON.stringify([room.room_id, drafts.length > 0]) });
 
   if (drafts.length === 0) return null;
   const effectiveTarget = ended && target === "room" ? "agent" : target;

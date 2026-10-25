@@ -89,6 +89,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   // values just read, and a save of those is a write nobody asked for (FS-02.R78), so
   // only a layout that differs from it is saved.
   const stored = useRef<string | null>(null);
+  const pendingSave = useRef<(() => void) | null>(null);
 
   // A failed read is reported and still arms saving: leaving `loaded` false swallowed
   // the error and silently disabled layout persistence for the whole session, so every
@@ -112,18 +113,26 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   }, [pushError, setDensity, setGroupLayout, setOrder]);
 
   useEffect(() => {
+    pendingSave.current = null;
     if (!loaded.current) return;
     const layout = { order, density, groups: groupLayout, projectGroups: projectGroupLayout, expanded };
     const serialized = JSON.stringify(layout);
     if (serialized === stored.current) return;
-    const handle = window.setTimeout(() => {
+    const save = () => {
+      pendingSave.current = null;
       stored.current = serialized;
       putLayout(layout).catch((err: unknown) =>
         pushError("Saving layout failed", err instanceof Error ? err.message : String(err)),
       );
-    }, 400);
+    };
+    pendingSave.current = save;
+    const handle = window.setTimeout(save, 400);
     return () => window.clearTimeout(handle);
   }, [density, expanded, groupLayout, order, projectGroupLayout, pushError]);
+
+  // Dependency changes keep debouncing; leaving the grid flushes its last
+  // unsaved choice. The API orders this write before the next grid's read.
+  useEffect(() => () => { pendingSave.current?.(); }, []);
 
   useEffect(() => {
     if (!agentsHydrated) return;

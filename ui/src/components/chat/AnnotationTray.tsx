@@ -33,7 +33,7 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
   const setOverall = useAnnotationStore((state) => state.setOverall);
   const collapsed = useAnnotationStore((state) => state.collapsedBySource[sourceId] ?? false);
   const setCollapsed = useAnnotationStore((state) => state.setCollapsed);
-  const choices = useProjectFirst({ items: recipients, project: source?.project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: sourceId });
+  const choices = useProjectFirst({ items: recipients, project: source?.project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: JSON.stringify([sourceId, drafts.length > 0]) });
 
   if (drafts.length === 0) return null;
 
