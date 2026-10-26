@@ -38,6 +38,7 @@ class SseClient {
   /** Snapshot ids of the hydration in progress; null once its marker settles it (INV §16). */
   private hydrationIds: string[] | null = null;
   private openAgents = new Map<string, number>();
+  private transcriptHolders = new Map<string, number>();
   private transcriptRequestToken: Record<string, number> = {};
   private lastAgentSeq: Record<string, number> = {};
   /** Open agents whose transcript read finished with no newer read pending. */
@@ -150,10 +151,33 @@ class SseClient {
       else {
         this.openAgents.delete(agentId);
         this.reconciled.delete(agentId);
-        useTranscriptStore.getState().discardAgent(agentId);
-        useReasoningStore.getState().discard(agentId);
+        this.releaseTranscript(agentId);
       }
     };
+  }
+
+  // A reader that loads its own history (the archive page) holds the agent's
+  // transcript without joining live refetch; the last reader of either kind
+  // releases it (INV §16).
+  holdTranscript(agentId: string) {
+    this.transcriptHolders.set(agentId, (this.transcriptHolders.get(agentId) ?? 0) + 1);
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      const next = (this.transcriptHolders.get(agentId) ?? 1) - 1;
+      if (next > 0) this.transcriptHolders.set(agentId, next);
+      else {
+        this.transcriptHolders.delete(agentId);
+        this.releaseTranscript(agentId);
+      }
+    };
+  }
+
+  private releaseTranscript(agentId: string) {
+    if (this.openAgents.has(agentId) || this.transcriptHolders.has(agentId)) return;
+    useTranscriptStore.getState().discardAgent(agentId);
+    useReasoningStore.getState().discard(agentId);
   }
 
   private onStateUpdate(event: MessageEvent<string>) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getTranscript, restoreAgent, resumeAgent } from "../../api/client";
 import { useProjects } from "../../api/config";
+import { sseClient } from "../../api/sse";
 import { AgentBreadcrumb, AgentIdentity } from "../../components/chat/ChatPanel";
 import { AgentStage, type PanelSlots } from "../../components/chat/AgentStage";
 import { useTranscriptStore } from "../../store/transcriptStore";
@@ -46,20 +47,25 @@ export function ArchiveAgentPage() {
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let current = true;
+    // Hold a reader reference so the last reader's release drops this history
+    // (INV §16); a fetch resolving after release must not write it back.
+    const release = sseClient.holdTranscript(id);
     setLoad({ state: "loading" });
     getTranscript(id, true)
       .then((r) => {
+        if (!current) return;
         setTranscript(r.agent_id, r.events);
-        if (current) setLoad({ state: r.events.length ? "ready" : "empty" });
+        setLoad({ state: r.events.length ? "ready" : "empty" });
       })
       .catch((err: unknown) => {
-        settle(id);
         if (!current) return;
+        settle(id);
         if ((err as { status?: number }).status === 404) setLoad({ state: "unknown" });
         else setLoad({ state: "failed", message: err instanceof Error ? err.message : "Could not load the transcript" });
       });
     return () => {
       current = false;
+      release();
     };
   }, [id, attempt, setTranscript, settle]);
   const unknown = load.state === "unknown";

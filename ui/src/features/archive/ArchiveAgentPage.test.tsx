@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { useTranscriptStore } from "../../store/transcriptStore";
+import { sseClient } from "../../api/sse";
 import { ArchiveAgentPage } from "./ArchiveAgentPage";
 
 const server = setupServer(
@@ -72,11 +73,35 @@ describe("ArchiveAgentPage switched session identity", () => {
 describe("ArchiveAgentPage", () => {
   // MEM-2, INV §16: full history belongs to a mounted reader, so visiting
   // archived sessions must not turn the page-lifetime store into a history cache.
-  it.skip("releases its full transcript after leaving the archived session", async () => {
+  it("releases its full transcript after leaving the archived session", async () => {
     const view = renderArchive("a_archive");
     expect(await screen.findByText("Sure, I'll do that.")).toBeInTheDocument();
     view.unmount();
     expect(useTranscriptStore.getState().byAgent.a_archive).toBeUndefined();
+  });
+
+  it("keeps the transcript while another reader of the same conversation is open", async () => {
+    const release = sseClient.holdTranscript("a_archive");
+    const view = renderArchive("a_archive");
+    expect(await screen.findByText("Sure, I'll do that.")).toBeInTheDocument();
+    view.unmount();
+    expect(useTranscriptStore.getState().byAgent.a_archive).toBeDefined();
+    release();
+    expect(useTranscriptStore.getState().byAgent.a_archive).toBeUndefined();
+  });
+
+  it("does not write a transcript that resolves after leaving", async () => {
+    let answer: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => { answer = resolve; });
+    server.use(http.get("/api/sessions/a_late/transcript", async () => {
+      await gate;
+      return HttpResponse.json({ agent_id: "a_late", events: [{ seq: 1, type: "assistant_text", ts: "t1", data: { delta: "late" } }] });
+    }));
+    const view = renderArchive("a_late");
+    view.unmount();
+    answer();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(useTranscriptStore.getState().byAgent.a_late).toBeUndefined();
   });
 
   it("renders a stored assistant stream as one message", async () => {
