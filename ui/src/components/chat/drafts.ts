@@ -1,4 +1,4 @@
-import { ensureDraftIndexed, noteDraftChange } from "./draftIndex";
+import { ensureDraftIndexed, noteDraftChange, registerDraftEvictionListener } from "./draftIndex";
 
 const storageKey = "chuck-chat-drafts";
 const maxDrafts = 20;
@@ -17,6 +17,11 @@ const revisions: Record<string, number> = {};
 // so a restore merges with this rather than a possibly stale or missing
 // persisted copy (FS-03.R90, INV §1).
 const live: Record<string, string> = {};
+// Eviction from the 20-draft index drops the cached text too. Revisions are left
+// alone so an in-flight send's fence is unchanged.
+registerDraftEvictionListener((agentIds) => {
+  for (const agentId of agentIds) delete live[agentId];
+});
 const listeners = new Map<string, Set<(text: string) => void>>();
 
 // Listeners hear drafts written outside their own composer: a clear after send,

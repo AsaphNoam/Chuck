@@ -5,11 +5,15 @@ const attachmentStore = "drafts";
 
 export type DraftIndexEntry = { editedAt: number; text: boolean; attachments: boolean; pending?: boolean; requestId: string };
 export type DraftIndex = Record<string, DraftIndexEntry>;
-let evictionListener: ((agentIds: string[]) => void) | null = null;
+const evictionListeners = new Set<(agentIds: string[]) => void>();
 
 export function registerDraftEvictionListener(listener: (agentIds: string[]) => void) {
-  evictionListener = listener;
-  return () => { if (evictionListener === listener) evictionListener = null; };
+  evictionListeners.add(listener);
+  return () => { evictionListeners.delete(listener); };
+}
+
+function notifyEvicted(agentIds: string[]) {
+  evictionListeners.forEach((listener) => listener(agentIds));
 }
 
 export function chatDraftRequestId(agentId: string) {
@@ -43,12 +47,12 @@ export function noteDraftChange(agentId: string, change: { text?: boolean; attac
   if (removed) {
     pruneTextDrafts([agentId]);
     void deleteAttachmentDrafts([agentId]).catch(() => undefined);
-    evictionListener?.([agentId]);
+    notifyEvicted([agentId]);
   }
   if (evicted.length) {
     pruneTextDrafts(evicted);
     void deleteAttachmentDrafts(evicted).catch(() => undefined);
-    evictionListener?.(evicted);
+    notifyEvicted(evicted);
   }
   return next.requestId;
 }
@@ -76,7 +80,7 @@ export function ensureDraftIndexed(agentId: string, draft: { text: boolean; edit
   if (evicted.length) {
     pruneTextDrafts(evicted);
     void deleteAttachmentDrafts(evicted).catch(() => undefined);
-    evictionListener?.(evicted);
+    notifyEvicted(evicted);
   }
   return !evicted.includes(agentId);
 }

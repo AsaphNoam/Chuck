@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { discardChatDraft, getChatDraft, setChatDraft } from "./drafts";
+import { discardChatDraft, getChatDraft, restoreChatDraft, setChatDraft } from "./drafts";
 
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.restoreAllMocks());
@@ -24,6 +24,14 @@ describe("chat drafts", () => {
     expect(getChatDraft("a_0")).toBe("");
     expect(getChatDraft("a_1")).toBe("draft 1");
     expect(getChatDraft("a_20")).toBe("draft 20");
+  });
+
+  it("does not resurrect evicted text when a withdrawn message is restored", () => {
+    for (let i = 0; i < 25; i++) setChatDraft(`a_${i}`, `large-original-${i}`);
+
+    expect(getChatDraft("a_0")).toBe("");
+    restoreChatDraft("a_0", "withdrawn");
+    expect(getChatDraft("a_0")).toBe("withdrawn");
   });
 
   it("starts empty on malformed storage and leaves callers usable when storage fails", () => {

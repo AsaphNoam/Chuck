@@ -1099,7 +1099,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   same-agent draft typed while an earlier send is in flight survives both that send's acceptance and
   its rejection. Agent
   deletion removes its draft, and retaining a twenty-first draft evicts the least recently edited
-  entry. No draft is included in a transcript or prompt request before Send. *Verify:*
+  entry, including its in-memory text, so a later restore cannot resurrect it. No draft is included in a transcript or prompt request before Send. *Verify:*
   browser-storage-backed `Composer` and deletion-event component/unit cases plus a manual
   reload/navigation check.
 
