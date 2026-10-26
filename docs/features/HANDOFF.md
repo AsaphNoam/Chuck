@@ -16,7 +16,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Review state:** no open review units; memory fix unit MEM has one open **Worth fixing**
   finding (MEM-4), blocked on a decision below; MEM-1/2/3/5/6 are fixed. The v0.20.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
-  and verified.
+  and verified. Provider-failure investigation unit PERR has three open findings below;
+  terminal rate-limit failures are silently classified as successful turns. Product fixes are pending.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through the v0.20.0 release record.
   Clean release verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
   The primary checkout carries a pre-existing generated UI index edit; preserve it.
@@ -177,6 +178,99 @@ None.
 
 ## Review findings
 
+### PERR — Silent provider failures and request amplification investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report, verbatim:** “Chuck accepted user messages and started Codex turns, but provider errors
+left them unanswered. Four consecutive turns failed with ‘exceeded retry limit, last status: 429
+Too Many Requests,’ with last_agent_message: null. Chuck recorded these as turn_end with
+stop_reason: end_turn despite providerError. Check error visibility and recovery so failed turns
+don’t appear silently completed, chuck might be spamming the providers, I'm getting 429s too
+frequently. logs below:”
+
+```json
+{"timestamp":"2026-10-25T15:36:31.161Z","ordinal":65,"type":"event_msg","payload":{"type":"task_complete","turn_id":"01a173b4-cbf9-70e1-a31b-420b0b43ec05","last_agent_message":null,"error":{"message":"exceeded retry limit, last status: 429 Too Many Requests","codex_error_info":{"response_too_many_failed_attempts":{"http_status_code":429}}},"started_at":1792942590,"completed_at":1792942591,"duration_ms":168}}
+```
+
+Affected Chuck version, machine, provider source/configuration and full four-turn timeline were
+not supplied. One native completion excerpt was supplied; no ACP capture or Chuck normalized
+events accompanied it. Investigated macOS arm64 checkout `1d484440`, pinned Codex ACP 2.1.1 /
+Codex 0.159.3. The local dashboard log had no matching turn id/error. The three findings below
+classify as code defects (PERR-1/2) and an observability/specification gap (PERR-3).
+The adapter also uses `providerError` as a file-change-report unavailability reason
+(`dist/index.js:39539,39909`; `internal/runtime/filereport.go` records it). That reason alone
+does not classify a turn outcome; the native error and AIR terminal failure are the evidence here.
+
+- **Must fix** — PERR-1, confirmed: terminal non-quota provider errors disappear as normal
+  completion. The pinned adapter's `sessionFailureKind` maps structured HTTP 429 to
+  `rate_limited`, whose `SESSION_FAILURE_POLICY` is `category:limit`, `severity:error`,
+  `actions:[retry]`; `terminalFailurePromptResponse` deliberately returns `stopReason:end_turn`
+  plus that AIR failure (local pinned producer:
+  `scripts/release/node_modules/@agentclientprotocol/codex-acp/dist/index.js:30062,30944,39993`).
+  Chuck validates the failure but retains only its quota boolean/text, dropping severity/category
+  (`internal/runtime/session_failure.go:29–35,100–106`). `mapPromptResult` and
+  `completePromptTurn` override success only for account quota
+  (`internal/runtime/acpmap.go:593–606`, `quota.go:112–170`). Thus a terminal 429, overload or
+  other non-quota failure emits no error, ends as `end_turn`, and writes idle/Stop
+  (`chat.go:2632–2648`). `ui/src/components/chat/turnActivity.ts:145–161` correctly labels
+  `error` as Failed, but receives no such outcome or reason here. FS-03.R8/R74; INV §8/§11.
+  Fix complexity: medium. Preserve terminal error semantics and bounded human-readable reason at
+  the shared completion seam without treating active retry warnings, recovered revisions,
+  cancellation or arbitrary 429 text as quota. Cover ordinary and activation turns with the
+  existing fake peer; verify error event, error turn end, status and live/archive/phone rendering.
+
+- **Must fix** — PERR-2, confirmed: the same terminal failure falsely confirms recovery and
+  delivery. `internal/runtime/quota.go:175–198` computes `successful:true` and calls quota
+  settlement; `internal/server/quota.go:16–45` then resolves a manual quota episode or confirms
+  its claimed continuation rather than holding `non_quota_failure`. `validInlineReceipt`
+  (`chat.go:1240–1262`) also accepts the raw `end_turn` despite terminal failure metadata, so
+  inline mail can be marked read without a successful provider completion. FS-01.R44,
+  TS-01.R32 and TS-04.R88; INV §15. Fix complexity: medium. Derive success/receipt decisions
+  from the validated terminal outcome, including current failure revisions, rather than fixing
+  only the displayed stop reason. In particular, changing `td.StopReason` alone leaves the
+  raw-result inline-mail predicate wrong. Add actual-store regressions for a quota continuation
+  that fails with a non-quota error and mail remaining unread; do not introduce an automatic
+  retry of uncertain input. Durable recovery/mail consequences are code-proven; the reproduction
+  below directly confirms the erroneous success flag, not a complete server recovery journey.
+
+- **Worth fixing** — PERR-3, confirmed observability/specification gap: successful RPC envelopes
+  containing terminal failure metadata produce neither a visible diagnostic nor a correlated
+  server failure log. `completePromptTurn` (`quota.go:103–203`) has no such log; the existing
+  `promptFailureMessage` diagnostic is entered only for RPC errors (`chat.go:1118–1131`), while
+  the supported adapter returns this failure as an RPC result. TS-04.R85 specifies correlation
+  only for failed RPCs, leaving this semantic-failure carrier uncovered; INV §8. Without agent/backend,
+  generation/executing-turn, operation and bounded typed failure correlation, the supplied native
+  turn cannot be reliably matched to a user send, held successor, activation or quota continuation.
+  Fix complexity: trivial/easy. Extend the existing diagnostic seam/spec to terminal result
+  failures with safe identifiers/category, never prompt text or raw provider data (TS-04.R12),
+  and verify one diagnostic per terminal outcome. This would make the next frequency report
+  attributable; it does not by itself measure the provider's internal HTTP retry count.
+
+**Request-volume conclusion:** undetermined field cause; no generic Chuck retry storm found.
+Ordinary and activation paths each issue one `session/prompt` (`chat.go:1118,1841`), and
+`transport.go:198–234` writes once without retry. An existing held user message can immediately
+start a distinct turn after this failure (`chat.go:1280–1340`, `quota.go:201–202`); there is at
+most one hold, and the supplied evidence does not show one. Transient 429 is explicitly not account
+quota (FS-01.R40, TS-04.R86), so lack of a quota block alone is not a quota-contract defect.
+Automatic quota recovery is intentional extra traffic: known reset plus 60 seconds or unknown-reset
+hourly isolated checks, maximum six per chain (`internal/state/quota.go:19,55–58`,
+`quota_checks.go:68–74,118–135`). Several chats can independently check the same provider; current
+TS-10.R45 explicitly does not coalesce guessed accounts. Mail wake attempt ownership and ordinary
+turn-end dispatch contain no generic failed-model replay (`messaging_loops.go:187–263`,
+`task_dispatcher.go:563–578`). Quota probes already reject any terminal failure (`quota_check.go:330–355`).
+Provider-internal retries, automatic title traffic, parallel conversations/account users and the
+actual four request timestamps are unmeasured. The single 168 ms completion duration is not an
+HTTP request count. Do not infer an account reset or add a guessed cooldown/retry loop from it.
+
+**Evidence/verification:** `TestTerminalProviderRateLimitInvestigation` uses the existing fake ACP
+and the independently inspected pinned terminal failure shape. Running it before marking it skipped
+failed on all four observations: `end_turn`, absent transcript error, idle status and
+`successful:true` recovery settlement. The fake emits partial text; this proves terminal error
+handling even with output, not a credentialed reproduction of the field's null response.
+The test is committed skipped for PERR-1/2; no product code/specification changes or live provider
+requests were made. The shared settlement logic already existed at `43a565e7` (2026-10-11), after
+the adapter pin at `19fb9a28` (2026-10-06); the first affected release is not independently proven.
+Closure: focused runtime reproduction compiles/skips, `make check-specs`, and `git diff --check`.
+
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
@@ -202,6 +296,11 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-26 — Provider-failure investigation:** confirmed silent terminal non-quota failures
+  and false success settlement; recorded PERR-1/2 plus missing terminal-result diagnostics PERR-3
+  and one skipped reproduction. No generic request-retry loop found; frequent-429 cause remains
+  undetermined without correlated request history. Product behavior unchanged.
 
 - **2026-10-26 — Memory fixes (INV §4/§16):** MEM-1 revoking a launch token closes its MCP
   transport sessions (TS-04.R7); MEM-2 archive pages release history with their last reader and
