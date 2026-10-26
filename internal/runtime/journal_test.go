@@ -202,6 +202,7 @@ type failingIndexer struct{ removalIndexer }
 func (*failingIndexer) OnEventAndFlushContent(string, Event, int64, string) error {
 	return errors.New("index down")
 }
+func (*failingIndexer) FlushPendingContent(string, int64) error { return errors.New("index down") }
 
 func (c *ChatRuntime) transcriptOf(as *agentState) ([]Event, error) {
 	as.mu.Lock()

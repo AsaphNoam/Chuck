@@ -216,6 +216,10 @@ type PersistenceIndexer interface {
 	OnTurnEnd(agentID string, rollup TurnRollup) error
 	OnEventAndTurnEnd(agentID string, ev Event, rollup TurnRollup) error
 	OnEventAndFlushContent(agentID string, ev Event, lastSeq int64, updatedAt string) error
+	// FlushPendingContent persists and releases content buffered through
+	// lastSeq without touching rollups; a closing generation uses it for a turn
+	// that never reached turn_end.
+	FlushPendingContent(agentID string, lastSeq int64) error
 	// RemoveAgent drops every index row for an agent whose clone launch failed.
 	RemoveAgent(agentID string) error
 }

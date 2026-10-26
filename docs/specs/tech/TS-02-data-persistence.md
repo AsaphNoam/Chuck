@@ -129,7 +129,8 @@ forward-only migration (R6) and must not repurpose existing sender fields.
 documents per agent, distinguished by an unindexed stable document id: one replaceable metadata
 document plus immutable completed-turn, explicit non-turn-flush, and migrated legacy documents.
 Only the current turn is accumulated in memory; a flush inserts a new document and never reads or
-rewrites earlier transcript documents. Live indexing and reindex use the same searchable-event and
+rewrites earlier transcript documents. A generation whose transcript closes mid-turn (Stop)
+flushes and releases that text through its last committed event without changing session rollups. Live indexing and reindex use the same searchable-event and
 document-flush helpers. Raw `transcript.ndjson` remains authoritative; the untagged build keeps its
 metadata-only fallback and does not depend on FTS transcript documents.
 

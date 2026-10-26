@@ -340,12 +340,52 @@ func (ix *Indexer) flush(agentID string, rollup runtime.TurnRollup, countTurn bo
 	return ix.flushLocked(agentID, rollup, countTurn, documentKind)
 }
 
-func (ix *Indexer) flushLocked(agentID string, rollup runtime.TurnRollup, countTurn bool, documentKind string) error {
+// FlushPendingContent persists and releases text buffered through lastSeq
+// without touching session rollups. A generation closing mid-turn calls it
+// because no turn_end will flush that text (TS-02.R16).
+func (ix *Indexer) FlushPendingContent(agentID string, lastSeq int64) error {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	content, retained := ix.pendingContentLocked(agentID, lastSeq)
+	if content == "" {
+		return nil
+	}
+	tx := ix.tx
+	owned := tx == nil
+	if owned {
+		var err error
+		tx, err = ix.db.Begin()
+		if err != nil {
+			return fmt.Errorf("index: begin content flush: %w", err)
+		}
+		defer tx.Rollback()
+	}
+	ftsWritable, err := ix.ftsWritable(tx)
+	if err != nil {
+		return err
+	}
+	if ftsWritable {
+		if err := insertTranscriptDocument(tx, agentID, fmt.Sprintf("close:%d", lastSeq), content); err != nil {
+			return err
+		}
+	}
+	if owned {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("index: commit content flush: %w", err)
+		}
+	}
+	ix.retainContentLocked(agentID, retained)
+	return nil
+}
+
+// pendingContentLocked joins buffered text through lastSeq in sequence order
+// and returns the entries that remain buffered.
+func (ix *Indexer) pendingContentLocked(agentID string, lastSeq int64) (string, []bufferedText) {
 	entries := ix.content[agentID]
 	selected := make([]bufferedText, 0, len(entries))
 	retained := make([]bufferedText, 0, len(entries))
 	for _, entry := range entries {
-		if entry.seq <= rollup.LastSeq {
+		if entry.seq <= lastSeq {
 			selected = append(selected, entry)
 		} else {
 			retained = append(retained, entry)
@@ -356,7 +396,19 @@ func (ix *Indexer) flushLocked(agentID string, rollup runtime.TurnRollup, countT
 	for _, entry := range selected {
 		parts = append(parts, entry.text)
 	}
-	content := strings.Join(parts, "\n")
+	return strings.Join(parts, "\n"), retained
+}
+
+func (ix *Indexer) retainContentLocked(agentID string, retained []bufferedText) {
+	if len(retained) == 0 {
+		delete(ix.content, agentID)
+	} else {
+		ix.content[agentID] = retained
+	}
+}
+
+func (ix *Indexer) flushLocked(agentID string, rollup runtime.TurnRollup, countTurn bool, documentKind string) error {
+	content, retained := ix.pendingContentLocked(agentID, rollup.LastSeq)
 
 	tx := ix.tx
 	owned := tx == nil
@@ -409,11 +461,7 @@ WHERE agent_id = ?`,
 			return fmt.Errorf("index: commit turn flush: %w", err)
 		}
 	}
-	if len(retained) == 0 {
-		delete(ix.content, agentID)
-	} else {
-		ix.content[agentID] = retained
-	}
+	ix.retainContentLocked(agentID, retained)
 	return nil
 }
 

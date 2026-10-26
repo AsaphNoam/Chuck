@@ -27,11 +27,10 @@ func (w *stopInvestigationWriter) Close() error {
 }
 
 // MEM-3: a stopped generation has no current turn whose index text can remain
-// in memory (INV sections 4/16, TS-02.R16). The durable transcript remains the
-// recovery authority. Cross the real Start/stream/Stop boundary and wait for
-// writer teardown, rather than testing an index cleanup helper in isolation.
+// in memory (INV sections 4/16, TS-02.R16), yet that turn's text stays
+// searchable. Cross the real Start/stream/Stop boundary and wait for writer
+// teardown, rather than testing an index cleanup helper in isolation.
 func TestStopReleasesPendingIndexContent(t *testing.T) {
-	t.Skip("MEM-3: Stop skips turn flush and retains pending index content; confirmed with this skip removed")
 	st, home := openTestDB(t)
 	ix := New(st.DB())
 	fake := filepath.Join(t.TempDir(), "fakeacp")
@@ -95,12 +94,19 @@ streamed:
 		t.Fatalf("stopped generation still owned: %v", err)
 	}
 	ix.mu.Lock()
-	defer ix.mu.Unlock()
 	retainedBytes := 0
 	for _, entry := range ix.content[agent.AgentID] {
 		retainedBytes += len(entry.text)
 	}
+	ix.mu.Unlock()
 	if retainedBytes != 0 {
 		t.Fatalf("stopped agent retains %d bytes of pending index text", retainedBytes)
+	}
+	var indexed int
+	if err := st.DB().QueryRow(`SELECT COUNT(*) FROM sessions_fts WHERE agent_id = ? AND document_id LIKE 'close:%' AND content LIKE '%xxxx%'`, agent.AgentID).Scan(&indexed); err != nil {
+		t.Fatal(err)
+	}
+	if indexed != 1 {
+		t.Fatalf("stopped turn's prompt indexed in %d close documents; want 1", indexed)
 	}
 }

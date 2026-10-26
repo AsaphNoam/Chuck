@@ -250,8 +250,16 @@ func (j *Journal) Close(attachment uint64, discard bool) error {
 	if j.w == nil {
 		return nil
 	}
-	w := j.w
+	w, ix := j.w, j.ix
 	j.w, j.ix = nil, nil
+	// A Stop mid-turn never reaches turn_end, so the indexer would keep that
+	// turn's searchable text forever. Flush it through this generation's last
+	// committed event; a successor's later events are not selected (TS-02.R16).
+	if !discard && ix != nil && j.next > 1 {
+		if err := ix.FlushPendingContent(j.agentID, j.next-1); err != nil {
+			slog.Error("runtime: flush index content on close", "agent", j.agentID, "err", err)
+		}
+	}
 	return j.closeLocked(w, discard)
 }
 

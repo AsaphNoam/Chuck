@@ -194,6 +194,7 @@ func (ix *removalIndexer) OnEvent(string, Event) error                          
 func (ix *removalIndexer) OnTurnEnd(string, TurnRollup) error                        { return nil }
 func (ix *removalIndexer) OnEventAndTurnEnd(string, Event, TurnRollup) error         { return nil }
 func (ix *removalIndexer) OnEventAndFlushContent(string, Event, int64, string) error { return nil }
+func (ix *removalIndexer) FlushPendingContent(string, int64) error                   { return nil }
 func (ix *removalIndexer) RemoveAgent(id string) error {
 	ix.removed = append(ix.removed, id)
 	return nil
