@@ -1,6 +1,6 @@
 # FS-02 — Dashboard (card grid home view)
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src/components/grid/`, `ui/src/store/`, `ui/src/components/shell/NotificationCenter.tsx`, `ui/src/features/settings/NotificationsEditor.tsx`, `ui/src/api/sse.ts` · `internal/bus/`, `internal/state/`, `internal/server/handlers.go` (layout, reconcile) · **Journeys:** J5 (grid & layout), J11 (failure & recovery), J12 (restart durability)
 **Absorbed:** [`agent-dashboard-prd.md`](../../archive/agent-dashboard-prd.md) F1/F2/F11 and the [phase archive manifest](../../archive/phases/README.md)
 
@@ -640,6 +640,12 @@ project-specific and survives navigation/reload. Existing saved choices supply t
 value until a project overrides it; subsequent toggles affect that project only. Phone keeps
 FS-20.R47. This supersedes R19's shared collapse scope, leaving density/order unchanged.
 
+**R83 — Running background work on the card.** (planned) A desktop agent card shows a
+compact **N running** count while its live conversation has at least one FS-03.R59 background
+task running, and nothing otherwise. It updates live with no refresh, is absent for stopped and
+archived agents, and offers no Stop or task list; opening the chat reaches FS-03.R107's popover.
+Phone cards show nothing.
+
 ## 5. Acceptance criteria
 
 **A1.** Launching an agent adds its card within ~1s with no manual refresh; a status change flips the
@@ -1035,6 +1041,13 @@ order and membership remain. *Verify:* layout round-trip tests and the A61 brows
 group in one project only…" and "persists collapse on immediate navigation before a slow save
 finishes" (controlled pre-debounce departure, queued writes and reopen),
 `project-scope-journey.mjs`.
+
+**A64** (R83) — (planned) With a fake runtime, start two background commands: the card
+reads **2 running** without a refresh; one completes and it reads **1 running**; the last ends and
+the count disappears. Stopping the agent with a task still running clears the count, and a
+reloaded dashboard shows the same value as the live one. The phone card shows nothing.
+*Verify:* `AgentCard` component tests, a server agent-state projection test, and the fake-ACP
+runtime scenario.
 
 ## 6. Deviations & open decisions
 

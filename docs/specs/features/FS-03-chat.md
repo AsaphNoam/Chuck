@@ -582,6 +582,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   retryable error. Lifecycle events are durable and replay in live and archived transcripts. A
   provider restart may terminally stop or fail old tasks, exactly as reported by the runtime.
   Background tasks never become Chuck durable tasks, pipeline work or terminal-interface tabs.
+  R107 (planned) replaces this list's presentation with a running indicator.
 - **R60** — Tool calls prefer the runtime's canonical tool name and retain the existing
   bounded title/kind fallback when no name is supplied. The canonical name flows through permission
   identity, transcript rendering, command/file tracking and diagnostic logs without changing the
@@ -880,6 +881,22 @@ when accepted by HTTP but an id-less repeat is still a new command.
   tab actions add no history and saved tabs return in Files. This refines R54's single-file Back
   behavior without turning browser history into tab history. Focus and divider choices remain
   temporary under R96 and are not persisted with tabs.
+- **R107 — A running indicator replaces the Background tasks list.** (planned) The
+  desktop chat surfaces (full agent screen and expanded dashboard card) no longer show R59's
+  **Background tasks** list at the transcript tail. Instead, while at least one of the
+  conversation's R59 background tasks is `running`, a compact **N running** indicator appears
+  beside the composer; with none running it is absent, so archived and stopped conversations never
+  show it. Activating it opens a popover listing only running tasks, oldest first. Each row
+  shows the command name shortened to one line (full text on hover/focus), elapsed time since the
+  runtime announced it, and the owning native child when there is one. Selecting a row scrolls the
+  transcript to the task's related tool call, where its output stays. A row whose task can be
+  stopped keeps R59's targeted **Stop** with R59's stopping, terminal-update and retryable-error
+  behavior; there is no stop-all. A task that ends leaves the popover on its terminal update and
+  the popover closes when none remain. Finished tasks have no list: the related tool call keeps
+  its in-background/finished label (R67). The phone shows no indicator. Native child activity
+  stays nested in the transcript (R58) and is not listed. Lifecycle events, retention, replay,
+  resume/clone fencing and Stop authority are unchanged; only R59's list presentation is
+  replaced.
 
 ## 3. States & transitions
 
@@ -1565,6 +1582,15 @@ phone and CLI callers with actual provider-submission counts in controlled fixtu
   *Verify:* independently specified cap/history/storage tests, surface integration tests,
   unchanged remote route/filter tests and real desktop/phone browser journeys; retain a paired
   phone gate for touch reordering and reconnect on an actual device.
+- **A83** (R107, R59, R67) — (planned) Against a fake runtime, start two background
+  commands, one owned by a native child: the composer shows **2 running** and no transcript-tail
+  list exists. The popover lists both oldest first with shortened names, elapsed time and the
+  child owner; selecting one scrolls to its tool call. Stop one: it reads Stopping… until the
+  runtime's terminal update, then leaves the popover and the indicator reads **1 running**; a
+  refused stop keeps the row with a retryable error. When the last task completes the indicator
+  disappears and both tool calls keep their finished labels. Reload, archive and phone views show
+  no indicator or list. *Verify:* indicator/popover component tests, `ChatPanel` tests for
+  absence and count, phone render test, and a fake-ACP rendered scenario.
 
 ## 6. Deviations & open decisions
 

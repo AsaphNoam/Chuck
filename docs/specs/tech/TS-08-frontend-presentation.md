@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -674,6 +674,7 @@ failure styling. Archived rows are read-only. The same composition works at the 
 width and supported desktop floor in Core and Sky & Grove without a new tab, side panel, provider
 label, raw color, token family or motion dependency. High-frequency updates use no entrance motion;
 only existing state-color/typographic feedback changes, and reduced motion loses no information.
+R146 (planned) replaces the tail task-list slot with a composer-side running indicator.
 
 - **R60 (shipped 2026-09-23) — Run supervision uses the existing detail projection without a rail.**
   `RunBrowser` derives current/final stage position, the next human stage title, and each attempt's
@@ -1838,6 +1839,20 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Implementation closure follows TS-06.R3–R6: spec checks, focused/full UI evidence, applicable
   remote filter/room-loader integration checks, presentation checks and `make embed`. Never edit
   generated `internal/server/ui/dist` directly.
+- **R146 (planned) — Running background work is a composer-side indicator.** FS-03.R107
+  replaces R59's tail `task-list` slot. `TranscriptView` stops rendering `BackgroundTaskList`, so
+  live, dashboard-pane and archive transcripts show no list. A `RunningTasks` indicator beside the
+  desktop composer, shared by the full agent screen and dashboard chat pane (INV §2), derives its
+  rows from `collectTasks` filtered to `running`. Fenced tasks are therefore excluded, and no
+  second lifecycle fold is added. It orders rows by announcement and computes elapsed time from the
+  running event's `ts`. Its popover reuses `TaskRow`'s Stop/stopping/error behavior and existing
+  popover/focus primitives. Selecting a row scrolls to and focuses the related tool-call row.
+  `markBackgrounded` and the tool-call label stay unchanged. The phone composer renders no
+  indicator. `AgentCard` shows FS-02.R83's count from the agent state's `background_running`,
+  desktop only. Hooks: `runtime-activity` keeps the `task` slot and replaces `task-list` with
+  `running-indicator`. No new dependency, token family or entrance motion is added. Proof:
+  FS-03.A83 and FS-02.A64 component tests, plus a 1024px/1440px desktop and dashboard-pane render
+  check in Core and Sky & Grove.
 
 ## 3. Interfaces & data shapes
 

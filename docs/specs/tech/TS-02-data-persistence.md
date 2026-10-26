@@ -900,6 +900,16 @@ prior rows/documents/tracking against independent fixture expectations, not only
 Reuse existing replay equivalence, annotation/partial-turn, tracking, FTS5/fallback and continuation
 coverage; add no exhaustive phase/provider/build Cartesian matrix or live-provider requirement.
 
+**R59 (planned) — The running background-task count is a live status column.** An additive
+migration adds `status.background_running INTEGER NOT NULL DEFAULT 0`, read and written with the
+other `statusColumns` by `ReadStatus`/`WriteStatus`. It is a live projection of the current
+runtime generation, not history: the durable `background_task_state` transcript events stay the
+record (R39's precedent of a live column beside durable events). `AgentState` projects it as
+`background_running` (omitted when zero) only while the agent has a `running` row; a stopped,
+crashed or archived agent projects zero whatever the stale column holds, so no cleanup write is
+required on stop. Rollback leaves the column unread. *Verify:* migration and status round-trip
+tests and a manager projection test for running, stopped and archived agents (FS-02.A64).
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

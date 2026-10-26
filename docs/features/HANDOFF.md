@@ -207,6 +207,12 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-26 — Designed running background-work indicator:** ready change
+  [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md)
+  replaces the transcript Background tasks list with a desktop composer **N running**
+  indicator/popover and a desktop card count (FS-03.R107/A83, FS-02.R83/A64, TS-08.R146,
+  TS-04.R104, TS-02.R59). Waiting to start.
+
 - **2026-10-26 — File-viewer Mermaid sizing (FS-03.R37):** the viewer's shrink-wrapped
   (`fit-content`) `pre` left Mermaid's `width="100%"` SVG no definite width, so it fell back to
   300×150 at the left edge. A `pre:has(.mermaid-diagram)` now takes full width and the figure

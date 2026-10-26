@@ -1544,6 +1544,17 @@ native conversation explicitly with the adapter's locally handled `/rename <agen
 whitespace-collapsed; R97's explicit-name seam). Resume keeps its native name. Naming failure only
 forgoes the saving and never fails launch; it is not a Chuck rename and is not re-synced.
 
+**R104 (planned) — The runtime publishes its open background-task count.** The chat runtime
+already counts each generation's running tasks, including native-child tasks, in
+`agentState.openTasks` (bounded by `maxOpenTasks`, `internal/runtime/tasks.go`). Every status
+write carries that count into TS-02.R59's column, as `lastContext().applyTo` carries context;
+after a task's spawn or terminal update is emitted, the runtime republishes the count through the
+same read-modify-write and `touchState` seam as `republishContext`, without changing state,
+detail, trace or busy-since. A new generation starts at zero; resume/clone fencing stays a
+transcript projection (FS-01.R36). No provider protocol, event or Stop semantics change (R64).
+*Verify:* fake ACP runtime tests that spawn, finish and stop root and child tasks and assert the
+published count and an unchanged status state.
+
 ## 3. Interfaces & data shapes
 
 R97's internal check operation accepts a sanitized frozen provider selection (backend type,
