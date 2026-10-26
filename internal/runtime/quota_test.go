@@ -187,6 +187,72 @@ func TestQuotaUpdateClearedBySuccessfulResultWithoutMetadata(t *testing.T) {
 	}
 }
 
+// PERR-1/PERR-2: Codex ACP 2.1.1 returns exhausted 429 retries as end_turn with
+// a terminal rate_limited AIR failure. Ordinary and activation turns both end
+// as visible errors, settle unsuccessfully without account-quota evidence
+// (TS-04.R86) and leave inline mail unread (FS-03.R8, FS-01.R44).
+func TestTerminalProviderFailureEndsTurnAsError(t *testing.T) {
+	const message = "exceeded retry limit, last status: 429 Too Many Requests"
+	const failure = `{"id":"turn-429:error","revision":1,"category":"limit","severity":"error","title":"` + message + `","actions":["retry"]}`
+	for _, activation := range []bool{false, true} {
+		t.Run(map[bool]string{false: "ordinary", true: "activation"}[activation], func(t *testing.T) {
+			c, h, ch, as := startQuotaTestAgent(t, "stream_text", "FAKEACP_FAILURE_RESULT="+failure)
+			mu, calls := recordQuotaSettlement(c)
+			if _, err := c.store.InsertMessage(state.Message{
+				FromAgent: "a_sender", FromAddress: "reviewer@test", ToAgent: h.AgentID,
+				Subject: "Review", Body: "Keep unread until a successful turn.",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if activation {
+				started, err := c.StartActivation(context.Background(), h.AgentID, "mail", func(turnID string) error {
+					return c.store.ResetTurnBudget(h.AgentID, turnID)
+				})
+				if err != nil || !started {
+					t.Fatalf("StartActivation = %v, %v", started, err)
+				}
+			} else if err := c.SendPrompt(context.Background(), h.AgentID, "answer this"); err != nil {
+				t.Fatal(err)
+			}
+			var end TurnEndData
+			visible := 0
+			for _, ev := range drainTurn(t, ch) {
+				switch ev.Type {
+				case EvError:
+					var data ErrorData
+					if err := json.Unmarshal(ev.Data, &data); err != nil {
+						t.Fatal(err)
+					}
+					if data.Message == message {
+						visible++
+					}
+				case EvTurnEnd:
+					if err := json.Unmarshal(ev.Data, &end); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if end.StopReason != "error" || end.Quota != nil || visible != 1 {
+				t.Errorf("turn_end = %+v with %d visible errors; want one error without quota evidence", end, visible)
+			}
+			if status, err := c.store.ReadStatus(h.AgentID); err != nil || status.State != "error" {
+				t.Errorf("status = %+v, %v; want error", status, err)
+			}
+			if unread, err := c.store.UnreadCount(h.AgentID); err != nil || unread != 1 {
+				t.Errorf("unread inline mail = %d, %v; want retained", unread, err)
+			}
+			as.mu.Lock()
+			blocked := as.quotaBlocked
+			as.mu.Unlock()
+			mu.Lock()
+			defer mu.Unlock()
+			if blocked || len(*calls) != 1 || (*calls)[0].successful || (*calls)[0].quota != nil {
+				t.Errorf("settlement = %+v, quota block %v; want one non-quota unsuccessful settlement", *calls, blocked)
+			}
+		})
+	}
+}
+
 // ASRG-3, FS-03.R9, INV §5/§15 — a claimed Cancel terminates its turn as
 // cancelled even when the provider still answers end_turn afterwards. The late
 // completion used to settle as successful quota recovery and clear the block.

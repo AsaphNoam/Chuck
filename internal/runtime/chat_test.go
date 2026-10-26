@@ -147,6 +147,45 @@ func drainTurnWithin(t *testing.T, ch <-chan Event, limit time.Duration) []Event
 	}
 }
 
+// TS-04.R103, PERR-4 — a new Codex conversation is explicitly named before its
+// first model prompt, so the adapter starts no background title-model turn;
+// the local rename leaves no transcript trace. Claude sessions are untouched.
+func TestChatCodexNamesNewSessionBeforeFirstPrompt(t *testing.T) {
+	for _, backend := range []string{"codex-acp", "claude-acp"} {
+		t.Run(backend, func(t *testing.T) {
+			c, spec := newChatTest(t, "stream_text")
+			promptLog := filepath.Join(t.TempDir(), "prompts.log")
+			spec.BackendType = backend
+			spec.Agent.Name = "Atlas \n Two"
+			spec.Env = append(spec.Env, "FAKEACP_PROMPT_LOG="+promptLog)
+			h, err := c.Start(context.Background(), spec)
+			if err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			t.Cleanup(func() { _ = c.Stop(context.Background(), h.AgentID) })
+			ch, unsub, _ := c.Subscribe(h.AgentID)
+			defer unsub()
+			if err := c.SendPrompt(context.Background(), h.AgentID, "hello"); err != nil {
+				t.Fatal(err)
+			}
+			for _, ev := range drainTurn(t, ch) {
+				if ev.Type == EvAssistantText && strings.Contains(string(ev.Data), "Atlas") {
+					t.Fatalf("local rename reached the transcript: %s", ev.Data)
+				}
+			}
+			raw, err := os.ReadFile(promptLog)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+			renamed := len(lines) == 2 && strings.Contains(lines[0], `"text":"/rename Atlas Two"`) && strings.Contains(lines[1], "hello")
+			if want := backend == "codex-acp"; renamed != want || !want && len(lines) != 1 {
+				t.Fatalf("prompts = %q; want rename-first %v", lines, want)
+			}
+		})
+	}
+}
+
 // TestChatCodexBackendEndToEnd exercises the codex-acp backend through the chat
 // runtime end-to-end: launch → prompt → stream → stop → native resume. The
 // per-backend adapter (binary/env/resume) is the only difference from claude;
@@ -1290,6 +1329,37 @@ func TestPromptFailureLogsBoundedDiagnostic(t *testing.T) {
 	}
 	if strings.Contains(line, "secret_marker") || strings.Contains(line, "prompt_marker") {
 		t.Fatalf("diagnostic leaked provider data or prompt text: %q", line)
+	}
+}
+
+// TS-04.R85, PERR-3 — a terminal failure carried by a successful prompt result
+// logs exactly one correlated diagnostic with safe typed fields, never the
+// provider's failure text or the prompt.
+func TestTerminalResultFailureLogsBoundedDiagnostic(t *testing.T) {
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	failure := `{"id":"turn-429:error","revision":2,"category":"limit","severity":"error","title":"secret_marker","actions":["retry"]}`
+	c, h, ch, _ := startQuotaTestAgent(t, "stream_text", "FAKEACP_FAILURE_RESULT="+failure)
+	if err := c.SendPrompt(context.Background(), h.AgentID, "prompt_marker"); err != nil {
+		t.Fatalf("SendPrompt: %v", err)
+	}
+	drainTurn(t, ch)
+
+	line := logs.String()
+	if n := strings.Count(line, "provider turn failed"); n != 1 {
+		t.Fatalf("diagnostics = %d in %q; want one", n, line)
+	}
+	for _, want := range []string{"agent=a_test01", "backend=", "turn=t_000000000001", "operation=session/prompt",
+		"failure_id=turn-429:error", "revision=2", "category=limit", "severity=error", "quota=false"} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("diagnostic %q missing %q", line, want)
+		}
+	}
+	if strings.Contains(line, "secret_marker") || strings.Contains(line, "prompt_marker") {
+		t.Fatalf("diagnostic leaked provider text or prompt: %q", line)
 	}
 }
 

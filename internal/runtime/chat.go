@@ -529,6 +529,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		return nil, err
 	}
 	spec.recordAppliedFast(applied.Fast)
+	nameCodexSession(ctx, as.transport, spec, sess.SessionID)
 	if err := c.openPersistence(as, spec, sess.SessionID); err != nil {
 		failForked()
 		return nil, err
@@ -3383,6 +3384,27 @@ func promptFailureMessage(as *agentState, err error) string {
 	}
 	slog.Warn("runtime: provider prompt failed", attrs...)
 	return msg
+}
+
+// nameCodexSession explicitly names a new native Codex conversation before its
+// first model prompt. Codex ACP otherwise spends one background title-model
+// turn after that prompt on a title Chuck never displays (TS-04.R103). The
+// pinned adapter handles `/rename` locally without a model turn; failure only
+// forgoes the saving, so it never fails launch.
+func nameCodexSession(ctx context.Context, transport *Transport, spec LaunchSpec, sessionID string) {
+	if spec.BackendType != "codex-acp" {
+		return
+	}
+	name := strutil.ClipRunes(strings.Join(strings.Fields(spec.Agent.Name), " "), 80)
+	if name == "" {
+		name = "Chuck agent"
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := transport.Call(callCtx, "session/prompt", map[string]any{"sessionId": sessionID,
+		"prompt": []map[string]any{{"type": "text", "text": "/rename " + name}}}); err != nil {
+		slog.Debug("runtime: codex session name not set", "session", sessionID, "err", err)
+	}
 }
 
 // providerUpdateGuidance is the repair for an incompatible selected provider,

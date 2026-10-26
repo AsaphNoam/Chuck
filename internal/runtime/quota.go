@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -147,14 +148,14 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 	if !as.caps.SessionFailure {
 		td.Quota = nil
 	}
+	backendType := ""
+	if as.adapter != nil {
+		backendType = as.adapter.Type()
+	}
 	if td.Quota != nil {
 		text, observed := promptErrorText(promptErr), time.Now().UTC()
 		if as.turnFailure != nil {
 			text, observed = as.turnFailure.Text+"\n"+text, as.turnFailure.ObservedAt
-		}
-		backendType := ""
-		if as.adapter != nil {
-			backendType = as.adapter.Type()
 		}
 		td.Quota.ResetAt, td.Quota.Intervention = resolveQuotaReset(backendType, text, as.turnRateLimit, observed, as.processZone)
 		if td.Quota.ResetAt != nil {
@@ -168,7 +169,27 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 		as.quotaBlockedGeneration = as.generation
 		as.quotaBlockedTurnID = turnID
 	}
+	// A prompt result carrying a current error-severity failure is a terminal
+	// provider failure (e.g. exhausted 429 retries) despite its end_turn: it is
+	// neither a successful completion nor an inline-mail receipt (FS-03.R8).
+	var terminal, failed *SessionFailureRecord
+	if as.caps.SessionFailure && as.turnFailure != nil && (td.Quota != nil ||
+		hasResultFailure && as.turnFailure.Severity == "error" && td.StopReason != "cancelled") {
+		f := *as.turnFailure
+		terminal = &f
+		if td.Quota == nil {
+			failed = &f
+			td.StopReason = "error"
+		}
+	}
 	as.mu.Unlock()
+	if terminal != nil {
+		// TS-04.R85: safe correlation only, never provider text.
+		slog.Warn("runtime: provider turn failed", "agent", as.agentID, "backend", backendType,
+			"generation", as.generation, "turn", turnID, "operation", "session/prompt",
+			"failure_id", terminal.ID, "revision", terminal.Revision,
+			"category", terminal.Category, "severity", terminal.Severity, "quota", terminal.Quota)
+	}
 	c.mu.Lock()
 	settle := c.quotaSettlement
 	c.mu.Unlock()
@@ -185,10 +206,13 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 			c.emit(as, EvError, ErrorData{Scope: "internal", Message: "Quota recovery state could not be saved. Retry after restoring local storage.", Fatal: false})
 		}
 	}
-	if td.Quota == nil {
+	if td.Quota == nil && failed == nil {
 		c.settleInlineMail(as, deliveryKey, result)
 	} else {
 		c.clearInlineMail(as.agentID, deliveryKey)
+	}
+	if failed != nil {
+		c.emit(as, EvError, ErrorData{Scope: "protocol", Message: failed.Text, Fatal: false})
 	}
 	if successful && settled {
 		as.mu.Lock()

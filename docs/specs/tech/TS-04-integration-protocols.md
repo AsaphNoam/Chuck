@@ -1100,7 +1100,10 @@ Send/Steer semantics stay intact. The paused direct-transport migration is not a
 message plus only a recognized provider reason (R9/R82 vocabulary). One server log line correlates
 the failure: agent, backend type, operation, RPC code, the provider data's top-level key names
 (sorted, at most 8) and any recognized reason. Raw data values, prompt text and stderr are never
-logged or returned (R12, INV §8).
+logged or returned (R12, INV §8). A successful RPC result that ends the turn on a terminal AIR
+failure (R86) logs exactly one line instead (2026-10-26): agent, backend type, generation,
+executing turn, operation and the failure's id, revision, category, severity and quota flag —
+never its title/details text.
 
 **R86 (implemented 2026-10-11) — Quota evidence is normalized at actual provider completion.** For
 FS-01.R40–R45, add AIR `sessionFailure` to R62's bilateral capability negotiation and decode
@@ -1112,6 +1115,12 @@ session/context budgets. Validate the complete supported policy shape; missing/u
 is not quota. Warning/retrying updates never finish a turn. One shared settlement path covers
 ordinary prompts and reserved activations, overriding a misleading `end_turn` to `error` for a
 terminal quota failure and attaching bounded optional quota evidence to that `turn_end`.
+Any other prompt result carrying a current `severity:"error"` failure (for example Codex's
+`rate_limited` after exhausted 429 retries) is likewise a terminal provider failure (2026-10-26):
+it emits one non-fatal transcript error with the bounded title/details, ends `error` without
+quota evidence, settles unsuccessful (R88's needs-attention) and confirms no inline mail. Only
+the prompt result is terminal; streaming warnings, retries and failures cleared by a result
+without failure metadata remain recoverable, and cancellation keeps `cancelled`.
 The same failure id/revision seen in an update and result yields one episode. Root ownership is
 never inferred from child activity, current counters, arbitrary message text or an HTTP 429.
 
@@ -1526,6 +1535,14 @@ and compensation; preflight cannot prove a target process that has not started. 
 operation may lack identity, observation or orphan control. Bootstrap invocation is internal only and not an agent tool
 or public operator workflow. Validate actual iTerm foreground/exec and tmux environment semantics
 through FS-07.A12; fixtures cannot claim native support.
+
+**R103 (implemented 2026-10-26) — Ordinary Codex chats spend no model turn on native titles.**
+Chuck owns the displayed agent name (FS-01) and drops native title-only `session_info_update`.
+The pinned Codex ACP otherwise starts one background title-model turn after a new or forked
+conversation's first successful prompt. Before any model prompt, the shared chat start names that
+native conversation explicitly with the adapter's locally handled `/rename <agent name>` (bounded,
+whitespace-collapsed; R97's explicit-name seam). Resume keeps its native name. Naming failure only
+forgoes the saving and never fails launch; it is not a Chuck rename and is not re-synced.
 
 ## 3. Interfaces & data shapes
 

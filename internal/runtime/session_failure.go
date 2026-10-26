@@ -25,11 +25,15 @@ type QuotaEvidence struct {
 // SessionFailureRecord is the safe correlation subset of an AIR failure. A
 // later revision with the same ID can supersede an earlier quota failure.
 // Text is the bounded title/details pair, used only for reset extraction after
-// independent quota classification; ObservedAt is when its frame arrived.
+// independent quota classification and as a terminal failure's visible reason;
+// ObservedAt is when its frame arrived. Category/Severity are the validated
+// AIR policy values, safe for diagnostics.
 type SessionFailureRecord struct {
 	ID         string
 	Revision   int64
 	Quota      bool
+	Category   string
+	Severity   string
 	Text       string
 	ObservedAt time.Time
 }
@@ -100,7 +104,7 @@ func decodeSessionFailureRecord(raw json.RawMessage) (SessionFailureRecord, bool
 		text += "\n" + *f.Details
 	}
 	return SessionFailureRecord{ID: f.ID, Revision: f.Revision, Quota: f.Category == "limit" && f.Severity == "error" && len(f.Actions) == 0,
-		Text: text, ObservedAt: time.Now().UTC()}, true
+		Category: f.Category, Severity: f.Severity, Text: text, ObservedAt: time.Now().UTC()}, true
 }
 
 func validSessionFailureCategory(category string) bool {

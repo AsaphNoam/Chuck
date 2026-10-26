@@ -122,6 +122,38 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 	}
 }
 
+// PERR-2, FS-01.R44/TS-04.R88: a claimed continuation whose provider turn ends
+// in a terminal non-quota failure (exhausted 429 retries, reported with
+// end_turn) holds needs-attention instead of confirming recovery, and the
+// failure stays visible in the durable transcript.
+func TestQuotaContinuationTerminalProviderFailureHoldsEpisode(t *testing.T) {
+	t.Setenv("FAKEACP_CAPS", "1")
+	t.Setenv("FAKEACP_FAILURE_RESULT", `{"id":"turn-429:error","revision":1,"category":"limit","severity":"error","title":"exceeded retry limit, last status: 429 Too Many Requests","actions":["retry"]}`)
+	s, ts, log := activationTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	due := time.Now().UTC().Add(-time.Second)
+	q, err := s.stateStore.ObserveQuota(state.QuotaObservation{AgentID: id, EpisodeID: "rate-limited-continuation", SourceGeneration: s.registry.Generation(id), ExecutingTurn: "interrupted-turn", Owner: state.QuotaOwner{Kind: "ordinary"}, ObservedAt: due.Add(-2 * time.Minute), ResetAt: quotaResetFor(due), DueAt: &due, State: state.QuotaScheduled})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.startQuotaContinuation(context.Background(), q)
+	waitPrompts(t, log, 1)
+	waitStatus(t, s, id, "error")
+	if q, err = s.stateStore.GetQuota(id); err != nil || q.State != state.QuotaNeedsAttention || q.ReasonCode != "non_quota_failure" {
+		t.Fatalf("quota after failed continuation = %+v, %v; want needs_attention/non_quota_failure", q, err)
+	}
+	visible := false
+	for _, ev := range readEvents(t, s, id) {
+		var data runtime.ErrorData
+		if ev.Type == runtime.EvError && json.Unmarshal(ev.Data, &data) == nil && data.Message == "exceeded retry limit, last status: 429 Too Many Requests" {
+			visible = true
+		}
+	}
+	if !visible {
+		t.Fatal("terminal provider failure missing from the durable transcript")
+	}
+}
+
 // FS-01.A25: a provider terminal quota preserves an exclusive live assignment;
 // subsequent recovery uses that same task and assignee and records no result.
 func TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart(t *testing.T) {
