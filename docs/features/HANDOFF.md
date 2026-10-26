@@ -271,6 +271,27 @@ at the time of recording; the findings do not assume either answer.
   preserve native resume and failure visibility, and verify no extra model turn. Source proves
   eligibility for the extra request, not that its request contributed to the reported 429s.
   It cannot independently explain four successive failures in one already-established conversation.
+  Follow-up title/model audit: Chuck assigns `state.Agent.Name` from the launch request or wordlist
+  (`server/launch.go:400–407`); Rename updates that field only (`server/sessions.go:808–835`).
+  ACP emits the generated name as `session_info_update.title` (adapter `:30426–30435`), which the
+  root mapper drops (`runtime/acpmap.go:583–586`), so it never becomes Chuck's stable agent name.
+  A source/adapter scan found no other hardcoded `gpt-5.6-luna` call site. Quota probes use the
+  agent's provider model/effort/Fast contract (`server/quota_check.go:76`); continuations retain
+  the selected session model. The saved local backend catalog also lists 5.6 Luna as a selectable
+  model, not an automatic selection. A bounded native audit found 45 historical Guardian
+  approval-review sessions in the isolated profile: 40 recorded `codex-auto-review`, five omitted
+  a model; three ordinary native review sessions recorded `gpt-6.1-sol`. The alias's underlying
+  model was not established. Compiled Codex 0.161.0 has producer-adjacent 5.6 Luna strings for
+  Guardian classification and native TUI titles; string adjacency is not executed-request or
+  alias-resolution proof. Isolated TOML contains no explicit memory enablement/model override,
+  and no memory-consolidation session was found there. Native memory generation/model defaults
+  remain unproven; do not claim no other native background calls or blindly replace a safety
+  review model. No additional hardcoded Chuck-owned 5.6 Luna request was found. Official API model
+  pages checked Oct 26 list [5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+  at $0.20 input/$1.20 output and [6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)
+  at $0.10/$0.50 per million standard tokens. API list prices are not a measurement of this
+  ChatGPT-authenticated user's bill. Suppress the unused title call rather than merely changing
+  its model; no product/settings change was made in this investigation.
 
 **Request-volume conclusion:** undetermined field cause; no generic Chuck retry storm found.
 Ordinary and activation paths each issue one `session/prompt` (`chat.go:1118,1841`), and
