@@ -179,6 +179,8 @@ func (c *ChatRuntime) onSubagentUpdate(as *agentState, params json.RawMessage) b
 		if state != "disconnected" {
 			as.mu.Lock()
 			as.releaseActivityToolInputsLocked(scope.ActivityID)
+			// Late reasoning after the end opens a fresh span (INV §16).
+			delete(as.spanOpen, scope.ActivityID)
 			as.retireChildLocked(u.SubagentSessionID)
 			as.mu.Unlock()
 		}

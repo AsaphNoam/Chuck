@@ -117,6 +117,7 @@ func TestEndedChildrenFreeTheirSlots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	c.SetActivitySink(func(ActivityNotice) {})
 	as.mu.Lock()
 	as.caps.Subagents = true
 	root := as.sessionID
@@ -144,6 +145,8 @@ func TestEndedChildrenFreeTheirSlots(t *testing.T) {
 		}
 		update(child, `{"sessionUpdate":"tool_call","toolCallId":"tc","title":"grep","kind":"search","rawInput":{}}`)
 		update(child, `{"sessionUpdate":"tool_call_update","toolCallId":"tc","status":"completed"}`)
+		// Ending on reasoning leaves the child's span open until its end.
+		update(child, `{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking"}}`)
 		update(root, fmt.Sprintf(`{"sessionUpdate":"subagent_state_update","subagentSessionId":%q,"state":"completed"}`, child))
 	}
 	if !routed("done-299") || routed("done-0") {
@@ -155,10 +158,10 @@ func TestEndedChildrenFreeTheirSlots(t *testing.T) {
 		}
 	}
 	as.mu.Lock()
-	children, names, inputs := len(as.children), len(as.toolNames), len(as.toolInputs)
+	children, names, inputs, spans := len(as.children), len(as.toolNames), len(as.toolInputs), len(as.spanOpen)
 	as.mu.Unlock()
-	if children != live+maxEndedChildren || names != 0 || inputs != 0 {
-		t.Fatalf("children=%d names=%d inputs=%d, want %d, 0, 0", children, names, inputs, live+maxEndedChildren)
+	if children != live+maxEndedChildren || names != 0 || inputs != 0 || spans != 0 {
+		t.Fatalf("children=%d names=%d inputs=%d spans=%d, want %d, 0, 0, 0", children, names, inputs, spans, live+maxEndedChildren)
 	}
 	// The live bound still holds once every slot is live.
 	spawn("live-last")

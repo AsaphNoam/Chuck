@@ -867,7 +867,8 @@ scope. The mapper replaces each child provider tool-call id with TS-01.R35's sta
 id across call/update/result/diff/permission events and retains the reverse map only for the active
 runtime generation. Within it, at most 256 live children are admitted; a completed, failed or
 stopped child frees its slot and keeps an oldest-first tombstone for the last 64 ended children so
-late frames keep their attribution, and a live child is never forgotten to make room. A call's tool
+late frames keep their attribution, and a live child is never forgotten to make room. An ended
+child's open reasoning span is released at its end; later reasoning opens a new span. A call's tool
 name is retained only with its open input and is released at its result (INV §16). Child permission and elicitation requests still resolve through the root
 transport and single-winner permission gate using that normalized id. Without bilateral
 negotiation, the adapter's legacy ordinary tool call passes through unchanged. History orphans map
