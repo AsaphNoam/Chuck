@@ -13,7 +13,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   skip-permissions default, annotation focus). Release CI 40232088716 and main CI 40232088269
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
-- **Review state:** no open review units; memory fix unit MEM has one open **Worth fixing**
+- **Review state:** review unit MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
   finding (MEM-4), blocked on a decision below; MEM-1/2/3/5/6 are fixed. The v0.20.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
@@ -176,6 +176,9 @@ None.
 
 ## Review queue
 
+- **MMD-VIEW** (2026-10-26, small, UI CSS only): file-viewer Mermaid diagrams fill the reader width
+  and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
+
 ## Review findings
 
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
@@ -203,6 +206,12 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-26 — File-viewer Mermaid sizing (FS-03.R37):** the viewer's shrink-wrapped
+  (`fit-content`) `pre` left Mermaid's `width="100%"` SVG no definite width, so it fell back to
+  300×150 at the left edge. A `pre:has(.mermaid-diagram)` now takes full width and the figure
+  centers the SVG. `check:styles` passed; a Chromium layout probe measured 300×150 before and
+  full width after.
 
 - **2026-10-26 — Provider-failure fixes (INV §8/§11/§15/§16):** PERR-1 a prompt result carrying a
   current error-severity AIR failure (e.g. Codex exhausted 429 retries) ends `error` with one

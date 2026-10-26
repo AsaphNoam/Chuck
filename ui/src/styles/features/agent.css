@@ -1820,6 +1820,12 @@ a.agent-mini-card:focus-visible {
   min-width: 0;
 }
 
+/* A diagram's SVG sizes against its container, so a shrink-wrapped pre would
+   collapse it; give it the full width and let the figure center it. */
+.file-viewer-rendered pre:has(.mermaid-diagram) {
+  width: 100%;
+}
+
 /* Focus gives prose a comfortable measure while technical blocks keep the
    whole width (TS-08.R131). */
 .file-viewer[data-variant="focused"] .file-viewer-rendered {
