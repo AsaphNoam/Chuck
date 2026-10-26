@@ -16,8 +16,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Review state:** no open review units; memory fix unit MEM has one open **Worth fixing**
   finding (MEM-4), blocked on a decision below; MEM-1/2/3/5/6 are fixed. The v0.20.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
-  and verified. Provider-failure investigation unit PERR has three open findings below;
-  terminal rate-limit failures are silently classified as successful turns. Product fixes are pending.
+  and verified. Provider-failure investigation unit PERR has four open findings below;
+  terminal rate-limit failures are silently classified as successful turns, and ordinary new Codex
+  chats permit an unused background title-model call. Product fixes are pending.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through the v0.20.0 release record.
   Clean release verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
   The primary checkout carries a pre-existing generated UI index edit; preserve it.
@@ -194,11 +195,18 @@ frequently. logs below:”
 Affected Chuck version, machine, provider source/configuration and full four-turn timeline were
 not supplied. One native completion excerpt was supplied; no ACP capture or Chuck normalized
 events accompanied it. Investigated macOS arm64 checkout `1d484440`, pinned Codex ACP 2.1.1 /
-Codex 0.159.3. The local dashboard log had no matching turn id/error. The three findings below
-classify as code defects (PERR-1/2) and an observability/specification gap (PERR-3).
+Codex 0.159.3. The local dashboard log had no matching turn id/error. The four findings below
+classify as code defects (PERR-1/2), an observability/specification gap (PERR-3), and unnecessary
+provider traffic with missing ordinary-chat policy (PERR-4).
 The adapter also uses `providerError` as a file-change-report unavailability reason
 (`dist/index.js:39539,39909`; `internal/runtime/filereport.go` records it). That reason alone
 does not classify a turn outcome; the native error and AIR terminal failure are the evidence here.
+
+**Follow-up report, verbatim:** “Check if chuck has some patterns that are likely to cause these
+429 rejections, this doesn't happen to me when I use the codex app or cli”. Expanded read-only
+audit compared launch/configuration, adapter-generated turns and automatic work admission. An
+optional question about simultaneous agents and equal model/Fast settings remained unanswered
+at the time of recording; the findings do not assume either answer.
 
 - **Must fix** — PERR-1, confirmed: terminal non-quota provider errors disappear as normal
   completion. The pinned adapter's `sessionFailureKind` maps structured HTTP 429 to
@@ -245,6 +253,25 @@ does not classify a turn outcome; the native error and AIR terminal failure are 
   and verify one diagnostic per terminal outcome. This would make the next frequency report
   attributable; it does not by itself measure the provider's internal HTTP retry count.
 
+- **Worth fixing** — PERR-4, confirmed unnecessary provider traffic: ordinary new Codex chats
+  permit the adapter's background title-model turn even though Chuck owns its displayed agent name
+  and drops the corresponding native title update. The pinned adapter initializes new sessions
+  with `sessionTitleSource:unset` (`dist/index.js:37755`); after the first successful prompt,
+  `TitleGenerator.onTurnCompleted` starts a fire-and-forget ephemeral thread and `runTurn` on
+  hardcoded `gpt-5.6-luna` (`:36785,36832–36888,39890–39897`). This is one additional model turn
+  per eligible new conversation, can overlap the next user turn, and is not retried by that helper.
+  Ordinary `Start`/`applySessionConfig`/`sessionNewParams` never explicitly names the native
+  conversation (`internal/runtime/chat.go:472–540,3173–3210,3504–3537`); title-only
+  `session_info_update` falls through the root mapper without a product consumer. By contrast,
+  isolated quota checks already suppress title generation with a provider-local `/rename` and
+  wait for the exact title update (`quota_check.go:295–322`). INV §16/§12; TS-04.R77's
+  provider-dependency audit applies, but the ordinary-chat title-traffic contract is a spec gap.
+  Fix complexity: trivial/easy. Extend the existing explicit-name seam to ordinary new Codex
+  sessions before their first model prompt, or use another producer-verified suppression option;
+  preserve native resume and failure visibility, and verify no extra model turn. Source proves
+  eligibility for the extra request, not that its request contributed to the reported 429s.
+  It cannot independently explain four successive failures in one already-established conversation.
+
 **Request-volume conclusion:** undetermined field cause; no generic Chuck retry storm found.
 Ordinary and activation paths each issue one `session/prompt` (`chat.go:1118,1841`), and
 `transport.go:198–234` writes once without retry. An existing held user message can immediately
@@ -260,6 +287,62 @@ turn-end dispatch contain no generic failed-model replay (`messaging_loops.go:18
 Provider-internal retries, automatic title traffic, parallel conversations/account users and the
 actual four request timestamps are unmeasured. The single 168 ms completion duration is not an
 HTTP request count. Do not infer an account reset or add a guessed cooldown/retry loop from it.
+
+**Expanded traffic/configuration comparison:**
+
+**Strongest conditional risk: bursts across conversations.** Admission is per agent/work owner,
+  not a shared provider request-rate gate. Tasks have eight start workers and default capacity 10
+  (`internal/server/task_dispatcher.go:18–21,115–150`, `internal/config/seed.go:14`); separate mail
+  and quota pools each have eight slots (`server.go:343–345`, `messaging_loops.go:54–80`). These
+  are admission bounds, not proof of 24 simultaneous model requests or a per-account allowance.
+  Task capacity excludes manually launched agents (`config/types.go:147–150`); running-recipient
+  mail can start independent reasoning turns. No shared provider 429 cooldown/pacing seam was
+  found. Several agents can therefore make requests and undergo native retries concurrently.
+  The documented mail budget is 50 per turn and resets on every activation, with no cross-turn
+  loop detector (FS-06.R12/R28 and §6). Reciprocal waking messages can sustain additional turns;
+  no such exchange is established for this incident. These are documented behavior/risk patterns,
+  not newly established violations or authorization to add a new scheduler/rate limiter.
+
+**Recovery can synchronize work.** Multiple quota episodes with the same reset all become due at
+  reset plus 60 seconds; unknown-reset probes are independent per conversation (one per hour,
+  at most six each). Successful probes can immediately schedule their respective continuations
+  (`state/quota_checks.go:118–135`). The existing limits bound this traffic, but do not pace all
+  traffic for one provider/account. No evidence shows that a recovery wave preceded these 429s.
+
+**Explicit model/config differs from native defaults.** Chuck applies its saved model, effort
+  and requested Fast setting to the ACP session, and the adapter passes these to each turn
+  (`chat.go:3504–3537`, adapter `:34338–34355,36721`). Backend model `fast:true` declares support;
+  it does not prove a failed session enabled Fast. Local saved Codex selection is Installed,
+  `gpt-6.1-sol`, default medium effort; personal TOML is the same model with xhigh/default tier.
+  This does not support a claim that Chuck necessarily uses greater reasoning effort.
+
+**Distinct client and process/profile.** Chuck uses ACP 2.1.1 → `CODEX_PATH app-server`, default
+  identity `@agentclientprotocol/codex-acp`, `experimentalApi:true`, `requestAttestation:false`
+  (adapter `:27299–27311,33598–33613`); direct app/CLI identity differs. Personal setup/auth is
+  mirrored into private `CODEX_HOME=<chuck-home>/codex` before each child spawn, while runtime
+  state/caches are separate (`config/codexprofile.go:15–52,98–110`, `server/launch.go:780`).
+  No credentials were read. No evidence establishes different accounts, routing or server-side
+  rate limits for that identity. Do not spoof a native client identity as a proposed fix.
+
+**No increased retry setting found.** Chuck adds no request/stream retry-limit or websocket
+  override. Safe local searches found no such override or provider/base-URL/header configuration
+  in personal/mirrored TOML, nor any backend/model environment keys. Ambient dashboard environment
+  may differ from the shell and was not proven identical. The release bundle pins Codex 0.159.3,
+  while local saved Installed selection and all 89 inspected rollout metadata records use 0.161.0;
+  do not blame a bundled-version mismatch without the failed session's actual selection.
+
+**Evidence limit.** Local private-home native logs cover Oct 14–24; all 89 native rollouts and a
+  sanitized exact-error scan of the 25,882-row log store contained no matching reported retry-limit/
+  Too-Many-Requests error. A substring `429` search also matches random ids/cookies and is not
+  rate-limit evidence. The supplied incident is Oct 25, so local saved settings are comparative
+  evidence only. No model request or workload replay was performed. An equal-account/model/tier,
+  one-agent comparison through ACP versus direct CLI, with sanitized request-id/status/error-code/
+  retry-after correlation, remains the discriminating next receipt if failures persist.
+
+Official references checked Oct 26: [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+documents native HTTP/stream retry settings; [rate-limit guidance](https://developers.openai.com/api/docs/guides/rate-limits)
+describes burst/concurrent traffic and warns that unsuccessful API requests consume rate allowance.
+This general guidance does not establish the exact ChatGPT-plan limit or cause of this incident.
 
 **Evidence/verification:** `TestTerminalProviderRateLimitInvestigation` uses the existing fake ACP
 and the independently inspected pinned terminal failure shape. Running it before marking it skipped
@@ -299,8 +382,10 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 - **2026-10-26 — Provider-failure investigation:** confirmed silent terminal non-quota failures
   and false success settlement; recorded PERR-1/2 plus missing terminal-result diagnostics PERR-3
-  and one skipped reproduction. No generic request-retry loop found; frequent-429 cause remains
-  undetermined without correlated request history. Product behavior unchanged.
+  and one skipped reproduction. Expanded comparison adds PERR-4's unused background title-model
+  request and records cross-conversation burst/recovery/mail patterns. No generic request-retry loop
+  or increased retry setting found; frequent-429 cause remains undetermined without correlated
+  request history. Product behavior unchanged.
 
 - **2026-10-26 — Memory fixes (INV §4/§16):** MEM-1 revoking a launch token closes its MCP
   transport sessions (TS-04.R7); MEM-2 archive pages release history with their last reader and
