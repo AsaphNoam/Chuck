@@ -13,7 +13,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   skip-permissions default, annotation focus). Release CI 40232088716 and main CI 40232088269
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
-- **Review state:** no open review units or findings. The v0.20.0 architectural review
+- **Review state:** no open review units; memory investigation MEM has six open findings
+  (MEM-1–MEM-6), grouped as one fix unit below. The v0.20.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through the v0.20.0 release record.
@@ -168,9 +169,108 @@ None.
 
 ## Review findings
 
-No open findings.
+### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
+investigation and see if you can find anything”. No workload, measured growth, affected process,
+version, or diagnostic log was supplied. Investigated checkout `43c214d1` (v0.20.0 plus release
+records), macOS arm64. This establishes code defects, not which defect caused the reported suspicion.
+The optional question about the affected process/workload had no answer at closure.
+
+- **Must fix** — MEM-1, confirmed: MCP sessions outlive their revoked launch registration.
+  `internal/messaging/messaging.go:324–331` creates the stateful SDK HTTP handler with nil options;
+  SDK v1.8.0 explicitly gives zero `SessionTimeout` an unlimited idle lifetime. `Revoke` at
+  `:352–356` deletes only Chuck's token mapping. A client exit, Stop, or reconnect that does not send
+  MCP DELETE leaves its SDK session and reader goroutine rooted indefinitely. A disposable probe
+  through the production handler initialized 100 sessions, completed all HTTP requests and revoked
+  all tokens: 100 sessions and 100 additional goroutines remained after GC. Explicit MCP DELETE
+  returned both counts to zero. TS-04.R6–R7; INV §4/§16. Bind transport cleanup to the exact launch
+  identity and bound orphan/idle sessions; preserve other launches and active tool calls. Fix
+  complexity: medium. `internal/messaging/session_teardown_investigation_test.go` reproduces one
+  retained session after Revoke; proved failing enabled, committed skipped. Handler construction and
+  Revoke date to `fe1f1b6a`; current SDK adoption is `7c95fa91`; prior SDK behavior was not tested.
+
+- **Must fix** — MEM-2, confirmed: closed archive readers retain full transcripts.
+  `ui/src/features/archive/ArchiveAgentPage.tsx:47–64` installs each full history in
+  `useTranscriptStore.byAgent`; unmount only changes a local flag. It does not join the existing
+  reference-counted reader cleanup in `ui/src/api/sse.ts:140–157`, and a fetch resolving after
+  unmount still calls `setTranscript`. Browsing distinct archived conversations accumulates full
+  histories for the tab lifetime. Ten mounted/unmounted production archive pages retained ten
+  1,000,000-character histories (10,000,000 payload characters). INV §4/§16. Use owner-aware release
+  and stale-fetch fencing, preserving any other reader of the same conversation. Fix complexity:
+  medium. Added a skipped production-page unmount regression to
+  `ui/src/features/archive/ArchiveAgentPage.test.tsx`; it fails enabled. Missing teardown predates
+  the current file tabs; `fbdbd1bf` added the flag without fencing the store write.
+
+- **Must fix** — MEM-3, confirmed: Stop during a turn strands the search-index accumulator.
+  `internal/index/indexer.go:200,425–430` appends searchable text until a turn/content flush.
+  `internal/runtime/chat.go:1123–1126,2136–2144` bypasses turn completion on intentional Stop and
+  closes persistence without flushing/releasing the process-wide indexer's pending content.
+  Runtime ownership ends correctly, but the last turn's text remains keyed by the stopped agent;
+  archiving does not release it. Five distinct real fake-ACP Start → prompt → stream → Stop
+  lifecycles retained 5,242,915 bytes across five stopped agents. TS-02.R16; INV §4/§16. Flush or
+  safely release at the final generation boundary without losing durable search coverage or racing
+  a successor generation. Fix complexity: medium. The skipped
+  `internal/index/stop_retention_investigation_test.go` waits for writer closure and asserts zero
+  retained text; enabled it fails with 65,543 bytes retained. Normal turn completion/crash paths
+  do flush. The accumulator design dates to `5f33a075`; exact first affected release is unproven.
+
+- **Worth fixing** — MEM-4, confirmed: live chat keeps an unbounded duplicate of all events.
+  `internal/runtime/chat.go:295,2318–2322` retains every committed event in `agentState.transcript`;
+  completed turns never trim it. This is growth for the lifetime of a running generation, distinct
+  from post-Stop leakage. `Transcript` at `:1469–1479` additionally copies the event slice on reads.
+  A disposable runtime exercise of 20 completed turns × 100 × 8 KiB deltas retained 2,020 events
+  and 16,408,840 payload bytes. These are payload counts, not heap/RSS measurements. Browser reads
+  already use durable transcripts; notice deduplication also scans this slice, so simply deleting
+  it would break another consumer. INV §16; TS-01.R5/TS-02 transcript authority. Bound the runtime
+  projection and preserve transcript-read and notice-idempotence contracts through the existing
+  durable authority. Fix complexity: medium. Current retention seam is `69ef5951`, but full-history
+  accumulation existed earlier; no exact regression release is asserted.
+
+- **Worth fixing** — MEM-5, confirmed: text-draft eviction leaves full text in a global cache.
+  `ui/src/components/chat/drafts.ts:19,56–57,90–94` stores text in module-global `live` without
+  joining the 20-draft eviction in `draftIndex.ts:37–51`. Creating drafts for more agent IDs
+  releases persisted entries but retains their text for the tab lifetime; restoring a held message
+  can resurrect discarded text. Production draft APIs reproduce this with 25 IDs: the oldest
+  stored draft is absent, yet restoring “withdrawn” yields “withdrawn\n\nlarge-original-0”.
+  FS-03.R36; TS-01.R17; INV §16. Integrate live-text eviction with the existing index cleanup,
+  preserving in-flight send revision fences. Fix complexity: trivial/easy. Introduced by `0c081037`.
+
+- **Worth fixing** — MEM-6, confirmed: ended child reasoning spans escape child retention limits.
+  `internal/runtime/activity.go:53–66` retains one open span per activity.
+  `internal/runtime/subagent.go:178–183,195–205` retires completed children and caps their tombstones
+  but never clears their reasoning spans. The lifecycle update closes the parent's span or returns
+  through the child fast path, so a child whose last ordinary output was reasoning leaves its own
+  entry behind. Production notification dispatch followed by root `finishTurn` retained 500 spans
+  after 500 completed children while the child map correctly retained only 64 tombstones.
+  TS-04.R63; INV §4/§16. Clear child span ownership at terminal/eviction boundaries, retaining late
+  output attribution. Fix complexity: trivial/easy. Small per-child metadata, much lower impact
+  than full transcript/text retention. Child-slot cleanup is `65de12ce`; no native-provider run.
+
+**Verification and limits:** Three focused regressions were demonstrated failing, then left skipped
+as §12 requires; no product code or specifications changed. Archive suite: 8 passed, 1 skipped;
+MCP and Stop regression selections pass with their intended skips. Disposable probes live under
+`/private/tmp/chuck-memory-probe`, `/private/tmp/chuck-memory-ui`, and
+`/private/tmp/chuck-memory-*-investigation_test.go`; they are supporting local evidence, not committed
+test dependencies. Go probes unset `CHUCK_RUNTIME_ROOT`, use `GOFLAGS=-p=1` and
+`GOCACHE=/private/tmp/chuck-memory-gocache`; the UI probe has two passing cases. Source review found
+bounded bus/subscriber queues, proper ordinary SSE unsubscribe, live-chat last-reader cleanup,
+short-lived reconciliation tails, journal reclamation, bounded reasoning text/tool inputs/child
+tombstones, and file object-URL/terminal listener disposal. These are inspected paths, not an
+exhaustive proof of absence of leaks. Disk transcript/log growth is not itself a RAM leak.
+
+No normal Chuck server was identified running against `~/.chuck`; its log ends with shutdown on
+2026-10-24. Three long-lived September disposable AgentDeck servers were observed at about
+15–16 MiB resident each; preserved, not restarted or stopped. A single snapshot does not establish
+a growth rate. No production heap/browser snapshot or credentialed provider session was captured,
+and source has no built-in heap/goroutine profiling surface; attributing the user's actual growth
+remains undetermined. Existing generated UI index edit was preserved.
 
 ## Changelog
+
+- **2026-10-26 — Memory investigation:** confirmed MCP/session, archive, stopped-turn index,
+  live transcript, draft-cache and child-span retention findings; recorded one MEM fix unit and
+  three skipped reproductions. Product behavior unchanged; actual field attribution remains open.
 
 - **2026-10-25 — v0.20.0 published:** `main` and annotated tag `v0.20.0` at `a774d128` were
   pushed (29 commits) on the operator's instruction. Untagged and FTS5 Go suites, full UI suite

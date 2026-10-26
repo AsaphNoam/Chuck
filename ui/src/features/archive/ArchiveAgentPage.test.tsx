@@ -70,6 +70,15 @@ describe("ArchiveAgentPage switched session identity", () => {
 });
 
 describe("ArchiveAgentPage", () => {
+  // MEM-2, INV §16: full history belongs to a mounted reader, so visiting
+  // archived sessions must not turn the page-lifetime store into a history cache.
+  it.skip("releases its full transcript after leaving the archived session", async () => {
+    const view = renderArchive("a_archive");
+    expect(await screen.findByText("Sure, I'll do that.")).toBeInTheDocument();
+    view.unmount();
+    expect(useTranscriptStore.getState().byAgent.a_archive).toBeUndefined();
+  });
+
   it("renders a stored assistant stream as one message", async () => {
     renderArchive("a_archive");
 
