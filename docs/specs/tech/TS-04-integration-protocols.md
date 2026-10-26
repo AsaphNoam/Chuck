@@ -41,7 +41,9 @@ No second MCP process owns state. Transport is loopback streamable HTTP.
 
 **R7 — MCP identity is server-derived.** Tool callers cannot choose their sender id. The token maps
 to the live agent; recipient resolution follows FS-06. Registration creation and teardown are
-generation-scoped so an old runtime cannot delete a new runtime's identity.
+generation-scoped so an old runtime cannot delete a new runtime's identity. Revoking a launch's
+token also closes the MCP transport sessions opened with that token, so a client that exits
+without MCP DELETE leaves no retained session; other launches' sessions are unaffected.
 
 **R8 — Terminal uses a driver seam.** xterm owns a server-side PTY and WebSocket bridge; tmux owns a
 reattachable session; iTerm2 is an optional macOS driver. Terminal input is raw bytes, while a JSON

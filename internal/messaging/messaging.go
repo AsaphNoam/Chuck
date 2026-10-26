@@ -43,8 +43,9 @@ type Server struct {
 	handler http.Handler
 	tools   []string
 
-	mu       sync.RWMutex
-	sessions map[string]SessionIdentity // session token -> server-derived identity
+	mu          sync.RWMutex
+	sessions    map[string]SessionIdentity     // session token -> server-derived identity
+	mcpSessions map[string]map[string]struct{} // session token -> MCP transport session IDs
 }
 
 type turnBudgetLimit struct {
@@ -202,6 +203,7 @@ func New(store *state.Store, log *slog.Logger) *Server {
 		store:         store,
 		log:           log,
 		sessions:      map[string]SessionIdentity{},
+		mcpSessions:   map[string]map[string]struct{}{},
 		budgetByAgent: map[string]turnBudgetLimit{},
 	}
 
@@ -321,7 +323,7 @@ func New(store *state.Store, log *slog.Logger) *Server {
 	// getServer resolves the per-request server. Reading the token header here
 	// proves the per-agent session binding arrives over the transport (§3.1);
 	// 5.2 uses it to scope tool identity. One shared server for now.
-	s.handler = mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+	transport := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		if tok := r.Header.Get(TokenHeader); tok != "" {
 			if agentID, ok := s.Lookup(tok); ok {
 				s.log.Debug("mcp session resolved", "agent", agentID)
@@ -329,12 +331,50 @@ func New(store *state.Store, log *slog.Logger) *Server {
 		}
 		return s.mcp
 	}, nil)
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		transport.ServeHTTP(w, r)
+		s.trackMCPSession(r.Header.Get(TokenHeader), w.Header().Get(mcpSessionHeader))
+	})
 
 	return s
 }
 
+const mcpSessionHeader = "Mcp-Session-Id"
+
 // Handler returns the streamable HTTP handler to mount at /mcp.
 func (s *Server) Handler() http.Handler { return s.handler }
+
+// trackMCPSession binds a transport session to the launch token that opened
+// it, so Revoke can release it when a client exits without MCP DELETE (INV §4).
+// Unregistered tokens stay connected so their tool calls receive the
+// session_unknown result contract.
+func (s *Server) trackMCPSession(token, sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, registered := s.sessions[token]; !registered {
+		return
+	}
+	ids := s.mcpSessions[token]
+	if ids == nil {
+		ids = map[string]struct{}{}
+		s.mcpSessions[token] = ids
+	}
+	ids[sessionID] = struct{}{}
+}
+
+func (s *Server) closeMCPSessions(ids map[string]struct{}) {
+	if len(ids) == 0 {
+		return
+	}
+	for session := range s.mcp.Sessions() {
+		if _, ok := ids[session.ID()]; ok {
+			_ = session.Close()
+		}
+	}
+}
 
 // Register records a token→agent_id mapping (called by RegisterMessagingMCP at
 // launch, 5.3). Revoke removes it on Stop.
@@ -348,11 +388,15 @@ func (s *Server) RegisterSession(token, agentID, generation string) {
 	s.mu.Unlock()
 }
 
-// Revoke removes a token→agent_id mapping on agent teardown.
+// Revoke removes a token→agent_id mapping on agent teardown and closes the
+// MCP transport sessions that launch opened.
 func (s *Server) Revoke(token string) {
 	s.mu.Lock()
 	delete(s.sessions, token)
+	ids := s.mcpSessions[token]
+	delete(s.mcpSessions, token)
 	s.mu.Unlock()
+	s.closeMCPSessions(ids)
 }
 
 // Lookup resolves the agent_id bound to a session token.
