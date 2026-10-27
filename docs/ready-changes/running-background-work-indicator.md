@@ -24,6 +24,16 @@ tasks keep only their tool-call label.
 Operator decisions (2026-10-26): composer placement, desktop dashboard-card count, nothing on the
 phone, no stop-all, and background commands only.
 
+Follow-up from comparing the Claude Code desktop and Codex apps (2026-10-27):
+- **Subagents outliving their turn:** no rows are added. Under FS-03.R58, `nestActivities`
+  (`ui/src/components/chat/runtimeActivity.ts`) marks a child still active at its root `turn_end`
+  as `disconnected`, so Chuck has no live state to show. A background subagent that the runtime
+  reports as an async task already appears as an ordinary task row.
+- **Output on jump (first step of the work):** before building the popover, check with a
+  real Claude and Codex background command whether the related tool call receives the command's
+  output or only a "started in background" result. If it holds no output, pause and return to the
+  operator; do not copy output into task rows (TS-04.R64).
+
 ## How we will know it works
 FS-03.A83 and FS-02.A64. TS-04.R104 runtime count tests, TS-02.R59 migration/projection tests,
 and TS-08.R146's desktop render check. Run TS-06 UI/Go checks and `make embed`.
