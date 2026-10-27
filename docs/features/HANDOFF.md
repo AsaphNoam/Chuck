@@ -29,7 +29,23 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-None.
+**Running background-work indicator** —
+[`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
+**paused** on the decision under **Blocked on human**.
+
+- **Done (slice 1):** the runtime publishes each generation's open task count into
+  `status.background_running` (migration 63; `agentState.applyLive` on every status write,
+  `republishLive` after each task spawn/terminal update), `AgentState.background_running`
+  projects only with a running row, and the desktop `AgentCard` shows **N running**
+  (TS-04.R104, TS-02.R59, FS-02.R83/A64 now shipped). Tests:
+  `TestBackgroundRunningCountIsPublished`, `TestBackgroundRunningProjectsOnlyWhileRunning`,
+  `AgentCard.test.tsx`. Checks on this tree: `go test ./...`, `-tags sqlite_fts5`, focused
+  `-race` task tests, `ui` `npm test` (1060) and `npm run build`, `make build` passed.
+  `make check-specs` fails only on the committed DELMSG-1 line lacking an INV tag (not this
+  change).
+- **Next (after the decision):** FS-03.R107/TS-08.R146 — remove `BackgroundTaskList`, add the
+  composer `RunningTasks` indicator/popover from `collectTasks`, phone render check, FS-03.A83's
+  fake-ACP scenario, `make embed`, the 1024/1440px render check.
 
 ## Acceptance gates still owed
 
@@ -177,6 +193,10 @@ None.
 
 ## Review queue
 
+- **BGRUN-COUNT** (2026-10-27, small, Go + UI): live running background-task count —
+  migration 63, `internal/runtime/{chat,tasks}.go` status writes, `internal/state` projection,
+  `AgentCard` badge.
+
 - **MMD-VIEW** (2026-10-26, small, UI CSS only): file-viewer Mermaid diagrams fill the reader width
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
@@ -272,6 +292,11 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-27 — Running background-work count (FS-02.R83, TS-04.R104, TS-02.R59):** desktop
+  agent cards show **N running** from a live status column the runtime republishes on each task
+  lifecycle update; stopped/archived agents project zero. The composer popover (FS-03.R107) is
+  paused on the no-output decision.
+
 - **2026-10-26 — Designed running background-work indicator:** ready change
   [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md)
   replaces the transcript Background tasks list with a desktop composer **N running**
@@ -319,6 +344,18 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
   Settled history moved to the 2026-10-25 archive. Manual gates remain owed.
 
 ## Blocked on human
+
+- **Running indicator — the jump target holds no command output (2026-10-27):** the change's
+  first-step check stops the popover here. Retained real transcripts under `~/.chuck/sessions`
+  show the related tool call never carries the background command's output. Codex
+  (`a_a3cb58`, `a_a3eea9`, `a_2ecd6b`; 12 tool calls, Oct 9–14): `tool_call` has args only
+  and every later `tool_result` has `content: null`. Claude (`a_bd5bba:520`): the only result
+  is "Command running in background with ID … Output is being written to: <tmp file>". So a
+  popover row's "jump to the related tool call, where its output stays" leads to the command
+  text and a finished label only. TS-04.R64 forbids copying output into task rows. Options:
+  (a) keep the jump as a locator for the command, accepting no output there; (b) drop the jump
+  and show rows only; (c) redesign output access (e.g. Claude's output-file path), which needs
+  `/design-feature`. The card count shipped independently.
 
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).

@@ -873,6 +873,23 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 62,
 		apply:   addScheduleNextDueWall,
 	},
+	{
+		// The current runtime generation's running background-task count, a
+		// live projection beside the durable lifecycle events (TS-02.R59).
+		version: 63,
+		apply:   addStatusBackgroundRunning,
+	},
+}
+
+// addStatusBackgroundRunning follows addScheduleNextDueWall: a synthetic
+// legacy database without the status table has nothing to extend.
+func addStatusBackgroundRunning(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'status'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE status ADD COLUMN background_running INTEGER NOT NULL DEFAULT 0`)
+	return err
 }
 
 // addScheduleNextDueWall follows addTimedStarts: a synthetic legacy database

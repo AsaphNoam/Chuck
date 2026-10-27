@@ -71,11 +71,12 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
   room cards, standard chat composition and shared mentions, stable speaker tints, concurrent
   isolated openings, live ceilings, retained judge-chat results and grouping of new room agents.
 
-- [`running-background-work-indicator.md`](running-background-work-indicator.md) — replace the
-  transcript Background tasks list with a desktop composer **N running** indicator/popover and a
-  desktop card count; nothing on the phone, no stop-all.
-
 ## Paused changes
+
+- [`running-background-work-indicator.md`](running-background-work-indicator.md) — replace the
+  transcript Background tasks list with a desktop composer **N running** indicator/popover; the
+  desktop card count shipped. Waiting on the operator: the popover's jump target holds no command
+  output.
 
 - [`migrate-internal-actions-from-mcp.md`](migrate-internal-actions-from-mcp.md) — replace only
   Chuck's internal MCP action delivery with the packaged direct-action command, preserving

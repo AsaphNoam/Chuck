@@ -1105,7 +1105,7 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 		AgentID: as.agentID, State: "busy", Detail: "thinking",
 		LastTrace: "UserPromptSubmit", BusySince: &now,
 	}
-	as.lastContext().applyTo(&busy)
+	as.applyLive(&busy)
 	_ = c.writeStatus(as, busy)
 
 	// Drive the turn asynchronously: notifications stream over the hub while the
@@ -1436,7 +1436,7 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 	st, err := c.store.ReadStatus(agentID)
 	if err != nil {
 		st = state.Status{AgentID: agentID}
-		as.lastContext().applyTo(&st)
+		as.applyLive(&st)
 	}
 	st.State = "done"
 	st.BusySince = nil
@@ -1822,7 +1822,7 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		AgentID: as.agentID, State: "busy", Detail: contract.StatusDetail,
 		LastTrace: contract.LastTrace, BusySince: &now,
 	}
-	as.lastContext().applyTo(&busy)
+	as.applyLive(&busy)
 	if err := c.writeStatus(as, busy); err != nil {
 		c.clearInlineMail(as.agentID, deliveryKey)
 		as.mu.Lock()
@@ -2033,7 +2033,7 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 			as.mu.Lock()
 			as.context = reading
 			as.mu.Unlock()
-			c.republishContext(as)
+			c.republishLive(as)
 			return
 		}
 	}
@@ -2669,7 +2669,7 @@ func (c *ChatRuntime) writeStatusRowLocked(as *agentState, st, detail, trace str
 	cur.State = st
 	cur.Detail = detail
 	cur.LastTrace = trace
-	as.lastContext().applyTo(&cur)
+	as.applyLive(&cur)
 	if mode == clearBusySince {
 		cur.BusySince = nil
 	}
@@ -2690,12 +2690,12 @@ func (c *ChatRuntime) writeStatus(as *agentState, st state.Status) error {
 	return nil
 }
 
-// republishContext refreshes only the current status row's context percentage
-// and exact pair from the latest decoded usage_update and republishes them
-// through the same write+touch seam as updateStatus/writeStatus, without
-// disturbing the row's state/detail/trace/busy_since (there is no status
-// transition implied by a usage_update alone).
-func (c *ChatRuntime) republishContext(as *agentState) {
+// republishLive refreshes only the current status row's live projections —
+// the latest usage_update's context reading and the open background-task
+// count — through the same write+touch seam as updateStatus/writeStatus,
+// without disturbing the row's state/detail/trace/busy_since (neither a
+// usage_update nor a task lifecycle update implies a status transition).
+func (c *ChatRuntime) republishLive(as *agentState) {
 	as.statusMu.Lock()
 	defer as.statusMu.Unlock()
 	cur, err := c.store.ReadStatus(as.agentID)
@@ -2706,7 +2706,7 @@ func (c *ChatRuntime) republishContext(as *agentState) {
 		slog.Debug("runtime: read status for usage republish", "agent", as.agentID, "err", err)
 		return
 	}
-	as.lastContext().applyTo(&cur)
+	as.applyLive(&cur)
 	if err := c.store.WriteStatus(cur); err != nil {
 		slog.Error("runtime: write status", "agent", as.agentID, "err", err)
 		return
@@ -2889,6 +2889,17 @@ func (as *agentState) lastContext() contextReading {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 	return as.context
+}
+
+// applyLive carries the projections every status write republishes: the
+// latest context reading and this generation's running background-task
+// count (TS-04.R104).
+func (as *agentState) applyLive(st *state.Status) {
+	as.mu.Lock()
+	reading, open := as.context, as.openTasks
+	as.mu.Unlock()
+	reading.applyTo(st)
+	st.BackgroundRunning = open
 }
 
 func (as *agentState) nextTurnIDLocked() string {

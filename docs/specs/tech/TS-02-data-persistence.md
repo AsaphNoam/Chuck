@@ -900,7 +900,7 @@ prior rows/documents/tracking against independent fixture expectations, not only
 Reuse existing replay equivalence, annotation/partial-turn, tracking, FTS5/fallback and continuation
 coverage; add no exhaustive phase/provider/build Cartesian matrix or live-provider requirement.
 
-**R59 (planned) — The running background-task count is a live status column.** An additive
+**R59 (implemented 2026-10-27) — The running background-task count is a live status column.** An additive
 migration adds `status.background_running INTEGER NOT NULL DEFAULT 0`, read and written with the
 other `statusColumns` by `ReadStatus`/`WriteStatus`. It is a live projection of the current
 runtime generation, not history: the durable `background_task_state` transcript events stay the

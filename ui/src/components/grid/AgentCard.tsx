@@ -94,7 +94,9 @@ export function AgentCard({ agent, lastLine, projectTitle, roleLabel = agent.rol
             </Link>
           )}
           {agent.interface === "terminal" && <span className="terminal-pill">terminal{agent.driver ? ` · ${agent.driver}` : ""}</span>}
-          <span className="message-indicators" data-slot="indicators" aria-label="Message indicators">
+          <span className="message-indicators" data-slot="indicators" aria-label="Indicators">
+            {/* Live background-command count; opening the chat reaches its list (FS-02.R83). */}
+            {agent.running && agent.background_running ? <span className="running-badge">{agent.background_running} running</span> : null}
             {agent.unread_messages ? <span className="mail-badge">Mail {agent.unread_messages}</span> : null}
             {agent.last_sent_at ? <span className="sent-pulse">Sent</span> : null}
           </span>

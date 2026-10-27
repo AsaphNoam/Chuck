@@ -6,6 +6,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 func startTaskAgent(t *testing.T, env ...string) (*ChatRuntime, *Handle, <-chan Event) {
@@ -89,6 +91,37 @@ func TestStopBackgroundTaskWaitsForTheRuntimeUpdate(t *testing.T) {
 	}
 	if err := c.StopBackgroundTask(ctx, h.AgentID, "task_1"); !errors.Is(err, ErrUnknownBackgroundTask) {
 		t.Fatalf("second stop = %v", err)
+	}
+}
+
+// The status row carries the generation's running count: the root task stays
+// counted after the child's completes, and the runtime's stop update clears
+// it without a status transition (TS-04.R104, FS-02.A64).
+func TestBackgroundRunningCountIsPublished(t *testing.T) {
+	c, h, ch := startTaskAgent(t, "FAKEACP_CAPS=1")
+	drainTurn(t, ch)
+	before := waitForBackgroundRunning(t, c, h.AgentID, 1)
+	if err := c.StopBackgroundTask(context.Background(), h.AgentID, "task_1"); err != nil {
+		t.Fatalf("StopBackgroundTask: %v", err)
+	}
+	after := waitForBackgroundRunning(t, c, h.AgentID, 0)
+	if after.State != before.State || after.Detail != before.Detail || after.LastTrace != before.LastTrace || (after.BusySince == nil) != (before.BusySince == nil) {
+		t.Fatalf("count republish changed status: before %+v after %+v", before, after)
+	}
+}
+
+func waitForBackgroundRunning(t *testing.T, c *ChatRuntime, agentID string, want int) state.Status {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		got, err := c.store.ReadStatus(agentID)
+		if err == nil && got.BackgroundRunning == want {
+			return got
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for background_running %d (last %+v err %v)", want, got, err)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

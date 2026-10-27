@@ -6,13 +6,13 @@ import (
 	"fmt"
 )
 
-const statusColumns = `agent_id, state, detail, last_trace, busy_since, context_pct, context_used, context_size, updated_at`
+const statusColumns = `agent_id, state, detail, last_trace, busy_since, context_pct, context_used, context_size, background_running, updated_at`
 
 func scanStatus(row rowScanner) (Status, error) {
 	var st Status
 	var busySince sql.NullString
 	var used, size sql.NullInt64
-	if err := row.Scan(&st.AgentID, &st.State, &st.Detail, &st.LastTrace, &busySince, &st.ContextPct, &used, &size, &st.UpdatedAt); err != nil {
+	if err := row.Scan(&st.AgentID, &st.State, &st.Detail, &st.LastTrace, &busySince, &st.ContextPct, &used, &size, &st.BackgroundRunning, &st.UpdatedAt); err != nil {
 		return Status{}, err
 	}
 	st.ContextCounts = contextCountsFromColumns(used, size)
@@ -45,7 +45,7 @@ func (s *Store) WriteStatus(st Status) error {
 	used, size := contextCountsColumns(st.ContextCounts)
 	_, err := s.db.Exec(`
 INSERT INTO status(`+statusColumns+`)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(agent_id) DO UPDATE SET
     state = excluded.state,
     detail = excluded.detail,
@@ -54,8 +54,9 @@ ON CONFLICT(agent_id) DO UPDATE SET
     context_pct = excluded.context_pct,
     context_used = excluded.context_used,
     context_size = excluded.context_size,
+    background_running = excluded.background_running,
     updated_at = excluded.updated_at`,
-		st.AgentID, st.State, st.Detail, st.LastTrace, formatOptionalTime(st.BusySince), st.ContextPct, used, size, st.UpdatedAt,
+		st.AgentID, st.State, st.Detail, st.LastTrace, formatOptionalTime(st.BusySince), st.ContextPct, used, size, st.BackgroundRunning, st.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("state: write status: %w", err)

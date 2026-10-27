@@ -1544,7 +1544,7 @@ native conversation explicitly with the adapter's locally handled `/rename <agen
 whitespace-collapsed; R97's explicit-name seam). Resume keeps its native name. Naming failure only
 forgoes the saving and never fails launch; it is not a Chuck rename and is not re-synced.
 
-**R104 (planned) — The runtime publishes its open background-task count.** The chat runtime
+**R104 (implemented 2026-10-27) — The runtime publishes its open background-task count.** The chat runtime
 already counts each generation's running tasks, including native-child tasks, in
 `agentState.openTasks` (bounded by `maxOpenTasks`, `internal/runtime/tasks.go`). Every status
 write carries that count into TS-02.R59's column, as `lastContext().applyTo` carries context;

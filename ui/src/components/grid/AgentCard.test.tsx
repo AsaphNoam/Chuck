@@ -248,6 +248,29 @@ describe("AgentCard", () => {
     expect(runtimeParts()).toEqual(["claude", "sonnet"]);
     expect(document.querySelector(".agent-card-effort")).toBeNull();
   });
+
+  // FS-02.R83/A64: the live count follows state updates and a stopped agent's
+  // stale value never reads as running work.
+  it("shows the running background-command count only while it is live", () => {
+    const agent = {
+      agent_id: "a_1", name: "Atlas", role: "implementer", project: "my-app",
+      backend: "claude", model: "sonnet", interface: "chat" as const, state: "idle",
+      detail: "ready", running: true, context_pct: 0,
+    };
+    const card = (overrides: Partial<typeof agent> & { background_running?: number }) => (
+      <MemoryRouter><DndContext><SortableContext items={["a_1"]} strategy={rectSortingStrategy}>
+        <AgentCard agent={{ ...agent, ...overrides }} />
+      </SortableContext></DndContext></MemoryRouter>
+    );
+    const { rerender } = render(card({ background_running: 2 }));
+    expect(screen.getByText("2 running")).toBeInTheDocument();
+    rerender(card({ background_running: 1 }));
+    expect(screen.getByText("1 running")).toBeInTheDocument();
+    rerender(card({}));
+    expect(screen.queryByText(/running$/)).not.toBeInTheDocument();
+    rerender(card({ background_running: 1, running: false }));
+    expect(screen.queryByText(/running$/)).not.toBeInTheDocument();
+  });
 });
 
 function runtimeParts() {

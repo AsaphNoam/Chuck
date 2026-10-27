@@ -64,7 +64,10 @@ type Status struct {
 	BusySince  *time.Time `json:"busy_since,omitempty"`
 	ContextPct float64    `json:"context_pct"`
 	*ContextCounts
-	UpdatedAt int64 `json:"updated_at"`
+	// BackgroundRunning is the live generation's running background-task
+	// count (TS-02.R59); the durable lifecycle events stay the record.
+	BackgroundRunning int   `json:"background_running,omitempty"`
+	UpdatedAt         int64 `json:"updated_at"`
 }
 
 // ContextCounts is the exact runtime-reported context reading kept beside
@@ -225,6 +228,9 @@ type AgentState struct {
 	BusySince  string  `json:"busy_since,omitempty"`
 	ContextPct float64 `json:"context_pct"`
 	*ContextCounts
+	// BackgroundRunning is the live count of running background tasks, zero
+	// (omitted) unless the agent has a running row (FS-02.R83, TS-02.R59).
+	BackgroundRunning int `json:"background_running,omitempty"`
 
 	UnreadMessages int                  `json:"unread_messages,omitempty"`
 	LastSentAt     string               `json:"last_sent_at,omitempty"`

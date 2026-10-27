@@ -1,6 +1,6 @@
 # Show running background work instead of a Background tasks list
 
-**State:** Waiting to start
+**State:** Paused
 **Why:** Operator request 2026-10-26: the transcript-tail **Background tasks** list is hard to read
 or understand, but knowing whether and what is still running is useful. Claude Code (`/tasks`)
 and Codex (`/ps`) both show running work in an on-demand panel rather than a transcript list.
@@ -39,4 +39,7 @@ FS-03.A83 and FS-02.A64. TS-04.R104 runtime count tests, TS-02.R59 migration/pro
 and TS-08.R146's desktop render check. Run TS-06 UI/Go checks and `make embed`.
 
 ## Waiting on
-Nothing.
+Operator decision (2026-10-27): real Claude and Codex transcripts show the related tool call holds
+no command output (Codex results are empty; Claude's says output goes to a temporary file). Keep
+the jump as a command locator, drop it, or redesign output access — see `HANDOFF.md` **Blocked on
+human**. The card count and its runtime/status plumbing shipped.

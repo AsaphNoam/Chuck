@@ -244,6 +244,55 @@ func TestContextCountsPersistProjectAndClear(t *testing.T) {
 	}
 }
 
+// TestBackgroundRunningProjectsOnlyWhileRunning covers TS-02.R59: the count
+// round-trips with the status row and projects only with a running row, so a
+// stopped or archived agent reads none whatever the stale column holds.
+func TestBackgroundRunningProjectsOnlyWhileRunning(t *testing.T) {
+	withFixedNow(t, mustTime(t, "2026-06-22T10:01:00Z"))
+	st, _ := newTestStore(t)
+	mgr := NewManager(st, &capturePublisher{})
+	agent := testAgent("a_8f3c12", mustTime(t, "2026-06-22T10:00:00Z"))
+	if err := st.WriteAgent(agent); err != nil {
+		t.Fatalf("WriteAgent: %v", err)
+	}
+	if err := st.WriteRunning(RunningEntry{
+		AgentID: agent.AgentID, PID: 48213, SessionID: "sess", Interface: "chat",
+		HookToken: "tok_live", StartedAt: mustTime(t, "2026-06-22T10:00:01Z"),
+	}); err != nil {
+		t.Fatalf("WriteRunning: %v", err)
+	}
+	status := Status{AgentID: agent.AgentID, State: "idle", BackgroundRunning: 2, UpdatedAt: 1}
+	if err := st.WriteStatus(status); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
+	}
+	if got, err := st.ReadStatus(agent.AgentID); err != nil || !reflect.DeepEqual(got, status) {
+		t.Fatalf("ReadStatus = %+v err %v, want %+v", got, err, status)
+	}
+	projected := func() int {
+		t.Helper()
+		update, err := mgr.Touch(agent.AgentID)
+		if err != nil {
+			t.Fatalf("Touch: %v", err)
+		}
+		return update.BackgroundRunning
+	}
+	if got := projected(); got != 2 {
+		t.Fatalf("running projection = %d, want 2", got)
+	}
+	if err := st.DeleteRunning(agent.AgentID); err != nil {
+		t.Fatalf("DeleteRunning: %v", err)
+	}
+	if got := projected(); got != 0 {
+		t.Fatalf("stopped projection = %d, want 0", got)
+	}
+	if err := st.SetAgentsArchived([]string{agent.AgentID}, true); err != nil {
+		t.Fatalf("SetAgentsArchived: %v", err)
+	}
+	if got := projected(); got != 0 {
+		t.Fatalf("archived projection = %d, want 0", got)
+	}
+}
+
 func TestManagerApplyHookStatusAndStopped(t *testing.T) {
 	now := mustTime(t, "2026-06-22T10:01:00Z")
 	withFixedNow(t, now)

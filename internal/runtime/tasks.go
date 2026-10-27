@@ -114,6 +114,7 @@ func (c *ChatRuntime) onAsyncTaskUpdate(as *agentState, scope activityScope, par
 	}
 	as.mu.Unlock()
 	c.emitIn(as, scope, EvBackgroundTaskState, data)
+	c.republishLive(as) // the card's running count (TS-04.R104)
 	return true
 }
 

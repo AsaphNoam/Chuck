@@ -377,6 +377,12 @@
   font-weight: 600;
 }
 
+.running-badge {
+  color: var(--ad-state-busy);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 .sent-pulse {
   animation: ad-sent-pulse 2s ease-out forwards;
   color: var(--ad-action-secondary);
