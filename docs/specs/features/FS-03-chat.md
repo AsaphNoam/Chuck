@@ -1588,8 +1588,9 @@ phone and CLI callers with actual provider-submission counts in controlled fixtu
   child owner; selecting one scrolls to its tool call. Stop one: it reads Stopping… until the
   runtime's terminal update, then leaves the popover and the indicator reads **1 running**; a
   refused stop keeps the row with a retryable error. When the last task completes the indicator
-  disappears and both tool calls keep their finished labels. Reload, archive and phone views show
-  no indicator or list. *Verify:* indicator/popover component tests, `ChatPanel` tests for
+  disappears and both tool calls keep their finished labels. Stopping the agent while a task
+  still reads running removes the indicator. Reload, archive and phone views show no indicator or
+  list. *Verify:* indicator/popover component tests, `ChatPanel` tests for
   absence and count, phone render test, and a fake-ACP rendered scenario.
 
 ## 6. Deviations & open decisions

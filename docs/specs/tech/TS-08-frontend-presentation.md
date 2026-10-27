@@ -1844,7 +1844,9 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   live, dashboard-pane and archive transcripts show no list. A `RunningTasks` indicator beside the
   desktop composer, shared by the full agent screen and dashboard chat pane (INV §2), derives its
   rows from `collectTasks` filtered to `running`. Fenced tasks are therefore excluded, and no
-  second lifecycle fold is added. It orders rows by announcement and computes elapsed time from the
+  second lifecycle fold is added. It renders only while the agent is running. A stopped or crashed
+  agent's transcript can still end with unfinished `running` lifecycle, which must never read as
+  live work. It orders rows by announcement and computes elapsed time from the
   running event's `ts`. Its popover reuses `TaskRow`'s Stop/stopping/error behavior and existing
   popover/focus primitives. Selecting a row scrolls to and focuses the related tool-call row.
   `markBackgrounded` and the tool-call label stay unchanged. The phone composer renders no
