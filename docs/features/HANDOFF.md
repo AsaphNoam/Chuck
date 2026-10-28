@@ -211,11 +211,12 @@ report. Investigated checkout `fd738a70`, macOS arm64, and retained local Octobe
 those examples establish the symptom in earlier real use, not its frequency or every affected model.
 
 - **Worth fixing** — DELMSG-1, **confirmed specification/guidance gap; probable contributor to
-  observed model behavior**: simple delegated work has no proportionality rule explaining that a
-  skill reference already supplies its procedure and completion criteria. FS-18.R16 and
+  observed model behavior**: operating guidance emphasizes assignment completeness without an
+  equally clear default of concise communication and discretion over necessary detail. FS-18.R16 and
   `internal/config/seed.go:147` ask Chucky for relevant context and clear completion criteria;
-  `AGENTS.md:94–101` also asks for deliverables and verification criteria. Neither explains when
-  pointing to existing guidance satisfies those obligations. The shared guidance in
+  `AGENTS.md:94–101` also asks for deliverables and verification criteria. Those requirements can
+  be satisfied through existing skills and shared context; spelling everything out is unnecessary.
+  The shared guidance in
   `internal/server/launch.go:482–486` and
   `internal/agentknowledge/operating-chuck/{SKILL.md,references/coordinate-work.md}` does not fill
   that gap. FS-18.R3/R15/R16 assign detailed procedures to skills, but do not explicitly constrain
@@ -249,15 +250,23 @@ those examples establish the symptom in earlier real use, not its frequency or e
   reporting reminder and verbatim skill-prefix guidance; earlier authored reporting instructions
   must not be mistaken for duplication of a host reminder that did not yet exist.
 
-  **Suggested fix and evidence:** define proportional outgoing coordination in FS-18/TS-11 and
-  the existing shared operating package: use the requested skill invocation and precise work-item
-  reference, adding only necessary missing context, explicit constraints or exceptions; let the
-  referenced skill supply its workflow. Keep model/effort choices in structured launch inputs.
-  Apply the same minimum-sufficient-information principle to ordinary task/mail bodies. Preserve
-  the required host reporting contract. Extend FS-18.A12's pinned Claude/Codex scenarios with a
-  simple skill-only request and a task that genuinely needs extra context; inspect authored tool
-  arguments for scope fidelity and procedural duplication. Source-content checks cannot prove
-  model compliance. Package refresh follows FS-18.R8; a seed-only edit would also leave frozen
+  **User direction (2026-10-28):** make Chuck's skills smarter and generally more concise. Explain
+  the value of delegation, give agents room to exercise judgment, and avoid forcing explanations
+  or exhaustive instructions when they do not help. This supersedes the original recommendation
+  to prescribe the contents of a skill assignment.
+
+  **Suggested fix and evidence:** align FS-18/TS-11 and the existing shared operating guidance
+  around concise communication by default, with detail proportional to the recipient's needs,
+  uncertainty and consequences. Explain why delegation matters: it can improve quality, speed or
+  use of context while keeping responsibility clear. Let agents judge how much context an assignee
+  needs and trust applicable skills and shared understanding. Routine delegation needs no mandatory
+  rationale, checklist, message template or procedural restatement. This concision principle also
+  covers ordinary messages and user-facing explanations, while retaining necessary evidence,
+  material uncertainty and the host reporting contract. Extend FS-18.A12's pinned Claude/Codex
+  scenarios to check both a simple skill request and work that needs richer context, judging useful
+  communication and scope fidelity rather than compliance with a fixed format or length.
+  Source-content checks cannot prove model compliance. Package refresh follows FS-18.R8; a
+  seed-only edit would also leave frozen
   existing personas unchanged (FS-01.R3). No hard character cap or new coordination mechanism is
   needed. No product code/specification changed or synthetic model-output test added in this
   investigation. Verification: retained task/recipient prompt comparisons above, `git diff --check`,
@@ -265,6 +274,7 @@ those examples establish the symptom in earlier real use, not its frequency or e
   passed (unset `CHUCK_RUNTIME_ROOT`, `GOFLAGS=-p=1`, isolated writable `GOCACHE`; loopback-permitted
   retry after the sandbox denied the test listener). No fresh provider/model-adherence evaluation
   was run; the transport test proves instruction preservation only.
+  The 2026-10-28 direction-only update passed `git diff --check`; it changes no product behavior.
 
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
