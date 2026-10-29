@@ -92,6 +92,9 @@ Configuration-source federation for Claude/Codex is FS-08.
 - **R46** — A fresh home seeds the Claude backend with the portable provider aliases
   `fable`, `opus`, `sonnet`, and `haiku`, keyed by those same values and labelled **Claude Fable**,
   **Claude Opus**, **Claude Sonnet**, and **Claude Haiku**. `sonnet` remains the Claude default.
+  Each alias declares the starter effort list `low`, `medium`, `high`, `xhigh`, and `max`, with
+  `medium` as its default. This declaration does not guarantee that every concrete model or
+  provider supports every listed level.
   These aliases intentionally resolve through the installed Claude/provider and may point to
   different concrete versions over time; the catalog does not claim a fixed version or account
   entitlement. This planned behavior supersedes only the Claude portion of R33 when shipped. As in
@@ -627,7 +630,8 @@ Configuration-source federation for Claude/Codex is FS-08.
   and environment-only model setting add nothing. *Verify by* focused config sync/persistence tests
   and `BackendsEditor` tests for the Claude-specific opt-in copy and restart timing.
 - **A19** (R46) — A fresh backend catalog contains exactly the four Claude family
-  aliases with generic family labels and `sonnet` as its default, while a pre-existing catalog
+  aliases with generic family labels, the declared starter effort list and `medium` effort default,
+  while `sonnet` remains the backend default and a pre-existing catalog
   remains byte-for-byte unchanged by seeding. The launch picker exposes all four without claiming
   their resolved versions or entitlements. *Verify by* seed/config tests and the onboarding/New
   Agent catalog fixtures.

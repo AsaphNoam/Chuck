@@ -24,12 +24,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   the reported unchecked toggle's field cause remains undetermined pending affected server evidence.
 - **Browse latency investigation:** BROWSE-LAT has one open **Worth fixing** confirmed finding:
   the folder-picker script's AppleScript `activate` adds a fixed ~2s stall before the panel.
-- **Claude effort investigation:** CEF has one open **Worth fixing** finding: new Claude
-  backends omit `xhigh` from their starter declarations. Sync's refusal to update effort
-  metadata is specified behavior, not an import/parser defect.
+- **Claude effort fix:** CEF-1 is closed: the shared starter now declares `xhigh`.
+  Existing catalogs and add-only sync retain their effort metadata; live model support is unverified.
 - **Compact Think Tank navigation:** TTNAV-1/2/3 are closed by fix commit `1cf8fc9d`; the
-  originating unit is complete. The only outstanding spec-lint failure remains the unrelated
-  DELMSG-1 invariant tag noted below.
+  originating unit is complete. DELMSG-1's missing invariant tag is repaired; spec lint passes.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through the v0.20.0 release record.
   Clean release verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
   The primary checkout carries a pre-existing generated UI index edit; preserve it.
@@ -67,8 +65,7 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
   `TestBackgroundRunningCountIsPublished`, `TestBackgroundRunningProjectsOnlyWhileRunning`,
   `AgentCard.test.tsx`. Checks on this tree: `go test ./...`, `-tags sqlite_fts5`, focused
   `-race` task tests, `ui` `npm test` (1060) and `npm run build`, `make build` passed.
-  `make check-specs` fails only on the committed DELMSG-1 line lacking an INV tag (not this
-  change).
+  The earlier DELMSG-1 missing-INV-tag lint failure is repaired by CEF closure bookkeeping.
 - **Next (after the decision):** FS-03.R107/TS-08.R146 — remove `BackgroundTaskList`, add the
   composer `RunningTasks` indicator/popover from `collectTasks`, phone render check, FS-03.A83's
   fake-ACP scenario, `make embed`, the 1024/1440px render check.
@@ -366,45 +363,6 @@ not mounted on the Settings route, so it is not an explanation for this report.
   `git diff --check` passes. `make check-specs` fails only on the pre-existing DELMSG-1
   finding lacking an INV tag; this investigation does not alter that unit.
 
-### CEF — Missing Claude extra-high effort investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-**Report, verbatim:** “claude models don't have all efforts when adding / syncing the backend
-(extra is missing)”. No affected model, installed CLI/adapter version, application version, or logs
-were supplied. Investigated checkout `052147af`, macOS; no credentialed provider session was run.
-
-- **Worth fixing** — CEF-1, **confirmed stale starter declaration / specification coverage gap**
-  (INV §10; FS-09.R35–R38/R46, FS-04.R40): `internal/config/seed.go:81–84` declares only
-  `low, medium, high, max` for all four Claude family aliases. `StarterBackend` at line 128
-  reuses this template for item-scoped backend creation (`internal/server/backend_create.go:73`),
-  so adding a Claude backend deterministically omits `xhigh`. This list dates to `ba1dd648`
-  (2026-08-02). Current [Claude Code model documentation](https://code.claude.com/docs/en/model-config#adjust-effort-level)
-  lists `xhigh` for newer models, including current first-party family generations, but not
-  Opus/Sonnet 4.6; provider aliases, installed versions, and organization caps can differ.
-  The picker renders exactly the configured list (FS-09.R37), so this is missing catalog metadata,
-  not a UI filter or a global effort-vocabulary restriction. R46 specifies alias identity but
-  leaves its starter effort list uncovered. Fix complexity: trivial/easy. Update the documented
-  starter effort declaration and shared seed at this existing seam, with a focused assertion for
-  `StarterBackend`/fresh seed; retain saved catalogs and defaults. Do not infer capabilities for
-  arbitrary imported selectors or silently rewrite user-owned effort lists. Live support on the
-  reporter's installed adapter/model remains **undetermined**.
-
-**Sync classification: works as specified.** FS-09.R38/R45/R47 explicitly prohibit inferred Claude
-effort discovery and overwriting existing entries. `ReadClaudeConfiguredModels`
-(`internal/config/claudemodels.go:82`) gives newly imported selectors an empty effort list;
-`addModels` (`internal/config/modelautosync.go:47`) skips existing entries, and startup,
-source-connect import, and explicit refresh share that rule. Consequently refresh preserves an
-existing four-level list and imports additional selectors without any levels. Automatic effort
-discovery/update is a product change outside this finding; it needs a separate specification
-decision about capability evidence and preservation of manual declarations. For an existing
-compatible model, Settings → Backends → model → Effort levels accepts a manual `xhigh` declaration
-(FS-09.R35/R37; `ui/src/features/settings/ModelRow.tsx:127`).
-
-**Verification:** source trace establishes the omission and add-only behavior;
-`go test ./internal/config -run 'Test(ReadClaudeConfiguredModels|SyncClaudeModels|SeedClaudeFamilyAliases)' -count=1`
-passed with `CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1`, and an isolated writable cache.
-`make check-specs` reports the pre-existing DELMSG-1 missing invariant tag. No product or
-specification changes, provider calls, or changes to the pre-existing generated UI edit.
-
 ### DELMSG — Verbose delegation investigation (2026-10-27) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 **Report, verbatim:** “Chuck agents send exceedingly verbose messages to each other, telling
@@ -413,7 +371,7 @@ even if it's "have it run this skill"”. No affected agent, version, or log was
 report. Investigated checkout `fd738a70`, macOS arm64, and retained local October 17–19 transcripts;
 those examples establish the symptom in earlier real use, not its frequency or every affected model.
 
-- **Worth fixing** — DELMSG-1, **confirmed specification/guidance gap; probable contributor to
+- **Worth fixing** — DELMSG-1 (INV §10), **confirmed specification/guidance gap; probable contributor to
   observed model behavior**: operating guidance emphasizes assignment completeness without an
   equally clear default of concise communication and discretion over necessary detail. FS-18.R16 and
   `internal/config/seed.go:147` ask Chucky for relevant context and clear completion criteria;
@@ -504,6 +462,19 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-29 — CEF-1 repaired (INV §10):** the shared Claude starter declares
+  `low, medium, high, xhigh, max` for all four aliases; `medium` and `sonnet` defaults remain.
+  FS-09.R46/A19 document it. Starter/fresh-disk-seed regression passes and fails with the old
+  seed via Go overlay. Saved catalogs and add-only sync remain unchanged; compatible existing
+  models can declare `xhigh` in Settings → Backends. No live-provider support claim.
+  Verification: `make check-specs`, both `go test ./...` and `go test -tags sqlite_fts5 ./...`,
+  `make build`, focused config tests and `git diff --check` pass. Go checks used
+  `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-cef-gocache`; full suites
+  needed permitted loopback access after sandbox-restricted attempts failed. Logs:
+  `/private/tmp/chuck-cef-{go-test-approved,go-fts-approved,specs-final,build,regression}.log`.
+  Added DELMSG-1's missing invariant tag as lint bookkeeping only; that finding remains open.
+  CEF's originating unit is closed; no new review unit. Other fix units remain open.
 
 - **2026-10-29 — Approved pipeline worktrees and descendant placement:** technical/lifecycle
   contract confirmed, including additive API, retained workspace management after run deletion,

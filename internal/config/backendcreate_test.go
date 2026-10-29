@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -51,6 +52,54 @@ func TestStarterBackendModelsAreNotShared(t *testing.T) {
 	second, _ := StarterBackend("claude-acp")
 	if _, leaked := second.Models["injected"]; leaked {
 		t.Error("starter model maps are shared between calls")
+	}
+}
+
+func TestClaudeStarterAndFreshSeedDeclareXHighEffort(t *testing.T) {
+	wantEfforts := []string{"low", "medium", "high", "xhigh", "max"}
+	starter, ok := StarterBackend("claude-acp")
+	if !ok {
+		t.Fatal("no Claude starter")
+	}
+	if starter.DefaultModel != "sonnet" {
+		t.Errorf("Claude starter default model = %q, want sonnet", starter.DefaultModel)
+	}
+
+	for _, alias := range []string{"fable", "opus", "sonnet", "haiku"} {
+		model, exists := starter.Models[alias]
+		if !exists {
+			t.Fatalf("Claude model %q missing from starter", alias)
+		}
+		if !slices.Equal(model.Efforts, wantEfforts) {
+			t.Errorf("starter %s efforts = %v, want %v", alias, model.Efforts, wantEfforts)
+		}
+		if model.DefaultEffort != "medium" {
+			t.Errorf("starter %s default effort = %q, want medium", alias, model.DefaultEffort)
+		}
+	}
+
+	store := newTestStore(t)
+	if err := store.SeedIfAbsent(); err != nil {
+		t.Fatalf("SeedIfAbsent: %v", err)
+	}
+	fresh, err := store.ReadBackends()
+	if err != nil {
+		t.Fatalf("ReadBackends: %v", err)
+	}
+	if fresh.Backends["claude"].DefaultModel != "sonnet" {
+		t.Errorf("fresh seeded Claude default model = %q, want sonnet", fresh.Backends["claude"].DefaultModel)
+	}
+	for _, alias := range []string{"fable", "opus", "sonnet", "haiku"} {
+		model, exists := fresh.Backends["claude"].Models[alias]
+		if !exists {
+			t.Fatalf("fresh seeded Claude model %q missing", alias)
+		}
+		if got := model.Efforts; !slices.Equal(got, wantEfforts) {
+			t.Errorf("fresh seeded %s efforts = %v, want %v", alias, got, wantEfforts)
+		}
+		if model.DefaultEffort != "medium" {
+			t.Errorf("fresh seeded %s default effort = %q, want medium", alias, model.DefaultEffort)
+		}
 	}
 }
 
