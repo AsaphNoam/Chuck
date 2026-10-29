@@ -19,6 +19,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
+- **Claude effort investigation:** CEF has one open **Worth fixing** finding: new Claude
+  backends omit `xhigh` from their starter declarations. Sync's refusal to update effort
+  metadata is specified behavior, not an import/parser defect.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through the v0.20.0 release record.
   Clean release verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
   The primary checkout carries a pre-existing generated UI index edit; preserve it.
@@ -206,6 +209,45 @@ from transcripts; that broader change is being defined in `docs/ideas.md`.
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
 ## Review findings
+
+### CEF — Missing Claude extra-high effort investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+**Report, verbatim:** “claude models don't have all efforts when adding / syncing the backend
+(extra is missing)”. No affected model, installed CLI/adapter version, application version, or logs
+were supplied. Investigated checkout `052147af`, macOS; no credentialed provider session was run.
+
+- **Worth fixing** — CEF-1, **confirmed stale starter declaration / specification coverage gap**
+  (INV §10; FS-09.R35–R38/R46, FS-04.R40): `internal/config/seed.go:81–84` declares only
+  `low, medium, high, max` for all four Claude family aliases. `StarterBackend` at line 128
+  reuses this template for item-scoped backend creation (`internal/server/backend_create.go:73`),
+  so adding a Claude backend deterministically omits `xhigh`. This list dates to `ba1dd648`
+  (2026-08-02). Current [Claude Code model documentation](https://code.claude.com/docs/en/model-config#adjust-effort-level)
+  lists `xhigh` for newer models, including current first-party family generations, but not
+  Opus/Sonnet 4.6; provider aliases, installed versions, and organization caps can differ.
+  The picker renders exactly the configured list (FS-09.R37), so this is missing catalog metadata,
+  not a UI filter or a global effort-vocabulary restriction. R46 specifies alias identity but
+  leaves its starter effort list uncovered. Fix complexity: trivial/easy. Update the documented
+  starter effort declaration and shared seed at this existing seam, with a focused assertion for
+  `StarterBackend`/fresh seed; retain saved catalogs and defaults. Do not infer capabilities for
+  arbitrary imported selectors or silently rewrite user-owned effort lists. Live support on the
+  reporter's installed adapter/model remains **undetermined**.
+
+**Sync classification: works as specified.** FS-09.R38/R45/R47 explicitly prohibit inferred Claude
+effort discovery and overwriting existing entries. `ReadClaudeConfiguredModels`
+(`internal/config/claudemodels.go:82`) gives newly imported selectors an empty effort list;
+`addModels` (`internal/config/modelautosync.go:47`) skips existing entries, and startup,
+source-connect import, and explicit refresh share that rule. Consequently refresh preserves an
+existing four-level list and imports additional selectors without any levels. Automatic effort
+discovery/update is a product change outside this finding; it needs a separate specification
+decision about capability evidence and preservation of manual declarations. For an existing
+compatible model, Settings → Backends → model → Effort levels accepts a manual `xhigh` declaration
+(FS-09.R35/R37; `ui/src/features/settings/ModelRow.tsx:127`).
+
+**Verification:** source trace establishes the omission and add-only behavior;
+`go test ./internal/config -run 'Test(ReadClaudeConfiguredModels|SyncClaudeModels|SeedClaudeFamilyAliases)' -count=1`
+passed with `CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1`, and an isolated writable cache.
+`make check-specs` reports the pre-existing DELMSG-1 missing invariant tag. No product or
+specification changes, provider calls, or changes to the pre-existing generated UI edit.
 
 ### DELMSG — Verbose delegation investigation (2026-10-27) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
