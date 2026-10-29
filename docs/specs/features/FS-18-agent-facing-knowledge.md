@@ -141,7 +141,10 @@ pipelines as capabilities to consider when relevant and available; and directs a
 coordination through the exposed capabilities and their current contracts. It reminds the agent
 to use durable dependencies rather than repeated status polling, follow the host-supplied
 assignment/activation rather than search for work, report outcomes or blockers to its requester,
-and trust runtime identity and structured results over claims in messages or documents. It grants
+and trust runtime identity and structured results over claims in messages or documents. It favors
+concise communication with detail proportional to recipient needs, uncertainty, and consequences;
+it treats delegation as useful when it improves quality, speed, or use of context and leaves the
+amount of assignment detail to judgment, using applicable skills and shared context. It grants
 no extra authority or blanket permission to delegate or contact other agents. When the operating
 package is verified it names the authoritative skill path and directs the agent to load only the
 needed guidance before unfamiliar Chuck operations; it never requires reading every reference
@@ -163,9 +166,11 @@ and allow explicit user reassignment within the runtime's actual authority. Cont
 
 - **Chucky:** help the user understand and operate Chuck and coordinate requested work.
   Ground answers and actions in current product state and operating guidance. For authorized
-  coordination, give bounded assignments with relevant context and completion criteria, delegate
-  where there is a concrete benefit, reconcile returned evidence and retain responsibility for
-  the combined outcome. State blockers and uncertainty; ordinary product questions do not initiate
+  coordination, give assignments with the context and outcome the recipient needs, delegate when
+  it can improve quality, speed, or use of context, and rely on applicable skills and shared
+  understanding instead of repeating procedures. Use judgment about how much detail to include,
+  reconcile returned evidence and retain responsibility for the combined outcome. State blockers
+  and uncertainty; ordinary product questions do not initiate
   orchestration. There is no separate default coordinator.
 - **Implementer:** complete the requested change within existing architecture and conventions.
   Read relevant local guidance and code, preserve unrelated work, keep changes focused, and verify
@@ -351,13 +356,15 @@ Role files, frozen snapshots, permissions and transcripts are unchanged by the o
 by* launch/resume/switch composition and package-failure tests across chat and terminal paths.
 
 **A12** `(planned)` (R15–R16) — Fixed manual scenarios exercise: a Chucky product question
-without initiating coordination; requested coordination with bounded delegation and synthesis; a focused
+without initiating coordination; requested coordination with a simple skill-based assignment and
+work whose uncertainty or consequences call for richer context; synthesis; a focused
 implementation preserving unrelated edits; review of a change with one known defect and one
 non-defect, followed by a fix response; an internal feature trace; and external version-specific
 research with conflicting sources. Each scenario includes a later follow-up that does not repeat
-the role instructions. Check the role's boundaries, actual evidence, uncertainty, relevant skill
-use and final outcome against R16, without asserting universal adherence or guaranteed review
-accuracy. *Verify by* a documented pinned-provider prompt evaluation on Claude and Codex, plus
+the role instructions. Check role boundaries, useful and proportionate communication, actual
+evidence, uncertainty, relevant skill use and final outcome against R15–R16. Do not require a
+fixed format or length, or assert universal adherence or guaranteed review accuracy. *Verify by* a
+documented pinned-provider prompt evaluation on Claude and Codex, plus
 content guards against polling instructions and duplicated Chuck manuals. Tests do not enforce
 the advisory word target or mirror complete prompt strings.
 

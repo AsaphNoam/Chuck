@@ -170,11 +170,12 @@ using the existing publication tests (INV §2, §7, §15).
 FS-18.R15, `server.applyKnowledgeOverlay` remains the sole composition seam for fresh launch,
 ordinary/wake resume, runtime switch and pipeline launch/resume in chat and terminal. One
 code-owned, provider-neutral instruction block beside the existing knowledge pointer supplies the
-stable environment, capability-awareness, assignment, no-polling and authority guidance. It names
-capabilities conditionally on their actual availability, contains no secret, runtime credential,
-tool schema or numeric budget, and does not grant an operation. Role constants do not duplicate
-this block. Keep it to a short paragraph or a few bullets; no new configuration field, SQLite
-column, instruction-template registry or provider-specific copy is introduced.
+stable environment, capability-awareness, concise communication and proportionate assignment,
+no-polling and authority guidance. It names capabilities conditionally on their actual availability,
+contains no secret, runtime credential, tool schema or numeric budget, and does not grant an
+operation. Role constants do not duplicate this block. Keep it to a short paragraph or a few
+bullets; no new configuration field, SQLite column, instruction-template registry or
+provider-specific copy is introduced.
 
 The helper appends that block once through `RuntimeSystemPromptSuffix` before testing package
 availability, and appends the verified direct-path skill-use instruction once only when available.
@@ -229,7 +230,7 @@ FS-04.A30–A31 and FS-18.A11–A13 are proved in three layers:
 - Prove native-provider prompt preservation through TS-04.R69's pinned adapter/SDK boundary and
   both new/load payloads. Existing terminal argv and Codex overlay tests retain their scope.
   A fake ACP echo alone cannot establish provider behavior (TS-04.R54, INV §17).
-- Run the six bounded manual scenarios in FS-18.A12 against the pinned Claude and Codex providers
+- Run the manual scenarios in FS-18.A12 against the pinned Claude and Codex providers
   with task and applicable skill held explicit, then a follow-up that omits role reminders. Record
   versions, inputs, observed role boundaries, evidence and failures; this is a qualitative acceptance
   receipt, not an accuracy benchmark. Fresh/resume prompt-adoption checks follow FS-18.A13.

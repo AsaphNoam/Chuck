@@ -7,6 +7,11 @@ description: Use when answering Chuck product questions or operating, coordinati
 
 Use Chuck's current tool definitions for exact arguments, validation, authority, effects, and results. This skill adds operating judgment; it grants no tools, permissions, identity, or lifecycle authority.
 
+Keep messages and explanations concise by default, adding detail in proportion to the recipient's
+needs, uncertainty, and consequences. Delegate when it can improve quality, speed, or use of context.
+Use judgment about what an assignee needs, rely on applicable skills and shared context, and avoid
+restating procedures they already cover.
+
 - Send a message for immediate coordination with a known live or wakeable collaborator. `send_message`
   wakes by default; pass `wake: false` for a durable FYI that must not start a turn.
 - A turn that is already independently authorized may receive bounded pending mail inline, with each

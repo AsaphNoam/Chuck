@@ -2,6 +2,11 @@
 
 Choose the lightest durable coordination mechanism that matches the outcome.
 
+For a delegation, include the context and expected outcome the assignee needs, then let applicable
+skills and shared understanding carry their procedures. Keep the instruction concise; add detail
+when the recipient, uncertainty, or consequences call for it. Routine assignments need no prescribed
+rationale, checklist, or template.
+
 - Messages are agent-to-agent coordination. Resolve recipients through Chuck, batch useful information,
   and respect the per-turn mail budget of 50 combined sends and reads unless configured otherwise. The
   `send_message` `wake` option defaults to `true`: waking mail may request one eligible recipient turn.

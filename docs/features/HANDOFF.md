@@ -16,7 +16,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Review state:** review unit MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
   finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE has one
   **Must fix** (TOOL-LINE-1) and one **Worth fixing** (TOOL-LINE-2); MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
-  DELMSG has one open **Worth fixing** finding (DELMSG-1). The v0.20.0 architectural review
+  DELMSG is closed (DELMSG-1 fixed). The v0.20.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
@@ -27,7 +27,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Claude effort fix:** CEF-1 is closed: the shared starter now declares `xhigh`.
   Existing catalogs and add-only sync retain their effort metadata; live model support is unverified.
 - **Compact Think Tank navigation:** TTNAV-1/2/3 are closed by fix commit `1cf8fc9d`; the
-  originating unit is complete. DELMSG-1's missing invariant tag is repaired; spec lint passes.
+  originating unit is complete. DELMSG-1 is closed; FS-18.A12's pinned-provider guidance-adherence
+  scenarios remain owed.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through the v0.20.0 release record.
   Clean release verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
   The primary checkout carries a pre-existing generated UI index edit; preserve it.
@@ -363,80 +364,6 @@ not mounted on the Settings route, so it is not an explanation for this report.
   `git diff --check` passes. `make check-specs` fails only on the pre-existing DELMSG-1
   finding lacking an INV tag; this investigation does not alter that unit.
 
-### DELMSG — Verbose delegation investigation (2026-10-27) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-**Report, verbatim:** “Chuck agents send exceedingly verbose messages to each other, telling
-"launch agent of this model, do this thing" takes the thing and gives excessive instructions,
-even if it's "have it run this skill"”. No affected agent, version, or log was supplied with this
-report. Investigated checkout `fd738a70`, macOS arm64, and retained local October 17–19 transcripts;
-those examples establish the symptom in earlier real use, not its frequency or every affected model.
-
-- **Worth fixing** — DELMSG-1 (INV §10), **confirmed specification/guidance gap; probable contributor to
-  observed model behavior**: operating guidance emphasizes assignment completeness without an
-  equally clear default of concise communication and discretion over necessary detail. FS-18.R16 and
-  `internal/config/seed.go:147` ask Chucky for relevant context and clear completion criteria;
-  `AGENTS.md:94–101` also asks for deliverables and verification criteria. Those requirements can
-  be satisfied through existing skills and shared context; spelling everything out is unnecessary.
-  The shared guidance in
-  `internal/server/launch.go:482–486` and
-  `internal/agentknowledge/operating-chuck/{SKILL.md,references/coordinate-work.md}` does not fill
-  that gap. FS-18.R3/R15/R16 assign detailed procedures to skills, but do not explicitly constrain
-  outgoing task/mail elaboration; this is a coverage finding, not a transport-contract violation.
-  Normal trigger: ask an agent to launch a specified model and run an existing skill. It can expand
-  that into duplicated workflow, checks, closure instructions and runtime choices, wasting context
-  and adding opportunities to drift from the requested scope. Fix complexity: trivial/easy.
-
-  **Captured evidence:** `/Users/mcnoam/.chuck/sessions/a_c8e292/transcript.ndjson:2` requests
-  work → review → fix skills for the file reader. Its `create_task` arguments at lines 133, 199
-  and 327 contain 893, 1,074 and 964 instruction characters, repeating verification, commits,
-  handoff and skill procedures. At line 526 the user asks why those overhead instructions were
-  added; lines 1132 and 1280 repeat the concern. The native rollout
-  `/Users/mcnoam/.chuck/codex/sessions/2026/10/17/rollout-2026-10-17T18-28-03-01a14a7a-2bcc-75a3-8b6d-bf3da86fabcf.jsonl:3,6`
-  records both the Chucky mandate and delegation instructions actually supplied to that Codex
-  0.161.0 session. Its later explanation names those instructions, but self-explanation does not
-  prove model causality. A second example, `sessions/a_2d36f5/transcript.ndjson:1,109` under the
-  same Chuck home, carries explicit pipeline guidance saying skills need no additional
-  instructions, yet authors a 643-character `$work` assignment with procedural/output reminders.
-  Some added scope/spec pointers are useful; character counts alone do not establish excess.
-
-  **Boundary and history:** the three October 17 task rows match their recipients' first prompts
-  exactly; the October 19 example matches its task instruction plus the current 255-character
-  reporting suffix. `internal/messaging/task_tools.go:351–355` preserves the authored instruction;
-  `internal/server/task_dispatcher.go:319–322` and
-  `internal/runtime/activation_kinds.go:25–31` add only the specified FS-16.R49 reporting reminder.
-  Mail likewise stores the supplied body (`internal/messaging/tools.go:211`). The extra procedure
-  is already present in the sender's tool call. `807fef1b` (2026-10-03) introduced the current
-  context/completion mandate while dropping the operator's earlier explicit “be concise”; this
-  is a wording change, not a proven onset. `4ddedff1` (2026-10-17) subsequently added the host
-  reporting reminder and verbatim skill-prefix guidance; earlier authored reporting instructions
-  must not be mistaken for duplication of a host reminder that did not yet exist.
-
-  **User direction (2026-10-28):** make Chuck's skills smarter and generally more concise. Explain
-  the value of delegation, give agents room to exercise judgment, and avoid forcing explanations
-  or exhaustive instructions when they do not help. This supersedes the original recommendation
-  to prescribe the contents of a skill assignment.
-
-  **Suggested fix and evidence:** align FS-18/TS-11 and the existing shared operating guidance
-  around concise communication by default, with detail proportional to the recipient's needs,
-  uncertainty and consequences. Explain why delegation matters: it can improve quality, speed or
-  use of context while keeping responsibility clear. Let agents judge how much context an assignee
-  needs and trust applicable skills and shared understanding. Routine delegation needs no mandatory
-  rationale, checklist, message template or procedural restatement. This concision principle also
-  covers ordinary messages and user-facing explanations, while retaining necessary evidence,
-  material uncertainty and the host reporting contract. Extend FS-18.A12's pinned Claude/Codex
-  scenarios to check both a simple skill request and work that needs richer context, judging useful
-  communication and scope fidelity rather than compliance with a fixed format or length.
-  Source-content checks cannot prove model compliance. Package refresh follows FS-18.R8; a
-  seed-only edit would also leave frozen
-  existing personas unchanged (FS-01.R3). No hard character cap or new coordination mechanism is
-  needed. No product code/specification changed or synthetic model-output test added in this
-  investigation. Verification: retained task/recipient prompt comparisons above, `git diff --check`,
-  and `go test ./internal/server -run '^TestALaunchSpecTaskStartsItselfAndBecomesRunning$' -count=1`
-  passed (unset `CHUCK_RUNTIME_ROOT`, `GOFLAGS=-p=1`, isolated writable `GOCACHE`; loopback-permitted
-  retry after the sandbox denied the test listener). No fresh provider/model-adherence evaluation
-  was run; the transport test proves instruction preservation only.
-  The 2026-10-28 direction-only update passed `git diff --check`; it changes no product behavior.
-
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
@@ -463,6 +390,16 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-29 — Closed DELMSG-1 (INV §10):** shared runtime context and the embedded
+  `operating-chuck` guidance now favor concise communication with detail scaled to recipient needs,
+  uncertainty and consequences. They explain when delegation helps and leave assignment detail to
+  judgment and applicable skills. FS-18/TS-11 and FS-18.A12 now describe this contract and its simple
+  and richer-context scenarios. `make check-specs`, embedded-skill publication checks, focused
+  overlay tests, `make test` (both standard and `sqlite_fts5` suites), `make build`, and
+  `git diff --check` pass. Logs: `/private/tmp/chuck-delmsg-{make-test,make-build,overlay-approved}.log`.
+  No pinned-provider adherence evaluation ran; FS-18.A12 remains an open acceptance gate. Existing
+  unrelated UI edits remain uncommitted.
+
 - **2026-10-29 — CEF-1 repaired (INV §10):** the shared Claude starter declares
   `low, medium, high, xhigh, max` for all four aliases; `medium` and `sonnet` defaults remain.
   FS-09.R46/A19 document it. Starter/fresh-disk-seed regression passes and fails with the old
@@ -473,7 +410,7 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
   `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-cef-gocache`; full suites
   needed permitted loopback access after sandbox-restricted attempts failed. Logs:
   `/private/tmp/chuck-cef-{go-test-approved,go-fts-approved,specs-final,build,regression}.log`.
-  Added DELMSG-1's missing invariant tag as lint bookkeeping only; that finding remains open.
+  Added DELMSG-1's missing invariant tag as lint bookkeeping; the finding was closed separately.
   CEF's originating unit is closed; no new review unit. Other fix units remain open.
 
 - **2026-10-29 — Approved pipeline worktrees and descendant placement:** technical/lifecycle
