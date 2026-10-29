@@ -22,8 +22,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
 - **Permission-save investigation:** PERM-SAVE has one open **Worth fixing** diagnostic finding;
   the reported unchecked toggle's field cause remains undetermined pending affected server evidence.
-- **Browse latency investigation:** BROWSE-LAT has one open **Worth fixing** confirmed finding:
-  the folder-picker script's AppleScript `activate` adds a fixed ~2s stall before the panel.
+- **Browse latency:** BROWSE-LAT-1 repaired with fixed JXA script invocation; native selection,
+  foreground placement and click-to-panel timing remain owed below.
 - **Claude effort fix:** CEF-1 is closed: the shared starter now declares `xhigh`.
   Existing catalogs and add-only sync retain their effort metadata; live model support is unverified.
 - **Compact Think Tank navigation:** TTNAV-1/2/3 are closed by fix commit `1cf8fc9d`; the
@@ -72,6 +72,11 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
   fake-ACP scenario, `make embed`, the 1024/1440px render check.
 
 ## Acceptance gates still owed
+
+- **BROWSE-LAT native picker:** JXA activation probe took 0.10s versus AppleScript's 2.29s,
+  and a real JXA panel returned `User canceled. (-128)`. Computer use could not target the
+  osascript panel. Still verify selection returns a usable absolute path, the panel appears
+  over the browser, and click-to-visible-panel timing; activation-only timing is not panel latency.
 
 - **FS-03.A80–A82 / FS-20.A28 / FS-21.A42 (file tabs):** physical-phone touch reordering and
   reconnect, non-Chromium engines, and rendered proof of the 500-total/2 MiB limits and the
@@ -289,37 +294,6 @@ no Go/API/storage change).
   row reveals the call lines (results folded in per R108) and joined permission chips, and drop
   the supersedes clause. Spec-only.
 
-### BROWSE-LAT — Slow directory Browse investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-**Report, verbatim:** “opening the 'browse' option for checking directory takes a long time (a few
-seconds to open the modal)”. No version, surface or logs supplied; the picker logs nothing on
-success. Investigated checkout `b388707f`, macOS 15.7.7 (Darwin 24.6).
-
-**Expected / classification:** FS-04.R42/A22, TS-03.R26 and TS-05.R15 require the standard macOS
-folder panel through fixed `/usr/bin/osascript` script text; none sets a latency bound. A constant
-avoidable stall in the shipped invocation is treated as a code defect, not a product question.
-
-- **Worth fixing** — BROWSE-LAT-1, **confirmed** (FS-04.R42; TS-03.R26; INV §12). At
-  `internal/server/directory_picker.go:110`, the script's first line is AppleScript `activate`.
-  Any AppleScript statement after `activate` in a fresh osascript process waits ~2s before running,
-  so `choose folder` starts ≥2s after every click. Measured on this machine, 3 runs each:
-  `osascript -e 'activate' -e 'return 1'` 2.04s; `-e 'return 1'` 0.01–0.03s; `activate` as the
-  last statement 0.06s; `activate` then `current date` 2.04s. `tell me to activate`,
-  `tell current application to activate`, `ignoring application responses` and
-  `with timeout of 0 seconds` all still take 2.04–2.05s. JXA (`-l JavaScript`) with
-  `Application.currentApplication().activate()` followed by a standard-additions call takes 0.04s.
-  Fix complexity: trivial/easy. Run the same fixed panel through JXA
-  (`includeStandardAdditions`, `activate()`, `chooseFolder({withPrompt: …})`, POSIX path string)
-  with the existing direct-argument, no-shell exec; keep `-128` cancel classification and
-  `verifyPickedDirectory`. The spec's "fixed script text" via `/usr/bin/osascript` still holds.
-  **Must verify manually** (not done here, to avoid opening a panel on the operator's screen):
-  JXA's panel still comes to the front over the browser, cancel still reports `-128`, and the
-  returned path keeps the trailing-slash form the verifier strips. Remaining time between click
-  and visible panel (open-panel service startup) is **undetermined**; if it is still slow after
-  the fix, record a timing of panel launch. No reproduction test committed: the stall lives in
-  macOS's osascript, and the script text is inline, so a test needs the fix's seam; the fix
-  session should assert the script argv and record a before/after manual timing.
-
 ### PERM-SAVE — Permission checkbox investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 **Report, verbatim:** “the skip permissions prompts checkbox is broken, clicking on it pops
@@ -389,6 +363,14 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-29 — Repaired BROWSE-LAT-1 (INV §12):** directory Browse now uses a fixed JXA
+  script through direct `/usr/bin/osascript` argv, avoiding AppleScript's activation stall.
+  The command regression, existing picker contract tests, `make test` (standard and
+  `sqlite_fts5`), `make build`, and `git diff --check` pass. Activation probe: AppleScript 2.29s,
+  JXA 0.10s; real JXA cancellation returned `-128`. Native selection/foreground/panel timing
+  remain owed above. No product requirement changed. Logs: `/private/tmp/chuck-browse-{focused,
+  make-test,make-build}.log`. Existing tool-summary UI edits were preserved.
 
 - **2026-10-29 — Closed DELMSG-1 (INV §10):** shared runtime context and the embedded
   `operating-chuck` guidance now favor concise communication with detail scaled to recipient needs,

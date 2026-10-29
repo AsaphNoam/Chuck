@@ -30,9 +30,11 @@ import (
 // redirect the command or inject script text (TS-05.R15).
 const osascriptPath = "/usr/bin/osascript"
 
-// chooseFolderPrompt is the panel's fixed prompt. The whole script is these two
-// constants; no request data reaches it.
+// The prompt and script are fixed; no request data reaches them. JXA's activate()
+// returns immediately, unlike AppleScript's activate statement, which waits
+// for the application launch response before the next script statement.
 const chooseFolderPrompt = "Choose a directory for Chuck"
+const chooseFolderScript = `var app = Application.currentApplication(); app.includeStandardAdditions = true; app.activate(); app.chooseFolder({withPrompt: "` + chooseFolderPrompt + `"}).toString();`
 
 // Sentinel picker failures. They are intentionally opaque: both the API response
 // and the server log see only these fixed strings, never osascript's stderr
@@ -105,10 +107,7 @@ func (s *Server) handleDirectoryPicker(w http.ResponseWriter, r *http.Request) {
 // same rule probeNativeLogin and the Claude startup classifier follow, for the
 // same reason (TS-04.R15, TS-05.R15).
 func pickDirectoryViaOSAScript(ctx context.Context) (string, bool, error) {
-	// Two -e arguments are two script lines. `activate` foregrounds osascript so
-	// the modal panel appears in front of the browser rather than behind it.
-	cmd := exec.CommandContext(ctx, osascriptPath, "-e", "activate",
-		"-e", `POSIX path of (choose folder with prompt "`+chooseFolderPrompt+`")`)
+	cmd := directoryPickerCommand(ctx)
 	cmd.Stdin = nil
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
@@ -130,7 +129,13 @@ func pickDirectoryViaOSAScript(ctx context.Context) (string, bool, error) {
 	return path, false, nil
 }
 
-// isPickerCancel recognizes the person dismissing the panel. AppleScript reports
+// directoryPickerCommand keeps the fixed script as one direct argv value. It
+// foregrounds the panel without AppleScript's multi-second activate wait.
+func directoryPickerCommand(ctx context.Context) *exec.Cmd {
+	return exec.CommandContext(ctx, osascriptPath, "-l", "JavaScript", "-e", chooseFolderScript)
+}
+
+// isPickerCancel recognizes the person dismissing the panel. osascript reports
 // that as error -128 (userCanceledErr); the surrounding message text is
 // localized and has changed across macOS releases, so only the stable numeric
 // code is matched (INV §12).
@@ -139,9 +144,8 @@ func isPickerCancel(stderr string) bool {
 }
 
 // verifyPickedDirectory turns osascript's stdout into an absolute directory that
-// exists, or reports that it could not (TS-03.R26). `POSIX path of` a folder
-// ends in a separator, which is stripped so the stored value matches a
-// hand-typed one.
+// exists, or reports that it could not (TS-03.R26). A trailing separator is
+// stripped so the stored value matches a hand-typed one.
 func verifyPickedDirectory(out string) (string, bool) {
 	path := strings.TrimSpace(out)
 	if len(path) > 1 {

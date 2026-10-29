@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -278,6 +279,7 @@ func TestIsPickerCancel(t *testing.T) {
 	cases := map[string]bool{
 		"0:17: execution error: User canceled. (-128)":                    true,
 		"0:0: execution error: Der Benutzer hat abgebrochen. (-128)":      true,
+		"execution error: Error: Error: User canceled. (-128)":            true,
 		"0:0: execution error: osascript needs assistive access. (-1728)": false,
 		"execution error: Can’t make folder into type alias. (-1700)":     false,
 		"": false,
@@ -287,6 +289,22 @@ func TestIsPickerCancel(t *testing.T) {
 		if got := isPickerCancel(stderr); got != want {
 			t.Errorf("isPickerCancel(%q) = %v, want %v", stderr, got, want)
 		}
+	}
+}
+
+// TestDirectoryPickerCommandUsesFastFixedJXAArgv protects the picker launch
+// contract: fixed osascript executable, direct argv (no shell), JXA activation,
+// and the standard-additions folder panel with its fixed prompt.
+func TestDirectoryPickerCommandUsesFastFixedJXAArgv(t *testing.T) {
+	cmd := directoryPickerCommand(context.Background())
+	const expectedExecutable = "/usr/bin/osascript"
+	if cmd.Path != expectedExecutable {
+		t.Fatalf("executable = %q, want %q", cmd.Path, expectedExecutable)
+	}
+	const expectedScript = `var app = Application.currentApplication(); app.includeStandardAdditions = true; app.activate(); app.chooseFolder({withPrompt: "Choose a directory for Chuck"}).toString();`
+	wantArgs := []string{expectedExecutable, "-l", "JavaScript", "-e", expectedScript}
+	if !reflect.DeepEqual(cmd.Args, wantArgs) {
+		t.Fatalf("argv = %#v, want executable plus %#v", cmd.Args, wantArgs)
 	}
 }
 
