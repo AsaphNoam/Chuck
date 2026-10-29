@@ -214,7 +214,9 @@ from transcripts; that broader change is being defined in `docs/ideas.md`.
   UI styles, presentation contracts, type check and production build pass. The worktree's
   dependency symlink caused TS2742; local dependency copies resolve it. Both edited feature
   specs pass scoped checks; full spec check retains the pre-existing DELMSG-1 missing INV tag
-  failure. Embedded UI is refreshed after integration to preserve concurrent pipelines work.
+  failure. Merged into main; combined-checkout production build and `make -o ui embed` pass.
+  Generated index remains with the pre-existing dirty embedded UI owned by the concurrent
+  pipelines work; no pipelines source or handoff edits were committed with this unit.
 
 - **BGRUN-COUNT** (2026-10-27, small, Go + UI): live running background-task count —
   migration 63, `internal/runtime/{chat,tasks}.go` status writes, `internal/state` projection,
