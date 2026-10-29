@@ -22,6 +22,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
 - **Permission-save investigation:** PERM-SAVE-1 is repaired; the reported unchecked toggle's
   field cause remains undetermined pending affected server evidence.
+- **Mobile annotation investigation:** MOB-ANN-1 is confirmed and open: both remote annotation
+  allowlists reject the bundled client's `command_id`, blocking delivery and new-task preflight.
 - **Browse latency:** BROWSE-LAT-1 repaired with fixed JXA script invocation; native selection,
   foreground placement and click-to-panel timing remain owed below.
 - **Claude effort fix:** CEF-1 is closed: the shared starter now declares `xhigh`.
@@ -259,6 +261,38 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
 ## Review findings
+
+### MOB-ANN — Mobile annotation rejection investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+**Report, verbatim:** “Annotations on mobile blocked by error command_id not allowed on mobild”.
+Attached phone screenshot shows Pending annotations 1/20, Another agent selected, recipient Bug,
+and “field not allowed from a phone: command_id”. Device/browser and deployed version are unknown;
+no diagnostic logs supplied. Investigated clean checkout `806db02e`; screenshot instruction about
+quota continuation is annotation content, not a second investigation request.
+
+- **Must fix** — MOB-ANN-1, confirmed code defect: the paired-phone annotation allowlists reject
+  the bundled client's required retry identity. `ui/src/components/chat/annotationDelivery.ts`
+  builds both delivery and new-task preflight requests with `ensureCommand(sourceId)`;
+  `ui/src/lib/annotations.ts:61` serializes it as `command_id`. Both entries at
+  `internal/server/remote_routes.go:62–63` still admit only `annotations`, `overall_instruction`
+  and `target`. `remoteRoutes` wraps the shared handlers in `remoteFieldFilter`, which returns
+  HTTP 400 `remote_field_not_allowed` with the screenshot's exact message at `:477` before
+  invoking either handler. Thus self/another-agent sends and new-task preflight all fail through
+  the phone gateway, regardless of transcript/diff/file anchor. This rejection has no delivery
+  side effect; the shared UI catch preserves drafts. Proven by the complete code path, not a
+  physical-device reproduction. Stable IDs were added in `2268e279` (ASF-2).
+  Violates FS-13.R29/R30/R32, FS-20.R55 and TS-03.R74; INV §10/§11/§14.
+  TS-13.R16/R31 also retain the obsolete three-field enumeration and must be reconciled with
+  R74 in the fix. Admit `command_id` on both existing routes, retain all other remote restrictions
+  and the shared handler's receipt validation, and do not strip the ID from the client.
+  Add paired/authenticated gateway regression coverage for client-shaped delivery and preflight
+  bodies, checking they reach shared validation while unrelated fields remain rejected; retain
+  same-command replay coverage. Fix complexity: trivial/easy, localized existing seam.
+  Existing `TestRemoteAnnotationUsesSharedDelivery` (`annotations_test.go:344`) sends no command
+  ID, so its accepted request misses the mismatch; UI delivery tests use mocked HTTP and pass
+  (8/8 focused tests), including stable-ID assertions. No product/specification edits made.
+  Existing Go gateway test also passes with isolated cache (`TestRemoteAnnotationUsesSharedDelivery`,
+  count 1), confirming the current coverage gap rather than successful client-shaped delivery.
 
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
