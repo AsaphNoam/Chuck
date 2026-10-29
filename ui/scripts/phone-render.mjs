@@ -377,7 +377,7 @@ try {
         const box = document.querySelector(".phone-composer-box").getBoundingClientRect();
         const field = document.querySelector(".phone-composer-box textarea");
         const metadata = document.querySelector(".phone-model-switch");
-        const metaStyle = getComputedStyle(metadata);
+        const metaStyle = getComputedStyle(metadata, "::before");
         const metaBox = metadata.getBoundingClientRect();
         const effort = document.querySelector(".phone-effort-cycle")?.getBoundingClientRect();
         return { footerBorder: footer.borderWidth, sendWidth: send.width, sendHeight: send.height, circleWidth: send.width - parseFloat(circle.left) - parseFloat(circle.right), circleHeight: send.height - parseFloat(circle.top) - parseFloat(circle.bottom), overflow: document.documentElement.scrollWidth > innerWidth, typingOutline: getComputedStyle(field).outlineStyle, textboxBorder: getComputedStyle(field).borderWidth, metadataAboveTextbox: metaBox.bottom <= box.top && !document.querySelector(".phone-composer-box").contains(metadata), modelLeft: Math.abs(metaBox.left - box.left) <= 1, effortRight: !!effort && Math.abs(effort.right - box.right) <= 1 && Math.abs(effort.top - metaBox.top) <= 1, metadataBordered: metaStyle.borderTopWidth !== "0px" && metaStyle.boxShadow !== "none", sendInside: send.bottom <= box.bottom && send.right <= box.right };
@@ -435,6 +435,9 @@ try {
         await dialog.waitFor();
         if (await dialog.locator("details").evaluate((el) => el.open)) throw new Error(`${theme}/${width} group New agent opened Advanced`);
         await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
+        // Groups start collapsed (FS-20.R47); expand once to reach the agent row.
+        const groupToggle = page.locator(".phone-agent-group-header > button[aria-expanded]").first();
+        if (await groupToggle.getAttribute("aria-expanded") === "false") await groupToggle.click();
         await page.locator(".phone-agent-row").first().click({ button: "right" });
         const sheet = page.getByRole("dialog");
         await sheet.getByRole("button", { name: "Move to group", exact: true }).click();

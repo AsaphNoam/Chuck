@@ -41,7 +41,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   129 phone tests (one new), 1069 UI tests, presentation checks and embed pass. New
   `ui/scripts/phone-skins-render.mjs [--busy]` checks all appearances at 360/390/430px (failed on
   the old tree); screenshots `/tmp/skins-{after,busy}-*.png`. `phone-render.mjs --details-check`
-  was already failing on `main` (model-button `metadataBordered`); untouched here. INV §13.
+  was stale since `fe572fcc` (border moved to `::before`; groups start collapsed); fixed and
+  passing in all appearances. INV §13/§17.
 
 ## Active change
 
