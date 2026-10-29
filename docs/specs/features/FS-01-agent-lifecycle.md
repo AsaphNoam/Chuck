@@ -395,6 +395,26 @@ live terminal whose group cannot be proved, is refused with the record and owner
 conversation ID is durable from SessionStart; Resume without it refuses (FS-07.R25). Terminal
 launches are accepted only with a driver-proved group (FS-07.R25).
 
+- **R55 (planned)** — **Provider terminal quota errors enter recovery even without structured
+  failure metadata.** A supported provider-owned terminal quota refusal surfaced as a prompt
+  error must produce R40's quota indicator and durable recovery state even when structured
+  quota metadata is absent. This extends R40's supported evidence carriers, not its exclusions:
+  matching user, assistant or tool prose, advisory warnings and transient rate limits do not
+  authorize recovery. Unrecognized terminal errors retain their ordinary failure treatment.
+- **R56 (planned; scope confirmed 2026-10-29)** — **A session reset beside a
+  monthly spend limit schedules verification, not assumed recovery.** When a supported terminal
+  quota failure names both a monthly spend limit and an unambiguous future session reset, Auto
+  continue uses that session time to schedule one isolated access check at least one minute
+  later. The time is identified as a session reset and the pending action as a check, rather than
+  a promise that every blocking limit clears then. Only a successful same-scope check admits
+  R42's continuation. A repeated explicit spend-cap refusal stays manual under R49. Unknown or
+  conflicting session times do not invent a deadline or bypass the manual-intervention rule.
+  Existing check allowance, isolation, cost, cancellation, ownership and retention rules in
+  R43–R44/R49–R51 apply. State stays in Chuck's existing local recovery record; no additional
+  raw provider payload is retained. Existing historical failures are not automatically rearmed.
+  A manual hold explicitly says that the spend limit still requires attention; desktop, phone
+  and API clients must not mistake that hold for a pending automatic continuation.
+
 ## 3. States & transitions
 
 Live status is one of `busy | idle | waiting_input | done | error` (FS-00.R4). Lifecycle-relevant
@@ -695,7 +715,27 @@ late prior-generation exit, reused PID, unknown legacy proof, dedicated-group de
 terminal SessionStart → Stop/crash/restart → Resume and false-prune prevention. Confirmed-dead
 restart writes R20's outcome. Real driver/provider receipts are required by FS-07.A11–A12.
 
+- **A37 (planned)** (R55) — Replay the provider-owned terminal RPC failure captured for
+  `a_a7e830` event 199 without structured quota metadata. It produces a visible quota
+  interruption and a recovery state rather than only a generic protocol error. Replay the
+  same words in user, assistant and tool content, plus transient rate-limit and unrelated
+  protocol errors: none creates a quota interruption. *Verify:* captured-provider-shape
+  runtime and server regression tests; bounded live provider verification when available.
+- **A38 (planned; scope confirmed 2026-10-29)** (R56) — With Auto continue
+  enabled, receive a terminal monthly-spend-limit error also naming a future session reset.
+  Desktop, phone and API state distinguish that session time from the next access check;
+  one isolated check starts at least one minute after that time. Success continues the same
+  unfinished work once; renewed spend-limit refusal leaves an actionable manual state without
+  waking the original conversation. Cancel, manual continuation, restart and disabled automation
+  preserve R43–R44/R50–R51. *Verify:* deterministic recovery and projection tests, a rendered
+  recovery journey, and captured/live provider evidence for the supported time format.
+
 ## 6. Deviations & open decisions
+
+- **Provider quota recognition repair (scope confirmed 2026-10-29):** R55–R56/A37–A38 extend
+  R40/R48–R51 with terminal-RPC recognition and a session-reset check beside a monthly spend
+  limit. The session time is not an applicable combined reset under R48, and the check is the
+  narrow exception to R49's manual-only spend-cap rule. No historical failure is rearmed.
 
 - **Quota reset fallback (design 2026-10-16):** R48–R51/A31–A34 extend the confirmed reset extraction
   and bounded recovery direction with the operator's preference for checks outside the interrupted

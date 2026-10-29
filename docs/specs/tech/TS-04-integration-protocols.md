@@ -1556,6 +1556,43 @@ transcript projection (FS-01.R36). No provider protocol, event or Stop semantics
 *Verify:* fake ACP runtime tests that spawn, finish and stop root and child tasks and assert the
 published count and an unchanged status state.
 
+**R105 (planned) — Terminal RPC quota refusals join the shared settlement classifier.** For
+FS-01.R55, extend R86/R96's completion boundary to recognize supported provider-owned terminal
+`session/prompt` RPC errors when AIR quota metadata is absent. Use one bounded classifier for
+ordinary prompts, reserved activations and R97's isolated checks. Prefer validated AIR policy;
+an explicit newer non-quota, retryable or cancelled outcome must not be overridden by matching
+prose. A fallback requires a verified provider-specific terminal quota carrier and supported
+quota category/error grammar, not RPC `-32603`, a date, HTTP 429 or a substring alone.
+Supported Claude cases use `data.errorKind` values `billing_error`/`account_on_hold`, or the
+verified native quota-error prefix/grammar in the terminal RPC message when categorical
+evidence is absent or unrecognized. An explicit recognized non-quota category such as
+`rate_limit` remains excluded. Codex's supported fallback uses
+`data.codexErrorInfo:usageLimitExceeded`; generic throttling is excluded. The native text
+grammar is a fallback only at this provider-owned terminal boundary, never a general transcript
+classifier. Bind its normalized failure identity deterministically to the captured source
+generation/executing turn, so duplicate processing has one episode. Preserve R96's 16 KiB envelope and 2,048-rune text
+bounds, arrival-time observation, root ownership and replay exclusion. Do not classify streamed
+assistant text, user/tool content, stderr or child events. Unsupported carriers stay ordinary
+errors. Persist quota/owner state and block automatic successors before turn-end fan-out under
+R88; failed persistence remains visible and does not admit follow-ups. Quota-only RPC refusal
+is unsuccessful completion, never inline-mail confirmation or a continuation-success notice.
+
+**R106 (planned) — A named session reset in a mixed spend-limit error authorizes a check.**
+For FS-01.R56, extend R96's verified Claude grammar with the native monthly-spend-limit
+branch's `· your session limit resets <time> (<IANA zone>)`. Use the same formatter/date,
+arrival-time, minute-precision and DST validation as R96; do not broaden parsing to arbitrary
+status lines or unnamed clocks. Keep the normalized `session_reset_at` hint distinct from
+an applicable combined `reset_at`, and preserve the spend-intervention classification even
+when the session hint is valid. A monthly spend refusal cannot become a direct continuation
+from its session hint or a partial structured session window. Unusable or conflicting relevant
+evidence leaves the hint unknown. Other independently applicable blocking windows retain R87/R96's
+rules. Normalized internal turn/check outcomes carry the optional hint and intervention state
+without exposing provider text or changing public turn-end quota correlation fields. R97's
+probe consumes the same classifier and parser; a repeated spend refusal is a quota result,
+not a generic failed check or a successful request. Supported native/adapter source receipts
+and actual carrier shapes are recorded in the ready change; live admission remains an explicit
+acceptance gate rather than inferred from a formatter or synthetic fixture.
+
 ## 3. Interfaces & data shapes
 
 R97's internal check operation accepts a sanitized frozen provider selection (backend type,

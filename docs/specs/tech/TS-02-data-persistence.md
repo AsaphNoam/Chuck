@@ -926,6 +926,21 @@ and uncertainty semantics. R55's receipt retention and deletion lifecycle and or
 retention remain unchanged; old source events are never removed. Verify rollback, restart and
 lost-response replay against real durable receipts/mail/transcripts, plus old recorded receipts.
 
+**R61 (planned) — A session-reset hint is separate from the blocking quota reset.** For
+FS-01.R55–R56, extend R45/R50's single `quota_intents` row with nullable UTC
+`session_reset_at` through an additive forward migration. Null means no verified session hint;
+it never supplies `reset_at`, original-work admission or a success receipt. Preserve existing
+rows, states, allowance, receipts and due times; migration must not schedule historical errors
+or arm inert records. New mixed-limit episodes may have `next_action:check`, null `reset_at`
+and due at `session_reset_at + 60s`; validate the hint against the captured observation and
+buffer before accepting that schedule. Existing observation/claim/result transactions compare
+the exact generation/turn/episode/revision and retain the six-check chain ceiling. Re-observing
+an episode cannot duplicate a check, reset allowance or revive cancellation. A replacement
+episode replaces its hint while preserving any pending exact cleanup reference under R50.
+Extend the existing closed reason vocabulary with `spend_limit` for a manual intervention
+hold. Retention remains one latest record until conversation deletion, with no new raw payload,
+account identifier or attempt history.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

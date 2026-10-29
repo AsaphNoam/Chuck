@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`repair-quota-recognition-and-session-reset-recovery.md`](repair-quota-recognition-and-session-reset-recovery.md) —
+  recognize provider terminal quota RPC failures and check access after a named session reset
+  when a monthly spend limit also blocks work; continue the same work only after success.
+
 - [`pipeline-worktrees-and-descendant-placement.md`](pipeline-worktrees-and-descendant-placement.md) —
   optional run-owned checkout within the original project, recursive workspace/group placement,
   and explicit terminal-run checkout cleanup.

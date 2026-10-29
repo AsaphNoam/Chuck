@@ -320,6 +320,15 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-29 — Designed quota recognition and session-reset recovery:** operator confirmed
+  FS-01.R55–R56/A37–A38; prepared
+  [`repair-quota-recognition-and-session-reset-recovery`](../ready-changes/repair-quota-recognition-and-session-reset-recovery.md),
+  **Waiting to start**. TS-04.R105–R106 normalize terminal RPC quota evidence and a separately
+  scoped session-reset hint; TS-02.R61/TS-03.R76/TS-08.R150/TS-10.R61 define persistence,
+  projection and one isolated check before same-work continuation. Removed the promoted idea.
+  No product code changed; no existing interruption was rearmed. Provider source receipts are
+  in the change; live provider admission remains an explicit acceptance gate.
+
 - **2026-10-29 — Closed TOOL-LINE (TOOL-LINE-1 INV §10/§17, TOOL-LINE-2 INV §10):** each
   transcript view (desktop, phone, Think Tank activity) now builds one `resultsByCall` map over
   its whole nested list, child activity included, and passes it to every `groupTranscriptRows`

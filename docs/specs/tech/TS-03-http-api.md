@@ -1109,6 +1109,18 @@ additive option and truthful zero sequence together (INV §11). Room endpoints a
 Verify real serialized omitted/false/true requests and responses, self refusal, source/recipient
 validation, transaction failure and lost-response replay, including accepted zero-sequence receipts.
 
+**R76 (planned) — Session reset hints never promise combined quota recovery.** For
+FS-01.R55–R56 and TS-02.R61, extend the existing quota projection additively with nullable
+RFC3339 `session_reset_at`. Absent or null means no session hint; `reset_at` retains its
+existing combined-blocker meaning. Pending mixed-limit recovery projects `next_action:check`
+and its `due_at`, never `continue` merely because the session time passed. Add the closed
+`spend_limit` reason for manual recovery after a failed mixed-limit check or an explicit
+spend-limit refusal without a usable session hint. Preserve existing state names, cancellation
+request/response and authorization. HTTP reads and SSE snapshots/updates, desktop/phone and
+operator CLI decoders consume the same projection; no new endpoint or probe authority is added.
+Raw provider error data and probe session identity remain internal. Verify real serialized
+responses and client decoding, including older records without the additive hint.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

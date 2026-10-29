@@ -1,6 +1,6 @@
 # TS-10 — Work dependency control plane
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks`
 **Absorbed:** —
 
@@ -598,6 +598,23 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   Each bounded cleanup sweep advances a stable agent-key cursor past every selected row,
   including in-flight, cooldown and failed references, and wraps after reaching the end.
   Per-reference backoff remains in force; later references cannot starve behind a failed batch.
+
+- **R61 (planned) — A mixed-limit session hint schedules one isolated check through existing recovery.**
+  For FS-01.R55–R56, TS-04.R105–R106 normalizes terminal RPC failures into R39–R47's existing
+  owner settlement, indexed due query, claim, runtime block and recovery chain. A newly observed
+  monthly-spend refusal with a verified future session hint and Auto continue enabled schedules
+  `check` at that hint plus 60 seconds, with combined `reset_at` null. This narrowly supersedes
+  R45's initial manual hold for this mixed case; it does not grant direct original-work admission.
+  With no usable hint, leave a manual `spend_limit` hold; disabled policy schedules nothing.
+  Charge one existing allowance before starting the isolated check. After successful cleanup and
+  a successful same-scope request, revalidate policy, current owner and exact attempt before
+  admitting the same unfinished work. A repeated explicit spend refusal holds with `spend_limit`
+  and no due action even if it repeats or changes its session hint: do not cycle session-reset
+  checks. A non-spend quota result retains R46's bounded remaining policy; failures, unsupported
+  profiles and cleanup errors retain R47's holds. Successful small checks followed by quota on
+  actual continuation retain the `check_ready_but_quota` guard; a session-only hint cannot bypass
+  it. Cancellation, disable, manual supersession, restart and uncertain delivery keep R43/R47's
+  ordering. Never scan/rearm old transcript errors or introduce another timer, task or agent.
 
 ### 2.3 Timed arms and recurring schedules (implemented 2026-10-23)
 
