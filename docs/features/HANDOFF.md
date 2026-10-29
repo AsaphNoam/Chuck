@@ -206,6 +206,16 @@ from transcripts; that broader change is being defined in `docs/ideas.md`.
 
 ## Review queue
 
+- **GROUP-SKILL** (2026-10-29, UI): group-background New agent seeds the editable Group
+  field without leaking into later openings; `@` offers advertised commands alongside files
+  and room participants, while `/` and the existing `#` open commands. FS-02.R77/A58,
+  FS-03.R33/A17. Group regression failed before the fix and all 87 related focused tests
+  pass; composer (51) and Think Tank page (32) pass. Full UI suite: 1068 passed, 1 skipped;
+  UI styles, presentation contracts, type check and production build pass. The worktree's
+  dependency symlink caused TS2742; local dependency copies resolve it. Both edited feature
+  specs pass scoped checks; full spec check retains the pre-existing DELMSG-1 missing INV tag
+  failure. Embedded UI is refreshed after integration to preserve concurrent pipelines work.
+
 - **BGRUN-COUNT** (2026-10-27, small, Go + UI): live running background-task count —
   migration 63, `internal/runtime/{chat,tasks}.go` status writes, `internal/state` projection,
   `AgentCard` badge.

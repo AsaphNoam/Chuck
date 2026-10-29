@@ -23,6 +23,8 @@ interface NewAgentModalProps {
   initialRole?: string;
   /** Pre-select project (e.g. from onboarding wizard). */
   initialProject?: string;
+  /** Pre-select the group for this opening (e.g. from a group background menu). */
+  initialGroup?: string;
   /** Fix the launch to a project and omit the project chooser. */
   fixedProject?: string;
   /** Called after a successful launch, before this modal closes. */
@@ -36,7 +38,7 @@ interface NewAgentModalProps {
   groupPicker?: boolean;
 }
 
-export function NewAgentModal({ open, onClose, initialRole, initialProject, fixedProject, onLaunched, onConfigure, title = "New agent", groupPicker = true }: NewAgentModalProps) {
+export function NewAgentModal({ open, onClose, initialRole, initialProject, initialGroup = "", fixedProject, onLaunched, onConfigure, title = "New agent", groupPicker = true }: NewAgentModalProps) {
   const { data: rolesData } = useRoles();
   const { data: projectsData } = useProjects();
   const { data: backendsData, refetch: refetchBackends, isFetching: backendsFetching } = useBackends();
@@ -73,6 +75,9 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, fixe
   const groupInvalid = groupPicker && !!groupNameError(group);
   // A group belongs to its launch project, so a project change clears it (FS-02.R80).
   useEffect(() => setGroup(""), [project]);
+  useEffect(() => {
+    if (open) setGroup(initialGroup);
+  }, [open, initialGroup]);
 
   const [name, setName] = useSuggestedName(role);
 

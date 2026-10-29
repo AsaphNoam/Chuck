@@ -38,7 +38,7 @@ function projectStateCounts(agents: AgentState[]): { state: AgentStatus | "stopp
 
 type ProjectEdit ={ id: string; project: Omit<ProjectResponse, "project"> };
 type ProjectMenu = { id: string; x: number; y: number };
-type BackgroundMenu = { x: number; y: number };
+type BackgroundMenu = { x: number; y: number; group?: string };
 
 export function ProjectDashboard() {
   const navigate = useNavigate();
@@ -338,9 +338,14 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
   const openBackgroundMenu = (event: MouseEvent) => {
     if ((event.target as HTMLElement).closest(".agent-card, .room-card, .context-menu, [role='dialog'], [data-ui='dialog'], button, input, textarea, select")) return;
     event.preventDefault();
-    setBgMenu({ x: event.clientX, y: event.clientY });
+    const group = (event.target as HTMLElement).closest<HTMLElement>("[data-agent-group]")?.dataset.agentGroup;
+    setBgMenu({ x: event.clientX, y: event.clientY, group: group === "_ungrouped" ? undefined : group });
   };
-  const choose = (open: "newAgent" | "thinkTank") => { setBgMenu(null); openersRef.current?.[open](); };
+  const choose = (open: "newAgent" | "thinkTank") => {
+    if (open === "newAgent") openersRef.current?.newAgent(bgMenu?.group);
+    else openersRef.current?.thinkTank();
+    setBgMenu(null);
+  };
   return (
     <section onContextMenu={openBackgroundMenu}>
       <div className="scoped-project-header">

@@ -607,7 +607,9 @@ right-clicking its background — any point that is not an agent card, room card
 or open menu, which keep their own behavior. It offers **New agent** (R43) and, only while the page
 shows the **Think Tank** button (R65: active, non-archived project), **New think tank**; each item opens
 exactly what the matching header button opens. It reuses the `context-menu` portal presentation and
-click-outside/Escape dismissal of R41.
+click-outside/Escape dismissal of R41. When opened within a named group section, **New agent**
+defaults the editable Group field to that group. Ungrouped and page-level background entry points
+default to a blank Group field, including after a previous group-scoped opening.
 
 **R78.** The stored `order` (R12/R14) changes only by a person's action: a page load, the agent
 stream, and a reconnect neither append to it nor prune it, and applying a loaded layout writes
@@ -1008,7 +1010,9 @@ actual JSON wire and confirm the old global release route is absent on both list
 **A58** (R77) — Right-clicking the scoped project page background shows **New agent** and
 **New think tank**; each opens the dialog its header button opens. Right-clicking an agent card,
 room card, form control (including header buttons and their nested content), dialog or open menu
-keeps its own behavior and opens no background menu. — `ScopedProjectDashboard.test.tsx`.
+keeps its own behavior and opens no background menu. Opening **New agent** within a named group
+preselects that group; reopening from Ungrouped or outside a group leaves Group blank.
+— `ScopedProjectDashboard.test.tsx`.
 
 **A59** (R78) — Load a layout whose stored order omits some agents, then deliver further agents
 (one archived) on the stream: unstored agents render by creation time then id, the stored order is

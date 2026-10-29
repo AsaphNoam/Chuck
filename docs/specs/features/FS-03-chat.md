@@ -392,11 +392,14 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   typing, while the composer keeps accepting and submitting text exactly as it does without this
   feature. An inserted file mention is plain text, so a file later moved or deleted neither
   invalidates the draft nor blocks the send.
-- **R33.** Typing `#` at a word boundary opens a command picker anchored to the composer.
-  The text after `#` up to the next whitespace filters the complete command/skill list most recently
+- **R33.** Typing `#` or `/` at a word boundary opens a command picker anchored to the composer.
+  Typing `@` also offers commands/skills after the existing file and participant results, under a
+  **Commands** heading; unavailable file results do not hide available commands or vice versa.
+  These triggers work in agent and Think Tank composers. The text after the trigger up to the
+  next whitespace filters the complete command/skill list most recently
   advertised by the running chat agent over ACP `available_commands_update`; entries show the
   advertised name and description and, when present, the input hint. Each later ACP update replaces
-  the prior live-session list. Accepting replaces `#query` with `/` followed by the advertised name
+  the prior live-session list. Accepting replaces the trigger and query with `/` followed by the advertised name
   and a trailing space: a Codex skill advertised as `$review` therefore inserts `/$review `. The
   inserted command is ordinary composer text and is submitted and recorded exactly as displayed.
   Chuck neither invents commands nor attempts to classify a provider's entries as skills.
@@ -1124,7 +1127,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   `internal/server/files_commands_test.go` and an unavailable-source case in
   `ui/src/components/chat/Composer.test.tsx`.
 
-- **A17** (R32, R33) — A fake ACP session publishes a command list, `#` opens one picker
+- **A17** (R32, R33) — A fake ACP session publishes a command list, `#`, `/`, and `@` open one picker
   containing every advertised entry, later complete updates replace the list, and accepting an entry
   inserts `/<advertised-name>` plus a trailing space (including `/$<skill>`). No update, an empty
   replacement, and a stopped/non-chat session leave prompt entry and submission usable. *Verify by*

@@ -257,19 +257,38 @@ describe("Composer autocomplete", () => {
     expect(ta.value).toBe("");
   });
 
-  it("opens the command picker on `#` and inserts `/<name> ` including `/$skill`", async () => {
+  it.each(["#", "/", "@"])("opens commands on %s and inserts `/<name> ` including `/$skill`", async (trigger) => {
     render(<Composer agentId="a_1" busy={false} />);
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
 
-    type(ta, "#");
+    type(ta, trigger);
     expect(await screen.findByText("/review")).toBeInTheDocument();
     expect(screen.getByText("/$plan")).toBeInTheDocument();
 
     // Filter to the codex-style skill and accept it.
-    type(ta, "#plan");
+    type(ta, `${trigger}plan`);
     await screen.findByText("/$plan");
     fireEvent.keyDown(ta, { key: "Enter" });
     await waitFor(() => expect(ta.value).toBe("/$plan "));
+  });
+
+  it("keeps commands available when @ file search fails", async () => {
+    failFileSearch = true;
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "@plan");
+    fireEvent.mouseDown(await screen.findByText("/$plan"));
+    expect(ta.value).toBe("/$plan ");
+  });
+
+  it("keeps @ file paths with slashes searchable and ignores slashes inside words", async () => {
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "@src/app");
+    fireEvent.mouseDown(await screen.findByText("src/app.ts"));
+    expect(ta.value).toBe("@src/app.ts ");
+    type(ta, "https://example.com/review");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
   it("submits selected file and command text exactly as displayed, keeping the trailing space", async () => {
@@ -403,7 +422,7 @@ describe("Composer autocomplete", () => {
 
     type(ta, "@src");
     // Empty/unavailable state renders and never blocks submission.
-    expect(await screen.findByText("No matching files")).toBeInTheDocument();
+    expect(await screen.findByText("No matching files or commands")).toBeInTheDocument();
 
     type(ta, "send this");
     fireEvent.keyDown(ta, { key: "Enter" });

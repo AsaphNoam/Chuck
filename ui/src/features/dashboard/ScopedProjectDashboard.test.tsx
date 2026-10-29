@@ -177,4 +177,27 @@ describe("ScopedProjectDashboard background menu (FS-02.R77)", () => {
     fireEvent.contextMenu(card);
     expect(screen.queryByRole("menuitem", { name: "New think tank" })).toBeNull();
   });
+
+  it("defaults New agent to the clicked group without carrying it into other openings", async () => {
+    catalog();
+    const agent = {
+      agent_id: "a1", name: "alpha", role: "implementer", project: "app", backend: "claude", model: "sonnet",
+      interface: "chat" as const, created_at: "2026-07-29T00:00:00Z", running: false, state: "done" as const,
+      detail: "", context_pct: 0, updated_at: 1, archived: false,
+    };
+    useAgentStore.setState({ agents: { a1: { ...agent, group: "Planning" }, a2: { ...agent, agent_id: "a2" } }, order: ["a1", "a2"] });
+    const { container } = renderScoped("app");
+    const planning = await screen.findByRole("region", { name: "Group Planning" });
+    const openFrom = async (target: Element, expected: string) => {
+      fireEvent.contextMenu(target);
+      fireEvent.click(screen.getByRole("menuitem", { name: "New agent" }));
+      expect(await screen.findByLabelText("Group")).toHaveValue(expected);
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    };
+    await openFrom(planning.querySelector("strong")!, "Planning");
+    await openFrom(screen.getByRole("region", { name: "Group Ungrouped" }), "");
+    await openFrom(planning, "Planning");
+    await openFrom(container.querySelector(".scoped-project-header")!, "");
+  });
 });

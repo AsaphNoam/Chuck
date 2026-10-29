@@ -3,12 +3,13 @@ import { getAvailableCommands, searchSessionFiles } from "../../api/client";
 import type { AvailableCommand } from "../../api/types";
 
 // The one keyboard-operated autocomplete picker for `@` files and `#` ACP
-// commands (FS-03.R30–R34). Both insert ordinary composer text — no structured
+// commands, also available through `/` and `@` (FS-03.R30–R34).
+// Both insert ordinary composer text — no structured
 // attachment, no command persistence — so submission is unchanged. The agent
 // composer and the Think Tank room composer share it; the room names which
 // participant's workspace and session the suggestions come from (FS-21.R35).
 
-type Trigger = { type: "@" | "#"; start: number; query: string };
+type Trigger = { type: "@" | "#" | "/"; start: number; query: string };
 
 // A picker entry: `label` is shown, `insert` is the text that replaces the typed
 // trigger token (already including its trailing space), and the optional
@@ -21,19 +22,19 @@ export type PickerItem = { label: string; insert: string; description?: string; 
 /** A participant a room message may address. */
 export type MentionTarget = { agentId: string; label: string; note?: string };
 
-// detectTrigger finds the active `@`/`#` token ending at the cursor. A trigger is
+// detectTrigger finds the active `@`/`#`/`/` token ending at the cursor. A trigger is
 // active only at a word boundary (start of input or after whitespace) with no
 // whitespace between it and the cursor, so `user@example.com` never opens it.
 function detectTrigger(text: string, cursor: number): Trigger | null {
   for (let i = cursor - 1; i >= 0; i--) {
     const ch = text[i];
     if (ch === " " || ch === "\n" || ch === "\t") return null;
-    if (ch === "@" || ch === "#") {
+    if (ch === "@" || ch === "#" || ch === "/") {
       const before = i === 0 ? "" : text[i - 1];
       if (before === "" || before === " " || before === "\n" || before === "\t") {
         return { type: ch, start: i, query: text.slice(i + 1, cursor) };
       }
-      return null;
+      if (ch !== "/") return null;
     }
   }
   return null;
@@ -74,7 +75,7 @@ export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, 
   const [items, setItems] = useState<PickerItem[]>([]);
   const [highlight, setHighlight] = useState(0);
   // dismissedStart holds the offset of a trigger token dismissed with Escape, so
-  // the picker stays closed for that token until a fresh `@`/`#` is typed (R32).
+  // the picker stays closed for that token until a fresh trigger is typed (R32).
   const [dismissedStart, setDismissedStart] = useState<number | null>(null);
   const reqRef = useRef(0);
   const pendingCursor = useRef<number | null>(null);
@@ -106,13 +107,17 @@ export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, 
         .filter((m) => m.label.toLowerCase().includes(q))
         .map((m) => ({ label: `@${m.label}`, insert: `@${m.label} `, description: m.note, group: "Participants", mention: m.agentId }));
       setItems(people);
-      searchSessionFiles(sourceId, trigger.query)
-        .then((res) => {
-          if (token === reqRef.current) setItems([...people, ...(res.files ?? []).map((f) => ({ label: f, insert: `@${f} `, group: mentions ? fileGroup : undefined }))]);
-        })
-        .catch(() => {
-          if (token === reqRef.current) setItems(people);
-        });
+      Promise.allSettled([
+        searchSessionFiles(sourceId, trigger.query),
+        getAvailableCommands(sourceId),
+      ]).then(([files, commands]) => {
+        if (token !== reqRef.current) return;
+        const fileItems = files.status === "fulfilled"
+          ? (files.value.files ?? []).map((f) => ({ label: f, insert: `@${f} `, group: fileGroup ?? "Files" })) : [];
+        const commandItems = commands.status === "fulfilled"
+          ? filterCommands(commands.value.commands ?? [], trigger.query).map((item) => ({ ...item, group: "Commands" })) : [];
+        setItems([...people, ...fileItems, ...commandItems]);
+      });
     } else {
       getAvailableCommands(sourceId)
         .then((res) => {
@@ -141,7 +146,7 @@ export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, 
     const next = detectTrigger(el.value, el.selectionStart ?? el.value.length);
     setTrigger(next);
     // Leaving the token (whitespace/caret move) clears an Escape dismissal so the
-    // next `@`/`#` reopens the picker.
+    // next trigger reopens the picker.
     if (!next) setDismissedStart(null);
   };
 
@@ -188,10 +193,10 @@ export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, 
   };
 
   const picker = open ? (
-    <ul className="composer-picker" role="listbox" aria-label={trigger?.type === "@" ? (mentions ? "Participants and files" : "Files") : "Commands"}>
+    <ul className="composer-picker" role="listbox" aria-label={trigger?.type === "@" ? (mentions ? "Participants, files and commands" : "Files and commands") : "Commands"}>
       {items.length === 0 ? (
         <li className="composer-picker-empty" aria-disabled="true">
-          {trigger?.type === "@" ? (mentions ? "No matching participants or files" : "No matching files") : "No commands available"}
+          {trigger?.type === "@" ? (mentions ? "No matching participants, files or commands" : "No matching files or commands") : "No commands available"}
         </li>
       ) : (
         items.map((item, i) => (

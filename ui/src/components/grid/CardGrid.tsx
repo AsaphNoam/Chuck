@@ -52,7 +52,7 @@ function TaskAttentionLink({ projectID }: { projectID?: string }) {
 }
 
 /** Lets the scoped project page's background menu run the same openers as the header buttons. */
-export type CardGridOpeners = { newAgent: () => void; thinkTank: () => void };
+export type CardGridOpeners = { newAgent: (group?: string) => void; thinkTank: () => void };
 
 export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: { projectID?: string; projectTitle?: string; fixedProject?: string; openersRef?: { current: CardGridOpeners | null } } = {}) {
   const agents = useAgentStore((state) => state.agents);
@@ -69,10 +69,11 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const toggleGroupCollapsed = useUiStore((state) => state.toggleGroupCollapsed);
   const pushError = useUiStore((state) => state.pushError);
   const [showNewAgent, setShowNewAgent] = useState(false);
+  const [initialGroup, setInitialGroup] = useState("");
   const [showThinkTank, setShowThinkTank] = useState(false);
   useEffect(() => {
     if (!openersRef) return;
-    openersRef.current = { newAgent: () => setShowNewAgent(true), thinkTank: () => setShowThinkTank(true) };
+    openersRef.current = { newAgent: (group = "") => { setInitialGroup(group); setShowNewAgent(true); }, thinkTank: () => setShowThinkTank(true) };
     return () => { openersRef.current = null; };
   }, [openersRef]);
   const groupActions = useGroupActions({ project: projectID, projectTitle });
@@ -354,7 +355,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
               const collapsed = groupCollapsed({ groupLayout, projectGroupLayout }, group.key, projectID);
               return (
                 <GroupDropSection group={group.key} disabled={moving} key={group.key}>
-                <section className={`agent-group${dropGroup === group.key ? " agent-group-drop" : ""}`} data-ui="agent-group" data-state={collapsed ? "collapsed" : "expanded"} aria-label={`Group ${group.label}`}>
+                <section className={`agent-group${dropGroup === group.key ? " agent-group-drop" : ""}`} data-ui="agent-group" data-agent-group={group.key} data-state={collapsed ? "collapsed" : "expanded"} aria-label={`Group ${group.label}`}>
                   <header className="agent-group-header" data-slot="header">
                     <button type="button" className="ad-button-icon" onClick={() => toggleGroupCollapsed(group.key, projectID)} aria-expanded={!collapsed}>
                       {collapsed ? ">" : "v"}
@@ -408,7 +409,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   return (
     <>
       {body}
-      <NewAgentModal open={showNewAgent} onClose={() => setShowNewAgent(false)} fixedProject={fixedProject} />
+      <NewAgentModal open={showNewAgent} onClose={() => { setShowNewAgent(false); setInitialGroup(""); }} fixedProject={fixedProject} initialGroup={initialGroup} />
       {fixedProject && <ThinkTankSetupDialog open={showThinkTank} onClose={() => setShowThinkTank(false)} originProject={fixedProject} />}
       {groupActions.feedback}
     </>

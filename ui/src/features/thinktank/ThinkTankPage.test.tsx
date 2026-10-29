@@ -36,6 +36,7 @@ const server = setupServer(
   http.get("/api/think-tanks/tt_fixture/files", () => failFiles ? new HttpResponse(null, { status: 500 }) : HttpResponse.json({ version: 1, sources: [], files: [] })),
   http.get("/api/think-tanks/tt_fixture/commands", () => failCommands ? new HttpResponse(null, { status: 500 }) : HttpResponse.json({ sources: [], commands: [{ source_id: "src_1", agent_name: "Ari", project: "alpha", tool_call_id: "t1", command: "go test ./...", status: "completed", seq: 4 }] })),
   http.get("/api/sessions/:agentId/file-search", () => HttpResponse.json({ agent_id: "a_one", files: [] })),
+  http.get("/api/sessions/:agentId/available-commands", () => HttpResponse.json({ agent_id: "a_one", commands: [{ name: "$review", description: "Review code" }] })),
   http.post("/api/think-tanks/tt_fixture/messages", async ({ request }) => {
     posted.push(await request.json());
     return HttpResponse.json({ version: 1, input_id: "tti_2", published_seq: 0 });
@@ -307,6 +308,17 @@ describe("ThinkTankPage", () => {
   });
 
   // FS-21.A9, R35: room messages go to the room with a stable command id.
+  it.each(["@", "/"])("accepts a skill through %s with its room source and no participant address", async (trigger) => {
+    renderRoom();
+    const box = await screen.findByLabelText("Message the room") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: `${trigger}review`, selectionStart: 6 + trigger.length } });
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /Review code/ }));
+    expect(box.value).toBe("/$review (Ari) ");
+    fireEvent.click(screen.getByRole("button", { name: "Send to room" }));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toMatchObject({ body: "/$review (Ari) ", mentions: [] });
+  });
+
   it("sends a room message and keeps controls available", async () => {
     renderRoom();
     const box = await screen.findByLabelText("Message the room");
