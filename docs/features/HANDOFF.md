@@ -14,7 +14,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
 - **Review state:** review unit MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
-  finding (MEM-4), blocked on a decision below; MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
+  finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE has one
+  **Must fix** (TOOL-LINE-1) and one **Worth fixing** (TOOL-LINE-2); MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
   DELMSG has one open **Worth fixing** finding (DELMSG-1). The v0.20.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
@@ -55,7 +56,7 @@ related tool call's adapter title and shows state and elapsed time. The jump onl
 the command started; no output is shown or copied (TS-04.R64). Real transcripts show no output
 reaches the tool call: Codex results are `content: null` and Claude returns only a
 "running in background, output in <tmp file>" notice. Tool detail is now gone from transcripts
-(TOOL-LINE, review queue); popover rows take their name from `toolLine(call).label`
+(TOOL-LINE, open review findings); popover rows take their name from `toolLine(call).label`
 (`ui/src/components/chat/toolLine.ts`).
 
 - **Done (slice 1):** the runtime publishes each generation's open task count into
@@ -218,23 +219,6 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review queue
 
-- **TOOL-LINE** (2026-10-29, UI): summary-only tool activity, FS-03.R108/A84 (R2/R25 updated),
-  TS-08.R147. Pure `toolLine` in `ui/src/components/chat/toolLine.ts` feeds `ToolCall` (desktop,
-  phone, child, Think Tank) and `WorkingIndicator` (**Working · <label>**); `ToolResult` and its
-  CSS/presentation hook are deleted; `groupTranscriptRows` folds results by `tool_call_id` across
-  the whole list. Notes for review: (1) a shell-named call with a title but no `args.command`
-  keeps its title (Codex `exec_command` "Read file …"), recorded in TS-08.R147; (2) `ToolCall`
-  drops **running** outside a live `ThoughtScope`, so archived unanswered calls never read as
-  running; (3) fixed pre-existing centering of rows nested in a child (`margin-inline: 0` on the
-  nested-row rule in `agent.css`); (4) removed a duplicated FS-03 §3 heading. Evidence:
-  `toolLine.test.ts` (23 cases from retained transcripts), updated TranscriptView/ChildActivity/
-  AgentScreen/ThinkTankPage tests; full UI suite 1089 passed; build, presentation checks and
-  `make embed` pass; `git diff --check` clean. `ui/scripts/turns-journey.mjs` gained an A84
-  check and passes 25/25 against fakeacp `activity_showcase` (lines `Ran rg`,
-  `Ran npm · Continues in background`); phone render of that transcript is clean. The full suite
-  intermittently fails one `CardGrid.test.tsx` case under load; HEAD shows the same file flaking
-  on a different case, and it passes 41/41 alone. `make check-specs` fails only on DELMSG-1.
-
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
   numbered template library, light overview/timeline, stage rail/editor and start-dialog
@@ -272,6 +256,40 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
 ## Review findings
+
+### TOOL-LINE — Summary-only tool activity (2026-10-29, `a2139d62`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed FS-03.R108/A84 (R2/R25/R26), TS-08.R147, TS-04.R99 wording and the UI diff. Implementer
+notes (1)–(4) are sound and closed: the title-kept Codex file read and the non-live **running**
+drop are both specified in TS-08.R147/FS-03.R108; the nested-row `margin-inline: 0` renders
+left-aligned; the duplicate heading removal is correct. Independent rendered check:
+`turns-journey.mjs` 25/25 on the `activity_showcase` fixture plus expanded tool lines at
+1024/1440px in Core and Sky & Grove (single 15px lines, no bodies, no clipping); phone render clean.
+INV sweep: §2 satisfied (one `toolLine` for desktop, phone, child, Think Tank, working
+indicator); §8 labels/reasons bounded to 80/120 single-line; §10 and §17 findings below; §13 new
+classes all have selectors and no removed class is still referenced; §16 per-render work is
+bounded by the list/turn; §1, §3–§7, §9, §11, §12, §14, §15 have no surface (presentation-only,
+no Go/API/storage change).
+
+- **Must fix** — TOOL-LINE-1 (TS-08.R147, FS-03.R108; INV §10/§17). `groupTranscriptRows`
+  (`ui/src/components/chat/toolRun.tsx:16`) builds its result map from the list it is given, but
+  `TurnList` (`TurnList.tsx:67,78`) calls `renderEvents` once per turn *part*. In a completed
+  turn any visible row (a notice, error, or steer `user_text`) between a call and its result
+  puts them in different parts, so the call reads with no suffix and the result is dropped.
+  Reproduced with a scratch `TranscriptView` test: `tool_call npm test` → `notice` →
+  `tool_result failed "3 tests failed"` → answer → `turn_end`, Show activity, open runs: the
+  line reads `Ran npm`, not `Ran npm · failed: 3 tests failed`. Before this change the failed
+  result rendered as its own row, so a historical failure is now hidden; R147 explicitly
+  promises a result after another row still reads its outcome. Fix: build the map once from the
+  whole transcript (including nested child items) in `TranscriptView`/`AgentScreen` and pass it
+  through `renderRows`/`eventRenderer` to `groupTranscriptRows`. Test: the scenario above in
+  `TranscriptView.test.tsx` (and a phone twin if the seam differs).
+- **Worth fixing** — TOOL-LINE-2 (FS-03.R26; INV §10). R26 still says opening **Ran _n_ tools**
+  reveals "every non-empty or failed result for inspection", that the approved call's result
+  "stays inside", that a no-payload success "is omitted", and that it "supersedes R25" — all
+  contradicting R108 and the rewritten R25 (results never render a row). Fix: reword R26 so the
+  row reveals the call lines (results folded in per R108) and joined permission chips, and drop
+  the supersedes clause. Spec-only.
 
 ### BROWSE-LAT — Slow directory Browse investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
