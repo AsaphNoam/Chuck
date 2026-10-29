@@ -24,9 +24,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Claude effort investigation:** CEF has one open **Worth fixing** finding: new Claude
   backends omit `xhigh` from their starter declarations. Sync's refusal to update effort
   metadata is specified behavior, not an import/parser defect.
-- **Compact Think Tank navigation review:** originating unit
-  `compact-think-tank-chat-navigation` has two open **Must fix** findings (TTNAV-1/2) and one
-  **Worth fixing** finding (TTNAV-3), recorded below. Next stage owns fixes; no new review unit.
+- **Compact Think Tank navigation:** TTNAV-1/2/3 are closed by fix commit `1cf8fc9d`; the
+  originating unit is complete. The only outstanding spec-lint failure remains the unrelated
+  DELMSG-1 invariant tag noted below.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through the v0.20.0 release record.
   Clean release verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
   The primary checkout carries a pre-existing generated UI index edit; preserve it.
@@ -215,76 +215,6 @@ from transcripts; that broader change is being defined in `docs/ideas.md`.
 
 ## Review findings
 
-### TTNAV — Compact Think Tank chat navigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Originating unit: [`compact-think-tank-chat-navigation`](../ready-changes/compact-think-tank-chat-navigation.md).
-Reviewed implementation `c51ced52..467bf836` against FS-21.R57/A40 and TS-08.R126, supporting
-FS-03.R71/FS-21.R45, at current checkout `d200d0c9`. Existing independent review `d46bd2a7`
-and CSS fix `c85f94fb` are included: the old dead-roster-CSS finding is closed, not duplicated.
-The Finished ready-change record is retained; these findings keep this same originating unit
-open for fix closure. No product code or specifications changed in this review.
-
-- **Must fix** — **TTNAV-1: unavailable names can escape the navigation and clip**
-  (FS-21.R57/A40, TS-08.R126; INV §8/§13). At
-  `ui/src/styles/features/think-tank.css:1430`, `.think-tank-member-unavailable` lacks the
-  surviving link's wrapping constraint. A retained deleted member named
-  `UnavailableStorageConsistencyReviewer` repeated five times (185 characters, within the
-  256-rune launch/rename limit in `internal/server/launch.go:119`) forces the navigation wider
-  than its container. In the 360px fixture, the tab's scroll width is 1157px; text clips at the
-  chat-card edge. It also overflows the unconstrained desktop tab in all three appearances.
-  Keep the identity readable by constraining/wrapping unavailable text and the containing group.
-  Regression: render this valid deleted-member name beside ordinary links at desktop and narrow
-  widths; assert against the tab/container bounds, not the already-expanded nav's own width.
-  Receipt: `*-unavailable.png`, `*-unavailable-desktop.png` and `report.json` below.
-
-- **Must fix** — **TTNAV-2: active-turn emphasis changes wrapping and moves link targets**
-  (FS-21.A40, TS-08.R126; INV §8/§13). At
-  `ui/src/styles/features/think-tank.css:1424`, increasing the intrinsic font weight without
-  reserving its width changes flex wrapping. With the harness roster and a 474px tab, a real
-  membership-query update starting concurrent attempts for `a_ari` and `a_bea` moves the long
-  peer link from y=332.3125 to y=368.3125 and from the first row to the next. This reproduces at
-  474–475px in Core, Sky & Grove and Studio, moving the remaining room content while the user
-  scans navigation. Preserve the required heavier text/depth with stable geometry. Regression:
-  compare link rows before/after a running-attempt update near a wrapping boundary, including a
-  long peer name; a static transform/animation check alone misses the jump.
-  Receipt: `*-before-active.png`, `*-after-active.png` and live-update metrics in `report.json`.
-
-- **Worth fixing** — **TTNAV-3: generated disambiguation can collide with another valid name**
-  (FS-21.R57; INV §8). At `ui/src/features/thinktank/RoomTurnNotice.tsx:50–58`, duplicate detection
-  examines raw names and counts only generated bases. Settled peers named `Ari` in Alpha,
-  `Ari` in Beta, and literally `Ari · Alpha` produce two visible and accessible `Ari · Alpha`
-  links, targeting `/agent/a_ari` and `/agent/a_decorated`. Routes remain stable, but the operator
-  cannot distinguish those destinations from their labels. This is a valid decorated-name edge,
-  not a failure of ordinary duplicate names. Check the final labels together and append stable
-  identity where they collide; add this three-peer case to the existing label/navigation test.
-  Receipt: `*-collision.png` and decorated-name label/href arrays in `report.json`.
-
-Fresh verification: focused `ThinkTankTab.test.tsx`/`ChatPanel.test.tsx` pass 51/51;
-`npm run check:styles` passes 47/47 plus presentation contracts. Approved loopback Chromium runs
-the current Vite UI with deterministic API/SSE fixtures at 1024/1600px, in all three appearances,
-with 360px narrow-tab fixtures and a bounded 320–600px wrapping sweep. Final harness: **84/114
-checks pass**; the 30 failed assertions repeat the three findings above across six contexts.
-Passing checks include route hrefs/current-agent omission, ended/multiple rooms, clipped feedback,
-concurrent active semantics, speaker move/clear, keyboard order/focus/Enter to a peer, ordinary
-long-name wrapping, and settled-link comparison with the shared secondary control in the actual
-development matrix. Representative screenshots inspected; no page errors. Harness, JSON metrics,
-log and screenshots are retained in shared project resources at
-`compact-nav-review-2026-10-29/` (run `node <that directory>/render.mjs` from this checkout).
-This is stubbed browser evidence, not a live backend/provider or actual dashboard-pane journey;
-the narrow fixture constrains the real chat tab. The older `/tmp` receipts in Git remain historical.
-`make check-specs` still fails only on the unrelated DELMSG-1 missing INV tag; `git diff --check`
-passes. The unrelated dirty generated UI index is preserved.
-
-Invariant sweep: §1 checked for agent/query ownership and fresh active-state changes; §2 for
-existing route/title/button helpers (no replacement endpoint, store or polling mechanism); §8,
-§10 and §13 for bounded/read feedback, wiring and CSS; §16 for retained query/roster bounds;
-§17 and TS-06.R35 for the changed tests' explicit requirement oracles, Go-encoded fixture and
-real component/query boundary. Existing tests add useful navigation/state coverage but do not
-prove CSS geometry; rendered checks expose TTNAV-1/2. No additional test-only finding or local
-implementation choice requires a decision. No applicable diff surface for §3, §4, §5, §6, §7,
-§9, §11, §12, §14 or §15. All three fixes are localized at the existing label/markup/CSS seams,
-with focused component/browser regression checks and no lifecycle or concurrency change.
-
 ### PERM-SAVE — Permission checkbox investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 **Report, verbatim:** “the skip permissions prompts checkbox is broken, clicking on it pops
@@ -467,6 +397,15 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-29 — Fixed compact Think Tank navigation (INV §§8/13/17):** closed TTNAV-1/2/3
+  from review `addb1f12` for the existing `compact-think-tank-chat-navigation` unit. Fix commit
+  `1cf8fc9d` constrains long unavailable names, reserves active-link width to prevent flex reflow,
+  and makes project-qualified labels unique against literal names. Focused UI tests pass 52/52;
+  full UI suite passes 1061 with 1 skipped; style/presentation checks and UI build pass. The
+  supplied Chromium harness passes 108/108 across all three appearances, 1024/1600px desktop,
+  360px narrow layout and a 320–600px wrapping sweep. `git diff --check` passes. `make check-specs`
+  remains blocked only by pre-existing DELMSG-1 missing INV tag. No other TTNAV findings remain.
 
 - **2026-10-29 — Reviewed compact Think Tank navigation:** recorded TTNAV-1/2 (**Must fix**)
   and TTNAV-3 (**Worth fixing**) against the same originating unit; prior dead-CSS finding remains
