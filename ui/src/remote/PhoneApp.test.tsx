@@ -122,11 +122,11 @@ describe("PhoneApp", () => {
     let failed = false;
     server.use(http.get("/api/config", () => failed ? HttpResponse.json({ error: "unavailable" }, { status: 503 }) : HttpResponse.json({ appearance_skin: appearance })));
     const client = renderApp();
-    const heading = await screen.findByRole("heading", { name: "Away, not out of the loop." });
+    const heading = await screen.findByRole("region", { name: "Projects" });
     for (appearance of ["studio", "sky-grove", "", "unknown"]) {
       await act(async () => { await client.invalidateQueries({ queryKey: ["phone-appearance"] }); });
       await waitFor(() => expect(document.documentElement.dataset.skin).toBe(["studio", "sky-grove"].includes(appearance) ? appearance : undefined));
-      expect(screen.getByRole("heading", { name: "Away, not out of the loop." })).toBe(heading);
+      expect(screen.getByRole("region", { name: "Projects" })).toBe(heading);
     }
     appearance = "studio";
     await act(async () => { await client.invalidateQueries({ queryKey: ["phone-appearance"] }); });

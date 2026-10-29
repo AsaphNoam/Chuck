@@ -54,7 +54,8 @@
   background-image:
     radial-gradient(circle at 10% -12%, color-mix(in srgb, var(--ad-action-secondary) 14%, transparent), transparent 34rem),
     radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--ad-action-primary) 8%, transparent), transparent 30rem),
-    repeating-radial-gradient(ellipse at 96% 112%, transparent 0 74px, color-mix(in srgb, var(--ad-border-strong) 9%, transparent) 75px 76px, transparent 77px 104px);
+    /* The phone entry sets --ad-phone-wallpaper-rings: none (FS-20.R43). */
+    var(--ad-phone-wallpaper-rings, repeating-radial-gradient(ellipse at 96% 112%, transparent 0 74px, color-mix(in srgb, var(--ad-border-strong) 9%, transparent) 75px 76px, transparent 77px 104px));
   background-size: 100% 100%;
   opacity: 0.64;
 }

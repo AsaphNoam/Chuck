@@ -957,6 +957,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
                 {attachments.some((file) => !isPreviewImage(file) && agent.attachment_capabilities?.files === false) && <p className="phone-error">This runtime cannot read uploaded files. Remove the file or switch runtime.</p>}
               <div className="phone-actions phone-composer-actions">
                 <button type="button" disabled={offline || busy} onClick={() => attachmentPicker.current?.click()}>Attach</button>
+                {isBusy && <button type="button" aria-label="Cancel turn" disabled={offline || busy} onClick={() => void act(() => cancelTurn(agentId, { target: "turn" }))}>Cancel</button>}
                 {agent.steering_available && isBusy && (
                   <button type="button" disabled={!attachmentsReady || offline || busy || releaseBlocked || (!text.trim() && attachments.length === 0) || attachments.some((file) => isPreviewImage(file) ? agent.attachment_capabilities?.image_input === false : agent.attachment_capabilities?.files === false)} onClick={() => sendPhoneMessage(true)}>
                     Steer
@@ -970,13 +971,6 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           )}
         </>
       )}
-      <div className="phone-actions phone-controls">
-        {agent.running && isBusy && (
-          <button type="button" disabled={offline || busy} onClick={() => void act(() => cancelTurn(agentId, { target: "turn" }))}>
-            Cancel turn
-          </button>
-        )}
-      </div>
       </div>}
       <ConfirmDialog
         open={stopOpen}

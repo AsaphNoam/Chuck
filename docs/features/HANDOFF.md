@@ -34,6 +34,14 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   quota snapshots remain TBD.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`; use `GOFLAGS=-p=1` and a writable isolated Go cache.
   Native/device/credentialed limitations remain in the owed gates.
+- **Awaiting review — phone Home, Sky & Grove wallpaper, composer Cancel (2026-10-29):**
+  FS-20.R43. Home drops its tagline (hidden "Home" h1 kept), project rows are separate cards with
+  a 12px gap, Sky & Grove's ring layer is off on the phone via `--ad-phone-wallpaper-rings`, and
+  Cancel (aria "Cancel turn") sits beside Attach only while busy, replacing `.phone-controls`.
+  129 phone tests (one new), 1069 UI tests, presentation checks and embed pass. New
+  `ui/scripts/phone-skins-render.mjs [--busy]` checks all appearances at 360/390/430px (failed on
+  the old tree); screenshots `/tmp/skins-{after,busy}-*.png`. `phone-render.mjs --details-check`
+  was already failing on `main` (model-button `metadataBordered`); untouched here. INV §13.
 
 ## Active change
 

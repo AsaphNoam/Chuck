@@ -341,6 +341,16 @@ describe("AgentScreen", () => {
     blocked.mockRestore();
   });
 
+  it("offers Cancel beside Attach only while a turn is active", async () => {
+    useConnection.setState({ agents: { a1: { ...agent, state: "idle" } } });
+    renderScreen();
+    await screen.findByRole("button", { name: "Attach" });
+    expect(screen.queryByRole("button", { name: "Cancel turn" })).toBeNull();
+    act(() => useConnection.setState({ agents: { a1: { ...agent, state: "busy" } } }));
+    const cancel = await screen.findByRole("button", { name: "Cancel turn" });
+    expect(cancel.closest("form")).toBe(screen.getByRole("button", { name: "Attach" }).closest("form"));
+  });
+
   it("disables every action while the Mac is unreachable", async () => {
     renderScreen();
     await screen.findByRole("region", { name: "Permission request" });

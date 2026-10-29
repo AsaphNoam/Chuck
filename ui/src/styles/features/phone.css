@@ -1,7 +1,9 @@
 @layer ad-features {
 /* FS-20.R43: one phone composition in every Chuck palette. */
 html { min-width: 0; }
-body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
+/* Sky & Grove's ring layer stretches into long arcs across a tall, narrow phone viewport; the
+   phone keeps only its soft glows. */
+body { min-height: 100dvh; -webkit-text-size-adjust: 100%; --ad-phone-wallpaper-rings: none; }
 .phone-app { margin: 0 auto; max-width: 480px; min-height: 100dvh; background: transparent; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 .phone-app svg, .phone-navigation svg { flex-shrink: 0; }
 /* FS-12.R68 "Just enough": every phone action button is a 44px touch target with an 8px visible-surface inset. */
@@ -40,8 +42,8 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-row-reason { display: block; color: var(--ad-text-muted); font-size: 0.75rem; line-height: 1.65; overflow-wrap: anywhere; }
 .phone-row-meta, .phone-empty, .phone-meta { color: var(--ad-text-muted); font-size: 0.6875rem; line-height: 1.65; margin: 0; overflow-wrap: anywhere; }
 .phone-row-meta { display: block; font-family: var(--ad-font-mono); font-size: 0.5625rem; }
-.phone-attention-list, .phone-project-list { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-large); gap: 0; overflow: hidden; }
-.phone-attention-list li + li, .phone-project-list li + li { border-top: var(--ad-border-thin) solid var(--ad-border-default); }
+.phone-attention-list { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-large); gap: 0; overflow: hidden; }
+.phone-attention-list li + li { border-top: var(--ad-border-thin) solid var(--ad-border-default); }
 .phone-attention { border: 0; border-radius: 0; padding: var(--ad-space-4); gap: var(--ad-space-2); position: relative; }
 .phone-attention-list li:first-child .phone-attention::before { content: ""; position: absolute; left: 0; top: var(--ad-space-4); bottom: var(--ad-space-4); width: 3px; background: var(--ad-state-waiting); border-radius: 0 var(--ad-radius-small) var(--ad-radius-small) 0; }
 .phone-attention-meta { display: flex; align-items: center; justify-content: space-between; gap: var(--ad-space-2); color: var(--ad-text-muted); font-family: var(--ad-font-mono); font-size: 0.5625rem; letter-spacing: 0.04em; }
@@ -50,7 +52,8 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-attention-heading { align-items: center; display: flex; gap: var(--ad-space-2); justify-content: space-between; }
 .phone-attention-heading svg { color: var(--ad-text-muted); }
 .phone-attention-tag { color: var(--ad-state-waiting); font-size: 0.625rem; }
-.phone-project-row { align-items: center; border: 0; border-radius: 0; display: flex; gap: var(--ad-space-3); padding: var(--ad-space-3); }
+.phone-project-list { gap: var(--ad-space-3); }
+.phone-project-row { align-items: center; border-radius: var(--ad-radius-large); display: flex; gap: var(--ad-space-3); padding: var(--ad-space-3); }
 .phone-project-mark, .phone-avatar { align-items: center; display: flex; justify-content: center; width: 34px; height: 35px; flex-shrink: 0; background: color-mix(in srgb, var(--ad-project-accent) 12%, var(--ad-surface-panel)); border-radius: var(--ad-radius-medium); color: var(--ad-project-accent); }
 .phone-row-text { flex: 1; min-width: 0; }
 .phone-project-row > svg { color: var(--ad-text-muted); }
@@ -163,7 +166,6 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; }
 .phone-manage-group .phone-field { flex: 1; min-width: 0; }
 .phone-error { color: var(--ad-state-error); font-size: 0.8125rem; margin: 0; overflow-wrap: anywhere; }
 .phone-check { align-items: center; display: flex; gap: var(--ad-space-2); min-height: 44px; }
-.phone-controls { border-top: var(--ad-border-thin) solid var(--ad-border-default); padding-top: var(--ad-space-3); }
 .phone-link { background: transparent; border: 0; justify-self: start; padding-inline: 0; }
 .phone-link:not(.ad-button-danger) { color: var(--ad-state-done); }
 .phone-banner { background: var(--ad-surface-subtle); font-size: 0.75rem; line-height: 1.65; margin: 0; padding: var(--ad-space-3) var(--ad-space-6); }

@@ -6,6 +6,7 @@ import { navigate } from "./router";
 import { phoneFetch } from "./api";
 import { deriveDashboardProjects } from "../features/dashboard/projectDashboardData";
 import { PhoneIcon } from "./PhoneIcon";
+import { VisuallyHidden } from "../components/ui";
 const DEBOUNCE_MS = 400;
 
 /** itemPath is where a Home row opens. */
@@ -65,7 +66,7 @@ export function HomeScreen() {
   }
   return (
     <>
-      <header className="phone-page-heading"><span className="phone-connection"><i />{link === "connected" ? "Connected to your Mac" : "Last known workspace"}</span><h1>Away, not out of the loop.</h1><p>Here’s where you can move things forward.</p></header>
+      <header className="phone-page-heading"><span className="phone-connection"><i />{link === "connected" ? "Connected to your Mac" : "Last known workspace"}</span><VisuallyHidden><h1>Home</h1></VisuallyHidden></header>
       {home.data.needs_you.length > 0 && <Section title="Needs you" items={home.data.needs_you} empty="" />}
       <Projects />
       {home.data.needs_you.length === 0 && <p className="phone-home-note"><PhoneIcon name="check" size={14} />Nothing needs your attention.</p>}
