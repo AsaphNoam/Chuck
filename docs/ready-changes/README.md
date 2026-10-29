@@ -47,10 +47,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
   recognize provider terminal quota RPC failures and check access after a named session reset
   when a monthly spend limit also blocks work; continue the same work only after success.
 
-- [`pipeline-worktrees-and-descendant-placement.md`](pipeline-worktrees-and-descendant-placement.md) —
-  optional run-owned checkout within the original project, recursive workspace/group placement,
-  and explicit terminal-run checkout cleanup.
-
 - [`optional-annotation-source-recording.md`](optional-annotation-source-recording.md) — default-on
   checkbox for recording annotation assignments in the source transcript, with **New agent** naming.
 

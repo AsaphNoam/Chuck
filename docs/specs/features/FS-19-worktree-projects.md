@@ -1,6 +1,6 @@
 # FS-19 — Worktree projects
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/worktree/`, `internal/server/worktree.go`, `internal/config/worktrees.go`, `internal/state/worktrees.go`, `ui/src/features/dashboard/` · **Journeys:** J16
 **Absorbed:** —
 
@@ -131,7 +131,7 @@ deletion, which leaves ownership intact.
   name fails actionably and leaves no partial project, branch, or directory. Verified by test.
 - **A7.** Two agents in one worktree project share one checkout; two sibling forks get
   distinct checkouts and branches from the same base. Verified by test.
-- **A8 (planned)** (R12) — Within one project, an ordinary agent retains the project checkout
+- **A8** (R12) — Within one project, an ordinary agent retains the project checkout
   while two isolated pipelines and their descendants each share their own checkout. Project
   configuration and shared resources remain unchanged. *Verify:* FS-14.A57's integration scenario.
 

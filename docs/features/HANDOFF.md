@@ -50,32 +50,6 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-**Pipeline worktrees and descendant placement** —
-[`pipeline-worktrees-and-descendant-placement`](../ready-changes/pipeline-worktrees-and-descendant-placement.md),
-**in progress** (started 2026-10-29). Plan (one owner; slices commit independently):
-
-1–3. **Done (backend):** migration 64 (`pipeline_workspaces`, `sessions.workspace_id`);
-   `StartRequest.Workspace` (omitted = project mode; every new run gets a record, legacy runs
-   none); `Lifecycle.PlanWorkspace` is read-only Git planning in `internal/server/pipeline_workspace.go`;
-   intent commits in `CreatePipelineRun` before stage rows; `ensureRunWorkspace` prepares lazily
-   at first launch under the shared claim (`pipeline-workspace:<id>`), verifies, recreates, honors
-   the `removed` tombstone; `resolveStartCheckout` is the one seam for launch/resume/switch/clone;
-   `placeRunTaskTx` sets the run group and refuses other-checkout targets in the task transaction,
-   `CheckPipelineTaskTarget` repeats it at admission; rooms use `thinkTankPlacement`; start's
-   shared-checkout warning compares effective checkouts. Tests: `pipeline_workspace_test.go`,
-   extended `TestPipelineThinkTankStageEndToEnd` and shared-workspace start test.
-   Not yet: eager preparation feedback on Start (preparation errors surface via the stage task's
-   failed start and `workspace.error`); stage-row existing-target check relies on admission.
-4. Workspace list/detail/remove API, terminal eligibility, retention after run deletion (TS-12.R15–R16).
-5. CLI/proposal/UI schemas, start/review/detail, cleanup dialog, workspace list, phone (TS-09.R65).
-6. Closure: FS-14.A57–A60/FS-19.A8 evidence, packaged probes, TS-06 matrix.
-
-Seams: Git ops `internal/worktree/git.go`; project resolver `ensureWorktreeCheckout`
-(`internal/server/worktree.go`); cwd chosen in `composeLaunchWithOptions`
-(`internal/server/launch.go`); task launches `startLaunchedTask` (`task_dispatcher.go`);
-rooms `launchReservedThinkTankAgent` (`think_tanks.go`); run tx `CreatePipelineRun`
-(`internal/state/pipelines.go`); start handler `handleStartPipelineRun`.
-
 **Running background-work indicator** —
 [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
 **resumable**. Operator decision 2026-10-29: option (a). Each popover row is named by its
@@ -101,6 +75,9 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Acceptance gates still owed
 
+- **Pipeline worktree packaged probe (TS-09.R65):** with credentials, start an isolated run from
+  the packaged app and confirm a Claude and a Codex stage agent actually run (and resume) in the
+  run checkout; fake-provider capture and real-Git fixtures pass.
 - **BROWSE-LAT native picker:** JXA activation probe took 0.10s versus AppleScript's 2.29s,
   and a real JXA panel returned `User canceled. (-128)`. Computer use could not target the
   osascript panel. Still verify selection returns a usable absolute path, the panel appears
@@ -250,6 +227,14 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review queue
 
+- **PIPE-WT** (2026-10-29): pipeline run worktrees and descendant placement, FS-14.R91–R96/
+  A57–A60, FS-19.R12/A8, TS-09.R61–R65, TS-12.R12–R17 (`77024791` + closure commit). Choices
+  for review: preparation is lazy at first launch (errors on the retained run, not the Start
+  response); every new run gets a workspace record (omitted = project mode); stage-row
+  existing-target check relies on admission; no CLI for workspace list/remove. Evidence:
+  `pipeline_workspace_test.go`, extended room e2e, `-race` on both, `make test`, `make build`,
+  `make embed`, UI 1107 tests/build, `ui/scripts/pipeline-workspace-journey.mjs` (68 checks).
+  Packaged provider probe owed (Acceptance gates).
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
   numbered template library, light overview/timeline, stage rail/editor and start-dialog
@@ -411,9 +396,9 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 - **2026-10-29 — Approved pipeline worktrees and descendant placement:** technical/lifecycle
   contract confirmed, including additive API, retained workspace management after run deletion,
-  explicit-removal tombstone and desktop cleanup. Created
-  [`pipeline-worktrees-and-descendant-placement`](../ready-changes/pipeline-worktrees-and-descendant-placement.md)
-  as **Waiting to start** and removed its idea entry. Planned FS-14.R91–R96/A57–A60,
+  explicit-removal tombstone and desktop cleanup. Created the
+  `pipeline-worktrees-and-descendant-placement` ready change (shipped 2026-10-29, review unit
+  PIPE-WT) and removed its idea entry. Planned FS-14.R91–R96/A57–A60,
   FS-19.R12/A8, TS-09.R61–R65 and TS-12.R12–R17 agree; no product code or active-change update.
   `git diff --check` and design-feature twin comparison pass. `make check-specs` reports only
   the pre-existing DELMSG-1 missing invariant tag. Supersedes the pending checkpoint below.

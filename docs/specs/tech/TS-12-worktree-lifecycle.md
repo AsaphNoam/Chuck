@@ -1,6 +1,6 @@
 # TS-12 — Worktree lifecycle
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/worktree/`, `internal/server/worktree.go`, `internal/server/worktree_handlers.go`, `internal/config/worktrees.go`, `internal/state/worktrees.go`
 **Absorbed:** —
 

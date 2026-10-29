@@ -1133,22 +1133,22 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   stored, and the editor lists them. *Verify by* the `internal/server` pipeline template handler
   test and `TemplateEditor.test.tsx`'s refused-save diagnostics case.
 
-- **A57 (planned)** (R91, R92) — Start two runs with distinct new branches, and another using the
+- **A57** (R91, R92) — Start two runs with distinct new branches, and another using the
   current checkout. Inspect the effective launch cwd for each standing owner, dedicated
   coordinator, room participant/judge and at least two generations of delegated workers. Each
   run shares its selected checkout and isolated runs differ. Retry/replacement/resume/switch
   retain it. A branch collision creates no agents and preserves setup input. *Verify:* pipeline
   integration tests capturing provider launch parameters, plus a run-start/detail browser journey.
-- **A58 (planned)** (R93) — Omit and override group in descendant task requests and check initial
+- **A58** (R93) — Omit and override group in descendant task requests and check initial
   placement in the run group through two generations, room agents and orchestrator replacement.
   Manually move an agent, then resume and advance the run; the move survives and newly created
   descendants still receive the run group. *Verify:* pipeline/task integration and UI grouping tests.
-- **A59 (planned)** (R94) — End a run with a dirty owned checkout, dismiss the removal offer, reload,
+- **A59** (R94) — End a run with a dirty owned checkout, dismiss the removal offer, reload,
   reopen it and explicitly remove. Check default retention, truthful dirty/unknown state, preserved
   branch/commits/history and no removal of a shared/external checkout. Pausing or crashing a run
   offers no terminal cleanup. *Verify:* worktree/pipeline lifecycle integration tests and a browser
   journey covering completion while absent and explicit dirty-checkout removal.
-- **A60 (planned)** (R95, R96) — For an isolated run, refuse assignment to an agent in a sibling
+- **A60** (R95, R96) — For an isolated run, refuse assignment to an agent in a sibling
   checkout or the project checkout, including a target changed between task creation and admission.
   In project mode a target in the selected project checkout is eligible, and matching isolated
   targets are eligible under ordinary authority rules. Remove an owned checkout explicitly and verify
@@ -1162,14 +1162,14 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   the first agent launch rather than inside the Start request, so a Git failure after Start
   appears on the retained run's workspace and stage attention (R91's retained-run path). Retained
   workspace list/removal is available in the desktop UI and HTTP only; no operator CLI command
-  exists for it yet. A57–A60 stay planned until the desktop/phone browser journeys and the
-  packaged Claude/Codex cwd probe have run; integration evidence is in TS-12 §6.
+  exists for it yet. A57–A60 are verified by the integration tests in TS-12 §6 and
+  `ui/scripts/pipeline-workspace-journey.mjs` (desktop 1024/1440, phone 390); the packaged
+  Claude/Codex cwd probe remains an owed credentialed gate.
 - **Pipeline workspace design (2026-10-29):** R91–R96/A57–A60 were planned. Confirmed: optional
   per-run checkout under the original project, initial run-group placement with manual moves,
   refusal of existing targets outside the checkout, and an end-of-run removal offer. The proposed
   lifecycle/API contract in TS-09.R61–R65 and TS-12.R12–R17 was approved on 2026-10-29,
   including retained workspace management after run deletion and explicit-removal resume behavior.
-  Ready change: [pipeline worktrees and descendant placement](../../ready-changes/pipeline-worktrees-and-descendant-placement.md).
   These requirements specialize the shipped shared-workspace and guidance-only group boundaries
   below; existing runs are not migrated by this draft.
 
