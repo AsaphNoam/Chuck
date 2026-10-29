@@ -71,6 +71,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
   room cards, standard chat composition and shared mentions, stable speaker tints, concurrent
   isolated openings, live ceilings, retained judge-chat results and grouping of new room agents.
 
+- [`summary-only-tool-activity.md`](summary-only-tool-activity.md) — every tool call reads as
+  one short line (description, `Ran <program>`, or short title) with a trimmed failure reason;
+  no argument dumps or output bodies.
+
 ## Paused changes
 
 - [`running-background-work-indicator.md`](running-background-work-indicator.md) — replace the

@@ -52,12 +52,6 @@ the relevant feature and technical specifications; it does not change product co
   full passive delivery after verified ACP availability. Pinned live Claude utilization/reset
   declarations have no explicit units; expose numeric percentages/time conversion only after
   provider/primary-code evidence resolves them. No guessed percent scaling or epoch arithmetic.
-- **Summary-only tool activity.** Added by the operator on 2026-10-29: remove detailed commands
-  from chat transcripts. A tool call shows only its one-line adapter title, like Codex's
-  "• Searched the web for …" lines, plus its state; that is the deepest drill-down Chuck shows.
-  The FS-03.R2 JSON-argument expansion and tool-result output bodies go away. Also show the
-  latest in-progress tool title in the working indicator. Open: what permission prompts keep,
-  and how a failed call reads.
 - **Choose an external base for AgentDeck-owned worktrees.** Support a deterministic per-project or
   per-repository checkout layout outside `$AGENTDECK_HOME` for operators whose repositories live
   under a separate workspace base. Define ownership records, base-directory changes, recovery,

@@ -307,6 +307,11 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-29 — Designed summary-only tool activity:** ready change
+  [`summary-only-tool-activity`](../ready-changes/summary-only-tool-activity.md): one-line
+  tool labels (runtime description, `Ran <program>`, short title, `Used a tool`), trimmed
+  failure reasons, no argument/output bodies (FS-03.R108/A84, TS-08.R147). Waiting to start.
+
 - **2026-10-27 — Running background-work count (FS-02.R83, TS-04.R104, TS-02.R59):** desktop
   agent cards show **N running** from a live status column the runtime republishes on each task
   lifecycle update; stopped/archived agents project zero. The composer popover (FS-03.R107) is

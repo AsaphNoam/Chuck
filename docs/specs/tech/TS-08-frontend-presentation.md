@@ -1849,12 +1849,71 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   live work. It orders rows by announcement and computes elapsed time from the
   running event's `ts`. Its popover reuses `TaskRow`'s Stop/stopping/error behavior and existing
   popover/focus primitives. Selecting a row scrolls to and focuses the related tool-call row.
-  `markBackgrounded` and the tool-call label stay unchanged. The phone composer renders no
+  `markBackgrounded` and the tool-call label stay unchanged; row names come from R147's
+  `toolLine` label. The phone composer renders no
   indicator. `AgentCard` shows FS-02.R83's count from the agent state's `background_running`,
   desktop only. Hooks: `runtime-activity` keeps the `task` slot and replaces `task-list` with
   `running-indicator`. No new dependency, token family or entrance motion is added. Proof:
   FS-03.A83 and FS-02.A64 component tests, plus a 1024px/1440px desktop and dashboard-pane render
   check in Core and Sky & Grove.
+- **R147 (planned) — One pure tool-line helper owns every tool summary.** FS-03.R108 is a
+  presentation change over unchanged durable events.
+
+  **Helper.** A pure `toolLine(call, result?)` in `ui/src/components/chat/` returns
+  `{label, state, reason?}`.
+  - The label reads, in order, a non-empty string `args.description`, then the program name for
+    a command call, then the path-shortened title, then the name, then `Used a tool`.
+  - A call is a command when its name is a known shell tool (`execute`, `exec_command`, `Bash`)
+    or its args carry a string `command`.
+  - The program name comes from a small tokenizer, not a shell parser: take the first segment
+    before `&&`, `||`, `;` or `|`; drop leading `cd …` segments, `NAME=value` words and
+    `sudo`/`env`/`time`/`nohup`; keep the basename of the first remaining word. Any doubt yields
+    `Ran a command`.
+  - The reason applies FS-03.R108's trimming to the same displayable text `ToolResult` reads
+    today.
+  - Labels clip to about 80 characters and reasons to about 120, single line, with an ellipsis.
+
+  **Consumers.** `ToolRun`, desktop `TranscriptView`, phone `AgentScreen`, `ChildActivity`,
+  `WorkingIndicator` and R146's `RunningTasks` all call it (INV §2).
+  - Each call renders its line with its matching `tool_result` folded in by `tool_call_id`, so a
+    result never renders a row.
+  - The `ToolCall` argument disclosure and `ToolResult` body are deleted rather than hidden
+    (INV §10). Their selectors leave the stylesheets (INV §13).
+  - Tool results stop being new annotation targets. An existing tool-result annotation shows on
+    its call's line, and its stored target is not rewritten.
+  - `PermissionPrompt` keeps its full request.
+
+  **Out of scope.** `markBackgrounded`, `groupTranscriptRows`'s "Ran N tools" grouping and the
+  unknown-event JSON fallback are unchanged. There is no Go, API or storage change.
+
+  **Proof.** FS-03.A84's table-driven `toolLine` tests use fixtures copied from retained Claude
+  and Codex transcripts, plus component tests on desktop, phone and child surfaces.
+
+- **R147 (planned) — Annotation source-recording choice shares the existing batch owner.**
+  For FS-13.R35–R36, extend `annotationStore` with the per-source batch checkbox value, treating
+  missing stored values as checked. Reuse its hydration, source deletion, expiry and cap paths;
+  clear the value when the batch ends by discard, last-draft removal or acknowledged send.
+  Drafts captured during an in-flight send survive as the next batch with the checked default.
+  Adding/editing within a pending batch, switching target, cancelling launch, changing layout,
+  source navigation and reload do not reset its choice or already-launched recipient identity.
+  Self delivery always uses recording irrespective of the hidden checkbox value.
+
+  Extend `useAnnotationDelivery` and `annotationBatch` once for desktop and phone; serialize the
+  inverse as TS-03.R75's `omit_source_record` only when unchecked and targeting another agent.
+  Keep this value in the submitted snapshot through preflight, launch and delivery; disable edits
+  while validation/launch/send is pending. Changing it before a new attempt resets command identity
+  under the existing payload-edit rules; an identical retry retains the command ID and choice.
+  A failed post-launch send retains that recipient rather than launching again. Continue clearing
+  only acknowledged submitted drafts and naming their destination even when `seq=0`.
+
+  Place the native labelled checkbox beside destination controls in the desktop tray and phone
+  sheet, visible for another/new agent, keyboard accessible and reachable with the phone keyboard
+  open. Reuse current control styles; no new visual system or modal. Rename the annotation
+  destination and associated launch/retry copy to **New agent** on desktop, phone and room trays;
+  preserve internal target discriminants and ordinary durable-task terminology. Room trays gain
+  no recording option. Verify batch lifecycle and wire payloads through existing store/delivery/
+  component tests, and complete FS-13.A25–A26's focused rendered assignment journey (INV §2,
+  INV §8, INV §10, INV §11).
 
 ## 3. Interfaces & data shapes
 

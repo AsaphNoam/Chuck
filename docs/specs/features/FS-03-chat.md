@@ -32,6 +32,8 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   other structured result shows formatted JSON);
   unified file diffs; permission prompts; turn errors; turn boundaries; and backend-switch dividers.
   An unknown event remains inspectable as formatted JSON rather than disappearing.
+  R108 (planned) replaces the tool-call argument expansion and tool-result bodies with one-line
+  summaries.
 - **R3.** The transcript follows new events while the reader remains at the bottom. Scrolling away
   suspends auto-follow and exposes **Jump to latest**, so streaming output does not take control of
   the reader's scroll position. Only scrolling toward older content leaves the bottom: a row whose
@@ -897,6 +899,28 @@ when accepted by HTTP but an id-less repeat is still a new command.
   stays nested in the transcript (R58) and is not listed. Lifecycle events, retention, replay,
   resume/clone fencing and Stop authority are unchanged; only R59's list presentation is
   replaced.
+- **R108 — Tool activity reads as one-line summaries.** (planned) In live, archived and
+  phone transcripts, including nested child activity, each tool call is one line, and that line is
+  the deepest detail Chuck shows for it. The line has no "Tool call:" prefix, no expandable
+  arguments and no output body. Its label is chosen in this order:
+  1. a short description the runtime supplies with the call (e.g. Claude's `Run spec checks`);
+  2. for a shell command, **Ran** and the program name only (`Ran git`, `Ran npm`), with leading
+     directory changes, environment assignments and wrappers such as `sudo`/`env` skipped and a
+     path reduced to its last segment; an unparseable command reads **Ran a command**;
+  3. the runtime's title with any file path reduced to its last segment (`Read file SKILL.md`);
+  4. the tool name; and finally **Used a tool**.
+
+  Every label is one line and clipped with an ellipsis, so a missed case still reads short. A
+  running call reads **running**, a backgrounded one keeps R67's label, and a completed call adds
+  no suffix. A failed call reads **failed** plus, when its result has text, one trimmed reason:
+  code fences, error-wrapper tags, blank lines and bare `Exit code N` lines are skipped. The
+  first remaining line is clipped. When none remains, the call reads **failed** alone (typical
+  for Codex). Tool results render no row of their own. The working indicator reads **Working ·
+  <label>** for the latest in-progress call of the running turn. R107's popover rows use the
+  same label. Permission prompts keep showing the full request (R26). Durable events, archive
+  content, search, agent-facing transcript reads and unknown-event JSON are unchanged.
+
+## 3. States & transitions
 
 ## 3. States & transitions
 
@@ -1592,6 +1616,17 @@ phone and CLI callers with actual provider-submission counts in controlled fixtu
   still reads running removes the indicator. Reload, archive and phone views show no indicator or
   list. *Verify:* indicator/popover component tests, `ChatPanel` tests for
   absence and count, phone render test, and a fake-ACP rendered scenario.
+- **A84** (R108, R2, R26, R67) — (planned) Label oracle over fixtures drawn from retained real
+  transcripts. A Claude call with a description shows that description. Codex commands show:
+  `git status --short && …` as `Ran git`, `cd ui && npm test` as `Ran npm`,
+  `FOO=1 /usr/bin/env python3 x.py` as `Ran python3`, and an empty or unparseable command as
+  `Ran a command`. `Read file '/a/b/SKILL.md'` shows `Read file SKILL.md`. An untitled, unnamed
+  call shows `Used a tool`, and a 2,000-character multi-line title renders as one clipped line.
+  A failed Claude result fenced with `Exit code 1` reads `failed` plus its first meaningful
+  line. A `content: null` Codex failure reads `failed`. No argument expansion or output body
+  exists live, in archive, on the phone or inside a child. A pending permission still shows the
+  full command. The working indicator names the in-progress call. *Verify:* label/reason
+  unit tests, `ToolRun`/`ChatPanel`/phone component tests and a fake-ACP rendered scenario.
 
 ## 6. Deviations & open decisions
 
