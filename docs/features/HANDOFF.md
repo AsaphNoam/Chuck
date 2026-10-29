@@ -20,8 +20,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
-- **Permission-save investigation:** PERM-SAVE has one open **Worth fixing** diagnostic finding;
-  the reported unchecked toggle's field cause remains undetermined pending affected server evidence.
+- **Permission-save investigation:** PERM-SAVE-1 is repaired; the reported unchecked toggle's
+  field cause remains undetermined pending affected server evidence.
 - **Browse latency:** BROWSE-LAT-1 repaired with fixed JXA script invocation; native selection,
   foreground placement and click-to-panel timing remain owed below.
 - **Claude effort fix:** CEF-1 is closed: the shared starter now declares `xhigh`.
@@ -294,50 +294,6 @@ no Go/API/storage change).
   row reveals the call lines (results folded in per R108) and joined permission chips, and drop
   the supersedes clause. Spec-only.
 
-### PERM-SAVE — Permission checkbox investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-**Report, verbatim:** “the skip permissions prompts checkbox is broken, clicking on it pops
-'saving' for a fraction of a second and the checkbox stays empty”. Affected version, server URL,
-browser and request/response logs were not supplied. Investigated checkout `052147af`, macOS arm64.
-No server answered at `127.0.0.1:4317`, including an unsandboxed read attempt; no Chuck browser tab
-was available and native inspection was unavailable because the Mac was locked. The installed CLI
-shim points at 0.15.1, while repository `bin/chuck` records `65aa72a4`; neither identifies the
-reported server. The retained `~/.chuck/dashboard.log` ends October 24 and cannot explain this click.
-
-**Expected / attribution:** FS-04.R60/A39 require the toggle to persist both directions and explain
-failed saves. The current implementation includes `181012ac`'s PDEF-R1 repair: optional boolean
-decode/merge in `internal/server/config_handlers.go:869,977`, disk persistence, and next-launch
-refresh. Existing component tests (2) and
-`TestPutConfigSkipPermissionsRoundTripsAndPreservesOmission` pass on this checkout. Thus a current
-server persistence regression is **undetermined**, not confirmed. Before `181012ac`, a server could
-acknowledge this field with HTTP 200 while leaving it unchanged, which matches the reported symptom;
-an outdated server is a hypothesis only. The onboarding cache shape was checked but its gate is
-not mounted on the Settings route, so it is not an explanation for this report.
-
-- **Worth fixing** — PERM-SAVE-1, **confirmed diagnostic defect; field attribution undetermined**
-  (FS-04.R60/A39; INV §8/§11/§17). At
-  `ui/src/features/settings/PermissionPolicyEditor.tsx:26`, a successful PUT response is installed
-  without checking that `saved.skip_permissions` equals the submitted value. A server returning the
-  unchanged policy makes Saving disappear and resets the checkbox without a readable error.
-  `usePutConfig` (`ui/src/api/config.ts:295–306`) treats any HTTP 2xx JSON response as success.
-  Existing component fixtures always merge the requested value, masking this actual pre-PDEF-R1
-  response shape. Fix complexity: trivial/easy. Detect an acknowledged-but-unapplied policy at the
-  existing mutation seam, retain the server's value, and surface the mismatch so a future report
-  distinguishes an ignored write from a failed request. This diagnostic repair alone does not
-  establish or repair the cause in the affected server.
-
-  **Reproduction / verification:** added one component case using the historical real handler's
-  unchanged-policy HTTP 200 shape. It reaches the settled, enabled, unchecked state and fails on
-  the missing `alert`; retained as `it.skip` in `PermissionPolicyEditor.test.tsx` with this finding
-  ID for the fix session. No product code or specification changed. Focused component suite passes
-  with the reproduction skipped (2 passed, 1 skipped); the real server persistence/next-launch test
-  passes (`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1`, isolated writable cache).
-  Next field evidence: affected server version and the click's PUT plus subsequent GET response,
-  distinguishing old server, save rejection, or later overwrite. No correlated evidence exists
-  here to justify a separate persistence fix or claim that the setting actually changed.
-  `git diff --check` passes. `make check-specs` fails only on the pre-existing DELMSG-1
-  finding lacking an INV tag; this investigation does not alter that unit.
-
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
@@ -363,6 +319,18 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-29 — Repaired PERM-SAVE-1 (INV §8/§11/§17):** the permissions editor now checks a
+  successful response against the requested policy, keeps the returned server value, and shows a
+  readable error when the value did not change. The previously skipped HTTP 200 unchanged-policy
+  regression failed before the repair and passes with the repair. FS-04.R60/A39 now specify this
+  response behavior. `make check-specs` and the focused component suite pass. Isolated UI closure
+  with only the PERM-SAVE changes applied passes all 1,090 tests and `npm run build` (including
+  style and presentation checks). Logs: `/private/tmp/perm-save-check-specs.log` and
+  `/private/tmp/perm-save-snapshot-ui-{test,build}.log`. The full UI run on the shared checkout
+  also exposed failures in concurrent tool-summary edits (`AgentScreen.tsx` references undefined
+  `toolResults`; build also reports missing `results` and unused `resultsByCall`); those files were
+  preserved. The affected server's field cause remains undetermined.
 
 - **2026-10-29 — Repaired BROWSE-LAT-1 (INV §12):** directory Browse now uses a fixed JXA
   script through direct `/usr/bin/osascript` argv, avoiding AppleScript's activation stall.

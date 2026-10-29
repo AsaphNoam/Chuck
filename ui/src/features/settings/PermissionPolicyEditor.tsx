@@ -23,7 +23,12 @@ export function PermissionPolicyEditor() {
           queryClient.setQueryData(QUERY_KEYS.config, previous);
           setError(`Default permissions were not saved: ${configErrorMessage(reason)}`);
         },
-        onSuccess: (saved) => queryClient.setQueryData(QUERY_KEYS.config, saved),
+        onSuccess: (saved) => {
+          queryClient.setQueryData(QUERY_KEYS.config, saved);
+          if (saved.skip_permissions !== next) {
+            setError("Default permissions were not saved: the server kept the previous value.");
+          }
+        },
         onSettled: () => { void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.config }); },
       },
     );

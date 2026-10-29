@@ -193,8 +193,10 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   use default permissions, and that changes affect new launches only (R13). Persona forms and
   rows name the inheriting choice **Use default permissions** / **Default permissions** rather than
   a provider-sounding "global" setting. A pending or failed load disables the toggle; a failed save
-  restores the saved value and shows the readable error. Chuck's policy remains independent of
-  provider-native approval settings (R1).
+  restores the saved value and shows the readable error. If a successful response reports a
+  different `skip_permissions` value than requested, the editor retains that server value and
+  explains that the policy was not saved. Chuck's policy remains independent of provider-native
+  approval settings (R1).
 
 - **R61 (implemented 2026-10-24)** — Fresh installations seed global `skip_permissions: true`. No persona
   and all other seeded personas inherit that policy through `skip_permissions: null`, so their
@@ -599,8 +601,10 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 
 - **A39 (implemented 2026-10-19)** (R60) — In Settings → Roles, toggle **Skip permission prompts**
   on and off: each change sends only `skip_permissions` and reloading shows the saved value. A
-  failed save restores the prior value and shows the server reason. The persona form's inheriting
-  option reads **Use default permissions**. *Verify:* `PermissionPolicyEditor.test.tsx` and
+  failed save restores the prior value and shows the server reason; a successful response that
+  leaves the policy unchanged also shows a readable save error while retaining the returned value.
+  The persona form's inheriting option reads **Use default permissions**. *Verify:*
+  `PermissionPolicyEditor.test.tsx` and
   `RoleForm.test.tsx`; `TestPutConfigSkipPermissionsRoundTripsAndPreservesOmission` verifies the
   real configuration handler persists both boolean values, preserves the policy when omitted,
   and supplies the saved policy to the next launch without restarting the server.

@@ -74,7 +74,7 @@ describe("PermissionPolicyEditor", () => {
   // PERM-SAVE-1 / FS-04.R60, A39: before 181012ac the real PUT handler
   // returned 200 with the unchanged policy. An ignored save must be visible,
   // even though transport succeeded. This does not identify the field server.
-  it.skip("explains when a successful response did not save the requested policy", async () => {
+  it("explains when a successful response did not save the requested policy", async () => {
     server.use(http.put("/api/config", async ({ request }) => {
       lastPut = await request.json();
       return HttpResponse.json(currentConfig);
