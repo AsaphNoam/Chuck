@@ -48,34 +48,37 @@ function Membership({ room, agentId }: { room: ThinkTankSummary; agentId: string
   const projects = useProjects();
   const linked = room.roster.filter((member) => member.agent_id !== agentId);
   const duplicateNames = new Set(linked.filter((member, index) => linked.some((other, otherIndex) => otherIndex !== index && other.name === member.name)).map((member) => member.name));
-  const labelCounts = new Map<string, number>();
   const projectLabel = (project: string) => projects.data?.[project]?.title ?? project;
-  const memberLabel = (member: ThinkTankSummary["roster"][number]) => {
-    if (!duplicateNames.has(member.name)) return member.name;
-    const base = member.name + " · " + projectLabel(member.project);
-    const count = (labelCounts.get(base) ?? 0) + 1;
-    labelCounts.set(base, count);
-    return count === 1 ? base : base + " · " + member.agent_id;
-  };
+  const labels = linked.map((member) => duplicateNames.has(member.name)
+    ? member.name + " · " + projectLabel(member.project)
+    : member.name);
+  const labelsByText = new Map<string, number[]>();
+  labels.forEach((label, index) => labelsByText.set(label, [...(labelsByText.get(label) ?? []), index]));
+  for (const indexes of labelsByText.values()) {
+    if (indexes.length > 1) {
+      for (const index of indexes) labels[index] += " · " + linked[index].agent_id;
+    }
+  }
   const active = new Set(room.active_attempts.map((attempt) => attempt.agent_id));
   return (
     <section className="think-tank-membership" aria-label={roomTitle(room)}>
       <nav className="think-tank-membership-nav" aria-label={roomTitle(room) + " navigation"}>
         <Link className="think-tank-room-link" to={thinkTankPath(room.room_id)}>{roomTitle(room)}</Link>
         <div className="think-tank-member-links">
-          {linked.map((member) => {
+          {linked.map((member, index) => {
             const isActive = active.has(member.agent_id);
-            const label = memberLabel(member);
+            const label = labels[index];
             if (!member.exists) return <span className="think-tank-member-unavailable" key={member.agent_id}>{label + " (unavailable)"}</span>;
             return (
               <Link
                 className={"ad-button ad-button-secondary think-tank-member-link" + (isActive ? " is-active" : "")}
                 data-state={isActive ? "active" : "settled"}
+                data-label={label}
                 key={member.agent_id}
                 to={agentConversationPath(member.agent_id)}
                 aria-label={isActive ? label + ", taking a room turn" : label}
               >
-                {label}
+                <span>{label}</span>
               </Link>
             );
           })}

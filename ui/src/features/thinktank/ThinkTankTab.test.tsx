@@ -22,7 +22,7 @@ function room(overrides: Partial<Room> & { active_attempts?: unknown[] } = {}): 
 
 let response: () => Response = () => HttpResponse.json({ version: 1, rooms: [] });
 const server = setupServer(
-  http.get("/api/projects", () => HttpResponse.json({ alpha: { title: "Alpha", cwd: "/tmp" } })),
+  http.get("/api/projects", () => HttpResponse.json({ alpha: { title: "Alpha", cwd: "/tmp" }, beta: { title: "Beta", cwd: "/tmp" } })),
   http.get("/api/think-tanks", () => response()),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
@@ -82,6 +82,26 @@ it("keeps one group per room, including ended rooms, with long names intact", as
   expect(await screen.findByRole("link", { name: "Old decision" })).toHaveAttribute("href", "/think-tank/tt_old");
   expect(screen.getByRole("link", { name: long })).toHaveAttribute("data-state", "settled");
   expect(screen.getAllByRole("navigation")).toHaveLength(2);
+});
+
+it("keeps project-qualified duplicate names distinct from literal names", async () => {
+  response = rooms([room({ roster: [
+    me,
+    { ...fixture.room.roster[0], agent_id: "a_alpha", name: "Ari", project: "alpha" },
+    { ...fixture.room.roster[0], agent_id: "a_beta", name: "Ari", project: "beta" },
+    { ...fixture.room.roster[0], agent_id: "a_literal", name: "Ari · Alpha", project: "alpha" },
+  ] })]);
+  renderTab();
+
+  await screen.findByRole("link", { name: "Ari · Alpha · a_alpha" });
+  const links = await screen.findAllByRole("link");
+  const memberLinks = links.filter((link) => link.getAttribute("href")?.startsWith("/agent/"));
+  expect(memberLinks.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+    ["Ari · Alpha · a_alpha", "/agent/a_alpha"],
+    ["Ari · Beta", "/agent/a_beta"],
+    ["Ari · Alpha · a_literal", "/agent/a_literal"],
+  ]);
+  expect(new Set(memberLinks.map((link) => link.getAttribute("aria-label"))).size).toBe(3);
 });
 
 it("surfaces failed and empty membership reads", async () => {

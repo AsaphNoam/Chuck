@@ -1383,6 +1383,7 @@ a.think-tank-author:hover {
   display: grid;
   gap: var(--ad-space-4);
   max-width: 90ch;
+  min-width: 0;
   padding: var(--ad-space-4);
 }
 
@@ -1396,6 +1397,7 @@ a.think-tank-author:hover {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ad-space-2) var(--ad-space-3);
+  min-width: 0;
 }
 
 .think-tank-room-link {
@@ -1413,7 +1415,26 @@ a.think-tank-author:hover {
   min-width: 0;
 }
 
+.think-tank-member-link > span,
+.think-tank-member-link::before {
+  grid-area: 1 / 1;
+}
+
+.think-tank-member-link::before {
+  content: attr(data-label);
+  font-weight: 650;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.think-tank-member-link > span {
+  overflow-wrap: anywhere;
+}
+
 .think-tank-member-link {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr);
   max-width: 32ch;
   overflow-wrap: anywhere;
   padding-inline: var(--ad-space-2);
@@ -1430,6 +1451,9 @@ a.think-tank-author:hover {
 .think-tank-member-unavailable {
   color: var(--ad-text-muted);
   font-size: 0.75rem;
+  max-width: 32ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 0 var(--ad-space-2);
 }
 
