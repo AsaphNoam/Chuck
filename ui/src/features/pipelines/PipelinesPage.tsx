@@ -10,7 +10,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { PipelineAPIError, usePipelineProposals, usePipelineTemplates } from "../../api/pipelines";
-import { Button, PageHeader } from "../../components/ui";
+import { Button } from "../../components/ui";
 import type { PipelineProposal } from "../../schemas/pipeline";
 import { ChuckyBuilder } from "./ChuckyBuilder";
 import { RunDetail, RunsLedger } from "./RunBrowser";
@@ -26,12 +26,13 @@ export function PipelinesLayout() {
 
   return (
     <div className="pipelines-page" data-ui="pipelines">
-      <PageHeader
-        data-slot="header"
-        eyebrow="Sequential orchestration"
-        title="Pipelines"
-        description="Supervise live work and shape reusable delivery paths without mixing the two jobs."
-      />
+      <header className="pipeline-page-header" data-slot="header">
+        <div className="pipeline-title-lockup">
+          <span className="pipeline-page-icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="6" height="6" rx="1.5" /><rect x="15" y="15" width="6" height="6" rx="1.5" /><path d="M6 9v6a3 3 0 0 0 3 3h6M15 6h6m-3-3v6" /></svg></span>
+          <div><p className="pipeline-eyebrow">Sequential orchestration</p><h1>Pipelines</h1></div>
+        </div>
+        <p>Thoughtful workflows. Work you can follow.</p>
+      </header>
       <nav className="pipeline-tabs" aria-label="Pipeline destinations" data-slot="navigation">
         <NavLink to="/pipelines/runs" className={({ isActive }) => isActive ? "pipeline-tab pipeline-tab-active" : "pipeline-tab"}>
           Runs{startCount > 0 && <span>{startCount}</span>}
@@ -39,6 +40,7 @@ export function PipelinesLayout() {
         <NavLink to="/pipelines/templates" className={({ isActive }) => isActive ? "pipeline-tab pipeline-tab-active" : "pipeline-tab"}>
           Templates{saveCount > 0 && <span>{saveCount}</span>}
         </NavLink>
+        <span className="pipeline-tabs-note">One stage at a time</span>
       </nav>
       <main className="pipeline-route" data-slot="content"><Outlet /></main>
     </div>
@@ -69,9 +71,9 @@ export function RunsPage() {
   return (
     <div className="pipeline-destination pipeline-runs-destination">
       <header className="pipeline-section-heading" data-ui="pipeline-section">
-        <div><p className="pipeline-eyebrow">Operational ledger</p><h2>Runs</h2><p>Follow what is active now, then drill into the full execution record.</p></div>
+        <div><p className="pipeline-eyebrow">Operational ledger</p><h2>Runs</h2><p>Follow the work in motion, and the record it leaves behind.</p></div>
         <div className="pipeline-start-gate">
-          <Button variant="primary" disabled={noTemplate} onClick={() => { setProposal(null); setStartOpen(true); }}>Start run</Button>
+          <Button variant="primary" disabled={noTemplate} onClick={() => { setProposal(null); setStartOpen(true); }}><span aria-hidden="true">＋</span> Start run</Button>
           {noTemplate && <small>No template is ready to run yet. <Link to="/pipelines/templates">Create one in Templates</Link>.</small>}
         </div>
       </header>
@@ -108,27 +110,56 @@ export function TemplatesPage() {
   return (
     <div className="pipeline-destination pipeline-templates-destination">
       <header className="pipeline-section-heading" data-ui="pipeline-section">
-        <div><p className="pipeline-eyebrow">Reusable definitions</p><h2>Templates</h2><p>Keep stage logic model-neutral; choose runtimes only when a run starts.</p></div>
-        <Button variant="primary" onClick={() => navigate("/pipelines/templates/new")}>Create manually</Button>
+        <div className="pipeline-library-heading-copy">
+          <p className="pipeline-eyebrow">Reusable definitions</p>
+          <h2>Templates</h2>
+          <p>Keep stage logic model-neutral; choose runtimes only when a run starts.</p>
+        </div>
+        <div className="pipeline-library-heading-actions">
+          <Button variant="primary" onClick={() => navigate("/pipelines/templates/new")}>Create manually</Button>
+        </div>
       </header>
       <ChuckyBuilder proposalKind="save_template" showLauncher onTemplateProposal={reviewProposal} />
-      {templates.isLoading && <TemplateLibrarySkeleton />}
-      {templates.error && <p className="form-error">{templates.error.message}</p>}
-      {!templates.isLoading && (templates.data?.length ?? 0) === 0 && (
-        <section className="pipeline-empty pipeline-empty-library"><strong>No templates yet</strong><p>Start manually or ask Chucky to shape a reusable pipeline from a description.</p></section>
-      )}
-      {(templates.data?.length ?? 0) > 0 && (
-        <div className="pipeline-template-library" data-ui="pipeline-template-library" data-slot="list">
-          {templates.data?.map((record) => (
-            <Link className="pipeline-template-row" key={record.id} to={`/pipelines/templates/${encodeURIComponent(record.id)}`} data-slot="item">
-              <span className="pipeline-template-index">{String(record.template.stages.length).padStart(2, "0")}</span>
-              <span><strong>{record.template.title || record.id}</strong><small><code>{record.id}</code> · {record.template.stages.length} stage{record.template.stages.length === 1 ? "" : "s"}</small></span>
-              <span className={record.valid ? "pipeline-validation pipeline-validation-valid" : "pipeline-validation pipeline-validation-invalid"}>{record.valid ? "Ready" : `${record.diagnostics.length} issues`}</span>
-              <span aria-hidden="true" className="pipeline-row-arrow">→</span>
-            </Link>
-          ))}
+      <section className="pipeline-library-content" aria-label="Saved pipeline templates">
+        <div className="pipeline-library-label">
+          <span>Saved templates</span>
+          <span>{templates.data?.length ?? 0} total</span>
         </div>
-      )}
+        {templates.isLoading && <TemplateLibrarySkeleton />}
+        {templates.error && <p className="form-error pipeline-library-error">{templates.error.message}</p>}
+        {!templates.isLoading && (templates.data?.length ?? 0) === 0 && (
+          <section className="pipeline-empty pipeline-empty-library">
+            <strong>No templates yet</strong>
+            <p>Create a definition manually or ask Chucky to shape a reusable pipeline from a description.</p>
+          </section>
+        )}
+        {(templates.data?.length ?? 0) > 0 && (
+          <div className="pipeline-template-library" data-ui="pipeline-template-library" data-slot="list">
+            {templates.data?.map((record) => (
+              <Link className="pipeline-template-row" key={record.id} to={`/pipelines/templates/${encodeURIComponent(record.id)}`} data-slot="item">
+                <span className="pipeline-template-index">
+                  <strong>{String(record.template.stages.length).padStart(2, "0")}</strong>
+                  <small>{record.template.stages.length === 1 ? "stage" : "stages"}</small>
+                </span>
+                <span className="pipeline-template-identity">
+                  <strong>{record.template.title || record.id}</strong>
+                  <small><code>{record.id}</code></small>
+                </span>
+                <span className="pipeline-template-validation">
+                  <span className={record.valid ? "pipeline-validation pipeline-validation-valid" : "pipeline-validation pipeline-validation-invalid"}>
+                    {record.valid ? "Ready to run" : `${record.diagnostics.length} ${record.diagnostics.length === 1 ? "issue" : "issues"}`}
+                  </span>
+                  {!record.valid && <small>Open to review validation</small>}
+                </span>
+                <span aria-hidden="true" className="pipeline-row-arrow">→</span>
+              </Link>
+            ))}
+          </div>
+        )}
+        {!templates.isLoading && (templates.data?.length ?? 0) > 0 && (
+          <p className="pipeline-library-footnote">Runtime assignments are chosen for each run; these definitions stay model-neutral.</p>
+        )}
+      </section>
     </div>
   );
 }

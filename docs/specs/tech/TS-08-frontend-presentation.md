@@ -1916,6 +1916,15 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   component tests, and complete FS-13.A25–A26's focused rendered assignment journey (INV §2,
   INV §8, INV §10, INV §11).
 
+- **R149 — Pipeline study presentation extends the existing feature seams.**
+  FS-12.R71 is implemented in the pipeline feature components and layered feature CSS,
+  reusing shared controls and semantic tokens. The existing query/store and control eligibility
+  remain the data authority; ledger refresh feedback derives from the query's actual fetch
+  state and does not claim a connected stream. State and final outcome retain separate
+  labels. No new theme, dependency, API, storage preference or synthetic execution model
+  accompanies the visual overhaul. Browser evidence covers the real routes at 1024px and
+  1440px in Core, Sky & Grove and Studio, including long content and loading/error/empty states.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

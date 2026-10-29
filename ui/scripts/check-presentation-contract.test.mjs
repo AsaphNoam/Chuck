@@ -135,7 +135,8 @@ test("promotes the shared soft overlay and message geometry to every appearance"
   const menu = featureRule("dashboard.css", ".context-menu");
   assert.match(menu, /border-radius:\s*var\(--ad-radius-medium\);/);
   assert.doesNotMatch(menu, /--ad-border-thick|\b8px solid/);
-  assert.match(featureRule("pipelines.css", ".pipeline-run-title h2"), /font-size:\s*1\.875rem;/);
+  // The approved pipeline study uses a quieter overview title (FS-12.R71).
+  assert.match(featureRule("pipelines.css", ".pipeline-run-title h2"), /font-size:\s*1\.5rem;/);
 });
 
 test("rejects implementation classes in production skin selectors", () => {

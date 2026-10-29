@@ -206,6 +206,23 @@ from transcripts; that broader change is being defined in `docs/ideas.md`.
 
 ## Review queue
 
+- **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
+  TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
+  numbered template library, light overview/timeline, stage rail/editor and start-dialog
+  finish. Existing real actions/routes remain; prototype-only controls are excluded.
+  Pipeline focused tests pass 42/42; final integrated UI suite passes 1068 with 1 skipped. Styles,
+  presentation contracts, type/build and `make embed` pass; `git diff --check` passes.
+  `make check-specs` retains only the pre-existing DELMSG-1 missing invariant-tag failure.
+  Independent browser evidence: `ui/scripts/pipelines-render.mjs`, all appearances at
+  1024/1440, populated runs/templates/detail/editor and Setup→Review dialog, pagination,
+  event refresh and internal stage-rail overflow (120 checks); empty/loading/error each pass
+  24 checks, 192 total. Independent rendered critique has no remaining material findings.
+  Screenshots in shared
+  resources `pipelines-final/`. Figma MCP supplies source but does not support Make screenshots;
+  its workspace source is truncated, so exact target screenshot comparison is unverified.
+  Pre-existing generated index saved as shared `pipelines-preexisting-index.html` before
+  regenerating the embedded output from integrated source.
+
 - **GROUP-SKILL** (2026-10-29, UI): group-background New agent seeds the editable Group
   field without leaking into later openings; `@` offers advertised commands alongside files
   and room participants, while `/` and the existing `#` open commands. FS-02.R77/A58,

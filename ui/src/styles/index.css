@@ -9,6 +9,7 @@
 @import "./features/agent.css";
 @import "./features/archive.css";
 @import "./features/pipelines.css";
+@import "./features/pipeline-library.css";
 @import "./features/tasks.css";
 @import "./features/think-tank.css";
 @import "./features/settings.css";

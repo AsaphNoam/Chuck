@@ -600,6 +600,17 @@ Requirements are user-observable.
   1024px floor with five entries plus `+n`, never wraps or pushes the agent panel down, and keeps
   Back and the agent id visible. All three appearances use their semantic palettes.
 
+- **R71 — Pipelines follows the approved Figma Make pipelines study.** The
+  persistent header pairs a small pipeline mark with the route title, a quiet description,
+  and underlined Runs/Templates navigation. Runs uses a light, ruled ledger with readable
+  identity, current/final stage, project, state and separate final outcome, update time and
+  an opening affordance. Retained count and update feedback sit above it; history loading
+  remains in its footer. Templates use separated numbered rows; run details and template
+  authoring inherit the study's restrained panel, timeline and form hierarchy. All three
+  appearances share this composition using their existing semantic palettes. Existing
+  routes, real proposal approval, runtime setup and recovery controls remain authoritative;
+  prototype-only state switches, mock data and preview notices are excluded.
+
 ## 3. States & transitions
 
 - **Route change:** the persistent shell remains visually stable while the current-route
@@ -880,6 +891,14 @@ Requirements are user-observable.
   motion no busy dot animates, including one that turns busy while the page is open. *Verify:* presentation checks and the A76 rendered pass; covered by
   `ui/scripts/breadcrumb-render.mjs` (stubbed stream, all listed cases) and
   `ui/scripts/breadcrumb-live-check.mjs`.
+
+- **A41** (R71) — Compare the Figma pipelines study with the real Runs,
+  Templates, run detail and template editor at 1024px and 1440px in Core, Sky & Grove
+  and Studio. Long names, active/paused/completed/stopped records and loading/error/empty
+  states remain readable without page overflow. Pagination retains existing rows and
+  live refresh updates the ledger; proposal review, start gating and editor actions remain
+  reachable. Exclude the Make prototype's synthetic controls and execution data.
+  *Verify:* existing pipeline component tests, presentation checks and the pipeline render harness.
 
 ## 6. Deviations & open decisions
 

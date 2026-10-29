@@ -24,14 +24,16 @@ export function RunsLedger() {
   if (runs.length === 0) return <section className="pipeline-empty pipeline-empty-ledger"><strong>No runs yet</strong><p>Start a run to turn a reusable template into supervised work.</p></section>;
 
   return (
-    <section className={query.isFetching ? "pipeline-ledger pipeline-updating" : "pipeline-ledger"} data-ui="pipeline-run-list" data-slot="list">
-      <div className="pipeline-ledger-head" aria-hidden="true"><span>Run</span><span>Stage</span><span>Project</span><span>State</span><span>Updated</span><span /></div>
+    <section className="pipeline-ledger-section">
+      <div className="pipeline-ledger-caption"><span>{total} retained runs <span aria-hidden="true">·</span> Newest first</span><span className="pipeline-refresh-state" role="status">{query.isFetching ? "Updating ledger…" : "Ledger up to date"}</span></div>
+      <div className={query.isFetching ? "pipeline-ledger pipeline-updating" : "pipeline-ledger"} data-ui="pipeline-run-list" data-slot="list">
+      <div className="pipeline-ledger-head" aria-hidden="true"><span>Run</span><span>Current / final stage</span><span>Project</span><span>State / outcome</span><span>Updated</span><span /></div>
       {runs.map((run) => (
         <Link className="pipeline-ledger-row" key={run.run_id} to={`/pipelines/runs/${encodeURIComponent(run.run_id)}`} data-slot="item">
           <span className="pipeline-ledger-identity"><strong>{run.display_name || run.template_id}</strong><small><code>{run.run_id}</code></small></span>
-          <span><small>Current stage</small>{run.current_stage_title || run.current_stage_id || "Complete"}</span>
-          <span><small>Project</small>{run.project}</span>
-          <span className={`pipeline-state pipeline-state-${run.state}`}>{run.final_outcome || run.state}</span>
+          <span className="pipeline-ledger-stage">{run.current_stage_title || run.current_stage_id || "Complete"}</span>
+          <span className="pipeline-ledger-project">{run.project}</span>
+          <span className="pipeline-ledger-status"><span className={`pipeline-state pipeline-state-${run.state}`}>{humanize(run.state)}</span>{run.final_outcome && <small className={`pipeline-outcome pipeline-state-${run.final_outcome}`}>{humanize(run.final_outcome)}</small>}</span>
           <time dateTime={run.updated_at}>{formatRelative(run.updated_at)}</time>
           <span className="pipeline-row-arrow" aria-hidden="true">→</span>
           {run.diagnostics.map((diagnostic) => <small className="form-error pipeline-ledger-diagnostic" key={diagnostic.code}>{diagnostic.message}</small>)}
@@ -43,6 +45,7 @@ export function RunsLedger() {
           ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? "Loading…" : "More runs"}</button>
           : <span className="pipeline-history-complete">Complete history loaded</span>}
       </footer>
+      </div>
     </section>
   );
 }
