@@ -26,6 +26,7 @@ import { ROOM_FILE_KEYS, useFileTabRoute } from "../fileTabs/useFileTabRoute";
 import { SanitizedMarkdown } from "../../components/chat/renderers/SanitizedMarkdown";
 import type { FileLink } from "../../components/chat/renderers/filePath";
 import { eventRenderer } from "../../components/chat/TranscriptView";
+import { resultsByCall } from "../../components/chat/toolLine";
 import { canAnnotate, eventDraft, selectionWithin } from "../../lib/annotations";
 import { markBackgrounded, nestActivities } from "../../components/chat/runtimeActivity";
 import { TurnList, useTurnChoices } from "../../components/chat/TurnList";
@@ -173,8 +174,10 @@ function Room({ room }: { room: ThinkTankDetail }) {
 
   const renderActivity = (agentID: string, events: TranscriptEvent[], attemptID: string) => {
     const toRoomDraft = (draft: AnnotationDraft): AnnotationDraft => ({ ...draft, room_anchor: "activity" } as AnnotationDraft);
+    const nested = nestActivities(markBackgrounded(foldTranscript(events)));
     const render = eventRenderer({
       agentId: agentID,
+      results: resultsByCall(nested),
       onAnnotate: (draft) => addAnnotation(sourceKey, toRoomDraft(draft)),
       onContextMenu: (mouse, event) => {
         if (!canAnnotate(event)) return;
@@ -192,7 +195,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
       },
       onOpenFile: openFrom(attemptID),
     });
-    return <TurnList agentId={agentID} events={nestActivities(markBackgrounded(foldTranscript(events)))} scope={`${attemptID}:`} choices={turnChoices} renderEvents={(list) => render(list, [], 1)} />;
+    return <TurnList agentId={agentID} events={nested} scope={`${attemptID}:`} choices={turnChoices} renderEvents={(list) => render(list, [], 1)} />;
   };
 
   const shownEntries = entries.data?.entries ?? [];

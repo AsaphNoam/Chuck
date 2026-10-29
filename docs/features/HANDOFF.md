@@ -14,8 +14,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
 - **Review state:** review unit MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
-  finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE has one
-  **Must fix** (TOOL-LINE-1) and one **Worth fixing** (TOOL-LINE-2); MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
+  finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE is
+  closed (TOOL-LINE-1/2 fixed 2026-10-29); MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
   DELMSG is closed (DELMSG-1 fixed). The v0.20.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
@@ -55,7 +55,7 @@ related tool call's adapter title and shows state and elapsed time. The jump onl
 the command started; no output is shown or copied (TS-04.R64). Real transcripts show no output
 reaches the tool call: Codex results are `content: null` and Claude returns only a
 "running in background, output in <tmp file>" notice. Tool detail is now gone from transcripts
-(TOOL-LINE, open review findings); popover rows take their name from `toolLine(call).label`
+(TOOL-LINE, closed); popover rows take their name from `toolLine(call).label`
 (`ui/src/components/chat/toolLine.ts`).
 
 - **Done (slice 1):** the runtime publishes each generation's open task count into
@@ -260,40 +260,6 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review findings
 
-### TOOL-LINE — Summary-only tool activity (2026-10-29, `a2139d62`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed FS-03.R108/A84 (R2/R25/R26), TS-08.R147, TS-04.R99 wording and the UI diff. Implementer
-notes (1)–(4) are sound and closed: the title-kept Codex file read and the non-live **running**
-drop are both specified in TS-08.R147/FS-03.R108; the nested-row `margin-inline: 0` renders
-left-aligned; the duplicate heading removal is correct. Independent rendered check:
-`turns-journey.mjs` 25/25 on the `activity_showcase` fixture plus expanded tool lines at
-1024/1440px in Core and Sky & Grove (single 15px lines, no bodies, no clipping); phone render clean.
-INV sweep: §2 satisfied (one `toolLine` for desktop, phone, child, Think Tank, working
-indicator); §8 labels/reasons bounded to 80/120 single-line; §10 and §17 findings below; §13 new
-classes all have selectors and no removed class is still referenced; §16 per-render work is
-bounded by the list/turn; §1, §3–§7, §9, §11, §12, §14, §15 have no surface (presentation-only,
-no Go/API/storage change).
-
-- **Must fix** — TOOL-LINE-1 (TS-08.R147, FS-03.R108; INV §10/§17). `groupTranscriptRows`
-  (`ui/src/components/chat/toolRun.tsx:16`) builds its result map from the list it is given, but
-  `TurnList` (`TurnList.tsx:67,78`) calls `renderEvents` once per turn *part*. In a completed
-  turn any visible row (a notice, error, or steer `user_text`) between a call and its result
-  puts them in different parts, so the call reads with no suffix and the result is dropped.
-  Reproduced with a scratch `TranscriptView` test: `tool_call npm test` → `notice` →
-  `tool_result failed "3 tests failed"` → answer → `turn_end`, Show activity, open runs: the
-  line reads `Ran npm`, not `Ran npm · failed: 3 tests failed`. Before this change the failed
-  result rendered as its own row, so a historical failure is now hidden; R147 explicitly
-  promises a result after another row still reads its outcome. Fix: build the map once from the
-  whole transcript (including nested child items) in `TranscriptView`/`AgentScreen` and pass it
-  through `renderRows`/`eventRenderer` to `groupTranscriptRows`. Test: the scenario above in
-  `TranscriptView.test.tsx` (and a phone twin if the seam differs).
-- **Worth fixing** — TOOL-LINE-2 (FS-03.R26; INV §10). R26 still says opening **Ran _n_ tools**
-  reveals "every non-empty or failed result for inspection", that the approved call's result
-  "stays inside", that a no-payload success "is omitted", and that it "supersedes R25" — all
-  contradicting R108 and the rewritten R25 (results never render a row). Fix: reword R26 so the
-  row reveals the call lines (results folded in per R108) and joined permission chips, and drop
-  the supersedes clause. Spec-only.
-
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
@@ -320,6 +286,17 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-29 — Closed TOOL-LINE (TOOL-LINE-1 INV §10/§17, TOOL-LINE-2 INV §10):** each
+  transcript view (desktop, phone, Think Tank activity) now builds one `resultsByCall` map over
+  its whole nested list, child activity included, and passes it to every `groupTranscriptRows`
+  call, so a call split from its result by a visible row in a completed turn still reads
+  **failed: …**. Desktop and phone regressions (`folds a result separated from its call by a
+  visible row`) failed on the old code and pass. TS-08.R147 states the wiring; FS-03.R26 now
+  says the run reveals call lines with folded results and permission chips, without the stale
+  result-row and supersedes-R25 text. `make check-specs` and `npm run build` pass; `npm test`
+  passes 1091/1092 — the one failure, `CardGrid` "cycles composer focus across group sections"
+  (cannot find label `Composer a_1`), is an intermittent pre-existing flake that also fails 3/4
+  in isolation on the pre-fix tree. The originating unit is complete.
 - **2026-10-29 — Repaired PERM-SAVE-1 (INV §8/§11/§17):** the permissions editor now checks a
   successful response against the requested policy, keeps the returned server value, and shows a
   readable error when the value did not change. The previously skipped HTTP 200 unchanged-policy

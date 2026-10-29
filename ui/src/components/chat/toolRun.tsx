@@ -7,13 +7,13 @@ import { resultsByCall } from "./toolLine";
 // grouping. A result never renders a row: each call's line folds it in by
 // tool_call_id (FS-20.R13, FS-03.R108, INV §2).
 
-// A run's results come from the whole list, so a call whose result lands after
-// an unanswered permission or another row still reads its outcome.
+// A run's results come from the whole transcript, so a call whose result lands
+// after an unanswered permission or another row — even in a later turn part —
+// still reads its outcome. Callers rendering a slice pass the transcript's map.
 export type TranscriptRow = { kind: "event"; event: TranscriptEvent } | { kind: "tool-run"; events: TranscriptEvent[]; results: Map<string, TranscriptEvent> };
 
-export function groupTranscriptRows(events: TranscriptEvent[]): TranscriptRow[] {
+export function groupTranscriptRows(events: TranscriptEvent[], results = resultsByCall(events)): TranscriptRow[] {
   const rows: TranscriptRow[] = [];
-  const results = resultsByCall(events);
   for (let index = 0; index < events.length;) {
     const event = events[index];
     if (!isToolEvent(event)) {

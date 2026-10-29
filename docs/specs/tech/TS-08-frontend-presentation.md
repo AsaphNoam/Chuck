@@ -1877,8 +1877,10 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   - Labels clip to 80 characters and reasons to 120, single line, with an ellipsis.
   - `ToolCall` drops the **running** suffix when its `ThoughtScope` is not live (a completed
     turn or terminal child), so an unanswered call in history never reads as running.
-  - `groupTranscriptRows` builds each list's result map once, so a call whose result lands after
-    an unanswered permission or another row still reads its outcome.
+  - Each transcript view builds one result map with `resultsByCall` over its whole nested list,
+    including child activity, and passes it through every `groupTranscriptRows` call. A call
+    therefore still reads its outcome when an unanswered permission or another row separates it
+    from its result, even when that row splits a completed turn into separate parts.
 
   **Consumers.** `ToolRun`, desktop `TranscriptView`, phone `AgentScreen`, `ChildActivity`,
   `WorkingIndicator` and R146's `RunningTasks` all call it (INV §2).

@@ -431,6 +431,28 @@ describe("AgentScreen", () => {
     expect(screen.getByRole("list", { name: "Conversation" })).not.toHaveTextContent("raw-result-json");
   });
 
+  // TS-08.R147: a visible row splits a completed turn's activity, but the call still reads its result.
+  it("folds a result separated from its call by a visible row", async () => {
+    live = {
+      agent_id: "a1",
+      events: [
+        { agent_id: "a1", seq: 9, type: "user_text", ts: "", data: { text: "Ask" } },
+        { agent_id: "a1", seq: 10, type: "tool_call", ts: "", data: { tool_call_id: "c1", name: "Bash", args: { command: "npm test" } } },
+        { agent_id: "a1", seq: 11, type: "notice", ts: "", data: { text: "Context compacted" } },
+        { agent_id: "a1", seq: 12, type: "tool_result", ts: "", data: { tool_call_id: "c1", status: "failed", content: "3 tests failed" } },
+        { agent_id: "a1", seq: 13, type: "assistant_text", ts: "", data: { text: "Done." } },
+        { agent_id: "a1", seq: 14, type: "turn_end", ts: "", data: { stop_reason: "end_turn" } },
+      ],
+      has_more: false,
+      pending_permission: null,
+      latest_assistant: "Done.",
+    };
+    renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: /Show activity/ }));
+    screen.getAllByRole("button", { name: "Ran 1 tool" }).forEach((run) => fireEvent.click(run));
+    expect([...document.querySelectorAll("[data-ui='tool-call']")].map((line) => line.textContent)).toEqual(["Ran npm · failed: 3 tests failed"]);
+  });
+
   it("keeps an approved tool's result inside its collapsed tool line (FS-03.A11)", async () => {
     live = {
       agent_id: "a1",

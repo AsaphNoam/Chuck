@@ -38,7 +38,7 @@ import { useFileTabSet } from "../features/fileTabs/useFileTabSet";
 import { canAnnotate, eventDraft, selectionWithin } from "../lib/annotations";
 import { NoticeRow } from "../components/chat/renderers/NoticeRow";
 import { ToolCall } from "../components/chat/renderers/ToolCall";
-import { currentToolLabel } from "../components/chat/toolLine";
+import { currentToolLabel, resultsByCall } from "../components/chat/toolLine";
 import { groupTranscriptRows, ToolRun } from "../components/chat/toolRun";
 import { hideFileChanges, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "../components/chat/runtimeActivity";
 import { carryLeadKey } from "../components/chat/turnActivity";
@@ -261,9 +261,11 @@ function AnnotatableEvent({ agentId, event, result, onAnnotate }: { agentId: str
 
 // renderRows is the phone's row renderer inside the shared turn list: tool runs,
 // nested native children and ordinary rows, each one list item (FS-03.R77).
-function renderRows(agentId: string, list: TranscriptEvent[], onAnnotate: (draft: AnnotationDraft) => void, ancestry: string[], depth: number): ReactNode {
-  const nested = (events: TranscriptEvent[], path: string[], level: number) => renderRows(agentId, events, onAnnotate, path, level);
-  return groupTranscriptRows(list).map((row, index) => {
+// results maps every tool result in the conversation, so a call reads a result
+// recorded in another turn part (TS-08.R147).
+function renderRows(agentId: string, list: TranscriptEvent[], results: Map<string, TranscriptEvent>, onAnnotate: (draft: AnnotationDraft) => void, ancestry: string[], depth: number): ReactNode {
+  const nested = (events: TranscriptEvent[], path: string[], level: number) => renderRows(agentId, events, results, onAnnotate, path, level);
+  return groupTranscriptRows(list, results).map((row, index) => {
     if (row.kind === "tool-run") {
       return (
         <div className="phone-message" role="listitem" key={`run:${row.events[0].seq ?? index}`} data-place={`run:${row.events[0].seq ?? index}`}>
@@ -436,6 +438,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     const spans = reasoning?.map((span) => ({ ...span, anchor: slotAfter(events, span.anchor) }));
     return nestActivities(hideFileChanges(withReasoning(markBackgrounded(events), spans, lead)));
   }, [events, reasoning, lead]);
+  const toolResults = useMemo(() => resultsByCall(rows), [rows]);
   const choices = useTurnChoices(agentId);
   const listRef = useRef<HTMLDivElement>(null);
   const trackFocus = useFocusReturn(listRef);
@@ -867,7 +870,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             <p className="phone-meta">Earlier messages are outside the phone's retained history.</p>
           )}
           <div className="phone-transcript phone-transcript-bubbles" role="list" aria-label="Conversation" ref={listRef} onFocus={trackFocus}>
-            <TurnList agentId={agentId} events={rows} lead={lead} choices={choices} renderEvents={(list) => renderRows(agentId, list, annotate, [], 1)} />
+            <TurnList agentId={agentId} events={rows} lead={lead} choices={choices} renderEvents={(list) => renderRows(agentId, list, toolResults, annotate, [], 1)} />
             {!offline && agent.running && agent.state === "busy" && <WorkingIndicator tool={currentToolLabel(events)} />}
           </div>
           {pending && <PermissionCard agent={agent} event={pending} latest={latest} disabled={offline} onSettled={refresh} />}

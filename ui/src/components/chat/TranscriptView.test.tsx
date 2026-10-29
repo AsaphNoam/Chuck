@@ -589,6 +589,24 @@ describe("TranscriptView quiet completed turns (FS-03.A55–A57)", () => {
     expect(screen.queryByText("Working 1")).toBeNull();
   });
 
+  // TS-08.R147: a visible row splits a completed turn's activity, but the call still reads its result.
+  it("folds a result separated from its call by a visible row", () => {
+    const { container } = renderTranscript(true, [
+      { kind: "user_text", seq: 1, text: "Ask" },
+      { kind: "tool_call", seq: 2, tool_call_id: "t1", name: "execute", args: { command: "npm test" } },
+      { kind: "notice", seq: 3, text: "Context compacted" },
+      { kind: "tool_result", seq: 4, tool_call_id: "t1", status: "failed", content: "3 tests failed" },
+      { kind: "assistant_text", seq: 5, text: "Done" },
+      { kind: "turn_end", seq: 6, stop_reason: "end_turn" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Show activity/ }));
+    screen.getAllByRole("button", { name: "Ran 1 tool" }).forEach((run) => fireEvent.click(run));
+
+    const lines = [...container.querySelectorAll("[data-ui='tool-call']")].map((line) => line.textContent);
+    expect(lines).toEqual(["Ran npm · failed: 3 tests failed"]);
+  });
+
   it("keeps an older reopened turn open when a newer turn completes", () => {
     const client = new QueryClient();
     const view = (list: TranscriptEvent[]) => (

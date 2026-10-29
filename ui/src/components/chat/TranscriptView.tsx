@@ -11,7 +11,7 @@ import { DiffBlock } from "./renderers/DiffBlock";
 import { PermissionPrompt } from "./renderers/PermissionPrompt";
 import { ToolCall } from "./renderers/ToolCall";
 import { groupTranscriptRows, kindOf, ToolRun } from "./toolRun";
-import { currentToolLabel } from "./toolLine";
+import { currentToolLabel, resultsByCall } from "./toolLine";
 import { TurnError } from "./renderers/TurnError";
 import { AnnotationCard } from "./renderers/AnnotationCard";
 import { NoticeRow } from "./renderers/NoticeRow";
@@ -112,18 +112,18 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     return () => observer.disconnect();
   }, []);
 
-  const renderEvents = eventRenderer({
-    agentId,
-    onAnnotate: (draft) => addAnnotation(agentId, draft),
-    onContextMenu: openMenu,
-    onOpenFile,
-  });
-
   const results = useThinkTankResults(agentId);
   const settled = useTranscriptStore((state) => Boolean(state.settled[agentId]));
   const merged = withReasoning(markBackgrounded(mergeThinkTankResults(events, results.data, settled)), reasoning);
   // A view without a Files tab keeps diffs inline (FS-03.R87).
   const nested = nestActivities(inlineDiffs ? merged : hideFileChanges(merged, reveal?.seq));
+  const renderEvents = eventRenderer({
+    agentId,
+    results: resultsByCall(nested),
+    onAnnotate: (draft) => addAnnotation(agentId, draft),
+    onContextMenu: openMenu,
+    onOpenFile,
+  });
   const choices = useTurnChoices(agentId);
   const trackFocus = useFocusReturn(scrollRef);
   // A Files-tab Diff reveal opens the completed turn hiding that row before the
@@ -227,14 +227,17 @@ function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { t
 // eventRenderer is the one row renderer for the root list and every nested
 // child (TS-08.R59). A Think Tank room reuses it for each attempt's retained
 // activity, scoped to that attempt's source agent (TS-14.R15).
-export function eventRenderer({ agentId, onAnnotate, onContextMenu, onOpenFile }: {
+export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onOpenFile }: {
   agentId: string;
+  // Every tool result in the rendered transcript (resultsByCall), so a call in
+  // one turn part reads a result recorded in another (TS-08.R147).
+  results: Map<string, TranscriptEvent>;
   onAnnotate: (draft: AnnotationDraft) => void;
   onContextMenu: (mouse: MouseEvent<HTMLDivElement>, event: TranscriptEvent) => void;
   onOpenFile?: (link: FileLink | null) => void;
 }) {
   const renderEvents = (list: TranscriptEvent[], ancestry: string[], depth: number): ReactNode =>
-    groupTranscriptRows(list).map((row, index) => {
+    groupTranscriptRows(list, results).map((row, index) => {
       if (row.kind === "tool-run") {
         return (
           <ToolRun

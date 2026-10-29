@@ -46,11 +46,13 @@ export function currentToolLabel(events: TranscriptEvent[]): string | null {
   return null;
 }
 
-// The tool result each call folds in, keyed by tool_call_id.
-export function resultsByCall(events: TranscriptEvent[]) {
-  const results = new Map<string, TranscriptEvent>();
+// The tool result each call folds in, keyed by tool_call_id, including those
+// inside nested child activity.
+export function resultsByCall(events: TranscriptEvent[], results = new Map<string, TranscriptEvent>()) {
   for (const event of events) {
     if (kindOf(event) === "tool_result" && event.tool_call_id != null) results.set(String(event.tool_call_id), event);
+    const items = (event.node as { items?: TranscriptEvent[] } | undefined)?.items;
+    if (kindOf(event) === "activity" && Array.isArray(items)) resultsByCall(items, results);
   }
   return results;
 }

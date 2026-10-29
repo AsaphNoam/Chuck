@@ -971,12 +971,11 @@ when accepted by HTTP but an id-less repeat is still a new command.
   both live and archived transcripts.
 - **R26.** The transcript locally groups each uninterrupted run of normalized
   `tool_call` and `tool_result` events into a collapsed **Ran _n_ tools** row, where _n_ is the
-  number of calls. Activating that row reveals the original calls and every non-empty or failed
-  result for inspection; any non-tool event ends the run, except that an answered permission request
-  whose `tool_call_id` matches a call already in the run joins that run (revealed with it, showing
-  its outcome chip) so the approved call's result stays inside. An unanswered request still ends
-  the run and renders as the actionable prompt. A successful result with no displayable
-  payload is omitted whether it is in a run or arrives alone. This supersedes R25. Grouping changes
+  number of calls. Activating that row reveals each call's R108 line, with its result folded in,
+  and any joined permission chips. Any non-tool event ends the run, except that an answered
+  permission request whose `tool_call_id` matches a call already in the run joins that run
+  (revealed with it, showing its outcome chip). An unanswered request still ends the run and
+  renders as the actionable prompt. Results never render a row of their own (R108). Grouping changes
   neither durable events, sequence order, live/replay behavior, nor the individual event's
   right-click annotation target.
 
