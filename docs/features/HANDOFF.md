@@ -21,6 +21,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
 - **Permission-save investigation:** PERM-SAVE has one open **Worth fixing** diagnostic finding;
   the reported unchecked toggle's field cause remains undetermined pending affected server evidence.
+- **Browse latency investigation:** BROWSE-LAT has one open **Worth fixing** confirmed finding:
+  the folder-picker script's AppleScript `activate` adds a fixed ~2s stall before the panel.
 - **Claude effort investigation:** CEF has one open **Worth fixing** finding: new Claude
   backends omit `xhigh` from their starter declarations. Sync's refusal to update effort
   metadata is specified behavior, not an import/parser defect.
@@ -252,6 +254,37 @@ from transcripts; that broader change is being defined in `docs/ideas.md`.
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
 ## Review findings
+
+### BROWSE-LAT — Slow directory Browse investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+**Report, verbatim:** “opening the 'browse' option for checking directory takes a long time (a few
+seconds to open the modal)”. No version, surface or logs supplied; the picker logs nothing on
+success. Investigated checkout `b388707f`, macOS 15.7.7 (Darwin 24.6).
+
+**Expected / classification:** FS-04.R42/A22, TS-03.R26 and TS-05.R15 require the standard macOS
+folder panel through fixed `/usr/bin/osascript` script text; none sets a latency bound. A constant
+avoidable stall in the shipped invocation is treated as a code defect, not a product question.
+
+- **Worth fixing** — BROWSE-LAT-1, **confirmed** (FS-04.R42; TS-03.R26; INV §12). At
+  `internal/server/directory_picker.go:110`, the script's first line is AppleScript `activate`.
+  Any AppleScript statement after `activate` in a fresh osascript process waits ~2s before running,
+  so `choose folder` starts ≥2s after every click. Measured on this machine, 3 runs each:
+  `osascript -e 'activate' -e 'return 1'` 2.04s; `-e 'return 1'` 0.01–0.03s; `activate` as the
+  last statement 0.06s; `activate` then `current date` 2.04s. `tell me to activate`,
+  `tell current application to activate`, `ignoring application responses` and
+  `with timeout of 0 seconds` all still take 2.04–2.05s. JXA (`-l JavaScript`) with
+  `Application.currentApplication().activate()` followed by a standard-additions call takes 0.04s.
+  Fix complexity: trivial/easy. Run the same fixed panel through JXA
+  (`includeStandardAdditions`, `activate()`, `chooseFolder({withPrompt: …})`, POSIX path string)
+  with the existing direct-argument, no-shell exec; keep `-128` cancel classification and
+  `verifyPickedDirectory`. The spec's "fixed script text" via `/usr/bin/osascript` still holds.
+  **Must verify manually** (not done here, to avoid opening a panel on the operator's screen):
+  JXA's panel still comes to the front over the browser, cancel still reports `-128`, and the
+  returned path keeps the trailing-slash form the verifier strips. Remaining time between click
+  and visible panel (open-panel service startup) is **undetermined**; if it is still slow after
+  the fix, record a timing of panel launch. No reproduction test committed: the stall lives in
+  macOS's osascript, and the script text is inline, so a test needs the fix's seam; the fix
+  session should assert the script argv and record a before/after manual timing.
 
 ### PERM-SAVE — Permission checkbox investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
