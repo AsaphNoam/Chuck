@@ -31,7 +31,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 **Running background-work indicator** —
 [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
-**paused** on the decision under **Blocked on human**.
+**resumable**. Operator decision 2026-10-29: option (a). Each popover row is named by its
+related tool call's adapter title and shows state and elapsed time. The jump only locates where
+the command started; no output is shown or copied (TS-04.R64). Real transcripts show no output
+reaches the tool call: Codex results are `content: null` and Claude returns only a
+"running in background, output in <tmp file>" notice. The operator also wants tool detail gone
+from transcripts; that broader change is being defined in `docs/ideas.md`.
 
 - **Done (slice 1):** the runtime publishes each generation's open task count into
   `status.background_running` (migration 63; `agentState.applyLive` on every status write,
@@ -354,18 +359,6 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
   Settled history moved to the 2026-10-25 archive. Manual gates remain owed.
 
 ## Blocked on human
-
-- **Running indicator — the jump target holds no command output (2026-10-27):** the change's
-  first-step check stops the popover here. Retained real transcripts under `~/.chuck/sessions`
-  show the related tool call never carries the background command's output. Codex
-  (`a_a3cb58`, `a_a3eea9`, `a_2ecd6b`; 12 tool calls, Oct 9–14): `tool_call` has args only
-  and every later `tool_result` has `content: null`. Claude (`a_bd5bba:520`): the only result
-  is "Command running in background with ID … Output is being written to: <tmp file>". So a
-  popover row's "jump to the related tool call, where its output stays" leads to the command
-  text and a finished label only. TS-04.R64 forbids copying output into task rows. Options:
-  (a) keep the jump as a locator for the command, accepting no output there; (b) drop the jump
-  and show rows only; (c) redesign output access (e.g. Claude's output-file path), which needs
-  `/design-feature`. The card count shipped independently.
 
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
