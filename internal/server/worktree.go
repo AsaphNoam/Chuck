@@ -286,7 +286,16 @@ func (s *Server) runProjectSetup(ctx context.Context, projectID, checkout string
 	if err != nil {
 		return "setup status could not be determined: " + err.Error()
 	}
-	if strings.TrimSpace(project.SetupCommand) == "" {
+	return s.runSetupCommand(ctx, project.SetupCommand, checkout, func(ok bool, output string) error {
+		return s.stateStore.RecordProjectWorktreeSetup(projectID, ok, output)
+	})
+}
+
+// runSetupCommand runs one checkout's setup command and records its bounded
+// outcome through record. Project and run-owned checkouts share it, so both
+// get the same containment, deadline and warning (TS-12.R5/R12).
+func (s *Server) runSetupCommand(ctx context.Context, command, checkout string, record func(ok bool, output string) error) string {
+	if strings.TrimSpace(command) == "" {
 		return ""
 	}
 	runCtx, cancel := context.WithTimeout(ctx, setupTimeout)
@@ -295,7 +304,7 @@ func (s *Server) runProjectSetup(ctx context.Context, projectID, checkout string
 	// /bin/sh -c with the server's inherited environment — the same environment
 	// launched agents see. Shell-profile-dependent tooling needs an absolute path
 	// (TS-12 §5).
-	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", project.SetupCommand)
+	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", command)
 	cmd.Dir = checkout
 	cmd.Stdin = nil
 	// Cancellation or the deadline kills the whole setup tree, and a
@@ -310,8 +319,8 @@ func (s *Server) runProjectSetup(ctx context.Context, projectID, checkout string
 		runErr = runCtx.Err()
 	}
 	output := outputTail.String()
-	if err := s.stateStore.RecordProjectWorktreeSetup(projectID, runErr == nil, output); err != nil {
-		s.log.Error("worktree: record setup result", "project", projectID, "err", err)
+	if err := record(runErr == nil, output); err != nil {
+		s.log.Error("worktree: record setup result", "checkout", checkout, "err", err)
 		if runErr == nil {
 			return "setup completed, but its result could not be recorded: " + err.Error()
 		}

@@ -98,6 +98,9 @@ func (s *Server) routeTable() []routeEntry {
 	api("POST /api/pipeline-runs/{id}/retry", s.handleRetryPipelineRun)
 	api("POST /api/pipeline-runs/{id}/replace", s.handleReplacePipelineRun)
 	api("POST /api/pipeline-runs/{id}/repair-cleanup", s.handleRepairPipelineCleanup)
+	api("GET /api/pipeline-workspaces", s.handlePipelineWorkspaces)
+	api("GET /api/pipeline-workspaces/{id}", s.handlePipelineWorkspace)
+	api("POST /api/pipeline-workspaces/{id}/remove", s.handleRemovePipelineWorkspace)
 	api("POST /api/pipeline-runs/{id}/stop", s.handleStopPipelineRun)
 
 	// Durable dependent work: tasks, their arms, and project-scoped signals

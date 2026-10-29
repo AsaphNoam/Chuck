@@ -104,7 +104,7 @@ deletion, which leaves ownership intact.
 - **R11.** Forking a worktree project is allowed and behaves identically: the new branch
   still comes off the effective base branch by default, not off the source project's branch.
 
-- **R12 (planned) — Pipeline-owned checkouts are a separate workspace kind.** FS-14.R91–R96
+- **R12 (shipped 2026-10-29) — Pipeline-owned checkouts are a separate workspace kind.** FS-14.R91–R96
   adds an optional checkout owned by a pipeline run within its existing project. For these runs,
   project identity continues to scope configuration, resources and authority, while run provenance
   selects the checkout. This specializes R5's project-checkout rule; it creates no worktree project

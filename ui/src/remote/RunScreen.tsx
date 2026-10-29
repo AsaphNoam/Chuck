@@ -59,6 +59,15 @@ export function RunScreen({ runId }: { runId: string }) {
       {stage && <span>Stage {stageIndex + 1} of {template.stages.length}</span>}
     </section>
 
+    {data.workspace && <section className="phone-card" aria-label="Workspace">
+      <p className="phone-card-kicker">WORKSPACE</p>
+      <strong>{data.workspace.mode === "new_worktree" ? "New worktree" : "Project checkout"} · {humanize(data.workspace.state)}</strong>
+      {data.workspace.branch && <p className="phone-meta">Branch {data.workspace.branch}</p>}
+      <p className="phone-meta">{data.workspace.cwd}</p>
+      {data.workspace.error && <p className="phone-error">{data.workspace.error}</p>}
+      {data.workspace.setup_ok === false && <p className="phone-meta">Project setup did not finish in this checkout.</p>}
+      {terminal && data.workspace.owned && data.workspace.mode === "new_worktree" && data.workspace.state !== "removed" && <p className="phone-meta">Remove this checkout from Pipelines on the desktop.</p>}
+    </section>}
     {pipeline.attention_reason && <p className="phone-card phone-run-attention"><strong>Needs attention</strong><span>{humanize(pipeline.attention_reason)}</span></p>}
     {pipeline.current_agent_id && <button type="button" className="phone-link ad-button-secondary" onClick={() => navigate(`/agent/${encodeURIComponent(pipeline.current_agent_id)}`)}>Open conversation</button>}
     {error && <p className="phone-error" role="alert">{error}</p>}

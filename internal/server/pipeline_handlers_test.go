@@ -295,6 +295,13 @@ func TestPipelineStartRequiresSharedWorkspaceAcknowledgement(t *testing.T) {
 	if runs, err := srv.stateStore.ListPipelineRuns(10, 0); err != nil || len(runs) != 0 {
 		t.Fatalf("warning created a run: %+v err=%v", runs, err)
 	}
+	// A run that creates its own checkout shares nothing, so it is not asked to
+	// acknowledge; this non-repository project then refuses it on validation.
+	request.Workspace = &pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: "isolated"}
+	rec = doRequest(t, srv.routes(), http.MethodPost, "/api/pipeline-runs", request)
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "not inside a Git working tree") {
+		t.Fatalf("isolated start = %d %s", rec.Code, rec.Body.String())
+	}
 }
 
 // FS-14.A4 / TS-09.R13: stopping a stage agent through its ordinary card/API

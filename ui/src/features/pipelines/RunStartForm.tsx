@@ -1,6 +1,6 @@
 import { AutoGrowTextarea } from "../../components/ui";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useBackends, useConfig, useProjects, useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
 import {
@@ -15,9 +15,11 @@ import type {
   PipelineRuntimeAssignment,
   PipelineStartRequest,
   PipelineWorkspaceConflict,
+  PipelineWorkspaceSelection,
 } from "../../schemas/pipeline";
 import type { Backend } from "../../schemas/backends";
 import { displayLabel, displayLabels } from "../../lib/labels";
+import { describeWorkspace } from "./proposalSummary";
 
 type Assignment = PipelineStartRequest["orchestrator"];
 type RoomAssignments = NonNullable<PipelineStartRequest["think_tank_assignments"]>;
@@ -76,6 +78,7 @@ export function RunStartForm({
   const { data: roles } = useRoles();
   const roleLabel = (id: string) => personaIdentityLabel(id, roles?.[id]);
   const start = useStartPipelineRun();
+  const workspaceGroup = useId();
   const [templateID, setTemplateID] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [project, setProject] = useState("");
@@ -84,6 +87,9 @@ export function RunStartForm({
   const [orchestrator, setOrchestrator] = useState<PipelineStartRequest["orchestrator"]>({ backend: "", model: "", effort: "", fast: false });
   const [dedicatedAssignments, setDedicatedAssignments] = useState<PipelineStartRequest["dedicated_assignments"]>({});
   const [roomAssignments, setRoomAssignments] = useState<RoomAssignments>({});
+  const [workspaceMode, setWorkspaceMode] = useState<"project" | "new_worktree">("project");
+  const [branch, setBranch] = useState("");
+  const [base, setBase] = useState("");
   const [proposal, setProposal] = useState<typeof proposalSeed>();
   const [pendingRequest, setPendingRequest] = useState<PipelineStartRequest | null>(null);
   const [conflicts, setConflicts] = useState<PipelineWorkspaceConflict[]>([]);
@@ -115,6 +121,9 @@ export function RunStartForm({
     setOrchestrator(structuredClone(payload.orchestrator));
     setDedicatedAssignments(structuredClone(payload.dedicated_assignments));
     setRoomAssignments(structuredClone(payload.think_tank_assignments ?? {}));
+    setWorkspaceMode(payload.workspace?.mode === "new_worktree" ? "new_worktree" : "project");
+    setBranch(payload.workspace?.branch ?? "");
+    setBase(payload.workspace?.base ?? "");
     setProposal(proposalSeed);
     setRuntimeSource("proposal");
     setPendingRequest(null);
@@ -135,8 +144,11 @@ export function RunStartForm({
   useEffect(() => {
     const field = diagnostics[0]?.field;
     if (!field || step !== 0) return;
-    const owner = [...(formRef.current?.querySelectorAll<HTMLElement>("[data-field]") ?? [])]
-      .find((item) => field === item.dataset.field || field.startsWith(`${item.dataset.field}.`));
+    // An exact owner wins so workspace.branch reaches the Branch input rather than
+    // the Workspace group that contains it.
+    const owners = [...(formRef.current?.querySelectorAll<HTMLElement>("[data-field]") ?? [])];
+    const owner = owners.find((item) => field === item.dataset.field)
+      ?? owners.find((item) => field.startsWith(`${item.dataset.field}.`));
     owner?.querySelector<HTMLElement>("input, select, textarea")?.focus();
   }, [diagnostics, runtimeOpen, step]);
 
@@ -168,6 +180,14 @@ export function RunStartForm({
     if (backends.data) setSeededTemplate(template);
   }, [backends.data, defaultBackend, proposal, template]);
 
+  // Only New worktree is sent; omission means the project checkout. An unedited
+  // proposal keeps its explicit project choice so its approved payload stays exact.
+  const selectedWorkspace: PipelineWorkspaceSelection | undefined = workspaceMode === "new_worktree"
+    ? { mode: "new_worktree", branch: branch.trim(), ...(base.trim() ? { base: base.trim() } : {}) }
+    : proposal?.payload.workspace?.mode === "project" ? { mode: "project" } : undefined;
+  const workspaceDiagnostics = diagnostics.filter((item) => item.field === "workspace" || item.field.startsWith("workspace."));
+  const workspaceMessages = (field: string) => workspaceDiagnostics.filter((item) => item.field === field).map((item) => <small className="form-error" key={`${item.code}-${item.message}`}>{item.message}</small>);
+
   const edit = () => {
     setPendingRequest(null);
     setConflicts([]);
@@ -189,6 +209,7 @@ export function RunStartForm({
     orchestrator,
     dedicated_assignments: dedicatedAssignments,
     ...(Object.keys(roomAssignments).length > 0 ? { think_tank_assignments: roomAssignments } : {}),
+    ...(selectedWorkspace ? { workspace: selectedWorkspace } : {}),
   });
 
   const submit = (acknowledge: boolean) => {
@@ -263,8 +284,9 @@ export function RunStartForm({
     if (template && seededTemplate === template && assignmentsMissing) setRuntimeOpen(true);
   }, [assignmentsMissing, seededTemplate, template]);
   const projectAvailable = Boolean(project && projects.data?.[project] && !projects.data[project].archived);
-  const cannotStart = !template || !projectAvailable || !goal.trim() || requiredMissing || assignmentsMissing || start.isPending;
-  const setupIncomplete = !template || !projectAvailable || !goal.trim() || requiredMissing;
+  const workspaceIncomplete = workspaceMode === "new_worktree" && !branch.trim();
+  const cannotStart = !template || !projectAvailable || !goal.trim() || requiredMissing || workspaceIncomplete || assignmentsMissing || start.isPending;
+  const setupIncomplete = !template || !projectAvailable || !goal.trim() || requiredMissing || workspaceIncomplete;
   // FS-14.A15: a disabled step control names the value it is still waiting for
   // instead of leaving the person to hunt for it.
   const setupBlocker = !template
@@ -275,7 +297,9 @@ export function RunStartForm({
         ? "Enter the run goal to continue."
         : missingInputs.length > 0
           ? `Fill the required named input${missingInputs.length === 1 ? "" : "s"}: ${missingInputs.map((input) => input.name).join(", ")}`
-          : null;
+          : workspaceMode === "new_worktree" && !branch.trim()
+            ? "Enter a branch name for the new worktree to continue."
+            : null;
   const hasRoom = template?.stages.some((stage) => stage.coordination === "think_tank") ?? false;
   const blocker = setupBlocker ?? (assignmentsMissing
     ? `Customize runtimes for the standing owner and every dedicated coordinator${hasRoom ? ", Think Tank participant and judge" : ""}.`
@@ -312,6 +336,24 @@ export function RunStartForm({
       </div>
       <label className="form-field" data-field="goal"><span>Run goal</span><AutoGrowTextarea rows={3} value={goal} onChange={(event) => { edit(); setGoal(event.target.value); }} /></label>
 
+      <fieldset className="pipeline-workspace-choice" data-field="workspace">
+        <legend>Workspace</legend>
+        <label className="pipeline-workspace-option">
+          <input type="radio" name={`${workspaceGroup}-workspace`} checked={workspaceMode === "project"} onChange={() => { edit(); setWorkspaceMode("project"); }} />
+          <span><strong>Project checkout</strong><small>Agents work in the project's current checkout, alongside anything else using it.</small></span>
+        </label>
+        <label className="pipeline-workspace-option">
+          <input type="radio" name={`${workspaceGroup}-workspace`} checked={workspaceMode === "new_worktree"} onChange={() => { edit(); setWorkspaceMode("new_worktree"); }} />
+          <span><strong>New worktree</strong><small>The whole run shares one new checkout of this project on a new branch. The project's own checkout is unchanged.</small></span>
+        </label>
+        {workspaceMode === "new_worktree" && <div className="pipeline-form-grid">
+          <label className="form-field" data-field="workspace.branch"><span>Branch</span><input value={branch} placeholder="New branch name" onChange={(event) => { edit(); setBranch(event.target.value); }} />{workspaceMessages("workspace.branch")}</label>
+          <label className="form-field" data-field="workspace.base"><span>Base (optional)</span><input value={base} placeholder="Project's base branch" onChange={(event) => { edit(); setBase(event.target.value); }} />{workspaceMessages("workspace.base")}</label>
+        </div>}
+        {workspaceMessages("workspace")}
+        {workspaceMessages("workspace.mode")}
+      </fieldset>
+
       {template && template.inputs.length > 0 && <div className="pipeline-subsection">
         <h3>Named inputs</h3>
         <div className="pipeline-input-list">
@@ -336,7 +378,7 @@ export function RunStartForm({
       {template && (!stepMode || step === 1) && <div className={stepMode ? "pipeline-start-pane pipeline-start-review" : "pipeline-subsection"} data-slot="content">
         {stepMode && <>
         <div className="pipeline-review-hero"><p className="pipeline-eyebrow">Ready to launch</p><h3>{displayName || template?.title || "Untitled run"}</h3><p>{goal}</p></div>
-        <dl className="pipeline-review-facts"><div><dt>Template</dt><dd>{template?.title || templateID}</dd></div><div><dt>Project</dt><dd>{projects.data?.[project]?.title || project}</dd></div><div><dt>Stages</dt><dd>{template?.stages.length ?? 0}</dd></div><div><dt>Named inputs</dt><dd>{Object.values(inputs).filter((value) => value.trim()).length}</dd></div></dl>
+        <dl className="pipeline-review-facts"><div><dt>Template</dt><dd>{template?.title || templateID}</dd></div><div><dt>Project</dt><dd>{projects.data?.[project]?.title || project}</dd></div><div><dt>Workspace</dt><dd>{describeWorkspace(selectedWorkspace)}</dd></div><div><dt>Stages</dt><dd>{template?.stages.length ?? 0}</dd></div><div><dt>Named inputs</dt><dd>{Object.values(inputs).filter((value) => value.trim()).length}</dd></div></dl>
         <ol className="pipeline-review-runtimes">{runtimeRows.map((row, index) => <li key={row.key}><span>{index + 1}</span><div><strong>{row.label}</strong><small>{runtimeSummary(row.value, backends.data?.backends)}</small></div></li>)}</ol>
         </>}
       </div>}
@@ -349,9 +391,9 @@ export function RunStartForm({
         <button type="button" className="ad-button-primary" disabled={start.isPending} onClick={() => submit(true)}>Confirm shared workspace and start</button>
       </div>}
       {notice && <p className="form-info">{notice}</p>}
-      {diagnostics.length > 0 && (
+      {diagnostics.length > workspaceDiagnostics.length && (
         <ul className="pipeline-diagnostics">
-          {diagnostics.map((diagnostic, index) => <li key={`${diagnostic.field}-${diagnostic.code}-${index}`}><code>{diagnostic.field}</code> — {diagnostic.message}</li>)}
+          {diagnostics.filter((item) => !workspaceDiagnostics.includes(item)).map((diagnostic, index) => <li key={`${diagnostic.field}-${diagnostic.code}-${index}`}><code>{diagnostic.field}</code> — {diagnostic.message}</li>)}
         </ul>
       )}
       {error && <p className="form-error">{error}</p>}

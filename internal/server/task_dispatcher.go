@@ -308,10 +308,17 @@ func (s *Server) startLaunchedTask(ctx context.Context, task state.Task) {
 		s.failTaskStart(task, "launch failed: "+err.Error())
 		return
 	}
+	// Pipeline lineage, not the request, selects the run's checkout
+	// (TS-09.R62); a lineage read failure never falls back to the project.
+	workspaceID, err := s.stateStore.PipelineWorkspaceIDForTask(task.TaskID)
+	if err != nil {
+		s.failTaskStart(task, "launch failed: "+err.Error())
+		return
+	}
 	_, ae := s.launchAgent(ctx, launchRequest{
 		Role: task.Role, Project: task.Project, Backend: task.Backend, Model: task.Model,
 		Effort: task.Effort, Fast: task.Fast, Interface: "chat", Name: task.DisplayName, Group: task.Group,
-	}, launchOptions{AgentID: task.AssignedAgentID, Generation: task.AssignedGeneration, OrchestratorInstructions: instructions})
+	}, launchOptions{AgentID: task.AssignedAgentID, Generation: task.AssignedGeneration, OrchestratorInstructions: instructions, WorkspaceID: workspaceID})
 	if ae != nil {
 		s.failTaskStart(task, "launch failed: "+ae.Message)
 		return
@@ -357,6 +364,15 @@ func (s *Server) startExistingAgentTask(ctx context.Context, task state.Task) {
 	}
 	if agent.Archived {
 		s.parkTaskStart(task, "the target agent is archived")
+		return
+	}
+	// The creation-time workspace rule is checked again here, so a target that
+	// moved checkouts after the task was written is still refused (FS-14.R95).
+	if err := s.stateStore.CheckPipelineTaskTarget(task.TaskID, agent.AgentID); errors.Is(err, state.ErrTaskTargetWorkspace) {
+		s.parkTaskStart(task, targetWorkspaceMismatch)
+		return
+	} else if err != nil {
+		s.deferTaskStart(task, "read target workspace")
 		return
 	}
 	activation, err := s.stateStore.EnsurePendingDependencyActivation(task.AssignedAgentID, task.TaskID)

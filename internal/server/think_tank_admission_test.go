@@ -171,7 +171,7 @@ func TestThinkTankNewParticipantsJoinTitleGroup(t *testing.T) {
 	if kept, _ := srv.stateStore.ReadAgent(existing); kept.Group != before.Group {
 		t.Fatalf("existing participant regrouped to %q", kept.Group)
 	}
-	if name, msg := srv.launchReservedThinkTankAgent(context.Background(), "a_group1", config, "Other"); msg != "" || name != added.Name {
+	if name, msg := srv.launchReservedThinkTankAgent(context.Background(), "a_group1", config, roomPlacement{Group: "Other"}); msg != "" || name != added.Name {
 		t.Fatalf("relaunch = %q %q", name, msg)
 	}
 	if again, _ := srv.stateStore.ReadAgent("a_group1"); again.Group != "Cache plan" {

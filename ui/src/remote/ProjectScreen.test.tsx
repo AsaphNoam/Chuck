@@ -149,6 +149,21 @@ describe("ProjectScreen start pipeline", () => {
     expect(starts).toEqual([expect.objectContaining({ template_id: "delivery", display_name: "Delivery", project: "app", goal: "Ship it", acknowledge_shared_workspace: false })]);
   });
 
+  // FS-14.R96 — the phone shows the workspace choice and sends it only for New worktree.
+  it("sends a new-worktree workspace only when chosen and requires its branch", async () => {
+    renderScreen();
+    fireEvent.click(await screen.findByRole("button", { name: "Start pipeline" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Run goal" }), { target: { value: "Ship it" } });
+    fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "new_worktree" } });
+    const submit = screen.getByRole("dialog", { name: "Start pipeline" }).querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Branch"), { target: { value: "chuck/ship" } });
+    fireEvent.click(submit);
+    await waitFor(() => expect(starts).toHaveLength(1));
+    expect(starts[0]).toMatchObject({ workspace: { mode: "new_worktree", branch: "chuck/ship" } });
+    expect(starts[0]).not.toHaveProperty("workspace.base");
+  });
+
   it("shows the Mac's reason and keeps the goal when the start is refused", async () => {
     startStatus = 422;
     await fillStart();

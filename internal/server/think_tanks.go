@@ -345,6 +345,7 @@ func (s *Server) startThinkTankTurn(ctx context.Context, d state.ThinkTankDetail
 // time. A slot whose agent already exists finished launching before an
 // interruption and is marked ready rather than duplicated (TS-14.R2).
 func (s *Server) launchThinkTankSetup(ctx context.Context, d state.ThinkTankDetail) {
+	placement, placementErr := s.thinkTankPlacement(d.Room)
 	for _, m := range d.Members {
 		if m.Role != state.ThinkTankRoleParticipant || m.SetupState != state.ThinkTankSetupPending {
 			continue
@@ -353,7 +354,12 @@ func (s *Server) launchThinkTankSetup(ctx context.Context, d state.ThinkTankDeta
 		if _, err := s.stateStore.ClaimThinkTankMemberSetup(d.Room.RoomID, m.AgentID, generation); err != nil {
 			return
 		}
-		name, launchErr := s.launchReservedThinkTankAgent(ctx, m.AgentID, m.SetupConfig, d.Room.Title, generation)
+		name, launchErr := "", ""
+		if placementErr != nil {
+			launchErr = "the pipeline run workspace could not be read: " + placementErr.Error()
+		} else {
+			name, launchErr = s.launchReservedThinkTankAgent(ctx, m.AgentID, m.SetupConfig, placement, generation)
+		}
 		updated, err := s.stateStore.MarkThinkTankMemberSetup(d.Room.RoomID, m.AgentID, name, launchErr, generation)
 		if err != nil {
 			s.log.Debug("mark think tank setup", "room", d.Room.RoomID, "agent", m.AgentID, "err", err)
@@ -387,10 +393,35 @@ func (s *Server) interruptThinkTankOnExit(agentID, generation, cause string) {
 	s.kickThinkTanks()
 }
 
-// launchReservedThinkTankAgent launches a reserved room identity into the
-// group named by the room title. An identity that already exists is never
-// relaunched or regrouped (FS-21.R51, TS-14.R22).
-func (s *Server) launchReservedThinkTankAgent(ctx context.Context, agentID, config, title string, launchGeneration ...string) (string, string) {
+// roomPlacement is where a room's fresh agents start: the room-title group, or
+// for a pipeline room with a run workspace, the run's checkout and frozen run
+// group (TS-09.R62/R64).
+type roomPlacement struct {
+	Group       string
+	WorkspaceID string
+}
+
+// thinkTankPlacement resolves a room's placement from its committed pipeline
+// origin. A read failure fails closed rather than starting in the project.
+func (s *Server) thinkTankPlacement(room state.ThinkTank) (roomPlacement, error) {
+	placement := roomPlacement{Group: room.Title}
+	if room.PipelineRunID == "" {
+		return placement, nil
+	}
+	w, err := s.stateStore.ReadPipelineWorkspaceForRun(room.PipelineRunID)
+	if errors.Is(err, state.ErrNotFound) {
+		return placement, nil
+	}
+	if err != nil {
+		return placement, err
+	}
+	return roomPlacement{Group: w.RunName, WorkspaceID: w.WorkspaceID}, nil
+}
+
+// launchReservedThinkTankAgent launches a reserved room identity into its
+// placement. An identity that already exists is never relaunched or regrouped
+// (FS-21.R51, TS-14.R22).
+func (s *Server) launchReservedThinkTankAgent(ctx context.Context, agentID, config string, placement roomPlacement, launchGeneration ...string) (string, string) {
 	if agent, err := s.stateStore.ReadAgent(agentID); err == nil {
 		return agent.Name, ""
 	}
@@ -398,12 +429,12 @@ func (s *Server) launchReservedThinkTankAgent(ctx context.Context, agentID, conf
 	if err := json.Unmarshal([]byte(config), &req); err != nil {
 		return "", "the saved launch settings are unreadable"
 	}
-	req.Group = title
+	req.Group = placement.Group
 	generation := ""
 	if len(launchGeneration) > 0 {
 		generation = launchGeneration[0]
 	}
-	resp, ae := s.launchAgent(ctx, req, launchOptions{AgentID: agentID, Generation: generation})
+	resp, ae := s.launchAgent(ctx, req, launchOptions{AgentID: agentID, Generation: generation, WorkspaceID: placement.WorkspaceID})
 	if ae != nil {
 		return "", ae.Message
 	}
@@ -430,7 +461,12 @@ func (s *Server) launchThinkTankJudge(ctx context.Context, d state.ThinkTankDeta
 		return
 	}
 	s.publishThinkTankUpdate(reserved)
-	name, launchErr := s.launchReservedThinkTankAgent(ctx, agentID, d.Room.JudgeConfig, d.Room.Title, generation)
+	name, launchErr := "", ""
+	if placement, err := s.thinkTankPlacement(d.Room); err != nil {
+		launchErr = "the pipeline run workspace could not be read: " + err.Error()
+	} else {
+		name, launchErr = s.launchReservedThinkTankAgent(ctx, agentID, d.Room.JudgeConfig, placement, generation)
+	}
 	updated, err := s.stateStore.MarkThinkTankJudgeLaunched(d.Room.RoomID, name, launchErr, generation)
 	if err != nil {
 		s.log.Debug("mark think tank judge", "room", d.Room.RoomID, "err", err)

@@ -639,7 +639,7 @@ unchanged by them.
 
 ### 2.14 Run workspace and recursive placement
 
-- **R61 (planned) — Freeze a run workspace without changing project identity.** Extend Start
+- **R61 (shipped 2026-10-29) — Freeze a run workspace without changing project identity.** Extend Start
   with optional `workspace: {mode: "project"}` or `{mode: "new_worktree", branch, base}`. Omission
   retains the existing project-checkout behavior; new-worktree mode requires a repo-backed active
   project, a valid new branch and resolvable base. No request accepts a checkout path or ownership
@@ -652,7 +652,7 @@ unchanged by them.
   a queued run, first stage task and workspace preparation intent together, but no agent starts
   before the workspace is ready. Preparation failure is a visible launch/attention failure with
   entered values retained, never an agent silently launched in the source checkout.
-- **R62 (planned) — Resolve execution workspace from authoritative provenance.** One bounded
+- **R62 (shipped 2026-10-29) — Resolve execution workspace from authoritative provenance.** One bounded
   resolver reads the task's persisted run lineage or a room's committed pipeline origin and obtains
   the run workspace and frozen run group. Creation and admission validate the same binding;
   descendant lineage and its placement are committed in the existing task write transaction.
@@ -662,7 +662,7 @@ unchanged by them.
   no agent-facing tool can supply a cwd, ownership or arbitrary run id. Fail closed on a known
   binding's missing/corrupt record or read failure. Stage result authority, project access, capacity,
   task closure and cleanup remain on their existing owners; group labels never select a workspace.
-- **R63 (planned) — Preserve workspace across every lifecycle.** Freeze the workspace identity
+- **R63 (shipped 2026-10-29) — Preserve workspace across every lifecycle.** Freeze the workspace identity
   beside session cwd at first launch. Shared launch/resume/switch, wait/wake, clone and configuration
   refresh resolve and validate that identity through TS-12's one readiness seam; configuration
   provenance/preflight and provider launch use the same effective cwd. A clone preserves its
@@ -671,7 +671,7 @@ unchanged by them.
   effective frozen cwd and owned workspace identity where present; check both at creation and under
   admission/lifecycle claims before delivery. A mismatch returns `target_ineligible` with a bounded
   explanation and a same-workspace/new-launch recovery choice. No existing session is rebound.
-- **R64 (planned) — Initial group is server-derived for every new run agent.** For new pipeline
+- **R64 (shipped 2026-10-29) — Initial group is server-derived for every new run agent.** For new pipeline
   launch targets, store the run's frozen display-name group after deriving lineage, overriding an
   omitted or different task-request group. Use the same resolver for new pipeline room agents
   rather than their room-title group. Initial launch only sets the label; resume, reassignment,
@@ -679,7 +679,7 @@ unchanged by them.
   labels. Run rename, agent rename and a moved parent's group do not redefine the designated group.
   R33's ordinary-group model remains; R59's instruction delivery does not become the enforcement
   mechanism and ordinary descendants gain no standing orchestrator instructions.
-- **R65 (planned) — Ship one bounded contract across start and workspace management.** HTTP/CLI,
+- **R65 (shipped 2026-10-29) — Ship one bounded contract across start and workspace management.** HTTP/CLI,
   UI schemas and run proposals carry R61's optional workspace selection consistently, including
   proposal digest/approval and start request deduplication. A repeated request id returns the same
   run/workspace preparation or error, never another checkout; different payloads cannot reuse the

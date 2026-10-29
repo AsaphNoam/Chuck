@@ -67,7 +67,11 @@ func (m *Manager) Start(ctx context.Context, request StartRequest) (RunDetail, b
 		return RunDetail{}, false, err
 	}
 	defer release()
-	record, startErr := m.validateStart(ctx, &request)
+	workspaceID, err := m.store.NewPipelineWorkspaceID()
+	if err != nil {
+		return RunDetail{}, false, err
+	}
+	record, workspace, startErr := m.validateStart(ctx, &request, workspaceID)
 	if startErr != nil {
 		return RunDetail{}, false, startErr
 	}
@@ -109,9 +113,15 @@ func (m *Manager) Start(ctx context.Context, request StartRequest) (RunDetail, b
 		initial = roomStageParams(initial, run, first, room)
 		run.State, run.PendingAction = "running", ""
 	}
+	if workspace != nil {
+		workspace.WorkspaceID, workspace.RunName = workspaceID, run.DisplayName
+		if workspace.SelectionDigest, err = Digest(request.Workspace); err != nil {
+			return RunDetail{}, false, err
+		}
+	}
 	created, replay, err := m.store.CreatePipelineRun(state.CreatePipelineRunParams{
 		Run: run, RequestID: request.RequestID, RequestHash: requestHash, Values: values,
-		InitialStageTask: &initial,
+		InitialStageTask: &initial, Workspace: workspace,
 	})
 	if err != nil {
 		if errors.Is(err, state.ErrPipelineRequestConflict) {
@@ -390,7 +400,7 @@ func (m *Manager) acquireProjectStart(ctx context.Context, project string) (func
 	return m.lifecycle.AcquirePipelineStart(ctx, project)
 }
 
-func (m *Manager) validateStart(ctx context.Context, request *StartRequest) (TemplateRecord, error) {
+func (m *Manager) validateStart(ctx context.Context, request *StartRequest, workspaceID string) (TemplateRecord, *state.PipelineWorkspace, error) {
 	// V2 names the standing owner and optional dedicated coordinators directly.
 	// Keep one canonical frozen assignment map internally while older local
 	// callers finish migrating.
@@ -429,9 +439,9 @@ func (m *Manager) validateStart(ctx context.Context, request *StartRequest) (Tem
 	if err != nil {
 		if errors.Is(err, ErrTemplateNotFound) {
 			add("template_id", "not_found", "pipeline template does not exist")
-			return TemplateRecord{}, validationError("run cannot start", diagnostics)
+			return TemplateRecord{}, nil, validationError("run cannot start", diagnostics)
 		}
-		return TemplateRecord{}, err
+		return TemplateRecord{}, nil, err
 	}
 	if !record.Valid {
 		diagnostics = append(diagnostics, record.Diagnostics...)
@@ -540,10 +550,49 @@ func (m *Manager) validateStart(ctx context.Context, request *StartRequest) (Tem
 	if stage, ok := firstOrdinaryStage(record.Template); ok {
 		validateSlot("assignments.standing", stage, record.Template.OrchestratorRole, standingAssignment(request.Assignments, record.Template.Stages[0].ID))
 	}
+	workspace := m.validateWorkspace(ctx, request, workspaceID, len(diagnostics) == 0, add)
 	if len(diagnostics) > 0 {
-		return record, validationError("run cannot start", diagnostics)
+		return record, nil, validationError("run cannot start", diagnostics)
 	}
-	return record, nil
+	return record, workspace, nil
+}
+
+// validateWorkspace checks the selection's shape and, once everything else is
+// valid, asks the lifecycle for the read-only plan Start will freeze. Every new
+// run gets a record; omission means the project checkout (TS-09.R61).
+func (m *Manager) validateWorkspace(ctx context.Context, request *StartRequest, workspaceID string, plan bool, add func(field, code, message string)) *state.PipelineWorkspace {
+	selection := WorkspaceSelection{Mode: state.PipelineWorkspaceModeProject}
+	if request.Workspace != nil {
+		selection = *request.Workspace
+	}
+	switch selection.Mode {
+	case state.PipelineWorkspaceModeProject:
+		if selection.Branch != "" || selection.Base != "" {
+			add("workspace", "invalid", "branch and base apply only to a new worktree")
+			return nil
+		}
+	case state.PipelineWorkspaceModeNewWorktree:
+		if strings.TrimSpace(selection.Branch) == "" || utf8.RuneCountInString(selection.Branch) > MaxTitleRunes {
+			add("workspace.branch", "required", fmt.Sprintf("a new worktree requires a branch of at most %d characters", MaxTitleRunes))
+			return nil
+		}
+		if utf8.RuneCountInString(selection.Base) > MaxTitleRunes {
+			add("workspace.base", "too_long", fmt.Sprintf("base must be at most %d characters", MaxTitleRunes))
+			return nil
+		}
+	default:
+		add("workspace.mode", "invalid", "workspace mode must be project or new_worktree")
+		return nil
+	}
+	if !plan || m.lifecycle == nil {
+		return nil
+	}
+	workspace, err := m.lifecycle.PlanWorkspace(ctx, workspaceID, request.Project, selection)
+	if err != nil {
+		add("workspace", "unavailable", err.Error())
+		return nil
+	}
+	return &workspace
 }
 
 func (m *Manager) Detail(runID string) (RunDetail, error) {
@@ -590,6 +639,15 @@ func (m *Manager) Detail(runID string) (RunDetail, error) {
 	}
 	if err == nil && m.hasPendingPermission(runID, detail.Run.CurrentAgentID) {
 		detail.Run.AttentionReason = "awaiting permission approval"
+	}
+	if err == nil {
+		workspace, wsErr := m.store.ReadPipelineWorkspaceForRun(runID)
+		switch {
+		case wsErr == nil:
+			detail.Workspace = &workspace
+		case !errors.Is(wsErr, state.ErrNotFound):
+			err = wsErr
+		}
 	}
 	return detail, err
 }
@@ -931,6 +989,15 @@ func (m *Manager) lockRun(runID string) func() {
 			delete(m.locks, runID)
 		}
 		m.locksMu.Unlock()
+	}
+}
+
+// PublishRun republishes a retained run after a change it does not own, such
+// as its workspace's preparation or removal (TS-09.R65). A deleted run has no
+// update to publish.
+func (m *Manager) PublishRun(runID string) {
+	if run, err := m.store.ReadPipelineRun(runID); err == nil {
+		m.publish(run)
 	}
 }
 

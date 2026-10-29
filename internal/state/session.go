@@ -10,17 +10,20 @@ import (
 // SessionSnapshot holds the frozen launch config stored in the sessions table.
 // Resume rebuilds a LaunchSpec from this snapshot (not from current role/project files).
 type SessionSnapshot struct {
-	AgentID       string
-	Name          string
-	Role          string
-	Project       string
-	Backend       string
-	Model         string
-	Effort        string
-	Fast          bool
-	Interface     string
-	Group         string
-	Cwd           string
+	AgentID   string
+	Name      string
+	Role      string
+	Project   string
+	Backend   string
+	Model     string
+	Effort    string
+	Fast      bool
+	Interface string
+	Group     string
+	Cwd       string
+	// WorkspaceID is the frozen pipeline run workspace of Cwd, empty outside
+	// one (TS-12.R14). Resume and switch re-resolve readiness through it.
+	WorkspaceID   string
 	SystemPrompt  string
 	HistoryPrimer string // bounded bridge for the current native conversation, separate from persona
 	ChuckAware    bool
@@ -70,13 +73,14 @@ func (s *Store) ReadSession(agentID string) (SessionSnapshot, error) {
 	err := s.db.QueryRow(`
 SELECT agent_id, name, role, project, backend, model, effort, fast, interface, grp, cwd, system_prompt, chuck_aware,
        env_keys, skip_permissions, add_dirs, launch_config_json, last_session_id, last_seq, last_context_pct,
-       last_context_used, last_context_size, created_at, runtime_capabilities_json, history_primer, execution_contract_json
+       last_context_used, last_context_size, created_at, runtime_capabilities_json, history_primer, execution_contract_json,
+       workspace_id
 FROM sessions WHERE agent_id = ?`, agentID).Scan(
 		&snap.AgentID, &snap.Name, &snap.Role, &snap.Project,
 		&snap.Backend, &snap.Model, &snap.Effort, &snap.Fast, &snap.Interface, &snap.Group,
 		&snap.Cwd, &snap.SystemPrompt, &snap.ChuckAware, &envKeysJSON, &snap.SkipPermissions, &addDirsJSON, &launchConfigJSON,
 		&snap.LastSessionID, &snap.LastSeq, &snap.LastContextPct, &lastUsed, &lastSize, &snap.CreatedAt,
-		&capabilitiesJSON, &snap.HistoryPrimer, &contractJSON,
+		&capabilitiesJSON, &snap.HistoryPrimer, &contractJSON, &snap.WorkspaceID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SessionSnapshot{}, ErrNotFound

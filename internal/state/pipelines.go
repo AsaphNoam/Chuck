@@ -238,6 +238,14 @@ VALUES (?, ?, ?, ?, ?, ?)`, run.RunID, value.Name, value.Value, value.SourceKind
 			return PipelineRunRecord{}, false, err
 		}
 	}
+	// The workspace precedes the stage rows so their placement reads it.
+	if params.Workspace != nil {
+		w := *params.Workspace
+		w.RunID, w.RequestID = run.RunID, params.RequestID
+		if err := insertPipelineWorkspaceTx(tx, w, run.CreatedAt); err != nil {
+			return PipelineRunRecord{}, false, err
+		}
+	}
 	if params.InitialStageTask != nil {
 		p := *params.InitialStageTask
 		if p.RunID != run.RunID || p.ExpectedRevision != run.Revision || p.StageIndex != 0 || p.AttemptNumber != 1 || p.StageID != run.CurrentStageID {
@@ -883,6 +891,11 @@ func (s *Store) DeletePipelineRun(runID string) error {
 	}
 	if runState != "completed" && runState != "stopped" {
 		return ErrPipelineActive
+	}
+	// The retained workspace keeps the settled terminal eligibility the deleted
+	// run can no longer prove (TS-12.R16).
+	if _, err := tx.Exec(`UPDATE pipeline_workspaces SET removal_eligible = 1 WHERE run_id = ?`, runID); err != nil {
+		return fmt.Errorf("state: retain pipeline workspace eligibility: %w", err)
 	}
 	if _, err := tx.Exec(`DELETE FROM pipeline_runs WHERE run_id = ?`, runID); err != nil {
 		return fmt.Errorf("state: delete pipeline run: %w", err)

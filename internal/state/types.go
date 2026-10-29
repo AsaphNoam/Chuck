@@ -460,6 +460,9 @@ type CreatePipelineRunParams struct {
 	// InitialStageTask is inserted in the same transaction as a v2 run. It is
 	// nil only for retained legacy callers.
 	InitialStageTask *CreatePipelineStageTaskParams
+	// Workspace is the run's frozen workspace intent (TS-09.R61). It commits
+	// with the run so no agent can start before the selection is durable.
+	Workspace *PipelineWorkspace
 }
 
 type PipelineRunUpdate struct {

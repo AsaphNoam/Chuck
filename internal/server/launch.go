@@ -114,6 +114,9 @@ type launchOptions struct {
 	// orchestrator; it is frozen into the base prompt and never caller-supplied
 	// (TS-09.R58–R59, TS-11.R20).
 	OrchestratorInstructions string
+	// WorkspaceID is the server-resolved pipeline run workspace, read from task
+	// lineage or a room's pipeline origin; never caller-supplied (TS-09.R62).
+	WorkspaceID string
 }
 
 const maxAgentNameRunes = 256
@@ -306,22 +309,33 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		return runtime.LaunchSpec{}, state.Agent{}, ae
 	}
 
-	cwd, err := config.ExpandTilde(project.Cwd)
-	if err != nil {
-		return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeValidation, "bad project cwd: "+err.Error())
+	// A run workspace supplies its own checkout; a clone keeps its source's
+	// (TS-09.R62/R63). Everything else starts in the project checkout.
+	workspaceID := options.WorkspaceID
+	if workspaceID == "" && options.Source != nil {
+		workspaceID = options.Source.WorkspaceID
+	}
+	cwd := ""
+	if workspaceID == "" {
+		if cwd, err = config.ExpandTilde(project.Cwd); err != nil {
+			return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeValidation, "bad project cwd: "+err.Error())
+		}
 	}
 	// Resolve the working directory through the one shared step (TS-01.R26,
 	// TS-12.R4). For an ordinary project this is the pre-check that keeps a
 	// missing directory from failing deep in the runtime with a fork/exec ENOENT
 	// naming the adapter binary; for a worktree project it also re-materializes a
 	// missing owned checkout before anything starts (FS-19.R7).
-	recreated, warning, ae := s.ensureWorktreeCheckout(ctx, req.Project, cwd)
+	checkout, ae := s.resolveStartCheckout(ctx, req.Project, workspaceID, cwd)
 	if ae != nil {
 		return runtime.LaunchSpec{}, state.Agent{}, ae
 	}
-	if recreated && options.Notice != nil {
-		row, _ := s.ownedWorktree(req.Project)
-		*options.Notice = worktreeStartNotice{Recreated: true, Branch: row.Branch, Warning: warning}
+	cwd = checkout.Cwd
+	// Configuration provenance and preflight describe the directory the
+	// provider will actually start in (TS-09.R63, FS-08.R37).
+	project.Cwd = cwd
+	if checkout.Recreated && options.Notice != nil {
+		*options.Notice = worktreeStartNotice{Recreated: true, Branch: checkout.Branch, Warning: checkout.Warning}
 	}
 	addDirs := expandAddDirs(project.AddDirs)
 
@@ -444,6 +458,7 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		Agent:              agent,
 		Generation:         generation,
 		Cwd:                cwd,
+		WorkspaceID:        workspaceID,
 		AddDirs:            addDirs,
 		SystemPrompt:       joinSystemPrompt(project.ContextPrompt, role.SystemPrompt, projectResourcesInstruction(resourceDir), pipelineOrchestrationBlock(options.OrchestratorInstructions)),
 		BackendType:        backend.Type,

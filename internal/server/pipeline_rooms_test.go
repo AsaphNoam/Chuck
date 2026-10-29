@@ -39,16 +39,35 @@ func TestPipelineThinkTankStageEndToEnd(t *testing.T) {
 	if record, err := srv.pipelineTemplates.Create("deliberate", template); err != nil || !record.Valid {
 		t.Fatalf("create template = %+v err=%v", record, err)
 	}
+	// The run uses an isolated checkout: every fresh room agent starts there in
+	// the run group, not the room-title group (FS-14.A57/A58).
+	project, err := srv.configStore.ReadProject("tmpproj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project.Cwd = newWorktreeTestRepo(t)
+	if err := srv.configStore.WriteProject("tmpproj", project); err != nil {
+		t.Fatal(err)
+	}
 	before := promptCount(t, promptLog)
 	ctx := context.Background()
 	detail, _, err := srv.pipelineMgr.Start(ctx, pipeline.StartRequest{
-		RequestID: "room-e2e", TemplateID: "deliberate", Project: "tmpproj", Goal: "Choose a queue",
+		RequestID: "room-e2e", TemplateID: "deliberate", DisplayName: "Queue choice", Project: "tmpproj", Goal: "Choose a queue",
 		ThinkTankAssignments: map[string]pipeline.ThinkTankAssignment{"debate": {
 			Participants: map[string]pipeline.RuntimeAssignment{"pro": slot, "con": slot}, Judge: slot,
 		}},
+		Workspace: &pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: "queue-choice"},
 	})
 	if err != nil {
 		t.Fatalf("Start = %v", err)
+	}
+	placed := func(agentID string) {
+		t.Helper()
+		ws, err := srv.stateStore.ReadPipelineWorkspace(detail.Workspace.WorkspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertPlacement(t, srv, agentID, ws.CheckoutPath, ws.WorkspaceID, "Queue choice")
 	}
 	stage, err := srv.stateStore.LatestPipelineStageTask(detail.Run.RunID)
 	if err != nil || stage.RoomID == "" {
@@ -81,6 +100,7 @@ func TestPipelineThinkTankStageEndToEnd(t *testing.T) {
 		if _, err := srv.stateStore.ReadRunning(m.AgentID); err != nil {
 			t.Fatalf("fresh participant %s not launched: %v", m.AgentID, err)
 		}
+		placed(m.AgentID)
 	}
 	for range d.Members {
 		srv.progressThinkTanks(ctx)
@@ -95,6 +115,7 @@ func TestPipelineThinkTankStageEndToEnd(t *testing.T) {
 		return d.Active != nil && d.Active.Turn == state.ThinkTankTurnJudge
 	})
 	judge := *d.Active
+	placed(judge.AgentID)
 	page, err := srv.stateStore.ReadThinkTankPage(state.ThinkTankReadRequest{CallerAgentID: judge.AgentID})
 	if err != nil || len(page.Items) == 0 || page.Items[0].Entry.Kind != state.ThinkTankEntryStageContext {
 		t.Fatalf("judge first read = %+v err=%v", page.Items, err)

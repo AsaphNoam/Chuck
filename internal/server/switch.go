@@ -451,13 +451,12 @@ func (s *Server) composeSwitchSpecFrom(ctx context.Context, target state.Agent, 
 	// Resolve the working directory through the one shared step before any
 	// registration side effect (TS-01.R26, TS-12.R4). Switch keeps the frozen
 	// snapshot cwd for the same reason resume does.
-	recreated, warning, wae := s.ensureWorktreeCheckout(ctx, target.Project, snap.Cwd)
+	checkout, wae := s.resolveStartCheckout(ctx, target.Project, snap.WorkspaceID, snap.Cwd)
 	if wae != nil {
 		return runtime.LaunchSpec{}, wae
 	}
-	if recreated && notice != nil {
-		row, _ := s.ownedWorktree(target.Project)
-		*notice = worktreeStartNotice{Recreated: true, Branch: row.Branch, Warning: warning}
+	if checkout.Recreated && notice != nil {
+		*notice = worktreeStartNotice{Recreated: true, Branch: checkout.Branch, Warning: checkout.Warning}
 	}
 	// Ensure the shared-resources directory before any registration side effect
 	// (FS-11.R6/R9). add_dirs/prompt carry over from the frozen snapshot; the env
@@ -485,6 +484,7 @@ func (s *Server) composeSwitchSpecFrom(ctx context.Context, target state.Agent, 
 		Agent:              target,
 		Generation:         token,
 		Cwd:                snap.Cwd,
+		WorkspaceID:        snap.WorkspaceID,
 		AddDirs:            snap.AddDirs,
 		SystemPrompt:       snap.SystemPrompt,
 		HistoryPrimer:      snap.HistoryPrimer,

@@ -310,6 +310,7 @@ type SessionMetaData struct {
 	Interface       string   `json:"interface"`
 	Group           string   `json:"group,omitempty"`
 	Cwd             string   `json:"cwd"`
+	WorkspaceID     string   `json:"workspace_id,omitempty"`
 	SystemPrompt    string   `json:"system_prompt,omitempty"`
 	HistoryPrimer   string   `json:"history_primer,omitempty"`
 	ResetContext    bool     `json:"reset_context,omitempty"`

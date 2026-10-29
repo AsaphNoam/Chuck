@@ -63,7 +63,7 @@ var remoteAllowed = map[string][]string{
 	"POST /api/sessions/{id}/annotations/validate": {"annotations", "overall_instruction", "target"},
 
 	"GET /api/pipeline-runs":                      nil,
-	"POST /api/pipeline-runs":                     {"request_id", "template_id", "display_name", "project", "goal", "inputs", "orchestrator", "dedicated_assignments", "think_tank_assignments", "acknowledge_shared_workspace"},
+	"POST /api/pipeline-runs":                     {"request_id", "template_id", "display_name", "project", "goal", "inputs", "orchestrator", "dedicated_assignments", "think_tank_assignments", "acknowledge_shared_workspace", "workspace"},
 	"GET /api/pipeline-runs/{id}":                 nil,
 	"POST /api/pipeline-runs/{id}/continue":       nil,
 	"POST /api/pipeline-runs/{id}/retry":          nil,
@@ -94,6 +94,10 @@ var remoteDenied = map[string]bool{
 	"POST /api/think-tanks/{id}/end": true, "POST /api/think-tanks/{id}/retry": true,
 	"POST /api/think-tanks/{id}/participants/{agent_id}/turn-limit": true,
 	"GET /api/sessions/{id}/think-tank-results":                     true,
+	// Retained pipeline workspace management and checkout removal are desktop
+	// actions (FS-14.R96, TS-09.R65); run detail carries status to the phone.
+	"GET /api/pipeline-workspaces": true, "GET /api/pipeline-workspaces/{id}": true,
+	"POST /api/pipeline-workspaces/{id}/remove": true,
 	// Permission modes are a desktop chat-header control (FS-03.R88).
 	"GET /api/sessions/{id}/modes": true, "POST /api/sessions/{id}/mode": true,
 	"POST /api/remote/pairings": true, "POST /api/remote/pairings/{id}/allow": true,

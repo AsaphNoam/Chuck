@@ -534,6 +534,8 @@ the old behavior before relying on it.
 |---|---|---|
 | `teardownAgentRegistration` | `internal/server/launch.go` | every agent exit/failure path (§4) |
 | `composeLaunch`, `composeResumeSpec`, `composeSwitchSpec`, `resolveSkip`, `expandAddDirs`, `composeEnv` | `internal/server/{launch,resume,switch}.go` | any path that builds/rebuilds a LaunchSpec (§2) |
+| `resolveStartCheckout` / `ensureRunWorkspace` | `internal/server/pipeline_workspace.go` | every launch/resume/switch/clone cwd readiness, project-owned or run-owned (§2) |
+| `placeRunTaskTx` / `checkRunTarget` | `internal/state/pipeline_workspaces.go` | run group placement and existing-target checkout eligibility for run work (§2, §5) |
 | `takePending` | `internal/runtime/permission.go` | atomic claim for racy resolutions (§5) |
 | `SubscribeWithSnapshot` | `internal/bus/bus.go` | any snapshot+subscribe consumer (§5) |
 | `runtime.ClassifyProcess` / `StopRecordedProcess` / `ReconcileStale` | `internal/runtime/procstart.go`, `reconcile.go` | every liveness decision, signal or prune for a process the registry doesn't hold; proof is recorded leader PID + kernel birth (§4, §9) |

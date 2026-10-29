@@ -27,6 +27,17 @@ type StartRequest struct {
 	// ThinkTankAssignments supplies every room slot's runtime, keyed by stage id
 	// (TS-09.R51).
 	ThinkTankAssignments map[string]ThinkTankAssignment `json:"think_tank_assignments,omitempty"`
+	// Workspace optionally selects one new checkout for the whole run. Omission
+	// is the project checkout (TS-09.R61); it carries no path or ownership flag.
+	Workspace *WorkspaceSelection `json:"workspace,omitempty"`
+}
+
+// WorkspaceSelection is the person's run-workspace choice. Base is optional
+// in new-worktree mode and defaults to the project's effective base.
+type WorkspaceSelection struct {
+	Mode   string `json:"mode"`
+	Branch string `json:"branch,omitempty"`
+	Base   string `json:"base,omitempty"`
 }
 
 // ThinkTankAssignment is one think_tank stage's run-time slots: participants
@@ -99,6 +110,10 @@ type Lifecycle interface {
 	// in-flight turn (TS-09.R54).
 	StopRoom(context.Context, string) error
 	StopStage(context.Context, string) error
+	// PlanWorkspace resolves a run's workspace selection read-only: it creates
+	// no Git artifact and returns the frozen record fields (TS-09.R61). The
+	// workspace id names the future checkout; validation-only callers pass "".
+	PlanWorkspace(ctx context.Context, workspaceID, project string, selection WorkspaceSelection) (state.PipelineWorkspace, error)
 }
 
 // ProjectGateError preserves the lifecycle gate's public conflict vocabulary
@@ -142,6 +157,8 @@ type RunDetail struct {
 	Attempts    []state.PipelineAttemptRecord `json:"-"`
 	Values      []state.PipelineValueRecord   `json:"values"`
 	Diagnostics []Diagnostic                  `json:"diagnostics"`
+	// Workspace is absent for runs started before run workspaces (TS-12.R17).
+	Workspace *state.PipelineWorkspace `json:"workspace,omitempty"`
 }
 
 // RunSummary keeps list responses readable even when one run's nested JSON or

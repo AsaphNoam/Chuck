@@ -9,6 +9,8 @@ import {
   usePipelineRuns,
 } from "../../api/pipelines";
 import type { PipelineRunDetail } from "../../schemas/pipeline";
+import { RunWorkspace } from "./RunWorkspace";
+import { WorkspaceRemoveDialog } from "./WorkspaceRemoveDialog";
 
 export function RunsLedger() {
   const query = usePipelineRuns();
@@ -60,6 +62,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
   const deleteRun = useDeletePipelineRun();
   const [continuation, setContinuation] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
 
   if (detail.isLoading) return <RunDetailSkeleton />;
   if (!detail.data) {
@@ -117,6 +120,8 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
         <div className="pipeline-run-kicker"><code>{run.run_id}</code><span className={`pipeline-state pipeline-state-${run.state}`}>{run.final_outcome || run.state}</span></div>
         <div className="pipeline-run-title"><div><h2>{run.display_name || data.template.title}</h2><p>{run.goal}</p></div><div className="pipeline-live-stage"><small>{terminal ? "Final position" : "Current stage"}</small><strong>{stage?.title ?? (run.current_stage_id || "Complete")}</strong>{stage && <span>Stage {stageIndex + 1} of {stages.length}</span>}{nextStage && <span>Next: {nextStage.title}</span>}</div></div>
         <p className="pipeline-run-context">{run.project} · {data.template.title}</p>
+        {data.workspace && <RunWorkspace workspace={data.workspace} terminal={terminal} onRemove={() => setRemoveOpen(true)} />}
+        {removeOpen && data.workspace && <WorkspaceRemoveDialog workspaceID={data.workspace.workspace_id} onClose={() => setRemoveOpen(false)} />}
         {currentTask?.room && <div className="pipeline-owner-strip"><div><small>Think Tank stage</small><strong>{roomPhaseLabel(currentTask)}</strong><span>{currentTask.attention_reason || "The judge's published synthesis becomes this stage's output."}</span></div></div>}
         {currentTask && !currentTask.room && <div className="pipeline-owner-strip"><div><small>Standing owner</small><strong>{currentTask.standing_owner.name || currentTask.standing_owner.agent_id || "Starting"}</strong><span>{humanize(currentTask.standing_owner.state || currentTask.state)}</span></div>{currentTask.coordinator && <div><small>Stage coordinator</small><strong>{currentTask.coordinator.name || currentTask.coordinator.agent_id || "Starting"}</strong><span>{currentTask.coordinator.report_summary ? "Reports to standing owner" : humanize(currentTask.coordinator.state || "assigned")}</span></div>}</div>}
         {run.attention_reason && <div className="pipeline-warning"><strong>Needs attention</strong><p>{humanize(run.attention_reason)}</p>{recovered && <p>{restarted ? "The stage agent was stopped when Chuck restarted" : "The stage agent is not running after this failure"}, so its chat can no longer report against this run. Retry the stage to run it again with a fresh agent.</p>}</div>}

@@ -1,4 +1,4 @@
-import { pipelineProposalSchema, type PipelineListedProposal, type PipelineProposal, type PipelineTemplateRecord } from "../../schemas/pipeline";
+import { pipelineProposalSchema, type PipelineListedProposal, type PipelineProposal, type PipelineTemplateRecord, type PipelineWorkspaceSelection } from "../../schemas/pipeline";
 
 // One draft must never push the template library or the run ledger off the
 // surface, so every summarized value is clipped here rather than at each call
@@ -23,6 +23,13 @@ export interface ProposalSummaryField {
 export function asPipelineProposal(entry: PipelineListedProposal): PipelineProposal | null {
   const parsed = pipelineProposalSchema.safeParse(entry);
   return parsed.success ? parsed.data : null;
+}
+
+// describeWorkspace states the run's checkout choice for review and proposal
+// summaries; an absent selection is the project checkout (FS-14.R91).
+export function describeWorkspace(workspace: PipelineWorkspaceSelection | undefined) {
+  if (!workspace || workspace.mode !== "new_worktree") return "Project checkout";
+  return `New worktree · branch ${workspace.branch ?? ""}${workspace.base ? ` from ${workspace.base}` : ""}`;
 }
 
 export function proposalKindLabel(kind: string) {
@@ -50,6 +57,7 @@ export function summarizeProposal(
     { label: "Template", value: resolveTemplateTitle(proposal.payload.template_id, templates) },
     { label: "Run", value: clipProposalValue(proposal.payload.display_name) },
     { label: "Goal", value: clipProposalValue(proposal.payload.goal) },
+    ...(proposal.payload.workspace ? [{ label: "Workspace", value: clipProposalValue(describeWorkspace(proposal.payload.workspace)) }] : []),
   ];
 }
 

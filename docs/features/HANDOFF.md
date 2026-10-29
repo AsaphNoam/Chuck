@@ -50,6 +50,32 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
+**Pipeline worktrees and descendant placement** —
+[`pipeline-worktrees-and-descendant-placement`](../ready-changes/pipeline-worktrees-and-descendant-placement.md),
+**in progress** (started 2026-10-29). Plan (one owner; slices commit independently):
+
+1–3. **Done (backend):** migration 64 (`pipeline_workspaces`, `sessions.workspace_id`);
+   `StartRequest.Workspace` (omitted = project mode; every new run gets a record, legacy runs
+   none); `Lifecycle.PlanWorkspace` is read-only Git planning in `internal/server/pipeline_workspace.go`;
+   intent commits in `CreatePipelineRun` before stage rows; `ensureRunWorkspace` prepares lazily
+   at first launch under the shared claim (`pipeline-workspace:<id>`), verifies, recreates, honors
+   the `removed` tombstone; `resolveStartCheckout` is the one seam for launch/resume/switch/clone;
+   `placeRunTaskTx` sets the run group and refuses other-checkout targets in the task transaction,
+   `CheckPipelineTaskTarget` repeats it at admission; rooms use `thinkTankPlacement`; start's
+   shared-checkout warning compares effective checkouts. Tests: `pipeline_workspace_test.go`,
+   extended `TestPipelineThinkTankStageEndToEnd` and shared-workspace start test.
+   Not yet: eager preparation feedback on Start (preparation errors surface via the stage task's
+   failed start and `workspace.error`); stage-row existing-target check relies on admission.
+4. Workspace list/detail/remove API, terminal eligibility, retention after run deletion (TS-12.R15–R16).
+5. CLI/proposal/UI schemas, start/review/detail, cleanup dialog, workspace list, phone (TS-09.R65).
+6. Closure: FS-14.A57–A60/FS-19.A8 evidence, packaged probes, TS-06 matrix.
+
+Seams: Git ops `internal/worktree/git.go`; project resolver `ensureWorktreeCheckout`
+(`internal/server/worktree.go`); cwd chosen in `composeLaunchWithOptions`
+(`internal/server/launch.go`); task launches `startLaunchedTask` (`task_dispatcher.go`);
+rooms `launchReservedThinkTankAgent` (`think_tanks.go`); run tx `CreatePipelineRun`
+(`internal/state/pipelines.go`); start handler `handleStartPipelineRun`.
+
 **Running background-work indicator** —
 [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
 **resumable**. Operator decision 2026-10-29: option (a). Each popover row is named by its

@@ -751,7 +751,7 @@ replacement; §6 identifies its supersessions and any remaining design decision.
 
 ### 4.10 Pipeline worktrees and descendant placement
 
-- **R91 (planned) — Optional isolated checkout at run start.** Run setup offers creating one new
+- **R91 (shipped 2026-10-29) — Optional isolated checkout at run start.** Run setup offers creating one new
   worktree for the whole run, with editable branch and base, or using the selected project's current
   checkout. Creating a worktree is optional. Setup and Review identify the choice before Start;
   the run detail identifies the resulting workspace and branch. All stages share that checkout;
@@ -759,19 +759,19 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   behavior applies. The run stays within the original project: no project is created and its
   configured checkout is not changed. A creation failure starts no agents, retains the entered
   setup values and exposes the failure on the start surface or retained run for recovery.
-- **R92 (planned) — Recursive workspace inheritance.** Every Chuck agent newly created for the
+- **R92 (shipped 2026-10-29) — Recursive workspace inheritance.** Every Chuck agent newly created for the
   run uses its selected workspace: the standing owner, replacements, dedicated coordinators,
   room-backed stage participants and judges, and workers/reviewers recursively created through
   delegated tasks. Pipeline lineage determines this placement without relying on agent-authored
   instructions. Retry, stage advance, wait/wake, resume and runtime switch retain the selected
   checkout. Agent/API metadata identifies the effective workspace. Additional directories retain
   their existing meaning; this adds no multi-repository isolation or automatic merge/PR behavior.
-- **R93 (planned) — Recursive initial group placement.** Every newly created agent covered by
+- **R93 (shipped 2026-10-29) — Recursive initial group placement.** Every newly created agent covered by
   R92 initially receives the run's designated ordinary group (the run display name), even when a
   descendant omits or requests a different group. This specializes R89's guidance-only grouping
   boundary. Later manual moves remain valid: stage transitions, resume and group changes to another
   member do not move an existing agent back. Group labels grant no control-plane authority.
-- **R94 (planned) — Offer checkout removal when a run ends.** After completion, terminal failure or Stop
+- **R94 (shipped 2026-10-29) — Offer checkout removal when a run ends.** After completion, terminal failure or Stop
   has ended a run and its owned work has stopped, offer keeping or removing its newly created
   checkout. Keeping is the default; dismissing or ignoring the offer deletes nothing. The offer
   states that branch, commits and conversations survive, discloses uncommitted changes or an
@@ -779,12 +779,12 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   on stage completion, pause, crash, restart or run-record deletion. Existing/external checkouts
   are never offered for removal by this action. The offer remains reachable from terminal run
   details when the person was absent at termination.
-- **R95 (planned) — Existing targets must share the selected checkout.** A pipeline task targeting
+- **R95 (shipped 2026-10-29) — Existing targets must share the selected checkout.** A pipeline task targeting
   an existing agent is refused when that agent's frozen workspace differs from the run's selected
   checkout, even within the same project. The error names the mismatch and directs the caller to
   launch a new agent for this run or select an agent in its checkout. Refusal changes no assignment,
   conversation or group. This is checked again at admission so a stale request cannot bypass it.
-- **R96 (planned) — Retained workspace and explicit removal remain visible.** Removing a run-owned
+- **R96 (shipped 2026-10-29) — Retained workspace and explicit removal remain visible.** Removing a run-owned
   checkout keeps its branch, commits, agents, tasks, transcripts and project. Later resume of a
   conversation pointing there fails actionably rather than moving it to the project checkout or
   silently recreating a checkout the person removed. An out-of-band missing owned checkout is
@@ -1158,7 +1158,13 @@ replacement; §6 identifies its supersessions and any remaining design decision.
 
 ## 6. Deviations & open decisions
 
-- **Pipeline workspace design (2026-10-29):** R91–R96/A57–A60 are planned. Confirmed: optional
+- **Pipeline workspaces shipped (2026-10-29):** R91–R96 shipped. A new worktree is prepared at
+  the first agent launch rather than inside the Start request, so a Git failure after Start
+  appears on the retained run's workspace and stage attention (R91's retained-run path). Retained
+  workspace list/removal is available in the desktop UI and HTTP only; no operator CLI command
+  exists for it yet. A57–A60 stay planned until the desktop/phone browser journeys and the
+  packaged Claude/Codex cwd probe have run; integration evidence is in TS-12 §6.
+- **Pipeline workspace design (2026-10-29):** R91–R96/A57–A60 were planned. Confirmed: optional
   per-run checkout under the original project, initial run-group placement with manual moves,
   refusal of existing targets outside the checkout, and an end-of-run removal offer. The proposed
   lifecycle/API contract in TS-09.R61–R65 and TS-12.R12–R17 was approved on 2026-10-29,

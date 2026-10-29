@@ -518,13 +518,12 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 	// registration side effect (TS-01.R26, TS-12.R4). Resume keeps the frozen
 	// snapshot cwd: the helper only re-materializes a missing owned checkout at
 	// that exact recorded path, and never re-derives a different one.
-	recreated, warning, wae := s.ensureWorktreeCheckout(ctx, agent.Project, snap.Cwd)
+	checkout, wae := s.resolveStartCheckout(ctx, agent.Project, snap.WorkspaceID, snap.Cwd)
 	if wae != nil {
 		return runtime.LaunchSpec{}, wae
 	}
-	if recreated && notice != nil {
-		row, _ := s.ownedWorktree(agent.Project)
-		*notice = worktreeStartNotice{Recreated: true, Branch: row.Branch, Warning: warning}
+	if checkout.Recreated && notice != nil {
+		*notice = worktreeStartNotice{Recreated: true, Branch: checkout.Branch, Warning: checkout.Warning}
 	}
 	// Ensure the shared-resources directory before any registration side effect
 	// (FS-11.R6/R9). The frozen snapshot already carries the path in add_dirs and
@@ -554,6 +553,7 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 		Agent:              agent,
 		Generation:         generation,
 		Cwd:                snap.Cwd,
+		WorkspaceID:        snap.WorkspaceID,
 		AddDirs:            snap.AddDirs,
 		SystemPrompt:       snap.SystemPrompt,
 		HistoryPrimer:      snap.HistoryPrimer,

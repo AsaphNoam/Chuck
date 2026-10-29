@@ -2569,6 +2569,7 @@ func runtimeMeta(spec LaunchSpec, sessionID string) SessionMetaData {
 		Interface:         spec.Agent.Interface,
 		Group:             spec.Agent.Group,
 		Cwd:               spec.Cwd,
+		WorkspaceID:       spec.WorkspaceID,
 		SystemPrompt:      spec.SystemPrompt,
 		HistoryPrimer:     spec.HistoryPrimer,
 		ResetContext:      spec.LastSessionID == "",

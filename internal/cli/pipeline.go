@@ -183,10 +183,14 @@ func newPipelineCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
+		workspace, err := pipelineWorkspaceFlags(cmd)
+		if err != nil {
+			return err
+		}
 		body := struct {
 			pipeline.StartRequest
 			Acknowledge bool `json:"acknowledge_shared_workspace"`
-		}{StartRequest: pipeline.StartRequest{RequestID: startRequestID, TemplateID: startTemplate, DisplayName: startName, Project: startProject, Goal: startGoal, Inputs: inputs, Assignments: assignments, Orchestrator: standing, DedicatedAssignments: dedicatedAssignments(assignments), ThinkTankAssignments: rooms}, Acknowledge: acknowledge}
+		}{StartRequest: pipeline.StartRequest{RequestID: startRequestID, TemplateID: startTemplate, DisplayName: startName, Project: startProject, Goal: startGoal, Inputs: inputs, Assignments: assignments, Orchestrator: standing, DedicatedAssignments: dedicatedAssignments(assignments), ThinkTankAssignments: rooms, Workspace: workspace}, Acknowledge: acknowledge}
 		if pipelineOperatorMode(cmd) {
 			return operatorRun(cmd, http.MethodPost, "/api/pipeline-runs", body, nil)
 		}
@@ -206,8 +210,10 @@ func newPipelineCmd() *cobra.Command {
 	start.Flags().StringSliceVar(&roomParticipants, "room-participant", nil, "Think Tank participant runtime as stage.participant=backend/model (repeatable)")
 	start.Flags().StringSliceVar(&roomJudges, "room-judge", nil, "Think Tank judge runtime as stage=backend/model (repeatable)")
 	start.Flags().BoolVar(&acknowledge, "ack-shared-workspace", false, "acknowledge active work sharing the project directory")
+	start.Flags().String("worktree-branch", "", "create one new worktree for the run on this new branch")
+	start.Flags().String("worktree-base", "", "base for --worktree-branch (default: the project's base branch)")
 	addOperatorFlags(start)
-	start.Long = "Start a configured template with --template, --project, and --goal. Repeat --input name=value for template inputs, --stage stage=backend/model for stage assignments, and use --request-file for the complete request including effort/fast or Think Tank assignments. Example: chuck pipeline run start --template quality --project demo --goal 'Ship it' --backend codex --model gpt"
+	start.Long = "Start a configured template with --template, --project, and --goal. Repeat --input name=value for template inputs, --stage stage=backend/model for stage assignments, and use --request-file for the complete request including effort/fast or Think Tank assignments. --worktree-branch gives the whole run one new checkout of the project on that branch; without it the run uses the project checkout. Example: chuck pipeline run start --template quality --project demo --goal 'Ship it' --backend codex --model gpt --worktree-branch ship-it"
 	// --backend/--model are required by the server only when an ordinary stage
 	// needs the standing owner; a Think Tank-only run has none (TS-09.R52).
 	runs.AddCommand(start)
@@ -719,7 +725,30 @@ func pipelineStartRequestFile(cmd *cobra.Command) (map[string]any, error) {
 			return nil, err
 		}
 	}
+	workspace, err := pipelineWorkspaceFlags(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if workspace != nil {
+		if err := merge("worktree-branch", "workspace", workspace); err != nil {
+			return nil, err
+		}
+	}
 	return body, nil
+}
+
+// pipelineWorkspaceFlags maps the worktree shortcuts to the start request's
+// workspace selection (TS-09.R65); without them the run uses the project
+// checkout.
+func pipelineWorkspaceFlags(cmd *cobra.Command) (*pipeline.WorkspaceSelection, error) {
+	branch, base := cmdFlagString(cmd, "worktree-branch"), cmdFlagString(cmd, "worktree-base")
+	if branch == "" {
+		if base != "" {
+			return nil, operatorInputError(fmt.Errorf("--worktree-base requires --worktree-branch"))
+		}
+		return nil, nil
+	}
+	return &pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: branch, Base: base}, nil
 }
 
 func pipelineControlRequestFile(cmd *cobra.Command, defaults map[string]any) (map[string]any, error) {

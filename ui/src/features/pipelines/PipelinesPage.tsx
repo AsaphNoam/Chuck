@@ -37,6 +37,7 @@ export function PipelinesLayout() {
         <NavLink to="/pipelines/runs" className={({ isActive }) => isActive ? "pipeline-tab pipeline-tab-active" : "pipeline-tab"}>
           Runs{startCount > 0 && <span>{startCount}</span>}
         </NavLink>
+        <NavLink to="/pipelines/workspaces" className={({ isActive }) => isActive ? "pipeline-tab pipeline-tab-active" : "pipeline-tab"}>Workspaces</NavLink>
         <NavLink to="/pipelines/templates" className={({ isActive }) => isActive ? "pipeline-tab pipeline-tab-active" : "pipeline-tab"}>
           Templates{saveCount > 0 && <span>{saveCount}</span>}
         </NavLink>

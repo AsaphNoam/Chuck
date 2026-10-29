@@ -13,6 +13,7 @@ import {
   RunsPage,
   TemplatesPage,
 } from "./features/pipelines/PipelinesPage";
+import { WorkspacesPage } from "./features/pipelines/WorkspacesPage";
 import { TasksPage } from "./features/tasks/TasksPage";
 import { ThinkTankPage } from "./features/thinktank/ThinkTankPage";
 import { ProjectDashboard, ScopedProjectDashboard } from "./features/dashboard/ProjectDashboard";
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
           { index: true, element: <PipelinesIndex /> },
           { path: "runs", element: <RunsPage /> },
           { path: "runs/:runID", element: <PipelineRunPage /> },
+          { path: "workspaces", element: <WorkspacesPage /> },
           { path: "templates", element: <TemplatesPage /> },
           { path: "templates/:templateID", element: <PipelineTemplatePage /> },
         ],

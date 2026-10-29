@@ -617,6 +617,7 @@ func (s *Server) Start(ctx context.Context) error {
 		ln.Close()
 		return err
 	}
+	s.reconcileRemovingWorkspaces()
 	if err := s.recoverTasks(sweepCtx); err != nil {
 		ln.Close()
 		return fmt.Errorf("recover dependent work: %w", err)

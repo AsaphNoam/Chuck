@@ -734,6 +734,9 @@ func (s *Server) CreateAgentTask(req messaging.AgentTaskRequest) (state.Task, er
 	if errors.Is(err, state.ErrTaskRunClosed) {
 		return state.Task{}, &messaging.ToolError{Code: "invalid_state", Message: "the governing pipeline stage is closing and cannot accept new work"}
 	}
+	if errors.Is(err, state.ErrTaskTargetWorkspace) {
+		return state.Task{}, &messaging.ToolError{Code: "target_ineligible", Message: targetWorkspaceMismatch}
+	}
 	if err != nil {
 		return state.Task{}, err
 	}

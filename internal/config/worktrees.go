@@ -18,10 +18,71 @@ const dirWorktrees = "worktrees"
 // without touching disk. The id is slug-validated before it is joined into a
 // path, so the result can never escape the Chuck home (FS-11.R8).
 func (s *Store) WorktreePath(projectID string) (string, error) {
-	if !ValidSlug(projectID) {
+	if !ValidSlug(projectID) || projectID == dirPipelineWorktrees {
 		return "", fmt.Errorf("config: invalid project id %q", projectID)
 	}
 	return filepath.Join(s.home, dirWorktrees, projectID), nil
+}
+
+// dirPipelineWorktrees holds run-owned checkouts in their own namespace under
+// the worktree root (TS-12.R12). A project id equal to it is refused by
+// WorktreePath so the two namespaces cannot overlap.
+const dirPipelineWorktrees = "pipelines"
+
+// PipelineWorktreePath returns the canonical checkout path for a pipeline
+// workspace id without touching disk.
+func (s *Store) PipelineWorktreePath(workspaceID string) (string, error) {
+	if !ValidSlug(workspaceID) {
+		return "", fmt.Errorf("config: invalid pipeline workspace id %q", workspaceID)
+	}
+	return filepath.Join(s.WorktreesRoot(), dirPipelineWorktrees, workspaceID), nil
+}
+
+// EnsurePipelineWorktreeRoot is EnsureWorktreeRoot for a run-owned checkout:
+// it creates the owner-only parents and rejects a symlinked parent or leaf.
+func (s *Store) EnsurePipelineWorktreeRoot(workspaceID string) (string, error) {
+	leaf, err := s.PipelineWorktreePath(workspaceID)
+	if err != nil {
+		return "", err
+	}
+	parent := filepath.Dir(leaf)
+	for _, dir := range []string{s.WorktreesRoot(), parent} {
+		if err := rejectSymlink(dir); err != nil {
+			return "", err
+		}
+		if err := ensureOwnerDir(dir); err != nil {
+			return "", err
+		}
+	}
+	if err := rejectSymlink(leaf); err != nil {
+		return "", err
+	}
+	return leaf, nil
+}
+
+// ValidatePipelineWorktreePath verifies an existing run-owned checkout without
+// creating or following any component of its owned path.
+func (s *Store) ValidatePipelineWorktreePath(workspaceID, recorded string) error {
+	leaf, err := s.PipelineWorktreePath(workspaceID)
+	if err != nil {
+		return err
+	}
+	if filepath.Clean(recorded) != filepath.Clean(leaf) {
+		return fmt.Errorf("config: recorded checkout %q is not the owned location %q", recorded, leaf)
+	}
+	for _, path := range []string{s.WorktreesRoot(), filepath.Dir(leaf), leaf} {
+		fi, err := os.Lstat(path)
+		if err != nil {
+			return fmt.Errorf("config: stat %q: %w", path, err)
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("config: %q is a symlink; refusing to follow", path)
+		}
+		if !fi.IsDir() {
+			return fmt.Errorf("config: %q is not a directory", path)
+		}
+	}
+	return nil
 }
 
 // WorktreesRoot returns the owned worktree root. No Chuck code path removes

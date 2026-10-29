@@ -83,6 +83,19 @@ describe("RunScreen", () => {
     expect(input).toHaveValue("use the staging host");
   });
 
+  // FS-14.R96 — the phone reports the checkout but never offers its removal.
+  it("shows the run's worktree status and points removal at the desktop", async () => {
+    const workspace = { workspace_id: "ws_1", run_id: "run_1", project: "app", project_name: "App", run_name: "Ship", mode: "new_worktree", branch: "chuck/ship", cwd: "/tmp/app-ship", state: "ready", owned: true, revision: 2, removal_eligible: true, created_at: "2026-10-05T00:00:00Z", updated_at: "2026-10-05T00:00:00Z" };
+    server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, run: { ...run, state: "completed", final_outcome: "success", attention_reason: "" }, workspace })));
+    renderScreen();
+    const section = await screen.findByRole("region", { name: "Workspace" });
+    expect(section).toHaveTextContent("New worktree · Ready");
+    expect(section).toHaveTextContent("Branch chuck/ship");
+    expect(section).toHaveTextContent("/tmp/app-ship");
+    expect(section).toHaveTextContent("Remove this checkout from Pipelines on the desktop.");
+    expect(screen.queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
+  });
+
   it("retries the stage and stops the run", async () => {
     renderScreen();
     fireEvent.click(await screen.findByRole("button", { name: "Retry stage" }));

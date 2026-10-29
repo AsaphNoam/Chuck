@@ -1,6 +1,6 @@
 # Pipeline worktrees and descendant placement
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator request 2026-10-29: pipeline stage agents and every recursively spawned agent
 must use the pipeline worktree and designated group. Product and technical scope approved in
 conversation, including keeping the original project and offering checkout removal when a run ends.

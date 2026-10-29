@@ -19,8 +19,12 @@ type LaunchSpec struct {
 	Agent state.Agent // stable identity (agent_id, role, project, backend, model, interface)
 	// Generation scopes teardown/exit callbacks to this concrete process launch.
 	// Pipeline attempts persist it; manual launches use their fresh hook token.
-	Generation   string
-	Cwd          string   // resolved absolute working dir (project.cwd, ~-expanded)
+	Generation string
+	Cwd        string // resolved absolute working dir (project.cwd, ~-expanded)
+	// WorkspaceID is the pipeline run workspace this cwd belongs to, frozen
+	// beside it so resume/switch re-resolve the same checkout (TS-12.R14).
+	// Empty for agents outside a run workspace.
+	WorkspaceID  string
 	AddDirs      []string // project.add_dirs, ~-expanded
 	SystemPrompt string   // composed: context_prompt + role.system_prompt — the FROZEN, persisted snapshot
 	// HistoryPrimer is the durable bounded bridge owned by this native conversation.

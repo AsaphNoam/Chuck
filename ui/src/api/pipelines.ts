@@ -5,6 +5,9 @@ import {
   pipelineRunSummarySchema,
   pipelineStartResponseSchema,
   pipelineTemplateRecordSchema,
+  pipelineWorkspaceDetailSchema,
+  pipelineWorkspaceListSchema,
+  type PipelineWorkspaceRemove,
   type PipelineRunDetail,
   type PipelineStartRequest,
   type PipelineProposalCollections,
@@ -19,6 +22,9 @@ export const PIPELINE_QUERY_KEYS = {
   runDetails: ["pipelines", "run-detail"] as const,
   run: (id: string) => ["pipelines", "run-detail", id] as const,
   proposals: ["pipelines", "proposals"] as const,
+  workspaces: ["pipelines", "workspaces"] as const,
+  workspaceList: (project: string) => ["pipelines", "workspaces", "list", project] as const,
+  workspace: (id: string) => ["pipelines", "workspaces", "detail", id] as const,
 };
 
 interface PipelineErrorBody {
@@ -178,6 +184,25 @@ export function deletePipelineRun(id: string) {
   return emptyRequest(`/api/pipeline-runs/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export function listPipelineWorkspaces(project: string, cursor: string) {
+  const query = new URLSearchParams({ limit: "50" });
+  if (project) query.set("project", project);
+  if (cursor) query.set("cursor", cursor);
+  return request(`/api/pipeline-workspaces?${query}`, pipelineWorkspaceListSchema);
+}
+
+export function getPipelineWorkspace(id: string) {
+  return request(`/api/pipeline-workspaces/${encodeURIComponent(id)}`, pipelineWorkspaceDetailSchema);
+}
+
+export function removePipelineWorkspace(id: string, body: PipelineWorkspaceRemove) {
+  return request(`/api/pipeline-workspaces/${encodeURIComponent(id)}/remove`, pipelineWorkspaceDetailSchema, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 export function usePipelineTemplates() {
   return useQuery({ queryKey: PIPELINE_QUERY_KEYS.templates, queryFn: listPipelineTemplates });
 }
@@ -190,6 +215,34 @@ export function usePipelineRuns() {
     getNextPageParam: (page, pages) => {
       const loaded = pages.reduce((total, item) => total + item.runs.length, 0);
       return loaded < page.total ? loaded : undefined;
+    },
+  });
+}
+
+export function usePipelineWorkspaces(project: string) {
+  return useInfiniteQuery({
+    queryKey: PIPELINE_QUERY_KEYS.workspaceList(project),
+    initialPageParam: "",
+    queryFn: ({ pageParam }) => listPipelineWorkspaces(project, pageParam),
+    getNextPageParam: (page) => page.next_cursor || undefined,
+  });
+}
+
+// Workspace reads are authoritative: the detail is refetched every time the
+// dialog opens and never kept past it (TS-09.R65).
+export function usePipelineWorkspace(id: string) {
+  return useQuery({ queryKey: PIPELINE_QUERY_KEYS.workspace(id), queryFn: () => getPipelineWorkspace(id), gcTime: 0, staleTime: 0 });
+}
+
+export function useRemovePipelineWorkspace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: PipelineWorkspaceRemove }) => removePipelineWorkspace(id, body),
+    // Settled, not just successful: a refused removal means the checkout changed,
+    // so every view refetches the real state.
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.workspaces });
+      void qc.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runDetails });
     },
   });
 }

@@ -879,6 +879,55 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 63,
 		apply:   addStatusBackgroundRunning,
 	},
+	{
+		// Run-owned pipeline workspaces and the session's frozen workspace
+		// identity (TS-12.R12/R14). Project and run references are logical so
+		// deleting either retains the checkout record.
+		version: 64,
+		apply:   addPipelineWorkspaces,
+	},
+}
+
+// addPipelineWorkspaces follows addStatusBackgroundRunning for the sessions
+// column: a synthetic legacy database without that table has nothing to extend.
+func addPipelineWorkspaces(tx *sql.Tx) error {
+	if _, err := tx.Exec(`
+CREATE TABLE pipeline_workspaces (
+  workspace_id     TEXT PRIMARY KEY,
+  run_id           TEXT NOT NULL UNIQUE,
+  request_id       TEXT NOT NULL UNIQUE,
+  project          TEXT NOT NULL,
+  project_name     TEXT NOT NULL DEFAULT '',
+  run_name         TEXT NOT NULL DEFAULT '',
+  mode             TEXT NOT NULL,
+  selection_digest TEXT NOT NULL DEFAULT '',
+  repo_path        TEXT NOT NULL DEFAULT '',
+  base             TEXT NOT NULL DEFAULT '',
+  base_commit      TEXT NOT NULL DEFAULT '',
+  branch           TEXT NOT NULL DEFAULT '',
+  checkout_path    TEXT NOT NULL,
+  setup_command    TEXT NOT NULL DEFAULT '',
+  state            TEXT NOT NULL,
+  owned            INTEGER NOT NULL DEFAULT 0,
+  revision         INTEGER NOT NULL DEFAULT 1,
+  error            TEXT NOT NULL DEFAULT '',
+  setup_ok         INTEGER,
+  setup_at         TEXT,
+  setup_output     TEXT NOT NULL DEFAULT '',
+  removal_eligible INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL
+);
+CREATE INDEX idx_pipeline_workspaces_project ON pipeline_workspaces(project, created_at, workspace_id);`); err != nil {
+		return err
+	}
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'sessions'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE sessions ADD COLUMN workspace_id TEXT NOT NULL DEFAULT '';
+CREATE INDEX idx_sessions_workspace ON sessions(workspace_id) WHERE workspace_id != '';`)
+	return err
 }
 
 // addStatusBackgroundRunning follows addScheduleNextDueWall: a synthetic

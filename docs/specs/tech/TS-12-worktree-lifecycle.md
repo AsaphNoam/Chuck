@@ -135,7 +135,7 @@ existing checkout/setup boundary.
 
 ### Planned run-owned checkout specialization
 
-- **R12 (planned) — Separate ownership, shared Git machinery.** Add a forward-only SQLite
+- **R12 (shipped 2026-10-29) — Separate ownership, shared Git machinery.** Add a forward-only SQLite
   `pipeline_workspaces` record keyed by immutable server-generated workspace id, with unique run id
   and start request id, original project id, retained project/run display names, selection digest,
   repository common directory, resolved base commit, branch, canonical checkout path, frozen setup
@@ -147,7 +147,7 @@ existing checkout/setup boundary.
   do not put Git subprocesses in the pipeline controller or create a second launch composer.
   Project-mode records freeze only the effective project cwd and any existing project-worktree
   ownership reference; they never claim ownership of that checkout or offer run-specific removal.
-- **R13 (planned) — Preparation precedes agent admission and is idempotent.** For new-worktree mode,
+- **R13 (shipped 2026-10-29) — Preparation precedes agent admission and is idempotent.** For new-worktree mode,
   reserve the
   selected workspace intent with the run/first task transaction (TS-09.R61). A per-workspace claim
   serializes creation/recreation and removal, and every start holds a compatible readiness claim
@@ -162,7 +162,7 @@ existing checkout/setup boundary.
   leaves ambiguous unrecorded artifacts, retain the intent and show an actionable preparation
   error; recovery does not guess ownership, adopt a replacement or start in the project checkout.
   Recorded owned preparation resumes bounded setup safely under the same claim after restart.
-- **R14 (planned) — One resolver handles project-owned and run-owned readiness.** Extend the
+- **R14 (shipped 2026-10-29) — One resolver handles project-owned and run-owned readiness.** Extend the
   canonical checkout resolver with an optional server-owned workspace identity, retaining the
   current project path for unbound launches. Sessions persist `workspace_id` with frozen cwd and
   project; tasks obtain it from run lineage, and pipeline rooms from immutable pipeline origin.
@@ -174,7 +174,7 @@ existing checkout/setup boundary.
   are errors, never evidence of an ordinary/unowned checkout. Resume/switch keep frozen cwd and
   workspace id, including after deleting run history; metadata retention is independent of that
   history. This specializes R4's project-keyed ownership/readiness without changing ordinary paths.
-- **R15 (planned) — Checkout removal is an explicit durable operation.** Offer removal only
+- **R15 (shipped 2026-10-29) — Checkout removal is an explicit durable operation.** Offer removal only
   after a run is terminal and normal task/room cleanup has settled; dismissal defaults to keeping.
   Under the workspace claim, block new starts and refuse while any Chuck runtime/start claim using
   that checkout remains, including a resumed retained conversation or clone. Reuse existing
@@ -189,7 +189,7 @@ existing checkout/setup boundary.
   retain the tombstone so launch cannot undo consent. Restart reconciles a missing checkout in
   `removing` to removed; a present/changed checkout requires fresh validation/consent rather than
   blind deletion. A failed removal remains inspectable and retryable, never reported as success.
-- **R16 (planned) — Manage retained workspaces independently of run records.** Add local guarded
+- **R16 (shipped 2026-10-29) — Manage retained workspaces independently of run records.** Add local guarded
   `GET /api/pipeline-workspaces?project=...&cursor=...&limit=...`,
   `GET /api/pipeline-workspaces/{id}` and
   `POST /api/pipeline-workspaces/{id}/remove` with
@@ -205,7 +205,7 @@ existing checkout/setup boundary.
   never cascade checkout removal. The same terminal/quiescence gates still apply after run deletion;
   the retained record stores settled eligibility before that deletion can commit. Tombstones and
   ownership survive without automatic expiry while retained sessions may reference them.
-- **R17 (planned) — Compatibility and independent verification.** Existing project ownership
+- **R17 (shipped 2026-10-29) — Compatibility and independent verification.** Existing project ownership
   rows, legacy sessions and runs decode without a run workspace id and retain current behavior;
   no destructive migration or retrospective regrouping. New runs in project mode freeze their
   chosen cwd for descendants while respecting any existing project-owned checkout recovery.
@@ -288,6 +288,15 @@ TS-02's config authority; both are optional and absent-tolerant.
   (`internal/server/pipeline_lifecycle.go`).
 - Consented deletion: `handleArchiveProjectAction` (`internal/server/archive_actions.go`) and
   `handleDeleteProject` (`internal/server/config_handlers.go`).
+- Run-owned workspaces (R12–R17): migration 64 and `internal/state/pipeline_workspaces.go`
+  (records, `placeRunTaskTx`, `CheckPipelineTaskTarget`); owned paths
+  `PipelineWorktreePath`/`EnsurePipelineWorktreeRoot` (`internal/config/worktrees.go`); planning,
+  preparation, recovery and the shared `resolveStartCheckout` seam in
+  `internal/server/pipeline_workspace.go`; list/detail/remove and restart reconciliation in
+  `internal/server/pipeline_workspace_handlers.go`. Anchors: `pipeline_workspace_test.go`
+  (`TestPipelineRunWorkspacePlacesEveryNewAgent`, `...RefusesTargetsInOtherCheckouts`,
+  `...PreparationFailures`, `...RecoveryAndTombstone`, `...SurvivesResume`,
+  `...ExplicitRemoval`) and `TestPipelineThinkTankStageEndToEnd`.
 - Regression anchors: `TestWorktreeForkCreatesBranchCheckoutAndProject`,
   `TestWorktreeForkOfAForkUsesTheEffectiveBase`, `TestWorktreeCheckoutRecreationAndMissingBranch`,
   `TestConcurrentCheckoutRecreationClaimsOnce`, `TestArchiveDeletesCheckoutOnlyWithConsent`,

@@ -81,7 +81,7 @@ func (m *Manager) ProposeRun(ctx context.Context, request StartRequest) (Proposa
 	// Start validation still requires a key, so use a bounded placeholder that is
 	// cleared again before anything is derived from it.
 	request.RequestID = "proposal-validation"
-	if _, err := m.validateStart(ctx, &request); err != nil {
+	if _, _, err := m.validateStart(ctx, &request, ""); err != nil {
 		return Proposal{}, err
 	}
 	request.RequestID = ""

@@ -32,6 +32,7 @@ func TestOperatorPipelineWireContracts(t *testing.T) {
 		{"proposal delete", []string{"proposal", "delete", "proposal id", "--yes", "--json"}, "", wire{http.MethodDelete, "/api/pipeline-proposals/proposal%20id", ""}},
 		{"run list page", []string{"run", "list", "--limit", "17", "--offset", "34", "--json"}, "", wire{http.MethodGet, "/api/pipeline-runs?limit=17&offset=34", ""}},
 		{"run start compact", []string{"run", "start", "--template", "quality", "--project", "demo", "--goal", "ship", "--backend", "codex", "--model", "gpt", "--input", "spec=do it", "--stage", "work=claude/sonnet", "--ack-shared-workspace", "--json"}, "", wire{http.MethodPost, "/api/pipeline-runs", ""}},
+		{"run start worktree", []string{"run", "start", "--request-file", "-", "--worktree-branch", "ship-it", "--worktree-base", "main", "--json"}, `{"request_id":"r1","template_id":"quality","project":"demo","goal":"ship"}`, wire{http.MethodPost, "/api/pipeline-runs", `{"request_id":"r1","template_id":"quality","project":"demo","goal":"ship","workspace":{"mode":"new_worktree","branch":"ship-it","base":"main"}}`}},
 		{"run start request full shape", []string{"run", "start", "--request-file", "-", "--json"}, `{"template_id":"quality","project":"demo","goal":"ship","inputs":{"n":4},"orchestrator":{"backend":"codex","model":"gpt","effort":"high","fast":true},"think_tank_assignments":{"debate":{"participants":{"a":{"backend":"claude","model":"sonnet","fast":true}},"judge":{"backend":"codex","model":"gpt","effort":"medium"}}}}`, wire{http.MethodPost, "/api/pipeline-runs", ""}},
 		{"run show", []string{"run", "show", "run id", "--json"}, "", wire{http.MethodGet, "/api/pipeline-runs/run%20id", ""}},
 		{"run continue", []string{"run", "continue", "r1", "--revision", "7", "--input", "again", "--json"}, "", wire{http.MethodPost, "/api/pipeline-runs/r1/continue", `{"revision":7,"input":"again"}`}},
@@ -165,6 +166,7 @@ func TestOperatorPipelineLocalRefusalsSendNoRequest(t *testing.T) {
 		{"run", "list", "--limit", "101", "--json"},
 		{"run", "start", "--request-file", "-", "--input", "x=1", "--json"},
 		{"run", "start", "--request-file", "-", "--backend", "codex", "--json"},
+		{"run", "start", "--template", "t", "--project", "p", "--goal", "g", "--worktree-base", "main", "--json"},
 		{"run", "start", "--template", "t", "--project", "p", "--goal", "g", "--backend", "codex", "--model", "m", "--stage", "work=codex/m", "--stage", "work=claude/m", "--json"},
 	}
 	for _, args := range cases {

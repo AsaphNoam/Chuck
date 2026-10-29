@@ -288,6 +288,17 @@ func (g Git) RevExists(ctx context.Context, dir, rev string) (bool, error) {
 	return true, nil
 }
 
+// ResolveCommit returns the full commit id rev names. A pipeline workspace
+// freezes this at Start so preparation later branches from exactly what the
+// person reviewed, not wherever a moving ref points by then (TS-09.R61).
+func (g Git) ResolveCommit(ctx context.Context, dir, rev string) (string, error) {
+	out, err := g.run(ctx, queryTimeout, dir, "rev-parse", "--verify", "--quiet", rev+"^{commit}")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
 // AddWorktree creates a new branch at base and checks it out into path as a
 // linked worktree of repo.
 func (g Git) AddWorktree(ctx context.Context, repo, path, branch, base string) error {

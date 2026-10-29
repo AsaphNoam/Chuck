@@ -44,6 +44,9 @@ func (f *fakeLifecycle) RoomLaunchConfig(_ context.Context, execution StageExecu
 	raw, err := json.Marshal(map[string]any{"role": execution.Role, "project": execution.Project, "backend": execution.Backend, "model": execution.Model, "name": execution.AgentName, "interface": "chat"})
 	return string(raw), err
 }
+func (f *fakeLifecycle) PlanWorkspace(_ context.Context, workspaceID, project string, selection WorkspaceSelection) (state.PipelineWorkspace, error) {
+	return state.PipelineWorkspace{Project: project, Mode: selection.Mode, CheckoutPath: "/work/" + project, State: state.PipelineWorkspaceReady}, nil
+}
 func (f *fakeLifecycle) StopStage(_ context.Context, agentID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

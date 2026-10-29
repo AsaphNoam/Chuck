@@ -69,6 +69,9 @@ func insertPipelineStageRowsTx(tx *sql.Tx, p CreatePipelineStageTaskParams, now 
 		// A managed coordinator is armed until its standing owner is confirmed,
 		// so it deliberately carries no ready time (TS-09.R49).
 		c.AttentionReason, c.ReadyAt = "", nil
+		if err := placeRunTaskTx(tx, &c, p.RunID); err != nil {
+			return "", err
+		}
 		if err := insertTaskRowTx(tx, c); err != nil {
 			return "", err
 		}

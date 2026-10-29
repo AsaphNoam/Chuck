@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/pipeline"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -191,7 +192,7 @@ func (s *Server) handleStartPipelineRun(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusOK, map[string]any{"run": response, "replay": true, "workspace_conflicts": []workspaceConflict{}})
 		return
 	}
-	conflicts, err := s.pipelineWorkspaceConflicts(request.Project)
+	conflicts, err := s.pipelineWorkspaceConflicts(request.Project, request.Workspace)
 	if err != nil {
 		writePipelineError(w, err)
 		return
@@ -399,15 +400,31 @@ type workspaceConflict struct {
 	Name string `json:"name"`
 }
 
-func (s *Server) pipelineWorkspaceConflicts(project string) ([]workspaceConflict, error) {
+// pipelineWorkspaceConflicts is the advisory shared-checkout check. It compares
+// effective checkouts, so a run that creates its own worktree conflicts with
+// nothing and agents or runs in other checkouts of the project do not count
+// (TS-09.R61). An unreadable checkout counts as shared rather than hiding work.
+func (s *Server) pipelineWorkspaceConflicts(project string, selection *pipeline.WorkspaceSelection) ([]workspaceConflict, error) {
 	out := []workspaceConflict{}
+	if selection != nil && selection.Mode == state.PipelineWorkspaceModeNewWorktree {
+		return out, nil
+	}
+	checkout := ""
+	if p, err := s.configStore.ReadProject(project); err == nil {
+		checkout, _ = config.ExpandTilde(p.Cwd)
+	}
+	shares := func(cwd string) bool { return checkout == "" || cwd == "" || sameCheckoutPath(cwd, checkout) }
 	running, err := s.stateStore.ListRunning()
 	if err != nil {
 		return nil, err
 	}
 	for _, entry := range running {
 		agent, err := s.stateStore.ReadAgent(entry.AgentID)
-		if err == nil && agent.Project == project {
+		if err != nil || agent.Project != project {
+			continue
+		}
+		snap, _ := s.stateStore.ReadSession(agent.AgentID)
+		if shares(snap.Cwd) {
 			out = append(out, workspaceConflict{Kind: "agent", ID: agent.AgentID, Name: agent.Name})
 		}
 	}
@@ -416,7 +433,16 @@ func (s *Server) pipelineWorkspaceConflicts(project string) ([]workspaceConflict
 		return nil, err
 	}
 	for _, run := range runs {
-		if run.Project == project {
+		if run.Project != project {
+			continue
+		}
+		cwd := ""
+		if w, err := s.stateStore.ReadPipelineWorkspaceForRun(run.RunID); err == nil {
+			cwd = w.CheckoutPath
+		} else if errors.Is(err, state.ErrNotFound) {
+			cwd = checkout
+		}
+		if shares(cwd) {
 			out = append(out, workspaceConflict{Kind: "run", ID: run.RunID, Name: run.DisplayName})
 		}
 	}

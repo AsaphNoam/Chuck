@@ -68,6 +68,58 @@ export const pipelineRuntimeAssignmentSchema = z.object({
   fast: z.boolean().optional().default(false),
 });
 
+// The run's workspace choice. Omitted means the project checkout; only
+// new_worktree carries a branch and optional base (FS-14.R91, TS-09.R65).
+export const pipelineWorkspaceSelectionSchema = z.object({
+  mode: z.enum(["project", "new_worktree"]),
+  branch: z.string().optional(),
+  base: z.string().optional(),
+});
+
+export const pipelineWorkspaceSchema = z.object({
+  workspace_id: z.string(),
+  run_id: z.string(),
+  project: z.string(),
+  project_name: z.string(),
+  run_name: z.string(),
+  mode: z.enum(["project", "new_worktree"]),
+  repo_path: z.string().optional(),
+  base: z.string().optional(),
+  base_commit: z.string().optional(),
+  branch: z.string().optional(),
+  cwd: z.string(),
+  state: z.enum(["preparing", "ready", "error", "removing", "removed"]),
+  owned: z.boolean(),
+  revision: z.number().int(),
+  error: z.string().optional(),
+  setup_ok: z.boolean().optional(),
+  setup_at: z.string().optional(),
+  removal_eligible: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const pipelineWorkspaceDetailSchema = pipelineWorkspaceSchema.extend({
+  missing: z.boolean(),
+  dirty: z.boolean(),
+  dirty_known: z.boolean(),
+  removable: z.boolean(),
+  blocked: z.string().optional(),
+  setup_output: z.string().optional(),
+});
+
+export const pipelineWorkspaceListSchema = z.object({
+  workspaces: z.array(pipelineWorkspaceSchema).nullish().transform((items) => items ?? []),
+  next_cursor: z.string().optional(),
+});
+
+export const pipelineWorkspaceRemoveSchema = z.object({
+  revision: z.number().int(),
+  dirty_known: z.boolean(),
+  dirty: z.boolean(),
+  acknowledge_unknown: z.boolean(),
+});
+
 export const pipelineStartRequestSchema = z.object({
   request_id: z.string(),
   template_id: z.string(),
@@ -81,6 +133,7 @@ export const pipelineStartRequestSchema = z.object({
     participants: z.record(pipelineRuntimeAssignmentSchema),
     judge: pipelineRuntimeAssignmentSchema,
   })).optional(),
+  workspace: pipelineWorkspaceSelectionSchema.optional(),
 });
 
 export const pipelineStageRoomSchema = z.object({
@@ -193,6 +246,8 @@ export const pipelineRunDetailSchema = z.object({
   })).optional().default({}),
   values: z.array(pipelineValueSchema),
   diagnostics: z.array(pipelineDiagnosticSchema),
+  // Absent for runs started before run workspaces (TS-12.R17).
+  workspace: pipelineWorkspaceSchema.optional(),
   controls: z.object({
     continue: z.object({ eligible: z.boolean(), reason: z.string().optional().default("") }),
     retry: z.object({ eligible: z.boolean(), reason: z.string().optional().default("") }),
@@ -290,7 +345,11 @@ export type PipelineDiagnostic = z.infer<typeof pipelineDiagnosticSchema>;
 export type PipelineTemplate = z.infer<typeof pipelineTemplateSchema>;
 export type PipelineTemplateRecord = z.infer<typeof pipelineTemplateRecordSchema>;
 export type PipelineRuntimeAssignment = z.infer<typeof pipelineRuntimeAssignmentSchema>;
-export type PipelineStartRequest = z.infer<typeof pipelineStartRequestSchema>;
+export type PipelineWorkspaceSelection = z.infer<typeof pipelineWorkspaceSelectionSchema>;
+export type PipelineWorkspace = z.infer<typeof pipelineWorkspaceSchema>;
+export type PipelineWorkspaceDetail = z.infer<typeof pipelineWorkspaceDetailSchema>;
+export type PipelineWorkspaceRemove = z.infer<typeof pipelineWorkspaceRemoveSchema>;
+export type PipelineStartRequest =z.infer<typeof pipelineStartRequestSchema>;
 export type PipelineRun = z.infer<typeof pipelineRunSchema>;
 export type PipelineValue = z.infer<typeof pipelineValueSchema>;
 export type PipelineRunDetail = z.infer<typeof pipelineRunDetailSchema>;

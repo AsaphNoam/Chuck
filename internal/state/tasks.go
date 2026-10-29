@@ -475,6 +475,11 @@ ORDER BY a.created_at DESC LIMIT 1`, task.CreatedByAgentID, task.CreatedByGenera
 		}
 	}
 
+	if inherited != nil {
+		if err := placeRunTaskTx(tx, &task, inherited.PipelineRunID); err != nil {
+			return Task{}, err
+		}
+	}
 	now := timeNow()
 	task.CreatedAt, task.UpdatedAt = now, now
 	task.Revision = 1
