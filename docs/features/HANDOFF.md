@@ -505,6 +505,17 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-29 — Defined pipeline worktrees and recursive group placement (awaiting technical
+  confirmation; INV §§2/5/8/9/11/12/14/15/16/17):** operator confirmed optional run-owned checkout
+  under the original project, initial run-group placement preserving manual moves, refusal of
+  existing-agent targets in another checkout, and an end-of-run removal offer. Planned
+  FS-14.R91–R96/A57–A60, FS-19.R12/A8, TS-09.R61–R65 and TS-12.R12–R17 cover recursive task/room
+  launch binding, frozen resume/switch cwd, ownership and consented removal. Idea remains in
+  `docs/ideas.md`; no ready change or product code. Awaiting confirmation of additive API,
+  retained-workspace list after run deletion, explicit-removal tombstone and desktop cleanup.
+  `git diff --check` and design-feature twin comparison pass; spec lint reports only the existing
+  DELMSG-1 missing invariant tag. Active work is unchanged.
+
 - **2026-10-29 — Fixed compact Think Tank navigation (INV §§8/13/17):** closed TTNAV-1/2/3
   from review `addb1f12` for the existing `compact-think-tank-chat-navigation` unit. Fix commit
   `1cf8fc9d` constrains long unavailable names, reserves active-link width to prevent flex reflow,

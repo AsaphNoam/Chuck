@@ -33,6 +33,15 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Pipeline worktrees and recursive group inheritance.** Requested 2026-10-29: all agents created
+  for a pipeline, including Chuck-created stage agents and agents recursively spawned by the
+  orchestrator or its descendants, must use the pipeline's worktree and designated group.
+  Confirmed: optional new worktree per run under the original project; initial run-group placement
+  with later manual moves; refuse existing targets in another checkout; offer removal when the run
+  ends. Draft FS-14.R91–R96/A57–A60, FS-19.R12/A8, TS-09.R61–R65 and TS-12.R12–R17.
+  Awaiting technical/lifecycle confirmation: retained workspace list after run deletion, removal
+  tombstone blocking silent recreation, additive API and unchanged legacy behavior. Not ready.
+
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;

@@ -749,6 +749,53 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   after the run ends or is deleted; existing sessions and runs started before this feature gain
   no instructions retroactively.
 
+### 4.10 Pipeline worktrees and descendant placement
+
+- **R91 (planned) — Optional isolated checkout at run start.** Run setup offers creating one new
+  worktree for the whole run, with editable branch and base, or using the selected project's current
+  checkout. Creating a worktree is optional. Setup and Review identify the choice before Start;
+  the run detail identifies the resulting workspace and branch. All stages share that checkout;
+  this is isolation between runs, not between stages. Existing FS-19 base-selection and setup-warning
+  behavior applies. The run stays within the original project: no project is created and its
+  configured checkout is not changed. A creation failure starts no agents, retains the entered
+  setup values and exposes the failure on the start surface or retained run for recovery.
+- **R92 (planned) — Recursive workspace inheritance.** Every Chuck agent newly created for the
+  run uses its selected workspace: the standing owner, replacements, dedicated coordinators,
+  room-backed stage participants and judges, and workers/reviewers recursively created through
+  delegated tasks. Pipeline lineage determines this placement without relying on agent-authored
+  instructions. Retry, stage advance, wait/wake, resume and runtime switch retain the selected
+  checkout. Agent/API metadata identifies the effective workspace. Additional directories retain
+  their existing meaning; this adds no multi-repository isolation or automatic merge/PR behavior.
+- **R93 (planned) — Recursive initial group placement.** Every newly created agent covered by
+  R92 initially receives the run's designated ordinary group (the run display name), even when a
+  descendant omits or requests a different group. This specializes R89's guidance-only grouping
+  boundary. Later manual moves remain valid: stage transitions, resume and group changes to another
+  member do not move an existing agent back. Group labels grant no control-plane authority.
+- **R94 (planned) — Offer checkout removal when a run ends.** After completion, terminal failure or Stop
+  has ended a run and its owned work has stopped, offer keeping or removing its newly created
+  checkout. Keeping is the default; dismissing or ignoring the offer deletes nothing. The offer
+  states that branch, commits and conversations survive, discloses uncommitted changes or an
+  undetermined dirty state, and requires an explicit removal choice. No automatic removal occurs
+  on stage completion, pause, crash, restart or run-record deletion. Existing/external checkouts
+  are never offered for removal by this action. The offer remains reachable from terminal run
+  details when the person was absent at termination.
+- **R95 (planned) — Existing targets must share the selected checkout.** A pipeline task targeting
+  an existing agent is refused when that agent's frozen workspace differs from the run's selected
+  checkout, even within the same project. The error names the mismatch and directs the caller to
+  launch a new agent for this run or select an agent in its checkout. Refusal changes no assignment,
+  conversation or group. This is checked again at admission so a stale request cannot bypass it.
+- **R96 (planned) — Retained workspace and explicit removal remain visible.** Removing a run-owned
+  checkout keeps its branch, commits, agents, tasks, transcripts and project. Later resume of a
+  conversation pointing there fails actionably rather than moving it to the project checkout or
+  silently recreating a checkout the person removed. An out-of-band missing owned checkout is
+  recreated from its recorded branch with the existing setup-warning behavior; a missing branch or
+  replacement directory fails actionably. Retained checkouts remain inspectable and removable from
+  a workspace list after run-record deletion. Deleting a run or project never implicitly deletes
+  these checkouts. Old runs and sessions keep their existing workspace; no automatic migration.
+  Workspace selection/status is visible on desktop and phone pipeline start/detail surfaces;
+  retained-workspace management and checkout removal are desktop actions, with phone guidance
+  directing the person there. Agents gain no new removal tool or filesystem permissions.
+
 ## 5. Acceptance criteria
 
 - **A53 (shipped 2026-10-09)** (R87) — Enter naming/grouping guidance once, save/reopen the template, then
@@ -1086,7 +1133,38 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   stored, and the editor lists them. *Verify by* the `internal/server` pipeline template handler
   test and `TemplateEditor.test.tsx`'s refused-save diagnostics case.
 
+- **A57 (planned)** (R91, R92) — Start two runs with distinct new branches, and another using the
+  current checkout. Inspect the effective launch cwd for each standing owner, dedicated
+  coordinator, room participant/judge and at least two generations of delegated workers. Each
+  run shares its selected checkout and isolated runs differ. Retry/replacement/resume/switch
+  retain it. A branch collision creates no agents and preserves setup input. *Verify:* pipeline
+  integration tests capturing provider launch parameters, plus a run-start/detail browser journey.
+- **A58 (planned)** (R93) — Omit and override group in descendant task requests and check initial
+  placement in the run group through two generations, room agents and orchestrator replacement.
+  Manually move an agent, then resume and advance the run; the move survives and newly created
+  descendants still receive the run group. *Verify:* pipeline/task integration and UI grouping tests.
+- **A59 (planned)** (R94) — End a run with a dirty owned checkout, dismiss the removal offer, reload,
+  reopen it and explicitly remove. Check default retention, truthful dirty/unknown state, preserved
+  branch/commits/history and no removal of a shared/external checkout. Pausing or crashing a run
+  offers no terminal cleanup. *Verify:* worktree/pipeline lifecycle integration tests and a browser
+  journey covering completion while absent and explicit dirty-checkout removal.
+- **A60 (planned)** (R95, R96) — For an isolated run, refuse assignment to an agent in a sibling
+  checkout or the project checkout, including a target changed between task creation and admission.
+  In project mode a target in the selected project checkout is eligible, and matching isolated
+  targets are eligible under ordinary authority rules. Remove an owned checkout explicitly and verify
+  resume fails; delete it out of band and verify recorded-branch recreation; replace its directory
+  and verify no repair/removal occurs. Delete a terminal run and find its retained checkout in the
+  workspace list. *Verify:* task/lifecycle integration tests, real-Git fixtures and a browser journey.
+
 ## 6. Deviations & open decisions
+
+- **Pipeline workspace design (2026-10-29):** R91–R96/A57–A60 are planned. Confirmed: optional
+  per-run checkout under the original project, initial run-group placement with manual moves,
+  refusal of existing targets outside the checkout, and an end-of-run removal offer. The proposed
+  lifecycle/API contract in TS-09.R61–R65 and TS-12.R12–R17 awaits the technical-design checkpoint,
+  including retained workspace management after run deletion and explicit-removal resume behavior.
+  These requirements specialize the shipped shared-workspace and guidance-only group boundaries
+  below; existing runs are not migrated by this draft.
 
 - **Group action replacement (shipped 2026-10-10):** FS-02.R75–R76 and TS-03.R57–R58 replace R58's
   Release group action with current-project Stop/Archive. Stage groups remain ordinary editable

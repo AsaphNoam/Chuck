@@ -1,6 +1,6 @@
 # FS-19 — Worktree projects
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/worktree/`, `internal/server/worktree.go`, `internal/config/worktrees.go`, `internal/state/worktrees.go`, `ui/src/features/dashboard/` · **Journeys:** J16
 **Absorbed:** —
 
@@ -104,6 +104,13 @@ deletion, which leaves ownership intact.
 - **R11.** Forking a worktree project is allowed and behaves identically: the new branch
   still comes off the effective base branch by default, not off the source project's branch.
 
+- **R12 (planned) — Pipeline-owned checkouts are a separate workspace kind.** FS-14.R91–R96
+  adds an optional checkout owned by a pipeline run within its existing project. For these runs,
+  project identity continues to scope configuration, resources and authority, while run provenance
+  selects the checkout. This specializes R5's project-checkout rule; it creates no worktree project
+  and does not alter ordinary agents or existing worktree-project behavior. Its ownership, recovery
+  and explicit-removal offer follow TS-12.R12–R17 rather than project archive/delete consent.
+
 ## 5. Acceptance criteria
 
 - **A1.** From a repo-backed project, the fork action creates branch + owned worktree +
@@ -124,6 +131,9 @@ deletion, which leaves ownership intact.
   name fails actionably and leaves no partial project, branch, or directory. Verified by test.
 - **A7.** Two agents in one worktree project share one checkout; two sibling forks get
   distinct checkouts and branches from the same base. Verified by test.
+- **A8 (planned)** (R12) — Within one project, an ordinary agent retains the project checkout
+  while two isolated pipelines and their descendants each share their own checkout. Project
+  configuration and shared resources remain unchanged. *Verify:* FS-14.A57's integration scenario.
 
 ## 6. Deviations & open decisions
 

@@ -637,6 +637,64 @@ unchanged by them.
   closure matrix once after the last relevant edit; keep live provider adoption evidence separate
   from fake/serialized delivery proof.
 
+### 2.14 Run workspace and recursive placement
+
+- **R61 (planned) — Freeze a run workspace without changing project identity.** Extend Start
+  with optional `workspace: {mode: "project"}` or `{mode: "new_worktree", branch, base}`. Omission
+  retains the existing project-checkout behavior; new-worktree mode requires a repo-backed active
+  project, a valid new branch and resolvable base. No request accepts a checkout path or ownership
+  flag. Persist the selected mode, resolved repository/base, branch, setup command and canonical
+  checkout identity under TS-12.R12–R14 with the run's original project id and frozen display-name
+  group. Do not write project config or create a project. Read-only validation never creates Git
+  artifacts. R18's advisory conflict check compares effective canonical checkout identities rather
+  than treating every agent in the same project as a checkout conflict; additional directories
+  remain shared under their existing rules. This specializes R18/R37: initial commit may reserve
+  a queued run, first stage task and workspace preparation intent together, but no agent starts
+  before the workspace is ready. Preparation failure is a visible launch/attention failure with
+  entered values retained, never an agent silently launched in the source checkout.
+- **R62 (planned) — Resolve execution workspace from authoritative provenance.** One bounded
+  resolver reads the task's persisted run lineage or a room's committed pipeline origin and obtains
+  the run workspace and frozen run group. Creation and admission validate the same binding;
+  descendant lineage and its placement are committed in the existing task write transaction.
+  Cover ordinary stage tasks, dedicated children, replacements, retries, all descendant launch
+  tasks and pipeline room participant/judge launches. Standalone tasks/rooms retain their behavior.
+  The dispatcher and room launcher pass a private workspace binding into shared launch composition;
+  no agent-facing tool can supply a cwd, ownership or arbitrary run id. Fail closed on a known
+  binding's missing/corrupt record or read failure. Stage result authority, project access, capacity,
+  task closure and cleanup remain on their existing owners; group labels never select a workspace.
+- **R63 (planned) — Preserve workspace across every lifecycle.** Freeze the workspace identity
+  beside session cwd at first launch. Shared launch/resume/switch, wait/wake, clone and configuration
+  refresh resolve and validate that identity through TS-12's one readiness seam; configuration
+  provenance/preflight and provider launch use the same effective cwd. A clone preserves its
+  source workspace but gains no pipeline assignment authority. Later project edits or run-record
+  deletion cannot change a retained conversation's checkout. Existing-agent targets must match the
+  effective frozen cwd and owned workspace identity where present; check both at creation and under
+  admission/lifecycle claims before delivery. A mismatch returns `target_ineligible` with a bounded
+  explanation and a same-workspace/new-launch recovery choice. No existing session is rebound.
+- **R64 (planned) — Initial group is server-derived for every new run agent.** For new pipeline
+  launch targets, store the run's frozen display-name group after deriving lineage, overriding an
+  omitted or different task-request group. Use the same resolver for new pipeline room agents
+  rather than their room-title group. Initial launch only sets the label; resume, reassignment,
+  stage advance and switch preserve later manual group edits. Existing target agents retain their
+  labels. Run rename, agent rename and a moved parent's group do not redefine the designated group.
+  R33's ordinary-group model remains; R59's instruction delivery does not become the enforcement
+  mechanism and ordinary descendants gain no standing orchestrator instructions.
+- **R65 (planned) — Ship one bounded contract across start and workspace management.** HTTP/CLI,
+  UI schemas and run proposals carry R61's optional workspace selection consistently, including
+  proposal digest/approval and start request deduplication. A repeated request id returns the same
+  run/workspace preparation or error, never another checkout; different payloads cannot reuse the
+  id. Run detail and effective agent metadata expose `{mode, workspace_id, cwd, branch, state}`
+  with ownership/recovery/setup warnings from TS-12; absent optional values are omitted, not
+  fabricated. Preparation/removal changes publish through the existing post-commit pipeline and
+  agent update paths where records remain; workspace reads are authoritative after reconnect.
+  Run setup/review/detail and terminal cleanup use the existing form/dialog primitives. Expose a
+  retained workspace list in Pipelines, filterable by project, with original project/run names even
+  after record deletion. Phone start/detail shows workspace choice and status; destructive workspace
+  management stays desktop-only and adds no remote-control route. No new MCP action is added.
+  Closure includes FS-14.A57–A60, FS-19.A8, schema/CLI/proposal agreement and fault/race tests plus
+  TS-06's applicable matrix. Fake-provider cwd capture proves composition; real-Git fixtures prove
+  checkout identity, while one packaged Claude/Codex launch/resume probe must verify actual cwd.
+
 ## 3. Interfaces & data shapes
 
 **Planned version-2 shapes (R35–R50):**
