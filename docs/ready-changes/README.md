@@ -43,6 +43,9 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`optional-annotation-source-recording.md`](optional-annotation-source-recording.md) — default-on
+  checkbox for recording annotation assignments in the source transcript, with **New agent** naming.
+
 - [`quiet-quota-recovery.md`](quiet-quota-recovery.md) — verified structured/text reset scheduling
   and bounded isolated quota checks; preserve the original conversation, with non-persistent
   Claude sessions and approved named Codex native archive records.

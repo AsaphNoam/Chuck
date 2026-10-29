@@ -910,6 +910,22 @@ crashed or archived agent projects zero whatever the stale column holds, so no c
 required on stop. Rollback leaves the column unread. *Verify:* migration and status round-trip
 tests and a manager projection test for running, stopped and archived agents (FS-02.A64).
 
+**R60 (planned) — Unrecorded annotation assignments reuse existing receipts.** For FS-13.R35
+and TS-03.R75, reuse `annotation_receipts` and `CommitAnnotationMail`; no new table, transcript
+event kind or persisted copy of the annotation payload is needed. An opted-out peer assignment
+reserves the existing source/command identity and canonical hash, then atomically inserts target
+mail, pending activation and accepted effect reference with `source_seq=0` (INV §9, INV §15).
+Zero denotes intentional absence of a source event for this request, not an incomplete append;
+derive that intent from the validated request/hash, never from zero alone. Do not call the
+source-sequence transition or scan/repair a source event for an opted-out request. Accepted receipt
+replay returns before revalidating a recipient that may since have stopped, without inserting mail
+or repeating activation. A failed SQL transaction commits neither mail nor acceptance; the same
+identity retries normally. Prepared opted-out commands recover through the same transaction after
+restart without source-history reconciliation. Existing recorded/self paths retain their ordering
+and uncertainty semantics. R55's receipt retention and deletion lifecycle and ordinary mail
+retention remain unchanged; old source events are never removed. Verify rollback, restart and
+lost-response replay against real durable receipts/mail/transcripts, plus old recorded receipts.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

@@ -312,6 +312,14 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
   tool labels (runtime description, `Ran <program>`, short title, `Used a tool`), trimmed
   failure reasons, no argument/output bodies (FS-03.R108/A84, TS-08.R147). Waiting to start.
 
+- **2026-10-29 — Annotation assignment design ready:** operator confirmed the default-on
+  source-transcript checkbox and **New agent** terminology. FS-13.R35–R36/A25–A26,
+  TS-03.R75, TS-02.R60 and TS-08.R148 define the waiting change
+  [`optional-annotation-source-recording`](../ready-changes/optional-annotation-source-recording.md).
+  No product code changed; existing active work remains active. `git diff --check` and twin-skill
+  comparison pass; `make check-specs` remains blocked by the pre-existing DELMSG-1 line missing
+  an invariant tag.
+
 - **2026-10-27 — Running background-work count (FS-02.R83, TS-04.R104, TS-02.R59):** desktop
   agent cards show **N running** from a live status column the runtime republishes on each task
   lifecycle update; stopped/archived agents project zero. The composer popover (FS-03.R107) is

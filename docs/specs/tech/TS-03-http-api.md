@@ -1086,6 +1086,29 @@ Bundled clients use the returned content, never cached content. Fields are addit
 omitting the expectation can still withdraw the current hold but must use the authoritative reply.
 No-hold is idempotent and cannot revive already delivered content.
 
+**R75 (planned) — Annotation assignment can omit source recording.** For FS-13.R35,
+the session annotation and validation endpoints accept additive `omit_source_record?: boolean`;
+omitted/false preserves R14. On delivery, true is valid only for an `agent` target other than the
+source and requires a valid `command_id`; reject a self-targeted opt-out or delivery without that
+identity with the existing structured `422 validation` error before effects. Launch preflight
+accepts the option before a recipient exists, retaining its existing placeholder target shape and
+mail-size/source validation; it cannot deliver anything. Validate the option's boolean type on both.
+True skips source transcript reconciliation, append, indexing and source `new_message` publication;
+it still validates the source, recipient and batch, uses the same annotation formatter, and commits
+mail through the existing receipt transaction before recipient activation (TS-02.R60, INV §15).
+No substitute source notice, prompt or nudge is emitted. Normal recipient indicators remain.
+
+Success retains `202 {accepted:true,seq:number,command_id?...}`: `seq` is the actual positive
+source event sequence when recorded and `0` when deliberately omitted. Zero is never an event
+anchor or proof of failed delivery. Same-command replay returns the same result even when
+`source_seq=0`; acceptance must not require a positive sequence. Canonical payload hashing includes
+the opt-out only when true, preserving old omitted/false request hashes and receipts; changing the
+choice under the same ID conflicts without effects. Existing recorded and ID-less default sends
+keep their behavior. The shared UI schema/API client and operator CLI request-file path accept this
+additive option and truthful zero sequence together (INV §11). Room endpoints are unchanged.
+Verify real serialized omitted/false/true requests and responses, self refusal, source/recipient
+validation, transaction failure and lost-response replay, including accepted zero-sequence receipts.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

@@ -265,6 +265,23 @@ identity and authority; no common receipt grants broader target/source access.
   labelled by project. Reset the control on source change/reopening; hiding a selected outside
   recipient clears that selection. Existing eligibility, delivery and New task behavior remain.
 
+- **R35 (planned) — Optional source recording for assignments.** Desktop and phone
+  agent-session annotation trays show a checked-by-default **Include in current agent's
+  transcript** checkbox when targeting another existing agent or a newly launched agent.
+  Checked preserves R5's source annotation event and normal target delivery. Unchecked delivers
+  the same batch to the target without appending its annotation event or a substitute assignment
+  notice to the source transcript; this supersedes R5's unconditional source-recording rule for
+  this case only. Self delivery keeps its existing recording and prompt behavior and does not
+  offer the checkbox. The choice belongs to the pending batch, survives reload, cancelled launch
+  and delivery failure/retry, and resets to checked for a fresh batch. Successful delivery still
+  clears the submitted drafts and identifies the recipient. Target mail and its retention stay
+  unchanged; an omitted source event contributes no source archive-search content. Existing
+  transcript events are never removed. Room-source recording is outside this change.
+- **R36 (planned) — New agent terminology.** Rename the annotation destination **New task**
+  to **New agent** throughout desktop, phone and room annotation assignment controls and their
+  related user-facing launch/retry text. It retains the existing reviewable launch and same-agent
+  retry behavior in R9/R27/R30; this is not a rename of the separate durable task capability.
+
 ## 5. Acceptance criteria
 
 Each acceptance item names its delivered verification.
@@ -391,7 +408,22 @@ authorization; use real handler/receipt paths rather than a mock that deduplicat
   on additions); desktop agent tray and phone sheet in `ui/scripts/project-scope-journey.mjs`.
   The room tray has component coverage but no separate browser-rendered receipt.
 
+- **A25 (planned)** (R35) — On desktop and phone, send to an existing recipient and a newly
+  launched recipient with the checkbox checked and unchecked. Checked produces the existing
+  source card live and after replay; unchecked produces neither a source annotation event nor
+  a substitute source notice, while target content and delivery remain equivalent. Verify reload,
+  cancelled launch, failure/retry and fresh-batch defaults, unchanged self delivery, and no
+  duplicate delivery after a lost response. *Verify by:* tray/store/delivery tests, real annotation
+  handler/transcript/mail assertions and a focused desktop/phone browser journey.
+- **A26 (planned)** (R36) — Desktop, phone and room annotation controls offer **New agent**;
+  prefilled launch, cancellation and post-launch delivery retry retain their existing behavior.
+  *Verify by:* annotation control/launch component tests and the focused assignment journey.
+
 ## 6. Deviations & open decisions
+
+- R35–R36/A25–A26 were confirmed by the operator on 2026-10-29 and await implementation:
+  [optional source recording](../../ready-changes/optional-annotation-source-recording.md).
+  TS-03.R75, TS-02.R60 and TS-08.R148 define delivery, receipts and the shared batch choice.
 
 - R28–R31 shipped 2026-10-17 (`ui/src/remote/AnnotationForm.tsx`, `remote/NewAgentForm.tsx`,
   `components/chat/annotationDelivery.ts`). A19–A21's component tests and the stubbed-API

@@ -1889,7 +1889,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   **Proof.** FS-03.A84's table-driven `toolLine` tests use fixtures copied from retained Claude
   and Codex transcripts, plus component tests on desktop, phone and child surfaces.
 
-- **R147 (planned) — Annotation source-recording choice shares the existing batch owner.**
+- **R148 (planned) — Annotation source-recording choice shares the existing batch owner.**
   For FS-13.R35–R36, extend `annotationStore` with the per-source batch checkbox value, treating
   missing stored values as checked. Reuse its hydration, source deletion, expiry and cap paths;
   clear the value when the batch ends by discard, last-draft removal or acknowledged send.
@@ -1899,7 +1899,8 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Self delivery always uses recording irrespective of the hidden checkbox value.
 
   Extend `useAnnotationDelivery` and `annotationBatch` once for desktop and phone; serialize the
-  inverse as TS-03.R75's `omit_source_record` only when unchecked and targeting another agent.
+  inverse as TS-03.R75's `omit_source_record` only when unchecked and assigning to another/new
+  agent, including new-agent preflight before its recipient ID exists.
   Keep this value in the submitted snapshot through preflight, launch and delivery; disable edits
   while validation/launch/send is pending. Changing it before a new attempt resets command identity
   under the existing payload-edit rules; an identical retry retains the command ID and choice.
