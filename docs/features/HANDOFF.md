@@ -54,8 +54,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 related tool call's adapter title and shows state and elapsed time. The jump only locates where
 the command started; no output is shown or copied (TS-04.R64). Real transcripts show no output
 reaches the tool call: Codex results are `content: null` and Claude returns only a
-"running in background, output in <tmp file>" notice. The operator also wants tool detail gone
-from transcripts; that broader change is being defined in `docs/ideas.md`.
+"running in background, output in <tmp file>" notice. Tool detail is now gone from transcripts
+(TOOL-LINE, review queue); popover rows take their name from `toolLine(call).label`
+(`ui/src/components/chat/toolLine.ts`).
 
 - **Done (slice 1):** the runtime publishes each generation's open task count into
   `status.background_running` (migration 63; `agentState.applyLive` on every status write,
@@ -216,6 +217,23 @@ from transcripts; that broader change is being defined in `docs/ideas.md`.
   switch shows it above the composer.
 
 ## Review queue
+
+- **TOOL-LINE** (2026-10-29, UI): summary-only tool activity, FS-03.R108/A84 (R2/R25 updated),
+  TS-08.R147. Pure `toolLine` in `ui/src/components/chat/toolLine.ts` feeds `ToolCall` (desktop,
+  phone, child, Think Tank) and `WorkingIndicator` (**Working · <label>**); `ToolResult` and its
+  CSS/presentation hook are deleted; `groupTranscriptRows` folds results by `tool_call_id` across
+  the whole list. Notes for review: (1) a shell-named call with a title but no `args.command`
+  keeps its title (Codex `exec_command` "Read file …"), recorded in TS-08.R147; (2) `ToolCall`
+  drops **running** outside a live `ThoughtScope`, so archived unanswered calls never read as
+  running; (3) fixed pre-existing centering of rows nested in a child (`margin-inline: 0` on the
+  nested-row rule in `agent.css`); (4) removed a duplicated FS-03 §3 heading. Evidence:
+  `toolLine.test.ts` (23 cases from retained transcripts), updated TranscriptView/ChildActivity/
+  AgentScreen/ThinkTankPage tests; full UI suite 1089 passed; build, presentation checks and
+  `make embed` pass; `git diff --check` clean. `ui/scripts/turns-journey.mjs` gained an A84
+  check and passes 25/25 against fakeacp `activity_showcase` (lines `Ran rg`,
+  `Ran npm · Continues in background`); phone render of that transcript is clean. The full suite
+  intermittently fails one `CardGrid.test.tsx` case under load; HEAD shows the same file flaking
+  on a different case, and it passes 41/41 alone. `make check-specs` fails only on DELMSG-1.
 
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
@@ -498,10 +516,9 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
   or reopened review queue; subsequent pipeline stages own review/fix. Active background-work
   implementation and the dirty generated UI index are preserved.
 
-- **2026-10-29 — Designed summary-only tool activity:** ready change
-  [`summary-only-tool-activity`](../ready-changes/summary-only-tool-activity.md): one-line
-  tool labels (runtime description, `Ran <program>`, short title, `Used a tool`), trimmed
-  failure reasons, no argument/output bodies (FS-03.R108/A84, TS-08.R147). Waiting to start.
+- **2026-10-29 — Shipped summary-only tool activity (TOOL-LINE):** one-line tool labels
+  (runtime description, `Ran <program>`, short title, `Used a tool`), trimmed failure reasons,
+  no argument/output bodies (FS-03.R108/A84, TS-08.R147). Awaiting review.
 
 - **2026-10-29 — Annotation assignment design ready:** operator confirmed the default-on
   source-transcript checkbox and **New agent** terminology. FS-13.R35–R36/A25–A26,

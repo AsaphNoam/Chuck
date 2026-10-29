@@ -406,14 +406,15 @@ describe("AgentScreen", () => {
     await waitFor(() => expect(posts).toContain(`permission ${JSON.stringify({ tool_call_id: "chuck_peer_stop_9", decision: "approve" })}`));
   });
 
+  // FS-03.A84: the phone shows the same one-line summaries with no output body.
   it("folds tool results into their collapsed tool line", async () => {
     live = {
       agent_id: "a1",
       events: [
-        { agent_id: "a1", seq: 10, type: "tool_call", ts: "", data: { tool_call_id: "c1", name: "Edit", args: { path: "main.go" } } },
+        { agent_id: "a1", seq: 10, type: "tool_call", ts: "", data: { tool_call_id: "c1", name: "Edit", title: "Edit /repo/main.go", args: { path: "main.go" } } },
         { agent_id: "a1", seq: 11, type: "tool_result", ts: "", data: { tool_call_id: "c1", content: { diff: "raw-result-json" } } },
-        { agent_id: "a1", seq: 12, type: "tool_call", ts: "", data: { tool_call_id: "c2", name: "Bash" } },
-        { agent_id: "a1", seq: 13, type: "tool_result", ts: "", data: { tool_call_id: "c2", content: "second-result" } },
+        { agent_id: "a1", seq: 12, type: "tool_call", ts: "", data: { tool_call_id: "c2", name: "Bash", args: { command: "go test ./..." } } },
+        { agent_id: "a1", seq: 13, type: "tool_result", ts: "", data: { tool_call_id: "c2", status: "failed", content: "second-result" } },
         { agent_id: "a1", seq: 14, type: "assistant_text", ts: "", data: { text: "Done." } },
       ],
       has_more: false,
@@ -425,8 +426,9 @@ describe("AgentScreen", () => {
     expect(screen.getByRole("list", { name: "Conversation" })).not.toHaveTextContent("raw-result-json");
     expect(screen.queryByText(/second-result/)).toBeNull();
     fireEvent.click(toggle);
-    expect(await screen.findByText(/raw-result-json/)).toBeInTheDocument();
-    expect(screen.getByText(/second-result/)).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelectorAll("[data-ui='tool-call']")).toHaveLength(2));
+    expect([...document.querySelectorAll("[data-ui='tool-call']")].map((line) => line.textContent)).toEqual(["Edit main.go", "Ran go · failed: second-result"]);
+    expect(screen.getByRole("list", { name: "Conversation" })).not.toHaveTextContent("raw-result-json");
   });
 
   it("keeps an approved tool's result inside its collapsed tool line (FS-03.A11)", async () => {
@@ -448,11 +450,13 @@ describe("AgentScreen", () => {
     expect(screen.getByRole("list", { name: "Conversation" })).not.toHaveTextContent("approved-result");
     expect(screen.queryByText(/Edit HANDOFF\.md/)).toBeNull();
     fireEvent.click(toggle);
-    expect(await screen.findByText(/approved-result/)).toBeInTheDocument();
-    expect(screen.getByText(/Edit HANDOFF\.md · approve/)).toBeInTheDocument();
-    // TS-04.R98: the call row shows the streamed title and input, not "edit {}".
-    fireEvent.click(screen.getByRole("button", { name: /Tool call: Edit HANDOFF\.md/ }));
-    expect(screen.getByText(/"file_path": "HANDOFF\.md"/)).toBeInTheDocument();
+    expect(await screen.findByText(/Edit HANDOFF\.md · approve/)).toBeInTheDocument();
+    // TS-04.R98: the call line shows the streamed title, not "edit"; the result
+    // folds into it without a body (FS-03.R108).
+    const line = document.querySelector("[data-ui='tool-call']");
+    expect(line?.textContent).toBe("Edit HANDOFF.md");
+    expect(line).toHaveAttribute("data-state", "completed");
+    expect(screen.queryByText(/approved-result/)).toBeNull();
   });
 
   it("replays notices as compact rows in their original order (FS-03.A49)", async () => {
@@ -489,7 +493,7 @@ describe("AgentScreen", () => {
     };
     renderScreen();
     fireEvent.click(await screen.findByRole("button", { name: "Ran 1 tool" }));
-    expect(await screen.findByText("Continues in background")).toBeInTheDocument();
+    expect(document.querySelector("[data-ui='tool-call']")).toHaveTextContent("Ran npm · Continues in background");
   });
 
   it("loads earlier windows on upward scroll and keeps the viewport anchored", async () => {

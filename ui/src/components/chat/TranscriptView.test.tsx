@@ -124,40 +124,41 @@ describe("TranscriptView annotation entry point", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("collapses uninterrupted tool activity and omits successful no-payload outcomes", () => {
-    renderTranscript(false, [
-      { kind: "tool_call", seq: 1, name: "Read", args: { path: "a.ts" } },
-      { kind: "tool_result", seq: 2, status: "completed", content: null },
-      { kind: "tool_call", seq: 3, name: "Search" },
-      { kind: "tool_result", seq: 4, status: "completed", content: "Found one match." },
+  // FS-03.A84: each call is one line with its result folded in; no arguments or output body.
+  it("collapses uninterrupted tool activity into one summary line per call", () => {
+    const { container } = renderTranscript(false, [
+      { kind: "tool_call", seq: 1, tool_call_id: "t1", name: "read", title: "Read file '/repo/a.ts'", args: { path: "/repo/a.ts" } },
+      { kind: "tool_result", seq: 2, tool_call_id: "t1", status: "completed", content: null },
+      { kind: "tool_call", seq: 3, tool_call_id: "t2", name: "execute", args: { command: "cd ui && npm test" } },
+      { kind: "tool_result", seq: 4, tool_call_id: "t2", status: "failed", content: "```\nExit code 1\n3 tests failed\n```" },
     ]);
 
     const summary = screen.getByRole("button", { name: "Ran 2 tools" });
-    expect(screen.queryByText(/Tool call:/)).toBeNull();
-    expect(screen.queryByText("Completed")).toBeNull();
+    expect(container.querySelector("[data-ui='tool-call']")).toBeNull();
 
     fireEvent.click(summary);
 
-    expect(screen.getAllByText(/Tool call:/)).toHaveLength(2);
-    expect(screen.getByText("Found one match.")).toBeInTheDocument();
-    expect(screen.queryByText("Completed")).toBeNull();
+    const lines = [...container.querySelectorAll("[data-ui='tool-call']")].map((line) => line.textContent);
+    expect(lines).toEqual(["Read file a.ts", "Ran npm · failed: 3 tests failed"]);
+    expect(container.querySelector("[data-variant='tool-result'], pre")).toBeNull();
+    expect(container.querySelectorAll("[data-slot='event']")).toHaveLength(2);
   });
 
-  it("keeps an approved tool's permission and result inside its run (FS-03.A11)", () => {
-    renderTranscript(false, [
+  it("keeps an approved tool's permission inside its run and folds the result into the call (FS-03.A11)", () => {
+    const { container } = renderTranscript(false, [
       { kind: "tool_call", seq: 1, tool_call_id: "t1", name: "Edit" },
       { kind: "permission_request", seq: 2, tool_call_id: "t1", name: "Edit HANDOFF.md", resolved: "approve" },
       { kind: "tool_result", seq: 3, tool_call_id: "t1", status: "completed", content: "Edited." },
     ]);
 
     const summary = screen.getByRole("button", { name: "Ran 1 tool" });
-    expect(screen.queryByText("Edited.")).toBeNull();
     expect(screen.queryByText(/Edit HANDOFF\.md/)).toBeNull();
 
     fireEvent.click(summary);
 
     expect(screen.getByText(/Edit HANDOFF\.md/)).toBeInTheDocument();
-    expect(screen.getByText("Edited.")).toBeInTheDocument();
+    expect(container.querySelector("[data-ui='tool-call']")).toHaveAttribute("data-state", "completed");
+    expect(screen.queryByText("Edited.")).toBeNull();
   });
 
   // FS-03.A66: file changes stay out of the stream; a Files-tab reveal shows only its diff.
@@ -204,6 +205,17 @@ describe("TranscriptView annotation entry point", () => {
     );
 
     expect(screen.getByText("Working…")).toBeInTheDocument();
+  });
+
+  // FS-03.A84: the working indicator names the running turn's in-progress call.
+  it("names the in-progress call while busy", () => {
+    renderTranscript(false, [
+      { kind: "tool_call", seq: 1, tool_call_id: "t1", name: "execute", args: { command: "git status" } },
+      { kind: "tool_result", seq: 2, tool_call_id: "t1", status: "completed", content: null },
+      { kind: "tool_call", seq: 3, tool_call_id: "t2", name: "Bash", status: "pending", args: { command: "make test", description: "Run spec checks" } },
+    ], true);
+
+    expect(screen.getByText("Working · Run spec checks")).toBeInTheDocument();
   });
 
   it("keeps expanded tool calls individually annotatable", () => {

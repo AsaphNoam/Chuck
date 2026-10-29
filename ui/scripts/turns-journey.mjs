@@ -212,6 +212,28 @@ async function main() {
       JSON.stringify(expandedState),
     );
 
+    // FS-03.A84: open the child and every tool run; each call is one summary
+    // line with no argument expansion or output body, nested child included.
+    const toolLines = await page.evaluate(async () => {
+      const turn = document.querySelector('[data-ui="turn-activity"][data-state="expanded"]');
+      const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
+      for (const child of turn?.querySelectorAll('[data-slot="child"] > button[aria-expanded="false"]') ?? []) { child.click(); await settle(); }
+      for (const run of turn?.querySelectorAll('[data-ui="tool-run"] > button[aria-expanded="false"]') ?? []) { run.click(); await settle(); }
+      const lines = [...(turn?.querySelectorAll('[data-ui="tool-call"]') ?? [])];
+      return {
+        lines: lines.map((line) => line.textContent),
+        singleLine: lines.every((line) => line.getBoundingClientRect().height < 32),
+        bodies: turn?.querySelectorAll('[data-ui="tool-run"] pre, [data-variant="tool-result"], .tool-args').length ?? -1,
+        resultText: [...(turn?.querySelectorAll('[data-ui="tool-run"]') ?? [])].some((run) => run.textContent.includes("parser.go:88")),
+      };
+    });
+    await shot(page, join(OUT_DIR, "03b-tool-lines.png"));
+    record(
+      "tool calls render as one-line summaries without bodies (FS-03.A84)",
+      toolLines.lines.includes("Ran rg") && toolLines.lines.some((line) => line?.startsWith("Ran npm")) && toolLines.singleLine && toolLines.bodies === 0 && !toolLines.resultText,
+      JSON.stringify(toolLines),
+    );
+
     // Second turn: send + let it complete, confirm first turn stays open.
     await prompt(agentId, "go again");
     await sleep(500);

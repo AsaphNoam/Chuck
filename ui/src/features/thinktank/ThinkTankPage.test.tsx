@@ -182,10 +182,9 @@ describe("ThinkTankPage", () => {
     server.use(http.get("/api/think-tanks/tt_fixture/activity", () => HttpResponse.json({ activity, complete: true })));
     renderRoom();
     fireEvent.click(await screen.findByRole("button", { name: "Ran 1 tool" }));
-    fireEvent.click(screen.getByRole("button", { name: /Tool call: Bash/ }));
-    expect(screen.getByText(/inspect me/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
-    expect(screen.getByText(/tail$/)).toBeTruthy();
+    // Its line is the summary only, with no output body (FS-03.R108).
+    expect(document.querySelector("[data-ui='tool-call']")?.textContent).toBe("Ran inspect");
+    expect(screen.queryByText(/tail$/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.getByText("Cancelled")).toBeTruthy();
     const diff = document.querySelector('[data-variant="diff"]')!;

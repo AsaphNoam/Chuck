@@ -38,7 +38,7 @@ import { useFileTabSet } from "../features/fileTabs/useFileTabSet";
 import { canAnnotate, eventDraft, selectionWithin } from "../lib/annotations";
 import { NoticeRow } from "../components/chat/renderers/NoticeRow";
 import { ToolCall } from "../components/chat/renderers/ToolCall";
-import { ToolResult } from "../components/chat/renderers/ToolResult";
+import { currentToolLabel } from "../components/chat/toolLine";
 import { groupTranscriptRows, ToolRun } from "../components/chat/toolRun";
 import { hideFileChanges, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "../components/chat/runtimeActivity";
 import { carryLeadKey } from "../components/chat/turnActivity";
@@ -197,7 +197,7 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   );
 }
 
-function EventRow({ agentId, event, onAnnotate }: { agentId: string; event: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
+function EventRow({ agentId, event, result, onAnnotate }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
   switch (event.kind) {
     case "user_text":
       return <div className="phone-user">{String(event.text ?? "")}<MessageAttachments agentId={agentId} attachments={event.attachments ?? []} /></div>;
@@ -206,9 +206,7 @@ function EventRow({ agentId, event, onAnnotate }: { agentId: string; event: Tran
     case "assistant_image":
       return <div className="assistant-message"><AssistantImageRow agentId={agentId} attachment={event.attachment} path={typeof event.path === "string" ? event.path : undefined} name={typeof event.name === "string" ? event.name : undefined} error={typeof event.error === "string" ? event.error : undefined} /></div>;
     case "tool_call":
-      return <ToolCall event={event} />;
-    case "tool_result":
-      return <ToolResult event={event} />;
+      return <ToolCall event={event} result={result} />;
     case "diff":
       return <DiffBlock event={event} onAnnotate={onAnnotate} selectHint="Tap line numbers to select a range." />;
     case "permission_request":
@@ -228,16 +226,16 @@ function EventRow({ agentId, event, onAnnotate }: { agentId: string; event: Tran
 
 // Rows the phone draws with text worth pointing at; recorded annotation cards
 // and status-only rows are not capture sources (FS-13.R28, R31).
-const annotatableKinds = new Set(["user_text", "assistant_text", "tool_call", "tool_result", "diff", "error", "notice", "reasoning"]);
+const annotatableKinds = new Set(["user_text", "assistant_text", "tool_call", "diff", "error", "notice", "reasoning"]);
 
 // AnnotatableEvent adds the quiet Annotate action: it takes the selection inside
 // this event, read on press because a tap can collapse it before click, and
 // otherwise the whole event (TS-08.R133). Native long-press selection, link taps
 // and scrolling are left alone.
-function AnnotatableEvent({ agentId, event, onAnnotate }: { agentId: string; event: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
+function AnnotatableEvent({ agentId, event, result, onAnnotate }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const pressed = useRef<string | null | undefined>(undefined);
-  const row = <EventRow agentId={agentId} event={event} onAnnotate={onAnnotate} />;
+  const row = <EventRow agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} />;
   if (!canAnnotate(event) || !annotatableKinds.has(String(event.kind))) return row;
   const selected = () => (host.current ? selectionWithin(host.current) : null);
   return (
@@ -269,7 +267,7 @@ function renderRows(agentId: string, list: TranscriptEvent[], onAnnotate: (draft
     if (row.kind === "tool-run") {
       return (
         <div className="phone-message" role="listitem" key={`run:${row.events[0].seq ?? index}`} data-place={`run:${row.events[0].seq ?? index}`}>
-          <ToolRun events={row.events} renderEvent={(event) => <AnnotatableEvent key={`${event.seq}:${event.kind}`} agentId={agentId} event={event} onAnnotate={onAnnotate} />} />
+          <ToolRun events={row.events} results={row.results} renderEvent={(event, _index, result) => <AnnotatableEvent key={`${event.seq}:${event.kind}`} agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} />} />
         </div>
       );
     }
@@ -870,7 +868,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           )}
           <div className="phone-transcript phone-transcript-bubbles" role="list" aria-label="Conversation" ref={listRef} onFocus={trackFocus}>
             <TurnList agentId={agentId} events={rows} lead={lead} choices={choices} renderEvents={(list) => renderRows(agentId, list, annotate, [], 1)} />
-            {!offline && agent.running && agent.state === "busy" && <WorkingIndicator />}
+            {!offline && agent.running && agent.state === "busy" && <WorkingIndicator tool={currentToolLabel(events)} />}
           </div>
           {pending && <PermissionCard agent={agent} event={pending} latest={latest} disabled={offline} onSettled={refresh} />}
           {(heldText || heldAttachments.length > 0) && (

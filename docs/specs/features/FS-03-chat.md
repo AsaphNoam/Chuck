@@ -24,16 +24,11 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   identity is an inline picker that can switch it (R23). The same surface also exposes the session's
   Files and Commands tabs (FS-05).
 - **R2.** The Transcript renders normalized events in sequence: user prompts; assistant text as sanitized
-  GitHub-flavored Markdown with syntax-highlighted fenced code; tool calls labelled by the
-  adapter's title (falling back to the tool name) with expandable JSON arguments, where input or a
-  title the adapter supplies after the call first appears updates that call's row (TS-04.R98);
-  tool results with error styling and expandable content after the first 600 characters
-  (a result whose content blocks are all ACP-wrapped text shows that text joined by newlines; any
-  other structured result shows formatted JSON);
+  GitHub-flavored Markdown with syntax-highlighted fenced code; tool calls as R108's one-line
+  summaries with their results folded in, where input or a title the adapter supplies after the
+  call first appears updates that call's line (TS-04.R98);
   unified file diffs; permission prompts; turn errors; turn boundaries; and backend-switch dividers.
   An unknown event remains inspectable as formatted JSON rather than disappearing.
-  R108 (planned) replaces the tool-call argument expansion and tool-result bodies with one-line
-  summaries.
 - **R3.** The transcript follows new events while the reader remains at the bottom. Scrolling away
   suspends auto-follow and exposes **Jump to latest**, so streaming output does not take control of
   the reader's scroll position. Only scrolling toward older content leaves the bottom: a row whose
@@ -902,7 +897,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   stays nested in the transcript (R58) and is not listed. Lifecycle events, retention, replay,
   resume/clone fencing and Stop authority are unchanged; only R59's list presentation is
   replaced.
-- **R108 — Tool activity reads as one-line summaries.** (planned) In live, archived and
+- **R108 — Tool activity reads as one-line summaries.** In live, archived and
   phone transcripts, including nested child activity, each tool call is one line, and that line is
   the deepest detail Chuck shows for it. The line has no "Tool call:" prefix, no expandable
   arguments and no output body. Its label is chosen in this order:
@@ -915,15 +910,14 @@ when accepted by HTTP but an id-less repeat is still a new command.
 
   Every label is one line and clipped with an ellipsis, so a missed case still reads short. A
   running call reads **running**, a backgrounded one keeps R67's label, and a completed call adds
-  no suffix. A failed call reads **failed** plus, when its result has text, one trimmed reason:
+  no suffix. A call left without a result by a finished turn or child adds no suffix either, so
+  it never reads as still running. A failed call reads **failed** plus, when its result has text, one trimmed reason:
   code fences, error-wrapper tags, blank lines and bare `Exit code N` lines are skipped. The
   first remaining line is clipped. When none remains, the call reads **failed** alone (typical
   for Codex). Tool results render no row of their own. The working indicator reads **Working ·
   <label>** for the latest in-progress call of the running turn. R107's popover rows use the
   same label. Permission prompts keep showing the full request (R26). Durable events, archive
   content, search, agent-facing transcript reads and unknown-event JSON are unchanged.
-
-## 3. States & transitions
 
 ## 3. States & transitions
 
@@ -971,10 +965,10 @@ when accepted by HTTP but an id-less repeat is still a new command.
   error instead of optimistically resolving the prompt.
 - **R22.** A terminal-interface agent does not use this composer or ACP permission relay. Its panel
   opens on Terminal and directs input/permission handling to the live terminal (FS-07).
-- **R25.** A terminal tool result with no displayable `content`, `error`, or `result` remains a
-  visible completed tool outcome, but renders as a compact labelled status rather than a blank
-  transcript panel. Non-empty and failed results retain R2's inspection and error behavior in both
-  live and archived transcripts.
+- **R25.** A terminal tool result with no displayable `content`, `error`, or `result` never
+  renders a blank transcript panel. Under R108 every result folds into its call's line: a
+  completed one adds no suffix and a failed one reads **failed** with any trimmed reason, in
+  both live and archived transcripts.
 - **R26.** The transcript locally groups each uninterrupted run of normalized
   `tool_call` and `tool_result` events into a collapsed **Ran _n_ tools** row, where _n_ is the
   number of calls. Activating that row reveals the original calls and every non-empty or failed
@@ -1619,7 +1613,7 @@ phone and CLI callers with actual provider-submission counts in controlled fixtu
   still reads running removes the indicator. Reload, archive and phone views show no indicator or
   list. *Verify:* indicator/popover component tests, `ChatPanel` tests for
   absence and count, phone render test, and a fake-ACP rendered scenario.
-- **A84** (R108, R2, R26, R67) — (planned) Label oracle over fixtures drawn from retained real
+- **A84** (R108, R2, R26, R67) — Label oracle over fixtures drawn from retained real
   transcripts. A Claude call with a description shows that description. Codex commands show:
   `git status --short && …` as `Ran git`, `cd ui && npm test` as `Ran npm`,
   `FOO=1 /usr/bin/env python3 x.py` as `Ran python3`, and an empty or unparseable command as
@@ -1629,7 +1623,10 @@ phone and CLI callers with actual provider-submission counts in controlled fixtu
   line. A `content: null` Codex failure reads `failed`. No argument expansion or output body
   exists live, in archive, on the phone or inside a child. A pending permission still shows the
   full command. The working indicator names the in-progress call. *Verify:* label/reason
-  unit tests, `ToolRun`/`ChatPanel`/phone component tests and a fake-ACP rendered scenario.
+  unit tests (`toolLine.test.ts`), `TranscriptView`/`ChildActivity`/phone `AgentScreen`
+  component tests and `ui/scripts/turns-journey.mjs` over fakeacp's `activity_showcase`
+  (nested child and background command lines). `PermissionPrompt` is unchanged, so
+  `PermissionPrompt.test.tsx` still covers the request it shows.
 
 ## 6. Deviations & open decisions
 
@@ -1751,7 +1748,7 @@ phone and CLI callers with actual provider-submission counts in controlled fixtu
   `TestCancelDuringPendingPermission`, `TestCrashMidTurnPersistsDeliveredTranscript`,
   `ui/src/store/transcriptStore.test.ts`, and
   `ui/src/components/chat/ChatPanel.test.tsx` (R23/R24/R27),
-  `ui/src/components/chat/renderers/ToolResult.test.tsx` (R25), and
+  `ui/src/components/chat/toolLine.test.ts` (R25), and
   `ui/src/components/chat/TranscriptView.test.tsx` (R29 waiting indicator).
 - **Steering lifecycle (R50/R56, A33/A38):** `internal/runtime/chat.go` owns the
   active-turn gate and steer handoff; `internal/runtime/queue_steer_test.go` and the fake ACP

@@ -1,21 +1,18 @@
-import { useState } from "react";
 import type { TranscriptEvent } from "../../../api/types";
+import { toolLine, toolLineSuffix } from "../toolLine";
+import { useThoughtScope } from "../TurnList";
 
-export function ToolCall({ event }: { event: TranscriptEvent }) {
-  const [open, setOpen] = useState(false);
-  // The adapter's title names what the call does ("Edit a.go"); the name may be
-  // only its kind ("edit") (FS-03.R2).
-  const name = String(event.title || event.name || event.tool || "tool");
-  const args = event.args;
-  const hasArgs = args !== undefined && args !== null;
-  const background = event.background_state === "running" ? "Continues in background" : event.background_state ? "Ran in background" : null;
+// One line per call with its result folded in; the line is the deepest detail
+// shown, so there are no arguments or output body (FS-03.R108). A call left
+// without a result by a finished turn or child is not still running.
+export function ToolCall({ event, result }: { event: TranscriptEvent; result?: TranscriptEvent }) {
+  const live = useThoughtScope()?.live ?? true;
+  const line = toolLine(event, result);
+  const suffix = line.state === "running" && !live ? "" : toolLineSuffix(line);
   return (
-    <article className="tool-block tool-call" data-ui="tool-call" data-state={open ? "expanded" : "collapsed"}>
-      <button type="button" className="tool-toggle" data-slot="trigger" onClick={() => setOpen((v) => !v)}>
-        {hasArgs ? (open ? "▾" : "▸") : ""} Tool call: {name}
-      </button>
-      {background && <span className="tool-call-background">{background}</span>}
-      {hasArgs && open && <pre className="tool-args" data-slot="content">{JSON.stringify(args, null, 2)}</pre>}
-    </article>
+    <p className="tool-block tool-call" data-ui="tool-call" data-state={line.state} title={line.label}>
+      <span className="tool-call-label">{line.label}</span>
+      {suffix && <span className="tool-call-state"> · {suffix}</span>}
+    </p>
   );
 }

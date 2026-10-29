@@ -1457,7 +1457,8 @@ null content. When a terminal `failed` `tool_call_update` carries no content blo
 runes, as the tool result's `error`; the status and content stay as the adapter sent them. That is
 the only decoded shape: any other `rawOutput` (absent, a string, a string `error`, a `result` only)
 leaves `error` empty, and `rawOutput` is never copied into user-facing text as raw JSON
-(INV §8/§11/§12). The existing tool-result renderer shows `error` when content is empty.
+(INV §8/§11/§12). The tool line's failure reason reads `error` when content is empty
+(FS-03.R108).
 
 **R100 — Native observations carry independent history/control authority.** Replace
 the combined history/control event sink with TS-01.R39's committed-history publisher and typed

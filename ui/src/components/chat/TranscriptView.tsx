@@ -10,8 +10,8 @@ import { AssistantImageRow, MessageAttachments } from "./AttachmentView";
 import { DiffBlock } from "./renderers/DiffBlock";
 import { PermissionPrompt } from "./renderers/PermissionPrompt";
 import { ToolCall } from "./renderers/ToolCall";
-import { ToolResult } from "./renderers/ToolResult";
 import { groupTranscriptRows, kindOf, ToolRun } from "./toolRun";
+import { currentToolLabel } from "./toolLine";
 import { TurnError } from "./renderers/TurnError";
 import { AnnotationCard } from "./renderers/AnnotationCard";
 import { NoticeRow } from "./renderers/NoticeRow";
@@ -153,7 +153,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
             </p>
           )}
           <BackgroundTaskList agentId={agentId} tasks={collectTasks(events)} controllable={taskControl} />
-          {busy && <WorkingIndicator />}
+          {busy && <WorkingIndicator tool={currentToolLabel(events)} />}
           {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
           {recovery && <RecoveryMessage agentId={agentId} recovery={recovery} />}
           {!recovery && recoveryUnread && (
@@ -240,10 +240,12 @@ export function eventRenderer({ agentId, onAnnotate, onContextMenu, onOpenFile }
           <ToolRun
             key={`run-${keyOf(row.events[0], index)}`}
             events={row.events}
-            renderEvent={(event, eventIndex) => (
+            results={row.results}
+            renderEvent={(event, eventIndex, result) => (
               <TranscriptEventFrame
                 agentId={agentId}
                 event={event}
+                result={result}
                 key={keyOf(event, eventIndex)}
                 onAnnotate={onAnnotate}
                 onContextMenu={onContextMenu}
@@ -298,9 +300,10 @@ function HeldMessage({ agentId, text, attachments }: { agentId: string; text: st
   );
 }
 
-function TranscriptEventFrame({ agentId, event, onAnnotate, onContextMenu, onOpenFile, className = "transcript-item" }: {
+function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMenu, onOpenFile, className = "transcript-item" }: {
   agentId: string;
   event: TranscriptEvent;
+  result?: TranscriptEvent;
   onAnnotate: (draft: AnnotationDraft) => void;
   onContextMenu: (mouse: MouseEvent<HTMLDivElement>, event: TranscriptEvent) => void;
   onOpenFile?: (link: FileLink | null) => void;
@@ -320,13 +323,13 @@ function TranscriptEventFrame({ agentId, event, onAnnotate, onContextMenu, onOpe
         label="message"
         fallback={<pre className="tool-block tool-result-error">Failed to render this event.</pre>}
       >
-        <TranscriptItem agentId={agentId} event={event} onAnnotate={onAnnotate} onOpenFile={onOpenFile} />
+        <TranscriptItem agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} onOpenFile={onOpenFile} />
       </ErrorBoundary>
     </div>
   );
 }
 
-type TranscriptVariant = "assistant" | "user" | "tool-call" | "tool-result" | "diff" | "permission" | "error" | "turn" | "backend-switch" | "fork-boundary" | "annotation" | "notice" | "thinking" | "unknown";
+type TranscriptVariant = "assistant" | "user" | "tool-call" | "diff" | "permission" | "error" | "turn" | "backend-switch" | "fork-boundary" | "annotation" | "notice" | "thinking" | "unknown";
 
 
 function variantOf(event: TranscriptEvent): TranscriptVariant {
@@ -334,7 +337,6 @@ function variantOf(event: TranscriptEvent): TranscriptVariant {
   if (kind === "assistant_text") return "assistant";
   if (kind === "user_text") return "user";
   if (kind === "tool_call") return "tool-call";
-  if (kind === "tool_result") return "tool-result";
   if (kind === "diff") return "diff";
   if (kind === "permission_request" || kind === "permission_resolved") return "permission";
   if (kind === "error") return "error";
@@ -354,7 +356,7 @@ function keyOf(event: TranscriptEvent, index: number) {
   return `i${index}`;
 }
 
-function TranscriptItem({ agentId, event, onAnnotate, onOpenFile }: { agentId: string; event: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void; onOpenFile?: (link: FileLink | null) => void }) {
+function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void; onOpenFile?: (link: FileLink | null) => void }) {
   const kind = String(event.kind ?? event.type ?? "");
   if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} agentId={agentId} />;
   if (kind === "user_text")
@@ -362,8 +364,7 @@ function TranscriptItem({ agentId, event, onAnnotate, onOpenFile }: { agentId: s
   if (kind === "assistant_image") return <article className="message assistant-message" data-ui="transcript" data-variant="assistant"><AssistantImageRow agentId={agentId} attachment={event.attachment} path={typeof event.path === "string" ? event.path : undefined} name={typeof event.name === "string" ? event.name : undefined} error={typeof event.error === "string" ? event.error : undefined} /></article>;
   if (kind === "permission_request") return <PermissionPrompt agentId={agentId} event={event} />;
   if (kind === "diff") return <DiffBlock event={event} onAnnotate={onAnnotate} onOpenFile={onOpenFile} />;
-  if (kind === "tool_call") return <ToolCall event={event} />;
-  if (kind === "tool_result") return <ToolResult event={event} />;
+  if (kind === "tool_call") return <ToolCall event={event} result={result} />;
   if (kind === "error") return <TurnError event={event} />;
   if (kind === "annotation") return <AnnotationCard event={event} />;
   if (kind === "notice") return <NoticeRow event={event} />;

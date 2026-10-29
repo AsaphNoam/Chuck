@@ -57,8 +57,9 @@ describe("native child activity (FS-03.A40)", () => {
     expect(within(section).getByText("Grandchild says")).toBeInTheDocument();
   });
 
-  // A child's terminal activity_state closes its opened tool detail once while
+  // A child's terminal activity_state closes its opened tool run once while
   // the root turn is still live; reopening it afterwards stays possible (TS-08.R102).
+  // Its unanswered call stops reading as running (FS-03.R108).
   it.each(["completed", "failed", "stopped", "disconnected"])("closes opened tool detail when the child is %s", (state) => {
     const live = [
       wire(1, "user_text", { text: "Delegate" }),
@@ -71,8 +72,8 @@ describe("native child activity (FS-03.A40)", () => {
     fireEvent.click(child);
     fireEvent.click(child);
     fireEvent.click(screen.getByRole("button", { name: /Ran 1 tool/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Tool call: Read/ }));
-    expect(screen.getByText(/"a.go"/)).toBeInTheDocument();
+    expect(document.querySelector("[data-ui='tool-call']")).toHaveTextContent("Read · running");
+    expect(screen.queryByText(/"a.go"/)).toBeNull();
 
     view.rerender(
       <QueryClientProvider client={new QueryClient()}>
@@ -81,11 +82,14 @@ describe("native child activity (FS-03.A40)", () => {
     );
     const ended = screen.getByRole("button", { name: /researcher · / });
     expect(ended).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText(/"a.go"/)).toBeNull();
+    expect(document.querySelector("[data-ui='tool-call']")).toBeNull();
 
     fireEvent.click(ended);
     expect(ended).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("button", { name: /Ran 1 tool/ })).toHaveAttribute("aria-expanded", "false");
+    const run = screen.getByRole("button", { name: /Ran 1 tool/ });
+    expect(run).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(run);
+    expect(document.querySelector("[data-ui='tool-call']")).toHaveTextContent(/^Read$/);
   });
 
   it("renders the same nesting live as on replay", () => {

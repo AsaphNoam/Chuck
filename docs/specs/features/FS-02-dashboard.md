@@ -844,7 +844,7 @@ picker and launches with the route project's id; the general modal continues to 
 
 - **A34** (R52) — With a pane expanded, none of the following collapses it or opens
   the card context menu: clicking Send, clicking Cancel mid-turn, deciding a permission request,
-  expanding a tool-result disclosure, accepting an `@` or `#` autocomplete entry, dragging a text
+  expanding a tool run, accepting an `@` or `#` autocomplete entry, dragging a text
   selection across the transcript, or right-clicking inside the transcript — which instead reaches
   the annotation flow. The pane's name link navigates to `/agent/:id` without first toggling the
   pane. Clicking the card header still collapses it, and every one of these gestures on a *collapsed*

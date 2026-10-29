@@ -1000,6 +1000,13 @@ a.agent-mini-card:focus-visible {
   padding: var(--ad-space-2) 0;
 }
 
+.transcript-pending-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The queued follow-up (FS-03.R48). It sits beside the event list, not in it, and
    must read as not-yet-sent: dashed, muted, and labelled, so it is never mistaken
    for a message the agent has already seen (TS-08.R56). */
@@ -1207,8 +1214,20 @@ a.agent-mini-card:focus-visible {
   margin-bottom: var(--ad-space-2);
 }
 
+/* One clipped line per call (FS-03.R108). */
 .tool-call {
   color: var(--ad-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-call-label {
+  color: var(--ad-text-secondary);
+}
+
+.tool-call[data-state="failed"] .tool-call-state {
+  color: var(--ad-state-error);
 }
 
 .tool-toggle {
@@ -1227,21 +1246,7 @@ a.agent-mini-card:focus-visible {
   color: var(--ad-action-secondary);
 }
 
-.tool-args,
-.tool-result pre {
-  color: var(--ad-text-primary);
-  margin: var(--ad-space-2) 0 0;
-  max-height: 420px;
-  overflow: auto;
-  padding: 0;
-  white-space: pre-wrap;
-}
-
 .tool-result-error {
-  color: var(--ad-state-error);
-}
-
-.tool-result-error pre {
   color: var(--ad-state-error);
 }
 
@@ -2338,12 +2343,6 @@ a.agent-mini-card:focus-visible {
   color: var(--ad-text-muted);
 }
 
-.tool-call-background {
-  color: var(--ad-text-muted);
-  display: block;
-  font-size: 0.8rem;
-}
-
 .background-task-error {
   flex-basis: 100%;
   margin: 0;
@@ -2360,13 +2359,14 @@ a.agent-mini-card:focus-visible {
   max-width: var(--ad-reading-measure);
 }
 
-.chat-panel .transcript-view .transcript-item:is([data-variant="diff"], [data-variant="tool-result"], [data-variant="unknown"]) {
+.chat-panel .transcript-view .transcript-item:is([data-variant="diff"], [data-variant="unknown"]) {
   max-width: var(--ad-technical-measure);
 }
 
 /* Rows nested in opened activity or a tool run fill their already-measured
    parent. */
 .chat-panel .transcript-view :is(.turn-activity-content, .tool-run, .runtime-child) :is(.transcript-item, .tool-run, .runtime-child, .turn-end) {
+  margin-inline: 0;
   max-width: none;
 }
 

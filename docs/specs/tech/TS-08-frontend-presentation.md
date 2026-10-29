@@ -46,7 +46,7 @@ primitive seam; the rejected alternatives are recorded in §5.
 - **R7** — Major shared/feature surfaces expose stable presentation hooks independent of
   implementation class names: `data-ui` names the component, `data-slot` names an intentional
   subpart, and existing or explicit `data-state`/`data-variant` values describe visual state. Hooks
-  use product-native names such as `agent-card` and `tool-result`, never a core-design or future-skin
+  use product-native names such as `agent-card` and `tool-call`, never a core-design or future-skin
   concept.
 - **R8** — `ui/src/presentation/contract.json` is the machine-readable public visual
   contract. It has a schema/version, lists skin-overridable semantic tokens, lists each public
@@ -1856,22 +1856,29 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   `running-indicator`. No new dependency, token family or entrance motion is added. Proof:
   FS-03.A83 and FS-02.A64 component tests, plus a 1024px/1440px desktop and dashboard-pane render
   check in Core and Sky & Grove.
-- **R147 (planned) — One pure tool-line helper owns every tool summary.** FS-03.R108 is a
+- **R147 — One pure tool-line helper owns every tool summary.** FS-03.R108 is a
   presentation change over unchanged durable events.
 
   **Helper.** A pure `toolLine(call, result?)` in `ui/src/components/chat/` returns
   `{label, state, reason?}`.
   - The label reads, in order, a non-empty string `args.description`, then the program name for
     a command call, then the path-shortened title, then the name, then `Used a tool`.
-  - A call is a command when its name is a known shell tool (`execute`, `exec_command`, `Bash`)
-    or its args carry a string `command`.
+  - A call is a command when its args carry a string `command`, or when its name is a known
+    shell tool (`execute`, `exec_command`, `Bash`) and it has no title. Codex titles a file
+    read made through `exec_command` by the file (`Read file '…/SKILL.md'`) with no command,
+    so that call keeps its path-shortened title; a pending Claude call keeps `Terminal` until
+    its input update arrives.
   - The program name comes from a small tokenizer, not a shell parser: take the first segment
     before `&&`, `||`, `;` or `|`; drop leading `cd …` segments, `NAME=value` words and
     `sudo`/`env`/`time`/`nohup`; keep the basename of the first remaining word. Any doubt yields
     `Ran a command`.
-  - The reason applies FS-03.R108's trimming to the same displayable text `ToolResult` reads
-    today.
-  - Labels clip to about 80 characters and reasons to about 120, single line, with an ellipsis.
+  - The reason applies FS-03.R108's trimming to the result's first displayable value among
+    `content`, `error` and `result`, reading ACP-wrapped text blocks as their text.
+  - Labels clip to 80 characters and reasons to 120, single line, with an ellipsis.
+  - `ToolCall` drops the **running** suffix when its `ThoughtScope` is not live (a completed
+    turn or terminal child), so an unanswered call in history never reads as running.
+  - `groupTranscriptRows` builds each list's result map once, so a call whose result lands after
+    an unanswered permission or another row still reads its outcome.
 
   **Consumers.** `ToolRun`, desktop `TranscriptView`, phone `AgentScreen`, `ChildActivity`,
   `WorkingIndicator` and R146's `RunningTasks` all call it (INV §2).
@@ -1887,7 +1894,9 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   unknown-event JSON fallback are unchanged. There is no Go, API or storage change.
 
   **Proof.** FS-03.A84's table-driven `toolLine` tests use fixtures copied from retained Claude
-  and Codex transcripts, plus component tests on desktop, phone and child surfaces.
+  and Codex transcripts, plus component tests on desktop, phone and child surfaces. The
+  `tool-call` presentation hook's states are `running`, `background-running`, `background`,
+  `completed` and `failed`; the `tool-result` hook and transcript variant are removed.
 
 - **R148 (planned) — Annotation source-recording choice shares the existing batch owner.**
   For FS-13.R35–R36, extend `annotationStore` with the per-source batch checkbox value, treating

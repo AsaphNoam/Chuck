@@ -294,7 +294,6 @@
         "assistant",
         "user",
         "tool-call",
-        "tool-result",
         "diff",
         "permission",
         "error",
@@ -355,25 +354,13 @@
       "variants": []
     },
     "tool-call": {
-      "slots": [
-        "trigger",
-        "content"
-      ],
+      "slots": [],
       "states": [
-        "collapsed",
-        "expanded"
-      ],
-      "variants": []
-    },
-    "tool-result": {
-      "slots": [
-        "content",
-        "actions"
-      ],
-      "states": [
-        "collapsed",
-        "expanded",
-        "error"
+        "running",
+        "background-running",
+        "background",
+        "completed",
+        "failed"
       ],
       "variants": []
     },

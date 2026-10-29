@@ -8,7 +8,6 @@ import { EmptyState } from "../components/grid/EmptyState";
 import { AssistantText } from "../components/chat/renderers/AssistantText";
 import { DiffBlock } from "../components/chat/renderers/DiffBlock";
 import { ToolCall } from "../components/chat/renderers/ToolCall";
-import { ToolResult } from "../components/chat/renderers/ToolResult";
 import { Composer } from "../components/chat/Composer";
 import { FileViewerView, type FileReader } from "../components/chat/FileViewer";
 import { QuotaBanner } from "../components/agent/QuotaBanner";
@@ -251,10 +250,9 @@ export function VisualMatrix() {
           <article className="tool-run" data-ui="tool-run" data-state="expanded">
             <button className="tool-toggle" data-slot="trigger" type="button">▾ Ran 2 tools</button>
             <div className="tool-run-content" data-slot="content">
-              <ToolCall event={{ kind: "tool_call", name: "inspect_workspace", args: { path: "ui/src" } }} />
-              <ToolCall event={{ kind: "tool_call", name: "search_files" }} />
-              <ToolResult event={{ kind: "tool_result", status: "completed", content: "Representative tool output" }} />
-              <ToolResult event={{ kind: "tool_result", status: "failed", error: "Representative tool error output" }} />
+              <ToolCall event={{ kind: "tool_call", name: "execute", args: { command: "git status --short", description: "Show working tree status" } }} result={{ kind: "tool_result", status: "completed", content: null }} />
+              <ToolCall event={{ kind: "tool_call", name: "read", title: "Read file '/repo/ui/src/App.tsx'" }} />
+              <ToolCall event={{ kind: "tool_call", name: "execute", args: { command: "cd ui && npm test" } }} result={{ kind: "tool_result", status: "failed", error: "3 tests failed" }} />
             </div>
           </article>
           <div data-ui="turn-activity" data-state="collapsed">
