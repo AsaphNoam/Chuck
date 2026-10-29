@@ -395,6 +395,20 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-29 — Reconciled interrupted compact Think Tank navigation work:** originating
+  [`compact-think-tank-chat-navigation`](../ready-changes/compact-think-tank-chat-navigation.md)
+  is already finished (FS-21.R57/A40, TS-08.R126). Design `11245b90`; substantive implementation
+  range `467bf836^..467bf836`; existing review `d46bd2a7` and dead-CSS fix `c85f94fb` are separate
+  closure, with finished status retained by `88adeecd`. The implementation checkpoint records
+  UI 975/975, Go tests/build, UI build and 42 Chromium checks; review records independent 42/42
+  rendered checks, and fix closure records UI 976/976, style/build/spec passes. Browser receipts
+  are historical: their `/tmp` artifacts are no longer present. At `02b919bc`, focused
+  `ThinkTankTab.test.tsx`/`ChatPanel.test.tsx` pass 51/51, `npm run check:styles` passes 47/47
+  plus presentation contracts, and `git diff --check` passes. `make check-specs` still fails only
+  on the pre-existing DELMSG-1 missing invariant tag. No product/spec change, replacement unit
+  or reopened review queue; subsequent pipeline stages own review/fix. Active background-work
+  implementation and the dirty generated UI index are preserved.
+
 - **2026-10-29 — Designed summary-only tool activity:** ready change
   [`summary-only-tool-activity`](../ready-changes/summary-only-tool-activity.md): one-line
   tool labels (runtime description, `Ran <program>`, short title, `Used a tool`), trimmed
