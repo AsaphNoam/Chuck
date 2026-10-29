@@ -505,6 +505,15 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-29 — Approved pipeline worktrees and descendant placement:** technical/lifecycle
+  contract confirmed, including additive API, retained workspace management after run deletion,
+  explicit-removal tombstone and desktop cleanup. Created
+  [`pipeline-worktrees-and-descendant-placement`](../ready-changes/pipeline-worktrees-and-descendant-placement.md)
+  as **Waiting to start** and removed its idea entry. Planned FS-14.R91–R96/A57–A60,
+  FS-19.R12/A8, TS-09.R61–R65 and TS-12.R12–R17 agree; no product code or active-change update.
+  `git diff --check` and design-feature twin comparison pass. `make check-specs` reports only
+  the pre-existing DELMSG-1 missing invariant tag. Supersedes the pending checkpoint below.
+
 - **2026-10-29 — Defined pipeline worktrees and recursive group placement (awaiting technical
   confirmation; INV §§2/5/8/9/11/12/14/15/16/17):** operator confirmed optional run-owned checkout
   under the original project, initial run-group placement preserving manual moves, refusal of

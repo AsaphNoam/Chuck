@@ -1161,8 +1161,9 @@ replacement; §6 identifies its supersessions and any remaining design decision.
 - **Pipeline workspace design (2026-10-29):** R91–R96/A57–A60 are planned. Confirmed: optional
   per-run checkout under the original project, initial run-group placement with manual moves,
   refusal of existing targets outside the checkout, and an end-of-run removal offer. The proposed
-  lifecycle/API contract in TS-09.R61–R65 and TS-12.R12–R17 awaits the technical-design checkpoint,
+  lifecycle/API contract in TS-09.R61–R65 and TS-12.R12–R17 was approved on 2026-10-29,
   including retained workspace management after run deletion and explicit-removal resume behavior.
+  Ready change: [pipeline worktrees and descendant placement](../../ready-changes/pipeline-worktrees-and-descendant-placement.md).
   These requirements specialize the shipped shared-workspace and guidance-only group boundaries
   below; existing runs are not migrated by this draft.
 

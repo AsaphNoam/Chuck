@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`pipeline-worktrees-and-descendant-placement.md`](pipeline-worktrees-and-descendant-placement.md) —
+  optional run-owned checkout within the original project, recursive workspace/group placement,
+  and explicit terminal-run checkout cleanup.
+
 - [`optional-annotation-source-recording.md`](optional-annotation-source-recording.md) — default-on
   checkbox for recording annotation assignments in the source transcript, with **New agent** naming.
 
