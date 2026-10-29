@@ -70,4 +70,22 @@ describe("PermissionPolicyEditor", () => {
     await waitFor(() => expect(toggle).not.toBeChecked());
     expect(await screen.findByRole("alert")).toHaveTextContent("disk is read-only");
   });
+
+  // PERM-SAVE-1 / FS-04.R60, A39: before 181012ac the real PUT handler
+  // returned 200 with the unchanged policy. An ignored save must be visible,
+  // even though transport succeeded. This does not identify the field server.
+  it.skip("explains when a successful response did not save the requested policy", async () => {
+    server.use(http.put("/api/config", async ({ request }) => {
+      lastPut = await request.json();
+      return HttpResponse.json(currentConfig);
+    }));
+    renderEditor();
+    const toggle = await screen.findByRole("checkbox", { name: "Skip permission prompts" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    fireEvent.click(toggle);
+    await waitFor(() => expect(lastPut).toEqual({ skip_permissions: true }));
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).not.toBeChecked();
+    expect(screen.getByRole("alert")).toHaveTextContent(/not saved/i);
+  });
 });

@@ -19,6 +19,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
+- **Permission-save investigation:** PERM-SAVE has one open **Worth fixing** diagnostic finding;
+  the reported unchecked toggle's field cause remains undetermined pending affected server evidence.
 - **Claude effort investigation:** CEF has one open **Worth fixing** finding: new Claude
   backends omit `xhigh` from their starter declarations. Sync's refusal to update effort
   metadata is specified behavior, not an import/parser defect.
@@ -209,6 +211,50 @@ from transcripts; that broader change is being defined in `docs/ideas.md`.
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
 ## Review findings
+
+### PERM-SAVE — Permission checkbox investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+**Report, verbatim:** “the skip permissions prompts checkbox is broken, clicking on it pops
+'saving' for a fraction of a second and the checkbox stays empty”. Affected version, server URL,
+browser and request/response logs were not supplied. Investigated checkout `052147af`, macOS arm64.
+No server answered at `127.0.0.1:4317`, including an unsandboxed read attempt; no Chuck browser tab
+was available and native inspection was unavailable because the Mac was locked. The installed CLI
+shim points at 0.15.1, while repository `bin/chuck` records `65aa72a4`; neither identifies the
+reported server. The retained `~/.chuck/dashboard.log` ends October 24 and cannot explain this click.
+
+**Expected / attribution:** FS-04.R60/A39 require the toggle to persist both directions and explain
+failed saves. The current implementation includes `181012ac`'s PDEF-R1 repair: optional boolean
+decode/merge in `internal/server/config_handlers.go:869,977`, disk persistence, and next-launch
+refresh. Existing component tests (2) and
+`TestPutConfigSkipPermissionsRoundTripsAndPreservesOmission` pass on this checkout. Thus a current
+server persistence regression is **undetermined**, not confirmed. Before `181012ac`, a server could
+acknowledge this field with HTTP 200 while leaving it unchanged, which matches the reported symptom;
+an outdated server is a hypothesis only. The onboarding cache shape was checked but its gate is
+not mounted on the Settings route, so it is not an explanation for this report.
+
+- **Worth fixing** — PERM-SAVE-1, **confirmed diagnostic defect; field attribution undetermined**
+  (FS-04.R60/A39; INV §8/§11/§17). At
+  `ui/src/features/settings/PermissionPolicyEditor.tsx:26`, a successful PUT response is installed
+  without checking that `saved.skip_permissions` equals the submitted value. A server returning the
+  unchanged policy makes Saving disappear and resets the checkbox without a readable error.
+  `usePutConfig` (`ui/src/api/config.ts:295–306`) treats any HTTP 2xx JSON response as success.
+  Existing component fixtures always merge the requested value, masking this actual pre-PDEF-R1
+  response shape. Fix complexity: trivial/easy. Detect an acknowledged-but-unapplied policy at the
+  existing mutation seam, retain the server's value, and surface the mismatch so a future report
+  distinguishes an ignored write from a failed request. This diagnostic repair alone does not
+  establish or repair the cause in the affected server.
+
+  **Reproduction / verification:** added one component case using the historical real handler's
+  unchanged-policy HTTP 200 shape. It reaches the settled, enabled, unchecked state and fails on
+  the missing `alert`; retained as `it.skip` in `PermissionPolicyEditor.test.tsx` with this finding
+  ID for the fix session. No product code or specification changed. Focused component suite passes
+  with the reproduction skipped (2 passed, 1 skipped); the real server persistence/next-launch test
+  passes (`env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1`, isolated writable cache).
+  Next field evidence: affected server version and the click's PUT plus subsequent GET response,
+  distinguishing old server, save rejection, or later overwrite. No correlated evidence exists
+  here to justify a separate persistence fix or claim that the setting actually changed.
+  `git diff --check` passes. `make check-specs` fails only on the pre-existing DELMSG-1
+  finding lacking an INV tag; this investigation does not alter that unit.
 
 ### CEF — Missing Claude extra-high effort investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
