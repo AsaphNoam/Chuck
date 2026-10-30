@@ -99,6 +99,7 @@ export interface BackgroundTask {
   toolTitle?: string;
   name: string;
   state: TaskState;
+  startedAt?: string;
   canStop: boolean;
   /** A later resume or clone boundary left it with a runtime that cannot
    * control it: the previous session, or the source a clone was forked from. */
@@ -136,6 +137,7 @@ export function collectTasks(events: TranscriptEvent[]): BackgroundTask[] {
       toolTitle: titles.get(String(event.tool_call_id ?? "")) || prior?.toolTitle,
       name: String(event.name || prior?.name || ""),
       state: event.state as TaskState,
+      startedAt: prior?.startedAt ?? event.ts,
       canStop: Boolean(event.can_stop ?? prior?.canStop),
     });
   }

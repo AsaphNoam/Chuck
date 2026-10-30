@@ -1,6 +1,6 @@
 # Show running background work instead of a Background tasks list
 
-**State:** Paused
+**State:** Finished
 **Why:** Operator request 2026-10-26: the transcript-tail **Background tasks** list is hard to read
 or understand, but knowing whether and what is still running is useful. Claude Code (`/tasks`)
 and Codex (`/ps`) both show running work in an on-demand panel rather than a transcript list.
@@ -38,8 +38,13 @@ Follow-up from comparing the Claude Code desktop and Codex apps (2026-10-27):
 FS-03.A83 and FS-02.A64. TS-04.R104 runtime count tests, TS-02.R59 migration/projection tests,
 and TS-08.R146's desktop render check. Run TS-06 UI/Go checks and `make embed`.
 
-## Waiting on
-Operator decision (2026-10-27): real Claude and Codex transcripts show the related tool call holds
-no command output (Codex results are empty; Claude's says output goes to a temporary file). Keep
-the jump as a command locator, drop it, or redesign output access — see `HANDOFF.md` **Blocked on
-human**. The card count and its runtime/status plumbing shipped.
+## Decision
+Operator decision 2026-10-29: keep the jump as a command locator. No output is shown or copied.
+Rows use the related tool call's shared adapter label. The card count and runtime plumbing shipped.
+
+## Presentation direction
+The operator needs to see whether commands are still running without transcript clutter.
+Keep the count quiet beside the composer; its on-demand popover puts name and running state
+before elapsed time and native-child owner. Reuse desktop button, surface and state tokens,
+with no entrance motion. Empty/stopped sessions show nothing; Stop waits for runtime confirmation
+and failures keep a retryable row. Preserve phone behavior and the existing lifecycle authority.

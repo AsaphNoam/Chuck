@@ -12,6 +12,7 @@ export interface ThoughtScope {
 }
 
 export const ThoughtScopeContext = createContext<ThoughtScope | null>(null);
+export const RevealTaskContext = createContext<{ seq: number } | undefined>(undefined);
 
 export function useThoughtScope() {
   return useContext(ThoughtScopeContext);

@@ -17,12 +17,11 @@ import { AnnotationCard } from "./renderers/AnnotationCard";
 import { NoticeRow } from "./renderers/NoticeRow";
 import { ThinkingDisclosure } from "./renderers/ThinkingDisclosure";
 import { ChildActivity } from "./renderers/ChildActivity";
-import { BackgroundTaskList } from "./renderers/BackgroundTaskList";
-import { collectTasks, hideFileChanges, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "./runtimeActivity";
+import { hideFileChanges, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "./runtimeActivity";
 import { useReasoningStore } from "../../store/reasoningStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { projectTurns } from "./turnActivity";
-import { TurnList, useFocusReturn, useTurnChoices } from "./TurnList";
+import { RevealTaskContext, TurnList, useFocusReturn, useTurnChoices } from "./TurnList";
 import { AnnotationContextMenu, type AnnotationMenuState } from "./AnnotationContextMenu";
 import { ReaderWorkspace } from "./ReaderWorkspace";
 import type { FileTabRoute } from "../../features/fileTabs/useFileTabRoute";
@@ -44,10 +43,9 @@ import { useQueryClient } from "@tanstack/react-query";
 // tabs and a handler that opens a tab there; the dashboard chat pane
 // passes no tabs and a handler that navigates to the agent screen instead,
 // which is that pane's existing route to the full surface (FS-03.R53).
-// taskControl offers targeted background-task Stop; only a live session whose
-// runtime negotiated it passes true, and the archive never does (FS-03.R59).
+// The desktop composer owns background-task control; transcripts stay read-only.
 // reveal names an event the caller is about to scroll to; a fresh object per request.
-export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, fileTabs, onOpenFile, taskControl = false, reveal = null, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; fileTabs?: FileTabRoute; onOpenFile?: (link: FileLink | null) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
+export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, fileTabs, onOpenFile, reveal = null, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; fileTabs?: FileTabRoute; onOpenFile?: (link: FileLink | null) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -125,6 +123,25 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     onOpenFile,
   });
   const choices = useTurnChoices(agentId);
+  const [taskReveal, setTaskReveal] = useState<{ seq: number }>();
+  useEffect(() => {
+    const revealTask = (event: Event) => {
+      const detail = (event as CustomEvent<{ agentId: string; seq: number }>).detail;
+      if (detail.agentId !== agentId) return;
+      setTaskReveal({ seq: detail.seq });
+      const turn = projectTurns(nested).find((item) => item.seqs.has(detail.seq));
+      if (turn) choices.setOpen(turn.key, true);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const target = contentRef.current?.querySelector<HTMLElement>(`[data-seq="${detail.seq}"]`);
+        if (!target) return;
+        target.tabIndex = -1;
+        target.scrollIntoView({ block: "center" });
+        target.focus({ preventScroll: true });
+      }));
+    };
+    window.addEventListener("chuck-reveal-task", revealTask);
+    return () => window.removeEventListener("chuck-reveal-task", revealTask);
+  }, [agentId, nested, choices.setOpen]);
   const trackFocus = useFocusReturn(scrollRef);
   // A Files-tab Diff reveal opens the completed turn hiding that row before the
   // caller scrolls to it.
@@ -145,14 +162,13 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     <div className="transcript-wrap" data-ui="transcript">
       <div className="transcript-view" data-slot="list" ref={scrollRef} onScroll={onScroll} onFocus={trackFocus}>
         <div ref={contentRef}>
-          <TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} />
+          <RevealTaskContext.Provider value={taskReveal}><TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} /></RevealTaskContext.Provider>
           {results.isError && (
             <p className="form-error" role="status" data-ui="think-tank" data-slot="results-error">
               Think Tank synthesis could not be loaded.{" "}
               <Button type="button" variant="secondary" onClick={() => void results.refetch()}>Retry</Button>
             </p>
           )}
-          <BackgroundTaskList agentId={agentId} tasks={collectTasks(events)} controllable={taskControl} />
           {busy && <WorkingIndicator tool={currentToolLabel(events)} />}
           {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
           {recovery && <RecoveryMessage agentId={agentId} recovery={recovery} />}

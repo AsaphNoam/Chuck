@@ -390,7 +390,7 @@
       "slots": [
         "thinking",
         "child",
-        "task-list",
+        "running-indicator",
         "task"
       ],
       "states": [

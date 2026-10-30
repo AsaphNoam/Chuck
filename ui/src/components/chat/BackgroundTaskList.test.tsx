@@ -1,138 +1,68 @@
 import React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as client from "../../api/client";
-import type { TranscriptEvent } from "../../api/types";
-import { foldTranscript } from "../../store/transcriptStore";
-import { TranscriptView } from "./TranscriptView";
-
-afterEach(() => {
-  cleanup();
-  vi.restoreAllMocks();
-});
-
-const wire = (seq: number, type: string, data: Record<string, unknown>, activity_id?: string): TranscriptEvent =>
-  ({ agent_id: "a1", seq, type, ts: "t", data, ...(activity_id ? { activity_id } : {}) });
-
-const running = [
-  wire(1, "tool_call", { tool_call_id: "tc_bg", name: "exec_command", title: "npm run dev", args: {} }),
-  wire(2, "background_task_state", { task_id: "task_1", tool_call_id: "tc_bg", name: "npm run dev", state: "running", can_stop: true }),
-  wire(3, "activity_started", { name: "researcher" }, "act_c"),
-  wire(4, "background_task_state", { task_id: "act_c/task_1", tool_call_id: "act_c/tc_c", name: "go test", state: "running", can_stop: true }, "act_c"),
-  wire(5, "background_task_state", { task_id: "act_c/task_1", tool_call_id: "act_c/tc_c", state: "completed" }, "act_c"),
-];
-
-function renderTranscript(events: TranscriptEvent[], taskControl = true) {
-  return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <TranscriptView agentId="a1" events={foldTranscript(events)} taskControl={taskControl} />
-    </QueryClientProvider>,
-  );
+import type { AgentState, TranscriptEvent } from "../../api/types";
+import { useAgentStore } from "../../store/agentStore";
+import { foldTranscript, useTranscriptStore } from "../../store/transcriptStore";
+import { RunningTasks } from "./RunningTasks";
+import { collectTasks, markBackgrounded } from "./runtimeActivity";
+import { toolLine } from "./toolLine";
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+const wire = (seq: number, type: string, data: Record<string, unknown>): TranscriptEvent => ({ agent_id: "a1", seq, type, ts: "2026-10-30T09:00:00Z", data });
+const running = [wire(1, "tool_call", { tool_call_id: "tc", name: "Bash", args: { command: "npm run dev" } }), wire(2, "background_task_state", { task_id: "one", tool_call_id: "tc", state: "running", can_stop: true })];
+function setup(events = running, live = true, control = true) {
+  useAgentStore.setState({ agents: { a1: { agent_id: "a1", running: live, runtime_capabilities: { background_task_stop: control } } as AgentState } });
+  useTranscriptStore.setState({ byAgent: { a1: foldTranscript(events) } });
+  return render(<RunningTasks agentId="a1" />);
 }
-
-function rows() {
-  return [...document.querySelectorAll("[data-slot='task']")].map((row) => `${row.getAttribute("data-state")}:${row.textContent}`);
-}
-
-describe("background tasks (FS-03.A41)", () => {
-  it("lists one row per task at the tail, state first, and never inline", () => {
-    renderTranscript(running);
-    expect(screen.getByRole("button", { name: /Background tasks \(2\)/ })).toHaveAttribute("aria-expanded", "true");
-    expect(rows()).toEqual(["running:Runningnpm run devStop", "completed:Completedgo testresearcher"]);
-    expect(document.querySelectorAll("[data-variant='unknown']")).toHaveLength(0);
+describe("running background work (FS-03.A83)", () => {
+  it("names tools with the shared label and locates their call", () => {
+    const reveal = vi.fn(); window.addEventListener("chuck-reveal-task", reveal);
+    setup(); fireEvent.click(screen.getByRole("button", { name: "1 running" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ran npm" }));
+    expect(reveal).toHaveBeenCalled(); window.removeEventListener("chuck-reveal-task", reveal);
   });
-
-  it("stops only the chosen task and waits for the runtime's terminal update", async () => {
+  it("waits for terminal publication after Stop", async () => {
     const stop = vi.spyOn(client, "stopBackgroundTask").mockResolvedValue({ accepted: true });
-    const view = renderTranscript(running);
+    setup(); fireEvent.click(screen.getByRole("button", { name: "1 running" }));
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-    expect(stop).toHaveBeenCalledWith("a1", "task_1", undefined);
-    await waitFor(() => expect(screen.getByText("Stopping…")).toBeInTheDocument());
-
-    view.rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <TranscriptView agentId="a1" taskControl events={foldTranscript([...running, wire(6, "background_task_state", { task_id: "task_1", tool_call_id: "tc_bg", state: "stopped" })])} />
-      </QueryClientProvider>,
-    );
-    // The list stays open after Stop so its outcome is visible.
-    expect(screen.getByRole("button", { name: /Background tasks/ })).toHaveAttribute("aria-expanded", "true");
-    expect(rows()[0]).toBe("stopped:Stoppednpm run dev");
-    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+    expect(stop).toHaveBeenCalledWith("a1", "one", undefined);
+    expect(screen.getByText("Stopping…")).toBeInTheDocument();
+    useTranscriptStore.setState({ byAgent: { a1: foldTranscript([...running, wire(3, "background_task_state", { task_id: "one", state: "stopped" })]) } });
+    await waitFor(() => expect(screen.queryByText("1 running")).toBeNull());
   });
-
-  it("keeps the last state and a retryable error when Stop fails", async () => {
-    vi.spyOn(client, "stopBackgroundTask").mockRejectedValue(new Error("nope"));
-    renderTranscript(running);
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-    const row = document.querySelector("[data-slot='task']") as HTMLElement;
-    expect(await within(row).findByRole("alert")).toHaveTextContent("Could not stop this task. Try again.");
-    expect(row).toHaveAttribute("data-state", "running");
-    expect(within(row).getByRole("button", { name: "Stop" })).toBeEnabled();
+  it("keeps a retryable Stop error and respects runtime authority", async () => {
+    vi.spyOn(client, "stopBackgroundTask").mockRejectedValue(new Error("refused"));
+    setup(); fireEvent.click(screen.getByRole("button", { name: "1 running" })); fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
+    expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+    cleanup(); setup(running, true, false); fireEvent.click(screen.getByRole("button", { name: "1 running" })); expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
-
-  // FS-01.R36: copied history ends at a visible clone marker, and a copied
-  // running task stays with the source rather than continuing in the clone.
-  it("marks the clone boundary and leaves copied tasks with the source", () => {
-    renderTranscript([...running, wire(6, "fork_boundary", { forked_from_agent_id: "a_src", forked_from_seq: 5 })]);
-    expect(screen.getByText("Cloned from another agent")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Background tasks/ }));
-    expect(rows()[0]).toBe("stopped:Stayed with the source agentnpm run dev");
-    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+  it.each(["session_meta", "fork_boundary"])("fences old work at %s", (kind) => {
+    const events = [...running, wire(3, kind, { resumed_at: "later" })];
+    expect(collectTasks(foldTranscript(events))[0].state).toBe("stopped");
+    expect(toolLine(markBackgrounded(foldTranscript(events))[0]).state).toBe("background");
+    setup(events); expect(screen.queryByText(/running/)).toBeNull();
   });
-
-  it("offers no Stop without control, and a resume fences old running tasks", () => {
-    renderTranscript(running, false);
-    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
-    cleanup();
-    renderTranscript([...running, wire(6, "session_meta", { resumed_at: "later" })]);
-    const toggle = screen.getByRole("button", { name: /Background tasks/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(toggle);
-    expect(rows()[0]).toBe("stopped:Ended with the previous sessionnpm run dev");
+  it("hides stale work when the agent stops", () => { setup(running, false); expect(screen.queryByText(/running/)).toBeNull(); });
+  it("dismisses with Escape after reopening", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "1 running" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: "1 running" }));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
-});
-
-// FS-03.A48, TS-08.R86: a command a steer moved to the background keeps its
-// tool row, which says it continues there and, once done, that it ran there; a
-// tool without a linked task renders exactly as before.
-describe("steer-backgrounded tool calls (FS-03.A48)", () => {
-  const steered = [
-    wire(1, "tool_call", { tool_call_id: "tc_bg", name: "Bash", title: "npm run build", args: { command: "npm run build" } }),
-    wire(2, "tool_result", { tool_call_id: "tc_bg", status: "completed", content: "Command running in background with ID: task_1" }),
-    wire(3, "background_task_state", { task_id: "task_1", tool_call_id: "tc_bg", name: "npm run build", state: "running", can_stop: true }),
-    wire(4, "assistant_text", { delta: "Noted." }),
-    wire(5, "tool_call", { tool_call_id: "tc_plain", name: "Read", args: { path: "a.go" } }),
-  ];
-
-  function openRuns() {
-    for (const toggle of screen.getAllByRole("button", { name: /^Ran \d tools?$/ })) fireEvent.click(toggle);
-  }
-
-  it("marks the steered tool as continuing in the background and leaves others alone", () => {
-    renderTranscript(steered);
-    openRuns();
-    const calls = [...document.querySelectorAll("[data-ui='tool-call']")];
-    expect(calls[0]).toHaveTextContent("Continues in background");
-    expect(calls[1]).not.toHaveTextContent("background");
-    expect(rows()).toEqual(["running:Runningnpm run buildStop"]);
-  });
-
-  it("reads as ran in background once the task settles", () => {
-    renderTranscript([...steered, wire(6, "background_task_state", { task_id: "task_1", tool_call_id: "tc_bg", state: "completed" })]);
-    openRuns();
-    expect(document.querySelector("[data-ui='tool-call']")).toHaveTextContent("Ran in background");
-  });
-
-  // FS-01.R36: the tool label follows the same fenced task state as the list.
-  it.each([
-    ["resume", wire(6, "session_meta", { resumed_at: "later" })],
-    ["clone", wire(6, "fork_boundary", { forked_from_agent_id: "a_src", forked_from_seq: 5 })],
-  ])("stops claiming the background after a %s boundary", (_, boundary) => {
-    renderTranscript([...steered, boundary]);
-    openRuns();
-    const call = document.querySelector("[data-ui='tool-call']");
-    expect(call).toHaveTextContent("Ran in background");
-    expect(call).not.toHaveTextContent("Continues in background");
+  it("orders two commands by announcement and includes the native child owner", () => {
+    setup([...running,
+      { ...wire(3, "activity_started", { name: "researcher" }), activity_id: "child" },
+      { ...wire(4, "background_task_state", { task_id: "two", name: "go test", state: "running", can_stop: true }), activity_id: "child" },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "2 running" }));
+    const rows = document.querySelectorAll("[data-slot='task']");
+    expect(rows[0]).toHaveTextContent("Ran npm");
+    expect(rows[1]).toHaveTextContent("go test");
+    expect(rows[1]).toHaveTextContent("researcher");
   });
 });

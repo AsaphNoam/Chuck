@@ -286,6 +286,7 @@ try {
     if (!(await page.getByText("notes.txt").first().isVisible())) throw new Error("recovery lost the selected attachment");
     console.log(`recovery: healthy stream kept, row ${after.key} within ${Math.abs(after.top - before.top)}px, text and attachment kept, outage retried once after 5s`);
   }
+  if (await page.locator('[data-slot="running-indicator"], [data-slot="task-list"]').count()) throw new Error("Phone must not show desktop background-work controls (FS-03.R107)");
   await page.screenshot({ path: out, fullPage: !historyCheck && !scrollCheck && !recoveryCheck });
   if (shown && parityCheck) {
     const openAgent = async () => {

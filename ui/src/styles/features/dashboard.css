@@ -518,7 +518,7 @@
 }
 
 /* Activity reads as a quiet ruled column under the turn. */
-.dashboard-chat-pane :is(.tool-run, .thinking, .runtime-child, .turn-activity-toggle, .background-tasks) {
+.dashboard-chat-pane :is(.tool-run, .thinking, .runtime-child, .turn-activity-toggle) {
   border-left: var(--ad-border-thin) solid var(--ad-border-default);
   color: var(--ad-text-muted);
   font-size: 0.6875rem;
@@ -529,7 +529,7 @@
   font-family: var(--ad-font-text);
 }
 
-.dashboard-chat-pane .turn-activity-content :is(.tool-run, .thinking, .runtime-child, .background-tasks) {
+.dashboard-chat-pane .turn-activity-content :is(.tool-run, .thinking, .runtime-child) {
   border-left: 0;
   padding-left: 0;
 }

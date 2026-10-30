@@ -662,7 +662,7 @@ conversation, nested child activity at the causal position, and a compact backgr
 at the transcript tail while any task is active; completed child/task detail remains available by
 disclosure without competing with assistant text.
 
-The projection exposes one curated `runtime-activity` hook with `thinking`, `child`, `task-list` and
+The projection exposes one curated `runtime-activity` hook with `thinking`, `child`, `running-indicator` and
 `task` slots plus active/completed/failed/stopped/disconnected states. Thinking is a subdued collapsed disclosure
 and never reserves empty space after reload. Child sessions use restrained hierarchy and the
 existing assistant/tool/diff/permission components rather than equal cards or a second transcript;
@@ -674,7 +674,7 @@ failure styling. Archived rows are read-only. The same composition works at the 
 width and supported desktop floor in Core and Sky & Grove without a new tab, side panel, provider
 label, raw color, token family or motion dependency. High-frequency updates use no entrance motion;
 only existing state-color/typographic feedback changes, and reduced motion loses no information.
-R146 (planned) replaces the tail task-list slot with a composer-side running indicator.
+R146 replaces the tail task-list slot with a composer-side running indicator.
 
 - **R60 (shipped 2026-09-23) — Run supervision uses the existing detail projection without a rail.**
   `RunBrowser` derives current/final stage position, the next human stage title, and each attempt's
@@ -1839,7 +1839,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Implementation closure follows TS-06.R3–R6: spec checks, focused/full UI evidence, applicable
   remote filter/room-loader integration checks, presentation checks and `make embed`. Never edit
   generated `internal/server/ui/dist` directly.
-- **R146 (planned) — Running background work is a composer-side indicator.** FS-03.R107
+- **R146 — Running background work is a composer-side indicator.** FS-03.R107
   replaces R59's tail `task-list` slot. `TranscriptView` stops rendering `BackgroundTaskList`, so
   live, dashboard-pane and archive transcripts show no list. A `RunningTasks` indicator beside the
   desktop composer, shared by the full agent screen and dashboard chat pane (INV §2), derives its

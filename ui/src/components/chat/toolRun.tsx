@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useContext, useEffect, useState, type ReactNode } from "react";
+import { RevealTaskContext } from "./TurnList";
 import type { TranscriptEvent } from "../../api/types";
 import { resultsByCall } from "./toolLine";
 
@@ -31,6 +32,8 @@ export function groupTranscriptRows(events: TranscriptEvent[], results = results
 
 export function ToolRun({ events, results, renderEvent }: { events: TranscriptEvent[]; results: Map<string, TranscriptEvent>; renderEvent: (event: TranscriptEvent, index: number, result?: TranscriptEvent) => ReactNode }) {
   const [open, setOpen] = useState(false);
+  const reveal = useContext(RevealTaskContext);
+  useEffect(() => { if (reveal !== undefined && events.some((event) => event.seq === reveal.seq)) setOpen(true); }, [reveal]);
   const count = events.filter((event) => kindOf(event) === "tool_call").length;
   return (
     <section className="tool-run" data-ui="tool-run" data-state={open ? "expanded" : "collapsed"}>

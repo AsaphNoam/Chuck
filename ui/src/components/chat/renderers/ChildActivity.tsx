@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useContext, useEffect, useState, type ReactNode } from "react";
 import type { TranscriptEvent } from "../../../api/types";
 import { hasPendingPermission, type ChildNode, type ChildState } from "../runtimeActivity";
-import { ThoughtScopeContext, useThoughtScope } from "../TurnList";
+import { RevealTaskContext, ThoughtScopeContext, useThoughtScope } from "../TurnList";
 
 const STATE_LABEL: Record<ChildState, string> = {
   active: "Running",
@@ -32,6 +32,9 @@ export function ChildActivity({ node, ancestry, depth, renderEvents }: {
     setChosen(null);
   }
   const scope = useThoughtScope();
+  const reveal = useContext(RevealTaskContext);
+  const contains = (items: TranscriptEvent[]): boolean => items.some((item) => item.seq === reveal?.seq || (item.node && contains((item.node as ChildNode).items)));
+  useEffect(() => { if (reveal !== undefined && contains(node.items)) setChosen(true); }, [reveal]);
   const open = chosen ?? (node.state === "active" || hasPendingPermission(node));
   const path = [...ancestry, node.name || "Subagent"];
   return (

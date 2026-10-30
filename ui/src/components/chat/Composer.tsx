@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { QUEUED_FOR_ASSIGNMENT_NOTICE, cancelTurn, sendPrompt, steerPrompt } from "../../api/client";
 import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
+import { RunningTasks } from "./RunningTasks";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
 import { useAutocomplete } from "./autocomplete";
@@ -434,6 +435,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         </div>
       )}
       <div className="composer-actions">
+        <RunningTasks key={agentId} agentId={agentId} />
         <button type="button" className="ad-button-secondary composer-attach" aria-label="Attach files" title="Attach files" disabled={sending} onClick={() => pickerRef.current?.click()}>Attach</button>
         <button type="submit" className="composer-icon ad-button-icon-primary" aria-label="Send" title="Send" disabled={!filesReady || sending || (!text.trim() && files.length === 0) || !!capabilityError || (retry?.retryable === false && retry.text === text && sameFileSet(retry.files, files))}>{!variant && <span className="composer-send-label">Send</span>}<SendIcon /></button>
         {busy && steerable && (

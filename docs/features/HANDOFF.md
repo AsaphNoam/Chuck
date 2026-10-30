@@ -61,28 +61,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-**Running background-work indicator** —
-[`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
-**resumable**. Operator decision 2026-10-29: option (a). Each popover row is named by its
-related tool call's adapter title and shows state and elapsed time. The jump only locates where
-the command started; no output is shown or copied (TS-04.R64). Real transcripts show no output
-reaches the tool call: Codex results are `content: null` and Claude returns only a
-"running in background, output in <tmp file>" notice. Tool detail is now gone from transcripts
-(TOOL-LINE, closed); popover rows take their name from `toolLine(call).label`
-(`ui/src/components/chat/toolLine.ts`).
-
-- **Done (slice 1):** the runtime publishes each generation's open task count into
-  `status.background_running` (migration 63; `agentState.applyLive` on every status write,
-  `republishLive` after each task spawn/terminal update), `AgentState.background_running`
-  projects only with a running row, and the desktop `AgentCard` shows **N running**
-  (TS-04.R104, TS-02.R59, FS-02.R83/A64 now shipped). Tests:
-  `TestBackgroundRunningCountIsPublished`, `TestBackgroundRunningProjectsOnlyWhileRunning`,
-  `AgentCard.test.tsx`. Checks on this tree: `go test ./...`, `-tags sqlite_fts5`, focused
-  `-race` task tests, `ui` `npm test` (1060) and `npm run build`, `make build` passed.
-  The earlier DELMSG-1 missing-INV-tag lint failure is repaired by CEF closure bookkeeping.
-- **Next (after the decision):** FS-03.R107/TS-08.R146 — remove `BackgroundTaskList`, add the
-  composer `RunningTasks` indicator/popover from `collectTasks`, phone render check, FS-03.A83's
-  fake-ACP scenario, `make embed`, the 1024/1440px render check.
+None. Running background-work indicator is finished and available for review (BGRUN-UI below).
 
 ## Acceptance gates still owed
 
@@ -273,6 +252,19 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
   failure. Merged into main; combined-checkout production build and `make -o ui embed` pass.
   Generated index remains with the pre-existing dirty embedded UI owned by the concurrent
   pipelines work; no pipelines source or handoff edits were committed with this unit.
+
+- **BGRUN-UI** (2026-10-30, UI): running-background-work indicator finished (FS-03.R107/A83,
+  TS-08.R146). Shared desktop composer popover uses `collectTasks` and `toolLine`; running rows
+  show state, elapsed time, owner, targeted Stop and a command-locator jump that opens collapsed
+  transcript activity and focuses the call. Old transcript list removed; phone unchanged.
+  Checks: `make check-specs`; full UI suite 1124 passed; after browser fixes, affected 51 tests
+  and indicator 8 tests passed; final `npm run build` and `make embed`/final dist refresh passed.
+  Real fake-ACP `activity_showcase` journey passed Core/Sky & Grove at 1024/1440px on full-agent
+  and dashboard surfaces, including jump/focus, Escape and runtime-confirmed Stop. Phone render
+  with the real transcript passed absence of indicator/list. Screenshots `/tmp/chuck-running-tasks`;
+  repeat with `ui/scripts/running-tasks-journey.mjs` against an isolated stress fixture.
+  Two-command ordering/native-owner and refusal/fencing cases have component proof; the real
+  fake-ACP rendered scenario covers one root command. INV §1/§2/§10/§13/§17.
 
 - **BGRUN-COUNT** (2026-10-27, small, Go + UI): live running background-task count —
   migration 63, `internal/runtime/{chat,tasks}.go` status writes, `internal/state` projection,
