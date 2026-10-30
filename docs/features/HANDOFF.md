@@ -332,6 +332,21 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
 
 ## Changelog
 
+- **2026-10-30 — Shaped goal-led unattended pipelines (design in progress):** expanded the
+  blocked-stage conversation idea after WAIT-PROMPT into FS-14.R97–R103/A61–A67. The operator
+  confirmed the usual-plan direction with explicit required checks; automatic repair/review,
+  retained mid-run input and bounded recovery should remove routine human continuation. Agent
+  judgment still uses LLMs; the operator explicitly accepted useful existing-orchestrator calls
+  alongside programmatic control. TS-09.R66–R72 propose the existing task-result path plus owner
+  decisions and chronological visits, without a second executor or polling supervisor. The draft
+  remains under Ideas being defined. Recovery limits, automatic fresh-session replacement,
+  existing-run/template compatibility and the proposed agent protocol remain open. Pending operator
+  questions propose visible automatic same-runtime replacement, three unsuccessful repair rounds
+  then honest failure, and preserving existing behavior until template adoption. No approved TS
+  replacement, ready change, product code or WAIT-PROMPT closure; the unrelated active
+  implementation is unchanged. Draft verification: `make check-specs`, twin-skill comparison and
+  `git diff --check` pass; behavioral evidence remains planned, with no product tests run.
+
 - **2026-10-30 — Closed ANN-SOURCE:** ANN-SOURCE-1 (INV §1/§11/§15), repaired in `a9bb424a`,
   retains exact launch payload/command/choice through retry/reload and clears only acknowledged
   drafts. Extended deferred-preflight regression fails before repair in both reload modes and now

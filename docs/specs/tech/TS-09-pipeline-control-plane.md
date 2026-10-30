@@ -695,6 +695,84 @@ unchanged by them.
   TS-06's applicable matrix. Fake-provider cwd capture proves composition; real-Git fixtures prove
   checkout identity, while one packaged Claude/Codex launch/resume probe must verify actual cwd.
 
+### 2.15 Goal-led execution using the existing owner
+
+R66–R72 propose FS-14.R97–R103's technical design, pending §5's decisions. Extend the existing
+task-backed controller; do not add a second executor for simple sequences.
+
+- **R66 (planned) — Record judgment with the existing report.** Extend the stage branch of
+  `report_task_result` with optional bounded `pipeline_decision`: `next` naming an existing stage,
+  `complete`, or `needs_input` carrying a concrete question; include a reason and required-check
+  result references for successful completion. Ordinary task reports are unchanged. Success with
+  no decision follows the usual next stage when one exists; the plan's end requires explicit
+  `complete` and its evidence rather than implicit success. `complete` with outcome `failure`
+  records terminal unsuccessful work; `blocked` is not terminal completion. Failure/blocked without
+  a decision or human question supplies
+  evidence for an owner recovery assignment, not automatic human attention; that assignment gets
+  the result and remaining allowance. Decisions accompany useful work in the existing owner turn.
+  Room acceptance records durable owner-decision intent; after room-stage cleanup, create/admit
+  one idempotent owner decision assignment, retaining synthesis evidence without rerunning judging
+  or re-reporting the unassigned room task. Failure-recovery assignments use the same post-cleanup
+  ordering, so the old closure cannot cancel its own successor. No separate pipeline
+  report tool, polling agent or acknowledgment-only pass follows every worker result.
+- **R67 (planned) — Separate visit order from template order.** Add a monotonic per-run visit
+  sequence and explicit current-task reference; preserve stage id and attempt provenance. Revisit
+  creates a new task/visit without changing accepted results. Cursor authority, latest-owner reads,
+  timeline, cleanup, Stop and room capture all use visit order, not maximum `stage_index`. Keep one
+  active assignment. Each activation freezes selected inputs and their source task/room references;
+  latest named values alone are not evidence of current checks. Validate the selected destination's
+  required values/context, without blocking an accepted result on an unselected future room.
+  Keep known-producer/output validation without introducing a condition language.
+- **R68 (planned) — Retain transactional authority and closure.** Validate caller, generation,
+  execution handle, current task/run revision, decision shape, destination and required evidence in
+  report acceptance. Commit result, outputs, decision and closure intent before success or external
+  effects. Rejection leaves the assignment actionable with a concrete correction and spends no
+  repair-round allowance; stalled decision recovery is separately bounded. After reporting turn-end and existing cleanup, compare-and-set activation
+  executes only that recorded decision. Stop/replay/restart cannot create duplicate visits.
+  Successful completion replaces the last-index test with owner intent and accepted successful
+  task/room evidence from this run and its matching required check/stage. An explicit approval gate
+  also requires its stage and durable approval; skipping a stage cannot erase its checkpoint.
+  Question answers are not checkpoint approval. The owner attests that referenced evidence
+  still applies after subsequent changes; Chuck validates authority/presence, not semantic quality.
+  Unsuccessful completion publishes an honest shared failure result, never manufactured success.
+- **R69 (planned) — Retain human input before waking its assignment.** Reuse attachment receipts
+  and task continuation. Persist payload, attachment ownership, request identity and destination
+  before acceptance or wake preparation. Waiting/ready/starting/yield and restart retain that input;
+  ordinary admission delivers it as or with the continuation, rather than an empty wake and a 409.
+  Replays return the same receipt. Run-page and conversation answers use one recorded-input helper;
+  record original run/visit/question provenance. General instructions may follow that run's next
+  assignment; question answers must still match the open question. Neither revives stopped work nor
+  becomes input to unrelated work. Held input stays visible; uncertain provider delivery is retained
+  and investigated rather than blindly resent with an exactly-once claim. Pending accepted input
+  must be included in any approved replacement handoff. This specializes TS-10.R29 and repairs
+  WAIT-PROMPT's receipt ordering
+  without bypassing lifecycle admission or treating an ordinary answer as tool approval.
+- **R70 (planned) — Recover actionable stalls through ordinary dispatch.** Persist recovery
+  reason/count/next-attempt time. Watch changes, accepted results, retained input, confirmed exits
+  and turn-end without report/wait drive coalesced assignment continuation or recovery. Bounded
+  sweeps recover missed actionable events, not periodically prompt an LLM. Silence during a live
+  turn/tool, permission wait, child watch or known quota sleep does not authorize blind replay.
+  Resolve ownership/uncertain effects first; use an owner recovery assignment when judgment is
+  required. Existing mechanical cleanup backoff stays separate from a finite repair-round allowance.
+  Stop, human hold and permission fences win at admission. Restart, failed delivery, duplicate
+  report and rejected decisions do not reset allowance. Rejected/no-decision turns and repeated
+  visits also need finite server-countable bounds; model assertions of progress cannot reset a
+  cumulative work allowance. Exact defaults, exhaustion and authority
+  for fresh-conversation replacement remain pending §5.
+- **R71 (planned) — Extend existing surfaces consistently.** A required-for-completion stage
+  marker expresses explicit checks without a route graph. Template editing/builder validation,
+  HTTP/CLI, run detail/timeline and phone supervision agree on checks, visits, questions, held input,
+  recovery and final outcome. Ordinary input/Stop are primary; Retry/Replace remain optional tools.
+  Retain workspace identity, runtime selections, history and notification preferences. Assignment
+  context includes a bounded next-step menu, explicit requirements and relevant evidence/reasons,
+  not full history in system instructions. Compatibility/default markers remain pending §5.
+- **R72 (planned) — Verify the serialized boundaries.** FS-14.A61–A67 require accepted/rejected
+  decision transactions, revisit/Stop races, selected-input validation, room-to-owner handoff,
+  receipt/admission/restart and exhaustion checks. Capture invocation reasons to distinguish useful
+  judgment from mechanical recovery; fake providers do not prove judgment quality, real cost or
+  native restoration. Reuse task dispatch, lifecycle composers, stage cleanup and receipts under
+  INV §2/§5/§8/§9/§11/§15/§16/§17; apply TS-06's closure matrix during implementation.
+
 ## 3. Interfaces & data shapes
 
 **Planned version-2 shapes (R35–R50):**
@@ -807,6 +885,19 @@ new durable run revision or a structured validation/conflict result.
   not rewrite history or decrement visit/attempt counters.
 
 ## 5. Deviations & open decisions
+
+- **Goal-led redesign proposal (2026-10-30):** R66–R72 are a technical draft, not an approved
+  replacement. Useful existing-orchestrator judgment plus programmatic control is confirmed.
+  Reuse is grounded in `ReportAgentTaskResult` (`internal/server/task_handlers.go`),
+  `AcceptPipelineStageTaskResult` / `latestStageOrder` (`internal/state/pipeline_tasks.go`),
+  `reconcileTaskStageRelease` (`internal/pipeline/reconcile.go`), `PrepareTaskContinuation`
+  (`internal/state/task_waits.go`) and attachment receipts (`internal/server/attachments.go`).
+  Current latest-stage and completion logic assumes monotonic template order; revisits require a
+  real chronological cursor. Room results have no standing handle and keep their trusted seam.
+  Confirm the optional report-decision protocol and settle finite repair defaults/exhaustion,
+  fresh-session replacement authority and saved-template/active-run compatibility before ready
+  status. Existing native-load guarantees and R35–R65 remain binding until explicitly specialized.
+  No destructive reset or migration is authorized by this proposal.
 
 - **Quota specialization (implemented 2026-10-11):** TS-10.R39–R44 extends recovery only for
   FS-01.R40–R45's quota-confirmed interruption, retaining same-agent current work through the run

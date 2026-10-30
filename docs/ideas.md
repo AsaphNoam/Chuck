@@ -56,10 +56,19 @@ the relevant feature and technical specifications; it does not change product co
   per-repository checkout layout outside `$AGENTDECK_HOME` for operators whose repositories live
   under a separate workspace base. Define ownership records, base-directory changes, recovery,
   migration, and safe deletion before changing the canonical worktree path.
-- **Continue a blocked pipeline stage from its agent conversation.** The run page already names the
-  active stage, shows its attention reason, and accepts continuation input. Decide whether input
-  sent directly to the stage agent should also become authoritative continuation input despite the
-  current out-of-band chat contract, and how the run records and deduplicates that answer.
+- **Pipelines that finish the goal without routine human intervention.** Expanded by the operator
+  on 2026-10-30 from **Continue a blocked pipeline stage from its agent conversation**. The original
+  question was whether an answer in the stage conversation should continue the run, with recorded,
+  deduplicated input rather than a separate run-page action. The WAIT-PROMPT investigation now
+  demonstrates rejected/lost input to a waiting coordinator. The broader goal is single-click
+  execution of reusable multistep processes such as Work → Review → Fix, with autonomous repair,
+  sensible routing and recovery instead of mandatory human continuation after every non-success.
+  The operator confirmed a usual plan with explicit must-run checks: repeat/revisit steps or skip
+  unnecessary work without skipping required checks. Feature draft: FS-14.R97–R103/A61–A67.
+  The operator explicitly accepted useful existing-orchestrator judgment alongside programmatic
+  advancement/error handling, excluding polling and redundant coordination. Technical proposal:
+  TS-09.R66–R72. Still confirm recovery limits, automatic fresh-session replacement authority,
+  existing-template/run compatibility and the proposed agent-facing decision contract.
 - **Live permission policy and provider-native autonomy modes.** Define a chat-page permission-mode
   control and the requested defaults: an AgentDeck-owned “approve for me” policy for Codex and the
   provider's automatic mode for Claude. Specify scope, persistence, provider mapping, whether a

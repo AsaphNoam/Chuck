@@ -22,6 +22,8 @@ free-form agent messaging.
 
 Requirements without a planned marker reflect shipped behavior. R61–R77 describe the task-backed
 replacement; §6 identifies its supersessions and any remaining design decision.
+R97–R103/A61–A67 draft the goal-led automation redesign; §6 records its confirmation and remaining
+decisions. They do not change shipped behavior until implemented.
 
 ### 2.1 Templates and starting a run
 
@@ -796,6 +798,68 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   retained-workspace management and checkout removal are desktop actions, with phone guidance
   directing the person there. Agents gain no new removal tool or filesystem permissions.
 
+### 4.11 Goal-led unattended execution
+
+- **R97 (planned) — The saved process is a plan for completing the goal.** Starting a reusable
+  pipeline with its goal and required inputs authorizes its ordinary steps and their necessary
+  repair/review work without further advancement clicks. The listed order is the usual path; the
+  run owner may repeat or revisit work, choose a relevant branch, or omit an unnecessary step,
+  recording the reason. A template can explicitly require a check or human checkpoint; the owner
+  cannot omit that obligation or declare success while it is unsatisfied. A configured human
+  checkpoint makes its associated stage required; ordinary chat is not checkpoint approval.
+  This replaces R61/R71's
+  unconditional requirement to execute every listed stage in fixed order. It does not authorize
+  changing the user's goal, exceeding existing project/workspace access, or bypassing permissions.
+- **R98 (planned) — Findings and recoverable failures remain the run's responsibility.** A review
+  that finds defects produces useful findings and leads to repair and any necessary re-review;
+  a clean review need not invoke Fix. A worker's failure, blocked report or interrupted execution
+  does not by itself require human continuation input. The run owner evaluates available evidence
+  and chooses further authorized work, mechanical recovery, a real question for the person, or an
+  honest unsuccessful conclusion. Required checks remain enforceable, and neither idle nor exit
+  proves completion. Reports, findings and accepted completion remain durable and attributable.
+- **R99 (planned) — Human attention names a decision the run cannot make.** A run asks for input
+  when a required fact or decision cannot be obtained through its authorized work, an action needs
+  permission it does not have, a configured human checkpoint is reached, or bounded recovery is
+  exhausted. It states the concrete question or exhausted operation, relevant findings, and what
+  an answer will permit. A generic failure/blocked label alone is insufficient. An answer through
+  the run or responsible agent conversation continues the same goal without requiring a separate
+  Continue action or invented nonempty continuation text. Explicit Stop and explicit human holds
+  take precedence over automatic continuation.
+- **R100 (planned) — Input is accepted while the run waits or recovers.** Messages to its responsible
+  coordinator use normal conversation input, including while its assignment is waiting, preparing
+  to resume, or awaiting human input. An accepted message is durably retained with its attachments
+  and delivered through the tracked assignment, with acceptance distinct from delivery. A retry
+  of the same submission does not duplicate it. Waiting-assignment admission must not reject and
+  discard otherwise valid input or wake an empty turn in its place. Input that answers a pending
+  question resumes its authorized work; other input is delivered as a correction or instruction,
+  without implicitly approving a permission request or bypassing a human checkpoint.
+- **R101 (planned) — Leaving the page does not transfer recovery to the person.** Chuck retains
+  responsibility for every active run across waits, interrupted agents and server restart. Known
+  recoverable delivery, scheduling, cleanup and execution problems are retried or continued within
+  a finite policy; known future quota wakes use the existing quota policy. It distinguishes useful
+  ongoing work and legitimate waits from an actionable assignment that has stopped progressing.
+  Recovery does not manufacture success, duplicate an uncertain external effect, restart explicitly
+  stopped work, or evade existing permission/native-session boundaries. Exhaustion produces a
+  clear unsuccessful or needs-input result and a notification; a run cannot remain nominally active
+  indefinitely after its recovery allowance is exhausted. Exact limits and any authority to replace
+  an unusable conversation remain open in §6.
+- **R102 (planned) — Judgment uses agents; routine control does not require extra inference.** The
+  run owner remains accountable for interpreting findings, choosing repairs and resolving ambiguous
+  branches. Ordinary advancement after an accepted decision, retained-message delivery, known
+  retryable control failures and scheduled wakes do not require separate LLM approval turns.
+  Progress supervision does not repeatedly prompt an LLM merely to poll status. Additional work
+  and genuine judgment may consume model usage; the feature makes no promise of inference-free
+  autonomous judgment. Coordination roles serve useful work rather than mandatory acknowledgments.
+  The existing orchestrator supplies useful judgment alongside programmatic advancement and error
+  handling; this redesign adds no second execution mode solely to eliminate owner usage.
+- **R103 (planned) — Supervision is optional until there is something only the person can do.** The
+  run view and API expose the current work or wait, automatic recovery, questions, chosen deviations
+  and final result, with required checks and their evidence inspectable. Completion and genuine
+  needs-input/exhaustion use existing notification preferences so the person need not poll the page.
+  Existing durable history, transcript and workspace retention/deletion rules continue to apply;
+  this redesign introduces no automatic deletion or broader permissions. It adds no general graph
+  editor or condition language. Existing template/run conversion is not decided by this draft.
+
 ## 5. Acceptance criteria
 
 - **A53 (shipped 2026-10-09)** (R87) — Enter naming/grouping guidance once, save/reopen the template, then
@@ -1156,7 +1220,61 @@ replacement; §6 identifies its supersessions and any remaining design decision.
   and verify no repair/removal occurs. Delete a terminal run and find its retained checkout in the
   workspace list. *Verify:* task/lifecycle integration tests, real-Git fixtures and a browser journey.
 
+- **A61 (planned)** (R97, R98, R103) — Start a saved Work → Review → Fix process and leave the
+  run page. Have Review find a real repairable defect, complete Fix and the required subsequent
+  check, and observe an attributed completion notification without Continue/Retry clicks. A second
+  clean-review run omits unnecessary Fix work and records why. *Verify:* deterministic fake-provider
+  pipeline integration plus a run-start-to-notification browser journey; real agent quality is not
+  inferred from the fixture.
+- **A62 (planned)** (R97, R98) — Exercise a justified revisit/branch and an attempted omission of
+  an explicit required review. The first records its reason and retains prior results; the second
+  cannot produce successful completion without the required evidence. Idle, exit, duplicate and
+  stale reports cannot complete outstanding work. *Verify:* pipeline authority/routing integration.
+- **A63 (planned)** (R98, R99) — A failed worker is repaired or replaced within authorized policy
+  without human input; a genuinely missing user decision produces one concrete question. Answer
+  through the coordinator conversation and complete the run without opening a separate Continue
+  form. An informational correction does not approve an outstanding tool permission or checkpoint.
+  *Verify:* fake-provider/task/pipeline integration and the question-answer browser branch.
+- **A64 (planned)** (R99, R100) — Submit text and an attachment while the coordinator waits, restart
+  before delivery, retry the same submission, and observe the retained input delivered once through
+  its assignment. Repeat while resumption is pending and while the run asks a question. Show accepted
+  versus delivered truthfully and preserve a later draft. *Verify:* server receipt/continuation
+  integration, the WAIT-PROMPT reproduction, and desktop/phone composer checks.
+- **A65 (planned)** (R101, R103) — Interrupt recoverable execution, an admission and a cleanup,
+  including restart during recovery; observe automatic bounded recovery without duplicate work or
+  human retry. Leave an actionable assignment idle without a result and exercise recovery/exhaustion;
+  a legitimate child wait or long-running tool is not mistaken for success or blindly relaunched.
+  Stop during recovery prevents future work. *Verify:* controlled-clock/runtime pipeline integration.
+- **A66 (planned)** (R99, R101, R103) — Make repair repeatedly fail without progress and exhaust
+  the agreed policy. The run stops autonomous attempts, preserves useful work and reports the cause
+  and a practical next action through the existing notification surface. Explicit human holds and
+  provider approval requests are never auto-approved. *Verify:* bounded failure/restart integration
+  and the exhaustion browser branch after §6 settles the policy.
+- **A67 (planned)** (R102) — Capture model invocation reasons for an ordinary successful sequence,
+  known mechanical retries and a branch requiring judgment. Mechanical events add no polling or
+  acknowledgment-only model turns; the branch invokes its accountable agent with the relevant
+  evidence. Record the chosen simple-sequence ownership contract once §6 resolves it. *Verify:*
+  fake-provider invocation capture, with no inference about real-provider cost or judgment quality.
+
 ## 6. Deviations & open decisions
+
+- **Goal-led pipeline redesign (2026-10-30):** R97–R103/A61–A67 are a feature-side draft.
+  The operator confirmed the usual-plan direction with explicit must-run checks and explicitly
+  accepted useful orchestrator LLM judgment alongside ordinary advancement, error handling and
+  anything Chuck can assert programmatically. Polling and redundant coordination are excluded,
+  rather than useful judgment calls. TS-09.R66–R72 propose reuse of task results, ordinary admission
+  and a chronological visit cursor. Shipped R61–R78 and their technical contracts still govern
+  until replacement ships.
+  This expands the existing blocked-stage conversation idea; WAIT-PROMPT remains an open defect,
+  including its separate phone-refresh finding, rather than being closed by design work.
+  Still decide before ready status: (1) finite recovery/no-progress defaults and exhaustion outcome;
+  (2) authority for automatic fresh-session replacement and uncertain external effects;
+  (3) preservation/conversion of existing templates, active runs and explicit approval gates.
+  Required checks refer to accepted results; the owner judges whether they still apply after later
+  changes rather than claiming code can verify semantic adequacy. The technical draft and proposed
+  agent protocol still require confirmation; no ready change exists. Scope excludes permission-policy
+  redesign, automatic workspace deletion, a general graph editor and WAIT-PROMPT-3's untraced
+  phone-refresh performance problem.
 
 - **Pipeline workspaces shipped (2026-10-29):** R91–R96 shipped. A new worktree is prepared at
   the first agent launch rather than inside the Start request, so a Git failure after Start
