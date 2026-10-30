@@ -1,6 +1,9 @@
 package runtime
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // JSON-RPC 2.0 message plumbing for the ACP stdio protocol. One JSON object per
 // line (NDJSON). A frame is a request (id + method), a response (id, no method),
@@ -25,6 +28,9 @@ type rpcError struct {
 	Code    int             `json:"code"`
 	Message string          `json:"message"`
 	Data    json.RawMessage `json:"data,omitempty"`
+	// arrivedAt is stamped when the transport decodes a peer error, before
+	// any processing can delay it (TS-04.R105/R107).
+	arrivedAt time.Time
 }
 
 // Error implements error so a peer error can be returned from Call.

@@ -35,9 +35,16 @@ var (
 	zoneToken  = regexp.MustCompile(`^(?:\.?\s*\(([^()\s]{1,64})\)|\s*(?:((?:UTC|GMT)[+-]\d{1,2}(?::?\d{2})?|[+-]\d{2}:?\d{2}|UTC|GMT|Z)\b|([A-Za-z]+(?:/[A-Za-z0-9_+\-]+)+)|([A-Z]{2,5})\b))`)
 	dateBefore = regexp.MustCompile(`(?i)(?:` + dateExpr + `)(?:[\s,]+(?:at\s+|@\s*)?|T)$`)
 	dateAfter  = regexp.MustCompile(`(?i)^(?:\s+(?:on\s+)?|,\s*)(?:` + dateExpr + `)`)
-	// Numeric slash dates and day-first or relative dates need guessing.
-	unsupportedDate = regexp.MustCompile(`(?i)\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:` + monthExpr + `)\b|\btomorrow\b`)
-	zoneOffset      = regexp.MustCompile(`^(?:UTC|GMT)?([+-])(\d{1,2})(?::?(\d{2}))?$`)
+	// A numeric slash date beside a clock needs guessing; elsewhere a bare
+	// pair such as `3/5 used` is a usage fraction, not time evidence.
+	slashBefore = regexp.MustCompile(`\b\d{1,2}/\d{1,2}(?:/\d{2,4})?(?:[\s,]+(?:at\s+|@\s*)?)$`)
+	slashAfter  = regexp.MustCompile(`^(?:\s+(?:on\s+)?|,\s*)\d{1,2}/\d{1,2}(?:/\d{2,4})?\b`)
+	usageLabel  = regexp.MustCompile(`(?i)^\s+(?:used|left|remaining|requests?|messages?|tokens?|calls?)\b`)
+	// Date or zone qualifiers that no clock consumed, and dates that need
+	// guessing (day-first, relative, slash with year), leave the time unknown.
+	strayQualifier = regexp.MustCompile(`(?i)` + dateExpr + `|\b\d{1,2}/\d{1,2}/\d{2,4}\b|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:` + monthExpr + `)\b|\btomorrow\b|\b(?:UTC|GMT)\b`)
+	ianaToken      = regexp.MustCompile(`[A-Za-z]+(?:/[A-Za-z0-9_+\-]+)+`)
+	zoneOffset     = regexp.MustCompile(`^(?:UTC|GMT)?([+-])(\d{1,2})(?::?(\d{2}))?$`)
 )
 
 // Explicit credit/plan/spend-cap branches of the same pinned builders. They
@@ -119,15 +126,16 @@ func hour12(h int, meridiem string) (int, bool) {
 // plausible days of one time-only mention are returned for structured evidence
 // to corroborate or the caller to reject. present reports that the text carried
 // time evidence at all, so an invalid or conflicting mention is never mistaken
-// for absence.
+// for absence. A date or zone qualifier no clock consumed is unknown too.
 func textResetCandidates(backendType, text string, observed time.Time, zone *time.Location) (cands []time.Time, present bool) {
 	text = urlToken.ReplaceAllString(text, " ")
+	unconsumed := []byte(text)
 	for _, m := range clockToken.FindAllStringSubmatchIndex(text, -1) {
 		if !clockBounded(text, m[0], m[1]) {
 			continue
 		}
 		present = true
-		got, ok := resolveClock(backendType, text, m, observed, zone)
+		got, start, end, ok := resolveClock(backendType, text, m, observed, zone)
 		if !ok {
 			return nil, true
 		}
@@ -135,11 +143,26 @@ func textResetCandidates(backendType, text string, observed time.Time, zone *tim
 			return nil, true // distinct mentions conflict
 		}
 		cands = got
+		for i := start; i < end; i++ {
+			unconsumed[i] = ' '
+		}
 	}
-	if present && unsupportedDate.MatchString(text) {
+	if present && strayQualifiers(string(unconsumed)) {
 		return nil, true
 	}
 	return cands, present
+}
+
+func strayQualifiers(text string) bool {
+	if strayQualifier.MatchString(text) {
+		return true
+	}
+	for _, name := range ianaToken.FindAllString(text, -1) {
+		if _, err := time.LoadLocation(name); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // clockBounded rejects digits inside a longer number, version, ratio, offset
@@ -157,11 +180,11 @@ func clockBounded(text string, start, end int) bool {
 	return end == len(text) || !isDigit(text[end]) && text[end] != ':' && text[end] != '/'
 }
 
-// resolveClock applies one clock's own zone and date, then the provider's
-// convention for what the text leaves open: Claude's time-only value is today
-// or tomorrow within its 24-hour horizon (both plausible is ambiguous); Codex's
-// is the process-local date, and a past one is stale, never rolled forward.
-func resolveClock(backendType, text string, m []int, observed time.Time, zone *time.Location) ([]time.Time, bool) {
+// resolveClock collects one clock's qualifiers — a date just before it and any
+// run of zones and dates after it — and returns the text span they consume.
+// Every qualifier must agree: differing dates, or zones denoting different
+// instants, conflict.
+func resolveClock(backendType, text string, m []int, observed time.Time, zone *time.Location) ([]time.Time, int, int, bool) {
 	group := func(i int) string {
 		if m[2*i] < 0 {
 			return ""
@@ -172,34 +195,84 @@ func resolveClock(backendType, text string, m []int, observed time.Time, zone *t
 	if meridiem := group(3); meridiem != "" {
 		var ok bool
 		if hh, ok = hour12(atoi(group(1)), meridiem); !ok {
-			return nil, false
+			return nil, 0, 0, false
 		}
 		mm = atoi(group(2))
 	}
-	if hh > 23 || mm > 59 {
-		return nil, false
+	if hh > 23 || mm > 59 || slashBefore.MatchString(text[:m[0]]) {
+		return nil, 0, 0, false
 	}
-	rest, loc := text[m[1]:], zone
-	if z := zoneToken.FindStringSubmatch(rest); z != nil {
-		var ok bool
-		if loc, ok = parseZone(z[1] + z[2] + z[3] + z[4]); !ok {
-			return nil, false
+	start, end := m[0], m[1]
+	var dates [][]string
+	var zones []*time.Location
+	if d := dateBefore.FindStringSubmatchIndex(text[:start]); d != nil {
+		dates = append(dates, submatches(text, d))
+		start = d[0]
+	}
+	for {
+		rest := text[end:]
+		if z := zoneToken.FindStringSubmatch(rest); z != nil {
+			loc, ok := parseZone(z[1] + z[2] + z[3] + z[4])
+			if !ok {
+				return nil, 0, 0, false
+			}
+			zones, end = append(zones, loc), end+len(z[0])
+			continue
 		}
-		rest = rest[len(z[0]):]
+		if d := dateAfter.FindStringSubmatch(rest); d != nil {
+			dates, end = append(dates, d[1:]), end+len(d[0])
+			continue
+		}
+		if s := slashAfter.FindString(rest); s != "" && !usageLabel.MatchString(rest[len(s):]) {
+			return nil, 0, 0, false
+		}
+		break
 	}
+	if zones == nil {
+		zones = []*time.Location{zone}
+	}
+	var out []time.Time
+	for i, loc := range zones {
+		got, ok := resolveWall(backendType, dates, hh, mm, observed, loc)
+		if !ok || i > 0 && !slices.EqualFunc(out, got, time.Time.Equal) {
+			return nil, 0, 0, false
+		}
+		out = got
+	}
+	return out, start, end, true
+}
+
+func submatches(text string, idx []int) []string {
+	out := make([]string, 0, len(idx)/2-1)
+	for i := 2; i < len(idx); i += 2 {
+		if idx[i] < 0 {
+			out = append(out, "")
+		} else {
+			out = append(out, text[idx[i]:idx[i+1]])
+		}
+	}
+	return out
+}
+
+// resolveWall applies a clock's date in loc, then the provider's convention
+// for what the text leaves open: Claude's time-only value is today or tomorrow
+// within its 24-hour horizon (both plausible is ambiguous); Codex's is the
+// process-local date, and a past one is stale, never rolled forward.
+func resolveWall(backendType string, dates [][]string, hh, mm int, observed time.Time, loc *time.Location) ([]time.Time, bool) {
 	if loc == nil {
 		return nil, false
 	}
 	local := observed.In(loc)
 	plausible := func(t time.Time) bool { return t.Add(time.Minute).After(observed) }
-	date := dateBefore.FindStringSubmatch(text[:m[0]])
-	if date == nil {
-		date = dateAfter.FindStringSubmatch(rest)
-	}
-	if date != nil {
-		y, mo, d, ok := parseDate(date[1:], local)
+	if len(dates) > 0 {
+		y, mo, d, ok := parseDate(dates[0], local)
 		if !ok {
 			return nil, false
+		}
+		for _, other := range dates[1:] {
+			if oy, omo, od, ok := parseDate(other, local); !ok || oy != y || omo != mo || od != d {
+				return nil, false
+			}
 		}
 		t, ok := localWall(loc, y, mo, d, hh, mm)
 		if !ok || !plausible(t) {

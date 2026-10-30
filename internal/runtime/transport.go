@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 )
 
 // maxFrameBytes is the scanner's max token size. ACP tool_result/diff frames can
@@ -151,6 +152,7 @@ func (t *Transport) dispatch(msg *rpcMessage) {
 		// would read as non-nil. Only set err on a genuine RPC error object.
 		res := rpcResult{result: msg.Result}
 		if msg.Error != nil {
+			msg.Error.arrivedAt = time.Now().UTC()
 			res.err = msg.Error
 		}
 		t.deliver(*msg.ID, res)

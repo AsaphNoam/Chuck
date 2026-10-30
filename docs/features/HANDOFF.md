@@ -13,8 +13,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   skip-permissions default, annotation focus). Release CI 40232088716 and main CI 40232088269
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
-- **Review state:** QUOTA-RPC has two open **Must fix** and one **Worth fixing** finding
-  (reviewed 2026-10-30; see Review findings). Optional annotation source recording unit ANN-SOURCE is closed
+- **Review state:** quota recognition unit QUOTA-RPC is closed (QUOTA-RPC-1/2/3 fixed
+  2026-10-30); its live receipts stay owed below. Optional annotation source recording unit ANN-SOURCE is closed
   (ANN-SOURCE-1/2 fixed 2026-10-30). Pipeline worktrees fix unit
   PIPE-WT is closed (PIPE-WT-1–6 fixed
   2026-10-30); its packaged Claude/Codex launch/resume cwd probe stays owed below. Review unit
@@ -277,67 +277,6 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review findings
 
-### QUOTA-RPC — Terminal RPC quota recognition and reset recovery (2026-10-30) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Reviewed implementation `6bbf4c3f^..6bbf4c3f` against FS-01.R55/R57/A37/A39,
-TS-04.R105/R107 and TS-10.R62, including the revised ready change deleted by that commit.
-The superseded separate preliminary-check design is retired; direct continuation is intended.
-This same implementation unit remains open for the following fixes.
-
-- **Must fix** — QUOTA-RPC-1 (INV §11/§12), confirmed: reset parsing silently drops explicit
-  date/zone qualifiers and can schedule the wrong instant. `internal/runtime/quota_reset.go:182–208`
-  consumes only a zone immediately after the clock, then only one of the dates before/after it.
-  With process zone `Asia/Jerusalem` and observation `2026-10-29T16:25:06Z`,
-  `Retry at 22:00 on October 30, 2026 (UTC)` resolves to `2026-10-30T20:00Z`, two hours early.
-  `Retry at 22:00 UTC (Asia/Jerusalem)` schedules `2026-10-29T22:00Z` despite conflicting zones;
-  `Retry on October 30, 2026 at 22:00 UTC on October 31, 2026` silently selects October 30.
-  FS-01.R57/TS-04.R107 require honoring explicit qualifiers and leaving conflicts unknown.
-  Fix: associate all date/zone qualifiers with their clock, honor supported placements, and
-  reject conflicting or unconsumed time qualifiers rather than falling back to process-local
-  time. Add independent expected-instant/conflict regressions for these cases. Fix complexity: medium.
-- **Must fix** — QUOTA-RPC-2 (INV §11/§12), confirmed: RPC-only failures resolve time-only
-  resets against settlement time, allowing delayed processing to reinterpret a reset as tomorrow.
-  `internal/runtime/quota.go:221` and `quota_check.go:335` use `time.Now()` instead of a captured
-  RPC arrival timestamp. Ordinary/reserved paths first perform database/log/journal work
-  (`chat.go:1120–1129,1844–1851`); `rpcError`/transport retain no arrival time. A clock-controlled
-  harness creates Claude's terminal RPC error with `resets 10pm (UTC)` at `21:59:59`, invokes
-  production settlement at `22:01:00`, and obtains the next day's `22:00`, a day later than
-  the original target.
-  This violates TS-04.R105/R107's arrival-time contract and TS-10.R62's explicit prohibition on
-  tomorrow reinterpretation after delay. Capture the terminal response time before fallible or
-  blocking processing and carry it through ordinary, activation and check normalization; test
-  delayed settlement across reset/midnight. Whether an already-due target is held unknown or
-  admitted once after its buffer is separate from preserving its original meaning.
-  Fix complexity: medium.
-- **Worth fixing** — QUOTA-RPC-3 (INV §12/§17), confirmed: unrelated usage fractions veto a
-  valid reset. `internal/runtime/quota_reset.go:139` applies `unsupportedDate` to the entire
-  error, so `Usage limit reached (3/5 used). Retry at 22:00 (UTC)` produces unknown instead of
-  `2026-10-29T22:00Z` at the observation above. `quota_reset_test.go:64` intentionally locks in
-  the broader rejection (its additional `1:1` also confounds that case). TS-04.R107 says unrelated
-  numeric fields are not time evidence. Keep actual ambiguous slash dates unknown, but scope
-  their rejection to the timestamp context and distinguish a labelled usage fraction. Existing
-  bounded unknown-reset recovery remains available; no actual provider fraction receipt was
-  verified. Add the isolated fraction case with an independent expected instant. Fix complexity: easy.
-
-Local choices: explicit Claude `rate_limit` exclusion follows R105 and is accepted. Keeping a
-target already past at server settlement unknown is allowed by R62's optional admission wording;
-accepted independently of QUOTA-RPC-2. The global slash choice becomes QUOTA-RPC-3.
-Invariant sweep: §1/§2/§4/§5/§7/§8/§9/§10/§11/§12/§15/§16/§17 reviewed; no other finding.
-§3/§6/§13/§14 have no applicable changed surface (no new persisted configuration field,
-interface/runtime, UI markup/style or production HTTP boundary).
-
-Independent verification at `6bbf4c3f`: focused runtime/server/state quota tests pass in both
-untagged and `sqlite_fts5` builds; focused runtime race checks pass. Server tests required
-loopback execution after sandbox `::1` bind rejection. `make check-specs` and `git diff --check`
-pass. The implementer's full `make test`/`make build` receipts remain historical, not rerun here.
-The external Go overlay harness exercises the actual runtime package, fails all five independent
-review assertions (delayed arrival, zone placement, conflicting zone/date, unrelated fraction),
-and changes no repository tests. Harness, overlay and output are in shared project resources:
-`quota-rpc-review-test.go`, `quota-rpc-review-overlay.json`, `quota-rpc-review-results.txt`.
-The arrival harness uses simulated time and captures normalization before dispatch; parser
-examples are synthetic contract cases. These are not credentialed provider receipts.
-The existing FS-01.A37/A39 live gates remain owed under Acceptance gates still owed.
-
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
@@ -397,6 +336,16 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
   refresh trigger for per-event refetching and coalesce it.
 
 ## Changelog
+
+- **2026-10-30 — Fixed QUOTA-RPC-1/2/3 (INV §11/§12, §17):** every date/zone qualifier around
+  a reset clock is consumed and must agree; conflicting or unconsumed qualifiers stay unknown
+  (QUOTA-RPC-1). Terminal RPC errors are stamped on transport decode and reset text resolves
+  against that arrival, not settlement (QUOTA-RPC-2). Slash dates count only beside a clock, so
+  `3/5 used` no longer vetoes a reset (QUOTA-RPC-3). TS-04.R107 states these rules. New cases in
+  `TestTextResetExtractsWithoutFixedSentence` and
+  `TestTerminalRPCResetResolvesAtArrivalNotSettlement` fail on the old code. Closure: `make test`
+  (both variants), `make build`, focused runtime `-race`, `git diff --check`. Unit closed;
+  FS-01.A37/A39 live receipts remain owed.
 
 - **2026-10-30 — Reviewed QUOTA-RPC:** two Must-fix findings cover dropped/conflicting reset
   qualifiers and settlement-time reinterpretation; one Worth-fixing finding covers unrelated

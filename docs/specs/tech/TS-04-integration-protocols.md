@@ -1587,13 +1587,17 @@ or another fixed sentence. Support 12-hour clocks with optional minutes and case
 AM/PM, 24-hour `HH:mm`, ISO calendar dates and English month/day dates, with optional year
 under the existing verified provider convention. Support explicit IANA zones and numeric UTC
 offsets; an omitted zone uses only the verified effective provider process zone. Normalize to
-UTC using the failure's captured arrival time, never the browser zone or later settlement time.
-Time-only date resolution retains R96's provider conventions: Claude's unique future candidate
+UTC using the failure's captured arrival time, never the browser zone or later settlement time;
+a terminal RPC error's arrival is stamped when the transport decodes it, before persistence or
+logging. Every date and zone qualifier attached to a clock, before or after it in any order,
+must agree; a conflicting or unconsumed date/zone qualifier leaves the reset unknown rather
+than falling back to the process zone. Time-only date resolution retains R96's provider conventions: Claude's unique future candidate
 within 24 elapsed hours; Codex's same local date unless a date is explicit. An unsupported date
 order, ambiguous year/date, DST gap/fold, conflicting zone or several distinct unexplained
 candidates leaves the reset unknown. Equivalent repeated timestamps are one candidate. A clock
 alone does not establish quota; URL components, version numbers and unrelated numeric fields
-are not time evidence. No generic locale guessing, model inference or transcript scan is added.
+are not time evidence; a numeric slash date is unsupported only beside a clock, so a usage
+fraction such as `3/5 used` elsewhere does not veto a valid reset. No generic locale guessing, model inference or transcript scan is added.
 
 Keep R96's structured/window applicability and conflict checks, except that a reported session
 reset beside a monthly spend refusal is explicitly allowed to supply the recovery target under

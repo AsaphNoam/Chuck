@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/backend"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
@@ -696,6 +700,55 @@ func TestTerminalRPCQuotaRefusalEntersRecovery(t *testing.T) {
 			}
 		})
 	}
+}
+
+// QUOTA-RPC-2, TS-04.R107/TS-10.R62: a time-only reset keeps the meaning it
+// had when the terminal RPC error reached the transport. Settlement after the
+// stated time (and here, before midnight) must not reread it as tomorrow.
+func TestTerminalRPCResetResolvesAtArrivalNotSettlement(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		time.Sleep(21*time.Hour + 59*time.Minute + 59*time.Second) // bubble epoch is midnight UTC
+		want := time.Now().UTC().Truncate(24 * time.Hour).Add(22 * time.Hour)
+		reqR, reqW := io.Pipe()
+		respR, respW := io.Pipe()
+		tr := NewTransport(reqW, nil, nil)
+		go func() { _ = tr.Run(respR) }()
+		go func() {
+			var req struct {
+				ID int64 `json:"id"`
+			}
+			_ = json.NewDecoder(reqR).Decode(&req)
+			fmt.Fprintf(respW, `{"jsonrpc":"2.0","id":%d,"error":{"code":-32603,"message":"Internal error: You've hit your session limit · resets 10pm (UTC)","data":{}}}`+"\n", req.ID)
+		}()
+		_, err := tr.Call(context.Background(), "session/prompt", map[string]any{})
+		if err == nil {
+			t.Fatal("prompt succeeded, want the provider refusal")
+		}
+		time.Sleep(61 * time.Second) // persistence/logging delay before settlement
+
+		c := NewChatRuntime(nil)
+		ad, _ := backend.For("claude-acp")
+		as := &agentState{agentID: "a", generation: "g1", execTurnID: "t1", turnActive: true, adapter: ad, processZone: time.UTC}
+		var got *QuotaEvidence
+		stop := &struct{}{}
+		c.SetQuotaSettlement(func(_, _, _ string, q *QuotaEvidence, _ bool) error {
+			got = q
+			panic(stop) // settlement is the boundary; the storeless turn ends here
+		})
+		func() {
+			defer func() {
+				if r := recover(); r != stop {
+					panic(r)
+				}
+			}()
+			c.completePromptTurn(as, "t1", "", json.RawMessage(`{"stopReason":"error"}`), err)
+		}()
+		if got == nil || got.ResetAt == nil || !got.ResetAt.Equal(want) {
+			t.Fatalf("settled at %s: quota = %+v, want reset %s", time.Now().UTC(), got, want)
+		}
+		_ = respW.Close()
+		_ = reqR.Close()
+	})
 }
 
 // The shared classifier also settles reserved activations, and the same words

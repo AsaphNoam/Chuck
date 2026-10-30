@@ -68,6 +68,17 @@ func rpcQuotaRefusal(backendType string, err error) bool {
 	return false
 }
 
+// promptErrorArrival is when the transport received a session/prompt RPC
+// error. Reset text is relative to that instant, never to later settlement
+// (TS-10.R62); errors without a transport stamp fall back to now.
+func promptErrorArrival(err error) time.Time {
+	var rpcErr *rpcError
+	if errors.As(err, &rpcErr) && !rpcErr.arrivedAt.IsZero() {
+		return rpcErr.arrivedAt
+	}
+	return time.Now().UTC()
+}
+
 // promptErrorText is the bounded reset-evidence text of a session/prompt RPC
 // error: its message and a string data.message (legacy non-AIR carriers).
 func promptErrorText(err error) string {
@@ -218,7 +229,7 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 		td.Quota = &QuotaEvidence{FailureID: "rpc:" + turnID, Revision: 1}
 	}
 	if td.Quota != nil {
-		text, observed := promptErrorText(promptErr), time.Now().UTC()
+		text, observed := promptErrorText(promptErr), promptErrorArrival(promptErr)
 		if as.turnFailure != nil {
 			text, observed = as.turnFailure.Text+"\n"+text, as.turnFailure.ObservedAt
 		}
