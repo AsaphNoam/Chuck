@@ -1936,17 +1936,8 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   accompanies the visual overhaul. Browser evidence covers the real routes at 1024px and
   1440px in Core, Sky & Grove and Studio, including long content and loading/error/empty states.
 
-- **R150 (planned) — Quota presentation distinguishes a session hint from clearance.** For
-  FS-01.R55–R56 and TS-03.R76, extend `ui/src/lib/quota.ts` and the shared `QuotaBanner`
-  projection consumed on desktop and phone. Decode optional `session_reset_at` and show
-  **Session limit resets …** separately from **Will check again at …**. Keep the overall reset
-  unknown while no combined reset is known; never relabel this wait **Will continue at …**.
-  Map `spend_limit` to a concise explanation that the provider spend limit requires attention
-  and work must be continued manually once available. Reuse existing pending cancellation,
-  check-progress and remaining-allowance controls; no extra setting, modal or notification.
-  Verify shared decoding plus a desktop/phone rendered journey through waiting, checking,
-  successful continuation and the spend-limit manual hold; reconnect must restore the same
-  server-authoritative state without an invented countdown or duplicate notice.
+- **R150 — retired 2026-10-30:** unshipped session-hint presentation withdrawn; FS-01.R57
+  reuses the existing quota banner and scheduled-continuation presentation.
 
 ## 3. Interfaces & data shapes
 

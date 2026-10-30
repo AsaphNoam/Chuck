@@ -1577,21 +1577,35 @@ errors. Persist quota/owner state and block automatic successors before turn-end
 R88; failed persistence remains visible and does not admit follow-ups. Quota-only RPC refusal
 is unsuccessful completion, never inline-mail confirmation or a continuation-success notice.
 
-**R106 (planned) — A named session reset in a mixed spend-limit error authorizes a check.**
-For FS-01.R56, extend R96's verified Claude grammar with the native monthly-spend-limit
-branch's `· your session limit resets <time> (<IANA zone>)`. Use the same formatter/date,
-arrival-time, minute-precision and DST validation as R96; do not broaden parsing to arbitrary
-status lines or unnamed clocks. Keep the normalized `session_reset_at` hint distinct from
-an applicable combined `reset_at`, and preserve the spend-intervention classification even
-when the session hint is valid. A monthly spend refusal cannot become a direct continuation
-from its session hint or a partial structured session window. Unusable or conflicting relevant
-evidence leaves the hint unknown. Other independently applicable blocking windows retain R87/R96's
-rules. Normalized internal turn/check outcomes carry the optional hint and intervention state
-without exposing provider text or changing public turn-end quota correlation fields. R97's
-probe consumes the same classifier and parser; a repeated spend refusal is a quota result,
-not a generic failed check or a successful request. Supported native/adapter source receipts
-and actual carrier shapes are recorded in the ready change; live admission remains an explicit
-acceptance gate rather than inferred from a formatter or synthetic fixture.
+**R106 — retired 2026-10-30:** unshipped named-session probe policy replaced by R107.
+
+**R107 (planned) — Extract recovery instants independently of the surrounding error sentence.**
+For FS-01.R57, extend R96's shared bounded reset resolver after R86/R105 independently
+establish quota exhaustion. Prefer applicable structured evidence; otherwise tokenize date/time
+candidates in that exact terminal provider failure without requiring `· resets`, `try again at`
+or another fixed sentence. Support 12-hour clocks with optional minutes and case-insensitive
+AM/PM, 24-hour `HH:mm`, ISO calendar dates and English month/day dates, with optional year
+under the existing verified provider convention. Support explicit IANA zones and numeric UTC
+offsets; an omitted zone uses only the verified effective provider process zone. Normalize to
+UTC using the failure's captured arrival time, never the browser zone or later settlement time.
+Time-only date resolution retains R96's provider conventions: Claude's unique future candidate
+within 24 elapsed hours; Codex's same local date unless a date is explicit. An unsupported date
+order, ambiguous year/date, DST gap/fold, conflicting zone or several distinct unexplained
+candidates leaves the reset unknown. Equivalent repeated timestamps are one candidate. A clock
+alone does not establish quota; URL components, version numbers and unrelated numeric fields
+are not time evidence. No generic locale guessing, model inference or transcript scan is added.
+
+Keep R96's structured/window applicability and conflict checks, except that a reported session
+reset beside a monthly spend refusal is explicitly allowed to supply the recovery target under
+FS-01.R57; this is permission to try, not a claim that every blocking window clears. A valid
+future target takes precedence over the text-only spend-intervention hold for that attempt.
+Carry it in existing `QuotaEvidence.ResetAt`/`ResetSource` and the equivalent check result, with
+no new hint field or public correlation shape. Shared ordinary/activation/probe paths use the
+same resolver. The existing buffer and anti-loop checks apply after normalization. Explicit
+spend refusals without a usable target retain manual recovery. Retain the 16 KiB envelope and
+2,048-rune text bounds; no date extraction from arbitrary assistant/user/tool text, children,
+stderr or replay. Verify changed prose/punctuation and clock/date forms independently from
+quota classification, using source-backed provider carriers and explicit expected instants.
 
 ## 3. Interfaces & data shapes
 

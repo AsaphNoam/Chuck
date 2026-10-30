@@ -599,22 +599,22 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   including in-flight, cooldown and failed references, and wraps after reaching the end.
   Per-reference backoff remains in force; later references cannot starve behind a failed batch.
 
-- **R61 (planned) — A mixed-limit session hint schedules one isolated check through existing recovery.**
-  For FS-01.R55–R56, TS-04.R105–R106 normalizes terminal RPC failures into R39–R47's existing
-  owner settlement, indexed due query, claim, runtime block and recovery chain. A newly observed
-  monthly-spend refusal with a verified future session hint and Auto continue enabled schedules
-  `check` at that hint plus 60 seconds, with combined `reset_at` null. This narrowly supersedes
-  R45's initial manual hold for this mixed case; it does not grant direct original-work admission.
-  With no usable hint, leave a manual `spend_limit` hold; disabled policy schedules nothing.
-  Charge one existing allowance before starting the isolated check. After successful cleanup and
-  a successful same-scope request, revalidate policy, current owner and exact attempt before
-  admitting the same unfinished work. A repeated explicit spend refusal holds with `spend_limit`
-  and no due action even if it repeats or changes its session hint: do not cycle session-reset
-  checks. A non-spend quota result retains R46's bounded remaining policy; failures, unsupported
-  profiles and cleanup errors retain R47's holds. Successful small checks followed by quota on
-  actual continuation retain the `check_ready_but_quota` guard; a session-only hint cannot bypass
-  it. Cancellation, disable, manual supersession, restart and uncertain delivery keep R43/R47's
-  ordering. Never scan/rearm old transcript errors or introduce another timer, task or agent.
+- **R61 — retired 2026-10-30:** unshipped session-reset preliminary check replaced by R62.
+- **R62 (planned) — Recovered error times feed ordinary continuation scheduling.** For
+  FS-01.R55/R57, normalize TS-04.R105/R107 evidence through R39–R47's existing owner settlement
+  and recovery intent. With Auto continue enabled, use `reset_at` for the accepted provider
+  target, `due_at = reset_at + 60s` and `next_action:continue`, including a session reset beside
+  a monthly spend limit. No preliminary isolated request, new field, migration, reason code,
+  task, agent or scheduler is needed. Reuse existing API/banner projection and cancellation.
+  At admission revalidate current policy, same unfinished owner, generation/episode/revision,
+  archive/project and runtime capacity under R40–R43. A target that becomes due during ordinary
+  settlement may be admitted once after the buffer; never reinterpret it as tomorrow because
+  processing was delayed. Duplicate or cancelled observations must not rearm the episode.
+  Another terminal quota refusal follows the existing fresh-target/unknown-reset policy and
+  recovery-chain allowance; stale or unchanged target evidence cannot generate an immediate
+  retry loop. Explicit spend intervention without a usable future target remains manual.
+  Existing unknown-reset isolated checks, cleanup, owner protection, restart and uncertain
+  delivery rules remain unchanged. No historical error scan or automatic rearming on upgrade.
 
 ### 2.3 Timed arms and recurring schedules (implemented 2026-10-23)
 

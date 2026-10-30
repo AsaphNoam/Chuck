@@ -401,19 +401,25 @@ launches are accepted only with a driver-proved group (FS-07.R25).
   quota metadata is absent. This extends R40's supported evidence carriers, not its exclusions:
   matching user, assistant or tool prose, advisory warnings and transient rate limits do not
   authorize recovery. Unrecognized terminal errors retain their ordinary failure treatment.
-- **R56 (planned; scope confirmed 2026-10-29)** — **A session reset beside a
-  monthly spend limit schedules verification, not assumed recovery.** When a supported terminal
-  quota failure names both a monthly spend limit and an unambiguous future session reset, Auto
-  continue uses that session time to schedule one isolated access check at least one minute
-  later. The time is identified as a session reset and the pending action as a check, rather than
-  a promise that every blocking limit clears then. Only a successful same-scope check admits
-  R42's continuation. A repeated explicit spend-cap refusal stays manual under R49. Unknown or
-  conflicting session times do not invent a deadline or bypass the manual-intervention rule.
-  Existing check allowance, isolation, cost, cancellation, ownership and retention rules in
-  R43–R44/R49–R51 apply. State stays in Chuck's existing local recovery record; no additional
-  raw provider payload is retained. Existing historical failures are not automatically rearmed.
-  A manual hold explicitly says that the spend limit still requires attention; desktop, phone
-  and API clients must not mistake that hold for a pending automatic continuation.
+- **R56 — retired 2026-10-30:** unshipped separate session-reset check policy replaced by R57.
+- **R57 (planned; scope confirmed 2026-10-30)** — **Extract the recovery time and continue one
+  minute later.** After quota exhaustion is independently recognized, Chuck extracts an
+  unambiguous future reset/retry date and time from the provider's terminal failure, tolerating
+  surrounding wording and punctuation changes for both Claude and Codex. Common 12-hour and
+  24-hour clocks, explicit dates and supported time-only provider conventions are accepted
+  without requiring an exact sentence or reset-clause prefix. With Auto continue enabled,
+  schedule the same unfinished conversation for that instant plus one minute through R41–R44.
+  This also applies when the error mentions a monthly spend limit beside a session reset:
+  attempt continuation directly, without a preliminary isolated check. The UI and API use the
+  existing reset and **Will continue at …** state; the time is a retry target, not proof that
+  every provider limit has cleared. Successful work clears the interruption. Another quota
+  refusal retains R44/R49–R51's existing bounded recovery, manual-intervention and anti-loop
+  rules; an unchanged or past time cannot cause repeated immediate retries. Missing, ambiguous,
+  conflicting or timezone-uncertain times retain existing unknown-reset behavior. No new field,
+  setting, retained payload or recovery lifetime is introduced. Existing historical failures
+  are not automatically rearmed. This extends R48's format support and permits a reported
+  session reset to authorize an attempt despite R49's manual spend-cap rule; it does not claim
+  that a monthly cap expires at the session time.
 
 ## 3. States & transitions
 
@@ -721,21 +727,27 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   same words in user, assistant and tool content, plus transient rate-limit and unrelated
   protocol errors: none creates a quota interruption. *Verify:* captured-provider-shape
   runtime and server regression tests; bounded live provider verification when available.
-- **A38 (planned; scope confirmed 2026-10-29)** (R56) — With Auto continue
-  enabled, receive a terminal monthly-spend-limit error also naming a future session reset.
-  Desktop, phone and API state distinguish that session time from the next access check;
-  one isolated check starts at least one minute after that time. Success continues the same
-  unfinished work once; renewed spend-limit refusal leaves an actionable manual state without
-  waking the original conversation. Cancel, manual continuation, restart and disabled automation
-  preserve R43–R44/R50–R51. *Verify:* deterministic recovery and projection tests, a rendered
-  recovery journey, and captured/live provider evidence for the supported time format.
+- **A38 — retired 2026-10-30:** unshipped session-reset probe journey replaced by A39.
+- **A39 (planned)** (R55, R57) — Replay the incident's terminal monthly-spend/session-reset
+  error and Claude/Codex quota failures with changed surrounding words/punctuation, `10pm`,
+  `10:00 PM`, `22:00`, explicit dates and supported time-only forms. The same intended instant
+  schedules exactly one original-work continuation at reset plus 60 seconds; desktop, phone
+  and API show the existing scheduled continuation, with no preliminary probe or new fields.
+  Exercise success, renewed quota with a fresh future time, repeated unchanged/past times,
+  no time, ambiguous dates/zones, DST gaps/folds and conflicting times. Cancellation, manual
+  continuation, restart, disabled automation and owner closure preserve R43–R44/R50–R51.
+  *Verify:* source-backed provider-carrier regressions, table-driven wording/date/time cases,
+  runtime/server recovery tests, serialized projections and a focused desktop/phone journey.
+  Demonstrate the incident regression fails before the fix; record live provider receipts when
+  available separately from deterministic fixture evidence.
 
 ## 6. Deviations & open decisions
 
-- **Provider quota recognition repair (scope confirmed 2026-10-29):** R55–R56/A37–A38 extend
-  R40/R48–R51 with terminal-RPC recognition and a session-reset check beside a monthly spend
-  limit. The session time is not an applicable combined reset under R48, and the check is the
-  narrow exception to R49's manual-only spend-cap rule. No historical failure is rearmed.
+- **Provider quota recognition repair (simplified 2026-10-30):** R55/R57/A37/A39 extend
+  terminal-RPC recognition and reset extraction for direct continuation at reset plus one minute.
+  The operator replaced R56/A38's unshipped preliminary-check policy with a direct attempt,
+  including a session reset reported beside a monthly spend cap. Existing unknown-reset checks
+  and manual-intervention rules remain otherwise unchanged. No historical failure is rearmed.
 
 - **Quota reset fallback (design 2026-10-16):** R48–R51/A31–A34 extend the confirmed reset extraction
   and bounded recovery direction with the operator's preference for checks outside the interrupted

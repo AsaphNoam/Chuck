@@ -44,8 +44,8 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 ## Changes waiting to start
 
 - [`repair-quota-recognition-and-session-reset-recovery.md`](repair-quota-recognition-and-session-reset-recovery.md) —
-  recognize provider terminal quota RPC failures and check access after a named session reset
-  when a monthly spend limit also blocks work; continue the same work only after success.
+  recognize provider terminal quota RPC failures, extract recovery dates/times despite wording
+  changes for Claude/Codex, and continue the same work at that time plus one minute.
 
 - [`optional-annotation-source-recording.md`](optional-annotation-source-recording.md) — default-on
   checkbox for recording annotation assignments in the source transcript, with **New agent** naming.

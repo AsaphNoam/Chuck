@@ -413,6 +413,16 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-30 — Simplified quota recovery design:** operator approved direct continuation at
+  the extracted provider recovery time plus one minute for Claude and Codex. FS-01.R57/A39,
+  TS-04.R107 and TS-10.R62 replace the unshipped preliminary-check/session-hint design; terminal
+  RPC recognition remains FS-01.R55/TS-04.R105. Retired FS-01.R56/A38, TS-02.R61, TS-03.R76,
+  TS-04.R106, TS-08.R150 and TS-10.R61 without reusing IDs. The
+  [`ready change`](../ready-changes/repair-quota-recognition-and-session-reset-recovery.md)
+  remains **Waiting to start**, using existing recovery fields, scheduler, projection and UI;
+  no new migration, preliminary check or product code. Extraction tolerates wording changes
+  while retaining date/timezone ambiguity checks and existing bounded retry/control rules.
+
 - **2026-10-30 — Reviewed pipeline worktrees (PIPE-WT):** six Must-fix findings remain in the
   same unit (INV §1/§2/§5/§9/§10/§11/§12/§16): cross-binding and truncated removal checks,
   missing Git registration validation, fresh-owner group loss, stale workspace caches and partial

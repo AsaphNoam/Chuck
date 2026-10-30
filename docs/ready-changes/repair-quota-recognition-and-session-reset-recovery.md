@@ -2,40 +2,48 @@
 
 **State:** Waiting to start
 **Why:** Operator's 2026-10-29 annotation of `a_a7e830` event 199, followed by
-`/design-feature fix this feature`. Product scope confirmed: “Yeah, it needs to just work as expected.”
-**Relevant requirements:** FS-01.R55–R56/A37–A38; existing FS-01.R40–R44/R48–R51,
-FS-04.R53/R59; TS-04.R105–R106 and existing R85–R88/R96–R97; TS-02.R61,
-TS-03.R76, TS-08.R150, TS-10.R61 and existing R39–R47/R52;
+`/design-feature fix this feature`. Simplified by explicit operator direction on 2026-10-30:
+recognize quota, dynamically extract its reported recovery date/time, continue one minute later.
+**Relevant requirements:** FS-01.R55/R57/A37/A39; existing FS-01.R40–R44/R48–R51,
+FS-04.R53/R59; TS-04.R105/R107 and existing R85–R88/R96–R97; TS-10.R62 and
+existing R39–R47/R52; unchanged TS-02.R45/R50 and TS-03.R60/R72;
 INV §2, §4, §5, §7, §8, §9, §10, §11, §12, §15, §16, §17.
 
 ## Outcome
 
 A provider terminal quota refusal enters Chuck's existing recovery flow even when AIR failure
-metadata is missing. When Claude reports a monthly spend limit plus a named session reset,
-Chuck schedules one isolated access check a minute after that session reset. Only successful
-same-scope verification authorizes continuing the same unfinished work. A repeated spend refusal
-explains the manual intervention needed instead of silently doing nothing or repeatedly waking work.
+metadata is missing. For Claude and Codex, extract an unambiguous future reset/retry date and
+time without depending on the exact surrounding sentence, then schedule the same unfinished
+conversation for that instant plus one minute. This includes the incident's monthly-spend error
+with a reported session reset. Attempt continuation directly; a preliminary access check is
+unnecessary. If quota still blocks work, retain the existing bounded recovery/manual rules.
 
 ## Included work
 
 - Extend the existing shared terminal settlement classifier for verified Claude/Codex RPC quota
   carriers; use it for ordinary prompts, reserved activations and isolated checks. AIR precedence,
   cancellation, turn ownership and automatic-successor suppression remain authoritative.
-- Recognize the pinned native Claude monthly-spend/session-reset grammar, distinguishing a
-  session hint from the combined blocking reset. Preserve observation-time, timezone, DST and
-  precision rules. A session clock is not evidence that a monthly cap clears then.
-- Add nullable `session_reset_at` to the existing recovery row and projection; keep `reset_at`
-  null for this mixed case. Use existing `next_action:check`, due time, claims and allowance.
-  Add `spend_limit` to the closed reason vocabulary. A repeated explicit spend refusal on the
-  check stops automation even if it supplies another session time.
-- Extend shared desktop/phone quota presentation, API/SSE and operator CLI decoding in lockstep.
-  Show session reset and next check separately; restore committed state after reconnect/restart.
+- Broaden the existing bounded date/time resolver beyond exact clause prefixes. Support common
+  12-hour and 24-hour clocks, ISO and English month/day dates, explicit zones/offsets and the
+  existing verified provider time-only conventions. Changed words or punctuation alone must not
+  prevent extraction. Resolve from the provider error's arrival time; ambiguous/conflicting
+  candidates, DST gaps/folds and uncertain timezone/date remain unknown.
+- Feed the accepted target through existing `ResetAt`/`ResetSource`, `reset_at`, `due_at` and
+  `next_action:continue`. The monthly-spend/session-reset combination authorizes an attempt,
+  rather than claiming that the monthly cap itself expires at that time. Prefer applicable
+  structured evidence and preserve conflict checks.
+- Reuse current desktop/phone **Will continue at …**, API/SSE/CLI projection, cancellation,
+  owner admission, restart and notice handling. No additional projection or presentation state.
 - Retain existing local-state lifetime, raw-payload exclusions, probe cleanup/native-history
-  policy, permissions, cancellation, owner exclusivity and six-check ceiling. There is no
-  new timer service, task, agent, setting, provider client or adapter patch.
+  policy, permissions, cancellation, owner exclusivity and six-check ceiling for existing
+  unknown-reset checks. There is no new field, migration, reason code, timer service, task,
+  agent, setting, provider client or adapter patch.
 
 Excludes historical-error scanning/rearming, passive subscription quota dashboards, changes to
 monthly caps, inferred success at a clock time, and automatic replay of uncertain provider delivery.
+No LLM date extraction or arbitrary locale/date-order guessing. The separate preliminary-check
+design (FS-01.R56/A38, TS-02.R61, TS-03.R76, TS-04.R106, TS-08.R150, TS-10.R61) was never
+implemented and is retired; its stable requirement IDs remain as historical pointers.
 This is a repair to the shipped recovery path, independent of the retained older quota change files.
 
 ## Verified boundaries and incident evidence
@@ -54,7 +62,9 @@ Read-only inspection on 2026-10-29 found:
   classifier across these seams rather than adding a watcher over transcript text.
 - `quota_reset.go` only recognizes `· resets …`, so the named-session clause is not parsed.
   `server/quota.go` and `state/quota_checks.go` currently schedule direct continuation from
-  `ResetAt`; neither may receive the named session hint as a combined reset.
+  `ResetAt`; these are the existing scheduling seams to reuse. Under the revised policy,
+  that instant means the reported recovery target for an attempt, including the named session
+  time in this incident, rather than a guarantee that every blocker clears.
 
 Primary provider artifacts inspected under `scripts/release/node_modules` match the assembly pins:
 Claude ACP 0.85.1, SDK 0.3.286, Codex ACP 2.1.1 and Codex native 0.159.3. This design uses available
@@ -81,27 +91,32 @@ carrier/parser seams; it assumes no missing upstream capability or replacement a
   in [the earlier source receipt](../features/QUOTA-RESET-FALLBACK-2026-10-16.md).
   The named session reset is a window hint, never proof that the monthly spend cap resets then.
 
-Recheck these producer contracts if the pinned artifacts change. Source receipts establish grammar
-and carrier support; actual provider admission and continuation still require the explicit live gate.
+Recheck these producer contracts if the pinned artifacts change. Source receipts establish the
+observed carrier and provider date conventions. They do not restrict extraction to one exact
+sentence: common alternate date/time forms and changed prose are deliberately supported by
+FS-01.R57/TS-04.R107. Actual provider admission still requires the explicit live gate.
 
 ## How we will know it works
 
-FS-01.A37–A38 own the new acceptance evidence. Use captured incident fields plus separately
+FS-01.A37/A39 own the new acceptance evidence. Use captured incident fields plus separately
 source-backed carrier fixtures; label reconstructed or omitted category values honestly. Drive
 the real JSON-RPC boundary without AIR metadata for both ordinary and reserved turns and probes.
 Confirm the incident regression fails on the old implementation. Negative cases include matching
 assistant/user/tool prose, generic protocol errors, explicit throttling, cancellation, child/replay
 events, newer non-quota revisions and malformed/oversized carriers.
 
-Parser cases cover the exact named session clause, explicit date and time-only forms, invalid
-zones, DST gaps/folds, stale/ambiguous/current-minute and conflicting windows. Mixed spend/session
-errors never populate a combined reset or directly continue. Exercise both probe success and
-repeated spend refusal, with unchanged/changed hint, through state, serialized projection and
-rendered desktop/phone checks. One check is charged; no duplicate wake, notice, completed owned
-work or replenished allowance occurs. Check supported and unsupported installed profiles honestly.
+Parser cases cover the exact incident and alternate messages such as `Quota exhausted; available
+again at 10pm (Asia/Jerusalem)` and `Usage limit reached. Retry at 22:00 (Asia/Jerusalem)`,
+plus case/punctuation changes, `10:00 PM`, explicit ISO/month dates and supported time-only forms
+for both providers. Expected instants come from the input and contract, not the parser under test.
+Cover invalid zones, DST gaps/folds, ambiguous/current-minute dates, unrelated numeric tokens and
+conflicting times. Mixed spend/session errors schedule direct continuation at target plus 60s,
+with no preliminary probe. Exercise success, renewed quota with a fresh target, unchanged/past
+targets, no time and delayed settlement through state, serialized projection and rendered
+desktop/phone checks. No duplicate wake, notice, completed owned work or allowance reset occurs.
 
 Reuse FS-01.A25–A27/A31–A34's owner, cancellation, restart, cleanup and uncertain-delivery
-evidence where it covers unchanged paths; add focused regressions for the new carrier/hint.
+evidence where it covers unchanged paths; add focused regressions for recognition and extraction.
 Run applicable TS-06 closure checks, schema/spec checks and embed after UI changes. Update the
 bundled operating-chuck guidance during the ordinary release refresh. Record a bounded supported
 provider receipt when credentials/quota conditions permit; synthetic fixtures do not satisfy it.
