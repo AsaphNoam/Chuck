@@ -13,7 +13,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   skip-permissions default, annotation focus). Release CI 40232088716 and main CI 40232088269
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
-- **Review state:** review unit MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
+- **Review state:** PIPE-WT was reviewed 2026-10-30 and remains open with six **Must fix**
+  findings (PIPE-WT-1–6 and fix-model recommendation below). Review unit
+  MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
   finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE is
   closed (TOOL-LINE-1/2 fixed 2026-10-29); MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
   DELMSG is closed (DELMSG-1 fixed). The v0.20.0 architectural review
@@ -227,14 +229,6 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review queue
 
-- **PIPE-WT** (2026-10-29): pipeline run worktrees and descendant placement, FS-14.R91–R96/
-  A57–A60, FS-19.R12/A8, TS-09.R61–R65, TS-12.R12–R17 (`77024791` + closure commit). Choices
-  for review: preparation is lazy at first launch (errors on the retained run, not the Start
-  response); every new run gets a workspace record (omitted = project mode); stage-row
-  existing-target check relies on admission; no CLI for workspace list/remove. Evidence:
-  `pipeline_workspace_test.go`, extended room e2e, `-race` on both, `make test`, `make build`,
-  `make embed`, UI 1107 tests/build, `ui/scripts/pipeline-workspace-journey.mjs` (68 checks).
-  Packaged provider probe owed (Acceptance gates).
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
   numbered template library, light overview/timeline, stage rail/editor and start-dialog
@@ -272,6 +266,94 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
 ## Review findings
+
+### PIPE-WT — Pipeline run worktrees and descendant placement (2026-10-30) — **Fix model:** difficult — Codex Sol.
+
+Reviewed `77024791^..1bb9cdcc`, including implementation and closure/browser evidence. The named
+ready change was removed by closure; this is the same substantive unit, now awaiting fixes.
+
+- **Must fix** — PIPE-WT-1: removal ignores a live agent using the checkout under another
+  binding. `internal/state/pipeline_workspaces.go:338–339` selects sessions only by workspace id;
+  `internal/server/pipeline_workspace_handlers.go:170–183` treats that subset as all users.
+  After a run ends, set the project's cwd to its retained checkout and launch an ordinary agent:
+  its frozen cwd matches but workspace id is empty, and removal deletes its checkout while it
+  remains running. Violates TS-12.R15; INV §5/§9. Fix complexity: difficult. Extend existing
+  lifecycle/readiness claims by canonical checkout so every binding's runtime and in-flight
+  start blocks removal through durable registration; adding a cwd query alone leaves the start
+  race. Regression: the already-running ordinary-agent case plus a controlled ordinary-start/remove
+  race. The running case is reproduced with a real Git fixture and fake provider; the concurrent
+  cross-binding start risk is source-validated, not separately scheduled in this review.
+
+- **Must fix** — PIPE-WT-2: removal treats a truncated session list as proof of quiescence.
+  `internal/server/pipeline_workspace_handlers.go:22–24,170–179` reads only the first 256 sessions
+  ordered by agent id (`internal/state/pipeline_workspaces.go:339`), without overflow detection.
+  A running/resuming conversation beyond that page is ignored, allowing its checkout to be
+  removed. Retained run conversations have no corresponding 256-total bound. Violates TS-12.R15;
+  INV §5/§16. Fix complexity: medium. Page safely or query actual running/start candidates with
+  fail-closed overflow handling. Reproduced with 256 inactive sessions and a lifecycle claim on
+  the 257th; removal succeeds. Keep that distinguishing regression.
+
+- **Must fix** — PIPE-WT-3: launch readiness omits exact Git registration verification.
+  `internal/server/pipeline_workspace.go:221–238` verifies namespace, repository and branch but
+  never calls the existing `verifyRunRegistration` (`pipeline_workspace_handlers.go:260`).
+  Move a checkout, repair Git's registration at its temporary location, then restore the directory
+  without another repair: readiness accepts it although registration names another path. Git
+  pruning can invalidate its metadata, and the removal path already refuses it. Violates
+  TS-12.R13/R14/R17; INV §2/§12. Fix complexity: trivial/easy. Share exact registration
+  verification before ownership, launch and recreated-checkout setup. The real-Git moved/restored
+  fixture reproduces the acceptance and should become the regression.
+
+- **Must fix** — PIPE-WT-4: replacement standing owners and the first ordinary owner after a
+  Think Tank-first stage receive an empty group. `internal/state/pipeline_tasks.go:57,890`
+  inserts main/replacement tasks without `placeRunTaskTx`; only the coordinator at `:72` uses
+  that helper. Callers `internal/pipeline/actions.go:147–155,284` omit Group and dispatch forwards
+  it unchanged. Violates FS-14.R93/A58, TS-09.R64; INV §2/§10. Fix complexity: trivial/easy.
+  Apply the existing placement helper at both inserts. Two external manager probes reproduce
+  empty groups instead of frozen names "Ship" and "Room First"; retain those regressions and
+  existing checks that manual moves of existing agents survive.
+
+- **Must fix** — PIPE-WT-5: the desktop Workspaces cache stays stale on pipeline updates and
+  reconnect. `ui/src/api/sse.ts:82–87,290–301` never invalidates the new workspace query keys
+  (`ui/src/api/pipelines.ts:222–234`). While this page stays open, removal in another client
+  leaves its row Ready with a Remove action even after the pipeline event and reconnect.
+  Violates TS-09.R65; INV §1/§10. Fix complexity: trivial/easy. Join workspace list/detail caches
+  to the existing update/reconnect invalidation seam. An independent browser probe changes the
+  authoritative fixture to removed, emits a valid pipeline update and reopens the stream;
+  the row remains Ready at both 1024/1440px. Add an event/reconnect regression, including a
+  workspace-only change that does not increment the run revision.
+
+- **Must fix** — PIPE-WT-6: effective agent metadata lacks the promised workspace projection.
+  `internal/server/launch.go:39`'s session response and `internal/state/types.go:187`'s AgentState
+  expose no workspace object. Transcript session metadata (`internal/runtime/event.go:312`)
+  adds only cwd/workspace_id, without mode, branch, current state or warnings. Callers can join
+  that id to the local workspace detail endpoint, but the effective-agent contract is incomplete,
+  particularly for clones/retained conversations after run deletion. Violates TS-09.R65;
+  INV §10/§11. Fix complexity: medium. Project the frozen session binding through the retained
+  workspace record in the existing agent/session API and schema; keep collection reads DB-only.
+  Verify live, cloned, explicitly removed and run-deleted conversation metadata at the HTTP boundary.
+
+Review evidence: existing full `internal/pipeline` suite, focused server placement/target/resume/room
+and `TestPipelineRunWorkspace` tests, and focused config/worktree/state tests pass. Independent UI
+tests pass 38/38; style/presentation checks pass (47 checker tests), as do `make check-specs`
+and `git diff --check`. The original browser journey
+passes 68 checks in Core; the external Sky & Grove variant passes the same 68 and reproduces
+PIPE-WT-5. Inspected rendered start/review, run status, dirty/unknown removal, retained list and phone
+surfaces at desktop 1024/1440 and phone 390; no additional material visual finding. Browser artifacts:
+shared resources `pipe-wt-review-browser/`, `pipe-wt-review-sky/`, `pipe-wt-review-journey.mjs`.
+Failing contract probes (no repository test edits): `/private/tmp/pipeline_workspace_review_probe_test.go`
+with `/private/tmp/pipeline_workspace_review_overlay.json`, and
+`/private/tmp/pipe-wt-placement-review_test.go` with `/private/tmp/pipe-wt-placement-overlay.json`.
+The packaged Claude/Codex launch/resume cwd probe remains owed above; fake providers do not close it.
+
+Local choices: lazy preparation and project-mode workspace rows fit TS-09.R61's retained-run
+failure path and frozen-cwd contract; no workspace-management CLI is required by TS-12.R16.
+Stage-row existing-target checks still run at admission, so no demonstrated placement escape there;
+apply the shared placement helper at creation while repairing PIPE-WT-4. No human decision needed.
+Invariant sweep: applicable classes §1–§5 and §7–§17 checked; findings are tagged above. No additional
+finding in persisted one-shot data, setup containment/teardown, DB/read error handling, bounded output,
+UI selectors, local/remote guards or removal intent ordering. §6 has no new runtime/interface/driver
+surface. Test review used TS-06.R35/INV §17: real Git and fake-provider assertions establish their
+bounded contracts; the uncovered failure paths above need targeted evidence, not coverage expansion.
 
 ### MOB-ANN — Mobile annotation rejection investigation (2026-10-29) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -330,6 +412,12 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-30 — Reviewed pipeline worktrees (PIPE-WT):** six Must-fix findings remain in the
+  same unit (INV §1/§2/§5/§9/§10/§11/§12/§16): cross-binding and truncated removal checks,
+  missing Git registration validation, fresh-owner group loss, stale workspace caches and partial
+  agent metadata. Independent focused suites and Core/Sky & Grove desktop/phone browser checks
+  pass; distinguishing external probes fail as recorded above. No product or specification edits.
 
 - **2026-10-29 — Designed quota recognition and session-reset recovery:** operator confirmed
   FS-01.R55–R56/A37–A38; prepared
