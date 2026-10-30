@@ -13,8 +13,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   skip-permissions default, annotation focus). Release CI 40232088716 and main CI 40232088269
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
-- **Review state:** optional annotation source recording unit ANN-SOURCE was reviewed through
-  `38491fe0`; ANN-SOURCE-1 is repaired, ANN-SOURCE-2 remains open below. Pipeline worktrees fix unit
+- **Review state:** optional annotation source recording unit ANN-SOURCE is closed
+  (ANN-SOURCE-1/2 fixed 2026-10-30). Pipeline worktrees fix unit
   PIPE-WT is closed (PIPE-WT-1–6 fixed
   2026-10-30); its packaged Claude/Codex launch/resume cwd probe stays owed below. Review unit
   MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
@@ -234,25 +234,6 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review queue
 
-- **ANN-SOURCE** (2026-10-30, Go + UI):
-  [`optional-annotation-source-recording`](../ready-changes/optional-annotation-source-recording.md)
-  is **reviewed, fixing** (ANN-SOURCE-1 repaired; ANN-SOURCE-2 below). FS-13.R35–R36/A25–A26, TS-03.R75, TS-02.R60,
-  TS-08.R148; implementation `ed285b64`, rendered/generated closure `788a7318`.
-  Default-on recording choice shares the desktop/phone batch lifecycle; opt-out atomically commits
-  target mail/activation/receipt with sequence zero and no source event/index/publication.
-  Retry/restart reuses acceptance. All annotation destinations say **New agent**; rooms retain
-  recording semantics. MOB-ANN-1 is fixed in the same unit by admitting client command identity
-  on both phone endpoints (INV §10/§11/§14), with TS-13.R16/R31 reconciled.
-  Final source scope: `make test` (untagged + `sqlite_fts5`), `make build`, `make embed`, full UI
-  suite (1,116 tests), focused annotation race tests, final scoped spec/script syntax checks,
-  and `git diff --check` pass. Go commands use `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1
-  GOCACHE=/private/tmp/chuck-go-cache`; isolated loopback tests require sandbox escalation.
-  Desktop journey and nine phone appearance/width cases pass; browser assignment responses and
-  room detail are stubbed, while real handler tests prove persistence, SQL rollback and restart
-  replay. Existing physical-device/provider gates remain unchanged. Evidence: shared project
-  resources `optional-annotation-rendered/` and `optional-annotation-verification/`.
-  No new interface/runtime/driver or storage mechanism.
-
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
   numbered template library, light overview/timeline, stage rail/editor and start-dialog
@@ -291,50 +272,6 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review findings
 
-### ANN-SOURCE — Optional annotation source recording (2026-10-30) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Reviewed `ed285b64^..38491fe0`, including the originating ready change and named FS/TS contracts.
-No product code or specifications changed in review. The existing receipt transaction, explicit
-boolean decoding, legacy omitted/false hashing and shared desktop/phone owner are sound local
-choices; no unresolved implementation-choice question was found.
-
-- **ANN-SOURCE-1 repaired** (INV §1/§11/§15): exact launch payload/command/choice now persists
-  in the existing bounded tray store before delivery and survives lost response/reload. Acknowledgement
-  removes only submitted drafts, including after JSON hydration. Extended deferred-preflight test
-  fails before repair in both reload modes and passes after it: same retry, one modeled receipt
-  effect, next draft preserved/default checked. Focused delivery/store checks: 23 passed;
-  `/tmp/ann-source-prefix.log`, `/tmp/ann-source-focused.log`. ANN-SOURCE-2 remains in progress;
-  final UI closure/embed and browser geometry verification are still owed.
-- **Must fix** — ANN-SOURCE-2 (INV §8/§10): success feedback keeps the empty tray's layout
-  slot occupied. `ui/src/components/chat/AnnotationTray.tsx:39` returns an unstyled status paragraph
-  after the last draft clears; `ReaderWorkspace.tsx:94,116` still portals it into `.chat-side-end`,
-  whose `flex: none` rule reserves the paragraph's intrinsic width even with no `data-tray`.
-  An actual 1024px browser probe measured the conversation card at 832px before drafting and
-  739.06px after success, with a 220.94px side slot and `data-tray=null`. The rendered feedback
-  sits outside the card at its top edge; longer recipient names consume more space. Every
-  successful desktop assignment can trigger this, including the zero-sequence opt-out. Violates
-  FS-13.R21's restoration of transcript width when sending clears the tray. Keep destination
-  feedback in a styled, persistent owner without retaining the reader/tray side allocation;
-  verify the card regains its initial width and feedback remains visible. Fix complexity:
-  trivial/easy.
-
-Independent verification: 36 focused store/tray/delivery tests pass; server annotation checks pass
-untagged and with `sqlite_fts5`, and `TestOperatorAgentWireInventory` passes. Initial broader tagged
-execution hit sandbox loopback denial; approved rerun passed. The desktop/room journey passes all
-checks; phone annotation journey passes Core, Sky & Grove and Studio at 360/390/430px. Screenshots
-were inspected for checkbox access, destination feedback, room rename, clipping and layout.
-Assignment responses/room detail are stubbed in these journeys; durable rollback/restart/mail/
-transcript proof comes from real handler tests. Native-device/provider gates remain owed as before.
-Review-owned probes, expected-failing retry log, layout measurements and browser screenshots:
-shared project resources `ann-source-review/` (`retry.test.ts`, `retry.log`, `layout.json`,
-`layout-after.png`, `desktop/report.json`). TS-06.R35/INV §17 audit found useful independent
-oracles and real durable/wire boundaries; no coverage-only expansion is requested.
-
-Invariant sweep: §1/§2/§5/§7/§8/§9/§10/§11/§13/§14/§15/§16/§17 apply and were checked;
-the two findings above are the only violations found. §3 (persisted runtime/config forms),
-§4 (registration teardown), §6 (new runtime/interface) and §12 (external CLI invocation) have
-no applicable changed surface. Other review and fix units are unchanged.
-
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
@@ -369,7 +306,7 @@ phone remote client `rd_TQDIXQ8MaXcW`. Evidence: `~/.chuck/dashboard.log` (08:09
 `~/.chuck/sessions/a_3326aa/transcript.ndjson`, `state.db` task `tk_32b3ab01fb6e73c9` (pipeline
 Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`).
 
-- **Must fix** — WAIT-PROMPT-1, confirmed (reproduced): a person's prompt to an assignee whose task
+- **Must fix** — WAIT-PROMPT-1 (INV §8/§15), confirmed (reproduced): a person's prompt to an assignee whose task
   is waiting is rejected and dropped, and the promised retry cannot land. `internal/server/
   attachments.go:507–518` prepares the continuation (waiting → ready), then returns 409 before any
   attachment receipt is written, so the text is kept nowhere. Dispatch admits the continuation
@@ -395,8 +332,21 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
 
 ## Changelog
 
-- **2026-10-30 — Fixed ANN-SOURCE-1 (INV §1/§11/§15):** retain the exact submitted launch
-  batch through retry/reload and preserve captures for the next batch. ANN-SOURCE-2 remains open.
+- **2026-10-30 — Closed ANN-SOURCE:** ANN-SOURCE-1 (INV §1/§11/§15), repaired in `a9bb424a`,
+  retains exact launch payload/command/choice through retry/reload and clears only acknowledged
+  drafts. Extended deferred-preflight regression fails before repair in both reload modes and now
+  proves identical retry, one modeled receipt effect and the next draft preserved/default checked.
+  ANN-SOURCE-2 (INV §8/§10): styled feedback stays with the workspace outside the tray side slot,
+  including Focus file. Final embedded 1024px browser checks restore card width to 832px and side
+  width to zero for normal/long recipients, with visible wrapping feedback; screenshot independently
+  inspected. Final source checks: `make check-specs`, full UI suite (1,117), `make embed` (includes
+  UI build and 47 presentation script checks), `git diff --check` pass. Evidence: shared resources
+  `ann-source-fix/` logs and `ann-source-fix-layout.{json,mjs}` / `ann-source-fix-layout-{1,2}.png`.
+  Browser responses are stubbed; unchanged real-handler persistence/rollback/restart and phone/room
+  evidence remains in `optional-annotation-verification/`, `optional-annotation-rendered/` and
+  `ann-source-review/`. Native-device/provider gates remain owed as before. No ANN-SOURCE finding
+  remains; other units stay open. Added missing invariant metadata to pre-existing WAIT-PROMPT-1
+  so global spec lint passes; its finding and product behavior remain open/unchanged.
 
 - **2026-10-30 — Reviewed optional annotation source recording:** ANN-SOURCE stays open for
   a launch-snapshot retry duplication bug (INV §1/§11/§15) and success feedback retaining desktop

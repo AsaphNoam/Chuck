@@ -36,7 +36,7 @@ None.
 
 ## Delivered verification
 
-Available for review as ANN-SOURCE in `HANDOFF.md`. Full Go suites in both build modes,
+ANN-SOURCE review and both fixes are closed in `HANDOFF.md`. Full Go suites in both build modes,
 full UI suite (1,116 tests), focused annotation race tests, build/embed, spec and script checks
 pass. Handler integration proves zero-sequence acceptance, SQL rollback and restart/lost-response
 replay with real receipts/mail/transcripts. Desktop and nine phone appearance/width browser cases
@@ -44,3 +44,7 @@ prove controls, cancellation/retry and recipient feedback; assignment responses 
 they do not claim persistence or native-device proof. Evidence is in shared project resources
 `optional-annotation-rendered/` and `optional-annotation-verification/`. The existing phone
 `command_id` gateway rejection was also repaired as necessary wiring for this change (MOB-ANN-1).
+Fix closure retains the exact launch submission through lost response/reload, preserving later
+captures, and restores conversation width after success while keeping recipient feedback visible.
+Final UI suite (1,117), spec checks, build/embed and 1024px browser geometry checks pass; evidence
+is in shared resources `ann-source-fix/` and `ann-source-fix-layout*`.

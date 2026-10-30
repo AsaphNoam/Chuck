@@ -16,6 +16,11 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
   return <AnnotationTrayView delivery={useDesktopAnnotationDelivery(sourceId, sourceActive)} />;
 }
 
+export function AnnotationDeliveryStatus({ delivery }: { delivery: AnnotationDelivery }) {
+  const { sourceId, recipients, sentTo } = delivery;
+  return sentTo ? <p className="annotation-success" role="status">Annotations sent to {sentTo === sourceId ? "this agent" : recipients.find((agent) => agent.agent_id === sentTo)?.name || sentTo}.</p> : null;
+}
+
 // The desktop's projection for the shared delivery state machine.
 export function useDesktopAnnotationDelivery(sourceId: string, sourceActive: boolean) {
   const agents = useAgentStore((state) => state.agents);
@@ -24,7 +29,7 @@ export function useDesktopAnnotationDelivery(sourceId: string, sourceActive: boo
 }
 
 export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery }) {
-  const { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, showLaunch, setShowLaunch, launchedAgentId, sentTo, send, onLaunched } = delivery;
+  const { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, showLaunch, setShowLaunch, launchedAgentId, send, onLaunched } = delivery;
   const { data: roles } = useRoles();
   const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
@@ -36,7 +41,7 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
   const setCollapsed = useAnnotationStore((state) => state.setCollapsed);
   const choices = useProjectFirst({ items: recipients, project: source?.project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: JSON.stringify([sourceId, drafts.length > 0]) });
 
-  if (drafts.length === 0) return sentTo ? <p role="status">Annotations sent to {sentTo === sourceId ? "this agent" : recipients.find((agent) => agent.agent_id === sentTo)?.name || sentTo}.</p> : null;
+  if (drafts.length === 0) return <AnnotationDeliveryStatus delivery={delivery} />;
 
   return (
     // Docked column or floating overlay is decided by the space around the
