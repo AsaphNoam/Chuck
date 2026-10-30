@@ -25,7 +25,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
-- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); fix run in progress — GOAL-LED-1/4/5/10
+- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); fix run in progress — GOAL-LED-1/4/5/6/8/9/10
   fixed; the remaining Must-fix findings and GOAL-LED-14 stay on the same unit below. Acceptance
   evidence remains owed below.
 - **Waiting-prompt investigation:** WAIT-PROMPT-1/2 are fixed by goal-led slice 1 (input to a
@@ -307,14 +307,6 @@ The same unit stays open for grouped fixes; product code and specifications were
   Verify attachment-only and over-budget queued handoffs. FS-14.R100/R101; TS-09.R69/R70;
   INV §11/§15/§16. Fix complexity: medium.
 
-- **Must fix** — GOAL-LED-6 (P2): restart on the final start attempt strands an active run.
-  `internal/server/task_dispatcher.go:970–976` calls FailTaskStart without the parked-owner recovery
-  used by live failure handling. A startup recovery probe left its task dependency_failed and run
-  queued with no pending controller action; later dispatcher passes have no runnable owner to
-  recover. Route startup exhaustion through the common parked-stage recovery seam and verify
-  replacement or an explicit exhausted pause. FS-14.R101; TS-09.R70; INV §2/§10.
-  Fix complexity: trivial/easy.
-
 - **Must fix** — GOAL-LED-7 (P2): an ordinary start retry detaches input already accepted for it.
   `internal/state/attachment_receipts.go:76,120–125` excludes ready initial assignments with
   continuation_pending=0 from retained queued input. QueueAssignmentInput → FailTaskStart →
@@ -322,25 +314,6 @@ The same unit stays open for grouped fixes; product code and specifications were
   although that same assignment was retrying. Preserve binding across ordinary admission retries
   and prove its next activation carries the correction. FS-14.R100; TS-09.R69; TS-10.R29;
   INV §1/§2. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-8 (P2): background completion can leave an idle owner active indefinitely.
-  `internal/server/pipeline_stall.go:32` skips recovery while background work runs, but its sole
-  caller is `task_dispatcher.go:595` at turn end. Final background completion only emits its state
-  and republishes status (`internal/runtime/tasks.go:116–117`); neither the server event sink nor
-  the dispatcher sweep rechecks that idle assignment. Confirmed by the complete event/caller graph,
-  without a dynamic provider probe. Add coalesced recovery when background work ends and the
-  specified bounded missed-event sweep; retain busy/permission/quota/wait fences.
-  FS-14.R101; TS-09.R70; INV §10. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-9 (P2): persistent controller failures never reach the promised pause.
-  The existing mechanism at `internal/state/pipelines.go:740–748` only sets attention after ten
-  errors; `internal/pipeline/manager.go:851–872` keeps selecting/retrying the same action forever.
-  A probe after eleven failures retained finishing/release_stage_task and Continue refused as
-  invalid_state. Retry cleanup remains available, but the new finite recovery/pause contract is
-  not implemented for this path. Preserve the cleanup intent while pausing after a finite policy,
-  with explicit repair/resume and no repeated side effects. This is an existing mechanism left
-  incompatible with the newly shipped requirement, not an asserted new code regression.
-  FS-14.R101; TS-09.R70; INV §9/§10. Fix complexity: medium.
 
 - **Must fix** — GOAL-LED-11 (P2): accepted queued input disappears from supervision until delivery.
   `ui/src/components/chat/Composer.tsx:155–186` clears the draft without a held/transcript row;
@@ -425,6 +398,13 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-30 — Fixed GOAL-LED-6/8/9 (INV §2/§9/§10):** restart start exhaustion now reaches
+  the common parked-owner recovery; a stall check deferred by background work is rechecked when
+  that work ends (`EvBackgroundTaskState`) and by the dispatcher's bounded sweep, which also heals
+  parked owners; after ten controller failures a release pauses `controller_recovery_failed`
+  holding its intent, automatic retry stops, and Continue retries once. Regressions:
+  `TestStallCheckDeferredByBackgroundWorkResumesWhenItEnds`, `TestParkedOwnerAfterRestartIsRecovered`,
+  `TestPersistentControllerFailurePausesAndResumes`; state/pipeline packages pass.
 - **2026-10-30 — Fixed GOAL-LED-1/4/5/10 (INV §8/§10/§11/§15/§17):** an accepted room synthesis
   now goes, after cleanup and approval, to one decision-only owner visit (migration 68
   `decision_source_task_id`) that cannot be required-check evidence; acceptance validates only the

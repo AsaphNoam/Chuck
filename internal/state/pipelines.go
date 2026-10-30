@@ -706,8 +706,9 @@ func (s *Store) ListDuePipelineControllerActions(now time.Time, limit int) ([]Pi
 	}
 	rows, err := s.db.Query(`SELECT run_id FROM pipeline_runs
 WHERE pending_action IN ('release_stage_task', 'cleanup_run', 'activate_replacement')
+  AND controller_failures < ?
   AND (controller_retry_at IS NULL OR controller_retry_at <= ?)
-ORDER BY COALESCE(controller_retry_at, updated_at), updated_at, run_id LIMIT ?`, formatTime(now), limit)
+ORDER BY COALESCE(controller_retry_at, updated_at), updated_at, run_id LIMIT ?`, MaxPipelineControllerFailures, formatTime(now), limit)
 	if err != nil {
 		return nil, fmt.Errorf("state: list due pipeline controller actions: %w", err)
 	}
@@ -737,11 +738,23 @@ ORDER BY COALESCE(controller_retry_at, updated_at), updated_at, run_id LIMIT ?`,
 
 // RecordPipelineControllerFailure retains bounded retry ownership for a cursor
 // action after its stage result has been accepted.
+// MaxPipelineControllerFailures bounds automatic retries of one retained
+// controller action; PauseControllerRecoveryFailed is the resulting hold.
+const (
+	MaxPipelineControllerFailures = 10
+	PauseControllerRecoveryFailed = "controller_recovery_failed"
+)
+
 func (s *Store) RecordPipelineControllerFailure(run PipelineRunRecord, cause error, next time.Time) (PipelineRunRecord, error) {
+	// The finite policy: the last failure holds the retained intent for an
+	// explicit repair or Resume instead of retrying forever. A stage release
+	// pauses; a Stop keeps its fence (TS-09.R70).
 	result, err := s.db.Exec(`UPDATE pipeline_runs SET controller_failures = controller_failures + 1,
- controller_retry_at = ?, controller_last_error = ?, attention_reason = CASE WHEN controller_failures + 1 >= 10 THEN 'controller_recovery_failed' ELSE attention_reason END,
+ controller_retry_at = ?, controller_last_error = ?, attention_reason = CASE WHEN controller_failures + 1 >= ? THEN ? ELSE attention_reason END,
+ state = CASE WHEN controller_failures + 1 >= ? AND state = 'finishing' THEN 'paused' ELSE state END,
  revision = revision + 1, updated_at = ? WHERE run_id = ? AND revision = ? AND pending_action = ?`,
-		formatTime(next), clipStateError(cause), formatTime(timeNow()), run.RunID, run.Revision, run.PendingAction)
+		formatTime(next), clipStateError(cause), MaxPipelineControllerFailures, PauseControllerRecoveryFailed, MaxPipelineControllerFailures,
+		formatTime(timeNow()), run.RunID, run.Revision, run.PendingAction)
 	if err != nil {
 		return PipelineRunRecord{}, fmt.Errorf("state: record pipeline controller failure: %w", err)
 	}

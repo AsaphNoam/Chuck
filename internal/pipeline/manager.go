@@ -829,7 +829,7 @@ func (m *Manager) Startup(ctx context.Context) error {
 					return errors.Join(err, recordErr)
 				} else {
 					m.publish(updated)
-					if updated.ControllerFailures == 10 {
+					if updated.ControllerFailures == state.MaxPipelineControllerFailures {
 						m.notify(updated, "needs_attention")
 					}
 				}
@@ -858,7 +858,7 @@ func (m *Manager) ReconcilePending(ctx context.Context) {
 		if err := m.Reconcile(ctx, run.RunID); err != nil {
 			if updated, recordErr := m.store.RecordPipelineControllerFailure(run, err, time.Now().UTC().Add(taskControllerRetryDelay(run.ControllerFailures))); recordErr == nil {
 				m.publish(updated)
-				if updated.ControllerFailures == 10 {
+				if updated.ControllerFailures == state.MaxPipelineControllerFailures {
 					m.notify(updated, "needs_attention")
 				}
 			}
@@ -885,7 +885,7 @@ func (m *Manager) RecordReconcileFailure(runID string, cause error) {
 			return
 		}
 		m.publish(updated)
-		if updated.ControllerFailures == 10 {
+		if updated.ControllerFailures == state.MaxPipelineControllerFailures {
 			m.notify(updated, "needs_attention")
 		}
 	}

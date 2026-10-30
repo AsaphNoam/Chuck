@@ -39,9 +39,25 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 		}
 		input = strings.TrimSpace(input)
 		var continueErr error
+		resumeController := false
 		switch {
 		case utf8.RuneCountInString(input) > MaxValueRunes:
 			continueErr = validationError("continuation input is too long", []Diagnostic{{Field: "input", Code: "invalid", Message: "input must fit the pipeline value limit"}})
+		case run.State == "paused" && run.AttentionReason == state.PauseControllerRecoveryFailed && run.PendingAction != "":
+			// Resume after repair retries the retained controller action once
+			// with a fresh failure allowance; nothing already done repeats.
+			restored := run.State
+			if run.PendingAction == "release_stage_task" {
+				restored = "finishing"
+			}
+			var resumed state.PipelineRunRecord
+			if resumed, continueErr = m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
+				State: restored, PendingAction: run.PendingAction, CurrentStageID: run.CurrentStageID,
+				CurrentAttemptID: run.CurrentAttemptID, CurrentAgentID: run.CurrentAgentID,
+			}); continueErr == nil {
+				m.publish(resumed)
+				resumeController = true
+			}
 		case run.State == "paused" && run.PendingAction == "await_approval" && task.Outcome == state.OutcomeSuccess:
 			// Approval is the explicit checkpoint action; the recorded decision
 			// then runs exactly as reported (TS-09.R68).
@@ -84,6 +100,11 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 		unlock()
 		if continueErr != nil {
 			return RunDetail{}, continueErr
+		}
+		if resumeController {
+			if err := m.Reconcile(ctx, runID); err != nil {
+				m.RecordReconcileFailure(runID, err)
+			}
 		}
 		return m.Detail(runID)
 	} else if stageErr != nil {

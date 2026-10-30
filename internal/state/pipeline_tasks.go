@@ -1002,6 +1002,40 @@ func (s *Store) InterruptParkedStageTask(taskID string) (bool, error) {
 	return n == 1, err
 }
 
+// ParkedPipelineStageTasks lists open owner visits of active runs whose start
+// was parked for good, for the dispatcher's missed-recovery sweep (TS-09.R70).
+func (s *Store) ParkedPipelineStageTasks(limit int) ([]Task, error) {
+	rows, err := s.db.Query(`SELECT t.task_id FROM pipeline_stage_tasks p JOIN tasks t ON t.task_id = p.task_id
+JOIN pipeline_runs r ON r.run_id = p.run_id
+WHERE p.state = 'open' AND p.execution_kind = ? AND t.state = ? AND r.state IN ('queued', 'running')
+ORDER BY p.created_at LIMIT ?`, StageExecutionAgent, TaskDependencyFailed, limit)
+	if err != nil {
+		return nil, fmt.Errorf("state: list parked pipeline owners: %w", err)
+	}
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]Task, 0, len(ids))
+	for _, id := range ids {
+		task, err := s.ReadTask(id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, task)
+	}
+	return out, nil
+}
+
 func (s *Store) retryInterruptedStageTask(runID, taskID string, expectedRevision int64, charge, renew bool) (PipelineRunRecord, error) {
 	tx, err := s.db.Begin()
 	if err != nil {

@@ -2,8 +2,10 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
@@ -302,5 +304,42 @@ func TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance(t *testing.T) {
 	}
 	if task, _ := manager.store.ReadTask(visit.TaskID); task.State != state.TaskReady {
 		t.Fatalf("resumed visit = %s", task.State)
+	}
+}
+
+// TS-09.R70 — a retained controller action that keeps failing pauses
+// recoverably after a finite policy, stops automatic retries, and Resume
+// retries it once with its intent intact.
+func TestPersistentControllerFailurePausesAndResumes(t *testing.T) {
+	m, _, _ := pipelineManagerFixture(t)
+	detail, visit := startStagePipeline(t, m, "controller-exhaustion", "a_owner", "gen-1")
+	if _, err := m.store.DB().Exec(`UPDATE tasks SET execution_handle = 'ta_ctl' WHERE task_id = ?`, visit.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.store.AcceptPipelineStageTaskResult(visit.TaskID, "a_owner", "gen-1", "ta_ctl", detail.Run.Revision,
+		state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "built", Outputs: map[string]string{"implementation": "done"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.store.CompleteTaskRelease(visit.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	run := readRun(t, m, detail.Run.RunID)
+	var err error
+	for i := 0; i < state.MaxPipelineControllerFailures; i++ {
+		if run, err = m.store.RecordPipelineControllerFailure(run, errors.New("persistent cursor write failure"), time.Now().Add(-time.Second)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if run.State != "paused" || run.PendingAction != "release_stage_task" || run.AttentionReason != state.PauseControllerRecoveryFailed {
+		t.Fatalf("after %d failures run = %s/%s/%s, want a recoverable pause holding the intent", run.ControllerFailures, run.State, run.PendingAction, run.AttentionReason)
+	}
+	if due, err := m.store.ListDuePipelineControllerActions(time.Now(), 8); err != nil || len(due) != 0 {
+		t.Fatalf("held action still retried automatically: %+v %v", due, err)
+	}
+	if _, err := m.Continue(context.Background(), run.RunID, run.Revision, ""); err != nil {
+		t.Fatalf("Resume after repair: %v", err)
+	}
+	if got := visits(t, m, run.RunID); len(got) != 2 {
+		t.Fatalf("visits after Resume = %v, want the decided next step once", got)
 	}
 }

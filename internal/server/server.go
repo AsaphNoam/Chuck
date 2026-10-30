@@ -80,10 +80,15 @@ type Server struct {
 	// ownerStallNudgeOff lets fixtures whose fake owners never report keep a
 	// stage open; production always continues stalled owners (TS-09.R70).
 	ownerStallNudgeOff bool
-	quotaStartSlots    chan struct{}
-	quotaControlMu     sync.Mutex
-	quotaActionMu      sync.Mutex
-	quotaActions       map[string]bool
+	// stallDeferred holds owners (agent → generation) whose turn-end stall check
+	// was deferred by running background work; it is rechecked when that work
+	// ends and by the dispatcher sweep (TS-09.R70).
+	stallDeferredMu sync.Mutex
+	stallDeferred   map[string]string
+	quotaStartSlots chan struct{}
+	quotaControlMu  sync.Mutex
+	quotaActionMu   sync.Mutex
+	quotaActions    map[string]bool
 	// quotaChecks marks agents with an isolated check running in this process;
 	// quotaCleanupTried rate-limits exact probe cleanup retries (TS-10.R47).
 	// quotaChecked holds each agent's last ready check selection fingerprint
@@ -359,6 +364,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		thinkTankFailures:         map[thinkTankAttemptKey]string{},
 		taskStartLocks:            map[string]*taskStartLock{},
 		startupStartRetries:       map[string]string{},
+		stallDeferred:             map[string]string{},
 		cfg:                       cfg,
 		log:                       log,
 		knowledge:                 installedKnowledge,
@@ -459,6 +465,11 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 			s.captureThinkTankEvent(obs)
 			if ev.Type == runtime.EvPermissionRequest || ev.Type == runtime.EvPermissionResolved {
 				s.handlePermissionEvent(ev)
+			}
+			if ev.Type == runtime.EvBackgroundTaskState {
+				// Background work ending may leave an idle owner whose
+				// turn-end stall check was deferred (TS-09.R70).
+				go s.recheckDeferredStall(ev.AgentID)
 			}
 			if ev.Type == runtime.EvTurnEnd {
 				var terminal runtime.TurnEndData

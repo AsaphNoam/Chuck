@@ -22,6 +22,10 @@ func (s *Server) nudgeStalledOwner(agentID, generation string) {
 	if s.pipelineMgr == nil || s.ownerStallNudgeOff {
 		return
 	}
+	// This check supersedes any earlier deferred one for the owner.
+	s.stallDeferredMu.Lock()
+	delete(s.stallDeferred, agentID)
+	s.stallDeferredMu.Unlock()
 	_, task, err := s.stateStore.PipelineStageTaskForAssignee(agentID, generation)
 	if err != nil || task.State != state.TaskRunning || task.PendingYield || task.PendingRelease {
 		return
@@ -29,7 +33,16 @@ func (s *Server) nudgeStalledOwner(agentID, generation string) {
 	if blocked, err := s.quotaBlocksAgent(agentID); err != nil || blocked {
 		return
 	}
-	if st, err := s.stateStore.ReadStatus(agentID); err != nil || st.State != "idle" || st.BackgroundRunning > 0 {
+	st, err := s.stateStore.ReadStatus(agentID)
+	if err != nil || st.State != "idle" {
+		return
+	}
+	if st.BackgroundRunning > 0 {
+		// The owner's background work may still finish its step; check
+		// again when that work ends rather than leaving it idle forever.
+		s.stallDeferredMu.Lock()
+		s.stallDeferred[agentID] = generation
+		s.stallDeferredMu.Unlock()
 		return
 	}
 	if s.lifecycleInFlight(agentID) {
@@ -54,5 +67,52 @@ func (s *Server) nudgeStalledOwner(agentID, generation string) {
 	// the owner's continuation, so a refused nudge is simply dropped.
 	if err := s.registry.SendPrompt(context.Background(), agentID, ownerStallPrompt); err != nil {
 		s.log.Debug("nudge stalled pipeline owner", "agent", agentID, "err", err)
+	}
+}
+
+// recheckDeferredStall repeats an owner's deferred stall check once its
+// background work has ended; it is coalesced to one entry per owner.
+func (s *Server) recheckDeferredStall(agentID string) {
+	s.stallDeferredMu.Lock()
+	generation, deferred := s.stallDeferred[agentID]
+	s.stallDeferredMu.Unlock()
+	if !deferred {
+		return
+	}
+	st, err := s.stateStore.ReadStatus(agentID)
+	if err != nil {
+		// An owner without status has no turn to continue.
+		s.stallDeferredMu.Lock()
+		delete(s.stallDeferred, agentID)
+		s.stallDeferredMu.Unlock()
+		return
+	}
+	if st.BackgroundRunning > 0 {
+		return
+	}
+	s.nudgeStalledOwner(agentID, generation)
+}
+
+// recoverMissedStageStalls is the dispatcher's bounded sweep for missed
+// recovery events: deferred stall checks whose background completion was not
+// observed, and pipeline owners parked by a start failure that bypassed
+// replacement (TS-09.R70). It never prompts an owner that is not stalled.
+func (s *Server) recoverMissedStageStalls() {
+	s.stallDeferredMu.Lock()
+	agents := make([]string, 0, len(s.stallDeferred))
+	for agentID := range s.stallDeferred {
+		agents = append(agents, agentID)
+	}
+	s.stallDeferredMu.Unlock()
+	for _, agentID := range agents {
+		s.recheckDeferredStall(agentID)
+	}
+	parked, err := s.stateStore.ParkedPipelineStageTasks(taskDispatchBatch)
+	if err != nil {
+		s.log.Debug("list parked pipeline owners", "err", err)
+		return
+	}
+	for _, task := range parked {
+		s.recoverParkedStageTask(task)
 	}
 }

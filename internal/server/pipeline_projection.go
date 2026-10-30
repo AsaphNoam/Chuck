@@ -418,6 +418,8 @@ func continueControl(run state.PipelineRunRecord, current pipelineStageTaskDetai
 	switch {
 	case run.PendingAction == "await_approval":
 		return pipelineRunControl{Eligible: true, Reason: "Approves this step's accepted result; the owner's recorded decision then runs."}
+	case run.AttentionReason == state.PauseControllerRecoveryFailed && run.PendingAction != "":
+		return pipelineRunControl{Eligible: true, Reason: "Retries the held control step after repair; completed work is not repeated."}
 	case run.PendingAction != "":
 		return pipelineRunControl{Reason: "Wait for the current control step to finish."}
 	case run.AttentionReason == "needs_input":

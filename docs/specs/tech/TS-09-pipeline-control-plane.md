@@ -991,6 +991,12 @@ new durable run revision or a structured validation/conflict result.
   destination's context must fit; completion and unselected rooms are not checked, and the judge
   turn no longer checks later rooms. Every activation records `input_refs_json` (value key, source
   kind, producing task/room), copied by replacement and projected as `input_refs`.
+  Recovery: restart start-attempt exhaustion uses the same parked-owner replacement as live failure;
+  a turn-end stall check deferred by running background work is rechecked when that work ends and
+  by the dispatcher's bounded sweep, which also recovers owners left parked; after
+  `MaxPipelineControllerFailures` (10) failures a retained controller action stops automatic
+  retry, a finishing release pauses `controller_recovery_failed` with its intent kept (a Stop keeps
+  its fence), and Continue retries it once with a fresh failure count.
 
 - **Goal-led redesign confirmed (2026-10-30):** R66–R72 are planned. Useful existing-orchestrator
   judgment plus programmatic control, the decision-in-existing-report contract, automatic visibly

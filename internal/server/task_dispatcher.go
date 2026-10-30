@@ -42,6 +42,7 @@ func (s *Server) runTaskDispatcher(ctx context.Context) {
 			s.reconcileTaskCleanup(ctx)
 			if s.pipelineMgr != nil {
 				s.pipelineMgr.ReconcilePending(ctx)
+				s.recoverMissedStageStalls()
 			}
 			s.reconcileTaskWaits()
 			s.resolveDueTimeArms()
@@ -973,6 +974,7 @@ func (s *Server) recoverStartAttempt(ctx context.Context, task state.Task) bool 
 		return true
 	} else if ok {
 		s.publishTaskUpdate(failed)
+		s.recoverParkedStageTask(failed)
 		s.propagateTaskFailure(failed)
 	}
 	return false
