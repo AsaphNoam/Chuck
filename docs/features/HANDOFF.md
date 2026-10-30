@@ -13,7 +13,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   skip-permissions default, annotation focus). Release CI 40232088716 and main CI 40232088269
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
-- **Review state:** pipeline worktrees fix unit PIPE-WT is closed (PIPE-WT-1–6 fixed
+- **Review state:** optional annotation source recording unit ANN-SOURCE was reviewed through
+  `38491fe0` and remains open with two **Must fix** findings below. Pipeline worktrees fix unit
+  PIPE-WT is closed (PIPE-WT-1–6 fixed
   2026-10-30); its packaged Claude/Codex launch/resume cwd probe stays owed below. Review unit
   MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
   finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE is
@@ -234,7 +236,7 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 - **ANN-SOURCE** (2026-10-30, Go + UI):
   [`optional-annotation-source-recording`](../ready-changes/optional-annotation-source-recording.md)
-  is **finished**, available for review. FS-13.R35–R36/A25–A26, TS-03.R75, TS-02.R60,
+  is **reviewed, open for fixes** (ANN-SOURCE-1/2 below). FS-13.R35–R36/A25–A26, TS-03.R75, TS-02.R60,
   TS-08.R148; implementation `ed285b64`, rendered/generated closure `788a7318`.
   Default-on recording choice shares the desktop/phone batch lifecycle; opt-out atomically commits
   target mail/activation/receipt with sequence zero and no source event/index/publication.
@@ -288,6 +290,57 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
 ## Review findings
+
+### ANN-SOURCE — Optional annotation source recording (2026-10-30) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Reviewed `ed285b64^..38491fe0`, including the originating ready change and named FS/TS contracts.
+No product code or specifications changed in review. The existing receipt transaction, explicit
+boolean decoding, legacy omitted/false hashing and shared desktop/phone owner are sound local
+choices; no unresolved implementation-choice question was found.
+
+- **Must fix** — ANN-SOURCE-1 (INV §1/§11/§15): retain the submitted launch batch through
+  delivery retry. `ui/src/components/chat/annotationDelivery.ts:121–122,129–133,158–160` snapshots
+  preflight, but clears that snapshot before delivery and rebuilds the batch on retry. Normal
+  trigger: capture another annotation while asynchronous preflight is pending, before the launch
+  modal opens; `annotationStore.add` clears the stored command ID. Initial post-launch delivery
+  sends only the earlier snapshot with command C1. If accepted but its response is lost, Retry
+  sends both drafts with fresh command C2, bypassing receipt deduplication and delivering the
+  first annotation twice. A controlled hook probe reproduces different command IDs and expanded
+  retry payload. This preflight race is introduced by the new snapshot: previously launch delivery
+  built the post-capture batch, which the unchanged retry could reuse. Violates FS-13.R32/R35 and
+  TS-08.R148. Keep the exact submitted payload/command/choice recoverable until acknowledgement,
+  including reload, while later captures remain the next batch. Extend the existing pending-launch
+  test with capture during deferred preflight, accepted-but-lost response and same-snapshot retry;
+  assert one recipient effect and preservation of the next draft. Fix complexity: medium.
+- **Must fix** — ANN-SOURCE-2 (INV §8/§10): success feedback keeps the empty tray's layout
+  slot occupied. `ui/src/components/chat/AnnotationTray.tsx:39` returns an unstyled status paragraph
+  after the last draft clears; `ReaderWorkspace.tsx:94,116` still portals it into `.chat-side-end`,
+  whose `flex: none` rule reserves the paragraph's intrinsic width even with no `data-tray`.
+  An actual 1024px browser probe measured the conversation card at 832px before drafting and
+  739.06px after success, with a 220.94px side slot and `data-tray=null`. The rendered feedback
+  sits outside the card at its top edge; longer recipient names consume more space. Every
+  successful desktop assignment can trigger this, including the zero-sequence opt-out. Violates
+  FS-13.R21's restoration of transcript width when sending clears the tray. Keep destination
+  feedback in a styled, persistent owner without retaining the reader/tray side allocation;
+  verify the card regains its initial width and feedback remains visible. Fix complexity:
+  trivial/easy.
+
+Independent verification: 36 focused store/tray/delivery tests pass; server annotation checks pass
+untagged and with `sqlite_fts5`, and `TestOperatorAgentWireInventory` passes. Initial broader tagged
+execution hit sandbox loopback denial; approved rerun passed. The desktop/room journey passes all
+checks; phone annotation journey passes Core, Sky & Grove and Studio at 360/390/430px. Screenshots
+were inspected for checkbox access, destination feedback, room rename, clipping and layout.
+Assignment responses/room detail are stubbed in these journeys; durable rollback/restart/mail/
+transcript proof comes from real handler tests. Native-device/provider gates remain owed as before.
+Review-owned probes, expected-failing retry log, layout measurements and browser screenshots:
+shared project resources `ann-source-review/` (`retry.test.ts`, `retry.log`, `layout.json`,
+`layout-after.png`, `desktop/report.json`). TS-06.R35/INV §17 audit found useful independent
+oracles and real durable/wire boundaries; no coverage-only expansion is requested.
+
+Invariant sweep: §1/§2/§5/§7/§8/§9/§10/§11/§13/§14/§15/§16/§17 apply and were checked;
+the two findings above are the only violations found. §3 (persisted runtime/config forms),
+§4 (registration teardown), §6 (new runtime/interface) and §12 (external CLI invocation) have
+no applicable changed surface. Other review and fix units are unchanged.
 
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -348,6 +401,11 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
   refresh trigger for per-event refetching and coalesce it.
 
 ## Changelog
+
+- **2026-10-30 — Reviewed optional annotation source recording:** ANN-SOURCE stays open for
+  a launch-snapshot retry duplication bug (INV §1/§11/§15) and success feedback retaining desktop
+  side-panel width (INV §8/§10). Independent focused tests and desktop/phone/room journeys pass;
+  controlled retry and rendered geometry probes establish the two missing cases.
 
 - **2026-10-30 — Optional annotation source recording finished:** peer/new-agent assignments
   can omit the source transcript record while preserving delivery and retry identity. Desktop
