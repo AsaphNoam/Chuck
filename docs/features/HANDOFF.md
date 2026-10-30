@@ -25,7 +25,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
-- **Goal-led pipelines:** implemented 2026-10-30 and awaiting review (GOAL-LED); evidence owed below.
+- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); thirteen Must-fix findings and one
+  Worth-fixing finding remain on the same unit below. Acceptance evidence remains owed below.
 - **Waiting-prompt investigation:** WAIT-PROMPT-1/2 are fixed by goal-led slice 1 (input to a
   waiting assignee is queued and carried by its continuation); WAIT-PROMPT-3 stays open, out of scope.
 - **Permission-save investigation:** PERM-SAVE-1 is repaired; the reported unchecked toggle's
@@ -242,15 +243,6 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review queue
 
-- **GOAL-LED** (2026-10-30, Go+UI): goal-led unattended pipelines, FS-14.R97–R103,
-  TS-09.R66–R72, TS-10.R29 (closes WAIT-PROMPT-1/2). Commits `715bbcb2`..HEAD: queued input for
-  waiting assignments (migration 65), chronological visits (66), owner `pipeline_decision` +
-  required checks + recovery rounds + approval per visit (67), automatic retry/replacement and
-  stall continuation, run/phone/CLI surfaces. Review notes: the room-stage deviation (TS-09 §5);
-  the stall pass sends an ordinary prompt from the turn-end hook (`server/pipeline_stall.go`) and
-  fixtures with never-reporting fake owners set `srv.ownerStallNudgeOff`; Continue with input on an
-  interrupted visit is refused toward the owner's conversation. Checks: see Changelog 2026-10-30.
-
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
   numbered template library, light overview/timeline, stage rail/editor and start-dialog
@@ -288,6 +280,155 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
   and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
 
 ## Review findings
+
+### GOAL-LED — Goal-led unattended pipelines (2026-10-30) — **Fix model:** difficult — Codex Sol.
+
+Reviewed implementation `715bbcb2^..af2c9495`, including surrounding callers, FS-14.R97–R103,
+TS-09.R66–R72, TS-10.R29/R35, changed persistence/API/chat requirements and test contracts.
+The same unit stays open for grouped fixes; product code and specifications were not changed.
+
+- **Must fix** — GOAL-LED-1 (P1): room synthesis bypasses the owner's required decision.
+  `internal/pipeline/decisions.go:37–49,88–94` advances a room directly or completes on the latest
+  evidence, without TS-09.R66's decision-only owner assignment and attestation. A final review room
+  publishing “Must fix ... Repair and re-review required” completed the run as success in an
+  independent store/controller probe. Create the idempotent decision assignment after room cleanup
+  and applicable approval, preserving the source synthesis without rerunning the room. The noted
+  room-stage deviation is rejected: TS-09 §5 does not override R66/R68 or FS-14.R98/R102.
+  INV §10/§15/§17. Fix complexity: difficult (durable decision/cleanup/admission ownership).
+
+- **Must fix** — GOAL-LED-2 (P1): conversation answers do not continue a question/exhaustion pause.
+  `internal/server/attachments.go:501–522` only queues open waiting/admitting assignments; finished
+  question visits and interrupted exhausted visits fall through to ordinary prompt delivery, with
+  no run continuation transaction. An HTTP answer “Use SQLite” returned 202 sent/submitted while
+  its needs-input run stayed paused and no new tracked visit existed. Run controls separately
+  implement answers in `internal/pipeline/actions.go:63–80`. Use the specified common recorded-input
+  helper, retain request/run/visit/question provenance, and resume the same run once without
+  approving a checkpoint. FS-14.R99/R100; TS-09.R69/R70; INV §2/§15. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-3 (P1): automatic replacement silently loses accepted input.
+  `internal/server/queued_input.go:70–84` copies text only, then marks all selected receipts
+  submitted. An attachment-only receipt became submitted although the replacement handoff contained
+  neither its attachment ID nor name. `internal/pipeline/actions.go:200–205` also clips concatenated
+  input before those receipts are marked delivered. Transfer structured pending messages and their
+  attachment ownership through replacement; do not declare clipped/omitted content submitted.
+  Verify attachment-only and over-budget queued handoffs. FS-14.R100/R101; TS-09.R69/R70;
+  INV §11/§15/§16. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-4 (P1): routing admits a destination without its required inputs.
+  `internal/state/pipeline_decisions.go:126–133` checks the stage ID but not selected required
+  values; `internal/pipeline/decisions.go:165–181` renders and creates the visit regardless.
+  A valid Work → Review → Publish template allowed Work to skip Review, the producer of Publish's
+  required verdict; Publish became ready with a blank verdict. Reject this decision before
+  accepting the immutable report, preserving correction in the same assignment. TS-09.R67/R68;
+  INV §8/§15. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-5 (P2): an unselected future room can reject a valid completion/branch.
+  `internal/state/pipeline_tasks.go:321–326` validates all later room contexts before resolving
+  the selected decision. Explicit complete with no required checks was refused for a legal
+  44,000-character output solely because an optional room that would never run overflowed its
+  context. Validate only the selected destination, with a regression for completion and omission
+  of that room. TS-09.R67/R68; INV §8/§15. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-6 (P2): restart on the final start attempt strands an active run.
+  `internal/server/task_dispatcher.go:970–976` calls FailTaskStart without the parked-owner recovery
+  used by live failure handling. A startup recovery probe left its task dependency_failed and run
+  queued with no pending controller action; later dispatcher passes have no runnable owner to
+  recover. Route startup exhaustion through the common parked-stage recovery seam and verify
+  replacement or an explicit exhausted pause. FS-14.R101; TS-09.R70; INV §2/§10.
+  Fix complexity: trivial/easy.
+
+- **Must fix** — GOAL-LED-7 (P2): an ordinary start retry detaches input already accepted for it.
+  `internal/state/attachment_receipts.go:76,120–125` excludes ready initial assignments with
+  continuation_pending=0 from retained queued input. QueueAssignmentInput → FailTaskStart →
+  QueuedInputWork changed a starting assignment's prepared/bound correction to released/unbound
+  although that same assignment was retrying. Preserve binding across ordinary admission retries
+  and prove its next activation carries the correction. FS-14.R100; TS-09.R69; TS-10.R29;
+  INV §1/§2. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-8 (P2): background completion can leave an idle owner active indefinitely.
+  `internal/server/pipeline_stall.go:32` skips recovery while background work runs, but its sole
+  caller is `task_dispatcher.go:595` at turn end. Final background completion only emits its state
+  and republishes status (`internal/runtime/tasks.go:116–117`); neither the server event sink nor
+  the dispatcher sweep rechecks that idle assignment. Confirmed by the complete event/caller graph,
+  without a dynamic provider probe. Add coalesced recovery when background work ends and the
+  specified bounded missed-event sweep; retain busy/permission/quota/wait fences.
+  FS-14.R101; TS-09.R70; INV §10. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-9 (P2): persistent controller failures never reach the promised pause.
+  The existing mechanism at `internal/state/pipelines.go:740–748` only sets attention after ten
+  errors; `internal/pipeline/manager.go:851–872` keeps selecting/retrying the same action forever.
+  A probe after eleven failures retained finishing/release_stage_task and Continue refused as
+  invalid_state. Retry cleanup remains available, but the new finite recovery/pause contract is
+  not implemented for this path. Preserve the cleanup intent while pausing after a finite policy,
+  with explicit repair/resume and no repeated side effects. This is an existing mechanism left
+  incompatible with the newly shipped requirement, not an asserted new code regression.
+  FS-14.R101; TS-09.R70; INV §9/§10. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-10 (P2): activations do not freeze the specified input/source references.
+  `internal/state/pipeline_tasks.go:120–121` stores the output contract and assignment digest only;
+  `internal/pipeline/assignment.go:50–52` drops input source identity, and later producer visits
+  overwrite pipeline_values' current value/source (`pipeline_tasks.go:380`). A prior check has no
+  explicit durable input-to-producing-task/room mapping after revisits. Freeze selected values and
+  provenance for every activation/replacement and project that evidence. This concerns provenance,
+  not automatic invalidation of older evidence that the owner may attest still applies.
+  TS-09.R67/R68; INV §11/§15. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-11 (P2): accepted queued input disappears from supervision until delivery.
+  `ui/src/components/chat/Composer.tsx:155–186` clears the draft without a held/transcript row;
+  only a transient notice remains. `internal/server/sessions.go:46–81` exposes runtime-held or
+  recovery input, and `internal/state/attachment_receipts.go:49` excludes prepared assignment
+  receipts. After navigation/restart, pending text and attachments cannot be inspected. Rehydrate
+  the durable queued state on desktop/phone without falsely adding delivered transcript events.
+  No data loss is established by this finding. TS-09.R69/R71; INV §8/§10. Fix complexity: medium.
+
+- **Must fix** — GOAL-LED-12 (P2): phone Resume offers instructions that the API rejects.
+  `ui/src/remote/RunScreen.tsx:77` renders an optional instructions field for interrupted visits,
+  but `internal/pipeline/actions.go:53–60` rejects any nonempty input and redirects to conversation.
+  Browser reproduction entered repair instructions, clicked Resume and received that error;
+  desktop suppresses the field. Make the form and server agree, preferably through the common
+  recorded-input behavior required by GOAL-LED-2. FS-14.R99/R103; TS-09.R71; INV §8/§10.
+  Fix complexity: trivial/easy at the existing form/control seam.
+
+- **Must fix** — GOAL-LED-13 (P2): run supervision hides accepted decision/evidence provenance.
+  `ui/src/remote/RunScreen.tsx:84–95` omits task.decision entirely, hiding deviations and reasons.
+  `ui/src/features/pipelines/RunBrowser.tsx:187` shows action/reason but not required_checks;
+  neither view identifies the successful visit selected as completion evidence. Existing outputs
+  do not show that mapping when older successful evidence is selected after revisits. Independently
+  rendered completion fixtures confirmed both omissions. Expose the chosen decision and evidence
+  visits on desktop/phone with inspectable result links. FS-14.R103; TS-09.R71; INV §10/§11.
+  Fix complexity: trivial/easy.
+
+- **Worth fixing** — GOAL-LED-14 (P2): shipped operating guidance still requires human Retry after
+  restart/exit. `internal/agentknowledge/operating-chuck/references/build-and-run-pipelines.md:16`
+  contradicts automatic recovery (also proven by TestRestartInterruptedStageRecoversAutomatically),
+  directing supervisors toward unnecessary operator intervention. Update this paragraph with the
+  actual automatic retry/replacement and exhausted-pause policy; align room guidance with
+  GOAL-LED-1 when fixed. FS-14.R101; TS-09.R71; INV §10. Fix complexity: trivial/easy.
+
+Review evidence: eight external regression probes exposed room false completion, controller
+exhaustion, missing selected input, unselected-room rejection, replacement attachment loss,
+startup exhaustion, retry input release and conversation-answer non-continuation. Temporary Go
+overlay and probe sources are saved in shared project resources (`goal-led-review-all-overlay.json`);
+the parent reran all eight together and confirmed the expected failures in
+`goal-led-review-regressions.log`. `make check-specs` and `git diff --check` pass.
+temporary originals remain at `/tmp/goal-led-review-overlay.json` and
+`/private/tmp/goal_led_review_overlay.json`. Existing focused decision/visit tests pass; fresh full
+pipeline/state/server/messaging/runtime package tests pass (server/messaging required approved
+loopback execution; the initial sandbox bind failure was environmental). Delegated UI checks:
+68/68 focused tests; the existing rendered harness
+passes 120 checks in all appearances at 1024/1440. Additional interrupted/completed desktop 1024
+and phone 390 fixtures in Core/Sky & Grove reproduce GOAL-LED-12/13 with no overflow; parent
+inspected the phone refusal screenshot. Evidence `/private/tmp/goal-led-surface-probe.mjs`,
+`/tmp/goal-led-surfaces-render/`, `/tmp/goal-led-{phone,desktop}-*-{interrupted,completed}.png`.
+No live-provider, physical-phone or full run-start-to-notification acceptance is claimed; existing
+A61/A64/A67/A68 gates remain open. Existing tests use useful real store/controller/HTTP boundaries
+but their happy paths do not establish these missing contracts (TS-06.R35; INV §17).
+
+Invariant sweep: §§1/2/3/4/5/7/8/9/10/11/13/14/15/16/17 have applicable lifecycle, persistence,
+receipt, protocol, UI, handler or test surfaces and were assessed; findings are tagged above.
+§6 has no new runtime/interface, and §12 has no new external CLI invocation/flag surface.
+No independent violation found in applicable §§3/4/5/7/13/14. The interrupted-input refusal and
+room deviation are implementation choices requiring correction above, not accepted spec exceptions.
 
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -332,6 +473,12 @@ WAIT-PROMPT-3 remains, outside that change.
   refresh trigger for per-event refetching and coalesce it.
 
 ## Changelog
+
+- **2026-10-30 — Reviewed goal-led pipelines (GOAL-LED):** thirteen Must-fix findings and one
+  Worth-fixing finding keep the same unit open. Independent probes show false room completion,
+  incomplete routing/input/recovery contracts, and hidden supervision evidence; rendered phone
+  checks reproduce the rejected Resume instructions. Findings, fix sizing and verification limits
+  are above; product code and specifications remain unchanged.
 
 - **2026-10-30 — Implemented goal-led pipelines (GOAL-LED):** queued waiting-assignment input,
   chronological visits, owner decisions, required checks, per-visit approval, bounded automatic
