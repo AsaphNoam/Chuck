@@ -22,6 +22,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
+- **Waiting-prompt investigation:** WAIT-PROMPT (prompt to a waiting pipeline coordinator is
+  rejected and dropped) is open with one **Must fix**, two **Worth fixing** and a skipped
+  reproduction test; see Review findings.
 - **Permission-save investigation:** PERM-SAVE-1 is repaired; the reported unchecked toggle's
   field cause remains undetermined pending affected server evidence.
 - **Mobile annotation investigation:** MOB-ANN-1 is fixed with optional source recording: both
@@ -309,6 +312,40 @@ The optional question about the affected process/workload had no answer at closu
 
 Field attribution of the user's suspected growth remains undetermined (no heap/browser snapshot
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
+
+### WAIT-PROMPT — Prompt to a waiting pipeline coordinator (2026-10-30) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report, verbatim:** “I wanted to send updated instructions to the agent mid pipeline run, why was
+that not allowed”, with a phone screenshot of the composer error “the assigned task must resume
+before this prompt can be delivered; retry shortly” under coordinator text “The implementer has
+not reported a result or blocker. The Work stage remains open”. Checkout `788a7318`, macOS arm64,
+phone remote client `rd_TQDIXQ8MaXcW`. Evidence: `~/.chuck/dashboard.log` (08:09–08:10 IST),
+`~/.chuck/sessions/a_3326aa/transcript.ndjson`, `state.db` task `tk_32b3ab01fb6e73c9` (pipeline
+Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`).
+
+- **Must fix** — WAIT-PROMPT-1, confirmed (reproduced): a person's prompt to an assignee whose task
+  is waiting is rejected and dropped, and the promised retry cannot land. `internal/server/
+  attachments.go:507–518` prepares the continuation (waiting → ready), then returns 409 before any
+  attachment receipt is written, so the text is kept nowhere. Dispatch admits the continuation
+  within ~3 s; the agent calls `get_assigned_task`, sees no change and calls `wait_for_tasks`
+  again, yielding ~10 s later. Field timeline: prompts at 06:09:41Z and 06:10:00Z each got 409
+  and each woke one empty continuation turn (06:09:44–54Z, 06:10:04–13Z); no receipt exists for
+  `a_3326aa`. The coordinator first saw input only when the implementer finished (06:12:28Z).
+  TS-10.R29 routes manual input “through this same assignment continuation before ordinary turn
+  delivery”; mail is retained and delivered after admission, manual input is not.
+  `TestWakingMailUsesWaitingAssignmentContinuation` (`activation_test.go:140`) asserts the 409.
+  Fix: retain the prompt durably (existing held-receipt seam) and deliver it as, or immediately
+  after, the admitted continuation turn; keep the no-untracked-wake rule; update that test's 409
+  expectation. Skipped reproduction: `TestPromptToWaitingAssigneeIsDeliveredByContinuation`
+  (`internal/server/waiting_prompt_repro_test.go`), which fails today with the field 409.
+- **Worth fixing** — WAIT-PROMPT-2, confirmed (spec gap): TS-10.R29 does not say whether manual
+  input to a waiting assignee is accepted and held or rejected, nor what the composer shows
+  meanwhile. Specify acceptance, retention and the delivered-turn ordering with the WAIT-PROMPT-1
+  fix (FS-03 composer copy, TS-10.R29).
+- **Worth fixing** — WAIT-PROMPT-3, probable: the phone client re-fetched `/transcript` and
+  `/prompt` for this agent 20–44 times per second during each streamed turn (log 08:09:51,
+  08:10:03, 08:10:13 IST). Not the reported failure; cause not traced. Check the phone transcript
+  refresh trigger for per-event refetching and coalesce it.
 
 ## Changelog
 
