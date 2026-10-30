@@ -1,4 +1,5 @@
 import type { QuotaWireState } from "../lib/quota";
+import type { PipelineWorkspace } from "../schemas/pipeline";
 
 export type AgentStatus = "busy" | "idle" | "waiting_input" | "done" | "error" | "unknown";
 
@@ -95,6 +96,8 @@ export interface AgentState {
     attempt_id: string;
     attempt_no: number;
   };
+  /** Retained run checkout this conversation is frozen to (TS-09.R65). */
+  workspace?: PipelineWorkspace;
 }
 
 export type NotificationType = "done" | "waiting_input" | "permission_required" | "budget_exceeded" | "pipeline_needs_attention" | "pipeline_completed";

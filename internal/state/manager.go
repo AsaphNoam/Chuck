@@ -577,6 +577,11 @@ WHERE a.agent_id = ?`, agentID)
 	if association, err := m.store.PipelineAssociationForAgent(agentID); err == nil {
 		out.Pipeline = association
 	}
+	workspace, err := m.store.PipelineWorkspaceForAgent(agentID)
+	if err != nil {
+		return AgentStateUpdate{}, err
+	}
+	out.Workspace = workspace
 	quota, err := m.store.QuotaProjection(agentID)
 	if err != nil {
 		return AgentStateUpdate{}, err

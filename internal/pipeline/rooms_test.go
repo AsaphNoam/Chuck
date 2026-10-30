@@ -581,3 +581,43 @@ func TestRoomStageControlsAndPhaseProjection(t *testing.T) {
 		t.Fatalf("recovered room run = %+v", run)
 	}
 }
+
+// FS-14.R93/A58: the first ordinary owner after a room-first stage launches
+// into the run's frozen group, as the room's own participants do.
+func TestRoomFirstStandingOwnerReceivesRunGroup(t *testing.T) {
+	m, _, mixed := mixedRoomFixture(t, false)
+	template := mixed.Template
+	template.Stages = template.Stages[1:]
+	template.Stages[0].Inputs = []StageInput{{Name: "spec", Value: "spec", Required: true}}
+	if record, err := m.templates.Create("room-first", template); err != nil || !record.Valid {
+		t.Fatalf("template = %+v, err=%v", record, err)
+	}
+	slot := RuntimeAssignment{Backend: "claude", Model: "sonnet"}
+	d, _, err := m.Start(context.Background(), StartRequest{
+		RequestID: "room-first", TemplateID: "room-first", DisplayName: "Room First", Project: "app", Goal: "decide",
+		Inputs: map[string]string{"spec": "options"}, Orchestrator: slot,
+		ThinkTankAssignments: map[string]ThinkTankAssignment{"debate": {Participants: map[string]RuntimeAssignment{"pro": slot, "con": slot}, Judge: slot}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	room, found, err := m.currentStageTask(d.Run.RunID)
+	if err != nil || !found {
+		t.Fatalf("current stage: found=%v err=%v", found, err)
+	}
+	publishSynthesis(t, m, room.RoomID, "Build the chosen option.")
+	if err := m.AcceptRoomOutput(context.Background(), d.Run.RunID); err != nil {
+		t.Fatal(err)
+	}
+	stages, err := m.store.ListPipelineStageTasks(d.Run.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := m.store.ReadTask(stages[len(stages)-1].TaskID)
+	if err != nil || task.TargetKind != state.TargetLaunch {
+		t.Fatalf("standing task = %+v err=%v", task, err)
+	}
+	if task.Group != "Room First" {
+		t.Fatalf("first standing launch group = %q, want the frozen run name", task.Group)
+	}
+}

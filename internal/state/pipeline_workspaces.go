@@ -332,11 +332,54 @@ ORDER BY updated_at, workspace_id LIMIT ?`, workspaceState, limit)
 	return out, rows.Err()
 }
 
-// PipelineWorkspaceAgents returns up to limit agents whose frozen session
-// names the workspace: the conversations a removal must not pull a checkout
-// from under (TS-12.R15).
-func (s *Store) PipelineWorkspaceAgents(workspaceID string, limit int) ([]string, error) {
-	rows, err := s.db.Query(`SELECT agent_id FROM sessions WHERE workspace_id = ? ORDER BY agent_id LIMIT ?`, workspaceID, limit)
+// RunningCheckout is a running agent's frozen checkout and run binding.
+type RunningCheckout struct {
+	AgentID     string
+	Cwd         string
+	WorkspaceID string
+}
+
+// RunningCheckouts returns every running agent's frozen checkout, whatever its
+// binding: the processes a removal must not pull a checkout from under
+// (TS-12.R15). The set is bounded by live processes, not retained history.
+func (s *Store) RunningCheckouts() ([]RunningCheckout, error) {
+	rows, err := s.db.Query(`SELECT r.agent_id, COALESCE(s.cwd, ''), COALESCE(s.workspace_id, '')
+FROM running r LEFT JOIN sessions s ON s.agent_id = r.agent_id ORDER BY r.agent_id`)
+	if err != nil {
+		return nil, fmt.Errorf("state: list running checkouts: %w", err)
+	}
+	defer rows.Close()
+	out := []RunningCheckout{}
+	for rows.Next() {
+		var c RunningCheckout
+		if err := rows.Scan(&c.AgentID, &c.Cwd, &c.WorkspaceID); err != nil {
+			return nil, fmt.Errorf("state: scan running checkout: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// PipelineWorkspaceForAgent projects an agent's frozen session binding through
+// the retained workspace record, so live, cloned and retained conversations
+// report their checkout even after the run is deleted (TS-09.R65). It returns
+// nil for an agent without a run workspace. DB-only.
+func (s *Store) PipelineWorkspaceForAgent(agentID string) (*PipelineWorkspace, error) {
+	w, err := scanPipelineWorkspace(s.db.QueryRow(`SELECT `+pipelineWorkspaceColumns+` FROM pipeline_workspaces
+WHERE workspace_id = (SELECT workspace_id FROM sessions WHERE agent_id = ? AND workspace_id != '')`, agentID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("state: read agent workspace: %w", err)
+	}
+	return &w, nil
+}
+
+// PipelineWorkspaceAgentIDs lists the agents whose sessions are frozen to the
+// workspace, so a workspace change republishes their projected state.
+func (s *Store) PipelineWorkspaceAgentIDs(workspaceID string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT agent_id FROM sessions WHERE workspace_id = ? ORDER BY agent_id`, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("state: list workspace agents: %w", err)
 	}

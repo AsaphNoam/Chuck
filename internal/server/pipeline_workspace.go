@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/AsaphNoam/Chuck/internal/config"
@@ -126,6 +127,9 @@ func (s *Server) ensureRunWorkspace(ctx context.Context, workspaceID string) (w 
 		if ae := s.recreateRunCheckout(ctx, w); ae != nil {
 			return w, false, "", ae
 		}
+		if ae := s.verifyRunCheckout(ctx, w); ae != nil {
+			return w, false, "", ae
+		}
 		recreated = true
 	}
 	// An owned checkout still `preparing` was interrupted between ownership and
@@ -215,9 +219,9 @@ func (s *Server) rollbackRunWorkspace(w state.PipelineWorkspace, message string)
 	return message
 }
 
-// verifyRunCheckout requires the recorded path, repository and branch to agree
-// before anything runs there (TS-12.R14). Mismatched contents are never
-// repaired or removed.
+// verifyRunCheckout requires the recorded path, repository, branch and Git's
+// own worktree registration to agree before ownership, launch, setup or
+// removal (TS-12.R14/R15). Mismatched contents are never repaired or removed.
 func (s *Server) verifyRunCheckout(ctx context.Context, w state.PipelineWorkspace) *runtime.APIError {
 	mismatch := func(detail string) *runtime.APIError {
 		return apiError(runtime.CodeValidation, fmt.Sprintf(
@@ -235,7 +239,18 @@ func (s *Server) verifyRunCheckout(ctx context.Context, w state.PipelineWorkspac
 	if branch, err := git.CurrentBranch(ctx, w.CheckoutPath); err != nil || branch != w.Branch {
 		return mismatch("different branch")
 	}
-	return nil
+	// A checkout whose registration names another path can be pruned by Git
+	// and its metadata invalidated while work runs in it.
+	entries, err := git.ListWorktrees(ctx, w.RepoPath)
+	if err != nil {
+		return mismatch("worktree registrations unreadable: " + err.Error())
+	}
+	for _, entry := range entries {
+		if sameCheckoutPath(entry.Path, w.CheckoutPath) && entry.Branch == w.Branch {
+			return nil
+		}
+	}
+	return mismatch("Git registers this worktree at another path")
 }
 
 // recreateRunCheckout restores an owned checkout lost out of band from its
@@ -288,7 +303,22 @@ type startCheckout struct {
 // a fresh launch passes an empty cwd and receives the workspace's, while
 // resume/switch pass their frozen cwd, which must still match. Everything else
 // keeps the project-keyed resolver.
-func (s *Server) resolveStartCheckout(ctx context.Context, projectID, workspaceID, cwd string) (startCheckout, *runtime.APIError) {
+//
+// Before readiness, the claimed start records the checkout it enters, whatever
+// its binding, so a removal either sees this start or this start sees the
+// removal (TS-12.R15). The record lasts until agentID's lifecycle claim ends.
+func (s *Server) resolveStartCheckout(ctx context.Context, agentID, projectID, workspaceID, cwd string) (startCheckout, *runtime.APIError) {
+	holdPath := cwd
+	if holdPath == "" && workspaceID != "" {
+		w, err := s.stateStore.ReadPipelineWorkspace(workspaceID)
+		if err != nil {
+			return startCheckout{}, apiError(runtime.CodeInternal, fmt.Sprintf("read pipeline workspace %s: %v", workspaceID, err))
+		}
+		holdPath = w.CheckoutPath
+	}
+	if ae := s.holdStartCheckout(agentID, holdPath); ae != nil {
+		return startCheckout{}, ae
+	}
 	if workspaceID == "" {
 		recreated, warning, ae := s.ensureWorktreeCheckout(ctx, projectID, cwd)
 		out := startCheckout{Cwd: cwd, Recreated: recreated, Warning: warning}
@@ -310,4 +340,72 @@ func (s *Server) resolveStartCheckout(ctx context.Context, projectID, workspaceI
 			"this agent's checkout %s does not match pipeline workspace %s", cwd, workspaceID))
 	}
 	return startCheckout{Cwd: cwd, Recreated: recreated, Branch: w.Branch, Warning: warning}, nil
+}
+
+// canonicalCheckoutPath resolves symlinks through the deepest existing part of
+// path, so a missing checkout and its live form compare equal.
+func canonicalCheckoutPath(path string) string {
+	path = filepath.Clean(path)
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	if dir, err := filepath.EvalSymlinks(filepath.Dir(path)); err == nil {
+		return filepath.Join(dir, filepath.Base(path))
+	}
+	return path
+}
+
+// holdStartCheckout records the checkout agentID's claimed start enters,
+// refusing it while that checkout is being removed. A caller without a claimed
+// agent id (composition tests) records nothing.
+func (s *Server) holdStartCheckout(agentID, cwd string) *runtime.APIError {
+	if agentID == "" || cwd == "" {
+		return nil
+	}
+	path := canonicalCheckoutPath(cwd)
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.removingCheckouts[path] {
+		return apiError(runtime.CodeConflict, "this checkout is being removed; start the agent again once removal finishes")
+	}
+	s.startCheckouts[agentID] = path
+	return nil
+}
+
+// startsInCheckout counts claimed starts that have entered path.
+func (s *Server) startsInCheckout(path string) int {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	return s.startsInCheckoutLocked(canonicalCheckoutPath(path))
+}
+
+func (s *Server) startsInCheckoutLocked(path string) int {
+	n := 0
+	for _, held := range s.startCheckouts {
+		if held == path {
+			n++
+		}
+	}
+	return n
+}
+
+// beginCheckoutRemoval refuses new starts in path until the returned release,
+// unless a claimed start already entered it.
+func (s *Server) beginCheckoutRemoval(path string) (func(), *runtime.APIError) {
+	path = canonicalCheckoutPath(path)
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if n := s.startsInCheckoutLocked(path); n > 0 {
+		return nil, checkoutInUse(n)
+	}
+	s.removingCheckouts[path] = true
+	return func() {
+		s.lifecycleMu.Lock()
+		delete(s.removingCheckouts, path)
+		s.lifecycleMu.Unlock()
+	}, nil
+}
+
+func checkoutInUse(n int) *runtime.APIError {
+	return apiError(runtime.CodeConflict, fmt.Sprintf("%d agent(s) are still running in this checkout; stop them first", n))
 }

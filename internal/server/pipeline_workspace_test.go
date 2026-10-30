@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/messaging"
 	"github.com/AsaphNoam/Chuck/internal/pipeline"
+	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
@@ -254,6 +256,25 @@ func TestPipelineRunWorkspaceRecoveryAndTombstone(t *testing.T) {
 		t.Fatalf("recreated branch = %q", branch)
 	}
 
+	// TS-12.R14: right repository and branch are not enough. A checkout moved,
+	// repaired at the new path and moved back is registered elsewhere, so Git
+	// may prune it; readiness refuses it until the registration is repaired.
+	moved := ws.CheckoutPath + "-moved"
+	if err := os.Rename(ws.CheckoutPath, moved); err != nil {
+		t.Fatal(err)
+	}
+	gitOutput(t, repo, "worktree", "repair", moved)
+	if err := os.Rename(moved, ws.CheckoutPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, ae := srv.ensureRunWorkspace(ctx, ws.WorkspaceID); ae == nil || !strings.Contains(ae.Message, "another path") {
+		t.Fatalf("stale registration accepted: %v", ae)
+	}
+	gitOutput(t, repo, "worktree", "repair", ws.CheckoutPath)
+	if _, _, _, ae := srv.ensureRunWorkspace(ctx, ws.WorkspaceID); ae != nil {
+		t.Fatalf("repaired registration: %s", ae.Message)
+	}
+
 	// A replacement directory is neither repaired nor removed.
 	gitOutput(t, repo, "worktree", "remove", "--force", ws.CheckoutPath)
 	if err := os.MkdirAll(ws.CheckoutPath, 0o700); err != nil {
@@ -321,6 +342,65 @@ func TestPipelineRunWorkspaceSurvivesResume(t *testing.T) {
 	if after.Cwd != before.Cwd || after.WorkspaceID != before.WorkspaceID || after.WorkspaceID == "" {
 		t.Fatalf("resume moved the agent: before %q/%q after %q/%q", before.Cwd, before.WorkspaceID, after.Cwd, after.WorkspaceID)
 	}
+}
+
+// TS-09.R65 — effective agent metadata projects the frozen session binding
+// through the retained workspace record: live, after explicit removal and
+// after the run itself is deleted.
+func TestPipelineRunWorkspaceAgentMetadata(t *testing.T) {
+	srv, _, _ := workspaceTestServer(t)
+	handler := srv.routes()
+	run := startWorkspaceRun(t, srv, "meta", "Meta", &pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: "meta"})
+	standing, coordinator := runningStageAgents(t, srv, run.Run.RunID)
+	wsID := run.Workspace.WorkspaceID
+	metadata := func(wantState string) {
+		t.Helper()
+		rec := doRequest(t, handler, http.MethodGet, "/api/sessions/"+standing, nil)
+		var resp struct {
+			Workspace *struct {
+				WorkspaceID string `json:"workspace_id"`
+				Mode        string `json:"mode"`
+				Cwd         string `json:"cwd"`
+				Branch      string `json:"branch"`
+				State       string `json:"state"`
+			} `json:"workspace"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil || rec.Code != http.StatusOK || resp.Workspace == nil {
+			t.Fatalf("session = %d %s", rec.Code, rec.Body.String())
+		}
+		if w := resp.Workspace; w.WorkspaceID != wsID || w.Mode != state.PipelineWorkspaceModeNewWorktree || w.Branch != "meta" || w.Cwd == "" || w.State != wantState {
+			t.Fatalf("session workspace = %+v, want state %q", *w, wantState)
+		}
+		update, err := srv.stateMgr.Touch(standing)
+		if err != nil || update.Workspace == nil || update.Workspace.State != wantState {
+			t.Fatalf("agent state workspace = %+v err=%v", update.Workspace, err)
+		}
+	}
+	metadata(state.PipelineWorkspaceReady)
+
+	endRun(t, srv, run.Run.RunID)
+	for _, id := range []string{standing, coordinator} {
+		deadline := time.Now().Add(2 * time.Second)
+		for srv.lifecycleInFlight(id) && time.Now().Before(deadline) {
+			time.Sleep(5 * time.Millisecond)
+		}
+		if rec := doRequest(t, handler, http.MethodPost, "/api/sessions/"+id+"/stop", nil); rec.Code != http.StatusOK {
+			t.Fatalf("stop = %d %s", rec.Code, rec.Body.String())
+		}
+	}
+	ws := workspaceDetail(t, srv, wsID)
+	if !ws.Removable {
+		t.Fatalf("workspace not removable: %+v", ws)
+	}
+	if rec := doRequest(t, handler, http.MethodPost, "/api/pipeline-workspaces/"+wsID+"/remove", removeWorkspaceRequest{Revision: ws.Revision, DirtyKnown: true}); rec.Code != http.StatusOK {
+		t.Fatalf("remove = %d %s", rec.Code, rec.Body.String())
+	}
+	metadata(state.PipelineWorkspaceRemoved)
+
+	if rec := doRequest(t, handler, http.MethodDelete, "/api/pipeline-runs/"+run.Run.RunID, nil); rec.Code >= 300 {
+		t.Fatalf("delete run = %d %s", rec.Code, rec.Body.String())
+	}
+	metadata(state.PipelineWorkspaceRemoved)
 }
 
 func gitOutput(t *testing.T, dir string, args ...string) string {
@@ -459,4 +539,84 @@ func TestPipelineRunWorkspaceExplicitRemoval(t *testing.T) {
 	if retained := workspaceDetail(t, srv, deleted.Workspace.WorkspaceID); !retained.Removable || retained.Missing {
 		t.Fatalf("retained checkout after run deletion = %+v", retained)
 	}
+}
+
+// TS-12.R15 — every user of the checkout blocks removal, whatever its binding
+// and however many retained conversations precede it: an ordinary agent whose
+// project points at the retained checkout, a run conversation beyond any page
+// of idle ones, and a claimed start racing the removal in either order.
+func TestPipelineRunWorkspaceRemovalSeesEveryUser(t *testing.T) {
+	srv, _, ts := workspaceTestServer(t)
+	ctx := context.Background()
+	ended := func(name string) state.PipelineWorkspace {
+		t.Helper()
+		run := startWorkspaceRun(t, srv, name, name, &pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: name})
+		ws, _, _, ae := srv.ensureRunWorkspace(ctx, run.Workspace.WorkspaceID)
+		if ae != nil {
+			t.Fatal(ae.Message)
+		}
+		endRun(t, srv, run.Run.RunID)
+		return ws
+	}
+	assertRefused := func(ws state.PipelineWorkspace, why string) {
+		t.Helper()
+		if _, ae := srv.removeRunWorkspace(ctx, ws.WorkspaceID, removeWorkspaceRequest{Revision: ws.Revision, DirtyKnown: true}); ae == nil {
+			t.Fatalf("removed a checkout in use: %s", why)
+		}
+		if _, err := os.Stat(ws.CheckoutPath); err != nil {
+			t.Fatalf("refused removal touched the checkout (%s): %v", why, err)
+		}
+	}
+
+	// Many idle run conversations precede the one still running.
+	crowded := ended("crowded")
+	for i := 0; i <= 256; i++ {
+		id := fmt.Sprintf("a-%03d", i)
+		if _, err := srv.stateStore.DB().Exec(`INSERT INTO agents(agent_id, name, role, project, backend, model, interface, created_at)
+VALUES (?, '', 'impl', 'repo', 'claude', 'sonnet', 'chat', '2026-10-29T00:00:00Z')`, id); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := srv.stateStore.DB().Exec(`INSERT INTO sessions(agent_id, name, role, project, backend, model, interface, cwd, system_prompt, created_at, updated_at, workspace_id)
+VALUES (?, '', 'impl', 'repo', 'claude', 'sonnet', 'chat', ?, '', '2026-10-29T00:00:00Z', '2026-10-29T00:00:00Z', ?)`, id, crowded.CheckoutPath, crowded.WorkspaceID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := srv.stateStore.WriteRunning(state.RunningEntry{AgentID: "a-256", PID: 1, SessionID: "s", Interface: "chat", StartedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	assertRefused(crowded, "257th conversation running")
+
+	// The same path claimed by an in-flight start, either side first.
+	racing := ended("racing")
+	if !srv.claimLifecycle("starter") {
+		t.Fatal("claim")
+	}
+	if _, ae := srv.resolveStartCheckout(ctx, "starter", "repo", "", racing.CheckoutPath); ae != nil {
+		t.Fatal(ae.Message)
+	}
+	assertRefused(racing, "start entered first")
+	srv.releaseLifecycle("starter")
+	done, ae := srv.beginCheckoutRemoval(racing.CheckoutPath)
+	if ae != nil {
+		t.Fatal(ae.Message)
+	}
+	if !srv.claimLifecycle("late") {
+		t.Fatal("claim")
+	}
+	if _, ae := srv.resolveStartCheckout(ctx, "late", "repo", "", racing.CheckoutPath); ae == nil || ae.Code != runtime.CodeConflict {
+		t.Fatalf("start during removal = %v", ae)
+	}
+	srv.releaseLifecycle("late")
+	done()
+
+	// An ordinary agent launched there carries no workspace id.
+	other := ended("other")
+	if err := srv.configStore.WriteProject("repo", config.Project{Title: "Repo", Cwd: other.CheckoutPath, AddDirs: []string{}}); err != nil {
+		t.Fatal(err)
+	}
+	ordinary := launchAndWaitIdle(t, ts, "impl", "repo")
+	if snap, err := srv.stateStore.ReadSession(ordinary); err != nil || snap.WorkspaceID != "" {
+		t.Fatalf("ordinary fixture = %+v %v", snap, err)
+	}
+	assertRefused(other, "ordinary binding running")
 }

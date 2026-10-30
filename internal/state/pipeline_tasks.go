@@ -54,6 +54,14 @@ func insertPipelineStageRowsTx(tx *sql.Tx, p CreatePipelineStageTaskParams, now 
 			return "", fmt.Errorf("state: a room-backed stage has no coordinator")
 		}
 	}
+	// A launched standing owner joins the run's frozen group like every launch
+	// in its lineage, including the first after a room-first stage (FS-14.R93).
+	// An existing target is checked at admission (CheckPipelineTaskTarget).
+	if p.Task.TargetKind == TargetLaunch {
+		if err := placeRunTaskTx(tx, &p.Task, p.RunID); err != nil {
+			return "", err
+		}
+	}
 	if err := insertTaskRowTx(tx, p.Task); err != nil {
 		return "", fmt.Errorf("state: insert pipeline stage task: %w", err)
 	}
@@ -887,6 +895,9 @@ func (s *Store) PreparePipelineStageReplacement(p CreatePipelineStageTaskParams,
 	// The successor is armed and admitted by a separate committed intent, so
 	// recovery can replay that one step without minting a second task (R41).
 	p.Task.AttentionReason, p.Task.ReadyAt = "", nil
+	if err := placeRunTaskTx(tx, &p.Task, p.RunID); err != nil {
+		return PipelineRunRecord{}, err
+	}
 	if err := insertTaskRowTx(tx, p.Task); err != nil {
 		return PipelineRunRecord{}, err
 	}

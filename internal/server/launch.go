@@ -41,6 +41,7 @@ type sessionResponse struct {
 	Running     *state.RunningEntry        `json:"running,omitempty"`
 	Status      *state.Status              `json:"status,omitempty"`
 	Pipeline    *state.PipelineAssociation `json:"pipeline,omitempty"`
+	Workspace   *state.PipelineWorkspace   `json:"workspace,omitempty"`
 	Quota       *state.QuotaProjection     `json:"quota,omitempty"`
 	Attachments *attachmentCapabilities    `json:"attachment_capabilities,omitempty"`
 	// Worktree reports that this start had to re-materialize the project's owned
@@ -219,6 +220,11 @@ func (s *Server) readSession(id string) sessionResponse {
 	if association, err := s.stateStore.PipelineAssociationForAgent(id); err == nil {
 		resp.Pipeline = association
 	}
+	if workspace, err := s.stateStore.PipelineWorkspaceForAgent(id); err == nil {
+		resp.Workspace = workspace
+	} else {
+		s.log.Error("read session workspace", "agent", id, "err", err)
+	}
 	if quota, err := s.stateStore.QuotaProjection(id); err == nil {
 		resp.Quota = quota
 	} else {
@@ -326,7 +332,7 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 	// missing directory from failing deep in the runtime with a fork/exec ENOENT
 	// naming the adapter binary; for a worktree project it also re-materializes a
 	// missing owned checkout before anything starts (FS-19.R7).
-	checkout, ae := s.resolveStartCheckout(ctx, req.Project, workspaceID, cwd)
+	checkout, ae := s.resolveStartCheckout(ctx, options.AgentID, req.Project, workspaceID, cwd)
 	if ae != nil {
 		return runtime.LaunchSpec{}, state.Agent{}, ae
 	}

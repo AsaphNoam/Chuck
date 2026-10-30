@@ -451,7 +451,7 @@ func (s *Server) composeSwitchSpecFrom(ctx context.Context, target state.Agent, 
 	// Resolve the working directory through the one shared step before any
 	// registration side effect (TS-01.R26, TS-12.R4). Switch keeps the frozen
 	// snapshot cwd for the same reason resume does.
-	checkout, wae := s.resolveStartCheckout(ctx, target.Project, snap.WorkspaceID, snap.Cwd)
+	checkout, wae := s.resolveStartCheckout(ctx, target.AgentID, target.Project, snap.WorkspaceID, snap.Cwd)
 	if wae != nil {
 		return runtime.LaunchSpec{}, wae
 	}

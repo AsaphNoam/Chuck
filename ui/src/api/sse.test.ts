@@ -439,6 +439,26 @@ describe("SseClient watchdog reconnect", () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: ["pipelines", "run-detail", "pr_1"] });
   });
 
+  // A workspace removal elsewhere changes no run revision; the open Workspaces
+  // list and detail must still refetch on the update and after a reconnect.
+  it("refetches pipeline workspaces on same-revision updates and reconnect", async () => {
+    const { sseClient } = await import("./sse");
+    const { queryClient } = await import("./config");
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+    queryClient.setQueryData(["pipelines", "run-detail", "pr_1"], { run: { revision: 4, attention_reason: "" } });
+    sseClient.connect();
+    FakeEventSource.instances[0].onopen?.();
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["pipelines", "workspaces"] });
+    spy.mockClear();
+
+    FakeEventSource.instances[0].emit("pipeline_update", JSON.stringify({
+      type: "pipeline_update", seq: 4, ts: 4, agent_id: null,
+      data: { run_id: "pr_1", display_name: "Run one", revision: 4, state: "completed", current_stage_id: "", current_agent_id: "", attention_reason: "", final_outcome: "success" },
+    }));
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ["pipelines", "run-detail", "pr_1"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["pipelines", "workspaces"] });
+  });
+
   it("refetches open pipeline details but keeps run-list pagination on task updates", async () => {
     const { sseClient } = await import("./sse");
     const { queryClient } = await import("./config");

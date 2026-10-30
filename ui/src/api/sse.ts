@@ -82,6 +82,7 @@ class SseClient {
       queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runs });
       queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runDetails });
       queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.proposals });
+      queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.workspaces });
       queryClient.invalidateQueries({ queryKey: TASK_QUERY_KEYS.all });
       queryClient.invalidateQueries({ queryKey: THINK_TANK_KEYS.all });
       queryClient.invalidateQueries({ queryKey: REMOTE_QUERY_KEY });
@@ -299,6 +300,9 @@ class SseClient {
       queryClient.invalidateQueries({ queryKey: key });
     }
     queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runs });
+    // Workspace state (removal, dirty/unknown) changes without a run revision,
+    // so every pipeline update refetches the open workspace views (TS-09.R65).
+    queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.workspaces });
   }
 
   // The shared worker is preferred, but SharedWorker EXISTING is not proof that

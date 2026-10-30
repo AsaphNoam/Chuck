@@ -237,7 +237,10 @@ type AgentState struct {
 	UpdatedAt      int64                `json:"updated_at"`
 	Archived       bool                 `json:"archived"`
 	Pipeline       *PipelineAssociation `json:"pipeline,omitempty"`
-	Quota          *QuotaProjection     `json:"quota,omitempty"`
+	// Workspace is the run checkout this conversation's session is frozen to,
+	// from its retained record (TS-09.R65); absent for ordinary agents.
+	Workspace *PipelineWorkspace `json:"workspace,omitempty"`
+	Quota     *QuotaProjection   `json:"quota,omitempty"`
 	// HistoryState is the conversation's history health, "ok" or "degraded";
 	// absent is legacy unknown, not verified healthy. HistoryReason is a bounded
 	// vocabulary set only while degraded (FS-03.R99, TS-03.R73).

@@ -149,6 +149,11 @@ type Server struct {
 	lifecycleBusy   map[string]chan struct{}
 	lifecycleClosed bool
 	lifecycleWG     sync.WaitGroup
+	// startCheckouts names the canonical checkout each claimed start entered,
+	// until its claim releases after durable registration; removingCheckouts
+	// refuses new starts there while a removal runs (TS-12.R15, INV §5).
+	startCheckouts    map[string]string
+	removingCheckouts map[string]bool
 
 	// pickerMu guards pickerBusy: the process-wide claim that keeps at most one
 	// macOS folder panel open (TS-03.R26). It is a single flag, not a per-key
@@ -361,6 +366,8 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		mcpCleanups:               map[string]func(){},
 		switching:                 map[string]bool{},
 		lifecycleBusy:             map[string]chan struct{}{},
+		startCheckouts:            map[string]string{},
+		removingCheckouts:         map[string]bool{},
 		projectArchiving:          map[string]bool{},
 		projectStartLeases:        map[string]int{},
 		agentArchiving:            map[string]bool{},

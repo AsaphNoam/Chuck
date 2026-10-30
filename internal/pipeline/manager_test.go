@@ -281,6 +281,10 @@ func TestReplaceInterruptedStandingOwnerFencesOldTask(t *testing.T) {
 	if replaced.Run.State != "queued" || stages[0].State != "replaced" || stages[1].AttemptNumber != 2 || oldTask.Outcome != state.OutcomeCancelled || newTask.State != state.TaskReady || newTask.TargetKind != state.TargetLaunch || newTask.Model != "gpt" {
 		t.Fatalf("run=%#v stages=%#v old=%#v new=%#v", replaced.Run, stages, oldTask, newTask)
 	}
+	// FS-14.R93: the replacement owner launches into the run's frozen group.
+	if w, err := manager.store.ReadPipelineWorkspaceForRun(detail.Run.RunID); err != nil || w.RunName == "" || newTask.Group != w.RunName || oldTask.Group != w.RunName {
+		t.Fatalf("groups old=%q new=%q workspace=%+v err=%v", oldTask.Group, newTask.Group, w, err)
+	}
 	if _, err := manager.store.AcceptPipelineStageTaskResult(oldTask.TaskID, "old-owner", "", oldTask.ExecutionHandle, replaced.Run.Revision, state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "stale"}); !errors.Is(err, state.ErrPipelineStageConflict) {
 		t.Fatalf("stale result error = %v", err)
 	}

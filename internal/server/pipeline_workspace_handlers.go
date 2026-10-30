@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -18,10 +17,6 @@ import (
 // Retained pipeline workspace management (TS-12.R15/R16). The routes inherit
 // the whole-mux localOnly guard (INV §14); no remote-control or MCP route
 // reaches them.
-
-// workspaceInUseLimit bounds the retained conversations a removal inspects.
-// One more than any plausible run is enough to prove "still in use".
-const workspaceInUseLimit = 256
 
 type pipelineWorkspaceList struct {
 	Workspaces []state.PipelineWorkspace `json:"workspaces"`
@@ -167,18 +162,21 @@ func (s *Server) workspaceRemovable(ws state.PipelineWorkspace) *runtime.APIErro
 			return apiError(runtime.CodeConflict, "a run task is still starting in this checkout")
 		}
 	}
-	agents, err := s.stateStore.PipelineWorkspaceAgents(ws.WorkspaceID, workspaceInUseLimit)
+	// Any binding counts: an ordinary agent whose project points at the
+	// retained checkout uses it as much as the run's own conversations.
+	running, err := s.stateStore.RunningCheckouts()
 	if err != nil {
 		return apiError(runtime.CodeInternal, err.Error())
 	}
-	inUse := 0
-	for _, agentID := range agents {
-		if _, err := s.stateStore.ReadRunning(agentID); err == nil || !errors.Is(err, state.ErrNotFound) || s.lifecycleInFlight(agentID) {
+	path := canonicalCheckoutPath(ws.CheckoutPath)
+	inUse := s.startsInCheckout(ws.CheckoutPath)
+	for _, r := range running {
+		if r.WorkspaceID == ws.WorkspaceID || (r.Cwd != "" && canonicalCheckoutPath(r.Cwd) == path) {
 			inUse++
 		}
 	}
 	if inUse > 0 {
-		return apiError(runtime.CodeConflict, fmt.Sprintf("%d agent(s) are still running in this checkout; stop them first", inUse))
+		return checkoutInUse(inUse)
 	}
 	return nil
 }
@@ -203,6 +201,12 @@ func (s *Server) removeRunWorkspace(ctx context.Context, workspaceID string, con
 	if consent.Revision != ws.Revision {
 		return ws, apiError(runtime.CodeConflict, "the checkout changed since it was reviewed; review it again")
 	}
+	// From here no start may enter the checkout; one already inside refuses.
+	done, ae := s.beginCheckoutRemoval(ws.CheckoutPath)
+	if ae != nil {
+		return ws, ae
+	}
+	defer done()
 	if ae := s.workspaceRemovable(ws); ae != nil {
 		return ws, ae
 	}
@@ -215,9 +219,6 @@ func (s *Server) removeRunWorkspace(ctx context.Context, workspaceID string, con
 	}
 	if present {
 		if ae := s.verifyRunCheckout(ctx, ws); ae != nil {
-			return ws, ae
-		}
-		if ae := s.verifyRunRegistration(ctx, ws); ae != nil {
 			return ws, ae
 		}
 		// A checkout disclosed as clean is rechecked; one that became dirty or
@@ -255,21 +256,6 @@ func (s *Server) removeRunWorkspace(ctx context.Context, workspaceID string, con
 	return ws, nil
 }
 
-// verifyRunRegistration requires the checkout to be registered exactly to the
-// recorded repository before Git is asked to remove it.
-func (s *Server) verifyRunRegistration(ctx context.Context, ws state.PipelineWorkspace) *runtime.APIError {
-	entries, err := s.worktreeGit().ListWorktrees(ctx, ws.RepoPath)
-	if err != nil {
-		return apiError(runtime.CodeValidation, fmt.Sprintf("cannot read registrations for %s: %v", ws.RepoPath, err))
-	}
-	for _, entry := range entries {
-		if sameCheckoutPath(entry.Path, ws.CheckoutPath) && entry.Branch == ws.Branch {
-			return nil
-		}
-	}
-	return apiError(runtime.CodeValidation, fmt.Sprintf("%s is not registered to %s on branch %q; Chuck will not remove it", ws.CheckoutPath, ws.RepoPath, ws.Branch))
-}
-
 // reconcileRemovingWorkspaces finishes removals a restart interrupted: a
 // checkout already gone becomes removed; one still present needs fresh
 // validation and consent, so it returns to ready (TS-12.R15).
@@ -290,10 +276,21 @@ func (s *Server) reconcileRemovingWorkspaces() {
 	}
 }
 
-// publishWorkspace republishes the owning run where its record remains, so
-// open run details refetch the workspace state (TS-09.R65).
+// publishWorkspace republishes the owning run where its record remains and the
+// agents frozen to the workspace, so open run details and agent metadata
+// refetch the workspace state (TS-09.R65).
 func (s *Server) publishWorkspace(ws state.PipelineWorkspace) {
 	if s.pipelineMgr != nil {
 		s.pipelineMgr.PublishRun(ws.RunID)
+	}
+	agents, err := s.stateStore.PipelineWorkspaceAgentIDs(ws.WorkspaceID)
+	if err != nil {
+		s.log.Warn("pipeline workspace: list agents to republish", "workspace", ws.WorkspaceID, "err", err)
+		return
+	}
+	for _, id := range agents {
+		if _, err := s.stateMgr.Touch(id); err != nil {
+			s.log.Warn("pipeline workspace: republish agent", "agent", id, "err", err)
+		}
 	}
 }

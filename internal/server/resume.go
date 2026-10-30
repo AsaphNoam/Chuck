@@ -118,6 +118,7 @@ func (s *Server) releaseLifecycle(agentID string) {
 	s.lifecycleMu.Lock()
 	done := s.lifecycleBusy[agentID]
 	delete(s.lifecycleBusy, agentID)
+	delete(s.startCheckouts, agentID)
 	if done != nil {
 		close(done)
 	}
@@ -518,7 +519,7 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 	// registration side effect (TS-01.R26, TS-12.R4). Resume keeps the frozen
 	// snapshot cwd: the helper only re-materializes a missing owned checkout at
 	// that exact recorded path, and never re-derives a different one.
-	checkout, wae := s.resolveStartCheckout(ctx, agent.Project, snap.WorkspaceID, snap.Cwd)
+	checkout, wae := s.resolveStartCheckout(ctx, agent.AgentID, agent.Project, snap.WorkspaceID, snap.Cwd)
 	if wae != nil {
 		return runtime.LaunchSpec{}, wae
 	}

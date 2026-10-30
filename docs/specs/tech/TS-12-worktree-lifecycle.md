@@ -177,7 +177,10 @@ existing checkout/setup boundary.
 - **R15 (shipped 2026-10-29) — Checkout removal is an explicit durable operation.** Offer removal only
   after a run is terminal and normal task/room cleanup has settled; dismissal defaults to keeping.
   Under the workspace claim, block new starts and refuse while any Chuck runtime/start claim using
-  that checkout remains, including a resumed retained conversation or clone. Reuse existing
+  that checkout remains, including a resumed retained conversation or clone. "Using" is matched by
+  canonical checkout path across every binding (run workspace or ordinary project cwd), not by
+  workspace id or a page of retained sessions; a claimed start records its checkout before
+  readiness until its lifecycle claim ends, and is refused while removal runs. Reuse existing
   generation/process identity proof; uncertainty refuses removal, and this action never stops
   unrelated work implicitly. Verify canonical namespace, symlink-free path, recorded Git common
   directory/branch and exact worktree registration. Disclose dirty/unknown state on demand; carry
