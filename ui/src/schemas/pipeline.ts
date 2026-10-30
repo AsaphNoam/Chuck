@@ -43,6 +43,7 @@ export const pipelineStageSchema = z.object({
     judge_role: z.string(),
   }).optional(),
   approval_after_success: z.boolean().optional().default(false),
+  required_for_completion: z.boolean().optional().default(false),
 });
 
 export const pipelineTemplateSchema = z.object({

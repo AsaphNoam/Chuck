@@ -38,6 +38,7 @@ const blankTemplate = (): PipelineTemplate => ({
     coordination: "standing",
     dedicated_role: "",
     approval_after_success: false,
+    required_for_completion: false,
   }],
 });
 
@@ -228,6 +229,7 @@ export function TemplateEditor({
             coordination: "standing",
             dedicated_role: "",
             approval_after_success: false,
+            required_for_completion: false,
           }))}>+</button></div>
           <ol>{draft.stages.map((stage, stageIndex) => <li key={`nav-${stageIndex}`}><button type="button" className={selectedStage === stageIndex ? "pipeline-stage-nav-item pipeline-stage-nav-item-active" : "pipeline-stage-nav-item"} onClick={() => setSelectedStage(stageIndex)}><span>{String(stageIndex + 1).padStart(2, "0")}</span><span><strong>{stage.title || stage.id || "Untitled stage"}</strong><small>{stage.coordination === "dedicated" ? `Dedicated · ${stage.dedicated_role || "role needed"}` : stage.coordination === "think_tank" ? `Think Tank · ${stage.think_tank?.participants.length ?? 0} participants` : "Standing owner"}</small></span>{diagnostics.some((item) => item.field.includes(`stages.${stageIndex}`) || item.field.includes(`stages[${stageIndex}]`)) && <em>!</em>}</button></li>)}</ol>
         </aside>
@@ -247,6 +249,7 @@ export function TemplateEditor({
               <fieldset className="pipeline-coordination"><legend>Coordination</legend><label className="pipeline-check"><input type="radio" checked={stage.coordination === "standing"} onChange={() => mutate((next) => { next.stages[stageIndex].coordination = "standing"; next.stages[stageIndex].dedicated_role = ""; delete next.stages[stageIndex].think_tank; })} /> Standing owner</label><label className="pipeline-check"><input type="radio" checked={stage.coordination === "dedicated"} onChange={() => mutate((next) => { next.stages[stageIndex].coordination = "dedicated"; delete next.stages[stageIndex].think_tank; })} /> Dedicated coordinator</label><label className="pipeline-check"><input type="radio" checked={stage.coordination === "think_tank"} onChange={() => mutate((next) => { const target = next.stages[stageIndex]; target.coordination = "think_tank"; target.dedicated_role = ""; target.think_tank ??= defaultThinkTank(next.orchestrator_role); })} /> Think Tank</label>{stage.coordination === "dedicated" && <label className="form-field"><span>Coordinator role</span><select value={stage.dedicated_role} onChange={(event) => mutate((next) => { next.stages[stageIndex].dedicated_role = event.target.value; })}>{displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, personaLabel(roleID, role)])).map(([roleID, title]) => <option key={roleID} value={roleID}>{title}</option>)}<option value="">Select role</option></select></label>}</fieldset>
               {stage.coordination === "think_tank" && <ThinkTankStageFields stage={stage} stageIndex={stageIndex} roleOptions={displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, personaLabel(roleID, role)]))} mutate={mutate} />}
               <label className="pipeline-check"><input type="checkbox" checked={stage.approval_after_success} onChange={(event) => mutate((next) => { next.stages[stageIndex].approval_after_success = event.target.checked; })} /> Require approval after success</label>
+              <label className="pipeline-check" title={stage.approval_after_success ? "A step that needs approval is always required" : undefined}><input type="checkbox" checked={stage.required_for_completion || stage.approval_after_success} disabled={stage.approval_after_success} onChange={(event) => mutate((next) => { next.stages[stageIndex].required_for_completion = event.target.checked; })} /> Must succeed before the run can complete</label>
 
               <StageBindings
                 kind="inputs"

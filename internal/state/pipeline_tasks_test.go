@@ -355,7 +355,7 @@ func TestAcceptPipelineStageTaskResultFencesHandleAndYield(t *testing.T) {
 	if _, err := st.DB().Exec(`UPDATE tasks SET pending_yield = 0 WHERE task_id = ?`, stageTaskID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.AcceptPipelineStageTaskResult(stageTaskID, "owner", "gen", "ta_current", run.Revision, result); err != nil {
+	if _, err := st.AcceptPipelineStageTaskResult(stageTaskID, "owner", "gen", "ta_current", run.Revision, completeDecision(result)); err != nil {
 		t.Fatalf("AcceptPipelineStageTaskResult with the current handle: %v", err)
 	}
 	accepted, err := st.ReadTask(stageTaskID)
@@ -894,4 +894,11 @@ func TestTaskResultOutputsAreBounded(t *testing.T) {
 	if after, err := st.ReadPipelineRun(runID); err != nil || after.Revision != run.Revision {
 		t.Fatalf("refused stage report moved the run: %+v %v", after, err)
 	}
+}
+
+// completeDecision marks a final-step success as the owner's explicit
+// completion, which the plan's end requires (TS-09.R66).
+func completeDecision(r TaskResult) TaskResult {
+	r.Decision = &PipelineDecision{Action: DecisionComplete, Reason: "goal met"}
+	return r
 }

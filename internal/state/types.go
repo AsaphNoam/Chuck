@@ -357,9 +357,13 @@ type PipelineRunRecord struct {
 	ControllerFailures  int             `json:"controller_failures"`
 	ControllerRetryAt   *time.Time      `json:"controller_retry_at,omitempty"`
 	ControllerLastError string          `json:"controller_last_error"`
-	FinalOutcome        string          `json:"final_outcome"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
+	// RecoveryRoundsUsed counts automatic repair/revisit rounds in the
+	// current allowance; PauseQuestion is an open question (TS-09.R70).
+	RecoveryRoundsUsed int       `json:"recovery_rounds_used"`
+	PauseQuestion      string    `json:"pause_question,omitempty"`
+	FinalOutcome       string    `json:"final_outcome"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 type PipelineAttemptRecord struct {
@@ -478,6 +482,9 @@ type PipelineRunUpdate struct {
 	FinalOutcome     string
 	UpdatedAt        time.Time
 	MarkRoomTeardown bool
+	// PauseQuestion is the owner's concrete question while the run waits for
+	// the person's answer; every other update clears it (FS-14.R99).
+	PauseQuestion string
 }
 
 type PipelineReportInput struct {

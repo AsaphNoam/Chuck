@@ -63,7 +63,7 @@ func (s *Server) handleGetAssignedTask(_ context.Context, req *mcp.CallToolReque
 			"ok": false, "error": "internal", "message": "Could not read your assignment.",
 		})
 	}
-	return jsonResult(map[string]any{
+	response := map[string]any{
 		"observed_changes": observed,
 		"ok":               true,
 		"assigned":         true,
@@ -73,8 +73,31 @@ func (s *Server) handleGetAssignedTask(_ context.Context, req *mcp.CallToolReque
 		"state":            task.State,
 		"execution_handle": task.ExecutionHandle,
 		"attachments":      out,
-	})
+	}
+	// A pipeline stage assignment also gets the current code-owned contract,
+	// separate from its historical instruction text (TS-09.R71).
+	if pipeline, err := s.store.PipelineAssignmentContext(task.TaskID); err == nil {
+		response["pipeline"] = pipeline
+		response["pipeline_contract"] = PipelineDecisionContract
+	} else if !errors.Is(err, state.ErrNotFound) {
+		s.log.Debug("read pipeline assignment context failed", "task", task.TaskID, "err", err)
+		return errResult(map[string]any{
+			"ok": false, "error": "internal", "message": "Could not read your assignment.",
+		})
+	}
+	return jsonResult(response)
 }
+
+// PipelineDecisionContract is how a run owner ends a stage visit. It is
+// code-owned so a live assignment created under older instructions still
+// finishes under the current contract (FS-14.R97–R99, TS-09.R66/R71).
+const PipelineDecisionContract = "You own this pipeline run's goal. pipeline.steps is the usual plan, not a fixed script. " +
+	"End this step with report_task_result and, when useful, pipeline_decision: " +
+	"{action:\"next\", stage_id, reason} runs any listed step next — the usual next step, a repeat, a revisit (for example Fix after Review found defects, then Review again) — and omitting the decision on success takes the usual next step; " +
+	"{action:\"complete\", reason, required_checks} ends the run successfully and is required at the plan's end; required_checks maps every step marked required (required_for_completion or approval_after_success) to its accepted successful task id, which may be this task; " +
+	"{action:\"needs_input\", question, reason} pauses for a concrete question only the person can answer. " +
+	"Skip a step only when it is unnecessary and say why. A failed or blocked report without a decision hands the evidence back to you for recovery; it does not end the run. " +
+	"An ordinary message from the person is an instruction or correction, never approval of a permission request or checkpoint. A refused decision leaves this assignment open: correct it and report again."
 
 // --- wait_for_tasks (FS-16.R30, TS-10.R27-R29) ---
 
@@ -121,6 +144,17 @@ type reportTaskArgs struct {
 	// stage result requires it; an ordinary task result may omit it, and any
 	// handle supplied must match the current execution (TS-09.R40, TS-10.R28).
 	ExecutionHandle string `json:"execution_handle,omitempty" jsonschema:"handle returned by get_assigned_task for this execution; required for a pipeline stage result"`
+	// PipelineDecision is the run owner's judgment for a pipeline stage
+	// result; ordinary task reports omit it (TS-09.R66).
+	PipelineDecision *pipelineDecisionArgs `json:"pipeline_decision,omitempty" jsonschema:"pipeline stage results only: what the run does next. Omit on success to take the usual next step; the plan's last step requires action complete"`
+}
+
+type pipelineDecisionArgs struct {
+	Action         string            `json:"action" jsonschema:"next (run a listed step, including a repeat or revisit), complete (the goal is met), or needs_input (ask the person a question)"`
+	StageID        string            `json:"stage_id,omitempty" jsonschema:"next only: a step id from get_assigned_task pipeline.steps"`
+	Reason         string            `json:"reason" jsonschema:"why this is the right next step"`
+	Question       string            `json:"question,omitempty" jsonschema:"needs_input only: the concrete question the person must answer"`
+	RequiredChecks map[string]string `json:"required_checks,omitempty" jsonschema:"complete only: for every required step, the id of its accepted successful task (this task for the current step)"`
 }
 
 // handleReportTaskResult records the caller's own result for its own assignment.
@@ -140,17 +174,27 @@ func (s *Server) handleReportTaskResult(_ context.Context, req *mcp.CallToolRequ
 	if control == nil {
 		return errResult(map[string]any{"ok": false, "error": "internal", "message": "Task control plane is unavailable."})
 	}
+	var decision *state.PipelineDecision
+	if d := input.PipelineDecision; d != nil {
+		decision = &state.PipelineDecision{Action: d.Action, StageID: d.StageID, Reason: d.Reason, Question: d.Question, RequiredChecks: d.RequiredChecks}
+	}
 	finished, err := control.ReportAgentTaskResult(AgentTaskResultRequest{
 		AgentID: identity.AgentID, Generation: identity.Generation,
 		ExecutionHandle: strings.TrimSpace(input.ExecutionHandle),
 		Result: state.TaskResult{
 			Outcome: input.Outcome, Summary: input.Summary,
-			Details: input.Details, Outputs: input.Outputs,
+			Details: input.Details, Outputs: input.Outputs, Decision: decision,
 		},
 	})
 	var toolErr *ToolError
 	if errors.As(err, &toolErr) {
 		return errResult(map[string]any{"ok": false, "error": toolErr.Code, "message": toolErr.Message})
+	}
+	// A refused decision leaves the assignment actionable; the message names
+	// the correction (TS-09.R68).
+	var decisionErr *state.DecisionError
+	if errors.As(err, &decisionErr) {
+		return errResult(map[string]any{"ok": false, "error": "invalid_decision", "message": decisionErr.Message})
 	}
 	switch {
 	case errors.Is(err, state.ErrInvalidOutcome):

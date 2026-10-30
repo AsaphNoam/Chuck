@@ -901,6 +901,29 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 66,
 		apply:   addPipelineVisits,
 	},
+	{
+		// The owner's decision travels with its immutable stage result; an
+		// approval is recorded per visit; the run keeps its recovery allowance
+		// accounting (TS-09.R66/R68/R70).
+		version: 67,
+		apply:   addPipelineDecisions,
+	},
+}
+
+// addPipelineDecisions follows addPipelineVisits for a legacy database
+// without pipeline tables.
+func addPipelineDecisions(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_stage_tasks'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE pipeline_stage_tasks ADD COLUMN decision_json TEXT NOT NULL DEFAULT '';
+ALTER TABLE pipeline_stage_tasks ADD COLUMN approved_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE pipeline_runs ADD COLUMN recovery_rounds_used INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pipeline_runs ADD COLUMN recovery_effect_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE pipeline_runs ADD COLUMN owner_stall_turns INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pipeline_runs ADD COLUMN pause_question TEXT NOT NULL DEFAULT '';`)
+	return err
 }
 
 // addPipelineVisits follows addStatusBackgroundRunning: a synthetic legacy

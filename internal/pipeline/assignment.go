@@ -62,12 +62,12 @@ func renderAssignment(run state.PipelineRunRecord, template Template, stage Stag
 	fmt.Fprintf(&fixed, "# Pipeline stage assignment\n\nRun: %s (%s)\nStage: %s (%s)\n",
 		clipText(run.DisplayName, MaxTitleRunes), run.RunID, stage.Title, stage.ID)
 	fixed.WriteString("\nScope: perform only this stage's responsibility in the shared project workspace. Do not claim that runtime status alone completes the stage.\n")
-	fixed.WriteString("\nBefore finishing, call report_task_result with outcome success, failure, or blocked, plus a bounded summary, details/checks, and declared outputs. This assigned task is the sole authority for the stage result. Your part ends only when Chuck accepts the result.\n")
+	fixed.WriteString("\nBefore finishing, call report_task_result with outcome success, failure, or blocked, plus a bounded summary, details/checks, and declared outputs, and a pipeline_decision when the usual next step is not right or this is the last step (get_assigned_task returns the plan and pipeline_contract). This assigned task is the sole authority for the stage result. Your part ends only when Chuck accepts the result.\n")
 	// The boundary the agent cannot otherwise see: reporting ends this attempt's
 	// participation, and a blocked report leaves the agent live and idle beside an
 	// Open agent action, so without this an operator's chat answer produces work
 	// that the run can never accept (FS-14.R47).
-	fixed.WriteString("\nAn accepted result closes this stage task before cleanup. If Chuck accepts a blocked result, the run pauses for a person; do not continue stage work until a new assigned task arrives.\n")
+	fixed.WriteString("\nAn accepted result closes this stage task before cleanup. Any further work for this run, including recovery after a failed or blocked result, arrives as a new assigned task; do not continue stage work until it does.\n")
 	if len(outputs) > 0 {
 		fixed.WriteString("Declared outputs (use these local names):\n")
 		for _, output := range outputs {

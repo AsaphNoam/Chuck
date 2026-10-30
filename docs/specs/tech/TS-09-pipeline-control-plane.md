@@ -957,6 +957,25 @@ new durable run revision or a structured validation/conflict result.
 
 ## 5. Deviations & open decisions
 
+- **Goal-led implementation progress (2026-10-30):** shipped so far: R69's queued input (TS-10.R29);
+  R67's visits; R66/R68's decision contract — `pipeline_decision` validated in
+  `AcceptPipelineStageTaskResult` (`state/pipeline_decisions.go`) and stored in
+  `pipeline_stage_tasks.decision_json` (migration 67), an implicit usual-next decision for a
+  decision-less success, explicit `complete` at the plan's end, correctable `invalid_decision`
+  refusals; execution after cleanup in `pipeline/decisions.go` (`executeStageDecision`,
+  `createVisit`, `completeRun`, `pauseRun`); approval recorded per visit (`approved_at`) before a
+  held decision runs; R70's round accounting charged atomically in `CreatePipelineStageTask`
+  (same-stage/backward routes and owner recovery visits), recoverable `recovery_exhausted` pause,
+  Continue/Resume renewing once under the run revision, `needs_input` question pause answered by
+  Continue; R71's `required_for_completion` marker, builder checkbox, `get_assigned_task.pipeline`
+  and `pipeline_contract`, guidance. Still planned: stall recovery for turns ending without
+  report/wait and automatic replacement (R70), interrupted-execution auto-recovery, room
+  owner-decision assignments, run/phone/CLI projection of visits/questions/recovery (R71/R103).
+  **Deviation (review):** a room-backed stage's accepted synthesis has no owner decision yet; it
+  takes the usual next step, and a room at the plan's end completes on the latest accepted evidence
+  for each required step (pausing `required_check_missing` otherwise) instead of R66's owner
+  decision assignment.
+
 - **Goal-led redesign confirmed (2026-10-30):** R66–R72 are planned. Useful existing-orchestrator
   judgment plus programmatic control, the decision-in-existing-report contract, automatic visibly
   fresh same-runtime replacement, recoverable exhaustion pauses and new semantics for new runs

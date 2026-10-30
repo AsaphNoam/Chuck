@@ -34,7 +34,16 @@ type CreatePipelineStageTaskParams struct {
 	// identities and the binding commit with the stage task, before any launch
 	// (TS-09.R52). The pipeline origin fields are filled here, not by callers.
 	Room *ThinkTankCreate
+	// ChargeRound spends one automatic repair/revisit round in the same
+	// transaction that creates this visit; RenewAllowance first grants a fresh
+	// allowance after an explicit Resume (TS-09.R70).
+	ChargeRound    bool
+	RenewAllowance bool
 }
+
+// ErrRecoveryExhausted means the run's automatic repair/revisit allowance is
+// spent: the controller pauses recoverably instead of creating the visit.
+var ErrRecoveryExhausted = errors.New("state: pipeline recovery allowance exhausted")
 
 // insertPipelineStageRowsTx is the one stage-task construction shared by run
 // start and later stage creation (INV §2): task, lineage, optional managed
@@ -314,9 +323,13 @@ FROM pipeline_stage_tasks p JOIN pipeline_runs r ON r.run_id = p.run_id JOIN tas
 			return PipelineRunRecord{}, err
 		}
 	}
+	decision, err := resolveStageDecisionTx(tx, runID, taskID, templateJSON, stageIndex, result.Outcome, result.Decision)
+	if err != nil {
+		return PipelineRunRecord{}, err
+	}
 	if err := commitStageResultTx(tx, stageResultCommit{
 		RunID: runID, TaskID: taskID, TaskState: taskState, Revision: revision, Source: "agent",
-		PendingRelease: true, Result: result, Declared: declared,
+		PendingRelease: true, Result: result, Declared: declared, Decision: decision,
 	}); err != nil {
 		return PipelineRunRecord{}, err
 	}
@@ -336,6 +349,9 @@ type stageResultCommit struct {
 	SourceEntrySeq                   int64
 	Result                           TaskResult
 	Declared                         map[string]string
+	// Decision is recorded with the closure intent; the controller executes
+	// exactly this after release and cleanup (TS-09.R68).
+	Decision *PipelineDecision
 }
 
 // commitStageResultTx writes the immutable task result, named outputs, value
@@ -366,7 +382,15 @@ func commitStageResultTx(tx *sql.Tx, c stageResultCommit) error {
 			}
 		}
 	}
-	res, err = tx.Exec(`UPDATE pipeline_stage_tasks SET state = 'closing', closure_revision = ?, closed_at = ?, source_entry_seq = ? WHERE task_id = ? AND state = 'open'`, revision+1, stamp, c.SourceEntrySeq, taskID)
+	decisionJSON := ""
+	if c.Decision != nil {
+		raw, err := json.Marshal(c.Decision)
+		if err != nil {
+			return fmt.Errorf("state: encode stage decision: %w", err)
+		}
+		decisionJSON = string(raw)
+	}
+	res, err = tx.Exec(`UPDATE pipeline_stage_tasks SET state = 'closing', closure_revision = ?, closed_at = ?, source_entry_seq = ?, decision_json = ? WHERE task_id = ? AND state = 'open'`, revision+1, stamp, c.SourceEntrySeq, decisionJSON, taskID)
 	if err != nil {
 		return err
 	}
@@ -673,6 +697,20 @@ func (s *Store) CreatePipelineStageTask(p CreatePipelineStageTaskParams) (Pipeli
 	}
 
 	now := timeNow()
+	if p.RenewAllowance {
+		if _, err := tx.Exec(`UPDATE pipeline_runs SET recovery_rounds_used = 0, owner_stall_turns = 0 WHERE run_id = ?`, p.RunID); err != nil {
+			return PipelineStageTask{}, Task{}, false, err
+		}
+	}
+	if p.ChargeRound {
+		res, err := tx.Exec(`UPDATE pipeline_runs SET recovery_rounds_used = recovery_rounds_used + 1 WHERE run_id = ? AND recovery_rounds_used < ?`, p.RunID, PipelineRecoveryRounds)
+		if err != nil {
+			return PipelineStageTask{}, Task{}, false, err
+		}
+		if n, _ := res.RowsAffected(); n != 1 {
+			return PipelineStageTask{}, Task{}, false, ErrRecoveryExhausted
+		}
+	}
 	if _, err := insertPipelineStageRowsTx(tx, p, now); err != nil {
 		return PipelineStageTask{}, Task{}, false, err
 	}
@@ -683,6 +721,7 @@ func (s *Store) CreatePipelineStageTask(p CreatePipelineStageTaskParams) (Pipeli
 		runState, pending = "running", ""
 	}
 	if _, err := tx.Exec(`UPDATE pipeline_runs SET state = ?, pending_action = ?, current_stage_id = ?, revision = revision + 1,
+	attention_reason = '', pause_question = '', owner_stall_turns = 0,
 	controller_failures = 0, controller_retry_at = NULL, controller_last_error = '', updated_at = ? WHERE run_id = ? AND revision = ?`, runState, pending, p.StageID, formatTime(now), p.RunID, revision); err != nil {
 		return PipelineStageTask{}, Task{}, false, err
 	}

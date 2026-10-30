@@ -25,7 +25,7 @@ var retryClasses = map[string]RetryClass{
 	"room_read_incomplete": RetryAfterChange,
 	"ambiguous_recipient":  RetryAfterChange, "recipient_not_found": RetryAfterChange,
 	"source_unavailable": RetryAfterChange, "validation_failed": RetryAfterChange,
-	"wait_conflict":           RetryAfterChange,
+	"wait_conflict": RetryAfterChange, "invalid_decision": RetryAfterChange,
 	"message_budget_exceeded": RetryNextTurn,
 	"internal":                RetryTransient, "store_unavailable": RetryTransient,
 	"context_unavailable": RetryTransient, "context_busy": RetryTransient,

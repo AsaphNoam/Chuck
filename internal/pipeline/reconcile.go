@@ -166,23 +166,23 @@ func (m *Manager) reconcileTaskStageRelease(run state.PipelineRunRecord) error {
 	if !found {
 		return controlError("invalid_state", "current stage is missing")
 	}
-	if task.Outcome != state.OutcomeSuccess {
-		paused, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{State: "paused", PendingAction: "", CurrentStageID: stage.ID, AttentionReason: task.Outcome})
-		if err == nil {
-			m.publish(paused)
-			m.notify(paused, "needs_attention")
+	// A configured checkpoint holds the accepted result's decision until the
+	// person approves this visit; skipping ahead cannot erase it (TS-09.R68).
+	if task.Outcome == state.OutcomeSuccess && stage.ApprovalAfterSuccess {
+		approved, err := m.store.StageVisitApproved(current.TaskID)
+		if err != nil {
+			return err
 		}
-		return err
-	}
-	if stage.ApprovalAfterSuccess {
-		paused, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{State: "paused", PendingAction: "await_approval", CurrentStageID: stage.ID, AttentionReason: "approval_required"})
-		if err == nil {
-			m.publish(paused)
-			m.notify(paused, "needs_attention")
+		if !approved {
+			paused, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{State: "paused", PendingAction: "await_approval", CurrentStageID: stage.ID, AttentionReason: "approval_required"})
+			if err == nil {
+				m.publish(paused)
+				m.notify(paused, "needs_attention")
+			}
+			return err
 		}
-		return err
 	}
-	return m.advanceTaskStage(run, detail, current, stage)
+	return m.executeStageDecision(run, detail, current, stage, task)
 }
 
 func (m *Manager) notify(run state.PipelineRunRecord, kind string) {

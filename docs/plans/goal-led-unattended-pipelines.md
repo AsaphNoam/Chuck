@@ -18,19 +18,13 @@ change finishes.
    backfilled in stage/attempt order. All cursor reads order by visit; `NextPipelineStageAttempt`
    allocates a revisit's attempt. Raw test inserts must supply a distinct `visit_sequence`.
 
+3–4. **Decision contract and execution.** Migration 67 (`decision_json`, `approved_at`, run
+   `recovery_rounds_used`, `recovery_effect_key` (unused yet), `owner_stall_turns`, `pause_question`);
+   `state/pipeline_decisions.go`; `pipeline/decisions.go`; Continue handles approval, answer, resume.
+   Tests: `state/pipeline_decisions_test.go`, `pipeline/goal_led_test.go`.
+
 ## Next
 
-3. **Contract (R66/R68/R71).** Template `required_for_completion`; `get_assigned_task.pipeline`
-   (visit, current stage, ≤32-entry step menu, required checks, recovery); optional
-   `report_task_result.pipeline_decision` validated inside `AcceptPipelineStageTaskResult` and stored
-   with the result/closure intent. Both tool schemas, operating guidance and builder examples change
-   together.
-4. **Decision execution (R66/R68/R70).** `reconcileTaskStageRelease`/`advanceTaskStage` execute the
-   recorded decision: next/revisit, complete (needs required evidence; end of plan needs explicit
-   complete), needs_input (paused with the question). Failure/blocked without decision → owner
-   recovery assignment. Approval gate still pauses before activation/completion. Round accounting
-   (three per allowance, charged on same-stage/backward routes and recovery assignments, effect-key
-   idempotent), exhaustion → recoverable pause + notification, Resume/instructions renew once.
 5. **Stall recovery and replacement (R70/R69).** Turn end without report/wait drives owner
    continuation; three such turns pause. Automatic visibly fresh same-runtime owner replacement when
    native resume fails, carrying pending queued input. Run-page answers and conversation answers use

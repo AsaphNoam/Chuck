@@ -524,7 +524,8 @@ const pipelineRunColumns = `
 run_id, template_id, template_snapshot_json, display_name, project, goal,
 inputs_json, assignments_json, state, revision, pending_action,
 current_stage_id, current_attempt_id, current_agent_id, attention_reason,
-final_outcome, created_at, updated_at, controller_failures, controller_retry_at, controller_last_error, current_task_id`
+final_outcome, created_at, updated_at, controller_failures, controller_retry_at, controller_last_error, current_task_id,
+recovery_rounds_used, pause_question`
 
 func readPipelineRunQuery(q pipelineRunQueryer, runID string) (PipelineRunRecord, error) {
 	run, err := scanPipelineRun(q.QueryRow(`SELECT `+pipelineRunColumns+` FROM pipeline_runs WHERE run_id = ?`, runID))
@@ -542,7 +543,7 @@ func scanPipelineRun(row rowScanner) (PipelineRunRecord, error) {
 		&run.RunID, &run.TemplateID, &snapshot, &run.DisplayName, &run.Project, &run.Goal,
 		&inputs, &assignments, &run.State, &run.Revision, &run.PendingAction,
 		&run.CurrentStageID, &run.CurrentAttemptID, &run.CurrentAgentID, &run.AttentionReason,
-		&run.FinalOutcome, &createdAt, &updatedAt, &run.ControllerFailures, &retryAt, &run.ControllerLastError, &run.CurrentTaskID,
+		&run.FinalOutcome, &createdAt, &updatedAt, &run.ControllerFailures, &retryAt, &run.ControllerLastError, &run.CurrentTaskID, &run.RecoveryRoundsUsed, &run.PauseQuestion,
 	)
 	if err != nil {
 		return PipelineRunRecord{}, fmt.Errorf("state: read pipeline run: %w", err)
@@ -797,10 +798,10 @@ UPDATE pipeline_runs SET
   state = ?, revision = revision + 1, pending_action = ?, current_stage_id = ?,
   current_attempt_id = ?, current_agent_id = ?, attention_reason = ?,
   final_outcome = ?, controller_failures = 0, controller_retry_at = NULL,
-  controller_last_error = '', updated_at = ?
+  controller_last_error = '', pause_question = ?, updated_at = ?
 WHERE run_id = ? AND revision = ?`,
 		update.State, update.PendingAction, update.CurrentStageID, update.CurrentAttemptID,
-		update.CurrentAgentID, update.AttentionReason, update.FinalOutcome, formatTime(update.UpdatedAt),
+		update.CurrentAgentID, update.AttentionReason, update.FinalOutcome, update.PauseQuestion, formatTime(update.UpdatedAt),
 		runID, expectedRevision,
 	)
 	if err != nil {

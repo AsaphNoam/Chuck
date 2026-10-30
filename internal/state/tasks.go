@@ -1704,6 +1704,10 @@ type TaskResult struct {
 	// intentionally task-owned: pipeline stages consume the same result record
 	// as ordinary dependent work rather than maintaining a second report store.
 	Outputs map[string]string
+	// Decision is the run owner's optional pipeline decision. Only a stage
+	// result may carry it; it is recorded with the stage, not the task
+	// (TS-09.R66).
+	Decision *PipelineDecision
 }
 
 // TaskLineage is server-derived provenance retained independently of erasable

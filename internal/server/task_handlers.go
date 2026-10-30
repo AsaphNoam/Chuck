@@ -852,6 +852,9 @@ func (s *Server) ReportAgentTaskResult(req messaging.AgentTaskResultRequest) (st
 	}
 	stage, stageErr := s.stateStore.ReadPipelineStageTaskByTask(task.TaskID)
 	if errors.Is(stageErr, state.ErrNotFound) {
+		if req.Result.Decision != nil {
+			return state.Task{}, &messaging.ToolError{Code: "validation", Message: "pipeline_decision applies only to a pipeline stage assignment; report this task without it."}
+		}
 		finished, err := s.stateStore.RecordAgentTaskResult(task.TaskID, req.AgentID, req.Generation, req.ExecutionHandle, req.Result)
 		if err != nil {
 			return state.Task{}, err

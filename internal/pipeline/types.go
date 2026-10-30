@@ -32,6 +32,10 @@ type Stage struct {
 	// ThinkTank configures a think_tank coordination stage (TS-09.R51).
 	ThinkTank            *ThinkTankStage `json:"think_tank,omitempty"`
 	ApprovalAfterSuccess bool            `json:"approval_after_success,omitempty"`
+	// RequiredForCompletion makes this step an explicit check: the run cannot
+	// complete without its accepted successful evidence. Omitted steps are the
+	// usual plan, not inferred gates (FS-14.R97, TS-09.R71).
+	RequiredForCompletion bool `json:"required_for_completion,omitempty"`
 	// Legacy fields remain decodable so hand-edited v1 files can receive a
 	// useful diagnostic instead of silently losing data.
 	Role        string             `json:"role,omitempty"`

@@ -762,7 +762,7 @@ func TestAcceptedStageResultPublishesItsRunUpdate(t *testing.T) {
 
 	finished, err := srv.ReportAgentTaskResult(messaging.AgentTaskResultRequest{
 		AgentID: owner, Generation: generation, ExecutionHandle: "ta_pub",
-		Result: state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "stage done"},
+		Result: state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "stage done", Decision: &state.PipelineDecision{Action: state.DecisionComplete, Reason: "goal met"}},
 	})
 	if err != nil || finished.Outcome != state.OutcomeSuccess {
 		t.Fatalf("ReportAgentTaskResult = %+v, %v", finished, err)

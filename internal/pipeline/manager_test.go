@@ -587,7 +587,12 @@ func TestLiveControllerFaultRetainsAcceptedStageProgression(t *testing.T) {
 			if _, err := manager.store.DB().Exec(`UPDATE tasks SET execution_handle = 'turn_1' WHERE task_id = ?`, stage.TaskID); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := manager.store.AcceptPipelineStageTaskResult(stage.TaskID, "a_owner", "gen-1", "turn_1", detail.Run.Revision, state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done", Outputs: map[string]string{"implementation": "done"}}); err != nil {
+			result := state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done", Outputs: map[string]string{"implementation": "done"}}
+			if tc.name == "final" {
+				// The plan's end needs the owner's explicit completion (TS-09.R66).
+				result.Decision = &state.PipelineDecision{Action: state.DecisionComplete, Reason: "goal met"}
+			}
+			if _, err := manager.store.AcceptPipelineStageTaskResult(stage.TaskID, "a_owner", "gen-1", "turn_1", detail.Run.Revision, result); err != nil {
 				t.Fatal(err)
 			}
 			if err := manager.store.CompleteTaskRelease(stage.TaskID); err != nil {

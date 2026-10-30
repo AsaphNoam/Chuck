@@ -37,18 +37,34 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 			unlock()
 			return RunDetail{}, controlError("invalid_state", "current stage is missing")
 		}
+		input = strings.TrimSpace(input)
 		var continueErr error
 		switch {
+		case utf8.RuneCountInString(input) > MaxValueRunes:
+			continueErr = validationError("continuation input is too long", []Diagnostic{{Field: "input", Code: "invalid", Message: "input must fit the pipeline value limit"}})
 		case run.State == "paused" && run.PendingAction == "await_approval" && task.Outcome == state.OutcomeSuccess:
-			continueErr = m.advanceTaskStage(run, detail, current, stage)
+			// Approval is the explicit checkpoint action; the recorded decision
+			// then runs exactly as reported (TS-09.R68).
+			if continueErr = m.store.ApproveStageVisit(current.TaskID); continueErr == nil {
+				continueErr = m.executeStageDecision(run, detail, current, stage, task)
+			}
 		case current.RoomID != "":
 			continueErr = errRoomRecovery
-		case run.State == "paused" && run.PendingAction == "" && (task.Outcome == state.OutcomeFailure || task.Outcome == state.OutcomeBlocked):
-			if strings.TrimSpace(input) == "" || utf8.RuneCountInString(input) > MaxValueRunes {
-				continueErr = validationError("continuation input is required", []Diagnostic{{Field: "input", Code: "invalid", Message: "input is required and must fit the pipeline value limit"}})
+		case run.State == "paused" && run.PendingAction == "" && run.AttentionReason == attentionNeedsInput:
+			// The answer continues the same goal on a new visit (FS-14.R99).
+			if input == "" {
+				continueErr = validationError("an answer is required", []Diagnostic{{Field: "input", Code: "invalid", Message: "answer the run's question: " + run.PauseQuestion}})
 				break
 			}
-			continueErr = m.continueTaskStage(run, detail, current, stage, input)
+			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText("You asked the person: "+run.PauseQuestion+"\nTheir answer: "+input, MaxValueRunes)})
+		case run.State == "paused" && run.PendingAction == "" && (run.AttentionReason == attentionRecoveryExhausted || task.Outcome == state.OutcomeFailure || task.Outcome == state.OutcomeBlocked || run.AttentionReason == attentionCheckMissing || run.AttentionReason == attentionApprovalMissing):
+			// Resume after repair needs no invented text, and grants a fresh
+			// allowance exactly once under this revision (TS-09.R70).
+			text := "The person resumed this run after the pause (" + run.AttentionReason + "). Re-check the current state before repeating any action."
+			if input != "" {
+				text += "\nTheir instructions: " + input
+			}
+			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText(text, MaxValueRunes), RenewAllowance: true})
 		default:
 			continueErr = controlError("invalid_state", "continue is not valid for the current run state")
 		}
@@ -63,126 +79,6 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 	}
 	unlock()
 	return RunDetail{}, controlError("invalid_state", "run has no durable stage task")
-}
-
-func (m *Manager) continueTaskStage(run state.PipelineRunRecord, detail RunDetail, current state.PipelineStageTask, stage Stage, input string) error {
-	taskID, err := m.store.NewTaskID()
-	if err != nil {
-		return err
-	}
-	assignment := standingAssignment(detail.Assignments, stage.ID)
-	coordinator, err := m.coordinatorTask(run.Project, run.Goal, taskID, stage, detail.Assignments[stage.ID])
-	if err != nil {
-		return err
-	}
-	prior, err := m.priorStageResults(run.RunID, "")
-	if err != nil {
-		return err
-	}
-	instruction, digest := renderAssignment(run, detail.Template, stage, detail.Values, assignmentContext{
-		Coordinator: coordinatorContext(coordinator, stage), PriorResults: prior, Continuation: input,
-	})
-	targetKind := state.TargetLaunch
-	if current.StandingAgentID != "" {
-		targetKind = state.TargetAgent
-	}
-	_, _, _, err = m.store.CreatePipelineStageTask(state.CreatePipelineStageTaskParams{
-		RunID: run.RunID, ExpectedRevision: run.Revision, StageIndex: current.StageIndex,
-		AttemptNumber: current.AttemptNumber + 1, StageID: stage.ID, AssignmentDigest: digest,
-		ParentTaskID: current.TaskID, OutputValues: stageOutputValues(stage), Coordinator: coordinator, Task: state.Task{
-			TaskID: taskID, Project: run.Project, DisplayName: stage.Title, Instruction: instruction,
-			TargetKind: targetKind, TargetAgentID: current.StandingAgentID, Role: detail.Template.OrchestratorRole,
-			Backend: assignment.Backend, Model: assignment.Model, Effort: assignment.Effort, Fast: assignment.Fast,
-			Group: run.DisplayName, CreatedByKind: "pipeline",
-		},
-	})
-	if err == nil {
-		updated, readErr := m.store.ReadPipelineRun(run.RunID)
-		if readErr == nil {
-			m.publish(updated)
-		}
-	}
-	return err
-}
-
-func (m *Manager) advanceTaskStage(run state.PipelineRunRecord, detail RunDetail, current state.PipelineStageTask, stage Stage) error {
-	if current.StageIndex+1 >= len(detail.Template.Stages) {
-		completed, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
-			State: "completed", PendingAction: "", CurrentStageID: stage.ID,
-			CurrentAgentID: "", FinalOutcome: state.OutcomeSuccess,
-		})
-		if err == nil {
-			m.publish(completed)
-			m.notify(completed, "completed")
-		}
-		return err
-	}
-	next := detail.Template.Stages[current.StageIndex+1]
-	taskID, err := m.store.NewTaskID()
-	if err != nil {
-		return err
-	}
-	assignment := standingAssignment(detail.Assignments, next.ID)
-	coordinator, err := m.coordinatorTask(run.Project, run.Goal, taskID, next, detail.Assignments[next.ID])
-	if err != nil {
-		return err
-	}
-	prior, err := m.priorStageResults(run.RunID, "")
-	if err != nil {
-		return err
-	}
-	instruction, digest := renderAssignment(run, detail.Template, next, detail.Values, assignmentContext{
-		Coordinator: coordinatorContext(coordinator, next), PriorResults: prior,
-	})
-	// A room stage has no standing owner, so the owner of the latest ordinary
-	// stage is the one reused (TS-09.R52).
-	standing, err := m.lastStandingAgent(run.RunID)
-	if err != nil {
-		return err
-	}
-	targetKind := state.TargetLaunch
-	if standing != "" {
-		targetKind = state.TargetAgent
-	}
-	params := state.CreatePipelineStageTaskParams{
-		RunID: run.RunID, ExpectedRevision: run.Revision, StageIndex: current.StageIndex + 1,
-		AttemptNumber: 1, StageID: next.ID, AssignmentDigest: digest, ParentTaskID: current.TaskID,
-		OutputValues: stageOutputValues(next), Coordinator: coordinator, Task: state.Task{
-			TaskID: taskID, Project: run.Project, DisplayName: next.Title, Instruction: instruction,
-			TargetKind: targetKind, TargetAgentID: standing, Role: detail.Template.OrchestratorRole,
-			Backend: assignment.Backend, Model: assignment.Model, Effort: assignment.Effort, Fast: assignment.Fast,
-			CreatedByKind: "pipeline",
-		},
-	}
-	if StageCoordination(next) == CoordinationThinkTank {
-		room, err := m.roomStage(context.Background(), run, next, detail.Values, 1, frozenAssignments(run))
-		var refused *ControlError
-		if errors.As(err, &refused) && len(refused.Diagnostics) > 0 {
-			// Produced values overflowed the room's stage context: hold the run
-			// with the field named rather than truncating (TS-09.R56).
-			paused, pauseErr := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
-				State: "paused", PendingAction: "", CurrentStageID: stage.ID,
-				AttentionReason: clipText(refused.Diagnostics[0].Field+": "+refused.Diagnostics[0].Message, MaxDescriptionRunes),
-			})
-			if pauseErr == nil {
-				m.publish(paused)
-				m.notify(paused, "needs_attention")
-			}
-			return pauseErr
-		}
-		if err != nil {
-			return err
-		}
-		params = roomStageParams(params, run, next, room)
-	}
-	_, _, _, err = m.store.CreatePipelineStageTask(params)
-	if err == nil {
-		updated, readErr := m.store.ReadPipelineRun(run.RunID)
-		if readErr == nil {
-			m.publish(updated)
-		}
-	}
-	return err
 }
 
 func (m *Manager) Retry(ctx context.Context, runID string, expectedRevision int64) (RunDetail, error) {
@@ -281,7 +177,12 @@ func (m *Manager) Replace(ctx context.Context, runID string, expectedRevision in
 		Coordinator: replacementCoordinator, PriorResults: prior,
 		Continuation: "Replacement standing owner: inspect the retained stage work and continue from durable results.",
 	})
-	prepared, err := m.store.PreparePipelineStageReplacement(state.CreatePipelineStageTaskParams{RunID: runID, ExpectedRevision: run.Revision, StageIndex: current.StageIndex, AttemptNumber: current.AttemptNumber + 1, StageID: stage.ID, AssignmentDigest: digest, ParentTaskID: current.TaskID, OutputValues: stageOutputValues(stage), Task: state.Task{TaskID: id, Project: run.Project, DisplayName: stage.Title, Instruction: instruction, TargetKind: state.TargetLaunch, Role: detail.Template.OrchestratorRole, Backend: runtime.Backend, Model: runtime.Model, Effort: runtime.Effort, Fast: runtime.Fast, CreatedByKind: "pipeline"}}, current.TaskID)
+	// A revisited step may already have later attempts than the current one.
+	attempt, err := m.store.NextPipelineStageAttempt(runID, current.StageIndex)
+	if err != nil {
+		return RunDetail{}, err
+	}
+	prepared, err := m.store.PreparePipelineStageReplacement(state.CreatePipelineStageTaskParams{RunID: runID, ExpectedRevision: run.Revision, StageIndex: current.StageIndex, AttemptNumber: attempt, StageID: stage.ID, AssignmentDigest: digest, ParentTaskID: current.TaskID, OutputValues: stageOutputValues(stage), Task: state.Task{TaskID: id, Project: run.Project, DisplayName: stage.Title, Instruction: instruction, TargetKind: state.TargetLaunch, Role: detail.Template.OrchestratorRole, Backend: runtime.Backend, Model: runtime.Model, Effort: runtime.Effort, Fast: runtime.Fast, CreatedByKind: "pipeline"}}, current.TaskID)
 	if err != nil {
 		if errors.Is(err, state.ErrPipelineStageConflict) {
 			return RunDetail{}, controlError("invalid_state", "replacement lost to a newer stage state")
