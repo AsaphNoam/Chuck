@@ -114,6 +114,12 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   prompt — a mail wake, a task assignment, a pipeline stage instruction — still fails closed when a
   turn is in flight, because those callers use that refusal to arbitrate (FS-06, FS-14, FS-16); a
   queue there would let a run continue past the gate that paused it.
+
+  A message to an agent whose assigned work is **waiting** (for child work, or to resume) is
+  accepted rather than refused (FS-14.R100): it is retained across restart and the composer clears
+  with “Queued — it will be delivered when the agent's assignment continues.” The assignment's own
+  continuation delivers it, and only then does it enter the transcript. If that work ends first, the
+  message is offered back through the ordinary not-delivered recovery rather than sent elsewhere.
 - **R49.** The held message resolves on exactly three events. On **turn
   end** it is sent, and the ordinary busy progression follows. On **cancel** it is sent as the next
   turn, because cancelling is a deliberate "stop that, do this instead" and discarding the person's

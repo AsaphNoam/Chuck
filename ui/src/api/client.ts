@@ -177,15 +177,19 @@ export function stopAgent(agentId: string) {
   return json<unknown>(`/api/sessions/${agentId}/stop`, { method: "POST" });
 }
 
-/** What the server did with a submitted prompt (TS-03.R38): ran it now, or held
- * it as the next turn because the agent was working. */
-export type PromptDelivery = "sent" | "held";
+/** What the server did with a submitted prompt (TS-03.R38): ran it now, held
+ * it as the next turn because the agent was working, or queued it for the
+ * agent's waiting assignment, whose continuation delivers it (TS-09.R69). */
+export type PromptDelivery = "sent" | "held" | "queued";
+
+/** Shown while an accepted message waits for its assignment to continue. */
+export const QUEUED_FOR_ASSIGNMENT_NOTICE = "Queued — it will be delivered when the agent's assignment continues.";
 
 /** What the adapter did with a steered message (TS-03.R39): injected it into the
  * running turn, or started a fresh turn because that one had already ended. */
 export type SteerOutcome = "steered" | "new_turn";
 
-export type PromptResult = { accepted: true; agent_id: string; delivery: PromptDelivery; after_seq: number; held_id?: string; request_id?: string; attachments?: AttachmentDescriptor[]; attachment_delivery?: "held" | "submitted" | "released" | "failed" | "unknown" };
+export type PromptResult = { accepted: true; agent_id: string; delivery: PromptDelivery; after_seq: number; held_id?: string; request_id?: string; attachments?: AttachmentDescriptor[]; attachment_delivery?: "held" | "queued" | "submitted" | "released" | "failed" | "unknown" };
 export type RecoveryPrompt = { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string };
 export type HeldPrompt = { agent_id: string; text: string; after_seq: number; held_id?: string; request_id?: string; attachments?: AttachmentDescriptor[]; recovery?: RecoveryPrompt };
 export type WithdrawnPrompt = { accepted: true; agent_id: string; withdrawn: boolean; message?: { held_id?: string; text: string; attachments: AttachmentDescriptor[]; request_id?: string } };

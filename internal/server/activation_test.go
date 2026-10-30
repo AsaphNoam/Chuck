@@ -137,8 +137,14 @@ func TestWakingMailUsesWaitingAssignmentContinuation(t *testing.T) {
 			if got := promptCount(t, promptLog); got != 0 {
 				t.Fatalf("mail produced %d prompts before continuation admission", got)
 			}
-			if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "manual wake"}); resp.StatusCode != http.StatusConflict {
-				t.Fatalf("manual input bypassed continuation: %d %s", resp.StatusCode, body)
+			// Manual input is retained for the continuation, not refused and not
+			// delivered around it (TS-09.R69, WAIT-PROMPT-1).
+			resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "manual wake", "request_id": "req-manual-wake"})
+			if resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"delivery":"queued"`) {
+				t.Fatalf("manual input was not queued for the continuation: %d %s", resp.StatusCode, body)
+			}
+			if got := promptCount(t, promptLog); got != 0 {
+				t.Fatalf("manual input produced %d prompts before continuation admission", got)
 			}
 			for i := 0; i < cap(srv.taskStartSlots); i++ {
 				<-srv.taskStartSlots
@@ -148,8 +154,13 @@ func TestWakingMailUsesWaitingAssignmentContinuation(t *testing.T) {
 					t.Fatal(err)
 				}
 				srv.dispatchReadyTasks(context.Background())
+				srv.continueQueuedInput()
 				if srv.registry.Owns(id) || promptCount(t, promptLog) != 0 {
 					t.Fatal("cancelled continuation woke runtime")
+				}
+				// Input for ended work is offered back, never redirected.
+				if rec, err := srv.stateStore.AttachmentReceipt(id, "req-manual-wake"); err != nil || rec.Delivery != "released" || rec.AssignmentTaskID != "" {
+					t.Fatalf("queued input for cancelled work = %+v %v, want released for recovery", rec, err)
 				}
 				return
 			}
@@ -180,6 +191,12 @@ func TestWakingMailUsesWaitingAssignmentContinuation(t *testing.T) {
 			waitPrompts(t, promptLog, 1)
 			if running.AssignedAgentID != id || running.ExecutionHandle == "" || running.RuntimeClaim == "" {
 				t.Fatalf("mail did not use admitted assignment: %+v", running)
+			}
+			if raw, err := os.ReadFile(promptLog); err != nil || !strings.Contains(string(raw), "manual wake") {
+				t.Fatalf("continuation did not carry the queued input: %s %v", raw, err)
+			}
+			if rec, err := srv.stateStore.AttachmentReceipt(id, "req-manual-wake"); err != nil || rec.Delivery != "submitted" {
+				t.Fatalf("queued input receipt = %+v %v, want submitted", rec, err)
 			}
 		})
 	}

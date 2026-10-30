@@ -47,6 +47,7 @@ func (s *Server) runTaskDispatcher(ctx context.Context) {
 			s.resolveDueTimeArms()
 			s.processDueSchedules()
 			s.recoverStartingTasks(ctx)
+			s.continueQueuedInput()
 			s.dispatchReadyTasks(ctx)
 		}
 	}
@@ -579,6 +580,7 @@ func (s *Server) taskConcurrencyBudget() int {
 func (s *Server) dispatchTurnEnd(agentID, generation, turnID string) {
 	s.releaseYieldedTask(context.Background(), agentID, generation, turnID)
 	s.releaseReportedTask(context.Background(), agentID, generation, turnID)
+	s.continueQueuedInput()
 	if s.pipelineMgr != nil {
 		task, _, err := s.stateStore.PipelineStageTaskForAssignee(agentID, generation)
 		if err == nil {

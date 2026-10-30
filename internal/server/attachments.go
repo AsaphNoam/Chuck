@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -498,27 +497,28 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 			return
 		}
 		if !promoteReceipt {
+			data, _ := json.Marshal(receiptMessage)
 			if action == "prompt" {
-				task, taskErr := s.stateStore.TaskAssignment(id)
-				if taskErr != nil && !errors.Is(taskErr, state.ErrNotFound) {
-					writeAPIError(w, apiError(runtime.CodeInternal, "cannot read task assignment"))
+				// Input for an assignment that must resume first is retained
+				// with that assignment and carried by its continuation turn,
+				// never answered with an empty wake and a refusal (TS-09.R69).
+				receipt := state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}
+				taskID, queued, err := s.stateStore.QueueAssignmentInput(receipt)
+				if err != nil {
+					writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain message receipt"))
 					return
 				}
-				if taskErr == nil && (task.State == state.TaskWaiting || task.State == state.TaskReady || task.State == state.TaskStarting || task.PendingYield) {
-					prepared, changed, err := s.stateStore.PrepareTaskContinuation(id)
-					if err != nil {
-						writeAPIError(w, apiError(runtime.CodeInternal, "cannot prepare task continuation"))
-						return
+				if queued {
+					owned = true
+					if err := attachment.New(s.configStore.Home()).Retain(id, created); err != nil {
+						s.log.Error("retain accepted attachment markers", "agent", id, "err", err)
 					}
-					if changed {
-						s.publishTaskUpdate(prepared)
-						go s.dispatchReadyTasks(context.Background())
-					}
-					writeAPIError(w, apiError(runtime.CodeConflict, "the assigned task must resume before this prompt can be delivered; retry shortly"))
+					s.continueQueuedInput()
+					receipt.Delivery, receipt.AssignmentTaskID = "prepared", taskID
+					s.writeAttachmentAcceptance(w, receipt)
 					return
 				}
 			}
-			data, _ := json.Marshal(receiptMessage)
 			if err := s.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}); err != nil {
 				writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain message receipt"))
 				return
@@ -694,6 +694,11 @@ func steerRefusalText(err error) string {
 }
 
 func (s *Server) writeAttachmentAcceptance(w http.ResponseWriter, rec state.AttachmentReceipt) {
+	if rec.Delivery == "prepared" && rec.AssignmentTaskID != "" {
+		// Accepted and retained, not yet delivered: its assignment's
+		// continuation will carry it (FS-14.R100, TS-09.R69).
+		rec.Delivery = "queued"
+	}
 	if rec.Delivery == "prepared" {
 		rec.Delivery = "unknown"
 	}

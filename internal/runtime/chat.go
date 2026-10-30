@@ -1834,15 +1834,36 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	if mailNotice != nil {
 		c.emit(as, EvNotice, *mailNotice)
 	}
+	prompt := []map[string]any{{"type": "text", "text": promptText}}
+	var personMessage Message
+	carried := false
+	if kind == state.ActivationKindDependency {
+		if m, content, ok := c.takeQueuedAssignmentInput(as); ok {
+			// The person's own words are recorded as their message before the
+			// provider frame; the activation instruction stays host-owned
+			// (TS-09.R69).
+			personMessage = m
+			if c.emit(as, EvUserPrompt, m.promptData()).Seq == 0 {
+				_ = c.messageTransition(as.agentID, m.RequestID, "released")
+			} else if err := c.messageTransition(as.agentID, m.RequestID, "submitted"); err == nil {
+				prompt[0]["text"] = promptText + "\n\n" + queuedInputPreamble
+				prompt = append(prompt, content...)
+				carried = true
+			}
+		}
+	}
 
 	go func() {
 		params := map[string]any{
 			"sessionId": as.sessionID,
-			"prompt":    []map[string]any{{"type": "text", "text": promptText}},
+			"prompt":    prompt,
 		}
 		as.fileReportMeta(params)
 		res, err := as.transport.Call(as.ctx, "session/prompt", params)
 		if err != nil {
+			if carried {
+				_ = c.messageTransition(as.agentID, personMessage.RequestID, "unknown")
+			}
 			if errors.Is(err, errTransportClosed) || as.isStopped() {
 				return
 			}

@@ -1,7 +1,7 @@
 import { AutoGrowTextarea } from "../ui";
 import { SendIcon, StopIcon } from "../ui/icons";
 import { useEffect, useRef, useState } from "react";
-import { cancelTurn, sendPrompt, steerPrompt } from "../../api/client";
+import { QUEUED_FOR_ASSIGNMENT_NOTICE, cancelTurn, sendPrompt, steerPrompt } from "../../api/client";
 import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
@@ -155,11 +155,12 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       const acceptedRequestId = "request_id" in result ? result.request_id : undefined;
       if (!steeringMessage && "delivery" in result && result.delivery === "held") hold(agentId, prompt, result.after_seq, acceptedAttachments, "held_id" in result ? result.held_id : undefined);
       const attachmentStatus = "attachment_delivery" in result ? result.attachment_delivery : undefined;
-      if (!steeringMessage && (!selected.length || attachmentStatus === "submitted") &&
+      const queued = !steeringMessage && "delivery" in result && result.delivery === "queued";
+      if (!steeringMessage && !queued && (!selected.length || attachmentStatus === "submitted") &&
           !alreadyDelivered(agentId, prompt, beforeSeq, acceptedRequestId ?? requestId)) {
         append(agentId, { kind: "user_text", text: prompt, attachments: acceptedAttachments, message_id: acceptedRequestId ?? requestId });
       }
-      if (selected.length && attachmentStatus !== "submitted" && attachmentStatus !== "held") {
+      if (selected.length && attachmentStatus !== "submitted" && attachmentStatus !== "held" && attachmentStatus !== "queued") {
         setError(attachmentStatus === "released"
           ? "This message was released for recovery. Restore it from the conversation before sending again."
           : attachmentStatus === "failed"
@@ -182,6 +183,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       if (currentAgentId.current === agentId) {
         setRetry(null);
         if (steeringMessage) setNotice("Delivered into the running turn.");
+        else if (queued) setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE);
       }
       void clearPendingAttachmentSend(agentId, requestId).catch(() => {
         if (currentAgentId.current === agentId) setAttachmentError("Message was sent, but its retry receipt could not be cleared from browser storage.");
@@ -269,6 +271,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       // pending state is rendered from what happened rather than inferred from
       // agent status (TS-03.R38).
       if (result.delivery === "held") hold(agentId, prompt, result.after_seq, result.attachments ?? [], result.held_id);
+      else if (result.delivery === "queued") { if (currentAgentId.current === agentId) setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE); }
       else if (!alreadyDelivered(agentId, prompt, beforeSeq, result.request_id ?? requestId)) append(agentId, { kind: "user_text", text: prompt, message_id: result.request_id ?? requestId });
       // Only clear the draft we actually sent; a newer same-agent draft survives.
       if (chatDraftRevision(agentId) === draftRev) discardChatDraft(agentId);

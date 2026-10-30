@@ -10,13 +10,12 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
-// WAIT-PROMPT-1 / TS-10.R29: a person's prompt to an assignee whose task is
-// waiting on child work must reach that agent through the assignment
-// continuation. Today the route prepares the continuation, rejects the prompt
-// with 409 "retry shortly" and keeps no copy; the continuation turn re-waits
-// within seconds, so the instruction is never delivered.
+// WAIT-PROMPT-1 / TS-09.R69 / TS-10.R29: a person's prompt to an assignee whose
+// task is waiting on child work must reach that agent through the assignment
+// continuation. The route once prepared the continuation, rejected the prompt
+// with 409 "retry shortly" and kept no copy; the continuation turn re-waited
+// within seconds, so the instruction was never delivered.
 func TestPromptToWaitingAssigneeIsDeliveredByContinuation(t *testing.T) {
-	t.Skip("WAIT-PROMPT-1: prompt to a waiting assignee is rejected and dropped; un-skip in the fix session")
 	srv, ts, promptLog := activationTestServer(t)
 	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
 	generation := srv.taskGeneration(id)
@@ -31,8 +30,18 @@ func TestPromptToWaitingAssigneeIsDeliveredByContinuation(t *testing.T) {
 		t.Fatal(err)
 	}
 	const instruction = "use opus as the fixing agent"
-	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": instruction, "request_id": "req-wait-prompt"}); resp.StatusCode >= http.StatusBadRequest {
-		t.Fatalf("prompt to waiting assignee rejected: %d %s", resp.StatusCode, body)
+	// A network retry of the same submission returns the same acceptance.
+	for i := 0; i < 2; i++ {
+		if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": instruction, "request_id": "req-wait-prompt"}); resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"delivery":"queued"`) {
+			t.Fatalf("prompt to waiting assignee not queued: %d %s", resp.StatusCode, body)
+		}
+	}
+	// The restart release of untracked holds leaves queued assignment input.
+	if err := srv.stateStore.ReleaseRestartedAttachments(); err != nil {
+		t.Fatal(err)
+	}
+	if rec, err := srv.stateStore.AttachmentReceipt(id, "req-wait-prompt"); err != nil || rec.Delivery != "prepared" || rec.AssignmentTaskID != taskID {
+		t.Fatalf("queued receipt after restart release = %+v %v", rec, err)
 	}
 	srv.dispatchReadyTasks(context.Background())
 	dispatchUntilTaskState(t, srv, taskID, state.TaskRunning)
@@ -41,7 +50,10 @@ func TestPromptToWaitingAssigneeIsDeliveredByContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), instruction) {
-		t.Fatalf("continuation turn did not carry the person's prompt: %s", raw)
+	if strings.Count(string(raw), instruction) != 1 {
+		t.Fatalf("continuation turn did not carry the person's prompt exactly once: %s", raw)
+	}
+	if rec, err := srv.stateStore.AttachmentReceipt(id, "req-wait-prompt"); err != nil || rec.Delivery != "submitted" || rec.AssignmentTaskID != "" {
+		t.Fatalf("delivered receipt = %+v %v", rec, err)
 	}
 }

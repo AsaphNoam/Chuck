@@ -886,6 +886,13 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 64,
 		apply:   addPipelineWorkspaces,
 	},
+	{
+		// A person's input accepted for an assignment that must resume first.
+		// The receipt stays 'prepared' and names the task whose continuation
+		// carries it; empty means an ordinary receipt (TS-09.R69, TS-10.R29).
+		version: 65,
+		sql:     `ALTER TABLE attachment_receipts ADD COLUMN assignment_task_id TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // addPipelineWorkspaces follows addStatusBackgroundRunning for the sessions

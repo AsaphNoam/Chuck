@@ -144,7 +144,7 @@ func TestAttachmentReceiptForwardMigrationPreservesCheckpointDatabase(t *testing
 	if err = s.WriteAgent(testAgent("a_migrate", timeNow())); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.db.Exec(`DROP TABLE attachment_receipts; DELETE FROM schema_migrations WHERE version = 51`); err != nil {
+	if _, err = s.db.Exec(`DROP TABLE attachment_receipts; DELETE FROM schema_migrations WHERE version IN (51, 65)`); err != nil {
 		t.Fatal(err)
 	}
 	var priorSchema string

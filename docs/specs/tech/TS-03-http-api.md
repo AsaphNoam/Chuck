@@ -217,7 +217,9 @@ that path for effort anyway (FS-03.R47).
 `POST /api/sessions/{id}/prompt` stops returning `409 conflict` for a busy chat agent and returns the
 same `202 {accepted, agent_id}` it returns today, with fields naming whether the message was sent or
 held and the last transcript sequence at acceptance, so a client can render and match pending state
-without inferring it from agent status or prompt text alone. `GET` on the same prompt resource
+without inferring it from agent status or prompt text alone. `delivery: "queued"` (shipped
+2026-10-30) means the message was accepted and retained for the agent's waiting assignment, whose
+continuation delivers it (TS-10.R29); it is not yet in the transcript. `GET` on the same prompt resource
 returns the live held text and sequence boundary for browser rehydration. No new path
 and no request-body change: the route is already the person's path and the agent-facing callers reach
 the runtime in-process (TS-01.R29), so person-only holding needs no authorization concept, only the

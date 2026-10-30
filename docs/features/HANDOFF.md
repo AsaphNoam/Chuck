@@ -25,9 +25,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
-- **Waiting-prompt investigation:** WAIT-PROMPT (prompt to a waiting pipeline coordinator is
-  rejected and dropped) is open with one **Must fix**, two **Worth fixing** and a skipped
-  reproduction test; see Review findings.
+- **Waiting-prompt investigation:** WAIT-PROMPT-1/2 are fixed by goal-led slice 1 (input to a
+  waiting assignee is queued and carried by its continuation); WAIT-PROMPT-3 stays open, out of scope.
 - **Permission-save investigation:** PERM-SAVE-1 is repaired; the reported unchecked toggle's
   field cause remains undetermined pending affected server evidence.
 - **Mobile annotation investigation:** MOB-ANN-1 is fixed with optional source recording: both
@@ -57,6 +56,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   passing in all appearances. INV §13/§17.
 
 ## Active change
+
+**Goal-led unattended pipelines** —
+[`goal-led-unattended-pipelines`](../ready-changes/goal-led-unattended-pipelines.md), **in
+progress**; slices in [the plan](../plans/goal-led-unattended-pipelines.md). Slice 1 (queued input
+for waiting assignments, WAIT-PROMPT-1/2) done: `go test` state/runtime/server/messaging and
+Composer vitest pass. **Next:** slice 2, chronological visits (TS-09.R67).
 
 **Running background-work indicator** —
 [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
@@ -311,25 +316,9 @@ phone remote client `rd_TQDIXQ8MaXcW`. Evidence: `~/.chuck/dashboard.log` (08:09
 `~/.chuck/sessions/a_3326aa/transcript.ndjson`, `state.db` task `tk_32b3ab01fb6e73c9` (pipeline
 Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`).
 
-- **Must fix** — WAIT-PROMPT-1 (INV §8/§15), confirmed (reproduced): a person's prompt to an assignee whose task
-  is waiting is rejected and dropped, and the promised retry cannot land. `internal/server/
-  attachments.go:507–518` prepares the continuation (waiting → ready), then returns 409 before any
-  attachment receipt is written, so the text is kept nowhere. Dispatch admits the continuation
-  within ~3 s; the agent calls `get_assigned_task`, sees no change and calls `wait_for_tasks`
-  again, yielding ~10 s later. Field timeline: prompts at 06:09:41Z and 06:10:00Z each got 409
-  and each woke one empty continuation turn (06:09:44–54Z, 06:10:04–13Z); no receipt exists for
-  `a_3326aa`. The coordinator first saw input only when the implementer finished (06:12:28Z).
-  TS-10.R29 routes manual input “through this same assignment continuation before ordinary turn
-  delivery”; mail is retained and delivered after admission, manual input is not.
-  `TestWakingMailUsesWaitingAssignmentContinuation` (`activation_test.go:140`) asserts the 409.
-  Fix: retain the prompt durably (existing held-receipt seam) and deliver it as, or immediately
-  after, the admitted continuation turn; keep the no-untracked-wake rule; update that test's 409
-  expectation. Skipped reproduction: `TestPromptToWaitingAssigneeIsDeliveredByContinuation`
-  (`internal/server/waiting_prompt_repro_test.go`), which fails today with the field 409.
-- **Worth fixing** — WAIT-PROMPT-2, confirmed (spec gap): TS-10.R29 does not say whether manual
-  input to a waiting assignee is accepted and held or rejected, nor what the composer shows
-  meanwhile. Specify acceptance, retention and the delivered-turn ordering with the WAIT-PROMPT-1
-  fix (FS-03 composer copy, TS-10.R29).
+WAIT-PROMPT-1/2 were fixed 2026-10-30 by goal-led slice 1 (TS-10.R29, FS-03.R48); only
+WAIT-PROMPT-3 remains, outside that change.
+
 - **Worth fixing** — WAIT-PROMPT-3, probable: the phone client re-fetched `/transcript` and
   `/prompt` for this agent 20–44 times per second during each streamed turn (log 08:09:51,
   08:10:03, 08:10:13 IST). Not the reported failure; cause not traced. Check the phone transcript

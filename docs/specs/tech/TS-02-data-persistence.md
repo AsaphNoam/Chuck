@@ -822,6 +822,9 @@ reference and effect/result references. States distinguish prepared/recorded, su
 definitely rejected and unknown consumption. Same key/hash returns the stored outcome; a changed
 hash conflicts without mutation. Native submission uncertainty never becomes an automatically
 deliverable held message. Room annotation command IDs remain the same authority, not another copy.
+Migration 65 adds `attachment_receipts.assignment_task_id` (default empty): a prepared receipt
+naming an open assignment is queued input that its continuation delivers (TS-10.R29). Startup
+release skips it; claiming it for a turn clears the column in the same statement.
 
 Command reservation, mail/task effects and receipt state use existing SQLite transactions where
 they share this database. Canonical log append and native provider work are not falsely treated as

@@ -298,6 +298,17 @@ parallel copy of them.
   the assignment interrupted with results still readable. Wake/read do not delete the source results.
   Manual input or mail for a waiting assignee routes through this same assignment continuation before
   ordinary turn delivery; it must not create an untracked wake or bypass capacity/closure checks.
+  Manual input (shipped 2026-10-30, TS-09.R69) to an assignee whose assignment is waiting, has a
+  prepared continuation, is being admitted or is yielding is accepted, not refused: one statement
+  writes its receipt bound to that open assignment (`attachment_receipts.assignment_task_id`) before
+  the waiting assignment is readied, and the response reports `delivery: "queued"`. The admitted
+  dependency activation claims the oldest queued input after its attempt boundary, records it as the
+  person's transcript message and carries it in that same provider turn (`submitted`); further input
+  readies the next continuation once the assignment waits again. Input whose assignment is already
+  executing with no turn is delivered as an ordinary follow-up; input for an assignment that ended is
+  released to explicit recovery, never redirected to other work. Restart keeps queued input; a replay
+  of the same request returns the same receipt. The dispatcher tick, turn end and acceptance all run
+  this convergence pass.
 - **R30** (shipped 2026-09-13) — **Wait recovery never adopts processes.** Startup finishes pending yields
   through the existing generation/PID-checked reaper, retains settled waits, re-evaluates watched
   facts, and recomputes capacity from outstanding runtime claims. A settled stopped wait can become

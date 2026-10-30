@@ -20,6 +20,7 @@ import {
   switchRuntime,
   withdrawPrompt,
   updateAgentIdentity,
+  QUEUED_FOR_ASSIGNMENT_NOTICE,
 } from "../api/client";
 import type { AgentState, AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../api/types";
 import { useAnnotationStore } from "../store/annotationStore";
@@ -644,7 +645,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   };
   const finishPhoneAttachmentSend = async (result: unknown, selected: DraftAttachment[], promptText: string, requestId: string, steeringMessage: boolean, submittedRevision: number) => {
     const response = result && typeof result === "object" ? result as { attachment_delivery?: string; delivery?: string } : {};
-    if (selected.length && response.attachment_delivery !== "submitted" && response.attachment_delivery !== "held") {
+    if (selected.length && response.attachment_delivery !== "submitted" && response.attachment_delivery !== "held" && response.attachment_delivery !== "queued") {
       setError(response.attachment_delivery === "released"
         ? "This message was released for recovery. Restore it from the conversation before sending again."
         : response.attachment_delivery === "failed"
@@ -657,6 +658,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       return;
     }
     if (response.delivery === "held" || response.attachment_delivery === "held") setNotice("Held — it will be sent when the current turn ends.");
+    if (response.delivery === "queued") setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE);
     if (chatDraftRevision(agentId) === submittedRevision) {
       discardChatDraft(agentId);
       setText("");
@@ -706,6 +708,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
         true,
         (result) => {
           if (result && typeof result === "object" && "delivery" in result && result.delivery === "held") setNotice("Held — it will be sent when the current turn ends.");
+          if (result && typeof result === "object" && "delivery" in result && result.delivery === "queued") setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE);
         },
       );
       return;

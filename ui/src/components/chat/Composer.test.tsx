@@ -498,6 +498,21 @@ describe("Composer queued follow-up and steering", () => {
     expect(useTranscriptStore.getState().byAgent.a_1 ?? []).toHaveLength(0);
   });
 
+  it("reports input queued for a waiting assignment as accepted but not yet delivered", async () => {
+    server.use(http.post("/api/sessions/:id/prompt", () =>
+      HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "queued", attachment_delivery: "queued", after_seq: 0, request_id: "req-q" }, { status: 202 })));
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+
+    type(ta, "use opus for the fix");
+    fireEvent.keyDown(ta, { key: "Enter" });
+
+    expect(await screen.findByText("Queued — it will be delivered when the agent's assignment continues.")).toBeTruthy();
+    expect(ta.value).toBe("");
+    expect(useHeldStore.getState().byAgent.a_1).toBeUndefined();
+    expect(useTranscriptStore.getState().byAgent.a_1 ?? []).toHaveLength(0);
+  });
+
   it("sends ordinary text with the stable draft request ID and uses the accepted ID in history", async () => {
     let body: { text?: string; request_id?: string } = {};
     server.use(http.post("/api/sessions/:id/prompt", async ({ request }) => {

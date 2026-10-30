@@ -1,6 +1,6 @@
 # Pipelines that complete the goal without routine human intervention
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator request, 2026-10-30: single-click reusable processes such as Work → Review → Fix
 must own ordinary routing, repair and recovery rather than repeatedly requiring human continuation.
 Expands the former “Continue a blocked pipeline stage from its agent conversation” idea and the
@@ -42,4 +42,5 @@ composition evidence; model judgment quality and production cost are not proved 
 
 ## Waiting on
 
-None. Behavior and the agent-facing contract were confirmed; implementation has not started.
+None. Behavior and the agent-facing contract were confirmed; implementation started 2026-10-30
+(see the handoff's Active change).
