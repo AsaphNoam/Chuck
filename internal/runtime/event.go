@@ -236,6 +236,7 @@ type AnnotationData struct {
 	Annotations        []Annotation     `json:"annotations"`
 	OverallInstruction string           `json:"overall_instruction,omitempty"`
 	Target             AnnotationTarget `json:"target"`
+	OmitSourceRecord   bool             `json:"omit_source_record,omitempty"`
 }
 
 type Annotation struct {

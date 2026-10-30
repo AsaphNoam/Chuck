@@ -36,7 +36,7 @@ function RuntimeFields({ value, onChange }: { value: Runtime; onChange: (value: 
 }
 
 /** The phone's normal chat-agent launch (FS-20.R40). A project page fixes the
- *  project and opens the new agent. An annotation New task prefills the
+ *  project and opens the new agent. An annotation New agent prefills the
  *  source's persona and project, lets the person choose another active project,
  *  and hands the launched id back instead of navigating (FS-13.R30). */
 export function NewAgentForm({ project: initialProject, initialGroup = "", initialRole, chooseProject = false, onClose, onLaunched, onBusyChange, summary }: {

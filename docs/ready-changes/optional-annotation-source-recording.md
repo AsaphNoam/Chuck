@@ -1,6 +1,6 @@
 # Optional source transcript recording for annotation assignments
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator request 2026-10-29, scope confirmed in conversation: send unrelated side quests
 to another agent without including the current agent in the loop; rename New task to New agent.
 **Relevant requirements:** FS-13.R35–R36/A25–A26, TS-03.R75, TS-02.R60, TS-08.R148;

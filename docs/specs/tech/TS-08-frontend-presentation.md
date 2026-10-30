@@ -1554,7 +1554,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   for drafts/instructions and its existing collapsed flag, expiry and cap; do not introduce
   another annotation store or turn layout changes into collapse-preference writes. Narrow focus
   uses a local count/reveal control for the same tray. Sending/discarding the last draft leaves
-  the reader open and returns its space. New task still uses the existing `NewAgentModal`.
+  the reader open and returns its space. New agent still uses the existing `NewAgentModal`.
 
   File/annotation/web-link menus opened in focus must mount inside its dialog content. Extend
   the existing `PointerContextMenu` portal destination through a narrowly scoped optional React
@@ -1565,7 +1565,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   consumes Escape before the file dialog, and interacting with a menu must not trigger backdrop
   dismissal. Use Radix focus trapping/background inertness and close autofocus, returning to
   Focus file or the conversation when its trigger no longer exists. Include the annotation
-  New task launch/delivery/failure path in nested-dialog verification. Do not force-mount an
+  New agent launch/delivery/failure path in nested-dialog verification. Do not force-mount an
   inactive modal over the adjacent workspace or implement a second focus-trap system.
 
 - **R130 — Reading continuity is bounded to the current document.**
@@ -1654,10 +1654,10 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   machine. Let each entry supply its hydrated source/recipient projection and availability; the
   desktop wrapper keeps `useAgentStore`, and the phone wrapper keeps `useConnection` and its
   connected gate. Preserve one `annotationBatch` builder and the existing API client. Selection of
-  an unavailable current target falls back to another running chat agent or New task as under
+  an unavailable current target falls back to another running chat agent or New agent as under
   FS-13.R15; server-side current-idle/recipient checks remain authoritative and errors stay visible.
 
-  New task runs `validateAnnotations` before opening launch. Reuse the phone New agent form
+  New agent runs `validateAnnotations` before opening launch. Reuse the phone New agent form
   currently in `ProjectScreen`, extending its props for source persona/project initial values,
   an optional existing-project chooser from the already allowed `/api/projects` projection, and
   a launch-result callback instead of immediate navigation. Offer only active configured projects;
@@ -1900,7 +1900,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   `tool-call` presentation hook's states are `running`, `background-running`, `background`,
   `completed` and `failed`; the `tool-result` hook and transcript variant are removed.
 
-- **R148 (planned) — Annotation source-recording choice shares the existing batch owner.**
+- **R148 — Annotation source-recording choice shares the existing batch owner.**
   For FS-13.R35–R36, extend `annotationStore` with the per-source batch checkbox value, treating
   missing stored values as checked. Reuse its hydration, source deletion, expiry and cap paths;
   clear the value when the batch ends by discard, last-draft removal or acknowledged send.

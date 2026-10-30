@@ -3,10 +3,35 @@ import { pruneTrays, useAnnotationStore } from "./annotationStore";
 
 beforeEach(() => {
   localStorage.clear();
-  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {} });
+  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {} });
 });
 
 describe("annotationStore", () => {
+  // FS-13.R35: the choice follows the pending batch through storage and edits,
+  // and every way of ending that batch restores the fresh-batch default.
+  it.each(["discard", "remove", "send"])("retains the recording choice until %s ends the batch", async (end) => {
+    const store = useAnnotationStore.getState();
+    const draft = { seq: 1, excerpt: "line", instruction: "review" };
+    store.add("source", draft);
+    store.setRecordSource("source", false);
+    store.ensureCommand("source");
+    store.setRecordSource("source", true);
+    expect(useAnnotationStore.getState().commandBySource.source).toBeUndefined();
+    store.setRecordSource("source", false);
+    store.updateInstruction("source", 0, "updated");
+    store.setDeliveryTarget("source", "new", "");
+    await useAnnotationStore.persist.rehydrate();
+    expect(useAnnotationStore.getState().recordSourceBySource.source).toBe(false);
+    if (end === "discard") store.discard("source");
+    if (end === "remove") store.remove("source", 0);
+    if (end === "send") {
+      const sent = useAnnotationStore.getState().bySource.source;
+      store.add("source", { seq: 2, excerpt: "next", instruction: "next batch" });
+      store.discardSent("source", sent);
+      expect(useAnnotationStore.getState().bySource.source).toHaveLength(1);
+    }
+    expect(useAnnotationStore.getState().recordSourceBySource.source).toBeUndefined();
+  });
   it("keeps a source-scoped editable tray and clears it only on discard", () => {
     const store = useAnnotationStore.getState();
     expect(store.add("a_source", { seq: 7, excerpt: "selected line", instruction: "check this" })).toBe(true);

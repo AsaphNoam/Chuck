@@ -201,6 +201,7 @@ export interface AnnotationTarget {
 
 export interface AnnotationBatch {
   command_id?: string;
+  omit_source_record?: boolean;
   annotations: AnnotationDraft[];
   overall_instruction?: string;
   target: AnnotationTarget;

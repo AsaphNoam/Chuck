@@ -28,7 +28,7 @@ afterAll(() => server.close());
 afterEach(() => {
   cleanup();
   useAgentStore.setState({ agents: {} });
-  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, targetBySource: {}, recipientBySource: {} });
+  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {} });
   server.resetHandlers();
   launches = 0;
 });
@@ -56,6 +56,29 @@ function agentStylesheet() {
 }
 
 describe("AnnotationTray", () => {
+  it("offers the recording checkbox only for assignments and names a zero-sequence destination", async () => {
+    seedTray(1);
+    useAgentStore.setState({ agents: { source: sourceAgent, peer: { ...sourceAgent, agent_id: "peer", name: "Peer" } } });
+    let submitted: unknown;
+    server.use(http.post("/api/sessions/source/annotations", async ({ request }) => {
+      submitted = await request.json();
+      return HttpResponse.json({ accepted: true, seq: 0 }, { status: 202 });
+    }));
+    renderTray();
+    expect(screen.queryByLabelText("Include in current agent's transcript")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Another agent"));
+    const checkbox = screen.getByLabelText("Include in current agent's transcript");
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByLabelText("Current agent"));
+    expect(screen.queryByLabelText("Include in current agent's transcript")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Another agent"));
+    expect(screen.getByLabelText("Include in current agent's transcript")).not.toBeChecked();
+    fireEvent.change(screen.getByLabelText("Annotation recipient"), { target: { value: "peer" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Annotations sent to Peer.");
+    expect(submitted).toMatchObject({ omit_source_record: true, target: { kind: "agent", agent_id: "peer" } });
+  });
   // FS-13.R34/A24: empty -> capture is a new opening, while adding to a
   // nonempty batch preserves the chosen scope, instructions and recipient.
   it.each(["agent", "room"])("resets outside recipients when a fresh %s batch opens", (kind) => {
@@ -123,7 +146,7 @@ describe("AnnotationTray", () => {
       return HttpResponse.json({ error: { code: "validation", message: "annotation 1 needs an anchor, excerpt, and instruction" } }, { status: 422 });
     }));
     renderTray();
-    fireEvent.click(screen.getByLabelText("New task"));
+    fireEvent.click(screen.getByLabelText("New agent"));
     fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
     expect(await screen.findByText("annotation 1 needs an anchor, excerpt, and instruction")).toBeInTheDocument();
     expect(preflights).toBe(1);
@@ -146,7 +169,7 @@ describe("AnnotationTray", () => {
       }),
     );
     renderTray();
-    fireEvent.click(screen.getByLabelText("New task"));
+    fireEvent.click(screen.getByLabelText("New agent"));
     fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
     fireEvent.click(await screen.findByRole("button", { name: "Launch agent" }));
     expect(await screen.findByText(/Agent new-agent launched, but annotation delivery failed/)).toBeInTheDocument();
@@ -204,7 +227,7 @@ describe("AnnotationTray", () => {
     useAgentStore.setState({ agents: { source: { ...sourceAgent, running: false } } });
     renderTray(false);
     expect(screen.getByLabelText("Current agent")).not.toBeChecked();
-    expect(screen.getByLabelText("New task")).toBeChecked();
+    expect(screen.getByLabelText("New agent")).toBeChecked();
     expect(screen.getByRole("button", { name: "Continue to launch" })).toBeInTheDocument();
   });
 

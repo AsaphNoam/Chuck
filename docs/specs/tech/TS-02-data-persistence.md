@@ -910,7 +910,7 @@ crashed or archived agent projects zero whatever the stale column holds, so no c
 required on stop. Rollback leaves the column unread. *Verify:* migration and status round-trip
 tests and a manager projection test for running, stopped and archived agents (FS-02.A64).
 
-**R60 (planned) — Unrecorded annotation assignments reuse existing receipts.** For FS-13.R35
+**R60 — Unrecorded annotation assignments reuse existing receipts.** For FS-13.R35
 and TS-03.R75, reuse `annotation_receipts` and `CommitAnnotationMail`; no new table, transcript
 event kind or persisted copy of the annotation payload is needed. An opted-out peer assignment
 reserves the existing source/command identity and canonical hash, then atomically inserts target

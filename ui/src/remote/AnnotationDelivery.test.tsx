@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.validate.mockResolvedValue({ valid: true });
   mocks.send.mockResolvedValue({ accepted: true });
-  useAnnotationStore.setState({ bySource: { a1: [draft] }, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {} });
+  useAnnotationStore.setState({ bySource: { a1: [draft] }, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {} });
   useConnection.setState({ link: "connected", agents: { a1: agent } });
   window.history.replaceState(null, "", "/agent/a1");
   window.scrollTo = vi.fn();
@@ -52,7 +52,7 @@ function renderTray() {
   return render(<QueryClientProvider client={client}><TrayHarness /></QueryClientProvider>);
 }
 async function startPendingLaunch() {
-  fireEvent.click(screen.getByRole("radio", { name: "New task" }));
+  fireEvent.click(screen.getByRole("radio", { name: "New agent" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
   const form = await screen.findByRole("form", { name: "New agent" });
   await waitFor(() => expect(within(form).getByRole("button", { name: "Launch and send" })).toBeEnabled());
@@ -91,6 +91,22 @@ it("lets a refused pending launch close back to the intact tray", async () => {
   expect(mocks.launch).toHaveBeenCalledTimes(1);
   expect(mocks.send).not.toHaveBeenCalled();
   expect(useAnnotationStore.getState().bySource.a1).toEqual([draft]);
+});
+
+it("shows the phone recording choice for assignment and retains it across cancelled launch", async () => {
+  renderTray();
+  expect(screen.queryByLabelText("Include in current agent's transcript")).toBeNull();
+  fireEvent.click(screen.getByRole("radio", { name: "New agent" }));
+  expect(screen.getByLabelText("Include in current agent's transcript")).toBeChecked();
+  fireEvent.click(screen.getByLabelText("Include in current agent's transcript"));
+  fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
+  const form = await screen.findByRole("form", { name: "New agent" });
+  fireEvent.click(within(form).getByRole("button", { name: "Cancel" }));
+  expect(await screen.findByLabelText("Include in current agent's transcript")).not.toBeChecked();
+  fireEvent.click(screen.getByRole("radio", { name: "Another agent" }));
+  expect(screen.getByLabelText("Include in current agent's transcript")).not.toBeChecked();
+  fireEvent.click(screen.getByRole("radio", { name: "This agent" }));
+  expect(screen.queryByLabelText("Include in current agent's transcript")).toBeNull();
 });
 
 it("clears an acknowledged batch but does not navigate after its owner unmounted", async () => {
@@ -157,6 +173,51 @@ it("reuses the persisted command id after a lost delivery response", async () =>
   expect(mocks.send).toHaveBeenCalledTimes(2);
   expect(mocks.send.mock.calls[0][1].command_id).toBeTruthy();
   expect(mocks.send.mock.calls[1][1].command_id).toBe(mocks.send.mock.calls[0][1].command_id);
+});
+
+// FS-13.R35 / TS-08.R148: inspect the actual request at the shared send boundary.
+it("retains opt-out through cancelled launch, reload and same-agent retry with zero-sequence success", async () => {
+  const first = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+  act(() => { first.result.current.setTarget("new"); first.result.current.setRecordSource(false); });
+  await act(async () => { await first.result.current.send(); });
+  expect(mocks.validate.mock.calls[0][1]).toMatchObject({ omit_source_record: true, target: { kind: "self" } });
+  act(() => first.result.current.setShowLaunch(false));
+  expect(first.result.current.recordSource).toBe(false);
+  first.unmount();
+  await useAnnotationStore.persist.rehydrate();
+  mocks.send.mockRejectedValueOnce(new Error("response lost")).mockResolvedValueOnce({ accepted: true, seq: 0 });
+  const second = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+  expect(second.result.current.recordSource).toBe(false);
+  await act(async () => second.result.current.onLaunched("a3"));
+  await act(async () => { await second.result.current.send(); });
+  expect(mocks.send).toHaveBeenCalledTimes(2);
+  const sent = mocks.send.mock.calls[0][1];
+  expect(sent).toMatchObject({ omit_source_record: true, target: { kind: "agent", agent_id: "a3" } });
+  expect(mocks.send.mock.calls[1][1]).toEqual(sent);
+  expect(second.result.current.sentTo).toBe("a3");
+  expect(useAnnotationStore.getState().bySource.a1).toBeUndefined();
+  act(() => useAnnotationStore.getState().add("a1", draft));
+  expect(second.result.current.recordSource).toBe(true);
+});
+
+it("records self delivery regardless of the hidden batch choice", async () => {
+  const { result } = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+  act(() => result.current.setRecordSource(false));
+  await act(async () => { await result.current.send(); });
+  expect(mocks.send.mock.calls[0][1]).not.toHaveProperty("omit_source_record");
+  expect(mocks.send.mock.calls[0][1].target).toEqual({ kind: "self" });
+});
+
+it("delivers the preflight snapshot and resets a capture made during launch to checked", async () => {
+  const { result } = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+  act(() => { result.current.setTarget("new"); result.current.setRecordSource(false); });
+  await act(async () => { await result.current.send(); });
+  expect(result.current.sending).toBe(true);
+  act(() => useAnnotationStore.getState().add("a1", { seq: 2, excerpt: "next", instruction: "review next" }));
+  await act(async () => result.current.onLaunched("a3"));
+  expect(mocks.send.mock.calls[0][1]).toMatchObject({ annotations: [draft], omit_source_record: true });
+  expect(useAnnotationStore.getState().bySource.a1).toHaveLength(1);
+  expect(result.current.recordSource).toBe(true);
 });
 
 it("rehydrates a launched recipient after the delivery owner remounts", async () => {

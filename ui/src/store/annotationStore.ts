@@ -23,6 +23,7 @@ interface PersistedTrays {
   launchedBySource: Record<string, string>;
   targetBySource: Record<string, string>;
   recipientBySource: Record<string, string>;
+  recordSourceBySource: Record<string, boolean>;
 }
 
 interface AnnotationStoreState extends PersistedTrays {
@@ -37,6 +38,7 @@ interface AnnotationStoreState extends PersistedTrays {
   resetCommand: (sourceId: string) => void;
   setLaunched: (sourceId: string, agentId: string | null) => void;
   setDeliveryTarget: (sourceId: string, target: string, recipientId: string) => void;
+  setRecordSource: (sourceId: string, record: boolean) => void;
 }
 
 // pruneTrays applies FS-13.R16 to what a reload restored: drop empty trays, drop
@@ -50,7 +52,7 @@ export function pruneTrays(persisted: Partial<PersistedTrays>, now = Date.now())
     .filter((id) => (stored[id] ?? []).length > 0 && now - (editedAt[id] ?? now) <= maxTrayAgeMs)
     .sort((a, b) => (editedAt[b] ?? now) - (editedAt[a] ?? now))
     .slice(0, maxSources);
-  const next: PersistedTrays = { bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {} };
+  const next: PersistedTrays = { bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {} };
   for (const id of keep) {
     next.bySource[id] = stored[id];
     next.editedAt[id] = editedAt[id] ?? now;
@@ -61,6 +63,7 @@ export function pruneTrays(persisted: Partial<PersistedTrays>, now = Date.now())
     if (persisted.launchedBySource?.[id]) next.launchedBySource[id] = persisted.launchedBySource[id];
     if (persisted.targetBySource?.[id]) next.targetBySource[id] = persisted.targetBySource[id];
     if (persisted.recipientBySource?.[id]) next.recipientBySource[id] = persisted.recipientBySource[id];
+    if (persisted.recordSourceBySource?.[id] === false) next.recordSourceBySource[id] = false;
   }
   return next;
 }
@@ -76,6 +79,7 @@ export const useAnnotationStore = create<AnnotationStoreState>()(
       launchedBySource: {},
       targetBySource: {},
       recipientBySource: {},
+      recordSourceBySource: {},
       add: (sourceId, draft) => {
         const current = get().bySource[sourceId] ?? [];
         if (current.length >= maxDrafts) return false;
@@ -111,7 +115,7 @@ export const useAnnotationStore = create<AnnotationStoreState>()(
           const remaining = (state.bySource[sourceId] ?? []).filter((draft) => !sent.includes(draft));
           if (remaining.length === 0) return dropSource(state, sourceId);
           const { [sourceId]: _overall, ...overallBySource } = state.overallBySource;
-          return { bySource: { ...state.bySource, [sourceId]: remaining }, overallBySource, commandBySource: without(state.commandBySource, sourceId), launchedBySource: without(state.launchedBySource, sourceId) };
+          return { bySource: { ...state.bySource, [sourceId]: remaining }, overallBySource, commandBySource: without(state.commandBySource, sourceId), launchedBySource: without(state.launchedBySource, sourceId), recordSourceBySource: without(state.recordSourceBySource, sourceId) };
         }),
       setOverall: (sourceId, overall) =>
         set((state) => ({ overallBySource: { ...state.overallBySource, [sourceId]: overall }, editedAt: touch(state.editedAt, sourceId), commandBySource: without(state.commandBySource, sourceId) })),
@@ -127,12 +131,13 @@ export const useAnnotationStore = create<AnnotationStoreState>()(
         return command;
       },
       resetCommand: (sourceId) => set((state) => ({ commandBySource: without(state.commandBySource, sourceId) })),
+      setRecordSource: (sourceId, record) => set((state) => ({ recordSourceBySource: { ...state.recordSourceBySource, [sourceId]: record }, editedAt: touch(state.editedAt, sourceId), commandBySource: without(state.commandBySource, sourceId) })),
       setLaunched: (sourceId, agentId) => set((state) => ({ launchedBySource: agentId ? { ...state.launchedBySource, [sourceId]: agentId } : without(state.launchedBySource, sourceId) })),
       setDeliveryTarget: (sourceId, target, recipientId) => set((state) => ({ targetBySource: { ...state.targetBySource, [sourceId]: target }, recipientBySource: recipientId ? { ...state.recipientBySource, [sourceId]: recipientId } : without(state.recipientBySource, sourceId) })),
     }),
     {
       name: "chuck-annotation-tray",
-      partialize: (state) => ({ bySource: state.bySource, overallBySource: state.overallBySource, editedAt: state.editedAt, collapsedBySource: state.collapsedBySource, commandBySource: state.commandBySource, launchedBySource: state.launchedBySource, targetBySource: state.targetBySource, recipientBySource: state.recipientBySource }),
+      partialize: (state) => ({ bySource: state.bySource, overallBySource: state.overallBySource, editedAt: state.editedAt, collapsedBySource: state.collapsedBySource, commandBySource: state.commandBySource, launchedBySource: state.launchedBySource, targetBySource: state.targetBySource, recipientBySource: state.recipientBySource, recordSourceBySource: state.recordSourceBySource }),
       merge: (persisted, current) => ({ ...current, ...pruneTrays((persisted ?? {}) as Partial<PersistedTrays>) }),
     },
   ),
@@ -150,7 +155,8 @@ function dropSource(state: PersistedTrays, sourceId: string): PersistedTrays {
   const { [sourceId]: _launched, ...launchedBySource } = state.launchedBySource;
   const { [sourceId]: _target, ...targetBySource } = state.targetBySource;
   const { [sourceId]: _recipient, ...recipientBySource } = state.recipientBySource;
-  return { bySource, overallBySource, editedAt, collapsedBySource, commandBySource, launchedBySource, targetBySource, recipientBySource };
+  const recordSourceBySource = without(state.recordSourceBySource, sourceId);
+  return { bySource, overallBySource, editedAt, collapsedBySource, commandBySource, launchedBySource, targetBySource, recipientBySource, recordSourceBySource };
 }
 
 function without<T>(values: Record<string, T>, sourceId: string) {

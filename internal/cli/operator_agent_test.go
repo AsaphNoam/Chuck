@@ -51,6 +51,7 @@ func TestOperatorAgentWireInventory(t *testing.T) {
 		{[]string{"messages", "a", "--limit", "12", "--unread-only"}, "GET", "/api/sessions/a/messages?limit=12&unread_only=true", ""},
 		{[]string{"think-tank-results", "a", "--after", "17"}, "GET", "/api/sessions/a/think-tank-results?after=17", ""},
 		{[]string{"annotate", "a", "--request-file", "-"}, "POST", "/api/sessions/a/annotations", `{"annotations":[{"anchor":"chat","excerpt":"x","instruction":"fix"}],"target":{"kind":"agent","agent_id":"b"}}`},
+		{[]string{"annotate", "a", "--request-file", "-"}, "POST", "/api/sessions/a/annotations", `{"annotations":[{"seq":1,"excerpt":"x","instruction":"fix"}],"target":{"kind":"agent","agent_id":"b"},"omit_source_record":true}`},
 	}
 	for _, tc := range cases {
 		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {

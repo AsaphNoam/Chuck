@@ -131,7 +131,7 @@ func agentOperation(use, method, suffix string, nargs int, text, yes bool, requi
 		"cancel":  "{target:\"turn\"} or {target:\"quota_continuation\",episode_id,revision}; quota cancellation requires the exact positive revision",
 		"approve": "{tool_call_id}; approves only the exact pending tool call", "deny": "{tool_call_id}; denies only the exact pending tool call",
 		"background-task-stop": "{task_id,activity_id?}; reports acceptance, then inspect native task state for its terminal update",
-		"annotate":             "{annotations:[{anchor,seq?,path?,side?,start_line?,end_line?,excerpt,instruction}],overall_instruction?,target:{kind:\"self\"|\"agent\",agent_id?}}; launch and annotate are separate operations",
+		"annotate":             "{annotations:[{anchor,seq?,path?,side?,start_line?,end_line?,excerpt,instruction}],overall_instruction?,target:{kind:\"self\"|\"agent\",agent_id?},omit_source_record?:boolean}; launch and annotate are separate operations",
 		"held":                 "no input; inspect the current held or recovered message", "withdraw": "no body; --recovery-request-id dismisses only that recovered receipt",
 		"file": "--path; reads text without running commands", "file-search": "--query; bounded workspace filename search",
 		"available-commands": "no input; discovery never executes a provider command", "messages": "--limit 1–200 and --unread-only", "think-tank-results": "--after durable result cursor",

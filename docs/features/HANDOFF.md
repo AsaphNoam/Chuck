@@ -52,6 +52,19 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
+**Optional annotation source recording** —
+[`optional-annotation-source-recording`](../ready-changes/optional-annotation-source-recording.md),
+**in progress**. Implement the specified opt-out through existing receipts and the shared
+desktop/phone batch owner; rename annotation destinations to **New agent**, including rooms.
+Parallel ownership: backend request/receipt integration and focused tests; shared UI lifecycle
+and controls/tests; rendered desktop/phone assignment journey. Parent integrates and runs closure.
+Implemented request/receipt, shared batch lifecycle and desktop/phone controls, including room
+terminology. Focused backend handler/remote/CLI checks pass; UI store/delivery/control checks
+pass (91 tests initially, then 36 with added control cases); TypeScript and `make embed` pass.
+Phone rendered journey passes nine appearance/width cases with stubbed APIs. Next: finish full
+Go/UI closure and desktop rendered journey, then add the completed unit to review without
+replacing existing units. Existing background indicator work remains resumable below.
+
 **Running background-work indicator** —
 [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
 **resumable**. Operator decision 2026-10-29: option (a). Each popover row is named by its

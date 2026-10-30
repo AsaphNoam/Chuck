@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sendAnnotations, validateAnnotations } from "../../api/client";
-import type { AgentState } from "../../api/types";
+import type { AgentState, AnnotationBatch } from "../../api/types";
 import { annotationBatch } from "../../lib/annotations";
 import { useAnnotationStore } from "../../store/annotationStore";
 
@@ -31,6 +31,8 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   const discardSent = useAnnotationStore((state) => state.discardSent);
   const ensureCommand = useAnnotationStore((state) => state.ensureCommand);
   const resetCommand = useAnnotationStore((state) => state.resetCommand);
+  const recordSource = useAnnotationStore((state) => state.recordSourceBySource[sourceId] ?? true);
+  const setRecordSource = (record: boolean) => useAnnotationStore.getState().setRecordSource(sourceId, record);
   const storedTarget = useAnnotationStore((state) => state.targetBySource[sourceId] as AnnotationTarget | undefined);
   const storedRecipient = useAnnotationStore((state) => state.recipientBySource[sourceId] ?? "");
   const setDeliveryTarget = useAnnotationStore((state) => state.setDeliveryTarget);
@@ -44,6 +46,7 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showLaunch, setShowLaunch] = useState(false);
+  const launchBatch = useRef<AnnotationBatch | null>(null);
   const launchedAgentId = useAnnotationStore((state) => state.launchedBySource[sourceId] ?? null);
   const setLaunchedAgent = useAnnotationStore((state) => state.setLaunched);
   // The agent the last acknowledged batch went to; cleared by the next capture.
@@ -64,6 +67,7 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     setSending(false);
     setError(null);
     setShowLaunch(false);
+    launchBatch.current = null;
     setSentTo(null);
     return () => { live.current = null; };
   }, [token]);
@@ -73,7 +77,7 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     if (count > 0) setSentTo(null);
   }, [count]);
 
-  const batch = (agentId?: string) => annotationBatch(drafts ?? [], overall, agentId, ensureCommand(sourceId));
+  const batch = (agentId?: string) => annotationBatch(drafts ?? [], overall, agentId, ensureCommand(sourceId), !recordSource && (target !== "self" || !!agentId));
   const chooseTarget = (next: AnnotationTarget) => {
     if (next !== chosenTarget) resetCommand(sourceId);
     setChosenTarget(next);
@@ -87,12 +91,12 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
 
   // An acknowledged batch is cleared even after its owner went away, since it
   // was really sent; only UI state and navigation belong to the live owner.
-  const deliver = async (agentId: string | undefined, launched: boolean) => {
-    const sent = drafts ?? [];
+  const deliver = async (agentId: string | undefined, launched: boolean, submitted = batch(agentId)) => {
+    const sent = submitted.annotations;
     setSending(true);
     setError(null);
     try {
-      await sendAnnotations(sourceId, batch(agentId));
+      await sendAnnotations(sourceId, submitted);
       discardSent(sourceId, sent);
       if (!current()) return;
       setLaunchedAgent(sourceId, null);
@@ -122,8 +126,12 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
         // An invalid batch never opens the launch step (FS-13.R9, R30).
         setSending(true);
         try {
-          await validateAnnotations(sourceId, batch());
-          if (current()) setShowLaunch(true);
+          const submitted = batch();
+          await validateAnnotations(sourceId, submitted);
+          if (current()) {
+            launchBatch.current = submitted;
+            setShowLaunch(true);
+          }
         } catch (err) {
           if (current()) setError(err instanceof Error ? err.message : "Could not validate annotations.");
         } finally {
@@ -147,8 +155,14 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     setLaunchedAgent(sourceId, agentId);
     if (!current()) return;
     setShowLaunch(false);
-    void deliver(agentId, true);
+    const submitted = launchBatch.current;
+    launchBatch.current = null;
+    void deliver(agentId, true, submitted ? { ...submitted, target: { kind: "agent", agent_id: agentId } } : batch(agentId));
   };
 
-  return { sourceId, sourceActive, source, recipients, connected, target, setTarget: chooseTarget, recipientId, setRecipientId: chooseRecipient, sending, error, showLaunch, setShowLaunch, launchedAgentId, sentTo, send, onLaunched };
+  const dismissLaunch = (open: boolean) => {
+    if (!open) launchBatch.current = null;
+    setShowLaunch(open);
+  };
+  return { sourceId, sourceActive, source, recipients, connected, target, setTarget: chooseTarget, recipientId, setRecipientId: chooseRecipient, recordSource, setRecordSource, sending: sending || showLaunch, error, showLaunch, setShowLaunch: dismissLaunch, launchedAgentId, sentTo, send, onLaunched };
 }

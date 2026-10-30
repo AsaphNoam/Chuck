@@ -12,7 +12,7 @@ import { useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
 
 /** RoomAnnotationTray is the familiar tray with the room's three destinations:
- *  Room (shared input between turns), a selected agent, or New task through the
+ *  Room (shared input between turns), a selected agent, or New agent through the
  *  ordinary New Agent flow (FS-21.R30, FS-13.R27). Drafts stay in the bounded
  *  browser tray until a send succeeds. */
 export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
@@ -102,7 +102,7 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
             <input type="radio" checked={effectiveTarget === "room"} disabled={ended || send.isPending} onChange={() => setTarget("room")} /> Room
           </label>
           <label><input type="radio" checked={effectiveTarget === "agent"} disabled={send.isPending} onChange={() => setTarget("agent")} /> An agent</label>
-          <label><input type="radio" checked={effectiveTarget === "new"} disabled={send.isPending} onChange={() => setTarget("new")} /> New task</label>
+          <label><input type="radio" checked={effectiveTarget === "new"} disabled={send.isPending} onChange={() => setTarget("new")} /> New agent</label>
           {effectiveTarget === "agent" && <IncludeOtherProjects checked={choices.includeOthers} onChange={choices.setIncludeOthers} disabled={send.isPending} />}
           {effectiveTarget === "agent" && (
             <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} disabled={send.isPending} aria-label="Annotation recipient">

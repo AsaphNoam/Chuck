@@ -1190,7 +1190,7 @@ describe("AgentScreen diff annotations", () => {
       validateStatus = 422;
       useConnection.setState({ agents: { a1: idle } });
       await annotateLine();
-      fireEvent.click(screen.getByRole("radio", { name: "New task" }));
+      fireEvent.click(screen.getByRole("radio", { name: "New agent" }));
       fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
       expect(await screen.findByText("annotation 1 needs an anchor, excerpt, and instruction")).toBeInTheDocument();
       expect(screen.queryByRole("form", { name: "New agent" })).toBeNull();
@@ -1201,7 +1201,7 @@ describe("AgentScreen diff annotations", () => {
     it("prefills the source, survives cancel and launch refusal, retries delivery to the same agent, then opens it", async () => {
       useConnection.setState({ agents: { a1: idle } });
       await annotateLine();
-      fireEvent.click(screen.getByRole("radio", { name: "New task" }));
+      fireEvent.click(screen.getByRole("radio", { name: "New agent" }));
       fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
       let form = await screen.findByRole("form", { name: "New agent" });
       await waitFor(() => expect(within(form).getByLabelText("Persona")).toHaveValue("implementer"));

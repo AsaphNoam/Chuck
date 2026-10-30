@@ -141,12 +141,12 @@ func steerError(err error) *runtime.APIError {
 	}
 }
 
-// handleValidateAnnotations checks a new-task batch before the UI launches its
+// handleValidateAnnotations checks a new-agent batch before the UI launches its
 // recipient, using the same content and mail-size checks as delivery.
 func (s *Server) handleValidateAnnotations(w http.ResponseWriter, r *http.Request) {
-	var body runtime.AnnotationData
 	r.Body = http.MaxBytesReader(w, r.Body, remoteBodyLimit)
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	body, err := decodeAnnotationRequest(r.Body)
+	if err != nil {
 		writeAPIError(w, apiError(runtime.CodeValidation, "invalid JSON body"))
 		return
 	}
@@ -174,14 +174,13 @@ func (s *Server) handleValidateAnnotations(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]any{"valid": true})
 }
 
-// handleAnnotations accepts one point-in-time review batch. New-task delivery
+// handleAnnotations accepts one point-in-time review batch. New-agent delivery
 // composes the existing launch endpoint with this same agent target, keeping one
 // delivery path for mail and one event shape for replay/search.
 func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 	sourceID := r.PathValue("id")
-	var body runtime.AnnotationData
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&body); err != nil {
+	body, err := decodeAnnotationRequest(r.Body)
+	if err != nil {
 		writeAPIError(w, apiError(runtime.CodeValidation, "invalid JSON body"))
 		return
 	}
@@ -204,6 +203,10 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body.CommandID = commandID
+	if body.OmitSourceRecord && (body.Target.Kind != "agent" || body.Target.AgentID == sourceID || commandID == "") {
+		writeAPIError(w, apiError(runtime.CodeValidation, "omitting source recording requires a peer agent and command id"))
+		return
+	}
 	targetID := body.Target.AgentID
 	if body.Target.Kind == "self" {
 		targetID = sourceID
@@ -245,7 +248,7 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if receipt.State == "accepted" && receipt.SourceSeq > 0 {
+		if receipt.State == "accepted" {
 			writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "seq": receipt.SourceSeq, "command_id": commandID, "effect_id": receipt.EffectID})
 			return
 		}
@@ -322,7 +325,9 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 	}
 	body.Target.AgentID = targetID
 	var ev runtime.Event
-	if commandID != "" {
+	// Omission intent comes from the validated request/hash, never from a zero
+	// receipt sequence: omitted source history is not read, repaired or published.
+	if !body.OmitSourceRecord && commandID != "" {
 		if receipt.SourceSeq > 0 {
 			ev.Seq = receipt.SourceSeq
 		} else {
@@ -357,7 +362,7 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-	} else {
+	} else if !body.OmitSourceRecord {
 		var appendErr error
 		ev, appendErr = s.appendAnnotation(sourceID, body)
 		if appendErr != nil {
@@ -385,7 +390,7 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 			ToAgent: targetID, Subject: "Annotations", Body: mailBody,
 		})
 		if err != nil {
-			writeAPIError(w, apiError(runtime.CodeInternal, "annotation recorded; mail delivery remains retryable"))
+			writeAPIError(w, apiError(runtime.CodeInternal, "annotation mail delivery remains retryable"))
 			return
 		}
 		select {
@@ -406,6 +411,26 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 		response["command_id"] = commandID
 	}
 	writeJSON(w, http.StatusAccepted, response)
+}
+
+func decodeAnnotationRequest(r io.Reader) (runtime.AnnotationData, error) {
+	var request struct {
+		runtime.AnnotationData
+		OmitSourceRecord json.RawMessage `json:"omit_source_record"`
+	}
+	if err := json.NewDecoder(r).Decode(&request); err != nil {
+		return runtime.AnnotationData{}, err
+	}
+	if request.OmitSourceRecord != nil {
+		switch string(request.OmitSourceRecord) {
+		case "true":
+			request.AnnotationData.OmitSourceRecord = true
+		case "false":
+		default:
+			return runtime.AnnotationData{}, fmt.Errorf("omit_source_record must be a boolean")
+		}
+	}
+	return request.AnnotationData, nil
 }
 
 func annotationPayloadHash(sourceID string, data runtime.AnnotationData) string {

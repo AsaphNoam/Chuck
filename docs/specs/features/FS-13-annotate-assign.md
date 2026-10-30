@@ -37,15 +37,15 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   survives a reload of the same browser, is not visible from other browsers or the API, and creates
   no durable server data until send. A successful send clears it; a failed send preserves it.
 - **R4.** The tray is sent as one batch to exactly one target — the current agent, another
-  running chat agent, or a new task (R9) — with an optional overall instruction of at most 2,000
+  running chat agent, or a new agent (R9) — with an optional overall instruction of at most 2,000
   characters.
 
 ### 2.2 Delivery
 
-- **R5.** Every successful send appends one durable `annotation` event to the **source**
+- **R5.** By default, every successful send appends one durable `annotation` event to the **source**
   session's transcript — whether that session is active or inactive — recording the batch and its
   target. The event is appended **before** the batch is delivered, so no agent ever receives
-  annotations the source transcript does not record. When delivery itself fails after that append,
+  annotations the source transcript does not record, except for an explicit R35 opt-out. When delivery itself fails after that append,
   the batch is undelivered and the tray is preserved (R3); re-sending it delivers exactly once and
   records a second annotation event for the retried batch. Live chat and
   archive replay render it as quoted-excerpt annotation cards with their
@@ -64,11 +64,11 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 - **R8.** Mail delivery may clip excerpts (with a visible marker) to fit the FS-06.R5 body
   limit; anchors and instructions are never clipped. A batch whose anchors and instructions alone
   cannot fit returns `422 validation` naming the constraint, and the tray is preserved.
-- **R9.** Target **new task** opens the existing New Agent modal prefilled with the source
+- **R9.** Target **New agent** opens the existing New Agent modal prefilled with the source
   agent's role and project (name auto-suggest per FS-01.R1/R4). When that launch succeeds, the batch
   is delivered to the new agent as reserved-sender mail (R7), whose idle-nudge wakes the fresh agent
   so processing the annotations is its first activity, and the source session's annotation event
-  (R5) records the new agent as target. Cancelling the modal preserves the tray. The batch is
+  (R5, unless omitted under R35) records the new agent as target. Cancelling the modal preserves the tray. The batch is
   validated for mail delivery before launch; an invalid batch leaves the tray open without creating
   an agent. If delivery fails after launch, the tray names the launched agent and retries delivery
   to that same agent without reopening the launch modal.
@@ -97,7 +97,7 @@ identity and authority; no common receipt grants broader target/source access.
   drafts. A docked tray is additionally expanded or collapsed (R21); leaving the docked form and
   returning restores the remembered collapsed flag. Clearing the tray ends both.
 - **Delivery:** current agent → one prompt turn under the normal FS-03 busy lifecycle; another agent
-  → unread mail following FS-06 pending → nudged → read; new task → prefilled modal → launch →
+  → unread mail following FS-06 pending → nudged → read; New agent → prefilled modal → launch →
   reserved-sender mail nudges the new agent's first turn.
 - **Durability:** the annotation event follows the source transcript's lifetime; a mail copy follows
   FS-06.R8 retention independently.
@@ -116,8 +116,8 @@ identity and authority; no common receipt grants broader target/source access.
 - **R14.** There are no comment threads, replies, or resolve/re-open workflow. Once
   recorded, an annotation event is immutable like every other transcript event.
 - **R15.** From an archived (inactive) source session, the current-agent target is
-  unavailable; another-agent and new-task targets remain, and the tray selects one by default
-  (another agent when a running chat agent exists, otherwise new task) rather than leaving the
+  unavailable; another-agent and New agent targets remain, and the tray selects one by default
+  (another agent when a running chat agent exists, otherwise New agent) rather than leaving the
   disabled current-agent choice selected. The archived view stays composer-free
   (FS-05.R14); annotating never sends a prompt to the archived session itself.
 - **R16.** Pending trays are bounded browser-local drafts, not durable data. Deleting an
@@ -204,13 +204,13 @@ identity and authority; no common receipt grants broader target/source access.
   room-source sends record the annotation in the canonical room history before delivery; failure
   preserves the tray. R27 defines room delivery targets and completed-room behavior; this does
   not change R1–R25's ordinary agent-session contract.
-- **R27** — A room-source batch can target Room, a selected agent, or New task under
+- **R27** — A room-source batch can target Room, a selected agent, or New agent under
   FS-21.R30. Room delivery is shared user input between participant turns, preserving correct source
   attribution rather than privately prompting all participants. Selected-agent delivery uses the
-  normal recipient availability and annotation delivery contract. New task retains R9's meaning:
+  normal recipient availability and annotation delivery contract. New agent retains R9's meaning:
   launch a new normal agent through the existing New Agent flow and deliver the batch as its initial
   work, with the chosen normal role/project/runtime configuration. Cancelling launch preserves the
-  tray. After discussion ends, selected-agent and New task delivery remain available; Room delivery
+  tray. After discussion ends, selected-agent and New agent delivery remain available; Room delivery
   is unavailable and cannot silently resume the room.
 
 - **R28 — Phone selection supports the existing agent-session sources.** On a
@@ -231,14 +231,14 @@ identity and authority; no common receipt grants broader target/source access.
   Both Chat and Files expose the pending count and a way to open that batch without losing the
   person's reading place. The phone also offers R4's optional overall instruction. The draft list
   can scroll while target selection, errors and send remain reachable with the phone keyboard open.
-  Sending uses the existing current-agent, another-agent and new-task destinations, availability
+  Sending uses the existing current-agent, another-agent and New agent destinations, availability
   rules, source recording and prompt/mail content; no new agent/API record shape or retention is
   introduced. Acknowledged success clears the submitted batch and names the destination; a draft
   captured while that send was pending stays in the tray. A rejected or failed
   send preserves all drafts and the overall instruction. Disconnection disables delivery without
   discarding drafts or sending automatically on reconnect.
-- **R30 — Phone New task has the Mac's reviewable launch step.** A phone batch's
-  **New task** destination follows R9: validate the batch and mail size before opening New agent,
+- **R30 — Phone New agent has the Mac's reviewable launch step.** A phone batch's
+  **New agent** destination follows R9: validate the batch and mail size before opening New agent,
   prefill the source's persona and project, and let the person review or change name, persona,
   existing project, group and the phone-supported backend/model/effort/fast choices before launch.
   This supersedes FS-20.R32's immediate default-only launch. It remains a normal chat-agent launch,
@@ -263,9 +263,9 @@ identity and authority; no common receipt grants broader target/source access.
   default to the source agent's project, or the originating project for room annotations.
   An unchecked **Include other projects** control explicitly reveals other eligible agents,
   labelled by project. Reset the control on source change/reopening; hiding a selected outside
-  recipient clears that selection. Existing eligibility, delivery and New task behavior remain.
+  recipient clears that selection. Existing eligibility, delivery and New agent behavior remain.
 
-- **R35 (planned) — Optional source recording for assignments.** Desktop and phone
+- **R35 — Optional source recording for assignments.** Desktop and phone
   agent-session annotation trays show a checked-by-default **Include in current agent's
   transcript** checkbox when targeting another existing agent or a newly launched agent.
   Checked preserves R5's source annotation event and normal target delivery. Unchecked delivers
@@ -277,7 +277,7 @@ identity and authority; no common receipt grants broader target/source access.
   clears the submitted drafts and identifies the recipient. Target mail and its retention stay
   unchanged; an omitted source event contributes no source archive-search content. Existing
   transcript events are never removed. Room-source recording is outside this change.
-- **R36 (planned) — New agent terminology.** Rename the annotation destination **New task**
+- **R36 — New agent terminology.** Rename the annotation destination **New task**
   to **New agent** throughout desktop, phone and room annotation assignment controls and their
   related user-facing launch/retry text. It retains the existing reviewable launch and same-agent
   retry behavior in R9/R27/R30; this is not a rename of the separate durable task capability.
@@ -295,14 +295,14 @@ Each acceptance item names its delivered verification.
 - **A3** (R7–R8) — Assigning to a second agent inserts reserved-sender mail that raises
   the unread badge and nudges an idle recipient; an unfittable batch is rejected `422` with the tray
   preserved: `internal/server/annotations_test.go` and existing messaging/state nudge coverage.
-- **A4** (R9) — New task opens the prefilled New Agent modal only for a valid batch and, after launch,
+- **A4** (R9) — New agent opens the prefilled New Agent modal only for a valid batch and, after launch,
   the new agent's first activity is processing the delivered annotations. A failed delivery leaves
   the tray intact and retries against that same agent: `AnnotationTray.test.tsx`,
   `NewAgentModal.test.tsx` launch coverage, and the annotation delivery integration test.
 - **A5** (R10) — An annotation instruction is findable through archive search on the FTS5
   build: `internal/index/indexer_test.go::TestAnnotationFlushesSearchableContent`.
 - **A6** (R1–R15) — A user annotates a diff and a message, sends to self, to a second
-  agent, and to a new task, and sees structured cards and mail arrive: journey **J13** in
+  agent, and to a new agent, and sees structured cards and mail arrive: journey **J13** in
   `docs/features/USABILITY-REVIEW.md`.
 - **A7** (R5) — A failed source-transcript append delivers no mail, and the preserved tray's
   retry delivers exactly one copy:
@@ -343,7 +343,7 @@ Each acceptance item names its delivered verification.
 - **A16 (shipped 2026-09-30) (R2–R12, R16, R19–R23, R25)** — Source and rendered-Markdown file selections
   create path/line and path-only drafts respectively in the same tray as transcript drafts; the
   mixed batch survives reload, edits and removes normally, preserves excerpts when the file changes
-  or disappears, and sends through the existing self, other-agent, and new-task paths. Its durable
+  or disappears, and sends through the existing self, other-agent, and New agent paths. Its durable
   annotation card, agent block, mail, and archive replay name a file anchor rather than `Event 0`,
   while existing transcript and diff records remain byte-compatible and render unchanged. Empty or
   invalid file anchors return the structured validation error with the tray preserved. *Verify by*
@@ -357,11 +357,11 @@ Each acceptance item names its delivered verification.
   recorded before successful delivery. Ordinary agent-session annotation checks continue to pass.
   *Verified by:* room annotation integration/component tests and the FS-21.A15 rendered journey;
   A18 additionally covers target routing and completed-room cases.
-- **A18** (R26–R27) — Send room-source batches to Room, a selected agent, and New task.
+- **A18** (R26–R27) — Send room-source batches to Room, a selected agent, and New agent.
   Verify that Room input is shared at a participant-turn boundary, selected-agent delivery reaches
-  the chosen normal session, and New task creates a new normal agent with the batch as its initial
+  the chosen normal session, and New agent creates a new normal agent with the batch as its initial
   work. Cancel the new-agent flow and preserve the tray. Complete the room and repeat selected-agent
-  and New task sends while Room delivery remains unavailable. Ordinary session-source destinations
+  and New agent sends while Room delivery remains unavailable. Ordinary session-source destinations
   are unchanged. *Verified by:* room annotation/launch integration tests and FS-21.A20's rendered
   three-destination journey.
 
@@ -381,7 +381,7 @@ Each acceptance item names its delivered verification.
   and a post-launch retry targets the same launched agent. *Verify by:* phone delivery component
   tests, annotation endpoint/formatter regression tests and a fake-provider phone browser journey.
 - **A21 (planned)** (R30–R31) — An invalid batch creates no agent and opens no launch dialog.
-  A valid New task opens the source-prefilled form; change persona/project/name/group/runtime,
+  A valid New agent opens the source-prefilled form; change persona/project/name/group/runtime,
   cancel and reopen, then exercise launch failure and delivery failure after successful launch.
   Verify preserved drafts, editable launch values after launch refusal, same-agent delivery retry,
   and navigation only after successful delivery. Render transcript, diff and both file-anchor forms
@@ -391,7 +391,7 @@ Each acceptance item names its delivered verification.
   rendered fake-provider phone journey.
 
 **A22** (R32) — Discard a successful response, reload/retry the same batch and verify
-one canonical annotation plus one target effect for peer mail, self, new-task and launched targets,
+one canonical annotation plus one target effect for peer mail, self, New agent and launched targets,
 desktop and phone. Test payload mismatch, target refusal before effects, index repair and caller
 authorization; use real handler/receipt paths rather than a mock that deduplicates only requests.
 

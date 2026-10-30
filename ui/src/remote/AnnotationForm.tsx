@@ -53,7 +53,7 @@ export function PhoneAnnotationSent({ delivery }: { delivery: AnnotationDelivery
   return <p className="phone-meta" role="status">Annotations sent to {name}.</p>;
 }
 
-/** The one tray sheet and its New task launch step. The owner keeps `delivery`
+/** The one tray sheet and its New agent launch step. The owner keeps `delivery`
  *  above the Chat/Files tabs, so closing the sheet or switching tabs keeps the
  *  target, a launched recipient and any send in flight (TS-08.R134). */
 export function PhoneAnnotations({ delivery, open, focusNewest, onClose }: {
@@ -91,7 +91,7 @@ export function PhoneAnnotations({ delivery, open, focusNewest, onClose }: {
 
 function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: AnnotationDelivery; focusNewest: number; onClose: () => void }) {
   const { data: roles } = useRoles();
-  const { sourceId, sourceActive, source, recipients, connected, target, setTarget, recipientId, setRecipientId, sending, error, launchedAgentId, send } = delivery;
+  const { sourceId, sourceActive, source, recipients, connected, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, launchedAgentId, send } = delivery;
   const drafts = useAnnotationStore((state) => state.bySource[sourceId]) ?? noDrafts;
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
   const updateInstruction = useAnnotationStore((state) => state.updateInstruction);
@@ -149,7 +149,7 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
             [
               ["self", "This agent"],
               ["agent", "Another agent"],
-              ["new", "New task"],
+              ["new", "New agent"],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -183,6 +183,7 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
           ) : (
             <p className="phone-empty">{choices.includeOthers ? "No other chat agent is running." : "No other chat agent is running in this project."}</p>
           ))}
+        {target !== "self" && <label className="phone-check"><input type="checkbox" checked={recordSource} disabled={sending} onChange={(event) => setRecordSource(event.target.checked)} /> Include in current agent's transcript</label>}
         {target === "new" && !launched && <p className="phone-meta">Checks the batch, then lets you review the new agent before it launches.</p>}
         {!connected && <p className="phone-meta" role="status">Reconnect to send. Your annotations stay here.</p>}
         {error && <p className="phone-error" role="alert">{error}</p>}

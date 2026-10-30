@@ -1086,7 +1086,7 @@ Bundled clients use the returned content, never cached content. Fields are addit
 omitting the expectation can still withdraw the current hold but must use the authoritative reply.
 No-hold is idempotent and cannot revive already delivered content.
 
-**R75 (planned) — Annotation assignment can omit source recording.** For FS-13.R35,
+**R75 — Annotation assignment can omit source recording.** For FS-13.R35,
 the session annotation and validation endpoints accept additive `omit_source_record?: boolean`;
 omitted/false preserves R14. On delivery, true is valid only for an `agent` target other than the
 source and requires a valid `command_id`; reject a self-targeted opt-out or delivery without that

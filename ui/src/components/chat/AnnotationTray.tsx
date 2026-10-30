@@ -24,7 +24,7 @@ export function useDesktopAnnotationDelivery(sourceId: string, sourceActive: boo
 }
 
 export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery }) {
-  const { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, sending, error, showLaunch, setShowLaunch, launchedAgentId, send, onLaunched } = delivery;
+  const { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, showLaunch, setShowLaunch, launchedAgentId, sentTo, send, onLaunched } = delivery;
   const { data: roles } = useRoles();
   const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
@@ -36,7 +36,7 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
   const setCollapsed = useAnnotationStore((state) => state.setCollapsed);
   const choices = useProjectFirst({ items: recipients, project: source?.project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: JSON.stringify([sourceId, drafts.length > 0]) });
 
-  if (drafts.length === 0) return null;
+  if (drafts.length === 0) return sentTo ? <p role="status">Annotations sent to {sentTo === sourceId ? "this agent" : recipients.find((agent) => agent.agent_id === sentTo)?.name || sentTo}.</p> : null;
 
   return (
     // Docked column or floating overlay is decided by the space around the
@@ -73,7 +73,7 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
         <div className="annotation-targets">
           <label><input type="radio" checked={target === "self"} disabled={!sourceActive || sending} onChange={() => setTarget("self")} /> Current agent</label>
           <label><input type="radio" checked={target === "agent"} disabled={sending} onChange={() => setTarget("agent")} /> Another agent</label>
-          <label><input type="radio" checked={target === "new"} disabled={!source || sending} onChange={() => setTarget("new")} /> New task</label>
+          <label><input type="radio" checked={target === "new"} disabled={!source || sending} onChange={() => setTarget("new")} /> New agent</label>
           {target === "agent" && <IncludeOtherProjects checked={choices.includeOthers} onChange={choices.setIncludeOthers} disabled={sending} />}
           {target === "agent" && (
             <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} disabled={sending} aria-label="Annotation recipient">
@@ -82,6 +82,7 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
             </select>
           )}
         </div>
+        {target !== "self" && <label><input type="checkbox" checked={recordSource} disabled={sending} onChange={(event) => setRecordSource(event.target.checked)} /> Include in current agent's transcript</label>}
         {error && <p className="annotation-error">{error}</p>}
         <button type="button" className="annotation-send ad-button-primary" onClick={() => void send()} disabled={sending}>{sending ? "Sending…" : target === "new" ? launchedAgentId ? `Retry delivery to ${launchedAgentId}` : "Continue to launch" : "Send annotations"}</button>
       </footer>
