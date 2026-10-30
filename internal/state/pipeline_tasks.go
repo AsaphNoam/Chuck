@@ -1130,6 +1130,12 @@ SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, old.decision_source_task_id, old.input_refs_js
 	if err := setRunCurrentTaskTx(tx, p.RunID, p.Task.TaskID); err != nil {
 		return PipelineRunRecord{}, err
 	}
+	// Input the person queued for the replaced owner keeps its structure and
+	// attachment ownership and moves to the successor assignment, which
+	// delivers it after admission (TS-09.R69/R70).
+	if _, err := tx.Exec(`UPDATE attachment_receipts SET assignment_task_id = ?, updated_at = ? WHERE assignment_task_id = ? AND delivery = 'prepared'`, p.Task.TaskID, stamp, oldTaskID); err != nil {
+		return PipelineRunRecord{}, err
+	}
 	if _, err := tx.Exec(`UPDATE pipeline_runs SET state = 'paused', pending_action = 'activate_replacement', current_agent_id = '', attention_reason = '', revision = revision + 1, updated_at = ? WHERE run_id = ? AND revision = ?`, stamp, p.RunID, revision); err != nil {
 		return PipelineRunRecord{}, err
 	}

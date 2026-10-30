@@ -425,7 +425,7 @@ func continueControl(run state.PipelineRunRecord, current pipelineStageTaskDetai
 	case run.AttentionReason == "needs_input":
 		return pipelineRunControl{Eligible: true, Reason: "Answers the run's question; an answer is required."}
 	case current.State == state.TaskInterrupted:
-		return pipelineRunControl{Eligible: true, Reason: "Resumes the interrupted owner with a fresh recovery allowance; send instructions in its conversation."}
+		return pipelineRunControl{Eligible: true, Reason: "Resumes the interrupted owner with a fresh recovery allowance; instructions are optional and reach it with its resumed turn."}
 	case run.AttentionReason != "" || current.Result != nil && (current.Result.Outcome == state.OutcomeFailure || current.Result.Outcome == state.OutcomeBlocked):
 		return pipelineRunControl{Eligible: true, Reason: "Resumes the run with a fresh recovery allowance; instructions are optional."}
 	}

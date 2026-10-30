@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/AsaphNoam/Chuck/internal/attachment"
+	"github.com/AsaphNoam/Chuck/internal/state"
 	"io"
 	"net/url"
 )
@@ -74,12 +75,41 @@ func (c *ChatRuntime) takeQueuedAssignmentInput(as *agentState) (Message, []map[
 		return Message{}, nil, false
 	}
 	m.RequestID = rec.RequestID
+	if err := c.cloneQueuedAttachments(rec, m); err != nil {
+		_ = c.messageTransition(as.agentID, rec.RequestID, "failed")
+		return Message{}, nil, false
+	}
 	content, err := c.messageContent(as, m)
 	if err != nil || len(content) == 0 {
 		_ = c.messageTransition(as.agentID, rec.RequestID, "failed")
 		return Message{}, nil, false
 	}
 	return m, content, true
+}
+
+// cloneQueuedAttachments gives an assignment's new owner its own copy of the
+// attachments a person sent the previous owner (TS-09.R69).
+func (c *ChatRuntime) cloneQueuedAttachments(rec state.AttachmentReceipt, m Message) error {
+	if rec.SourceAgentID == "" || len(m.Attachments) == 0 {
+		return nil
+	}
+	c.mu.Lock()
+	home := c.transcriptHome
+	c.mu.Unlock()
+	return CloneQueuedAttachments(home, rec, m)
+}
+
+// CloneQueuedAttachments copies a moved receipt's attachments from the
+// conversation that accepted them into the one that will carry them.
+func CloneQueuedAttachments(home string, rec state.AttachmentReceipt, m Message) error {
+	if rec.SourceAgentID == "" || len(m.Attachments) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(m.Attachments))
+	for _, d := range m.Attachments {
+		ids = append(ids, d.ID)
+	}
+	return attachment.New(home).Clone(rec.SourceAgentID, rec.AgentID, ids)
 }
 
 func (c *ChatRuntime) messageContent(as *agentState, m Message) ([]map[string]any, error) {

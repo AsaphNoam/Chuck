@@ -518,6 +518,17 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 					s.writeAttachmentAcceptance(w, receipt)
 					return
 				}
+				// A message to the owner of a paused run continues that run
+				// through the same continuation as the run page (TS-09.R69).
+				if continued, ok := s.continueRunFromConversation(r.Context(), receipt, receiptMessage); ok {
+					owned = true
+					if err := attachment.New(s.configStore.Home()).Retain(id, created); err != nil {
+						s.log.Error("retain accepted attachment markers", "agent", id, "err", err)
+					}
+					s.continueQueuedInput()
+					s.writeAttachmentAcceptance(w, continued)
+					return
+				}
 			}
 			if err := s.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}); err != nil {
 				writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain message receipt"))

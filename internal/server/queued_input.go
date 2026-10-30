@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -36,12 +37,18 @@ func (s *Server) continueQueuedInput() {
 		if st, err := s.stateStore.ReadStatus(queued.AgentID); err != nil || st.State != "idle" {
 			continue
 		}
-		rec, ok, err := s.stateStore.ClaimQueuedInputForTurn(queued.AgentID, queued.RequestID)
+		rec, ok, err := s.stateStore.ClaimQueuedInputForTurn(queued.SourceAgentID, queued.RequestID)
 		if err != nil || !ok {
 			continue
 		}
 		var msg runtime.Message
 		if err := json.Unmarshal([]byte(rec.MessageJSON), &msg); err != nil {
+			_ = s.stateStore.SetAttachmentDelivery(rec.AgentID, rec.RequestID, "failed")
+			continue
+		}
+		// Input accepted by a replaced owner carries its attachments to the
+		// assignment's new owner (TS-09.R69).
+		if err := runtime.CloneQueuedAttachments(s.configStore.Home(), rec, msg); err != nil {
 			_ = s.stateStore.SetAttachmentDelivery(rec.AgentID, rec.RequestID, "failed")
 			continue
 		}
@@ -56,34 +63,59 @@ func (s *Server) continueQueuedInput() {
 	}
 }
 
+// continueRunFromConversation lets a person's message to the owner of a paused
+// run answer or resume that run. The message is recorded with the visit that
+// carries it: words the continuation already carries are submitted with it,
+// and anything else stays prepared for that assignment's turn. It reports
+// false, recording nothing, when no paused run awaits this owner (FS-14.R99/R100).
+func (s *Server) continueRunFromConversation(ctx context.Context, receipt state.AttachmentReceipt, msg runtime.Message) (state.AttachmentReceipt, bool) {
+	if s.pipelineMgr == nil {
+		return state.AttachmentReceipt{}, false
+	}
+	text := strings.TrimSpace(msg.Text)
+	if text == "" {
+		text = "(their answer is in the attached files)"
+	}
+	recorded := receipt
+	ok, err := s.pipelineMgr.ContinueFromOwner(ctx, receipt.AgentID, text, func(taskID string, textCarried bool) error {
+		recorded.AssignmentTaskID = taskID
+		if textCarried && len(msg.Attachments) == 0 {
+			recorded.Delivery = "submitted"
+			if err := s.stateStore.CreateAttachmentReceipt(recorded); err != nil {
+				return err
+			}
+			return s.stateStore.SetAttachmentDelivery(recorded.AgentID, recorded.RequestID, "submitted")
+		}
+		if textCarried {
+			// The visit's continuation carries the words; its turn carries
+			// the attachments.
+			attachmentsOnly := runtime.Message{Attachments: msg.Attachments}
+			data, err := json.Marshal(attachmentsOnly)
+			if err != nil {
+				return err
+			}
+			recorded.MessageJSON = string(data)
+		}
+		recorded.Delivery = "prepared"
+		return s.stateStore.BindAssignmentInput(recorded, taskID)
+	})
+	if err != nil {
+		s.log.Warn("continue paused run from conversation", "agent", receipt.AgentID, "err", err)
+		return state.AttachmentReceipt{}, false
+	}
+	return recorded, ok
+}
+
 // recoverStageTask hands an interrupted pipeline owner to the controller's
-// bounded automatic recovery (TS-09.R70).
+// bounded automatic recovery (TS-09.R70). A replacement takes over the
+// person's pending input with its assignment, structure and attachments
+// intact, in the same transaction (TS-09.R69).
 func (s *Server) recoverStageTask(taskID, attention string, replace bool) {
 	if s.pipelineMgr == nil {
 		return
 	}
-	handoff := ""
-	var receipts []state.AttachmentReceipt
-	if replace {
-		// Pending accepted input belongs in the replacement's handoff; the
-		// old identity will never run this assignment again (TS-09.R69).
-		receipts, _ = s.stateStore.QueuedInputForTask(taskID)
-		for _, rec := range receipts {
-			var msg runtime.Message
-			if json.Unmarshal([]byte(rec.MessageJSON), &msg) == nil && msg.Text != "" {
-				handoff += "The person sent the previous owner this message, which it never received: " + msg.Text + "\n"
-			}
-		}
-	}
-	replaced, err := s.pipelineMgr.RecoverStageTask(taskID, attention, replace, handoff)
-	if err != nil {
+	if _, err := s.pipelineMgr.RecoverStageTask(taskID, attention, replace); err != nil {
 		s.log.Warn("recover pipeline stage task", "task", taskID, "err", err)
-		return
-	}
-	if replaced && len(receipts) > 0 {
-		if err := s.stateStore.MarkQueuedInputHandedOff(receipts); err != nil {
-			s.log.Warn("mark queued input handed off", "task", taskID, "err", err)
-		}
 	}
 }
 

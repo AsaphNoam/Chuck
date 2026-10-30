@@ -47,6 +47,13 @@ func promptDelivery(held bool) string {
 func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	msg, afterSeq, heldID, err := s.registry.HeldSnapshot(id)
+	// Input retained for an assignment's next turn is durable state, shown
+	// apart from the transcript until a turn delivers it (TS-09.R69/R71).
+	queued, queueErr := s.stateStore.QueuedAssignmentInput(id)
+	if queueErr != nil {
+		writeAPIError(w, apiError(runtime.CodeInternal, "cannot read queued messages"))
+		return
+	}
 	if err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
 			writeAPIError(w, sessionOpError(err))
@@ -56,16 +63,27 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, sessionOpError(err))
 			return
 		}
-		if _, e := s.stateStore.AttachmentRecovery(id); errors.Is(e, state.ErrNotFound) {
+		if _, e := s.stateStore.AttachmentRecovery(id); errors.Is(e, state.ErrNotFound) && len(queued) == 0 {
 			writeAPIError(w, sessionOpError(err))
 			return
-		} else if e != nil {
+		} else if e != nil && !errors.Is(e, state.ErrNotFound) {
 			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read message recovery"))
 			return
 		}
 	}
+	queuedBody := make([]map[string]any, 0, len(queued))
+	for _, rec := range queued {
+		var m runtime.Message
+		if json.Unmarshal([]byte(rec.MessageJSON), &m) != nil {
+			continue
+		}
+		queuedBody = append(queuedBody, map[string]any{
+			"request_id": rec.RequestID, "text": m.Text, "assignment_task_id": rec.AssignmentTaskID,
+			"attachments": append([]attachment.Descriptor{}, m.Attachments...),
+		})
+	}
 	msg.Attachments = append([]attachment.Descriptor{}, msg.Attachments...)
-	body := map[string]any{"agent_id": id, "text": msg.Text, "after_seq": afterSeq, "held_id": heldID, "attachments": msg.Attachments, "request_id": msg.RequestID}
+	body := map[string]any{"agent_id": id, "text": msg.Text, "after_seq": afterSeq, "held_id": heldID, "attachments": msg.Attachments, "request_id": msg.RequestID, "queued": queuedBody}
 	if recovery, e := s.stateStore.AttachmentRecovery(id); e == nil {
 		var recovered runtime.Message
 		if e = json.Unmarshal([]byte(recovery.MessageJSON), &recovered); e != nil {

@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -257,7 +258,7 @@ func TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance(t *testing.T) {
 		return current
 	}
 	visit := interrupt()
-	if ok, err := manager.RecoverStageTask(visit.TaskID, "interrupted", false, ""); err != nil || !ok {
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "interrupted", false); err != nil || !ok {
 		t.Fatalf("automatic retry = %v %v", ok, err)
 	}
 	if task, _ := manager.store.ReadTask(visit.TaskID); task.State != state.TaskReady || task.AssignedAgentID != "a_owner" {
@@ -268,14 +269,26 @@ func TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance(t *testing.T) {
 	}
 
 	visit = interrupt()
-	if ok, err := manager.RecoverStageTask(visit.TaskID, "owner_unavailable", true, "The person said: use SQLite"); err != nil || !ok {
+	// An attachment-only message queued for the old owner moves, whole, to
+	// the successor assignment rather than being declared delivered.
+	if err := manager.store.WriteAgent(state.Agent{AgentID: "a_owner", Interface: "chat"}); err != nil {
+		t.Fatal(err)
+	}
+	queued := `{"text":"","attachments":[{"id":"asset_review","name":"evidence.txt","kind":"file"}]}`
+	if err := manager.store.BindAssignmentInput(state.AttachmentReceipt{AgentID: "a_owner", RequestID: "attachment-only", PayloadHash: "h", MessageJSON: queued, Action: "prompt"}, visit.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "owner_unavailable", true); err != nil || !ok {
 		t.Fatalf("automatic replacement = %v %v", ok, err)
 	}
 	replacement, _ := manager.store.LatestPipelineStageTask(runID)
 	task, _ := manager.store.ReadTask(replacement.TaskID)
 	old, _ := manager.store.ReadTask(visit.TaskID)
-	if replacement.TaskID == visit.TaskID || task.TargetKind != state.TargetLaunch || task.Backend != "codex" || task.Model != "gpt" || !strings.Contains(task.Instruction, "use SQLite") {
+	if replacement.TaskID == visit.TaskID || task.TargetKind != state.TargetLaunch || task.Backend != "codex" || task.Model != "gpt" {
 		t.Fatalf("replacement = %+v / %+v", replacement, task)
+	}
+	if rec, err := manager.store.AttachmentReceipt("a_owner", "attachment-only"); err != nil || rec.Delivery != "prepared" || rec.AssignmentTaskID != replacement.TaskID || rec.MessageJSON != queued {
+		t.Fatalf("queued input after replacement = %+v %v, want it pending for the successor", rec, err)
 	}
 	if old.State != state.TaskFinished || old.OutcomeSummary != "replaced" {
 		t.Fatalf("old owner visit = %+v, want retained as replaced", old)
@@ -288,15 +301,19 @@ func TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance(t *testing.T) {
 		t.Fatal(err)
 	}
 	visit = interrupt()
-	if ok, err := manager.RecoverStageTask(visit.TaskID, "interrupted", false, ""); err != nil || ok {
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "interrupted", false); err != nil || ok {
 		t.Fatalf("recovery past the allowance = %v %v", ok, err)
 	}
 	run := readRun(t, manager, runID)
 	if run.State != "paused" || run.AttentionReason != state.PauseRecoveryExhausted {
 		t.Fatalf("exhausted = %s/%s", run.State, run.AttentionReason)
 	}
-	// Resume continues the same interrupted owner with a fresh allowance.
-	if _, err := manager.Continue(context.Background(), runID, run.Revision, ""); err != nil {
+	// Resume continues the same interrupted owner with a fresh allowance; its
+	// optional instructions are retained for that owner's resumed turn.
+	if err := manager.store.BindPipelineStageTaskStandingAgent(visit.TaskID, "a_owner"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Continue(context.Background(), runID, run.Revision, "Repair the migration first"); err != nil {
 		t.Fatal(err)
 	}
 	if after := readRun(t, manager, runID); after.State != "queued" || after.RecoveryRoundsUsed != 0 {
@@ -304,6 +321,10 @@ func TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance(t *testing.T) {
 	}
 	if task, _ := manager.store.ReadTask(visit.TaskID); task.State != state.TaskReady {
 		t.Fatalf("resumed visit = %s", task.State)
+	}
+	receipt, err := manager.store.AttachmentReceipt("a_owner", fmt.Sprintf("run_%s_%d", runID, run.Revision))
+	if err != nil || receipt.Delivery != "prepared" || receipt.AssignmentTaskID != visit.TaskID || !strings.Contains(receipt.MessageJSON, "Repair the migration first") {
+		t.Fatalf("resume instructions = %+v %v, want them retained for the resumed visit", receipt, err)
 	}
 }
 

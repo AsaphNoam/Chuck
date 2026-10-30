@@ -25,8 +25,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
-- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); fix run in progress — GOAL-LED-1/4/5/6/8/9/10
-  fixed; the remaining Must-fix findings and GOAL-LED-14 stay on the same unit below. Acceptance
+- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); fix run in progress — GOAL-LED-1–10, 12 and 14
+  fixed; GOAL-LED-11/13 (queued-input and decision/evidence display) stay on the same unit below. Acceptance
   evidence remains owed below.
 - **Waiting-prompt investigation:** WAIT-PROMPT-1/2 are fixed by goal-led slice 1 (input to a
   waiting assignee is queued and carried by its continuation); WAIT-PROMPT-3 is fixed by coalescing
@@ -289,32 +289,6 @@ Reviewed implementation `715bbcb2^..af2c9495`, including surrounding callers, FS
 TS-09.R66–R72, TS-10.R29/R35, changed persistence/API/chat requirements and test contracts.
 The same unit stays open for grouped fixes; product code and specifications were not changed.
 
-- **Must fix** — GOAL-LED-2 (P1): conversation answers do not continue a question/exhaustion pause.
-  `internal/server/attachments.go:501–522` only queues open waiting/admitting assignments; finished
-  question visits and interrupted exhausted visits fall through to ordinary prompt delivery, with
-  no run continuation transaction. An HTTP answer “Use SQLite” returned 202 sent/submitted while
-  its needs-input run stayed paused and no new tracked visit existed. Run controls separately
-  implement answers in `internal/pipeline/actions.go:63–80`. Use the specified common recorded-input
-  helper, retain request/run/visit/question provenance, and resume the same run once without
-  approving a checkpoint. FS-14.R99/R100; TS-09.R69/R70; INV §2/§15. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-3 (P1): automatic replacement silently loses accepted input.
-  `internal/server/queued_input.go:70–84` copies text only, then marks all selected receipts
-  submitted. An attachment-only receipt became submitted although the replacement handoff contained
-  neither its attachment ID nor name. `internal/pipeline/actions.go:200–205` also clips concatenated
-  input before those receipts are marked delivered. Transfer structured pending messages and their
-  attachment ownership through replacement; do not declare clipped/omitted content submitted.
-  Verify attachment-only and over-budget queued handoffs. FS-14.R100/R101; TS-09.R69/R70;
-  INV §11/§15/§16. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-7 (P2): an ordinary start retry detaches input already accepted for it.
-  `internal/state/attachment_receipts.go:76,120–125` excludes ready initial assignments with
-  continuation_pending=0 from retained queued input. QueueAssignmentInput → FailTaskStart →
-  QueuedInputWork changed a starting assignment's prepared/bound correction to released/unbound
-  although that same assignment was retrying. Preserve binding across ordinary admission retries
-  and prove its next activation carries the correction. FS-14.R100; TS-09.R69; TS-10.R29;
-  INV §1/§2. Fix complexity: medium.
-
 - **Must fix** — GOAL-LED-11 (P2): accepted queued input disappears from supervision until delivery.
   `ui/src/components/chat/Composer.tsx:155–186` clears the draft without a held/transcript row;
   only a transient notice remains. `internal/server/sessions.go:46–81` exposes runtime-held or
@@ -322,14 +296,6 @@ The same unit stays open for grouped fixes; product code and specifications were
   receipts. After navigation/restart, pending text and attachments cannot be inspected. Rehydrate
   the durable queued state on desktop/phone without falsely adding delivered transcript events.
   No data loss is established by this finding. TS-09.R69/R71; INV §8/§10. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-12 (P2): phone Resume offers instructions that the API rejects.
-  `ui/src/remote/RunScreen.tsx:77` renders an optional instructions field for interrupted visits,
-  but `internal/pipeline/actions.go:53–60` rejects any nonempty input and redirects to conversation.
-  Browser reproduction entered repair instructions, clicked Resume and received that error;
-  desktop suppresses the field. Make the form and server agree, preferably through the common
-  recorded-input behavior required by GOAL-LED-2. FS-14.R99/R103; TS-09.R71; INV §8/§10.
-  Fix complexity: trivial/easy at the existing form/control seam.
 
 - **Must fix** — GOAL-LED-13 (P2): run supervision hides accepted decision/evidence provenance.
   `ui/src/remote/RunScreen.tsx:84–95` omits task.decision entirely, hiding deviations and reasons.
@@ -339,13 +305,6 @@ The same unit stays open for grouped fixes; product code and specifications were
   rendered completion fixtures confirmed both omissions. Expose the chosen decision and evidence
   visits on desktop/phone with inspectable result links. FS-14.R103; TS-09.R71; INV §10/§11.
   Fix complexity: trivial/easy.
-
-- **Worth fixing** — GOAL-LED-14 (P2): shipped operating guidance still requires human Retry after
-  restart/exit. `internal/agentknowledge/operating-chuck/references/build-and-run-pipelines.md:16`
-  contradicts automatic recovery (also proven by TestRestartInterruptedStageRecoversAutomatically),
-  directing supervisors toward unnecessary operator intervention. Update this paragraph with the
-  actual automatic retry/replacement and exhausted-pause policy; align room guidance with
-  GOAL-LED-1 when fixed. FS-14.R101; TS-09.R71; INV §10. Fix complexity: trivial/easy.
 
 Review evidence: eight external regression probes exposed room false completion, controller
 exhaustion, missing selected input, unselected-room rejection, replacement attachment loss,
@@ -398,6 +357,16 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-30 — Fixed GOAL-LED-2/3/7/12/14 (INV §1/§2/§8/§10/§11/§15):** queued input stays bound
+  to its assignment through start retries and moves whole (text and attachments) to an automatic
+  replacement, its attachments cloned for the new owner at delivery; the clipped text handoff is
+  gone. Run-page Continue and a message to a paused run's owner share one continuation: answers and
+  resume instructions continue the same run once (never an approval), and interrupted-visit Resume
+  now accepts instructions on desktop and phone. Operating guidance describes automatic recovery
+  and the decision-only room handoff. `GET .../prompt` now returns retained `queued` input (UI
+  display pending, GOAL-LED-11). Regressions: `TestQueuedInputSurvivesStartRetry`,
+  `TestQueuedAttachmentFollowsReplacementOwner`, `TestConversationAnswerContinuesQuestionPause`,
+  extended `TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance`.
 - **2026-10-30 — Fixed GOAL-LED-6/8/9 (INV §2/§9/§10):** restart start exhaustion now reaches
   the common parked-owner recovery; a stall check deferred by background work is rechecked when
   that work ends (`EvBackgroundTaskState`) and by the dispatcher's bounded sweep, which also heals

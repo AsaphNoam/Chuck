@@ -2,7 +2,9 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"unicode/utf8"
@@ -10,7 +12,64 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
+// InputBinder records a person's input for the assignment that will carry it.
+// textCarried reports that the continuation instruction already carries the
+// words, so only the rest of the message (attachments) still needs delivery.
+type InputBinder func(taskID string, textCarried bool) error
+
+// Continue is the run page's control. Its input is recorded through the same
+// continuation as a conversation answer (ContinueFromOwner): text the new
+// visit's continuation does not carry is retained for the owner's next turn
+// under a request identity unique to this run revision (TS-09.R69).
 func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision int64, input string) (RunDetail, error) {
+	text := strings.TrimSpace(input)
+	return m.continueRun(ctx, runID, expectedRevision, input, func(owner string) InputBinder {
+		return func(taskID string, textCarried bool) error {
+			if textCarried || text == "" {
+				return nil
+			}
+			if owner == "" {
+				return controlError("invalid_state", "the run has no owner to receive instructions")
+			}
+			message, _ := json.Marshal(map[string]string{"text": text})
+			requestID := fmt.Sprintf("run_%s_%d", runID, expectedRevision)
+			return m.store.BindAssignmentInput(state.AttachmentReceipt{AgentID: owner, RequestID: requestID, PayloadHash: requestID, MessageJSON: string(message), Action: "prompt"}, taskID)
+		}
+	})
+}
+
+// ContinueFromOwner lets a person's message in a paused run owner's
+// conversation continue that run exactly as the run page would: an answer to
+// its question, or instructions that resume it. It reports false, changing
+// nothing, when no paused run awaits this owner's input; approval checkpoints
+// are never continued this way (TS-09.R69, FS-14.R99/R100).
+func (m *Manager) ContinueFromOwner(ctx context.Context, agentID, text string, bind InputBinder) (bool, error) {
+	runs, err := m.store.ListActivePipelineRuns()
+	if err != nil {
+		return false, err
+	}
+	for _, run := range runs {
+		if run.State != "paused" || run.PendingAction != "" {
+			continue
+		}
+		current, found, err := m.currentStageTask(run.RunID)
+		if err != nil {
+			return false, err
+		}
+		if !found || current.RoomID != "" || current.StandingAgentID != agentID {
+			continue
+		}
+		_, err = m.continueRun(ctx, run.RunID, run.Revision, text, func(string) InputBinder { return bind })
+		var control *ControlError
+		if errors.As(err, &control) && control.Code == "invalid_state" {
+			return false, nil
+		}
+		return err == nil, err
+	}
+	return false, nil
+}
+
+func (m *Manager) continueRun(ctx context.Context, runID string, expectedRevision int64, input string, binder func(owner string) InputBinder) (RunDetail, error) {
 	unlock := m.lockRun(runID)
 	run, err := m.store.ReadPipelineRun(runID)
 	if err != nil {
@@ -22,6 +81,16 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 		return RunDetail{}, controlError("revision_conflict", "run changed; refresh before continuing")
 	}
 	if current, found, stageErr := m.currentStageTask(runID); stageErr == nil && found {
+		bind := binder(current.StandingAgentID)
+		// newVisit binds the input to the visit just created; its continuation
+		// carries the text.
+		newVisit := func() error {
+			next, found, err := m.currentStageTask(runID)
+			if err != nil || !found || next.TaskID == current.TaskID {
+				return err
+			}
+			return bind(next.TaskID, true)
+		}
 		detail, detailErr := m.Detail(runID)
 		if detailErr != nil {
 			unlock()
@@ -69,10 +138,9 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 		case run.State == "paused" && run.PendingAction == "" && task.State == state.TaskInterrupted:
 			// Resume continues the same owner on its interrupted visit with a
 			// fresh allowance; Retry and Replace stay available (TS-09.R70/R71).
-			// Instructions for that same owner go through its conversation,
-			// where they are queued for this assignment rather than dropped.
-			if input != "" {
-				continueErr = validationError("send instructions to the owner's conversation", []Diagnostic{{Field: "input", Code: "invalid", Message: "this run resumes its interrupted owner; send instructions in that agent's conversation, where they are delivered with its next turn"}})
+			// Instructions are retained for that assignment first, so its
+			// resumed turn carries them.
+			if continueErr = bind(current.TaskID, false); continueErr != nil {
 				break
 			}
 			var resumed state.PipelineRunRecord
@@ -85,7 +153,9 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 				continueErr = validationError("an answer is required", []Diagnostic{{Field: "input", Code: "invalid", Message: "answer the run's question: " + run.PauseQuestion}})
 				break
 			}
-			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText("You asked the person: "+run.PauseQuestion+"\nTheir answer: "+input, MaxValueRunes), DecisionSource: current.DecisionSourceTaskID})
+			if continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText("You asked the person: "+run.PauseQuestion+"\nTheir answer: "+input, MaxValueRunes), DecisionSource: current.DecisionSourceTaskID}); continueErr == nil {
+				continueErr = newVisit()
+			}
 		case run.State == "paused" && run.PendingAction == "" && (run.AttentionReason == attentionRecoveryExhausted || task.Outcome == state.OutcomeFailure || task.Outcome == state.OutcomeBlocked || run.AttentionReason == attentionCheckMissing || run.AttentionReason == attentionApprovalMissing):
 			// Resume after repair needs no invented text, and grants a fresh
 			// allowance exactly once under this revision (TS-09.R70).
@@ -93,7 +163,9 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 			if input != "" {
 				text += "\nTheir instructions: " + input
 			}
-			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText(text, MaxValueRunes), RenewAllowance: true, DecisionSource: current.DecisionSourceTaskID})
+			if continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText(text, MaxValueRunes), RenewAllowance: true, DecisionSource: current.DecisionSourceTaskID}); continueErr == nil {
+				continueErr = newVisit()
+			}
 		default:
 			continueErr = controlError("invalid_state", "continue is not valid for the current run state")
 		}
@@ -193,7 +265,7 @@ func (m *Manager) Replace(ctx context.Context, runID string, expectedRevision in
 			return RunDetail{}, validationError("replacement runtime is unavailable", []Diagnostic{{Field: "orchestrator", Code: "unavailable", Message: err.Error()}})
 		}
 	}
-	if err := m.replaceOwner(run, detail, current, stage, runtime, false, ""); err != nil {
+	if err := m.replaceOwner(run, detail, current, stage, runtime, false); err != nil {
 		return RunDetail{}, err
 	}
 	return m.Detail(runID)
@@ -202,8 +274,9 @@ func (m *Manager) Replace(ctx context.Context, runID string, expectedRevision in
 // replaceOwner issues a visibly fresh standing owner for an interrupted visit:
 // a new identity with the given runtime and a bounded evidence handoff, the
 // old identity, history and child work retained (TS-09.R41/R70). An automatic
-// replacement spends a round atomically and carries the person's pending input.
-func (m *Manager) replaceOwner(run state.PipelineRunRecord, detail RunDetail, current state.PipelineStageTask, stage Stage, runtime RuntimeAssignment, charge bool, handoff string) error {
+// replacement spends a round atomically; the person's pending input moves to
+// the successor assignment in the same transaction.
+func (m *Manager) replaceOwner(run state.PipelineRunRecord, detail RunDetail, current state.PipelineStageTask, stage Stage, runtime RuntimeAssignment, charge bool) error {
 	if current.DecisionSourceTaskID != "" {
 		stage = decisionStage(stage)
 	}
@@ -221,12 +294,9 @@ func (m *Manager) replaceOwner(run state.PipelineRunRecord, detail RunDetail, cu
 	if err != nil {
 		return err
 	}
-	continuation := "Replacement standing owner: inspect the retained stage work and continue from durable results."
-	if handoff != "" {
-		continuation += "\n" + handoff
-	}
+	continuation := "Replacement standing owner: inspect the retained stage work and continue from durable results. Messages the person sent the previous owner, if any, follow as their own messages."
 	instruction, digest := renderAssignment(run, detail.Template, stage, detail.Values, assignmentContext{
-		Coordinator: replacementCoordinator, PriorResults: prior, Continuation: clipText(continuation, MaxValueRunes),
+		Coordinator: replacementCoordinator, PriorResults: prior, Continuation: continuation,
 	})
 	// A revisited step may already have later attempts than the current one.
 	attempt, err := m.store.NextPipelineStageAttempt(run.RunID, current.StageIndex)

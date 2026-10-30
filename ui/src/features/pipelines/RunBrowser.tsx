@@ -96,7 +96,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
   // paused run with a fresh recovery allowance (FS-14.R99).
   const continueMode = !canContinue ? "" : run.pending_action === "await_approval" ? "approve" : run.attention_reason === "needs_input" ? "answer" : "resume";
   const continuationRequired = continueMode === "answer";
-  const continuationOffered = continueMode === "answer" || (continueMode === "resume" && currentTask?.state !== "interrupted");
+  const continuationOffered = continueMode === "answer" || continueMode === "resume";
   // A pause whose stage agent is no longer running — a restart stopped it, its launch
   // failed, or its resume failed — is a pause no chat can resolve: Continue rejects the
   // state, and an ordinary chat resume of that agent mints an unrelated generation whose

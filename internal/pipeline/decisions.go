@@ -230,7 +230,7 @@ func (m *Manager) createVisit(run state.PipelineRunRecord, detail RunDetail, cur
 // runtime takes over with the handoff text. Either spends one round; a spent
 // allowance pauses recoverably. Explicitly stopped work never reaches here
 // (FS-14.R101, TS-09.R70).
-func (m *Manager) RecoverStageTask(taskID, attention string, replace bool, handoff string) (bool, error) {
+func (m *Manager) RecoverStageTask(taskID, attention string, replace bool) (bool, error) {
 	visit, err := m.store.ReadPipelineStageTaskByTask(taskID)
 	if errors.Is(err, state.ErrNotFound) {
 		return false, nil
@@ -269,7 +269,7 @@ func (m *Manager) RecoverStageTask(taskID, attention string, replace bool, hando
 		return false, controlError("invalid_state", "current stage is missing")
 	}
 	if replace {
-		err = m.replaceOwner(paused, detail, current, stage, standingAssignment(detail.Assignments, stage.ID), true, handoff)
+		err = m.replaceOwner(paused, detail, current, stage, standingAssignment(detail.Assignments, stage.ID), true)
 	} else {
 		var updated state.PipelineRunRecord
 		if updated, err = m.store.RecoverInterruptedPipelineStageTask(run.RunID, taskID, paused.Revision); err == nil {

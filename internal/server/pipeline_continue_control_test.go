@@ -21,7 +21,7 @@ func TestContinueControlNamesThePauseItResolves(t *testing.T) {
 		{"running", state.PipelineRunRecord{State: "running"}, failed, false, "Available when the run pauses for approval, a question or recovery."},
 		{"approval", state.PipelineRunRecord{State: "paused", PendingAction: "await_approval"}, failed, true, "Approves this step's accepted result; the owner's recorded decision then runs."},
 		{"question", state.PipelineRunRecord{State: "paused", AttentionReason: "needs_input"}, failed, true, "Answers the run's question; an answer is required."},
-		{"interrupted", state.PipelineRunRecord{State: "paused", AttentionReason: "owner_not_reporting"}, pipelineStageTaskDetail{State: state.TaskInterrupted}, true, "Resumes the interrupted owner with a fresh recovery allowance; send instructions in its conversation."},
+		{"interrupted", state.PipelineRunRecord{State: "paused", AttentionReason: "owner_not_reporting"}, pipelineStageTaskDetail{State: state.TaskInterrupted}, true, "Resumes the interrupted owner with a fresh recovery allowance; instructions are optional and reach it with its resumed turn."},
 		{"exhausted", state.PipelineRunRecord{State: "paused", AttentionReason: state.PauseRecoveryExhausted}, failed, true, "Resumes the run with a fresh recovery allowance; instructions are optional."},
 	} {
 		got := continueControl(tc.run, tc.current)

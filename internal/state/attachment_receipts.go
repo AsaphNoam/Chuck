@@ -13,6 +13,10 @@ import (
 type AttachmentReceipt struct {
 	AgentID, RequestID, PayloadHash, MessageJSON, Action, Delivery, Outcome string
 	AssignmentTaskID                                                        string
+	// SourceAgentID is set when a claim moved queued input to its
+	// assignment's current agent: the attachment bytes are still owned by this
+	// earlier conversation and must be cloned before delivery (TS-09.R69).
+	SourceAgentID string
 }
 
 func (s *Store) AttachmentReceipt(agentID, requestID string) (AttachmentReceipt, error) {
@@ -96,39 +100,65 @@ RETURNING assignment_task_id`, r.AgentID, r.RequestID, r.PayloadHash, r.MessageJ
 
 // TakeQueuedAssignmentInput claims the oldest input queued for the agent's
 // assignment that is now being admitted. The claim turns it into an ordinary
-// prepared receipt in the same statement, so the activation that carries it and
-// the sweep that hands a missed one to the runtime cannot both deliver it.
+// prepared receipt of that agent in one transaction, so the activation that
+// carries it and the sweep that hands a missed one to the runtime cannot both
+// deliver it. Input accepted by an earlier owner of the same assignment moves
+// to this agent with SourceAgentID naming the attachment owner (TS-09.R69).
 func (s *Store) TakeQueuedAssignmentInput(agentID string) (AttachmentReceipt, bool, error) {
-	var r AttachmentReceipt
-	err := s.db.QueryRow(`UPDATE attachment_receipts SET assignment_task_id='', updated_at=?
-WHERE rowid = (SELECT a.rowid FROM attachment_receipts a JOIN tasks t ON t.task_id = a.assignment_task_id
-  WHERE a.agent_id = ? AND a.delivery = 'prepared' AND t.assigned_agent_id = a.agent_id AND t.state IN ('starting','running')
-  ORDER BY a.updated_at, a.rowid LIMIT 1)
-RETURNING agent_id,request_id,payload_hash,message_json,action,delivery,outcome`, formatTime(time.Now().UTC()), agentID).Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome)
-	if errors.Is(err, sql.ErrNoRows) {
-		return r, false, nil
-	}
-	return r, err == nil, err
+	return s.claimQueuedInput(`a.delivery = 'prepared' AND t.assigned_agent_id = ? AND t.state IN ('starting','running')`, agentID)
 }
 
-// QueuedInputWork settles input whose assignment moved on and readies the
-// continuations that will carry the rest. Input for an assignment that ended
-// is released to the person's explicit recovery, never redirected to other
-// work; a waiting assignment with queued input continues; input for an
-// assignment that is already executing is returned for ordinary delivery
-// (TS-09.R69/R70).
+// claimQueuedInput moves the oldest queued receipt matching the predicate on
+// receipt a and its assignment t to the assignment's agent.
+func (s *Store) claimQueuedInput(predicate string, args ...any) (AttachmentReceipt, bool, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return AttachmentReceipt{}, false, err
+	}
+	defer tx.Rollback()
+	var r AttachmentReceipt
+	var target string
+	err = tx.QueryRow(`SELECT a.agent_id,a.request_id,a.payload_hash,a.message_json,a.action,a.delivery,a.outcome,t.assigned_agent_id
+FROM attachment_receipts a JOIN tasks t ON t.task_id = a.assignment_task_id
+WHERE `+predicate+` ORDER BY a.updated_at, a.rowid LIMIT 1`, args...).Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &target)
+	if errors.Is(err, sql.ErrNoRows) {
+		return AttachmentReceipt{}, false, nil
+	}
+	if err != nil {
+		return AttachmentReceipt{}, false, err
+	}
+	if _, err := tx.Exec(`UPDATE attachment_receipts SET agent_id=?, assignment_task_id='', updated_at=? WHERE agent_id=? AND request_id=?`,
+		target, formatTime(time.Now().UTC()), r.AgentID, r.RequestID); err != nil {
+		return AttachmentReceipt{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return AttachmentReceipt{}, false, err
+	}
+	if target != r.AgentID {
+		r.SourceAgentID = r.AgentID
+	}
+	r.AgentID = target
+	return r, true, nil
+}
+
+// QueuedInputWork settles input whose assignment ended and readies the
+// continuations that will carry the rest. Input stays with its assignment
+// through admission retries and owner replacement; only input for an
+// assignment that ended is released to the person's explicit recovery, never
+// redirected to other work. A waiting assignment with queued input continues;
+// input for an assignment that is already executing is returned for ordinary
+// delivery (TS-09.R69/R70).
 func (s *Store) QueuedInputWork() (prepared []Task, executing []AttachmentReceipt, err error) {
 	now := formatTime(time.Now().UTC())
 	if _, err := s.db.Exec(`UPDATE attachment_receipts SET delivery='released', assignment_task_id='', updated_at=?
-WHERE assignment_task_id <> '' AND NOT EXISTS (SELECT 1 FROM tasks
-  WHERE tasks.task_id = attachment_receipts.assignment_task_id AND tasks.assigned_agent_id = attachment_receipts.agent_id
-    AND (`+queuedInputTaskClause+` OR state = 'running')`+taskRunOpenClause+`)`, now); err != nil {
+WHERE assignment_task_id <> '' AND delivery = 'prepared' AND NOT EXISTS (SELECT 1 FROM tasks
+  WHERE tasks.task_id = attachment_receipts.assignment_task_id AND state <> 'finished'`+taskRunOpenClause+`)`, now); err != nil {
 		return nil, nil, fmt.Errorf("state: release stale queued input: %w", err)
 	}
 	rows, err := s.db.Query(`UPDATE tasks
 SET state = 'ready', continuation_pending = 1, resume_needed = 1, ready_at = ?, revision = revision + 1, updated_at = ?
 WHERE state = 'waiting' AND pending_yield = 0 AND pending_release = 0
-  AND EXISTS (SELECT 1 FROM attachment_receipts a WHERE a.assignment_task_id = tasks.task_id AND a.agent_id = tasks.assigned_agent_id)`+taskRunOpenClause+`
+  AND EXISTS (SELECT 1 FROM attachment_receipts a WHERE a.assignment_task_id = tasks.task_id AND a.delivery = 'prepared')`+taskRunOpenClause+`
 RETURNING task_id`, now, now)
 	if err != nil {
 		return nil, nil, fmt.Errorf("state: prepare queued input continuations: %w", err)
@@ -154,8 +184,9 @@ RETURNING task_id`, now, now)
 		}
 		prepared = append(prepared, task)
 	}
-	rows, err = s.db.Query(`SELECT a.agent_id, a.request_id FROM attachment_receipts a JOIN tasks t ON t.task_id = a.assignment_task_id
-WHERE a.agent_id = t.assigned_agent_id AND t.state = 'running' AND t.pending_yield = 0 AND t.pending_release = 0
+	// The assignment's current agent receives it; AgentID here is that agent.
+	rows, err = s.db.Query(`SELECT t.assigned_agent_id, a.agent_id, a.request_id FROM attachment_receipts a JOIN tasks t ON t.task_id = a.assignment_task_id
+WHERE a.delivery = 'prepared' AND COALESCE(t.assigned_agent_id, '') <> '' AND t.state = 'running' AND t.pending_yield = 0 AND t.pending_release = 0
 ORDER BY a.updated_at, a.rowid LIMIT 16`)
 	if err != nil {
 		return nil, nil, fmt.Errorf("state: list executing queued input: %w", err)
@@ -163,7 +194,7 @@ ORDER BY a.updated_at, a.rowid LIMIT 16`)
 	defer rows.Close()
 	for rows.Next() {
 		var r AttachmentReceipt
-		if err := rows.Scan(&r.AgentID, &r.RequestID); err != nil {
+		if err := rows.Scan(&r.AgentID, &r.SourceAgentID, &r.RequestID); err != nil {
 			return nil, nil, err
 		}
 		executing = append(executing, r)
@@ -171,13 +202,14 @@ ORDER BY a.updated_at, a.rowid LIMIT 16`)
 	return prepared, executing, rows.Err()
 }
 
-// QueuedInputForTask lists input still queued for one assignment, oldest
-// first and bounded, so a replacement owner's handoff can include it.
-func (s *Store) QueuedInputForTask(taskID string) ([]AttachmentReceipt, error) {
+// QueuedAssignmentInput lists, oldest first and bounded, the input a person
+// sent this conversation that is still retained for an assignment's next turn,
+// so supervision can show it after navigation or restart (TS-09.R69/R71).
+func (s *Store) QueuedAssignmentInput(agentID string) ([]AttachmentReceipt, error) {
 	rows, err := s.db.Query(`SELECT agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id FROM attachment_receipts
-WHERE assignment_task_id = ? AND delivery = 'prepared' ORDER BY updated_at, rowid LIMIT 8`, taskID)
+WHERE agent_id = ? AND assignment_task_id <> '' AND delivery = 'prepared' ORDER BY updated_at, rowid LIMIT 16`, agentID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("state: list queued assignment input: %w", err)
 	}
 	defer rows.Close()
 	out := []AttachmentReceipt{}
@@ -191,28 +223,17 @@ WHERE assignment_task_id = ? AND delivery = 'prepared' ORDER BY updated_at, rowi
 	return out, rows.Err()
 }
 
-// MarkQueuedInputHandedOff records that a replacement's handoff carried these
-// receipts' input; it is never offered for re-sending afterwards.
-func (s *Store) MarkQueuedInputHandedOff(receipts []AttachmentReceipt) error {
-	for _, r := range receipts {
-		if _, err := s.db.Exec(`UPDATE attachment_receipts SET delivery='submitted', assignment_task_id='', updated_at=? WHERE agent_id=? AND request_id=? AND assignment_task_id=?`,
-			formatTime(time.Now().UTC()), r.AgentID, r.RequestID, r.AssignmentTaskID); err != nil {
-			return err
-		}
-	}
-	return nil
+// BindAssignmentInput records a person's input, prepared, for the assignment
+// whose turn will carry it (TS-09.R69).
+func (s *Store) BindAssignmentInput(r AttachmentReceipt, taskID string) error {
+	_, err := s.db.Exec(`INSERT INTO attachment_receipts(agent_id,request_id,payload_hash,message_json,action,delivery,updated_at,assignment_task_id) VALUES(?,?,?,?,?,'prepared',?,?)`,
+		r.AgentID, r.RequestID, r.PayloadHash, r.MessageJSON, r.Action, formatTime(time.Now().UTC()), taskID)
+	return err
 }
 
 // ClaimQueuedInputForTurn turns one queued receipt into an ordinary prepared
-// receipt for runtime delivery, only while its assignment is still executing.
-func (s *Store) ClaimQueuedInputForTurn(agentID, requestID string) (AttachmentReceipt, bool, error) {
-	var r AttachmentReceipt
-	err := s.db.QueryRow(`UPDATE attachment_receipts SET assignment_task_id='', updated_at=?
-WHERE agent_id = ? AND request_id = ? AND EXISTS (SELECT 1 FROM tasks t WHERE t.task_id = attachment_receipts.assignment_task_id
-  AND t.assigned_agent_id = attachment_receipts.agent_id AND t.state = 'running' AND t.pending_yield = 0 AND t.pending_release = 0)
-RETURNING agent_id,request_id,payload_hash,message_json,action,delivery,outcome`, formatTime(time.Now().UTC()), agentID, requestID).Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome)
-	if errors.Is(err, sql.ErrNoRows) {
-		return r, false, nil
-	}
-	return r, err == nil, err
+// receipt of the assignment's current agent for runtime delivery, only while
+// that assignment is still executing.
+func (s *Store) ClaimQueuedInputForTurn(sourceAgentID, requestID string) (AttachmentReceipt, bool, error) {
+	return s.claimQueuedInput(`a.agent_id = ? AND a.request_id = ? AND a.delivery = 'prepared' AND t.state = 'running' AND t.pending_yield = 0 AND t.pending_release = 0 AND COALESCE(t.assigned_agent_id, '') <> ''`, sourceAgentID, requestID)
 }

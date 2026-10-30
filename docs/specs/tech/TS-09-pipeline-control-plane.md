@@ -997,6 +997,15 @@ new durable run revision or a structured validation/conflict result.
   `MaxPipelineControllerFailures` (10) failures a retained controller action stops automatic
   retry, a finishing release pauses `controller_recovery_failed` with its intent kept (a Stop keeps
   its fence), and Continue retries it once with a fresh failure count.
+  Input: a queued receipt stays bound to its assignment until that assignment finishes (admission
+  retries included); replacement rebinds prepared receipts to the successor in its transaction, and
+  delivery to a different agent moves the receipt and clones its attachments
+  (`CloneQueuedAttachments`), so nothing is declared submitted from a clipped text handoff.
+  Run-page Continue and a message to a paused run's owner share `continueRun`: a question answer or
+  resume instructions create the new visit with the words in its continuation (attachments bound to
+  that visit), while instructions to an interrupted visit are bound to it before it resumes. Approval
+  checkpoints are never continued from conversation. `GET /api/sessions/{id}/prompt` returns the
+  conversation's retained `queued` input.
 
 - **Goal-led redesign confirmed (2026-10-30):** R66–R72 are planned. Useful existing-orchestrator
   judgment plus programmatic control, the decision-in-existing-report contract, automatic visibly
