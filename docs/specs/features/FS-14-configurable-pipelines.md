@@ -22,8 +22,8 @@ free-form agent messaging.
 
 Requirements without a planned marker reflect shipped behavior. R61–R77 describe the task-backed
 replacement; §6 identifies its supersessions and any remaining design decision.
-R97–R103/A61–A67 draft the goal-led automation redesign; §6 records its confirmation and remaining
-decisions. They do not change shipped behavior until implemented.
+R97–R103/A61–A68 specify the planned goal-led automation redesign; §6 records its confirmation.
+They do not change shipped behavior until implemented.
 
 ### 2.1 Templates and starting a run
 
@@ -807,21 +807,24 @@ decisions. They do not change shipped behavior until implemented.
   recording the reason. A template can explicitly require a check or human checkpoint; the owner
   cannot omit that obligation or declare success while it is unsatisfied. A configured human
   checkpoint makes its associated stage required; ordinary chat is not checkpoint approval.
-  This replaces R61/R71's
-  unconditional requirement to execute every listed stage in fixed order. It does not authorize
+  This replaces R61/R71's unconditional requirement to execute every listed stage in fixed order.
+  It does not authorize
   changing the user's goal, exceeding existing project/workspace access, or bypassing permissions.
 - **R98 (planned) — Findings and recoverable failures remain the run's responsibility.** A review
   that finds defects produces useful findings and leads to repair and any necessary re-review;
   a clean review need not invoke Fix. A worker's failure, blocked report or interrupted execution
   does not by itself require human continuation input. The run owner evaluates available evidence
-  and chooses further authorized work, mechanical recovery, a real question for the person, or an
-  honest unsuccessful conclusion. Required checks remain enforceable, and neither idle nor exit
+  and chooses further authorized work, mechanical recovery, or a recoverable pause explaining why
+  it cannot finish. Required checks remain enforceable, and neither idle nor exit
   proves completion. Reports, findings and accepted completion remain durable and attributable.
 - **R99 (planned) — Human attention names a decision the run cannot make.** A run asks for input
   when a required fact or decision cannot be obtained through its authorized work, an action needs
   permission it does not have, a configured human checkpoint is reached, or bounded recovery is
   exhausted. It states the concrete question or exhausted operation, relevant findings, and what
-  an answer will permit. A generic failure/blocked label alone is insufficient. An answer through
+  an answer or repair will permit. Exhaustion pauses rather than terminally failing the run: the
+  person retains its position, agents, workspace and results and can repair the problem and Resume,
+  or provide instructions through the conversation. Resume after an external repair requires no
+  invented nonempty text. A generic failure/blocked label alone is insufficient. An answer through
   the run or responsible agent conversation continues the same goal without requiring a separate
   Continue action or invented nonempty continuation text. Explicit Stop and explicit human holds
   take precedence over automatic continuation.
@@ -840,9 +843,17 @@ decisions. They do not change shipped behavior until implemented.
   ongoing work and legitimate waits from an actionable assignment that has stopped progressing.
   Recovery does not manufacture success, duplicate an uncertain external effect, restart explicitly
   stopped work, or evade existing permission/native-session boundaries. Exhaustion produces a
-  clear unsuccessful or needs-input result and a notification; a run cannot remain nominally active
-  indefinitely after its recovery allowance is exhausted. Exact limits and any authority to replace
-  an unusable conversation remain open in §6.
+  recoverable pause and a notification; a run cannot remain nominally active indefinitely after its
+  allowance is exhausted. The default is three automatic repair/revisit rounds; reporting findings
+  does not itself spend a round. Necessary repair and re-review belong to a round rather than
+  requiring separate human approvals. Explicitly resuming an exhausted run grants another allowance;
+  ordinary status updates, rejected reports and restarts do not reset it. If the standing owner's
+  native conversation cannot resume, Chuck may automatically create a visibly fresh replacement
+  with the same frozen runtime, workspace and permission settings and durable run handoff, including
+  pending accepted human input. The old identity/history and useful child work remain preserved.
+  This is a new conversation, never a claim of restored native history; uncertain actions are
+  investigated before repetition. Exhaustion or inability to finish remains paused so the user can
+  still resolve it; successful completion and explicit Stop are terminal.
 - **R102 (planned) — Judgment uses agents; routine control does not require extra inference.** The
   run owner remains accountable for interpreting findings, choosing repairs and resolving ambiguous
   branches. Ordinary advancement after an accepted decision, retained-message delivery, known
@@ -858,7 +869,11 @@ decisions. They do not change shipped behavior until implemented.
   needs-input/exhaustion use existing notification preferences so the person need not poll the page.
   Existing durable history, transcript and workspace retention/deletion rules continue to apply;
   this redesign introduces no automatic deletion or broader permissions. It adds no general graph
-  editor or condition language. Existing template/run conversion is not decided by this draft.
+  editor or condition language. Every new run, including one from an existing valid version-2
+  template, uses the new behavior without template regeneration or an adoption toggle. Omitted
+  required-check markers mean the listed steps are the usual plan, not newly inferred hard gates;
+  explicit human approval gates and instructions remain binding. Existing records and history are
+  retained; no legacy executor is kept solely to preserve the old intervention behavior.
 
 ## 5. Acceptance criteria
 
@@ -1246,35 +1261,44 @@ decisions. They do not change shipped behavior until implemented.
   a legitimate child wait or long-running tool is not mistaken for success or blindly relaunched.
   Stop during recovery prevents future work. *Verify:* controlled-clock/runtime pipeline integration.
 - **A66 (planned)** (R99, R101, R103) — Make repair repeatedly fail without progress and exhaust
-  the agreed policy. The run stops autonomous attempts, preserves useful work and reports the cause
-  and a practical next action through the existing notification surface. Explicit human holds and
-  provider approval requests are never auto-approved. *Verify:* bounded failure/restart integration
-  and the exhaustion browser branch after §6 settles the policy.
+  the three-round allowance. The run pauses, preserves its position and useful work, and reports
+  the cause and a practical next action through the existing notification surface. Fix the external
+  problem and Resume without invented text; separately provide instructions through the conversation.
+  Both continue the same run with renewed allowance and retained results. Restart or duplicate input
+  does not renew allowance twice. Explicit human holds/provider approvals are never auto-approved.
+  *Verify:* bounded failure/restart integration and a paused-repair-resume browser journey.
 - **A67 (planned)** (R102) — Capture model invocation reasons for an ordinary successful sequence,
   known mechanical retries and a branch requiring judgment. Mechanical events add no polling or
   acknowledgment-only model turns; the branch invokes its accountable agent with the relevant
-  evidence. Record the chosen simple-sequence ownership contract once §6 resolves it. *Verify:*
+  evidence. The owner includes its decision with its existing result rather than making an extra
+  acknowledgment-only call. *Verify:*
   fake-provider invocation capture, with no inference about real-provider cost or judgment quality.
+- **A68 (planned)** (R101, R103) — Start from an unchanged valid version-2 template with omitted
+  required-check markers, then one with an explicit approval gate. Both use the new run behavior;
+  only explicit obligations are enforced, and the approval gate cannot be skipped. Reject native
+  resume and observe a fresh same-runtime owner with the run's workspace, durable evidence and
+  pending accepted input; retain the original identity/history and useful child work. Migrate an
+  existing run's visits without changing task/result identities or blindly repeating current work.
+  *Verify:* old-JSON/start serialization, migration and fake-provider lifecycle tests; one bounded
+  packaged Claude/Codex replacement probe verifies real handoff delivery when credentials permit.
 
 ## 6. Deviations & open decisions
 
-- **Goal-led pipeline redesign (2026-10-30):** R97–R103/A61–A67 are a feature-side draft.
+- **Goal-led pipeline redesign confirmed (2026-10-30):** R97–R103/A61–A68 are planned.
   The operator confirmed the usual-plan direction with explicit must-run checks and explicitly
   accepted useful orchestrator LLM judgment alongside ordinary advancement, error handling and
   anything Chuck can assert programmatically. Polling and redundant coordination are excluded,
   rather than useful judgment calls. TS-09.R66–R72 propose reuse of task results, ordinary admission
   and a chronological visit cursor. Shipped R61–R78 and their technical contracts still govern
   until replacement ships.
-  This expands the existing blocked-stage conversation idea; WAIT-PROMPT remains an open defect,
-  including its separate phone-refresh finding, rather than being closed by design work.
-  Still decide before ready status: (1) finite recovery/no-progress defaults and exhaustion outcome;
-  (2) authority for automatic fresh-session replacement and uncertain external effects;
-  (3) preservation/conversion of existing templates, active runs and explicit approval gates.
-  Required checks refer to accepted results; the owner judges whether they still apply after later
-  changes rather than claiming code can verify semantic adequacy. The technical draft and proposed
-  agent protocol still require confirmation; no ready change exists. Scope excludes permission-policy
-  redesign, automatic workspace deletion, a general graph editor and WAIT-PROMPT-3's untraced
-  phone-refresh performance problem.
+  Confirmed: automatic visibly fresh same-runtime owner replacement; recovery exhaustion pauses
+  so the user can repair/resume; new runs of existing templates receive the new behavior without
+  a compatibility engine or adoption flow; next-step judgment travels with the existing result.
+  The default three-round allowance and programmatic accounting are in TS-09.R70. Required-check
+  evidence is accepted task/room history whose semantic applicability the owner judges.
+  This expands the blocked-stage conversation idea. WAIT-PROMPT-1/2 are included in the planned
+  work but remain open until repaired; its untraced phone-refresh finding WAIT-PROMPT-3 stays out
+  of scope. No permission-policy redesign, automatic workspace deletion or general graph editor.
 
 - **Pipeline workspaces shipped (2026-10-29):** R91–R96 shipped. A new worktree is prepared at
   the first agent launch rather than inside the Start request, so a Git failure after Start
@@ -1423,6 +1447,10 @@ FYIs and owner-supplied replacement context. TS-01.R31–R33, TS-02.R34 and TS-0
 the technical delivery contract; the expanded change is ready to implement.
 
 ## 7. Traceability
+
+- Goal-led unattended execution: planned R97–R103/A61–A68 and TS-09.R66–R72;
+  [`goal-led-unattended-pipelines`](../../ready-changes/goal-led-unattended-pipelines.md) is waiting
+  to start. Behavioral evidence remains planned until implementation.
 
 - Shared orchestrator instructions: TS-09.R57–R60 and TS-11.R20; existing provider delivery is
   TS-04.R69 and the Codex developer-instruction merge. Evidence:

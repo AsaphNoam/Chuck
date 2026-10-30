@@ -332,20 +332,19 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
 
 ## Changelog
 
-- **2026-10-30 — Shaped goal-led unattended pipelines (design in progress):** expanded the
-  blocked-stage conversation idea after WAIT-PROMPT into FS-14.R97–R103/A61–A67. The operator
-  confirmed the usual-plan direction with explicit required checks; automatic repair/review,
-  retained mid-run input and bounded recovery should remove routine human continuation. Agent
-  judgment still uses LLMs; the operator explicitly accepted useful existing-orchestrator calls
-  alongside programmatic control. TS-09.R66–R72 propose the existing task-result path plus owner
-  decisions and chronological visits, without a second executor or polling supervisor. The draft
-  remains under Ideas being defined. Recovery limits, automatic fresh-session replacement,
-  existing-run/template compatibility and the proposed agent protocol remain open. Pending operator
-  questions propose visible automatic same-runtime replacement, three unsuccessful repair rounds
-  then honest failure, and preserving existing behavior until template adoption. No approved TS
-  replacement, ready change, product code or WAIT-PROMPT closure; the unrelated active
-  implementation is unchanged. Draft verification: `make check-specs`, twin-skill comparison and
-  `git diff --check` pass; behavioral evidence remains planned, with no product tests run.
+- **2026-10-30 — Defined goal-led unattended pipelines:**
+  [`goal-led-unattended-pipelines`](../ready-changes/goal-led-unattended-pipelines.md) is waiting
+  to start; FS-14.R97–R103/A61–A68 and TS-09.R66–R72 remain planned. Confirmed: useful existing-owner
+  judgment with the decision in its existing result; programmatic requirements, advancement and
+  mechanical recovery; ordinary-plan steps with explicit required checks; durable mid-run input;
+  automatic visibly fresh same-runtime owner replacement; three repair/revisit rounds followed by
+  a recoverable pause, never failure merely because allowance was exhausted. Resume/instructions
+  can continue the same run with preserved work. New runs of existing version-2 templates receive
+  the behavior directly: optional marker/defaults plus additive visit backfill, without a legacy
+  engine, adoption flow or destructive reset. The idea is promoted; implementation and the unrelated
+  active change are untouched. WAIT-PROMPT-1/2 remain open until repaired; WAIT-PROMPT-3 is excluded.
+  Verification: `make check-specs`, twin-skill comparison and `git diff --check` pass. Behavioral
+  tests/provider/browser evidence remain planned; no product tests were run for this design-only unit.
 
 - **2026-10-30 — Closed ANN-SOURCE:** ANN-SOURCE-1 (INV §1/§11/§15), repaired in `a9bb424a`,
   retains exact launch payload/command/choice through retry/reload and clears only acknowledged

@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`goal-led-unattended-pipelines.md`](goal-led-unattended-pipelines.md) — let the existing owner
+  choose useful next work and recovery, retain mid-run input, pause on exhaustion and apply the
+  new behavior to existing templates without a compatibility engine.
+
 - [`repair-quota-recognition-and-session-reset-recovery.md`](repair-quota-recognition-and-session-reset-recovery.md) —
   recognize provider terminal quota RPC failures, extract recovery dates/times despite wording
   changes for Claude/Codex, and continue the same work at that time plus one minute.
