@@ -395,14 +395,14 @@ live terminal whose group cannot be proved, is refused with the record and owner
 conversation ID is durable from SessionStart; Resume without it refuses (FS-07.R25). Terminal
 launches are accepted only with a driver-proved group (FS-07.R25).
 
-- **R55 (planned)** — **Provider terminal quota errors enter recovery even without structured
+- **R55 (implemented 2026-10-30; live receipt owed under A37)** — **Provider terminal quota errors enter recovery even without structured
   failure metadata.** A supported provider-owned terminal quota refusal surfaced as a prompt
   error must produce R40's quota indicator and durable recovery state even when structured
   quota metadata is absent. This extends R40's supported evidence carriers, not its exclusions:
   matching user, assistant or tool prose, advisory warnings and transient rate limits do not
   authorize recovery. Unrecognized terminal errors retain their ordinary failure treatment.
 - **R56 — retired 2026-10-30:** unshipped separate session-reset check policy replaced by R57.
-- **R57 (planned; scope confirmed 2026-10-30)** — **Extract the recovery time and continue one
+- **R57 (implemented 2026-10-30; scope confirmed 2026-10-30; live receipt owed under A39)** — **Extract the recovery time and continue one
   minute later.** After quota exhaustion is independently recognized, Chuck extracts an
   unambiguous future reset/retry date and time from the provider's terminal failure, tolerating
   surrounding wording and punctuation changes for both Claude and Codex. Common 12-hour and
@@ -721,14 +721,20 @@ late prior-generation exit, reused PID, unknown legacy proof, dedicated-group de
 terminal SessionStart → Stop/crash/restart → Resume and false-prune prevention. Confirmed-dead
 restart writes R20's outcome. Real driver/provider receipts are required by FS-07.A11–A12.
 
-- **A37 (planned)** (R55) — Replay the provider-owned terminal RPC failure captured for
+- **A37 (implemented 2026-10-30 for captured/source-backed fixtures; live provider receipt owed)** (R55) — Replay the provider-owned terminal RPC failure captured for
   `a_a7e830` event 199 without structured quota metadata. It produces a visible quota
   interruption and a recovery state rather than only a generic protocol error. Replay the
   same words in user, assistant and tool content, plus transient rate-limit and unrelated
   protocol errors: none creates a quota interruption. *Verify:* captured-provider-shape
   runtime and server regression tests; bounded live provider verification when available.
+  Implemented coverage: `TestTerminalRPCQuotaRefusalEntersRecovery`,
+  `TestTerminalRPCQuotaRefusalSharedByActivationNotProse` and
+  `TestQuotaCheckRecognizesTerminalRPCQuota` (`internal/runtime`), plus
+  `TestTerminalRPCSpendSessionRefusalSchedulesContinuation` (`internal/server`). The incident's
+  `errorKind` value was not recorded; fixtures exercise it omitted and unrecognized. Assistant/tool
+  prose cannot reach the classifier, which reads only the terminal RPC error.
 - **A38 — retired 2026-10-30:** unshipped session-reset probe journey replaced by A39.
-- **A39 (planned)** (R55, R57) — Replay the incident's terminal monthly-spend/session-reset
+- **A39 (implemented 2026-10-30 for deterministic fixtures; live provider receipt owed)** (R55, R57) — Replay the incident's terminal monthly-spend/session-reset
   error and Claude/Codex quota failures with changed surrounding words/punctuation, `10pm`,
   `10:00 PM`, `22:00`, explicit dates and supported time-only forms. The same intended instant
   schedules exactly one original-work continuation at reset plus 60 seconds; desktop, phone
@@ -740,14 +746,23 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   runtime/server recovery tests, serialized projections and a focused desktop/phone journey.
   Demonstrate the incident regression fails before the fix; record live provider receipts when
   available separately from deterministic fixture evidence.
+  Implemented coverage: `TestTextResetExtractsWithoutFixedSentence` (wording, clocks, dates,
+  zones, DST, conflicts; failed before the fix), A37's runtime/server tests (scheduled
+  continuation at reset plus 60s, no check) and the existing R43–R44/R48–R51 lifecycle, notice
+  and rendered desktop/phone **Will continue at …** coverage under A31–A33, which this repair
+  reaches through unchanged `reset_at`/`due_at` state.
 
 ## 6. Deviations & open decisions
 
-- **Provider quota recognition repair (simplified 2026-10-30):** R55/R57/A37/A39 extend
+- **Provider quota recognition repair (implemented 2026-10-30):** R55/R57/A37/A39 extend
   terminal-RPC recognition and reset extraction for direct continuation at reset plus one minute.
   The operator replaced R56/A38's unshipped preliminary-check policy with a direct attempt,
   including a session reset reported beside a monthly spend cap. Existing unknown-reset checks
   and manual-intervention rules remain otherwise unchanged. No historical failure is rearmed.
+  Open review note: pinned Claude ACP 0.85.1's own `providerFailureCategory` ranks its
+  usage-limit text above `errorKind`, whereas TS-04.R105 keeps an explicit `rate_limit`
+  excluded. If a real spend/usage refusal arrives with `rate_limit`, it stays an ordinary error;
+  prompt-failure diagnostics now log the `errorKind` value so a recurrence settles this.
 
 - **Quota reset fallback (design 2026-10-16):** R48–R51/A31–A34 extend the confirmed reset extraction
   and bounded recovery direction with the operator's preference for checks outside the interrupted

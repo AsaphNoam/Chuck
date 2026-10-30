@@ -74,6 +74,57 @@ func TestFailedProviderTurnAdmitsLaterMailAfterQuotaCancellation(t *testing.T) {
 	}
 }
 
+// FS-01.A37/A39: the captured a_a7e830 terminal RPC refusal (monthly spend
+// limit beside a named session reset, no AIR metadata) schedules one direct
+// continuation of the original work at that reset plus 60s, with no
+// preliminary check, and the API projection shows the existing schedule.
+func TestTerminalRPCSpendSessionRefusalSchedulesContinuation(t *testing.T) {
+	jerusalem, err := time.LoadLocation("Asia/Jerusalem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().In(jerusalem)
+	if now.Hour() == 22 && now.Minute() == 0 || now.Hour() == 21 && now.Minute() == 59 {
+		t.Skip("observed at the reset minute boundary")
+	}
+	reset := time.Date(now.Year(), now.Month(), now.Day(), 22, 0, 0, 0, jerusalem)
+	if !reset.After(now) {
+		reset = reset.AddDate(0, 0, 1)
+	}
+	t.Setenv("FAKEACP_PROMPT_REJECT_DATA", `{}`)
+	t.Setenv("FAKEACP_PROMPT_REJECT_MESSAGE", "Internal error: You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your session limit resets 10pm (Asia/Jerusalem)")
+	srv, ts, promptLog := activationTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "first"}); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("prompt = %d: %s", resp.StatusCode, body)
+	}
+	waitPrompts(t, promptLog, 1)
+	var q state.QuotaIntent
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if q, err = srv.stateStore.GetQuota(id); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		t.Fatalf("quota after terminal RPC refusal: %v", err)
+	}
+	if q.State != state.QuotaScheduled || q.NextAction != state.QuotaActionContinue || q.ChecksStarted != 0 || q.ResetSource != "text" ||
+		q.ResetAt == nil || !q.ResetAt.Equal(reset) || q.DueAt == nil || !q.DueAt.Equal(reset.Add(time.Minute)) {
+		t.Fatalf("quota = %+v (reset %v due %v), want continue at %s plus one minute", q, q.ResetAt, q.DueAt, reset.UTC())
+	}
+	u, err := srv.stateMgr.Touch(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(u.Quota)
+	if u.Quota == nil || u.Quota.NextAction != "continue" || !strings.Contains(string(raw), `"reset_at":"`+reset.UTC().Format(time.RFC3339)) {
+		t.Fatalf("projection = %s", raw)
+	}
+	if got := promptCount(t, promptLog); got != 1 {
+		t.Fatalf("provider prompts = %d, want no preliminary check or retry", got)
+	}
+}
+
 func roomQuotaRecoverySetup(t *testing.T) (*Server, string, string) {
 	t.Helper()
 	t.Setenv("FAKEACP_CAPS", "1")

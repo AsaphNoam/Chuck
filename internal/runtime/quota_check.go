@@ -332,9 +332,12 @@ func (c *ChatRuntime) driveQuotaCheck(ctx context.Context, as *agentState, ad ba
 	if hasResultFailure && (failure == nil || resultFailure.ID == failure.ID && resultFailure.Revision >= failure.Revision || resultFailure.Quota && !failure.Quota) {
 		failure = &resultFailure
 	}
-	if failure != nil && failure.Quota {
-		text := failure.Text + "\n" + promptErrorText(err)
-		reset, intervention := resolveQuotaReset(spec.BackendType, text, probe.rateLimit, failure.ObservedAt, processZone(as.cmd.Env))
+	quota, text, observed := rpcQuotaRefusal(spec.BackendType, err), promptErrorText(err), time.Now().UTC()
+	if failure != nil {
+		quota, text, observed = failure.Quota, failure.Text+"\n"+text, failure.ObservedAt
+	}
+	if quota {
+		reset, intervention := resolveQuotaReset(spec.BackendType, text, probe.rateLimit, observed, processZone(as.cmd.Env))
 		out.Outcome, out.ResetAt, out.Intervention = "quota", reset, intervention
 		if reset != nil {
 			out.ResetSource = "text"

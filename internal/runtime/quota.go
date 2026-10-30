@@ -6,8 +6,67 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
+	"unicode/utf8"
 )
+
+// claudeUsageLimitPrefixes are pinned claude-agent-sdk 0.3.286's
+// USAGE_LIMIT_ERROR_PREFIXES: the openings of its synthetic usage-limit errors.
+var claudeUsageLimitPrefixes = []string{"You've hit your", "You've reached your", "You're out of usage credits",
+	"Your org is out of usage · add funds to continue", "Your org is out of usage · contact your admin",
+	"Your seat type doesn't include usage credits", "Your seat type doesn't include usage",
+	"Your usage allocation has been disabled by your admin", "Your group's usage limit is set to $0",
+	"Fable 5 requires usage credits", "You're out of extra usage", "Your seat type doesn't include extra usage"}
+
+// claudeNonQuotaErrorKinds are the pinned Claude adapter's recognized
+// non-quota `errorKind` values; matching text cannot override them.
+var claudeNonQuotaErrorKinds = map[string]bool{"authentication_failed": true, "oauth_org_not_allowed": true,
+	"verification_required": true, "cloud_credential_error": true, "rate_limit": true, "overloaded": true,
+	"invalid_request": true, "model_not_found": true, "max_output_tokens": true, "server_error": true,
+	"incomplete_tool_call": true, "worker_shutdown": true, "no_result": true, "transport_lost": true}
+
+// rpcQuotaRefusal classifies a terminal session/prompt RPC error that arrived
+// without AIR quota metadata (TS-04.R105). Only verified provider carriers
+// count: Claude's `data.errorKind` billing_error/account_on_hold, or, when the
+// category is absent or unrecognized, the SDK's usage-limit grammar opening
+// the adapter's `Internal error: ` detail; Codex's `data.codexErrorInfo`
+// usageLimitExceeded. Oversized or malformed carriers stay ordinary errors.
+func rpcQuotaRefusal(backendType string, err error) bool {
+	var rpcErr *rpcError
+	if !errors.As(err, &rpcErr) || rpcErr.Code != -32603 || len(rpcErr.Data) > maxSessionFailureBytes ||
+		len(rpcErr.Message) > maxSessionFailureBytes || utf8.RuneCountInString(rpcErr.Message) > maxSessionFailureText {
+		return false
+	}
+	var data struct {
+		ErrorKind      string `json:"errorKind"`
+		CodexErrorInfo any    `json:"codexErrorInfo"`
+	}
+	if len(rpcErr.Data) > 0 && json.Unmarshal(rpcErr.Data, &data) != nil {
+		return false
+	}
+	switch backendType {
+	case "claude-acp":
+		switch {
+		case data.ErrorKind == "billing_error" || data.ErrorKind == "account_on_hold":
+			return true
+		case claudeNonQuotaErrorKinds[data.ErrorKind]:
+			return false
+		}
+		detail, ok := strings.CutPrefix(rpcErr.Message, "Internal error: ")
+		if !ok {
+			return false
+		}
+		for _, prefix := range claudeUsageLimitPrefixes {
+			if strings.HasPrefix(detail, prefix) {
+				return true
+			}
+		}
+	case "codex-acp":
+		return data.CodexErrorInfo == "usageLimitExceeded"
+	}
+	return false
+}
 
 // promptErrorText is the bounded reset-evidence text of a session/prompt RPC
 // error: its message and a string data.message (legacy non-AIR carriers).
@@ -151,6 +210,12 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 	backendType := ""
 	if as.adapter != nil {
 		backendType = as.adapter.Type()
+	}
+	// TS-04.R105: without AIR evidence for this turn, a verified quota carrier
+	// on the terminal RPC is the refusal. A current AIR record (including a
+	// newer non-quota or retryable revision) and cancellation keep precedence.
+	if td.Quota == nil && as.turnFailure == nil && td.StopReason != "cancelled" && rpcQuotaRefusal(backendType, promptErr) {
+		td.Quota = &QuotaEvidence{FailureID: "rpc:" + turnID, Revision: 1}
 	}
 	if td.Quota != nil {
 		text, observed := promptErrorText(promptErr), time.Now().UTC()

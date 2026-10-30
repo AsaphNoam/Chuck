@@ -1556,7 +1556,7 @@ transcript projection (FS-01.R36). No provider protocol, event or Stop semantics
 *Verify:* fake ACP runtime tests that spawn, finish and stop root and child tasks and assert the
 published count and an unchanged status state.
 
-**R105 (planned) — Terminal RPC quota refusals join the shared settlement classifier.** For
+**R105 (implemented 2026-10-30; live receipt owed under FS-01.A37) — Terminal RPC quota refusals join the shared settlement classifier.** For
 FS-01.R55, extend R86/R96's completion boundary to recognize supported provider-owned terminal
 `session/prompt` RPC errors when AIR quota metadata is absent. Use one bounded classifier for
 ordinary prompts, reserved activations and R97's isolated checks. Prefer validated AIR policy;
@@ -1579,7 +1579,7 @@ is unsuccessful completion, never inline-mail confirmation or a continuation-suc
 
 **R106 — retired 2026-10-30:** unshipped named-session probe policy replaced by R107.
 
-**R107 (planned) — Extract recovery instants independently of the surrounding error sentence.**
+**R107 (implemented 2026-10-30; live receipt owed under FS-01.A39) — Extract recovery instants independently of the surrounding error sentence.**
 For FS-01.R57, extend R96's shared bounded reset resolver after R86/R105 independently
 establish quota exhaustion. Prefer applicable structured evidence; otherwise tokenize date/time
 candidates in that exact terminal provider failure without requiring `· resets`, `try again at`

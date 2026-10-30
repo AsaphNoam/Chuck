@@ -588,3 +588,150 @@ func TestQuotaSettlementKeepsResetApplicability(t *testing.T) {
 		})
 	}
 }
+
+// nextJerusalem10pm is the incident's `10pm (Asia/Jerusalem)` resolved from
+// now. The running 22:00 minute is ambiguous by contract, so it is skipped.
+func nextJerusalem10pm(t *testing.T) time.Time {
+	t.Helper()
+	loc := mustZone(t, "Asia/Jerusalem")
+	now := time.Now().In(loc)
+	if now.Hour() == 22 && now.Minute() == 0 || now.Hour() == 21 && now.Minute() == 59 {
+		t.Skip("observed at the reset minute boundary")
+	}
+	want := time.Date(now.Year(), now.Month(), now.Day(), 22, 0, 0, 0, loc)
+	if !want.After(now) {
+		want = want.AddDate(0, 0, 1)
+	}
+	return want.UTC()
+}
+
+// startRPCRefusalAgent starts a provider whose prompts end in a terminal
+// -32603 RPC error with the given data and message, carrying no AIR failure.
+func startRPCRefusalAgent(t *testing.T, backend string, air bool, data, message string) (*ChatRuntime, *Handle, <-chan Event, *agentState) {
+	t.Helper()
+	c, spec := newChatTest(t, "stream_text")
+	spec.BackendType = backend
+	spec.Env = append(spec.Env, "TZ=UTC", "FAKEACP_PROMPT_REJECT_DATA="+data, "FAKEACP_PROMPT_REJECT_MESSAGE="+message)
+	if air {
+		spec.Env = append(spec.Env, "FAKEACP_CAPS=1")
+	}
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Stop(context.Background(), h.AgentID) })
+	ch, unsub, err := c.Subscribe(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(unsub)
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c, h, ch, as
+}
+
+// FS-01.A37/A39, TS-04.R105: a terminal session/prompt RPC refusal without
+// AIR metadata enters quota recovery only through a verified provider carrier.
+// The incident rows replay a_a7e830's captured message; its errorKind value
+// was not recorded, so omitted and unrecognized values are both exercised.
+// Codex carriers follow codex-acp 2.1.1 createTurnErrorData.
+func TestTerminalRPCQuotaRefusalEntersRecovery(t *testing.T) {
+	codexQuota := `{"message":"You’ve hit your usage limit. Try again at Oct 21st, 2099 9:00 AM.","codexErrorInfo":"usageLimitExceeded"}`
+	for _, tc := range []struct {
+		name, backend, data, message string
+		air, quota                   bool
+		reset                        string // "incident" is the next 10pm in Asia/Jerusalem
+	}{
+		{"incident, category not recorded", "claude-acp", `{}`, incidentText, false, true, "incident"},
+		{"incident under negotiated AIR", "claude-acp", `{}`, incidentText, true, true, "incident"},
+		{"unrecognized category uses quota grammar", "claude-acp", `{"errorKind":"future_kind"}`, incidentText, true, true, "incident"},
+		{"billing category without text", "claude-acp", `{"errorKind":"billing_error"}`, "", true, true, ""},
+		{"account on hold", "claude-acp", `{"errorKind":"account_on_hold"}`, "", false, true, ""},
+		{"explicit throttling overrides matching text", "claude-acp", `{"errorKind":"rate_limit"}`, incidentText, true, false, ""},
+		{"generic protocol error", "claude-acp", `{}`, "", true, false, ""},
+		{"clock without quota grammar", "claude-acp", `{}`, "Internal error: request failed; retry at 22:00 (Asia/Jerusalem)", false, false, ""},
+		{"oversized carrier", "claude-acp", `{"errorKind":"billing_error","pad":"` + strings.Repeat("x", maxSessionFailureBytes) + `"}`, "", false, false, ""},
+		{"codex usage limit", "codex-acp", codexQuota, "", false, true, "2099-10-21T09:00:00Z"},
+		{"codex generic throttling", "codex-acp", `{"message":"Too many requests","codexErrorInfo":{"responseTooManyFailedAttempts":{"httpStatusCode":429}}}`, "", false, false, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var want time.Time
+			switch tc.reset {
+			case "":
+			case "incident":
+				want = nextJerusalem10pm(t)
+			default:
+				want = utc(tc.reset)
+			}
+			c, h, ch, as := startRPCRefusalAgent(t, tc.backend, tc.air, tc.data, tc.message)
+			mu, calls := recordQuotaSettlement(c)
+			if err := c.SendPrompt(context.Background(), h.AgentID, "continue the work"); err != nil {
+				t.Fatal(err)
+			}
+			var end TurnEndData
+			for _, ev := range drainTurn(t, ch) {
+				if ev.Type == EvTurnEnd {
+					_ = json.Unmarshal(ev.Data, &end)
+				}
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(*calls) != 1 || ((*calls)[0].quota != nil) != tc.quota || (end.Quota != nil) != tc.quota || end.StopReason != "error" {
+				t.Fatalf("settlement = %+v, turn_end = %+v; want quota=%v", *calls, end, tc.quota)
+			}
+			as.mu.Lock()
+			blocked := as.quotaBlocked
+			as.mu.Unlock()
+			if blocked != tc.quota {
+				t.Fatalf("quota block = %v, want %v", blocked, tc.quota)
+			}
+			if !tc.quota {
+				return
+			}
+			if got := (*calls)[0].quota; got.FailureID != "rpc:"+(*calls)[0].turnID || got.Intervention ||
+				tc.reset == "" && got.ResetAt != nil || tc.reset != "" && (got.ResetAt == nil || !got.ResetAt.Equal(want) || got.ResetSource != "text") {
+				t.Fatalf("quota evidence = %+v (reset %v), want turn-bound failure with reset %v", got, got.ResetAt, want)
+			}
+		})
+	}
+}
+
+// The shared classifier also settles reserved activations, and the same words
+// in a user prompt never create a quota interruption (FS-01.A37).
+func TestTerminalRPCQuotaRefusalSharedByActivationNotProse(t *testing.T) {
+	c, h, ch, as := startRPCRefusalAgent(t, "claude-acp", true, `{}`, incidentText)
+	mu, calls := recordQuotaSettlement(c)
+	if _, err := c.store.InsertMessage(state.Message{FromAgent: "a_sender", FromAddress: "reviewer@test", ToAgent: h.AgentID,
+		Subject: "Review", Body: "Keep unread until quota recovery."}); err != nil {
+		t.Fatal(err)
+	}
+	var activationTurn string
+	started, err := c.StartActivation(context.Background(), h.AgentID, "mail", func(turnID string) error {
+		activationTurn = turnID
+		return c.store.ResetTurnBudget(h.AgentID, turnID)
+	})
+	if err != nil || !started {
+		t.Fatalf("StartActivation = %v, %v", started, err)
+	}
+	drainTurn(t, ch)
+	mu.Lock()
+	if len(*calls) != 1 || (*calls)[0].turnID != activationTurn || (*calls)[0].generation != as.generation || (*calls)[0].quota == nil {
+		mu.Unlock()
+		t.Fatalf("activation settlement = %+v, want quota on the activation turn", *calls)
+	}
+	mu.Unlock()
+
+	c2, h2, ch2, _ := startQuotaTestAgent(t, "stream_text")
+	mu2, calls2 := recordQuotaSettlement(c2)
+	if err := c2.SendPrompt(context.Background(), h2.AgentID, incidentText); err != nil {
+		t.Fatal(err)
+	}
+	drainTurn(t, ch2)
+	mu2.Lock()
+	defer mu2.Unlock()
+	if len(*calls2) != 1 || (*calls2)[0].quota != nil || !(*calls2)[0].successful {
+		t.Fatalf("prose settlement = %+v, want ordinary success", *calls2)
+	}
+}

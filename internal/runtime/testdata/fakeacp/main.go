@@ -523,9 +523,14 @@ func handle(msg *rpcMessage) {
 			return
 		}
 		// FAKEACP_PROMPT_REJECT_DATA fails the prompt the way the Claude adapter
-		// reports a provider error: a bare `Internal error` with provider data.
+		// reports a provider error: a bare `Internal error` with provider data,
+		// or FAKEACP_PROMPT_REJECT_MESSAGE when the adapter appends its detail.
 		if data := os.Getenv("FAKEACP_PROMPT_REJECT_DATA"); data != "" {
-			writeMessage(rpcMessage{JSONRPC: "2.0", ID: msg.ID, Error: &rpcError{Code: -32603, Message: "Internal error", Data: json.RawMessage(data)}})
+			message := "Internal error"
+			if m := os.Getenv("FAKEACP_PROMPT_REJECT_MESSAGE"); m != "" {
+				message = m
+			}
+			writeMessage(rpcMessage{JSONRPC: "2.0", ID: msg.ID, Error: &rpcError{Code: -32603, Message: message, Data: json.RawMessage(data)}})
 			return
 		}
 		// Run the scenario asynchronously so the read loop keeps handling the

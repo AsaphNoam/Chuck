@@ -1,6 +1,6 @@
 # TS-10 — Work dependency control plane
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks`
 **Absorbed:** —
 
@@ -600,7 +600,7 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   Per-reference backoff remains in force; later references cannot starve behind a failed batch.
 
 - **R61 — retired 2026-10-30:** unshipped session-reset preliminary check replaced by R62.
-- **R62 (planned) — Recovered error times feed ordinary continuation scheduling.** For
+- **R62 (implemented 2026-10-30) — Recovered error times feed ordinary continuation scheduling.** For
   FS-01.R55/R57, normalize TS-04.R105/R107 evidence through R39–R47's existing owner settlement
   and recovery intent. With Auto continue enabled, use `reset_at` for the accepted provider
   target, `due_at = reset_at + 60s` and `next_action:continue`, including a session reset beside

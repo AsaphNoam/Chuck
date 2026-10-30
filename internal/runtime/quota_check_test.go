@@ -171,6 +171,27 @@ func TestQuotaCheckReportsIntervention(t *testing.T) {
 	}
 }
 
+// TS-04.R105: isolated checks share the terminal RPC quota classifier and
+// reset resolver; explicit throttling stays an ordinary failed check.
+func TestQuotaCheckRecognizesTerminalRPCQuota(t *testing.T) {
+	for _, tc := range []struct {
+		backend, data, message, outcome string
+		reset                           time.Time
+	}{
+		{"claude-acp", `{}`, incidentText, "quota", nextJerusalem10pm(t)},
+		{"codex-acp", `{"message":"You’ve hit your usage limit. Try again at Oct 21st, 2099 9:00 AM.","codexErrorInfo":"usageLimitExceeded"}`, "", "quota", utc("2099-10-21T09:00:00Z")},
+		{"claude-acp", `{"errorKind":"rate_limit"}`, incidentText, "failed", time.Time{}},
+	} {
+		h := newQuotaCheckHarness(t)
+		spec, _ := h.spec(tc.backend, "TZ=UTC", "FAKEACP_PROMPT_REJECT_DATA="+tc.data, "FAKEACP_PROMPT_REJECT_MESSAGE="+tc.message)
+		out := h.c.RunQuotaCheck(context.Background(), spec)
+		if out.Outcome != tc.outcome || !out.Cleaned || tc.reset.IsZero() != (out.ResetAt == nil) ||
+			out.ResetAt != nil && (!out.ResetAt.Equal(tc.reset) || out.ResetSource != "text") {
+			t.Fatalf("%s %s outcome = %+v, want %s with reset %v", tc.backend, tc.data, out, tc.outcome, tc.reset)
+		}
+	}
+}
+
 // Q9: the reply capture is a byte cap, clipped on a UTF-8 boundary.
 func TestQuotaCheckReplyRespectsByteBound(t *testing.T) {
 	p := &quotaCheckProbe{sessionID: "probe"}

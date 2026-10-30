@@ -23,71 +23,85 @@ func utc(s string) time.Time {
 	return v
 }
 
-// Claude fixtures are the output of the pinned native 2.1.286 `iu`/`Acn`
-// formatter logic (QUOTA-RESET-FALLBACK-2026-10-16) run under the named TZ for
-// the given observation/reset instants, not handcrafted strings.
-func TestClaudeTextResetFollowsPinnedFormatter(t *testing.T) {
-	for _, tc := range []struct {
-		name, text, observed, want string
-	}{
-		{"time only today", "You've hit your session limit · resets 9am (America/New_York)", "2026-10-18T08:00:00Z", "2026-10-18T13:00:00Z"},
-		{"time only minutes", "You've hit your session limit · resets 2:05pm (America/New_York)", "2026-10-18T08:00:00Z", "2026-10-18T18:05:00Z"},
-		{"time only tomorrow within 24h", "You've hit your session limit · resets 10am (America/New_York)", "2026-10-18T20:00:00Z", "2026-10-19T14:00:00Z"},
-		{"date without year", "You've hit your weekly limit · resets Oct 25, 5pm (Asia/Tokyo)", "2026-10-18T08:00:00Z", "2026-10-25T08:00:00Z"},
-		{"date with year", "You've hit your weekly limit · resets Jan 3, 2027, 6:13pm (Europe/London) · progress saved", "2026-12-31T06:53:20Z", "2027-01-03T18:13:00Z"}, // text has minute precision
-		{"daylight-saving fold", "You've hit your session limit · resets 1:30am (America/New_York)", "2026-11-01T04:30:00Z", ""},
-		{"daylight-saving gap", "You've hit your session limit · resets 2:30am (America/New_York)", "2026-03-08T05:00:00Z", ""},
-		{"stale dated", "You've hit your weekly limit · resets Oct 17, 5pm (Asia/Tokyo)", "2026-10-18T08:00:00Z", ""},
-		{"unknown zone", "You've hit your session limit · resets 9am (Mars/Olympus)", "2026-10-18T08:00:00Z", ""},
-		{"missing zone", "You've hit your session limit · resets 9am", "2026-10-18T08:00:00Z", ""},
-		{"explicit :00 is not producer output", "You've hit your session limit · resets 9:00am (America/New_York)", "2026-10-18T08:00:00Z", ""},
-		{"two different clauses", "· resets 9am (America/New_York) · resets 10am (America/New_York)", "2026-10-18T08:00:00Z", ""},
-		{"rounded current minute is ambiguous", "You've hit your session limit · resets 9am (UTC)", "2026-10-18T09:00:30Z", ""},
-		{"status-line variant without separator", "your session limit resets 9am (America/New_York)", "2026-10-18T08:00:00Z", ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got, ok := claudeTextReset(tc.text, utc(tc.observed))
-			if tc.want == "" {
-				if ok {
-					t.Fatalf("reset = %s, want unknown", got)
-				}
-				return
-			}
-			if !ok || !got.Equal(utc(tc.want)) {
-				t.Fatalf("reset = %s/%v, want %s", got, ok, tc.want)
-			}
-		})
-	}
-}
+// incidentText is the terminal RPC message captured for a_a7e830 event 200
+// (provider text of event 199), arriving 2026-10-29T16:25:06Z.
+const incidentText = "Internal error: You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your session limit resets 10pm (Asia/Jerusalem)"
 
-// Codex fixtures follow pinned 0.159.3 format_retry_timestamp: "%-I:%M %p" for
-// the process-local date, otherwise "%b %-d<ordinal>, %Y %-I:%M %p".
-func TestCodexTextResetUsesProcessZoneAndSameDayRule(t *testing.T) {
-	ny := mustZone(t, "America/New_York")
+// Text-only extraction (FS-01.A39, TS-04.R107). Producer fixtures follow the
+// pinned formatters (QUOTA-RESET-FALLBACK-2026-10-16): Claude native 2.1.286
+// `iu`/`Acn` and Codex 0.159.3 format_retry_timestamp. Alternate wordings
+// check that no fixed sentence is needed. Each expected instant is the
+// stated wall time converted by hand under the named zone's rules.
+func TestTextResetExtractsWithoutFixedSentence(t *testing.T) {
+	ny, jerusalem := mustZone(t, "America/New_York"), mustZone(t, "Asia/Jerusalem")
+	const claude, codex = "claude-acp", "codex-acp"
+	const incident = "2026-10-29T16:25:06Z" // 18:25:06 IST (+02:00)
 	for _, tc := range []struct {
-		name, text, observed, want string
-		zone                       *time.Location
+		name, backend, text, observed, want string
+		zone                                *time.Location
 	}{
-		{"same day", "You’ve hit your usage limit. Try again at 3:05 PM.", "2026-10-18T12:00:00Z", "2026-10-18T19:05:00Z", ny},
-		{"upgrade alternative with reset", "You’ve hit your usage limit. Upgrade to Plus to continue using Codex (https://chatgpt.com/explore/plus), or try again at 11:59 PM.", "2026-10-18T12:00:00Z", "2026-10-19T03:59:00Z", ny},
-		{"dated", "You’ve hit your usage limit. Try again at Oct 21st, 2026 9:00 AM.", "2026-10-18T12:00:00Z", "2026-10-21T13:00:00Z", ny},
-		{"same instant in another process zone", "You’ve hit your usage limit. Try again at 7:05 PM.", "2026-10-18T12:00:00Z", "2026-10-18T19:05:00Z", time.UTC},
-		{"past time is stale, never tomorrow", "You’ve hit your usage limit. Try again at 7:05 AM.", "2026-10-18T12:00:00Z", "", ny},
-		{"just after midnight", "You’ve hit your usage limit. Try again at 11:00 PM.", "2026-10-18T04:02:00Z", "", ny},
-		{"wrong ordinal", "You’ve hit your usage limit. Try again at Oct 21nd, 2026 9:00 AM.", "2026-10-18T12:00:00Z", "", ny},
-		{"unknown process zone", "You’ve hit your usage limit. Try again at 3:05 PM.", "2026-10-18T12:00:00Z", "", nil},
-		{"later", "You’ve hit your usage limit. Try again later.", "2026-10-18T12:00:00Z", "", ny},
+		// Claude producer forms.
+		{"time only today", claude, "You've hit your session limit · resets 9am (America/New_York)", "2026-10-18T08:00:00Z", "2026-10-18T13:00:00Z", nil},
+		{"time only minutes", claude, "You've hit your session limit · resets 2:05pm (America/New_York)", "2026-10-18T08:00:00Z", "2026-10-18T18:05:00Z", nil},
+		{"time only tomorrow within 24h", claude, "You've hit your session limit · resets 10am (America/New_York)", "2026-10-18T20:00:00Z", "2026-10-19T14:00:00Z", nil},
+		{"date without year", claude, "You've hit your weekly limit · resets Oct 25, 5pm (Asia/Tokyo)", "2026-10-18T08:00:00Z", "2026-10-25T08:00:00Z", nil},
+		{"date with year", claude, "You've hit your weekly limit · resets Jan 3, 2027, 6:13pm (Europe/London) · progress saved", "2026-12-31T06:53:20Z", "2027-01-03T18:13:00Z", nil},
+		{"incident named session reset", claude, incidentText, incident, "2026-10-29T20:00:00Z", nil},
+		// Changed wording, punctuation, case and clock forms.
+		{"available again", claude, "Quota exhausted; available again at 10pm (Asia/Jerusalem)", incident, "2026-10-29T20:00:00Z", nil},
+		{"24-hour retry", claude, "Usage limit reached. Retry at 22:00 (Asia/Jerusalem)", incident, "2026-10-29T20:00:00Z", nil},
+		{"upper case with minutes", claude, "USAGE LIMIT REACHED -- RESETS 10:00 PM (Asia/Jerusalem)!", incident, "2026-10-29T20:00:00Z", nil},
+		{"dotted meridiem", claude, "Limit hit, resets at 10 p.m. (Asia/Jerusalem)", incident, "2026-10-29T20:00:00Z", nil},
+		{"bare IANA zone", claude, "limit reached, back at 22:00 Asia/Jerusalem", incident, "2026-10-29T20:00:00Z", nil},
+		{"omitted zone uses process zone", claude, "Usage limit reached; try again at 22:00.", incident, "2026-10-29T20:00:00Z", jerusalem},
+		{"numeric offset", claude, "Usage limit reached; retry at 22:00 +02:00", incident, "2026-10-29T20:00:00Z", nil},
+		{"UTC offset", claude, "Usage limit reached; retry at 10pm UTC+2", incident, "2026-10-29T20:00:00Z", nil},
+		{"ISO with offset", claude, "Quota exhausted until 2026-10-30T09:15:00+02:00", incident, "2026-10-30T07:15:00Z", nil},
+		{"ISO with Z", claude, "Quota exhausted until 2026-10-30T07:15Z.", incident, "2026-10-30T07:15:00Z", nil},
+		{"long month after zone", claude, "Limit reached. Available at 9:15am (UTC) on October 30", incident, "2026-10-30T09:15:00Z", nil},
+		{"long month with year", claude, "resets October 30, 2026 at 9:15 AM (Europe/London)", incident, "2026-10-30T09:15:00Z", nil},
+		{"equivalent repeats", claude, "resets 10pm (Asia/Jerusalem) · resets 22:00 (Asia/Jerusalem)", incident, "2026-10-29T20:00:00Z", nil},
+		{"slash ratio reads as an unsupported date", claude, "Limit reached (v2.1.286, HTTP 429, 3/5 used, 1:1). See https://claude.ai/x:12:30/usage · resets 10pm (Asia/Jerusalem)", incident, "", nil},
+		{"unrelated numbers without ratios", claude, "Limit reached (v2.1.286, HTTP 429, 1,000 tokens). See https://claude.ai/x/12:30/usage · resets 10pm (Asia/Jerusalem)", incident, "2026-10-29T20:00:00Z", nil},
+		// Unknown: zones, DST, dates and conflicts.
+		{"daylight-saving fold", claude, "You've hit your session limit · resets 1:30am (America/New_York)", "2026-11-01T04:30:00Z", "", nil},
+		{"daylight-saving gap", claude, "You've hit your session limit · resets 2:30am (America/New_York)", "2026-03-08T05:00:00Z", "", nil},
+		{"stale dated", claude, "You've hit your weekly limit · resets Oct 17, 5pm (Asia/Tokyo)", "2026-10-18T08:00:00Z", "", nil},
+		{"unknown zone", claude, "You've hit your session limit · resets 9am (Mars/Olympus)", "2026-10-18T08:00:00Z", "", nil},
+		{"abbreviated zone", claude, "You've hit your session limit · resets 9am EST", "2026-10-18T08:00:00Z", "", ny},
+		{"missing zone and unknown process zone", claude, "You've hit your session limit · resets 9am", "2026-10-18T08:00:00Z", "", nil},
+		{"two different clauses", claude, "· resets 9am (America/New_York) · resets 10am (America/New_York)", "2026-10-18T08:00:00Z", "", nil},
+		{"rounded current minute is ambiguous", claude, "You've hit your session limit · resets 9am (UTC)", "2026-10-18T09:00:30Z", "", nil},
+		{"current-minute ISO", claude, "Quota exhausted until 2026-10-29T16:25Z", incident, "", nil},
+		{"day-first date", claude, "resets 30 Oct 9am (UTC)", incident, "", nil},
+		{"numeric slash date", claude, "resets 10/30 9am (UTC)", incident, "", nil},
+		{"relative date", claude, "resets tomorrow at 9am (UTC)", incident, "", nil},
+		{"invalid hour", claude, "resets 13pm (UTC)", incident, "", nil},
+		{"invalid ISO month", claude, "until 2026-13-01T09:00Z", incident, "", nil},
+		// Codex producer forms and its same-date convention.
+		{"codex same day", codex, "You’ve hit your usage limit. Try again at 3:05 PM.", "2026-10-18T12:00:00Z", "2026-10-18T19:05:00Z", ny},
+		{"codex upgrade alternative with reset", codex, "You’ve hit your usage limit. Upgrade to Plus to continue using Codex (https://chatgpt.com/explore/plus), or try again at 11:59 PM.", "2026-10-18T12:00:00Z", "2026-10-19T03:59:00Z", ny},
+		{"codex dated", codex, "You’ve hit your usage limit. Try again at Oct 21st, 2026 9:00 AM.", "2026-10-18T12:00:00Z", "2026-10-21T13:00:00Z", ny},
+		{"codex dated without ordinal", codex, "Usage limit reached; available again October 21 2026, 09:00", "2026-10-18T12:00:00Z", "2026-10-21T13:00:00Z", ny},
+		{"codex same instant in another process zone", codex, "You’ve hit your usage limit. Try again at 7:05 PM.", "2026-10-18T12:00:00Z", "2026-10-18T19:05:00Z", time.UTC},
+		{"codex 24-hour retry", codex, "Usage limit reached. Retry at 22:00", "2026-10-18T12:00:00Z", "2026-10-19T02:00:00Z", ny},
+		{"codex explicit zone", codex, "quota exhausted - available again at 3:05 pm (UTC).", "2026-10-18T12:00:00Z", "2026-10-18T15:05:00Z", ny},
+		{"codex past time is stale, never tomorrow", codex, "You’ve hit your usage limit. Try again at 7:05 AM.", "2026-10-18T12:00:00Z", "", ny},
+		{"codex just after midnight", codex, "You’ve hit your usage limit. Try again at 11:00 PM.", "2026-10-18T04:02:00Z", "", ny},
+		{"codex daylight-saving gap", codex, "You’ve hit your usage limit. Try again at 2:30 AM.", "2026-03-08T06:00:00Z", "", ny},
+		{"codex unknown process zone", codex, "You’ve hit your usage limit. Try again at 3:05 PM.", "2026-10-18T12:00:00Z", "", nil},
+		{"codex later", codex, "You’ve hit your usage limit. Try again later.", "2026-10-18T12:00:00Z", "", ny},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := codexTextReset(tc.text, utc(tc.observed), tc.zone)
+			got, _ := resolveQuotaReset(tc.backend, tc.text, rateLimitEvidence{}, utc(tc.observed), tc.zone)
 			if tc.want == "" {
-				if ok {
+				if got != nil {
 					t.Fatalf("reset = %s, want unknown", got)
 				}
 				return
 			}
-			if !ok || !got.Equal(utc(tc.want)) {
-				t.Fatalf("reset = %s/%v, want %s", got, ok, tc.want)
+			if got == nil || !got.Equal(utc(tc.want)) {
+				t.Fatalf("reset = %v, want %s", got, tc.want)
 			}
 		})
 	}

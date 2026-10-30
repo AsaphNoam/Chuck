@@ -5,21 +5,39 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// Reset evidence follows independent terminal quota classification (TS-04.R96).
-// Grammars are the pinned producers' verified formatters, not a generic date
-// parser: Claude native 2.1.286's rejected-error builder (`Acn`/`iu`, English
-// hour/minute with an IANA zone suffix) and Codex 0.159.3's
-// UsageLimitReachedError suffix (process-local time, no zone). Anything
-// unsupported, stale, ambiguous or conflicting stays unknown.
+// Reset evidence follows independent terminal quota classification
+// (TS-04.R96/R107). Date/time candidates are tokenized anywhere in that exact
+// provider failure, without a fixed sentence: 12-hour clocks with optional
+// minutes, 24-hour HH:MM, ISO and English month-day dates, IANA zones and
+// numeric offsets. The pinned producers' conventions (Claude native 2.1.286's
+// `Acn`/`iu`, Codex 0.159.3's UsageLimitReachedError) only resolve what the
+// text leaves open: an omitted zone is the provider process zone, and a
+// time-only value follows the provider's date rule. Anything unsupported,
+// stale, ambiguous or conflicting stays unknown.
+
+const (
+	monthExpr = `jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?`
+	dateExpr  = `(\d{4})-(\d{2})-(\d{2})|\b(` + monthExpr + `)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?`
+)
 
 var (
-	claudeResetClause = regexp.MustCompile(`\x{00b7} resets (?:([A-Z][a-z]{2}) (\d{1,2}), (?:(\d{4}), )?)?(\d{1,2})(?::(\d{2}))?(am|pm) \(([A-Za-z0-9_+\-/]+)\)`)
-	codexResetClause  = regexp.MustCompile(`[Tt]ry again at (?:([A-Z][a-z]{2}) (\d{1,2})(st|nd|rd|th), (\d{4}) )?(\d{1,2}):(\d{2}) (AM|PM)\.`)
+	// URLs and host paths carry digits and colons that are never times.
+	urlToken = regexp.MustCompile(`(?i)\S*://\S*|\b(?:[a-z0-9\-]+\.)+[a-z]{2,}/\S*`)
+	// 12-hour first, so `10:00 PM` keeps its meridiem.
+	clockToken = regexp.MustCompile(`(?i)(\d{1,2})(?::(\d{2}))?\s?([ap])\.?m\b|(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?`)
+	// A parenthesized zone may follow `p.m.`; bare zones may not cross a sentence.
+	zoneToken  = regexp.MustCompile(`^(?:\.?\s*\(([^()\s]{1,64})\)|\s*(?:((?:UTC|GMT)[+-]\d{1,2}(?::?\d{2})?|[+-]\d{2}:?\d{2}|UTC|GMT|Z)\b|([A-Za-z]+(?:/[A-Za-z0-9_+\-]+)+)|([A-Z]{2,5})\b))`)
+	dateBefore = regexp.MustCompile(`(?i)(?:` + dateExpr + `)(?:[\s,]+(?:at\s+|@\s*)?|T)$`)
+	dateAfter  = regexp.MustCompile(`(?i)^(?:\s+(?:on\s+)?|,\s*)(?:` + dateExpr + `)`)
+	// Numeric slash dates and day-first or relative dates need guessing.
+	unsupportedDate = regexp.MustCompile(`(?i)\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:` + monthExpr + `)\b|\btomorrow\b`)
+	zoneOffset      = regexp.MustCompile(`^(?:UTC|GMT)?([+-])(\d{1,2})(?::?(\d{2}))?$`)
 )
 
 // Explicit credit/plan/spend-cap branches of the same pinned builders. They
@@ -36,8 +54,8 @@ var (
 // midnight: the producer may have formatted it against the previous date.
 const codexMidnightGuard = 5 * time.Minute
 
-var monthAbbrev = map[string]time.Month{"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-	"Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+var monthAbbrev = map[string]time.Month{"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+	"jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
 
 // processZone resolves the effective timezone of a provider process from its
 // final environment. An inherited absent TZ is Chuck's own local zone; an
@@ -88,149 +106,170 @@ func hour12(h int, meridiem string) (int, bool) {
 		return 0, false
 	}
 	h %= 12
-	if strings.EqualFold(meridiem, "pm") {
+	if strings.EqualFold(meridiem[:1], "p") {
 		h += 12
 	}
 	return h, true
 }
 
-// uniqueMatch returns the only distinct clause in text; repeated identical
-// clauses (title echoed in details) are one candidate.
-func uniqueMatch(re *regexp.Regexp, text string) ([]string, bool) {
-	all := re.FindAllStringSubmatch(text, -1)
-	if len(all) == 0 {
-		return nil, false
-	}
-	for _, m := range all[1:] {
-		if m[0] != all[0][0] {
-			return nil, false
+// textResetCandidates resolves every clock mentioned in one terminal provider
+// failure to the minute-starts it can denote. The producers truncate seconds,
+// so a candidate whose displayed minute is still running is plausible.
+// Equivalent repeated mentions are one; distinct mentions conflict. Two
+// plausible days of one time-only mention are returned for structured evidence
+// to corroborate or the caller to reject. present reports that the text carried
+// time evidence at all, so an invalid or conflicting mention is never mistaken
+// for absence.
+func textResetCandidates(backendType, text string, observed time.Time, zone *time.Location) (cands []time.Time, present bool) {
+	text = urlToken.ReplaceAllString(text, " ")
+	for _, m := range clockToken.FindAllStringSubmatchIndex(text, -1) {
+		if !clockBounded(text, m[0], m[1]) {
+			continue
 		}
-	}
-	return all[0], true
-}
-
-// claudeTextCandidates parses the rejected-error reset clause into the
-// minute-starts it can denote. The producer truncates seconds, so a candidate
-// whose displayed minute is still running is plausible. Time-only text may
-// mean today or tomorrow within the producer's 24-hour horizon; two plausible
-// days are ambiguous. present reports that the text carried reset evidence at
-// all, so a conflicting or unparseable clause is never mistaken for absence.
-func claudeTextCandidates(text string, observed time.Time) (cands []time.Time, present bool) {
-	if !claudeResetClause.MatchString(text) {
-		return nil, false
-	}
-	m, ok := uniqueMatch(claudeResetClause, text)
-	if !ok {
-		return nil, true
-	}
-	loc, err := time.LoadLocation(m[7])
-	if err != nil {
-		return nil, true
-	}
-	hh, ok := hour12(atoi(m[4]), m[6])
-	if !ok {
-		return nil, true
-	}
-	mm := 0
-	if m[5] != "" {
-		if mm = atoi(m[5]); mm < 1 || mm > 59 { // the producer omits ":00"
+		present = true
+		got, ok := resolveClock(backendType, text, m, observed, zone)
+		if !ok {
 			return nil, true
 		}
-	}
-	plausible := func(t time.Time) bool {
-		return t.Add(time.Minute).After(observed) && !t.After(observed.Add(24*time.Hour))
-	}
-	local := observed.In(loc)
-	if m[1] == "" {
-		for day := 0; day <= 1; day++ {
-			y, mo, d := local.AddDate(0, 0, day).Date()
-			t, ok := localWall(loc, y, mo, d, hh, mm)
-			if !ok {
-				return nil, true
-			}
-			if plausible(t) {
-				cands = append(cands, t.UTC())
-			}
+		if cands != nil && !slices.EqualFunc(cands, got, time.Time.Equal) {
+			return nil, true // distinct mentions conflict
 		}
-		return cands, true
+		cands = got
 	}
-	mo, known := monthAbbrev[m[1]]
-	if !known {
+	if present && unsupportedDate.MatchString(text) {
 		return nil, true
 	}
-	y := local.Year()
-	if m[3] != "" {
-		y = atoi(m[3])
-	}
-	t, ok := localWall(loc, y, mo, atoi(m[2]), hh, mm)
-	if !ok || !t.Add(time.Minute).After(observed) {
-		return nil, true
-	}
-	return []time.Time{t.UTC()}, true
+	return cands, present
 }
 
-// claudeTextReset is the text-only reading: exactly one plausible candidate,
-// which must lie in the future.
-func claudeTextReset(text string, observed time.Time) (time.Time, bool) {
-	cands, _ := claudeTextCandidates(text, observed)
-	if len(cands) != 1 || !cands[0].After(observed) {
-		return time.Time{}, false
+// clockBounded rejects digits inside a longer number, version, ratio, offset
+// or path; `T` may join an ISO date to its time.
+func clockBounded(text string, start, end int) bool {
+	isDigit := func(b byte) bool { return b >= '0' && b <= '9' }
+	if start > 0 {
+		prev := text[start-1]
+		iso := (prev == 'T' || prev == 't') && start > 1 && isDigit(text[start-2])
+		alnum := isDigit(prev) || prev >= 'a' && prev <= 'z' || prev >= 'A' && prev <= 'Z'
+		if !iso && (alnum || strings.IndexByte(".:/-+_", prev) >= 0) {
+			return false
+		}
 	}
-	return cands[0], true
+	return end == len(text) || !isDigit(text[end]) && text[end] != ':' && text[end] != '/'
 }
 
-// codexTextReset parses the `try again at` suffix in the provider process's
-// effective zone. A time-only value means today; a past one is stale, never
-// rolled to tomorrow.
-func codexTextReset(text string, observed time.Time, loc *time.Location) (time.Time, bool) {
+// resolveClock applies one clock's own zone and date, then the provider's
+// convention for what the text leaves open: Claude's time-only value is today
+// or tomorrow within its 24-hour horizon (both plausible is ambiguous); Codex's
+// is the process-local date, and a past one is stale, never rolled forward.
+func resolveClock(backendType, text string, m []int, observed time.Time, zone *time.Location) ([]time.Time, bool) {
+	group := func(i int) string {
+		if m[2*i] < 0 {
+			return ""
+		}
+		return text[m[2*i]:m[2*i+1]]
+	}
+	hh, mm := atoi(group(4)), atoi(group(5))
+	if meridiem := group(3); meridiem != "" {
+		var ok bool
+		if hh, ok = hour12(atoi(group(1)), meridiem); !ok {
+			return nil, false
+		}
+		mm = atoi(group(2))
+	}
+	if hh > 23 || mm > 59 {
+		return nil, false
+	}
+	rest, loc := text[m[1]:], zone
+	if z := zoneToken.FindStringSubmatch(rest); z != nil {
+		var ok bool
+		if loc, ok = parseZone(z[1] + z[2] + z[3] + z[4]); !ok {
+			return nil, false
+		}
+		rest = rest[len(z[0]):]
+	}
 	if loc == nil {
-		return time.Time{}, false
-	}
-	m, ok := uniqueMatch(codexResetClause, text)
-	if !ok {
-		return time.Time{}, false
-	}
-	hh, ok := hour12(atoi(m[5]), m[7])
-	mm := atoi(m[6])
-	if !ok || mm > 59 {
-		return time.Time{}, false
+		return nil, false
 	}
 	local := observed.In(loc)
-	y, mo, d := local.Date()
-	if m[1] == "" {
+	plausible := func(t time.Time) bool { return t.Add(time.Minute).After(observed) }
+	date := dateBefore.FindStringSubmatch(text[:m[0]])
+	if date == nil {
+		date = dateAfter.FindStringSubmatch(rest)
+	}
+	if date != nil {
+		y, mo, d, ok := parseDate(date[1:], local)
+		if !ok {
+			return nil, false
+		}
+		t, ok := localWall(loc, y, mo, d, hh, mm)
+		if !ok || !plausible(t) {
+			return nil, false
+		}
+		return []time.Time{t.UTC()}, true
+	}
+	if backendType == "codex-acp" {
+		y, mo, d := local.Date()
 		if local.Sub(time.Date(y, mo, d, 0, 0, 0, 0, loc)) < codexMidnightGuard {
-			return time.Time{}, false
+			return nil, false
 		}
-	} else {
-		var known bool
-		if mo, known = monthAbbrev[m[1]]; !known {
-			return time.Time{}, false
+		t, ok := localWall(loc, y, mo, d, hh, mm)
+		if !ok || !t.After(observed) {
+			return nil, false
 		}
-		d, y = atoi(m[2]), atoi(m[4])
-		if ordinalSuffix(d) != m[3] {
-			return time.Time{}, false
+		return []time.Time{t.UTC()}, true
+	}
+	var out []time.Time
+	for day := 0; day <= 1; day++ {
+		y, mo, d := local.AddDate(0, 0, day).Date()
+		t, ok := localWall(loc, y, mo, d, hh, mm)
+		if !ok {
+			return nil, false
+		}
+		if plausible(t) && !t.After(observed.Add(24*time.Hour)) {
+			out = append(out, t.UTC())
 		}
 	}
-	t, ok := localWall(loc, y, mo, d, hh, mm)
-	if !ok || !t.After(observed) {
-		return time.Time{}, false
-	}
-	return t.UTC(), true
+	return out, len(out) > 0
 }
 
-func ordinalSuffix(day int) string {
-	if day%100 >= 11 && day%100 <= 13 {
-		return "th"
+// parseDate reads dateExpr's groups: ISO year-month-day, or an English month
+// and day whose omitted year is the zone's current year.
+func parseDate(g []string, local time.Time) (int, time.Month, int, bool) {
+	if g[0] != "" {
+		mo := atoi(g[1])
+		return atoi(g[0]), time.Month(mo), atoi(g[2]), mo >= 1 && mo <= 12
 	}
-	switch day % 10 {
-	case 1:
-		return "st"
-	case 2:
-		return "nd"
-	case 3:
-		return "rd"
+	mo, ok := monthAbbrev[strings.ToLower(g[3][:3])]
+	y := local.Year()
+	if g[5] != "" {
+		y = atoi(g[5])
 	}
-	return "th"
+	return y, mo, atoi(g[4]), ok
+}
+
+// parseZone accepts UTC/Z, numeric offsets and IANA names. A bare
+// abbreviation such as EST is ambiguous and stays unknown.
+func parseZone(name string) (*time.Location, bool) {
+	switch name {
+	case "Z", "UTC", "GMT":
+		return time.UTC, true
+	}
+	if m := zoneOffset.FindStringSubmatch(name); m != nil {
+		h, mins := atoi(m[2]), atoi(m[3])
+		if h > 14 || mins > 59 {
+			return nil, false
+		}
+		offset := (h*60 + mins) * 60
+		if m[1] == "-" {
+			offset = -offset
+		}
+		return time.FixedZone(name, offset), true
+	}
+	if !strings.Contains(name, "/") {
+		return nil, false
+	}
+	loc, err := time.LoadLocation(name)
+	return loc, err == nil
 }
 
 func atoi(s string) int {
@@ -308,20 +347,14 @@ func (e *rateLimitEvidence) observe(params json.RawMessage) {
 // evidence is unknown. Intervention reports explicit credit/plan/spend-cap
 // text, counted only when no reset was established.
 func resolveQuotaReset(backendType, text string, structured rateLimitEvidence, observed time.Time, zone *time.Location) (*time.Time, bool) {
-	var cands []time.Time
-	var hasText bool
 	switch backendType {
 	case "claude-acp":
-		cands, hasText = claudeTextCandidates(text, observed)
 	case "codex-acp":
-		hasText = codexResetClause.MatchString(text)
-		if t, ok := codexTextReset(text, observed, zone); ok {
-			cands = []time.Time{t}
-		}
 		structured = rateLimitEvidence{} // no verified structured carrier
 	default:
 		return nil, false
 	}
+	cands, hasText := textResetCandidates(backendType, text, observed, zone)
 	var reset *time.Time
 	switch {
 	case structured.unknown:

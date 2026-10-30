@@ -3389,6 +3389,11 @@ func promptFailureMessage(as *agentState, err error) string {
 			}
 		}
 		attrs = append(attrs, "rpc_code", rpcErr.Code, "data_keys", keys)
+		// The provider's error category is a closed token, safe for diagnosis.
+		var kind string
+		if json.Unmarshal(data["errorKind"], &kind) == nil && kind != "" {
+			attrs = append(attrs, "error_kind", strutil.ClipRunes(kind, 40))
+		}
 	}
 	if reason != "" {
 		attrs = append(attrs, "reason", reason)

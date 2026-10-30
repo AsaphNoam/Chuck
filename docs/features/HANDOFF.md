@@ -82,6 +82,10 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Acceptance gates still owed
 
+- **QUOTA-RPC live receipts (FS-01.A37/A39):** with credentials under a real quota refusal,
+  record one bounded Claude and one Codex terminal-RPC receipt (category value, wording) and the
+  resulting automatic continuation at reset plus one minute. Fixtures are captured/source-backed only.
+
 - **Pipeline worktree packaged probe (TS-09.R65):** with credentials, start an isolated run from
   the packaged app and confirm a Claude and a Codex stage agent actually run (and resume) in the
   run checkout; fake-provider capture and real-Git fixtures pass.
@@ -234,6 +238,19 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review queue
 
+- **QUOTA-RPC** (2026-10-30, Go runtime): terminal RPC quota recognition and wording-tolerant
+  reset extraction, FS-01.R55/R57/A37/A39, TS-04.R105/R107, TS-10.R62. Shared
+  `rpcQuotaRefusal` (`internal/runtime/quota.go`) serves ordinary prompts, reserved activations
+  and isolated checks; `textResetCandidates` (`quota_reset.go`) replaces the fixed-clause
+  parsers. Prompt-failure logs now include the provider `errorKind` value. Reviewer note
+  (reversible, spec-following): the pinned Claude adapter ranks its usage-limit text above
+  `errorKind`, but R105 keeps explicit `rate_limit` excluded, so such a refusal stays an ordinary
+  error. Also check the conservative slash rule: any `n/n` token beside a clock (e.g. `3/5 used`)
+  makes the reset unknown. The server still treats a reset already past at settlement as unknown
+  (existing A31 guard; R62's "may admit once" was not exercised). Incident regressions failed on
+  the old code. Checks on this tree: `make test` (both Go variants + specs), `make build`,
+  focused `-race` runtime quota tests and `git diff --check` pass.
+
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
   numbered template library, light overview/timeline, stage rail/editor and start-dialog
@@ -332,6 +349,12 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
 
 ## Changelog
 
+- **2026-10-30 — Implemented quota recognition and session-reset recovery (QUOTA-RPC):** a
+  provider terminal quota RPC without AIR metadata now enters recovery; reset times are
+  extracted regardless of surrounding wording. The `a_a7e830` spend/session-reset error now
+  schedules continuation at 22:00 Asia/Jerusalem plus one minute. No migration, field or UI
+  change. Checks recorded under Review queue; live receipts owed.
+
 - **2026-10-30 — Defined goal-led unattended pipelines:**
   [`goal-led-unattended-pipelines`](../ready-changes/goal-led-unattended-pipelines.md) is waiting
   to start; FS-14.R97–R103/A61–A68 and TS-09.R66–R72 remain planned. Confirmed: useful existing-owner
@@ -393,8 +416,8 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
   TS-04.R107 and TS-10.R62 replace the unshipped preliminary-check/session-hint design; terminal
   RPC recognition remains FS-01.R55/TS-04.R105. Retired FS-01.R56/A38, TS-02.R61, TS-03.R76,
   TS-04.R106, TS-08.R150 and TS-10.R61 without reusing IDs. The
-  [`ready change`](../ready-changes/repair-quota-recognition-and-session-reset-recovery.md)
-  remains **Waiting to start**, using existing recovery fields, scheduler, projection and UI;
+  ready change `repair-quota-recognition-and-session-reset-recovery` (implemented the same day)
+  was **Waiting to start**, using existing recovery fields, scheduler, projection and UI;
   no new migration, preliminary check or product code. Extraction tolerates wording changes
   while retaining date/timezone ambiguity checks and existing bounded retry/control rules.
 
@@ -406,8 +429,7 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
 
 - **2026-10-29 — Designed quota recognition and session-reset recovery:** operator confirmed
   FS-01.R55–R56/A37–A38; prepared
-  [`repair-quota-recognition-and-session-reset-recovery`](../ready-changes/repair-quota-recognition-and-session-reset-recovery.md),
-  **Waiting to start**. TS-04.R105–R106 normalize terminal RPC quota evidence and a separately
+  `repair-quota-recognition-and-session-reset-recovery`, **Waiting to start**. TS-04.R105–R106 normalize terminal RPC quota evidence and a separately
   scoped session-reset hint; TS-02.R61/TS-03.R76/TS-08.R150/TS-10.R61 define persistence,
   projection and one isolated check before same-work continuation. Removed the promoted idea.
   No product code changed; no existing interruption was rearmed. Provider source receipts are
