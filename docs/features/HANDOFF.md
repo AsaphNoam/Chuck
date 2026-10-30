@@ -18,7 +18,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   (ANN-SOURCE-1/2 fixed 2026-10-30). Pipeline worktrees fix unit
   PIPE-WT is closed (PIPE-WT-1–6 fixed
   2026-10-30); its packaged Claude/Codex launch/resume cwd probe stays owed below. Review unit
-  MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
+  MMD-VIEW (file-viewer Mermaid sizing) is reviewed with one **Worth fixing** specification-drift
+  finding below; memory fix unit MEM has one open **Worth fixing**
   finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE is
   closed (TOOL-LINE-1/2 fixed 2026-10-29); MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
   DELMSG is closed (DELMSG-1 fixed). The v0.20.0 architectural review
@@ -270,10 +271,31 @@ None. Running background-work indicator is finished and available for review (BG
   migration 63, `internal/runtime/{chat,tasks}.go` status writes, `internal/state` projection,
   `AgentCard` badge.
 
-- **MMD-VIEW** (2026-10-26, small, UI CSS only): file-viewer Mermaid diagrams fill the reader width
-  and center instead of collapsing to 300×150 — `ui/src/styles/features/agent.css`.
-
 ## Review findings
+
+### MMD-VIEW — File-viewer Mermaid sizing (2026-10-30) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed `0b2e50bb` against FS-03.R37/R92 and TS-08.R40/R131. The full-width `pre` is a sound
+local extension of the existing renderer; no new runtime defect found. Product/spec code unchanged.
+
+- **Worth fixing** — MMD-VIEW-1 (P3): inherited sizing requirement contradicts the intended renderer.
+  `docs/specs/tech/TS-08-frontend-presentation.md:254–256` says sanitization removes the intrinsic
+  SVG width cap, but `renderers/mermaid.ts` preserves it and `AssistantText.test.tsx:84–101`
+  explicitly protects that choice (since `d58799e9`). A compact graph in a focused reader is
+  correctly centered at its intrinsic width, rather than stretched to the full reader width.
+  Following the stale technical requirement would undo that bounded-sizing repair. Update R40
+  to distinguish the full-width container from the intrinsic-size SVG; retain existing behavior
+  and focused geometry evidence. TS-08.R40/R131, FS-03.R37; INV §10. Fix complexity: trivial/easy.
+
+Independent Chromium checks: 84/84 pass across Core/Sky & Grove/Studio, 1024/1440, live/archive,
+docked/focused reader, source toggle, containment and centering. Overriding only the reviewed
+declaration reproduces the old 300px collapse in all 12 route/appearance/width combinations.
+Evidence: `/private/tmp/mmd-view-review.mjs`, `/private/tmp/mmd-view-review/report.json` and PNGs;
+parent inspected Core docked and Sky & Grove focused captures. API-stubbed product routes prove
+layout only; no new native/device/provider claim. No committed tests changed in this unit.
+Invariant sweep: §§8/10/13 apply and were assessed; §10 yields the inherited documentation finding
+above. §§1–7/9/11–12/14–17 have no applicable changed surface. Existing sanitizer, height bounds,
+and shared room/agent renderer wiring are retained. Other review/fix units remain unchanged.
 
 ### GOAL-LED — Goal-led unattended pipelines (2026-10-30) — **Fix model:** difficult — Codex Sol.
 
@@ -348,6 +370,13 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-30 — Reviewed file-viewer Mermaid sizing:** browser geometry/appearance checks pass;
+  MMD-VIEW-1 records inherited TS-08.R40 sizing drift for a small specification correction.
+  `npm run check:styles` passes (47 checks plus presentation contract); 23 focused Mermaid/assistant
+  renderer tests pass. `git diff --check` passes. `make check-specs` fails
+  on the existing TS-08 Partial-status marker error (unshipped items lack `(planned)`), outside
+  this CSS unit; no product or specification edits made. Existing unrelated dirty work preserved.
 
 - **2026-10-30 — Fixed GOAL-LED-2/3/7/12/14 (INV §1/§2/§8/§10/§11/§15):** queued input stays bound
   to its assignment through start retries and moves whole (text and attachments) to an automatic
