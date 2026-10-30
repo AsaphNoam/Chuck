@@ -36,7 +36,6 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   scenarios remain owed.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`, pushed through the v0.20.0 release record.
   Clean release verification uses a detached worktree at `/private/tmp/chuck-release-<version>`.
-  The primary checkout carries a pre-existing generated UI index edit; preserve it.
 - **Future work:** direct-action migration remains paused on its transport blocker; passive
   quota snapshots remain TBD.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`; use `GOFLAGS=-p=1` and a writable isolated Go cache.
@@ -52,22 +51,6 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   passing in all appearances. INV §13/§17.
 
 ## Active change
-
-**Optional annotation source recording** —
-[`optional-annotation-source-recording`](../ready-changes/optional-annotation-source-recording.md),
-**in progress**. Implement the specified opt-out through existing receipts and the shared
-desktop/phone batch owner; rename annotation destinations to **New agent**, including rooms.
-Parallel ownership: backend request/receipt integration and focused tests; shared UI lifecycle
-and controls/tests; rendered desktop/phone assignment journey. Parent integrates and runs closure.
-Implemented request/receipt, shared batch lifecycle and desktop/phone controls, including room
-terminology. Focused backend handler/remote/CLI checks pass; UI store/delivery/control checks
-pass (91 tests initially, then 36 with added control cases); TypeScript and `make embed` pass.
-Full UI suite passes 1,116 tests; `make build` and focused annotation race tests pass. Desktop
-rendered assignment/room controls and nine phone appearance/width cases pass; assignment responses
-are stubbed, with real persistence proven by handler tests. Evidence is in shared project resources
-`optional-annotation-rendered/` and `optional-annotation-verification/`. Next: finish full `make test`
-(both Go build modes), then add the completed unit to review without replacing existing units.
-Existing background indicator work remains resumable below.
 
 **Running background-work indicator** —
 [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
@@ -246,6 +229,25 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review queue
 
+- **ANN-SOURCE** (2026-10-30, Go + UI):
+  [`optional-annotation-source-recording`](../ready-changes/optional-annotation-source-recording.md)
+  is **finished**, available for review. FS-13.R35–R36/A25–A26, TS-03.R75, TS-02.R60,
+  TS-08.R148; implementation `ed285b64`, rendered/generated closure `788a7318`.
+  Default-on recording choice shares the desktop/phone batch lifecycle; opt-out atomically commits
+  target mail/activation/receipt with sequence zero and no source event/index/publication.
+  Retry/restart reuses acceptance. All annotation destinations say **New agent**; rooms retain
+  recording semantics. MOB-ANN-1 is fixed in the same unit by admitting client command identity
+  on both phone endpoints (INV §10/§11/§14), with TS-13.R16/R31 reconciled.
+  Final source scope: `make test` (untagged + `sqlite_fts5`), `make build`, `make embed`, full UI
+  suite (1,116 tests), focused annotation race tests, final scoped spec/script syntax checks,
+  and `git diff --check` pass. Go commands use `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1
+  GOCACHE=/private/tmp/chuck-go-cache`; isolated loopback tests require sandbox escalation.
+  Desktop journey and nine phone appearance/width cases pass; browser assignment responses and
+  room detail are stubbed, while real handler tests prove persistence, SQL rollback and restart
+  replay. Existing physical-device/provider gates remain unchanged. Evidence: shared project
+  resources `optional-annotation-rendered/` and `optional-annotation-verification/`.
+  No new interface/runtime/driver or storage mechanism.
+
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
   numbered template library, light overview/timeline, stage rail/editor and start-dialog
@@ -309,6 +311,12 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-30 — Optional annotation source recording finished:** peer/new-agent assignments
+  can omit the source transcript record while preserving delivery and retry identity. Desktop
+  and phone share the persisted choice and launch snapshot; room controls gain the **New agent**
+  rename only. MOB-ANN-1's rejected phone command identity is repaired (INV §10/§11/§14).
+  Complete verification and evidence are recorded under review unit ANN-SOURCE.
 
 - **2026-10-30 — Fixed pipeline worktree review findings (PIPE-WT, unit closed):**
   PIPE-WT-1/2 (INV §5/§9/§16): removal matches every running agent by canonical checkout path

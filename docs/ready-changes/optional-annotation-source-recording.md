@@ -1,6 +1,6 @@
 # Optional source transcript recording for annotation assignments
 
-**State:** In progress
+**State:** Finished
 **Why:** Operator request 2026-10-29, scope confirmed in conversation: send unrelated side quests
 to another agent without including the current agent in the loop; rename New task to New agent.
 **Relevant requirements:** FS-13.R35–R36/A25–A26, TS-03.R75, TS-02.R60, TS-08.R148;
@@ -17,8 +17,8 @@ through reload/cancel/retry and reset it for a fresh batch. Self recording and r
 remain unchanged; rooms receive only the rename. No transcript deletion, task-system rename,
 new storage mechanism, new delivery protocol or provider change.
 
-Existing seams verified: `internal/server/sessions.go::handleAnnotations` currently requires
-positive `SourceSeq` for accepted replay and appends before every delivery;
+At planning, `internal/server/sessions.go::handleAnnotations` required
+positive `SourceSeq` for accepted replay and appended before every delivery;
 `internal/state/annotation_receipts.go::CommitAnnotationMail` already commits mail/activation and
 acceptance atomically without requiring a source sequence. `annotationStore`, `annotationBatch`
 and `useAnnotationDelivery` already own draft lifecycle, command identity and desktop/phone
@@ -33,3 +33,14 @@ and rename, with a room-control check. Run the applicable implementation closure
 
 ## Waiting on
 None.
+
+## Delivered verification
+
+Available for review as ANN-SOURCE in `HANDOFF.md`. Full Go suites in both build modes,
+full UI suite (1,116 tests), focused annotation race tests, build/embed, spec and script checks
+pass. Handler integration proves zero-sequence acceptance, SQL rollback and restart/lost-response
+replay with real receipts/mail/transcripts. Desktop and nine phone appearance/width browser cases
+prove controls, cancellation/retry and recipient feedback; assignment responses are stubbed, so
+they do not claim persistence or native-device proof. Evidence is in shared project resources
+`optional-annotation-rendered/` and `optional-annotation-verification/`. The existing phone
+`command_id` gateway rejection was also repaired as necessary wiring for this change (MOB-ANN-1).
