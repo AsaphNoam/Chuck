@@ -70,6 +70,41 @@ async function connected() {
 }
 
 describe("phone connection recovery", () => {
+  it("coalesces streamed messages into periodic transcript refreshes without starving the last update", async () => {
+    await connected();
+    const revisions: number[] = [];
+    const unsubscribe = useConnection.subscribe((state, prev) => {
+      if (state.transcriptRev !== prev.transcriptRev) revisions.push(state.transcriptRev.a1);
+    });
+    try {
+      for (let i = 0; i < 20; i++) {
+        last().emit("new_message", { agent_id: "a1", data: { seq: i + 1 } });
+        await vi.advanceTimersByTimeAsync(25);
+      }
+      expect(revisions).toEqual([1, 2]);
+      last().emit("new_message", { agent_id: "a1", data: { seq: 21 } });
+      await vi.advanceTimersByTimeAsync(250);
+      expect(revisions).toEqual([1, 2, 3]);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("drops pending message refreshes when the stream is replaced or disconnected", async () => {
+    await connected();
+    last().emit("new_message", { agent_id: "a1" });
+    last().onerror?.();
+    await settle();
+    last().hydrate([{ agent_id: "a1", state: "idle" }]);
+    const afterHydration = useConnection.getState().transcriptRev;
+    await vi.advanceTimersByTimeAsync(250);
+    expect(useConnection.getState().transcriptRev).toBe(afterHydration);
+    last().emit("new_message", { agent_id: "a1" });
+    disconnect();
+    await vi.advanceTimersByTimeAsync(250);
+    expect(useConnection.getState().transcriptRev).toBe(afterHydration);
+  });
+
   it("stays checking until the first snapshot hydrates, then coalesces it into one revision", async () => {
     start();
     await settle();

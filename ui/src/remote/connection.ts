@@ -75,6 +75,33 @@ let failures = 0;
 let retryPending = false;
 /** A genuine hidden/offline → visible/online transition may advance one retry. */
 let mayAdvance = false;
+// One refresh per agent per fixed window, even during continuous output (TS-13.R29).
+let messageTimer: number | undefined;
+const pendingMessages = new Set<string>();
+
+function clearMessageRefresh() {
+  window.clearTimeout(messageTimer);
+  messageTimer = undefined;
+  pendingMessages.clear();
+}
+
+function queueMessageRefresh(id: string) {
+  if (!useConnection.getState().agents[id]) return;
+  pendingMessages.add(id);
+  if (messageTimer !== undefined) return;
+  messageTimer = window.setTimeout(() => {
+    messageTimer = undefined;
+    const ids = [...pendingMessages];
+    pendingMessages.clear();
+    useConnection.setState((state) => {
+      const transcriptRev = { ...state.transcriptRev };
+      for (const id of ids) {
+        if (state.agents[id]) transcriptRev[id] = (transcriptRev[id] ?? 0) + 1;
+      }
+      return { transcriptRev };
+    });
+  }, 250);
+}
 
 const visible = () => document.visibilityState !== "hidden";
 
@@ -92,6 +119,7 @@ function clearTimer() {
 }
 
 function closeSource() {
+  clearMessageRefresh();
   source?.close();
   source = null;
   hydrated = false;
@@ -325,7 +353,7 @@ function open(gen: number) {
     if (gen !== generation || hydratingAgents) return;
     const id = parse(event)?.agent_id;
     if (!id) return;
-    useConnection.setState((state) => ({ transcriptRev: { ...state.transcriptRev, [id]: (state.transcriptRev[id] ?? 0) + 1 } }));
+    queueMessageRefresh(id);
   });
 }
 

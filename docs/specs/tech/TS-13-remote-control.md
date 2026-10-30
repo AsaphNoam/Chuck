@@ -317,7 +317,11 @@ and sends. Native phone picker/paste limitations report capability honestly with
   view data until the new snapshot/read settles; coalesce snapshot-driven view revisions rather
   than refetching on every hydration row, and refresh active query families through the existing
   query client without creating a second focus/reconnect fetch path. Heartbeats are never view
-  refresh signals. Preserve agent/project/run ownership of draft/form state; a refreshed run revision
+  refresh signals. Coalesce streamed `new_message` transcript/held-prompt refresh signals into
+  fixed 250 ms windows, including a trailing refresh after the final message; continuous output
+  must not postpone refresh indefinitely. Keep one shared timer and at most one pending signal per
+  known agent; discard pending signals when the stream closes, since hydration refreshes open
+  conversations. Preserve agent/project/run ownership of draft/form state; a refreshed run revision
   must not remount an entered replacement form (currently `ReplaceForm key={rev}`), and stale
   selections remain available for the existing server refusal rather than silently replacing input.
   Preserve the visible transcript message identity and viewport offset across refresh/bridge

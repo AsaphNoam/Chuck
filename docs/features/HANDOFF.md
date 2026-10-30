@@ -28,7 +28,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); thirteen Must-fix findings and one
   Worth-fixing finding remain on the same unit below. Acceptance evidence remains owed below.
 - **Waiting-prompt investigation:** WAIT-PROMPT-1/2 are fixed by goal-led slice 1 (input to a
-  waiting assignee is queued and carried by its continuation); WAIT-PROMPT-3 stays open, out of scope.
+  waiting assignee is queued and carried by its continuation); WAIT-PROMPT-3 is fixed by coalescing
+  phone streaming refresh signals into 250 ms windows. The investigation unit is closed.
 - **Permission-save investigation:** PERM-SAVE-1 is repaired; the reported unchecked toggle's
   field cause remains undetermined pending affected server evidence.
 - **Mobile annotation investigation:** MOB-ANN-1 is fixed with optional source recording: both
@@ -454,25 +455,18 @@ The optional question about the affected process/workload had no answer at closu
 Field attribution of the user's suspected growth remains undetermined (no heap/browser snapshot
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
-### WAIT-PROMPT — Prompt to a waiting pipeline coordinator (2026-10-30) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-**Report, verbatim:** “I wanted to send updated instructions to the agent mid pipeline run, why was
-that not allowed”, with a phone screenshot of the composer error “the assigned task must resume
-before this prompt can be delivered; retry shortly” under coordinator text “The implementer has
-not reported a result or blocker. The Work stage remains open”. Checkout `788a7318`, macOS arm64,
-phone remote client `rd_TQDIXQ8MaXcW`. Evidence: `~/.chuck/dashboard.log` (08:09–08:10 IST),
-`~/.chuck/sessions/a_3326aa/transcript.ndjson`, `state.db` task `tk_32b3ab01fb6e73c9` (pipeline
-Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`).
-
-WAIT-PROMPT-1/2 were fixed 2026-10-30 by goal-led slice 1 (TS-10.R29, FS-03.R48); only
-WAIT-PROMPT-3 remains, outside that change.
-
-- **Worth fixing** — WAIT-PROMPT-3, probable: the phone client re-fetched `/transcript` and
-  `/prompt` for this agent 20–44 times per second during each streamed turn (log 08:09:51,
-  08:10:03, 08:10:13 IST). Not the reported failure; cause not traced. Check the phone transcript
-  refresh trigger for per-event refetching and coalesce it.
-
 ## Changelog
+
+- **2026-10-30 — Fixed WAIT-PROMPT-3 (INV §1/§4/§16/§17):** every streamed `new_message`
+  previously changed the phone's transcript and held-prompt query keys. The connection owner now
+  coalesces known-agent signals with one shared fixed 250 ms timer, including the final update,
+  and clears pending work on stream teardown. TS-13.R29 records the bound. Fake-clock regressions
+  failed before repair (20 refreshes in 500 ms); the HTTP/component probe also failed before repair
+  (21 transcript GETs for 20 messages), and now proves bounded transcript/prompt reads and final
+  fetched text rendering. `make check-specs`, UI `npm test` (1122), `make embed` (presentation checks
+  and production build), and `git diff --check` pass. Logs `/tmp/wait-prompt-{before,http-before,ui,embed}.log`.
+  This closes WAIT-PROMPT; GOAL-LED and the MEM-4 decision remain open. No physical-phone
+  performance or battery measurement is claimed; existing native/device gates remain owed.
 
 - **2026-10-30 — Reviewed goal-led pipelines (GOAL-LED):** thirteen Must-fix findings and one
   Worth-fixing finding keep the same unit open. Independent probes show false room completion,
