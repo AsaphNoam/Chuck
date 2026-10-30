@@ -235,7 +235,9 @@ func TestCorruptPipelineSnapshotFailsTaskStartWithoutLaunching(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if task.State != state.TaskDependencyFailed || !strings.Contains(task.AttentionReason, "pipeline orchestrator context is unavailable") {
+	// The parked owner is handed to automatic recovery, which cannot compose a
+	// replacement from a corrupt snapshot either and leaves it interrupted.
+	if (task.State != state.TaskDependencyFailed && task.State != state.TaskInterrupted) || !strings.Contains(task.AttentionReason, "pipeline orchestrator context is unavailable") {
 		t.Fatalf("task after corrupt snapshot = %+v", task)
 	}
 	if _, err := srv.stateStore.ReadSession("a_corrupt"); !errors.Is(err, state.ErrNotFound) {

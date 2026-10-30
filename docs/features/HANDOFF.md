@@ -59,9 +59,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 **Goal-led unattended pipelines** —
 [`goal-led-unattended-pipelines`](../ready-changes/goal-led-unattended-pipelines.md), **in
-progress**; slices in [the plan](../plans/goal-led-unattended-pipelines.md). Slices 1–4 done (queued input, visits,
-decision contract and execution with recovery rounds); progress and a room-stage deviation are in
-TS-09 §5. **Next:** slice 5, stall recovery and automatic owner replacement (TS-09.R70).
+progress**; slices in [the plan](../plans/goal-led-unattended-pipelines.md). Slices 1–5 done (queued input, visits,
+decisions, recovery rounds, automatic retry/replacement and stall handling); progress and a
+room-stage deviation are in TS-09 §5. **Next:** slice 6, run/phone/CLI surfaces and closure.
 
 **Running background-work indicator** —
 [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),

@@ -50,6 +50,19 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 			}
 		case current.RoomID != "":
 			continueErr = errRoomRecovery
+		case run.State == "paused" && run.PendingAction == "" && task.State == state.TaskInterrupted:
+			// Resume continues the same owner on its interrupted visit with a
+			// fresh allowance; Retry and Replace stay available (TS-09.R70/R71).
+			// Instructions for that same owner go through its conversation,
+			// where they are queued for this assignment rather than dropped.
+			if input != "" {
+				continueErr = validationError("send instructions to the owner's conversation", []Diagnostic{{Field: "input", Code: "invalid", Message: "this run resumes its interrupted owner; send instructions in that agent's conversation, where they are delivered with its next turn"}})
+				break
+			}
+			var resumed state.PipelineRunRecord
+			if resumed, continueErr = m.store.ResumeInterruptedPipelineStageTask(runID, current.TaskID, run.Revision); continueErr == nil {
+				m.publish(resumed)
+			}
 		case run.State == "paused" && run.PendingAction == "" && run.AttentionReason == attentionNeedsInput:
 			// The answer continues the same goal on a new visit (FS-14.R99).
 			if input == "" {
@@ -159,9 +172,20 @@ func (m *Manager) Replace(ctx context.Context, runID string, expectedRevision in
 			return RunDetail{}, validationError("replacement runtime is unavailable", []Diagnostic{{Field: "orchestrator", Code: "unavailable", Message: err.Error()}})
 		}
 	}
+	if err := m.replaceOwner(run, detail, current, stage, runtime, false, ""); err != nil {
+		return RunDetail{}, err
+	}
+	return m.Detail(runID)
+}
+
+// replaceOwner issues a visibly fresh standing owner for an interrupted visit:
+// a new identity with the given runtime and a bounded evidence handoff, the
+// old identity, history and child work retained (TS-09.R41/R70). An automatic
+// replacement spends a round atomically and carries the person's pending input.
+func (m *Manager) replaceOwner(run state.PipelineRunRecord, detail RunDetail, current state.PipelineStageTask, stage Stage, runtime RuntimeAssignment, charge bool, handoff string) error {
 	id, err := m.store.NewTaskID()
 	if err != nil {
-		return RunDetail{}, err
+		return err
 	}
 	// A replacement keeps the predecessor's coordinator binding, so its assignment
 	// names that same child rather than minting a second one (TS-09.R37/R41).
@@ -169,32 +193,35 @@ func (m *Manager) Replace(ctx context.Context, runID string, expectedRevision in
 	if current.CoordinatorTaskID != "" {
 		replacementCoordinator = &coordinatorHandoff{TaskID: current.CoordinatorTaskID, Role: stage.DedicatedRole, Objective: stage.Objective}
 	}
-	prior, err := m.priorStageResults(runID, "")
+	prior, err := m.priorStageResults(run.RunID, "")
 	if err != nil {
-		return RunDetail{}, err
+		return err
+	}
+	continuation := "Replacement standing owner: inspect the retained stage work and continue from durable results."
+	if handoff != "" {
+		continuation += "\n" + handoff
 	}
 	instruction, digest := renderAssignment(run, detail.Template, stage, detail.Values, assignmentContext{
-		Coordinator: replacementCoordinator, PriorResults: prior,
-		Continuation: "Replacement standing owner: inspect the retained stage work and continue from durable results.",
+		Coordinator: replacementCoordinator, PriorResults: prior, Continuation: clipText(continuation, MaxValueRunes),
 	})
 	// A revisited step may already have later attempts than the current one.
-	attempt, err := m.store.NextPipelineStageAttempt(runID, current.StageIndex)
+	attempt, err := m.store.NextPipelineStageAttempt(run.RunID, current.StageIndex)
 	if err != nil {
-		return RunDetail{}, err
+		return err
 	}
-	prepared, err := m.store.PreparePipelineStageReplacement(state.CreatePipelineStageTaskParams{RunID: runID, ExpectedRevision: run.Revision, StageIndex: current.StageIndex, AttemptNumber: attempt, StageID: stage.ID, AssignmentDigest: digest, ParentTaskID: current.TaskID, OutputValues: stageOutputValues(stage), Task: state.Task{TaskID: id, Project: run.Project, DisplayName: stage.Title, Instruction: instruction, TargetKind: state.TargetLaunch, Role: detail.Template.OrchestratorRole, Backend: runtime.Backend, Model: runtime.Model, Effort: runtime.Effort, Fast: runtime.Fast, CreatedByKind: "pipeline"}}, current.TaskID)
+	prepared, err := m.store.PreparePipelineStageReplacement(state.CreatePipelineStageTaskParams{RunID: run.RunID, ExpectedRevision: run.Revision, StageIndex: current.StageIndex, AttemptNumber: attempt, StageID: stage.ID, AssignmentDigest: digest, ParentTaskID: current.TaskID, OutputValues: stageOutputValues(stage), ChargeRound: charge, Task: state.Task{TaskID: id, Project: run.Project, DisplayName: stage.Title, Instruction: instruction, TargetKind: state.TargetLaunch, Role: detail.Template.OrchestratorRole, Backend: runtime.Backend, Model: runtime.Model, Effort: runtime.Effort, Fast: runtime.Fast, CreatedByKind: "pipeline"}}, current.TaskID)
 	if err != nil {
 		if errors.Is(err, state.ErrPipelineStageConflict) {
-			return RunDetail{}, controlError("invalid_state", "replacement lost to a newer stage state")
+			return controlError("invalid_state", "replacement lost to a newer stage state")
 		}
-		return RunDetail{}, err
+		return err
 	}
-	updated, err := m.store.ActivatePipelineStageReplacement(runID, id, prepared.Revision)
+	updated, err := m.store.ActivatePipelineStageReplacement(run.RunID, id, prepared.Revision)
 	if err != nil {
-		return RunDetail{}, err
+		return err
 	}
 	m.publish(updated)
-	return m.Detail(runID)
+	return nil
 }
 
 func (m *Manager) Stop(ctx context.Context, runID string, expectedRevision int64) (RunDetail, error) {

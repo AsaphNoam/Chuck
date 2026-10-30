@@ -23,11 +23,11 @@ change finishes.
    `state/pipeline_decisions.go`; `pipeline/decisions.go`; Continue handles approval, answer, resume.
    Tests: `state/pipeline_decisions_test.go`, `pipeline/goal_led_test.go`.
 
+5. **Recovery.** `pipeline.RecoverStageTask`/`replaceOwner`; `server/queued_input.go`
+   `recoverStageTask`/`recoverParkedStageTask`; `server/pipeline_stall.go` (fixtures whose fake
+   owners never report set `srv.ownerStallNudgeOff`).
+
 ## Next
 
-5. **Stall recovery and replacement (R70/R69).** Turn end without report/wait drives owner
-   continuation; three such turns pause. Automatic visibly fresh same-runtime owner replacement when
-   native resume fails, carrying pending queued input. Run-page answers and conversation answers use
-   one recorded-input helper.
 6. **Surfaces and closure (R71/R72/R103).** HTTP/CLI/desktop/phone show visits, checks, questions,
    held input, recovery, outcome; A61–A68 tests and journeys; TS-06 closure matrix.

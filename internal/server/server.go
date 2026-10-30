@@ -76,11 +76,14 @@ type Server struct {
 	activationSlots chan struct{}
 	// taskStartSlots bounds task starts in flight across dispatch passes. The
 	// budget bounds runtimes; this bounds workers (TS-10.R3, R17).
-	taskStartSlots  chan struct{}
-	quotaStartSlots chan struct{}
-	quotaControlMu  sync.Mutex
-	quotaActionMu   sync.Mutex
-	quotaActions    map[string]bool
+	taskStartSlots chan struct{}
+	// ownerStallNudgeOff lets fixtures whose fake owners never report keep a
+	// stage open; production always continues stalled owners (TS-09.R70).
+	ownerStallNudgeOff bool
+	quotaStartSlots    chan struct{}
+	quotaControlMu     sync.Mutex
+	quotaActionMu      sync.Mutex
+	quotaActions       map[string]bool
 	// quotaChecks marks agents with an isolated check running in this process;
 	// quotaCleanupTried rate-limits exact probe cleanup retries (TS-10.R47).
 	// quotaChecked holds each agent's last ready check selection fingerprint

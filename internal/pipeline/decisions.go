@@ -212,6 +212,65 @@ func (m *Manager) createVisit(run state.PipelineRunRecord, detail RunDetail, cur
 	return err
 }
 
+// RecoverStageTask is automatic, bounded recovery for a standing owner whose
+// execution was interrupted (process exit, restart) or could not be started:
+// the same identity is resumed through ordinary admission, or — when its
+// native session cannot be used — a visibly fresh owner with the run's frozen
+// runtime takes over with the handoff text. Either spends one round; a spent
+// allowance pauses recoverably. Explicitly stopped work never reaches here
+// (FS-14.R101, TS-09.R70).
+func (m *Manager) RecoverStageTask(taskID, attention string, replace bool, handoff string) (bool, error) {
+	visit, err := m.store.ReadPipelineStageTaskByTask(taskID)
+	if errors.Is(err, state.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if visit.ExecutionKind != state.StageExecutionAgent {
+		return false, m.OnStageTaskInterrupted(taskID, attention)
+	}
+	unlock := m.lockRun(visit.RunID)
+	defer unlock()
+	run, err := m.store.ReadPipelineRun(visit.RunID)
+	if err != nil {
+		return false, err
+	}
+	current, found, err := m.currentStageTask(run.RunID)
+	if err != nil || !found || current.TaskID != taskID || run.State == "completed" || run.State == "stopped" || run.State == "stopping" {
+		return false, err
+	}
+	paused, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
+		State: "paused", PendingAction: "", CurrentStageID: current.StageID, CurrentAgentID: current.StandingAgentID, AttentionReason: attention,
+	})
+	if errors.Is(err, state.ErrPipelineConflict) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	detail, err := m.Detail(run.RunID)
+	if err != nil {
+		return false, err
+	}
+	stage, ok := stageByID(detail.Template, current.StageID)
+	if !ok {
+		return false, controlError("invalid_state", "current stage is missing")
+	}
+	if replace {
+		err = m.replaceOwner(paused, detail, current, stage, standingAssignment(detail.Assignments, stage.ID), true, handoff)
+	} else {
+		var updated state.PipelineRunRecord
+		if updated, err = m.store.RecoverInterruptedPipelineStageTask(run.RunID, taskID, paused.Revision); err == nil {
+			m.publish(updated)
+		}
+	}
+	if errors.Is(err, state.ErrRecoveryExhausted) {
+		return false, m.pauseRun(paused, stage.ID, attentionRecoveryExhausted, "")
+	}
+	return err == nil, err
+}
+
 // stageIndex is the step's place in the frozen plan, -1 when absent.
 func stageIndex(t Template, id string) int {
 	for i, st := range t.Stages {

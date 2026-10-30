@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
+	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 // continueQueuedInput moves a person's queued assignment input toward its
@@ -53,4 +54,48 @@ func (s *Server) continueQueuedInput() {
 			}
 		}
 	}
+}
+
+// recoverStageTask hands an interrupted pipeline owner to the controller's
+// bounded automatic recovery (TS-09.R70).
+func (s *Server) recoverStageTask(taskID, attention string, replace bool) {
+	if s.pipelineMgr == nil {
+		return
+	}
+	handoff := ""
+	var receipts []state.AttachmentReceipt
+	if replace {
+		// Pending accepted input belongs in the replacement's handoff; the
+		// old identity will never run this assignment again (TS-09.R69).
+		receipts, _ = s.stateStore.QueuedInputForTask(taskID)
+		for _, rec := range receipts {
+			var msg runtime.Message
+			if json.Unmarshal([]byte(rec.MessageJSON), &msg) == nil && msg.Text != "" {
+				handoff += "The person sent the previous owner this message, which it never received: " + msg.Text + "\n"
+			}
+		}
+	}
+	replaced, err := s.pipelineMgr.RecoverStageTask(taskID, attention, replace, handoff)
+	if err != nil {
+		s.log.Warn("recover pipeline stage task", "task", taskID, "err", err)
+		return
+	}
+	if replaced && len(receipts) > 0 {
+		if err := s.stateStore.MarkQueuedInputHandedOff(receipts); err != nil {
+			s.log.Warn("mark queued input handed off", "task", taskID, "err", err)
+		}
+	}
+}
+
+// recoverParkedStageTask replaces a pipeline owner whose start or wake failed
+// for good: its native session is unusable, so a fresh same-runtime owner
+// continues (FS-14.R101).
+func (s *Server) recoverParkedStageTask(task state.Task) {
+	if task.State != state.TaskDependencyFailed || s.pipelineMgr == nil {
+		return
+	}
+	if ok, err := s.stateStore.InterruptParkedStageTask(task.TaskID); err != nil || !ok {
+		return
+	}
+	s.recoverStageTask(task.TaskID, "owner_unavailable", true)
 }

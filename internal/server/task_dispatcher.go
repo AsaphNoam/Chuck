@@ -533,6 +533,7 @@ func (s *Server) parkTaskStart(task state.Task, reason string) {
 		s.log.Debug("park task start failed", "task", task.TaskID, "err", err)
 	} else if ok {
 		s.publishTaskUpdate(parked)
+		s.recoverParkedStageTask(parked)
 		s.propagateTaskFailure(parked)
 	}
 }
@@ -555,6 +556,7 @@ func (s *Server) failTaskStart(task state.Task, reason string) {
 		s.log.Debug("fail task start failed", "task", task.TaskID, "err", err)
 	} else if ok {
 		s.publishTaskUpdate(failed)
+		s.recoverParkedStageTask(failed)
 		s.propagateTaskFailure(failed)
 	}
 }
@@ -590,6 +592,7 @@ func (s *Server) dispatchTurnEnd(agentID, generation, turnID string) {
 			}
 		}
 	}
+	s.nudgeStalledOwner(agentID, generation)
 }
 
 // releaseYieldedTask applies a durable wait only after the wait tool response's
@@ -1011,11 +1014,7 @@ func (s *Server) interruptTask(task state.Task, reason string) {
 	} else if ok {
 		s.publishTaskUpdate(interrupted)
 		s.notifyTaskWaiters(interrupted.TaskID)
-		if s.pipelineMgr != nil {
-			if err := s.pipelineMgr.OnStageTaskInterrupted(interrupted.TaskID, "restart_interrupted"); err != nil {
-				s.log.Warn("pause pipeline after restart interrupted stage task", "task", interrupted.TaskID, "err", err)
-			}
-		}
+		s.recoverStageTask(interrupted.TaskID, "restart_interrupted", false)
 	}
 }
 
@@ -1041,10 +1040,13 @@ func (s *Server) interruptTaskOnExit(agentID, generation, cause string) {
 	} else if ok {
 		s.publishTaskUpdate(task)
 		s.notifyTaskWaiters(task.TaskID)
-		if s.pipelineMgr != nil {
+		if s.pipelineMgr != nil && cause == "requested_stop" {
+			// A person stopped this owner: recovery never restarts stopped work.
 			if err := s.pipelineMgr.OnStageTaskInterrupted(task.TaskID, "interrupted"); err != nil {
 				s.log.Warn("pause pipeline after stage task exit", "task", task.TaskID, "err", err)
 			}
+		} else {
+			s.recoverStageTask(task.TaskID, "interrupted", false)
 		}
 		s.log.Info("task interrupted by agent exit", "agent_id", agentID, "cause", cause)
 	}

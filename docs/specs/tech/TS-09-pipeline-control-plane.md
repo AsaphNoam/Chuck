@@ -968,9 +968,17 @@ new durable run revision or a structured validation/conflict result.
   (same-stage/backward routes and owner recovery visits), recoverable `recovery_exhausted` pause,
   Continue/Resume renewing once under the run revision, `needs_input` question pause answered by
   Continue; R71's `required_for_completion` marker, builder checkbox, `get_assigned_task.pipeline`
-  and `pipeline_contract`, guidance. Still planned: stall recovery for turns ending without
-  report/wait and automatic replacement (R70), interrupted-execution auto-recovery, room
-  owner-decision assignments, run/phone/CLI projection of visits/questions/recovery (R71/R103).
+  and `pipeline_contract`, guidance. R70 recovery: an owner interrupted by exit or restart
+  (not a person's Stop) is retried automatically (`RecoverStageTask`,
+  `RecoverInterruptedPipelineStageTask`); an owner whose start/wake parks is replaced by a fresh
+  owner on the frozen standing runtime with pending queued input in its handoff (`replaceOwner`,
+  `server/queued_input.go recoverParkedStageTask`); each spends a round. A turn ending with the
+  visit open and no report or wait gets an ordinary continuation prompt
+  (`server/pipeline_stall.go`), unless quota-held, busy, running background work or in a
+  lifecycle transition; the third consecutive one interrupts the visit and pauses
+  `owner_not_reporting`; a valid wait resets the count; Continue resumes an interrupted visit with
+  a fresh allowance. Still planned: room owner-decision assignments and run/phone/CLI projection
+  of visits, questions and recovery (R71/R103).
   **Deviation (review):** a room-backed stage's accepted synthesis has no owner decision yet; it
   takes the usual next step, and a room at the plan's end completes on the latest accepted evidence
   for each required step (pausing `required_check_missing` otherwise) instead of R66's owner

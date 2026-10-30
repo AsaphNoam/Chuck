@@ -284,6 +284,27 @@ WHERE p.run_id = ? AND p.stage_id = ? AND t.state = ? AND t.outcome = ? ORDER BY
 // recovery allowance is spent; it is recoverable, never a final failure.
 const PauseRecoveryExhausted = "recovery_exhausted"
 
+// MaxOwnerStallTurns is how many consecutive owner turns may end without a
+// valid report or wait before the run pauses (TS-09.R70).
+const MaxOwnerStallTurns = 3
+
+// RecordOwnerStall counts one owner turn that ended while its open stage visit
+// was still executing with neither a report nor a wait. It returns the run and
+// the new consecutive count, or ErrNotFound when the task is not such a visit.
+func (s *Store) RecordOwnerStall(taskID string) (string, int, error) {
+	var runID string
+	var count int
+	err := s.db.QueryRow(`UPDATE pipeline_runs SET owner_stall_turns = owner_stall_turns + 1, updated_at = ?
+WHERE run_id = (SELECT p.run_id FROM pipeline_stage_tasks p JOIN tasks t ON t.task_id = p.task_id
+  WHERE p.task_id = ? AND p.state = 'open' AND p.execution_kind = ? AND t.state = ? AND t.pending_yield = 0 AND t.pending_release = 0)
+  AND state IN ('queued', 'running')
+RETURNING run_id, owner_stall_turns`, formatTime(timeNow()), taskID, StageExecutionAgent, TaskRunning).Scan(&runID, &count)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", 0, ErrNotFound
+	}
+	return runID, count, err
+}
+
 // ApproveStageVisit records the person's approval of one accepted visit. A
 // question answer or ordinary chat never calls this (FS-14.R97/R99).
 func (s *Store) ApproveStageVisit(taskID string) error {

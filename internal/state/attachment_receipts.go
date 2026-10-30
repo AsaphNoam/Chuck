@@ -171,6 +171,38 @@ ORDER BY a.updated_at, a.rowid LIMIT 16`)
 	return prepared, executing, rows.Err()
 }
 
+// QueuedInputForTask lists input still queued for one assignment, oldest
+// first and bounded, so a replacement owner's handoff can include it.
+func (s *Store) QueuedInputForTask(taskID string) ([]AttachmentReceipt, error) {
+	rows, err := s.db.Query(`SELECT agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id FROM attachment_receipts
+WHERE assignment_task_id = ? AND delivery = 'prepared' ORDER BY updated_at, rowid LIMIT 8`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []AttachmentReceipt{}
+	for rows.Next() {
+		var r AttachmentReceipt
+		if err := rows.Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &r.AssignmentTaskID); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// MarkQueuedInputHandedOff records that a replacement's handoff carried these
+// receipts' input; it is never offered for re-sending afterwards.
+func (s *Store) MarkQueuedInputHandedOff(receipts []AttachmentReceipt) error {
+	for _, r := range receipts {
+		if _, err := s.db.Exec(`UPDATE attachment_receipts SET delivery='submitted', assignment_task_id='', updated_at=? WHERE agent_id=? AND request_id=? AND assignment_task_id=?`,
+			formatTime(time.Now().UTC()), r.AgentID, r.RequestID, r.AssignmentTaskID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ClaimQueuedInputForTurn turns one queued receipt into an ordinary prepared
 // receipt for runtime delivery, only while its assignment is still executing.
 func (s *Store) ClaimQueuedInputForTurn(agentID, requestID string) (AttachmentReceipt, bool, error) {

@@ -238,3 +238,69 @@ func TestApprovalGateHoldsCompletionUntilApproved(t *testing.T) {
 		t.Fatalf("after approval = %s", after.State)
 	}
 }
+
+// FS-14.A65/A68, TS-09.R70 — an interrupted owner is resumed automatically
+// on its same identity; an owner whose native session cannot be used is
+// replaced by a visibly fresh owner on the run's frozen runtime carrying the
+// handoff, the old identity retained. Each spends a round; a spent allowance
+// pauses instead.
+func TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance(t *testing.T) {
+	manager, _, runID := goalLedFixture(t, false)
+	interrupt := func() state.PipelineStageTask {
+		t.Helper()
+		current, _ := manager.store.LatestPipelineStageTask(runID)
+		if _, err := manager.store.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_owner' WHERE task_id = ?`, state.TaskInterrupted, current.TaskID); err != nil {
+			t.Fatal(err)
+		}
+		return current
+	}
+	visit := interrupt()
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "interrupted", false, ""); err != nil || !ok {
+		t.Fatalf("automatic retry = %v %v", ok, err)
+	}
+	if task, _ := manager.store.ReadTask(visit.TaskID); task.State != state.TaskReady || task.AssignedAgentID != "a_owner" {
+		t.Fatalf("retried visit = %+v", task)
+	}
+	if run := readRun(t, manager, runID); run.State != "queued" || run.RecoveryRoundsUsed != 1 {
+		t.Fatalf("after retry run = %s used=%d", run.State, run.RecoveryRoundsUsed)
+	}
+
+	visit = interrupt()
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "owner_unavailable", true, "The person said: use SQLite"); err != nil || !ok {
+		t.Fatalf("automatic replacement = %v %v", ok, err)
+	}
+	replacement, _ := manager.store.LatestPipelineStageTask(runID)
+	task, _ := manager.store.ReadTask(replacement.TaskID)
+	old, _ := manager.store.ReadTask(visit.TaskID)
+	if replacement.TaskID == visit.TaskID || task.TargetKind != state.TargetLaunch || task.Backend != "codex" || task.Model != "gpt" || !strings.Contains(task.Instruction, "use SQLite") {
+		t.Fatalf("replacement = %+v / %+v", replacement, task)
+	}
+	if old.State != state.TaskFinished || old.OutcomeSummary != "replaced" {
+		t.Fatalf("old owner visit = %+v, want retained as replaced", old)
+	}
+	if run := readRun(t, manager, runID); run.RecoveryRoundsUsed != 2 {
+		t.Fatalf("after replacement used=%d", run.RecoveryRoundsUsed)
+	}
+
+	if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET recovery_rounds_used = ? WHERE run_id = ?`, state.PipelineRecoveryRounds, runID); err != nil {
+		t.Fatal(err)
+	}
+	visit = interrupt()
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "interrupted", false, ""); err != nil || ok {
+		t.Fatalf("recovery past the allowance = %v %v", ok, err)
+	}
+	run := readRun(t, manager, runID)
+	if run.State != "paused" || run.AttentionReason != state.PauseRecoveryExhausted {
+		t.Fatalf("exhausted = %s/%s", run.State, run.AttentionReason)
+	}
+	// Resume continues the same interrupted owner with a fresh allowance.
+	if _, err := manager.Continue(context.Background(), runID, run.Revision, ""); err != nil {
+		t.Fatal(err)
+	}
+	if after := readRun(t, manager, runID); after.State != "queued" || after.RecoveryRoundsUsed != 0 {
+		t.Fatalf("resumed = %s used=%d", after.State, after.RecoveryRoundsUsed)
+	}
+	if task, _ := manager.store.ReadTask(visit.TaskID); task.State != state.TaskReady {
+		t.Fatalf("resumed visit = %s", task.State)
+	}
+}

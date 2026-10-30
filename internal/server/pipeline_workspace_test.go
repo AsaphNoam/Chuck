@@ -26,6 +26,8 @@ import (
 func workspaceTestServer(t *testing.T) (*Server, string, *httptest.Server) {
 	t.Helper()
 	srv, ts := wakeTestServer(t)
+	// These fake owners never report; the stall pause would close their stage.
+	srv.ownerStallNudgeOff = true
 	repo := newWorktreeTestRepo(t)
 	if err := srv.configStore.WriteProject("repo", config.Project{Title: "Repo", Cwd: repo, AddDirs: []string{}}); err != nil {
 		t.Fatal(err)

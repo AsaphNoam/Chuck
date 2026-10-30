@@ -183,6 +183,11 @@ func (s *Store) WaitForTasks(agentID, generation, executionHandle string, observ
 	if _, err := tx.Exec(`UPDATE tasks SET pending_yield = 1, wait_version = ?, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state = ? AND execution_handle = ?`, version, formatTime(timeNow()), waiting.TaskID, TaskRunning, executionHandle); err != nil {
 		return nil, Task{}, err
 	}
+	// A valid wait is progress: a pipeline owner's consecutive turns without
+	// report or wait start counting again (TS-09.R70).
+	if _, err := tx.Exec(`UPDATE pipeline_runs SET owner_stall_turns = 0 WHERE run_id IN (SELECT run_id FROM pipeline_stage_tasks WHERE task_id = ?)`, waiting.TaskID); err != nil {
+		return nil, Task{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, Task{}, err
 	}

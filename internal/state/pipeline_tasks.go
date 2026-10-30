@@ -703,12 +703,8 @@ func (s *Store) CreatePipelineStageTask(p CreatePipelineStageTaskParams) (Pipeli
 		}
 	}
 	if p.ChargeRound {
-		res, err := tx.Exec(`UPDATE pipeline_runs SET recovery_rounds_used = recovery_rounds_used + 1 WHERE run_id = ? AND recovery_rounds_used < ?`, p.RunID, PipelineRecoveryRounds)
-		if err != nil {
+		if err := chargeRoundTx(tx, p.RunID); err != nil {
 			return PipelineStageTask{}, Task{}, false, err
-		}
-		if n, _ := res.RowsAffected(); n != 1 {
-			return PipelineStageTask{}, Task{}, false, ErrRecoveryExhausted
 		}
 	}
 	if _, err := insertPipelineStageRowsTx(tx, p, now); err != nil {
@@ -901,11 +897,63 @@ func (s *Store) ClosePipelineStageTask(taskID string, closureRevision int64) err
 // transaction. The confirmed standing agent id remains on the task, so the
 // dispatcher resumes that identity rather than minting a replacement.
 func (s *Store) RetryInterruptedPipelineStageTask(runID, taskID string, expectedRevision int64) (PipelineRunRecord, error) {
+	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, false, false)
+}
+
+// ResumeInterruptedPipelineStageTask is the person's Resume of a paused,
+// interrupted visit: the same owner continues with a fresh allowance.
+func (s *Store) ResumeInterruptedPipelineStageTask(runID, taskID string, expectedRevision int64) (PipelineRunRecord, error) {
+	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, false, true)
+}
+
+// RecoverInterruptedPipelineStageTask is the automatic form of Retry: it spends
+// one recovery round in the same transaction (TS-09.R70).
+func (s *Store) RecoverInterruptedPipelineStageTask(runID, taskID string, expectedRevision int64) (PipelineRunRecord, error) {
+	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, true, false)
+}
+
+// chargeRoundTx spends one round of the run's allowance or reports exhaustion.
+func chargeRoundTx(tx *sql.Tx, runID string) error {
+	res, err := tx.Exec(`UPDATE pipeline_runs SET recovery_rounds_used = recovery_rounds_used + 1 WHERE run_id = ? AND recovery_rounds_used < ?`, runID, PipelineRecoveryRounds)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return ErrRecoveryExhausted
+	}
+	return nil
+}
+
+// InterruptParkedStageTask turns a stage task whose start was parked (its
+// owner could not be started or woken) into an interrupted one, so recovery
+// can replace the owner through the ordinary replacement transaction.
+func (s *Store) InterruptParkedStageTask(taskID string) (bool, error) {
+	now := formatTime(timeNow())
+	res, err := s.db.Exec(`UPDATE tasks SET state = ?, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state = ?
+  AND EXISTS (SELECT 1 FROM pipeline_stage_tasks p WHERE p.task_id = tasks.task_id AND p.state = 'open' AND p.execution_kind = ?)`, TaskInterrupted, now, taskID, TaskDependencyFailed, StageExecutionAgent)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+func (s *Store) retryInterruptedStageTask(runID, taskID string, expectedRevision int64, charge, renew bool) (PipelineRunRecord, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return PipelineRunRecord{}, err
 	}
 	defer tx.Rollback()
+	if renew {
+		if _, err := tx.Exec(`UPDATE pipeline_runs SET recovery_rounds_used = 0, owner_stall_turns = 0 WHERE run_id = ?`, runID); err != nil {
+			return PipelineRunRecord{}, err
+		}
+	}
+	if charge {
+		if err := chargeRoundTx(tx, runID); err != nil {
+			return PipelineRunRecord{}, err
+		}
+	}
 	now := formatTime(timeNow())
 	res, err := tx.Exec(`UPDATE tasks SET state = ?, attention_reason = '', start_attempt_count = 0, ready_at = ?, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state = ? AND EXISTS (SELECT 1 FROM pipeline_stage_tasks p WHERE p.task_id = tasks.task_id AND p.run_id = ? AND p.state = 'open')`, TaskReady, now, now, taskID, TaskInterrupted, runID)
 	if err != nil {
@@ -941,6 +989,11 @@ func (s *Store) PreparePipelineStageReplacement(p CreatePipelineStageTaskParams,
 	err = tx.QueryRow(`SELECT r.revision, r.state, r.current_stage_id, t.state, ps.coordinator_task_id FROM pipeline_runs r JOIN pipeline_stage_tasks ps ON ps.run_id = r.run_id AND ps.task_id = ? JOIN tasks t ON t.task_id = ps.task_id WHERE r.run_id = ? AND ps.state = 'open'`, oldTaskID, p.RunID).Scan(&revision, &runState, &currentStage, &oldState, &coordinatorID)
 	if err != nil || revision != p.ExpectedRevision || runState != "paused" || currentStage != p.StageID || oldState != TaskInterrupted {
 		return PipelineRunRecord{}, ErrPipelineStageConflict
+	}
+	if p.ChargeRound {
+		if err := chargeRoundTx(tx, p.RunID); err != nil {
+			return PipelineRunRecord{}, err
+		}
 	}
 	now := timeNow()
 	stamp := formatTime(now)

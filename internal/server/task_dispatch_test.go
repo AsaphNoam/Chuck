@@ -203,7 +203,7 @@ func TestRestartReevaluationPublishesAndPropagatesDependencyFailure(t *testing.T
 
 // FS-14.R14/R48: restart recovery must reconcile an interrupted standing task
 // with its run, leaving an explicit Retry instead of a running run with no agent.
-func TestRestartInterruptsStageAndPausesRunForRetry(t *testing.T) {
+func TestRestartInterruptedStageRecoversAutomatically(t *testing.T) {
 	srv := testServer(t, true)
 	now := time.Now().UTC()
 	runID, err := srv.stateStore.NewPipelineRunID()
@@ -239,27 +239,19 @@ func TestRestartInterruptsStageAndPausesRunForRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// FS-14.R101 / TS-09.R70: a restart-interrupted owner is resumed through
+	// ordinary admission automatically, spending one recovery round, rather
+	// than waiting for a person's Retry.
 	if err := srv.recoverTasks(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	task, err := srv.stateStore.ReadTask(taskID)
-	if err != nil || task.State != state.TaskInterrupted {
-		t.Fatalf("recovered stage task = %+v, %v", task, err)
+	if err != nil || task.State != state.TaskReady || task.AssignedAgentID != "a_owner" {
+		t.Fatalf("recovered stage task = %+v, %v; want ready for the same owner", task, err)
 	}
-	detail, err := srv.pipelineMgr.Detail(runID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if detail.Run.State != "paused" || detail.Run.AttentionReason != "restart_interrupted" {
-		t.Fatalf("recovered run = %+v, want restart pause", detail.Run)
-	}
-	_, controls, err := srv.pipelineTaskRunProjection(detail)
-	if err != nil || !controls.Retry.Eligible || controls.Continue.Eligible {
-		t.Fatalf("recovery controls = %+v, %v; want Retry only", controls, err)
-	}
-	retried, err := srv.pipelineMgr.Retry(context.Background(), runID, detail.Run.Revision)
-	if err != nil || retried.Run.State != "queued" {
-		t.Fatalf("Retry after restart = %+v, %v; want queued", retried.Run, err)
+	run, err := srv.stateStore.ReadPipelineRun(runID)
+	if err != nil || run.State != "queued" || run.PendingAction != "dispatch_stage_task" || run.RecoveryRoundsUsed != 1 {
+		t.Fatalf("recovered run = %+v, %v; want automatic retry with one round spent", run, err)
 	}
 }
 
