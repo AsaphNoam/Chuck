@@ -1917,6 +1917,9 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   under the existing payload-edit rules; an identical retry retains the command ID and choice.
   A failed post-launch send retains that recipient rather than launching again. Continue clearing
   only acknowledged submitted drafts and naming their destination even when `seq=0`.
+  Persist the exact launch submission (payload, command and recording choice) with the existing
+  per-source tray before delivery, retaining it through response loss and reload until acknowledgement.
+  Later captures remain the next batch; they neither expand that retry nor get cleared with it.
 
   Place the native labelled checkbox beside destination controls in the desktop tray and phone
   sheet, visible for another/new agent, keyboard accessible and reachable with the phone keyboard

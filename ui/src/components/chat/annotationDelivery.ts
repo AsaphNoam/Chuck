@@ -47,6 +47,7 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   const [error, setError] = useState<string | null>(null);
   const [showLaunch, setShowLaunch] = useState(false);
   const launchBatch = useRef<AnnotationBatch | null>(null);
+  const setLaunchBatch = useAnnotationStore((state) => state.setLaunchBatch);
   const launchedAgentId = useAnnotationStore((state) => state.launchedBySource[sourceId] ?? null);
   const setLaunchedAgent = useAnnotationStore((state) => state.setLaunched);
   // The agent the last acknowledged batch went to; cleared by the next capture.
@@ -119,7 +120,7 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     }
     if (target === "new") {
       if (launchedAgentId) {
-        await deliver(launchedAgentId, true);
+        await deliver(launchedAgentId, true, useAnnotationStore.getState().launchBatchBySource[sourceId] ?? batch(launchedAgentId));
       } else if (!source) {
         setError("The source agent is no longer available for a prefilled launch.");
       } else {
@@ -157,7 +158,11 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     setShowLaunch(false);
     const submitted = launchBatch.current;
     launchBatch.current = null;
-    void deliver(agentId, true, submitted ? { ...submitted, target: { kind: "agent", agent_id: agentId } } : batch(agentId));
+    const delivery = submitted ? { ...submitted, target: { kind: "agent" as const, agent_id: agentId } } : batch(agentId);
+    // Save the exact command before any recipient effect. Later captures may
+    // have invalidated the drafting command while preflight was pending.
+    setLaunchBatch(sourceId, delivery);
+    void deliver(agentId, true, delivery);
   };
 
   const dismissLaunch = (open: boolean) => {

@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.validate.mockResolvedValue({ valid: true });
   mocks.send.mockResolvedValue({ accepted: true });
-  useAnnotationStore.setState({ bySource: { a1: [draft] }, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {} });
+  useAnnotationStore.setState({ bySource: { a1: [draft] }, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {}, launchBatchBySource: {} });
   useConnection.setState({ link: "connected", agents: { a1: agent } });
   window.history.replaceState(null, "", "/agent/a1");
   window.scrollTo = vi.fn();
@@ -208,15 +208,38 @@ it("records self delivery regardless of the hidden batch choice", async () => {
   expect(mocks.send.mock.calls[0][1].target).toEqual({ kind: "self" });
 });
 
-it("delivers the preflight snapshot and resets a capture made during launch to checked", async () => {
-  const { result } = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+it.each([false, true])("retries the exact launch snapshot after capture during preflight (reload=%s)", async (reload) => {
+  const validation = deferred<{ valid: boolean }>();
+  mocks.validate.mockReturnValueOnce(validation.promise);
+  // Model the server receipt boundary: acceptance survives a lost HTTP response.
+  const accepted = new Map<string, unknown>();
+  mocks.send.mockImplementation(async (_source, submitted) => {
+    if (!accepted.has(submitted.command_id)) accepted.set(submitted.command_id, submitted);
+    if (mocks.send.mock.calls.length === 1) throw new Error("response lost");
+    return { accepted: true, seq: 0 };
+  });
+  const first = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] }));
+  let { result } = first;
   act(() => { result.current.setTarget("new"); result.current.setRecordSource(false); });
-  await act(async () => { await result.current.send(); });
+  let preflight!: Promise<void>;
+  act(() => { preflight = result.current.send(); });
+  const next = { seq: 2, excerpt: "next", instruction: "review next" };
+  act(() => useAnnotationStore.getState().add("a1", next));
+  await act(async () => { validation.resolve({ valid: true }); await preflight; });
   expect(result.current.sending).toBe(true);
-  act(() => useAnnotationStore.getState().add("a1", { seq: 2, excerpt: "next", instruction: "review next" }));
   await act(async () => result.current.onLaunched("a3"));
-  expect(mocks.send.mock.calls[0][1]).toMatchObject({ annotations: [draft], omit_source_record: true });
-  expect(useAnnotationStore.getState().bySource.a1).toHaveLength(1);
+  const submitted = mocks.send.mock.calls[0][1];
+  expect(submitted).toMatchObject({ annotations: [draft], omit_source_record: true });
+  if (reload) {
+    first.unmount();
+    await useAnnotationStore.persist.rehydrate();
+    result = renderHook(() => useAnnotationDelivery({ sourceId: "a1", sourceActive: true, source: agent, recipients: [] })).result;
+  }
+  await act(async () => { await result.current.send(); });
+  expect(mocks.send.mock.calls[1][1]).toEqual(submitted);
+  expect(accepted.size).toBe(1);
+  expect(useAnnotationStore.getState().bySource.a1).toEqual([next]);
+  expect(result.current.launchedAgentId).toBeNull();
   expect(result.current.recordSource).toBe(true);
 });
 

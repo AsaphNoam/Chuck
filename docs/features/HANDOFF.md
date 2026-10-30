@@ -14,7 +14,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   passed; downloaded archive size and SHA256 match the manifest.
   [Notes](../archive/state/RELEASE-v0.20.0-notes.md).
 - **Review state:** optional annotation source recording unit ANN-SOURCE was reviewed through
-  `38491fe0` and remains open with two **Must fix** findings below. Pipeline worktrees fix unit
+  `38491fe0`; ANN-SOURCE-1 is repaired, ANN-SOURCE-2 remains open below. Pipeline worktrees fix unit
   PIPE-WT is closed (PIPE-WT-1–6 fixed
   2026-10-30); its packaged Claude/Codex launch/resume cwd probe stays owed below. Review unit
   MMD-VIEW (file-viewer Mermaid sizing) is available; memory fix unit MEM has one open **Worth fixing**
@@ -236,7 +236,7 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 - **ANN-SOURCE** (2026-10-30, Go + UI):
   [`optional-annotation-source-recording`](../ready-changes/optional-annotation-source-recording.md)
-  is **reviewed, open for fixes** (ANN-SOURCE-1/2 below). FS-13.R35–R36/A25–A26, TS-03.R75, TS-02.R60,
+  is **reviewed, fixing** (ANN-SOURCE-1 repaired; ANN-SOURCE-2 below). FS-13.R35–R36/A25–A26, TS-03.R75, TS-02.R60,
   TS-08.R148; implementation `ed285b64`, rendered/generated closure `788a7318`.
   Default-on recording choice shares the desktop/phone batch lifecycle; opt-out atomically commits
   target mail/activation/receipt with sequence zero and no source event/index/publication.
@@ -298,20 +298,13 @@ No product code or specifications changed in review. The existing receipt transa
 boolean decoding, legacy omitted/false hashing and shared desktop/phone owner are sound local
 choices; no unresolved implementation-choice question was found.
 
-- **Must fix** — ANN-SOURCE-1 (INV §1/§11/§15): retain the submitted launch batch through
-  delivery retry. `ui/src/components/chat/annotationDelivery.ts:121–122,129–133,158–160` snapshots
-  preflight, but clears that snapshot before delivery and rebuilds the batch on retry. Normal
-  trigger: capture another annotation while asynchronous preflight is pending, before the launch
-  modal opens; `annotationStore.add` clears the stored command ID. Initial post-launch delivery
-  sends only the earlier snapshot with command C1. If accepted but its response is lost, Retry
-  sends both drafts with fresh command C2, bypassing receipt deduplication and delivering the
-  first annotation twice. A controlled hook probe reproduces different command IDs and expanded
-  retry payload. This preflight race is introduced by the new snapshot: previously launch delivery
-  built the post-capture batch, which the unchanged retry could reuse. Violates FS-13.R32/R35 and
-  TS-08.R148. Keep the exact submitted payload/command/choice recoverable until acknowledgement,
-  including reload, while later captures remain the next batch. Extend the existing pending-launch
-  test with capture during deferred preflight, accepted-but-lost response and same-snapshot retry;
-  assert one recipient effect and preservation of the next draft. Fix complexity: medium.
+- **ANN-SOURCE-1 repaired** (INV §1/§11/§15): exact launch payload/command/choice now persists
+  in the existing bounded tray store before delivery and survives lost response/reload. Acknowledgement
+  removes only submitted drafts, including after JSON hydration. Extended deferred-preflight test
+  fails before repair in both reload modes and passes after it: same retry, one modeled receipt
+  effect, next draft preserved/default checked. Focused delivery/store checks: 23 passed;
+  `/tmp/ann-source-prefix.log`, `/tmp/ann-source-focused.log`. ANN-SOURCE-2 remains in progress;
+  final UI closure/embed and browser geometry verification are still owed.
 - **Must fix** — ANN-SOURCE-2 (INV §8/§10): success feedback keeps the empty tray's layout
   slot occupied. `ui/src/components/chat/AnnotationTray.tsx:39` returns an unstyled status paragraph
   after the last draft clears; `ReaderWorkspace.tsx:94,116` still portals it into `.chat-side-end`,
@@ -401,6 +394,9 @@ Work stage, codex gpt-6.1-sol, waiting on implementer task `tk_128e0af044a03d97`
   refresh trigger for per-event refetching and coalesce it.
 
 ## Changelog
+
+- **2026-10-30 — Fixed ANN-SOURCE-1 (INV §1/§11/§15):** retain the exact submitted launch
+  batch through retry/reload and preserve captures for the next batch. ANN-SOURCE-2 remains open.
 
 - **2026-10-30 — Reviewed optional annotation source recording:** ANN-SOURCE stays open for
   a launch-snapshot retry duplication bug (INV §1/§11/§15) and success feedback retaining desktop

@@ -3,7 +3,7 @@ import { pruneTrays, useAnnotationStore } from "./annotationStore";
 
 beforeEach(() => {
   localStorage.clear();
-  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {} });
+  useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {}, launchBatchBySource: {} });
 });
 
 describe("annotationStore", () => {

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AnnotationDraft } from "../api/types";
+import type { AnnotationBatch, AnnotationDraft } from "../api/types";
 
 const maxDrafts = 20;
 // Retention for stored trays (FS-13.R16). Nothing on the server owns this state,
@@ -24,6 +24,7 @@ interface PersistedTrays {
   targetBySource: Record<string, string>;
   recipientBySource: Record<string, string>;
   recordSourceBySource: Record<string, boolean>;
+  launchBatchBySource: Record<string, AnnotationBatch>;
 }
 
 interface AnnotationStoreState extends PersistedTrays {
@@ -39,6 +40,7 @@ interface AnnotationStoreState extends PersistedTrays {
   setLaunched: (sourceId: string, agentId: string | null) => void;
   setDeliveryTarget: (sourceId: string, target: string, recipientId: string) => void;
   setRecordSource: (sourceId: string, record: boolean) => void;
+  setLaunchBatch: (sourceId: string, batch: AnnotationBatch | null) => void;
 }
 
 // pruneTrays applies FS-13.R16 to what a reload restored: drop empty trays, drop
@@ -52,7 +54,7 @@ export function pruneTrays(persisted: Partial<PersistedTrays>, now = Date.now())
     .filter((id) => (stored[id] ?? []).length > 0 && now - (editedAt[id] ?? now) <= maxTrayAgeMs)
     .sort((a, b) => (editedAt[b] ?? now) - (editedAt[a] ?? now))
     .slice(0, maxSources);
-  const next: PersistedTrays = { bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {} };
+  const next: PersistedTrays = { bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {}, launchBatchBySource: {} };
   for (const id of keep) {
     next.bySource[id] = stored[id];
     next.editedAt[id] = editedAt[id] ?? now;
@@ -64,6 +66,7 @@ export function pruneTrays(persisted: Partial<PersistedTrays>, now = Date.now())
     if (persisted.targetBySource?.[id]) next.targetBySource[id] = persisted.targetBySource[id];
     if (persisted.recipientBySource?.[id]) next.recipientBySource[id] = persisted.recipientBySource[id];
     if (persisted.recordSourceBySource?.[id] === false) next.recordSourceBySource[id] = false;
+    if (persisted.launchBatchBySource?.[id]) next.launchBatchBySource[id] = persisted.launchBatchBySource[id];
   }
   return next;
 }
@@ -80,6 +83,7 @@ export const useAnnotationStore = create<AnnotationStoreState>()(
       targetBySource: {},
       recipientBySource: {},
       recordSourceBySource: {},
+      launchBatchBySource: {},
       add: (sourceId, draft) => {
         const current = get().bySource[sourceId] ?? [];
         if (current.length >= maxDrafts) return false;
@@ -107,15 +111,21 @@ export const useAnnotationStore = create<AnnotationStoreState>()(
           return { bySource: { ...state.bySource, [sourceId]: remaining }, editedAt: touch(state.editedAt, sourceId), commandBySource: without(state.commandBySource, sourceId) };
         }),
       discard: (sourceId) => set((state) => dropSource(state, sourceId)),
-      // An acknowledged send clears only the drafts it submitted (by identity;
-      // sending disables edits), so a capture made while it was pending stays.
+      // Match serialized values as well as identity: reload restores the submitted
+      // snapshot separately from the drafts. Consume each match only once.
       // The overall instruction went with the batch.
       discardSent: (sourceId, sent) =>
         set((state) => {
-          const remaining = (state.bySource[sourceId] ?? []).filter((draft) => !sent.includes(draft));
+          const submitted = sent.map((draft) => JSON.stringify(draft));
+          const remaining = (state.bySource[sourceId] ?? []).filter((draft) => {
+            const index = submitted.indexOf(JSON.stringify(draft));
+            if (index < 0) return true;
+            submitted.splice(index, 1);
+            return false;
+          });
           if (remaining.length === 0) return dropSource(state, sourceId);
           const { [sourceId]: _overall, ...overallBySource } = state.overallBySource;
-          return { bySource: { ...state.bySource, [sourceId]: remaining }, overallBySource, commandBySource: without(state.commandBySource, sourceId), launchedBySource: without(state.launchedBySource, sourceId), recordSourceBySource: without(state.recordSourceBySource, sourceId) };
+          return { bySource: { ...state.bySource, [sourceId]: remaining }, overallBySource, commandBySource: without(state.commandBySource, sourceId), launchedBySource: without(state.launchedBySource, sourceId), recordSourceBySource: without(state.recordSourceBySource, sourceId), launchBatchBySource: without(state.launchBatchBySource, sourceId) };
         }),
       setOverall: (sourceId, overall) =>
         set((state) => ({ overallBySource: { ...state.overallBySource, [sourceId]: overall }, editedAt: touch(state.editedAt, sourceId), commandBySource: without(state.commandBySource, sourceId) })),
@@ -133,11 +143,12 @@ export const useAnnotationStore = create<AnnotationStoreState>()(
       resetCommand: (sourceId) => set((state) => ({ commandBySource: without(state.commandBySource, sourceId) })),
       setRecordSource: (sourceId, record) => set((state) => ({ recordSourceBySource: { ...state.recordSourceBySource, [sourceId]: record }, editedAt: touch(state.editedAt, sourceId), commandBySource: without(state.commandBySource, sourceId) })),
       setLaunched: (sourceId, agentId) => set((state) => ({ launchedBySource: agentId ? { ...state.launchedBySource, [sourceId]: agentId } : without(state.launchedBySource, sourceId) })),
+      setLaunchBatch: (sourceId, batch) => set((state) => ({ launchBatchBySource: batch ? { ...state.launchBatchBySource, [sourceId]: batch } : without(state.launchBatchBySource, sourceId) })),
       setDeliveryTarget: (sourceId, target, recipientId) => set((state) => ({ targetBySource: { ...state.targetBySource, [sourceId]: target }, recipientBySource: recipientId ? { ...state.recipientBySource, [sourceId]: recipientId } : without(state.recipientBySource, sourceId) })),
     }),
     {
       name: "chuck-annotation-tray",
-      partialize: (state) => ({ bySource: state.bySource, overallBySource: state.overallBySource, editedAt: state.editedAt, collapsedBySource: state.collapsedBySource, commandBySource: state.commandBySource, launchedBySource: state.launchedBySource, targetBySource: state.targetBySource, recipientBySource: state.recipientBySource, recordSourceBySource: state.recordSourceBySource }),
+      partialize: (state) => ({ bySource: state.bySource, overallBySource: state.overallBySource, editedAt: state.editedAt, collapsedBySource: state.collapsedBySource, commandBySource: state.commandBySource, launchedBySource: state.launchedBySource, targetBySource: state.targetBySource, recipientBySource: state.recipientBySource, recordSourceBySource: state.recordSourceBySource, launchBatchBySource: state.launchBatchBySource }),
       merge: (persisted, current) => ({ ...current, ...pruneTrays((persisted ?? {}) as Partial<PersistedTrays>) }),
     },
   ),
@@ -156,7 +167,8 @@ function dropSource(state: PersistedTrays, sourceId: string): PersistedTrays {
   const { [sourceId]: _target, ...targetBySource } = state.targetBySource;
   const { [sourceId]: _recipient, ...recipientBySource } = state.recipientBySource;
   const recordSourceBySource = without(state.recordSourceBySource, sourceId);
-  return { bySource, overallBySource, editedAt, collapsedBySource, commandBySource, launchedBySource, targetBySource, recipientBySource, recordSourceBySource };
+  const launchBatchBySource = without(state.launchBatchBySource, sourceId);
+  return { bySource, overallBySource, editedAt, collapsedBySource, commandBySource, launchedBySource, targetBySource, recipientBySource, recordSourceBySource, launchBatchBySource };
 }
 
 function without<T>(values: Record<string, T>, sourceId: string) {
