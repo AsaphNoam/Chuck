@@ -41,12 +41,6 @@ A change is either:
 Keep this file short. It points to the specifications; it does not repeat them or become a detailed
 implementation plan. A large change may have a temporary plan in `docs/plans/` for sequencing.
 
-## Changes in progress
-
-- [`goal-led-unattended-pipelines.md`](goal-led-unattended-pipelines.md) — let the existing owner
-  choose useful next work and recovery, retain mid-run input, pause on exhaustion and apply the
-  new behavior to existing templates without a compatibility engine.
-
 ## Changes waiting to start
 
 - [`optional-annotation-source-recording.md`](optional-annotation-source-recording.md) — default-on

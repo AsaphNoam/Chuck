@@ -551,6 +551,7 @@ func scanPipelineRun(row rowScanner) (PipelineRunRecord, error) {
 	run.TemplateSnapshot = nonEmptyJSON([]byte(snapshot), `{}`)
 	run.Inputs = nonEmptyJSON([]byte(inputs), `{}`)
 	run.Assignments = nonEmptyJSON([]byte(assignments), `{}`)
+	run.RecoveryLimit = PipelineRecoveryRounds
 	if run.CreatedAt, err = parseTime(createdAt); err != nil {
 		return PipelineRunRecord{}, wrapTimeErr("pipeline_run.created_at", err)
 	}

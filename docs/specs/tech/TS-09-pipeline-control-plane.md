@@ -697,10 +697,10 @@ unchanged by them.
 
 ### 2.15 Goal-led execution using the existing owner
 
-R66–R72 define FS-14.R97–R103's confirmed, planned technical design. Extend the existing
+R66–R72 define FS-14.R97–R103's technical design, shipped 2026-10-30 (progress and deviation in §5). Extend the existing
 task-backed controller; do not add a second executor for simple sequences.
 
-- **R66 (planned) — Record judgment with the existing report.** Extend the stage branch of
+- **R66 (shipped 2026-10-30) — Record judgment with the existing report.** Extend the stage branch of
   `report_task_result` with optional bounded `pipeline_decision`: `next` naming an existing stage,
   `complete`, or `needs_input` carrying a concrete question; include a reason and required-check
   result references for successful completion. Ordinary task reports are unchanged. Success with
@@ -719,7 +719,7 @@ task-backed controller; do not add a second executor for simple sequences.
   Failure-recovery assignments use the same post-cleanup
   ordering, so the old closure cannot cancel its own successor. No separate pipeline
   report tool, polling agent or acknowledgment-only pass follows every worker result.
-- **R67 (planned) — Separate visit order from template order.** Add a monotonic per-run visit
+- **R67 (shipped 2026-10-30) — Separate visit order from template order.** Add a monotonic per-run visit
   sequence and explicit current-task reference; preserve stage id and attempt provenance. Revisit
   creates a new task/visit without changing accepted results. Cursor authority, latest-owner reads,
   timeline, cleanup, Stop and room capture all use visit order, not maximum `stage_index`. Keep one
@@ -737,7 +737,7 @@ task-backed controller; do not add a second executor for simple sequences.
   capture and the run timeline use visit order, the run detail projects `visit_sequence`, and
   `NextPipelineStageAttempt` allocates a revisit's attempt. Routing that creates revisits and
   per-activation frozen input references remain planned with R66/R68.
-- **R68 (planned) — Retain transactional authority and closure.** Validate caller, generation,
+- **R68 (shipped 2026-10-30) — Retain transactional authority and closure.** Validate caller, generation,
   execution handle, current task/run revision, decision shape, destination and required evidence in
   report acceptance. Commit result, outputs, decision and closure intent before success or external
   effects. Rejection leaves the assignment actionable with a concrete correction and spends no
@@ -757,7 +757,7 @@ task-backed controller; do not add a second executor for simple sequences.
   An unmet goal/exhausted allowance retains a paused, recoverable run instead of publishing terminal
   failure. Dependent work still sees an unfinished run; only successful completion or explicit Stop
   publishes the corresponding terminal shared result. Existing terminal history is unchanged.
-- **R69 (planned) — Retain human input before waking its assignment.** Reuse attachment receipts
+- **R69 (shipped 2026-10-30) — Retain human input before waking its assignment.** Reuse attachment receipts
   and task continuation. Persist payload, attachment ownership, request identity and destination
   before acceptance or wake preparation. Waiting/ready/starting/yield and restart retain that input;
   ordinary admission delivers it as or with the continuation, rather than an empty wake and a 409.
@@ -770,7 +770,7 @@ task-backed controller; do not add a second executor for simple sequences.
   WAIT-PROMPT's receipt ordering without bypassing lifecycle admission or treating an ordinary
   answer as tool approval. After a paused attempt's immutable result, an answer creates a new visit
   through the common continuation transaction; it does not reopen/rewrite that finished task.
-- **R70 (planned) — Recover actionable stalls through ordinary dispatch.** Persist recovery
+- **R70 (shipped 2026-10-30) — Recover actionable stalls through ordinary dispatch.** Persist recovery
   reason/count/next-attempt time. Watch changes, accepted results, retained input, confirmed exits
   and turn-end without report/wait drive coalesced assignment continuation or recovery. Bounded
   sweeps recover missed actionable events, not periodically prompt an LLM. Silence during a live
@@ -795,7 +795,7 @@ task-backed controller; do not add a second executor for simple sequences.
   old agent and useful descendants; settle old execution ownership before admitting replacement.
   This creates a new visible identity, not a hidden session/new fallback under FS-01.R10. Replacement
   is subject to the remaining recovery allowance; unresolved unsafe effects pause for repair.
-- **R71 (planned) — Extend existing surfaces consistently.** A required-for-completion stage
+- **R71 (shipped 2026-10-30) — Extend existing surfaces consistently.** A required-for-completion stage
   marker `required_for_completion?: bool` expresses explicit checks without a route graph. Omission
   is false; `approval_after_success` independently makes its stage/checkpoint required. Keep template
   version 2 and read existing valid files through the current decoder/normalizer/validator; no
@@ -813,7 +813,7 @@ task-backed controller; do not add a second executor for simple sequences.
   bounds: at most 32 step-menu entries and required-check references; required control fields cannot
   be clipped away with optional prose. Update operating guidance, builder examples and both tool
   schemas together; no agent learns the new contract solely from a validation error.
-- **R72 (planned) — Verify the serialized boundaries.** FS-14.A61–A68 require accepted/rejected
+- **R72 (shipped 2026-10-30) — Verify the serialized boundaries.** FS-14.A61–A68 require accepted/rejected
   decision transactions, revisit/Stop races, selected-input validation, room-to-owner handoff,
   receipt/admission/restart and exhaustion checks. Capture invocation reasons to distinguish useful
   judgment from mechanical recovery; fake providers do not prove judgment quality, real cost or
@@ -977,8 +977,10 @@ new durable run revision or a structured validation/conflict result.
   (`server/pipeline_stall.go`), unless quota-held, busy, running background work or in a
   lifecycle transition; the third consecutive one interrupts the visit and pauses
   `owner_not_reporting`; a valid wait resets the count; Continue resumes an interrupted visit with
-  a fresh allowance. Still planned: room owner-decision assignments and run/phone/CLI projection
-  of visits, questions and recovery (R71/R103).
+  a fresh allowance. R71/R103 surfaces: run detail projects each visit's `decision`, the run's
+  `recovery_rounds_used`/`recovery_limit`/`pause_question`, and a Continue control naming
+  approval, answer or resume; desktop and phone run pages and `chuck pipeline run continue` help
+  match; a question pause's notification names the question.
   **Deviation (review):** a room-backed stage's accepted synthesis has no owner decision yet; it
   takes the usual next step, and a room at the plan's end completes on the latest accepted evidence
   for each required step (pausing `required_check_missing` otherwise) instead of R66's owner
@@ -1039,9 +1041,9 @@ new durable run revision or a structured validation/conflict result.
 
 ## 6. Traceability
 
-- Goal-led execution: FS-14.R97–R103/A61–A68; planned R66–R72 extend task results, chronological
-  visit persistence, assignment input receipts and ordinary dispatcher recovery. The ready change
-  is [`goal-led-unattended-pipelines`](../../ready-changes/goal-led-unattended-pipelines.md).
+- Goal-led execution: FS-14.R97–R103/A61–A68; R66–R72 (shipped 2026-10-30) extend task results,
+  chronological visit persistence, assignment input receipts and ordinary dispatcher recovery.
+  Evidence and owed gates are listed in FS-14 §6.
 
 - Shared standing guidance: FS-14.R87–R89/A53–A55, TS-11.R20, TS-04.R69; canonical template
   model/limits/validation in `internal/pipeline/{types,limits,validate}.go`, shared fresh task launch

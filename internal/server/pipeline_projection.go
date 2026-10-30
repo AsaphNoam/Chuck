@@ -47,8 +47,11 @@ type pipelineStageTaskDetail struct {
 	Result          *pipelineStageResult      `json:"result,omitempty"`
 	Work            []pipelineTaskWork        `json:"work"`
 	Cleanup         *pipelineStageCleanup     `json:"cleanup,omitempty"`
-	CreatedAt       time.Time                 `json:"created_at"`
-	UpdatedAt       time.Time                 `json:"updated_at"`
+	// Decision is the run owner's recorded choice for this visit, with its
+	// reason (FS-14.R103, TS-09.R71).
+	Decision  *state.PipelineDecision `json:"decision,omitempty"`
+	CreatedAt time.Time               `json:"created_at"`
+	UpdatedAt time.Time               `json:"updated_at"`
 }
 
 // pipelineStageCleanup is the bounded, in-vocabulary view of a stage task's
@@ -232,6 +235,9 @@ func (s *Server) pipelineTaskRunProjection(detail pipeline.RunDetail) ([]pipelin
 			}
 			item.Coordinator = &pipelineStageCoordinator{TaskID: coordinator.TaskID, AgentID: coordinator.AssignedAgentID, Name: name, State: coordinator.State, Route: agentRoute(snapshots, coordinator.AssignedAgentID), ReportSummary: coordinator.OutcomeSummary, Runtime: pipeline.RuntimeAssignment{Backend: coordinator.Backend, Model: coordinator.Model, Effort: coordinator.Effort, Fast: coordinator.Fast}}
 		}
+		if item.Decision, err = s.stateStore.StageDecision(task.TaskID); err != nil {
+			return nil, pipelineRunControls{}, err
+		}
 		if task.Outcome != "" {
 			outputs, err := s.stateStore.ReadTaskResultOutputs(task.TaskID)
 			if err != nil {
@@ -246,7 +252,7 @@ func (s *Server) pipelineTaskRunProjection(detail pipeline.RunDetail) ([]pipelin
 	controls.Stop = pipelineRunControl{Eligible: !terminal && detail.Run.State != "stopping", Reason: "Stops the run and cancels unfinished work."}
 	if len(out) > 0 {
 		current := out[len(out)-1]
-		controls.Continue = pipelineRunControl{Eligible: detail.Run.State == "paused" && (detail.Run.PendingAction == "await_approval" || current.Result != nil && (current.Result.Outcome == state.OutcomeFailure || current.Result.Outcome == state.OutcomeBlocked)), Reason: "Approves success or sends recovery input to a new stage attempt."}
+		controls.Continue = continueControl(detail.Run, current)
 		controls.Retry = pipelineRunControl{Eligible: detail.Run.State == "paused" && current.State == state.TaskInterrupted, Reason: "Retries the interrupted assignment on the same standing owner."}
 		controls.Replace = pipelineRunControl{Eligible: detail.Run.State == "paused" && current.State == state.TaskInterrupted, Reason: "Replaces only the interrupted standing owner and retains stage work."}
 		controls.RepairCleanup = pipelineRunControl{Eligible: pipeline.CleanupRepairable(detail.Run.State, detail.Run.PendingAction), Reason: "Retries only the retained cleanup effects."}
@@ -396,4 +402,26 @@ func pipelinePreview(value string) string {
 		value = "No recent activity"
 	}
 	return clipPreview(value, detailPreviewLimit)
+}
+
+// continueControl names what Continue does for the run's current pause:
+// approve a checkpoint, answer the owner's question, or resume after a repair
+// with a fresh recovery allowance (FS-14.R99/R103, INV §8).
+func continueControl(run state.PipelineRunRecord, current pipelineStageTaskDetail) pipelineRunControl {
+	if run.State != "paused" {
+		return pipelineRunControl{Reason: "Available when the run pauses for approval, a question or recovery."}
+	}
+	switch {
+	case run.PendingAction == "await_approval":
+		return pipelineRunControl{Eligible: true, Reason: "Approves this step's accepted result; the owner's recorded decision then runs."}
+	case run.PendingAction != "":
+		return pipelineRunControl{Reason: "Wait for the current control step to finish."}
+	case run.AttentionReason == "needs_input":
+		return pipelineRunControl{Eligible: true, Reason: "Answers the run's question; an answer is required."}
+	case current.State == state.TaskInterrupted:
+		return pipelineRunControl{Eligible: true, Reason: "Resumes the interrupted owner with a fresh recovery allowance; send instructions in its conversation."}
+	case run.AttentionReason != "" || current.Result != nil && (current.Result.Outcome == state.OutcomeFailure || current.Result.Outcome == state.OutcomeBlocked):
+		return pipelineRunControl{Eligible: true, Reason: "Resumes the run with a fresh recovery allowance; instructions are optional."}
+	}
+	return pipelineRunControl{Reason: "Nothing is waiting for you."}
 }

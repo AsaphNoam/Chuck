@@ -166,6 +166,10 @@ export const pipelineRunSchema = z.object({
   current_agent_id: z.string(),
   attention_reason: z.string(),
   final_outcome: z.string(),
+  // Goal-led recovery and the owner's open question (FS-14.R99/R103).
+  recovery_rounds_used: z.number().int().optional().default(0),
+  recovery_limit: z.number().int().optional().default(3),
+  pause_question: z.string().optional().default(""),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -191,6 +195,14 @@ export const pipelineStageTaskSchema = z.object({
   stage_index: z.number().int(),
   visit_sequence: z.number().int().optional().default(0),
   attempt_number: z.number().int(),
+  decision: z.object({
+    action: z.string(),
+    stage_id: z.string().optional().default(""),
+    reason: z.string().optional().default(""),
+    question: z.string().optional().default(""),
+    required_checks: z.record(z.string()).optional().default({}),
+    implicit: z.boolean().optional().default(false),
+  }).optional(),
   state: z.string(),
   assignment_text: z.string(),
   execution_kind: z.string().optional().default("agent"),

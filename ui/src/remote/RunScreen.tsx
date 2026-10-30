@@ -41,6 +41,7 @@ export function RunScreen({ runId }: { runId: string }) {
   const currentTask = stageTasks.find((task) => task.task_id === pipeline.current_task_id)
     ?? stageTasks.find((task) => task.stage_id === pipeline.current_stage_id && task.state !== "completed");
   const terminal = pipeline.state === "completed" || pipeline.state === "stopped";
+  const approving = pipeline.pending_action === "await_approval"; const answering = pipeline.attention_reason === "needs_input";
   const headingStage = stage?.title ?? pipeline.current_stage_id;
   const stageTitles = new Map(template.stages.map((item) => [item.id, item.title]));
   const inputs = Object.entries(data.inputs);
@@ -51,6 +52,7 @@ export function RunScreen({ runId }: { runId: string }) {
       <h1>{pipeline.display_name || template.title}</h1>
       <p className="phone-meta">{pipeline.goal}</p>
       <span className="phone-status" data-tone={runTone(pipeline.state)}>{humanize(pipeline.final_outcome || pipeline.state)}</span>
+      {!terminal && <p className="phone-meta">Automatic recovery {pipeline.recovery_rounds_used} of {pipeline.recovery_limit}</p>}
     </header>
 
     <section className="phone-run-summary" aria-label="Current stage">
@@ -68,11 +70,11 @@ export function RunScreen({ runId }: { runId: string }) {
       {data.workspace.setup_ok === false && <p className="phone-meta">Project setup did not finish in this checkout.</p>}
       {terminal && data.workspace.owned && data.workspace.mode === "new_worktree" && data.workspace.state !== "removed" && <p className="phone-meta">Remove this checkout from Pipelines on the desktop.</p>}
     </section>}
-    {pipeline.attention_reason && <p className="phone-card phone-run-attention"><strong>Needs attention</strong><span>{humanize(pipeline.attention_reason)}</span></p>}
+    {pipeline.attention_reason && <p className="phone-card phone-run-attention"><strong>Needs attention</strong><span>{humanize(pipeline.attention_reason)}</span>{pipeline.pause_question && <span>Question: {pipeline.pause_question}</span>}</p>}
     {pipeline.current_agent_id && <button type="button" className="phone-link ad-button-secondary" onClick={() => navigate(`/agent/${encodeURIComponent(pipeline.current_agent_id)}`)}>Open conversation</button>}
     {error && <p className="phone-error" role="alert">{error}</p>}
 
-    {controls.continue.eligible && <form className="phone-card phone-form" aria-label="Continue" onSubmit={(event) => { event.preventDefault(); void run(() => continuePipelineRun(runId, rev, input), () => setInput("")); }}><label className="phone-field">Input for the stage (optional)<AutoGrowTextarea rows={2} value={input} onChange={(event) => setInput(event.target.value)} /></label><button type="submit" className="ad-button-primary" disabled={disabled}>Continue</button></form>}
+    {controls.continue.eligible && <form className="phone-card phone-form" aria-label="Continue" onSubmit={(event) => { event.preventDefault(); void run(() => continuePipelineRun(runId, rev, input), () => setInput("")); }}>{!approving && <label className="phone-field">{answering ? "Your answer" : "Instructions (optional)"}<AutoGrowTextarea rows={2} value={input} onChange={(event) => setInput(event.target.value)} /></label>}<p className="phone-meta">{answering && !input.trim() ? "Write your answer to the run's question first." : controls.continue.reason}</p><button type="submit" className="ad-button-primary" disabled={disabled || (answering && !input.trim())}>{approving ? "Approve" : answering ? "Send answer" : "Resume run"}</button></form>}
     <div className="phone-actions">{controls.retry.eligible && <button type="button" disabled={disabled} onClick={() => void run(() => retryPipelineRun(runId, rev))}>Retry stage</button>}{controls.repair_cleanup.eligible && <button type="button" disabled={disabled} onClick={() => void run(() => repairPipelineCleanup(runId, rev))}>Retry cleanup</button>}{controls.stop.eligible && <button type="button" className="ad-button-danger" disabled={disabled} onClick={() => setStopOpen(true)}>Stop run</button>}{controls.replace.eligible && <button type="button" disabled={disabled} onClick={() => setReplaceOpen(true)}>Replace orchestrator</button>}</div>
     {replaceOpen && <PhoneSheet title="Replace orchestrator" onClose={() => setReplaceOpen(false)}><ReplaceForm standing={data.orchestrator ?? pipeline.orchestrator} reason={controls.replace.reason} disabled={disabled || !controls.replace.eligible} onSubmit={(runtime) => void run(() => replacePipelineOrchestrator(runId, rev, runtime), () => setReplaceOpen(false))} />{error && <p className="phone-error" role="alert">{error}</p>}</PhoneSheet>}
     <ConfirmDialog open={stopOpen} title="Stop this pipeline?" confirmLabel="Stop run" destructive pending={busy} confirmDisabled={offline || !controls.stop.eligible} onCancel={() => setStopOpen(false)} onConfirm={() => void run(() => stopPipelineRun(runId, rev), () => setStopOpen(false))}><p>Stop this work on your Mac? You can still view its recorded output.</p>{error && <p className="phone-error" role="alert">{error}</p>}</ConfirmDialog>
@@ -87,7 +89,7 @@ export function RunScreen({ runId }: { runId: string }) {
           <span className="phone-timeline-marker"><PhoneIcon name={outcome === "completed" || outcome === "success" ? "check" : "pipeline"} size={15} /></span>
           <div className="phone-timeline-content">
             <div className="phone-timeline-heading"><strong>{title}</strong><span className="phone-status" data-tone={runTone(outcome)}>{humanize(outcome)}</span></div>
-            <p className="phone-meta">Stage {task.stage_index + 1} · Attempt {task.attempt_number}{task.room ? " · Think Tank" : task.standing_owner.name ? ` · ${task.standing_owner.name}` : ""}</p>
+            <p className="phone-meta">Visit {task.visit_sequence || task.stage_index + 1} · Step {task.stage_index + 1} · Attempt {task.attempt_number}{task.room ? " · Think Tank" : task.standing_owner.name ? ` · ${task.standing_owner.name}` : ""}</p>
             {task.result?.summary ? <p>{task.result.summary}</p> : <p className="phone-meta">{task.room ? (task.attention_reason || "The room has not published a judge synthesis yet.") : current ? "The stage has not reported an outcome yet." : "No outcome was recorded."}</p>}
           </div>
         </li>;

@@ -10,7 +10,7 @@ const template = {
   inputs: [],
   stages: [{
     id: "work", title: "Work", objective: "Do the work.", coordination: "standing" as const,
-    dedicated_role: "", approval_after_success: false, inputs: [], outputs: [],
+    dedicated_role: "", approval_after_success: false, required_for_completion: false, inputs: [], outputs: [],
   }],
 };
 

@@ -25,6 +25,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
+- **Goal-led pipelines:** implemented 2026-10-30 and awaiting review (GOAL-LED); evidence owed below.
 - **Waiting-prompt investigation:** WAIT-PROMPT-1/2 are fixed by goal-led slice 1 (input to a
   waiting assignee is queued and carried by its continuation); WAIT-PROMPT-3 stays open, out of scope.
 - **Permission-save investigation:** PERM-SAVE-1 is repaired; the reported unchecked toggle's
@@ -57,12 +58,6 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-**Goal-led unattended pipelines** —
-[`goal-led-unattended-pipelines`](../ready-changes/goal-led-unattended-pipelines.md), **in
-progress**; slices in [the plan](../plans/goal-led-unattended-pipelines.md). Slices 1–5 done (queued input, visits,
-decisions, recovery rounds, automatic retry/replacement and stall handling); progress and a
-room-stage deviation are in TS-09 §5. **Next:** slice 6, run/phone/CLI surfaces and closure.
-
 **Running background-work indicator** —
 [`running-background-work-indicator`](../ready-changes/running-background-work-indicator.md),
 **resumable**. Operator decision 2026-10-29: option (a). Each popover row is named by its
@@ -88,6 +83,9 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Acceptance gates still owed
 
+- **GOAL-LED evidence (FS-14 §6):** A61 run-start-to-notification browser journey; A64 attachment
+  variant and live desktop/phone composer check; A67 fake-provider invocation-reason capture; A68
+  bounded packaged Claude/Codex automatic-replacement probe (credentials).
 - **QUOTA-RPC live receipts (FS-01.A37/A39):** with credentials under a real quota refusal,
   record one bounded Claude and one Codex terminal-RPC receipt (category value, wording) and the
   resulting automatic continuation at reset plus one minute. Fixtures are captured/source-backed only.
@@ -244,6 +242,15 @@ reaches the tool call: Codex results are `content: null` and Claude returns only
 
 ## Review queue
 
+- **GOAL-LED** (2026-10-30, Go+UI): goal-led unattended pipelines, FS-14.R97–R103,
+  TS-09.R66–R72, TS-10.R29 (closes WAIT-PROMPT-1/2). Commits `715bbcb2`..HEAD: queued input for
+  waiting assignments (migration 65), chronological visits (66), owner `pipeline_decision` +
+  required checks + recovery rounds + approval per visit (67), automatic retry/replacement and
+  stall continuation, run/phone/CLI surfaces. Review notes: the room-stage deviation (TS-09 §5);
+  the stall pass sends an ordinary prompt from the turn-end hook (`server/pipeline_stall.go`) and
+  fixtures with never-reporting fake owners set `srv.ownerStallNudgeOff`; Continue with input on an
+  interrupted visit is refused toward the owner's conversation. Checks: see Changelog 2026-10-30.
+
 - **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
   TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
   numbered template library, light overview/timeline, stage rail/editor and start-dialog
@@ -326,6 +333,15 @@ WAIT-PROMPT-3 remains, outside that change.
 
 ## Changelog
 
+- **2026-10-30 — Implemented goal-led pipelines (GOAL-LED):** queued waiting-assignment input,
+  chronological visits, owner decisions, required checks, per-visit approval, bounded automatic
+  recovery/replacement and desktop/phone/CLI question/recovery surfaces. `make test` passed both
+  Go suites (`/tmp/glp-closure-test.log`); `make dist` passed, including styles, presentation,
+  TypeScript, UI build, regenerated embed and Go binary (`/tmp/glp-dist-final.log`). The build
+  emitted a nonfatal sandbox module-cache warning. Final UI suite: 104 files, 1119 tests pass
+  (`/tmp/glp-ui-closure-final.log`); `make check-specs` and `git diff --check` pass.
+  Room-decision deviation and remaining A61/A64/A67/A68 evidence stay explicit in FS-14 §6
+  and the acceptance gates above. Retired the completed ready change and temporary plan.
 - **2026-10-30 — Fixed QUOTA-RPC-1/2/3 (INV §11/§12, §17):** every date/zone qualifier around
   a reset clock is consumed and must agree; conflicting or unconsumed qualifiers stay unknown
   (QUOTA-RPC-1). Terminal RPC errors are stamped on transport decode and reset text resolves
@@ -348,7 +364,7 @@ WAIT-PROMPT-3 remains, outside that change.
   change. Checks recorded under Review queue; live receipts owed.
 
 - **2026-10-30 — Defined goal-led unattended pipelines:**
-  [`goal-led-unattended-pipelines`](../ready-changes/goal-led-unattended-pipelines.md) is waiting
+  `goal-led-unattended-pipelines` was waiting
   to start; FS-14.R97–R103/A61–A68 and TS-09.R66–R72 remain planned. Confirmed: useful existing-owner
   judgment with the decision in its existing result; programmatic requirements, advancement and
   mechanical recovery; ordinary-plan steps with explicit required checks; durable mid-run input;

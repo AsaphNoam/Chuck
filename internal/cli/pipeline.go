@@ -254,9 +254,9 @@ func newPipelineCmd() *cobra.Command {
 		return runPipelineRequest(http.MethodPost, path, body)
 	}}
 	continueCmd.Flags().Int64Var(&revision, "revision", 0, "current run revision")
-	continueCmd.Flags().StringVar(&continuation, "input", "", "new input for a blocked stage")
+	continueCmd.Flags().StringVar(&continuation, "input", "", "answer to the run's question, or optional instructions when resuming; approval needs none")
 	addOperatorFlags(continueCmd)
-	documentPipelineCommand(continueCmd, "Continue with a caller-supplied positive current revision; stale revisions are refused. --input provides continuation text, or --request-file supplies {revision,input}.", "chuck pipeline run continue run_123 --revision 4 --input 'more context'")
+	documentPipelineCommand(continueCmd, "Continue a paused run with a caller-supplied positive current revision; stale revisions are refused. It approves a checkpoint, answers the run's question (--input required), or resumes after recovery with a fresh allowance (--input optional). --request-file supplies {revision,input}.", "chuck pipeline run continue run_123 --revision 4 --input 'more context'")
 	runs.AddCommand(continueCmd)
 	for _, action := range []string{"retry", "stop"} {
 		action := action

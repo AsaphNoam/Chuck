@@ -360,6 +360,7 @@ type PipelineRunRecord struct {
 	// RecoveryRoundsUsed counts automatic repair/revisit rounds in the
 	// current allowance; PauseQuestion is an open question (TS-09.R70).
 	RecoveryRoundsUsed int       `json:"recovery_rounds_used"`
+	RecoveryLimit      int       `json:"recovery_limit"`
 	PauseQuestion      string    `json:"pause_question,omitempty"`
 	FinalOutcome       string    `json:"final_outcome"`
 	CreatedAt          time.Time `json:"created_at"`

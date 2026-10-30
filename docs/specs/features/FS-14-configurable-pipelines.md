@@ -22,8 +22,7 @@ free-form agent messaging.
 
 Requirements without a planned marker reflect shipped behavior. R61–R77 describe the task-backed
 replacement; §6 identifies its supersessions and any remaining design decision.
-R97–R103/A61–A68 specify the planned goal-led automation redesign; §6 records its confirmation.
-They do not change shipped behavior until implemented.
+R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, deviation and owed evidence (A61, A64, A67, A68).
 
 ### 2.1 Templates and starting a run
 
@@ -800,7 +799,7 @@ They do not change shipped behavior until implemented.
 
 ### 4.11 Goal-led unattended execution
 
-- **R97 (planned) — The saved process is a plan for completing the goal.** Starting a reusable
+- **R97 (shipped 2026-10-30) — The saved process is a plan for completing the goal.** Starting a reusable
   pipeline with its goal and required inputs authorizes its ordinary steps and their necessary
   repair/review work without further advancement clicks. The listed order is the usual path; the
   run owner may repeat or revisit work, choose a relevant branch, or omit an unnecessary step,
@@ -810,14 +809,14 @@ They do not change shipped behavior until implemented.
   This replaces R61/R71's unconditional requirement to execute every listed stage in fixed order.
   It does not authorize
   changing the user's goal, exceeding existing project/workspace access, or bypassing permissions.
-- **R98 (planned) — Findings and recoverable failures remain the run's responsibility.** A review
+- **R98 (shipped 2026-10-30) — Findings and recoverable failures remain the run's responsibility.** A review
   that finds defects produces useful findings and leads to repair and any necessary re-review;
   a clean review need not invoke Fix. A worker's failure, blocked report or interrupted execution
   does not by itself require human continuation input. The run owner evaluates available evidence
   and chooses further authorized work, mechanical recovery, or a recoverable pause explaining why
   it cannot finish. Required checks remain enforceable, and neither idle nor exit
   proves completion. Reports, findings and accepted completion remain durable and attributable.
-- **R99 (planned) — Human attention names a decision the run cannot make.** A run asks for input
+- **R99 (shipped 2026-10-30) — Human attention names a decision the run cannot make.** A run asks for input
   when a required fact or decision cannot be obtained through its authorized work, an action needs
   permission it does not have, a configured human checkpoint is reached, or bounded recovery is
   exhausted. It states the concrete question or exhausted operation, relevant findings, and what
@@ -828,7 +827,7 @@ They do not change shipped behavior until implemented.
   the run or responsible agent conversation continues the same goal without requiring a separate
   Continue action or invented nonempty continuation text. Explicit Stop and explicit human holds
   take precedence over automatic continuation.
-- **R100 (planned) — Input is accepted while the run waits or recovers.** Messages to its responsible
+- **R100 (shipped 2026-10-30) — Input is accepted while the run waits or recovers.** Messages to its responsible
   coordinator use normal conversation input, including while its assignment is waiting, preparing
   to resume, or awaiting human input. An accepted message is durably retained with its attachments
   and delivered through the tracked assignment, with acceptance distinct from delivery. A retry
@@ -836,7 +835,7 @@ They do not change shipped behavior until implemented.
   discard otherwise valid input or wake an empty turn in its place. Input that answers a pending
   question resumes its authorized work; other input is delivered as a correction or instruction,
   without implicitly approving a permission request or bypassing a human checkpoint.
-- **R101 (planned) — Leaving the page does not transfer recovery to the person.** Chuck retains
+- **R101 (shipped 2026-10-30) — Leaving the page does not transfer recovery to the person.** Chuck retains
   responsibility for every active run across waits, interrupted agents and server restart. Known
   recoverable delivery, scheduling, cleanup and execution problems are retried or continued within
   a finite policy; known future quota wakes use the existing quota policy. It distinguishes useful
@@ -854,7 +853,7 @@ They do not change shipped behavior until implemented.
   This is a new conversation, never a claim of restored native history; uncertain actions are
   investigated before repetition. Exhaustion or inability to finish remains paused so the user can
   still resolve it; successful completion and explicit Stop are terminal.
-- **R102 (planned) — Judgment uses agents; routine control does not require extra inference.** The
+- **R102 (shipped 2026-10-30) — Judgment uses agents; routine control does not require extra inference.** The
   run owner remains accountable for interpreting findings, choosing repairs and resolving ambiguous
   branches. Ordinary advancement after an accepted decision, retained-message delivery, known
   retryable control failures and scheduled wakes do not require separate LLM approval turns.
@@ -863,7 +862,7 @@ They do not change shipped behavior until implemented.
   autonomous judgment. Coordination roles serve useful work rather than mandatory acknowledgments.
   The existing orchestrator supplies useful judgment alongside programmatic advancement and error
   handling; this redesign adds no second execution mode solely to eliminate owner usage.
-- **R103 (planned) — Supervision is optional until there is something only the person can do.** The
+- **R103 (shipped 2026-10-30) — Supervision is optional until there is something only the person can do.** The
   run view and API expose the current work or wait, automatic recovery, questions, chosen deviations
   and final result, with required checks and their evidence inspectable. Completion and genuine
   needs-input/exhaustion use existing notification preferences so the person need not poll the page.
@@ -1241,11 +1240,11 @@ They do not change shipped behavior until implemented.
   clean-review run omits unnecessary Fix work and records why. *Verify:* deterministic fake-provider
   pipeline integration plus a run-start-to-notification browser journey; real agent quality is not
   inferred from the fixture.
-- **A62 (planned)** (R97, R98) — Exercise a justified revisit/branch and an attempted omission of
+- **A62** (R97, R98) — Exercise a justified revisit/branch and an attempted omission of
   an explicit required review. The first records its reason and retains prior results; the second
   cannot produce successful completion without the required evidence. Idle, exit, duplicate and
   stale reports cannot complete outstanding work. *Verify:* pipeline authority/routing integration.
-- **A63 (planned)** (R98, R99) — A failed worker is repaired or replaced within authorized policy
+- **A63** (R98, R99) — A failed worker is repaired or replaced within authorized policy
   without human input; a genuinely missing user decision produces one concrete question. Answer
   through the coordinator conversation and complete the run without opening a separate Continue
   form. An informational correction does not approve an outstanding tool permission or checkpoint.
@@ -1255,12 +1254,12 @@ They do not change shipped behavior until implemented.
   its assignment. Repeat while resumption is pending and while the run asks a question. Show accepted
   versus delivered truthfully and preserve a later draft. *Verify:* server receipt/continuation
   integration, the WAIT-PROMPT reproduction, and desktop/phone composer checks.
-- **A65 (planned)** (R101, R103) — Interrupt recoverable execution, an admission and a cleanup,
+- **A65** (R101, R103) — Interrupt recoverable execution, an admission and a cleanup,
   including restart during recovery; observe automatic bounded recovery without duplicate work or
   human retry. Leave an actionable assignment idle without a result and exercise recovery/exhaustion;
   a legitimate child wait or long-running tool is not mistaken for success or blindly relaunched.
   Stop during recovery prevents future work. *Verify:* controlled-clock/runtime pipeline integration.
-- **A66 (planned)** (R99, R101, R103) — Make repair repeatedly fail without progress and exhaust
+- **A66** (R99, R101, R103) — Make repair repeatedly fail without progress and exhaust
   the three-round allowance. The run pauses, preserves its position and useful work, and reports
   the cause and a practical next action through the existing notification surface. Fix the external
   problem and Resume without invented text; separately provide instructions through the conversation.
@@ -1273,7 +1272,7 @@ They do not change shipped behavior until implemented.
   evidence. The owner includes its decision with its existing result rather than making an extra
   acknowledgment-only call. *Verify:*
   fake-provider invocation capture, with no inference about real-provider cost or judgment quality.
-- **A68 (planned)** (R101, R103) — Start from an unchanged valid version-2 template with omitted
+- **A68** (R101, R103) — Start from an unchanged valid version-2 template with omitted
   required-check markers, then one with an explicit approval gate. Both use the new run behavior;
   only explicit obligations are enforced, and the approval gate cannot be skipped. Reject native
   resume and observe a fresh same-runtime owner with the run's workspace, durable evidence and
@@ -1284,6 +1283,17 @@ They do not change shipped behavior until implemented.
 
 ## 6. Deviations & open decisions
 
+- **Goal-led runs shipped (2026-10-30):** R97–R103 are implemented as TS-09 §5 records. Evidence:
+  `internal/pipeline/goal_led_test.go` (A61 fixture half, A62, A63 question/recovery, A66,
+  A68 approval gate and automatic replacement), `internal/state/pipeline_decisions_test.go` (A62
+  evidence refusals), visit migration tests (A68), `TestPromptToWaitingAssigneeIsDeliveredByContinuation`
+  and `TestWakingMailUsesWaitingAssignmentContinuation` (A64 text/retry/restart/cancel),
+  `TestStalledOwnerIsContinuedThenPaused`, `TestRestartInterruptedStageRecoversAutomatically` (A65),
+  RunBrowser/RunScreen/Composer tests. **Deviation:** a Think Tank stage's synthesis takes the usual
+  next step without an owner decision assignment, and a room at the plan's end completes on the
+  latest accepted required evidence. **Owed:** A61's run-start-to-notification browser journey, A64's
+  attachment variant and live desktop/phone composer check, A67's invocation-reason capture, and
+  A68's packaged Claude/Codex replacement probe.
 - **Goal-led pipeline redesign confirmed (2026-10-30):** R97–R103/A61–A68 are planned.
   The operator confirmed the usual-plan direction with explicit must-run checks and explicitly
   accepted useful orchestrator LLM judgment alongside ordinary advancement, error handling and
@@ -1448,9 +1458,8 @@ the technical delivery contract; the expanded change is ready to implement.
 
 ## 7. Traceability
 
-- Goal-led unattended execution: planned R97–R103/A61–A68 and TS-09.R66–R72;
-  [`goal-led-unattended-pipelines`](../../ready-changes/goal-led-unattended-pipelines.md) is waiting
-  to start. Behavioral evidence remains planned until implementation.
+- Goal-led unattended execution: R97–R103 and TS-09.R66–R72 shipped 2026-10-30; evidence and the
+  owed A61/A64/A67/A68 gates are in §6.
 
 - Shared orchestrator instructions: TS-09.R57–R60 and TS-11.R20; existing provider delivery is
   TS-04.R69 and the Codex developer-instruction merge. Evidence:

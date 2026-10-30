@@ -66,9 +66,9 @@ describe("RunScreen", () => {
     expect(screen.queryByText("Not started")).not.toBeInTheDocument();
     expect(screen.getAllByText("Ship the feature and review it.")).toHaveLength(2);
     expect(screen.getByText("Search normalization")).toBeInTheDocument();
-    const input = screen.getByRole("textbox", { name: "Input for the stage (optional)" });
+    const input = screen.getByRole("textbox", { name: "Instructions (optional)" });
     fireEvent.change(input, { target: { value: "use the staging host" } });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume run" }));
     await waitFor(() => expect(posts).toEqual(['continue {"revision":7,"input":"use the staging host"}']));
     await waitFor(() => expect(input).toHaveValue(""));
   });
@@ -76,9 +76,9 @@ describe("RunScreen", () => {
   it("shows the Mac's reason and keeps the input when Continue is refused", async () => {
     refuse = true;
     renderScreen();
-    const input = await screen.findByRole("textbox", { name: "Input for the stage (optional)" });
+    const input = await screen.findByRole("textbox", { name: "Instructions (optional)" });
     fireEvent.change(input, { target: { value: "use the staging host" } });
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume run" }));
     expect(await screen.findByText("run revision changed")).toBeInTheDocument();
     expect(input).toHaveValue("use the staging host");
   });
@@ -112,14 +112,14 @@ describe("RunScreen", () => {
     server.use(http.get("/api/pipeline-runs/run_2", () => HttpResponse.json({ ...detail, run: { ...run, run_id: "run_2", display_name: "Other", revision: 3 } })));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = render(<QueryClientProvider client={client}>{screenFor("/run/run_1")}</QueryClientProvider>);
-    fireEvent.change(await screen.findByRole("textbox", { name: "Input for the stage (optional)" }), { target: { value: "for run one" } });
+    fireEvent.change(await screen.findByRole("textbox", { name: "Instructions (optional)" }), { target: { value: "for run one" } });
     fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
     expect(screen.getByRole("dialog", { name: "Stop this pipeline?" })).toBeInTheDocument();
     view.rerender(<QueryClientProvider client={client}>{screenFor("/run/run_2")}</QueryClientProvider>);
     expect(screen.queryByRole("heading", { name: "Ship" })).not.toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Other" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Stop this pipeline?" })).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Input for the stage (optional)" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Instructions (optional)" })).toHaveValue("");
     expect(posts).toEqual([]);
   });
 
@@ -155,7 +155,7 @@ describe("RunScreen", () => {
   it("disables every control while the Mac is unreachable", async () => {
     useConnection.setState({ link: "unreachable" });
     renderScreen();
-    expect(await screen.findByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Resume run" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Retry stage" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Stop run" })).toBeDisabled();
   });

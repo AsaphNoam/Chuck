@@ -187,6 +187,12 @@ func (m *Manager) reconcileTaskStageRelease(run state.PipelineRunRecord) error {
 
 func (m *Manager) notify(run state.PipelineRunRecord, kind string) {
 	if m.publisher != nil {
-		m.publisher.PublishPipelineNotification(PipelineUpdate{RunID: run.RunID, DisplayName: run.DisplayName, Revision: run.Revision, State: run.State, CurrentStageID: run.CurrentStageID, CurrentAgentID: run.CurrentAgentID, AttentionReason: run.AttentionReason, FinalOutcome: run.FinalOutcome}, kind)
+		// A question pause names the question itself, so the person can answer
+		// without opening the run first (FS-14.R99).
+		attention := run.AttentionReason
+		if run.PauseQuestion != "" {
+			attention = clipText("Question: "+run.PauseQuestion, MaxDescriptionRunes)
+		}
+		m.publisher.PublishPipelineNotification(PipelineUpdate{RunID: run.RunID, DisplayName: run.DisplayName, Revision: run.Revision, State: run.State, CurrentStageID: run.CurrentStageID, CurrentAgentID: run.CurrentAgentID, AttentionReason: attention, FinalOutcome: run.FinalOutcome}, kind)
 	}
 }

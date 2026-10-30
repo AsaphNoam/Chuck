@@ -44,7 +44,7 @@ it("names stage position, the next stage, and human attempt titles without setup
   server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, template: threeStages, values: [{ run_id: "run_1", name: "plan", value: "long value", source_kind: "stage_output", source_attempt_id: "att_1", updated_at: "2026-07-26T00:00:00Z" }] })));
   const { container } = renderRun();
   expect(await screen.findByText("Stage 2 of 3")).toBeInTheDocument();
-  expect(screen.getByText("Next: Correctness review")).toBeInTheDocument();
+  expect(screen.getByText("Usual next: Correctness review")).toBeInTheDocument();
   expect(screen.getByText("app · Delivery")).toBeInTheDocument();
   expect(screen.getAllByText("Implement")).toHaveLength(2);
   expect(container.querySelector('[data-slot="setup"], [data-slot="values"]')).toBeNull();
@@ -58,15 +58,24 @@ it("shows no next stage once the run is finished and falls back to an unmatched 
   expect(await screen.findByText("Final position")).toBeInTheDocument();
   expect(screen.getAllByText("gone")).toHaveLength(2);
   expect(screen.queryByText(/^Stage \d+ of/)).toBeNull();
-  expect(screen.queryByText(/^Next:/)).toBeNull();
+  expect(screen.queryByText(/^Usual next:/)).toBeNull();
 });
 
-it("requires recovery input when blocked continuation is eligible", async () => {
-  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, run: { ...run, state: "paused" }, stage_tasks: [{ ...stageTask, state: "finished", result: { outcome: "blocked", summary: "Need a decision", details: "", checks: "", outputs: {} } }], controls: { ...controls, continue: { eligible: true, reason: "Recovery input starts a new standing-owner task." } } })));
+it("resumes a paused run without invented text, offering optional instructions", async () => {
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, run: { ...run, state: "paused", attention_reason: "recovery_exhausted", recovery_rounds_used: 3, recovery_limit: 3 }, stage_tasks: [{ ...stageTask, state: "finished", result: { outcome: "failure", summary: "Tests fail", details: "", checks: "", outputs: {} } }], controls: { ...controls, continue: { eligible: true, reason: "Resumes the run with a fresh recovery allowance; instructions are optional." } } })));
   renderRun();
-  expect(await screen.findByRole("button", { name: "Continue stage" })).toBeDisabled();
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "use the cache" } });
-  expect(screen.getByRole("button", { name: "Continue stage" })).toBeEnabled();
+  expect(await screen.findByRole("button", { name: "Resume run" })).toBeEnabled();
+  expect(screen.getByText("Instructions (optional)")).toBeInTheDocument();
+  expect(screen.getByText("Automatic recovery 3 of 3")).toBeInTheDocument();
+});
+
+it("shows the owner's question and requires an answer", async () => {
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, run: { ...run, state: "paused", attention_reason: "needs_input", pause_question: "Postgres or SQLite?" }, stage_tasks: [{ ...stageTask, state: "finished", result: { outcome: "blocked", summary: "Need a decision", details: "", checks: "", outputs: {} }, decision: { action: "needs_input", question: "Postgres or SQLite?", reason: "spec allows both" } }], controls: { ...controls, continue: { eligible: true, reason: "Answers the run's question; an answer is required." } } })));
+  renderRun();
+  expect(await screen.findByRole("button", { name: "Send answer" })).toBeDisabled();
+  expect(screen.getAllByText(/Postgres or SQLite\?/).length).toBeGreaterThan(0);
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "SQLite" } });
+  expect(screen.getByRole("button", { name: "Send answer" })).toBeEnabled();
 });
 
 it("offers Retry and explains why a restart-paused stage cannot be opened", async () => {
@@ -80,7 +89,7 @@ it("offers Retry and explains why a restart-paused stage cannot be opened", asyn
   expect(await screen.findByRole("button", { name: "Retry stage" })).toBeEnabled();
   expect(screen.queryByRole("link", { name: "Open agent" })).toBeNull();
   expect(screen.getByText(/stage agent was stopped when Chuck restarted/)).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Continue stage" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Resume run" })).toBeNull();
 });
 
 it("surfaces retained stage cleanup and its repair action", async () => {
