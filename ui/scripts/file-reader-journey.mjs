@@ -468,7 +468,7 @@ async function run(browser, skin, width, archived) {
   }
 }
 
-// New task launch from the tray inside focus: the nested launch dialog takes
+// New agent launch from the tray inside focus: the nested launch dialog takes
 // Escape first and the focus modal stays open.
 async function runNestedLaunch(browser) {
   const label = "core nested launch";
@@ -485,7 +485,7 @@ async function runNestedLaunch(browser) {
     await page.getByRole("button", { name: "Focus file" }).click();
     const dialog = page.getByRole("dialog", { name: "Focus file" });
     await dialog.waitFor();
-    await dialog.getByLabel("New task").check();
+    await dialog.getByLabel("New agent", { exact: true }).check();
     await dialog.getByRole("button", { name: "Continue to launch" }).click();
     // The launch dialog is the accessible modal now; Focus file stays mounted
     // beneath it (Radix hides it from the accessibility tree meanwhile).

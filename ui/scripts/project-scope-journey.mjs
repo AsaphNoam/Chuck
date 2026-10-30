@@ -125,8 +125,12 @@ try {
   check("A24 desktop: hiding clears outside selection, keeps draft", (await recipient.inputValue()) === "" && (await tray.getByRole("textbox", { name: "Instruction", exact: true }).inputValue()) === "Seeded instruction");
   await desktop.screenshot({ path: join(out, "desktop-annotation-tray.png"), fullPage: true });
 
-  // A61 — the New task launch has a project chooser; switching it clears the group.
-  await tray.getByLabel("New task").check();
+  // A25/A61 — choice survives a cancelled New agent launch.
+  const sourceRecording = tray.getByLabel("Include in current agent's transcript", { exact: true });
+  check("A25 desktop: assignments default to source recording", await sourceRecording.isChecked());
+  await sourceRecording.uncheck();
+  await desktop.screenshot({ path: join(out, "desktop-annotation-unrecorded-choice.png"), fullPage: true });
+  await tray.getByLabel("New agent", { exact: true }).check();
   await tray.getByRole("button", { name: "Continue to launch" }).click();
   const launchDialog = desktop.getByRole("dialog");
   await launchDialog.getByText("Advanced", { exact: true }).click();
@@ -140,6 +144,22 @@ try {
   const otherSuggestions = await suggestions(desktop);
   check("A61 desktop: other project's labels only", otherSuggestions.includes("Elsewhere") && !otherSuggestions.includes("Solo"));
   await launchDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  check("A25 desktop: cancelled launch preserves unchecked choice", !(await sourceRecording.isChecked()));
+  await desktop.reload();
+  await tray.getByLabel("Another agent").check();
+  check("A25 desktop: reload preserves unchecked choice", !(await sourceRecording.isChecked()));
+  await tray.getByLabel("Include other projects").check();
+  await recipient.selectOption(theirs);
+  let assigned;
+  await desktop.route(`**/api/sessions/${mine}/annotations`, async (route) => {
+    assigned = route.request().postDataJSON();
+    await route.fulfill({ status: 202, json: { accepted: true, seq: 0 } });
+  });
+  await tray.getByRole("button", { name: "Send annotations", exact: true }).click();
+  await desktop.getByRole("status").filter({ hasText: "Annotations sent to Theirs." }).waitFor();
+  check("A25 desktop: unchecked wire and zero-sequence destination feedback", assigned?.omit_source_record === true && assigned?.target?.agent_id === theirs && await tray.count() === 0);
+  await desktop.screenshot({ path: join(out, "desktop-annotation-unrecorded-success.png"), fullPage: true });
+  await desktop.unroute(`**/api/sessions/${mine}/annotations`);
 
   // A61 phone — Manage group suggestions and direct entry.
   await phone.goto(fixture.phone + `/agent/${mine}`);
@@ -170,6 +190,25 @@ try {
     check(`phone ${width}px no overflow`, await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await phone.screenshot({ path: join(out, `phone-annotations-${width}.png`), fullPage: true });
   }
+  // A26: room controls retain recording semantics; only destination terminology changes.
+  // This room response is stubbed: the check proves rendered controls, not room delivery.
+  const roomID = "annotation-controls";
+  await desktop.route(`**/api/think-tanks/${roomID}**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const detail = {
+      version: 1, room_id: roomID, title: "Annotation controls", goal: "Check room annotation controls",
+      origin_project: "my-app", phase: "discussion", control: "paused", participants: [], revision: 1,
+      created_at: "2026-10-30T00:00:00Z", updated_at: "2026-10-30T00:00:00Z", openings: false,
+      members: [], pending: [], failed: [], judge: { enabled: false }, deletable: false,
+    };
+    await route.fulfill({ json: path.endsWith("/entries") ? { entries: [], has_more: false } : path.endsWith("/activity") ? { activity: [], has_more: false } : path.endsWith("/files") ? { sources: [] } : detail });
+  });
+  await desktop.evaluate((value) => localStorage.setItem("chuck-annotation-tray", JSON.stringify(value)), seedTray(`room:${roomID}`));
+  await desktop.goto(fixture.desktop + `/think-tank/${roomID}`);
+  const roomTray = desktop.getByRole("complementary", { name: "Pending room annotations", exact: true });
+  await roomTray.getByLabel("New agent", { exact: true }).check();
+  check("A26 room: New agent destination without source-recording checkbox", await roomTray.getByLabel("Include in current agent's transcript", { exact: true }).count() === 0);
+  await desktop.screenshot({ path: join(out, "room-annotation-new-agent.png"), fullPage: true });
   check("no browser exceptions", errors.length === 0);
 } finally {
   writeFileSync(join(out, "report.json"), JSON.stringify({ receipts, errors }, null, 2));

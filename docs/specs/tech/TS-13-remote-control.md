@@ -165,7 +165,7 @@ the installed app on iOS.
 - **R16 — Annotation delivery is allowlisted for paired phones.** The tailnet route table
   includes `POST /api/sessions/{id}/annotations` and its read-only validation preflight for
   FS-20.R32. The remote chain bounds its body and admits only the shared request's top-level fields (`annotations`,
-  `overall_instruction`, `target`) before the shared FS-13 validation and commit-before-delivery
+  `overall_instruction`, `target`, `command_id`, `omit_source_record`) before the shared FS-13 validation and commit-before-delivery
   path; it adds no phone-only annotation representation or delivery mechanism.
 - **R17 — Remote Re-arm has the desktop's value authority.** A paired phone may submit
   any complete arm set that the existing `POST /api/tasks/{id}/rearm` handler accepts under
@@ -339,7 +339,8 @@ and sends. Native phone picker/paste limitations report capability honestly with
 
 - **R31 — Annotation parity reuses the existing paired-phone authority.** FS-20.R55
   uses R16's existing delivery/preflight endpoints with the same `annotations`,
-  `overall_instruction` and `target` fields, TS-03.R14/R49 validation, commit-before-delivery,
+  `overall_instruction`, `target`, `command_id` and `omit_source_record` fields,
+  TS-03.R14/R49/R74/R75 validation, commit-before-delivery,
   structured errors, and TS-02.R14/R38 transcript records. No phone-only representation, route,
   body-limit change or migration is introduced. File capture consumes only a successful R22
   tracked-file response; sending its point-in-time excerpt/path does not reread that file or confer
@@ -348,7 +349,9 @@ and sends. Native phone picker/paste limitations report capability honestly with
   and R15/R23's secret-free runtime projection, without terminal/worktree/config access. Maintain
   device attribution and the independent route-inventory/field-filter tests, including denied
   untracked, cross-agent tracked-only and final-component-symlink reads; all anchor variants and
-  preflight failures are exercised through the authenticated remote chain. Remote record and
+  preflight failures are exercised through the authenticated remote chain. Explicit source-record
+  omission follows TS-03.R75 and TS-02.R60, including successful zero-sequence receipt replay.
+  Remote record and
   formatter checks compare actual source events and recipient prompt/mail content, not only
   successful HTTP status. TS-08.R133–R136 own the shared UI orchestration and browser/device gates.
 

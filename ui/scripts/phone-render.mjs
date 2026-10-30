@@ -27,6 +27,7 @@ const longPath = "docs/features/a-very-long-directory-name/with-nested-folders/r
 const fileReads = [];
 const annotationPosts = [];
 const launches = [];
+let failAnnotationDelivery = false;
 let healthCount = 0;
 let healthDown = false;
 let skin = "";
@@ -66,7 +67,7 @@ const transcript = fixturePath
       ],
     };
 
-const server = await createServer({ server: { port: 5199, strictPort: true }, logLevel: "error" });
+const server = await createServer({ server: { host: "127.0.0.1", port: 5199, strictPort: true }, logLevel: "error" });
 await server.listen();
 const browser = await chromium.launch();
 try {
@@ -85,7 +86,7 @@ try {
       }
       close() {}
     };
-  }, [{ agent_id: "a1", data: agent }, { agent_id: "__hydrated__", data: { hydrated: true } }]);
+  }, [{ agent_id: "a1", data: agent }, ...(annotationCheck ? [{ agent_id: "a2", data: { ...agent, agent_id: "a2", name: "Existing recipient" } }] : []), { agent_id: "__hydrated__", data: { hydrated: true } }]);
   // A URL predicate, not "**/api/**", which would also catch Vite's /src/api modules.
   await context.route((url) => url.pathname.startsWith("/api/"), async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -115,7 +116,11 @@ try {
       if (path === "/api/sessions/a1/annotations/validate") return route.fulfill({ json: { valid: true } });
       if (path === "/api/sessions/a1/annotations" && method === "POST") {
         annotationPosts.push(route.request().postDataJSON());
-        return route.fulfill({ status: 202, json: { accepted: true, seq: 99 } });
+        if (failAnnotationDelivery) {
+          failAnnotationDelivery = false;
+          return route.fulfill({ status: 503, json: { error: "Journey delivery failure" } });
+        }
+        return route.fulfill({ status: 202, json: { accepted: true, seq: annotationPosts.at(-1).omit_source_record ? 0 : 99 } });
       }
       if (path === "/api/sessions" && method === "POST") {
         launches.push(route.request().postDataJSON());
@@ -528,6 +533,8 @@ try {
         await page.getByRole("tab", { name: /^Files/ }).click();
         await page.getByRole("button", { name: "Open file", exact: true }).click();
         const preview = page.getByRole("region", { name: "File content" });
+        // File view preference survives between widths; start this capture in Rendered.
+        await preview.getByRole("button", { name: "Rendered", exact: true }).click();
         await preview.getByText("The phone can now annotate files.").waitFor();
         await select(".phone-file-preview", "Release notes");
         await preview.getByRole("button", { name: "Annotate selection", exact: true }).click();
@@ -570,8 +577,12 @@ try {
         check(`${label} dense`, await sheetMetrics(6));
         await page.screenshot({ path: `${prefix}-dense.png`, animations: "disabled" });
         if (width === 390) {
-          // New task: preflight, reviewable launch, cancel back to the tray.
-          await tray(6).getByRole("radio", { name: "New task", exact: true }).click();
+          // A25/A26: unchecked New agent, cancelled launch and same-agent retry.
+          await tray(6).getByRole("radio", { name: "New agent", exact: true }).click();
+          const recording = tray(6).getByLabel("Include in current agent's transcript", { exact: true });
+          if (!(await recording.isChecked())) throw new Error(`${label}: source recording must default on`);
+          await recording.uncheck();
+          await page.screenshot({ path: `${prefix}-unrecorded-choice.png`, animations: "disabled" });
           await tray(6).getByRole("button", { name: "Continue to launch", exact: true }).click();
           const launch = page.getByRole("dialog", { name: "New agent", exact: true });
           await launch.waitFor();
@@ -580,12 +591,28 @@ try {
           await page.screenshot({ path: `${prefix}-launch.png`, animations: "disabled" });
           await launch.getByRole("button", { name: "Cancel", exact: true }).click();
           await tray(6).waitFor();
+          if (await recording.isChecked()) throw new Error(`${label}: cancellation reset source recording`);
           await tray(6).getByRole("button", { name: "Continue to launch", exact: true }).click();
           await launch.waitFor();
+          failAnnotationDelivery = true;
+          const launchCount = launches.length;
           await launch.getByRole("button", { name: "Launch and send", exact: true }).click();
+          await tray(6).getByRole("button", { name: "Retry delivery to a3", exact: true }).click();
           await page.waitForFunction(() => location.pathname === "/agent/a3");
           const sent = annotationPosts.at(-1);
-          if (!sent || sent.target?.agent_id !== "a3" || sent.annotations.length !== 6 || sent.overall_instruction !== "Keep it to one commit." || launches.at(-1)?.project !== "my-app") throw new Error(`${label} delivery: ${JSON.stringify({ sent, launch: launches.at(-1) })}`);
+          const failed = annotationPosts.at(-2);
+          if (!sent || !sent.omit_source_record || sent.target?.agent_id !== "a3" || sent.annotations.length !== 6 || sent.overall_instruction !== "Keep it to one commit." || launches.at(-1)?.project !== "my-app" || launches.length !== launchCount + 1 || failed.command_id !== sent.command_id || !failed.omit_source_record) throw new Error(`${label} delivery: ${JSON.stringify({ sent, failed, launch: launches.at(-1) })}`);
+        } else if (width === 430) {
+          await tray(6).getByRole("radio", { name: "Another agent", exact: true }).click();
+          const recording = tray(6).getByLabel("Include in current agent's transcript", { exact: true });
+          if (!(await recording.isChecked())) throw new Error(`${label}: fresh batch must default on`);
+          await recording.uncheck();
+          await tray(6).getByRole("combobox", { name: "Agent", exact: true }).selectOption("a2");
+          await tray(6).getByRole("button", { name: "Send annotations", exact: true }).click();
+          await page.getByText("Annotations sent to Existing recipient.", { exact: true }).waitFor();
+          const sent = annotationPosts.at(-1);
+          if (!sent.omit_source_record || sent.target?.agent_id !== "a2") throw new Error(`${label}: existing recipient wire ${JSON.stringify(sent)}`);
+          await page.screenshot({ path: `${prefix}-unrecorded-success.png`, animations: "disabled" });
         } else {
           await tray(6).getByRole("button", { name: "Send annotations", exact: true }).click();
           await page.getByText("Annotations sent to this agent.").waitFor();
@@ -593,7 +620,7 @@ try {
           if (sent.target?.kind !== "self" || sent.annotations[2]?.start_line !== 3 || sent.annotations[1]?.start_line !== undefined) throw new Error(`${label} self delivery: ${JSON.stringify(sent)}`);
         }
         if (fileReads.some((read) => read !== longPath)) throw new Error(`file read key changed: ${JSON.stringify(fileReads)}`);
-        console.log(`${label} annotations: capture, focus, keyboard, Files, dense tray and ${width === 390 ? "new-task" : "self"} delivery pass`);
+        console.log(`${label} annotations: capture, focus, keyboard, Files, dense tray and ${width === 390 ? "new-agent zero-seq cancel/retry" : width === 430 ? "existing-agent zero-seq feedback" : "self"} delivery pass`);
       }
     }
   }

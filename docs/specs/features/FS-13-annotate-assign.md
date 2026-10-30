@@ -46,8 +46,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   session's transcript — whether that session is active or inactive — recording the batch and its
   target. The event is appended **before** the batch is delivered, so no agent ever receives
   annotations the source transcript does not record, except for an explicit R35 opt-out. When delivery itself fails after that append,
-  the batch is undelivered and the tray is preserved (R3); re-sending it delivers exactly once and
-  records a second annotation event for the retried batch. Live chat and
+  the batch is undelivered and the tray is preserved (R3); same-command retry reuses the source
+  event and delivers exactly once under R32. Legacy sends without an identity retain their
+  append-on-send behavior. Live chat and
   archive replay render it as quoted-excerpt annotation cards with their
   instructions, not as pasted user prose; rendering is sanitized under the same rules as other
   transcript content (FS-03.R20).
@@ -408,20 +409,25 @@ authorization; use real handler/receipt paths rather than a mock that deduplicat
   on additions); desktop agent tray and phone sheet in `ui/scripts/project-scope-journey.mjs`.
   The room tray has component coverage but no separate browser-rendered receipt.
 
-- **A25 (planned)** (R35) — On desktop and phone, send to an existing recipient and a newly
+- **A25** (R35) — On desktop and phone, send to an existing recipient and a newly
   launched recipient with the checkbox checked and unchecked. Checked produces the existing
   source card live and after replay; unchecked produces neither a source annotation event nor
   a substitute source notice, while target content and delivery remain equivalent. Verify reload,
   cancelled launch, failure/retry and fresh-batch defaults, unchanged self delivery, and no
   duplicate delivery after a lost response. *Verify by:* tray/store/delivery tests, real annotation
   handler/transcript/mail assertions and a focused desktop/phone browser journey.
-- **A26 (planned)** (R36) — Desktop, phone and room annotation controls offer **New agent**;
+  `annotation_source_recording_test.go` covers real receipt/mail/transcript rollback, restart and
+  replay; store/delivery/control tests cover batch lifetime and self delivery. The rendered
+  `project-scope-journey.mjs` and `phone-render.mjs --annotation-check` verify controls and
+  destination feedback; their assignment responses are stubbed, so persistence proof comes from
+  handler tests, not browser fixtures.
+- **A26** (R36) — Desktop, phone and room annotation controls offer **New agent**;
   prefilled launch, cancellation and post-launch delivery retry retain their existing behavior.
   *Verify by:* annotation control/launch component tests and the focused assignment journey.
 
 ## 6. Deviations & open decisions
 
-- R35–R36/A25–A26 were confirmed by the operator on 2026-10-29 and await implementation:
+- R35–R36/A25–A26 were implemented on 2026-10-30:
   [optional source recording](../../ready-changes/optional-annotation-source-recording.md).
   TS-03.R75, TS-02.R60 and TS-08.R148 define delivery, receipts and the shared batch choice.
 
