@@ -108,22 +108,45 @@ func insertPipelineStageRowsTx(tx *sql.Tx, p CreatePipelineStageTaskParams, now 
 	if err != nil {
 		return "", fmt.Errorf("state: encode stage output contract: %w", err)
 	}
-	if _, err := tx.Exec(`INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, coordinator_task_id, assignment_digest, output_values_json, created_at, execution_kind, room_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.RunID, p.StageIndex, p.AttemptNumber, p.StageID, p.Task.TaskID, coordinatorID, p.AssignmentDigest, string(outputJSON), formatTime(now), kind, roomID); err != nil {
+	if _, err := tx.Exec(`INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, coordinator_task_id, assignment_digest, output_values_json, created_at, execution_kind, room_id, visit_sequence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+nextVisitSequence+`)`,
+		p.RunID, p.StageIndex, p.AttemptNumber, p.StageID, p.Task.TaskID, coordinatorID, p.AssignmentDigest, string(outputJSON), formatTime(now), kind, roomID, p.RunID); err != nil {
 		return "", fmt.Errorf("state: insert pipeline stage association: %w", err)
+	}
+	if err := setRunCurrentTaskTx(tx, p.RunID, p.Task.TaskID); err != nil {
+		return "", err
 	}
 	return roomID, nil
 }
 
-const pipelineStageTaskColumns = `p.run_id, p.stage_index, p.attempt_number, p.stage_id, p.task_id, p.standing_agent_id, p.coordinator_task_id, p.assignment_digest, p.state, p.closure_revision, p.created_at, COALESCE(p.closed_at, ''), p.execution_kind, p.room_id, p.source_entry_seq, p.acceptance_entry_seq, p.acceptance_attempts`
+// setRunCurrentTaskTx records the run's explicit current-task reference in the
+// transaction that creates its newest visit (TS-09.R67).
+func setRunCurrentTaskTx(tx *sql.Tx, runID, taskID string) error {
+	if _, err := tx.Exec(`UPDATE pipeline_runs SET current_task_id = ? WHERE run_id = ?`, taskID, runID); err != nil {
+		return fmt.Errorf("state: record pipeline current task: %w", err)
+	}
+	return nil
+}
+
+const pipelineStageTaskColumns = `p.run_id, p.stage_index, p.attempt_number, p.stage_id, p.task_id, p.standing_agent_id, p.coordinator_task_id, p.assignment_digest, p.state, p.closure_revision, p.created_at, COALESCE(p.closed_at, ''), p.execution_kind, p.room_id, p.source_entry_seq, p.acceptance_entry_seq, p.acceptance_attempts, p.visit_sequence`
 
 const maxThinkTankAcceptanceAttempts = 3
 
-// latestStageOrder is the run cursor's definition: the newest attempt of the
-// newest stage. The per-stage partial unique index names the open attempt of one
-// stage, not the run's latest cursor, so ordering is what makes these reads
-// deterministic (TS-09.R40, INV §2/§8).
-const latestStageOrder = ` ORDER BY p.stage_index DESC, p.attempt_number DESC LIMIT 1`
+// latestStageOrder is the run cursor's definition: the newest visit. A revisit
+// of an earlier stage is newer than the later stage it followed, so template
+// order is not the cursor (TS-09.R40/R67, INV §2/§8).
+const latestStageOrder = ` ORDER BY p.visit_sequence DESC LIMIT 1`
+
+// nextVisitSequence allocates the run's next visit inside the inserting
+// transaction; the unique (run_id, visit_sequence) index rejects a race.
+const nextVisitSequence = `(SELECT COALESCE(MAX(visit_sequence), 0) + 1 FROM pipeline_stage_tasks WHERE run_id = ?)`
+
+// NextPipelineStageAttempt returns the next attempt number for one stage of a
+// run, so a revisit keeps (run, stage_index, attempt) unique (TS-09.R67).
+func (s *Store) NextPipelineStageAttempt(runID string, stageIndex int) (int, error) {
+	var next int
+	err := s.db.QueryRow(`SELECT COALESCE(MAX(attempt_number), 0) + 1 FROM pipeline_stage_tasks WHERE run_id = ? AND stage_index = ?`, runID, stageIndex).Scan(&next)
+	return next, err
+}
 
 // PipelineStageTaskForAssignee resolves only a live standing-owner assignment;
 // coordinators and descendants cannot be mistaken for the stage authority.
@@ -212,7 +235,7 @@ func (s *Store) AcceptedPipelineStageTaskReport(agentID string) (PipelineStageTa
 SELECT `+pipelineStageTaskColumns+`
 FROM pipeline_stage_tasks p JOIN tasks t ON t.task_id = p.task_id
 WHERE t.assigned_agent_id = ? AND t.state = ? AND t.outcome <> '' AND t.pending_release = 1
-ORDER BY p.stage_index DESC, p.attempt_number DESC
+ORDER BY p.visit_sequence DESC
 LIMIT 1`, agentID, TaskFinished))
 	if err != nil {
 		return PipelineStageTask{}, Task{}, err
@@ -709,7 +732,7 @@ func (s *Store) ListPipelineRunTaskLineage(runID string, limit int) (map[string]
 }
 
 func (s *Store) ListPipelineStageTasks(runID string) ([]PipelineStageTask, error) {
-	rows, err := s.db.Query(`SELECT `+pipelineStageTaskColumns+` FROM pipeline_stage_tasks p WHERE p.run_id = ? ORDER BY p.stage_index, p.attempt_number`, runID)
+	rows, err := s.db.Query(`SELECT `+pipelineStageTaskColumns+` FROM pipeline_stage_tasks p WHERE p.run_id = ? ORDER BY p.visit_sequence`, runID)
 	if err != nil {
 		return nil, fmt.Errorf("state: list pipeline stage tasks: %w", err)
 	}
@@ -735,7 +758,7 @@ func readPipelineStageTaskTx(tx *sql.Tx, runID string, stageIndex, attempt int) 
 func scanPipelineStageTask(row interface{ Scan(...any) error }) (PipelineStageTask, error) {
 	var v PipelineStageTask
 	var created, closed string
-	if err := row.Scan(&v.RunID, &v.StageIndex, &v.AttemptNumber, &v.StageID, &v.TaskID, &v.StandingAgentID, &v.CoordinatorTaskID, &v.AssignmentDigest, &v.State, &v.ClosureRevision, &created, &closed, &v.ExecutionKind, &v.RoomID, &v.SourceEntrySeq, &v.AcceptanceEntrySeq, &v.AcceptanceAttempts); err != nil {
+	if err := row.Scan(&v.RunID, &v.StageIndex, &v.AttemptNumber, &v.StageID, &v.TaskID, &v.StandingAgentID, &v.CoordinatorTaskID, &v.AssignmentDigest, &v.State, &v.ClosureRevision, &created, &closed, &v.ExecutionKind, &v.RoomID, &v.SourceEntrySeq, &v.AcceptanceEntrySeq, &v.AcceptanceAttempts, &v.VisitSequence); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return PipelineStageTask{}, ErrNotFound
 		}
@@ -908,7 +931,10 @@ func (s *Store) PreparePipelineStageReplacement(p CreatePipelineStageTaskParams,
 	if err != nil {
 		return PipelineRunRecord{}, err
 	}
-	if _, err := tx.Exec(`INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, coordinator_task_id, assignment_digest, output_values_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.RunID, p.StageIndex, p.AttemptNumber, p.StageID, p.Task.TaskID, coordinatorID, p.AssignmentDigest, string(outputs), stamp); err != nil {
+	if _, err := tx.Exec(`INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, coordinator_task_id, assignment_digest, output_values_json, created_at, visit_sequence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, `+nextVisitSequence+`)`, p.RunID, p.StageIndex, p.AttemptNumber, p.StageID, p.Task.TaskID, coordinatorID, p.AssignmentDigest, string(outputs), stamp, p.RunID); err != nil {
+		return PipelineRunRecord{}, err
+	}
+	if err := setRunCurrentTaskTx(tx, p.RunID, p.Task.TaskID); err != nil {
 		return PipelineRunRecord{}, err
 	}
 	if _, err := tx.Exec(`UPDATE pipeline_runs SET state = 'paused', pending_action = 'activate_replacement', current_agent_id = '', attention_reason = '', revision = revision + 1, updated_at = ? WHERE run_id = ? AND revision = ?`, stamp, p.RunID, revision); err != nil {

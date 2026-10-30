@@ -494,8 +494,8 @@ VALUES (?, ?, 'pr_succession', 'work', '1', ?)`, id, parent, at.Format(time.RFC3
 	addStage := func(taskID string, index, attempt int, stageID, stageState string) {
 		t.Helper()
 		if _, err := srv.stateStore.DB().Exec(`
-INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, state, created_at)
-VALUES ('pr_succession', ?, ?, ?, ?, ?, ?)`, index, attempt, stageID, taskID, stageState, stamp); err != nil {
+INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, state, created_at, visit_sequence)
+VALUES ('pr_succession', ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(visit_sequence), 0) + 1 FROM pipeline_stage_tasks WHERE run_id = 'pr_succession'))`, index, attempt, stageID, taskID, stageState, stamp); err != nil {
 			t.Fatal(err)
 		}
 	}

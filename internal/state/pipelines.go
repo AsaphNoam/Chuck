@@ -524,7 +524,7 @@ const pipelineRunColumns = `
 run_id, template_id, template_snapshot_json, display_name, project, goal,
 inputs_json, assignments_json, state, revision, pending_action,
 current_stage_id, current_attempt_id, current_agent_id, attention_reason,
-final_outcome, created_at, updated_at, controller_failures, controller_retry_at, controller_last_error`
+final_outcome, created_at, updated_at, controller_failures, controller_retry_at, controller_last_error, current_task_id`
 
 func readPipelineRunQuery(q pipelineRunQueryer, runID string) (PipelineRunRecord, error) {
 	run, err := scanPipelineRun(q.QueryRow(`SELECT `+pipelineRunColumns+` FROM pipeline_runs WHERE run_id = ?`, runID))
@@ -542,7 +542,7 @@ func scanPipelineRun(row rowScanner) (PipelineRunRecord, error) {
 		&run.RunID, &run.TemplateID, &snapshot, &run.DisplayName, &run.Project, &run.Goal,
 		&inputs, &assignments, &run.State, &run.Revision, &run.PendingAction,
 		&run.CurrentStageID, &run.CurrentAttemptID, &run.CurrentAgentID, &run.AttentionReason,
-		&run.FinalOutcome, &createdAt, &updatedAt, &run.ControllerFailures, &retryAt, &run.ControllerLastError,
+		&run.FinalOutcome, &createdAt, &updatedAt, &run.ControllerFailures, &retryAt, &run.ControllerLastError, &run.CurrentTaskID,
 	)
 	if err != nil {
 		return PipelineRunRecord{}, fmt.Errorf("state: read pipeline run: %w", err)
@@ -827,7 +827,7 @@ WHERE run_id = ? AND revision = ?`,
 		// already be doing private work on this same generation.
 		if _, err := tx.Exec(`UPDATE think_tank_members SET stop_teardown = 1
 WHERE room_id = (SELECT room_id FROM pipeline_stage_tasks WHERE run_id = ?
-  ORDER BY stage_index DESC, attempt_number DESC LIMIT 1)
+  ORDER BY visit_sequence DESC LIMIT 1)
   AND launch_generation != '' AND (setup_state = 'launching' OR
     (role = 'judge' AND setup_state = 'pending' AND EXISTS (
       SELECT 1 FROM think_tanks t WHERE t.room_id = think_tank_members.room_id

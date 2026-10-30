@@ -731,6 +731,12 @@ task-backed controller; do not add a second executor for simple sequences.
   latest named values alone are not evidence of current checks. Validate the selected destination's
   required values/context, without blocking an accepted result on an unselected future room.
   Keep known-producer/output validation without introducing a condition language.
+  *Partially shipped 2026-10-30:* migration 66 adds `pipeline_stage_tasks.visit_sequence`
+  (unique per run, allocated in the inserting transaction) and `pipeline_runs.current_task_id`,
+  backfilled in stage/attempt order; the cursor, assignee/accepted-report reads, room-teardown
+  capture and the run timeline use visit order, the run detail projects `visit_sequence`, and
+  `NextPipelineStageAttempt` allocates a revisit's attempt. Routing that creates revisits and
+  per-activation frozen input references remain planned with R66/R68.
 - **R68 (planned) — Retain transactional authority and closure.** Validate caller, generation,
   execution handle, current task/run revision, decision shape, destination and required evidence in
   report acceptance. Commit result, outputs, decision and closure intent before success or external

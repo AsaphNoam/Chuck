@@ -893,6 +893,32 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 65,
 		sql:     `ALTER TABLE attachment_receipts ADD COLUMN assignment_task_id TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// Chronological stage visits separate the run cursor from template
+		// order, so a revisit is a new visit rather than a lower stage index
+		// (TS-09.R67). Existing visits are numbered in their stage/attempt
+		// order and each run records its current task; no identity changes.
+		version: 66,
+		apply:   addPipelineVisits,
+	},
+}
+
+// addPipelineVisits follows addStatusBackgroundRunning: a synthetic legacy
+// database without the stage-task table has nothing to extend.
+func addPipelineVisits(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_stage_tasks'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE pipeline_stage_tasks ADD COLUMN visit_sequence INTEGER NOT NULL DEFAULT 0;
+UPDATE pipeline_stage_tasks SET visit_sequence = (SELECT COUNT(*) FROM pipeline_stage_tasks q
+  WHERE q.run_id = pipeline_stage_tasks.run_id AND (q.stage_index < pipeline_stage_tasks.stage_index
+    OR (q.stage_index = pipeline_stage_tasks.stage_index AND q.attempt_number <= pipeline_stage_tasks.attempt_number)));
+CREATE UNIQUE INDEX idx_pipeline_stage_visits ON pipeline_stage_tasks(run_id, visit_sequence);
+ALTER TABLE pipeline_runs ADD COLUMN current_task_id TEXT NOT NULL DEFAULT '';
+UPDATE pipeline_runs SET current_task_id = COALESCE((SELECT p.task_id FROM pipeline_stage_tasks p
+  WHERE p.run_id = pipeline_runs.run_id ORDER BY p.visit_sequence DESC LIMIT 1), '');`)
+	return err
 }
 
 // addPipelineWorkspaces follows addStatusBackgroundRunning for the sessions

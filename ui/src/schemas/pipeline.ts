@@ -188,6 +188,7 @@ export const pipelineStageTaskSchema = z.object({
   run_id: z.string(),
   stage_id: z.string(),
   stage_index: z.number().int(),
+  visit_sequence: z.number().int().optional().default(0),
   attempt_number: z.number().int(),
   state: z.string(),
   assignment_text: z.string(),

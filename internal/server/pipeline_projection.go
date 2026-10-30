@@ -33,6 +33,7 @@ type pipelineStageTaskDetail struct {
 	RunID          string `json:"run_id"`
 	StageID        string `json:"stage_id"`
 	StageIndex     int    `json:"stage_index"`
+	VisitSequence  int    `json:"visit_sequence"`
 	AttemptNumber  int    `json:"attempt_number"`
 	State          string `json:"state"`
 	AssignmentText string `json:"assignment_text"`
@@ -213,7 +214,7 @@ func (s *Server) pipelineTaskRunProjection(detail pipeline.RunDetail) ([]pipelin
 			}
 			work = filtered
 		}
-		item := pipelineStageTaskDetail{TaskID: task.TaskID, RunID: stage.RunID, StageID: stage.StageID, StageIndex: stage.StageIndex, AttemptNumber: stage.AttemptNumber, State: task.State, AssignmentText: task.Instruction, ExecutionKind: stage.ExecutionKind, StandingOwner: owner, Work: work, Cleanup: stageCleanupDetail(task), CreatedAt: stage.CreatedAt, UpdatedAt: task.UpdatedAt}
+		item := pipelineStageTaskDetail{TaskID: task.TaskID, RunID: stage.RunID, StageID: stage.StageID, StageIndex: stage.StageIndex, AttemptNumber: stage.AttemptNumber, VisitSequence: stage.VisitSequence, State: task.State, AssignmentText: task.Instruction, ExecutionKind: stage.ExecutionKind, StandingOwner: owner, Work: work, Cleanup: stageCleanupDetail(task), CreatedAt: stage.CreatedAt, UpdatedAt: task.UpdatedAt}
 		if stage.RoomID != "" {
 			// One room projection shared with Tasks (TS-10.R38, INV §2).
 			projected := taskDetailResponse{Task: task}

@@ -439,8 +439,8 @@ VALUES (?, 'proj', 'Implement', 'implement', 'launch', ?, 'pipeline', 'new-owner
 		t.Fatal(err)
 	}
 	if _, err := st.DB().Exec(`
-INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, standing_agent_id, state, created_at)
-VALUES (?, 0, 2, 'implement', ?, 'new-owner', 'open', ?)`, runID, replacementID, formatTime(now)); err != nil {
+INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, standing_agent_id, state, created_at, visit_sequence)
+VALUES (?, 0, 2, 'implement', ?, 'new-owner', 'open', ?, 2)`, runID, replacementID, formatTime(now)); err != nil {
 		t.Fatal(err)
 	}
 	mustManage(t, "new-owner", "tk_coord", true)
@@ -584,8 +584,8 @@ VALUES (?, 'proj', 'Review', 'review', 'agent', ?, 'pipeline', 'owner', 'gen', ?
 		t.Fatal(err)
 	}
 	if _, err := st.DB().Exec(`
-INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, standing_agent_id, state, created_at)
-VALUES (?, 1, 1, 'review', ?, 'owner', 'open', ?)`, runID, secondID, formatTime(now)); err != nil {
+INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, standing_agent_id, state, created_at, visit_sequence)
+VALUES (?, 1, 1, 'review', ?, 'owner', 'open', ?, 2)`, runID, secondID, formatTime(now)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -606,6 +606,111 @@ VALUES (?, 1, 1, 'review', ?, 'owner', 'open', ?)`, runID, secondID, formatTime(
 	closing, err := st.LatestPipelineStageTask(runID)
 	if err != nil || closing.TaskID != firstID || closing.State != "closing" {
 		t.Fatalf("closing-stage cursor = %#v, %v; want the closing stage retained", closing, err)
+	}
+}
+
+// TS-09.R67 — a revisit of an earlier stage is the run's newest visit. The
+// cursor, the explicit current task and the timeline follow chronology, and the
+// revisit allocates that stage's next attempt without touching earlier results.
+func TestRevisitIsTheNewestVisitNotTheHighestStage(t *testing.T) {
+	st, _ := newTestStore(t)
+	runID, _ := st.NewPipelineRunID()
+	now := time.Now().UTC()
+	workID, _ := st.NewTaskID()
+	if _, _, err := st.CreatePipelineRun(CreatePipelineRunParams{Run: PipelineRunRecord{
+		RunID: runID, TemplateID: "wrf", TemplateSnapshot: json.RawMessage(`{"version":2}`),
+		DisplayName: "WRF", Project: "proj", Goal: "ship", Inputs: json.RawMessage(`{}`), Assignments: json.RawMessage(`{}`),
+		State: "queued", Revision: 1, PendingAction: "dispatch_stage_task", CurrentStageID: "work", CreatedAt: now, UpdatedAt: now,
+	}, RequestID: "revisit", RequestHash: "hash", InitialStageTask: &CreatePipelineStageTaskParams{
+		RunID: runID, ExpectedRevision: 1, StageIndex: 0, AttemptNumber: 1, StageID: "work",
+		Task: Task{TaskID: workID, Project: "proj", DisplayName: "Work", Instruction: "work", TargetKind: TargetLaunch, Role: "orchestrator", CreatedByKind: "pipeline"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	create := func(index int, stageID string) string {
+		t.Helper()
+		run, err := st.ReadPipelineRun(runID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.DB().Exec(`UPDATE pipeline_stage_tasks SET state = 'closed' WHERE run_id = ?`, runID); err != nil {
+			t.Fatal(err)
+		}
+		attempt, err := st.NextPipelineStageAttempt(runID, index)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := st.NewTaskID()
+		if _, _, _, err := st.CreatePipelineStageTask(CreatePipelineStageTaskParams{RunID: runID, ExpectedRevision: run.Revision, StageIndex: index, AttemptNumber: attempt, StageID: stageID,
+			Task: Task{TaskID: id, Project: "proj", DisplayName: stageID, Instruction: stageID, TargetKind: TargetLaunch, Role: "orchestrator", CreatedByKind: "pipeline"}}); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	reviewID := create(1, "review")
+	reworkID := create(0, "work")
+
+	latest, err := st.LatestPipelineStageTask(runID)
+	if err != nil || latest.TaskID != reworkID || latest.StageIndex != 0 || latest.AttemptNumber != 2 || latest.VisitSequence != 3 {
+		t.Fatalf("cursor after revisit = %+v %v, want work attempt 2 at visit 3", latest, err)
+	}
+	if run, err := st.ReadPipelineRun(runID); err != nil || run.CurrentTaskID != reworkID {
+		t.Fatalf("current task = %q %v, want %q", run.CurrentTaskID, err, reworkID)
+	}
+	stages, err := st.ListPipelineStageTasks(runID)
+	if err != nil || len(stages) != 3 || stages[0].TaskID != workID || stages[1].TaskID != reviewID || stages[2].TaskID != reworkID {
+		t.Fatalf("timeline = %+v %v, want chronological visits", stages, err)
+	}
+}
+
+// TS-09.R67 — the forward migration numbers existing visits in their old
+// stage/attempt order and records each run's current task without changing
+// any identity.
+func TestVisitBackfillFollowsStageAttemptOrder(t *testing.T) {
+	st, home := newTestStore(t)
+	now := formatTime(time.Now().UTC())
+	if _, err := st.DB().Exec(`INSERT INTO pipeline_runs(run_id, template_id, template_snapshot_json, display_name, project, goal, inputs_json, assignments_json, state, revision, created_at, updated_at)
+VALUES ('pr_old', 't', '{}', 'Old', 'proj', 'g', '{}', '{}', 'paused', 3, ?, ?)`, now, now); err != nil {
+		t.Fatal(err)
+	}
+	for i, row := range []struct {
+		index, attempt int
+		id             string
+	}{{1, 1, "tk_c"}, {0, 2, "tk_b"}, {0, 1, "tk_a"}} {
+		if _, err := st.DB().Exec(`INSERT INTO tasks(task_id, project, display_name, instruction, target_kind, state, created_by_kind, created_at, updated_at) VALUES (?, 'proj', 'x', 'x', 'launch', ?, 'pipeline', ?, ?)`, row.id, TaskFinished, now, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.DB().Exec(`INSERT INTO pipeline_stage_tasks(run_id, stage_index, attempt_number, stage_id, task_id, state, created_at, visit_sequence) VALUES ('pr_old', ?, ?, ?, ?, 'closed', ?, ?)`,
+			row.index, row.attempt, fmt.Sprintf("s%d", row.index), row.id, now, 100+i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Return the run to its pre-migration shape and reopen.
+	if _, err := st.DB().Exec(`DROP INDEX idx_pipeline_stage_visits;
+ALTER TABLE pipeline_stage_tasks DROP COLUMN visit_sequence;
+ALTER TABLE pipeline_runs DROP COLUMN current_task_id;
+DELETE FROM schema_migrations WHERE version = 66`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	st, err := Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	stages, err := st.ListPipelineStageTasks("pr_old")
+	if err != nil || len(stages) != 3 {
+		t.Fatalf("stages = %+v %v", stages, err)
+	}
+	for i, want := range []string{"tk_a", "tk_b", "tk_c"} {
+		if stages[i].TaskID != want || stages[i].VisitSequence != i+1 {
+			t.Fatalf("visit %d = %+v, want %s", i+1, stages[i], want)
+		}
+	}
+	if run, err := st.ReadPipelineRun("pr_old"); err != nil || run.CurrentTaskID != "tk_c" {
+		t.Fatalf("backfilled current task = %q %v", run.CurrentTaskID, err)
 	}
 }
 

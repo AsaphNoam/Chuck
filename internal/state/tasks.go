@@ -1742,6 +1742,9 @@ type PipelineStageTask struct {
 	// acceptance obligation and its bounded automatic recovery progress.
 	AcceptanceEntrySeq int64 `json:"acceptance_entry_seq,omitempty"`
 	AcceptanceAttempts int   `json:"acceptance_attempts,omitempty"`
+	// VisitSequence is this visit's place in the run's chronology; the run
+	// cursor is the highest one, independent of template order (TS-09.R67).
+	VisitSequence int `json:"visit_sequence"`
 }
 
 const (

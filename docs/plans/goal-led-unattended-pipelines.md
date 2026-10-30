@@ -13,13 +13,13 @@ change finishes.
    acceptance) readies the next continuation, hands input to an idle executing assignee, releases
    ended-work input to recovery. Composer/phone show the queued notice.
 
+2. **Visits (R67).** Migration 66: `pipeline_stage_tasks.visit_sequence` (unique per run,
+   `nextVisitSequence` in each insert) and `pipeline_runs.current_task_id` (`setRunCurrentTaskTx`),
+   backfilled in stage/attempt order. All cursor reads order by visit; `NextPipelineStageAttempt`
+   allocates a revisit's attempt. Raw test inserts must supply a distinct `visit_sequence`.
+
 ## Next
 
-2. **Visits (R67).** Migration adding `pipeline_stage_tasks.visit_sequence` (unique per run) and
-   the run's current-task reference; backfill in stage-index/attempt order. `latestStageOrder`,
-   `LatestPipelineStageTask`, `PipelineStageTaskForAssignee`, `AcceptedPipelineStageTaskReport`,
-   `MarkRoomTeardown`'s latest-room subquery, `priorStageResults`/`lastStandingAgent`, timeline and
-   Stop use visit order. A revisit allocates the next attempt number for that stage.
 3. **Contract (R66/R68/R71).** Template `required_for_completion`; `get_assigned_task.pipeline`
    (visit, current stage, ≤32-entry step menu, required checks, recovery); optional
    `report_task_result.pipeline_decision` validated inside `AcceptPipelineStageTaskResult` and stored
