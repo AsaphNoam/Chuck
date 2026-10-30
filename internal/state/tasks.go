@@ -1749,6 +1749,23 @@ type PipelineStageTask struct {
 	// VisitSequence is this visit's place in the run's chronology; the run
 	// cursor is the highest one, independent of template order (TS-09.R67).
 	VisitSequence int `json:"visit_sequence"`
+	// DecisionSourceTaskID marks a decision-only owner visit that decides
+	// what follows that accepted room result; it cannot itself satisfy a
+	// required check (TS-09.R66).
+	DecisionSourceTaskID string `json:"decision_source_task_id,omitempty"`
+	// InputRefs freezes this activation's selected inputs and the accepted
+	// result each came from; later producers do not rewrite it (TS-09.R67).
+	InputRefs []PipelineInputRef `json:"input_refs"`
+}
+
+// PipelineInputRef is one frozen input of a stage activation: the named value
+// it read and that value's source when the visit was created.
+type PipelineInputRef struct {
+	Name         string `json:"name"`
+	Value        string `json:"value"`
+	SourceKind   string `json:"source_kind,omitempty"`
+	SourceTaskID string `json:"source_task_id,omitempty"`
+	SourceRoomID string `json:"source_room_id,omitempty"`
 }
 
 const (

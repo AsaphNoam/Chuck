@@ -69,7 +69,7 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 				continueErr = validationError("an answer is required", []Diagnostic{{Field: "input", Code: "invalid", Message: "answer the run's question: " + run.PauseQuestion}})
 				break
 			}
-			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText("You asked the person: "+run.PauseQuestion+"\nTheir answer: "+input, MaxValueRunes)})
+			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText("You asked the person: "+run.PauseQuestion+"\nTheir answer: "+input, MaxValueRunes), DecisionSource: current.DecisionSourceTaskID})
 		case run.State == "paused" && run.PendingAction == "" && (run.AttentionReason == attentionRecoveryExhausted || task.Outcome == state.OutcomeFailure || task.Outcome == state.OutcomeBlocked || run.AttentionReason == attentionCheckMissing || run.AttentionReason == attentionApprovalMissing):
 			// Resume after repair needs no invented text, and grants a fresh
 			// allowance exactly once under this revision (TS-09.R70).
@@ -77,7 +77,7 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 			if input != "" {
 				text += "\nTheir instructions: " + input
 			}
-			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText(text, MaxValueRunes), RenewAllowance: true})
+			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText(text, MaxValueRunes), RenewAllowance: true, DecisionSource: current.DecisionSourceTaskID})
 		default:
 			continueErr = controlError("invalid_state", "continue is not valid for the current run state")
 		}
@@ -183,6 +183,9 @@ func (m *Manager) Replace(ctx context.Context, runID string, expectedRevision in
 // old identity, history and child work retained (TS-09.R41/R70). An automatic
 // replacement spends a round atomically and carries the person's pending input.
 func (m *Manager) replaceOwner(run state.PipelineRunRecord, detail RunDetail, current state.PipelineStageTask, stage Stage, runtime RuntimeAssignment, charge bool, handoff string) error {
+	if current.DecisionSourceTaskID != "" {
+		stage = decisionStage(stage)
+	}
 	id, err := m.store.NewTaskID()
 	if err != nil {
 		return err

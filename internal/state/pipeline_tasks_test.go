@@ -110,7 +110,7 @@ func TestProspectiveRoomContextRejectsEscapedAndCumulativeOutput(t *testing.T) {
 	}
 	defer tx.Rollback()
 	tooLarge := strings.Repeat("<", 44000)
-	err = validateProspectiveRoomContextsTx(tx, runID, 0, string(template), map[string]string{"draft": "draft"}, map[string]string{"draft": tooLarge})
+	err = validateDestinationTx(tx, runID, string(template), "room", map[string]string{"draft": "draft"}, map[string]string{"draft": tooLarge})
 	if !errors.Is(err, ErrThinkTankOutputRefused) {
 		t.Fatalf("escaped/cumulative context error = %v, want ErrThinkTankOutputRefused", err)
 	}

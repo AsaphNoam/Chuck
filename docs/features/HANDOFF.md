@@ -25,8 +25,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
-- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); thirteen Must-fix findings and one
-  Worth-fixing finding remain on the same unit below. Acceptance evidence remains owed below.
+- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); fix run in progress — GOAL-LED-1/4/5/10
+  fixed; the remaining Must-fix findings and GOAL-LED-14 stay on the same unit below. Acceptance
+  evidence remains owed below.
 - **Waiting-prompt investigation:** WAIT-PROMPT-1/2 are fixed by goal-led slice 1 (input to a
   waiting assignee is queued and carried by its continuation); WAIT-PROMPT-3 is fixed by coalescing
   phone streaming refresh signals into 250 ms windows. The investigation unit is closed.
@@ -288,15 +289,6 @@ Reviewed implementation `715bbcb2^..af2c9495`, including surrounding callers, FS
 TS-09.R66–R72, TS-10.R29/R35, changed persistence/API/chat requirements and test contracts.
 The same unit stays open for grouped fixes; product code and specifications were not changed.
 
-- **Must fix** — GOAL-LED-1 (P1): room synthesis bypasses the owner's required decision.
-  `internal/pipeline/decisions.go:37–49,88–94` advances a room directly or completes on the latest
-  evidence, without TS-09.R66's decision-only owner assignment and attestation. A final review room
-  publishing “Must fix ... Repair and re-review required” completed the run as success in an
-  independent store/controller probe. Create the idempotent decision assignment after room cleanup
-  and applicable approval, preserving the source synthesis without rerunning the room. The noted
-  room-stage deviation is rejected: TS-09 §5 does not override R66/R68 or FS-14.R98/R102.
-  INV §10/§15/§17. Fix complexity: difficult (durable decision/cleanup/admission ownership).
-
 - **Must fix** — GOAL-LED-2 (P1): conversation answers do not continue a question/exhaustion pause.
   `internal/server/attachments.go:501–522` only queues open waiting/admitting assignments; finished
   question visits and interrupted exhausted visits fall through to ordinary prompt delivery, with
@@ -314,21 +306,6 @@ The same unit stays open for grouped fixes; product code and specifications were
   attachment ownership through replacement; do not declare clipped/omitted content submitted.
   Verify attachment-only and over-budget queued handoffs. FS-14.R100/R101; TS-09.R69/R70;
   INV §11/§15/§16. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-4 (P1): routing admits a destination without its required inputs.
-  `internal/state/pipeline_decisions.go:126–133` checks the stage ID but not selected required
-  values; `internal/pipeline/decisions.go:165–181` renders and creates the visit regardless.
-  A valid Work → Review → Publish template allowed Work to skip Review, the producer of Publish's
-  required verdict; Publish became ready with a blank verdict. Reject this decision before
-  accepting the immutable report, preserving correction in the same assignment. TS-09.R67/R68;
-  INV §8/§15. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-5 (P2): an unselected future room can reject a valid completion/branch.
-  `internal/state/pipeline_tasks.go:321–326` validates all later room contexts before resolving
-  the selected decision. Explicit complete with no required checks was refused for a legal
-  44,000-character output solely because an optional room that would never run overflowed its
-  context. Validate only the selected destination, with a regression for completion and omission
-  of that room. TS-09.R67/R68; INV §8/§15. Fix complexity: medium.
 
 - **Must fix** — GOAL-LED-6 (P2): restart on the final start attempt strands an active run.
   `internal/server/task_dispatcher.go:970–976` calls FailTaskStart without the parked-owner recovery
@@ -364,15 +341,6 @@ The same unit stays open for grouped fixes; product code and specifications were
   with explicit repair/resume and no repeated side effects. This is an existing mechanism left
   incompatible with the newly shipped requirement, not an asserted new code regression.
   FS-14.R101; TS-09.R70; INV §9/§10. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-10 (P2): activations do not freeze the specified input/source references.
-  `internal/state/pipeline_tasks.go:120–121` stores the output contract and assignment digest only;
-  `internal/pipeline/assignment.go:50–52` drops input source identity, and later producer visits
-  overwrite pipeline_values' current value/source (`pipeline_tasks.go:380`). A prior check has no
-  explicit durable input-to-producing-task/room mapping after revisits. Freeze selected values and
-  provenance for every activation/replacement and project that evidence. This concerns provenance,
-  not automatic invalidation of older evidence that the owner may attest still applies.
-  TS-09.R67/R68; INV §11/§15. Fix complexity: medium.
 
 - **Must fix** — GOAL-LED-11 (P2): accepted queued input disappears from supervision until delivery.
   `ui/src/components/chat/Composer.tsx:155–186` clears the draft without a held/transcript row;
@@ -457,6 +425,15 @@ or workload was supplied); disposable probes remain under `/private/tmp/chuck-me
 
 ## Changelog
 
+- **2026-10-30 — Fixed GOAL-LED-1/4/5/10 (INV §8/§10/§11/§15/§17):** an accepted room synthesis
+  now goes, after cleanup and approval, to one decision-only owner visit (migration 68
+  `decision_source_task_id`) that cannot be required-check evidence; acceptance validates only the
+  selected destination's required inputs and room context; each activation freezes `input_refs`
+  (value key and producing task/room), projected in run detail. TS-09 §5's room deviation is
+  removed. Regressions: `TestFinalRoomSynthesisWaitsForTheOwnersDecision`,
+  `TestRoomOutputOverflowRefusesOnlyTheSelectedRoom`, `TestDecisionValidatesOnlyTheSelectedDestination`,
+  extended mixed-room/approval tests. `go test` state/pipeline/messaging and server
+  pipeline/room filters pass (`/tmp/gl-s1*.log`).
 - **2026-10-30 — Fixed WAIT-PROMPT-3 (INV §1/§4/§16/§17):** every streamed `new_message`
   previously changed the phone's transcript and held-prompt query keys. The connection owner now
   coalesces known-agent signals with one shared fixed 250 ms timer, including the final update,

@@ -908,6 +908,25 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 67,
 		apply:   addPipelineDecisions,
 	},
+	{
+		// A room's synthesis is handed to a decision-only owner visit that names
+		// its source result, and every activation freezes its selected inputs'
+		// source references (TS-09.R66/R67).
+		version: 68,
+		apply:   addPipelineVisitProvenance,
+	},
+}
+
+// addPipelineVisitProvenance follows addPipelineDecisions for a legacy
+// database without pipeline tables.
+func addPipelineVisitProvenance(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_stage_tasks'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE pipeline_stage_tasks ADD COLUMN decision_source_task_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE pipeline_stage_tasks ADD COLUMN input_refs_json TEXT NOT NULL DEFAULT '';`)
+	return err
 }
 
 // addPipelineDecisions follows addPipelineVisits for a legacy database

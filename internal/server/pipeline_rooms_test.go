@@ -124,16 +124,19 @@ func TestPipelineThinkTankStageEndToEnd(t *testing.T) {
 	actAsAgent(t, srv, judge, state.ThinkTankReply, synthesis)
 	releaseTurn(t, hold, srv, room, d.Room.Revision)
 
+	// The accepted synthesis goes to one decision-only owner visit; the run
+	// does not complete on the room alone (TS-09.R66).
 	deadline := time.Now().Add(10 * time.Second)
-	var run state.PipelineRunRecord
+	var decide state.PipelineStageTask
 	for time.Now().Before(deadline) {
-		if run, err = srv.stateStore.ReadPipelineRun(detail.Run.RunID); err == nil && run.State == "completed" {
+		if decide, err = srv.stateStore.LatestPipelineStageTask(detail.Run.RunID); err == nil && decide.DecisionSourceTaskID == stage.TaskID {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if run.State != "completed" || run.FinalOutcome != state.OutcomeSuccess {
-		t.Fatalf("run = %+v", run)
+	run, _ := srv.stateStore.ReadPipelineRun(detail.Run.RunID)
+	if decide.DecisionSourceTaskID != stage.TaskID || decide.RoomID != "" || run.State == "completed" {
+		t.Fatalf("after synthesis: visit=%+v run=%+v", decide, run)
 	}
 	values, _ := srv.stateStore.ListPipelineValues(run.RunID)
 	found := false
@@ -143,8 +146,10 @@ func TestPipelineThinkTankStageEndToEnd(t *testing.T) {
 	if !found {
 		t.Fatalf("values = %+v", values)
 	}
-	if got := promptCount(t, promptLog) - before; got != 3 {
-		t.Fatalf("provider prompts = %d, want two participants and one judge", got)
+	// Two participants and one judge; the owner's decision visit may already
+	// have been admitted, but the room is never rerun.
+	if got := promptCount(t, promptLog) - before; got < 3 || got > 4 {
+		t.Fatalf("provider prompts = %d, want two participants, one judge and at most the owner", got)
 	}
 }
 

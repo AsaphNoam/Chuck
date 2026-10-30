@@ -24,6 +24,23 @@ type visitOptions struct {
 	// ChargeRound spends an automatic repair/revisit round; RenewAllowance
 	// grants a fresh allowance after an explicit Resume (TS-09.R70).
 	ChargeRound, RenewAllowance bool
+	// DecisionSource makes the visit a decision-only owner assignment about
+	// that accepted room result: no room, coordinator or outputs (TS-09.R66).
+	DecisionSource string
+}
+
+// decisionStage is the step as a decision-only visit sees it: the owner judges
+// the accepted room result and produces no outputs of its own.
+func decisionStage(stage Stage) Stage {
+	stage.Coordination, stage.DedicatedRole = "", ""
+	stage.Outputs = []StageOutput{}
+	return stage
+}
+
+// roomDecisionContinuation tells the owner what a decision-only visit is for.
+func roomDecisionContinuation(stage Stage, roomTaskID string) string {
+	return fmt.Sprintf("Step %q ran as a Think Tank room and its judge synthesis was accepted as task %s (listed under prior accepted results). This is a decision-only assignment: do not redo the room's work. Report success with pipeline_decision: the next step, complete with required_checks (task %s is evidence for step %q), or needs_input with a question only the person can answer.",
+		stage.ID, roomTaskID, roomTaskID, stage.ID)
 }
 
 // executeStageDecision runs exactly the decision recorded with the settled
@@ -38,17 +55,16 @@ func (m *Manager) executeStageDecision(run state.PipelineRunRecord, detail RunDe
 	}
 	if decision == nil {
 		if current.RoomID != "" {
-			// A room's synthesis carries no owner judgment; the usual plan
-			// continues, and the plan's end completes on accepted evidence.
+			// A room's synthesis carries no owner judgment: after cleanup and
+			// any approval, one decision-only owner visit decides what follows,
+			// retaining the synthesis without rerunning the room. Its
+			// replay-safe creation moves the cursor off the room (TS-09.R66).
 			if task.Outcome != state.OutcomeSuccess {
 				return m.pauseRun(run, stage.ID, task.Outcome, "")
 			}
-			if current.StageIndex+1 < len(detail.Template.Stages) {
-				return m.createVisit(run, detail, current, detail.Template.Stages[current.StageIndex+1], visitOptions{})
-			}
-			return m.completeRun(run, detail, current, stage, nil)
+			return m.createVisit(run, detail, current, stage, visitOptions{DecisionSource: current.TaskID, Continuation: roomDecisionContinuation(stage, current.TaskID)})
 		}
-		return m.createVisit(run, detail, current, stage, visitOptions{ChargeRound: true, Continuation: recoveryContinuation(run, stage, task)})
+		return m.createVisit(run, detail, current, stage, visitOptions{ChargeRound: true, Continuation: recoveryContinuation(run, stage, task), DecisionSource: current.DecisionSourceTaskID})
 	}
 	switch decision.Action {
 	case state.DecisionNext:
@@ -78,20 +94,11 @@ func recoveryContinuation(run state.PipelineRunRecord, stage Stage, task state.T
 		stage.ID, task.Outcome, task.OutcomeSummary, run.RecoveryRoundsUsed+1, state.PipelineRecoveryRounds), MaxValueRunes)
 }
 
-// completeRun ends the run successfully. Required evidence was validated with
-// the report; approvals are checked here because an approval gate may commit
-// after the report that made it actionable (TS-09.R68).
-//
-// A room at the plan's end has no owner report, so nil checks take the latest
-// accepted evidence for each required step instead.
+// completeRun ends the run successfully on the owner's recorded completion.
+// Required evidence was validated with the report; approvals are checked here
+// because an approval gate may commit after the report that made it
+// actionable (TS-09.R68).
 func (m *Manager) completeRun(run state.PipelineRunRecord, detail RunDetail, current state.PipelineStageTask, stage Stage, checks map[string]string) error {
-	if checks == nil {
-		evidence, err := m.store.RequiredCheckEvidence(run.RunID)
-		if err != nil {
-			return err
-		}
-		checks = evidence
-	}
 	for _, step := range detail.Template.Stages {
 		if !step.ApprovalAfterSuccess && !step.RequiredForCompletion {
 			continue
@@ -145,6 +152,9 @@ func (m *Manager) createVisit(run state.PipelineRunRecord, detail RunDetail, cur
 	if index < 0 {
 		return controlError("invalid_state", "step "+next.ID+" is missing")
 	}
+	if opts.DecisionSource != "" {
+		next = decisionStage(next)
+	}
 	attempt, err := m.store.NextPipelineStageAttempt(run.RunID, index)
 	if err != nil {
 		return err
@@ -179,6 +189,7 @@ func (m *Manager) createVisit(run state.PipelineRunRecord, detail RunDetail, cur
 		RunID: run.RunID, ExpectedRevision: run.Revision, StageIndex: index,
 		AttemptNumber: attempt, StageID: next.ID, AssignmentDigest: digest, ParentTaskID: current.TaskID,
 		OutputValues: stageOutputValues(next), Coordinator: coordinator, ChargeRound: opts.ChargeRound, RenewAllowance: opts.RenewAllowance,
+		DecisionSourceTaskID: opts.DecisionSource,
 		Task: state.Task{
 			TaskID: taskID, Project: run.Project, DisplayName: next.Title, Instruction: instruction,
 			TargetKind: targetKind, TargetAgentID: standing, Role: detail.Template.OrchestratorRole,

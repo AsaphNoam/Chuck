@@ -582,7 +582,8 @@ unchanged by them.
   Reuse TS-14's 2–32 participants, ceilings 1–1,000, request/output and per-room concurrency bounds;
   pipeline metadata obeys existing template/title/value limits. Stage context is bounded to 256 KiB
   encoded UTF-8, admitted before capture; known input/goal/objective overflow rejects Start, and
-  produced values needed by a later room are checked before accepting the producing stage's result.
+  produced values needed by a later room are checked before accepting the producing stage's result
+  (since R67, only for the room the result routes to).
   Never silently truncate required stage context or synthesis. Judge submission must satisfy both
   the room 64 KiB reply and pipeline 64,000-rune named-value limit before staging; a typed refusal
   names the field and permits correction. Room completion adds no automatic model retry.
@@ -735,8 +736,9 @@ task-backed controller; do not add a second executor for simple sequences.
   (unique per run, allocated in the inserting transaction) and `pipeline_runs.current_task_id`,
   backfilled in stage/attempt order; the cursor, assignee/accepted-report reads, room-teardown
   capture and the run timeline use visit order, the run detail projects `visit_sequence`, and
-  `NextPipelineStageAttempt` allocates a revisit's attempt. Routing that creates revisits and
-  per-activation frozen input references remain planned with R66/R68.
+  `NextPipelineStageAttempt` allocates a revisit's attempt. Routing that creates revisits shipped
+  with R66/R68; per-activation frozen input references and selected-destination validation
+  shipped with the GOAL-LED fixes (§5).
 - **R68 (shipped 2026-10-30) — Retain transactional authority and closure.** Validate caller, generation,
   execution handle, current task/run revision, decision shape, destination and required evidence in
   report acceptance. Commit result, outputs, decision and closure intent before success or external
@@ -981,10 +983,14 @@ new durable run revision or a structured validation/conflict result.
   `recovery_rounds_used`/`recovery_limit`/`pause_question`, and a Continue control naming
   approval, answer or resume; desktop and phone run pages and `chuck pipeline run continue` help
   match; a question pause's notification names the question.
-  **Deviation (review):** a room-backed stage's accepted synthesis has no owner decision yet; it
-  takes the usual next step, and a room at the plan's end completes on the latest accepted evidence
-  for each required step (pausing `required_check_missing` otherwise) instead of R66's owner
-  decision assignment.
+  GOAL-LED fixes (2026-10-30): an accepted room synthesis, after cleanup and any approval, creates
+  one decision-only owner visit (`pipeline_stage_tasks.decision_source_task_id`, migration 68)
+  with an empty output contract; it cannot be required-check evidence, and its recovery, answer,
+  resume and replacement stay decision-only. Acceptance validates only the selected `next`
+  destination (`validateDestinationTx`): its required inputs must have produced values and a room
+  destination's context must fit; completion and unselected rooms are not checked, and the judge
+  turn no longer checks later rooms. Every activation records `input_refs_json` (value key, source
+  kind, producing task/room), copied by replacement and projected as `input_refs`.
 
 - **Goal-led redesign confirmed (2026-10-30):** R66–R72 are planned. Useful existing-orchestrator
   judgment plus programmatic control, the decision-in-existing-report contract, automatic visibly

@@ -1289,9 +1289,9 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   evidence refusals), visit migration tests (A68), `TestPromptToWaitingAssigneeIsDeliveredByContinuation`
   and `TestWakingMailUsesWaitingAssignmentContinuation` (A64 text/retry/restart/cancel),
   `TestStalledOwnerIsContinuedThenPaused`, `TestRestartInterruptedStageRecoversAutomatically` (A65),
-  RunBrowser/RunScreen/Composer tests. **Deviation:** a Think Tank stage's synthesis takes the usual
-  next step without an owner decision assignment, and a room at the plan's end completes on the
-  latest accepted required evidence. **Owed:** A61's run-start-to-notification browser journey, A64's
+  RunBrowser/RunScreen/Composer tests. A Think Tank stage's synthesis goes to a decision-only owner
+  visit (`TestFinalRoomSynthesisWaitsForTheOwnersDecision`); only the selected destination's
+  inputs/room context are validated (`TestDecisionValidatesOnlyTheSelectedDestination`). **Owed:** A61's run-start-to-notification browser journey, A64's
   attachment variant and live desktop/phone composer check, A67's invocation-reason capture, and
   A68's packaged Claude/Codex replacement probe.
 - **Goal-led pipeline redesign confirmed (2026-10-30):** R97–R103/A61–A68 are planned.

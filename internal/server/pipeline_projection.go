@@ -49,9 +49,13 @@ type pipelineStageTaskDetail struct {
 	Cleanup         *pipelineStageCleanup     `json:"cleanup,omitempty"`
 	// Decision is the run owner's recorded choice for this visit, with its
 	// reason (FS-14.R103, TS-09.R71).
-	Decision  *state.PipelineDecision `json:"decision,omitempty"`
-	CreatedAt time.Time               `json:"created_at"`
-	UpdatedAt time.Time               `json:"updated_at"`
+	Decision *state.PipelineDecision `json:"decision,omitempty"`
+	// DecisionSourceTaskID marks a decision-only owner visit about that room
+	// result; InputRefs is the evidence this activation read (TS-09.R66/R67).
+	DecisionSourceTaskID string                   `json:"decision_source_task_id,omitempty"`
+	InputRefs            []state.PipelineInputRef `json:"input_refs"`
+	CreatedAt            time.Time                `json:"created_at"`
+	UpdatedAt            time.Time                `json:"updated_at"`
 }
 
 // pipelineStageCleanup is the bounded, in-vocabulary view of a stage task's
@@ -217,7 +221,7 @@ func (s *Server) pipelineTaskRunProjection(detail pipeline.RunDetail) ([]pipelin
 			}
 			work = filtered
 		}
-		item := pipelineStageTaskDetail{TaskID: task.TaskID, RunID: stage.RunID, StageID: stage.StageID, StageIndex: stage.StageIndex, AttemptNumber: stage.AttemptNumber, VisitSequence: stage.VisitSequence, State: task.State, AssignmentText: task.Instruction, ExecutionKind: stage.ExecutionKind, StandingOwner: owner, Work: work, Cleanup: stageCleanupDetail(task), CreatedAt: stage.CreatedAt, UpdatedAt: task.UpdatedAt}
+		item := pipelineStageTaskDetail{TaskID: task.TaskID, RunID: stage.RunID, StageID: stage.StageID, StageIndex: stage.StageIndex, AttemptNumber: stage.AttemptNumber, VisitSequence: stage.VisitSequence, State: task.State, AssignmentText: task.Instruction, ExecutionKind: stage.ExecutionKind, StandingOwner: owner, Work: work, Cleanup: stageCleanupDetail(task), DecisionSourceTaskID: stage.DecisionSourceTaskID, InputRefs: stage.InputRefs, CreatedAt: stage.CreatedAt, UpdatedAt: task.UpdatedAt}
 		if stage.RoomID != "" {
 			// One room projection shared with Tasks (TS-10.R38, INV §2).
 			projected := taskDetailResponse{Task: task}

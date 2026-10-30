@@ -151,9 +151,13 @@ func resolveStageDecisionTx(tx *sql.Tx, runID, taskID, templateJSON string, stag
 		if len(decision.RequiredChecks) > MaxPipelineSteps {
 			return nil, decisionRefusal("required_checks may name at most %d steps", MaxPipelineSteps)
 		}
-		var currentStage string
-		if err := tx.QueryRow(`SELECT stage_id FROM pipeline_stage_tasks WHERE task_id = ?`, taskID).Scan(&currentStage); err != nil {
+		var currentStage, decisionSource string
+		if err := tx.QueryRow(`SELECT stage_id, decision_source_task_id FROM pipeline_stage_tasks WHERE task_id = ?`, taskID).Scan(&currentStage, &decisionSource); err != nil {
 			return nil, fmt.Errorf("state: read current stage: %w", err)
+		}
+		if decisionSource != "" {
+			// A decision-only visit's own report is judgment, not evidence.
+			currentStage = ""
 		}
 		for stageID, sourceTaskID := range decision.RequiredChecks {
 			if _, ok := byID[stageID]; !ok {
@@ -181,13 +185,13 @@ func resolveStageDecisionTx(tx *sql.Tx, runID, taskID, templateJSON string, stag
 func checkEvidenceTx(tx *sql.Tx, runID, currentTaskID, currentStage, stageID, sourceTaskID string) error {
 	if sourceTaskID == currentTaskID {
 		if currentStage != stageID {
-			return decisionRefusal("required_checks.%s names the current task, which is step %q", stageID, currentStage)
+			return decisionRefusal("required_checks.%s names the current task, which is not that step's work", stageID)
 		}
 		return nil
 	}
 	var outcome string
 	err := tx.QueryRow(`SELECT COALESCE(t.outcome, '') FROM pipeline_stage_tasks p JOIN tasks t ON t.task_id = p.task_id
-WHERE p.run_id = ? AND p.stage_id = ? AND p.task_id = ? AND t.state = ?`, runID, stageID, sourceTaskID, TaskFinished).Scan(&outcome)
+WHERE p.run_id = ? AND p.stage_id = ? AND p.task_id = ? AND t.state = ? AND p.decision_source_task_id = ''`, runID, stageID, sourceTaskID, TaskFinished).Scan(&outcome)
 	if errors.Is(err, sql.ErrNoRows) {
 		return decisionRefusal("required_checks.%s must name a finished %q task of this run; %q is not one", stageID, stageID, sourceTaskID)
 	}
@@ -209,6 +213,9 @@ type PipelineAssignment struct {
 	Steps          []PipelineStep    `json:"steps"`
 	RequiredChecks map[string]string `json:"required_checks"`
 	Recovery       PipelineRecovery  `json:"recovery"`
+	// DecisionSourceTaskID names the accepted room result this decision-only
+	// assignment decides about; it reports a decision and no outputs.
+	DecisionSourceTaskID string `json:"decision_source_task_id,omitempty"`
 }
 
 // PipelineRecovery is the run's automatic repair/revisit allowance.
@@ -224,9 +231,9 @@ type PipelineRecovery struct {
 func (s *Store) PipelineAssignmentContext(taskID string) (PipelineAssignment, error) {
 	var a PipelineAssignment
 	var templateJSON, attention string
-	err := s.db.QueryRow(`SELECT p.run_id, p.visit_sequence, p.stage_id, r.template_snapshot_json, r.recovery_rounds_used, r.attention_reason
+	err := s.db.QueryRow(`SELECT p.run_id, p.visit_sequence, p.stage_id, r.template_snapshot_json, r.recovery_rounds_used, r.attention_reason, p.decision_source_task_id
 FROM pipeline_stage_tasks p JOIN pipeline_runs r ON r.run_id = p.run_id WHERE p.task_id = ? AND p.execution_kind = ?`, taskID, StageExecutionAgent).
-		Scan(&a.RunID, &a.VisitSequence, &a.CurrentStageID, &templateJSON, &a.Recovery.Used, &attention)
+		Scan(&a.RunID, &a.VisitSequence, &a.CurrentStageID, &templateJSON, &a.Recovery.Used, &attention, &a.DecisionSourceTaskID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return PipelineAssignment{}, ErrNotFound
 	}
@@ -271,7 +278,7 @@ func (s *Store) requiredEvidence(runID string, steps []PipelineStep) (map[string
 		}
 		var source string
 		err := s.db.QueryRow(`SELECT p.task_id FROM pipeline_stage_tasks p JOIN tasks t ON t.task_id = p.task_id
-WHERE p.run_id = ? AND p.stage_id = ? AND t.state = ? AND t.outcome = ? ORDER BY p.visit_sequence DESC LIMIT 1`, runID, st.ID, TaskFinished, OutcomeSuccess).Scan(&source)
+WHERE p.run_id = ? AND p.stage_id = ? AND t.state = ? AND t.outcome = ? AND p.decision_source_task_id = '' ORDER BY p.visit_sequence DESC LIMIT 1`, runID, st.ID, TaskFinished, OutcomeSuccess).Scan(&source)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("state: read required check evidence: %w", err)
 		}

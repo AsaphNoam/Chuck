@@ -316,12 +316,10 @@ func (s *Store) StageThinkTankTurn(callerAgentID, token, disposition, message, r
 		return ThinkTankAttempt{}, thinkTankInvalid("disposition must be reply, pass, leave or decline_closing")
 	}
 	if a.Turn == ThinkTankTurnJudge && disposition == ThinkTankReply {
-		var runID, templateJSON, outputJSON string
-		var stageIndex int
-		err := tx.QueryRow(`SELECT p.run_id, p.stage_index, r.template_snapshot_json, p.output_values_json
-FROM pipeline_stage_tasks p JOIN pipeline_runs r ON r.run_id = p.run_id
-WHERE p.room_id = ? AND p.state = 'open'`, a.RoomID).
-			Scan(&runID, &stageIndex, &templateJSON, &outputJSON)
+		// The run owner chooses the room's destination afterwards, so a later
+		// room's context is checked with that decision, not here (TS-09.R67).
+		var outputJSON string
+		err := tx.QueryRow(`SELECT p.output_values_json FROM pipeline_stage_tasks p WHERE p.room_id = ? AND p.state = 'open'`, a.RoomID).Scan(&outputJSON)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return ThinkTankAttempt{}, fmt.Errorf("state: read judge pipeline context: %w", err)
 		}
@@ -332,16 +330,6 @@ WHERE p.room_id = ? AND p.state = 'open'`, a.RoomID).
 			}
 			if len(declared) != 1 {
 				return ThinkTankAttempt{}, thinkTankInvalid("pipeline judge must produce one named output")
-			}
-			outputs := map[string]string{}
-			for name := range declared {
-				outputs[name] = message
-			}
-			if err := validateProspectiveRoomContextsTx(tx, runID, stageIndex, templateJSON, declared, outputs); err != nil {
-				if errors.Is(err, ErrThinkTankOutputRefused) {
-					return ThinkTankAttempt{}, thinkTankInvalid("%s; shorten the synthesis and submit again", strings.TrimPrefix(err.Error(), ErrThinkTankOutputRefused.Error()+": "))
-				}
-				return ThinkTankAttempt{}, err
 			}
 		}
 	}

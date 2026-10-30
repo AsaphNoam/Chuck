@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -145,6 +146,38 @@ func TestCompletionRequiresAcceptedEvidenceForEveryRequiredCheck(t *testing.T) {
 	}
 	if d, err := st.StageDecision(reviewID); err != nil || d.Action != DecisionComplete || d.RequiredChecks["review"] != reviewID {
 		t.Fatalf("completion decision = %+v %v", d, err)
+	}
+}
+
+// TS-09.R67/R68 — only the selected destination is validated: routing past the
+// producer of a required input is a correctable refusal, while an oversized
+// output that only an unselected room would read does not block completion.
+func TestDecisionValidatesOnlyTheSelectedDestination(t *testing.T) {
+	st, _ := newTestStore(t)
+	runID, _ := st.NewPipelineRunID()
+	workID, _ := st.NewTaskID()
+	now := time.Now().UTC()
+	snapshot := `{"version":2,"stages":[{"id":"work","title":"Work","objective":"build","outputs":[{"name":"draft","value":"draft"}]},` +
+		`{"id":"review","title":"Review","objective":"check","outputs":[{"name":"verdict","value":"verdict"}]},` +
+		`{"id":"publish","title":"Publish","objective":"publish","inputs":[{"name":"verdict","value":"verdict","required":true}]},` +
+		`{"id":"room","title":"Room","objective":"choose","coordination":"think_tank","inputs":[{"name":"draft","value":"draft"}],"outputs":[{"name":"answer","value":"answer"}]}]}`
+	if _, _, err := st.CreatePipelineRun(CreatePipelineRunParams{Run: PipelineRunRecord{
+		RunID: runID, TemplateID: "dest", TemplateSnapshot: json.RawMessage(snapshot), DisplayName: "Dest", Project: "proj", Goal: "ship",
+		Inputs: json.RawMessage(`{}`), Assignments: json.RawMessage(`{}`), State: "queued", Revision: 1, CurrentStageID: "work", CreatedAt: now, UpdatedAt: now,
+	}, RequestID: "dest", RequestHash: "dest", InitialStageTask: &CreatePipelineStageTaskParams{
+		RunID: runID, ExpectedRevision: 1, StageIndex: 0, AttemptNumber: 1, StageID: "work", OutputValues: map[string]string{"draft": "draft"},
+		Task: Task{TaskID: workID, Project: "proj", DisplayName: "Work", Instruction: "work", TargetKind: TargetLaunch, Role: "orchestrator", CreatedByKind: "pipeline"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	runVisit(t, st, workID)
+	oversized := map[string]string{"draft": strings.Repeat("<", 44000)}
+	assertRefused(t, st, workID, report(st, runID, workID, TaskResult{Outcome: OutcomeSuccess, Summary: "built", Outputs: oversized, Decision: &PipelineDecision{Action: DecisionNext, StageID: "publish", Reason: "skip review"}}), "required input never produced")
+	if err := report(st, runID, workID, TaskResult{Outcome: OutcomeSuccess, Summary: "built", Outputs: oversized, Decision: &PipelineDecision{Action: DecisionNext, StageID: "room", Reason: "debate"}}); !errors.Is(err, ErrThinkTankOutputRefused) {
+		t.Fatalf("selected oversized room error = %v, want ErrThinkTankOutputRefused", err)
+	}
+	if err := report(st, runID, workID, TaskResult{Outcome: OutcomeSuccess, Summary: "built", Outputs: oversized, Decision: &PipelineDecision{Action: DecisionComplete, Reason: "the optional room is unnecessary"}}); err != nil {
+		t.Fatalf("completion rejected because of an unselected room: %v", err)
 	}
 }
 

@@ -48,9 +48,10 @@ func mixedRoomFixture(t *testing.T, approval bool) (*Manager, *fakeLifecycle, Ru
 	return manager, lifecycle, detail
 }
 
-// FS-14.A52 — a room synthesis used by another room is checked before the
-// first room's immutable success/result/value can be installed.
-func TestRoomProducerOverflowStaysUnaccepted(t *testing.T) {
+// FS-14.A52, TS-09.R67 — a room synthesis too large for a later room's context
+// is accepted as this room's result; routing to that room is the correctable
+// refusal, and the owner can choose another step.
+func TestRoomOutputOverflowRefusesOnlyTheSelectedRoom(t *testing.T) {
 	manager, _, detail := mixedRoomFixture(t, false)
 	runID := detail.Run.RunID
 	finishOrdinaryStage(t, manager, runID, "a_owner", map[string]string{"options": "A or B"})
@@ -70,25 +71,35 @@ func TestRoomProducerOverflowStaysUnaccepted(t *testing.T) {
 	if err := manager.AcceptRoomOutput(context.Background(), runID); err != nil {
 		t.Fatal(err)
 	}
-	task, err := manager.store.ReadTask(room.TaskID)
-	if err != nil || task.State == state.TaskFinished || task.Outcome != "" || len(task.Outputs) != 0 {
-		t.Fatalf("oversized downstream context accepted room output: task=%+v err=%v", task, err)
+	if task, err := manager.store.ReadTask(room.TaskID); err != nil || task.Outcome != state.OutcomeSuccess {
+		t.Fatalf("room output = %+v err=%v", task, err)
 	}
-	values, err := manager.store.ListPipelineValues(runID)
-	if err != nil || hasValue(values, "decision") {
-		t.Fatalf("partial room value committed: values=%+v err=%v", values, err)
+	decide, _, _ := manager.currentStageTask(runID)
+	if decide.DecisionSourceTaskID != room.TaskID {
+		t.Fatalf("current visit = %+v, want the owner's decision", decide)
+	}
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_owner', assigned_generation = 'gen', execution_handle = 'ta_d' WHERE task_id = ?`, state.TaskRunning, decide.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	run, _ := manager.store.ReadPipelineRun(runID)
+	_, err = manager.store.AcceptPipelineStageTaskResult(decide.TaskID, "a_owner", "gen", "ta_d", run.Revision, state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "build it"})
+	if !errors.Is(err, state.ErrThinkTankOutputRefused) {
+		t.Fatalf("routing to the oversized room = %v, want a refusal", err)
+	}
+	if task, _ := manager.store.ReadTask(decide.TaskID); task.State != state.TaskRunning || task.Outcome != "" {
+		t.Fatalf("refused decision left the assignment unactionable: %+v", task)
 	}
 }
 
-func TestRoomJudgeCanCorrectDownstreamContextOverflowBeforePublication(t *testing.T) {
+// TS-09.R66/R68 — a final room's synthesis is evidence for the owner's
+// decision, never the run's completion by itself; the decision visit cannot
+// serve as the room's required evidence.
+func TestFinalRoomSynthesisWaitsForTheOwnersDecision(t *testing.T) {
 	manager, _, detail := mixedRoomFixture(t, false)
 	runID := detail.Run.RunID
-	finishOrdinaryStage(t, manager, runID, "a_owner", map[string]string{"options": "A or B"})
-	room, _, _ := manager.currentStageTask(runID)
 	template := detail.Template
-	template.Stages[2].Coordination = CoordinationThinkTank
-	template.Stages[2].Inputs = []StageInput{{Name: "decision", Value: "decision", Required: true}}
-	template.Stages[2].Outputs = []StageOutput{{Name: "final", Value: "final", Description: "Final"}}
+	template.Stages = template.Stages[:2]
+	template.Stages[1].RequiredForCompletion = true
 	raw, err := json.Marshal(template)
 	if err != nil {
 		t.Fatal(err)
@@ -96,45 +107,42 @@ func TestRoomJudgeCanCorrectDownstreamContextOverflowBeforePublication(t *testin
 	if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET template_snapshot_json = ? WHERE run_id = ?`, raw, runID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.store.DB().Exec(`UPDATE think_tanks SET phase = 'ended', judge_status = 'ready' WHERE room_id = ?`, room.RoomID); err != nil {
+	finishOrdinaryStage(t, manager, runID, "a_owner", map[string]string{"options": "implementation ready for review"})
+	room, _, _ := manager.currentStageTask(runID)
+	publishSynthesis(t, manager, room.RoomID, "Must fix: implementation loses user input. Repair and re-review required.")
+	if err := manager.AcceptRoomOutput(context.Background(), runID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.store.ReserveThinkTankJudge(room.RoomID, "judge", "Judge", "app"); err != nil {
+	if run := readRun(t, manager, runID); run.State == "completed" {
+		t.Fatalf("room synthesis completed the run: %+v", run)
+	}
+	decide, _, _ := manager.currentStageTask(runID)
+	if decide.DecisionSourceTaskID != room.TaskID {
+		t.Fatalf("current visit = %+v, want the owner's decision", decide)
+	}
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_owner', assigned_generation = 'gen', execution_handle = 'ta_d' WHERE task_id = ?`, state.TaskRunning, decide.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.store.MarkThinkTankJudgeLaunched(room.RoomID, "Judge", ""); err != nil {
+	finish := func(checks map[string]string) error {
+		run := readRun(t, manager, runID)
+		_, err := manager.store.AcceptPipelineStageTaskResult(decide.TaskID, "a_owner", "gen", "ta_d", run.Revision, state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "review passed", Decision: &state.PipelineDecision{Action: state.DecisionComplete, Reason: "review is clean", RequiredChecks: checks}})
+		return err
+	}
+	var refusal *state.DecisionError
+	if err := finish(map[string]string{"debate": decide.TaskID}); !errors.As(err, &refusal) {
+		t.Fatalf("decision visit as its own evidence = %v, want a refusal", err)
+	}
+	if err := finish(map[string]string{"debate": room.TaskID}); err != nil {
 		t.Fatal(err)
 	}
-	d, err := manager.store.ReadThinkTank(room.RoomID)
-	if err != nil {
+	if err := manager.store.CompleteTaskRelease(decide.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	a, err := manager.store.BeginThinkTankAttempt(state.ThinkTankBegin{RoomID: room.RoomID, Revision: d.Room.Revision,
-		AgentID: "judge", Turn: state.ThinkTankTurnJudge, Generation: "g", TurnID: "t1"})
-	if err != nil {
+	if err := manager.Reconcile(context.Background(), runID); err != nil {
 		t.Fatal(err)
 	}
-	cursor, receipt := "", ""
-	for {
-		page, err := manager.store.ReadThinkTankPage(state.ThinkTankReadRequest{CallerAgentID: "judge", Cursor: cursor})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if page.Complete {
-			receipt = page.ReadReceipt
-			break
-		}
-		cursor = page.NextCursor
-	}
-	if _, err := manager.store.StageThinkTankTurn("judge", a.Token, state.ThinkTankReply, strings.Repeat("<", 44000), receipt); !errors.Is(err, state.ErrThinkTankInvalid) || !strings.Contains(err.Error(), "output decision") {
-		t.Fatalf("oversized judge submission = %v", err)
-	}
-	d, err = manager.store.ReadThinkTank(room.RoomID)
-	if err != nil || d.Active == nil || d.Active.Disposition != "" || d.Active.Message != "" {
-		t.Fatalf("refused synthesis was staged: active=%+v err=%v", d.Active, err)
-	}
-	if _, err := manager.store.StageThinkTankTurn("judge", a.Token, state.ThinkTankReply, "Choose B", receipt); err != nil {
-		t.Fatalf("corrected same-turn synthesis: %v", err)
+	if run := readRun(t, manager, runID); run.State != "completed" || run.FinalOutcome != state.OutcomeSuccess {
+		t.Fatalf("run after the owner's completion = %+v", run)
 	}
 }
 
@@ -240,13 +248,28 @@ func TestMixedRoomStageAcceptsExactSynthesisOnce(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("decision values = %d", count)
 	}
+	// The standing owner decides what follows the synthesis in a decision-only
+	// visit, then its usual next step reuses the same owner (TS-09.R66).
 	stages, _ := manager.store.ListPipelineStageTasks(runID)
-	if len(stages) != 3 || stages[2].StageID != "build" {
+	if len(stages) != 3 || stages[2].StageID != "debate" || stages[2].DecisionSourceTaskID != room.TaskID || stages[2].RoomID != "" {
 		t.Fatalf("stages = %+v", stages)
 	}
-	build, _ := manager.store.ReadTask(stages[2].TaskID)
+	decide, _ := manager.store.ReadTask(stages[2].TaskID)
+	if decide.TargetKind != state.TargetAgent || decide.TargetAgentID != "a_owner" || !strings.Contains(decide.Instruction, "decision-only") {
+		t.Fatalf("decision visit did not go to the standing owner: %+v", decide)
+	}
+	finishOrdinaryStage(t, manager, runID, "a_owner", nil)
+	stages, _ = manager.store.ListPipelineStageTasks(runID)
+	if len(stages) != 4 || stages[3].StageID != "build" {
+		t.Fatalf("stages after decision = %+v", stages)
+	}
+	build, _ := manager.store.ReadTask(stages[3].TaskID)
 	if build.TargetKind != state.TargetAgent || build.TargetAgentID != "a_owner" {
 		t.Fatalf("build stage did not reuse the standing owner: %+v", build)
+	}
+	// The activation froze which accepted result its input came from.
+	if refs := stages[3].InputRefs; len(refs) != 1 || refs[0].Value != "decision" || refs[0].SourceTaskID != room.TaskID || refs[0].SourceRoomID != room.RoomID {
+		t.Fatalf("build input references = %+v", refs)
 	}
 	if len(lifecycle.launches) != 0 {
 		t.Fatalf("pipeline launched directly: %+v", lifecycle.launches)
@@ -266,6 +289,13 @@ func TestRoomStageApprovalWaitsAfterAcceptance(t *testing.T) {
 	run, _ := manager.store.ReadPipelineRun(runID)
 	if run.State != "paused" || run.PendingAction != "await_approval" {
 		t.Fatalf("run after accepted synthesis = %+v", run)
+	}
+	// Approval then hands the synthesis to the owner's decision visit.
+	if _, err := manager.Continue(context.Background(), runID, run.Revision, ""); err != nil {
+		t.Fatal(err)
+	}
+	if visit, _, _ := manager.currentStageTask(runID); visit.DecisionSourceTaskID != room.TaskID {
+		t.Fatalf("visit after approval = %+v, want the owner's decision about %s", visit, room.TaskID)
 	}
 }
 
