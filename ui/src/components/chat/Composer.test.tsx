@@ -6,7 +6,7 @@ import { http, HttpResponse } from "msw";
 import { Composer } from "./Composer";
 import { getChatDraft } from "./drafts";
 import { useHeldStore } from "../../store/heldStore";
-import { withdrawHeldMessage } from "../../lib/heldMessage";
+import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import type { AttachmentDescriptor } from "../../api/types";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { clearAttachmentDraftCacheForTests } from "./attachments";
@@ -511,6 +511,24 @@ describe("Composer queued follow-up and steering", () => {
     expect(ta.value).toBe("");
     expect(useHeldStore.getState().byAgent.a_1).toBeUndefined();
     expect(useTranscriptStore.getState().byAgent.a_1 ?? []).toHaveLength(0);
+  });
+
+  it("keeps queued assignment input visible from the prompt read, never in the transcript, until the read drops it (GOAL-LED-11)", async () => {
+    let queued: unknown[] = [];
+    server.use(
+      http.post("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "queued", after_seq: 0, request_id: "req-q" }, { status: 202 })),
+      http.get("/api/sessions/:id/prompt", () => HttpResponse.json({ agent_id: "a_1", text: "", after_seq: 0, queued })));
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    queued = [{ request_id: "req-q", text: "use opus for the fix", assignment_task_id: "task_1", attachments: [] }];
+    type(ta, "use opus for the fix");
+    fireEvent.keyDown(ta, { key: "Enter" });
+    expect(await screen.findByText("Queued for this assignment — delivered with its next turn")).toBeTruthy();
+    expect(await screen.findByText("use opus for the fix")).toBeTruthy();
+    expect(useTranscriptStore.getState().byAgent.a_1 ?? []).toHaveLength(0);
+    queued = [];
+    await readHeldRecovery("a_1");
+    await waitFor(() => expect(screen.queryByText("use opus for the fix")).toBeNull());
   });
 
   it("sends ordinary text with the stable draft request ID and uses the accepted ID in history", async () => {

@@ -9,6 +9,7 @@ import {
   usePipelineRuns,
 } from "../../api/pipelines";
 import type { PipelineRunDetail } from "../../schemas/pipeline";
+import { decisionOnlyLabel, evidenceVisits } from "../../lib/ownerDecision";
 import { RunWorkspace } from "./RunWorkspace";
 import { WorkspaceRemoveDialog } from "./WorkspaceRemoveDialog";
 
@@ -147,7 +148,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
       <section className="pipeline-timeline" data-slot="timeline">
         <div className="pipeline-timeline-heading"><div><p className="pipeline-eyebrow">Durable stage work</p><h3>{data.stage_tasks.length} task{data.stage_tasks.length === 1 ? "" : "s"}</h3></div><span>Oldest → newest</span></div>
         <ol>
-          {data.stage_tasks.map((item) => <StageTask key={item.task_id} task={item} title={stageTitles.get(item.stage_id) ?? item.stage_id} current={item.task_id === run.current_task_id} />)}
+          {data.stage_tasks.map((item) => <StageTask key={item.task_id} task={item} tasks={data.stage_tasks} titles={stageTitles} title={stageTitles.get(item.stage_id) ?? item.stage_id} current={item.task_id === run.current_task_id} />)}
         </ol>
       </section>
     </article>
@@ -174,17 +175,20 @@ function decisionLabel(decision: NonNullable<PipelineRunDetail["stage_tasks"][nu
   return `Next: ${decision.stage_id}`;
 }
 
-function StageTask({ task, title, current }: { task: PipelineRunDetail["stage_tasks"][number]; title: string; current: boolean }) {
+function StageTask({ task, tasks, titles, title, current }: { task: PipelineRunDetail["stage_tasks"][number]; tasks: PipelineRunDetail["stage_tasks"]; titles: Map<string, string>; title: string; current: boolean }) {
   const outcome = task.result?.outcome || task.state;
   const room = task.room;
-  return <li className={current ? "pipeline-timeline-item pipeline-timeline-current" : "pipeline-timeline-item"} data-slot="attempt">
+  const decisionOnly = decisionOnlyLabel(task, tasks);
+  const evidence = evidenceVisits(task, tasks, titles);
+  return <li id={`visit-${task.task_id}`} className={current ? "pipeline-timeline-item pipeline-timeline-current" : "pipeline-timeline-item"} data-slot="attempt">
     <span className="pipeline-timeline-line" aria-hidden="true" />
     <details open={current}>
       <summary><span className="pipeline-stage-number">{task.visit_sequence || task.stage_index + 1}</span><span className="pipeline-attempt-identity"><strong>{title}</strong><small>{room ? `Think Tank · ${roomPhaseLabel(task)}` : `${task.standing_owner.name || task.standing_owner.agent_id || "Standing owner"} · step ${task.stage_index + 1} · attempt ${task.attempt_number}`}</small></span><span className={`pipeline-state pipeline-state-${outcome}`}>{humanize(outcome)}</span><span className="pipeline-disclosure-chevron" aria-hidden="true">⌄</span></summary>
       <div className="pipeline-attempt-body">
         {room && <p className="pipeline-room-source"><Link to={`/think-tank/${room.room_id}`}>Open Think Tank room</Link>{room.source_entry_seq > 0 && <span> · Output is the judge's synthesis (room entry {room.source_entry_seq}). Completion means a synthesis was produced, not that participants agreed.</span>}</p>}
         {task.result?.summary ? <p className="pipeline-result-summary">{task.result.summary}</p> : <p className="pipeline-unreported">{room ? (task.attention_reason || "The room has not published a judge synthesis yet.") : current ? "The standing owner has not accepted a stage outcome yet." : "No stage outcome was recorded."}</p>}
-        {task.decision && !task.decision.implicit && <section><h4>Owner decision</h4><p>{decisionLabel(task.decision)}{task.decision.reason ? ` — ${task.decision.reason}` : ""}</p></section>}
+        {decisionOnly && <p className="pipeline-unreported">{decisionOnly}</p>}
+        {task.decision && !task.decision.implicit && <section><h4>Owner decision</h4><p>{decisionLabel(task.decision)}{task.decision.reason ? ` — ${task.decision.reason}` : ""}</p>{evidence.length > 0 && <ul aria-label="Evidence visits">{evidence.map((item) => <li key={item.taskId}>{item.stepTitle} → <a href={`#visit-${item.taskId}`}>{item.label}</a></li>)}</ul>}</section>}
         {task.coordinator && <section><h4>Coordinator report to standing owner</h4><p>{task.coordinator.report_summary || "No coordinator report recorded."}</p></section>}
         {task.result?.details && <section><h4>Result details</h4><pre>{task.result.details}</pre></section>}
         {Object.entries(task.result?.outputs ?? {}).map(([name, value]) => <section key={name}><h4>Output · {name}</h4><pre>{value}</pre></section>)}

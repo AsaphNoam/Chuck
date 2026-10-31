@@ -41,6 +41,7 @@ export async function readHeldRecovery(agentId: string): Promise<void> {
   try {
     const snapshot = await getHeldPrompt(agentId);
     useHeldStore.getState().setRecovery(agentId, snapshot.recovery ?? null);
+    useHeldStore.getState().setQueued(agentId, snapshot.queued ?? []);
   } catch {
     useHeldStore.getState().markRecoveryUnread(agentId);
   }

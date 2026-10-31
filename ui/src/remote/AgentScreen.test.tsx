@@ -310,6 +310,18 @@ describe("AgentScreen", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Stop this agent?" })).not.toBeInTheDocument());
   });
 
+  it("shows queued assignment input from the prompt read, not as a transcript message, until the read drops it (GOAL-LED-11)", async () => {
+    let queued = [{ request_id: "q1", text: "use opus for the fix", assignment_task_id: "task_1", attachments: [] }];
+    server.use(http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: "", after_seq: 0, queued })));
+    renderScreen();
+    expect(await screen.findByText("Queued for this assignment — delivered with its next turn")).toBeInTheDocument();
+    const entry = screen.getByText("use opus for the fix");
+    expect(entry.closest(".message, .phone-message, [data-ui='transcript']")).toBeNull();
+    queued = [];
+    act(() => useConnection.setState({ transcriptRev: { a1: 1 } }));
+    await waitFor(() => expect(screen.queryByText("use opus for the fix")).not.toBeInTheDocument());
+  });
+
   it("withdraw returns the held text to the message box (FS-03.A70)", async () => {
     let held = "rerun the linter";
     server.use(

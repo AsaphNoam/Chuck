@@ -2157,6 +2157,20 @@ a.agent-mini-card:focus-visible {
   margin: 0;
 }
 
+/* Input retained for the assignment's next turn; not a transcript row. */
+.composer-queued {
+  grid-column: 1 / -1;
+}
+
+.composer-queued ul {
+  list-style: none;
+  margin: var(--ad-space-1) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ad-space-1);
+  font-size: 0.85rem;
+}
+
 .terminal-readonly,
 .archive-readonly-label {
   color: var(--ad-text-muted);

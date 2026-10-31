@@ -191,7 +191,9 @@ export type SteerOutcome = "steered" | "new_turn";
 
 export type PromptResult = { accepted: true; agent_id: string; delivery: PromptDelivery; after_seq: number; held_id?: string; request_id?: string; attachments?: AttachmentDescriptor[]; attachment_delivery?: "held" | "queued" | "submitted" | "released" | "failed" | "unknown" };
 export type RecoveryPrompt = { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string };
-export type HeldPrompt = { agent_id: string; text: string; after_seq: number; held_id?: string; request_id?: string; attachments?: AttachmentDescriptor[]; recovery?: RecoveryPrompt };
+/** A person's message retained for the agent's assignment and not yet delivered (GOAL-LED-11). */
+export type QueuedPrompt = { request_id: string; text: string; assignment_task_id: string; attachments: AttachmentDescriptor[] };
+export type HeldPrompt = { agent_id: string; text: string; after_seq: number; held_id?: string; request_id?: string; attachments?: AttachmentDescriptor[]; recovery?: RecoveryPrompt; queued?: QueuedPrompt[] };
 export type WithdrawnPrompt = { accepted: true; agent_id: string; withdrawn: boolean; message?: { held_id?: string; text: string; attachments: AttachmentDescriptor[]; request_id?: string } };
 export type PromptFile = { name: string; blob: Blob };
 

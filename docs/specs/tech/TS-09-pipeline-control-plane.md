@@ -1005,7 +1005,10 @@ new durable run revision or a structured validation/conflict result.
   resume instructions create the new visit with the words in its continuation (attachments bound to
   that visit), while instructions to an interrupted visit are bound to it before it resumes. Approval
   checkpoints are never continued from conversation. `GET /api/sessions/{id}/prompt` returns the
-  conversation's retained `queued` input.
+  conversation's retained `queued` input, which desktop and phone chat list apart from the
+  transcript (`QueuedInput`) until a turn delivers it. Desktop and phone run timelines show each
+  visit's non-implicit decision with its required-check evidence as links/labels to the cited visit
+  numbers, and label decision-only visits (`ui/src/lib/ownerDecision.ts`).
 
 - **Goal-led redesign confirmed (2026-10-30):** R66–R72 are planned. Useful existing-orchestrator
   judgment plus programmatic control, the decision-in-existing-report contract, automatic visibly

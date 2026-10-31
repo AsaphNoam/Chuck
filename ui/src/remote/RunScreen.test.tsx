@@ -160,3 +160,21 @@ describe("RunScreen", () => {
     expect(screen.getByRole("button", { name: "Stop run" })).toBeDisabled();
   });
 });
+
+describe("RunScreen owner decisions", () => {
+  it("shows the decision, its older evidence visit, and the decision-only label", async () => {
+    const visit = (id: string, stage: string, index: number, seq: number, extra = {}) => ({ ...stageTask(id, stage, index, "completed", 1, `${id} done`), visit_sequence: seq, ...extra });
+    const stage_tasks = [
+      visit("t1", "work", 0, 1), visit("t2", "review", 1, 2), visit("t3", "work", 0, 3),
+      visit("t4", "review", 1, 4, { decision: { action: "complete", reason: "Work v1 verified", required_checks: { work: "t1" } } }),
+      visit("t5", "fix", 2, 5, { decision_source_task_id: "t4", decision: { action: "next", stage_id: "work", reason: "Rework" } }),
+    ];
+    server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, stage_tasks })));
+    renderScreen();
+    expect(await screen.findByText("Owner decision: Complete the run — Work v1 verified")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.tagName === "P" && el.textContent === "Evidence: Work → Visit 1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Visit 1" }).getAttribute("href")).toBe("#visit-t1");
+    expect(screen.getByText("Owner decision: Next: Work — Rework")).toBeInTheDocument();
+    expect(screen.getByText("Decision about room result, visit 4")).toBeInTheDocument();
+  });
+});

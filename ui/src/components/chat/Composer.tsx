@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { QUEUED_FOR_ASSIGNMENT_NOTICE, cancelTurn, sendPrompt, steerPrompt } from "../../api/client";
 import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
+import { QueuedInput } from "./QueuedInput";
 import { RunningTasks } from "./RunningTasks";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
@@ -11,6 +12,8 @@ import { useAutocomplete } from "./autocomplete";
 import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "./attachments";
 import { DraftAttachments } from "./AttachmentView";
 import type { AttachmentCapabilities } from "../../api/types";
+
+const NO_QUEUED: never[] = [];
 
 // Composer sends to one agent and owns its `@` file / `#` command picker through
 // the shared autocomplete hook (FS-03.R30–R34).
@@ -52,6 +55,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   const [sending, setSending] = useState(false);
   const [retry, setRetry] = useState<{ text: string; files: DraftAttachment[]; requestId: string; steer: boolean; revision: number; retryable?: boolean } | null>(null);
   const held = useHeldStore((state) => state.byAgent[agentId]);
+  const queuedInput = useHeldStore((state) => state.queuedByAgent[agentId]) ?? NO_QUEUED;
   const hold = useHeldStore((state) => state.hold);
   const releaseHeld = useHeldStore((state) => state.release);
   const append = useTranscriptStore((state) => state.appendMessage);
@@ -186,6 +190,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         if (steeringMessage) setNotice("Delivered into the running turn.");
         else if (queued) setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE);
       }
+      if (queued) void readHeldRecovery(agentId);
       void clearPendingAttachmentSend(agentId, requestId).catch(() => {
         if (currentAgentId.current === agentId) setAttachmentError("Message was sent, but its retry receipt could not be cleared from browser storage.");
       });
@@ -272,7 +277,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       // pending state is rendered from what happened rather than inferred from
       // agent status (TS-03.R38).
       if (result.delivery === "held") hold(agentId, prompt, result.after_seq, result.attachments ?? [], result.held_id);
-      else if (result.delivery === "queued") { if (currentAgentId.current === agentId) setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE); }
+      else if (result.delivery === "queued") { if (currentAgentId.current === agentId) setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE); void readHeldRecovery(agentId); }
       else if (!alreadyDelivered(agentId, prompt, beforeSeq, result.request_id ?? requestId)) append(agentId, { kind: "user_text", text: prompt, message_id: result.request_id ?? requestId });
       // Only clear the draft we actually sent; a newer same-agent draft survives.
       if (chatDraftRevision(agentId) === draftRev) discardChatDraft(agentId);
@@ -466,6 +471,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       {draggingFiles && <p className="composer-drop-hint" aria-live="polite">Drop files to attach</p>}
       {attachmentError && <p className="composer-error" role="alert">{attachmentError}</p>}
       {notice && <p className="composer-notice" role="status">{notice}</p>}
+      <QueuedInput agentId={agentId} queued={queuedInput} />
       {(error || capabilityError) && <p className="composer-error">{error || capabilityError}</p>}
     </form>
   );

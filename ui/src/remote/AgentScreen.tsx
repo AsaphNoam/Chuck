@@ -21,7 +21,9 @@ import {
   withdrawPrompt,
   updateAgentIdentity,
   QUEUED_FOR_ASSIGNMENT_NOTICE,
+  type QueuedPrompt,
 } from "../api/client";
+import { QueuedInput } from "../components/chat/QueuedInput";
 import type { AgentState, AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../api/types";
 import { useAnnotationStore } from "../store/annotationStore";
 import { useHeldStore } from "../store/heldStore";
@@ -771,6 +773,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   };
   const closeTray = () => { setTrayOpen(false); setFocusNewest(0); };
   const heldText = held.data && typeof held.data === "object" && "text" in held.data ? String((held.data as { text?: string }).text ?? "") : "";
+  const queuedInput = held.data && typeof held.data === "object" && Array.isArray((held.data as { queued?: unknown }).queued) ? (held.data as { queued: QueuedPrompt[] }).queued : [];
   const heldId = held.data && typeof held.data === "object" && "held_id" in held.data ? String((held.data as { held_id?: string }).held_id ?? "") : undefined;
   const heldRequestId = held.data && typeof held.data === "object" && "request_id" in held.data ? String((held.data as { request_id?: string }).request_id ?? "") : "";
   const heldAttachments = held.data && typeof held.data === "object" && Array.isArray((held.data as { attachments?: unknown }).attachments) ? (held.data as { attachments: AttachmentDescriptor[] }).attachments : [];
@@ -877,6 +880,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             {!offline && agent.running && agent.state === "busy" && <WorkingIndicator tool={currentToolLabel(events)} />}
           </div>
           {pending && <PermissionCard agent={agent} event={pending} latest={latest} disabled={offline} onSettled={refresh} />}
+          <QueuedInput agentId={agentId} queued={queuedInput} phone />
           {(heldText || heldAttachments.length > 0) && (
             <div className="phone-card">
               <p className="phone-card-kicker">Held until the current turn ends</p>

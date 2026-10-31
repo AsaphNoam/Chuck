@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { QueuedPrompt } from "../api/client";
 import type { AttachmentDescriptor } from "../api/types";
 
 // The queued follow-up (FS-03.R48) is live state on both sides. The runtime holds
@@ -23,6 +24,8 @@ interface HeldStoreState {
   release: (agentId: string) => void;
   setRecovery: (agentId: string, recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } | null) => void;
   markRecoveryUnread: (agentId: string) => void;
+  queuedByAgent: Record<string, QueuedPrompt[]>;
+  setQueued: (agentId: string, queued: QueuedPrompt[]) => void;
 }
 
 export const useHeldStore = create<HeldStoreState>((set) => ({
@@ -32,6 +35,8 @@ export const useHeldStore = create<HeldStoreState>((set) => ({
   attachmentsByAgent: {},
   recoveryByAgent: {},
   recoveryUnreadByAgent: {},
+  queuedByAgent: {},
+  setQueued: (agentId, queued) => set((state) => ({ queuedByAgent: { ...state.queuedByAgent, [agentId]: queued } })),
   hold: (agentId, text, afterSeq = 0, attachments = [], heldId = "") =>
     set((state) => ({
       byAgent: { ...state.byAgent, [agentId]: text },

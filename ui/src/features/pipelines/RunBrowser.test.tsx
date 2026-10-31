@@ -114,3 +114,18 @@ it("loads retained run pages to an exact complete-history state", async () => {
   expect(await screen.findByText("51 of 51 retained runs")).toBeInTheDocument();
 });
 import React from "react";
+
+it("shows the older successful visit a complete decision cites as evidence and labels decision-only visits", async () => {
+  const two = { ...template, stages: [...template.stages, { id: "review", title: "Review", objective: "Review.", coordination: "standing", inputs: [], outputs: [] }] };
+  const visit = (id: string, stage: string, index: number, seq: number, outcome: string, extra = {}) => ({ ...stageTask, task_id: id, stage_id: stage, stage_index: index, visit_sequence: seq, state: "finished", result: { outcome, summary: `${id} ${outcome}`, details: "", checks: "", outputs: {} }, ...extra });
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, template: two, run: { ...run, state: "completed", current_stage_id: "review", current_task_id: "t4" }, stage_tasks: [
+    visit("t1", "work", 0, 1, "success"), visit("t2", "review", 1, 2, "failure"), visit("t3", "work", 0, 3, "failure"),
+    visit("t4", "review", 1, 4, "success", { decision: { action: "complete", reason: "Work v1 verified", required_checks: { work: "t1" } } }),
+    visit("t5", "review", 1, 5, "success", { decision_source_task_id: "t4", decision: { action: "complete", reason: "Confirmed" } }),
+  ] })));
+  renderRun();
+  const link = await screen.findByRole("link", { name: "Visit 1" });
+  expect(link.getAttribute("href")).toBe("#visit-t1");
+  expect(link.parentElement?.textContent).toBe("Work → Visit 1");
+  expect(screen.getByText("Decision about room result, visit 4")).toBeInTheDocument();
+});

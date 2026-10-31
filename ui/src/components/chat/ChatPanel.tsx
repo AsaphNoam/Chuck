@@ -139,9 +139,10 @@ function AgentPanel({ id }: { id: string }) {
       if (snapshot.text || snapshot.attachments?.length) hold(id, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id);
       else releaseHeld(id);
       setRecovery(id, snapshot.recovery ?? null);
+      useHeldStore.getState().setQueued(id, snapshot.queued ?? []);
     }).catch(() => { /* SSE remains the primary agent-state path. */ });
     return () => { current = false; };
-  }, [agent?.running, agent?.interface, id, hold, releaseHeld, setRecovery]);
+  }, [agent?.running, agent?.state, agent?.interface, id, hold, releaseHeld, setRecovery]);
 
   // A held message stops being pending the moment the server actually sends it,
   // which is when it enters the durable transcript as an ordinary user prompt.

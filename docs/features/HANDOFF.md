@@ -26,9 +26,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
   frequent-429 field cause remains unmeasured (needs correlated request history if it recurs).
-- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); fix run in progress — GOAL-LED-1–10, 12 and 14
-  fixed; GOAL-LED-11/13 (queued-input and decision/evidence display) stay on the same unit below. Acceptance
-  evidence remains owed below.
+- **Goal-led pipelines:** reviewed 2026-10-30 (GOAL-LED); fix unit closed 2026-10-31 —
+  GOAL-LED-1–14 fixed. Acceptance evidence (A61/A64/A67/A68) remains owed below.
 - **Waiting-prompt investigation:** WAIT-PROMPT-1/2 are fixed by goal-led slice 1 (input to a
   waiting assignee is queued and carried by its continuation); WAIT-PROMPT-3 is fixed by coalescing
   phone streaming refresh signals into 250 ms windows. The investigation unit is closed.
@@ -338,54 +337,6 @@ Invariant sweep: §§8/10/13 apply and were assessed; §10 yields the inherited 
 above. §§1–7/9/11–12/14–17 have no applicable changed surface. Existing sanitizer, height bounds,
 and shared room/agent renderer wiring are retained. Other review/fix units remain unchanged.
 
-### GOAL-LED — Goal-led unattended pipelines (2026-10-30) — **Fix model:** difficult — Codex Sol.
-
-Reviewed implementation `715bbcb2^..af2c9495`, including surrounding callers, FS-14.R97–R103,
-TS-09.R66–R72, TS-10.R29/R35, changed persistence/API/chat requirements and test contracts.
-The same unit stays open for grouped fixes; product code and specifications were not changed.
-
-- **Must fix** — GOAL-LED-11 (P2): accepted queued input disappears from supervision until delivery.
-  `ui/src/components/chat/Composer.tsx:155–186` clears the draft without a held/transcript row;
-  only a transient notice remains. `internal/server/sessions.go:46–81` exposes runtime-held or
-  recovery input, and `internal/state/attachment_receipts.go:49` excludes prepared assignment
-  receipts. After navigation/restart, pending text and attachments cannot be inspected. Rehydrate
-  the durable queued state on desktop/phone without falsely adding delivered transcript events.
-  No data loss is established by this finding. TS-09.R69/R71; INV §8/§10. Fix complexity: medium.
-
-- **Must fix** — GOAL-LED-13 (P2): run supervision hides accepted decision/evidence provenance.
-  `ui/src/remote/RunScreen.tsx:84–95` omits task.decision entirely, hiding deviations and reasons.
-  `ui/src/features/pipelines/RunBrowser.tsx:187` shows action/reason but not required_checks;
-  neither view identifies the successful visit selected as completion evidence. Existing outputs
-  do not show that mapping when older successful evidence is selected after revisits. Independently
-  rendered completion fixtures confirmed both omissions. Expose the chosen decision and evidence
-  visits on desktop/phone with inspectable result links. FS-14.R103; TS-09.R71; INV §10/§11.
-  Fix complexity: trivial/easy.
-
-Review evidence: eight external regression probes exposed room false completion, controller
-exhaustion, missing selected input, unselected-room rejection, replacement attachment loss,
-startup exhaustion, retry input release and conversation-answer non-continuation. Temporary Go
-overlay and probe sources are saved in shared project resources (`goal-led-review-all-overlay.json`);
-the parent reran all eight together and confirmed the expected failures in
-`goal-led-review-regressions.log`. `make check-specs` and `git diff --check` pass.
-temporary originals remain at `/tmp/goal-led-review-overlay.json` and
-`/private/tmp/goal_led_review_overlay.json`. Existing focused decision/visit tests pass; fresh full
-pipeline/state/server/messaging/runtime package tests pass (server/messaging required approved
-loopback execution; the initial sandbox bind failure was environmental). Delegated UI checks:
-68/68 focused tests; the existing rendered harness
-passes 120 checks in all appearances at 1024/1440. Additional interrupted/completed desktop 1024
-and phone 390 fixtures in Core/Sky & Grove reproduce GOAL-LED-12/13 with no overflow; parent
-inspected the phone refusal screenshot. Evidence `/private/tmp/goal-led-surface-probe.mjs`,
-`/tmp/goal-led-surfaces-render/`, `/tmp/goal-led-{phone,desktop}-*-{interrupted,completed}.png`.
-No live-provider, physical-phone or full run-start-to-notification acceptance is claimed; existing
-A61/A64/A67/A68 gates remain open. Existing tests use useful real store/controller/HTTP boundaries
-but their happy paths do not establish these missing contracts (TS-06.R35; INV §17).
-
-Invariant sweep: §§1/2/3/4/5/7/8/9/10/11/13/14/15/16/17 have applicable lifecycle, persistence,
-receipt, protocol, UI, handler or test surfaces and were assessed; findings are tagged above.
-§6 has no new runtime/interface, and §12 has no new external CLI invocation/flag surface.
-No independent violation found in applicable §§3/4/5/7/13/14. The interrupted-input refusal and
-room deviation are implementation choices requiring correction above, not accepted spec exceptions.
-
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
@@ -411,6 +362,17 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-31 — Fixed GOAL-LED-11/13 (INV §8/§10/§11):** accepted queued assignment input is
+  rehydrated from `GET .../prompt` `queued` and listed apart from the transcript (`QueuedInput`) on
+  desktop and phone until a turn delivers it; desktop re-reads on agent state change. Desktop and
+  phone run timelines show each non-implicit owner decision with its required-check evidence linked
+  to the cited visit, and label decision-only room visits (`ui/src/lib/ownerDecision.ts`).
+  TS-09.R71 note updated. Regressions in `Composer`, `AgentScreen`, `RunBrowser`, `RunScreen` tests
+  (176 focused pass). Closure: `make check-specs` ok; full UI 1126/1126 (two earlier runs hit only
+  the known CardGrid composer-label flake; HEAD UI passed once), `npm run build`, `make embed`,
+  `git diff --check` pass. Logs `/tmp/goalled-*.log`. Unit GOAL-LED closed; A61/A64/A67/A68
+  acceptance stays owed.
 
 - **2026-10-31 — Reviewed background-task card count:** BGRUN-COUNT-1 records a confirmed
   stale-count overwrite when task completion overlaps a prompt/activation status write. Independent

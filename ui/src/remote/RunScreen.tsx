@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { continuePipelineRun, getPipelineRun, repairPipelineCleanup, replacePipelineOrchestrator, retryPipelineRun, stopPipelineRun } from "../api/pipelines";
 import type { PipelineRuntimeAssignment as RuntimeAssignment } from "../schemas/pipeline";
+import { decisionOnlyLabel, evidenceVisits } from "../lib/ownerDecision";
 import { getRuntimeOptions } from "./api";
 import { useConnection } from "./connection";
 import { navigate } from "./router";
@@ -85,12 +86,18 @@ export function RunScreen({ runId }: { runId: string }) {
         const outcome = task.result?.outcome || task.state;
         const title = stageTitles.get(task.stage_id) || task.stage_id;
         const current = task.task_id === currentTask?.task_id;
-        return <li key={task.task_id} data-current={current || undefined} data-tone={runTone(outcome)}>
+        return <li key={task.task_id} id={`visit-${task.task_id}`} data-current={current || undefined} data-tone={runTone(outcome)}>
           <span className="phone-timeline-marker"><PhoneIcon name={outcome === "completed" || outcome === "success" ? "check" : "pipeline"} size={15} /></span>
           <div className="phone-timeline-content">
             <div className="phone-timeline-heading"><strong>{title}</strong><span className="phone-status" data-tone={runTone(outcome)}>{humanize(outcome)}</span></div>
             <p className="phone-meta">Visit {task.visit_sequence || task.stage_index + 1} · Step {task.stage_index + 1} · Attempt {task.attempt_number}{task.room ? " · Think Tank" : task.standing_owner.name ? ` · ${task.standing_owner.name}` : ""}</p>
             {task.result?.summary ? <p>{task.result.summary}</p> : <p className="phone-meta">{task.room ? (task.attention_reason || "The room has not published a judge synthesis yet.") : current ? "The stage has not reported an outcome yet." : "No outcome was recorded."}</p>}
+            {decisionOnlyLabel(task, stageTasks) && <p className="phone-meta">{decisionOnlyLabel(task, stageTasks)}</p>}
+            {task.decision && !task.decision.implicit && <div className="phone-meta">
+              <p>Owner decision: {task.decision.action === "complete" ? "Complete the run" : task.decision.action === "needs_input" ? "Needs input" : `Next: ${stageTitles.get(task.decision.stage_id) || task.decision.stage_id}`}{task.decision.reason ? ` — ${task.decision.reason}` : ""}</p>
+              {task.decision.question && <p>Question: {task.decision.question}</p>}
+              {evidenceVisits(task, stageTasks, stageTitles).map((item) => <p key={item.taskId}>Evidence: {item.stepTitle} → <a href={`#visit-${item.taskId}`}>{item.label}</a></p>)}
+            </div>}
           </div>
         </li>;
       })}</ol> : <p className="phone-meta">No stage attempts have been recorded yet.</p>}
