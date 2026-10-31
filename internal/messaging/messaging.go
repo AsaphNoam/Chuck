@@ -332,8 +332,10 @@ func New(store *state.Store, log *slog.Logger) *Server {
 		return s.mcp
 	}, nil)
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get(TokenHeader)
+		opened, _ := s.LookupSession(token)
 		transport.ServeHTTP(w, r)
-		s.trackMCPSession(r.Header.Get(TokenHeader), w.Header().Get(mcpSessionHeader))
+		s.trackMCPSession(token, opened, w.Header().Get(mcpSessionHeader))
 	})
 
 	return s
@@ -347,16 +349,23 @@ func (s *Server) Handler() http.Handler { return s.handler }
 // trackMCPSession binds a transport session to the launch token that opened
 // it, so Revoke can release it when a client exits without MCP DELETE (INV §4).
 // Unregistered tokens stay connected so their tool calls receive the
-// session_unknown result contract.
-func (s *Server) trackMCPSession(token, sessionID string) {
+// session_unknown result contract. opened is the registration seen when the
+// request arrived: if Revoke (or re-registration) replaced it while the SDK
+// was serving, the session belongs to a torn-down launch and is closed here.
+func (s *Server) trackMCPSession(token string, opened SessionIdentity, sessionID string) {
 	if sessionID == "" {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, registered := s.sessions[token]; !registered {
+	current, registered := s.sessions[token]
+	if !registered || (opened != (SessionIdentity{}) && current != opened) {
+		s.mu.Unlock()
+		if opened != (SessionIdentity{}) {
+			s.closeMCPSessions(map[string]struct{}{sessionID: {}})
+		}
 		return
 	}
+	defer s.mu.Unlock()
 	ids := s.mcpSessions[token]
 	if ids == nil {
 		ids = map[string]struct{}{}
