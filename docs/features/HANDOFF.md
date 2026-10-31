@@ -53,6 +53,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Phone Home, Sky & Grove wallpaper, composer Cancel:** review closed without findings
   2026-10-31 (`b388707f`, harness correction `1465e136`). Independent phone rendering and 75
   focused tests pass; evidence and invariant sweep are in the changelog below.
+- **Group launch defaults and command triggers:** GROUP-SKILL reviewed 2026-10-31;
+  one Must fix remains for independent file/command suggestion availability below.
 
 ## Active change
 
@@ -236,23 +238,47 @@ None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fi
   Pre-existing generated index saved as shared `pipelines-preexisting-index.html` before
   regenerating the embedded output from integrated source.
 
-- **GROUP-SKILL** (2026-10-29, UI): group-background New agent seeds the editable Group
-  field without leaking into later openings; `@` offers advertised commands alongside files
-  and room participants, while `/` and the existing `#` open commands. FS-02.R77/A58,
-  FS-03.R33/A17. Group regression failed before the fix and all 87 related focused tests
-  pass; composer (51) and Think Tank page (32) pass. Full UI suite: 1068 passed, 1 skipped;
-  UI styles, presentation contracts, type check and production build pass. The worktree's
-  dependency symlink caused TS2742; local dependency copies resolve it. Both edited feature
-  specs pass scoped checks; full spec check retains the pre-existing DELMSG-1 missing INV tag
-  failure. Merged into main; combined-checkout production build and `make -o ui embed` pass.
-  Generated index remains with the pre-existing dirty embedded UI owned by the concurrent
-  pipelines work; no pipelines source or handoff edits were committed with this unit.
-
 - **BGRUN-COUNT** (2026-10-27, small, Go + UI): live running background-task count —
   migration 63, `internal/runtime/{chat,tasks}.go` status writes, `internal/state` projection,
   `AgentCard` badge.
 
 ## Review findings
+
+### GROUP-SKILL — Group launch defaults and command triggers (2026-10-31) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed `e2dca41c` (integration record `698de146`) against FS-02.R77/A58,
+FS-03.R30–R33/A17 and FS-21.R35. The same unit stays open for the finding below.
+Product code and specifications unchanged.
+
+- **Must fix** — GROUP-SKILL-1 (P2): a slow suggestion source hides the other source's results.
+  `ui/src/components/chat/autocomplete.tsx:110–119` publishes `@` files and commands only after
+  `Promise.allSettled` completes both requests. A slow filesystem search hides commands that
+  have already returned successfully; a stalled command lookup likewise hides available files.
+  The picker misleadingly reads “No matching files or commands” while waiting. FS-03.R33
+  requires independent availability. Publish each completed source with the existing request
+  token protection and participant → file → command ordering. Add controlled deferred-response
+  cases in both directions, asserting the completed source is selectable before releasing the
+  other. INV §8/§10. Fix complexity: trivial/easy.
+
+Verification: 87 group/grid/launch tests and 85 composer/Think Tank tests pass in the integrated
+working tree (which includes concurrent Composer edits). A separate direct-hook/MSW probe holds
+file search pending, confirms the command response, and fails waiting for the command option;
+source, runner, instructions and failing output are retained in
+`/private/tmp/group-skill-review/`. Its independently controlled completion schedule proves the
+missing availability contract; existing tests cover settled success/refusal but miss this schedule
+(TS-06.R35; INV §17). Independent API-stubbed Chromium checks pass 29/29 in Core/Sky & Grove at
+1024/1440: named-group default, editing, Ungrouped/page-level reopening, command heading and exact
+insertion, no page overflow or exceptions. Parent inspected group-dialog and command-picker PNGs;
+harness `/private/tmp/group-skill-review.mjs`, captures/report in the evidence directory above.
+These establish UI behavior, not live provider adoption. Group scoping through the existing modal,
+the existing room participant qualification, and the shared autocomplete helper are sound local
+choices. `make check-specs` and `git diff --check` pass after concurrent BGRUN-UI closure.
+
+Invariant sweep: §§1/2/4/8/10/13/16/17 apply to opening/source lifecycle, shared construction,
+effect cleanup, feedback, wiring, markup, retained suggestion lists and tests; assessed with the
+finding tagged above. §§3/5/6/7/9/11/12/14/15 have no changed persisted configuration, concurrent
+claim, runtime/interface, record recovery, liveness, wire protocol, external CLI, HTTP security or
+transaction surface. Other review/fix units and concurrent edits are preserved.
 
 ### MMD-VIEW — File-viewer Mermaid sizing (2026-10-30) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -351,6 +377,11 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-31 — Reviewed group defaults and command triggers:** GROUP-SKILL-1 records coupled
+  file/command availability under `@` (INV §8/§10); the unit stays open. Focused tests pass
+  172/172, a controlled stalled-source probe reproduces the defect, and 29 browser checks pass.
+  Evidence and invariant sweep are retained with the finding; product/spec code unchanged.
 
 - **2026-10-31 — Fixed BGRUN-UI-1/2 (INV §8/§10):** per-task Stop state now lives in
   `RunningTasks` above the dismissible popover, so closing and reopening keeps Stopping…/disabled
