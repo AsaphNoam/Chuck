@@ -17,9 +17,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   2026-10-30); its live receipts stay owed below. Optional annotation source recording unit ANN-SOURCE is closed
   (ANN-SOURCE-1/2 fixed 2026-10-30). Pipeline worktrees fix unit
   PIPE-WT is closed (PIPE-WT-1–6 fixed
-  2026-10-30); its packaged Claude/Codex launch/resume cwd probe stays owed below. Review unit
-  MMD-VIEW (file-viewer Mermaid sizing) is reviewed with one **Worth fixing** specification-drift
-  finding below; memory fix unit MEM has one open **Worth fixing**
+  2026-10-30); its packaged Claude/Codex launch/resume cwd probe stays owed below. File-viewer
+  Mermaid sizing unit MMD-VIEW is closed (MMD-VIEW-1 fixed 2026-10-31); memory fix unit MEM has one open **Worth fixing**
   finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE is
   closed (TOOL-LINE-1/2 fixed 2026-10-29); MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
   DELMSG is closed (DELMSG-1 fixed). The v0.20.0 architectural review
@@ -52,8 +51,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 - **Phone Home, Sky & Grove wallpaper, composer Cancel:** review closed without findings
   2026-10-31 (`b388707f`, harness correction `1465e136`). Independent phone rendering and 75
   focused tests pass; evidence and invariant sweep are in the changelog below.
-- **Group launch defaults and command triggers:** GROUP-SKILL reviewed 2026-10-31;
-  one Must fix remains for independent file/command suggestion availability below.
+- **Group launch defaults and command triggers:** GROUP-SKILL reviewed 2026-10-31; fix unit
+  closed 2026-10-31 (GROUP-SKILL-1 fixed).
 - **Background-task card count:** BGRUN-COUNT reviewed 2026-10-31; fix unit closed
   2026-10-31 (BGRUN-COUNT-1 fixed).
 - **Pipelines redesign:** PIPELINE-FIGMA reviewed 2026-10-31; closed without findings.
@@ -228,66 +227,6 @@ None.
 
 ## Review findings
 
-### GROUP-SKILL — Group launch defaults and command triggers (2026-10-31) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed `e2dca41c` (integration record `698de146`) against FS-02.R77/A58,
-FS-03.R30–R33/A17 and FS-21.R35. The same unit stays open for the finding below.
-Product code and specifications unchanged.
-
-- **Must fix** — GROUP-SKILL-1 (P2): a slow suggestion source hides the other source's results.
-  `ui/src/components/chat/autocomplete.tsx:110–119` publishes `@` files and commands only after
-  `Promise.allSettled` completes both requests. A slow filesystem search hides commands that
-  have already returned successfully; a stalled command lookup likewise hides available files.
-  The picker misleadingly reads “No matching files or commands” while waiting. FS-03.R33
-  requires independent availability. Publish each completed source with the existing request
-  token protection and participant → file → command ordering. Add controlled deferred-response
-  cases in both directions, asserting the completed source is selectable before releasing the
-  other. INV §8/§10. Fix complexity: trivial/easy.
-
-Verification: 87 group/grid/launch tests and 85 composer/Think Tank tests pass in the integrated
-working tree (which includes concurrent Composer edits). A separate direct-hook/MSW probe holds
-file search pending, confirms the command response, and fails waiting for the command option;
-source, runner, instructions and failing output are retained in
-`/private/tmp/group-skill-review/`. Its independently controlled completion schedule proves the
-missing availability contract; existing tests cover settled success/refusal but miss this schedule
-(TS-06.R35; INV §17). Independent API-stubbed Chromium checks pass 29/29 in Core/Sky & Grove at
-1024/1440: named-group default, editing, Ungrouped/page-level reopening, command heading and exact
-insertion, no page overflow or exceptions. Parent inspected group-dialog and command-picker PNGs;
-harness `/private/tmp/group-skill-review.mjs`, captures/report in the evidence directory above.
-These establish UI behavior, not live provider adoption. Group scoping through the existing modal,
-the existing room participant qualification, and the shared autocomplete helper are sound local
-choices. `make check-specs` and `git diff --check` pass after concurrent BGRUN-UI closure.
-
-Invariant sweep: §§1/2/4/8/10/13/16/17 apply to opening/source lifecycle, shared construction,
-effect cleanup, feedback, wiring, markup, retained suggestion lists and tests; assessed with the
-finding tagged above. §§3/5/6/7/9/11/12/14/15 have no changed persisted configuration, concurrent
-claim, runtime/interface, record recovery, liveness, wire protocol, external CLI, HTTP security or
-transaction surface. Other review/fix units and concurrent edits are preserved.
-
-### MMD-VIEW — File-viewer Mermaid sizing (2026-10-30) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed `0b2e50bb` against FS-03.R37/R92 and TS-08.R40/R131. The full-width `pre` is a sound
-local extension of the existing renderer; no new runtime defect found. Product/spec code unchanged.
-
-- **Worth fixing** — MMD-VIEW-1 (P3): inherited sizing requirement contradicts the intended renderer.
-  `docs/specs/tech/TS-08-frontend-presentation.md:254–256` says sanitization removes the intrinsic
-  SVG width cap, but `renderers/mermaid.ts` preserves it and `AssistantText.test.tsx:84–101`
-  explicitly protects that choice (since `d58799e9`). A compact graph in a focused reader is
-  correctly centered at its intrinsic width, rather than stretched to the full reader width.
-  Following the stale technical requirement would undo that bounded-sizing repair. Update R40
-  to distinguish the full-width container from the intrinsic-size SVG; retain existing behavior
-  and focused geometry evidence. TS-08.R40/R131, FS-03.R37; INV §10. Fix complexity: trivial/easy.
-
-Independent Chromium checks: 84/84 pass across Core/Sky & Grove/Studio, 1024/1440, live/archive,
-docked/focused reader, source toggle, containment and centering. Overriding only the reviewed
-declaration reproduces the old 300px collapse in all 12 route/appearance/width combinations.
-Evidence: `/private/tmp/mmd-view-review.mjs`, `/private/tmp/mmd-view-review/report.json` and PNGs;
-parent inspected Core docked and Sky & Grove focused captures. API-stubbed product routes prove
-layout only; no new native/device/provider claim. No committed tests changed in this unit.
-Invariant sweep: §§8/10/13 apply and were assessed; §10 yields the inherited documentation finding
-above. §§1–7/9/11–12/14–17 have no applicable changed surface. Existing sanitizer, height bounds,
-and shared room/agent renderer wiring are retained. Other review/fix units remain unchanged.
-
 ### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
@@ -313,6 +252,19 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-31 — Fixed GROUP-SKILL-1 (INV §8/§10):** `@` autocomplete now publishes file and
+  command results as each request answers (participant → file → command order, existing request
+  token), so a slow or failed source no longer hides the other (FS-03.R33). Regression: two
+  deferred-response cases in `Composer.test.tsx` hold one source and select the other's entry
+  (both fail before, pass after). Unit GROUP-SKILL closed.
+
+- **2026-10-31 — Fixed MMD-VIEW-1 (INV §10):** TS-08.R40 now states that the sanitizing seam
+  preserves Mermaid's intrinsic SVG width cap while the stylesheet provides full-width containment,
+  centering, height bound and overflow scroll — matching `renderers/mermaid.ts` and the existing
+  `AssistantText.test.tsx` geometry tests. Specification only; behavior unchanged. Unit MMD-VIEW
+  closed. Closure for both: `make check-specs`, `ui npm test` (1128 pass), `npm run build` and
+  `git diff --check` pass; logs `/tmp/fixtriv-*.log`.
 
 - **2026-10-31 — Fixed BGRUN-COUNT-1 (INV §5/§8):** `writeStatus` now applies the live
   context/background-task projections inside `statusMu`, so a prompt or activation busy row built

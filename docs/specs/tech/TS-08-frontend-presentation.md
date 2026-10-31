@@ -251,10 +251,11 @@ primitive seam; the rejected alternatives are recorded in §5.
   renderer-produced markup, and it is recorded in the presentation exception manifest with its
   path, rule, and reason (R14, R17–R20). Markup the library generates at runtime is outside the
   static audit's reach, which is why the preflight and sanitizing seam, not the audit, are the
-  controls. The same seam removes Mermaid's intrinsic root-SVG width cap after sanitization, while
-  the integration stylesheet gives the figure the transcript's available width and bounds the SVG
-  height; this keeps compact diagrams readable without letting wide or tall diagrams escape the
-  chat surface. The react-markdown component map stays referentially stable for as long as a
+  controls. The seam preserves Mermaid's intrinsic root-SVG width cap, while the integration
+  stylesheet gives the containing block and figure the surface's available width, centers the SVG
+  and bounds its height, and lets the figure scroll any overflow; a compact diagram therefore stays
+  centered at its intrinsic size rather than stretching, and wide or tall diagrams cannot escape
+  the chat or reader surface. The react-markdown component map stays referentially stable for as long as a
   message stays mounted, including across the streamed deltas that extend its text, so neither a
   transcript scroll-state rerender nor a later delta remounts a settled diagram or repeats
   main-thread Mermaid work. The map therefore reads the current message text through a ref rather

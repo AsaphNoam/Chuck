@@ -107,17 +107,21 @@ export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, 
         .filter((m) => m.label.toLowerCase().includes(q))
         .map((m) => ({ label: `@${m.label}`, insert: `@${m.label} `, description: m.note, group: "Participants", mention: m.agentId }));
       setItems(people);
-      Promise.allSettled([
-        searchSessionFiles(sourceId, trigger.query),
-        getAvailableCommands(sourceId),
-      ]).then(([files, commands]) => {
-        if (token !== reqRef.current) return;
-        const fileItems = files.status === "fulfilled"
-          ? (files.value.files ?? []).map((f) => ({ label: f, insert: `@${f} `, group: fileGroup ?? "Files" })) : [];
-        const commandItems = commands.status === "fulfilled"
-          ? filterCommands(commands.value.commands ?? [], trigger.query).map((item) => ({ ...item, group: "Commands" })) : [];
-        setItems([...people, ...fileItems, ...commandItems]);
-      });
+      // Each source publishes as soon as it answers, so a slow or failed one
+      // never hides the other (FS-03.R33).
+      let fileItems: PickerItem[] = [];
+      let commandItems: PickerItem[] = [];
+      const publish = () => {
+        if (token === reqRef.current) setItems([...people, ...fileItems, ...commandItems]);
+      };
+      searchSessionFiles(sourceId, trigger.query).then((res) => {
+        fileItems = (res.files ?? []).map((f) => ({ label: f, insert: `@${f} `, group: fileGroup ?? "Files" }));
+        publish();
+      }, () => {});
+      getAvailableCommands(sourceId).then((res) => {
+        commandItems = filterCommands(res.commands ?? [], trigger.query).map((item) => ({ ...item, group: "Commands" }));
+        publish();
+      }, () => {});
     } else {
       getAvailableCommands(sourceId)
         .then((res) => {

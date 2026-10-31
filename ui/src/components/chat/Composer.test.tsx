@@ -281,6 +281,25 @@ describe("Composer autocomplete", () => {
     expect(ta.value).toBe("/$plan ");
   });
 
+  // FS-03.R33: each @ source is selectable as soon as it answers, before the other settles.
+  it.each([
+    ["file search", "/api/sessions/:id/file-search", "/$plan", "/$plan "],
+    ["command lookup", "/api/sessions/:id/available-commands", "src/app.ts", "@src/app.ts "],
+  ])("offers the answered @ source while %s is still pending", async (_name, path, option, inserted) => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    server.use(http.get(path, async () => {
+      await gate;
+      return HttpResponse.json({ agent_id: "a_1", files: [], commands: [] });
+    }));
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, option === "/$plan" ? "@plan" : "@app");
+    fireEvent.mouseDown(await screen.findByText(option));
+    expect(ta.value).toBe(inserted);
+    release();
+  });
+
   it("keeps @ file paths with slashes searchable and ignores slashes inside words", async () => {
     render(<Composer agentId="a_1" busy={false} />);
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
