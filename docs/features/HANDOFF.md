@@ -55,6 +55,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   focused tests pass; evidence and invariant sweep are in the changelog below.
 - **Group launch defaults and command triggers:** GROUP-SKILL reviewed 2026-10-31;
   one Must fix remains for independent file/command suggestion availability below.
+- **Background-task card count:** BGRUN-COUNT reviewed 2026-10-31; one Must fix remains
+  for a prompt/activation status write restoring a stale running count below.
 
 ## Active change
 
@@ -238,11 +240,43 @@ None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fi
   Pre-existing generated index saved as shared `pipelines-preexisting-index.html` before
   regenerating the embedded output from integrated source.
 
-- **BGRUN-COUNT** (2026-10-27, small, Go + UI): live running background-task count —
-  migration 63, `internal/runtime/{chat,tasks}.go` status writes, `internal/state` projection,
-  `AgentCard` badge.
-
 ## Review findings
+
+### BGRUN-COUNT — Live background-task card count (2026-10-31) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Reviewed substantive commit `39500848` and current callers against FS-02.R83/A64,
+TS-02.R59, TS-04.R104 and TS-06.R35. Product code and specs were not changed; unrelated
+queued-input/decision-display edits remain owned by their existing fix run.
+
+- **Must fix** — BGRUN-COUNT-1 (P2): a new prompt or activation can restore a stale count.
+  `internal/runtime/chat.go:1108–1109` and `1825–1826` snapshot live projections before
+  `writeStatus` acquires `statusMu` (`2705–2708`). A background task can finish and publish
+  its new count between those operations, then the busy write restores the older count.
+  The card and reloaded dashboard remain wrong until another status update. Refresh live
+  projections inside the serialized status-write seam. Keep a controlled interleaving regression:
+  capture the busy row at count 1, deliver a real task terminal update to count 0, then publish
+  busy and assert the count stays 0. FS-02.R83/A64; TS-04.R104; INV §5/§8. Fix complexity: medium.
+
+Evidence: the parent independently reran the delegated fake-ACP Go-overlay probe and confirmed
+`busy write restored stale task count: got 1, want 0 after terminal notification`.
+Probe/overlay: `/private/tmp/bgcount-review-probe_test.go`,
+`/private/tmp/bgcount-review-overlay.json`; no production test file was added.
+Existing focused runtime count/task tests and the full state package pass. UI card/store/SSE
+tests pass 45/45; styles, presentation contracts, `make check-specs` and `git diff --check` pass.
+Independent loopback Chromium fixtures pass 51 checks: live 2→1→0, stopped-agent suppression
+and reload at 1024/1440, plus no badge on 390px phone cards, in Core, Sky & Grove and Studio.
+The desktop badge has no clipping or page overflow.
+Harness/screenshots: `/private/tmp/bgcount-review.mjs`, `/private/tmp/bgcount-review-render/`.
+These fixtures establish presentation/SSE consumption, not real-provider task delivery. Existing
+tests use useful store and fake-ACP boundaries, but do not control the overlapping busy write;
+the count test also observes the child only after completion (TS-06.R35; INV §17).
+
+Invariant sweep: §§1/2/5/7/8/9/10/11/13/16/17 apply to generation resets, shared status
+publication, concurrency, migration/projection, card rendering, serialization and tests; §5/§8
+yield the finding above. §§3/4/6/12/14/15 have no changed one-shot/config, registration,
+interface/adapter, external CLI, HTTP/security or external-effect ordering surface. The live-column
+projection is explicitly specified; no additional local-choice exception or independent violation
+was found. Other review/fix units remain unchanged.
 
 ### GROUP-SKILL — Group launch defaults and command triggers (2026-10-31) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
@@ -377,6 +411,11 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-31 — Reviewed background-task card count:** BGRUN-COUNT-1 records a confirmed
+  stale-count overwrite when task completion overlaps a prompt/activation status write. Independent
+  browser rendering, focused UI/runtime checks and state tests pass; the controlled fake-ACP
+  interleaving probe fails as recorded above. The same unit remains open for its fix.
 
 - **2026-10-31 — Reviewed group defaults and command triggers:** GROUP-SKILL-1 records coupled
   file/command availability under `@` (INV §8/§10); the unit stays open. Focused tests pass
