@@ -33,5 +33,19 @@
       "severity": "must_fix"
     }
   ],
-  "updates": []
+  "updates": [
+    {
+      "kind": "fix",
+      "commits": [
+        "d5b2d06e88604d941844216ae0bbb0725ee48e47",
+        "119880aa24f192cefb34ceec81057ddd8e37d8d3",
+        "2f804a2fb88f8d918d74bbc5c0213831ae161c0a",
+        "ed1da63734b3f0827122cd96e0ff4a0787732c5a"
+      ],
+      "finding_ids": ["ARCH-NEXT-1", "ARCH-NEXT-2", "ARCH-NEXT-3", "ARCH-NEXT-4"],
+      "closes": ["ARCH-NEXT-1", "ARCH-NEXT-2", "ARCH-NEXT-3", "ARCH-NEXT-4"],
+      "verified": true,
+      "evidence": "ARCH-NEXT-1: the MCP handler snapshots the token's registration on arrival and closes a session whose registration was revoked/replaced while the SDK served it; unregistered tokens keep their session. Real SDK HTTP initialize paused mid-response then revoked (TestRevokeDuringInitializeReleasesTheLateSession) failed before the fix and passes with -race -count=10, with the live launch's session retained; TestUnregisteredTokenKeepsItsMCPSession guards session_unknown. ARCH-NEXT-2: migration 69 persists attachment_receipts.source_agent_id in the claim statement; AcceptedAttachmentReceipt answers original-conversation replays with the moved receipt (conflict on different content); startup copies attachments the new owner lacks and keeps the source's originals. Reviewer HTTP/fake-provider replay and claim-boundary startup-recovery probes, adopted as TestMovedInputReplayDoesNotSendAnotherProviderTurn and TestMovedAttachmentClaimRestartKeepsBytesRecoverable, failed without the server fix and pass. ARCH-NEXT-3: a charged retry records its visit in pipeline_runs.recovery_effect_key until ConfirmTaskStart; replacing that never-executed owner reuses the charge, the successor's later failure charges anew. The reviewer's last-round probe (TestUnusableNativeResumeReplacesWithinTheSameRecoveryRound) failed with paused/recovery_exhausted used=3 before and passes; the existing allowance test now confirms an executed retry's later replacement still charges. ARCH-NEXT-4: operate-agents names the run-worktree exception and the pipeline reference describes run checkouts, recursive placement, frozen lifecycle and explicit-removal limits; package phrase guards added; agentknowledge and CLI tests pass. Closure on ed1da637 with GOFLAGS=-p=1: go test ./... and go test -tags sqlite_fts5 ./... pass (run per package group: /private/tmp/chuck-fix-go{1a,1b,1c,2a,2c}.log), make check-specs and make build pass. TS-02 (migration 69) and the TS-09 R70 implementation note updated. No make dist, packaged, native/provider or device claim; those release gates remain owed."
+    }
+  ]
 }
