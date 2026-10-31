@@ -110,6 +110,35 @@ func TestBackgroundRunningCountIsPublished(t *testing.T) {
 	}
 }
 
+// A prompt/activation busy row built while a task was running must not restore
+// that count when a real terminal update publishes before the busy write:
+// writeStatus refreshes the live projections under statusMu (TS-04.R104, INV §5).
+func TestBusyWriteKeepsCurrentBackgroundCount(t *testing.T) {
+	c, h, ch := startTaskAgent(t, "FAKEACP_CAPS=1")
+	drainTurn(t, ch)
+	waitForBackgroundRunning(t, c, h.AgentID, 1)
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	busy := state.Status{AgentID: h.AgentID, State: "busy", Detail: "thinking", LastTrace: "UserPromptSubmit", BusySince: &now, BackgroundRunning: 1}
+	if err := c.StopBackgroundTask(context.Background(), h.AgentID, "task_1"); err != nil {
+		t.Fatalf("StopBackgroundTask: %v", err)
+	}
+	waitForBackgroundRunning(t, c, h.AgentID, 0)
+	if err := c.writeStatus(as, busy); err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.store.ReadStatus(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.State != "busy" || got.BackgroundRunning != 0 {
+		t.Fatalf("busy write = state %q count %d, want busy with count 0", got.State, got.BackgroundRunning)
+	}
+}
+
 func waitForBackgroundRunning(t *testing.T, c *ChatRuntime, agentID string, want int) state.Status {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)

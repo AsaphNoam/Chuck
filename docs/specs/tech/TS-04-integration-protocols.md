@@ -1548,13 +1548,15 @@ forgoes the saving and never fails launch; it is not a Chuck rename and is not r
 **R104 (implemented 2026-10-27) — The runtime publishes its open background-task count.** The chat runtime
 already counts each generation's running tasks, including native-child tasks, in
 `agentState.openTasks` (bounded by `maxOpenTasks`, `internal/runtime/tasks.go`). Every status
-write carries that count into TS-02.R59's column, as `lastContext().applyTo` carries context;
-after a task's spawn or terminal update is emitted, the runtime republishes the count through the
+write carries that count into TS-02.R59's column, as `lastContext().applyTo` carries context,
+reading both inside the serialized status-write lock so a row built earlier cannot restore an
+older count; after a task's spawn or terminal update is emitted, the runtime republishes the count through the
 same read-modify-write and `touchState` seam as `republishContext`, without changing state,
 detail, trace or busy-since. A new generation starts at zero; resume/clone fencing stays a
 transcript projection (FS-01.R36). No provider protocol, event or Stop semantics change (R64).
 *Verify:* fake ACP runtime tests that spawn, finish and stop root and child tasks and assert the
-published count and an unchanged status state.
+published count and an unchanged status state, plus a busy row built at count 1 and written
+after a real terminal update that must publish count 0.
 
 **R105 (implemented 2026-10-30; live receipt owed under FS-01.A37) — Terminal RPC quota refusals join the shared settlement classifier.** For
 FS-01.R55, extend R86/R96's completion boundary to recognize supported provider-owned terminal

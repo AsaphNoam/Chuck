@@ -553,7 +553,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 	}
 	if err := c.writeStatus(as, state.Status{
 		AgentID: as.agentID, State: "idle", Detail: "ready",
-		LastTrace: "SessionStart", ContextPct: 0,
+		LastTrace: "SessionStart",
 	}); err != nil {
 		failForked()
 		_ = c.store.DeleteRunning(as.agentID)
@@ -1105,7 +1105,6 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 		AgentID: as.agentID, State: "busy", Detail: "thinking",
 		LastTrace: "UserPromptSubmit", BusySince: &now,
 	}
-	as.applyLive(&busy)
 	_ = c.writeStatus(as, busy)
 
 	// Drive the turn asynchronously: notifications stream over the hub while the
@@ -1700,10 +1699,9 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		as.shutdown()
 		return nil, fmt.Errorf("runtime: write running: %w", err)
 	}
-	reading := as.lastContext()
 	if err := c.writeStatus(as, state.Status{
 		AgentID: as.agentID, State: "idle", Detail: "resumed",
-		LastTrace: "SessionStart", ContextPct: reading.pct, ContextCounts: reading.counts,
+		LastTrace: "SessionStart",
 	}); err != nil {
 		as.shutdown()
 		_ = c.store.DeleteRunning(as.agentID)
@@ -1822,7 +1820,6 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		AgentID: as.agentID, State: "busy", Detail: contract.StatusDetail,
 		LastTrace: contract.LastTrace, BusySince: &now,
 	}
-	as.applyLive(&busy)
 	if err := c.writeStatus(as, busy); err != nil {
 		c.clearInlineMail(as.agentID, deliveryKey)
 		as.mu.Lock()
@@ -2701,10 +2698,13 @@ func (c *ChatRuntime) writeStatusRowLocked(as *agentState, st, detail, trace str
 	c.touchState(as.agentID)
 }
 
-// writeStatus writes a fully-specified status row.
+// writeStatus writes a fully-specified status row. Its live projections are
+// read under statusMu, so a task/usage republish that lands between the
+// caller building st and this write is not overwritten (INV §5).
 func (c *ChatRuntime) writeStatus(as *agentState, st state.Status) error {
 	as.statusMu.Lock()
 	defer as.statusMu.Unlock()
+	as.applyLive(&st)
 	if err := c.store.WriteStatus(st); err != nil {
 		return err
 	}
