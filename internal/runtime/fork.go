@@ -144,8 +144,8 @@ func (c *ChatRuntime) writeForkPrefix(as *agentState, plan *ForkPlan) error {
 	}
 	for _, ev := range plan.Prefix {
 		ev.Generation = as.generation
-		// Clone history is retained, not replayed as live activity.
-		obs := as.journal.Commit(CommitRequest{Event: ev, Committed: as.retainHistory, Unpublished: true})
+		// Clone history is persisted, not replayed as live activity.
+		obs := as.journal.Commit(CommitRequest{Event: ev, Committed: as.recordCommitted, Unpublished: true})
 		if !obs.Committed() || !obs.IndexOK {
 			return fmt.Errorf("runtime: write clone history at seq %d", obs.Event.Seq)
 		}

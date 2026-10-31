@@ -7,6 +7,8 @@ import (
 	"image/png"
 	"net/http"
 	"testing"
+
+	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
 // FS-03.A64: a stopped agent whose snapshot predates image negotiation must
@@ -71,10 +73,10 @@ func testLegacyImageWake(t *testing.T, supportsImage bool) {
 		if !bytes.Contains(body, []byte("attachment_capability")) {
 			t.Fatalf("missing actionable capability refusal: %s", body)
 		}
-		if transcript, err := srv.registry.Transcript(id); err != nil {
+		if events, err := transcript.ReadFile(srv.configStore.Home(), id, transcript.ReadOptions{}); err != nil {
 			t.Fatal(err)
 		} else {
-			for _, event := range transcript {
+			for _, event := range events {
 				if event.Type == "user_text" && bytes.Contains(event.Data, []byte("wake-image")) {
 					t.Fatal("unsupported image consumed before refusal")
 				}

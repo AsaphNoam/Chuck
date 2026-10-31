@@ -43,7 +43,7 @@ func fileReportFrame(t *testing.T, requestID string, version int, status string,
 
 // newFileReportAgentState builds a minimal ChatRuntime/agentState pair for
 // calling onFileReport directly, without a live ACP process.
-func newFileReportAgentState(t *testing.T, requestID, root string) (*ChatRuntime, *agentState) {
+func newFileReportAgentState(t *testing.T, requestID, root string) (*ChatRuntime, *agentState, func() []Event) {
 	t.Helper()
 	st, err := state.Open(t.TempDir())
 	if err != nil {
@@ -51,19 +51,20 @@ func newFileReportAgentState(t *testing.T, requestID, root string) (*ChatRuntime
 	}
 	t.Cleanup(func() { st.Close() })
 	c := NewChatRuntime(st)
+	history := recordHistory(c)
 	as := &agentState{
-		journal:           NewJournal("", nil),
+		journal:           NewJournal("a_filereport", c.publishHistory),
 		agentID:           "a_filereport",
 		hub:               NewHub(),
 		roots:             []string{root},
 		fileReportRequest: requestID,
 	}
-	return c, as
+	return c, as, history
 }
 
-func recordedFileReports(as *agentState) []FileReportData {
+func recordedFileReports(events []Event) []FileReportData {
 	var out []FileReportData
-	for _, ev := range as.transcript {
+	for _, ev := range events {
 		if ev.Type == EvFileReport {
 			var d FileReportData
 			_ = json.Unmarshal(ev.Data, &d)
@@ -78,7 +79,7 @@ func recordedFileReports(as *agentState) []FileReportData {
 // it under the same request id is dropped as unmatched.
 func TestFileReportMalformedFrameDoesNotConsumeMatchingRequest(t *testing.T) {
 	root := t.TempDir()
-	c, as := newFileReportAgentState(t, "fcr-x", root)
+	c, as, history := newFileReportAgentState(t, "fcr-x", root)
 
 	malformed := fileReportFrame(t, "fcr-x", fileReportVersion+1, "reported", []string{"main.go"})
 	if handled := c.onFileReport(as, malformed); !handled {
@@ -90,7 +91,7 @@ func TestFileReportMalformedFrameDoesNotConsumeMatchingRequest(t *testing.T) {
 	if stillPending != "fcr-x" {
 		t.Fatalf("malformed frame consumed the pending request; fileReportRequest = %q, want fcr-x", stillPending)
 	}
-	if got := recordedFileReports(as); len(got) != 0 {
+	if got := recordedFileReports(history()); len(got) != 0 {
 		t.Fatalf("malformed frame recorded a report: %+v", got)
 	}
 
@@ -98,7 +99,7 @@ func TestFileReportMalformedFrameDoesNotConsumeMatchingRequest(t *testing.T) {
 	if handled := c.onFileReport(as, valid); !handled {
 		t.Fatal("valid matching frame should report handled=true")
 	}
-	got := recordedFileReports(as)
+	got := recordedFileReports(history())
 	if len(got) != 1 {
 		t.Fatalf("reports after valid frame = %+v, want exactly one", got)
 	}
@@ -117,13 +118,13 @@ func TestFileReportMalformedFrameDoesNotConsumeMatchingRequest(t *testing.T) {
 // carrying the same request id must not be recorded a second time.
 func TestFileReportDuplicateValidReportNotRecordedTwice(t *testing.T) {
 	root := t.TempDir()
-	c, as := newFileReportAgentState(t, "fcr-y", root)
+	c, as, history := newFileReportAgentState(t, "fcr-y", root)
 
 	first := fileReportFrame(t, "fcr-y", fileReportVersion, "reported", []string{"main.go"})
 	if handled := c.onFileReport(as, first); !handled {
 		t.Fatal("first valid frame should report handled=true")
 	}
-	if got := recordedFileReports(as); len(got) != 1 {
+	if got := recordedFileReports(history()); len(got) != 1 {
 		t.Fatalf("reports after first frame = %+v, want exactly one", got)
 	}
 
@@ -131,7 +132,7 @@ func TestFileReportDuplicateValidReportNotRecordedTwice(t *testing.T) {
 	if handled := c.onFileReport(as, dup); !handled {
 		t.Fatal("duplicate frame should still report handled=true")
 	}
-	got := recordedFileReports(as)
+	got := recordedFileReports(history())
 	if len(got) != 1 {
 		t.Fatalf("reports after duplicate frame = %+v, want still exactly one", got)
 	}

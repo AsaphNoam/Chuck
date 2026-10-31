@@ -482,10 +482,6 @@ func (r *Runtime) Subscribe(agentID string) (<-chan rt.Event, func(), error) {
 	return ch, cancel, nil
 }
 
-// Transcript has no in-memory normalized transcript for terminal agents (content
-// lives in the terminal / persisted log).
-func (r *Runtime) Transcript(agentID string) ([]rt.Event, error) { return nil, nil }
-
 // Bridge returns a PTYConn backing a terminal agent for the WebSocket handler
 // (§3.4). It is a SUBSCRIBER of the agent's per-agent PTY hub: its Read replays
 // the current scrollback then the live stream, Write/Resize go to the single

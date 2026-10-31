@@ -96,6 +96,8 @@ func TestClaudeForkLoadCarriesSourceResumeInstructions(t *testing.T) {
 // transcript plus a boundary marker under the clone's sequence (FS-01.A20).
 func TestForkLaunchCopiesHistoryThroughTheBoundary(t *testing.T) {
 	c, spec, dir := forkSpec(t, "FAKEACP_CAPS=1")
+	w := &eventWriter{}
+	c.SetPersistence(t.TempDir(), func(string, string, *SessionMetaData) (TranscriptWriter, error) { return w, nil }, &removalIndexer{})
 	ctx := context.Background()
 	h, err := c.Start(ctx, spec)
 	if err != nil {
@@ -111,10 +113,7 @@ func TestForkLaunchCopiesHistoryThroughTheBoundary(t *testing.T) {
 	if params["sessionId"] != "src-native" || params["cwd"] != spec.Cwd || params["_meta"] != nil {
 		t.Fatalf("fork params = %s", raw)
 	}
-	evs, err := c.Transcript(h.AgentID)
-	if err != nil {
-		t.Fatalf("Transcript: %v", err)
-	}
+	evs := w.events
 	var got []string
 	for _, ev := range evs {
 		if ev.AgentID != h.AgentID {

@@ -39,7 +39,7 @@ runtime — the messaging MCP server and embedded UI live inside the Go binary (
 | `internal/cli` | Cobra CLI: `dashboard start/open`, pidfile, reindex |
 | `ui/src` | React 18 + Vite SPA (Zustand, React Query, Radix, xterm); consumes REST + SSE only |
 
-**R4 — The `Runtime` abstraction is interface-keyed dispatch.** The server programs against a single `Runtime` interface (`internal/runtime/runtime.go`) with methods `Start`, `SendPrompt`, `Cancel`, `Stop`, `Resume`, `StartActivation`, `Permission`, `Subscribe`, `Transcript`. Two implementations exist: **chat** (ACP JSON-RPC/NDJSON over stdio) and **terminal** (PTY-backed). The `Registry` dispatches every agent by `agent.interface` (`byIface["chat"]` / `byIface["terminal"]`, `internal/runtime/registry.go`). Both implementations wrap the **same** CLI under the **same** stable identity — that is what makes interface/backend/model switching non-destructive (D4).
+**R4 — The `Runtime` abstraction is interface-keyed dispatch.** The server programs against a single `Runtime` interface (`internal/runtime/runtime.go`) with methods `Start`, `SendPrompt`, `Cancel`, `Stop`, `Resume`, `StartActivation`, `Permission`, `Subscribe`. Two implementations exist: **chat** (ACP JSON-RPC/NDJSON over stdio) and **terminal** (PTY-backed). The `Registry` dispatches every agent by `agent.interface` (`byIface["chat"]` / `byIface["terminal"]`, `internal/runtime/registry.go`). Both implementations wrap the **same** CLI under the **same** stable identity — that is what makes interface/backend/model switching non-destructive (D4).
 
 **R5 — Source-of-truth rules, split by writer (D1).**
 - **Config = plain JSON files** under `~/.chuck` (`roles/`, `projects/`, `pipelines/`, `backends.json`, `config.json`, `layout.json`, `config-sources.json`). Hand-editable, git-friendly, single-writer, low-volume.
@@ -47,6 +47,10 @@ runtime — the messaging MCP server and embedded UI live inside the Go binary (
 - **Transcripts = Chuck normalized log plus provider artifacts.** The chat runtime appends
   normalized events to `sessions/{id}/transcript.ndjson`; provider-owned session/history artifacts
   may coexist. Chuck indexes the normalized log into FTS5 (`internal/index`, `internal/transcript`).
+  Runtime does not retain a second full-history event collection or expose a
+  full-history read API. It retains committed notices only for generation-local duplicate-notice
+  prevention; history reads use the normalized log. Live publication and sequence bookkeeping
+  continue for every committed event, including fork prefixes (which are not published live).
 - **Federation authority is one-way (D1 Phase-7 refinement).** For a bound Claude/Codex backend, the native user/project files remain authoritative; Chuck stores only a `config-sources.json` binding plus explicit overrides and derives a redacted effective view. A mirror is disposable cache, never a second authority; only a future explicit detached import makes Chuck authoritative.
 
 **R6 — Config composition happens at launch, through one shared helper.** `project.cwd` + `project.context_prompt` + `role.system_prompt` + backend/model + resolved `skip_permissions`/`add_dirs`/env compose into a `LaunchSpec`. Launch, resume, and switch each build a `LaunchSpec` and MUST route through the shared composition helpers rather than hand-rolling a subset: `composeLaunch` (launch), `composeResumeSpec` (resume), `composeSwitchSpec` (switch), plus the field resolvers `resolveSkip`, `expandAddDirs`, `composeEnv`, and the single `teardownAgentRegistration` cleanup (all `internal/server/launch.go`, with resume/switch in their own files). Edits to config affect **future** launches only; a launched agent's composed spec is frozen into its `sessions` snapshot.
@@ -544,7 +548,7 @@ Capture runtime scope and release `as.mu` before entering the journal; post-comm
 may take `as.mu` under the journal, never the reverse. Preserve existing required-sync fences;
 do not add an fsync to every streaming delta.
 Index projection failure is separately repairable and cannot change whether the log accepted the
-event. Failed/uncertain appends do not enter the retained in-memory/live history; allocated sequence
+event. Failed/uncertain appends do not enter retained notices or live history; allocated sequence
 identities are not reused within that owner. Restart recovers from the canonical complete tail.
 
 Split history publication from a typed runtime/control observation carrying generation, turn,

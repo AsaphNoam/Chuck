@@ -7,6 +7,7 @@ import (
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
+	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
 // The HTTP retry boundary must retain one canonical input even if the first
@@ -42,7 +43,7 @@ func TestTextReceiptReplayAndConflict(t *testing.T) {
 	if res.StatusCode != http.StatusConflict {
 		t.Fatalf("changed payload: %d %s", res.StatusCode, body)
 	}
-	events, err := srv.registry.Transcript(id)
+	events, err := transcript.ReadFile(srv.configStore.Home(), id, transcript.ReadOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

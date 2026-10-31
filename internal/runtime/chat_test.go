@@ -946,6 +946,7 @@ func TestResumeSuccessfulLoadWithoutSessionIDKeepsPriorSession(t *testing.T) {
 // INV §1, INV §11).
 func TestResumeSuppressesProviderHistoryReplay(t *testing.T) {
 	c, spec := newChatTest(t, "stream_text")
+	history := recordHistory(c)
 	ctx := context.Background()
 	spec.Env = append(spec.Env, "FAKEACP_LOAD_HISTORY=3")
 
@@ -1002,11 +1003,7 @@ func TestResumeSuppressesProviderHistoryReplay(t *testing.T) {
 		t.Fatalf("wake turn produced no assistant text: %+v", evs)
 	}
 
-	transcript, err := c.Transcript(h.AgentID)
-	if err != nil {
-		t.Fatalf("Transcript: %v", err)
-	}
-	for _, ev := range transcript {
+	for _, ev := range history() {
 		if strings.Contains(string(ev.Data), "replayed answer") || strings.Contains(string(ev.Data), "history-tool-") {
 			t.Fatalf("replayed history entered the transcript as %q: %s", ev.Type, ev.Data)
 		}

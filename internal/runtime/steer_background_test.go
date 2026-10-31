@@ -16,6 +16,7 @@ import (
 func TestSteerThatBackgroundsTheRunningTool(t *testing.T) {
 	cancelLog := filepath.Join(t.TempDir(), "cancel.log")
 	c, spec := newChatTest(t, "steer_backgrounds_tool")
+	history := recordHistory(c)
 	spec.Env = append(spec.Env, "FAKEACP_CAPS=1", "FAKEACP_STEERING=1", "FAKEACP_CANCEL_LOG="+cancelLog)
 	ctx := context.Background()
 	h, err := c.Start(ctx, spec)
@@ -68,11 +69,7 @@ func TestSteerThatBackgroundsTheRunningTool(t *testing.T) {
 			t.Fatalf("event %d = %q, want %q", i, got[i], want[i])
 		}
 	}
-	transcript, err := c.Transcript(h.AgentID)
-	if err != nil {
-		t.Fatalf("Transcript: %v", err)
-	}
-	tasks := taskStates(transcript)
+	tasks := taskStates(history())
 	wantTasks := []string{"|task_1|tc_bg|running|npm run build", "|task_1|tc_bg|completed|", "|task_2|tc_bg2|running|npm run dev"}
 	if len(tasks) != len(wantTasks) {
 		t.Fatalf("tasks = %q, want %q", tasks, wantTasks)

@@ -591,14 +591,6 @@ func (r *Registry) Subscribe(agentID string) (<-chan Event, func(), error) {
 	return rt.Subscribe(agentID)
 }
 
-func (r *Registry) Transcript(agentID string) ([]Event, error) {
-	rt, err := r.ownerFor(agentID)
-	if err != nil {
-		return nil, err
-	}
-	return rt.Transcript(agentID)
-}
-
 // Generation returns the current concrete launch generation for event fan-out.
 func (r *Registry) Generation(agentID string) string {
 	r.mu.Lock()
@@ -673,10 +665,6 @@ func (n notImplementedRuntime) Permission(context.Context, string, string, strin
 
 func (n notImplementedRuntime) Subscribe(string) (<-chan Event, func(), error) {
 	return nil, nil, fmt.Errorf("%w: %s runtime", ErrNotImplemented, n.name)
-}
-
-func (n notImplementedRuntime) Transcript(string) ([]Event, error) {
-	return nil, fmt.Errorf("%w: %s runtime", ErrNotImplemented, n.name)
 }
 
 // compile-time assertions that the stub and chat runtime satisfy Runtime.

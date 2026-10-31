@@ -15,8 +15,15 @@ import (
 // which is the state every queue and steer requirement is about. It returns the
 // handle, the live event channel, and a release func that ends the open turn.
 func busyAgent(t *testing.T, env ...string) (*ChatRuntime, *Handle, <-chan Event, func(), string) {
+	return busyAgentRecording(t, nil, env...)
+}
+
+func busyAgentRecording(t *testing.T, history *func() []Event, env ...string) (*ChatRuntime, *Handle, <-chan Event, func(), string) {
 	t.Helper()
 	c, spec := newChatTest(t, "hold_turn")
+	if history != nil {
+		*history = recordHistory(c)
+	}
 	dir := t.TempDir()
 	holdFile := filepath.Join(dir, "hold")
 	promptLog := filepath.Join(dir, "prompts.log")
@@ -137,7 +144,8 @@ func waitForRuntimeStatus(t *testing.T, c *ChatRuntime, agentID, want string) {
 // message reaches neither the provider nor the durable transcript before it is
 // sent, and the agent-facing entry point still fails closed throughout.
 func TestSendPromptOrHoldQueuesOneFollowUpAndDeliversItAsTheNextTurn(t *testing.T) {
-	c, h, _, release, promptLog := busyAgent(t)
+	var history func() []Event
+	c, h, _, release, promptLog := busyAgentRecording(t, &history)
 	ctx := context.Background()
 
 	held, err := c.SendPromptOrHold(ctx, h.AgentID, "second")
@@ -159,10 +167,7 @@ func TestSendPromptOrHoldQueuesOneFollowUpAndDeliversItAsTheNextTurn(t *testing.
 	if got := promptTexts(t, promptLog); len(got) != 1 || got[0] != "first" {
 		t.Fatalf("provider prompts while holding = %v, want only [first]", got)
 	}
-	events, err := c.Transcript(h.AgentID)
-	if err != nil {
-		t.Fatalf("Transcript: %v", err)
-	}
+	events := history()
 	for _, ev := range events {
 		if ev.Type == EvUserPrompt && strings.Contains(string(ev.Data), "third") {
 			t.Fatal("held message entered the transcript before it was sent")
@@ -327,7 +332,8 @@ func TestSteerReportsTheAdapterStartedANewTurn(t *testing.T) {
 func TestSteerPromptRequiredRunsAHostOwnedTurn(t *testing.T) {
 	ended := filepath.Join(t.TempDir(), "prompt-ended")
 	steerReply := filepath.Join(t.TempDir(), "steer-reply")
-	c, h, ch, release, promptLog := busyAgent(t,
+	var history func() []Event
+	c, h, ch, release, promptLog := busyAgentRecording(t, &history,
 		"FAKEACP_STEERING=1",
 		"FAKEACP_STEER_OUTCOME=promptRequired",
 		"FAKEACP_PROMPT_END_FILE="+ended,
@@ -380,10 +386,7 @@ func TestSteerPromptRequiredRunsAHostOwnedTurn(t *testing.T) {
 	release()
 	waitForRuntimeStatus(t, c, h.AgentID, "idle")
 
-	events, err := c.Transcript(h.AgentID)
-	if err != nil {
-		t.Fatalf("Transcript: %v", err)
-	}
+	events := history()
 	userCounts := map[string]int{}
 	turnEnds := 0
 	for _, ev := range events {
@@ -538,12 +541,10 @@ func TestMapSteerResultRejectsAnythingButTheTwoOutcomes(t *testing.T) {
 // that turn_end still names the original turn and the successor's events name
 // its own.
 func TestEventsCarryTheExecutingTurnAcrossAHeldSuccessor(t *testing.T) {
-	c, h, ch, release, _ := busyAgent(t)
+	var history func() []Event
+	c, h, ch, release, _ := busyAgentRecording(t, &history)
 	ctx := context.Background()
-	events, err := c.Transcript(h.AgentID)
-	if err != nil {
-		t.Fatalf("Transcript: %v", err)
-	}
+	events := history()
 	first := ""
 	for _, ev := range events {
 		if ev.Type == EvUserPrompt {

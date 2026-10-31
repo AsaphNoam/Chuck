@@ -90,7 +90,11 @@ streamed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("stopped generation did not close its transcript writer")
 	}
-	if _, err := c.Transcript(agent.AgentID); !errors.Is(err, runtime.ErrNoHandle) {
+	_, cancel, err := c.Subscribe(agent.AgentID)
+	if cancel != nil {
+		cancel()
+	}
+	if !errors.Is(err, runtime.ErrNoHandle) {
 		t.Fatalf("stopped generation still owned: %v", err)
 	}
 	ix.mu.Lock()

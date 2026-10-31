@@ -57,7 +57,7 @@ func newChatJournalState(t *testing.T, w TranscriptWriter) (*ChatRuntime, *agent
 
 // ASRD-2 / FS-03.A78: concurrent provider output, annotations and notices
 // commit with unique increasing sequences whose durable order equals both the
-// hub and history-publisher order and the in-memory history.
+// hub and history-publisher order.
 func TestJournalSerializesConcurrentCommits(t *testing.T) {
 	w := &recordingWriter{}
 	c, as, published := newChatJournalState(t, w)
@@ -98,13 +98,7 @@ func TestJournalSerializesConcurrentCommits(t *testing.T) {
 			t.Fatalf("hub delivered %d of %d events", len(hubSeqs), 3*per)
 		}
 	}
-	as.mu.Lock()
-	var memSeqs []int64
-	for _, ev := range as.transcript {
-		memSeqs = append(memSeqs, ev.Seq)
-	}
-	as.mu.Unlock()
-	for name, got := range map[string][]int64{"durable": w.seqs, "hub": hubSeqs, "history": *published, "memory": memSeqs} {
+	for name, got := range map[string][]int64{"durable": w.seqs, "hub": hubSeqs, "history": *published} {
 		if len(got) != 3*per {
 			t.Fatalf("%s order has %d events, want %d", name, len(got), 3*per)
 		}
@@ -159,9 +153,6 @@ func TestJournalFailedAppendIsNotPublished(t *testing.T) {
 			if len(*published) != 1 || (*published)[0] != 1 {
 				t.Fatalf("history publisher saw %v, want only seq 1", *published)
 			}
-			if txt, _ := c.transcriptOf(as); len(txt) != 1 {
-				t.Fatalf("in-memory history kept %d events, want 1", len(txt))
-			}
 			var observed []Observation
 			for len(observed) < 3 {
 				select {
@@ -203,12 +194,6 @@ func (*failingIndexer) OnEventAndFlushContent(string, Event, int64, string) erro
 	return errors.New("index down")
 }
 func (*failingIndexer) FlushPendingContent(string, int64) error { return errors.New("index down") }
-
-func (c *ChatRuntime) transcriptOf(as *agentState) ([]Event, error) {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-	return append([]Event(nil), as.transcript...), nil
-}
 
 // TS-01.R39 / FS-03.A78: concurrent emitters' control observations reach the
 // sink in commit order, one at a time, outside the journal lock; a turn_end

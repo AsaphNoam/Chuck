@@ -292,7 +292,7 @@ type agentState struct {
 	resolved               map[string]struct{}        // toolCallIDs already settled this turn
 	hostApproved           map[string]*HostPermission // approved host requests not yet admitted
 	hostVoidSeq            uint64                     // bumped by requester cancellation; voids open host requests
-	transcript             []Event
+	notices                []Event                    // committed notices needed for generation-local deduplication
 	journal                *Journal
 	journals               *Journals
 	journalAttachment      uint64 // this generation's writer attachment, guarded by mu
@@ -1466,18 +1466,6 @@ func (c *ChatRuntime) Subscribe(agentID string) (<-chan Event, func(), error) {
 	return ch, cancel, nil
 }
 
-func (c *ChatRuntime) Transcript(agentID string) ([]Event, error) {
-	as, err := c.lookup(agentID)
-	if err != nil {
-		return nil, err
-	}
-	as.mu.Lock()
-	defer as.mu.Unlock()
-	out := make([]Event, len(as.transcript))
-	copy(out, as.transcript)
-	return out, nil
-}
-
 // Cancel and Permission live in permission.go.
 
 // --- still-stubbed methods (later phases) ---
@@ -2326,18 +2314,21 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 }
 
 // retainCommitted is the journal's post-commit bookkeeping for a live agent:
-// it records the event in the in-memory history and publishes it to the hub
+// it records sequence/notice state and publishes the event to the hub
 // under the journal lock, so live order equals durable order (TS-01.R39).
 func (as *agentState) retainCommitted(ev Event) {
-	as.retainHistory(ev)
+	as.recordCommitted(ev)
 	as.hub.Publish(ev)
 }
 
-// retainHistory records a committed event in the in-memory history only.
-func (as *agentState) retainHistory(ev Event) {
+// recordCommitted advances the live sequence and retains only notices for
+// deduplication. Full history belongs to the durable transcript, not agentState.
+func (as *agentState) recordCommitted(ev Event) {
 	as.mu.Lock()
 	as.seq = ev.Seq
-	as.transcript = append(as.transcript, ev)
+	if ev.Type == EvNotice {
+		as.notices = append(as.notices, ev)
+	}
 	as.mu.Unlock()
 }
 
@@ -2380,10 +2371,7 @@ func (c *ChatRuntime) AppendQuotaNoticeAndSync(agentID string, data NoticeData) 
 	as.noticeMu.Lock()
 	defer as.noticeMu.Unlock()
 	as.mu.Lock()
-	for _, old := range as.transcript {
-		if old.Type != EvNotice {
-			continue
-		}
+	for _, old := range as.notices {
 		var notice NoticeData
 		if json.Unmarshal(old.Data, &notice) == nil && notice.Origin == data.Origin && notice.ContinuationAttempt == data.ContinuationAttempt {
 			as.mu.Unlock()
@@ -2429,10 +2417,7 @@ func (c *ChatRuntime) AppendPeerStopNoticeAndSync(agentID string, data NoticeDat
 	as.noticeMu.Lock()
 	defer as.noticeMu.Unlock()
 	as.mu.Lock()
-	for _, old := range as.transcript {
-		if old.Type != EvNotice {
-			continue
-		}
+	for _, old := range as.notices {
 		var notice NoticeData
 		if json.Unmarshal(old.Data, &notice) == nil && notice.PeerStop != nil &&
 			notice.PeerStop.RequestID == data.PeerStop.RequestID && notice.PeerStop.Phase == data.PeerStop.Phase {

@@ -121,6 +121,7 @@ func TestAttachmentOnlyHeldPromotionPreservesIdentityAndFallbackOnce(t *testing.
 		t.Run(outcome, func(t *testing.T) {
 			steerLog := filepath.Join(t.TempDir(), "steer.log")
 			c, h, _, release, promptLog := busyAgent(t, "FAKEACP_STEERING=1", "FAKEACP_IMAGE_INPUT=1", "FAKEACP_STEER_LOG="+steerLog, "FAKEACP_STEER_OUTCOME="+outcome)
+			history := recordHistory(c)
 			home := t.TempDir()
 			c.transcriptHome = home
 			d, err := attachment.New(home).Put(h.AgentID, "image.png", bytes.NewReader(imageBytes(t)))
@@ -161,7 +162,7 @@ func TestAttachmentOnlyHeldPromotionPreservesIdentityAndFallbackOnce(t *testing.
 			}
 			release()
 			waitForRuntimeStatus(t, c, h.AgentID, "idle")
-			events, _ := c.Transcript(h.AgentID)
+			events := history()
 			count := 0
 			for _, ev := range events {
 				if ev.Type == EvUserPrompt {
@@ -350,6 +351,7 @@ func TestReceiptFailureAfterDurableMessageNeverRequestsByteRollback(t *testing.T
 
 func TestAssistantImagePersistsBeforeEventAndStripsToolBlob(t *testing.T) {
 	c, spec := newChatTest(t, "stream_text")
+	history := recordHistory(c)
 	home := t.TempDir()
 	c.transcriptHome = home
 	data := imageBytes(t)
@@ -410,7 +412,7 @@ func TestAssistantImagePersistsBeforeEventAndStripsToolBlob(t *testing.T) {
 	c.mapScoped(as, scope, "agent_message_chunk", bad)
 	text, _ := json.Marshal(map[string]any{"update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": acpContentBlock{Type: "text", Text: "still readable"}}})
 	c.mapScoped(as, scope, "agent_message_chunk", text)
-	all, _ := c.Transcript(h.AgentID)
+	all := history()
 	last := all[len(all)-2:]
 	if last[0].Type != EvAssistantImage || last[1].Type != EvAssistantText || last[0].ActivityID != "child" || last[0].ParentActivityID != "parent" {
 		t.Fatal("child image failure corrupted surrounding activity or ordering")
@@ -421,7 +423,7 @@ func TestAssistantImagePersistsBeforeEventAndStripsToolBlob(t *testing.T) {
 		t.Fatal("invalid base64 was retained")
 	}
 	c.mapScoped(as, scope, "tool_call_update", params)
-	all, _ = c.Transcript(h.AgentID)
+	all = history()
 	var childImage AssistantImageData
 	json.Unmarshal(all[len(all)-1].Data, &childImage)
 	if all[len(all)-1].Type != EvAssistantImage || childImage.ToolCallID != scope.toolCallID("tool-1") {

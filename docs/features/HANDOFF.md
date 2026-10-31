@@ -18,9 +18,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   (ANN-SOURCE-1/2 fixed 2026-10-30). Pipeline worktrees fix unit
   PIPE-WT is closed (PIPE-WT-1–6 fixed
   2026-10-30); its packaged Claude/Codex launch/resume cwd probe stays owed below. File-viewer
-  Mermaid sizing unit MMD-VIEW is closed (MMD-VIEW-1 fixed 2026-10-31); memory fix unit MEM has one open **Worth fixing**
-  finding (MEM-4), blocked on a decision below; summary-only tool activity unit TOOL-LINE is
-  closed (TOOL-LINE-1/2 fixed 2026-10-29); MEM-1/2/3/5/6 are fixed. Delegation-guidance fix unit
+  Mermaid sizing unit MMD-VIEW is closed (MMD-VIEW-1 fixed 2026-10-31); memory fix unit MEM is
+  closed (MEM-4 fixed 2026-10-31; MEM-1/2/3/5/6 previously fixed). Summary-only tool activity unit TOOL-LINE is
+  closed (TOOL-LINE-1/2 fixed 2026-10-29). Delegation-guidance fix unit
   DELMSG is closed (DELMSG-1 fixed). The v0.20.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.19.0-next.json)) is closed; ARCH-v020-1 fixed
   and verified. Provider-failure fix unit PERR is closed (PERR-1–4 fixed 2026-10-26); the
@@ -197,14 +197,6 @@ None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fi
 
 ## Decisions needing input
 
-- **MEM-4 live transcript bound:** the only full-history reader of `agentState.transcript` is
-  `Runtime.Transcript`/`Registry.Transcript`, which has no product caller (12 test call sites in
-  `internal/runtime` and `internal/server`); notice dedupe needs notices only. Runtime cannot read
-  the durable log (`internal/transcript` imports `runtime`). Recommended: retain notices only,
-  drop `Transcript` from the `Runtime` interface, and move tests to subscription recorders or
-  durable reads (medium; ~12 test rewrites). Alternative: keep full history only for
-  non-durable generations (smaller, but leaves a test-only mode in product code).
-
 - Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID
   ownership (compatibility change).
 - Whether a pipeline stage paused after failed launch/resume continues withholding **Open agent**,
@@ -227,31 +219,21 @@ None.
 
 ## Review findings
 
-### MEM — Memory retention investigation (2026-10-26) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-**Report, verbatim:** “I have a suspicion that Chuck is leaking memory, do a thorough
-investigation and see if you can find anything”. No workload, measured growth, affected process,
-version, or diagnostic log was supplied. Investigated checkout `43c214d1` (v0.20.0 plus release
-records), macOS arm64. This establishes code defects, not which defect caused the reported suspicion.
-The optional question about the affected process/workload had no answer at closure.
-
-- **Worth fixing** — MEM-4, confirmed: live chat keeps an unbounded duplicate of all events.
-  `internal/runtime/chat.go:295,2318–2322` retains every committed event in `agentState.transcript`;
-  completed turns never trim it. This is growth for the lifetime of a running generation, distinct
-  from post-Stop leakage. `Transcript` at `:1469–1479` additionally copies the event slice on reads.
-  A disposable runtime exercise of 20 completed turns × 100 × 8 KiB deltas retained 2,020 events
-  and 16,408,840 payload bytes. These are payload counts, not heap/RSS measurements. Browser reads
-  already use durable transcripts; notice deduplication also scans this slice, so simply deleting
-  it would break another consumer. INV §16; TS-01.R5/TS-02 transcript authority. Bound the runtime
-  projection and preserve transcript-read and notice-idempotence contracts through the existing
-  durable authority. Fix complexity: medium. Current retention seam is `69ef5951`, but full-history
-  accumulation existed earlier; no exact regression release is asserted. Open on the decision
-  under **Decisions needing input**.
-
-Field attribution of the user's suspected growth remains undetermined (no heap/browser snapshot
-or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
+None.
 
 ## Changelog
+
+- **2026-10-31 — Fixed MEM-4 (INV §16/§17):** with operator approval, removed the runtime's
+  duplicate full-history collection and unused `Transcript` API. Committed notices alone remain
+  for quota/peer-Stop deduplication; sequence bookkeeping, live publication, fork-prefix persistence
+  and durable history reads are preserved (TS-01.R4/R5/R39). Tests now observe publication or
+  durable writes. The retention regression failed before the repair and passes after; both notice
+  retry identities, fork history and 14 migrated focused tests pass. `make test` (both Go variants),
+  `make build`, focused journal/retention/notice `-race` and `git diff --check` pass on the final
+  MEM-4 source. Logs `/private/tmp/chuck-mem4-{test,build,race,focused,before}.log`; full suites
+  required loopback-capable execution. Independent integration review found no remaining concern.
+  MEM is closed; no open fix findings remain. Field attribution and real-workload heap/RSS savings
+  remain unmeasured. Unrelated dirty `docs/ideas.md` is preserved.
 
 - **2026-10-31 — Fixed GROUP-SKILL-1 (INV §8/§10):** `@` autocomplete now publishes file and
   command results as each request answers (participant → file → command order, existing request
