@@ -13,19 +13,56 @@ import (
 type AttachmentReceipt struct {
 	AgentID, RequestID, PayloadHash, MessageJSON, Action, Delivery, Outcome string
 	AssignmentTaskID                                                        string
-	// SourceAgentID is set when a claim moved queued input to its
-	// assignment's current agent: the attachment bytes are still owned by this
-	// earlier conversation and must be cloned before delivery (TS-09.R69).
+	// SourceAgentID is set, durably, when a claim moved queued input to its
+	// assignment's current agent: this earlier conversation accepted it, owns
+	// the original attachment bytes, and its replays still find the receipt
+	// (TS-09.R69).
 	SourceAgentID string
 }
 
-func (s *Store) AttachmentReceipt(agentID, requestID string) (AttachmentReceipt, error) {
+const attachmentReceiptColumns = `agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id,source_agent_id`
+
+func scanAttachmentReceipt(row *sql.Row) (AttachmentReceipt, error) {
 	var r AttachmentReceipt
-	err := s.db.QueryRow(`SELECT agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id FROM attachment_receipts WHERE agent_id=? AND request_id=?`, agentID, requestID).Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &r.AssignmentTaskID)
+	err := row.Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &r.AssignmentTaskID, &r.SourceAgentID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, ErrNotFound
 	}
 	return r, err
+}
+
+func (s *Store) AttachmentReceipt(agentID, requestID string) (AttachmentReceipt, error) {
+	return scanAttachmentReceipt(s.db.QueryRow(`SELECT `+attachmentReceiptColumns+` FROM attachment_receipts WHERE agent_id=? AND request_id=?`, agentID, requestID))
+}
+
+// AcceptedAttachmentReceipt finds the receipt a conversation accepted for
+// requestID, including one since moved to its assignment's new owner, so a
+// replay of the original command never delivers it again (TS-09.R69).
+func (s *Store) AcceptedAttachmentReceipt(agentID, requestID string) (AttachmentReceipt, error) {
+	r, err := s.AttachmentReceipt(agentID, requestID)
+	if !errors.Is(err, ErrNotFound) {
+		return r, err
+	}
+	return scanAttachmentReceipt(s.db.QueryRow(`SELECT `+attachmentReceiptColumns+` FROM attachment_receipts WHERE source_agent_id=? AND request_id=? ORDER BY rowid LIMIT 1`, agentID, requestID))
+}
+
+// MovedAttachmentReceipts lists receipts whose attachment bytes were accepted
+// by another conversation, for startup to copy any the claim did not finish.
+func (s *Store) MovedAttachmentReceipts() ([]AttachmentReceipt, error) {
+	rows, err := s.db.Query(`SELECT agent_id,request_id,message_json,source_agent_id FROM attachment_receipts WHERE source_agent_id <> ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []AttachmentReceipt{}
+	for rows.Next() {
+		var r AttachmentReceipt
+		if err := rows.Scan(&r.AgentID, &r.RequestID, &r.MessageJSON, &r.SourceAgentID); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) CreateAttachmentReceipt(r AttachmentReceipt) error {
@@ -127,16 +164,18 @@ WHERE `+predicate+` ORDER BY a.updated_at, a.rowid LIMIT 1`, args...).Scan(&r.Ag
 	if err != nil {
 		return AttachmentReceipt{}, false, err
 	}
-	if _, err := tx.Exec(`UPDATE attachment_receipts SET agent_id=?, assignment_task_id='', updated_at=? WHERE agent_id=? AND request_id=?`,
-		target, formatTime(time.Now().UTC()), r.AgentID, r.RequestID); err != nil {
+	source := ""
+	if target != r.AgentID {
+		source = r.AgentID
+	}
+	if _, err := tx.Exec(`UPDATE attachment_receipts SET agent_id=?, source_agent_id=?, assignment_task_id='', updated_at=? WHERE agent_id=? AND request_id=?`,
+		target, source, formatTime(time.Now().UTC()), r.AgentID, r.RequestID); err != nil {
 		return AttachmentReceipt{}, false, err
 	}
 	if err := tx.Commit(); err != nil {
 		return AttachmentReceipt{}, false, err
 	}
-	if target != r.AgentID {
-		r.SourceAgentID = r.AgentID
-	}
+	r.SourceAgentID = source
 	r.AgentID = target
 	return r, true, nil
 }

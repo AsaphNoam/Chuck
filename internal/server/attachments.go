@@ -478,8 +478,10 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 	}
 	hash := messagePayloadHash(action, receiptMessage)
 	if receiptBearing {
-		old, err := s.stateStore.AttachmentReceipt(id, msg.RequestID)
-		promoteReceipt := err == nil && promoting && old.Delivery == "held"
+		// Input this conversation accepted may since have moved to its
+		// assignment's new owner; a replay still answers with that receipt.
+		old, err := s.stateStore.AcceptedAttachmentReceipt(id, msg.RequestID)
+		promoteReceipt := err == nil && promoting && old.Delivery == "held" && old.AgentID == id
 		if err == nil {
 			// Promoting an existing hold advances its original receipt through
 			// the runtime; it is not a second submission of that Send.

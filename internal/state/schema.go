@@ -915,6 +915,13 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 68,
 		apply:   addPipelineVisitProvenance,
 	},
+	{
+		// Queued input moved to an assignment's new owner keeps the conversation
+		// that accepted it: its replay identity and its attachment bytes'
+		// owner survive restart (TS-09.R69).
+		version: 69,
+		sql:     `ALTER TABLE attachment_receipts ADD COLUMN source_agent_id TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // addPipelineVisitProvenance follows addPipelineDecisions for a legacy

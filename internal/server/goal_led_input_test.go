@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -147,5 +148,105 @@ func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
 	}
 	if again, _ := srv.stateStore.LatestPipelineStageTask("pr_question"); again.TaskID != visit.TaskID {
 		t.Fatalf("replay created another visit: %s", again.TaskID)
+	}
+}
+
+// ARCH-NEXT-2, TS-09.R69 — after queued input moved to the assignment's new
+// owner and was delivered there, replaying the original command to the
+// conversation that accepted it returns that receipt; it is not a new turn.
+func TestMovedInputReplayDoesNotSendAnotherProviderTurn(t *testing.T) {
+	srv, ts, promptLog := activationTestServer(t)
+	oldID := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	newID := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	// Keep the queued assignment out of unrelated automatic admission.
+	for i := 0; i < cap(srv.taskStartSlots); i++ {
+		srv.taskStartSlots <- struct{}{}
+	}
+	task := createPipelineSnapshotTask(t, srv, "pr_replay", "tk_replay", inputSnapshot)
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id=? WHERE task_id=?`, oldID, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	command := map[string]string{"text": "Use SQLite", "request_id": "moved-input"}
+	if resp, body := post(t, ts.URL+"/api/sessions/"+oldID+"/prompt", command); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("original acceptance: %d %s", resp.StatusCode, body)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='running', assigned_agent_id=? WHERE task_id=?`, newID, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	rec, ok, err := srv.stateStore.TakeQueuedAssignmentInput(newID)
+	if err != nil || !ok || rec.SourceAgentID != oldID {
+		t.Fatalf("successor claim: %+v %v %v", rec, ok, err)
+	}
+	before := promptCount(t, promptLog)
+	if _, err := srv.registry.SendMessageOrHold(context.Background(), newID, runtime.Message{Text: "Use SQLite", RequestID: "moved-input"}); err != nil {
+		t.Fatal(err)
+	}
+	waitPrompts(t, promptLog, before+1)
+	resp, body := post(t, ts.URL+"/api/sessions/"+oldID+"/prompt", command)
+	if resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), newID) {
+		t.Fatalf("original replay: %d %s, want the moved receipt", resp.StatusCode, body)
+	}
+	if got := promptCount(t, promptLog); got != before+1 {
+		t.Fatalf("original command replay crossed the provider wire again: %d prompts, want %d", got, before+1)
+	}
+	conflict := map[string]string{"text": "Use Postgres", "request_id": "moved-input"}
+	if resp, body := post(t, ts.URL+"/api/sessions/"+oldID+"/prompt", conflict); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("different content under the moved request id: %d %s, want conflict", resp.StatusCode, body)
+	}
+}
+
+// ARCH-NEXT-2, TS-09.R69 — a restart between the claim that moves queued
+// input to the new owner and the copy of its attachments still leaves the
+// accepted recovery usable in the new owner's conversation.
+func TestMovedAttachmentClaimRestartKeepsBytesRecoverable(t *testing.T) {
+	srv := testServer(t, true)
+	for _, id := range []string{"a_old", "a_new"} {
+		if err := srv.stateStore.WriteAgent(state.Agent{AgentID: id, Interface: "chat"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files := attachment.New(srv.configStore.Home())
+	d, err := files.Put("a_old", "instructions.txt", strings.NewReader("required correction"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := files.Retain("a_old", []string{d.ID}); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(runtime.Message{Attachments: []attachment.Descriptor{d}})
+	task := createPipelineSnapshotTask(t, srv, "pr_claim_crash", "tk_claim_crash", inputSnapshot)
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id='a_old' WHERE task_id=?`, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := srv.stateStore.QueueAssignmentInput(state.AttachmentReceipt{AgentID: "a_old", RequestID: "crash-input", PayloadHash: "hash", MessageJSON: string(raw), Action: "prompt"}); err != nil || !ok {
+		t.Fatalf("queue: %v %v", ok, err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='running', assigned_agent_id='a_new' WHERE task_id=?`, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := srv.stateStore.TakeQueuedAssignmentInput("a_new"); err != nil || !ok {
+		t.Fatalf("claim: %v %v", ok, err)
+	}
+	// Restart before CloneQueuedAttachments: run the startup recovery seams.
+	if err := srv.stateStore.ReleaseRestartedAttachments(); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.recoverAttachmentStorage(); err != nil {
+		t.Fatal(err)
+	}
+	recovery, err := srv.stateStore.AttachmentRecovery("a_new")
+	if err != nil || recovery.SourceAgentID != "a_old" || recovery.Delivery != "released" {
+		t.Fatalf("recovery = %+v %v, want released with its durable source", recovery, err)
+	}
+	for _, owner := range []string{"a_new", "a_old"} {
+		if f, _, err := files.Open(owner, d.ID); err != nil {
+			t.Fatalf("%s cannot open the accepted attachment after restart: %v", owner, err)
+		} else {
+			f.Close()
+		}
+	}
+	// A second startup finds nothing left to copy.
+	if err := srv.recoverAttachmentStorage(); err != nil {
+		t.Fatal(err)
 	}
 }

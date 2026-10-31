@@ -21,6 +21,9 @@ func (s *Server) recoverAttachmentStorage() error {
 	if err := store.CleanupTemps(); err != nil {
 		return err
 	}
+	if err := s.recoverMovedAttachments(store); err != nil {
+		return err
+	}
 	entries, err := os.ReadDir(filepath.Join(s.configStore.Home(), "sessions"))
 	if os.IsNotExist(err) {
 		return nil
@@ -34,6 +37,39 @@ func (s *Server) recoverAttachmentStorage() error {
 		}
 		if err := s.recoverConversationAttachments(store, entry.Name()); err != nil {
 			s.log.Error("recover conversation attachments; preserving its stored copies", "agent_id", entry.Name(), "err", err)
+		}
+	}
+	return nil
+}
+
+// recoverMovedAttachments finishes the copy a claim may not have reached
+// before shutdown: queued input moved to its assignment's new owner gets that
+// owner's own copy of every attachment it still lacks, so its recovery or
+// delivery never names bytes held only by the earlier conversation (TS-09.R69).
+// A source whose bytes are unreadable leaves that receipt for explicit recovery.
+func (s *Server) recoverMovedAttachments(store *attachment.Store) error {
+	moved, err := s.stateStore.MovedAttachmentReceipts()
+	if err != nil {
+		return err
+	}
+	for _, rec := range moved {
+		var msg runtime.Message
+		if err := json.Unmarshal([]byte(rec.MessageJSON), &msg); err != nil {
+			continue
+		}
+		missing := []string{}
+		for _, d := range msg.Attachments {
+			if f, _, err := store.Open(rec.AgentID, d.ID); err == nil {
+				f.Close()
+				continue
+			}
+			missing = append(missing, d.ID)
+		}
+		if len(missing) == 0 {
+			continue
+		}
+		if err := store.Clone(rec.SourceAgentID, rec.AgentID, missing); err != nil {
+			s.log.Error("copy moved queued attachments", "agent_id", rec.AgentID, "source", rec.SourceAgentID, "request_id", rec.RequestID, "err", err)
 		}
 	}
 	return nil
@@ -71,7 +107,9 @@ func (s *Server) recoverConversationAttachments(store *attachment.Store, id stri
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		rows, err := s.stateStore.DB().Query(`SELECT message_json FROM attachment_receipts WHERE agent_id=?`, id)
+		// A receipt moved to another owner still names bytes this
+		// conversation accepted; they stay with it as the original.
+		rows, err := s.stateStore.DB().Query(`SELECT message_json FROM attachment_receipts WHERE agent_id=? OR source_agent_id=?`, id, id)
 		if err != nil {
 			return err
 		}

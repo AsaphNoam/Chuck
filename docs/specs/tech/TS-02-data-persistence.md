@@ -829,6 +829,10 @@ deliverable held message. Room annotation command IDs remain the same authority,
 Migration 65 adds `attachment_receipts.assignment_task_id` (default empty): a prepared receipt
 naming an open assignment is queued input that its continuation delivers (TS-10.R29). Startup
 release skips it; claiming it for a turn clears the column in the same statement.
+Migration 69 adds `attachment_receipts.source_agent_id` (default empty): a claim that moves the
+receipt to the assignment's new owner records the accepting conversation in the same statement.
+Replays to that conversation find the moved receipt; startup copies any of its attachments the new
+owner lacks and keeps the accepting conversation's originals (TS-09.R69).
 
 Command reservation, mail/task effects and receipt state use existing SQLite transactions where
 they share this database. Canonical log append and native provider work are not falsely treated as
