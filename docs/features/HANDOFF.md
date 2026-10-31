@@ -50,15 +50,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   quota snapshots remain TBD.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`; use `GOFLAGS=-p=1` and a writable isolated Go cache.
   Native/device/credentialed limitations remain in the owed gates.
-- **Awaiting review — phone Home, Sky & Grove wallpaper, composer Cancel (2026-10-29):**
-  FS-20.R43. Home drops its tagline (hidden "Home" h1 kept), project rows are separate cards with
-  a 12px gap, Sky & Grove's ring layer is off on the phone via `--ad-phone-wallpaper-rings`, and
-  Cancel (aria "Cancel turn") sits beside Attach only while busy, replacing `.phone-controls`.
-  129 phone tests (one new), 1069 UI tests, presentation checks and embed pass. New
-  `ui/scripts/phone-skins-render.mjs [--busy]` checks all appearances at 360/390/430px (failed on
-  the old tree); screenshots `/tmp/skins-{after,busy}-*.png`. `phone-render.mjs --details-check`
-  was stale since `fe572fcc` (border moved to `::before`; groups start collapsed); fixed and
-  passing in all appearances. INV §13/§17.
+- **Phone Home, Sky & Grove wallpaper, composer Cancel:** review closed without findings
+  2026-10-31 (`b388707f`, harness correction `1465e136`). Independent phone rendering and 75
+  focused tests pass; evidence and invariant sweep are in the changelog below.
 
 ## Active change
 
@@ -395,6 +389,23 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-31 — Reviewed phone Home, wallpaper and Cancel:** `b388707f` and `1465e136`
+  match FS-20.R13/R43, FS-12.R68 and TS-08.R111; no findings, unit closed, no fix model needed.
+  The hidden Home heading, phone-entry-only wallpaper property and reuse of the chat mutation
+  handler are sound local choices; terminal agents retain their status-only conversation.
+  Independent Chromium idle/busy Home/chat checks pass all three appearances at 360/390/430px;
+  `phone-render.mjs --details-check` also passes all appearances. Parent inspected Core busy
+  360px, Sky & Grove Home 390px and Studio busy 430px captures. Evidence:
+  `/private/tmp/review-phone-{idle,busy}-*.png`. A Chromium Cancel probe posts `target:turn`,
+  surfaces a stubbed 500 refusal and measures a 44px target. API stubs establish UI behavior,
+  not live cancellation, native-device or provider behavior. Focused AgentScreen/PhoneApp
+  tests pass 75/75; presentation checks pass
+  (47 checker tests plus contract). Tests exercise FS-derived idle/busy placement and existing
+  mutation behavior; rendered checks supply CSS geometry evidence (TS-06.R35; INV §17).
+  INV §§8/10/13/17 apply and pass; §§1–7/9/11–12/14–16 have no applicable changed surface.
+  `git diff --check` passes; `make check-specs` still fails on the existing TS-08 Partial-status
+  error recorded as BGRUN-UI-2. Other review units and concurrent dirty edits are preserved.
 
 - **2026-10-30 — Reviewed running background-work indicator:** BGRUN-UI-1/2 record lost Stop
   state/feedback on popover dismissal (INV §8) and the newly failing TS-08 status check (INV §10).
