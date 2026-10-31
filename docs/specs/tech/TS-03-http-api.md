@@ -299,6 +299,11 @@ unreadable-config, or error-envelope semantics. No new route, response field, SS
 asset response is added. The Go/frontend/manifest lockstep regression includes all three
 effective appearances (FS-12.R42/A18, TS-08.R61).
 
+**R77 (shipped 2026-10-31) — Boring Night is one more value on the config route.**
+`PUT /api/config` accepts `appearance_skin: "boring-night"` and `GET /api/config` returns it
+without a warning, with R45's semantics otherwise unchanged; the lockstep regression covers all
+four effective appearances (FS-12.R72, TS-08.R151).
+
 **R46 — Remote control adds a route family and one SSE event.** A **Remote** family joins
 R5's inventory: loopback-only `GET/PUT /api/remote`, `POST /api/remote/pairings`,
 `POST /api/remote/pairings/{id}/allow|decline`, `GET /api/remote/devices`, and

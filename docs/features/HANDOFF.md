@@ -57,6 +57,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   2026-10-31 (BGRUN-COUNT-1 fixed).
 - **Pipelines redesign:** PIPELINE-FIGMA reviewed 2026-10-31; closed without findings.
   Fresh source, presentation and independent browser evidence is in the changelog below.
+- **Boring Night skin:** shipped 2026-10-31 (FS-12.R72/A42, TS-08.R151); awaiting review
+  (BORING-NIGHT).
 
 ## Active change
 
@@ -78,6 +80,11 @@ None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fi
   and a real JXA panel returned `User canceled. (-128)`. Computer use could not target the
   osascript panel. Still verify selection returns a usable absolute path, the panel appears
   over the browser, and click-to-visible-panel timing; activation-only timing is not panel latency.
+
+- **BORING-NIGHT rendered evidence (FS-12.A42):** Settings/Appearance and the empty Projects
+  dashboard were inspected in the browser; an expanded dashboard chat, agent screen, syntax/diff
+  blocks, terminal, Mermaid, overlays and the phone Theme select in Boring Night are not yet
+  screenshotted (use a stress-fixture scenario with agents).
 
 - **FS-03.A80–A82 / FS-20.A28 / FS-21.A42 (file tabs):** physical-phone touch reordering and
   reconnect, non-Chromium engines, and rendered proof of the 500-total/2 MiB limits and the
@@ -215,13 +222,28 @@ None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fi
 
 ## Review queue
 
-None.
+- **BORING-NIGHT** — fourth built-in skin, the dark "Boring Night" (FS-12.R72/A42, TS-02.R62,
+  TS-03.R77, TS-08.R151). Reviewer notes: running coral `#e99a87` and error pink `#f0a8a4` come
+  from the Make study's Chuck Night palette but sit close together; the study's SVG ledger grid
+  is drawn with CSS gradients instead of an asset; the contract version stays 4 (only the skin
+  list changed).
 
 ## Review findings
 
 None.
 
 ## Changelog
+
+- **2026-10-31 — Added the Boring Night skin (FS-12.R72, TS-08.R151):** the Figma Make
+  exploration's "Chuck Night" palette ships as the dark built-in skin `boring-night` — Go write
+  set, `BUILT_IN_SKINS`, contract skin list, Settings/phone/visual-matrix options, and
+  `styles/skins/boring-night.css` (private `--ad-boring-night-*` palette, `color-scheme: dark`,
+  CSS ledger-grid ornament) imported by desktop and phone entries. Config/API, appearance editor
+  and visual-matrix tests cover the new id. Closure with `GOFLAGS=-p=1`: `make test` (incl.
+  check-specs), `make build`, `(cd ui && npm test)` (105 files / 1128 tests) and
+  `git diff --check` pass on the final tree. Browser check against the
+  stress fixture showed Settings/Appearance and the Projects dashboard; remaining rendered
+  evidence is owed above.
 
 - **2026-10-31 — Fixed MEM-4 (INV §16/§17):** with operator approval, removed the runtime's
   duplicate full-history collection and unused `Transcript` API. Committed notices alone remain

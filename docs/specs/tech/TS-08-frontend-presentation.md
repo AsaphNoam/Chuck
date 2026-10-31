@@ -1943,6 +1943,23 @@ rendered-document-relative file targets through `resolveFromFile` before opening
 - **R150 — retired 2026-10-30:** unshipped session-hint presentation withdrawn; FS-01.R57
   reuses the existing quota banner and scheduled-continuation presentation.
 
+- **R151 (shipped 2026-10-31) — Boring Night is one locally bundled dark skin.** Add the id
+  `boring-night` to the Go validator, `BUILT_IN_SKINS`, the Settings and phone appearance options,
+  the visual matrix, and `presentation/contract.json`'s skin list in lockstep; the contract shape
+  and version do not change.
+  `styles/skins/boring-night.css`, imported by `index.css` and `remote.css`, keeps every rule in
+  `ad-skins`, declares its raw palette only as `--ad-boring-night-*` on `:root`, and maps public
+  semantic tokens under `:root[data-skin="boring-night"]`, which also sets `color-scheme: dark`.
+  Palette from the Make study: canvas `#0d192b`, panel `#1e334e`, raised `#243b56`, emphasis
+  `#294760`, ink `#e7edf5`, body text `#d0dce9`, muted `#acbdd0`, borders `#354d68`/`#4b6580`,
+  coral action `#e99a87` with ink `#14263e`, blue secondary `#b3d2ea`; states running `#e99a87`,
+  waiting `#edc585`, done `#a9d2c3`, error `#f0a8a4`, idle `#acbdd0`, unknown `#a1b3c9`;
+  technical `#172b43`/`#223952`/`#cedbec`. The `body::before` ornament is a CSS-gradient ledger
+  grid (fine 24px lines plus a stronger 96px tier in `#8aaed2` at low opacity) instead of the
+  study's SVG, so no asset is added. Syntax, diff, terminal and Mermaid colors already derive from
+  the semantic tokens and need no change. No provider, storage, route, or feature-CSS override
+  is introduced (FS-12.R72, TS-02.R62, TS-03.R77).
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

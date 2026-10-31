@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { configErrorMessage, QUERY_KEYS, useConfig, usePutConfig } from "../../api/config";
 import type { Config } from "../../schemas/config";
-import { SKY_GROVE_SKIN, STUDIO_SKIN, effectiveAppearance } from "../appearance/appearance";
+import { BORING_NIGHT_SKIN, SKY_GROVE_SKIN, STUDIO_SKIN, effectiveAppearance } from "../appearance/appearance";
 import { useUiStore } from "../../store/uiStore";
 import { SettingsHeader } from "./SettingsHeader";
 
@@ -23,6 +23,12 @@ const appearances = [
     value: STUDIO_SKIN,
     name: "Studio",
     description: "Pale blue-green studio light, forest accents, and a quiet dotted canvas.",
+  },
+  {
+    id: BORING_NIGHT_SKIN,
+    value: BORING_NIGHT_SKIN,
+    name: "Boring Night",
+    description: "Deep blue calm, soft blue surfaces, and quiet architectural linework.",
   },
 ];
 

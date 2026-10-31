@@ -111,11 +111,12 @@ func TestAppearanceSkinConfigPersistence(t *testing.T) {
 
 func TestAppearanceSkinValidationAllowsOnlyBundledChoices(t *testing.T) {
 	for skin, want := range map[string]bool{
-		"":                     true,
-		AppearanceSkinSkyGrove: true,
-		AppearanceSkinStudio:   true,
-		"core":                 false,
-		"forest-night":         false,
+		"":                        true,
+		AppearanceSkinSkyGrove:    true,
+		AppearanceSkinStudio:      true,
+		AppearanceSkinBoringNight: true,
+		"core":                    false,
+		"forest-night":            false,
 	} {
 		if got := ValidAppearanceSkin(skin); got != want {
 			t.Errorf("ValidAppearanceSkin(%q) = %t, want %t", skin, got, want)

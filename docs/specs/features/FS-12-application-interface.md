@@ -611,6 +611,19 @@ Requirements are user-observable.
   routes, real proposal approval, runtime setup and recovery controls remain authoritative;
   prototype-only state switches, mock data and preview notices are excluded.
 
+### 2.13 Dark optional skin
+
+- **R72 (shipped 2026-10-31)** — Chuck offers a fourth, optional built-in skin named **Boring
+  Night** alongside Core, Sky & Grove and Studio, through the same global Appearance preference,
+  immediate application, persistence and Core fallback as R42. It is the first dark appearance:
+  deep-blue canvas, soft blue opaque surfaces, light blue-grey text, a restrained coral primary
+  action, and a quiet two-tier architectural ledger grid in the open canvas only. Running,
+  waiting-input, success, error, stopped and unknown keep distinct semantic colors; technical
+  content keeps its own darker surface. Browser controls, scrollbars and form widgets follow the
+  dark scheme. The direction comes from the Figma Make exploration's "Chuck Night" study; only its
+  palette and canvas treatment are adopted, under R44's anatomy rule. This supersedes only R42's
+  and R52's count of three appearances.
+
 ## 3. States & transitions
 
 - **Route change:** the persistent shell remains visually stable while the current-route
@@ -622,7 +635,7 @@ Requirements are user-observable.
   owning feature's behavior.
 - **Overlay:** existing modals, menus, permission prompts, and toasts appear above the
   shell with a consistent depth and surface treatment; their open/close behavior is unchanged.
-- **Appearance selection:** choosing Core, Sky & Grove, or Studio applies the complete
+- **Appearance selection:** choosing Core, Sky & Grove, Studio, or Boring Night applies the complete
   selected presentation to the mounted application and saves the global preference; a later session
   restores it after configuration loads.
 
@@ -899,6 +912,12 @@ Requirements are user-observable.
   live refresh updates the ledger; proposal review, start gating and editor actions remain
   reachable. Exclude the Make prototype's synthetic controls and execution data.
   *Verify:* existing pipeline component tests, presentation checks and the pipeline render harness.
+
+- **A42 (shipped 2026-10-31)** (R72) — Settings and the phone Theme select offer Boring Night with
+  a distinguishable dark preview; choosing it switches the mounted app without reload, survives
+  reload, and choosing another appearance restores it. Dashboard, expanded chat, Settings and
+  technical renderers stay legible with distinct state colors and no network asset. *Verify:*
+  config/appearance tests, presentation contract check, and rendered Settings/dashboard screenshots.
 
 ## 6. Deviations & open decisions
 

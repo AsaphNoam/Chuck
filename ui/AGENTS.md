@@ -15,8 +15,8 @@ drag behavior, and terminal lifecycle. CSS, visual primitives, and decorative as
 those values; they must not fetch, persist, derive product meaning, or alter event behavior.
 
 Use the cascade in `src/styles/index.css`: reset → tokens → base → components → features →
-integrations → skins. Core remains complete without a skin marker. The finite production skins (Sky & Grove and
-Studio) are each one statically imported file declared by `src/presentation/contract.json`; their
+integrations → skins. Core remains complete without a skin marker. The finite production skins (Sky & Grove,
+Studio, and Boring Night) are each one statically imported file declared by `src/presentation/contract.json`; their
 rules stay inside `ad-skins` and are scoped to the matching root `data-skin` id or the Settings
 appearance preview. The Go write set in `internal/config`, `BUILT_IN_SKINS`, and the contract move
 in lockstep.

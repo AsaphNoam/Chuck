@@ -11,11 +11,12 @@ import (
 // appearance_skin field, not an id. BuiltInAppearanceSkins must match the
 // frontend BUILT_IN_SKINS allowlist and ui/src/presentation/contract.json.
 const (
-	AppearanceSkinSkyGrove = "sky-grove"
-	AppearanceSkinStudio   = "studio"
+	AppearanceSkinSkyGrove    = "sky-grove"
+	AppearanceSkinStudio      = "studio"
+	AppearanceSkinBoringNight = "boring-night"
 )
 
-var BuiltInAppearanceSkins = []string{AppearanceSkinSkyGrove, AppearanceSkinStudio}
+var BuiltInAppearanceSkins = []string{AppearanceSkinSkyGrove, AppearanceSkinStudio, AppearanceSkinBoringNight}
 
 // ValidAppearanceSkin reports whether an appearance_skin value may be written
 // through the configuration API. ReadConfig intentionally does not use this

@@ -4,7 +4,7 @@ import { phoneFetch, unpairSelf } from "./api";
 import { disconnect, rememberPaired, useConnection } from "./connection";
 import { ConfirmDialog } from "../components/ui";
 import { PhoneIcon } from "./PhoneIcon";
-import { effectiveAppearance, SKY_GROVE_SKIN, STUDIO_SKIN } from "../features/appearance/appearance";
+import { BORING_NIGHT_SKIN, effectiveAppearance, SKY_GROVE_SKIN, STUDIO_SKIN } from "../features/appearance/appearance";
 
 interface Self {
   id: string;
@@ -144,6 +144,7 @@ export function PhoneSettings() {
               <option value="core">Chuck Core</option>
               <option value={SKY_GROVE_SKIN}>Sky &amp; Grove</option>
               <option value={STUDIO_SKIN}>Studio</option>
+              <option value={BORING_NIGHT_SKIN}>Boring Night</option>
             </select>
           </label>
           {(appearance.isError || appearance.data?.appearance_skin_warning) && <p className="phone-help" role="status">The saved theme is unavailable. Chuck Core is active.</p>}

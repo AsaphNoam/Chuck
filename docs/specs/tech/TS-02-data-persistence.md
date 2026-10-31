@@ -288,6 +288,10 @@ Core is never inserted into the manifest as if it were a skin id.
 second preference, schema version, SQLite row, launch snapshot, project/session field, or retained
 visual data is introduced (FS-12.R42, TS-08.R61).
 
+**R62 (shipped 2026-10-31) — Boring Night reuses the appearance field the same way.**
+`boring-night` joins the write-valid `appearance_skin` values with R36's semantics; no migration,
+schema version, or second preference is introduced (FS-12.R72, TS-08.R151).
+
 **R37 — Remote control persists paired devices, two preferences, and owned secrets.**
 A forward-only migration adds `remote_devices`: text `id` primary key, `name`, unique `token_hash`
 (SHA-256), `node_stable_id`, `node_login`, `paired_at`, `last_seen_at`, and nullable

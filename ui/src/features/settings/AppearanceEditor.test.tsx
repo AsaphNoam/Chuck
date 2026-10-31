@@ -70,7 +70,7 @@ describe("AppearanceEditor", () => {
     expect(lastPut).toEqual({ appearance_skin: "sky-grove" });
   });
 
-  it("offers three named appearances and switches between Studio and Sky & Grove without reload", async () => {
+  it("offers four named appearances and switches between them without reload", async () => {
     server.use(
       http.put("/api/config", async ({ request }) => {
         lastPut = await request.json();
@@ -81,12 +81,17 @@ describe("AppearanceEditor", () => {
     renderAppearance();
 
     const options = await screen.findAllByRole("radio");
-    expect(options.map((option) => (option as HTMLInputElement).value)).toEqual(["", "sky-grove", "studio"]);
+    expect(options.map((option) => (option as HTMLInputElement).value)).toEqual(["", "sky-grove", "studio", "boring-night"]);
 
     fireEvent.click(screen.getByLabelText(/Studio/));
     await waitFor(() => expect(document.documentElement.dataset.skin).toBe("studio"));
     expect(lastPut).toEqual({ appearance_skin: "studio" });
     await waitFor(() => expect(screen.getByLabelText(/Studio/)).toBeChecked());
+
+    fireEvent.click(screen.getByLabelText(/Boring Night/));
+    await waitFor(() => expect(document.documentElement.dataset.skin).toBe("boring-night"));
+    expect(lastPut).toEqual({ appearance_skin: "boring-night" });
+    await waitFor(() => expect(screen.getByLabelText(/Boring Night/)).toBeChecked());
 
     fireEvent.click(screen.getByLabelText(/Sky & Grove/));
     await waitFor(() => expect(document.documentElement.dataset.skin).toBe("sky-grove"));

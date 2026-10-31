@@ -1,0 +1,87 @@
+@layer ad-skins {
+:root {
+  --ad-boring-night-canvas: #0d192b;
+  --ad-boring-night-panel: #1e334e;
+  --ad-boring-night-raised: #243b56;
+  --ad-boring-night-subtle: #2a435f;
+  --ad-boring-night-emphasis: #294760;
+  --ad-boring-night-ink: #e7edf5;
+  --ad-boring-night-text: #d0dce9;
+  --ad-boring-night-muted: #acbdd0;
+  --ad-boring-night-line: #354d68;
+  --ad-boring-night-line-strong: #4b6580;
+  --ad-boring-night-coral: #e99a87;
+  --ad-boring-night-coral-ink: #14263e;
+  --ad-boring-night-blue: #b3d2ea;
+  --ad-boring-night-grid: #8aaed2;
+  --ad-boring-night-preview-card: #263e5a;
+  --ad-boring-night-preview-blue: #7faec7;
+  --ad-boring-night-busy: #e99a87;
+  --ad-boring-night-idle: #acbdd0;
+  --ad-boring-night-waiting: #edc585;
+  --ad-boring-night-done: #a9d2c3;
+  --ad-boring-night-error: #f0a8a4;
+  --ad-boring-night-unknown: #a1b3c9;
+  --ad-boring-night-tech-background: #172b43;
+  --ad-boring-night-tech-surface: #223952;
+  --ad-boring-night-tech-text: #cedbec;
+  --ad-boring-night-tech-muted: #a1b3c9;
+}
+
+:root[data-skin="boring-night"] {
+  color-scheme: dark;
+  --ad-surface-canvas: var(--ad-boring-night-canvas);
+  --ad-surface-panel: var(--ad-boring-night-panel);
+  --ad-surface-raised: var(--ad-boring-night-raised);
+  --ad-surface-subtle: var(--ad-boring-night-subtle);
+  --ad-surface-emphasis: var(--ad-boring-night-emphasis);
+  --ad-text-primary: var(--ad-boring-night-ink);
+  --ad-text-secondary: var(--ad-boring-night-text);
+  --ad-text-muted: var(--ad-boring-night-muted);
+  --ad-border-default: var(--ad-boring-night-line);
+  --ad-border-strong: var(--ad-boring-night-line-strong);
+  --ad-action-primary: var(--ad-boring-night-coral);
+  --ad-action-primary-ink: var(--ad-boring-night-coral-ink);
+  --ad-action-secondary: var(--ad-boring-night-blue);
+  --ad-highlight: var(--ad-boring-night-emphasis);
+  --ad-state-busy: var(--ad-boring-night-busy);
+  --ad-state-idle: var(--ad-boring-night-idle);
+  --ad-state-waiting: var(--ad-boring-night-waiting);
+  --ad-state-done: var(--ad-boring-night-done);
+  --ad-state-error: var(--ad-boring-night-error);
+  --ad-state-unknown: var(--ad-boring-night-unknown);
+  --ad-technical-background: var(--ad-boring-night-tech-background);
+  --ad-technical-surface: var(--ad-boring-night-tech-surface);
+  --ad-technical-text: var(--ad-boring-night-tech-text);
+  --ad-technical-muted: var(--ad-boring-night-tech-muted);
+}
+
+/* Two-tier architectural ledger grid from the Make study, drawn without an asset. */
+:root[data-skin="boring-night"] body::before {
+  background-image:
+    linear-gradient(90deg, color-mix(in srgb, var(--ad-boring-night-grid) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--ad-boring-night-grid) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ad-boring-night-grid) 2.2%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--ad-boring-night-grid) 2.2%, transparent) 1px, transparent 1px);
+  background-size: 96px 96px, 96px 96px, 24px 24px, 24px 24px;
+  opacity: 1;
+}
+
+[data-ui="config-editor"][data-variant="appearance"] [data-preview-skin="boring-night"] {
+  background-color: var(--ad-boring-night-canvas);
+  background-image:
+    linear-gradient(90deg, color-mix(in srgb, var(--ad-boring-night-grid) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--ad-boring-night-grid) 8%, transparent) 1px, transparent 1px);
+  background-size: 12px 12px;
+  border-color: var(--ad-boring-night-line);
+  border-radius: var(--ad-radius-medium);
+}
+
+[data-ui="config-editor"][data-variant="appearance"] [data-preview-skin="boring-night"] [data-slot="preview-sky"] { background: var(--ad-boring-night-panel); border-radius: var(--ad-radius-small); }
+
+[data-ui="config-editor"][data-variant="appearance"] [data-preview-skin="boring-night"] [data-slot="preview-surface"] { background: var(--ad-boring-night-preview-card); border-color: var(--ad-boring-night-line); border-radius: var(--ad-radius-medium); }
+
+[data-ui="config-editor"][data-variant="appearance"] [data-preview-skin="boring-night"] [data-slot="preview-action"] { background: var(--ad-boring-night-preview-blue); border-radius: var(--ad-radius-medium); }
+
+[data-ui="config-editor"][data-variant="appearance"] [data-preview-skin="boring-night"] [data-slot="preview-signal"] { background: var(--ad-boring-night-coral); }
+}

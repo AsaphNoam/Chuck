@@ -69,6 +69,7 @@ export function VisualMatrix() {
                 <option value="core">Chuck Core</option>
                 <option value="sky-grove">Sky & Grove</option>
                 <option value="studio">Studio</option>
+                <option value="boring-night">Boring Night</option>
               </select>
             </label>
             <label className="visual-matrix-toggle">

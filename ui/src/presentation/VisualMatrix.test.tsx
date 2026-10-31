@@ -82,7 +82,7 @@ describe("VisualMatrix", () => {
     expect(run.querySelector('[data-slot="agents"]')).toBeTruthy();
   });
 
-  it("switches between Core, Sky & Grove, and Studio without changing product structure", () => {
+  it("switches between Core and every built-in skin without changing product structure", () => {
     const { container, unmount } = render(<MemoryRouter><VisualMatrix /></MemoryRouter>);
     const root = container.querySelector(".visual-matrix")!;
     const copyBefore = root.textContent;
@@ -90,7 +90,7 @@ describe("VisualMatrix", () => {
     const actionsBefore = [...root.querySelectorAll("button")].map((button) => button.textContent);
     const statesBefore = [...root.querySelectorAll("[data-state]")].map((node) => node.getAttribute("data-state"));
 
-    for (const skin of ["sky-grove", "studio"]) {
+    for (const skin of ["sky-grove", "studio", "boring-night"]) {
       fireEvent.change(screen.getByLabelText("Fixture appearance"), { target: { value: skin } });
 
       expect(document.documentElement.dataset.skin).toBe(skin);

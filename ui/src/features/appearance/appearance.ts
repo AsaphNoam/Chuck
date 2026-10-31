@@ -1,6 +1,7 @@
-export const BUILT_IN_SKINS = ["sky-grove", "studio"] as const;
+export const BUILT_IN_SKINS = ["sky-grove", "studio", "boring-night"] as const;
 export const SKY_GROVE_SKIN = BUILT_IN_SKINS[0];
 export const STUDIO_SKIN = BUILT_IN_SKINS[1];
+export const BORING_NIGHT_SKIN = BUILT_IN_SKINS[2];
 
 export type BuiltInSkin = (typeof BUILT_IN_SKINS)[number];
 export type EffectiveAppearance = "core" | BuiltInSkin;

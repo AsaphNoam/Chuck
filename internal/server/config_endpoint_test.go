@@ -474,6 +474,20 @@ func TestConfigAppearanceSkinRoundTripAndCoreOmission(t *testing.T) {
 		t.Fatalf("GET Studio = skin %q warning %q", got.AppearanceSkin, got.AppearanceSkinWarning)
 	}
 
+	// Boring Night is one more value on the same route (TS-03.R77).
+	rec = doRequest(t, h, http.MethodPut, "/api/config", map[string]any{"appearance_skin": config.AppearanceSkinBoringNight})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT Boring Night status = %d body=%s, want 200", rec.Code, rec.Body)
+	}
+	rec = doGET(t, h, "/api/config")
+	got = configResponse{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.AppearanceSkin != config.AppearanceSkinBoringNight || got.AppearanceSkinWarning != "" {
+		t.Fatalf("GET Boring Night = skin %q warning %q", got.AppearanceSkin, got.AppearanceSkinWarning)
+	}
+
 	rec = doRequest(t, h, http.MethodPut, "/api/config", map[string]any{"appearance_skin": ""})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT Core status = %d body=%s, want 200", rec.Code, rec.Body)
