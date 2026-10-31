@@ -56,7 +56,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
 
 ## Active change
 
-None. Running background-work indicator reviewed; two Must fix findings remain (BGRUN-UI below).
+None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fixed 2026-10-31).
 
 ## Acceptance gates still owed
 
@@ -254,44 +254,6 @@ None. Running background-work indicator reviewed; two Must fix findings remain (
 
 ## Review findings
 
-### BGRUN-UI — Running background-work indicator (2026-10-30) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed `962a97b7` against FS-03.R59/R67/R107/A83, TS-08.R146 and TS-06.R5/R7/R35.
-The same unit remains open for the two fixes below; product code and specifications unchanged.
-
-- **Must fix** — BGRUN-UI-1 (P2): closing the popover loses pending Stop state and refusal feedback.
-  `ui/src/components/chat/RunningTasks.tsx:30,51–62` owns `stopping`/`error` inside the dismissible
-  dialog content. Stop a command, close, then reopen before terminal publication: it reads Running
-  and enables Stop again. If the request fails while closed, reopening shows no retryable error.
-  Independent Chromium interception confirmed both outcomes; two external component probes fail
-  the corresponding contracts. Retain per-task mutation state above the unmounted content and
-  preserve late failure feedback; test dismissal while accepted/pending and rejection while closed.
-  FS-03.R59/R107/A83; INV §8. Fix complexity: trivial/easy.
-
-- **Must fix** — BGRUN-UI-2 (P2): marking the last planned item shipped breaks the mandatory spec gate.
-  `docs/specs/tech/TS-08-frontend-presentation.md:3,677,1842` still declares Partial after this
-  commit removes both remaining `(planned)` markers. `make check-specs` now fails with
-  “Partial specs must identify unshipped items with (planned)”; the parent has both markers.
-  Reconcile the document status with actual shipped/planned requirements, then rerun the gate.
-  TS-06.R5/R7; INV §10. Fix complexity: trivial/easy.
-
-Independent real-server/fake-ACP Chromium journey passes full-agent and expanded-dashboard views
-in Core/Sky & Grove at 1024/1440px: count, unclipped popover, command jump/focus, Escape and
-runtime-confirmed Stop. Inspected representative screenshots; phone-render with the captured
-transcript confirms no indicator/list. Existing focused tests pass 91/91 (indicator, transcript,
-ChatPanel). A separate external locator probe passes a completed turn, two collapsed native-child
-ancestors and a collapsed tool group. Existing tests have meaningful task-state/authority oracles
-but omit dismissing an in-flight Stop (TS-06.R35; INV §17). Evidence:
-`/private/tmp/chuck-bgrun-review-render/`, `/private/tmp/bgrun-stop-browser.mjs`,
-`/private/tmp/bgrun-probe.test.tsx`, `/private/tmp/bgrun-vitest.config.mjs`.
-`make check-specs` fails only as recorded above; `git diff --check` passes. No live-provider or
-physical-phone claim. Command-locator-only behavior matches the recorded operator decision.
-
-Invariant sweep: §§1/2/4/8/10/13/16/17 apply to lifecycle projection, shared composition,
-effect cleanup, feedback, wiring, CSS, retained projections and tests; assessed with findings
-tagged above. §§3/5/6/7/9/11/12/14/15 have no new persisted form, concurrent claim, runtime,
-record recovery, liveness, wire, CLI, HTTP security or transaction surface in this UI-only unit.
-
 ### MMD-VIEW — File-viewer Mermaid sizing (2026-10-30) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 Reviewed `0b2e50bb` against FS-03.R37/R92 and TS-08.R40/R131. The full-width `pre` is a sound
@@ -389,6 +351,15 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-31 — Fixed BGRUN-UI-1/2 (INV §8/§10):** per-task Stop state now lives in
+  `RunningTasks` above the dismissible popover, so closing and reopening keeps Stopping…/disabled
+  Stop, and a refusal that lands while closed shows the retryable error on reopen. New
+  `BackgroundTaskList.test.tsx` case failed before the change and passes after. TS-08 is fully
+  shipped and now reads Current (spec index row updated); `make check-specs` passes. UI closure:
+  `npm test` 1126/1126, `npm run build` and `git diff --check` pass (logs
+  `/tmp/bgrun-fix-ui-{test,build}.log`). Unit closed; concurrent GOAL-LED dirty edits preserved
+  uncommitted.
 
 - **2026-10-31 — Reviewed phone Home, wallpaper and Cancel:** `b388707f` and `1465e136`
   match FS-20.R13/R43, FS-12.R68 and TS-08.R111; no findings, unit closed, no fix model needed.

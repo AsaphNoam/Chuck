@@ -39,6 +39,20 @@ describe("running background work (FS-03.A83)", () => {
     expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
     cleanup(); setup(running, true, false); fireEvent.click(screen.getByRole("button", { name: "1 running" })); expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
+  it("keeps pending Stop and a late refusal across closing the popover", async () => {
+    let refuse!: (error: Error) => void;
+    vi.spyOn(client, "stopBackgroundTask").mockReturnValue(new Promise((_, reject) => { refuse = reject; }));
+    setup(); const toggle = screen.getByRole("button", { name: "1 running" });
+    fireEvent.click(toggle); fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" })); fireEvent.click(toggle);
+    expect(screen.getByText("Stopping…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    refuse(new Error("refused")); await Promise.resolve();
+    fireEvent.click(toggle);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
+    expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+  });
   it.each(["session_meta", "fork_boundary"])("fences old work at %s", (kind) => {
     const events = [...running, wire(3, kind, { resumed_at: "later" })];
     expect(collectTasks(foldTranscript(events))[0].state).toBe("stopped");
