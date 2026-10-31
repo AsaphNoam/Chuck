@@ -974,7 +974,9 @@ new durable run revision or a structured validation/conflict result.
   (not a person's Stop) is retried automatically (`RecoverStageTask`,
   `RecoverInterruptedPipelineStageTask`); an owner whose start/wake parks is replaced by a fresh
   owner on the frozen standing runtime with pending queued input in its handoff (`replaceOwner`,
-  `server/queued_input.go recoverParkedStageTask`); each spends a round. A turn ending with the
+  `server/queued_input.go recoverParkedStageTask`); each spends a round, except that replacing an
+  owner whose charged retry never started executing reuses that retry's round
+  (`pipeline_runs.recovery_effect_key` names the pending visit until `ConfirmTaskStart`). A turn ending with the
   visit open and no report or wait gets an ordinary continuation prompt
   (`server/pipeline_stall.go`), unless quota-held, busy, running background work or in a
   lifecycle transition; the third consecutive one interrupts the visit and pauses

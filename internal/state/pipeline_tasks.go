@@ -1052,6 +1052,16 @@ func (s *Store) retryInterruptedStageTask(runID, taskID string, expectedRevision
 			return PipelineRunRecord{}, err
 		}
 	}
+	// The effect key names the visit whose charged recovery has not yet
+	// started executing: replacing that owner continues the same recovery
+	// operation and does not charge again (TS-09.R70).
+	effect := ""
+	if charge {
+		effect = taskID
+	}
+	if _, err := tx.Exec(`UPDATE pipeline_runs SET recovery_effect_key = ? WHERE run_id = ?`, effect, runID); err != nil {
+		return PipelineRunRecord{}, err
+	}
 	now := formatTime(timeNow())
 	res, err := tx.Exec(`UPDATE tasks SET state = ?, attention_reason = '', start_attempt_count = 0, ready_at = ?, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state = ? AND EXISTS (SELECT 1 FROM pipeline_stage_tasks p WHERE p.task_id = tasks.task_id AND p.run_id = ? AND p.state = 'open')`, TaskReady, now, now, taskID, TaskInterrupted, runID)
 	if err != nil {
@@ -1083,15 +1093,20 @@ func (s *Store) PreparePipelineStageReplacement(p CreatePipelineStageTaskParams,
 	}
 	defer tx.Rollback()
 	var revision int64
-	var runState, currentStage, oldState, coordinatorID string
-	err = tx.QueryRow(`SELECT r.revision, r.state, r.current_stage_id, t.state, ps.coordinator_task_id FROM pipeline_runs r JOIN pipeline_stage_tasks ps ON ps.run_id = r.run_id AND ps.task_id = ? JOIN tasks t ON t.task_id = ps.task_id WHERE r.run_id = ? AND ps.state = 'open'`, oldTaskID, p.RunID).Scan(&revision, &runState, &currentStage, &oldState, &coordinatorID)
+	var runState, currentStage, oldState, coordinatorID, effect string
+	err = tx.QueryRow(`SELECT r.revision, r.state, r.current_stage_id, t.state, ps.coordinator_task_id, r.recovery_effect_key FROM pipeline_runs r JOIN pipeline_stage_tasks ps ON ps.run_id = r.run_id AND ps.task_id = ? JOIN tasks t ON t.task_id = ps.task_id WHERE r.run_id = ? AND ps.state = 'open'`, oldTaskID, p.RunID).Scan(&revision, &runState, &currentStage, &oldState, &coordinatorID, &effect)
 	if err != nil || revision != p.ExpectedRevision || runState != "paused" || currentStage != p.StageID || oldState != TaskInterrupted {
 		return PipelineRunRecord{}, ErrPipelineStageConflict
 	}
-	if p.ChargeRound {
+	// Replacing an owner whose charged retry never started executing is the
+	// same recovery operation: it was already charged (TS-09.R70).
+	if p.ChargeRound && effect != oldTaskID {
 		if err := chargeRoundTx(tx, p.RunID); err != nil {
 			return PipelineRunRecord{}, err
 		}
+	}
+	if _, err := tx.Exec(`UPDATE pipeline_runs SET recovery_effect_key = '' WHERE run_id = ?`, p.RunID); err != nil {
+		return PipelineRunRecord{}, err
 	}
 	now := timeNow()
 	stamp := formatTime(now)

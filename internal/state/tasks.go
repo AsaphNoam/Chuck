@@ -1504,6 +1504,11 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 	if n == 0 {
 		return Task{}, false, nil
 	}
+	// A charged pipeline recovery ends once its owner executes again; a later
+	// failure is a new recovery operation (TS-09.R70).
+	if _, err := tx.Exec(`UPDATE pipeline_runs SET recovery_effect_key = '' WHERE recovery_effect_key = ?`, taskID); err != nil {
+		return Task{}, false, fmt.Errorf("state: settle pipeline recovery effect: %w", err)
+	}
 	// The saved wait set stays as this execution's continuation context: the
 	// resumed agent reads it through get_assigned_task after confirmation. A
 	// running task without a pending yield is never woken by it, and the next

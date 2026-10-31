@@ -267,6 +267,8 @@ func TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance(t *testing.T) {
 	if run := readRun(t, manager, runID); run.State != "queued" || run.RecoveryRoundsUsed != 1 {
 		t.Fatalf("after retry run = %s used=%d", run.State, run.RecoveryRoundsUsed)
 	}
+	// The retried owner executes again; its next failure is a new recovery.
+	confirmStart(t, manager, visit.TaskID)
 
 	visit = interrupt()
 	// An attachment-only message queued for the old owner moves, whole, to
@@ -325,6 +327,60 @@ func TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance(t *testing.T) {
 	receipt, err := manager.store.AttachmentReceipt("a_owner", fmt.Sprintf("run_%s_%d", runID, run.Revision))
 	if err != nil || receipt.Delivery != "prepared" || receipt.AssignmentTaskID != visit.TaskID || !strings.Contains(receipt.MessageJSON, "Repair the migration first") {
 		t.Fatalf("resume instructions = %+v %v, want them retained for the resumed visit", receipt, err)
+	}
+}
+
+func confirmStart(t *testing.T, manager *Manager, taskID string) {
+	t.Helper()
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET state = ?, start_attempt_id = 'attempt-executed' WHERE task_id = ?`, state.TaskStarting, taskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := manager.store.ConfirmTaskStart(taskID, "attempt-executed"); err != nil || !ok {
+		t.Fatalf("confirm start = %v %v", ok, err)
+	}
+}
+
+// ARCH-NEXT-3, TS-09.R70 — an automatic retry whose native resume turns out
+// unusable is replaced within the same recovery operation: one round, even
+// when it was the last one.
+func TestUnusableNativeResumeReplacesWithinTheSameRecoveryRound(t *testing.T) {
+	manager, _, runID := goalLedFixture(t, false)
+	visit, _ := manager.store.LatestPipelineStageTask(runID)
+	if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET recovery_rounds_used = ? WHERE run_id = ?`, state.PipelineRecoveryRounds-1, runID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_owner' WHERE task_id = ?`, state.TaskInterrupted, visit.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "restart_interrupted", false); err != nil || !ok {
+		t.Fatalf("automatic retry = %v %v", ok, err)
+	}
+	// The retried start parks: its native session is unusable. The charge
+	// is durable, so this holds across a restart between the two steps.
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET state = ? WHERE task_id = ?`, state.TaskDependencyFailed, visit.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := manager.store.InterruptParkedStageTask(visit.TaskID); err != nil || !ok {
+		t.Fatalf("interrupt parked = %v %v", ok, err)
+	}
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "owner_unavailable", true); err != nil || !ok {
+		run := readRun(t, manager, runID)
+		t.Fatalf("replacement = %v %v; run %s/%s used=%d", ok, err, run.State, run.AttentionReason, run.RecoveryRoundsUsed)
+	}
+	successor, _ := manager.store.LatestPipelineStageTask(runID)
+	if run := readRun(t, manager, runID); successor.TaskID == visit.TaskID || run.RecoveryRoundsUsed != state.PipelineRecoveryRounds || run.State == "paused" {
+		t.Fatalf("after replacement run = %s/%s used=%d successor=%s", run.State, run.AttentionReason, run.RecoveryRoundsUsed, successor.TaskID)
+	}
+	// The replacement is not a renewed allowance: the successor failing too
+	// is a new operation, and none is left.
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_successor' WHERE task_id = ?`, state.TaskInterrupted, successor.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := manager.RecoverStageTask(successor.TaskID, "owner_unavailable", true); err != nil || ok {
+		t.Fatalf("second replacement past the allowance = %v %v", ok, err)
+	}
+	if run := readRun(t, manager, runID); run.State != "paused" || run.AttentionReason != state.PauseRecoveryExhausted {
+		t.Fatalf("exhausted = %s/%s", run.State, run.AttentionReason)
 	}
 }
 
