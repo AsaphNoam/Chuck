@@ -1,0 +1,39 @@
+package pipeline
+
+import (
+	"testing"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+// TS-09.R70 charges native retry followed by necessary replacement once for
+// the same recovery operation, even when that was the last available round.
+func TestArchUnusableNativeResumeCanReplaceWithinLastRecoveryRound(t *testing.T) {
+	manager, _, runID := goalLedFixture(t, false)
+	visit, _ := manager.store.LatestPipelineStageTask(runID)
+	if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET recovery_rounds_used=2 WHERE run_id=?`, runID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET state='interrupted', assigned_agent_id='a_owner' WHERE task_id=?`, visit.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "restart_interrupted", false); err != nil || !ok {
+		t.Fatalf("begin recovery: %v %v", ok, err)
+	}
+	// The retry has not executed useful work: its native resume is unusable,
+	// so ordinary dispatch parks the start then asks the same controller to
+	// replace the owner, as recoverParkedStageTask does.
+	if _, err := manager.store.DB().Exec(`UPDATE tasks SET state='dependency_failed' WHERE task_id=?`, visit.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := manager.store.InterruptParkedStageTask(visit.TaskID); err != nil || !ok {
+		t.Fatalf("parked recovery: %v %v", ok, err)
+	}
+	if ok, err := manager.RecoverStageTask(visit.TaskID, "owner_unavailable", true); err != nil || !ok {
+		run := readRun(t, manager, runID)
+		t.Fatalf("replacement refused after one recovery operation: ok=%v err=%v state=%s attention=%s rounds=%d", ok, err, run.State, run.AttentionReason, run.RecoveryRoundsUsed)
+	}
+	if run := readRun(t, manager, runID); run.RecoveryRoundsUsed != state.PipelineRecoveryRounds {
+		t.Fatalf("replacement double charged: rounds=%d", run.RecoveryRoundsUsed)
+	}
+}

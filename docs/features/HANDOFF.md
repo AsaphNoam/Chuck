@@ -59,6 +59,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   Fresh source, presentation and independent browser evidence is in the changelog below.
 - **Boring Night skin:** BORING-NIGHT reviewed 2026-10-31; fix unit closed 2026-10-31
   (BORING-NIGHT-1 fixed).
+- **Next architectural review:** combined candidate `0d6d877c` reviewed 2026-10-31; ARCH-NEXT
+  has four open Must-fix findings (message-session teardown, queued-input replacement ownership,
+  recovery-round accounting and shipped checkout guidance). [Receipt](../archive/reviews/architecture/v0.20.0-next.json).
+  Fix closure updates that receipt without another review; final release preparation remains owed.
 
 ## Active change
 
@@ -227,9 +231,56 @@ None.
 
 ## Review findings
 
-None.
+### ARCH-NEXT — combined architecture since v0.20.0 — **Fix model:** difficult — Codex Sol.
+
+Reviewed candidate `0d6d877c` on 2026-10-31. [Receipt](../archive/reviews/architecture/v0.20.0-next.json)
+and [evidence](../archive/reviews/architecture/v0.20.0-next.md).
+
+- **Must fix** — **ARCH-NEXT-1: MCP initialization can escape launch teardown.**
+  `internal/messaging/messaging.go:335–359` registers SDK session ownership only after the HTTP
+  handler returns. Stop/switch/crash cleanup can revoke the launch while initialization is writing
+  its response; the late registration then ignores the removed token and leaves the SDK session
+  retained without expiry. TS-04.R7; INV §4/§5/§16. A real SDK HTTP-boundary probe fails 3/3,
+  independently repeated by the parent. Make session creation/ownership and revoke converge on
+  cleanup, retaining unknown-token and other-launch isolation; regress the in-flight initialization.
+- **Must fix** — **ARCH-NEXT-2: replacing an owner loses queued input's replay and attachment source.**
+  `internal/state/attachment_receipts.go:130` moves the receipt's primary-key agent identity and
+  clears its assignment before copying bytes; `SourceAgentID` survives only in memory. A retry to
+  the original conversation misses `internal/server/attachments.go:481`'s receipt lookup and can
+  send the same input again to the retired owner. A crash between claim and copy leaves a recovery
+  descriptor under the successor without its bytes or durable source. TS-09.R69; INV §5/§9/§15.
+  Real HTTP/fake-provider evidence captures two prompts for one command; simulated interruption
+  followed by actual startup recovery loses usable attachment recovery. Preserve stable original
+  acceptance identity and durable attachment provenance through delivery/restart/replacement.
+- **Must fix** — **ARCH-NEXT-3: one native recovery spends two automatic rounds.**
+  `internal/pipeline/decisions.go:272–275` charges both interrupted-owner retry and the replacement
+  needed when that native resume is unusable (`internal/state/pipeline_tasks.go:1050/1091`). With
+  two rounds used, retry spends the last round and replacement pauses `recovery_exhausted` before
+  new execution. TS-09.R70 explicitly charges that recovery operation once; INV §5/§15. A real-store
+  controller probe reproduces it. Persist/reuse the recovery operation's charge across retry and
+  replacement, including restart, without renewing the cumulative allowance.
+- **Must fix** — **ARCH-NEXT-4: shipped operating guidance contradicts run checkout isolation.**
+  `internal/agentknowledge/operating-chuck/references/operate-agents.md:32` still says all agents,
+  tasks and pipeline stages in one project share a checkout and isolation requires another project;
+  the pipeline reference gives no run-worktree exception. FS-19.R12/TS-09.R61–63 now support isolated
+  runs within the same project. This misinforms Chuck-operating agents about execution placement.
+  FS-18.R1/R3/R5; TS-11.R1; INV §10. Update the canonical progressively linked references during
+  release preparation; retain ordinary-project behavior, frozen lineage and explicit-removal limits.
+
+The review is complete with these findings open. Fix closure appends exact repair commits and
+verification to this receipt; it does not require another architectural review. A later release
+build/generated embed or other substantive preparation needs exact affected-coverage evidence.
+Existing native/provider/device acceptance gates remain owed above.
 
 ## Changelog
+
+- **2026-10-31 — Reviewed combined architecture since v0.20.0:** fresh independent system review
+  plus focused pipeline, workspace and runtime reviews recorded ARCH-NEXT-1–4. Real SDK HTTP,
+  real-store/controller, HTTP/fake-provider and startup-recovery probes establish the failures;
+  bounded reproducers and evidence are archived with the receipt. Full UI (1,128 tests), UI build,
+  spec, knowledge/CLI and focused runtime/index/server/workspace/Git checks pass. Existing full Go
+  evidence is reused; final dist/package and native/provider/device gates remain owed. Product and
+  normative specs unchanged; unrelated ideas edit preserved. **Fix model:** difficult — Codex Sol.
 
 - **2026-10-31 — Fixed BORING-NIGHT-1 (TS-08.R151, INV §8/§17):** Boring Night mapped
   `--ad-highlight` to a dark fill, which left syntax function/property names (1.48:1 on the

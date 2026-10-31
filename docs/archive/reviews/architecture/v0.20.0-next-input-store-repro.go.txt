@@ -1,0 +1,35 @@
+package state
+
+import "testing"
+
+// A queued command keeps its original replay identity after an automatic
+// owner replacement delivers it in the successor's conversation (TS-09.R69).
+func TestArchReplacementInputKeepsOriginalReplayIdentity(t *testing.T) {
+	st, _, taskID := decisionRun(t)
+	for _, id := range []string{"owner", "replacement"} {
+		if err := st.WriteAgent(Agent{AgentID: id, Interface: "chat"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := st.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id='owner' WHERE task_id=?`, taskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := st.QueueAssignmentInput(AttachmentReceipt{AgentID: "owner", RequestID: "network-retry", PayloadHash: "hash", MessageJSON: `{"text":"use SQLite"}`, Action: "prompt"}); err != nil || !ok {
+		t.Fatalf("queue: %v %v", ok, err)
+	}
+	// Replacement preserves this queued receipt's assignment while moving
+	// its execution into a visibly new conversation.
+	if _, err := st.DB().Exec(`UPDATE tasks SET state='running', assigned_agent_id='replacement' WHERE task_id=?`, taskID); err != nil {
+		t.Fatal(err)
+	}
+	claimed, ok, err := st.TakeQueuedAssignmentInput("replacement")
+	if err != nil || !ok || claimed.SourceAgentID != "owner" {
+		t.Fatalf("claim: %+v %v %v", claimed, ok, err)
+	}
+	if err := st.SetAttachmentDelivery("replacement", "network-retry", "submitted"); err != nil {
+		t.Fatal(err)
+	}
+	if original, err := st.AttachmentReceipt("owner", "network-retry"); err != nil || original.PayloadHash != "hash" {
+		t.Fatalf("original POST replay identity was lost: receipt=%+v err=%v", original, err)
+	}
+}

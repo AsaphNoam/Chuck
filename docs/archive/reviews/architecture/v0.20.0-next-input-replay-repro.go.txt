@@ -1,0 +1,104 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/AsaphNoam/Chuck/internal/attachment"
+	"github.com/AsaphNoam/Chuck/internal/runtime"
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+func TestArchMovedInputHTTPReplayDoesNotSendAnotherProviderTurn(t *testing.T) {
+	srv, ts, promptLog := activationTestServer(t)
+	oldID := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	newID := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	// Keep the queued assignment out of unrelated automatic admission. Its
+	// successor's provider conversation is already present for this probe.
+	for i := 0; i < cap(srv.taskStartSlots); i++ {
+		srv.taskStartSlots <- struct{}{}
+	}
+	task := createPipelineSnapshotTask(t, srv, "pr_replay", "tk_replay", inputSnapshot)
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id=? WHERE task_id=?`, oldID, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	command := map[string]string{"text": "Use SQLite", "request_id": "moved-input"}
+	if resp, body := post(t, ts.URL+"/api/sessions/"+oldID+"/prompt", command); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("original acceptance: %d %s", resp.StatusCode, body)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='running', assigned_agent_id=? WHERE task_id=?`, newID, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	rec, ok, err := srv.stateStore.TakeQueuedAssignmentInput(newID)
+	if err != nil || !ok || rec.SourceAgentID != oldID {
+		t.Fatalf("successor claim: %+v %v %v", rec, ok, err)
+	}
+	before := promptCount(t, promptLog)
+	if _, err := srv.registry.SendMessageOrHold(context.Background(), newID, runtime.Message{Text: "Use SQLite", RequestID: "moved-input"}); err != nil {
+		t.Fatal(err)
+	}
+	waitPrompts(t, promptLog, before+1)
+	if resp, body := post(t, ts.URL+"/api/sessions/"+oldID+"/prompt", command); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("original replay: %d %s", resp.StatusCode, body)
+	}
+	// The HTTP response waits for the turn to settle; the fake has already
+	// captured any duplicate session/prompt. A replay may create no new turn.
+	if got := promptCount(t, promptLog); got != before+1 {
+		t.Fatalf("original command replay crossed provider wire again: got %d total prompts, want %d", got, before+1)
+	}
+}
+
+func TestArchMovedAttachmentClaimRestartKeepsBytesRecoverable(t *testing.T) {
+	srv := testServer(t, true)
+	for _, id := range []string{"a_old", "a_new"} {
+		if err := srv.stateStore.WriteAgent(state.Agent{AgentID: id, Interface: "chat"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files := attachment.New(srv.configStore.Home())
+	d, err := files.Put("a_old", "instructions.txt", strings.NewReader("required correction"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := files.Retain("a_old", []string{d.ID}); err != nil {
+		t.Fatal(err)
+	}
+	msg := runtime.Message{Attachments: []attachment.Descriptor{d}}
+	raw, _ := json.Marshal(msg)
+	task := createPipelineSnapshotTask(t, srv, "pr_claim_crash", "tk_claim_crash", inputSnapshot)
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id='a_old' WHERE task_id=?`, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := srv.stateStore.QueueAssignmentInput(state.AttachmentReceipt{AgentID: "a_old", RequestID: "crash-input", PayloadHash: "hash", MessageJSON: string(raw), Action: "prompt"}); err != nil || !ok {
+		t.Fatalf("queue: %v %v", ok, err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='running', assigned_agent_id='a_new' WHERE task_id=?`, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := srv.stateStore.TakeQueuedAssignmentInput("a_new"); err != nil || !ok {
+		t.Fatalf("claim: %v %v", ok, err)
+	}
+	// Crash after the claim commits but before CloneQueuedAttachments. Only
+	// the durable record survives; execute the actual startup recovery seam.
+	if err := srv.stateStore.ReleaseRestartedAttachments(); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.recoverAttachmentStorage(); err != nil {
+		t.Fatal(err)
+	}
+	recovery, err := srv.stateStore.AttachmentRecovery("a_new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.CloneQueuedAttachments(srv.configStore.Home(), recovery, msg); err != nil {
+		t.Fatal(err)
+	}
+	if f, _, err := files.Open("a_new", d.ID); err != nil {
+		t.Fatalf("accepted attachment unavailable after claim-boundary restart; source=%q delivery=%s: %v", recovery.SourceAgentID, recovery.Delivery, err)
+	} else {
+		f.Close()
+	}
+}

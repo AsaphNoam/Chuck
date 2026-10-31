@@ -1,0 +1,43 @@
+package messaging
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+type architecturePausedResponse struct {
+	*httptest.ResponseRecorder
+	once sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (w *architecturePausedResponse) pause() {
+	w.once.Do(func() { close(w.entered); <-w.release })
+}
+func (w *architecturePausedResponse) WriteHeader(code int) { w.pause(); w.ResponseRecorder.WriteHeader(code) }
+func (w *architecturePausedResponse) Write(body []byte) (int, error) { w.pause(); return w.ResponseRecorder.Write(body) }
+
+func TestArchitectureRevokeDuringMCPInitialize(t *testing.T) {
+	srv := New(newStore(t), nil)
+	srv.RegisterSession("tok-stopping", "a_stopping", "generation-1")
+	t.Cleanup(func() { for session := range srv.mcp.Sessions() { _ = session.Close() } })
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"agent","version":"1"}}}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set(TokenHeader, "tok-stopping")
+	w := &architecturePausedResponse{ResponseRecorder: httptest.NewRecorder(), entered: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan struct{})
+	go func() { srv.Handler().ServeHTTP(w, req); close(done) }()
+	select { case <-w.entered: case <-time.After(5*time.Second): t.Fatal("no initialize response") }
+	before := mcpSessionIDs(srv)
+	srv.Revoke("tok-stopping")
+	close(w.release)
+	select { case <-done: case <-time.After(5*time.Second): t.Fatal("initialize did not finish") }
+	if len(before) != 1 { t.Fatalf("expected initialized SDK session before revoke, got %v", before) }
+	if got := mcpSessionIDs(srv); len(got) != 0 { t.Fatalf("revoked launch retains initialized SDK session: %v (HTTP %d)", got, w.Code) }
+}
