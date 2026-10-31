@@ -114,7 +114,7 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; --ad-phone-wallpaper-
 .phone-peer-stop dt { color: var(--ad-text-muted); font-size: 0.625rem; }
 .phone-peer-stop dd { color: var(--ad-text-primary); margin: 0 0 var(--ad-space-1); }
 .phone-composer { display: grid; gap: var(--ad-space-2); border-top: var(--ad-border-thin) solid var(--ad-border-default); padding-top: var(--ad-space-4); }
-.phone-composer.is-file-drop-target { outline: var(--ad-border-thick) solid var(--ad-highlight); outline-offset: 2px; }
+.phone-composer.is-file-drop-target { outline: var(--ad-border-thick) solid var(--ad-highlight-foreground); outline-offset: 2px; }
 .phone-app .chat-attachment { grid-template-columns: 64px minmax(0, 1fr); }
 .phone-app .chat-attachment-preview { width: 64px; height: 64px; }
 .phone-composer .chat-attachment-strip { max-height: 10rem; overflow-y: auto; }

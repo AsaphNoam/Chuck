@@ -113,11 +113,26 @@ test("keeps finished task rows at full token contrast", () => {
     .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
     .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
-  for (const [prefix, file] of [["core", "tokens.css"], ["studio", "skins/studio.css"], ["sky-grove", "skins/sky-grove.css"]]) {
-    const css = fs.readFileSync(path.join(process.cwd(), "src", "styles", file), "utf8");
+  const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
+  const read = (file) => fs.readFileSync(path.join(process.cwd(), "src", "styles", file), "utf8");
+  const skins = [["core", "tokens.css"], ["studio", "skins/studio.css"], ["sky-grove", "skins/sky-grove.css"], ["boring-night", "skins/boring-night.css"]];
+  for (const [prefix, file] of skins) {
+    const css = read(file);
     const raw = (name) => css.match(new RegExp(`--ad-${prefix}-${name}:\\s*(#[0-9a-f]{6});`, "i"))?.[1];
-    const [muted, canvas] = [luminance(raw("muted")), luminance(raw("canvas"))];
-    assert.ok((Math.max(muted, canvas) + 0.05) / (Math.min(muted, canvas) + 0.05) >= 4.5, `${prefix} muted text on canvas`);
+    assert.ok(contrast(raw("muted"), raw("canvas")) >= 4.5, `${prefix} muted text on canvas`);
+  }
+
+  // Follow each appearance's real token chain (skin definitions win over Core's) to its hex value,
+  // so a skin that maps the highlight fill dark cannot leave syntax accents illegible (FS-12.A42).
+  for (const [prefix, file] of skins) {
+    const css = prefix === "core" ? read("tokens.css") : `${read("tokens.css")}\n${read(file)}`;
+    const resolve = (token) => {
+      const value = [...css.matchAll(new RegExp(`${token}:\\s*([^;]+);`, "g"))].at(-1)?.[1].trim();
+      const reference = /^var\((--[a-z0-9-]+)\)$/.exec(value ?? "")?.[1];
+      return reference ? resolve(reference) : value;
+    };
+    const accent = resolve("--ad-highlight-foreground");
+    assert.ok(contrast(accent, resolve("--ad-technical-background")) >= 4.5, `${prefix} highlight foreground on technical background`);
   }
 });
 

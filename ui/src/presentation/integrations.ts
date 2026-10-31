@@ -16,14 +16,14 @@ export const syntaxTheme: SyntaxStyles = {
   },
   comment: { color: "var(--ad-technical-muted)" },
   punctuation: { color: "var(--ad-technical-muted)" },
-  property: { color: "var(--ad-highlight)" },
+  property: { color: "var(--ad-highlight-foreground)" },
   tag: { color: "var(--ad-state-error)" },
   boolean: { color: "var(--ad-action-primary)" },
   number: { color: "var(--ad-action-primary)" },
   string: { color: "var(--ad-state-done)" },
   operator: { color: "var(--ad-action-secondary)" },
   keyword: { color: "var(--ad-action-secondary)" },
-  function: { color: "var(--ad-highlight)" },
+  function: { color: "var(--ad-highlight-foreground)" },
 };
 
 export const diffTheme = {

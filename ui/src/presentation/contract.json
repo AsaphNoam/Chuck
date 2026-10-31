@@ -20,6 +20,7 @@
     "--ad-action-primary-ink",
     "--ad-action-secondary",
     "--ad-highlight",
+    "--ad-highlight-foreground",
     "--ad-state-busy",
     "--ad-state-idle",
     "--ad-state-waiting",

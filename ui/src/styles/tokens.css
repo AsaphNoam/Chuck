@@ -69,6 +69,7 @@
   --ad-action-primary-ink: var(--ad-core-ink);
   --ad-action-secondary: var(--ad-core-secondary);
   --ad-highlight: var(--ad-core-highlight);
+  --ad-highlight-foreground: var(--ad-highlight);
   --ad-state-busy: var(--ad-core-busy);
   --ad-state-idle: var(--ad-core-idle);
   --ad-state-waiting: var(--ad-core-waiting);

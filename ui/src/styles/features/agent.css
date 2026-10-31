@@ -2135,7 +2135,7 @@ a.agent-mini-card:focus-visible {
 }
 
 .chat-attachment-remove:disabled { opacity: 0.6; }
-.composer.is-file-drop-target { outline: var(--ad-border-thick) solid var(--ad-highlight); outline-offset: 2px; }
+.composer.is-file-drop-target { outline: var(--ad-border-thick) solid var(--ad-highlight-foreground); outline-offset: 2px; }
 .composer-drop-hint,
 .composer-retry { grid-column: 1 / -1; margin: 0; color: var(--ad-text-secondary); font-size: 0.72rem; }
 .composer-retry button { padding: 0 var(--ad-space-1); border: 0; background: transparent; color: var(--ad-text-primary); text-decoration: underline; }

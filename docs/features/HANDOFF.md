@@ -57,9 +57,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   2026-10-31 (BGRUN-COUNT-1 fixed).
 - **Pipelines redesign:** PIPELINE-FIGMA reviewed 2026-10-31; closed without findings.
   Fresh source, presentation and independent browser evidence is in the changelog below.
-- **Boring Night skin:** BORING-NIGHT reviewed 2026-10-31; one Must fix remains for
-  near-invisible `--ad-highlight` foreground uses (code-block function names, file-drop
-  outline) below.
+- **Boring Night skin:** BORING-NIGHT reviewed 2026-10-31; fix unit closed 2026-10-31
+  (BORING-NIGHT-1 fixed).
 
 ## Active change
 
@@ -228,46 +227,18 @@ None.
 
 ## Review findings
 
-### BORING-NIGHT — Boring Night dark skin (2026-10-31) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed substantive commit `df3109c1` against FS-12.R42/R44/R72/A42, TS-02.R62, TS-03.R77,
-TS-08.R61/R151 and TS-06.R35. Product code and specs were not changed; the operator's
-uncommitted `docs/ideas.md` edit was left untouched.
-
-- **Must fix** — BORING-NIGHT-1: `--ad-highlight` is mapped to the dark emphasis `#294760`, but
-  two consumers use it as a foreground, not a fill. `presentation/integrations.ts` `syntaxTheme`
-  colors `function`/`property` tokens with it on `--ad-technical-background` `#172b43` (1.48:1):
-  in any chat code block, function names (`greet`, `Println`, `len`) are near-invisible.
-  `.composer.is-file-drop-target` / `.phone-composer.is-file-drop-target` outline it against the
-  panel (1.32:1), so dragging a file gives no visible drop feedback. Violates A42 ("technical
-  renderers stay legible"); TS-08.R151's "syntax … need no change" claim is false. Keep the dark
-  fill for `.user-message`, marked file lines, picker and template hover; give those two
-  foreground uses a light accent in Boring Night through the token map or a shared integration
-  token without changing Core, Sky & Grove or Studio, and correct R151. Regression: extend the
-  `check-presentation-contract.test.mjs` contrast loop (which also omits `boring-night` from its
-  muted-on-canvas check) with syntax-accent-on-technical-background for every skin. INV §8/§17.
-  Fix complexity: trivial/easy.
-
-Evidence: reviewed-commit build in a detached worktree with an isolated `CHUCK_HOME` and fake ACP
-scenarios; Chromium at 1280×800 measured token span `rgb(41, 71, 96)` on `rgb(23, 43, 67)` and a
-`rgb(41, 71, 96)` 2px drop outline. Screenshots/harness: `/private/tmp/boring-night-review/`.
-Settings preview is distinguishable; selection applies live and survives reload; Mermaid, diff
-fence, cards, header and composer are legible; no console errors. Focused appearance/visual-matrix
-UI tests (14), presentation contract, and config/server appearance Go tests pass.
-
-Local choices: the coral-running/pink-error pair renders distinguishably (labels differ and the
-error card is dimmed); the CSS ledger grid satisfies the no-asset rule; contract version 4 is
-correct per R151. All three notes are accepted and removed.
-
-Invariant sweep: §8 yields the finding; §10 wiring is complete (Go set, `BUILT_IN_SKINS`,
-contract, Settings, phone, matrix, both stylesheet entries, phone route via the shared validator);
-§11 adds one string value with no shape change; §13 adds only attribute selectors; §17 tests
-assert real boundaries but the enumerated contrast gate missed the new skin (folded into the fix).
-§§1–7/9/12/14–16 have no lifecycle, builder, persistence-shape, registration, concurrency,
-interface, read-path, durability, external-CLI, HTTP/security, external-effect or bounding
-surface in this diff. Other review/fix units remain unchanged.
+None.
 
 ## Changelog
+
+- **2026-10-31 — Fixed BORING-NIGHT-1 (TS-08.R151, INV §8/§17):** Boring Night mapped
+  `--ad-highlight` to a dark fill, which left syntax function/property names (1.48:1 on the
+  technical background) and the composer file-drop outline near-invisible. New public token
+  `--ad-highlight-foreground` (Core default `var(--ad-highlight)`, other skins unchanged) now
+  carries those two foreground uses; Boring Night maps it to amber `#edc585`. The presentation
+  test resolves every appearance's token chain and requires 4.5:1 on the technical background; it
+  fails with the skin override removed. It also adds Boring Night to the muted-on-canvas check.
+  Review evidence: `/private/tmp/boring-night-review/`.
 
 - **2026-10-31 — Added the Boring Night skin (FS-12.R72, TS-08.R151):** the Figma Make
   exploration's "Chuck Night" palette ships as the dark built-in skin `boring-night` — Go write

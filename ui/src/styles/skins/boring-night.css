@@ -14,6 +14,7 @@
   --ad-boring-night-coral-ink: #14263e;
   --ad-boring-night-blue: #b3d2ea;
   --ad-boring-night-grid: #8aaed2;
+  --ad-boring-night-highlight-line: #edc585;
   --ad-boring-night-preview-card: #263e5a;
   --ad-boring-night-preview-blue: #7faec7;
   --ad-boring-night-busy: #e99a87;
@@ -44,6 +45,7 @@
   --ad-action-primary-ink: var(--ad-boring-night-coral-ink);
   --ad-action-secondary: var(--ad-boring-night-blue);
   --ad-highlight: var(--ad-boring-night-emphasis);
+  --ad-highlight-foreground: var(--ad-boring-night-highlight-line);
   --ad-state-busy: var(--ad-boring-night-busy);
   --ad-state-idle: var(--ad-boring-night-idle);
   --ad-state-waiting: var(--ad-boring-night-waiting);

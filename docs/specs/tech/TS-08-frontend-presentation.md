@@ -1956,9 +1956,15 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   waiting `#edc585`, done `#a9d2c3`, error `#f0a8a4`, idle `#acbdd0`, unknown `#a1b3c9`;
   technical `#172b43`/`#223952`/`#cedbec`. The `body::before` ornament is a CSS-gradient ledger
   grid (fine 24px lines plus a stronger 96px tier in `#8aaed2` at low opacity) instead of the
-  study's SVG, so no asset is added. Syntax, diff, terminal and Mermaid colors already derive from
-  the semantic tokens and need no change. No provider, storage, route, or feature-CSS override
-  is introduced (FS-12.R72, TS-02.R62, TS-03.R77).
+  study's SVG, so no asset is added. `--ad-highlight` stays the dark emphasis fill (user message,
+  marked file line, active picker row); because it cannot also be read as a foreground there, the
+  public token `--ad-highlight-foreground` (Core default `var(--ad-highlight)`, so other
+  appearances are unchanged) carries highlight-as-line/text uses — syntax `function`/`property`
+  tokens and the composer file-drop outline — and Boring Night maps it to amber `#edc585`. The
+  presentation test resolves each appearance's chain and requires 4.5:1 against the technical
+  background. Diff, terminal and Mermaid colors derive from the semantic tokens unchanged. No
+  provider, storage, route, or feature-CSS override is introduced (FS-12.R72, TS-02.R62,
+  TS-03.R77).
 
 ## 3. Interfaces & data shapes
 
