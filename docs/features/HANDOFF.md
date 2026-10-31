@@ -9,7 +9,12 @@ are not live queues.
 
 - **Release:** v0.21.0 tagged 2026-10-31 (goal-led pipelines, run worktrees, Boring Night skin,
   one-line tool activity, running background-command indicators).
-  [Notes](../archive/state/RELEASE-v0.21.0-notes.md). Publication pending push and release CI.
+  [Notes](../archive/state/RELEASE-v0.21.0-notes.md). `main` and the tag are pushed; release
+  CI 41222233162 was cancelled by GitHub's scheduled `macos-14` brownout (2026-10-31 14:00 UTC to
+  2026-11-01 00:00 UTC; again 2026-11-01 14:00–24:00; image retired 2026-11-02). Rerun it between
+  2026-11-01 00:00 and 14:00 UTC (`gh run rerun 41222233162`), then confirm the archive, checksum
+  and manifest and set the release body from the notes. After 2026-11-02 the release workflow
+  needs `macos-15` before any release can assemble. Main CI 41222233023 failed on CI-CARDGRID-1.
 - **Review state:** no open review units or findings. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered).
@@ -190,7 +195,17 @@ None.
 
 ## Review findings
 
-None.
+### CI-CARDGRID — release v0.21.0 clean-clone CI — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Worth fixing** — **CI-CARDGRID-1: collapsed-section auto-open test fails in CI.** INV §1/§17. `ui/src/components/grid/CardGrid.test.tsx` "opens nothing for
+  terminal, cross-project, and collapsed-section agents" fails on GitHub `ubuntu-latest` (main CI
+  41222233023 on `d3fda601`, and 40232900275 on handoff-only `43c214d1`) with
+  `Composer a_hidden` present, while it passes locally (1/1). The collapsed group's layout likely
+  hydrates after the `waiting_input` update on slower runners, so the automatic opening fires for
+  a collapsed-section agent. Decide whether this is a test-ordering race (wait for the collapsed
+  group before the update) or a product race against FS-02's no-open rule for collapsed sections;
+  add a deferred-layout regression either way. Not introduced by the v0.21.0 range. TS-06.R8
+  clean-clone CI is red until fixed.
 
 ## Changelog
 
