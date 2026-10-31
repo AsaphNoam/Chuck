@@ -57,8 +57,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   2026-10-31 (BGRUN-COUNT-1 fixed).
 - **Pipelines redesign:** PIPELINE-FIGMA reviewed 2026-10-31; closed without findings.
   Fresh source, presentation and independent browser evidence is in the changelog below.
-- **Boring Night skin:** shipped 2026-10-31 (FS-12.R72/A42, TS-08.R151); awaiting review
-  (BORING-NIGHT).
+- **Boring Night skin:** BORING-NIGHT reviewed 2026-10-31; one Must fix remains for
+  near-invisible `--ad-highlight` foreground uses (code-block function names, file-drop
+  outline) below.
 
 ## Active change
 
@@ -81,10 +82,11 @@ None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fi
   osascript panel. Still verify selection returns a usable absolute path, the panel appears
   over the browser, and click-to-visible-panel timing; activation-only timing is not panel latency.
 
-- **BORING-NIGHT rendered evidence (FS-12.A42):** Settings/Appearance and the empty Projects
-  dashboard were inspected in the browser; an expanded dashboard chat, agent screen, syntax/diff
-  blocks, terminal, Mermaid, overlays and the phone Theme select in Boring Night are not yet
-  screenshotted (use a stress-fixture scenario with agents).
+- **BORING-NIGHT rendered evidence (FS-12.A42):** Settings/Appearance, live switch, reload
+  persistence, the project dashboard with busy/idle/error cards, the agent screen, a Go code
+  block, a diff fence and a Mermaid diagram were rendered in Chromium (review 2026-10-31). An
+  xterm terminal (selection uses `--ad-action-secondary` `#b3d2ea` under `#cedbec` text),
+  overlays/permission prompt and the phone Theme select are not yet rendered.
 
 - **FS-03.A80–A82 / FS-20.A28 / FS-21.A42 (file tabs):** physical-phone touch reordering and
   reconnect, non-Chromium engines, and rendered proof of the 500-total/2 MiB limits and the
@@ -222,15 +224,48 @@ None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fi
 
 ## Review queue
 
-- **BORING-NIGHT** — fourth built-in skin, the dark "Boring Night" (FS-12.R72/A42, TS-02.R62,
-  TS-03.R77, TS-08.R151). Reviewer notes: running coral `#e99a87` and error pink `#f0a8a4` come
-  from the Make study's Chuck Night palette but sit close together; the study's SVG ledger grid
-  is drawn with CSS gradients instead of an asset; the contract version stays 4 (only the skin
-  list changed).
+None.
 
 ## Review findings
 
-None.
+### BORING-NIGHT — Boring Night dark skin (2026-10-31) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed substantive commit `df3109c1` against FS-12.R42/R44/R72/A42, TS-02.R62, TS-03.R77,
+TS-08.R61/R151 and TS-06.R35. Product code and specs were not changed; the operator's
+uncommitted `docs/ideas.md` edit was left untouched.
+
+- **Must fix** — BORING-NIGHT-1: `--ad-highlight` is mapped to the dark emphasis `#294760`, but
+  two consumers use it as a foreground, not a fill. `presentation/integrations.ts` `syntaxTheme`
+  colors `function`/`property` tokens with it on `--ad-technical-background` `#172b43` (1.48:1):
+  in any chat code block, function names (`greet`, `Println`, `len`) are near-invisible.
+  `.composer.is-file-drop-target` / `.phone-composer.is-file-drop-target` outline it against the
+  panel (1.32:1), so dragging a file gives no visible drop feedback. Violates A42 ("technical
+  renderers stay legible"); TS-08.R151's "syntax … need no change" claim is false. Keep the dark
+  fill for `.user-message`, marked file lines, picker and template hover; give those two
+  foreground uses a light accent in Boring Night through the token map or a shared integration
+  token without changing Core, Sky & Grove or Studio, and correct R151. Regression: extend the
+  `check-presentation-contract.test.mjs` contrast loop (which also omits `boring-night` from its
+  muted-on-canvas check) with syntax-accent-on-technical-background for every skin. INV §8/§17.
+  Fix complexity: trivial/easy.
+
+Evidence: reviewed-commit build in a detached worktree with an isolated `CHUCK_HOME` and fake ACP
+scenarios; Chromium at 1280×800 measured token span `rgb(41, 71, 96)` on `rgb(23, 43, 67)` and a
+`rgb(41, 71, 96)` 2px drop outline. Screenshots/harness: `/private/tmp/boring-night-review/`.
+Settings preview is distinguishable; selection applies live and survives reload; Mermaid, diff
+fence, cards, header and composer are legible; no console errors. Focused appearance/visual-matrix
+UI tests (14), presentation contract, and config/server appearance Go tests pass.
+
+Local choices: the coral-running/pink-error pair renders distinguishably (labels differ and the
+error card is dimmed); the CSS ledger grid satisfies the no-asset rule; contract version 4 is
+correct per R151. All three notes are accepted and removed.
+
+Invariant sweep: §8 yields the finding; §10 wiring is complete (Go set, `BUILT_IN_SKINS`,
+contract, Settings, phone, matrix, both stylesheet entries, phone route via the shared validator);
+§11 adds one string value with no shape change; §13 adds only attribute selectors; §17 tests
+assert real boundaries but the enumerated contrast gate missed the new skin (folded into the fix).
+§§1–7/9/12/14–16 have no lifecycle, builder, persistence-shape, registration, concurrency,
+interface, read-path, durability, external-CLI, HTTP/security, external-effect or bounding
+surface in this diff. Other review/fix units remain unchanged.
 
 ## Changelog
 
