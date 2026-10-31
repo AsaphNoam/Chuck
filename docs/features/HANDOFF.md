@@ -56,6 +56,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archived snapshots ar
   one Must fix remains for independent file/command suggestion availability below.
 - **Background-task card count:** BGRUN-COUNT reviewed 2026-10-31; one Must fix remains
   for a prompt/activation status write restoring a stale running count below.
+- **Pipelines redesign:** PIPELINE-FIGMA reviewed 2026-10-31; closed without findings.
+  Fresh source, presentation and independent browser evidence is in the changelog below.
 
 ## Active change
 
@@ -222,22 +224,7 @@ None. Running background-work indicator unit BGRUN-UI is closed (BGRUN-UI-1/2 fi
 
 ## Review queue
 
-- **PIPELINE-FIGMA** (2026-10-29, UI): Figma Make pipelines overhaul, FS-12.R71/A41,
-  TS-08.R149. Shared header/tabs, light ruled run ledger with separate state/outcome,
-  numbered template library, light overview/timeline, stage rail/editor and start-dialog
-  finish. Existing real actions/routes remain; prototype-only controls are excluded.
-  Pipeline focused tests pass 42/42; final integrated UI suite passes 1068 with 1 skipped. Styles,
-  presentation contracts, type/build and `make embed` pass; `git diff --check` passes.
-  `make check-specs` retains only the pre-existing DELMSG-1 missing invariant-tag failure.
-  Independent browser evidence: `ui/scripts/pipelines-render.mjs`, all appearances at
-  1024/1440, populated runs/templates/detail/editor and Setup→Review dialog, pagination,
-  event refresh and internal stage-rail overflow (120 checks); empty/loading/error each pass
-  24 checks, 192 total. Independent rendered critique has no remaining material findings.
-  Screenshots in shared
-  resources `pipelines-final/`. Figma MCP supplies source but does not support Make screenshots;
-  its workspace source is truncated, so exact target screenshot comparison is unverified.
-  Pre-existing generated index saved as shared `pipelines-preexisting-index.html` before
-  regenerating the embedded output from integrated source.
+None.
 
 ## Review findings
 
@@ -362,6 +349,26 @@ Field attribution of the user's suspected growth remains undetermined (no heap/b
 or workload was supplied); disposable probes remain under `/private/tmp/chuck-memory-*`.
 
 ## Changelog
+
+- **2026-10-31 — Reviewed pipelines redesign (PIPELINE-FIGMA):** `238f2d10`, checked against
+  FS-12.R71/A41 and TS-08.R149 with current-source integration at `97b32d9f`. No findings;
+  originating unit closed. **Fix model:** none needed. Independent source review and 57 focused
+  pipeline tests pass; style checks (47 tests plus presentation contract), `make check-specs`
+  and `git diff --check` pass. Fresh `ui/scripts/pipelines-render.mjs` runs pass 192 browser checks
+  across Core, Sky & Grove and Studio at 1024/1440: populated routes, long names,
+  running/paused/completed/stopped ledger rows with separate state/outcome, Setup→Review,
+  pagination, live refresh and empty/loading/error states. Screenshots inspected for hierarchy,
+  readability, clipping and control placement are in `/private/tmp/chuck-pipeline-review/`.
+  Additional independent browser probe `/private/tmp/pipeline-review-interactions.mjs` passes
+  60 checks at 1024 in all three appearances: editor draft retention, long stage titles,
+  add/remove, Validate/Save payloads, paused-run question/answer gating and reachable recovery
+  controls. Its nine screenshots are in `/private/tmp/pipeline-review-interactions/`.
+  INV sweep: §8/§10/§13/§17 inspected without findings; §1–§7/§9/§11–§12/§14–§16 have no changed
+  product-contract surface in this presentation unit. Existing query/mutation ownership and
+  semantic-token/CSS seams are retained; no new motion mechanism or local-choice decision.
+  Browser fixtures establish presentation and navigation, not backend/provider lifecycle.
+  Exact Figma target screenshot comparison remains unverified (Make screenshot/source limitation
+  recorded by implementation). Only handoff state changed; concurrent ideas/runtime edits preserved.
 
 - **2026-10-31 — Fixed GOAL-LED-11/13 (INV §8/§10/§11):** accepted queued assignment input is
   rehydrated from `GET .../prompt` `queued` and listed apart from the transcript (`QueuedInput`) on
