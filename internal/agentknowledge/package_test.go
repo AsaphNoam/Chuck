@@ -139,10 +139,15 @@ func TestEmbeddedSkillUsesBoundedProgressiveReferences(t *testing.T) {
 		}
 	}
 	pipeline := string(files["references/build-and-run-pipelines.md"])
-	for _, phrase := range []string{"`blocked`", "Continue", "Chucky"} {
+	for _, phrase := range []string{"`blocked`", "Continue", "Chucky", "one new worktree for the whole run"} {
 		if !strings.Contains(pipeline, phrase) {
 			t.Errorf("pipeline reference is missing %q", phrase)
 		}
+	}
+	// FS-19.R12: a run-owned worktree isolates a run inside its project, so
+	// the checkout rule names that exception (ARCH-NEXT-4).
+	if agents := string(files["references/operate-agents.md"]); !strings.Contains(agents, "pipeline run started with its own new worktree") {
+		t.Error("operate-agents reference omits the run-worktree exception to the shared project checkout")
 	}
 }
 
