@@ -234,7 +234,7 @@ identity and authority; no common receipt grants broader target/source access.
   can scroll while target selection, errors and send remain reachable with the phone keyboard open.
   Sending uses the existing current-agent, another-agent and New agent destinations, availability
   rules, source recording and prompt/mail content; no new agent/API record shape or retention is
-  introduced. Acknowledged success clears the submitted batch and names the destination; a draft
+  introduced. Acknowledged success clears the submitted batch without a confirmation notice; a draft
   captured while that send was pending stays in the tray. A rejected or failed
   send preserves all drafts and the overall instruction. Disconnection disables delivery without
   discarding drafts or sending automatically on reconnect.
@@ -275,7 +275,7 @@ identity and authority; no common receipt grants broader target/source access.
   this case only. Self delivery keeps its existing recording and prompt behavior and does not
   offer the checkbox. The choice belongs to the pending batch, survives reload, cancelled launch
   and delivery failure/retry, and resets to checked for a fresh batch. Successful delivery still
-  clears the submitted drafts and identifies the recipient. Target mail and its retention stay
+  clears the submitted drafts. Target mail and its retention stay
   unchanged; an omitted source event contributes no source archive-search content. Existing
   transcript events are never removed. Room-source recording is outside this change.
 - **R36 — New agent terminology.** Rename the annotation destination **New task**

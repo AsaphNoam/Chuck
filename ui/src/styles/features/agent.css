@@ -1531,25 +1531,6 @@ a.agent-mini-card:focus-visible {
   margin: var(--ad-space-2) 0 0;
 }
 
-.annotation-success {
-  align-self: end;
-  background: var(--ad-surface-panel);
-  border: 1px solid var(--ad-border-default);
-  border-radius: var(--ad-radius-medium);
-  color: var(--ad-text-primary);
-  flex: none;
-  grid-column: 2;
-  grid-row: 1;
-  margin: var(--ad-space-3);
-  overflow-wrap: anywhere;
-  padding: var(--ad-space-3);
-  z-index: 1;
-}
-
-.file-focus .annotation-success {
-  grid-column: 1;
-}
-
 .annotation-send {
   margin-top: var(--ad-space-3);
   width: 100%;

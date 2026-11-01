@@ -48,7 +48,7 @@ import { carryLeadKey } from "../components/chat/turnActivity";
 import { ChildActivity } from "../components/chat/renderers/ChildActivity";
 import { ThinkingDisclosure } from "../components/chat/renderers/ThinkingDisclosure";
 import { TurnList, useFocusReturn, useTurnChoices } from "../components/chat/TurnList";
-import { PhoneAnnotationButton, PhoneAnnotations, PhoneAnnotationSent, usePhoneAnnotationDelivery } from "./AnnotationForm";
+import { PhoneAnnotationButton, PhoneAnnotations, usePhoneAnnotationDelivery } from "./AnnotationForm";
 import { useConnection, watchReasoning, type OpenTranscript } from "./connection";
 import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
@@ -820,7 +820,6 @@ export function AgentScreen({ agentId }: { agentId: string }) {
         )}
       </div>
       {chat && tab !== "manage" && <PhoneAnnotationButton sourceId={agentId} onOpen={() => setTrayOpen(true)} />}
-      {tab !== "manage" && <PhoneAnnotationSent delivery={delivery} />}
       <PhoneAnnotations delivery={delivery} open={trayOpen} focusNewest={focusNewest} onClose={closeTray} />
       {!agent.running && tab !== "manage" && error && <p className="phone-error" role="alert">{error}</p>}
       {tab === "files" && <section className="phone-section phone-files" aria-label="Files">

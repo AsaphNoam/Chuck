@@ -142,7 +142,6 @@ it("keeps a late delivery for a previous source out of the new source", async ()
   rerender({ sourceId: "a2" });
   await act(async () => { pending.resolve({ accepted: true }); await pending.promise; });
   expect(callback).not.toHaveBeenCalled();
-  expect(result.current.sentTo).toBeNull();
   expect(result.current.launchedAgentId).toBeNull();
   expect(useAnnotationStore.getState().bySource.a1).toBeUndefined();
 });
@@ -194,7 +193,6 @@ it("retains opt-out through cancelled launch, reload and same-agent retry with z
   const sent = mocks.send.mock.calls[0][1];
   expect(sent).toMatchObject({ omit_source_record: true, target: { kind: "agent", agent_id: "a3" } });
   expect(mocks.send.mock.calls[1][1]).toEqual(sent);
-  expect(second.result.current.sentTo).toBe("a3");
   expect(useAnnotationStore.getState().bySource.a1).toBeUndefined();
   act(() => useAnnotationStore.getState().add("a1", draft));
   expect(second.result.current.recordSource).toBe(true);

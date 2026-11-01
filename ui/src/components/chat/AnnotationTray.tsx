@@ -16,11 +16,6 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
   return <AnnotationTrayView delivery={useDesktopAnnotationDelivery(sourceId, sourceActive)} />;
 }
 
-export function AnnotationDeliveryStatus({ delivery }: { delivery: AnnotationDelivery }) {
-  const { sourceId, recipients, sentTo } = delivery;
-  return sentTo ? <p className="annotation-success" role="status">Annotations sent to {sentTo === sourceId ? "this agent" : recipients.find((agent) => agent.agent_id === sentTo)?.name || sentTo}.</p> : null;
-}
-
 // The desktop's projection for the shared delivery state machine.
 export function useDesktopAnnotationDelivery(sourceId: string, sourceActive: boolean) {
   const agents = useAgentStore((state) => state.agents);
@@ -41,7 +36,7 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
   const setCollapsed = useAnnotationStore((state) => state.setCollapsed);
   const choices = useProjectFirst({ items: recipients, project: source?.project, selected: recipientId, clearSelected: () => setRecipientId(""), resetKey: JSON.stringify([sourceId, drafts.length > 0]) });
 
-  if (drafts.length === 0) return <AnnotationDeliveryStatus delivery={delivery} />;
+  if (drafts.length === 0) return null;
 
   return (
     // Docked column or floating overlay is decided by the space around the

@@ -50,8 +50,6 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   const setLaunchBatch = useAnnotationStore((state) => state.setLaunchBatch);
   const launchedAgentId = useAnnotationStore((state) => state.launchedBySource[sourceId] ?? null);
   const setLaunchedAgent = useAnnotationStore((state) => state.setLaunched);
-  // The agent the last acknowledged batch went to; cleared by the next capture.
-  const [sentTo, setSentTo] = useState<string | null>(null);
   const deliveredRef = useRef(onLaunchDelivered);
   deliveredRef.current = onLaunchDelivered;
 
@@ -69,14 +67,9 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     setError(null);
     setShowLaunch(false);
     launchBatch.current = null;
-    setSentTo(null);
     return () => { live.current = null; };
   }, [token]);
   const current = () => live.current === token;
-  const count = drafts?.length ?? 0;
-  useEffect(() => {
-    if (count > 0) setSentTo(null);
-  }, [count]);
 
   const batch = (agentId?: string) => annotationBatch(drafts ?? [], overall, agentId, ensureCommand(sourceId), !recordSource && (target !== "self" || !!agentId));
   const chooseTarget = (next: AnnotationTarget) => {
@@ -101,7 +94,6 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
       discardSent(sourceId, sent);
       if (!current()) return;
       setLaunchedAgent(sourceId, null);
-      setSentTo(agentId ?? sourceId);
       if (launched) deliveredRef.current?.(agentId!);
     } catch (err) {
       if (!current()) return;
@@ -169,5 +161,5 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     if (!open) launchBatch.current = null;
     setShowLaunch(open);
   };
-  return { sourceId, sourceActive, source, recipients, connected, target, setTarget: chooseTarget, recipientId, setRecipientId: chooseRecipient, recordSource, setRecordSource, sending: sending || showLaunch, error, showLaunch, setShowLaunch: dismissLaunch, launchedAgentId, sentTo, send, onLaunched };
+  return { sourceId, sourceActive, source, recipients, connected, target, setTarget: chooseTarget, recipientId, setRecipientId: chooseRecipient, recordSource, setRecordSource, sending: sending || showLaunch, error, showLaunch, setShowLaunch: dismissLaunch, launchedAgentId, send, onLaunched };
 }

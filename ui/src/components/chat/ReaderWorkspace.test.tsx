@@ -136,13 +136,9 @@ describe("reader workspace", () => {
     await waitFor(() => expect(useAnnotationStore.getState().bySource.a1 ?? []).toHaveLength(0));
     // The tray leaves with its last draft; the file stays open.
     expect(within(dialog).queryByRole("complementary", { name: "Pending annotations" })).toBeNull();
-    expect(within(dialog).getByText("Annotations sent to this agent.")).toHaveAttribute("role", "status");
     expect(within(dialog).getByText(/package/)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Return to chat" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    const status = screen.getByText("Annotations sent to this agent.");
-    expect(status).toHaveTextContent("Annotations sent to this agent.");
-    expect(status.closest(".chat-side")).toBeNull();
     expect(document.querySelector(".chat-side-end")).toBeEmptyDOMElement();
     expect(sends).toBe(1);
   });

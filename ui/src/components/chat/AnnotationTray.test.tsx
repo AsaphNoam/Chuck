@@ -76,7 +76,7 @@ describe("AnnotationTray", () => {
     expect(screen.getByLabelText("Include in current agent's transcript")).not.toBeChecked();
     fireEvent.change(screen.getByLabelText("Annotation recipient"), { target: { value: "peer" } });
     fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Annotations sent to Peer.");
+    await waitFor(() => expect(submitted).toBeTruthy());
     expect(submitted).toMatchObject({ omit_source_record: true, target: { kind: "agent", agent_id: "peer" } });
   });
   // FS-13.R34/A24: empty -> capture is a new opening, while adding to a

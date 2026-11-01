@@ -44,15 +44,6 @@ export function PhoneAnnotationButton({ sourceId, onOpen }: { sourceId: string; 
   );
 }
 
-/** Success names the recipient; the tray itself is gone with its drafts. */
-export function PhoneAnnotationSent({ delivery }: { delivery: AnnotationDelivery }) {
-  const agents = useConnection((state) => state.agents);
-  const count = useAnnotationStore((state) => state.bySource[delivery.sourceId]?.length ?? 0);
-  if (!delivery.sentTo || count > 0) return null;
-  const name = delivery.sentTo === delivery.sourceId ? "this agent" : agents[delivery.sentTo]?.name || delivery.sentTo;
-  return <p className="phone-meta" role="status">Annotations sent to {name}.</p>;
-}
-
 /** The one tray sheet and its New agent launch step. The owner keeps `delivery`
  *  above the Chat/Files tabs, so closing the sheet or switching tabs keeps the
  *  target, a launched recipient and any send in flight (TS-08.R134). */

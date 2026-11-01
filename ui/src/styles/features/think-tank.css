@@ -1459,7 +1459,33 @@ a.think-tank-author:hover {
 
 /* Setup dialog */
 .think-tank-setup {
-  max-width: 720px;
+  max-height: calc(100vh - var(--ad-space-8));
+  max-width: min(1120px, calc(100vw - var(--ad-space-8)));
+  width: min(1120px, calc(100vw - var(--ad-space-8)));
+}
+
+/* Wide screens put participants beside the goal so the form fits without scrolling. */
+@media (min-width: 960px) {
+  .think-tank-setup .config-form {
+    align-items: start;
+    grid-auto-flow: dense;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: repeat(6, auto) 1fr;
+  }
+
+  .think-tank-setup .config-form > * {
+    grid-column: 1;
+  }
+
+  .think-tank-setup .config-form > .think-tank-setup-participants {
+    grid-column: 2;
+    grid-row: 1 / span 7;
+  }
+
+  .think-tank-setup .config-form > .form-error,
+  .think-tank-setup .config-form > .form-actions {
+    grid-column: 1 / -1;
+  }
 }
 
 .think-tank-setup-participants {

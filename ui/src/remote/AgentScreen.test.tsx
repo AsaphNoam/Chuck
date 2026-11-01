@@ -1056,7 +1056,7 @@ describe("AgentScreen annotation capture", () => {
     fireEvent.change(within(tray).getAllByLabelText("Instruction")[2], { target: { value: "explain" } });
     fireEvent.change(within(tray).getByLabelText("Overall instruction (optional)"), { target: { value: "one pass" } });
     fireEvent.click(within(tray).getByRole("button", { name: "Send annotations" }));
-    expect(await screen.findByText("Annotations sent to this agent.")).toBeInTheDocument();
+    await waitFor(() => expect(posts.some((post) => post.startsWith("annotations "))).toBe(true));
     const sent = posts.filter((post) => post.startsWith("annotations ")).map((post) => JSON.parse(post.slice("annotations ".length)));
     // jsdom's selection text includes the gutter's line number; browsers do not.
     expect(sent).toHaveLength(1);
@@ -1100,11 +1100,11 @@ describe("AgentScreen diff annotations", () => {
     return instruction;
   }
 
-  it("sends a selected range to this agent and names it", async () => {
+  it("sends a selected range to this agent", async () => {
     useConnection.setState({ agents: { a1: idle } });
     await annotateLine();
     fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
-    expect(await screen.findByText("Annotations sent to this agent.")).toBeInTheDocument();
+    await waitFor(() => expect(posts.some((post) => post.startsWith("annotations "))).toBe(true));
     const delivery = posts.filter((post) => post.startsWith("annotations ")).map((post) => JSON.parse(post.slice("annotations ".length)));
     expect(delivery).toHaveLength(1);
     expect(delivery[0]).toMatchObject({ annotations: [{ ...draft, instruction: "rename this" }], target: { kind: "self" } });

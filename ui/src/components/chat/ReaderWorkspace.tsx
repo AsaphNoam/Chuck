@@ -7,7 +7,7 @@ import { useUiStore } from "../../store/uiStore";
 import { MenuPortalContext } from "../ui/PointerContextMenu";
 import type { PanelSlots } from "./AgentStage";
 import { AnnotationContextMenu, type AnnotationMenuState } from "./AnnotationContextMenu";
-import { AnnotationDeliveryStatus, AnnotationTrayView, useDesktopAnnotationDelivery } from "./AnnotationTray";
+import { AnnotationTrayView, useDesktopAnnotationDelivery } from "./AnnotationTray";
 import { FileViewerView } from "./FileViewer";
 import { FileTabsNotice, FileTabsReader } from "../../features/fileTabs/FileTabs";
 import type { FileTabRoute } from "../../features/fileTabs/useFileTabRoute";
@@ -92,7 +92,6 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
     />
   );
   const trayView = tray && <AnnotationTrayView delivery={delivery} />;
-  const status = annotationsEnabled && !tray && <AnnotationDeliveryStatus delivery={delivery} />;
   const fileMenu = <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />;
 
   return (
@@ -110,13 +109,11 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
         >
           <div className="file-focus-reader" ref={setFocusTarget} />
           {trayView}
-          {status}
           {fileMenu}
         </FocusFile>
       ) : (
         <>
           {trayView && inSlot(trayView, panelSlots?.trayOverlay ? null : panelSlots?.end)}
-          {status}
           {fileMenu}
         </>
       )}

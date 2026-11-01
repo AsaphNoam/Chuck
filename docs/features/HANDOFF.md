@@ -193,7 +193,9 @@ None.
 
 ## Review queue
 
-None.
+- **Think Tank setup fit and annotation toast removal** (2026-11-01): setup dialog widens to
+  1120px with participants beside the goal at >=960px; the desktop and phone "Annotations sent to
+  …" notices and `sentTo` delivery state are gone (FS-13.R29/R35 wording updated).
 
 ## Review findings
 
@@ -211,6 +213,9 @@ None.
 
 ## Changelog
 
+- **2026-11-01 — Think Tank setup fit, no annotation-sent notice:** checks: tsc -b, check:styles,
+  check-specs, 517 vitest (chat, remote, thinktank); Playwright render at 1280×800 with three
+  participants and a judge shows no dialog scroll.
 - **2026-10-31 — Released v0.21.0:** readiness clean (no open units or findings); the
   operating-chuck package already matched the range (goal-led decisions, run worktrees, queued
   owner input and concise coordination guidance landed with their commits); README and pinned
