@@ -7,15 +7,17 @@ are not live queues.
 
 ## Current position
 
-- **Release:** v0.21.0 tagged 2026-10-31 (goal-led pipelines, run worktrees, Boring Night skin,
-  one-line tool activity, running background-command indicators).
-  [Notes](../archive/state/RELEASE-v0.21.0-notes.md). `main` and the tag are pushed; release
-  CI 41222233162 was cancelled by GitHub's scheduled `macos-14` brownout (2026-10-31 14:00 UTC to
-  2026-11-01 00:00 UTC; again 2026-11-01 14:00–24:00; image retired 2026-11-02). Rerun it between
-  2026-11-01 00:00 and 14:00 UTC (`gh run rerun 41222233162`), then confirm the archive, checksum
-  and manifest and set the release body from the notes. After 2026-11-02 the release workflow
-  needs `macos-15` before any release can assemble. Main CI 41222233023 failed on CI-CARDGRID-1.
-- **Review state:** no open review units or findings. The v0.21.0 architectural review
+- **Published:** [v0.21.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.21.0),
+  2026-11-01, tag at `d3fda601` (goal-led pipelines, run worktrees, Boring Night skin, one-line
+  tool activity, running background-command indicators).
+  [Notes](../archive/state/RELEASE-v0.21.0-notes.md), also the release body. Release CI
+  41222233162 passed on attempt 2 (attempt 1 was cancelled by GitHub's `macos-14` brownout);
+  downloaded archive size 325336221 and SHA256 `36c955dd…f24ac` match the manifest.
+- **Release runner:** `.github/workflows/release.yml` still uses `macos-14`, which GitHub retires
+  2026-11-02; the next release cannot assemble until it moves to `macos-15` (operator decision
+  pending).
+- **Main CI:** red on CI-CARDGRID-1 (runs 41222233023 and 41223054609); see Review findings.
+- **Review state:** CI-CARDGRID is open for `/fix`. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered).
 - **Open field causes:** the frequent-429 provider failure and the unchecked permission-save
