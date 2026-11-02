@@ -25,7 +25,7 @@ export function usePhoneAnnotationDelivery(sourceId: string, agent: AgentState |
   );
   return useAnnotationDelivery({
     sourceId,
-    sourceActive: !!agent?.running,
+    sourceActive: !!agent && !agent.archived,
     source: agent,
     recipients,
     connected,
@@ -82,7 +82,7 @@ export function PhoneAnnotations({ delivery, open, focusNewest, onClose }: {
 
 function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: AnnotationDelivery; focusNewest: number; onClose: () => void }) {
   const { data: roles } = useRoles();
-  const { sourceId, sourceActive, source, recipients, connected, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, launchedAgentId, send } = delivery;
+  const { sourceId, sourceActive, source, recipients, connected, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, launchedAgentId, send, canSteer, steer } = delivery;
   const drafts = useAnnotationStore((state) => state.bySource[sourceId]) ?? noDrafts;
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
   const updateInstruction = useAnnotationStore((state) => state.updateInstruction);
@@ -156,7 +156,7 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
             </button>
           ))}
         </div>
-        {!sourceActive && <p className="phone-meta">This agent is stopped, so it cannot receive its own annotations.</p>}
+        {!sourceActive && <p className="phone-meta">This agent is archived, so it cannot receive its own annotations.</p>}
         {target === "agent" && <IncludeOtherProjects className="phone-check" checked={choices.includeOthers} onChange={choices.setIncludeOthers} disabled={sending} />}
         {target === "agent" &&
           (choices.visible.length > 0 ? (
@@ -181,6 +181,11 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
         <button type="button" className="ad-button-primary phone-annotate-send" disabled={sending || !connected} onClick={() => void send()}>
           {sendLabel}
         </button>
+        {canSteer && (
+          <button type="button" className="ad-button-secondary phone-annotate-steer" disabled={sending || !connected} onClick={() => void steer()}>
+            Steer
+          </button>
+        )}
       </div>
     </PhoneSheet>
   );

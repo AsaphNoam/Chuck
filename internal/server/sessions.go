@@ -225,6 +225,10 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError(runtime.CodeValidation, "omitting source recording requires a peer agent and command id"))
 		return
 	}
+	if body.Target.Steer && body.Target.Kind != "self" {
+		writeAPIError(w, apiError(runtime.CodeValidation, "only a self target can steer"))
+		return
+	}
 	targetID := body.Target.AgentID
 	if body.Target.Kind == "self" {
 		targetID = sourceID
@@ -280,22 +284,56 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 	// duplicate that irreversible effect — and FS-13.R5's durable record would be
 	// missing for work an agent is already acting on.
 	var deliver func() *runtime.APIError
+	delivery := ""
 	switch body.Target.Kind {
 	case "self":
+		// Delivery follows an ordinary chat message (FS-13.R37): wake a stopped
+		// source, hold behind a running turn, or steer into it. Refusals that need
+		// no side effect are decided here, before the source event is appended.
 		if _, err := s.stateStore.ReadRunning(sourceID); err != nil {
-			writeAPIError(w, apiError(runtime.CodeConflict, "the source agent is not running"))
-			return
+			if body.Target.Steer {
+				writeAPIError(w, apiError(runtime.CodeConflict, "only a running turn can be steered"))
+				return
+			}
+			if _, ok, ae := s.wakeCandidate(sourceID); ae != nil {
+				writeAPIError(w, ae)
+				return
+			} else if !ok {
+				writeAPIError(w, apiError(runtime.CodeConflict, "the source agent is not running and cannot be woken"))
+				return
+			}
 		}
-		status, err := s.stateStore.ReadStatus(sourceID)
-		if err != nil || status.State != "idle" {
-			writeAPIError(w, apiError(runtime.CodeConflict, "the source agent must be idle"))
-			return
-		}
-		block := runtime.FormatAnnotationBlock(body)
+		msg := runtime.Message{Text: runtime.FormatAnnotationBlock(body)}
 		deliver = func() *runtime.APIError {
-			if err := s.registry.SendPrompt(r.Context(), sourceID, block); err != nil {
+			if body.Target.Steer {
+				outcome, err := s.registry.SteerMessage(r.Context(), sourceID, msg)
+				if err != nil {
+					if errors.Is(err, runtime.ErrSteerRefused) {
+						return apiError(runtime.CodeInternal, steerRefusalText(err))
+					}
+					return steerError(err)
+				}
+				delivery = string(outcome)
+				return nil
+			}
+			held, err := s.registry.SendMessageOrHold(r.Context(), sourceID, msg)
+			if errors.Is(err, runtime.ErrNoHandle) {
+				woken, ae := s.wakeAgent(r.Context(), sourceID)
+				if ae != nil {
+					return ae
+				}
+				if !woken {
+					return apiError(runtime.CodeConflict, "the source agent is not running and cannot be woken")
+				}
+				held, err = s.registry.SendMessageOrHold(r.Context(), sourceID, msg)
+			}
+			if err != nil {
+				if ae, ok := err.(*runtime.APIError); ok {
+					return ae
+				}
 				return sessionOpError(err)
 			}
+			delivery = promptDelivery(held)
 			return nil
 		}
 	case "agent":
@@ -425,6 +463,9 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	response := map[string]any{"accepted": true, "seq": ev.Seq}
+	if delivery != "" {
+		response["delivery"] = delivery
+	}
 	if commandID != "" {
 		response["command_id"] = commandID
 	}

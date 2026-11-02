@@ -219,7 +219,7 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; --ad-phone-wallpaper-
 .phone-annotate-body { display: grid; gap: var(--ad-space-4); min-width: 0; }
 .phone-annotate-draft .phone-pre { max-height: 12rem; overflow: auto; }
 .phone-annotate-footer { position: sticky; bottom: 0; display: grid; gap: var(--ad-space-3); margin: 0 calc(-1 * var(--ad-space-6)); padding: var(--ad-space-4) var(--ad-space-6) calc(var(--ad-space-4) + env(safe-area-inset-bottom)); background: var(--ad-surface-panel); border-top: var(--ad-border-thin) solid var(--ad-border-default); }
-.phone-annotate-send { min-height: 44px; }
+.phone-annotate-send, .phone-annotate-steer { min-height: 44px; }
 /* A quiet per-event action: muted text, but a full-height touch target. */
 .phone-annotatable { display: grid; min-width: 0; }
 .phone-annotate-event { justify-self: end; min-height: 44px; border: 0; background: transparent; color: var(--ad-text-muted); font-size: 0.75rem; padding: 0 var(--ad-space-2); }

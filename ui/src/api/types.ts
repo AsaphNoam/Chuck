@@ -197,6 +197,8 @@ export type AnnotationDraft = AnnotationDraftBase & ({
 export interface AnnotationTarget {
   kind: "self" | "agent";
   agent_id?: string;
+  /** Self target only: deliver into the running turn (FS-13.R37). */
+  steer?: boolean;
 }
 
 export interface AnnotationBatch {

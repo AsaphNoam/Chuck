@@ -293,15 +293,20 @@ describe("TranscriptView self-annotation prompt", () => {
     expect(screen.getByText("carry on without me")).toBeInTheDocument();
   });
 
-  it("keeps a prompt that does not immediately follow its annotation event", () => {
+  // FS-13.R37: a batch held behind the running turn lands after that turn's
+  // output. Each card still quiets exactly one prompt, so a second block with
+  // no unpaired card stays visible.
+  it("quiets a held batch's later prompt once per card", () => {
     const rendered = foldTranscript([
       annotationEvent,
       { type: "assistant_text", seq: 9, data: { text: "on it" } },
       { ...promptEvent, seq: 10 },
+      { ...promptEvent, seq: 11 },
     ]);
     renderTranscript(true, rendered);
 
-    expect(screen.getByText(annotationBlockSentinel, { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("on it")).toBeInTheDocument();
+    expect(screen.getAllByText(annotationBlockSentinel, { exact: false })).toHaveLength(1);
   });
 });
 

@@ -24,7 +24,7 @@ export function useDesktopAnnotationDelivery(sourceId: string, sourceActive: boo
 }
 
 export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery }) {
-  const { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, showLaunch, setShowLaunch, launchedAgentId, send, onLaunched } = delivery;
+  const { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, showLaunch, setShowLaunch, launchedAgentId, send, canSteer, steer, onLaunched } = delivery;
   const { data: roles } = useRoles();
   const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
@@ -85,6 +85,7 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
         {target !== "self" && <label><input type="checkbox" checked={recordSource} disabled={sending} onChange={(event) => setRecordSource(event.target.checked)} /> Include in current agent's transcript</label>}
         {error && <p className="annotation-error">{error}</p>}
         <button type="button" className="annotation-send ad-button-primary" onClick={() => void send()} disabled={sending}>{sending ? "Sending…" : target === "new" ? launchedAgentId ? `Retry delivery to ${launchedAgentId}` : "Continue to launch" : "Send annotations"}</button>
+        {canSteer && <button type="button" className="annotation-steer ad-button-secondary" onClick={() => void steer()} disabled={sending}>Steer</button>}
       </footer>
       <NewAgentModal open={showLaunch} onClose={() => setShowLaunch(false)} initialRole={source?.role} initialProject={source?.project} onLaunched={onLaunched} />
     </aside>

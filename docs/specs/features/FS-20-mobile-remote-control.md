@@ -418,7 +418,7 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   Markdown previews support Source/Rendered capture under FS-13.R25/R28. Recorded annotation cards
   and duplicate-prompt suppression follow FS-13.R31. Terminal agents remain ineligible; archive and
   Think Tank annotation phone surfaces are outside this change. Stopped sources can still assign captured context to another
-  running chat agent or a new task; current-agent delivery retains FS-13.R6's idle/running rule.
+  running chat agent or a new task; current-agent delivery follows FS-13.R37's wake, queue and Steer rule.
 
 - **R56 — Saved file tabs extend the existing Files view.** Apply
   FS-03.R101–R106 to the phone's permitted tracked files, with one tabbed reader above the list.

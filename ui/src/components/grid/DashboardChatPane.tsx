@@ -28,7 +28,7 @@ export function DashboardChatPane({ agent }: { agent: AgentState }) {
       <TranscriptView
         agentId={agent.agent_id}
         events={events}
-        sourceActive={agent.running && agent.state === "idle"}
+        sourceActive={!agent.archived}
         busy={agent.state === "busy"}
         onOpenFile={openOnAgentScreen}
         taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)}

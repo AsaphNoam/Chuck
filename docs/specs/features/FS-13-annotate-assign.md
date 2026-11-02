@@ -56,7 +56,8 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   agent. The send starts one ordinary prompt turn (FS-03.R8) whose agent-visible content is a
   machine-generated annotation block: for each annotation, the file path and line range when
   present, the quoted excerpt, and its instruction, plus the overall instruction. A busy,
-  waiting, stopped, or terminal source returns a typed error and the tray is preserved.
+  waiting, stopped, or terminal source returns a typed error and the tray is preserved. *R37
+  supersedes the busy, waiting and stopped refusals.*
 - **R7.** Target **another agent** requires a running chat-interface recipient
   (FS-06.R4, FS-06.R17). The batch is delivered as coordination mail from the reserved user sender
   (FS-06.R21) with the annotation block as its body; normal unread indicators, idle nudging, reading,
@@ -282,6 +283,18 @@ identity and authority; no common receipt grants broader target/source access.
   to **New agent** throughout desktop, phone and room annotation assignment controls and their
   related user-facing launch/retry text. It retains the existing reviewable launch and same-agent
   retry behavior in R9/R27/R30; this is not a rename of the separate durable task capability.
+- **R37 — Current-agent delivery follows ordinary chat messages.** This supersedes R6's
+  idle-only refusal on desktop and phone. A live chat source accepts its own batch in any state an
+  ordinary chat message is accepted: an idle source starts the prompt turn; a stopped source that
+  passes the message-wake gates (FS-01.R33) is woken and then receives it; a `busy` or
+  `waiting_input` source holds it as the agent's one queued follow-up (FS-03.R48–R49, replacing
+  any earlier hold and withdrawable like one). While the source's turn is running and its runtime
+  advertises steering, the tray also offers **Steer**, which delivers the batch into that turn under
+  FS-03.R50 instead of queueing it. The source event is still appended before delivery (R5), the
+  agent receives the same annotation block, and R23 quiets that block's prompt wherever it lands —
+  after the turn ends or inside a steered turn — by pairing it with the nearest earlier self-targeted
+  annotation event not yet paired. An archived source keeps R15; a stopped source the wake gates
+  exclude, or a failed wake, returns a typed error and preserves the tray.
 
 ## 5. Acceptance criteria
 
@@ -424,8 +437,20 @@ authorization; use real handler/receipt paths rather than a mock that deduplicat
 - **A26** (R36) — Desktop, phone and room annotation controls offer **New agent**;
   prefilled launch, cancellation and post-launch delivery retry retain their existing behavior.
   *Verify by:* annotation control/launch component tests and the focused assignment journey.
+- **A27** (R37) — Send a self-targeted batch to a stopped agent (woken, then one
+  turn), a busy agent (held, sent after the turn) and a busy steerable agent with **Steer**; each
+  records one source card and renders no duplicate prompt. An archived source and an unwakeable
+  stopped source still refuse with the tray intact. *Verify by:* real annotation handler tests
+  against the fake chat runtime and transcript-store/tray tests.
+  `internal/server/annotations_self_delivery_test.go` (wake, archived/stopped-steer refusal with no
+  source event, hold then send, steer); `AnnotationTray.test.tsx` "queues or steers…" and "shows a
+  queued self batch…"; `TranscriptView.test.tsx` "quiets a held batch's later prompt once per card".
+  The phone form shares the delivery hook; no rendered browser journey was run.
 
 ## 6. Deviations & open decisions
+
+- R37/A27 were implemented on 2026-11-02 (TS-03.R78). A queued batch shows the raw annotation
+  block in the pending tail and, when withdrawn, in the composer, as any held message would.
 
 - R35–R36/A25–A26 were implemented on 2026-10-30:
   [optional source recording](../../ready-changes/optional-annotation-source-recording.md).

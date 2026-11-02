@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sendAnnotations, validateAnnotations } from "../../api/client";
+import { getHeldPrompt, sendAnnotations, validateAnnotations } from "../../api/client";
 import type { AgentState, AnnotationBatch } from "../../api/types";
 import { annotationBatch } from "../../lib/annotations";
 import { useAnnotationStore } from "../../store/annotationStore";
+import { useHeldStore } from "../../store/heldStore";
 
 export type AnnotationTarget = "self" | "agent" | "new";
 
@@ -37,7 +38,7 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   const storedRecipient = useAnnotationStore((state) => state.recipientBySource[sourceId] ?? "");
   const setDeliveryTarget = useAnnotationStore((state) => state.setDeliveryTarget);
   const [chosenTarget, setChosenTarget] = useState<AnnotationTarget>(() => storedTarget ?? "self");
-  // An inactive source cannot receive its own batch (FS-13.R15), so fall back
+  // An archived source cannot receive its own batch (FS-13.R15), so fall back
   // to an available target rather than leaving a disabled choice selected.
   const target = chosenTarget === "self" && !sourceActive
     ? (recipients.length > 0 || !source ? "agent" : "new")
@@ -72,6 +73,11 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   const current = () => live.current === token;
 
   const batch = (agentId?: string) => annotationBatch(drafts ?? [], overall, agentId, ensureCommand(sourceId), !recordSource && (target !== "self" || !!agentId));
+  // Steer is offered exactly where the composer offers it (FS-13.R37, FS-03.R50).
+  const canSteer = target === "self" && !!source?.running && !!source.steering_available && source.state === "busy";
+  // Send and Steer are different deliveries, so switching between them after a
+  // failed attempt is a deliberate new command rather than a conflicting replay.
+  const lastSteer = useRef(false);
   const chooseTarget = (next: AnnotationTarget) => {
     if (next !== chosenTarget) resetCommand(sourceId);
     setChosenTarget(next);
@@ -90,8 +96,11 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     setSending(true);
     setError(null);
     try {
-      await sendAnnotations(sourceId, submitted);
+      const result = await sendAnnotations(sourceId, submitted);
       discardSent(sourceId, sent);
+      // A batch queued behind the running turn is that agent's held follow-up;
+      // show it pending like a queued chat message (FS-13.R37, FS-03.R48).
+      if (result.delivery === "held") void refreshHeld(sourceId);
       if (!current()) return;
       setLaunchedAgent(sourceId, null);
       if (launched) deliveredRef.current?.(agentId!);
@@ -104,8 +113,12 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     }
   };
 
-  const send = async () => {
+  const send = async (steer = false) => {
     setError(null);
+    if (steer !== lastSteer.current) {
+      resetCommand(sourceId);
+      lastSteer.current = steer;
+    }
     if (!connected) {
       setError("Reconnect to send annotations.");
       return;
@@ -138,6 +151,11 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
       setError("Choose a running chat agent.");
       return;
     }
+    if (steer) {
+      const submitted = batch();
+      await deliver(undefined, false, { ...submitted, target: { kind: "self", steer: true } });
+      return;
+    }
     await deliver(agentId, false);
   };
 
@@ -161,5 +179,16 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     if (!open) launchBatch.current = null;
     setShowLaunch(open);
   };
-  return { sourceId, sourceActive, source, recipients, connected, target, setTarget: chooseTarget, recipientId, setRecipientId: chooseRecipient, recordSource, setRecordSource, sending: sending || showLaunch, error, showLaunch, setShowLaunch: dismissLaunch, launchedAgentId, send, onLaunched };
+  return { sourceId, sourceActive, source, recipients, connected, target, setTarget: chooseTarget, recipientId, setRecipientId: chooseRecipient, recordSource, setRecordSource, sending: sending || showLaunch, error, showLaunch, setShowLaunch: dismissLaunch, launchedAgentId, send, canSteer, steer: () => send(true), onLaunched };
+}
+
+async function refreshHeld(agentId: string) {
+  try {
+    const snapshot = await getHeldPrompt(agentId);
+    if (snapshot.text || snapshot.attachments?.length) {
+      useHeldStore.getState().hold(agentId, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id);
+    }
+  } catch {
+    // The chat view's own hold read still runs on the next state change.
+  }
 }

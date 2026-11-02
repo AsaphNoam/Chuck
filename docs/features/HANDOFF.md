@@ -193,6 +193,14 @@ None.
 
 ## Review queue
 
+- **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
+  Current agent is available for any non-archived source; the handler wakes a stopped source,
+  holds behind a running turn, or steers (`target.steer`) when the runtime advertises it; desktop
+  tray and phone form offer **Steer** while busy. R23 suppression now pairs each block prompt with the
+  nearest earlier unpaired self card (`prompt_seq` lets ChatPanel clear the held tail). Review note: a
+  queued batch replaces any held chat message, per FS-03.R48. `internal/server/sessions.go`,
+  `ui/src/components/chat/annotationDelivery.ts`, `ui/src/store/transcriptStore.ts`.
+
 - **Pipeline stage-work cards link to their agents** (2026-11-02): restores FS-14.R39/A17/A23
   linking lost in the task-only cutover — each run-page "Stage work" card opens `/agent/{id}` while
   live, `/archive/{id}` once stopped (live store overrides the detail route), and stays a
@@ -217,6 +225,10 @@ None.
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-02 — Self-targeted annotations wake, queue and steer:** checks on the working tree:
+  `make test` (both Go variants, check-specs), `make build`, full UI vitest (1,131) and UI build,
+  `git diff --check`; no rendered browser/phone journey.
 
 - **2026-11-02 — Pipeline stage-work cards link to agents:** checks: check-specs, full UI vitest
   (1,129) and UI build on the working tree; no Go change.

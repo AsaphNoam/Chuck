@@ -8,6 +8,7 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
+import { useHeldStore } from "../../store/heldStore";
 import { AnnotationTray } from "./AnnotationTray";
 import { RoomAnnotationTray } from "../../features/thinktank/RoomAnnotationTray";
 import { roomAnnotationSource } from "../../features/thinktank/roomText";
@@ -78,6 +79,47 @@ describe("AnnotationTray", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
     await waitFor(() => expect(submitted).toBeTruthy());
     expect(submitted).toMatchObject({ omit_source_record: true, target: { kind: "agent", agent_id: "peer" } });
+  });
+  // FS-13.R37: a busy steerable source offers Steer beside Send; Send queues
+  // the batch as the held follow-up and Steer is a new command into the turn.
+  it("queues or steers a self batch while the source is busy", async () => {
+    seedTray(1);
+    useAgentStore.setState({ agents: { source: { ...sourceAgent, state: "busy", steering_available: true } } });
+    const submitted: Array<{ command_id?: string; target: unknown }> = [];
+    let fail = true;
+    server.use(
+      http.post("/api/sessions/source/annotations", async ({ request }) => {
+        submitted.push(await request.json() as { command_id?: string; target: unknown });
+        if (fail) return HttpResponse.json({ error: { code: "internal", message: "turn ended" } }, { status: 500 });
+        return HttpResponse.json({ accepted: true, seq: 4, delivery: "steered" }, { status: 202 });
+      }),
+      http.get("/api/sessions/source/prompt", () => HttpResponse.json({ agent_id: "source", text: "queued block", after_seq: 4, held_id: "h1" })),
+    );
+    renderTray();
+    fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
+    await waitFor(() => expect(screen.getByText(/turn ended/)).toBeInTheDocument());
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Steer" }));
+    await waitFor(() => expect(submitted).toHaveLength(2));
+    expect(submitted[0].target).toEqual({ kind: "self" });
+    expect(submitted[1].target).toEqual({ kind: "self", steer: true });
+    expect(submitted[1].command_id).not.toBe(submitted[0].command_id);
+    await waitFor(() => expect(useAnnotationStore.getState().bySource.source ?? []).toHaveLength(0));
+    expect(useHeldStore.getState().byAgent.source).toBeUndefined();
+  });
+
+  it("shows a queued self batch as the held follow-up", async () => {
+    seedTray(1);
+    useAgentStore.setState({ agents: { source: { ...sourceAgent, state: "busy" } } });
+    server.use(
+      http.post("/api/sessions/source/annotations", () => HttpResponse.json({ accepted: true, seq: 4, delivery: "held" }, { status: 202 })),
+      http.get("/api/sessions/source/prompt", () => HttpResponse.json({ agent_id: "source", text: "queued block", after_seq: 4, held_id: "h1" })),
+    );
+    renderTray();
+    expect(screen.queryByRole("button", { name: "Steer" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
+    await waitFor(() => expect(useHeldStore.getState().byAgent.source).toBe("queued block"));
+    useHeldStore.getState().release("source");
   });
   // FS-13.R34/A24: empty -> capture is a new opening, while adding to a
   // nonempty batch preserves the chosen scope, instructions and recipient.

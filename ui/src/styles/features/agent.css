@@ -1531,7 +1531,8 @@ a.agent-mini-card:focus-visible {
   margin: var(--ad-space-2) 0 0;
 }
 
-.annotation-send {
+.annotation-send,
+.annotation-steer {
   margin-top: var(--ad-space-3);
   width: 100%;
 }

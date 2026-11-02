@@ -108,16 +108,25 @@ function markResolved(
 // instructions twice: once as the annotation card, once as a wall of generated
 // prose the person never typed. Drop that one duplicate (FS-13.R23).
 //
-// All three conditions carry weight. Adjacency alone would swallow the message
-// someone types straight after assigning a batch to *another* agent, and the
-// `self` target is what makes the non-self case unreachable rather than merely
-// unlikely. Matching the block's first line rather than its whole layout keeps
+// The `self` target keeps a message typed after assigning a batch to *another*
+// agent visible. Matching the block's first line rather than its whole layout keeps
 // this the only thing the client borrows from the Go writer.
+//
+// A batch queued behind a running turn or steered into it lands later than the
+// next event (FS-13.R37), so the block pairs with the nearest earlier self
+// annotation not yet paired; pairing marks that rendered card so each card
+// quiets exactly one prompt.
 function suppressedAnnotationPrompt(events: TranscriptEvent[], event: TranscriptEvent) {
   if (kindOf(event) !== "user_text" || !isAnnotationBlock(textOf(event))) return false;
-  const last = events[events.length - 1];
-  if (!last || kindOf(last) !== "annotation") return false;
-  return (last.target as { kind?: string } | undefined)?.kind === "self";
+  for (let i = events.length - 1; i >= 0; i--) {
+    const candidate = events[i];
+    if (kindOf(candidate) !== "annotation" || candidate.prompt_paired) continue;
+    if ((candidate.target as { kind?: string } | undefined)?.kind !== "self") continue;
+    // prompt_seq lets the held-message tail see a quieted delivery.
+    events[i] = { ...candidate, prompt_paired: true, prompt_seq: event.seq };
+    return true;
+  }
+  return false;
 }
 
 function appendRenderedEvent(events: TranscriptEvent[], event: TranscriptEvent) {

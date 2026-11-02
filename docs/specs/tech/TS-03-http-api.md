@@ -1119,6 +1119,16 @@ validation, transaction failure and lost-response replay, including accepted zer
 **R76 — retired 2026-10-30:** unshipped session-reset projection withdrawn; FS-01.R57 and
 TS-10.R62 use the existing R60/R72 quota projection without additional fields or reason codes.
 
+**R78 — Self-targeted annotations use the message wake, hold and steer seams.** For FS-13.R37,
+a `self` target accepts additive `target.steer?: boolean` (omitted when false, so older payload
+hashes are unchanged). Before the source event is appended, a non-running source must be a
+message-wake candidate (`409` otherwise) and a steer requires a running source (`409`). Delivery
+then uses the prompt route's seams: `SendMessageOrHold` with the annotation block, waking through
+the shared `wakeAgent` and retrying once when the session has no handle, or `SteerMessage` for a
+steer, mapping refusals as the steer route does. Success adds `delivery`: `sent`, `held`,
+`steered` or `new_turn`; same-command replay of an accepted receipt omits it. No new route, SSE
+event or held-message shape is added; clients refresh the existing hold read after `held`.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

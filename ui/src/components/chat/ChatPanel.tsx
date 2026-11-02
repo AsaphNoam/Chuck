@@ -36,6 +36,7 @@ import { OverflowMenu } from "../shell/OverflowMenu";
 import { capVisible } from "../../lib/navCap";
 import { deriveAgentSiblings, sameSiblings, type AgentSibling } from "../../lib/agentSiblings";
 import { agentConversationPath } from "../../lib/agentConversation";
+import { isAnnotationBlock } from "../../lib/annotations";
 
 function runtimeSelection(agent: AgentState): RuntimeSelection {
   return { backend: agent.backend, model: agent.model, effort: agent.effort ?? "" };
@@ -150,8 +151,11 @@ function AgentPanel({ id }: { id: string }) {
   // the pending tail from clearing before delivery (FS-03.R48, TS-08.R56).
   useEffect(() => {
     if (!held) return;
+    // A held annotation batch's prompt is quieted under FS-13.R23; its card
+    // records where that prompt landed instead.
     const delivered = events.some((event) =>
-      (event.kind ?? event.type) === "user_text" && event.seq != null && event.seq > heldAfterSeq && String(event.text ?? "") === held);
+      ((event.kind ?? event.type) === "user_text" && event.seq != null && event.seq > heldAfterSeq && String(event.text ?? "") === held)
+      || ((event.kind ?? event.type) === "annotation" && Number(event.prompt_seq ?? 0) > heldAfterSeq && isAnnotationBlock(held)));
     if (delivered) releaseHeld(id);
   }, [events, held, heldAfterSeq, id, releaseHeld]);
 
@@ -412,7 +416,7 @@ function AgentPanel({ id }: { id: string }) {
           {agent.interface === "terminal" && <Tabs.Trigger value="terminal">Terminal</Tabs.Trigger>}
         </Tabs.List>
         <Tabs.Content value="transcript" className="chat-tab-content" data-slot="content">
-          <TranscriptView agentId={id} events={events} sourceActive={agent.running && agent.state === "idle"} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} fileTabs={fileTabs} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} panelSlots={panelSlots} />
+          <TranscriptView agentId={id} events={events} sourceActive={!agent.archived} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} fileTabs={fileTabs} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} panelSlots={panelSlots} />
         </Tabs.Content>
         <Tabs.Content value="files" className="chat-tab-content" data-slot="content">
           <FilesTab agentId={id} onReveal={revealInTranscript} onOpenFile={openFileInViewer} />

@@ -253,6 +253,8 @@ type Annotation struct {
 type AnnotationTarget struct {
 	Kind    string `json:"kind"` // "self" | "agent"
 	AgentID string `json:"agent_id,omitempty"`
+	// Steer delivers a self-targeted batch into the running turn (FS-13.R37).
+	Steer bool `json:"steer,omitempty"`
 }
 
 // FormatAnnotationBlock is the sole machine-oriented rendering used for both a
