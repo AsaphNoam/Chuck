@@ -193,6 +193,11 @@ None.
 
 ## Review queue
 
+- **Pipeline stage-work cards link to their agents** (2026-11-02): restores FS-14.R39/A17/A23
+  linking lost in the task-only cutover — each run-page "Stage work" card opens `/agent/{id}` while
+  live, `/archive/{id}` once stopped (live store overrides the detail route), and stays a
+  non-linking card without an agent identity. `ui/src/features/pipelines/RunBrowser.tsx`.
+
 - **Think Tank setup fit and annotation toast removal** (2026-11-01): setup dialog widens to
   1120px with participants beside the goal at >=960px; the desktop and phone "Annotations sent to
   …" notices and `sentTo` delivery state are gone (FS-13.R29/R35 wording updated).
@@ -213,6 +218,8 @@ None.
 
 ## Changelog
 
+- **2026-11-02 — Pipeline stage-work cards link to agents:** checks: check-specs, full UI vitest
+  (1,129) and UI build on the working tree; no Go change.
 - **2026-11-01 — Think Tank setup fit, no annotation-sent notice:** checks: tsc -b, check:styles,
   check-specs, 517 vitest (chat, remote, thinktank); Playwright render at 1280×800 with three
   participants and a judge shows no dialog scroll.

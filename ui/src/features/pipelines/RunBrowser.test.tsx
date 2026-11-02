@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
+import type { AgentState } from "../../api/types";
+import { useAgentStore } from "../../store/agentStore";
 import { RunBrowser, RunsLedger } from "./RunBrowser";
 
 const template = { version: 2, title: "Delivery", orchestrator_role: "implementer", inputs: [], stages: [{ id: "work", title: "Work", objective: "Do the work.", coordination: "standing", inputs: [], outputs: [] }] };
@@ -102,6 +104,25 @@ it("surfaces retained stage cleanup and its repair action", async () => {
   renderRun();
   expect(await screen.findByText((_, element) => element?.tagName === "P" && element.textContent === "Cleanup: release needs attention · permission denied stopping the runtime")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Repair cleanup" })).toBeInTheDocument();
+});
+
+// FS-14.R39/A17/A23: stage-work cards open the live chat or archived transcript;
+// an unidentified agent stays an honest non-linking card, and a live update
+// re-routes a card in place.
+it("links stage-work cards to their agents by live or archive route", async () => {
+  const work = [
+    { task_id: "w1", display_name: "Builder", state: "running", agent_id: "a_run", route: "live" },
+    { task_id: "w2", display_name: "Reviewer", state: "finished", agent_id: "a_done", route: "archive" },
+    { task_id: "w3", display_name: "Lost", state: "running", agent_id: "", route: "unavailable" },
+  ];
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, stage_tasks: [{ ...stageTask, work }] })));
+  useAgentStore.setState({ agents: {} });
+  renderRun();
+  expect((await screen.findByRole("link", { name: /Builder/ })).getAttribute("href")).toBe("/agent/a_run");
+  expect(screen.getByRole("link", { name: /Reviewer/ }).getAttribute("href")).toBe("/archive/a_done");
+  expect(screen.getByText("Lost").closest("a")).toBeNull();
+  act(() => useAgentStore.getState().applyStateUpdate({ agent_id: "a_run", running: false } as AgentState));
+  expect(screen.getByRole("link", { name: /Builder/ }).getAttribute("href")).toBe("/archive/a_run");
 });
 
 it("loads retained run pages to an exact complete-history state", async () => {

@@ -10,6 +10,7 @@ import {
 } from "../../api/pipelines";
 import type { PipelineRunDetail } from "../../schemas/pipeline";
 import { decisionOnlyLabel, evidenceVisits } from "../../lib/ownerDecision";
+import { useAgentStore } from "../../store/agentStore";
 import { RunWorkspace } from "./RunWorkspace";
 import { WorkspaceRemoveDialog } from "./WorkspaceRemoveDialog";
 
@@ -200,7 +201,19 @@ function StageTask({ task, tasks, titles, title, current }: { task: PipelineRunD
 }
 
 function TaskWork({ items }: { items: PipelineRunDetail["stage_tasks"][number]["work"] }) {
-  return <section className="pipeline-attempt-agents" data-slot="agents"><div className="pipeline-agent-heading"><h4>Stage work</h4></div><div className="pipeline-agent-grid">{items.map((item) => <div className="pipeline-agent-card" key={item.task_id}><span className={`pipeline-agent-dot pipeline-agent-dot-${item.state}`} /><span><strong>{item.display_name}</strong><small>{humanize(item.state)}{item.outcome ? ` · ${humanize(item.outcome)}` : ""}</small><em>{item.summary || "No result summary"}</em></span></div>)}</div></section>;
+  return <section className="pipeline-attempt-agents" data-slot="agents"><div className="pipeline-agent-heading"><h4>Stage work</h4></div><div className="pipeline-agent-grid">{items.map((item) => <TaskWorkCard key={item.task_id} item={item} />)}</div></section>;
+}
+
+/** TaskWorkCard opens the task agent's live chat while it runs and its archived
+ *  transcript once it stops; an agent with no known identity stays a non-linking
+ *  card (FS-14.R39, A17, A23). The live store overrides the detail's route so a
+ *  stop seen over the event stream re-routes the card in place. */
+function TaskWorkCard({ item }: { item: PipelineRunDetail["stage_tasks"][number]["work"][number] }) {
+  const live = useAgentStore((state) => (item.agent_id ? state.agents[item.agent_id] : undefined));
+  const route = live ? (live.running ? "live" : "archive") : item.route;
+  const href = !item.agent_id || route === "unavailable" ? null : route === "live" ? `/agent/${encodeURIComponent(item.agent_id)}` : `/archive/${encodeURIComponent(item.agent_id)}`;
+  const content = <><span className={`pipeline-agent-dot pipeline-agent-dot-${item.state}`} /><span><strong>{item.display_name}</strong><small>{humanize(item.state)}{item.outcome ? ` · ${humanize(item.outcome)}` : ""}</small><em>{item.summary || "No result summary"}</em></span><span aria-hidden="true">{href ? "↗" : "—"}</span></>;
+  return href ? <Link className="pipeline-agent-card" to={href}>{content}</Link> : <div className="pipeline-agent-card pipeline-agent-unavailable">{content}</div>;
 }
 
 function RunsSkeleton() { return <div className="pipeline-ledger pipeline-skeleton" aria-label="Loading runs"><span /><span /><span /><span /></div>; }
