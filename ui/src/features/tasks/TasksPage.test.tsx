@@ -38,7 +38,7 @@ const server = setupServer(
   http.get("/api/roles", () => HttpResponse.json({ chucky: { title: "Chucky" }, impl: { title: "Impl" } })),
   http.get("/api/config", () => HttpResponse.json({ default_role: "impl" })),
   http.get("/api/backends", () => HttpResponse.json({ version: 2, backends: {
-    codex: { name: "Codex", type: "codex-acp", default: true, default_model: "gpt-5", models: { "gpt-5": { name: "GPT-5", model: "gpt-5", fast: true } } },
+    codex: { name: "Codex", type: "codex-acp", default: true, default_model: "gpt-5", models: { "gpt-5": { name: "GPT-5", model: "gpt-5", efforts: ["low", "high"], fast: true }, basic: { name: "Basic", model: "basic" } } },
   } })),
   http.get("/api/tasks", ({ request }) => {
     const project = new URL(request.url).searchParams.get("project") ?? "";
@@ -414,6 +414,47 @@ describe("Tasks work in motion", () => {
 });
 
 describe("Create task manually", () => {
+  // FS-16.R59: uncommon coordination controls must not obscure ordinary creation,
+  // or strand the operator when a collapsed dependency needs correction.
+  it("keeps advanced options collapsed and reveals them for dependency correction", async () => {
+    renderPage("/tasks?project=my-app");
+    await screen.findByText("Implement API");
+    const create = createForm();
+    const advanced = create.getByText("Advanced", { selector: ".task-create > details > summary" }).closest("details") as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
+    expect(advanced.contains(create.getByLabelText("Instruction"))).toBe(false);
+    expect(advanced.contains(create.getByLabelText("Target"))).toBe(false);
+    expect(advanced.contains(create.getByLabelText("Start at (optional)"))).toBe(false);
+    expect(advanced.contains(create.getByLabelText("Named prerequisite"))).toBe(true);
+    expect(advanced.contains(create.getByLabelText("Context reference ID"))).toBe(true);
+    fireEvent.change(create.getByLabelText("Name"), { target: { value: "follow up" } });
+    fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "continue" } });
+    const prerequisite = create.getByLabelText("Named prerequisite");
+    await within(prerequisite).findByRole("option", { name: "Tidy fixtures · ready · tk_r" });
+    fireEvent.change(prerequisite, { target: { value: "tk_r" } });
+    expect(create.getByText("Advanced · prerequisite")).toBeInTheDocument();
+    fireEvent.click(create.getByLabelText("Success"));
+    fireEvent.click(create.getByRole("button", { name: "Create task" }));
+    expect((await create.findAllByText("Choose at least one outcome for this prerequisite.")).length).toBeGreaterThan(0);
+    expect(advanced.open).toBe(true);
+  });
+
+  it("clears incompatible effort and fast mode when the launch model changes", async () => {
+    renderPage("/tasks?project=my-app");
+    await screen.findByText("Implement API");
+    const create = createForm();
+    fireEvent.change(create.getByLabelText("Name"), { target: { value: "basic job" } });
+    fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "do it" } });
+    fireEvent.change(create.getByLabelText("Effort (optional)"), { target: { value: "high" } });
+    fireEvent.click(create.getByRole("checkbox", { name: /Fast mode/ }));
+    fireEvent.change(create.getByLabelText("Model (optional)"), { target: { value: "basic" } });
+    expect(create.queryByLabelText("Effort (optional)")).not.toBeInTheDocument();
+    expect(create.queryByRole("checkbox", { name: /Fast mode/ })).not.toBeInTheDocument();
+    fireEvent.click(create.getByRole("button", { name: "Create task" }));
+    await waitFor(() => expect(lastRequest?.url).toBe("create"));
+    expect(lastRequest?.body).toMatchObject({ model: "basic", effort: "", fast: false });
+  });
+
   it("requires a concrete project in All projects and preselects a focused one", async () => {
     renderPage();
     await screen.findByText("Implement API");

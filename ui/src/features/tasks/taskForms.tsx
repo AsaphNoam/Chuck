@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from "react";
 import { AutoGrowTextarea, Button } from "../../components/ui";
 import { useBackends, useConfig, useRoles } from "../../api/config";
 import { personaLabel } from "../../lib/personas";
+import { resetRuntimeForBackend, resetRuntimeForModel } from "../../lib/runtimeSelection";
 import {
   useCreateTask,
   useFireSignal,
@@ -316,8 +317,9 @@ export function TargetFields({ project, draft, onChange }: { project: string; dr
   const agents = useAgentStore((state) => state.agents);
   const { role } = useTargetPayload(draft);
   const set = (patch: Partial<TargetDraft>) => onChange({ ...draft, ...patch });
-  const defaultBackendID = Object.entries(backends?.backends ?? {}).find(([, item]) => item.default)?.[0] ?? "";
-  const effectiveBackend = backends?.backends[draft.backend || defaultBackendID];
+  const defaultBackendID = Object.entries(backends?.backends ?? {}).find(([, item]) => item.default)?.[0] ?? Object.keys(backends?.backends ?? {})[0] ?? "";
+  const backendID = draft.backend || defaultBackendID;
+  const effectiveBackend = backends?.backends[backendID];
   const effectiveModel = effectiveBackend?.models[draft.model || effectiveBackend.default_model];
   return (
     <>
@@ -329,10 +331,21 @@ export function TargetFields({ project, draft, onChange }: { project: string; dr
             {Object.keys(roles ?? {}).map((item) => <option key={item} value={item}>{personaLabel(item, roles?.[item])}</option>)}
           </select>
         </label>
-        <label>Backend (optional)<input value={draft.backend} onChange={(e) => set({ backend: e.target.value, fast: false })} /></label>
-        <label>Model (optional)<input value={draft.model} onChange={(e) => set({ model: e.target.value, fast: false })} /></label>
-        <label>Effort (optional)<input value={draft.effort} onChange={(e) => set({ effort: e.target.value })} placeholder="a level the model declares" /></label>
-        {effectiveModel?.fast && <label><input type="checkbox" checked={draft.fast} onChange={(e) => set({ fast: e.target.checked })} /> Fast mode — higher provider usage</label>}
+        <div className="task-form-row">
+          <label>Backend (optional)<select value={draft.backend} onChange={(e) => set({ ...resetRuntimeForBackend(backends, e.target.value || defaultBackendID), backend: e.target.value, fast: false })}>
+            <option value="">Default{backends?.backends[defaultBackendID] ? ` · ${backends.backends[defaultBackendID].name}` : ""}</option>
+            {Object.entries(backends?.backends ?? {}).map(([id, backend]) => <option key={id} value={id}>{backend.name}</option>)}
+          </select></label>
+          <label>Model (optional)<select value={draft.model} onChange={(e) => set({ ...resetRuntimeForModel(backends, backendID, e.target.value || effectiveBackend?.default_model || ""), backend: draft.backend, model: e.target.value, fast: false })}>
+            <option value="">Default{effectiveBackend?.models[effectiveBackend.default_model] ? ` · ${effectiveBackend.models[effectiveBackend.default_model].name}` : ""}</option>
+            {Object.entries(effectiveBackend?.models ?? {}).map(([id, model]) => <option key={id} value={id}>{model.name}</option>)}
+          </select></label>
+          {!!effectiveModel?.efforts?.length && <label>Effort (optional)<select value={draft.effort} onChange={(e) => set({ effort: e.target.value })}>
+            <option value="">Default{effectiveModel.default_effort ? ` · ${effectiveModel.default_effort}` : ""}</option>
+            {effectiveModel.efforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
+          </select></label>}
+        </div>
+        {effectiveModel?.fast && <div className="task-check"><label><input type="checkbox" checked={draft.fast} onChange={(e) => set({ fast: e.target.checked })} /> Fast mode — higher provider usage</label></div>}
       </>}
     </>
   );
@@ -386,6 +399,8 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
   const [error, setError] = useState("");
   const [validationError, setValidationError] = useState("");
   const [created, setCreated] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const advancedSummary = [selection.sourceID.trim() && "prerequisite", signal.trim() && "signal", contextRefID.trim() && "context"].filter(Boolean).join(", ");
 
   return (
     <form
@@ -397,6 +412,7 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
         setCreated("");
         const dependencyError = prerequisiteError(selection);
         if (dependencyError) {
+          setAdvancedOpen(true);
           setValidationError(dependencyError);
           return;
         }
@@ -424,35 +440,43 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
           .catch((err: unknown) => setError(errorMessage(err)));
       }}
     >
-      <label>
-        Project
-        <select
-          value={project}
-          required
-          onChange={(e) => {
-            setProject(e.target.value);
-            setSelection(EMPTY_SELECTION);
-            setTarget((current) => ({ ...current, agentID: "" }));
-          }}
-        >
-          <option value="">Choose a project</option>
-          {projects.map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
-      </label>
-      <label>
-        Name
-        <input value={name} onChange={(e) => setName(e.target.value)} required />
-      </label>
+      <div className="task-form-row">
+        <label>
+          Project
+          <select
+            value={project}
+            required
+            onChange={(e) => {
+              setProject(e.target.value);
+              setSelection(EMPTY_SELECTION);
+              setTarget((current) => ({ ...current, agentID: "" }));
+            }}
+          >
+            <option value="">Choose a project</option>
+            {projects.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <label>
+          Name
+          <input value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+      </div>
       <label>
         Instruction
-        <AutoGrowTextarea value={instruction} onChange={(e) => setInstruction(e.target.value)} required />
+        <AutoGrowTextarea value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="What should the agent do?" rows={4} required />
       </label>
-      <TargetFields project={project} draft={target} onChange={setTarget} />
-      <StartAtFields startAt={startAt} onTimeOnly={onTimeOnly} onStartAt={setStartAt} onOnTimeOnly={setOnTimeOnly} />
-      {project && <PrerequisitePicker project={project} selection={selection} onChange={setSelection} tasksQuery={tasksQuery} runsQuery={runsQuery} idPrefix="create" />}
-      <details className="task-advanced">
-        <summary>Advanced signal and context</summary>
+      <fieldset className="task-form-section">
+        <legend>Agent setup</legend>
+        <TargetFields project={project} draft={target} onChange={setTarget} />
+      </fieldset>
+      <fieldset className="task-form-section">
+        <legend>Timing</legend>
+        <StartAtFields startAt={startAt} onTimeOnly={onTimeOnly} onStartAt={setStartAt} onOnTimeOnly={setOnTimeOnly} />
+      </fieldset>
+      <details className="task-advanced" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+        <summary>Advanced{advancedSummary ? ` · ${advancedSummary}` : ""}</summary>
         <div className="task-advanced-content">
+          {project && <PrerequisitePicker project={project} selection={selection} onChange={setSelection} tasksQuery={tasksQuery} runsQuery={runsQuery} idPrefix="create" />}
           <label>Wait for signal (optional)<input value={signal} onChange={(e) => setSignal(e.target.value)} placeholder="ci-green" /></label>
           <label>Context reference ID<input value={contextRefID} onChange={(e) => setContextRefID(e.target.value)} placeholder="cx_…" /></label>
           <label>Context label<input value={contextLabel} onChange={(e) => setContextLabel(e.target.value)} /></label>

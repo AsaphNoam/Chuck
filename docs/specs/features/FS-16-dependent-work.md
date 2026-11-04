@@ -437,6 +437,16 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   instant it did not observe. No occurrence is created twice, including across a crash between
   creating an occurrence task and recording that the occurrence was handled.
 
+- **R59 (shipped 2026-11-04) — Task creation uses the standard Chuck form hierarchy.** The manual-create
+  disclosure keeps project/name, instructions, agent setup and optional start time visible in a
+  bounded, inset form. Agent setup retains new/existing targeting, persona and runtime controls;
+  backend, model and effort are catalog choices rather than raw identifiers, sharing the task and
+  schedule target editor. Changing backend/model resets incompatible runtime overrides. Work
+  prerequisites, signals and context-reference attachments live in a closed **Advanced** disclosure.
+  Its summary identifies configured options when collapsed; toggling retains the draft and a
+  dependency validation error opens it for correction. Existing payloads, time semantics, project
+  resets, feedback and Re-arm behavior are preserved. This refines R39/R45's creation composition.
+
 ## 3. States & transitions
 
 - **Task:** `armed` (at least one arm unsatisfied) → `ready` (every arm satisfied; eligible, and
@@ -816,6 +826,12 @@ Each names the verification that demonstrates it.
   pause and resume it, by keyboard in all three skins. *Verify:*
   `ui/src/features/tasks/TasksPage.test.tsx` plus a rendered Chromium journey (2026-10-23, Core,
   Sky & Grove and Studio at 1440 and 1024; a self-paused row is covered by the UI test only).
+
+- **A41** (R59) — Open manual creation: instructions, agent setup and timing are visible,
+  while dependencies/signals/context start collapsed. Configure Advanced, collapse/reopen and submit;
+  verify the retained dependency/context payload and visible validation recovery. Choose catalog
+  runtime overrides and change backend/model to confirm stale effort/fast values are cleared.
+  Render at 1024px and 1440px in every built-in appearance without clipping or escaped controls.
 
 ## 6. Deviations & open decisions
 

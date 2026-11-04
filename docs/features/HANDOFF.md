@@ -32,7 +32,17 @@ are not live queues.
 
 ## Active change
 
-None.
+Task creation form simplification (operator `/work`, 2026-11-04), FS-16.R59/A41.
+Direction: standard bounded Chuck form; project/name → instructions → agent setup → timing →
+Advanced → Create. Keep the instruction dominant and rare coordination fields quiet. Reuse semantic
+tokens and the shared target editor, with no motion or new API. Preserve all timing/target behavior
+and drafts; expose dependency errors for correction. Likely failure to prevent: advanced waits
+silently applying after collapse, or a hidden validation error blocking creation.
+Implementation complete: catalog selectors reuse runtime-reset helpers; collapsed Advanced names
+configured options and opens on dependency validation. Focused Tasks tests pass (46); full UI suite
+passes (105 files, 1133 tests), and `npm run build` passes including style/presentation checks.
+Spec checks and isolated browser verification are pending; a read-only agent owns browser evidence.
+Unrelated dirty `docs/ideas.md` and generated embed are user-owned and excluded from this change.
 
 ## Acceptance gates still owed
 

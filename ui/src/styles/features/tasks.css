@@ -238,6 +238,42 @@
   max-width: 28rem;
 }
 
+.task-create {
+  background: var(--ad-surface-panel);
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  border-radius: var(--ad-radius-medium);
+  gap: var(--ad-space-4);
+  padding: var(--ad-space-6);
+}
+
+.task-form-row {
+  display: grid;
+  gap: var(--ad-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  min-width: 0;
+}
+
+.task-form-row > label {
+  min-width: 0;
+}
+
+.task-form-section {
+  border: 0;
+  border-top: var(--ad-border-thin) solid var(--ad-border-default);
+  display: grid;
+  gap: var(--ad-space-3);
+  margin: 0;
+  min-width: 0;
+  padding: var(--ad-space-3) 0 0;
+}
+
+.task-form-section legend {
+  color: var(--ad-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding-inline-end: var(--ad-space-3);
+}
+
 .task-record label {
   display: grid;
   gap: var(--ad-space-1);
