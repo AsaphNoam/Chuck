@@ -17,7 +17,7 @@ are not live queues.
   2026-11-02; the next release cannot assemble until it moves to `macos-15` (operator decision
   pending).
 - **Main CI:** red on CI-CARDGRID-1 (runs 41222233023 and 41223054609); see Review findings.
-- **Review state:** CI-CARDGRID is open for `/fix`. The v0.21.0 architectural review
+- **Review state:** CI-CARDGRID and TASK-FORM are open for `/fix`. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered).
 - **Open field causes:** the frequent-429 provider failure and the unchecked permission-save
@@ -193,20 +193,6 @@ None.
 
 ## Review queue
 
-- **Standard task creation form** (2026-11-04): FS-16.R59/A41, implementation `17e050fb`.
-  Project/name, instruction, agent setup and timing stay visible; dependencies/signals/context move
-  into Advanced, whose summary names configured options and opens on dependency validation errors.
-  Shared task/schedule target editor uses catalog runtime selectors and existing reset helpers.
-  Verification on this source: `make check-specs`, focused Tasks (46 tests), full `npm test`
-  (105 files, 1133 tests), `npm run build` including style/contract checks, and `git diff --check` pass.
-  Chromium captures all four appearances at 1024/1440, the development matrix and visible error
-  state; route-stubbed interaction proves timed request fields and Advanced draft retention,
-  not real-server/provider execution. Evidence: shared resources
-  `task-form-incumbent/report.json`, screenshots and `task-form-render.mjs`.
-  Parent inspected Core/Sky & Grove/Boring Night at 1024; agent inspected Studio at 1440 and error
-  recovery; no material visual findings. Existing unrelated dirty `docs/ideas.md` and embedded
-  `internal/server/ui/dist/index.html` remain excluded and preserved; source UI build only.
-
 - **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
   Current agent is available for any non-archived source; the handler wakes a stopped source,
   holds behind a running turn, or steers (`target.steer`) when the runtime advertises it; desktop
@@ -225,6 +211,36 @@ None.
   …" notices and `sentTo` delivery state are gone (FS-13.R29/R35 wording updated).
 
 ## Review findings
+
+### TASK-FORM — Standard task creation form (`17e050fb`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — **TASK-FORM-1: server prerequisite validation leaves correction fields collapsed.**
+  INV §8; FS-16.R59/A41 and R40/R45. `ui/src/features/tasks/taskForms.tsx:440` only sets the
+  server error, whereas the local validation branch opens Advanced. Enter a missing prerequisite
+  ID (or select a source deleted before submission), collapse outer Advanced, then Create task:
+  the server's typed `unusable_source` refusal appears below the form while the prerequisite fields
+  remain hidden. `internal/state/tasks.go:670` produces this refusal and
+  `internal/server/task_handlers.go:445` maps its typed envelope. Open the affected disclosure for
+  relevant server validation codes and retain the draft; add a collapsed-submit refusal regression.
+  Independent Chromium reproduction with that actual error envelope confirms `advancedOpen: false`
+  and `sourceVisible: false`; local missing-outcome validation does reopen Advanced.
+  Evidence in shared resources: `task-form-review-20261104-probe/dependency-recovery.json`,
+  `dependency-recovery.png`, `local-dependency-recovery.json`, and `task-form-review-probe.mjs`.
+
+**Review evidence (2026-11-04):** reviewed the implementation and administrative follow-up
+  `23ef3a34`; this same unit remains open for the finding above. Focused Tasks tests pass 46/46;
+  `make check-specs`, `npm run check:styles` (47 checker tests plus presentation contract), and
+  `git diff --check` pass. Independent approved loopback Chromium run of the actual source UI
+  covers all four appearances at 1024/1440, the development matrix, timed request fields,
+  Advanced draft retention and visible API errors. All eight task-form captures inspected without
+  clipping or escaped controls. `task-form-review-20261104/report.json` and screenshots retain the
+  evidence; API routes are stubbed, so this establishes frontend behavior rather than live dispatch.
+  Invariant sweep: §§1/2/8/10/13/17 apply (project/runtime reset, shared builders, recovery,
+  task/schedule wiring, selectors and independent request assertions); only §8 has a finding.
+  §§3/4/5/6/7/9/11/12/14/15/16 have no changed applicable surface. New tests protect requirement
+  outcomes at the rendered component/request boundary; TS-06.R35/INV §17 reveal no separate
+  test-value finding. Shared runtime helpers and native details retain the intended local choices.
+  Product code/specs and unrelated dirty `docs/ideas.md`/generated UI index are preserved.
 
 ### CI-CARDGRID — release v0.21.0 clean-clone CI — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
