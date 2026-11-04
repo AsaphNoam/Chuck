@@ -32,17 +32,7 @@ are not live queues.
 
 ## Active change
 
-Task creation form simplification (operator `/work`, 2026-11-04), FS-16.R59/A41.
-Direction: standard bounded Chuck form; project/name → instructions → agent setup → timing →
-Advanced → Create. Keep the instruction dominant and rare coordination fields quiet. Reuse semantic
-tokens and the shared target editor, with no motion or new API. Preserve all timing/target behavior
-and drafts; expose dependency errors for correction. Likely failure to prevent: advanced waits
-silently applying after collapse, or a hidden validation error blocking creation.
-Implementation complete: catalog selectors reuse runtime-reset helpers; collapsed Advanced names
-configured options and opens on dependency validation. Focused Tasks tests pass (46); full UI suite
-passes (105 files, 1133 tests), and `npm run build` passes including style/presentation checks.
-Spec checks and isolated browser verification are pending; a read-only agent owns browser evidence.
-Unrelated dirty `docs/ideas.md` and generated embed are user-owned and excluded from this change.
+None.
 
 ## Acceptance gates still owed
 
@@ -202,6 +192,20 @@ Unrelated dirty `docs/ideas.md` and generated embed are user-owned and excluded 
   switch shows it above the composer.
 
 ## Review queue
+
+- **Standard task creation form** (2026-11-04): FS-16.R59/A41, implementation `17e050fb`.
+  Project/name, instruction, agent setup and timing stay visible; dependencies/signals/context move
+  into Advanced, whose summary names configured options and opens on dependency validation errors.
+  Shared task/schedule target editor uses catalog runtime selectors and existing reset helpers.
+  Verification on this source: `make check-specs`, focused Tasks (46 tests), full `npm test`
+  (105 files, 1133 tests), `npm run build` including style/contract checks, and `git diff --check` pass.
+  Chromium captures all four appearances at 1024/1440, the development matrix and visible error
+  state; route-stubbed interaction proves timed request fields and Advanced draft retention,
+  not real-server/provider execution. Evidence: shared resources
+  `task-form-incumbent/report.json`, screenshots and `task-form-render.mjs`.
+  Parent inspected Core/Sky & Grove/Boring Night at 1024; agent inspected Studio at 1440 and error
+  recovery; no material visual findings. Existing unrelated dirty `docs/ideas.md` and embedded
+  `internal/server/ui/dist/index.html` remain excluded and preserved; source UI build only.
 
 - **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
   Current agent is available for any non-archived source; the handler wakes a stopped source,
