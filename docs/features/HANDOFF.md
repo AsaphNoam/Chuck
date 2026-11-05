@@ -264,6 +264,32 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
+### TT-SETUP — Think Tank setup fit and annotation toast removal (2026-11-05) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Reviewed `e2930630` against FS-12.R24, FS-21.R27/R34/R54–R58/A17/A39/A41,
+FS-13.R29/R35 and TS-08 presentation rules. The originating review unit remains open.
+
+- **Must fix** — **TT-SETUP-1 (INV §8/§13): keep participant names separate from controls.**
+  `ui/src/styles/features/think-tank.css:1469–1482` puts the existing participant rows into
+  half-width columns without adapting their four-track layout (`:1499–1503`). At 1024×900,
+  adding two agents makes `Reviewer 1`'s project text overlap the Turn limit label; a longer
+  participant name also overlaps it. This reproduces in Core, Sky & Grove, Studio and Boring
+  Night, violating FS-12.R24's non-overlap requirement. Restoring the prior single-column CSS
+  in the browser separates the same names and controls. Adapt the row to its actual available
+  width (or retain a full-width participant section); verify name, model, limit, May leave,
+  ordering and Remove remain distinct at 1024px and wider with short and long names.
+
+- **Must fix** — **TT-SETUP-2 (INV §8/§13): allow the empty participant picker to shrink.**
+  `ui/src/styles/features/think-tank.css:1480–1482` places the participant fieldset into a
+  half-width track without constraining its intrinsic minimum. With a candidate named
+  `Storage engine reviewer with a long participant name`, the initial empty section extends
+  past the dialog's right edge; the dialog has 124px of horizontal overflow at 1024×900 and
+  60px at 1440×900. The existing-agent picker is clipped until horizontally scrolled, even
+  before adding anyone. This violates FS-12.R24. Bound the fieldset and picker to the available
+  track, preserving usable option labels; verify the empty state with long candidate names
+  has no horizontal overflow at the desktop floor and wider. The populated-row overlap above
+  needs its own verification even after this minimum-size issue is repaired.
+
 ### SELF-ANNOTATIONS — self-targeted annotations behave like chat messages (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Reviewed `17697763` against FS-13.R23/R37/A27, FS-03.R48–R50 and TS-03.R78.
@@ -382,6 +408,23 @@ draft acknowledgement. No product code, specs, user state, provider sessions or 
 files were changed. Exact affected request/timing remains needed to confirm the broader symptom.
 
 ## Changelog
+
+- **2026-11-05 — Think Tank setup / annotation notice review:** reviewed `e2930630` and
+  recorded TT-SETUP-1–2; the unit remains open. Focused setup/AnnotationTray/ReaderWorkspace/
+  phone AnnotationDelivery tests pass 40/40; spec integrity and style/presentation checks pass.
+  Independent approved loopback Chromium rendered the actual project setup dialog in all four
+  appearances at 959/960/1024/1440px with 0/2/8 participants. Adding, scrolling to actions and
+  Cancel work; rendered overlap and initial horizontal overflow fail the fit claim. Prior-layout
+  CSS comparison confirms the populated-row regression. Browser fixtures stub API/SSE; no
+  provider or physical-phone receipt is claimed. Evidence and harness:
+  `/private/tmp/think-setup-review/` and `/private/tmp/think-setup-review.mjs`.
+  The existing development presentation matrix also renders in Core, Sky & Grove and Studio
+  at 1024/1440px (`/private/tmp/think-setup-matrix/`).
+  INV §§8/10/13/17 apply; §§1–7/9/11/12/14–16 have no changed applicable surface.
+  Changed delivery tests retain real component/request assertions; no TS-06.R35/INV §17 finding.
+  The removal of successful-send notices matches FS-13.R29/R35; exact CSS dimensions are
+  presentation choices under existing layout requirements, not a separate specification defect.
+  Product/spec files and concurrent recovery, idea and generated-embed edits are preserved.
 
 - **2026-11-05 — Self-targeted annotation review:** reviewed `17697763`; recorded
   SELF-ANNOTATIONS-1–3 above and left that unit open. Existing self-delivery handler tests pass
