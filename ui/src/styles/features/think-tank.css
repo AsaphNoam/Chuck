@@ -1493,14 +1493,15 @@ a.think-tank-author:hover {
   border-radius: var(--ad-radius-medium);
   display: grid;
   gap: var(--ad-space-3);
+  min-width: 0;
   padding: var(--ad-space-3);
 }
 
 .think-tank-setup-row {
-  align-items: center;
+  align-items: start;
   display: grid;
   gap: var(--ad-space-3);
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .think-tank-setup-row input[type="number"] {
@@ -1509,7 +1510,13 @@ a.think-tank-author:hover {
 
 .think-tank-setup-name {
   display: grid;
+  grid-column: 1 / -1;
   min-width: 0;
+}
+
+.think-tank-setup-name > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .think-tank-setup-name span {
@@ -1519,6 +1526,17 @@ a.think-tank-author:hover {
 
 .think-tank-setup-name .think-tank-setup-runtime {
   font-family: var(--ad-font-mono);
+}
+
+.think-tank-setup-add > select {
+  flex: 1 1 12rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.think-tank-setup-add {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .think-tank-setup-new,

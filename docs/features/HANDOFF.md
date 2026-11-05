@@ -20,8 +20,7 @@ are not live queues.
   awaiting the next clean-clone CI run.
 - **Review state:** CI-CARDGRID and TASK-FORM are closed. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
-  generated embed covered). SELF-ANNOTATIONS (three findings) and TT-SETUP (two findings)
-  remain open below.
+  generated embed covered). SELF-ANNOTATIONS (three findings) remain open below.
 - **Recovery fix:** RECOVERED-QUEUE-1–3 are closed in `0e98d3c4`. Withdrawal acknowledges only
   durably restored text; successful Steer fences stale reads on desktop/phone. All closure checks pass.
   Fresh queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
@@ -264,32 +263,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### TT-SETUP — Think Tank setup fit and annotation toast removal (2026-11-05) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Reviewed `e2930630` against FS-12.R24, FS-21.R27/R34/R54–R58/A17/A39/A41,
-FS-13.R29/R35 and TS-08 presentation rules. The originating review unit remains open.
-
-- **Must fix** — **TT-SETUP-1 (INV §8/§13): keep participant names separate from controls.**
-  `ui/src/styles/features/think-tank.css:1469–1482` puts the existing participant rows into
-  half-width columns without adapting their four-track layout (`:1499–1503`). At 1024×900,
-  adding two agents makes `Reviewer 1`'s project text overlap the Turn limit label; a longer
-  participant name also overlaps it. This reproduces in Core, Sky & Grove, Studio and Boring
-  Night, violating FS-12.R24's non-overlap requirement. Restoring the prior single-column CSS
-  in the browser separates the same names and controls. Adapt the row to its actual available
-  width (or retain a full-width participant section); verify name, model, limit, May leave,
-  ordering and Remove remain distinct at 1024px and wider with short and long names.
-
-- **Must fix** — **TT-SETUP-2 (INV §8/§13): allow the empty participant picker to shrink.**
-  `ui/src/styles/features/think-tank.css:1480–1482` places the participant fieldset into a
-  half-width track without constraining its intrinsic minimum. With a candidate named
-  `Storage engine reviewer with a long participant name`, the initial empty section extends
-  past the dialog's right edge; the dialog has 124px of horizontal overflow at 1024×900 and
-  60px at 1440×900. The existing-agent picker is clipped until horizontally scrolled, even
-  before adding anyone. This violates FS-12.R24. Bound the fieldset and picker to the available
-  track, preserving usable option labels; verify the empty state with long candidate names
-  has no horizontal overflow at the desktop floor and wider. The populated-row overlap above
-  needs its own verification even after this minimum-size issue is repaired.
-
 ### SELF-ANNOTATIONS — self-targeted annotations behave like chat messages (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Reviewed `17697763` against FS-13.R23/R37/A27, FS-03.R48–R50 and TS-03.R78.
@@ -327,6 +300,14 @@ The originating review unit remains open; no product code or specifications chan
   and verify both outcomes on desktop and phone. This is independent of the held-tail bug.
 
 ## Changelog
+
+- **2026-11-05 — Think Tank setup layout fixes (INV §§8/13):** TT-SETUP-1/2 closed by
+  separating participant identity from controls and constraining the empty picker to its grid
+  track. Real-browser renders covered empty candidates and short/long populated names at 1024px
+  and 1440px in Core, Sky & Grove, Studio and Boring Night; all 16 had no horizontal overflow,
+  and name/model, limit, May leave, ordering and Remove remained distinct. Screenshots:
+  `/var/folders/87/yfpx_jjx4rd6yn0965lj9j680000gn/T/tt-setup-render/`. `make check-specs`, full
+  UI Vitest (1,150 tests), UI style/presentation checks and build passed; `git diff --check` passed.
 
 - **2026-11-05 — Recovery fix closed (INV §§1/2/5/8/10/11/15/17):** RECOVERED-QUEUE-1–3
   repaired in `0e98d3c4`; this closes the originating review unit without adding a review unit.
