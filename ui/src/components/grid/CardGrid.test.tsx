@@ -467,7 +467,9 @@ describe("CardGrid", () => {
       a_hidden: agent("a_hidden", { group: "alpha", state: "busy" }),
     }, { alpha: { collapsed: true } });
     renderWithQuery(<CardGrid projectID="my-app" />);
-    await screen.findByText("a_term");
+    // The UI store survives between component mounts. Wait for the persisted layout
+    // read to install this case's collapsed choice before delivering the transition.
+    await waitFor(() => expect(screen.getByRole("region", { name: "Group alpha" })).toHaveAttribute("data-state", "collapsed"));
 
     act(() => {
       for (const id of ["a_term", "a_elsewhere", "a_hidden"]) {
@@ -478,6 +480,43 @@ describe("CardGrid", () => {
 
     expect(screen.queryByLabelText(/Composer a_/)).not.toBeInTheDocument();
     expect(document.querySelector('[data-ui="agent-group"][data-state="collapsed"]')).not.toBeNull();
+  });
+
+  it("does not persist a waiting transition received before a collapsed layout finishes loading", async () => {
+    let release!: () => void;
+    const layoutReady = new Promise<void>((resolve) => { release = resolve; });
+    const saved: { expanded: string[] }[] = [];
+    useUiStore.setState({ groupLayout: {}, projectGroupLayout: {} });
+    seedHydratedGrid(["a_hidden", "a_visible"], {
+      a_hidden: agent("a_hidden", { group: "alpha", state: "busy" }),
+      a_visible: agent("a_visible", { state: "busy" }),
+    });
+    server.use(
+      http.get("/api/layout", async () => {
+        await layoutReady;
+        return HttpResponse.json({ order: ["a_hidden", "a_visible"], density: { perRow: 3, gap: 16 }, groups: { alpha: { collapsed: true } }, expanded: [] });
+      }),
+      http.put("/api/layout", async ({ request }) => {
+        saved.push(await request.json() as { expanded: string[] });
+        return HttpResponse.json({});
+      }),
+    );
+    renderWithQuery(<CardGrid projectID="my-app" />);
+    await screen.findByText("a_hidden");
+
+    // Before the layout response, alpha appears open and this can transiently open
+    // the pane unless auto-opening waits for layout settlement.
+    act(() => useAgentStore.getState().applyStateUpdate(agent("a_hidden", { group: "alpha", state: "waiting_input" })));
+    expect(screen.queryByLabelText("Composer a_hidden")).not.toBeInTheDocument();
+    release();
+    await waitFor(() => expect(screen.getByRole("region", { name: "Group alpha" })).toHaveAttribute("data-state", "collapsed"));
+    expect(screen.queryByLabelText("Composer a_hidden")).not.toBeInTheDocument();
+
+    // A later valid expansion persists through the real layout consumer; the hidden
+    // agent must not be retained in the saved expanded list.
+    fireEvent.click(await cardOf("a_visible"));
+    await waitFor(() => expect(saved.at(-1)?.expanded).toEqual(["a_visible"]));
+    expect(saved.at(-1)?.expanded).not.toContain("a_hidden");
   });
 
   // FS-02.A43 — an automatic opening is an ordinary expansion in every respect: it takes

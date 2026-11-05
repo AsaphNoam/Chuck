@@ -16,8 +16,9 @@ are not live queues.
 - **Release runner:** `.github/workflows/release.yml` still uses `macos-14`, which GitHub retires
   2026-11-02; the next release cannot assemble until it moves to `macos-15` (operator decision
   pending).
-- **Main CI:** red on CI-CARDGRID-1 (runs 41222233023 and 41223054609); see Review findings.
-- **Review state:** CI-CARDGRID is open for `/fix`. TASK-FORM is closed. The v0.21.0 architectural review
+- **Main CI:** prior runs 41222233023 and 41223054609 failed on CI-CARDGRID-1; repaired locally,
+  awaiting the next clean-clone CI run.
+- **Review state:** CI-CARDGRID and TASK-FORM are closed. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered).
 - **Field investigation:** RECOVERED-QUEUE is open for `/fix`: a transient uncertainty snapshot can
@@ -343,19 +344,19 @@ R100. History: `2268e279`/`07599b77` extended media receipts to text without add
 draft acknowledgement. No product code, specs, user state, provider sessions or unrelated dirty
 files were changed. Exact affected request/timing remains needed to confirm the broader symptom.
 
-### CI-CARDGRID — release v0.21.0 clean-clone CI — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Worth fixing** — **CI-CARDGRID-1: collapsed-section auto-open test fails in CI.** INV §1/§17. `ui/src/components/grid/CardGrid.test.tsx` "opens nothing for
-  terminal, cross-project, and collapsed-section agents" fails on GitHub `ubuntu-latest` (main CI
-  41222233023 on `d3fda601`, and 40232900275 on handoff-only `43c214d1`) with
-  `Composer a_hidden` present, while it passes locally (1/1). The collapsed group's layout likely
-  hydrates after the `waiting_input` update on slower runners, so the automatic opening fires for
-  a collapsed-section agent. Decide whether this is a test-ordering race (wait for the collapsed
-  group before the update) or a product race against FS-02's no-open rule for collapsed sections;
-  add a deferred-layout regression either way. Not introduced by the v0.21.0 range. TS-06.R8
-  clean-clone CI is red until fixed.
-
 ## Changelog
+
+- **2026-11-05 — Card-grid fix (INV §§1/17):** CI-CARDGRID-1 closed. A deferred layout read
+  reproduced a real transient auto-open before saved collapsed-group preferences arrived.
+  Automatic opening now waits for layout settlement (success or reported failure), records
+  transitions during loading without replay, and retains the normal later-transition behavior.
+  FS-02.R61/A43 and TS-08.R49 clarify this boundary. The original exclusion test waits for its
+  own collapsed layout; the deferred regression fails before the repair and checks both the
+  transient DOM and the next saved expanded list. CardGrid tests pass 42/42; full UI tests pass
+  1,142 with two existing skips; `make check-specs`, production UI build including style and
+  presentation checks, and `git diff --check` pass. Logs: `/tmp/chuck-cardgrid-{specs,ui-tests,build}.log`.
+  Clean-clone CI has not been rerun. RECOVERED-QUEUE remains open; unrelated ideas/generated
+  embed edits are preserved. This fix closes its originating review unit.
 
 - **2026-11-05 — Pipeline stage-work links review closed without findings:** reviewed
   `43821517` against FS-14.R39/A17/A23. Detail-response live/archive routes work before global

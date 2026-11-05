@@ -435,6 +435,11 @@ primitive seam; the rejected alternatives are recorded in §5.
   `CardGrid`, it is created and discarded with the mounted grid, which is the mechanism behind
   FS-02.R61's stated limit that a pane opens only while a grid is on screen.
 
+  The initial layout read must also settle before transitions can open panes: until then the
+  saved collapsed-group preferences are unknown. Observe and reseed during this read without
+  replaying those transitions afterward. Both read success and the existing reported failure
+  settle this gate, so a failed read does not permanently disable later automatic opening.
+
   An eligible transition expands through the same code path a person's click uses — the existing
   expansion branch that appends the id and applies R48's cap and recency — rather than a second
   expansion routine, so the cap, the least-recently-used eviction, and the persisted list cannot

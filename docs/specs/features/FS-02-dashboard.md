@@ -464,8 +464,12 @@ project that is not repo-backed, or is archived, shows no such action.
   Only a **newly observed** transition opens a pane. An agent already waiting when the grid loads,
   reloads, reconnects, or re-hydrates opens nothing, and an agent seen for the first time already in
   `waiting_input` opens nothing, because otherwise every reload and every dropped connection would
-  reopen panes the person had deliberately collapsed. The consequence is deliberate and stated
-  plainly: a pane opens only while a card grid is on screen to observe the transition. Arriving at
+  reopen panes the person had deliberately collapsed. Transitions received before the initial
+  layout read settles also seed the observed state without opening panes, since saved
+  collapsed-group preferences are not yet known. Those
+  transitions are not replayed when the layout arrives. A failed layout read settles this gate
+  using the existing visible preferences and reports its error.
+  A pane opens only while a card grid is on screen to observe the transition. Arriving at
   or returning to a dashboard where an agent is already waiting shows R3's badge and highlighted
   card, not an opened pane. Collapsing an auto-opened pane while its agent
   is still waiting keeps it collapsed; the next new transition into `waiting_input` opens it again.
@@ -917,7 +921,9 @@ picker and launches with the route project's id; the general modal continues to 
   `waiting_input` evicts the least-recently-used pane and that pane's unsent draft is restored when
   it is reopened; five agents entering together leave exactly four open. A terminal-interface agent,
   an agent outside the grid's project, and an agent in a collapsed group section each expand nothing
-  and leave the section collapsed. A muted `waiting_input` notification does not suppress the
+  and leave the section collapsed. A transition while the initial layout read is deferred opens
+  no pane, is not replayed when the collapsed layout arrives, and adds no hidden expansion to a
+  subsequent layout save. A muted `waiting_input` notification does not suppress the
   expansion. — `ui/src/components/grid/CardGrid.test.tsx`, which is the whole client evidence
   because the detection and the expanded list both live in `CardGrid`; `agentStore` supplies the
   `observed`/`observedSeq` update-order index beside `agents`, preserving the store's single-writer

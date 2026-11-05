@@ -82,6 +82,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const [dropGroup, setDropGroup] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
+  const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [refusedDrop, setRefusedDrop] = useState(false);
   const projects = useProjects();
 
@@ -106,9 +107,11 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
         setExpanded(next.expanded);
         stored.current = JSON.stringify(next);
         loaded.current = true;
+        setLayoutLoaded(true);
       })
       .catch((err: unknown) => {
         loaded.current = true;
+        setLayoutLoaded(true);
         pushError("Loading layout failed", err instanceof Error ? err.message : String(err));
       });
   }, [pushError, setDensity, setGroupLayout, setOrder]);
@@ -194,7 +197,8 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   //
   // The record below is state derived from the connection, so it is reseeded rather than
   // fired on every boundary crossing (INV §1): while the store is hydrating, and until it
-  // has hydrated once, the effect only writes what it observed. That is what makes R61's
+  // has hydrated once and the layout read has settled, the effect only writes what it
+  // observed. Saved collapsed-group preferences are unknown before that read. That makes R61's
   // "newly observed" rule true instead of aspirational — a first load, a reload, a
   // reconnect, and an agent first seen already waiting all open nothing. It lives here,
   // beside `expanded`, so the previous state exists in exactly one place and `agentStore`
@@ -204,7 +208,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const lastObservedState = useRef(new Map<string, AgentStatus>());
   useEffect(() => {
     const observed = lastObservedState.current;
-    const settled = agentsHydrated && !agentsHydrating;
+    const settled = agentsHydrated && !agentsHydrating && layoutLoaded;
     const opening: string[] = [];
     for (const agent of Object.values(agents)) {
       const previous = observed.get(agent.agent_id);
@@ -224,7 +228,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
     // takes, so the cap, its least-recently-used eviction, and the persisted list cannot
     // drift from the manual path (INV §2, §10).
     setExpanded((current) => opening.reduce(expandPane, current));
-  }, [agents, agentsObserved, agentsHydrated, agentsHydrating, openableIDs]);
+  }, [agents, agentsObserved, agentsHydrated, agentsHydrating, layoutLoaded, openableIDs]);
 
   // dnd-kit derives sortable indices and measured-rect transforms from the items
   // each SortableContext is handed, so a drag's live preview is only as correct as
