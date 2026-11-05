@@ -20,12 +20,10 @@ are not live queues.
   awaiting the next clean-clone CI run.
 - **Review state:** CI-CARDGRID and TASK-FORM are closed. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
-  generated embed covered). Self-targeted annotations remain open with three findings under
-  SELF-ANNOTATIONS below.
-- **Recovery fix:** RECOVERED-QUEUE repairs and focused regressions are complete; full Go closure
-  checks are running (full untagged suite passed; SQLite FTS5 suite remains). UI tests pass
-  1,150/1,150 and production UI/Go builds pass. Withdrawal
-  acknowledges only durably restored text; successful Steer fences stale reads on desktop/phone.
+  generated embed covered). SELF-ANNOTATIONS (three findings) and TT-SETUP (two findings)
+  remain open below.
+- **Recovery fix:** RECOVERED-QUEUE-1–3 are closed in `0e98d3c4`. Withdrawal acknowledges only
+  durably restored text; successful Steer fences stale reads on desktop/phone. All closure checks pass.
   Fresh queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
 - **Pipeline field investigation:** EFFORT-BUDGET awaits the affected worker's manifest and trace.
   Cause and fix are undetermined; no validated `/fix` unit or prompt change is recommended.
@@ -328,88 +326,26 @@ The originating review unit remains open; no product code or specifications chan
   specified. Surface the existing outcome wording in an owner that survives clearing the tray,
   and verify both outcomes on desktop and phone. This is independent of the held-tail bug.
 
-### RECOVERED-QUEUE — recovered messages after queue use (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-**Report (verbatim):** “the 'recovered message' feature shows a recovered message whenever you use
-the queue (send a message while the agent is mid run) regardless of if you ended up leaving it
-there, steering or withdrawing.” Reported version, agent identity, desktop/phone surface and exact
-timing were not supplied; no logs were attached. Investigated source at `a674e6bc` on macOS;
-read-only local `$CHUCK_HOME` receipt/transcript/dashboard evidence was also inspected, but the
-report did not identify one of those conversations as the affected example.
-**Clarification (verbatim):** “message I just queued, agter the turn ended.” The reported card
-contains the newly queued text, rather than an older message; exact agent/time remain unknown.
-The clean natural-turn-end fixture does not reproduce that path.
-
-**Expected behavior / classification:** FS-03.R48/R49/R50 require pending input to remain held,
-then become delivered once, including promotion through Steer. R90 restores withdrawn text to the
-composer; R100 extends durable explicit recovery to released/uncertain text receipts. These paths
-need coherent recovery ownership without dropping genuinely uncertain input. Successful-Steer
-stale recovery is a code defect; withdrawal exposes a contract gap between draft restoration and
-retained recovery that needs a coordinated fix. The broader claim that every queue creates recovery
-is **undetermined**, not established by the available evidence.
-
-- **Must fix** — **Confirmed; code/spec interaction** — **RECOVERED-QUEUE-1: text restored after withdrawal remains offered
-  as a separate recovered message.** FS-03.R90/R100; TS-03.R74; INV §1/§8/§11/§15.
-  `internal/runtime/chat.go:658` marks the withdrawn receipt `released`;
-  `ui/src/lib/heldMessage.ts:25-35` restores its text to the composer but never acknowledges that
-  recovery record. `internal/state/attachment_receipts.go:90` selects it on the next GET, and
-  `ui/src/components/chat/ChatPanel.tsx:135-146` / `TranscriptView.tsx:235-238` show a separate
-  “Message not delivered” / “Send recovered message” offer. Phone has the same split at
-  `ui/src/remote/AgentScreen.tsx:908-925` and refreshes after withdrawal. Trigger: queue text,
-  successfully withdraw, then refresh the recovery snapshot (or let the current turn finish).
-  The composer already contains the returned input; the extra offer survives reload and unrelated
-  sends, inviting duplicate submission. Coordinate acknowledgement of the exact withdrawn request
-  with successful draft restoration; preserve recovery when the response/draft handoff fails,
-  preserve unrelated older uncertain receipts and attachment recovery, and do not clear all recovery
-  merely because a queue or Steer succeeded. Regression: real released receipt on successful
-  withdrawal, retained restored draft, refreshed snapshot, and one explicit resend decision.
-
-- **Must fix** — **Confirmed; code defect** — **RECOVERED-QUEUE-2: a transient recovery snapshot survives
-  successful Steer.** FS-03.R50/R100; TS-03.R74; INV §1/§8/§11. During promoted Steer,
-  `internal/runtime/chat.go:795` records `unknown` before awaiting the native reply; GET prompt
-  legitimately exposes that uncertainty. A ChatPanel read on turn-end/state change can cache it.
-  Successful Steer sets the receipt `submitted` at `chat.go:828`, but
-  `ui/src/components/chat/Composer.tsx:335-348` releases held state without refreshing the recovery
-  snapshot. `heldStore.ts:46-66` preserves recovery independently. The success notice and a
-  “may already have reached the agent” recovery offer then coexist for that same request until
-  another qualifying refresh. The real delayed-ack fake-provider probe confirms GET returns
-  unknown during the native call and no recovery after success; the actual ChatPanel/Composer
-  reproduction fails because the already-loaded card survives that success. Reconcile matching
-  recovery with the authoritative successful receipt, guard older in-flight reads, and preserve
-  unrelated recovery. Cover turn end during Steer and a delayed read completing after success.
-
-- **Worth fixing** — **Confirmed; observability gap** — **RECOVERED-QUEUE-3: request logs cannot attribute a recovery
-  card to a queue transition.** Investigation §12.5; TS-02.R55 (no invariant class).
-  Ordinary request logs identify
-  method/path/status, while `messageTransition` (`internal/runtime/message.go:38-48`) and
-  `SetAttachmentDelivery` (`internal/state/attachment_receipts.go:73-75`) retain no transition
-  diagnostic. Current receipts hold only the latest state/timestamp, so the available logs cannot
-  establish whether the displayed copy was the just-held input, a replaced/withdrawn receipt, or
-  an older provider failure. Add bounded structured diagnostics with agent/request identity,
-  operation, delivery transition and reason at acceptance/release/submission/uncertainty; never
-  log message bodies or attachment contents. Verify queue, replacement, withdrawal, successful
-  Steer and provider-error diagnostics identify the exact receipt without leaking payloads.
-
-**Evidence and limits:** a fresh fake-provider HTTP/runtime matrix confirms no `recovery` while
-held, after natural delivery, or after successful Steer; withdrawal returns a `released` recovery,
-and replacing a hold retains the older released input. All four probe cases pass their observed
-state assertions; an additional delayed-ack Steer case passes. Replacement retention is consistent
-with R100 and is not independently labelled a defect. Two actual ChatPanel/Composer reproductions
-fail at the intended no-duplicate/no-stale-card assertions, independently rerun and retained skipped
-in `ui/src/components/chat/RecoveredQueue.test.tsx` (finding IDs in test comments). All 138 existing
-Composer/ChatPanel/TranscriptView tests pass; their mocked HTTP responses do not cover these
-handoffs. Backend probes and UI execution logs are under `/private/tmp/queue-recovery-*.log` and
-`/private/tmp/recovered-ui-independent.log`; probe source/overlay is in the investigation workspace.
-Local persisted evidence has 37 submitted receipts,
-six unknown (five dismissed), and two dismissed released receipts; no held receipts at inspection.
-Two recent unknown receipts in `a_e9646f` match logged provider content-filter errors at
-2026-11-05 08:31:54Z and 08:59:26Z, after canonical user events and provider output. They establish
-another source of recovery, not attribution of this report. Unknown recovery itself is required by
-R100. History: `2268e279`/`07599b77` extended media receipts to text without adding a withdrawal
-draft acknowledgement. No product code, specs, user state, provider sessions or unrelated dirty
-files were changed. Exact affected request/timing remains needed to confirm the broader symptom.
-
 ## Changelog
+
+- **2026-11-05 — Recovery fix closed (INV §§1/2/5/8/10/11/15/17):** RECOVERED-QUEUE-1–3
+  repaired in `0e98d3c4`; this closes the originating review unit without adding a review unit.
+  Desktop/phone acknowledge only the exact withdrawn text receipt after durable draft restoration;
+  storage/acknowledgement failure retains recovery. Successful Steer clears matching recovery,
+  refreshes its snapshot and fences older reads, preserving unrelated recovery and attachments.
+  Bounded receipt-transition diagnostics identify queue/replacement/withdrawal/Steer/provider-error
+  paths without message bodies, attachment metadata/content or raw provider errors. FS-03.R100/A70/A79,
+  TS-03.R74 and TS-02.R55 clarify ownership and diagnostics. Both original skipped UI reproductions
+  failed before repair and now pass. Real HTTP/store coverage verifies released-text acknowledgement
+  preserves older uncertainty; controlled desktop/phone reads cover late snapshots and failed refresh.
+  Focused diagnostics/provider-error/lost-ack checks and diagnostics `-race` pass. Final UI suite
+  passes 1,150/1,150; production UI build (style/presentation/type checks), `make test` (untagged
+  and SQLite FTS5), `make build`, and diff checks pass for the repair's source scope.
+  Logs: `/private/tmp/recovered-{make-test-approved,make-build-approved,ui-closure-test,ui-closure-build}.log`
+  and `/private/tmp/recovered-{diagnostics-test,diagnostics-race,withdrawal-test}.log`.
+  The sandbox denied loopback for the first Go run; approved execution passes. Generated embedded UI
+  and unrelated ideas edits remain untouched. No live-provider/device receipt is claimed, and the
+  broader every-queue report remains unattributed. SELF-ANNOTATIONS-1–3 and TT-SETUP-1–2 remain open.
 
 - **2026-11-05 — Think Tank setup / annotation notice review:** reviewed `e2930630` and
   recorded TT-SETUP-1–2; the unit remains open. Focused setup/AnnotationTray/ReaderWorkspace/
