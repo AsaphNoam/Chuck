@@ -212,11 +212,6 @@ None.
   queued batch replaces any held chat message, per FS-03.R48. `internal/server/sessions.go`,
   `ui/src/components/chat/annotationDelivery.ts`, `ui/src/store/transcriptStore.ts`.
 
-- **Pipeline stage-work cards link to their agents** (2026-11-02): restores FS-14.R39/A17/A23
-  linking lost in the task-only cutover — each run-page "Stage work" card opens `/agent/{id}` while
-  live, `/archive/{id}` once stopped (live store overrides the detail route), and stays a
-  non-linking card without an agent identity. `ui/src/features/pipelines/RunBrowser.tsx`.
-
 - **Think Tank setup fit and annotation toast removal** (2026-11-01): setup dialog widens to
   1120px with participants beside the goal at >=960px; the desktop and phone "Annotations sent to
   …" notices and `sentTo` delivery state are gone (FS-13.R29/R35 wording updated).
@@ -361,6 +356,19 @@ files were changed. Exact affected request/timing remains needed to confirm the 
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-05 — Pipeline stage-work links review closed without findings:** reviewed
+  `43821517` against FS-14.R39/A17/A23. Detail-response live/archive routes work before global
+  hydration; live state overrides the route in place; missing identity remains non-linking.
+  Existing card selectors support the restored links without a material visual redesign.
+  Spec integrity passes. Focused RunBrowser/RunWorkspace UI tests pass 23/23 (the workspace suite emits existing
+  unhandled `/api/roles` fixture diagnostics). The added regression observes DOM destinations
+  and a real store update against explicit requirement outcomes; no TS-06.R35/INV §17 finding.
+  Invariant sweep: §§1/2/8/10/11/13/17 apply (live updates, existing routing seams, fallback,
+  navigation wiring, route vocabulary, selectors and test oracle); no violation found.
+  §§3/4/5/6/7/9/12/14/15/16 have no changed applicable surface.
+  **Fix model:** not applicable — no open fixes. Product/spec files, unrelated dirty
+  ideas/generated index, and other review units preserved.
 
 - **2026-11-05 — HTML preview review closed without findings:** reviewed `d2a7caad` and
   administrative follow-up `be5505f8` against FS-03.R109/A85, TS-08.R152 and TS-03.R79.
