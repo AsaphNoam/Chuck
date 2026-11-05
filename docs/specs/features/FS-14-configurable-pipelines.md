@@ -612,9 +612,12 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   persistent agent identity and ordinary stop/resume with durable assignment re-delivery; continuous
   process liveness is not required, including while either orchestrator waits for children.
 - **R76** (shipped 2026-09-13) — The stage sub-orchestrator is the normal coordination contact and
-  authoritative source for understanding and reporting its delegated stage work. Progress, findings,
-  corrections and completion normally flow through it; the standing owner retains the final stage
-  decision. The standing owner may inspect descendants, communicate directly or intervene when
+  authoritative source for understanding and reporting its delegated stage work. Findings,
+  corrections and completion normally flow through it; routine progress and user-requested
+  adjustments belong in task results under FS-16.R49 rather than separate progress mail. Earlier
+  messages serve action, coordination risks or decisions, with deferred delivery when no immediate
+  action is needed. The standing owner retains the final stage decision. The standing owner may
+  inspect descendants, communicate directly or intervene when
   useful. Direct interaction grants no implicit ownership transfer. Material intervention — changes
   to assignments, task control, instructions, findings or completion decisions — should be sent
   promptly as best-effort deferred mail under R78. Successfully queued mail survives wait, resume

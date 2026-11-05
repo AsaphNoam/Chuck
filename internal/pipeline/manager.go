@@ -152,7 +152,7 @@ func (m *Manager) coordinatorTask(project, goal, standingTaskID string, stage St
 	if err != nil {
 		return nil, err
 	}
-	instruction := fmt.Sprintf("Coordinate pipeline stage %q. Run goal: %s\nStage objective: %s\nYou report upward to the standing stage owner, whose assignment is task %s; it may read, correct, watch and cancel your work. Create and manage durable child work, report progress and your final result to that owner, and do not report the pipeline stage itself.", stage.Title, goal, stage.Objective, standingTaskID)
+	instruction := fmt.Sprintf("Coordinate pipeline stage %q. Run goal: %s\nStage objective: %s\nYou report upward to the standing stage owner, whose assignment is task %s; it may read, correct, watch and cancel your work. Create and manage durable child work, report your final result with report_task_result, and do not report the pipeline stage itself.", stage.Title, goal, stage.Objective, standingTaskID)
 	return &state.Task{TaskID: id, Project: project, DisplayName: stage.Title + " coordinator", Instruction: instruction, TargetKind: state.TargetLaunch, Role: stage.DedicatedRole, Backend: assignment.Backend, Model: assignment.Model, Effort: assignment.Effort, Fast: assignment.Fast, CreatedByKind: "pipeline_coordinator"}, nil
 }
 

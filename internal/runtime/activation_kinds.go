@@ -20,9 +20,11 @@ type ActivationKind struct {
 }
 
 // taskReportContract is how every assignment ends, for a new agent and an
-// existing one alike (FS-16.R49). An assignee that only answers in chat records
-// nothing, because Chuck never infers an outcome (FS-16.R3).
-const taskReportContract = "When the work is finished or cannot continue, call report_task_result with outcome success, failure, or blocked and a short summary; a final chat message records no result."
+// existing one alike, including when coordination needs earlier mail (FS-16.R49).
+// An assignee that only answers in chat records nothing (FS-16.R3).
+const taskReportContract = "When the work is finished or cannot continue, call report_task_result with outcome success, failure, or blocked and a short summary; a final chat message records no result. " +
+	"Keep routine progress and user-requested adjustments in that result; do not send separate acknowledgements or duplicate completion mail. " +
+	"Act on direct user instructions without routinely forwarding them. Message the requester earlier only when they or another agent must act, a coordination risk needs attention, or their decision is required; use deferred mail (wake: false) when no immediate action is needed."
 
 // LaunchedTaskPrompt is the first prompt of an agent launched for a task. The
 // instruction stays first and verbatim, so a leading command or skill the author

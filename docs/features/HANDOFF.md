@@ -193,6 +193,13 @@ None.
 
 ## Review queue
 
+- **Quiet task coordination** (2026-11-05): FS-16.R49 / FS-14.R76 / TS-09.R49 — shared task
+  guidance keeps routine progress and user-requested adjustments in final results, preserving
+  earlier mail for action, coordination risks and decisions with deferred FYIs. Dedicated
+  coordinators no longer receive a blanket request to report progress; bundled references agree.
+  `internal/runtime/activation_kinds.go`, `internal/pipeline/manager.go` and the operating-chuck
+  references. Both Go variants and tagged build passed; live provider adherence remains unverified.
+
 - **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
   Current agent is available for any non-archived source; the handler wakes a stopped source,
   holds behind a running turn, or steers (`target.steer`) when the runtime advertises it; desktop
@@ -255,6 +262,13 @@ None.
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-05 — Quiet task coordination:** `make test` (both Go variants and spec checks),
+  `make build`, link-target and `git diff --check` passed for this unit; Go commands used
+  `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-go-cache`, tests with
+  loopback-capable execution. Logs: `/private/tmp/chuck-quiet-coordination-{test,build}.log`.
+  Existing prompt-delivery coverage reused; no claim of live pipeline noise reduction. Unrelated
+  `docs/ideas.md` and generated UI edits preserved.
 
 - **2026-11-02 — Self-targeted annotations wake, queue and steer:** checks on the working tree:
   `make test` (both Go variants, check-specs), `make build`, full UI vitest (1,131) and UI build,

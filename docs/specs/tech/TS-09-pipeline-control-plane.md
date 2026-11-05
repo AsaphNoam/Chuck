@@ -501,7 +501,10 @@ unchanged by them.
   In the stage creation transaction, record one optional coordinator child task and its binding to
   the standing stage task, with a unique initial-child key. Only admit that child after its standing
   assignment has been confirmed; no parent-success arm is added. The standing assignment includes
-  the child's id and objective and instructs normal delegation/progress/correction through it.
+  the child's id and objective and instructs normal delegation/correction through it. The child
+  instruction directs final reporting through `report_task_result`, not routine progress mail;
+  FS-16.R49's shared task guidance preserves earlier messages for action, coordination risks or
+  decisions and deferred delivery when no immediate action is needed.
   The child uses ordinary task dispatch, descendant management, results and waits. At capacity one
   the standing owner yields to let it run; the child may similarly yield to its own workers. Its
   result is delivered upward through durable task observation, not accepted as a stage report.

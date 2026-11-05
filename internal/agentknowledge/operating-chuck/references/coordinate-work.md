@@ -7,6 +7,12 @@ skills and shared understanding carry their procedures. Keep the instruction con
 when the recipient, uncertainty, or consequences call for it. Routine assignments need no prescribed
 rationale, checklist, or template.
 
+For assigned work, keep routine progress and user-requested adjustments in the final task result,
+without separate acknowledgements or duplicate completion mail. Act on direct user instructions
+without routinely forwarding them. Message the requester earlier only when they or another agent
+must act, a coordination risk needs attention, or their decision is required. Use deferred mail
+when no immediate action is needed.
+
 - Messages are agent-to-agent coordination. Resolve recipients through Chuck, batch useful information,
   and respect the per-turn mail budget of 50 combined sends and reads unless configured otherwise. The
   `send_message` `wake` option defaults to `true`: waking mail may request one eligible recipient turn.

@@ -363,6 +363,12 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   the assignee's skill form (Codex `$name`), since a provider-native mode such as Codex `/review`
   may be unable to call Chuck tools and so can never report. R3 is unchanged: idle or final text
   still records no outcome.
+  Task guidance keeps routine progress and user-requested adjustments in the final task result,
+  without separate acknowledgements or completion mail. Agents act on direct user instructions
+  without routinely forwarding them; earlier mail is useful when the recipient or another agent
+  must act, a coordination risk needs attention, or a decision is required. Use deferred mail when
+  no immediate action is needed. This is communication guidance, not a ban on material updates or
+  a change to messaging authority, delivery defaults or result acceptance.
 - **R50 (shipped 2026-10-18) — A launch specification names its dashboard group.** The scoped `create_task`
   tool accepts an optional group for the agent a launch-spec task starts, so an orchestrating agent
   such as Chucky places the work it delegates into a project group itself instead of telling the
