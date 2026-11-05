@@ -17,7 +17,7 @@ are not live queues.
   2026-11-02; the next release cannot assemble until it moves to `macos-15` (operator decision
   pending).
 - **Main CI:** red on CI-CARDGRID-1 (runs 41222233023 and 41223054609); see Review findings.
-- **Review state:** CI-CARDGRID and TASK-FORM are open for `/fix`. The v0.21.0 architectural review
+- **Review state:** CI-CARDGRID is open for `/fix`. TASK-FORM is closed. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered).
 - **Field investigation:** RECOVERED-QUEUE is open for `/fix`: a transient uncertainty snapshot can
@@ -365,36 +365,6 @@ R100. History: `2268e279`/`07599b77` extended media receipts to text without add
 draft acknowledgement. No product code, specs, user state, provider sessions or unrelated dirty
 files were changed. Exact affected request/timing remains needed to confirm the broader symptom.
 
-### TASK-FORM — Standard task creation form (`17e050fb`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Must fix** — **TASK-FORM-1: server prerequisite validation leaves correction fields collapsed.**
-  INV §8; FS-16.R59/A41 and R40/R45. `ui/src/features/tasks/taskForms.tsx:440` only sets the
-  server error, whereas the local validation branch opens Advanced. Enter a missing prerequisite
-  ID (or select a source deleted before submission), collapse outer Advanced, then Create task:
-  the server's typed `unusable_source` refusal appears below the form while the prerequisite fields
-  remain hidden. `internal/state/tasks.go:670` produces this refusal and
-  `internal/server/task_handlers.go:445` maps its typed envelope. Open the affected disclosure for
-  relevant server validation codes and retain the draft; add a collapsed-submit refusal regression.
-  Independent Chromium reproduction with that actual error envelope confirms `advancedOpen: false`
-  and `sourceVisible: false`; local missing-outcome validation does reopen Advanced.
-  Evidence in shared resources: `task-form-review-20261104-probe/dependency-recovery.json`,
-  `dependency-recovery.png`, `local-dependency-recovery.json`, and `task-form-review-probe.mjs`.
-
-**Review evidence (2026-11-04):** reviewed the implementation and administrative follow-up
-  `23ef3a34`; this same unit remains open for the finding above. Focused Tasks tests pass 46/46;
-  `make check-specs`, `npm run check:styles` (47 checker tests plus presentation contract), and
-  `git diff --check` pass. Independent approved loopback Chromium run of the actual source UI
-  covers all four appearances at 1024/1440, the development matrix, timed request fields,
-  Advanced draft retention and visible API errors. All eight task-form captures inspected without
-  clipping or escaped controls. `task-form-review-20261104/report.json` and screenshots retain the
-  evidence; API routes are stubbed, so this establishes frontend behavior rather than live dispatch.
-  Invariant sweep: §§1/2/8/10/13/17 apply (project/runtime reset, shared builders, recovery,
-  task/schedule wiring, selectors and independent request assertions); only §8 has a finding.
-  §§3/4/5/6/7/9/11/12/14/15/16 have no changed applicable surface. New tests protect requirement
-  outcomes at the rendered component/request boundary; TS-06.R35/INV §17 reveal no separate
-  test-value finding. Shared runtime helpers and native details retain the intended local choices.
-  Product code/specs and unrelated dirty `docs/ideas.md`/generated UI index are preserved.
-
 ### CI-CARDGRID — release v0.21.0 clean-clone CI — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 - **Worth fixing** — **CI-CARDGRID-1: collapsed-section auto-open test fails in CI.** INV §1/§17. `ui/src/components/grid/CardGrid.test.tsx` "opens nothing for
@@ -408,6 +378,16 @@ files were changed. Exact affected request/timing remains needed to confirm the 
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-05 — Task-form fix (INV §8):** TASK-FORM-1 closed; typed prerequisite/context
+  refusals reopen Advanced and retain the draft. The existing rendered request-boundary regression
+  now collapses Advanced before an actual-shaped `unusable_source` refusal and checks correction
+  fields and draft retention. No behavior beyond FS-16.R40/R45/R59 was added.
+  Regression failed before the repair and passes afterward; focused Tasks tests pass 46/46,
+  full UI suite passes 1,141 tests (two existing skips), `make check-specs`, UI production build
+  (including style/presentation checks), and `git diff --check` pass.
+  Closure logs: `/tmp/chuck-task-form-{specs,ui-tests,build}.log`. Unrelated ideas/generated
+  embed edits remain preserved. CI-CARDGRID and RECOVERED-QUEUE remain open.
 
 - **2026-11-05 — Quiet task coordination review closed without findings:** reviewed `a674e6bc`
   against FS-16.R49, FS-14.R75–R78 and TS-09.R49, including shared launch/activation guidance,

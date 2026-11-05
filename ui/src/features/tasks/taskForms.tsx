@@ -437,7 +437,12 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
             setSignal("");
             setStartAt("");
           })
-          .catch((err: unknown) => setError(errorMessage(err)));
+          .catch((err: unknown) => {
+            if (err instanceof TaskAPIError && ["unusable_source", "dependency_cycle", "context_not_found"].includes(err.code)) {
+              setAdvancedOpen(true);
+            }
+            setError(errorMessage(err));
+          });
       }}
     >
       <div className="task-form-row">

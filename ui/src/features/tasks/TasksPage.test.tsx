@@ -544,7 +544,7 @@ describe("Create task manually", () => {
   it("keeps manual IDs in the same selection and preserves the draft after refusal", async () => {
     server.use(http.post("/api/tasks", async ({ request }) => {
       lastRequest = { url: "create", body: await request.json() };
-      return HttpResponse.json({ error: { code: "validation", message: "source is no longer available" } }, { status: 422 });
+      return HttpResponse.json({ error: { code: "validation", message: "source is no longer available", details: { code: "unusable_source" } } }, { status: 422 });
     }));
     renderPage("/tasks?project=my-app");
     await screen.findByText("Implement API");
@@ -556,8 +556,13 @@ describe("Create task manually", () => {
     fireEvent.click(create.getByLabelText("Choose a named source"));
     fireEvent.click(create.getByLabelText("Enter an ID manually"));
     expect((create.getByLabelText("Source ID") as HTMLInputElement).value).toBe("tk_manual");
+    const advanced = create.getByText("Advanced · prerequisite", { selector: ".task-create > details > summary" }).closest("details") as HTMLDetailsElement;
+    if (advanced.open) fireEvent.click(advanced.querySelector("summary")!);
+    expect(advanced.open).toBe(false);
     fireEvent.click(create.getByRole("button", { name: "Create task" }));
     expect(await create.findByRole("alert")).toHaveTextContent("source is no longer available");
+    expect(advanced.open).toBe(true);
+    expect((create.getByLabelText("Source ID") as HTMLInputElement).value).toBe("tk_manual");
     expect(lastRequest?.body).toMatchObject({ arms: [{ kind: "work_result", source_kind: "task", source_id: "tk_manual", satisfying_outcomes: ["success"] }] });
     expect((create.getByLabelText("Name") as HTMLInputElement).value).toBe("manual follow-up");
     expect((create.getByLabelText("Instruction") as HTMLTextAreaElement).value).toBe("continue the work");
