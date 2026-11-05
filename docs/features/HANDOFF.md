@@ -23,6 +23,8 @@ are not live queues.
 - **Field investigation:** RECOVERED-QUEUE is open for `/fix`: a transient uncertainty snapshot can
   survive successful Steer; text withdrawal also duplicates the restored draft as recovery. Fresh
   queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
+- **Pipeline field investigation:** EFFORT-BUDGET is open for `/fix`: clarify that reasoning effort
+  and manifest metadata do not create work budgets. The reported premature stop remains unattributed.
 - **Open field causes:** the frequent-429 provider failure and the unchecked permission-save
   toggle remain unmeasured; each needs affected server evidence if it recurs.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`. Clean release verification may use a
@@ -222,6 +224,61 @@ None.
 
 ## Review findings
 
+### EFFORT-BUDGET — pipeline agents infer a work budget from reasoning effort (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report (verbatim):** “agents in a pipeline read the implementation manifest, saw their reasoning
+was set to low, and decided to self limit on an imaginary budget, which made them fail the task
+because 'the budget ran out'”. No run/agent identity, timestamp, manifest path, version or logs
+were supplied. Investigated source at `47268443` on macOS and read-only local Chuck state and
+recorded conversations. No matching incident was identified; the report's “implementation
+manifest” must not be assumed to mean Chuck's runtime `ExecutionManifest`.
+
+**Expected behavior / classification:** FS-14.R97–R99 authorizes the work needed to meet the goal,
+requires the owner to evaluate failed/blocked child evidence, and reserves human attention for
+a real unavailable decision, permission, checkpoint or exhausted operation. FS-18.R15/R21 and
+TS-11.R24 define runtime facts and requested-delivery metadata; TS-09.R68 explicitly leaves
+semantic completion judgment with the owner. Low effort does not change those obligations.
+The reported premature stop would violate that completion contract. The specific effort-versus-
+budget distinction is absent from the inspected agent guidance; incident causality is unconfirmed.
+
+- **Must fix** — **Probable; agent-guidance gap** — **EFFORT-BUDGET-1: agents can mistake effort or
+  manifest descriptions for authority to stop assigned work early.** FS-14.R97–R99;
+  FS-18.R15/R21; TS-11.R24; INV §10. `internal/runtime/manifest.go:25–42` records effort but no
+  time/token/task allowance, and `internal/runtime/chat.go:3549` applies effort as a provider
+  session option. `internal/pipeline/assignment.go:64–71` requires a report and
+  `:94–114` carries declared inputs and earlier output prose; neither distinguishes runtime
+  effort/manifest metadata from authorized work limits. The packaged
+  `internal/agentknowledge/operating-chuck/references/coordinate-work.md` describes effort as a
+  launch choice, while `references/build-and-run-pipelines.md` describes recovery rounds, without
+  explicitly separating either from the worker's completion scope. A worker can therefore return
+  an invented budget blocker for the owner to assess. If the owner adopts that explanation,
+  repeated failure/blocked recovery can consume the genuine allowance and stall authorized work.
+  The missing clarification and separate source mechanisms are confirmed; that causal chain in
+  the reported run is **undetermined**. Clarify the shared assigned-work and pipeline guidance:
+  effort/settings and manifest metadata do not impose deadlines, token allowances or reduced
+  acceptance criteria; honor explicit authorized limits and actual runtime refusals. The owner
+  must assess incomplete child work against the goal/evidence and repair unsupported blockers.
+  Keep existing recovery, permissions and explicit user limits; do not add prose-keyword rejection
+  or semantic completion machinery to the report validator. Fix scope: coordinated guidance/spec
+  clarification and delivery coverage at existing seams, plus behavioral replay.
+
+**Evidence and limits:** no effort-to-work-budget conversion was found in the inspected source.
+Actual recovery is `pipeline.recovery.used/limit`, default three
+(`internal/state/pipeline_decisions.go:27,229–244`), charged on repeat/backward/recovery
+transitions (`internal/pipeline/decisions.go:67–87`), independently of effort or report prose.
+`internal/state/pipeline_tasks.go:317–388` validates report authority/structure, as specified;
+acceptance does not certify the truth of a claimed blocker. The existing
+`TestRecoveryExhaustionPausesAndResumeRenewsTheAllowance` and
+`TestQuestionPausesAndTheAnswerContinuesTheRun` pass (focused `go test ./internal/pipeline`,
+2026-11-05). They verify genuine recovery/pause mechanics, not the reported model behavior.
+No behavioral reproduction or skipped regression is claimed. Obtain the affected manifest and
+worker/owner reports, then replay a misleading low-effort manifest in a bounded real-provider
+scenario with independently checkable completion evidence. Verify the worker completes or names
+a real blocker and the owner repairs unsupported early stops. Prompt-string tests prove delivery
+only. History separates manifest recording (`90f27319`, expanded `0f89e683`) from goal-led
+recovery (`fb410fdb`); it does not establish when the reported inference began. No product code,
+specs, live user state or unrelated dirty files changed.
+
 ### RECOVERED-QUEUE — recovered messages after queue use (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “the 'recovered message' feature shows a recovered message whenever you use
@@ -346,6 +403,12 @@ files were changed. Exact affected request/timing remains needed to confirm the 
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-05 — Pipeline effort/budget investigation:** recorded EFFORT-BUDGET's probable
+  guidance gap, with incident attribution undetermined. Effort/manifest metadata and the genuine
+  three-round recovery allowance are independent; two focused existing recovery tests pass.
+  Spec integrity and diff checks pass. No model-behavior reproduction or product/spec change;
+  affected manifest and reports still needed.
 
 - **2026-11-05 — Queue recovery investigation:** RECOVERED-QUEUE records confirmed withdrawal
   duplication, successful-Steer stale recovery and missing receipt-transition diagnostics. Two UI
