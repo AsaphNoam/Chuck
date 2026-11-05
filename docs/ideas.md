@@ -77,14 +77,18 @@ the relevant feature and technical specifications; it does not change product co
   search field beside the project name, searching chats and prioritizing active chats; assess how
   Archive search works and whether matching can improve. Current FS-05.R25–R30 search already uses
   weighted BM25 full-text ranking, phrases, snippets and metadata-only fallback; query terms must
-  occur in one indexed document, and unfinished turn text is not yet indexed. Proposed behavior:
-  search the current project's chat names/metadata and transcript, with one result per chat,
-  active chats first, then older/archived chats, matching excerpts and direct navigation. Keep
-  search local and read-only, with no chat lifecycle or retention changes. Pending product scope:
-  does active mean non-archived (including stopped), or only currently running? Confirm compact
-  dropdown placement beside the scoped project heading and whether first-version improvements
-  should include prefix matching and terms distributed across turns, or semantic retrieval.
-  No feature/technical requirements or ready change approved yet.
+  occur in one indexed document, and unfinished turn text is not yet indexed. The operator confirmed
+  non-archived chats first, running before stopped, and requires opening at the displayed matching
+  passage; prefers a popular smart-search package over custom matching. Feature draft:
+  FS-05.R46–R50/A28–A30. Recommended candidate is [Bleve](https://github.com/blevesearch/bleve),
+  an embedded Go library with [fuzzy/prefix/phrase queries](https://blevesearch.com/docs/Query/)
+  and [term offsets for highlighting](https://blevesearch.com/docs/Highlight%20Matches%20in%20Results/).
+  Current checked candidate v2.6.0 declares Go 1.25 (Chuck uses 1.26.6); no dependency installed or
+  prototype/benchmark run. A Bleve index adds local derived storage and rebuild/synchronization
+  responsibilities alongside SQLite FTS; confirm that tradeoff and proposed matching semantics
+  before technical design. Fuse.js suits in-memory JavaScript data; it would require sending the
+  searchable transcript corpus to the browser in this stack. Keep local read-only search and chat
+  retention/lifecycle boundaries. No technical requirements or ready change approved yet.
 
 ## ACP Wait-list
 

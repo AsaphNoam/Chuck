@@ -393,6 +393,12 @@ files were changed. Exact affected request/timing remains needed to confirm the 
 
 ## Changelog
 
+- **2026-11-05 — Project chat search feature draft:** operator confirmed non-archived first,
+  running before stopped, and opening at the displayed excerpt; requested an established package.
+  FS-05.R46–R50/A28–A30 record the planned behavior. Bleve's official APIs support fuzzy/prefix/
+  phrase queries and match offsets; the added local-index tradeoff and matching policy await
+  confirmation before technical design. No ready change or product code; Active change stays None.
+
 - **2026-11-05 — Project chat search design started:** recorded the requested project-scoped
   search in `ideas.md` under Ideas being defined; checked existing Archive full-text behavior.
   Product scope and the meaning of active remain pending operator confirmation; no technical
