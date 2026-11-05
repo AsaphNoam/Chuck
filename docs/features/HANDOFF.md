@@ -20,7 +20,8 @@ are not live queues.
   awaiting the next clean-clone CI run.
 - **Review state:** CI-CARDGRID and TASK-FORM are closed. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
-  generated embed covered).
+  generated embed covered). Self-targeted annotations remain open with three findings under
+  SELF-ANNOTATIONS below.
 - **Field investigation:** RECOVERED-QUEUE is open for `/fix`: a transient uncertainty snapshot can
   survive successful Steer; text withdrawal also duplicates the restored draft as recovery. Fresh
   queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
@@ -263,6 +264,42 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
+### SELF-ANNOTATIONS — self-targeted annotations behave like chat messages (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Reviewed `17697763` against FS-13.R23/R37/A27, FS-03.R48–R50 and TS-03.R78.
+The originating review unit remains open; no product code or specifications changed.
+
+- **Must fix** — **SELF-ANNOTATIONS-1 (INV §2/§10/§15): preserve assignment admission for self batches.**
+  `internal/server/sessions.go:319–336` directly calls `SendMessageOrHold` without the ordinary
+  prompt route's `QueueAssignmentInput` / continuation handling
+  (`internal/server/attachments.go:502–537`). When an agent's assignment is waiting but its chat
+  runtime is idle, sending a self batch starts a standalone turn and returns `delivery: sent`,
+  instead of retaining the instruction for that assignment's continuation. This bypasses the
+  assignment lifecycle and its durable input ownership (FS-13.R37, FS-03.R48, TS-09.R69).
+  An isolated Go overlay using the existing waiting-assignee fixture reproduces HTTP 202 with
+  `delivery: sent` where ordinary chat returns `queued`. Reuse the ordinary recorded-input and
+  continuation seam, retain the annotation source record/receipt semantics, and extend the client
+  delivery vocabulary and pending display accordingly. Verify a waiting assignment receives the
+  block through continuation exactly once, including restart/retry and paused-run cases.
+
+- **Must fix** — **SELF-ANNOTATIONS-2 (INV §1/§8/§11): match the delivered batch before clearing a hold.**
+  `ui/src/components/chat/ChatPanel.tsx`'s delivered-hold effect clears any held annotation block
+  when any annotation card has a later `prompt_seq`. Queue batch A, then capture and Steer distinct
+  batch B while the same turn is busy: B's prompt pairs with B's card, but its sequence clears A's
+  client hold. A remains queued in the runtime because a non-promoted steer does not remove the
+  existing hold (`internal/runtime/chat.go`, `SteerMessage`). The pending tail and Withdraw disappear
+  even though the agent will still receive A, violating FS-03.R48 and FS-13.R37. Carry/match the
+  delivered batch's text or identity before releasing its hold; add a ChatPanel regression for
+  queue-A/steer-B that keeps A visible and withdrawable until A actually delivers.
+
+- **Must fix** — **SELF-ANNOTATIONS-3 (INV §8): report the annotation Steer outcome.**
+  `ui/src/components/chat/annotationDelivery.ts:99–105` consumes only `held` and discards
+  `steered` / `new_turn`. If the turn ends between clicking Steer and native delivery, both desktop
+  and phone clear the tray without telling the person the annotation started a new turn. FS-13.R37
+  adopts FS-03.R50, which requires distinguishing those outcomes; no annotation exception is
+  specified. Surface the existing outcome wording in an owner that survives clearing the tray,
+  and verify both outcomes on desktop and phone. This is independent of the held-tail bug.
+
 ### RECOVERED-QUEUE — recovered messages after queue use (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “the 'recovered message' feature shows a recovered message whenever you use
@@ -345,6 +382,20 @@ draft acknowledgement. No product code, specs, user state, provider sessions or 
 files were changed. Exact affected request/timing remains needed to confirm the broader symptom.
 
 ## Changelog
+
+- **2026-11-05 — Self-targeted annotation review:** reviewed `17697763`; recorded
+  SELF-ANNOTATIONS-1–3 above and left that unit open. Existing self-delivery handler tests pass
+  (4/4) with approved loopback execution; the temporary waiting-assignment regression fails on the
+  reproduced `sent` versus `queued` behavior. Overlay files:
+  `/private/tmp/self-annotation-review-overlay{.json,_test.go}`; repository tests were not edited.
+  Focused AnnotationTray/TranscriptView tests pass 52/52, and independent
+  ChatPanel/TranscriptView/transcriptStore tests pass 106/106 (overlapping suites).
+  `make check-specs` and style/presentation checks pass. INV §§1/2/5/8/10/11/13/14/15/16/17
+  apply; §§3/4/6/7/9/12 have no changed applicable surface. Changed tests observe real handler,
+  held-message and transcript boundaries against explicit outcomes; no separate TS-06.R35/INV §17
+  finding. The existing-button extension introduces no material visual redesign; no rendered or
+  live-provider receipt is claimed. Concurrent recovery-fix work, idea edits, generated UI and the
+  other review unit are preserved.
 
 - **2026-11-05 — Card-grid fix (INV §§1/17):** CI-CARDGRID-1 closed. A deferred layout read
   reproduced a real transient auto-open before saved collapsed-group preferences arrived.
