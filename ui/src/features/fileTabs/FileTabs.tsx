@@ -9,6 +9,9 @@ import { CloseIcon, MoveLeftIcon, MoveRightIcon } from "../../components/ui/icon
 import type { FileTab } from "./model";
 import { createReadLimiter, type ReadLimiter } from "./readLimiter";
 import { fileTabs, flushFileTabs, useFileTabsStore } from "./store";
+import { PointerContextMenu, type PointerMenuState } from "../../components/ui/PointerContextMenu";
+import { webLinkActions } from "../../lib/linkActions";
+import { useUiStore } from "../../store/uiStore";
 
 // The tabbed reader every surface shares (FS-03.R101–R102, TS-08.R142/R145).
 // One host per tab visited while this owner is mounted keeps that tab's read,
@@ -26,6 +29,7 @@ export type TabReaderProps = {
   /** The read context a tab's file comes from: the agent, or the room source. */
   contextFor: (tab: FileTab) => string;
   loadFor?: (tab: FileTab) => ((path: string) => Promise<FileContent>) | undefined;
+  openBrowserFor?: (tab: FileTab, path: string) => Promise<unknown>;
   /** Names a tab's room source where equal file names need telling apart. */
   sourceLabel?: (tab: FileTab) => string;
   /** Called after the final tab closes, to return focus to its surface. */
@@ -110,7 +114,11 @@ function TabHost({ tab, selected, props, limiter, strip, target }: {
 const reducedMotion = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const fileName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
-function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, restoreTabFocus }: TabReaderProps & { restoreTabFocus: { current: boolean } }) {
+function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, openBrowserFor, restoreTabFocus }: TabReaderProps & { restoreTabFocus: { current: boolean } }) {
+  const [menu, setMenu] = useState<PointerMenuState | null>(null);
+  const tabIds = JSON.stringify(tabs.map((tab) => tab.id));
+  useEffect(() => setMenu(null), [active?.id, tabIds]);
+  const pushError = useUiStore((state) => state.pushError);
   const list = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const dragged = useRef(false);
@@ -183,6 +191,11 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, restor
                       onSelect(tab.id);
                     }}
                     onClose={() => onClose(tab.id)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setMenu({ x: event.clientX, y: event.clientY, actions: webLinkActions(tab.path, pushError, openBrowserFor ? (path) => openBrowserFor(tab, path) : undefined) });
+                    }}
                     onKeyDown={(event) => onKeyDown(event, index)}
                   />
                 );
@@ -198,11 +211,12 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, restor
         )}
       </div>
       <FileTabsNotice />
+      <PointerContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }
 
-function SortableTab({ tab, name, source, title, selected, tabbable, onSelect, onClose, onKeyDown }: {
+function SortableTab({ tab, name, source, title, selected, tabbable, onSelect, onClose, onKeyDown, onContextMenu }: {
   tab: FileTab;
   name: string;
   source: string;
@@ -212,6 +226,7 @@ function SortableTab({ tab, name, source, title, selected, tabbable, onSelect, o
   onSelect: () => void;
   onClose: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  onContextMenu: React.MouseEventHandler<HTMLDivElement>;
 }) {
   const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.id });
   const label = source ? `${name} (${source})` : name;
@@ -220,6 +235,7 @@ function SortableTab({ tab, name, source, title, selected, tabbable, onSelect, o
       ref={setNodeRef}
       className="file-tab"
       data-tab-id={tab.id}
+      onContextMenu={onContextMenu}
       data-state={selected ? "active" : undefined}
       data-dragging={isDragging ? "true" : undefined}
       // Neighbours slide aside during a drag, unless reduced motion is asked for.

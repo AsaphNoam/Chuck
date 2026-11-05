@@ -392,6 +392,18 @@ export function searchSessionFiles(agentId: string, query: string) {
   );
 }
 
+export function openFileInBrowser(agentId: string, path: string) {
+  return json<{ path: string }>(`/api/sessions/${encodeURIComponent(agentId)}/file/open-browser`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }),
+  });
+}
+
+export function openSourceFileInBrowser(roomId: string, sourceId: string, path: string) {
+  return json<{ path: string }>(`/api/think-tanks/${encodeURIComponent(roomId)}/sources/${encodeURIComponent(sourceId)}/file/open-browser`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }),
+  });
+}
+
 // getFileContent backs the chat file viewer: one bounded, read-only file snapshot
 // (TS-03.R40, FS-03.R52/R55). A relative path resolves from the session's recorded
 // working directory; an absolute path is read with local process authority and is

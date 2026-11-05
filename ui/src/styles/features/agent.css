@@ -1769,6 +1769,20 @@ a.agent-mini-card:focus-visible {
   overflow-x: auto;
 }
 
+.file-viewer-body[data-html-preview="true"] {
+  overflow: hidden;
+  padding: 0;
+}
+
+.file-viewer-html {
+  background: Canvas;
+  border: 0;
+  color-scheme: light;
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
 .file-viewer-image {
   display: block;
   max-width: 100%;

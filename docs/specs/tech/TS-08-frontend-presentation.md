@@ -1966,6 +1966,23 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   provider, storage, route, or feature-CSS override is introduced (FS-12.R72, TS-02.R62,
   TS-03.R77).
 
+- **R152 — HTML previews use the native browser inside an opaque sandbox.**
+  FS-03.R109 extends the shared `FileViewerView`, its existing Rendered/Source preference and
+  saved tabs, not the Markdown renderer. Only complete HTML snapshots without a source-line
+  citation render in an iframe with `sandbox="allow-scripts"`; omit same-origin, forms, popups,
+  downloads and top-navigation permissions. Prepend a host-owned CSP before user markup:
+  subresource/connect/frame/base/form sources are denied, inline styles/scripts are allowed,
+  and embedded data/blob images/media and data fonts are allowed. CSP restricts the initial
+  document's subresources/fetch, not native navigation within the still-sandboxed frame; no
+  general browsing or network-isolation guarantee is added. No raw file-serving route is
+  added. The frame fills the reader's content area and is recreated on Reload. Source remains
+  exact and supports annotations; preview annotation/scroll capture is unavailable. A minimal
+  frame context-menu message may only request the existing parent menu: validate the sending
+  window and finite in-frame coordinates, and never execute a host action from a frame message.
+  Only explicit selection of **Open in browser** dispatches the local POST, with the correct
+  session or retained room source. Shared menu helpers retain Copy path and failure toasts.
+  Phone callers omit the host-action callback and the remote server never registers the route.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

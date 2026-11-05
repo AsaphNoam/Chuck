@@ -53,6 +53,55 @@ function refuse(code: string, message: string, status = 422) {
 }
 
 describe("FileViewer", () => {
+  // FS-03.R109: verify the actual reader's mode/citation/reload boundary.
+  // jsdom cannot prove frame rendering/isolation; the Chromium journey does.
+  it("previews complete HTML in an opaque script sandbox and preserves Source and Reload", async () => {
+    let content = '<!doctype html><html><head><style>body{color:red}</style></head><body><button>Run</button><script>document.title="Ready"</script></body></html>';
+    server.use(http.get("/api/sessions/:id/file", () => HttpResponse.json(fileBody({ path: "page.HTML", content, language: "html" }))));
+    render(<FileViewer agentId="a_1" link={{ path: "page.HTML" }} onClose={vi.fn()} />);
+    const frame = await screen.findByTitle("HTML preview: page.HTML");
+    expect(frame).toHaveAttribute("sandbox", "allow-scripts");
+    expect(frame.getAttribute("srcdoc")).toContain(content.replace("<!doctype html>", ""));
+    expect(frame.getAttribute("srcdoc")).toContain("default-src 'none'");
+    fireEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(screen.queryByTitle("HTML preview: page.HTML")).toBeNull();
+    const source = document.querySelector(".file-viewer-body code")!.cloneNode(true) as HTMLElement;
+    source.querySelectorAll(".linenumber").forEach((number) => number.remove());
+    expect(source.textContent).toBe(content);
+    fireEvent.click(screen.getByRole("button", { name: "Rendered" }));
+    content = "<h1>Updated</h1>";
+    fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+    await waitFor(() => expect(screen.getByTitle("HTML preview: page.HTML").getAttribute("srcdoc")).toContain(content));
+  });
+
+  it("keeps cited and truncated HTML in Source", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    let truncated = false;
+    server.use(http.get("/api/sessions/:id/file", () => HttpResponse.json(fileBody({ path: "page.htm", content: "<h1>Title</h1>", language: "html", truncated }))));
+    const view = render(<FileViewer agentId="a_1" link={{ path: "page.htm", line: 1 }} onClose={vi.fn()} />);
+    await screen.findByRole("group", { name: "HTML display" });
+    expect(screen.getByRole("button", { name: "Rendered" })).toBeDisabled();
+    expect(screen.queryByTitle("HTML preview: page.htm")).toBeNull();
+    truncated = true;
+    view.rerender(<FileViewer agentId="a_1" link={{ path: "large.htm" }} onClose={vi.fn()} />);
+    await screen.findByText(/Showing the first/);
+    expect(screen.queryByRole("group", { name: "HTML display" })).toBeNull();
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("opens the HTML header menu only on right-click and dispatches only on selection", async () => {
+    const open = vi.fn().mockResolvedValue({});
+    server.use(http.get("/api/sessions/:id/file", () => HttpResponse.json(fileBody({ path: "page.html", content: "<h1>Title</h1>", language: "html" }))));
+    render(<FileViewer agentId="a_1" link={{ path: "page.html" }} onClose={vi.fn()} onOpenInBrowser={open} />);
+    await screen.findByTitle("HTML preview: page.html");
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.contextMenu(screen.getByTitle("page.html"), { clientX: 10, clientY: 20 });
+    expect(screen.getByRole("button", { name: "Copy path" })).toBeInTheDocument();
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Open in browser" }));
+    expect(open).toHaveBeenCalledWith("page.html");
+  });
+
   it("formats complete JSON and keeps exact Source and cited line numbering", async () => {
     Element.prototype.scrollIntoView = vi.fn();
     const content = '{"name":"Chuck","items":[1,2]}';

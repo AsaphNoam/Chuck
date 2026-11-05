@@ -3,6 +3,7 @@ import type { AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../
 import { canAnnotate, eventDraft, selectionWithin } from "../../lib/annotations";
 import { copyText } from "../../lib/copyText";
 import { claimWebLink } from "../../lib/linkActions";
+import { openFileInBrowser } from "../../api/client";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Button } from "../ui";
 import { AssistantText } from "./renderers/AssistantText";
@@ -76,6 +77,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
       copy: selected ? () => copyText(selected, pushError) : undefined,
       annotate: () => addAnnotation(agentId, draft),
       link: claimWebLink(mouse),
+      onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
     });
   };
 
@@ -121,6 +123,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     onAnnotate: (draft) => addAnnotation(agentId, draft),
     onContextMenu: openMenu,
     onOpenFile,
+    onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
   });
   const choices = useTurnChoices(agentId);
   const [taskReveal, setTaskReveal] = useState<{ seq: number }>();
@@ -243,7 +246,7 @@ function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { t
 // eventRenderer is the one row renderer for the root list and every nested
 // child (TS-08.R59). A Think Tank room reuses it for each attempt's retained
 // activity, scoped to that attempt's source agent (TS-14.R15).
-export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onOpenFile }: {
+export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onOpenFile, onOpenInBrowser }: {
   agentId: string;
   // Every tool result in the rendered transcript (resultsByCall), so a call in
   // one turn part reads a result recorded in another (TS-08.R147).
@@ -251,6 +254,7 @@ export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onO
   onAnnotate: (draft: AnnotationDraft) => void;
   onContextMenu: (mouse: MouseEvent<HTMLDivElement>, event: TranscriptEvent) => void;
   onOpenFile?: (link: FileLink | null) => void;
+  onOpenInBrowser?: (path: string) => Promise<unknown>;
 }) {
   const renderEvents = (list: TranscriptEvent[], ancestry: string[], depth: number): ReactNode =>
     groupTranscriptRows(list, results).map((row, index) => {
@@ -269,6 +273,7 @@ export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onO
                 onAnnotate={onAnnotate}
                 onContextMenu={onContextMenu}
                 onOpenFile={onOpenFile}
+                onOpenInBrowser={onOpenInBrowser}
                 className="tool-run-event"
               />
             )}
@@ -286,6 +291,7 @@ export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onO
           onAnnotate={onAnnotate}
           onContextMenu={onContextMenu}
           onOpenFile={onOpenFile}
+          onOpenInBrowser={onOpenInBrowser}
         />
       );
     });
@@ -319,13 +325,14 @@ function HeldMessage({ agentId, text, attachments }: { agentId: string; text: st
   );
 }
 
-function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMenu, onOpenFile, className = "transcript-item" }: {
+function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMenu, onOpenFile, onOpenInBrowser, className = "transcript-item" }: {
   agentId: string;
   event: TranscriptEvent;
   result?: TranscriptEvent;
   onAnnotate: (draft: AnnotationDraft) => void;
   onContextMenu: (mouse: MouseEvent<HTMLDivElement>, event: TranscriptEvent) => void;
   onOpenFile?: (link: FileLink | null) => void;
+  onOpenInBrowser?: (path: string) => Promise<unknown>;
   className?: string;
 }) {
   return (
@@ -342,7 +349,7 @@ function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMen
         label="message"
         fallback={<pre className="tool-block tool-result-error">Failed to render this event.</pre>}
       >
-        <TranscriptItem agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} onOpenFile={onOpenFile} />
+        <TranscriptItem agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} onOpenFile={onOpenFile} onOpenInBrowser={onOpenInBrowser} />
       </ErrorBoundary>
     </div>
   );
@@ -375,9 +382,9 @@ function keyOf(event: TranscriptEvent, index: number) {
   return `i${index}`;
 }
 
-function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void; onOpenFile?: (link: FileLink | null) => void }) {
+function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile, onOpenInBrowser }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void; onOpenFile?: (link: FileLink | null) => void; onOpenInBrowser?: (path: string) => Promise<unknown> }) {
   const kind = String(event.kind ?? event.type ?? "");
-  if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} agentId={agentId} />;
+  if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} agentId={agentId} onOpenInBrowser={onOpenInBrowser} />;
   if (kind === "user_text")
     return <article className="message user-message" data-ui="transcript" data-variant="user">{String(event.text ?? "")}<MessageAttachments agentId={agentId} attachments={event.attachments ?? []} /></article>;
   if (kind === "assistant_image") return <article className="message assistant-message" data-ui="transcript" data-variant="assistant"><AssistantImageRow agentId={agentId} attachment={event.attachment} path={typeof event.path === "string" ? event.path : undefined} name={typeof event.name === "string" ? event.name : undefined} error={typeof event.error === "string" ? event.error : undefined} /></article>;

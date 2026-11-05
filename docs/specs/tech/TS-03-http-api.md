@@ -1129,6 +1129,17 @@ steer, mapping refusals as the steer route does. Success adds `delivery`: `sent`
 `steered` or `new_turn`; same-command replay of an accepted receipt omits it. No new route, SSE
 event or held-message shape is added; clients refresh the existing hold read after `held`.
 
+**R79 — Open an HTML file in the host's default browser only by local explicit action.**
+`POST /api/sessions/{id}/file/open-browser` and
+`POST /api/think-tanks/{id}/sources/{source_id}/file/open-browser` accept JSON `{path}`.
+Resolve through the corresponding existing session/retained-source file-read authority, require
+a readable regular `.html`/`.htm` file, and pass its normalized absolute path to the OS without
+shell interpolation. The Mac launcher selects the default HTTPS browser rather than an HTML
+editor association. Success acknowledges the accepted OS launch, not proof that the page rendered;
+validation/read/launch failures return the existing visible error envelope. These routes inherit
+the whole-mux local Host/Origin guard and are absent from the remote route allowlist. They add no
+raw HTML or linked-resource serving and never run during file reads (FS-03.R109).
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

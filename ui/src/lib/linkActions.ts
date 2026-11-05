@@ -29,9 +29,18 @@ export function claimWebLink(mouse: MouseEvent): string | undefined {
   return href;
 }
 
-export function webLinkActions(href: string, pushError: (title: string, body: string) => void) {
+export type OpenInBrowser = (path: string) => Promise<unknown>;
+
+export function isHtmlPath(path: string) { return /\.html?$/i.test(path); }
+
+export function webLinkActions(href: string, pushError: (title: string, body: string) => void, onOpenInBrowser?: OpenInBrowser) {
   const file = classifyFileLink(href);
-  if (file) return [{ label: "Copy path", select: () => copyText(file.path, pushError) }];
+  if (file) return [
+    ...(onOpenInBrowser && isHtmlPath(file.path) && !window.location.pathname.startsWith("/phone") ? [{ label: "Open in browser", select: () => {
+      void onOpenInBrowser(file.path).catch((error: unknown) => pushError("Could not open in browser", error instanceof Error ? error.message : "Failed to open file"));
+    } }] : []),
+    { label: "Copy path", select: () => copyText(file.path, pushError) },
+  ];
   return [
     // Opened synchronously from the menu click so the browser treats it as user-initiated.
     { label: "Open in new tab", select: () => { window.open(href, "_blank", "noopener,noreferrer"); } },

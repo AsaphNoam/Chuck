@@ -6,7 +6,10 @@ import { SanitizedMarkdown } from "./renderers/SanitizedMarkdown";
 import type { FileLink } from "./renderers/filePath";
 import type { AnnotationDraft } from "../../api/types";
 import { clipAnnotationExcerpt } from "../../lib/annotations";
-import { claimWebLink } from "../../lib/linkActions";
+import { claimWebLink, isHtmlPath, webLinkActions, type OpenInBrowser } from "../../lib/linkActions";
+import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
+import { useUiStore } from "../../store/uiStore";
+import { HtmlPreview } from "./HtmlPreview";
 import { emptyAnchors, type Anchors, type DisplayMode, type ReadingAnchor, type TabView } from "../../features/fileTabs/model";
 import { ReadDropped, type ReadKind } from "../../features/fileTabs/readLimiter";
 
@@ -152,7 +155,7 @@ export function useFileReader({ agentId, link, load, onPathResolved, initialView
   };
 }
 
-export function FileViewer({ agentId, link, onClose, onOpenFile, onPathResolved, onSelectionMenu, load }: {
+export function FileViewer({ agentId, link, onClose, onOpenFile, onPathResolved, onSelectionMenu, onOpenInBrowser, load }: {
   agentId: string;
   link: FileLink;
   /** Reads the file from another retained context, such as a Think Tank
@@ -161,21 +164,23 @@ export function FileViewer({ agentId, link, onClose, onOpenFile, onPathResolved,
   onClose: () => void;
   onOpenFile?: (link: FileLink) => void;
   onPathResolved?: (path: string) => void;
+  onOpenInBrowser?: OpenInBrowser;
   onSelectionMenu?: (selection: { x: number; y: number; text: string; draft: AnnotationDraft; link?: string }) => void;
 }) {
   const reader = useFileReader({ agentId, link, load, onPathResolved });
-  return <FileViewerView reader={reader} onClose={onClose} onOpenFile={onOpenFile} onSelectionMenu={onSelectionMenu} />;
+  return <FileViewerView reader={reader} onClose={onClose} onOpenFile={onOpenFile} onSelectionMenu={onSelectionMenu} onOpenInBrowser={onOpenInBrowser} />;
 }
 
 /** The one reader view. The agent workspace shows it docked beside the
  *  conversation or inside Focus file; the room shows it alone. */
-export function FileViewerView({ reader, variant, onClose, closeLabel = "Close", onOpenFile, onSelectionMenu, onAnnotateSelection, actions, tabs }: {
+export function FileViewerView({ reader, variant, onClose, closeLabel = "Close", onOpenFile, onSelectionMenu, onAnnotateSelection, onOpenInBrowser, actions, tabs }: {
   reader: FileReader;
   variant?: "docked" | "focused";
   /** Omitted where the surrounding surface owns closing, as on the phone. */
   onClose?: () => void;
   closeLabel?: string;
   onOpenFile?: (link: FileLink) => void;
+  onOpenInBrowser?: OpenInBrowser;
   onSelectionMenu?: (selection: { x: number; y: number; text: string; draft: AnnotationDraft; link?: string }) => void;
   /** An explicit Annotate selection action for touch and keyboard (FS-13.R28). */
   onAnnotateSelection?: (draft: AnnotationDraft) => void;
@@ -187,9 +192,13 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
   const { view, rendered, setRendered, positions } = reader;
   const link = reader.link as FileLink;
   const bodyRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<PointerMenuState | null>(null);
+  const pushError = useUiStore((state) => state.pushError);
 
   const shownPath = view.status === "loaded" ? view.file.path : link.path;
   const isMarkdown = view.status === "loaded" && MARKDOWN_LANGUAGES.has(view.file.language);
+  const isHtml = view.status === "loaded" && isHtmlPath(view.file.path);
+  const canPreviewHtml = isHtml && view.status === "loaded" && !view.file.truncated;
   const formattedJSON = useMemo(() => {
     if (view.status !== "loaded" || view.file.language !== "json" || view.file.truncated) return null;
     try { return formatJSON(view.file.content); }
@@ -198,20 +207,27 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
   // A source citation always wins over the presentation preference.
   const showFormatted = formattedJSON !== null && rendered && link.line === undefined;
   const showRendered = isMarkdown && rendered;
+  const showHtml = canPreviewHtml && rendered && link.line === undefined;
   const mode: DisplayMode = showRendered ? "rendered" : showFormatted ? "formatted" : "source";
-  useReadingPosition(bodyRef, reader, mode);
+  useReadingPosition(bodyRef, reader, mode, !showHtml);
 
   // The one mapping from a selection to a file draft, for the context menu and
   // the touch action alike (TS-08.R133): Source captures its line range,
   // Rendered only the path (FS-13.R25).
-  const currentSelection = () => view.status === "loaded" && !view.file.image && !showFormatted ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
+  const currentSelection = () => view.status === "loaded" && !view.file.image && !showFormatted && !showHtml ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
+
+  const openFileMenu = (x: number, y: number) => setMenu({ x, y, actions: webLinkActions(shownPath, pushError, onOpenInBrowser) });
+  useEffect(() => { setMenu(null); }, [shownPath, view.status, rendered]);
 
   const openSelectionMenu = (event: MouseEvent<HTMLDivElement>) => {
-    if (!onSelectionMenu) return;
     const selected = currentSelection();
-    if (!selected) return;
-    event.preventDefault();
-    onSelectionMenu({ x: event.clientX, y: event.clientY, text: selected.text, draft: selected.draft, link: claimWebLink(event) });
+    if (selected && onSelectionMenu) {
+      event.preventDefault();
+      onSelectionMenu({ x: event.clientX, y: event.clientY, text: selected.text, draft: selected.draft, link: claimWebLink(event) ?? (isHtml ? shownPath : undefined) });
+    } else if (isHtml) {
+      event.preventDefault();
+      openFileMenu(event.clientX, event.clientY);
+    }
   };
 
   // A tap can collapse the selection before click, so it is read on press.
@@ -228,16 +244,16 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
     <aside className="file-viewer" data-ui="file-viewer" data-state={view.status} data-variant={variant} aria-label="Open file">
       {tabs}
       <header className="file-viewer-header" data-slot="header">
-        <span className="file-viewer-path" title={shownPath}>{shownPath}</span>
+        <span className="file-viewer-path" title={shownPath} onContextMenu={isHtml ? (event) => { event.preventDefault(); openFileMenu(event.clientX, event.clientY); } : undefined}>{shownPath}</span>
         <div className="file-viewer-actions" data-slot="actions">
-          {(isMarkdown || formattedJSON !== null) && (
-            <div className="file-viewer-form" role="group" aria-label={isMarkdown ? "Markdown display" : "JSON display"}>
-              <button type="button" aria-pressed={showRendered || showFormatted} disabled={!isMarkdown && link.line !== undefined} title={!isMarkdown && link.line !== undefined ? "Showing the cited source line; open this file without a line citation to format it." : undefined} onClick={() => setRendered(true)}>{isMarkdown ? "Rendered" : "Formatted"}</button>
-              <button type="button" aria-pressed={!showRendered && !showFormatted} onClick={() => setRendered(false)}>Source</button>
+          {(isMarkdown || canPreviewHtml || formattedJSON !== null) && (
+            <div className="file-viewer-form" role="group" aria-label={isMarkdown ? "Markdown display" : isHtml ? "HTML display" : "JSON display"}>
+              <button type="button" aria-pressed={showRendered || showHtml || showFormatted} disabled={!isMarkdown && link.line !== undefined} title={!isMarkdown && link.line !== undefined ? "Showing the cited source line; open this file without a line citation to render it." : undefined} onClick={() => setRendered(true)}>{isMarkdown || isHtml ? "Rendered" : "Formatted"}</button>
+              <button type="button" aria-pressed={!showRendered && !showHtml && !showFormatted} onClick={() => setRendered(false)}>Source</button>
             </div>
           )}
           <button type="button" className="ad-button-secondary" onClick={reader.reload}>Reload</button>
-          {onAnnotateSelection && view.status === "loaded" && !view.file.image && !showFormatted && (
+          {onAnnotateSelection && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml && (
             <button type="button" className="ad-button-secondary" onPointerDown={() => { pressed.current = currentSelection()?.draft ?? null; }} onClick={(click) => { click.currentTarget.focus(); annotateSelection(); }}>Annotate selection</button>
           )}
           {actions}
@@ -256,13 +272,14 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
       )}
       <div
         className="file-viewer-body"
+        data-html-preview={showHtml ? "true" : undefined}
         data-slot="content"
         ref={bodyRef}
         onContextMenu={openSelectionMenu}
         // Only the loaded document records a position: the Reading… or error
         // placeholder's own scroll (clamped to its top) must not replace it.
         onScroll={() => {
-          if (!bodyRef.current || view.status !== "loaded") return;
+          if (!bodyRef.current || view.status !== "loaded" || showHtml) return;
           positions.current[mode] = captureAnchor(bodyRef.current, mode);
           reader.positionsChanged();
         }}
@@ -271,9 +288,11 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
         {view.status === "error" && <p className="file-viewer-error" role="alert">{view.reason}</p>}
         {view.status === "loaded" && (view.file.image ? (
           <FileImage key={view.readAt.getTime()} image={view.file.image} path={view.file.path} />
+        ) : showHtml ? (
+          <HtmlPreview key={view.readAt.getTime()} content={view.file.content} path={view.file.path} onContextMenu={onOpenInBrowser ? openFileMenu : undefined} />
         ) : showRendered ? (
           <div className="file-viewer-rendered">
-            <SanitizedMarkdown text={view.file.content} onOpenFile={onOpenFile} sourcePath={view.file.path} />
+            <SanitizedMarkdown text={view.file.content} onOpenFile={onOpenFile} sourcePath={view.file.path} onOpenInBrowser={onOpenInBrowser} />
           </div>
         ) : (
           <CodeBlock language={view.file.language || "text"} className={`language-${view.file.language || "text"}`} showLineNumbers={!showFormatted} markedLine={link.line}>
@@ -281,6 +300,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
           </CodeBlock>
         ))}
       </div>
+      <PointerContextMenu menu={menu} onClose={() => setMenu(null)} />
     </aside>
   );
 }
@@ -335,11 +355,11 @@ function formatJSON(source: string): string {
 // where they were in this display mode: after mounting in another presentation,
 // after a mode switch, after Reload, and whenever the body or its content is
 // resized by a divider, the window or a late diagram (FS-03.R95, TS-08.R130).
-function useReadingPosition(bodyRef: RefObject<HTMLDivElement | null>, reader: FileReader, mode: DisplayMode) {
+function useReadingPosition(bodyRef: RefObject<HTMLDivElement | null>, reader: FileReader, mode: DisplayMode, enabled = true) {
   const { view, positions, pendingLine } = reader;
   useLayoutEffect(() => {
     const body = bodyRef.current;
-    if (!body || view.status !== "loaded") return undefined;
+    if (!enabled || !body || view.status !== "loaded") return undefined;
     const line = pendingLine.current;
     if (line !== null && mode === "source") {
       const target = body.querySelector(`[data-file-line="${line}"]`);
@@ -355,7 +375,7 @@ function useReadingPosition(bodyRef: RefObject<HTMLDivElement | null>, reader: F
     observer.observe(body);
     if (body.firstElementChild) observer.observe(body.firstElementChild);
     return () => observer.disconnect();
-  }, [view, mode, reader.link?.line, reader.jump]);
+  }, [view, mode, reader.link?.line, reader.jump, enabled]);
 }
 
 function anchorTargets(body: HTMLElement, mode: DisplayMode): HTMLElement[] {

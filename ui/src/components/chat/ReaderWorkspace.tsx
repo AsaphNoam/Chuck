@@ -11,6 +11,7 @@ import { AnnotationTrayView, useDesktopAnnotationDelivery } from "./AnnotationTr
 import { FileViewerView } from "./FileViewer";
 import { FileTabsNotice, FileTabsReader } from "../../features/fileTabs/FileTabs";
 import type { FileTabRoute } from "../../features/fileTabs/useFileTabRoute";
+import { openFileInBrowser } from "../../api/client";
 
 // The transcript's reader workspace: the conversation's file tabs and the
 // pending-annotation tray beside the conversation, or both inside Focus file
@@ -62,6 +63,7 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
       onMove={tabs.move}
       onResolved={tabs.resolved}
       contextFor={() => agentId}
+      openBrowserFor={(_tab, path) => openFileInBrowser(agentId, path)}
       onEmptied={onReturnFocus}
       target={focused ? focusTarget : panelSlots?.start || undefined}
       // The view is portalled into Focus file from here, outside the dialog's React
@@ -75,6 +77,7 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
             onClose={() => tabs.close(tab.id)}
             closeLabel={focused ? "Close file" : "Close"}
             onOpenFile={(link) => tabs.open(link)}
+            onOpenInBrowser={(path) => openFileInBrowser(agentId, path)}
             onSelectionMenu={annotationsEnabled ? ({ x, y, text, draft, link }) => setMenu({
               x,
               y,
@@ -82,6 +85,7 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
               copy: () => copyText(text, pushError),
               annotate: () => addAnnotation(agentId, draft),
               link,
+              onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
             }) : undefined}
             actions={focused
               ? <button type="button" className="ad-button-secondary" onClick={() => setFocused(false)}>Return to chat</button>

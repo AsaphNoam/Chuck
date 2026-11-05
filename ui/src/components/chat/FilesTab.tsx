@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { getTrackedFiles } from "../../api/client";
+import { useEffect, useRef, useState, type MouseEventHandler } from "react";
+import { getTrackedFiles, openFileInBrowser } from "../../api/client";
+import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
+import { webLinkActions } from "../../lib/linkActions";
+import { useUiStore } from "../../store/uiStore";
 import type { TrackedFile } from "../../api/types";
 import type { FileLink } from "./renderers/filePath";
 
@@ -7,16 +10,16 @@ function copyToClipboard(text: string) {
   void navigator.clipboard.writeText(text);
 }
 
-function FileRow({ file, onDiffClick, onOpenFile }: { file: TrackedFile; onDiffClick: (seq: number) => void; onOpenFile?: (link: FileLink) => void }) {
+function FileRow({ file, onDiffClick, onOpenFile, onPathContextMenu }: { file: TrackedFile; onDiffClick: (seq: number) => void; onOpenFile?: (link: FileLink) => void; onPathContextMenu: MouseEventHandler<HTMLElement> }) {
   return (
     <li className="tracked-row" data-ui="tracked-list" data-slot="row" data-variant="files">
       <div className="tracked-row-top" data-slot="metadata">
         {/* The path becomes an additional affordance onto the same viewer; Copy
             and Diff are unchanged beside it (FS-05.R37). */}
         {onOpenFile ? (
-          <button type="button" className="tracked-path file-link" data-file-path={file.path} title="Open file" onClick={() => onOpenFile({ path: file.path })}>{file.path}</button>
+          <button type="button" className="tracked-path file-link" data-file-path={file.path} title="Open file" onContextMenu={onPathContextMenu} onClick={() => onOpenFile({ path: file.path })}>{file.path}</button>
         ) : (
-          <span className="tracked-path">{file.path}</span>
+          <span className="tracked-path" onContextMenu={onPathContextMenu}>{file.path}</span>
         )}
         <div className="tracked-row-actions" data-slot="actions">
           <button
@@ -48,6 +51,9 @@ function FileRow({ file, onDiffClick, onOpenFile }: { file: TrackedFile; onDiffC
 }
 
 export function FilesTab({ agentId, onReveal, onOpenFile }: { agentId: string; onReveal?: (seq: number) => void; onOpenFile?: (link: FileLink) => void }) {
+  const [menu, setMenu] = useState<PointerMenuState | null>(null);
+  useEffect(() => setMenu(null), [agentId]);
+  const pushError = useUiStore((state) => state.pushError);
   const [files, setFiles] = useState<TrackedFile[]>([]);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
@@ -101,10 +107,14 @@ export function FilesTab({ agentId, onReveal, onOpenFile }: { agentId: string; o
       ) : (
         <ul className="tracked-list" data-slot="items">
           {filtered.map((f) => (
-            <FileRow key={f.path} file={f} onDiffClick={handleDiff} onOpenFile={onOpenFile} />
+            <FileRow key={f.path} file={f} onDiffClick={handleDiff} onOpenFile={onOpenFile} onPathContextMenu={(event) => {
+              event.preventDefault();
+              setMenu({ x: event.clientX, y: event.clientY, actions: webLinkActions(f.path, pushError, (path) => openFileInBrowser(agentId, path)) });
+            }} />
           ))}
         </ul>
       )}
+      <PointerContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }

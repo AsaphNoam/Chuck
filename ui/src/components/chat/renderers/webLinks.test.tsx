@@ -6,6 +6,7 @@ import { useAnnotationStore } from "../../../store/annotationStore";
 import { useUiStore } from "../../../store/uiStore";
 import { TranscriptView } from "../TranscriptView";
 import { SanitizedMarkdown } from "./SanitizedMarkdown";
+import { openSourceFileInBrowser } from "../../../api/client";
 
 // FS-03.R78/A59, TS-08.R107: web links open in a new tab and offer Open in new
 // tab / Copy link on right-click, composed with annotation where it applies.
@@ -16,6 +17,7 @@ afterEach(() => {
   window.getSelection()?.removeAllRanges();
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
   useUiStore.setState({ toasts: [] });
+  window.history.replaceState({}, "", "/");
 });
 
 const LINKS = [
@@ -135,6 +137,34 @@ describe("web link rendering", () => {
 });
 
 describe("web links in an annotated transcript", () => {
+  // The requested HTML action must target the original file through the owning
+  // endpoint, compose with annotation once, and retain server failure feedback.
+  it("opens an HTML transcript link through its agent endpoint in one composed menu", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ path: "design/PAGE.HTML" })));
+    renderTranscript("See [page](design/PAGE.HTML:12)");
+    fireEvent.contextMenu(screen.getByText("page"));
+    await waitFor(() => expect(menuLabels()).toEqual([["Open in browser", "Copy path", "Annotate whole event"]]));
+    fireEvent.click(screen.getByRole("button", { name: "Open in browser" }));
+    expect(fetch).toHaveBeenCalledWith("/api/sessions/a1/file/open-browser", expect.objectContaining({ method: "POST", body: JSON.stringify({ path: "design/PAGE.HTML" }) }));
+  });
+
+  it("uses the retained room source and reports an opener failure", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ error: { code: "open_failed", message: "No browser available" } }), { status: 500 }));
+    render(<SanitizedMarkdown text="[page](../page.htm)" sourcePath="docs/nested/readme.md" onOpenFile={() => {}} onOpenInBrowser={(path) => openSourceFileInBrowser("room 1", "source 2", path)} />);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "page" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open in browser" }));
+    expect(fetch).toHaveBeenCalledWith("/api/think-tanks/room%201/sources/source%202/file/open-browser", expect.objectContaining({ method: "POST", body: JSON.stringify({ path: "docs/page.htm" }) }));
+    await waitFor(() => expect(useUiStore.getState().toasts).toEqual(expect.arrayContaining([expect.objectContaining({ title: "Could not open in browser", body: "No browser available" })])));
+  });
+
+  it("keeps host-browser actions out of the phone even when a callback is supplied", async () => {
+    window.history.replaceState({}, "", "/phone/agents/a1");
+    render(<SanitizedMarkdown text="[page](page.html)" onOpenFile={() => {}} onOpenInBrowser={vi.fn()} />);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "page" }));
+    await screen.findByRole("button", { name: "Copy path" });
+    expect(screen.queryByRole("button", { name: "Open in browser" })).toBeNull();
+  });
+
   it("composes Copy path and selection actions in one menu", async () => {
     const writeText = stubClipboard();
     renderTranscript("See [file](src/main.go) now");

@@ -111,6 +111,21 @@ describe("ThinkTankPage", () => {
     expect(reads).toEqual(["src_a:notes.md"]);
   });
 
+  it("opens an HTML entry link through the deleted participant's retained source", async () => {
+    const opened: unknown[] = [];
+    const entry = { ...fixture.entries[0], agent_id: "a_gone", body: "[page](page.html)", attempt_id: "tta_deleted" };
+    server.use(
+      http.get("/api/think-tanks/tt_fixture/entries", () => HttpResponse.json({ entries: [entry], complete: true })),
+      http.get("/api/think-tanks/tt_fixture/files", () => HttpResponse.json({ sources: [{ source_id: "src_23", agent_id: "a_gone", agent_name: "Gone", project: "alpha", attempt_ids: ["tta_deleted"] }], files: [] })),
+      http.post("/api/think-tanks/tt_fixture/sources/src_23/file/open-browser", async ({ request }) => { opened.push(await request.json()); return HttpResponse.json({ path: "page.html" }); }),
+    );
+    renderRoom();
+    fireEvent.contextMenu(await screen.findByRole("button", { name: "page" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open in browser" }));
+    await waitFor(() => expect(opened).toEqual([{ path: "page.html" }]));
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("opens a deleted participant's retained source directly and annotates its file", async () => {
     const entry = { ...fixture.entries[0], agent_id: "a_gone", body: "[notes](notes.md)", attempt_id: "tta_deleted" };
     server.use(

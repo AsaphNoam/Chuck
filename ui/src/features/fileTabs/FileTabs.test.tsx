@@ -4,7 +4,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from "react-router-dom";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { FileTabsReader } from "./FileTabs";
 import { TranscriptView } from "../../components/chat/TranscriptView";
 import { ownerKey, STORAGE_KEY } from "./model";
 import { loadFileTabs, useFileTabsStore } from "./store";
@@ -87,6 +88,18 @@ const link = (name: string) => within(document.querySelector(".transcript-list, 
 const heading = (name: string) => screen.findByRole("heading", { name: `Title ${name}` });
 
 describe("file tabs on a conversation (FS-03.A80–A82)", () => {
+  it("opens the right-clicked inactive HTML tab from its own retained source", async () => {
+    const tabs = [{ id: "one", path: "a.md", source: "s1" }, { id: "two", path: "page.html", source: "s2" }];
+    const openBrowserFor = vi.fn().mockResolvedValue({ path: "page.html" });
+    const onSelect = vi.fn();
+    render(<FileTabsReader tabs={tabs} active={tabs[0]} jumps={{}} onSelect={onSelect} onClose={() => {}} onMove={() => {}} contextFor={(tab) => tab.source!} openBrowserFor={openBrowserFor} renderView={(_reader, strip) => strip} />);
+    fireEvent.contextMenu(screen.getByRole("tab", { name: "page.html" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open in browser" }));
+    expect(openBrowserFor).toHaveBeenCalledWith(tabs[1], "page.html");
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(reads).not.toContain("page.html");
+  });
+
   it("keeps the trail, returns from memory with its mode, and closes by the neighbour rule", async () => {
     render(<App />);
     fireEvent.click(link("A"));

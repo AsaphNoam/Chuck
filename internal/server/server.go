@@ -201,6 +201,9 @@ type Server struct {
 	// and blocks on a human (TS-03.R26).
 	pickDirectory func(ctx context.Context) (path string, cancelled bool, err error)
 
+	// openBrowserFile lets route tests observe launches without opening native apps.
+	openBrowserFile func(string) error
+
 	// primerSummarizer is the one-shot target-backend summary seam for backend
 	// switches. The default implementation is gated until live CLI invocation is
 	// confirmed; tests inject deterministic behavior.

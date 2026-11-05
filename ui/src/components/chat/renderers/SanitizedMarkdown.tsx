@@ -75,7 +75,7 @@ function WebLink({ href, children, ...rest }: ComponentProps<"a"> & { href: stri
   );
 }
 
-export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath }: { text: string; onOpenFile?: (link: FileLink) => void; agentId?: string; sourcePath?: string }) {
+export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath, onOpenInBrowser }: { text: string; onOpenFile?: (link: FileLink) => void; agentId?: string; sourcePath?: string; onOpenInBrowser?: (path: string) => Promise<unknown> }) {
   // The component map must stay referentially stable for the life of the message: a new map
   // remounts every block under it, so rebuilding it per streamed delta drops a settled diagram
   // back to source and repeats main-thread Mermaid work (FS-03.R37, TS-08.R40). The fence check
@@ -84,6 +84,8 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath }: { t
   textRef.current = text;
   const openRef = useRef(onOpenFile);
   openRef.current = onOpenFile;
+  const browserRef = useRef(onOpenInBrowser);
+  browserRef.current = onOpenInBrowser;
   const agentRef = useRef(agentId);
   agentRef.current = agentId;
   const sourcePathRef = useRef(sourcePath);
@@ -92,7 +94,7 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath }: { t
   const pushError = useUiStore((state) => state.pushError);
   const onPathContextMenu = (mouse: ReactMouseEvent<HTMLButtonElement | HTMLSpanElement>) => {
     const { clientX: x, clientY: y } = mouse;
-    offerWebLink(mouse, (path) => setMenu({ x, y, actions: webLinkActions(path, pushError) }));
+    offerWebLink(mouse, (path) => setMenu({ x, y, actions: webLinkActions(path, pushError, browserRef.current) }));
   };
   const components = useMemo<Components>(() => ({
     code({ className, children, node }) {

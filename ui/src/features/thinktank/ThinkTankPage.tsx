@@ -14,6 +14,7 @@ import {
   type ThinkTankLaunch,
 } from "../../api/thinkTanks";
 import { useProjects } from "../../api/config";
+import { openSourceFileInBrowser } from "../../api/client";
 import type { AnnotationDraft, FileContent, TranscriptEvent } from "../../api/types";
 import { Button, ConfirmDialog } from "../../components/ui";
 import { BackIcon, CommandIcon, FileIcon, PauseIcon, RoomIcon } from "../../components/ui/icons";
@@ -35,7 +36,8 @@ import { useAnnotationStore } from "../../store/annotationStore";
 import { useUiStore } from "../../store/uiStore";
 import { clipAnnotationExcerpt } from "../../lib/annotations";
 import { copyText } from "../../lib/copyText";
-import { claimWebLink } from "../../lib/linkActions";
+import { claimWebLink, webLinkActions } from "../../lib/linkActions";
+import { MenuPortalContext, PointerContextMenu, type PointerMenuState } from "../../components/ui/PointerContextMenu";
 import { agentConversationPath } from "../../lib/agentConversation";
 import { NewAgentModal } from "../launch/NewAgentModal";
 import type { ThinkTankActivity, ThinkTankDetail, ThinkTankEntry, ThinkTankMember } from "../../schemas/thinkTank";
@@ -110,6 +112,8 @@ function Room({ room }: { room: ThinkTankDetail }) {
   const [judgeRepair, setJudgeRepair] = useState(false);
   const [actionError, setActionError] = useState("");
   const [menu, setMenu] = useState<AnnotationMenuState | null>(null);
+  const [fileLinkMenu, setFileLinkMenu] = useState<PointerMenuState | null>(null);
+  const [fileMenuTarget, setFileMenuTarget] = useState<HTMLDivElement | null>(null);
   const addAnnotation = useAnnotationStore((state) => state.add);
   const discardDrafts = useAnnotationStore((state) => state.discard);
   const pushError = useUiStore((state) => state.pushError);
@@ -124,6 +128,10 @@ function Room({ room }: { room: ThinkTankDetail }) {
   // equal relative paths in different workspaces never collide (FS-21.R26).
   const sources = files.data?.sources ?? [];
   const sourceFor = (attemptID: string) => sources.find((s) => s.attempt_ids.includes(attemptID))?.source_id;
+  const browserFrom = (attemptID: string) => {
+    const source = sourceFor(attemptID);
+    return source ? (path: string) => openSourceFileInBrowser(id, source, path) : undefined;
+  };
   const openFrom = (attemptID: string) => (link: FileLink | null) => {
     const source = sourceFor(attemptID);
     if (!source) { pushError("The retained workspace source is unavailable. Try again after the room finishes loading."); return; }
@@ -169,6 +177,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
       copy: selected ? () => copyText(selected, pushError) : undefined,
       annotate: () => addAnnotation(sourceKey, draft),
       link: claimWebLink(mouse),
+      onOpenInBrowser: entry.attempt_id ? browserFrom(entry.attempt_id) : undefined,
     });
   };
 
@@ -191,9 +200,11 @@ function Room({ room }: { room: ThinkTankDetail }) {
           copy: selected ? () => copyText(selected, pushError) : undefined,
           annotate: () => addAnnotation(sourceKey, toRoomDraft(draft)),
           link: claimWebLink(mouse),
+          onOpenInBrowser: browserFrom(attemptID),
         });
       },
       onOpenFile: openFrom(attemptID),
+      onOpenInBrowser: browserFrom(attemptID),
     });
     return <TurnList agentId={agentID} events={nested} scope={`${attemptID}:`} choices={turnChoices} renderEvents={(list) => render(list, [], 1)} />;
   };
@@ -296,7 +307,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
                       {entryAddressees(entry) && <p className="think-tank-addressed">Addressed to {entryAddressees(entry)} · shared with the room</p>}
                       {entry.body && (
                         <div className="think-tank-entry-body">
-                          <SanitizedMarkdown text={entry.body} onOpenFile={entry.attempt_id ? openFrom(entry.attempt_id) : undefined} />
+                          <SanitizedMarkdown text={entry.body} onOpenFile={entry.attempt_id ? openFrom(entry.attempt_id) : undefined} onOpenInBrowser={entry.attempt_id ? browserFrom(entry.attempt_id) : undefined} />
                         </div>
                       )}
                     </div>
@@ -387,10 +398,12 @@ function Room({ room }: { room: ThinkTankDetail }) {
           </section>
         </aside>
       </div>
-      <Dialog.Root open={panel !== ""} onOpenChange={(open) => { if (!open) setPanel(""); }}>
+      <Dialog.Root open={panel !== ""} onOpenChange={(open) => { if (!open) { setPanel(""); setFileLinkMenu(null); } }}>
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay" data-ui="dialog" data-slot="overlay" />
           <Dialog.Content
+            ref={setFileMenuTarget}
+            onEscapeKeyDown={(event) => { if (fileLinkMenu) { event.preventDefault(); setFileLinkMenu(null); } }}
             className="dialog-content think-tank-sources"
             data-ui="dialog"
             data-slot="content"
@@ -416,10 +429,13 @@ function Room({ room }: { room: ThinkTankDetail }) {
                 {!files.isLoading && !files.isError && fileList.length === 0 && <p className="think-tank-sources-note">No files changed in room turns.</p>}
                 <ul className="think-tank-source-rows">
                   {fileList.map((f) => (
-                    <li key={`${f.source_id}-${f.path}`}>
+                    <li key={`${f.source_id}-${f.path}`} onContextMenu={(event) => {
+                      event.preventDefault();
+                      setFileLinkMenu({ x: event.clientX, y: event.clientY, actions: webLinkActions(f.path, pushError, (path) => openSourceFileInBrowser(id, f.source_id, path)) });
+                    }}>
                       <FileIcon />
                       <div><code>{f.path}</code><span>{f.agent_name} · {projectTitle(f.project)}</span></div>
-                      <Button type="button" aria-label={f.path} onClick={() => { setPanel(""); openFile({ path: f.path }, f.source_id); }}>Open read-only ↗</Button>
+                      <Button type="button" aria-label={f.path} onClick={() => { setPanel(""); openFile({ path: f.path }, f.source_id); }}>Open file ↗</Button>
                     </li>
                   ))}
                 </ul>
@@ -463,6 +479,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
           // retained-source route for it (TS-14.R12).
           contextFor={(tab) => tab.source ?? ""}
           loadFor={(tab) => (path) => loadSourceFile(id, tab.source ?? "", path)}
+          openBrowserFor={(tab, path) => openSourceFileInBrowser(id, tab.source ?? "", path)}
           sourceLabel={sourceLabel}
           renderView={(reader, strip, tab) => (
             <FileViewerView
@@ -470,6 +487,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
               tabs={strip}
               onClose={() => fileTabs.close(tab.id)}
               onOpenFile={(link) => openFile(link, tab.source ?? "")}
+              onOpenInBrowser={(path) => openSourceFileInBrowser(id, tab.source ?? "", path)}
               onSelectionMenu={({ x, y, text, draft, link }) => setMenu({
                 x,
                 y,
@@ -477,6 +495,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
                 copy: () => copyText(text, pushError),
                 annotate: () => addAnnotation(sourceKey, { ...draft, room_anchor: "file", source_id: tab.source } as AnnotationDraft),
                 link,
+                onOpenInBrowser: (path) => openSourceFileInBrowser(id, tab.source ?? "", path),
               })}
             />
           )}
@@ -484,6 +503,9 @@ function Room({ room }: { room: ThinkTankDetail }) {
       )}
       <RoomAnnotationTray room={room} />
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
+      <MenuPortalContext.Provider value={fileMenuTarget}>
+        <PointerContextMenu menu={panel === "files" ? fileLinkMenu : null} onClose={() => setFileLinkMenu(null)} />
+      </MenuPortalContext.Provider>
       <ConfirmDialog
         open={confirm === "end"}
         title="End this discussion?"

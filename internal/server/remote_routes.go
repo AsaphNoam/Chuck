@@ -77,6 +77,8 @@ var remoteAllowed = map[string][]string{
 // remoteDenied names every loopback route deliberately unreachable from a
 // phone. The inventory test fails when a route is in neither set (INV §10).
 var remoteDenied = map[string]bool{
+	"POST /api/sessions/{id}/file/open-browser":                        true,
+	"POST /api/think-tanks/{id}/sources/{source_id}/file/open-browser": true,
 	"POST /api/roles": true, "PUT /api/roles/{role}": true, "DELETE /api/roles/{role}": true,
 	"POST /api/projects": true, "PUT /api/projects/{project}": true, "DELETE /api/projects/{project}": true,
 	// The backend catalog carries backend and model env, which may hold keys.

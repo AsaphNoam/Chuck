@@ -37,9 +37,22 @@ are not live queues.
 
 ## Active change
 
-None.
+**HTML-PREVIEW — implemented; closure in progress.** FS-03.R109/A85, TS-08.R152 and
+TS-03.R79. Viewer/menu/HTTP/native-argv focused tests, full UI suite (1,141 passed), UI build,
+and 20/20 Chromium checks pass (live/archive/retained room, scripts/styles, sandbox/CSP,
+Source/Reload, docked/Focus menus and source-specific dispatch). `make embed` and tagged
+`make build` pass in `/private/tmp/chuck-html-embed-20261105`; its generated index is staged
+without changing the pre-existing dirty working embed/index or `docs/ideas.md`.
+Next: finish loopback-enabled `make test` (`/tmp/chuck-html-go-tests-approved.log`), then
+close this unit and add it to Review queue. Native launch receipt remains below.
 
 ## Acceptance gates still owed
+
+- **FS-03.A85 native default browser:** JXA lookup ran but this environment has no configured
+  default web browser. On a normal Mac, right-click a self-contained HTML file and select
+  **Open in browser**; confirm the original file opens in the default HTTPS browser (even when
+  `.html` is associated with an editor). HTTP dispatch, retained sources, remote refusal, native
+  argv/timeout/error handling and in-app live/archive/room rendering are automated evidence only.
 
 - **GOAL-LED evidence (FS-14 §6):** A61 run-start-to-notification browser journey; A64 attachment
   variant and live desktop/phone composer check; A67 fake-provider invocation-reason capture; A68
@@ -186,6 +199,11 @@ None.
   matching restart recovery, or permits chat under a wider continuation contract.
 
 ## Design consistency notes
+
+- **HTML preview navigation:** the opaque script sandbox and initial CSP deny parent/storage
+  access and subresource/fetch loading. Native self-navigation remains possible and sandboxed;
+  the preview is not a general network-isolation boundary. A Chromium sentinel confirmed this;
+  parent `frame-src 'none'` also blocked srcdoc, so no broader browsing mechanism was added.
 
 - Next presentation review: decide whether crisp asymmetric technical-surface radii are deliberate
   under FS-12.R52.

@@ -926,6 +926,21 @@ when accepted by HTTP but an id-less repeat is still a new command.
   same label. Permission prompts keep showing the full request (R26). Durable events, archive
   content, search, agent-facing transcript reads and unknown-event JSON are unchanged.
 
+- **R109 — Self-contained HTML opens as a page in the existing file tab.**
+  Complete `.html` and `.htm` files offer **Rendered** and **Source**, defaulting to Rendered;
+  an explicit source-line citation and a truncated read stay in Source. Rendered uses a sandboxed
+  browser frame: embedded CSS, inline JavaScript and embedded media work without access to Chuck's
+  page, storage or API responses. The initial preview blocks separate local/network subresources
+  and fetch requests; native navigation within the frame remains sandboxed. The file's own styles
+  determine its appearance. Reload rebuilds the preview from the new snapshot. Source preserves
+  the exact file text and existing annotation behavior; preview selections are not annotated or
+  saved as reading positions. Desktop HTML file links, saved tabs and the viewer's path/content
+  context menus offer **Open in browser**, retaining **Copy path** and applicable annotation actions.
+  This explicit action opens the original file in the default browser on the host running Chuck,
+  and reports launch failures. It never opens automatically and is unavailable to phone clients.
+  The room uses the selected retained source's working directory. This extends R52's read-only
+  viewer with isolated execution and this one explicit host action; Markdown remains sanitized.
+
 ## 3. States & transitions
 
 - **Open/reload:** panel fetches durable events → normalizes/folds them → subscribes to live SSE
@@ -1633,6 +1648,16 @@ phone and CLI callers with actual provider-submission counts in controlled fixtu
   component tests and `ui/scripts/turns-journey.mjs` over fakeacp's `activity_showcase`
   (nested child and background command lines). `PermissionPrompt` is unchanged, so
   `PermissionPrompt.test.tsx` still covers the request it shows.
+
+- **A85** (R109) — Open self-contained HTML in a conversation, archived conversation and room:
+  embedded styling and an inline button script work inside the existing file tab, with Source,
+  cited-line precedence and Reload intact. Verify no parent/storage/API-response access or initial
+  subresource/fetch loading, no preview annotation control, and containment at docked/focused sizes.
+  Right-click a link, saved tab, viewer path and the preview itself; **Open in browser** dispatches
+  only on explicit selection, uses the right session/source path and reports failure. Phone may
+  preview tracked HTML but cannot request a host browser launch. Verify component/menu tests,
+  actual HTTP route dispatch tests and a focused Chromium journey; native default-browser launch
+  remains a separate OS receipt when not exercised.
 
 ## 6. Deviations & open decisions
 

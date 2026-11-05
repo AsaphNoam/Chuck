@@ -4,7 +4,7 @@ import { useUiStore } from "../../store/uiStore";
 
 // link is a rendered link under the pointer, claimed with claimWebLink; its action
 // leads the menu so a right-click keeps it beside annotation (FS-03.R78).
-export type AnnotationMenuState = { x: number; y: number; label: string; annotate: () => void; copy?: () => void; link?: string };
+export type AnnotationMenuState = { x: number; y: number; label: string; annotate: () => void; copy?: () => void; link?: string; onOpenInBrowser?: (path: string) => Promise<unknown> };
 
 export function AnnotationContextMenu({ menu, onClose }: { menu: AnnotationMenuState | null; onClose: () => void }) {
   const pushError = useUiStore((state) => state.pushError);
@@ -14,7 +14,7 @@ export function AnnotationContextMenu({ menu, onClose }: { menu: AnnotationMenuS
         x: menu.x,
         y: menu.y,
         actions: [
-          ...(menu.link ? webLinkActions(menu.link, pushError) : []),
+          ...(menu.link ? webLinkActions(menu.link, pushError, menu.onOpenInBrowser) : []),
           ...(menu.copy ? [{ label: "Copy selection", select: menu.copy }] : []),
           { label: menu.label, select: menu.annotate },
         ],
