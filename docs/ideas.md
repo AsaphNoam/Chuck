@@ -73,6 +73,19 @@ the relevant feature and technical specifications; it does not change product co
 - **Activity map.** Explore a repository/session activity view using server APIs only, with clear
   privacy, scale, and normal-user value boundaries.
 
+- **Project chat search.** Requested by the operator on 2026-11-05 via `/design-feature`: a small
+  search field beside the project name, searching chats and prioritizing active chats; assess how
+  Archive search works and whether matching can improve. Current FS-05.R25–R30 search already uses
+  weighted BM25 full-text ranking, phrases, snippets and metadata-only fallback; query terms must
+  occur in one indexed document, and unfinished turn text is not yet indexed. Proposed behavior:
+  search the current project's chat names/metadata and transcript, with one result per chat,
+  active chats first, then older/archived chats, matching excerpts and direct navigation. Keep
+  search local and read-only, with no chat lifecycle or retention changes. Pending product scope:
+  does active mean non-archived (including stopped), or only currently running? Confirm compact
+  dropdown placement beside the scoped project heading and whether first-version improvements
+  should include prefix matching and terms distributed across turns, or semantic retrieval.
+  No feature/technical requirements or ready change approved yet.
+
 ## ACP Wait-list
 
 These are capabilities AgentDeck implements above ACP, or has deliberately deferred, because the

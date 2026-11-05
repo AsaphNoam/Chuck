@@ -393,6 +393,11 @@ files were changed. Exact affected request/timing remains needed to confirm the 
 
 ## Changelog
 
+- **2026-11-05 — Project chat search design started:** recorded the requested project-scoped
+  search in `ideas.md` under Ideas being defined; checked existing Archive full-text behavior.
+  Product scope and the meaning of active remain pending operator confirmation; no technical
+  design, ready change or product code. Active change remains None.
+
 - **2026-11-05 — Pipeline effort/budget investigation, corrected:** the worker reportedly inferred
   an additional budget from its own config. Withdrew the unsupported guidance-gap diagnosis and
   `/fix` recommendation; absence of a specific prohibition does not establish a prompt defect.
