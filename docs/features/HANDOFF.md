@@ -221,13 +221,6 @@ None.
   dirty working index/assets and `docs/ideas.md` remain preserved. `bin/chuck` contains this
   built UI and backend. Native default-browser receipt remains owed above.
 
-- **Quiet task coordination** (2026-11-05): FS-16.R49 / FS-14.R76 / TS-09.R49 — shared task
-  guidance keeps routine progress and user-requested adjustments in final results, preserving
-  earlier mail for action, coordination risks and decisions with deferred FYIs. Dedicated
-  coordinators no longer receive a blanket request to report progress; bundled references agree.
-  `internal/runtime/activation_kinds.go`, `internal/pipeline/manager.go` and the operating-chuck
-  references. Both Go variants and tagged build passed; live provider adherence remains unverified.
-
 - **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
   Current agent is available for any non-archived source; the handler wakes a stopped source,
   holds behind a running turn, or steers (`target.steer`) when the runtime advertises it; desktop
@@ -415,6 +408,19 @@ files were changed. Exact affected request/timing remains needed to confirm the 
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-05 — Quiet task coordination review closed without findings:** reviewed `a674e6bc`
+  against FS-16.R49, FS-14.R75–R78 and TS-09.R49, including shared launch/activation guidance,
+  dedicated coordinator instructions and bundled references. These reviewed inputs are unchanged
+  through `be5505f8`. Invariant sweep: §§2/10 apply (shared composition and documentation/wiring);
+  §§1/3–9/11–17 have no changed applicable surface. No tests were added or materially changed;
+  existing fake-provider prompt-delivery checks establish transport, not live model adherence.
+  Independent focused launch/running/stopped assignment, dedicated-coordinator and assignment-render
+  tests pass for `internal/server` and `internal/pipeline` with loopback-capable execution;
+  `make check-specs` passes. Logs: `/private/tmp/chuck-quiet-review-{focused,specs}.log`.
+  Initial sandbox run could not bind the test HTTP listener; approved rerun passed.
+  **Fix model:** none — no open fixes. Live provider adherence remains unverified. Product/spec
+  files and unrelated dirty idea/generated UI edits preserved; other review units unchanged.
 
 - **2026-11-05 — HTML preview:** self-contained HTML now renders inside existing file tabs,
   with Source and explicit default-browser context actions. Automated closure passes; native
