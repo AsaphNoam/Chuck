@@ -945,6 +945,58 @@ when accepted by HTTP but an id-less repeat is still a new command.
   The room uses the selected retained source's working directory. This extends R52's read-only
   viewer with isolated execution and this one explicit host action; Markdown remains sanitized.
 
+- **R110 (planned) — File previews follow settled changes without hiding the current read.**
+  Mounted desktop conversation, archive and Think Tank readers and permitted phone previews
+  detect external changes to the selected file. After approximately two seconds of observed file
+  inactivity, a new snapshot replaces the old one, preserving display mode and approximate reading
+  position; a shortened file clamps the position. This is a quiet-period heuristic, not a claim
+  that an agent has finished its task. Repeated writes coalesce. During detection and refresh,
+  retain the previous content, controls and read time, adding only a small unobtrusive spinner in
+  the existing status area. It must not cover, dim, disable or move the readable content or create
+  layout shifts; its accessible name conveys changing/updating, with a static reduced-motion
+  equivalent and no repeated announcements. No per-write toast, modal or content-loading screen.
+  An active selection, editing or conflict comparison defers replacement and exposes **Update
+  available** once settled. Ending a selection resumes automatic replacement; editing requires
+  Save or Cancel. Reload remains an explicit action. Background tabs are checked on selection;
+  hidden/unmounted readers do not keep refreshing. Reconnect and return to the foreground recheck
+  freshness. Failure or deletion retains the last readable snapshot, marks it stale and offers
+  retry; an initial read failure keeps the existing error treatment. Existing annotations remain
+  point-in-time captures. This supersedes R52's manual-only freshness and R102's unconditional
+  cached-snapshot return, leaving tab identity, citations and per-mode positions intact.
+- **R111 (planned) — Desktop file tabs offer deliberate text editing.** Complete UTF-8 text
+  files offer **Edit**, then **Save** and **Cancel**, in desktop live/archive/Think Tank readers
+  and Focus file. Editing uses exact source text, including Markdown, JSON and HTML, without
+  formatting or executing the draft. Images, binary, truncated and unwritable files remain
+  read-only with an explanation. Save updates the original existing file on the Chuck host;
+  it sends no agent message, starts no turn, and creates no transcript event. Agents and external
+  tools observe an ordinary disk change. Successful save returns to the prior view mode using
+  the saved snapshot unless newer unsaved edits remain; those stay in the editor against the
+  acknowledged saved version. Cancel discards the edit and reads the current file. A changed dirty draft
+  requires explicit discard confirmation on Cancel. No autosave, create, rename, delete, directory
+  browser, binary editing or phone write authority is introduced. Read access alone is not write
+  authorization. Existing owned, writable regular files may be edited outside the workspace too;
+  symlink targets, hard-linked files and files whose access metadata cannot safely survive
+  replacement are refused. This supersedes R52's no-writing clause only for these deliberate saves.
+- **R112 (planned) — Unsaved edits survive navigation and conflicts visibly.** Drafts are
+  browser-local, scoped to the conversation/room and retained source plus file, separate from
+  saved tab descriptors. Keep exact text and its edit-base identity across tab switching, closing
+  the reader/tab, navigation and reload until successful save or explicit discard; reopen the
+  associated tab to recover a closed draft. Show unsaved/recovery state on return. Never evict an
+  existing draft silently to admit another; storage failure or capacity refusal preserves the
+  in-memory edit, states that reload recovery is unavailable, and warns before leaving it.
+  Recovery never automatically writes to disk. Before Save, check whether the file still matches
+  the edit base. A detected external change, replacement, deletion, permission failure or ambiguous
+  save result retains the draft and never reports success without evidence. A conflict offers the
+  current disk text beside the draft; the operator can revise the draft against that version and
+  deliberately save again, or discard. There is no automatic merge, unconditional overwrite or
+  automatic retry of a possibly applied save. Conflict detection is optimistic: an arbitrary external
+  writer can still race between the final version check and replacement. Chuck does not claim
+  exclusive ownership or locking of other tools. Refresh cannot replace an edit or comparison.
+  Draft storage is bounded; refusal to admit another draft is visible and never evicts existing work.
+  Explicit deletion of the owning conversation/room discards its drafts with a warning if any are
+  unsaved, consistent with deletion of its saved tabs; merely archiving or stopping does not.
+  This is an explicit draft-content exception to R103's descriptor-only persistence.
+
 ## 3. States & transitions
 
 - **Open/reload:** panel fetches durable events → normalizes/folds them → subscribes to live SSE
@@ -1667,7 +1719,35 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
   actual HTTP route dispatch tests and a focused Chromium journey; native default-browser launch
   remains a separate OS receipt when not exercised.
 
+- **A86 (planned, R110) —** Repeatedly rewrite a selected text file during an active agent turn:
+  the old content remains readable with one small status spinner, no blocking layer, no layout
+  shift and no per-write announcements; one settled update preserves mode and reading position.
+  Repeat with image/HTML previews, a text selection, a hidden page, tab switches, reconnect,
+  deletion and a delayed stale response. Background tabs do not fan out reads; selection rechecks
+  them. *Verify:* deterministic timer/request-order component tests, HTTP freshness tests and a
+  rendered desktop/phone journey, including reduced motion and all supported desktop appearances.
+- **A87 (planned, R111–R112) —** Edit source in live/archive/room and Focus file; save and
+  independently inspect exact disk bytes, unchanged transcript/agent-turn state and correct room
+  source. Cancel explicitly discards a changed draft. Image/truncated/unwritable files explain
+  read-only state, and phone cannot write through UI or direct HTTP. *Verify:* handler/filesystem
+  and shared-reader tests plus a rendered edit/save/cancel journey.
+- **A88 (planned, R112) —** Start an edit, change the file externally and attempt Save: compare
+  current disk text and draft without losing either; revise against the displayed version and
+  retry deliberately. Exercise delete/recreate, permission denial, lost save response and newer
+  edits arriving during Save: their text survives, their base advances only for the same edit
+  lineage, and a second Save does not conflict with Chuck's own first write. Close/reopen tabs,
+  navigate and reload to recover unsaved drafts;
+  simulate browser-storage refusal/full capacity without silent eviction or a false recovery
+  promise. Exercise two concurrent Chuck saves and verify only one accepts the shared base;
+  document the remaining noncooperating external-writer race. *Verify:* adversarial
+  filesystem/handler tests, draft-store/request-order tests and a rendered conflict/recovery journey.
+
 ## 6. Deviations & open decisions
+
+- **File freshness/editing design, 2026-11-05:** R110–R112/A86–A88 are approved, planned scope,
+  with optimistic external-writer conflict detection and local owned-file write admission.
+  TS-03.R80–R81, TS-05.R29 and TS-08.R153–R155 define the technical contract. No code shipped;
+  phone remains read-only.
 
 - **File tabs shipped, 2026-10-25:** R101–R106/A80–A82 (with FS-20.R56/A28 and
   FS-21.R59/A42) are covered by `ui/src/features/fileTabs` model/store/route/surface tests,

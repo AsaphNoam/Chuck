@@ -309,6 +309,15 @@ The originating review unit remains open; no product code or specifications chan
   `/var/folders/87/yfpx_jjx4rd6yn0965lj9j680000gn/T/tt-setup-render/`. `make check-specs`, full
   UI Vitest (1,150 tests), UI style/presentation checks and build passed; `git diff --check` passed.
 
+- **2026-11-05 — File-viewer refresh/editing design ready:**
+  [ready change](../ready-changes/file-viewer-refresh-and-editing.md) waits to start.
+  FS-03.R110–R112/A86–A88, TS-03.R80–R81, TS-05.R29 and TS-08.R153–R155 specify settled
+  refresh with a small status spinner over retained readable content, desktop source editing and
+  browser-local draft/conflict recovery. Phone stays read-only. Operator approved optimistic
+  external-writer conflict detection and existing owned writable regular files, refusing symlinks,
+  hard links and unsafe metadata replacement. Documentation/spec and twin-skill checks passed;
+  no implementation or product validation is claimed. Active change remains unchanged.
+
 - **2026-11-05 — Recovery fix closed (INV §§1/2/5/8/10/11/15/17):** RECOVERED-QUEUE-1–3
   repaired in `0e98d3c4`; this closes the originating review unit without adding a review unit.
   Desktop/phone acknowledge only the exact withdrawn text receipt after durable draft restoration;

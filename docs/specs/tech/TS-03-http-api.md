@@ -1144,6 +1144,61 @@ validation/read/launch failures return the existing visible error envelope. Thes
 the whole-mux local Host/Origin guard and are absent from the remote route allowlist. They add no
 raw HTML or linked-resource serving and never run during file reads (FS-03.R109).
 
+**R80 (planned) — File freshness extends the existing authorized GETs.** FS-03.R110 uses
+`GET /api/sessions/{id}/file?path=<p>&probe=1` and the same query on
+`GET /api/think-tanks/{id}/sources/{source_id}/file`. A probe returns bounded JSON
+`{path, observed_revision}` without content. The opaque observation fingerprint includes opened
+regular-file identity, size and nanosecond modification/change metadata; never use the existing
+second-resolution `mod_time` alone. Probe classification/opening uses the shared safe file-read
+helpers. Phone probes pass the existing tracked-path filter and no-follow regular-descriptor
+checks before filesystem access; no resolved host path is disclosed. Room probes retain the
+room's recorded source and Cwd lookup, independent of live session existence. Errors use R3's
+existing envelope and read error vocabulary; no listing or filesystem watcher subscription is added.
+
+Ordinary file reads retain the existing response and add `observed_revision`, plus an opaque
+`revision` for complete text and `editable: boolean` with a bounded `edit_refusal` code when false.
+Phone returns `editable:false`. Text revision binds resolved target identity, exact full text digest
+and access metadata relevant to saving. It is a precondition, never authorization or a path supplied
+back as authority. Check metadata before/after reading; an unstable read returns retryable
+`409 file_changing` rather than advertising mixed content as a stable revision. Complete text
+retains the 512 KiB bound; images/truncated reads never receive a writable revision. Metadata probes
+detect observed changes, not every transient write between samples. These additions supersede
+R48's no-polling clause only; old clients can keep ordinary GET/Reload.
+
+**R81 (planned) — Desktop text saves are explicit conditional file replacements.** Add local-only
+`PUT /api/sessions/{id}/file` and
+`PUT /api/think-tanks/{id}/sources/{source_id}/file`, accepting JSON
+`{path, base_revision, content}`. Session lookup and path resolution match R48; rooms use retained
+source membership/Cwd exactly as their GET, including after the source session is removed. Both
+PUTs are explicitly remote-denied in the shared route inventory. TS-05.R29 owns write admission.
+Reject unknown fields, missing/invalid bounded revision, NUL paths, invalid UTF-8 and content over
+512 KiB before mutation; bound the encoded JSON request to 4 MiB to allow escaped text. A single
+shared save helper owns validation, target serialization, version checking and replacement for
+both route families. Reject `409 file_conflict` when current exact bytes, identity or relevant
+metadata differ from the supplied base; conflict carries no replacement and clients reread via
+the same authorized GET for comparison. Refuse missing targets instead of recreating them.
+
+Serialize Chuck saves by canonical parent identity plus final basename, with bounded/ref-counted
+lock entries removed after the last waiter. Under that lock, revalidate the opened parent/target,
+hash the complete current text, prepare and sync an exclusively created same-directory temporary
+file, preserve supported access metadata, recheck the target revision immediately before atomic
+replacement, then sync the directory. Preserve exact submitted UTF-8 bytes and newline spelling.
+Clean temporary files on every pre-replacement failure. No shell/tool invocation, in-place
+truncate, automatic retry, backup history, unconditional force flag or cooperative external lock
+is introduced. Rechecking narrows but cannot close an arbitrary external writer's check/rename
+race; this user-approved limitation is explicit, not an atomic compare-and-swap guarantee.
+
+Success is `200` with the saved file snapshot and its revisions, derived from the replacement
+that Chuck wrote, not a later unrelated read. A failure after possible replacement returns
+`409 file_save_uncertain`; a lost response is likewise uncertain on the client. Keep the draft,
+reread and compare, and require explicit action before another save. New edits typed during an
+in-flight Save survive its reply; clear only the acknowledged submitted draft generation. Return
+`422 file_not_editable` for admission/metadata refusal with a bounded reason; existing not-found,
+workspace/unreadable and internal errors retain their meaning. Logs contain path, result and
+reason, never file/draft bytes or revision digests. No save event or prompt is sent to an agent.
+Verify actual registered HTTP routes, remote denials/filters, adversarial file fixtures, exact
+disk bytes/metadata, concurrent saves and failure injection; update UI schemas/client together.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

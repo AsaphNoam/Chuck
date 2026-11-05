@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1987,6 +1987,70 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Only explicit selection of **Open in browser** dispatches the local POST, with the correct
   session or retained room source. Shared menu helpers retain Copy path and failure toasts.
   Phone callers omit the host-action callback and the remote server never registers the route.
+
+- **R153 (planned) — Refresh keeps the existing snapshot mounted.** FS-03.R110 extends
+  `useFileReader`, `FileTabsReader` and their injected session/retained-source loaders with a shared
+  probe capability; never fall back from a room/phone loader to an unrestricted session route.
+  Poll only the selected file in each visible mounted reader, at most once per second with one
+  request in flight per tab. Schedule probes/reads through the existing four-outstanding-per-owner
+  limiter, retaining one latest pending intent per tab. Do not enqueue interval backlog. Pause on
+  document hidden, unmount or source change; cancel queued work and fence in-flight completions
+  by owner/source/tab/request generation. Resume with a probe on visibility, selection or reconnect.
+  Require an observed fingerprint to remain unchanged for two seconds before fetching; verify
+  the returned snapshot still matches that observation. A changed observation or `file_changing`
+  restarts the quiet window. Retain only one newest candidate, never a stream of file versions.
+  On failure preserve content, expose retry and back off probes to at least five seconds until
+  success or explicit retry. Timers and read locks are released by the same lifecycle cleanup.
+
+  Keep refresh state separate from the loaded snapshot; never enter initial-loading presentation
+  during refresh. Preserve per-mode anchors/clamp as existing Reload does. Selection within the
+  viewer, edit mode and comparison gate application; after selection ends apply only the newest
+  settled candidate. Manual Reload cannot discard an edit. The spinner occupies fixed space beside
+  existing status/read-time content, with accessible changing/updating text, no content overlay,
+  dimming, pointer interception, layout motion or repeated live-region announcements. Use existing
+  tokens and a static reduced-motion state. Snapshot read time advances only when applied. Do not
+  report an agent's turn finished based on a quiet file. This supersedes R144's prohibition on
+  background refresh only for selected-visible-file work; no inactive-tab refresh is introduced.
+- **R154 (planned) — Editing shares the source-qualified file-tab owner.** FS-03.R111–R112
+  uses the existing reader toolbar and feature-owned state, not a separate editor route. Reuse
+  the shared multi-line input primitive with a bounded scrolling source-editor configuration;
+  no editor framework is required. Edit captures exact source, base revision and draft generation;
+  Save submits that generation through the injected session/retained-source save capability.
+  Dirty state stays visible in its tab and reader. Restore prior rendering mode only after a
+  definite successful save or explicit Cancel. Comparison shows current disk text and the draft,
+  retains both on failure and adopts a reviewed revision only on explicit operator action.
+  Do not advance the base revision merely because a probe/read completed. Keep editing/source
+  selections out of annotation capture; existing saved annotations continue to use their original
+  snapshots. Save replies cannot clear newer edits or revive an old source/tab. When the same
+  owner/source/path/edit lineage still holds newer text, acknowledge the submitted generation and
+  advance that surviving draft's base to the returned saved revision without changing its text;
+  persist the transition transactionally and keep editing/unsaved state active. A reply from another
+  lineage cannot mutate the current draft, even if its path matches. Unknown save
+  outcome requires reread/comparison, never automatic retry. Phone has no save callback or Edit
+  affordance; server denial remains authoritative. Validate keyboard focus, read-only reasons,
+  selection gating, quiet refresh, comparison and recovery in rendered actual-product journeys.
+- **R155 (planned) — Recoverable edit drafts are separate bounded browser data.** Use a
+  feature-owned versioned IndexedDB store separate from `chuck.file-tabs.v1`; R141's descriptor
+  record remains byte-free. Key by browser origin, owner kind/id, retained source identity and
+  normalized requested path, retaining the base revision/target identity. Aliases may hold separate
+  drafts but cannot bypass server conflict checks. Store exact source draft, base revision and
+  prior display mode; never persist rendered DOM, save promises, server authority tokens or image
+  bytes. Admit at most 50 drafts and 32 MiB of encoded draft records in this origin; each edited
+  text is at most 512 KiB UTF-8. Validate version/schema/count/bytes on restore and bound reads
+  before accumulating values. Capacity refuses new work; no silent expiry or eviction. Stop typing
+  beyond the per-file limit with a visible explanation while retaining admitted text. Persist
+  changed text promptly and flush before controlled navigation; label recovery available only
+  after durable transaction acknowledgement. Storage errors retain memory and warn that leaving
+  may lose changes; controlled leave requires acknowledgement, and page unload uses the browser's
+  native unsaved-work guard while persistence is pending/failed. Successfully saved/submitted
+  generations and explicit discarded drafts are removed transactionally; newer generations remain.
+  Keep closed-tab drafts discoverable in the owning reader's **Unsaved edits** recovery action,
+  including a recovery entry in the owning chat/room when the reader is closed or no tabs are open.
+  Restoring one reopens its original source-qualified tab and
+  compares its base to disk before Save; no restore triggers an automatic write. Owner deletion
+  removes its drafts with an unsaved-work warning, while archive/stop does not. Clearing browser
+  site data removes them; there is no server copy or cross-device sync. This is the explicit
+  content-persistence exception to R141, without changing saved-tab descriptor compatibility.
 
 ## 3. Interfaces & data shapes
 

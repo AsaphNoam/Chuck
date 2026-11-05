@@ -320,6 +320,30 @@ Native configuration-source consent is not authentication consent. TS-07.R19 ret
 personal-auth and private-session-home ownership; selected setup roots cannot silently replace
 them. No new source credentials enter snapshots, manifests or driver IDs.
 
+**R29 (planned) — Local file editing grants bounded explicit write authority.** For
+FS-03.R111–R112 and TS-03.R81, same-machine API callers behind `localOnly` may replace existing
+complete UTF-8 regular files owned by Chuck's OS user and writable under their existing mode/ACL,
+including outside all projects. The parent must permit creating/replacing the entry. This is a
+deliberate extension of R24's read-only trust decision, not proof that a path originated in a
+transcript. No remote device, room participant MCP tool or ordinary agent API gains a write route;
+PUT routes are explicitly remote-denied, and Host/Origin rejection precedes every file operation.
+
+Refuse final-component symlinks, multiple hard links, special files, non-owned files, missing
+targets and targets whose mode/ownership/group/ACL/xattrs cannot be preserved by replacement.
+Resolve ancestor aliases to a canonical parent, pin and validate that directory, and use
+descriptor-relative no-follow final-entry operations where supported; never retarget a save by
+following a newly substituted final symlink. Bind/recheck parent and target identity, permissions,
+link count and metadata through commit. Unsupported safe-open/metadata behavior fails closed
+rather than degrading into truncate or lossy replacement. Inode and modification/change times
+necessarily change on successful replacement; access metadata must not. Reads retain R24's
+broader symlink-following policy; read success does not imply Edit is allowed. Browser draft
+content stays in the local browser site data under TS-08.R155, is not synced to Chuck's database
+or transcript, and is not included in logs. Adversarial evidence covers symlink substitution,
+parent replacement, hard links, ACL/xattr preservation/refusal, mode denial, FIFO/socket rejection,
+local Host/Origin rejection and direct phone PUT denial independently. Noncooperating external
+writers can race the final check/rename as explicitly accepted in TS-03.R81; do not claim OS-level
+exclusive file ownership or protection against a hostile same-user process.
+
 ## 3. Interfaces & data shapes
 
 Security-relevant interfaces are the single listener, Host/Origin middleware, launch token

@@ -43,6 +43,9 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`file-viewer-refresh-and-editing.md`](file-viewer-refresh-and-editing.md) — settled file updates
+  with an unobtrusive spinner, desktop source editing and recoverable local drafts/conflicts.
+
 - [`optional-annotation-source-recording.md`](optional-annotation-source-recording.md) — default-on
   checkbox for recording annotation assignments in the source transcript, with **New agent** naming.
 
