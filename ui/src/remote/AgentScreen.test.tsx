@@ -213,6 +213,51 @@ describe("AgentScreen", () => {
     await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
   });
 
+  it("discards an initial recovery read that finishes after successful phone Steer", async () => {
+    useConnection.setState({ agents: { a1: { ...agent, state: "busy" } } });
+    let release!: () => void;
+    let started!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const reading = new Promise<void>((resolve) => { started = resolve; });
+    let gets = 0;
+    server.use(http.get("/api/sessions/a1/prompt", async () => {
+      if (++gets === 1) {
+        started(); await blocked;
+        return HttpResponse.json({ text: "", recovery: { request_id: "steered", text: "current input", delivery: "unknown" } });
+      }
+      return HttpResponse.json({ text: "" });
+    }));
+    renderScreen();
+    await reading;
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "current input" } });
+    fireEvent.click(screen.getByRole("button", { name: "Steer", exact: true }));
+    // A successful Steer must start a fresh read even if the first query has no data yet.
+    await waitFor(() => expect(gets).toBe(2));
+    await act(async () => { release(); await blocked; });
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue(""));
+    expect(screen.queryByRole("button", { name: "Send recovered message" })).not.toBeInTheDocument();
+  });
+
+  it("clears matching phone recovery on Steer success even if the refresh fails", async () => {
+    useConnection.setState({ agents: { a1: { ...agent, state: "busy" } } });
+    let submitted = false;
+    server.use(
+      http.get("/api/sessions/a1/prompt", () => submitted
+        ? HttpResponse.json({ error: "offline" }, { status: 503 })
+        : HttpResponse.json({ text: "", recovery: { request_id: "steered", text: "current input", delivery: "unknown" } })),
+      http.post("/api/sessions/a1/steer", () => {
+        submitted = true;
+        return HttpResponse.json({ accepted: true, request_id: "steered", outcome: "steered" });
+      }),
+    );
+    renderScreen();
+    await screen.findByRole("button", { name: "Send recovered message" });
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "current input" } });
+    fireEvent.click(screen.getByRole("button", { name: "Steer", exact: true }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue(""));
+    expect(screen.queryByRole("button", { name: "Send recovered message" })).not.toBeInTheDocument();
+  });
+
   it("retains refused delivery across leaving and reopening", async () => {
     useConnection.setState({ agents: { a1: { ...agent, state: "idle" } } });
     promptStatus = 409;
@@ -324,9 +369,20 @@ describe("AgentScreen", () => {
 
   it("withdraw returns the held text to the message box (FS-03.A70)", async () => {
     let held = "rerun the linter";
+    let recovery: { request_id: string; text: string; delivery: string } | undefined;
+    let acknowledged = false;
     server.use(
-      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, held_id: "hold-1", after_seq: 0 })),
-      http.delete("/api/sessions/a1/prompt", () => { held = ""; return HttpResponse.json({ accepted: true, agent_id: "a1", withdrawn: true, message: { held_id: "hold-1", text: "rerun the linter", attachments: [] } }); }),
+      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, held_id: "hold-1", after_seq: 0, recovery })),
+      http.delete("/api/sessions/a1/prompt", ({ request }) => {
+        if (new URL(request.url).searchParams.get("recovery_request_id") === "withdrawn-request") {
+          expect(JSON.parse(localStorage.getItem("chuck-chat-drafts")!).drafts.a1.text).toBe("rerun the linter\n\ntyped since");
+          recovery = undefined; acknowledged = true;
+          return HttpResponse.json({ accepted: true });
+        }
+        held = "";
+        recovery = { request_id: "withdrawn-request", text: "rerun the linter", delivery: "released" };
+        return HttpResponse.json({ accepted: true, agent_id: "a1", withdrawn: true, message: { held_id: "hold-1", request_id: "withdrawn-request", text: "rerun the linter", attachments: [] } });
+      }),
     );
     useConnection.setState({ agents: { a1: { ...agent, state: "busy", detail: "" } } });
     renderScreen();
@@ -335,13 +391,21 @@ describe("AgentScreen", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Withdraw" }));
     await waitFor(() => expect(box).toHaveValue("rerun the linter\n\ntyped since"));
     await waitFor(() => expect(screen.queryByText("Held until the current turn ends")).not.toBeInTheDocument());
+    expect(acknowledged).toBe(true);
+    expect(screen.queryByRole("button", { name: "Send recovered message" })).not.toBeInTheDocument();
   });
 
   it("withdraw keeps text typed while browser storage refuses to save it (FS-03.A70)", async () => {
     let held = "rerun the linter";
+    let recovery: { request_id: string; text: string; delivery: string } | undefined;
     server.use(
-      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, held_id: "hold-1", after_seq: 0 })),
-      http.delete("/api/sessions/a1/prompt", () => { held = ""; return HttpResponse.json({ accepted: true, agent_id: "a1", withdrawn: true, message: { held_id: "hold-1", text: "rerun the linter", attachments: [] } }); }),
+      http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: held, held_id: "hold-1", after_seq: 0, recovery })),
+      http.delete("/api/sessions/a1/prompt", ({ request }) => {
+        expect(new URL(request.url).searchParams.has("recovery_request_id")).toBe(false);
+        held = "";
+        recovery = { request_id: "withdrawn-request", text: "rerun the linter", delivery: "released" };
+        return HttpResponse.json({ accepted: true, agent_id: "a1", withdrawn: true, message: { held_id: "hold-1", request_id: "withdrawn-request", text: "rerun the linter", attachments: [] } });
+      }),
     );
     useConnection.setState({ agents: { a1: { ...agent, state: "busy", detail: "" } } });
     renderScreen();
@@ -350,6 +414,7 @@ describe("AgentScreen", () => {
     fireEvent.change(box, { target: { value: "unsaved since" } });
     fireEvent.click(await screen.findByRole("button", { name: "Withdraw" }));
     await waitFor(() => expect(box).toHaveValue("rerun the linter\n\nunsaved since"));
+    await screen.findByRole("button", { name: "Send recovered message" });
     blocked.mockRestore();
   });
 

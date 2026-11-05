@@ -139,3 +139,48 @@ func TestFailedTextReceiptReplayIsNotAccepted(t *testing.T) {
 		t.Fatalf("failed prompt replay: %d %s", res.StatusCode, body)
 	}
 }
+
+// Successful draft restoration acknowledges only its withdrawn receipt. An
+// unrelated uncertain input must survive the next authoritative snapshot.
+func TestWithdrawnTextRecoveryAcknowledgementPreservesUnrelatedReceipt(t *testing.T) {
+	srv, handler, id, _ := busyAttachmentTestServer(t)
+	path := "/api/sessions/" + id + "/prompt"
+	older := runtime.Message{Text: "older uncertain input", RequestID: "older-unknown"}
+	data, _ := json.Marshal(older)
+	if err := srv.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: id,
+		RequestID: older.RequestID, Action: "prompt", MessageJSON: string(data), PayloadHash: "older"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.stateStore.SetAttachmentDelivery(id, older.RequestID, "unknown"); err != nil {
+		t.Fatal(err)
+	}
+	input := runtime.Message{Text: "restore this draft", RequestID: "withdrawn-text"}
+	res, body := postJSONHandler(t, handler, path, input)
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("hold: %d %s", res.StatusCode, body)
+	}
+	withdraw := serveLocal(t, handler, http.MethodDelete, path, nil)
+	if withdraw.Code != http.StatusOK {
+		t.Fatalf("withdraw: %d %s", withdraw.Code, withdraw.Body)
+	}
+	var restored struct {
+		Message runtime.Message `json:"message"`
+	}
+	if err := json.Unmarshal(withdraw.Body.Bytes(), &restored); err != nil || restored.Message.Text != input.Text || restored.Message.RequestID != input.RequestID {
+		t.Fatalf("draft handoff: %s %v", withdraw.Body, err)
+	}
+	if recovery, err := srv.stateStore.AttachmentRecovery(id); err != nil || recovery.RequestID != input.RequestID || recovery.Delivery != "released" {
+		t.Fatalf("withdrawal must remain recoverable until acknowledged: %+v %v", recovery, err)
+	}
+	ack := serveLocal(t, handler, http.MethodDelete, path+"?recovery_request_id="+restored.Message.RequestID, nil)
+	if ack.Code != http.StatusOK {
+		t.Fatalf("acknowledge draft: %d %s", ack.Code, ack.Body)
+	}
+	read := serveLocal(t, handler, http.MethodGet, path, nil)
+	var snapshot struct {
+		Recovery runtime.Message `json:"recovery"`
+	}
+	if err := json.Unmarshal(read.Body.Bytes(), &snapshot); err != nil || read.Code != http.StatusOK || snapshot.Recovery.RequestID != older.RequestID || snapshot.Recovery.Text != older.Text {
+		t.Fatalf("acknowledgement erased unrelated recovery: %d %s %v", read.Code, read.Body, err)
+	}
+}

@@ -816,6 +816,10 @@ A successful reply clears only the submitted draft revision. TS-03.R74 defines t
 contract; attachment descriptors and receipt ownership follow the same message as its text.
 Text with a receipt now follows the same explicit recovery lifetime as media: a released or
 uncertain receipt survives reload/restart, superseding R49's restart-loss rule for that input.
+After successful text withdrawal, desktop and phone acknowledge only that returned receipt once
+the restored draft is saved durably; failed response or draft persistence retains recovery.
+Attachment recovery and unrelated receipts remain available. Successful Steer reconciles recovery
+with its authoritative receipt; an older in-flight snapshot cannot revive its recovery offer.
 Unknown consumption remains labelled uncertain; restoring it creates a new deliberate Send,
 never another Steer or an automatically runnable hold. Legacy requests receive recovery identity
 when accepted by HTTP but an id-less repeat is still a new command.
@@ -1514,6 +1518,8 @@ when accepted by HTTP but an id-less repeat is still a new command.
   An attachment-bearing withdrawal shows the recovery offer instead. Unsaved typed text survives a
   storage failure on desktop and phone; overlapping withdrawals restore one copy; a failed recovery
   read offers a load retry that does not withdraw again.
+  With a released text receipt, successful durable draft restoration dismisses only that receipt;
+  a subsequent recovery read does not offer a duplicate. If saving the draft fails, recovery remains.
   *Verify:* `Composer.test.tsx` ("withdraws the held message…", "puts the withdrawn text ahead…",
   "turns a withdrawn attachment hold…", "leaves the composer unchanged…", "keeps newer typed
   text…", "reports a recovery read…", "restores the held text once…"), `AgentScreen.test.tsx`
@@ -1599,6 +1605,8 @@ replacement preserve newer drafts and actual withdrawn text/attachments. A promo
 before timeout is not followed by an automatic duplicate prompt. Definite pre-consumption refusal
 can restore its original hold; unknown consumption requires explicit recovery. Test desktop,
 phone and CLI callers with actual provider-submission counts in controlled fixtures.
+After successful promoted Steer, a loaded uncertainty card disappears; a pre-success GET completing
+later cannot restore it, and unrelated older uncertain input remains recoverable.
 
 - **A80** (R101–R102) — Follow A → B → C in a mounted conversation, return to A and
   verify its in-memory snapshot/read timestamp, display mode and scroll. Reopen A at a cited line

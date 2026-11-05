@@ -22,6 +22,7 @@ import {
   updateAgentIdentity,
   QUEUED_FOR_ASSIGNMENT_NOTICE,
   type QueuedPrompt,
+  type HeldPrompt,
 } from "../api/client";
 import { QueuedInput } from "../components/chat/QueuedInput";
 import type { AgentState, AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../api/types";
@@ -55,7 +56,8 @@ import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
 import { recallPlace, rememberPlace } from "./scrollMemory";
-import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, restoreChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
+import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
+import { restoreWithdrawnDraft } from "../lib/heldMessage";
 import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
@@ -625,6 +627,11 @@ export function AgentScreen({ agentId }: { agentId: string }) {
 
   // Every refused action shows the desktop's reason and keeps the typed text
   // (FS-20.R27); only a delivered message clears the composer.
+  const reconcilePhoneSteer = async (requestId?: string) => {
+    await client.cancelQueries({ queryKey: ["held", agentId] });
+    if (requestId) client.setQueriesData<HeldPrompt | null>({ queryKey: ["held", agentId] }, (snapshot) =>
+      snapshot?.recovery?.request_id === requestId ? { ...snapshot, recovery: undefined } : snapshot);
+  };
   const act = async (fn: () => Promise<unknown>, clears = false, after?: (result: unknown) => void | Promise<void>) => {
     const submittedRevision = chatDraftRevision(agentId);
     setBusy(true);
@@ -691,9 +698,11 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       void act(
         async () => {
           try {
-            return await ((matchingRetry?.steer ?? steeringMessage)
+            const result = await ((matchingRetry?.steer ?? steeringMessage)
               ? steerPrompt(agentId, messageText, [], request)
               : sendPrompt(agentId, messageText, [], request));
+            if (matchingRetry?.steer ?? steeringMessage) await reconcilePhoneSteer(result.request_id);
+            return result;
           } catch (err) {
             if (isDeliveryUncertain(err) && (matchingRetry?.steer ?? steeringMessage)) {
               // The promoted hold may already have been consumed. Keep the
@@ -723,7 +732,10 @@ export function AgentScreen({ agentId }: { agentId: string }) {
         () => ((matchingRetry?.steer ?? steeringMessage)
           ? steerPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
           : sendPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
-        ).catch(async (err: unknown) => {
+        ).then(async (result) => {
+          if (matchingRetry?.steer ?? steeringMessage) await reconcilePhoneSteer(result.request_id);
+          return result;
+        }).catch(async (err: unknown) => {
           if (isDeliveryUncertain(err)) {
             const isSteer = matchingRetry?.steer ?? steeringMessage;
             setRetryPhoneSend({ text: messageText, files: selected, requestId: request, steer: isSteer, revision: submittedRevision, retryable: false });
@@ -890,7 +902,9 @@ export function AgentScreen({ agentId }: { agentId: string }) {
                   <button type="button" disabled={offline || busy} onClick={() => void act(async () => {
                     const requestId = heldRequestId || crypto.randomUUID();
                     try {
-                      return await steerPrompt(agentId, "", [], requestId);
+                      const result = await steerPrompt(agentId, "", [], requestId);
+                      await reconcilePhoneSteer(result.request_id);
+                      return result;
                     } catch (err) {
                       if (isDeliveryUncertain(err)) {
                         setRetryPhoneSend({ text: heldText, files: [], requestId, steer: true, revision: chatDraftRevision(agentId), retryable: false });
@@ -906,7 +920,8 @@ export function AgentScreen({ agentId }: { agentId: string }) {
                 )}
                 <button type="button" disabled={offline || busy} onClick={() => void act(async () => {
                   const result = await withdrawPrompt(agentId, heldId);
-                  if (result.message && (result.message.attachments ?? []).length === 0 && result.message.text) restoreChatDraft(agentId, result.message.text);
+                  await restoreWithdrawnDraft(agentId, result);
+                  await client.cancelQueries({ queryKey: ["held", agentId] });
                   return result;
                 }, false)}>
                   Withdraw

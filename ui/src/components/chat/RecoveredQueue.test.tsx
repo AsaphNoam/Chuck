@@ -11,12 +11,14 @@ const mocks = vi.hoisted(() => ({
   getHeldPrompt: vi.fn(),
   withdrawPrompt: vi.fn(),
   steerPrompt: vi.fn(),
+  dismissPromptRecovery: vi.fn(),
 }));
 vi.mock('../../api/client', async (original) => ({
   ...await original<typeof import('../../api/client')>(),
   getHeldPrompt: mocks.getHeldPrompt,
   withdrawPrompt: mocks.withdrawPrompt,
   steerPrompt: mocks.steerPrompt,
+  dismissPromptRecovery: mocks.dismissPromptRecovery,
 }));
 vi.mock('../../api/sse', () => ({
   sseClient: { registerOpenAgent: vi.fn(() => vi.fn()) },
@@ -32,9 +34,8 @@ vi.mock('../../api/config', async (original) => ({
 }));
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); });
 
-// RECOVERED-QUEUE-1 (FS-03.R90/R100): confirmed failing reproduction, kept skipped
-// during investigation. Reconcile draft/recovery ownership before enabling it.
-it.skip('restores withdrawn text to the draft without subsequently offering a second recovered copy', async () => {
+// RECOVERED-QUEUE-1 (FS-03.R90/R100): failed against the pre-fix implementation.
+it('restores withdrawn text to the draft without subsequently offering a second recovered copy', async () => {
   const agent = {
     agent_id: 'repro-agent', name: 'Nova', role: 'implementer', project: 'app',
     backend: 'claude', model: 'sonnet', interface: 'chat', running: true,
@@ -45,6 +46,9 @@ it.skip('restores withdrawn text to the draft without subsequently offering a se
   const message = { held_id: 'hold-1', request_id: 'receipt-1', text: 'inspect the tests', attachments: [] };
   mocks.getHeldPrompt.mockResolvedValue({ agent_id: 'repro-agent', ...message, after_seq: 1 });
   mocks.withdrawPrompt.mockResolvedValue({ withdrawn: true, message });
+  mocks.dismissPromptRecovery.mockImplementation(async () => {
+    mocks.getHeldPrompt.mockResolvedValue({ agent_id: 'repro-agent', text: '', after_seq: 0 });
+  });
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <MemoryRouter initialEntries={['/agent/repro-agent']}><Routes><Route path='/agent/:id' element={<ChatPanel />} /></Routes></MemoryRouter>
   </QueryClientProvider>);
@@ -52,18 +56,18 @@ it.skip('restores withdrawn text to the draft without subsequently offering a se
   fireEvent.click(withdraw);
   await waitFor(() => expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(message.text));
 
-  // This matches the server's GET after successful text withdrawal: the receipt is released.
-  mocks.getHeldPrompt.mockResolvedValue({ agent_id: 'repro-agent', text: '', after_seq: 0,
-    recovery: { request_id: message.request_id, text: message.text, attachments: [], delivery: 'released' } });
+  // The exact released receipt is acknowledged after durable draft restoration.
+  expect(mocks.dismissPromptRecovery).toHaveBeenCalledWith('repro-agent', message.request_id);
   act(() => useAgentStore.setState({ agents: { 'repro-agent': { ...agent, state: 'idle' } as never } }));
-  await waitFor(() => expect(mocks.getHeldPrompt).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(mocks.getHeldPrompt).toHaveBeenCalledTimes(3));
   expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(message.text);
+  expect(JSON.parse(localStorage.getItem('chuck-chat-drafts')!).drafts['repro-agent'].text).toBe(message.text);
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Send recovered message' })).toBeNull());
 });
 
 // RECOVERED-QUEUE-2 (FS-03.R50/R100): the real delayed-ack backend fixture also
 // confirms unknown is exposed during Steer and disappears after success.
-it.skip('clears a transient recovery snapshot once the matching Steer succeeds', async () => {
+it('clears a transient recovery snapshot once the matching Steer succeeds', async () => {
   const agent = {
     agent_id: 'steer-agent', name: 'Nova', role: 'implementer', project: 'app',
     backend: 'claude', model: 'sonnet', interface: 'chat', running: true,

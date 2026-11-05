@@ -843,6 +843,10 @@ canonical payload/result sizes within existing input limits and avoid retaining 
 Receipts follow the owning conversation's existing retention/permanent-deletion lifecycle;
 archival/reload does not erase the acceptance needed for harmless retry.
 
+Input receipt transitions emit bounded structured diagnostics with agent/request identity,
+operation, delivery state and fixed reason at queue acceptance/replacement, withdrawal, submission
+and uncertainty. Never log message bodies, attachment metadata/contents or raw provider errors.
+
 **R56 — Offline repair publishes one complete conversation at a time.** For
 FS-05.R43–R45, replace global reset followed by independently committed replay with one `sql.Tx`
 per agent. The transaction reads that agent's prior retained fields before deletion, removes only

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import * as Tabs from "@radix-ui/react-tabs";
-import { cancelTurn, getHeldPrompt, resumeAgent, setSessionConfig, switchRuntime } from "../../api/client";
+import { cancelTurn, resumeAgent, setSessionConfig, switchRuntime } from "../../api/client";
+import { readHeldRecovery } from "../../lib/heldMessage";
 import { useBackends, useProjects, useRoles } from "../../api/config";
 import { personaIdentityLabel } from "../../lib/personas";
 import type { AgentState } from "../../api/types";
@@ -84,9 +85,7 @@ function AgentPanel({ id }: { id: string }) {
   const events = useTranscriptStore((state) => state.byAgent[id] ?? []);
   const held = useHeldStore((state) => state.byAgent[id]);
   const heldAfterSeq = useHeldStore((state) => state.afterSeqByAgent[id] ?? 0);
-  const hold = useHeldStore((state) => state.hold);
   const releaseHeld = useHeldStore((state) => state.release);
-  const setRecovery = useHeldStore((state) => state.setRecovery);
   const pushError = useUiStore((state) => state.pushError);
   const { data: backends } = useBackends();
   const { data: projects } = useProjects();
@@ -135,15 +134,9 @@ function AgentPanel({ id }: { id: string }) {
   useEffect(() => {
     if (!agent || agent.interface !== "chat") return;
     let current = true;
-    getHeldPrompt(id).then((snapshot) => {
-      if (!current) return;
-      if (snapshot.text || snapshot.attachments?.length) hold(id, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id);
-      else releaseHeld(id);
-      setRecovery(id, snapshot.recovery ?? null);
-      useHeldStore.getState().setQueued(id, snapshot.queued ?? []);
-    }).catch(() => { /* SSE remains the primary agent-state path. */ });
+    void readHeldRecovery(id, () => current, true);
     return () => { current = false; };
-  }, [agent?.running, agent?.state, agent?.interface, id, hold, releaseHeld, setRecovery]);
+  }, [agent?.running, agent?.state, agent?.interface, id]);
 
   // A held message stops being pending the moment the server actually sends it,
   // which is when it enters the durable transcript as an ordinary user prompt.

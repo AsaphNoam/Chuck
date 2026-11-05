@@ -73,7 +73,7 @@ export function setChatDraft(agentId: string, text: string) {
     drafts[agentId] = { text, editedAt: newest };
   }
   bumpChatDraftRevision(agentId);
-  writeDrafts(drafts);
+  return writeDrafts(drafts);
 }
 
 export function discardChatDraft(agentId: string) {
@@ -95,8 +95,9 @@ export function discardChatDraft(agentId: string) {
 export function restoreChatDraft(agentId: string, text: string) {
   const current = live[agentId] ?? getChatDraft(agentId);
   const next = current ? `${text}\n\n${current}` : text;
-  setChatDraft(agentId, next);
+  const saved = setChatDraft(agentId, next);
   notifyDraft(agentId, next);
+  return saved;
 }
 
 
@@ -125,8 +126,10 @@ function readDrafts(): StoredDrafts {
 function writeDrafts(drafts: StoredDrafts) {
   try {
     window.localStorage.setItem(storageKey, JSON.stringify({ drafts: pruneDrafts(drafts) }));
+    return true;
   } catch {
     // Browser storage is optional: persistence failure must never block typing or Send.
+    return false;
   }
 }
 

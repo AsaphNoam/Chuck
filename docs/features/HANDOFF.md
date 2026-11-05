@@ -22,9 +22,11 @@ are not live queues.
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered). Self-targeted annotations remain open with three findings under
   SELF-ANNOTATIONS below.
-- **Field investigation:** RECOVERED-QUEUE is open for `/fix`: a transient uncertainty snapshot can
-  survive successful Steer; text withdrawal also duplicates the restored draft as recovery. Fresh
-  queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
+- **Recovery fix:** RECOVERED-QUEUE repairs and focused regressions are complete; full Go closure
+  checks are running (full untagged suite passed; SQLite FTS5 suite remains). UI tests pass
+  1,150/1,150 and production UI/Go builds pass. Withdrawal
+  acknowledges only durably restored text; successful Steer fences stale reads on desktop/phone.
+  Fresh queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
 - **Pipeline field investigation:** EFFORT-BUDGET awaits the affected worker's manifest and trace.
   Cause and fix are undetermined; no validated `/fix` unit or prompt change is recommended.
 - **Open field causes:** the frequent-429 provider failure and the unchecked permission-save

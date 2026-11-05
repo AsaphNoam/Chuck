@@ -2,7 +2,7 @@ import { AutoGrowTextarea } from "../ui";
 import { SendIcon, StopIcon } from "../ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { QUEUED_FOR_ASSIGNMENT_NOTICE, cancelTurn, sendPrompt, steerPrompt } from "../../api/client";
-import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
+import { readHeldRecovery, reconcileSteerRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
 import { QueuedInput } from "./QueuedInput";
 import { RunningTasks } from "./RunningTasks";
@@ -158,6 +158,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         : await sendPrompt(agentId, prompt, requestFiles, requestId);
       const acceptedAttachments = "attachments" in result ? result.attachments ?? [] : [];
       const acceptedRequestId = "request_id" in result ? result.request_id : undefined;
+      if (steeringMessage) await reconcileSteerRecovery(agentId, acceptedRequestId);
       if (!steeringMessage && "delivery" in result && result.delivery === "held") hold(agentId, prompt, result.after_seq, acceptedAttachments, "held_id" in result ? result.held_id : undefined);
       const attachmentStatus = "attachment_delivery" in result ? result.attachment_delivery : undefined;
       const queued = !steeringMessage && "delivery" in result && result.delivery === "queued";
@@ -333,6 +334,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       }
       const requestId = chatDraftRequestId(steeringAgentId) || crypto.randomUUID();
       const result = await steerPrompt(steeringAgentId, typed, [], requestId);
+      await reconcileSteerRecovery(steeringAgentId, result.request_id);
       const ownsComposer = currentAgentId.current === steeringAgentId;
       if (typed && chatDraftRevision(steeringAgentId) === submittedRevision) {
         discardChatDraft(steeringAgentId);

@@ -7,6 +7,7 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/state"
 	"io"
+	"log/slog"
 	"net/url"
 )
 
@@ -36,6 +37,12 @@ func (h heldMessage) message() Message {
 	return Message{Text: h.Text, Attachments: h.Attachments, RequestID: h.RequestID, HeldID: h.HeldID, recorded: h.recorded}
 }
 func (c *ChatRuntime) messageTransition(agentID, requestID, outcome string) error {
+	return c.messageTransitionReason(agentID, requestID, outcome, "delivery", "runtime_transition")
+}
+
+// Keep diagnostics to receipt identity and fixed vocabulary. Provider errors,
+// message bodies and attachment descriptors can contain private input.
+func (c *ChatRuntime) messageTransitionReason(agentID, requestID, outcome, operation, reason string) error {
 	if requestID == "" {
 		return nil
 	}
@@ -43,9 +50,21 @@ func (c *ChatRuntime) messageTransition(agentID, requestID, outcome string) erro
 	fn := c.messageOutcome
 	c.messageMu.RUnlock()
 	if fn != nil {
-		return fn(agentID, requestID, outcome)
+		if err := fn(agentID, requestID, outcome); err != nil {
+			return err
+		}
 	}
+	slog.Info("runtime: message delivery transition", "agent", boundedMessageIdentity(agentID),
+		"request_id", boundedMessageIdentity(requestID), "operation", operation, "delivery", outcome, "reason", reason)
 	return nil
+}
+
+func boundedMessageIdentity(id string) string {
+	const limit = 128
+	if len(id) > limit {
+		return id[:limit]
+	}
+	return id
 }
 func (c *ChatRuntime) SetMessageOutcomeHandler(fn func(string, string, string) error) {
 	c.messageMu.Lock()

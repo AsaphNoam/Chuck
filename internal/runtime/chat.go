@@ -610,12 +610,12 @@ func (c *ChatRuntime) SendMessageOrHold(ctx context.Context, agentID string, mes
 	}
 	turnID, claimed := as.claimTurnLocked()
 	if !claimed {
-		if err := c.messageTransition(as.agentID, as.held.RequestID, "released"); err != nil {
+		if err := c.messageTransitionReason(as.agentID, as.held.RequestID, "released", "queue", "replaced"); err != nil {
 			as.mu.Unlock()
 			return false, err
 		}
-		if err := c.messageTransition(as.agentID, message.RequestID, "held"); err != nil {
-			_ = c.messageTransition(as.agentID, as.held.RequestID, "held")
+		if err := c.messageTransitionReason(as.agentID, message.RequestID, "held", "queue", "accepted"); err != nil {
+			_ = c.messageTransitionReason(as.agentID, as.held.RequestID, "held", "queue", "replacement_failed")
 			as.mu.Unlock()
 			return false, err
 		}
@@ -655,7 +655,7 @@ func (c *ChatRuntime) WithdrawHeldExpected(agentID, expectedID string) (Message,
 		return Message{}, false, ErrHeldChanged
 	}
 	removed := as.held.message().copy()
-	if err := c.messageTransition(agentID, as.held.RequestID, "released"); err != nil {
+	if err := c.messageTransitionReason(agentID, as.held.RequestID, "released", "withdraw", "withdrawn"); err != nil {
 		as.mu.Unlock()
 		return Message{}, false, err
 	}
@@ -792,7 +792,7 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 	}
 	// Reserve uncertainty durably before the native call. A failed receipt
 	// update after consumption must not leave a replay claiming confirmed success.
-	if err := c.messageTransition(agentID, message.RequestID, "unknown"); err != nil {
+	if err := c.messageTransitionReason(agentID, message.RequestID, "unknown", "steer", "native_call_pending"); err != nil {
 		as.resolveSteerFallback("", err, promoted)
 		if persisted {
 			return "", fmt.Errorf("%w: delivery receipt unavailable", ErrMessageAccepted)
@@ -825,7 +825,7 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		}
 	}
 	if err == nil {
-		if receiptErr := c.messageTransition(agentID, message.RequestID, "submitted"); receiptErr != nil {
+		if receiptErr := c.messageTransitionReason(agentID, message.RequestID, "submitted", "steer", "provider_acknowledged"); receiptErr != nil {
 			return outcome, errors.Join(ErrMessageAccepted, receiptErr)
 		}
 	}
@@ -855,7 +855,11 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 				as.mu.Unlock()
 			}
 		}
-		_ = c.messageTransition(agentID, message.RequestID, state)
+		reason := "provider_error"
+		if refused {
+			reason = "provider_refused"
+		}
+		_ = c.messageTransitionReason(agentID, message.RequestID, state, "steer", reason)
 		if persisted {
 			return outcome, errors.Join(ErrMessageAccepted, err)
 		}
@@ -1079,7 +1083,7 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 		as.mu.Unlock()
 		return fmt.Errorf("runtime: could not retain the accepted message")
 	}
-	if err := c.messageTransition(as.agentID, message.RequestID, "submitted"); err != nil {
+	if err := c.messageTransitionReason(as.agentID, message.RequestID, "submitted", "prompt", "provider_submission"); err != nil {
 		as.mu.Lock()
 		as.turnActive = false
 		as.mu.Unlock()
@@ -1117,7 +1121,7 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 		as.fileReportMeta(params)
 		res, err := as.transport.Call(as.ctx, "session/prompt", params)
 		if err != nil {
-			_ = c.messageTransition(as.agentID, message.RequestID, "unknown")
+			_ = c.messageTransitionReason(as.agentID, message.RequestID, "unknown", "prompt", "provider_error")
 			// Transport closed (crash/stop) is owned by onTransportClosed / Stop.
 			// A genuine RPC error while the process lives surfaces here.
 			if errors.Is(err, errTransportClosed) || as.isStopped() {
@@ -1847,7 +1851,7 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		res, err := as.transport.Call(as.ctx, "session/prompt", params)
 		if err != nil {
 			if carried {
-				_ = c.messageTransition(as.agentID, personMessage.RequestID, "unknown")
+				_ = c.messageTransitionReason(as.agentID, personMessage.RequestID, "unknown", "prompt", "provider_error")
 			}
 			if errors.Is(err, errTransportClosed) || as.isStopped() {
 				return

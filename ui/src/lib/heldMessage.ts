@@ -1,4 +1,4 @@
-import { getHeldPrompt, withdrawPrompt } from "../api/client";
+import { dismissPromptRecovery, getHeldPrompt, withdrawPrompt, type WithdrawnPrompt } from "../api/client";
 import { restoreChatDraft } from "../components/chat/drafts";
 import { useHeldStore } from "../store/heldStore";
 
@@ -13,6 +13,28 @@ import { useHeldStore } from "../store/heldStore";
 // Overlapping withdrawals of one agent's hold, from either surface, share one
 // call so the held text is restored exactly once (INV §11).
 const withdrawing = new Map<string, Promise<void>>();
+// Only outstanding reads are retained. A completed mutation invalidates reads
+// that began before it, so a late uncertainty snapshot cannot undo success.
+const reads = new Set<{ agentId: string; stale: boolean }>();
+
+export function invalidateHeldReads(agentId: string) {
+  for (const read of reads) if (read.agentId === agentId) read.stale = true;
+}
+
+export async function restoreWithdrawnDraft(agentId: string, result: WithdrawnPrompt) {
+  const message = result.withdrawn ? result.message : undefined;
+  if (!message?.text || message.attachments?.length) return;
+  const saved = restoreChatDraft(agentId, message.text);
+  // Never give up the durable server copy when browser storage refused it.
+  if (saved && message.request_id) await dismissPromptRecovery(agentId, message.request_id);
+}
+
+export async function reconcileSteerRecovery(agentId: string, requestId?: string) {
+  invalidateHeldReads(agentId);
+  const store = useHeldStore.getState();
+  if (requestId && store.recoveryByAgent[agentId]?.request_id === requestId) store.setRecovery(agentId, null);
+  await readHeldRecovery(agentId);
+}
 
 export function withdrawHeldMessage(agentId: string): Promise<void> {
   const existing = withdrawing.get(agentId);
@@ -27,22 +49,35 @@ async function withdrawOnce(agentId: string): Promise<void> {
   const expectedID = store.heldIdByAgent[agentId];
   const result = await withdrawPrompt(agentId, expectedID);
   const message = result.withdrawn ? result.message : undefined;
-  const text = message?.text ?? "";
   const attachments = message?.attachments ?? [];
   const hadAttachments = attachments.length > 0;
+  invalidateHeldReads(agentId);
   useHeldStore.getState().release(agentId);
-  if (hadAttachments) await readHeldRecovery(agentId);
-  else if (text) restoreChatDraft(agentId, text);
+  try {
+    if (!hadAttachments) await restoreWithdrawnDraft(agentId, result);
+  } finally {
+    invalidateHeldReads(agentId);
+    if (hadAttachments || message?.request_id) await readHeldRecovery(agentId);
+  }
 }
 
 // Reads the recovery offer after a completed withdrawal. A failed read is shown
 // with a retry that only reads again; the withdrawal is never repeated (INV §8).
-export async function readHeldRecovery(agentId: string): Promise<void> {
+export async function readHeldRecovery(agentId: string, isCurrent = () => true, includeHold = false): Promise<void> {
+  const read = { agentId, stale: false };
+  reads.add(read);
   try {
     const snapshot = await getHeldPrompt(agentId);
+    if (read.stale || !isCurrent()) return;
+    if (includeHold) {
+      if (snapshot.text || snapshot.attachments?.length) useHeldStore.getState().hold(agentId, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id);
+      else useHeldStore.getState().release(agentId);
+    }
     useHeldStore.getState().setRecovery(agentId, snapshot.recovery ?? null);
     useHeldStore.getState().setQueued(agentId, snapshot.queued ?? []);
   } catch {
-    useHeldStore.getState().markRecoveryUnread(agentId);
+    if (!read.stale && isCurrent()) useHeldStore.getState().markRecoveryUnread(agentId);
+  } finally {
+    reads.delete(read);
   }
 }

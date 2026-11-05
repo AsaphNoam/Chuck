@@ -1092,6 +1092,10 @@ or 200 `{withdrawn:false}` for no hold; an expected-ID mismatch returns 409 `hel
 Bundled clients use the returned content, never cached content. Fields are additive; legacy callers
 omitting the expectation can still withdraw the current hold but must use the authoritative reply.
 No-hold is idempotent and cannot revive already delivered content.
+After durable text-draft restoration, bundled clients acknowledge the exact returned `request_id`
+through the existing recovery-dismiss DELETE. They retain recovery if draft persistence fails.
+Successful Steer refreshes recovery and fences reads started before that success; only its matching
+receipt is cleared locally, preserving unrelated recovery.
 
 **R75 — Annotation assignment can omit source recording.** For FS-13.R35,
 the session annotation and validation endpoints accept additive `omit_source_record?: boolean`;
