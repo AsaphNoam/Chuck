@@ -20,6 +20,9 @@ are not live queues.
 - **Review state:** CI-CARDGRID and TASK-FORM are open for `/fix`. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered).
+- **Field investigation:** RECOVERED-QUEUE is open for `/fix`: a transient uncertainty snapshot can
+  survive successful Steer; text withdrawal also duplicates the restored draft as recovery. Fresh
+  queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
 - **Open field causes:** the frequent-429 provider failure and the unchecked permission-save
   toggle remain unmeasured; each needs affected server evidence if it recurs.
 - **Checkout:** `main`, repository `AsaphNoam/Chuck`. Clean release verification may use a
@@ -219,6 +222,87 @@ None.
 
 ## Review findings
 
+### RECOVERED-QUEUE — recovered messages after queue use (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report (verbatim):** “the 'recovered message' feature shows a recovered message whenever you use
+the queue (send a message while the agent is mid run) regardless of if you ended up leaving it
+there, steering or withdrawing.” Reported version, agent identity, desktop/phone surface and exact
+timing were not supplied; no logs were attached. Investigated source at `a674e6bc` on macOS;
+read-only local `$CHUCK_HOME` receipt/transcript/dashboard evidence was also inspected, but the
+report did not identify one of those conversations as the affected example.
+**Clarification (verbatim):** “message I just queued, agter the turn ended.” The reported card
+contains the newly queued text, rather than an older message; exact agent/time remain unknown.
+The clean natural-turn-end fixture does not reproduce that path.
+
+**Expected behavior / classification:** FS-03.R48/R49/R50 require pending input to remain held,
+then become delivered once, including promotion through Steer. R90 restores withdrawn text to the
+composer; R100 extends durable explicit recovery to released/uncertain text receipts. These paths
+need coherent recovery ownership without dropping genuinely uncertain input. Successful-Steer
+stale recovery is a code defect; withdrawal exposes a contract gap between draft restoration and
+retained recovery that needs a coordinated fix. The broader claim that every queue creates recovery
+is **undetermined**, not established by the available evidence.
+
+- **Must fix** — **Confirmed; code/spec interaction** — **RECOVERED-QUEUE-1: text restored after withdrawal remains offered
+  as a separate recovered message.** FS-03.R90/R100; TS-03.R74; INV §1/§8/§11/§15.
+  `internal/runtime/chat.go:658` marks the withdrawn receipt `released`;
+  `ui/src/lib/heldMessage.ts:25-35` restores its text to the composer but never acknowledges that
+  recovery record. `internal/state/attachment_receipts.go:90` selects it on the next GET, and
+  `ui/src/components/chat/ChatPanel.tsx:135-146` / `TranscriptView.tsx:235-238` show a separate
+  “Message not delivered” / “Send recovered message” offer. Phone has the same split at
+  `ui/src/remote/AgentScreen.tsx:908-925` and refreshes after withdrawal. Trigger: queue text,
+  successfully withdraw, then refresh the recovery snapshot (or let the current turn finish).
+  The composer already contains the returned input; the extra offer survives reload and unrelated
+  sends, inviting duplicate submission. Coordinate acknowledgement of the exact withdrawn request
+  with successful draft restoration; preserve recovery when the response/draft handoff fails,
+  preserve unrelated older uncertain receipts and attachment recovery, and do not clear all recovery
+  merely because a queue or Steer succeeded. Regression: real released receipt on successful
+  withdrawal, retained restored draft, refreshed snapshot, and one explicit resend decision.
+
+- **Must fix** — **Confirmed; code defect** — **RECOVERED-QUEUE-2: a transient recovery snapshot survives
+  successful Steer.** FS-03.R50/R100; TS-03.R74; INV §1/§8/§11. During promoted Steer,
+  `internal/runtime/chat.go:795` records `unknown` before awaiting the native reply; GET prompt
+  legitimately exposes that uncertainty. A ChatPanel read on turn-end/state change can cache it.
+  Successful Steer sets the receipt `submitted` at `chat.go:828`, but
+  `ui/src/components/chat/Composer.tsx:335-348` releases held state without refreshing the recovery
+  snapshot. `heldStore.ts:46-66` preserves recovery independently. The success notice and a
+  “may already have reached the agent” recovery offer then coexist for that same request until
+  another qualifying refresh. The real delayed-ack fake-provider probe confirms GET returns
+  unknown during the native call and no recovery after success; the actual ChatPanel/Composer
+  reproduction fails because the already-loaded card survives that success. Reconcile matching
+  recovery with the authoritative successful receipt, guard older in-flight reads, and preserve
+  unrelated recovery. Cover turn end during Steer and a delayed read completing after success.
+
+- **Worth fixing** — **Confirmed; observability gap** — **RECOVERED-QUEUE-3: request logs cannot attribute a recovery
+  card to a queue transition.** Investigation §12.5; TS-02.R55 (no invariant class).
+  Ordinary request logs identify
+  method/path/status, while `messageTransition` (`internal/runtime/message.go:38-48`) and
+  `SetAttachmentDelivery` (`internal/state/attachment_receipts.go:73-75`) retain no transition
+  diagnostic. Current receipts hold only the latest state/timestamp, so the available logs cannot
+  establish whether the displayed copy was the just-held input, a replaced/withdrawn receipt, or
+  an older provider failure. Add bounded structured diagnostics with agent/request identity,
+  operation, delivery transition and reason at acceptance/release/submission/uncertainty; never
+  log message bodies or attachment contents. Verify queue, replacement, withdrawal, successful
+  Steer and provider-error diagnostics identify the exact receipt without leaking payloads.
+
+**Evidence and limits:** a fresh fake-provider HTTP/runtime matrix confirms no `recovery` while
+held, after natural delivery, or after successful Steer; withdrawal returns a `released` recovery,
+and replacing a hold retains the older released input. All four probe cases pass their observed
+state assertions; an additional delayed-ack Steer case passes. Replacement retention is consistent
+with R100 and is not independently labelled a defect. Two actual ChatPanel/Composer reproductions
+fail at the intended no-duplicate/no-stale-card assertions, independently rerun and retained skipped
+in `ui/src/components/chat/RecoveredQueue.test.tsx` (finding IDs in test comments). All 138 existing
+Composer/ChatPanel/TranscriptView tests pass; their mocked HTTP responses do not cover these
+handoffs. Backend probes and UI execution logs are under `/private/tmp/queue-recovery-*.log` and
+`/private/tmp/recovered-ui-independent.log`; probe source/overlay is in the investigation workspace.
+Local persisted evidence has 37 submitted receipts,
+six unknown (five dismissed), and two dismissed released receipts; no held receipts at inspection.
+Two recent unknown receipts in `a_e9646f` match logged provider content-filter errors at
+2026-11-05 08:31:54Z and 08:59:26Z, after canonical user events and provider output. They establish
+another source of recovery, not attribution of this report. Unknown recovery itself is required by
+R100. History: `2268e279`/`07599b77` extended media receipts to text without adding a withdrawal
+draft acknowledgement. No product code, specs, user state, provider sessions or unrelated dirty
+files were changed. Exact affected request/timing remains needed to confirm the broader symptom.
+
 ### TASK-FORM — Standard task creation form (`17e050fb`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 - **Must fix** — **TASK-FORM-1: server prerequisite validation leaves correction fields collapsed.**
@@ -262,6 +346,13 @@ None.
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-05 — Queue recovery investigation:** RECOVERED-QUEUE records confirmed withdrawal
+  duplication, successful-Steer stale recovery and missing receipt-transition diagnostics. Two UI
+  reproductions fail when enabled and are retained skipped; five real-handler/fake-provider probe
+  cases pass. Existing focused UI tests (138), TypeScript, spec integrity and diff checks pass.
+  Natural queued delivery remains unreproduced; no live mutation/provider call or product/spec
+  change. Unrelated ideas and generated UI edits preserved.
 
 - **2026-11-05 — Quiet task coordination:** `make test` (both Go variants and spec checks),
   `make build`, link-target and `git diff --check` passed for this unit; Go commands used
