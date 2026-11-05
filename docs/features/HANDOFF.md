@@ -37,14 +37,7 @@ are not live queues.
 
 ## Active change
 
-**HTML-PREVIEW — implemented; closure in progress.** FS-03.R109/A85, TS-08.R152 and
-TS-03.R79. Viewer/menu/HTTP/native-argv focused tests, full UI suite (1,141 passed), UI build,
-and 20/20 Chromium checks pass (live/archive/retained room, scripts/styles, sandbox/CSP,
-Source/Reload, docked/Focus menus and source-specific dispatch). `make embed` and tagged
-`make build` pass in `/private/tmp/chuck-html-embed-20261105`; its generated index is staged
-without changing the pre-existing dirty working embed/index or `docs/ideas.md`.
-Next: finish loopback-enabled `make test` (`/tmp/chuck-html-go-tests-approved.log`), then
-close this unit and add it to Review queue. Native launch receipt remains below.
+None.
 
 ## Acceptance gates still owed
 
@@ -215,6 +208,18 @@ close this unit and add it to Review queue. Native launch receipt remains below.
   switch shows it above the composer.
 
 ## Review queue
+
+- **Self-contained HTML file previews** (`d2a7caad`, 2026-11-05): FS-03.R109/A85,
+  TS-08.R152 and TS-03.R79 — Rendered/Source HTML in shared file tabs, opaque script sandbox,
+  initial subresource/fetch CSP, and explicit **Open in browser** menus for local conversations
+  and retained room sources; phone cannot launch host applications. Full UI suite (1,141 passed),
+  UI build, and both Go variants via loopback-enabled `make test` pass. Final Go log:
+  `/tmp/chuck-html-go-tests-final.log`; Chromium 20/20 with screenshots/report in
+  `/tmp/chuck-html-preview-journey` (live/archive/retained room, CSS/scripts/isolation,
+  Source/Reload, docked/Focus menus and dispatch). `make embed` and tagged `make build` pass
+  in `/private/tmp/chuck-html-embed-20261105`; generated index is committed while the original
+  dirty working index/assets and `docs/ideas.md` remain preserved. `bin/chuck` contains this
+  built UI and backend. Native default-browser receipt remains owed above.
 
 - **Quiet task coordination** (2026-11-05): FS-16.R49 / FS-14.R76 / TS-09.R49 — shared task
   guidance keeps routine progress and user-requested adjustments in final results, preserving
@@ -410,6 +415,10 @@ files were changed. Exact affected request/timing remains needed to confirm the 
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-05 — HTML preview:** self-contained HTML now renders inside existing file tabs,
+  with Source and explicit default-browser context actions. Automated closure passes; native
+  browser launch remains unverified in this environment (no configured browser).
 
 - **2026-11-05 — Project chat search feature draft:** operator confirmed non-archived first,
   running before stopped, and opening at the displayed excerpt; requested an established package.
