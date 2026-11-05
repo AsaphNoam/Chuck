@@ -193,11 +193,6 @@ None.
 
 ## Design consistency notes
 
-- **HTML preview navigation:** the opaque script sandbox and initial CSP deny parent/storage
-  access and subresource/fetch loading. Native self-navigation remains possible and sandboxed;
-  the preview is not a general network-isolation boundary. A Chromium sentinel confirmed this;
-  parent `frame-src 'none'` also blocked srcdoc, so no broader browsing mechanism was added.
-
 - Next presentation review: decide whether crisp asymmetric technical-surface radii are deliberate
   under FS-12.R52.
 - When direct-action work resumes, align TS-01.R25/TS-03.R32 with TS-04.R40 and scope FS-17
@@ -208,18 +203,6 @@ None.
   switch shows it above the composer.
 
 ## Review queue
-
-- **Self-contained HTML file previews** (`d2a7caad`, 2026-11-05): FS-03.R109/A85,
-  TS-08.R152 and TS-03.R79 — Rendered/Source HTML in shared file tabs, opaque script sandbox,
-  initial subresource/fetch CSP, and explicit **Open in browser** menus for local conversations
-  and retained room sources; phone cannot launch host applications. Full UI suite (1,141 passed),
-  UI build, and both Go variants via loopback-enabled `make test` pass. Final Go log:
-  `/tmp/chuck-html-go-tests-final.log`; Chromium 20/20 with screenshots/report in
-  `/tmp/chuck-html-preview-journey` (live/archive/retained room, CSS/scripts/isolation,
-  Source/Reload, docked/Focus menus and dispatch). `make embed` and tagged `make build` pass
-  in `/private/tmp/chuck-html-embed-20261105`; generated index is committed while the original
-  dirty working index/assets and `docs/ideas.md` remain preserved. `bin/chuck` contains this
-  built UI and backend. Native default-browser receipt remains owed above.
 
 - **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
   Current agent is available for any non-archived source; the handler wakes a stopped source,
@@ -378,6 +361,27 @@ files were changed. Exact affected request/timing remains needed to confirm the 
   clean-clone CI is red until fixed.
 
 ## Changelog
+
+- **2026-11-05 — HTML preview review closed without findings:** reviewed `d2a7caad` and
+  administrative follow-up `be5505f8` against FS-03.R109/A85, TS-08.R152 and TS-03.R79.
+  Independent Chromium journey passes 20/20; extended sweep passes 44/44 across all four
+  appearances at 1024/1440px, including docked/Focus menus and live/archive/retained-room
+  dispatch. Captures inspected for containment, controls, contrast and menu stacking; reports
+  and screenshots: `/private/tmp/html-review-20261105` and
+  `/private/tmp/html-review-appearances-20261105`; extended harness:
+  `/private/tmp/html-review-extra.mjs`. Focused UI tests pass 89/89; focused Go browser route
+  and Darwin argv tests, spec integrity, style/presentation checks and diff checks pass.
+  API stubs establish frontend dispatch, while real-handler tests establish backend routing;
+  neither closes the native default-browser gate above. Confirmed the local navigation choice:
+  the initial CSP restricts loads, while native self-navigation remains sandboxed as specified.
+  Legacy-encoded HTML remains refused by the existing UTF-8 file-read authority
+  (FS-03.R64/A48, TS-03.R40); this review does not infer new encoding support from R79.
+  Invariant sweep: §§1/2/4/8/9/10/11/12/13/14/16/17 apply (reload/menu state, shared helpers,
+  listener cleanup, errors, timeouts, caller wiring, messages, native argv, selectors, local
+  guard, bounded reads and test oracles); no violation found. §§3/5/6/7/15 have no changed
+  applicable surface. Tests observe requirement outcomes at component, HTTP, argv and real
+  browser boundaries; no TS-06.R35/INV §17 finding. **Fix model:** not applicable — no open fixes.
+  Product/spec files and unrelated dirty ideas/generated index preserved; other queues unchanged.
 
 - **2026-11-05 — Task-form fix (INV §8):** TASK-FORM-1 closed; typed prerequisite/context
   refusals reopen Advanced and retain the draft. The existing rendered request-boundary regression
