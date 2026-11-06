@@ -299,7 +299,7 @@ export function decidePermission(agentId: string, toolCallId: string, decision: 
 }
 
 export function sendAnnotations(agentId: string, batch: AnnotationBatch) {
-  return json<{ accepted: true; seq: number; delivery?: "sent" | "held" | "steered" | "new_turn" }>(`/api/sessions/${agentId}/annotations`, {
+  return json<{ accepted: true; seq: number; delivery?: "sent" | "held" | "steered" | "new_turn" | "queued" }>(`/api/sessions/${agentId}/annotations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(batch),

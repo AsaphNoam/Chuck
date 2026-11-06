@@ -9,6 +9,21 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
+// admitConversationInput is shared by ordinary messages and self annotations:
+// assignment ownership and run continuation precede any standalone runtime turn.
+func (s *Server) admitConversationInput(ctx context.Context, receipt state.AttachmentReceipt, msg runtime.Message) (state.AttachmentReceipt, bool, error) {
+	taskID, queued, err := s.stateStore.QueueAssignmentInput(receipt)
+	if err != nil {
+		return state.AttachmentReceipt{}, false, err
+	}
+	if queued {
+		receipt.Delivery, receipt.AssignmentTaskID = "prepared", taskID
+		return receipt, true, nil
+	}
+	continued, ok := s.continueRunFromConversation(ctx, receipt, msg)
+	return continued, ok, nil
+}
+
 // continueQueuedInput moves a person's queued assignment input toward its
 // delivery. Waiting assignments resume through their ordinary continuation,
 // whose activation turn carries the input; input whose assignment is already

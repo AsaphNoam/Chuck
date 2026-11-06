@@ -1,16 +1,65 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
+	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
+
+// FS-13.R37 adopts TS-09.R69: the annotation must join the assignment's
+// continuation, never start an independent idle turn. Observe durable ownership
+// and the provider wire, including retry and startup recovery of accepted input.
+func TestSelfAnnotationWaitingAssignmentContinuation(t *testing.T) {
+	srv, ts, promptLog := activationTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	task, err := srv.stateStore.CreateTask(state.Task{TaskID: "tk_annotation_wait", Project: "tmpproj", DisplayName: "Work", Instruction: "coordinate", TargetKind: state.TargetAgent, TargetAgentID: id, CreatedByKind: "pipeline"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id=?, assigned_generation=?, started_at=created_at WHERE task_id=?`, id, srv.taskGeneration(id), task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	code, body := selfAnnotation(t, ts.URL, id, "assignment-1", false)
+	if code != http.StatusAccepted || fieldOf(t, body, "delivery") != "queued" {
+		t.Fatalf("annotation not queued: %d %s", code, body)
+	}
+	if err := srv.stateStore.ReleaseRestartedAttachments(); err != nil {
+		t.Fatal(err)
+	}
+	if rec, err := srv.stateStore.AttachmentReceipt(id, "annotation-assignment-1"); err != nil || rec.Delivery != "prepared" || rec.AssignmentTaskID != task.TaskID {
+		t.Fatalf("queued receipt: %+v %v", rec, err)
+	}
+	// Simulate interruption after durable admission but before final annotation
+	// acceptance; retry must reconcile the input rather than queue another copy.
+	if err := srv.stateStore.SetAnnotationEffect(id, "assignment-1", "", "unknown"); err != nil {
+		t.Fatal(err)
+	}
+	if code, body := selfAnnotation(t, ts.URL, id, "assignment-1", false); code != http.StatusAccepted {
+		t.Fatalf("replay: %d %s", code, body)
+	}
+	srv.dispatchReadyTasks(context.Background())
+	dispatchUntilTaskState(t, srv, task.TaskID, state.TaskRunning)
+	waitPrompts(t, promptLog, 1)
+	raw, err := os.ReadFile(promptLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(raw), "review assignment-1") != 1 {
+		t.Fatalf("annotation must cross wire once: %s", raw)
+	}
+	if annotationEventCount(t, srv, id) != 1 {
+		t.Fatal("replay duplicated annotation source")
+	}
+}
 
 // FS-13.R37 / TS-03.R78: a self-targeted batch is delivered like an ordinary
 // chat message — woken, held or steered — rather than refused.

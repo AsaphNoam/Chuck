@@ -9,6 +9,7 @@ import { setupServer } from "msw/node";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { useHeldStore } from "../../store/heldStore";
+import { useUiStore } from "../../store/uiStore";
 import { AnnotationTray } from "./AnnotationTray";
 import { RoomAnnotationTray } from "../../features/thinktank/RoomAnnotationTray";
 import { roomAnnotationSource } from "../../features/thinktank/roomText";
@@ -29,6 +30,7 @@ afterAll(() => server.close());
 afterEach(() => {
   cleanup();
   useAgentStore.setState({ agents: {} });
+  useHeldStore.setState({ byAgent: {}, queuedByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {} });
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {} });
   server.resetHandlers();
   launches = 0;
@@ -82,6 +84,20 @@ describe("AnnotationTray", () => {
   });
   // FS-13.R37: a busy steerable source offers Steer beside Send; Send queues
   // the batch as the held follow-up and Steer is a new command into the turn.
+  it.each([
+    ["steered", "Delivered into the running turn."],
+    ["new_turn", "That turn had already ended — sent as a new turn."],
+  ])("retains desktop feedback after annotation Steer returns %s and clears the tray", async (delivery, wording) => {
+    seedTray(1);
+    useUiStore.setState({ toasts: [] });
+    useAgentStore.setState({ agents: { source: { ...sourceAgent, state: "busy", steering_available: true } } });
+    server.use(http.post("/api/sessions/source/annotations", () => HttpResponse.json({ accepted: true, seq: 4, delivery }, { status: 202 })));
+    renderTray();
+    fireEvent.click(screen.getByRole("button", { name: "Steer" }));
+    await waitFor(() => expect(useAnnotationStore.getState().bySource.source ?? []).toHaveLength(0));
+    expect(screen.queryByRole("button", { name: "Steer" })).toBeNull();
+    expect(useUiStore.getState().toasts.some((toast) => toast.title === wording)).toBe(true);
+  });
   it("queues or steers a self batch while the source is busy", async () => {
     seedTray(1);
     useAgentStore.setState({ agents: { source: { ...sourceAgent, state: "busy", steering_available: true } } });
@@ -105,7 +121,7 @@ describe("AnnotationTray", () => {
     expect(submitted[1].target).toEqual({ kind: "self", steer: true });
     expect(submitted[1].command_id).not.toBe(submitted[0].command_id);
     await waitFor(() => expect(useAnnotationStore.getState().bySource.source ?? []).toHaveLength(0));
-    expect(useHeldStore.getState().byAgent.source).toBeUndefined();
+    await waitFor(() => expect(useHeldStore.getState().byAgent.source).toBe("queued block"));
   });
 
   it("shows a queued self batch as the held follow-up", async () => {
@@ -120,6 +136,18 @@ describe("AnnotationTray", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
     await waitFor(() => expect(useHeldStore.getState().byAgent.source).toBe("queued block"));
     useHeldStore.getState().release("source");
+  });
+
+  it.each(["queued", undefined])("rehydrates assignment input after self acceptance with delivery %s", async (delivery) => {
+    seedTray(1);
+    const queued = [{ request_id: "annotation-1", text: "annotation block", attachments: [], assignment_task_id: "task-1" }];
+    server.use(
+      http.post("/api/sessions/source/annotations", () => HttpResponse.json({ accepted: true, seq: 4, delivery }, { status: 202 })),
+      http.get("/api/sessions/source/prompt", () => HttpResponse.json({ text: "", queued })),
+    );
+    renderTray();
+    fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
+    await waitFor(() => expect(useHeldStore.getState().queuedByAgent.source).toEqual(queued));
   });
   // FS-13.R34/A24: empty -> capture is a new opening, while adding to a
   // nonempty batch preserves the chosen scope, instructions and recipient.

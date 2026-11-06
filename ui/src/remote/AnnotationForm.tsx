@@ -17,7 +17,7 @@ const noDrafts: AnnotationDraft[] = [];
 /** The phone's projection for the shared delivery state machine (TS-08.R135).
  *  A batch sent to a newly launched agent opens that agent only after its
  *  delivery is acknowledged (FS-13.R30). */
-export function usePhoneAnnotationDelivery(sourceId: string, agent: AgentState | undefined) {
+export function usePhoneAnnotationDelivery(sourceId: string, agent: AgentState | undefined, feedback?: { onNotice: (text: string) => void; onSelfDelivered: () => void }) {
   const agents = useConnection((state) => state.agents);
   const connected = useConnection((state) => state.link === "connected");
   const recipients = Object.values(agents).filter(
@@ -29,6 +29,7 @@ export function usePhoneAnnotationDelivery(sourceId: string, agent: AgentState |
     source: agent,
     recipients,
     connected,
+    ...feedback,
     onLaunchDelivered: (agentId) => navigate(`/agent/${encodeURIComponent(agentId)}`),
   });
 }

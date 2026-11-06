@@ -8,6 +8,7 @@ import { useAnnotationDelivery } from "../components/chat/annotationDelivery";
 import { PhoneAnnotations, usePhoneAnnotationDelivery } from "./AnnotationForm";
 import { useConnection } from "./connection";
 import { AgentScreen } from "./AgentScreen";
+import { getHeldPrompt } from "../api/client";
 
 // Deferred launch/delivery races for the shared annotation owner
 // (FS-13.R29–R30, TS-08.R134–R135, INV §1).
@@ -34,6 +35,7 @@ function deferred<T>() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(getHeldPrompt).mockResolvedValue({ agent_id: "a1", text: "", after_seq: 0 });
   mocks.validate.mockResolvedValue({ valid: true });
   mocks.send.mockResolvedValue({ accepted: true });
   useAnnotationStore.setState({ bySource: { a1: [draft] }, overallBySource: {}, editedAt: {}, collapsedBySource: {}, commandBySource: {}, launchedBySource: {}, targetBySource: {}, recipientBySource: {}, recordSourceBySource: {}, launchBatchBySource: {} });
@@ -162,6 +164,36 @@ it("keeps a new event capture made while an earlier send is pending", async () =
   await act(async () => { pending.resolve({ accepted: true }); await pending.promise; });
   expect(mocks.send.mock.calls[0][1].annotations).toHaveLength(1);
   expect(useAnnotationStore.getState().bySource.a1).toEqual([expect.objectContaining({ seq: 2, excerpt: "second response" })]);
+});
+
+it.each([
+  ["steered", "Delivered into the running turn."],
+  ["new_turn", "That turn had already ended — sent as a new turn."],
+])("keeps phone annotation Steer feedback after %s clears the sheet", async (delivery, wording) => {
+  useConnection.setState({ agents: { a1: { ...agent, state: "busy", steering_available: true } } });
+  mocks.send.mockResolvedValue({ accepted: true, delivery });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><AgentScreen agentId="a1" /></QueryClientProvider>);
+  fireEvent.click(await screen.findByRole("button", { name: /Pending annotations/ }));
+  const sheet = screen.getByRole("dialog");
+  fireEvent.click(within(sheet).getByRole("button", { name: "Steer" }));
+  expect(await screen.findByText(wording)).toBeInTheDocument();
+  expect(useAnnotationStore.getState().bySource.a1).toBeUndefined();
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("shows assignment-queued annotations on the phone without a state-change event", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><AgentScreen agentId="a1" /></QueryClientProvider>);
+  await screen.findByText("second response");
+  await waitFor(() => expect(getHeldPrompt).toHaveBeenCalled());
+  mocks.send.mockResolvedValue({ accepted: true, delivery: "queued" });
+  vi.mocked(getHeldPrompt).mockResolvedValue({ agent_id: "a1", text: "", after_seq: 0, queued: [
+    { request_id: "annotation-1", text: "retained annotation instruction", assignment_task_id: "task-1", attachments: [] },
+  ] });
+  fireEvent.click(screen.getByRole("button", { name: /Pending annotations/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
+  expect(await screen.findByRole("region", { name: "Queued for this assignment" })).toHaveTextContent("retained annotation instruction");
 });
 
 it("reuses the persisted command id after a lost delivery response", async () => {

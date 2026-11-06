@@ -248,6 +248,28 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 				writeAPIError(w, apiError(runtime.CodeConflict, "command id already belongs to different annotation content"))
 				return
 			}
+			// Assignment admission may have committed before the annotation's
+			// final acceptance was recorded. Its durable input receipt resolves
+			// that crash window without repeating the continuation or enqueue.
+			if body.Target.Kind == "self" && !body.Target.Steer && receipt.State != "accepted" {
+				if input, inputErr := s.stateStore.AcceptedAttachmentReceipt(sourceID, "annotation-"+commandID); inputErr == nil {
+					expected := runtime.Message{Text: runtime.FormatAnnotationBlock(body), RequestID: input.RequestID}
+					if input.PayloadHash != messagePayloadHash("prompt", expected) {
+						writeAPIError(w, apiError(runtime.CodeConflict, "annotation input identity already belongs to different content"))
+						return
+					}
+					if err := s.stateStore.SetAnnotationEffect(sourceID, commandID, "input:"+input.RequestID, "accepted"); err != nil {
+						writeAPIError(w, apiError(runtime.CodeInternal, "cannot reconcile annotation acceptance"))
+						return
+					}
+					s.continueQueuedInput()
+					writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "seq": receipt.SourceSeq, "command_id": commandID})
+					return
+				} else if !errors.Is(inputErr, state.ErrNotFound) {
+					writeAPIError(w, apiError(runtime.CodeInternal, "cannot read annotation input receipt"))
+					return
+				}
+			}
 			if receipt.State == "unknown" {
 				writeAPIError(w, apiError(runtime.CodeConflict, "annotation delivery is uncertain; send a new command deliberately"))
 				return
@@ -314,6 +336,25 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 					return steerError(err)
 				}
 				delivery = string(outcome)
+				return nil
+			}
+			input := msg
+			input.RequestID = "annotation-" + commandID
+			if commandID == "" {
+				input.RequestID = mintHookToken()
+			}
+			raw, _ := json.Marshal(input)
+			recorded := state.AttachmentReceipt{AgentID: sourceID, RequestID: input.RequestID, PayloadHash: messagePayloadHash("prompt", input), MessageJSON: string(raw), Action: "prompt"}
+			admitted, ok, err := s.admitConversationInput(r.Context(), recorded, input)
+			if err != nil {
+				return apiError(runtime.CodeInternal, "cannot retain annotation input")
+			}
+			if ok {
+				delivery = receiptDelivery(admitted.Delivery)
+				if admitted.Delivery == "prepared" {
+					delivery = "queued"
+				}
+				s.continueQueuedInput()
 				return nil
 			}
 			held, err := s.registry.SendMessageOrHold(r.Context(), sourceID, msg)

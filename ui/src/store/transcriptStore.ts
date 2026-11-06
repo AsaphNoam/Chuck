@@ -123,7 +123,7 @@ function suppressedAnnotationPrompt(events: TranscriptEvent[], event: Transcript
     if (kindOf(candidate) !== "annotation" || candidate.prompt_paired) continue;
     if ((candidate.target as { kind?: string } | undefined)?.kind !== "self") continue;
     // prompt_seq lets the held-message tail see a quieted delivery.
-    events[i] = { ...candidate, prompt_paired: true, prompt_seq: event.seq };
+    events[i] = { ...candidate, prompt_paired: true, prompt_seq: event.seq, prompt_text: textOf(event) };
     return true;
   }
   return false;

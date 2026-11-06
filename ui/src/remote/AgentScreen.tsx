@@ -350,7 +350,10 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   }, [tab, focusedDiff.data]);
   const addAnnotation = useAnnotationStore((state) => state.add);
   // One tray owner above the Chat/Files branches (TS-08.R134).
-  const delivery = usePhoneAnnotationDelivery(agentId, agent);
+  const delivery = usePhoneAnnotationDelivery(agentId, agent, {
+    onNotice: setNotice,
+    onSelfDelivered: () => { void client.invalidateQueries({ queryKey: ["held", agentId] }); },
+  });
   const [trayOpen, setTrayOpen] = useState(false);
   const [focusNewest, setFocusNewest] = useState(0);
 

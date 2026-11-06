@@ -38,7 +38,13 @@ are not live queues.
 
 ## Active change
 
-None.
+SELF-ANNOTATIONS repair verification. Shared assignment admission, matching held-batch
+delivery and surviving desktop/phone Steer feedback are implemented. Focused server
+continuation/replay/paused-run tests and UI regressions pass (including pre-fix failures).
+Full UI suite (1,157 tests), UI build and `make build` pass; one added phone queued-input
+case passes focused verification. Final full UI rerun and `make test` are in progress;
+close the three findings below after those pass. Logs: `/tmp/self-annotation-*-closure.log`.
+Preserve unrelated `docs/ideas.md` and embedded `internal/server/ui/dist/index.html` edits.
 
 ## Acceptance gates still owed
 

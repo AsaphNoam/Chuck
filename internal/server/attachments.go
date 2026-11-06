@@ -505,7 +505,7 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 				// with that assignment and carried by its continuation turn,
 				// never answered with an empty wake and a refusal (TS-09.R69).
 				receipt := state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}
-				taskID, queued, err := s.stateStore.QueueAssignmentInput(receipt)
+				admitted, queued, err := s.admitConversationInput(r.Context(), receipt, receiptMessage)
 				if err != nil {
 					writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain message receipt"))
 					return
@@ -516,19 +516,7 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 						s.log.Error("retain accepted attachment markers", "agent", id, "err", err)
 					}
 					s.continueQueuedInput()
-					receipt.Delivery, receipt.AssignmentTaskID = "prepared", taskID
-					s.writeAttachmentAcceptance(w, receipt)
-					return
-				}
-				// A message to the owner of a paused run continues that run
-				// through the same continuation as the run page (TS-09.R69).
-				if continued, ok := s.continueRunFromConversation(r.Context(), receipt, receiptMessage); ok {
-					owned = true
-					if err := attachment.New(s.configStore.Home()).Retain(id, created); err != nil {
-						s.log.Error("retain accepted attachment markers", "agent", id, "err", err)
-					}
-					s.continueQueuedInput()
-					s.writeAttachmentAcceptance(w, continued)
+					s.writeAttachmentAcceptance(w, admitted)
 					return
 				}
 			}

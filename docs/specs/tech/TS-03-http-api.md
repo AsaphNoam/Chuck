@@ -1127,11 +1127,15 @@ TS-10.R62 use the existing R60/R72 quota projection without additional fields or
 a `self` target accepts additive `target.steer?: boolean` (omitted when false, so older payload
 hashes are unchanged). Before the source event is appended, a non-running source must be a
 message-wake candidate (`409` otherwise) and a steer requires a running source (`409`). Delivery
-then uses the prompt route's seams: `SendMessageOrHold` with the annotation block, waking through
-the shared `wakeAgent` and retrying once when the session has no handle, or `SteerMessage` for a
+then uses the prompt route's shared recorded assignment-input admission and paused-run continuation
+before `SendMessageOrHold` with the annotation block, waking through the shared `wakeAgent`
+and retrying once when the session has no handle, or `SteerMessage` for a
 steer, mapping refusals as the steer route does. Success adds `delivery`: `sent`, `held`,
-`steered` or `new_turn`; same-command replay of an accepted receipt omits it. No new route, SSE
-event or held-message shape is added; clients refresh the existing hold read after `held`.
+`steered`, `new_turn` or `queued` (retained for assignment continuation); same-command replay
+of an accepted receipt omits it. Assignment-owned input uses a stable annotation-scoped message
+receipt so restart or an interrupted annotation acceptance cannot enqueue it twice. No new route,
+SSE event or held-message shape is added; clients refresh the existing input read after self
+acceptance, including replay, to recover held or assignment-queued input.
 
 **R79 — Open an HTML file in the host's default browser only by local explicit action.**
 `POST /api/sessions/{id}/file/open-browser` and

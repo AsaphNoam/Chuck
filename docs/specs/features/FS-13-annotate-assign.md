@@ -290,8 +290,13 @@ identity and authority; no common receipt grants broader target/source access.
   `waiting_input` source holds it as the agent's one queued follow-up (FS-03.R48–R49, replacing
   any earlier hold and withdrawable like one). While the source's turn is running and its runtime
   advertises steering, the tray also offers **Steer**, which delivers the batch into that turn under
-  FS-03.R50 instead of queueing it. The source event is still appended before delivery (R5), the
-  agent receives the same annotation block, and R23 quiets that block's prompt wherever it lands —
+  FS-03.R50 instead of queueing it. The source event is still appended before delivery (R5). The
+  batch follows ordinary assignment admission and paused-run continuation when required, with
+  accepted pending input visible through the existing conversation input display. A delivered
+  annotation only clears its matching held block; steering another batch leaves the earlier hold
+  visible and withdrawable. Steer reports whether it joined the running turn or started a new
+  one, with feedback that survives clearing the tray on desktop and phone. The agent receives
+  the same annotation block, and R23 quiets that block's prompt wherever it lands —
   after the turn ends or inside a steered turn — by pairing it with the nearest earlier self-targeted
   annotation event not yet paired. An archived source keeps R15; a stopped source the wake gates
   exclude, or a failed wake, returns a typed error and preserves the tray.

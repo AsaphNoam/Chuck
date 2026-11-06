@@ -117,37 +117,46 @@ func TestQueuedAttachmentFollowsReplacementOwner(t *testing.T) {
 // FS-14.R99, TS-09.R69 — answering a paused run's question in its owner's
 // conversation continues the same run on a new visit, as the run page does.
 func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
-	srv, ts, _ := activationTestServer(t)
-	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
-	task := createPipelineSnapshotTask(t, srv, "pr_question", "tk_question", inputSnapshot)
-	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='finished', outcome='success', assigned_agent_id=?, started_at=created_at, finished_at=created_at WHERE task_id=?`, id, task.TaskID); err != nil {
-		t.Fatal(err)
-	}
-	if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, id); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_stage_tasks SET state='closed' WHERE task_id=?`, task.TaskID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_runs SET state='paused', attention_reason='needs_input', pause_question='Postgres or SQLite?', current_agent_id=? WHERE run_id='pr_question'`, id); err != nil {
-		t.Fatal(err)
-	}
-	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "Use SQLite", "request_id": "question-answer"})
-	if resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("answer = %d %s", resp.StatusCode, body)
-	}
-	run, _ := srv.stateStore.ReadPipelineRun("pr_question")
-	visit, _ := srv.stateStore.LatestPipelineStageTask("pr_question")
-	next, _ := srv.stateStore.ReadTask(visit.TaskID)
-	if run.State == "paused" || visit.TaskID == task.TaskID || !strings.Contains(next.Instruction, "Postgres or SQLite?") || !strings.Contains(next.Instruction, "Use SQLite") {
-		t.Fatalf("conversation answer did not continue the run: run=%s visit=%s", run.State, visit.TaskID)
-	}
-	// A network replay returns the recorded acceptance and creates nothing.
-	if resp, _ := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "Use SQLite", "request_id": "question-answer"}); resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("replay = %d", resp.StatusCode)
-	}
-	if again, _ := srv.stateStore.LatestPipelineStageTask("pr_question"); again.TaskID != visit.TaskID {
-		t.Fatalf("replay created another visit: %s", again.TaskID)
+	for _, route := range []string{"prompt", "annotations"} {
+		t.Run(route, func(t *testing.T) {
+			srv, ts, _ := activationTestServer(t)
+			id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+			task := createPipelineSnapshotTask(t, srv, "pr_question", "tk_question", inputSnapshot)
+			if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='finished', outcome='success', assigned_agent_id=?, started_at=created_at, finished_at=created_at WHERE task_id=?`, id, task.TaskID); err != nil {
+				t.Fatal(err)
+			}
+			if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, id); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_stage_tasks SET state='closed' WHERE task_id=?`, task.TaskID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_runs SET state='paused', attention_reason='needs_input', pause_question='Postgres or SQLite?', current_agent_id=? WHERE run_id='pr_question'`, id); err != nil {
+				t.Fatal(err)
+			}
+			var command any = map[string]string{"text": "Use SQLite", "request_id": "question-answer"}
+			if route == "annotations" {
+				command = runtime.AnnotationData{CommandID: "question-answer", Annotations: []runtime.Annotation{{Seq: 1, Excerpt: "database", Instruction: "Use SQLite"}}, Target: runtime.AnnotationTarget{Kind: "self"}}
+			}
+			url := ts.URL + "/api/sessions/" + id + "/" + route
+			resp, body := post(t, url, command)
+			if resp.StatusCode != http.StatusAccepted {
+				t.Fatalf("answer = %d %s", resp.StatusCode, body)
+			}
+			run, _ := srv.stateStore.ReadPipelineRun("pr_question")
+			visit, _ := srv.stateStore.LatestPipelineStageTask("pr_question")
+			next, _ := srv.stateStore.ReadTask(visit.TaskID)
+			if run.State == "paused" || visit.TaskID == task.TaskID || !strings.Contains(next.Instruction, "Postgres or SQLite?") || !strings.Contains(next.Instruction, "Use SQLite") {
+				t.Fatalf("conversation answer did not continue the run: run=%s visit=%s", run.State, visit.TaskID)
+			}
+			// A network replay returns the recorded acceptance and creates nothing.
+			if resp, _ := post(t, url, command); resp.StatusCode != http.StatusAccepted {
+				t.Fatalf("replay = %d", resp.StatusCode)
+			}
+			if again, _ := srv.stateStore.LatestPipelineStageTask("pr_question"); again.TaskID != visit.TaskID {
+				t.Fatalf("replay created another visit: %s", again.TaskID)
+			}
+		})
 	}
 }
 

@@ -636,6 +636,24 @@ describe("ChatPanel queued follow-up and steering", () => {
     expect(useHeldStore.getState().afterSeqByAgent.a_live).toBe(21);
   });
 
+  it("keeps queued annotation A withdrawable when distinct batch B is steered", async () => {
+    useAgentStore.setState({ agents: { a_live: { ...liveAgent("a_live"), state: "busy", steering_available: true } }, order: ["a_live"], hydrated: true });
+    const a = "[Chuck annotations]\nqueued batch A";
+    const b = "[Chuck annotations]\nsteered batch B";
+    mocks.getHeldPrompt.mockImplementation(async (id: string) => ({ agent_id: id, text: a, after_seq: 20 }));
+    renderPanel("a_live");
+    await waitFor(() => expect(useHeldStore.getState().byAgent.a_live).toBe(a));
+    act(() => useTranscriptStore.getState().setTranscript("a_live", [
+      { kind: "annotation", seq: 21, target: { kind: "self" }, annotations: [] },
+      { kind: "annotation", seq: 22, target: { kind: "self" }, annotations: [] },
+      { kind: "user_text", seq: 23, text: b },
+    ]));
+    expect(useHeldStore.getState().byAgent.a_live).toBe(a);
+    expect(screen.getAllByRole("button", { name: /Withdraw/ }).length).toBeGreaterThan(0);
+    act(() => useTranscriptStore.getState().appendMessage("a_live", { kind: "user_text", seq: 24, text: a }));
+    expect(useHeldStore.getState().byAgent.a_live).toBeUndefined();
+  });
+
   it("renders no Steer control for a session that does not advertise it", async () => {
     useAgentStore.setState({ agents: { a_live: { ...liveAgent("a_live"), state: "busy", steering_available: false } }, order: ["a_live"], hydrated: true, hydrating: false });
 

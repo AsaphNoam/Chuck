@@ -37,7 +37,6 @@ import { OverflowMenu } from "../shell/OverflowMenu";
 import { capVisible } from "../../lib/navCap";
 import { deriveAgentSiblings, sameSiblings, type AgentSibling } from "../../lib/agentSiblings";
 import { agentConversationPath } from "../../lib/agentConversation";
-import { isAnnotationBlock } from "../../lib/annotations";
 
 function runtimeSelection(agent: AgentState): RuntimeSelection {
   return { backend: agent.backend, model: agent.model, effort: agent.effort ?? "" };
@@ -148,7 +147,7 @@ function AgentPanel({ id }: { id: string }) {
     // records where that prompt landed instead.
     const delivered = events.some((event) =>
       ((event.kind ?? event.type) === "user_text" && event.seq != null && event.seq > heldAfterSeq && String(event.text ?? "") === held)
-      || ((event.kind ?? event.type) === "annotation" && Number(event.prompt_seq ?? 0) > heldAfterSeq && isAnnotationBlock(held)));
+      || ((event.kind ?? event.type) === "annotation" && Number(event.prompt_seq ?? 0) > heldAfterSeq && event.prompt_text === held));
     if (delivered) releaseHeld(id);
   }, [events, held, heldAfterSeq, id, releaseHeld]);
 

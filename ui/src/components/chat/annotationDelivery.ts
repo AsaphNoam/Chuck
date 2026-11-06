@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getHeldPrompt, sendAnnotations, validateAnnotations } from "../../api/client";
+import { sendAnnotations, validateAnnotations } from "../../api/client";
 import type { AgentState, AnnotationBatch } from "../../api/types";
 import { annotationBatch } from "../../lib/annotations";
 import { useAnnotationStore } from "../../store/annotationStore";
-import { useHeldStore } from "../../store/heldStore";
+import { readHeldRecovery } from "../../lib/heldMessage";
 
 export type AnnotationTarget = "self" | "agent" | "new";
 
@@ -16,7 +16,7 @@ export type AnnotationDelivery = ReturnType<typeof useAnnotationDelivery>;
 // with whoever keeps it mounted, so moving the tray between presentations does
 // not reset a send in flight or a launched recipient awaiting retry
 // (TS-08.R129, R134). Drafts stay in annotationStore.
-export function useAnnotationDelivery({ sourceId, sourceActive, source, recipients, connected = true, onLaunchDelivered }: {
+export function useAnnotationDelivery({ sourceId, sourceActive, source, recipients, connected = true, onLaunchDelivered, onNotice, onSelfDelivered }: {
   sourceId: string;
   sourceActive: boolean;
   source: AgentState | undefined;
@@ -26,6 +26,9 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
   connected?: boolean;
   /** Runs once a launched agent acknowledged delivery; the launch never navigates. */
   onLaunchDelivered?: (agentId: string) => void;
+  /** Feedback belongs to the conversation, which survives the cleared tray. */
+  onNotice?: (text: string) => void;
+  onSelfDelivered?: () => void;
 }) {
   const drafts = useAnnotationStore((state) => state.bySource[sourceId]);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
@@ -98,10 +101,13 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     try {
       const result = await sendAnnotations(sourceId, submitted);
       discardSent(sourceId, sent);
-      // A batch queued behind the running turn is that agent's held follow-up;
-      // show it pending like a queued chat message (FS-13.R37, FS-03.R48).
-      if (result.delivery === "held") void refreshHeld(sourceId);
+      // Rehydrate both runtime holds and assignment-owned input, including a
+      // replay whose response omits delivery after its first response was lost.
+      if (submitted.target.kind === "self") void readHeldRecovery(sourceId, () => true, true);
       if (!current()) return;
+      if (submitted.target.kind === "self") onSelfDelivered?.();
+      if (result.delivery === "steered") onNotice?.("Delivered into the running turn.");
+      if (result.delivery === "new_turn") onNotice?.("That turn had already ended — sent as a new turn.");
       setLaunchedAgent(sourceId, null);
       if (launched) deliveredRef.current?.(agentId!);
     } catch (err) {
@@ -180,15 +186,4 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     setShowLaunch(open);
   };
   return { sourceId, sourceActive, source, recipients, connected, target, setTarget: chooseTarget, recipientId, setRecipientId: chooseRecipient, recordSource, setRecordSource, sending: sending || showLaunch, error, showLaunch, setShowLaunch: dismissLaunch, launchedAgentId, send, canSteer, steer: () => send(true), onLaunched };
-}
-
-async function refreshHeld(agentId: string) {
-  try {
-    const snapshot = await getHeldPrompt(agentId);
-    if (snapshot.text || snapshot.attachments?.length) {
-      useHeldStore.getState().hold(agentId, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id);
-    }
-  } catch {
-    // The chat view's own hold read still runs on the next state change.
-  }
 }
