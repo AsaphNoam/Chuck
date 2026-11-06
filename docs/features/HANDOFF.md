@@ -221,6 +221,7 @@ None.
   pass, with no dashboard changes. Logs `/private/tmp/chuck-file-{go-closure-final,
   ui-closure-final,dist-final,specs-final}.log`; browser proof `/private/tmp/chuck-file-editing-final`.
   Final audit fixed foreground quiet-window reset; editor comparison reads share the tab limiter.
+  Independent review of `bd1330aa^..617b780b` found FILE-EDIT-1–3 below; this unit remains open.
 
 - **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
   Current agent is available for any non-archived source; the handler wakes a stopped source,
@@ -280,9 +281,69 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-None.
+### File-viewer refresh and editing — `bd1330aa^..617b780b` — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — **FILE-EDIT-1 (INV §5, §9): case aliases bypass same-file save serialization.**
+  `internal/server/filewrite.go:229` keys the save lock by canonical parent device/inode plus the
+  requested final basename. On a case-insensitive filesystem, `source.txt` and `SOURCE.TXT` address
+  the same file but acquire different locks. Concurrent Chuck saves with different submitted text
+  can both accept the same base and return success; the later replacement silently overwrites the
+  other accepted edit. This violates FS-03.A88 and TS-03.R81's Chuck-save serialization guarantee,
+  independently of the accepted race with noncooperating external writers. Resolve equivalent
+  directory-entry spellings into one serialization authority (or use a safely broader existing
+  lock scope), preserving no-follow admission/revalidation. Add a case-insensitive filesystem
+  regression with distinct submitted bytes and exactly one accepted shared base. Parent-verified
+  Go overlay `/private/tmp/chuck_review_overlay.json`, test
+  `TestReviewCaseAliasConcurrentSaves`, reproduces double success in all three runs; its prepared
+  barrier aligns the concurrent saves and actual `os.SameFile` establishes alias identity.
+
+- **Must fix** — **FILE-EDIT-2 (INV §1, §8, §10, §15): opening another file loses a capacity-refused
+  draft before leave confirmation.** `ui/src/features/fileTabs/useFileTabRoute.ts:123–130`
+  mutates the active file-tab store before projecting the URL. New file-link and **Unsaved edits**
+  opens reach this path without the preflight used by tab-strip selection. With 50 existing drafts,
+  typing in a 51st editor is correctly refused by the draft store and retained only in the mounted
+  editor. Opening another file unmounts that editor immediately; the router's leave confirmation
+  arrives afterward. Choosing **Cancel** keeps the old URL but leaves the other file selected,
+  and the refused text is already lost. FS-03.R112 / TS-08.R155 require preserving the in-memory
+  edit until acknowledged leave. Flush/check/confirm before changing either tab state or URL for
+  every open path, and preserve state when cancelled. Parent-verified reproduction:
+  `/private/tmp/draft-review.test.tsx`, with
+  `/private/tmp/draft-review.vitest.config.mjs`, drives the actual editor, route hook, draft store
+  and leave guard; it confirms the lost editor and URL/selection mismatch after **Cancel**.
+
+- **Must fix** — **FILE-EDIT-3 (INV §1, §5, §8, §15): a stale browser tab deletes a newer durable
+  draft lineage.** `ui/src/features/fileTabs/drafts.ts:120–128` checks lineage only against the
+  calling page's in-memory records, then unconditionally deletes the IndexedDB key. Open one draft
+  in browser tabs A and B; in B discard it and start a new edit at the same owner/source/path.
+  After B reports recovery available, discard the old draft still open in A. A deletes B's newer
+  durable record. B keeps showing recovery available, but reload loses its text. Save acknowledgement
+  uses the same deletion path and can likewise clear another page's newer lineage. This violates
+  TS-08.R154–R155's lineage and transactional generation boundaries and FS-03.R112's recovery
+  promise. Check the persisted lineage/generation inside the same read-write transaction before
+  removing or replacing a draft; stale operations must preserve newer durable work. Add two-page
+  IndexedDB coverage for stale discard and save acknowledgement. Actual-product Chromium proof:
+  `/private/tmp/file-review-cross-tab.mjs`; it verifies B's newer text in IndexedDB before A's
+  discard, the empty store afterward despite B's recovery label, and no recovered editor on reload.
 
 ## Changelog
+
+- **2026-11-06 — File-viewer refresh/editing review:** reviewed `bd1330aa^..617b780b`;
+  recorded FILE-EDIT-1–3 and retained the unit for fixes. Focused UI suites pass 80/80;
+  `make check-specs` and style/presentation checks pass. Focused backend file-viewer/remote-route
+  tests including `-race` pass; an independent Go overlay reproduces the case-alias defect in
+  three runs, and a temporary integration test reproduces capacity-refused draft loss. A separate
+  two-page actual-product Chromium journey reproduces deletion of a newer recoverable draft.
+  Independent approved-loopback Chromium on an isolated fake-ACP fixture passes live/archive/
+  retained-room/Focus saves, exact disk bytes and unchanged transcript, conflict/base adoption,
+  continuous writes, selection-gated refresh, reduced motion and reload recovery, plus all four
+  appearances at 1024/1440px. Screenshots inspected for layout/containment, including comparison
+  at the desktop floor: `/private/tmp/file-editing-review-20261106`; supplementary harness
+  `/private/tmp/file-review-comparison.mjs`. Browser checks do not close native/device/provider
+  gates; phone pairing remains unverified. INV §§1/2/4/5/7/8/9/10/11/13/14/15/16/17 apply;
+  §§3/6/12 have no changed applicable surface. Changed tests use explicit requirement outcomes
+  at component, disk, registered-route and real IndexedDB/browser boundaries; no separate
+  TS-06.R35/INV §17 finding. Product/spec/generated files and unrelated dirty `docs/ideas.md`
+  are preserved; other review units remain unchanged.
 
 - **2026-11-06 — File-viewer refresh and editing:** finished the approved change, including
   conditional host saves, recoverable drafts and selected-visible quiet refresh. Closure passes;
