@@ -23,7 +23,7 @@ import (
 func reindexSnapshot(t *testing.T, db *sql.DB) map[string][][]any {
 	t.Helper()
 	out := map[string][][]any{}
-	for _, table := range []string{"sessions", "sessions_fts", "tracked_files", "tracked_commands"} {
+	for _, table := range []string{"sessions", "sessions_fts", "session_search_spans", "tracked_files", "tracked_commands"} {
 		rows, err := db.Query(`SELECT * FROM ` + table + ` ORDER BY 1, 2`)
 		if err != nil {
 			t.Fatal(err)

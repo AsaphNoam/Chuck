@@ -922,6 +922,17 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 69,
 		sql:     `ALTER TABLE attachment_receipts ADD COLUMN source_agent_id TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		version: 70,
+		sql: `CREATE TABLE session_search_spans (
+ agent_id TEXT NOT NULL,
+ document_id TEXT NOT NULL,
+ version INTEGER NOT NULL,
+ content_sha256 TEXT NOT NULL,
+ spans_json TEXT NOT NULL CHECK(length(CAST(spans_json AS BLOB)) <= 8388608),
+ PRIMARY KEY(agent_id, document_id)
+);`,
+	},
 }
 
 // addPipelineVisitProvenance follows addPipelineDecisions for a legacy

@@ -1,6 +1,6 @@
 # Project chat search and matching-passage navigation
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator `/design-feature` request on 2026-11-05; confirmed SQLite direction and requested
 technical specification on 2026-11-06.
 **Relevant requirements:** FS-05.R46–R53/A28–A32; TS-02.R63–R64; TS-03.R82–R84;
@@ -43,5 +43,23 @@ supported appearances. These acceptance checks remain owed until implementation.
 
 ## Waiting on
 
-No product decision. Specifications are planned; implementation, runtime benchmarks and rendered
-acceptance have not started. This change does not alter the current active release work.
+No product decision. Implementation began 2026-11-06; runtime benchmarks and rendered acceptance
+remain owed. The locally tagged release is independent of this implementation.
+
+## Implementation plan
+
+1. Extend the existing index projection with transactional, bounded source provenance; verify
+   migration, live/replay and repair using independently known source offsets.
+2. Extend archive queries with opt-in project search and add the bounded read-only match resolver;
+   verify real SQLite and HTTP responses without changing ordinary Archive semantics.
+3. Add the compact project-heading search and shared live/archive passage reveal; verify keyboard,
+   stale-read recovery, merged source ranges and stable reading in the real rendered product.
+4. Integrate, run the applicable closure matrix and record review availability.
+
+Persistence/index, archive querying and UI have separate owners; integration and HTTP resolution
+stay with the main agent. The operator's repeated task is finding a retained discussion while
+keeping the project grid intact. The heading field stays quiet; result name, lifecycle and excerpt
+form the reading order. Lifecycle priority is the product-specific organizing choice. Reuse the
+existing tokens and popup language, preserve long project names and launch controls, and add no
+motion. The material recovery risk is falsely claiming an exact passage: unavailable targets must
+retain the chat and offer explicit normal opening.

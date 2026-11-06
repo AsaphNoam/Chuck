@@ -45,8 +45,11 @@ type Indexer struct {
 }
 
 type bufferedText struct {
-	seq  int64
-	text string
+	seq        int64
+	text       string
+	provenance *SearchProvenance
+	spanCount  int
+	spanBytes  int
 }
 
 // fileCall is the file an open tool call already counted as one edit, so that
@@ -190,12 +193,12 @@ func (ix *Indexer) OnEvent(agentID string, ev runtime.Event) error {
 }
 
 func (ix *Indexer) onEventLocked(agentID string, ev runtime.Event) error {
-	text, err := searchableText(ev)
+	document, err := BuildSearchDocument([]runtime.Event{ev})
 	if err != nil {
 		return err
 	}
-	if text != "" {
-		ix.addContentLocked(agentID, ev.Seq, text)
+	if document.Content != "" {
+		ix.addDocumentLocked(agentID, ev.Seq, document)
 	}
 	if err := ix.trackEvent(agentID, ev); err != nil {
 		return err
@@ -348,7 +351,7 @@ func (ix *Indexer) FlushPendingContent(agentID string, lastSeq int64) error {
 	ix.mu.Lock()
 	defer ix.mu.Unlock()
 	content, retained := ix.pendingContentLocked(agentID, lastSeq)
-	if content == "" {
+	if content.Content == "" {
 		return nil
 	}
 	tx := ix.tx
@@ -381,7 +384,7 @@ func (ix *Indexer) FlushPendingContent(agentID string, lastSeq int64) error {
 
 // pendingContentLocked joins buffered text through lastSeq in sequence order
 // and returns the entries that remain buffered.
-func (ix *Indexer) pendingContentLocked(agentID string, lastSeq int64) (string, []bufferedText) {
+func (ix *Indexer) pendingContentLocked(agentID string, lastSeq int64) (SearchDocument, []bufferedText) {
 	entries := ix.content[agentID]
 	selected := make([]bufferedText, 0, len(entries))
 	retained := make([]bufferedText, 0, len(entries))
@@ -393,17 +396,27 @@ func (ix *Indexer) pendingContentLocked(agentID string, lastSeq int64) (string, 
 		}
 	}
 	sort.SliceStable(selected, func(i, j int) bool { return selected[i].seq < selected[j].seq })
-	parts := make([]string, 0, len(selected))
+	var builder SearchDocumentBuilder
 	for _, entry := range selected {
-		parts = append(parts, entry.text)
+		builder.appendDocument(SearchDocument{Content: entry.text, Provenance: entry.provenance})
 	}
-	return strings.Join(parts, "\n"), retained
+	return builder.Document(), retained
 }
 
 func (ix *Indexer) retainContentLocked(agentID string, retained []bufferedText) {
 	if len(retained) == 0 {
 		delete(ix.content, agentID)
 	} else {
+		count, bytes := 0, 0
+		for i := range retained {
+			if retained[i].provenance != nil {
+				count += len(retained[i].provenance.Spans)
+				raw, _ := json.Marshal(retained[i].provenance)
+				bytes += len(raw)
+			}
+			retained[i].spanCount = count
+			retained[i].spanBytes = bytes
+		}
 		ix.content[agentID] = retained
 	}
 }
@@ -422,7 +435,7 @@ func (ix *Indexer) flushLocked(agentID string, rollup runtime.TurnRollup, countT
 		defer tx.Rollback()
 	}
 
-	if content != "" {
+	if content.Content != "" {
 		ftsWritable, err := ix.ftsWritable(tx)
 		if err != nil {
 			return err
@@ -474,6 +487,32 @@ func (ix *Indexer) addContentLocked(agentID string, seq int64, text string) {
 	ix.content[agentID] = append(ix.content[agentID], bufferedText{seq: seq, text: text})
 }
 
+func (ix *Indexer) addDocumentLocked(agentID string, seq int64, d SearchDocument) {
+	entries := ix.content[agentID]
+	count, encoded := 0, 0
+	unavailable := d.Provenance == nil
+	if len(entries) > 0 {
+		e := entries[len(entries)-1]
+		unavailable = unavailable || e.provenance == nil
+		count = e.spanCount
+		encoded = e.spanBytes
+	}
+	if d.Provenance != nil {
+		count += len(d.Provenance.Spans)
+		raw, _ := json.Marshal(d.Provenance)
+		encoded += len(raw)
+	}
+	if unavailable || count > MaxSearchSpans || encoded > MaxSearchProvenanceBytes {
+		if len(entries) == 0 || entries[len(entries)-1].provenance != nil {
+			for i := range entries {
+				entries[i].provenance = nil
+			}
+		}
+		d.Provenance = nil
+	}
+	ix.content[agentID] = append(entries, bufferedText{seq: seq, text: d.Content, provenance: d.Provenance, spanCount: count, spanBytes: encoded})
+}
+
 func replaceMetadataDocument(tx *sql.Tx, agentID string) error {
 	var name, role, project, grp, model, backend string
 	if err := tx.QueryRow(`SELECT name, role, project, grp, model, backend FROM sessions WHERE agent_id = ?`, agentID).
@@ -491,11 +530,25 @@ VALUES (?, 'metadata', ?, ?, ?, ?, ?, ?, '')`, agentID, name, role, project, grp
 	return nil
 }
 
-func insertTranscriptDocument(tx *sql.Tx, agentID, documentID, content string) error {
+func insertTranscriptDocument(tx *sql.Tx, agentID, documentID string, document SearchDocument) error {
+	if _, err := tx.Exec(`DELETE FROM session_search_spans WHERE agent_id=? AND document_id=?`, agentID, documentID); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`
 INSERT INTO sessions_fts(agent_id, document_id, name, role, project, grp, model, backend, content)
-VALUES (?, ?, '', '', '', '', '', '', ?)`, agentID, documentID, content); err != nil {
+VALUES (?, ?, '', '', '', '', '', '', ?)`, agentID, documentID, document.Content); err != nil {
 		return fmt.Errorf("index: insert transcript document: %w", err)
+	}
+	if document.Provenance != nil && document.Content != "" {
+		raw, err := json.Marshal(document.Provenance)
+		if err != nil {
+			return err
+		}
+		if len(raw) <= MaxSearchProvenanceBytes {
+			if _, err := tx.Exec(`INSERT OR REPLACE INTO session_search_spans(agent_id,document_id,version,content_sha256,spans_json) VALUES(?,?,1,?,?)`, agentID, documentID, ContentSHA256(document.Content), string(raw)); err != nil {
+				return fmt.Errorf("index: insert search provenance: %w", err)
+			}
+		}
 	}
 	return nil
 }

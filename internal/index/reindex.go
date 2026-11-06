@@ -270,7 +270,7 @@ func (ix *Indexer) deleteAgentTx(tx *sql.Tx, agentID string) error {
 			return fmt.Errorf("index: delete FTS for %s: %w", agentID, err)
 		}
 	}
-	for _, table := range []string{"tracked_commands", "tracked_files", "sessions"} {
+	for _, table := range []string{"session_search_spans", "tracked_commands", "tracked_files", "sessions"} {
 		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE agent_id=?`, agentID); err != nil {
 			return fmt.Errorf("index: delete %s for %s: %w", table, agentID, err)
 		}
