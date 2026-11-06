@@ -64,8 +64,10 @@ export function useFileFreshness({ identity, selected, snapshot, probe, read, ap
         const changed = observation !== latest.current.snapshot?.observed_revision;
         setChanging(changed);
         if (changed && Date.now() - since >= 2000 && candidate.current?.observed_revision !== observation) {
+          const baseRevision = latest.current.snapshot?.observed_revision;
           const file = await latest.current.read();
-          if (!valid()) return;
+          // Save or another explicit application supersedes this refresh read.
+          if (!valid() || latest.current.snapshot?.observed_revision !== baseRevision) return;
           if (file.observed_revision !== observation) {
             observation = file.observed_revision;
             since = Date.now();

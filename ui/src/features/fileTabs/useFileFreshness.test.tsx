@@ -44,6 +44,23 @@ describe("selected file freshness", () => {
     rerender({ blocked: false, file: snapshot("saved") });
     expect(apply).not.toHaveBeenCalled();
   });
+
+  it("keeps the saved snapshot when an earlier refresh read finishes afterward", async () => {
+    vi.useFakeTimers();
+    let finishRead!: (file: FileContent) => void;
+    const read = vi.fn(() => new Promise<FileContent>((resolve) => { finishRead = resolve; }));
+    const apply = vi.fn();
+    const { rerender } = renderHook(({ blocked, file }) => useFileFreshness({ identity: "a:x", selected: true, snapshot: file,
+      probe: async () => ({ path: "x", observed_revision: "external" }), read, apply, blocked, retry: 0 }),
+    { initialProps: { blocked: true, file: snapshot("one") } });
+    await advance(2000);
+    expect(read).toHaveBeenCalledTimes(1);
+    // FS-03.R111: Save publishes its acknowledged snapshot and exits editing
+    // while a refresh for the previously reviewed external content is in flight.
+    rerender({ blocked: false, file: snapshot("saved") });
+    await act(async () => finishRead(snapshot("external")));
+    expect(apply).not.toHaveBeenCalled();
+  });
   it("coalesces writes for two seconds and applies only after selection ends", async () => {
     vi.useFakeTimers();
     let revision = "one";
