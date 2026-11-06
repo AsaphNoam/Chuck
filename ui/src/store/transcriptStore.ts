@@ -130,6 +130,9 @@ function suppressedAnnotationPrompt(events: TranscriptEvent[], event: Transcript
 }
 
 function appendRenderedEvent(events: TranscriptEvent[], event: TranscriptEvent) {
+  if (kindOf(event) === "assistant_text" && event.seq != null && !event.search_sources) {
+    event = { ...event, search_sources: [{ seq: event.seq, start: 0, end: String(textOf(event)).length }] };
+  }
   // Display-only: the caller still records the event in rawByAgent, the
   // endpoint still returns it, and the agent still received the block verbatim.
   // Because the decision is made here, on the seam replay and live append share,
@@ -150,10 +153,16 @@ function appendRenderedEvent(events: TranscriptEvent[], event: TranscriptEvent) 
   const last = events[events.length - 1];
   // A native child's text is its own passage, never merged into the root's.
   if (kindOf(event) === "assistant_text" && last && kindOf(last) === "assistant_text" && last.activity_id === event.activity_id) {
+    const previousSources = (last.search_sources ?? (last.seq == null ? [] : [{ seq: last.seq, start: 0, end: String(textOf(last)).length }])) as Array<{ seq: number; start: number; end: number }>;
+    const nextSources = (event.search_sources ?? []) as Array<{ seq: number; start: number; end: number }>;
     events[events.length - 1] = {
       ...last,
       kind: "assistant_text",
       text: `${textOf(last)}${textOf(event)}`,
+      ...(previousSources.length || nextSources.length ? { search_sources: [
+        ...previousSources,
+        ...nextSources.map((source) => ({ ...source, start: source.start + String(textOf(last)).length, end: source.end + String(textOf(last)).length })),
+      ] } : {}),
     };
     return;
   }

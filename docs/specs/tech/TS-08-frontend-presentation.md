@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2056,7 +2056,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   site data removes them; there is no server copy or cross-device sync. This is the explicit
   content-persistence exception to R141, without changing saved-tab descriptor compatibility.
 
-- **R156 — Project search belongs to its existing feature owner.** (planned)
+- **R156 — Project search belongs to its existing feature owner.**
   FS-05.R46–R53 extend the scoped project heading using the existing field, popup/keyboard and
   semantic-token seams; feature code owns query/debounce, result paging, routing and errors.
   Debounce by 250 ms, abort superseded reads and guard completion by project/query generation.
@@ -2069,7 +2069,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   second transcript cache, new design system, animation dependency or phone search is added.
   Any new public presentation hooks join the existing contract during implementation.
 
-- **R157 — One shared source-aware reveal serves live and archived chats.** (planned)
+- **R157 — One shared source-aware reveal serves live and archived chats.**
   A result navigates to `/agent/{id}` or `/archive/{id}` using current archived identity and adds
   `search_doc`, `search_rev`, `search_start`, `search_end` to the URL from TS-03.R83's reference.
   Preserve unrelated route parameters, including saved file-reader tabs. Parse/validate the

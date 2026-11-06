@@ -245,6 +245,15 @@ export interface ArchiveResult {
 	archived: boolean;
   matched_in?: string[];
   snippet?: string;
+  search_ref?: SearchReference;
+  location_status?: "reference" | "metadata_only" | "unavailable";
+}
+
+export interface SearchReference {
+  document_id: string;
+  content_sha256: string;
+  start_byte: number;
+  end_byte: number;
 }
 
 export interface ArchiveProjectGroup {

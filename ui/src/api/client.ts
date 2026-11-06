@@ -323,8 +323,9 @@ export function searchArchive(q: string, limit = 50, offset = 0, signal?: AbortS
   );
 }
 
-export function searchArchiveProject(project: string, q: string, limit = 50, offset = 0, signal?: AbortSignal) {
+export function searchArchiveProject(project: string, q: string, limit = 50, offset = 0, signal?: AbortSignal, view?: "project_search") {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (view) params.set("view", view);
   if (q) params.set("q", q);
   return json<{ search_mode: "full_text" | "metadata"; total: number; limit: number; offset: number; results: ArchiveResult[] }>(`/api/archive/projects/${encodeURIComponent(project)}?${params}`, { signal });
 }

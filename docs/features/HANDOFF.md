@@ -24,7 +24,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 - **Field causes:** EFFORT-BUDGET awaits the affected worker's manifest/trace; no cause or fix is
   established. Frequent-429 and unchecked permission-save reports need affected server evidence.
 - **Future work:** direct-action migration stays paused on its transport blocker; passive quota
-  snapshots stay TBD. No active implementation or review unit.
+  snapshots stay TBD. Project chat search implementation is in final verification.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`, use `GOFLAGS=-p=1` and a writable isolated Go cache.
   Full suites need loopback-capable execution.
 
@@ -46,8 +46,11 @@ provenance/reindex tests and untagged index/state suites pass (isolated Go cache
 bounded provenance and rollback preserve existing documents. UI source integration and its 1180
 tests pass; rendered journeys pass at 1024/1440 in all appearances, with live reading/cross-event
 follow-up running. Next: finish the real source-budget case and closure suites, then record review
-availability. The source-budget and crash-torn-tail checks pass; browser3 now passes all 25 checks,
-including cross-event source reveal and stable reading under a new live reply.
+availability. The source-budget and crash-torn-tail checks pass; browser4 passes all 23 checks,
+including collapsed-turn expansion, cross-event source reveal and stable reading under a new live
+reply. The deterministic presentation matrix renders in all four appearances without page errors.
+`make embed` and `make build` pass; all 1180 UI tests pass. The final full Go closure is running
+against the complete source at `/private/tmp/chuck-search-final-go.log`.
 Full suites require approved loopback access; sandbox-only execution failed to bind
 test listeners. Logs: `/private/tmp/chuck-search-{full-go-approved,full-ui,browser3}.log`.
 

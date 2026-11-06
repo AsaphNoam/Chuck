@@ -1,6 +1,6 @@
 # FS-05 — Session archive, search, resume & tracking
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/archive/`, `internal/index/`, `internal/state/` (sessions, tracked_files, tracked_commands), `internal/server/` (`archive.go`, `resume.go`, `files_commands.go`, `sessions.go`), `ui/src/features/archive/`, `ui/src/components/chat/FilesTab.tsx` · **Journeys:** J7, J8
 **Absorbed:** exact source mapping in the [phase archive manifest](../../archive/phases/README.md)
 
@@ -155,50 +155,50 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 
 ### 2.8 Project chat search
 
-- **R46 — Project search entry.** (planned) A compact Search chats field beside the name on a
+- **R46 — Project search entry.** A compact Search chats field beside the name on a
   desktop project's scoped dashboard searches that project's chat names, session metadata and
   R41's conversation text. Typing opens a compact results dropdown without replacing or filtering
   the dashboard grid. Results contain one row per matching chat with its name, running/stopped/
   archived state and a matching excerpt when conversation text matched. Other projects never enter
   this result set; the global Archive remains available for cross-project search.
-- **R47 — Current chats lead.** (planned) Matching non-archived chats precede archived chats;
+- **R47 — Current chats lead.** Matching non-archived chats precede archived chats;
   within non-archived results, currently running chats precede stopped chats. Search relevance
   orders each of those groups, then recent activity and stable chat identity break ties. A merely
   busy or waiting state does not change the group. This priority applies before result limiting,
   rather than sorting only whichever results happened to fit the first page.
-- **R48 — Open the actual match.** (planned) Choosing a conversation-text result opens its
+- **R48 — Open the actual match.** Choosing a conversation-text result opens its
   ordinary live/stopped chat or read-only archived transcript at the passage supplying the displayed
   excerpt, expands any containing collapsed turn and visibly identifies that passage. It does not
   land at an unrelated end-of-turn marker. The target survives a direct-link reload; arriving live
   content does not pull the reader back to the latest message. Metadata-only matches are labelled
   as such and open the chat normally without claiming a transcript location. Opening never starts,
   resumes, restores or otherwise changes chat lifecycle.
-- **R49 — Search feedback and recovery.** (planned) The field and results support keyboard
+- **R49 — Search feedback and recovery.** The field and results support keyboard
   focus, arrow-key selection, Enter to open and Escape to dismiss. Clearing the field dismisses
   results. Loading, no matches and failed search are distinct states; failures retain the query and
   offer Retry. An old query or project's delayed response cannot replace the current results.
   If a previously returned target is unavailable, show that reason and offer to open the chat
   normally; never silently claim to have revealed the matching excerpt.
-- **R50 — Existing data boundary.** (planned) Search is a read-only local operation over
+- **R50 — Existing data boundary.** Search is a read-only local operation over
   already retained session/conversation data; it changes neither transcript contents nor retention.
   Tool activity remains excluded by R41. R51–R53 define project search's matching, compatibility
   and freshness; R25–R30's ordinary Archive contract remains unchanged. Phone search, typo
   correction, semantic topic retrieval and cross-turn term aggregation are outside this change.
-- **R51 — Partial words reuse the existing search engine.** (planned) Project search uses
+- **R51 — Partial words reuse the existing search engine.** Project search uses
   SQLite FTS5, without another search engine or index of searchable text. Unquoted terms of at
   least two characters also match word beginnings; quoted terms/phrases retain exact token/phrase
   matching. All terms must still match one metadata or transcript document, not scattered turns.
   Names retain higher relevance weight than transcript text within R47's lifecycle groups.
   A metadata-only build advertises that limitation and retains its existing metadata substring
   matching; it never offers transcript excerpts or passage navigation.
-- **R52 — Older and unavailable locations remain honest.** (planned) Existing chat/search
+- **R52 — Older and unavailable locations remain honest.** Existing chat/search
   data survives upgrade. For an older indexed document without passage provenance, resolve the
   location from its retained transcript only when it can be proved to describe the indexed text.
   If its source is missing, changed, incompatible or exceeds the bounded location-read budget,
   keep the result and excerpt, identify passage navigation as unavailable and offer Open chat.
   Do not silently land at another occurrence. No search triggers reindex, stops the server or
   rewrites old history; the existing offline reindex can regenerate passage locations.
-- **R53 — Freshness follows persisted document boundaries.** (planned) Completed turns,
+- **R53 — Freshness follows persisted document boundaries.** Completed turns,
   explicitly flushed annotations and text flushed on generation close become searchable through
   the existing indexing lifecycle. An unfinished buffered turn is not promised searchable. The
   project search explains this scope and refreshes on the next query/retry; it adds no live
@@ -451,28 +451,28 @@ R22's `active` validation remain binding.
   full prior session/search/tracking data remains usable, and the CLI returns nonzero naming the
   failed identity without printing full success. Restoring the source and rerunning completes repair.
 
-- **A28** (planned) (R46–R47) — Seed matching running non-archived, stopped non-archived and
+- **A28** (R46–R47) — Seed matching running non-archived, stopped non-archived and
   archived chats, including a highly relevant archived hit and same-text hits in another project.
   Verify project isolation, one row per chat, the confirmed group ordering before pagination, and
   deterministic relevance/recency within each group. *Verify:* search-handler integration tests
   and project-search component tests, with a rendered dropdown journey at the desktop floor.
-- **A29** (planned) (R48) — Open results whose displayed excerpts come from a user prompt, a
+- **A29** (R48) — Open results whose displayed excerpts come from a user prompt, a
   later assistant message in the same turn, a streamed/merged assistant reply and an annotation.
   Repeat for running, stopped and archived chats with collapsed turns and after a direct-link
   reload. Verify the actual excerpt is visible and identified, no lifecycle action runs, and a new
   live reply leaves the reader at the match. *Verify:* index-to-response provenance tests and
   real-browser search-to-transcript journeys using the shared transcript renderer.
-- **A30** (planned) (R48–R50) — A metadata-only hit opens normally and makes no passage claim;
+- **A30** (R48–R50) — A metadata-only hit opens normally and makes no passage claim;
   an unavailable target states the failure and offers normal opening. Type another query or switch
   projects before the prior request completes; verify stale results never win. Exercise loading,
   empty, failed/Retry, clear, keyboard selection and dismissal. *Verify:* focused component and
   handler tests plus a rendered keyboard journey. Confirm no tool-only text enters the corpus.
-- **A31** (planned) (R51–R53) — Search `auth` for `authentication`, repeat with a quoted
+- **A31** (R51–R53) — Search `auth` for `authentication`, repeat with a quoted
   exact term/phrase, punctuation, accents, non-Latin text and literal query operators. Verify
   complete-term one-character behavior, same-document AND semantics, rejection of over-limit input,
   metadata-only fallback and the stated unfinished-turn limit. *Verify:* tagged/untagged real-SQL
   endpoint tests; retain the ordinary Archive's existing exact-query tests.
-- **A32** (planned) (R48, R52) — Upgrade populated FTS and fallback stores without changing
+- **A32** (R48, R52) — Upgrade populated FTS and fallback stores without changing
   existing documents. Resolve an older hit through validated source reconstruction; preserve a
   mismatching/missing/over-budget legacy hit with an explicit unavailable state. After offline
   reindex, verify fresh provenance, the same source passage and atomic rollback of text plus
@@ -486,8 +486,10 @@ R22's `active` validation remain binding.
 - **Project search approved direction, 2026-11-06:** keep SQLite FTS5 and add partial-word
   matching, project scope, non-archived-first/running-first priority and exact excerpt navigation.
   Bleve and a second searchable-text index were considered and declined for this change: their
-  main incremental benefit was typo tolerance. R46–R53/A28–A32 are planned, not shipped;
-  TS-02.R63–R64, TS-03.R82–R84 and TS-08.R156–R157 define the implementation contract.
+  main incremental benefit was typo tolerance. Implemented 2026-11-06 through TS-02.R63–R64,
+  TS-03.R82–R84 and TS-08.R156–R157. Real SQLite/HTTP, migration/repair and component tests cover
+  the contracts; `project-search-journey.mjs` exercises the embedded product at 1024/1440 in all
+  appearances, including exact source reveal and stable reading during fake-provider updates.
   [Ready change](../../ready-changes/project-chat-search.md). No product decision remains open.
 
 - **Offline reindex preservation:** the operator approved R43–R45/A26–A27's partial-repair policy

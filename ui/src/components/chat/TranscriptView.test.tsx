@@ -31,6 +31,38 @@ afterEach(() => {
 
 const events = [{ kind: "assistant_text", seq: 7, text: "First line\nSecond line" }];
 
+it("keeps search in reading mode and reveals a collapsed source only once", async () => {
+  const scroll = vi.fn();
+  const priorScroll = HTMLElement.prototype.scrollIntoView;
+  HTMLElement.prototype.scrollIntoView = scroll;
+  try {
+    const client = new QueryClient({ defaultOptions: {queries:{retry:0}} });
+    const loaded = foldTranscript([
+      {kind:"assistant_text",seq:1,delta:"Earlier target"},
+      {kind:"tool_call",seq:2,name:"Read",args:{}},
+      {kind:"assistant_text",seq:3,delta:"Final response"},
+      {kind:"turn_end",seq:4,stop_reason:"end_turn"},
+    ]);
+    const reveal={key:"one",ranges:[{seq:1,part_index:0,start_byte:8,end_byte:14}]};
+    const view=(ready:boolean, extra=false)=><QueryClientProvider client={client}><TranscriptView agentId="a1" events={extra ? [...loaded,{kind:"assistant_text",seq:5,text:"new reply"}] : loaded} readingSearch searchReveal={ready ? reveal : null}/></QueryClientProvider>;
+    const {container,rerender}=render(view(false));
+    const viewport=container.querySelector(".transcript-view") as HTMLElement;
+    Object.defineProperty(viewport,"scrollHeight",{configurable:true,value:900});
+    Object.defineProperty(viewport,"clientHeight",{configurable:true,value:100});
+    rerender(view(true));
+    await waitFor(()=>expect(scroll).toHaveBeenCalledTimes(1));
+    expect(document.activeElement?.textContent).toBe("target");
+    expect(viewport.scrollTop).toBe(0);
+    fireEvent.click(screen.getByRole("button",{name:/Hide activity/}));
+    rerender(view(true,true));
+    expect(screen.getByRole("button",{name:/Show activity/})).toBeTruthy();
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(viewport.scrollTop).toBe(0);
+    fireEvent.click(screen.getByRole("button",{name:"Jump to latest"}));
+    expect(viewport.scrollTop).toBe(900);
+  } finally { HTMLElement.prototype.scrollIntoView=priorScroll; }
+});
+
 function renderTranscript(annotationsEnabled = true, transcriptEvents = events, busy = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
   return render(

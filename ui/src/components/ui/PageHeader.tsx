@@ -3,6 +3,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 export function PageHeader({
   eyebrow,
   title,
+  titleAccessory,
   description,
   actions,
   compact = false,
@@ -11,6 +12,7 @@ export function PageHeader({
 }: Omit<HTMLAttributes<HTMLElement>, "title"> & {
   eyebrow?: ReactNode;
   title: ReactNode;
+  titleAccessory?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   compact?: boolean;
@@ -24,7 +26,7 @@ export function PageHeader({
     >
       <div className="ad-page-header-copy">
         {eyebrow && <p data-slot="eyebrow">{eyebrow}</p>}
-        <h1 data-slot="title">{title}</h1>
+        {titleAccessory ? <div className="ad-page-header-title"><h1 data-slot="title">{title}</h1>{titleAccessory}</div> : <h1 data-slot="title">{title}</h1>}
         {description && <p data-slot="description">{description}</p>}
       </div>
       {actions && <div className="ad-page-header-actions" data-slot="actions">{actions}</div>}

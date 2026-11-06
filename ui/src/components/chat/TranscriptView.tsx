@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import type { SearchReveal } from "../../features/dashboard/searchReference";
+import { eventSourceSeqs, MarkedSourceText, SearchEventContext, SearchPassageContext, utf8Offset } from "./searchPassage";
 import type { AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../../api/types";
 import { canAnnotate, eventDraft, selectionWithin } from "../../lib/annotations";
 import { copyText } from "../../lib/copyText";
@@ -46,12 +48,20 @@ import { useQueryClient } from "@tanstack/react-query";
 // which is that pane's existing route to the full surface (FS-03.R53).
 // The desktop composer owns background-task control; transcripts stay read-only.
 // reveal names an event the caller is about to scroll to; a fresh object per request.
-export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, fileTabs, onOpenFile, reveal = null, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; fileTabs?: FileTabRoute; onOpenFile?: (link: FileLink | null) => void; taskControl?: boolean; reveal?: { seq: number } | null; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
+export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, fileTabs, onOpenFile, reveal = null, searchReveal = null, readingSearch = false, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; fileTabs?: FileTabRoute; onOpenFile?: (link: FileLink | null) => void; taskControl?: boolean; reveal?: { seq: number } | null; searchReveal?: SearchReveal | null; readingSearch?: boolean; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const atBottomRef = useRef(true);
+  const atBottomRef = useRef(!readingSearch);
+  const readingRef = useRef(readingSearch);
+  const readingIdentity = `${agentId}:${searchReveal?.key ?? (readingSearch ? "pending" : "")}`;
+  const previousReading = useRef(readingIdentity);
+  if (previousReading.current !== readingIdentity) {
+    previousReading.current = readingIdentity;
+    readingRef.current = readingSearch;
+    if (readingSearch) atBottomRef.current = false;
+  }
   const lastTopRef = useRef(0);
-  const [atBottom, setAtBottom] = useState(true);
+  const [atBottom, setAtBottom] = useState(!readingSearch);
   const [menu, setMenu] = useState<AnnotationMenuState | null>(null);
   const addAnnotation = useAnnotationStore((state) => state.add);
   const pushError = useUiStore((state) => state.pushError);
@@ -87,6 +97,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
+    if (readingRef.current) { atBottomRef.current = false; setAtBottom(false); return; }
     const stuck = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
     const pinned = stuck || (atBottomRef.current && el.scrollTop >= lastTopRef.current);
     lastTopRef.current = el.scrollTop;
@@ -156,13 +167,44 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     // Only a new reveal request reopens; later updates must not undo a close.
   }, [reveal]);
 
+  const revealedSearch = useRef("");
+  useLayoutEffect(() => {
+    if (!searchReveal) { revealedSearch.current = ""; return; }
+    const identity = `${agentId}:${searchReveal.key}`;
+    if (revealedSearch.current === identity) return;
+    const source = merged.find((event) => eventSourceSeqs(event).some((seq) => searchReveal.ranges.some((range) => range.seq === seq)));
+    if (!source) return;
+    revealedSearch.current = identity;
+    readingRef.current = true;
+    atBottomRef.current = false;
+    setAtBottom(false);
+    setTaskReveal({ seq: Number(source.seq) });
+    const turn = projectTurns(nested).find((item) => item.seqs.has(Number(source.seq)));
+    if (turn) setOpen(turn.key, true);
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => {
+      const target = contentRef.current?.querySelector<HTMLElement>("[data-search-passage]") ?? contentRef.current?.querySelector<HTMLElement>("[data-search-event]");
+      if (!target) return;
+      // Nested native activity has its own existing disclosure.
+      for (const detail of Array.from(contentRef.current?.querySelectorAll("details") ?? [])) {
+        if (detail.contains(target)) detail.open = true;
+      }
+      target.tabIndex = -1;
+      target.scrollIntoView({ block: "center" });
+      target.focus({ preventScroll: true });
+    }));
+    return () => cancelAnimationFrame(frame);
+  }, [agentId, searchReveal]);
+
   const jumpToLatest = () => {
+    readingRef.current = false;
+    atBottomRef.current = true;
+    setAtBottom(true);
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   };
 
   return (
-    <div className="transcript-wrap" data-ui="transcript">
+    <SearchPassageContext.Provider value={searchReveal}><div className="transcript-wrap" data-ui="transcript">
       <div className="transcript-view" data-slot="list" ref={scrollRef} onScroll={onScroll} onFocus={trackFocus}>
         <div ref={contentRef}>
           <RevealTaskContext.Provider value={taskReveal}><TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} /></RevealTaskContext.Provider>
@@ -198,7 +240,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
         onReturnFocus={() => scrollRef.current?.focus()}
       />
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
-    </div>
+    </div></SearchPassageContext.Provider>
   );
 }
 
@@ -335,6 +377,13 @@ function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMen
   onOpenInBrowser?: (path: string) => Promise<unknown>;
   className?: string;
 }) {
+  const search = useContext(SearchPassageContext);
+  const matched = eventSourceSeqs(event).some((seq) => search?.ranges.some((range) => range.seq === seq));
+  const suppressedText = String(event.prompt_text ?? "");
+  const suppressedMatches = (search?.ranges ?? []).filter((range) => range.seq === event.prompt_seq).flatMap((range) => {
+    const start = utf8Offset(suppressedText,range.start_byte),end=utf8Offset(suppressedText,range.end_byte);
+    return start === null || end === null ? [] : [suppressedText.slice(start,end)];
+  });
   return (
     // data-seq lets the Files tab's "Diff" action scroll to this event
     // (present only when the event carries a runtime seq).
@@ -343,14 +392,16 @@ function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMen
       data-slot="event"
       data-variant={variantOf(event)}
       data-seq={event.seq ?? undefined}
+      data-search-event={matched ? "true" : undefined}
       onContextMenu={(mouse) => onContextMenu(mouse, event)}
     >
-      <ErrorBoundary
+      <SearchEventContext.Provider value={event}><ErrorBoundary
         label="message"
         fallback={<pre className="tool-block tool-result-error">Failed to render this event.</pre>}
       >
         <TranscriptItem agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} onOpenFile={onOpenFile} onOpenInBrowser={onOpenInBrowser} />
-      </ErrorBoundary>
+        {suppressedMatches.map((text,index) => <p key={index} data-search-passage="true" data-search-excerpt="true">Matched source: {text}</p>)}
+      </ErrorBoundary></SearchEventContext.Provider>
     </div>
   );
 }
@@ -386,7 +437,7 @@ function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile, onOpen
   const kind = String(event.kind ?? event.type ?? "");
   if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} agentId={agentId} onOpenInBrowser={onOpenInBrowser} />;
   if (kind === "user_text")
-    return <article className="message user-message" data-ui="transcript" data-variant="user">{String(event.text ?? "")}<MessageAttachments agentId={agentId} attachments={event.attachments ?? []} /></article>;
+    return <article className="message user-message" data-ui="transcript" data-variant="user"><MarkedSourceText text={String(event.text ?? "")} /><MessageAttachments agentId={agentId} attachments={event.attachments ?? []} /></article>;
   if (kind === "assistant_image") return <article className="message assistant-message" data-ui="transcript" data-variant="assistant"><AssistantImageRow agentId={agentId} attachment={event.attachment} path={typeof event.path === "string" ? event.path : undefined} name={typeof event.name === "string" ? event.name : undefined} error={typeof event.error === "string" ? event.error : undefined} /></article>;
   if (kind === "permission_request") return <PermissionPrompt agentId={agentId} event={event} />;
   if (kind === "diff") return <DiffBlock event={event} onAnnotate={onAnnotate} onOpenFile={onOpenFile} />;

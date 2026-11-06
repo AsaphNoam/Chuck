@@ -1,4 +1,5 @@
 import type { TranscriptEvent } from "../../../api/types";
+import { MarkedSourceText } from "../searchPassage";
 
 export function AnnotationCard({ event }: { event: TranscriptEvent }) {
   const annotations = Array.isArray(event.annotations) ? event.annotations as Array<Record<string, unknown>> : [];
@@ -11,11 +12,11 @@ export function AnnotationCard({ event }: { event: TranscriptEvent }) {
           <p>{annotation.anchor_kind === "file"
             ? `File ${String(annotation.path ?? "")}${annotation.start_line ? `:${String(annotation.start_line)}${annotation.end_line && annotation.end_line !== annotation.start_line ? `–${String(annotation.end_line)}` : ""}` : ""}`
             : annotation.path ? `${String(annotation.path)}:${String(annotation.start_line ?? "")}${annotation.end_line && annotation.end_line !== annotation.start_line ? `–${String(annotation.end_line)}` : ""}` : `Event ${String(annotation.seq ?? "")}`}</p>
-          <blockquote>{String(annotation.excerpt ?? "")}</blockquote>
-          <p><strong>Instruction:</strong> {String(annotation.instruction ?? "")}</p>
+          <blockquote><MarkedSourceText text={String(annotation.excerpt ?? "")} partIndex={index*2} /></blockquote>
+          <p><strong>Instruction:</strong> <MarkedSourceText text={String(annotation.instruction ?? "")} partIndex={index*2+1} /></p>
         </section>
       ))}
-      {event.overall_instruction ? <p className="annotation-card-overall"><strong>Overall:</strong> {String(event.overall_instruction)}</p> : null}
+      {event.overall_instruction ? <p className="annotation-card-overall"><strong>Overall:</strong> <MarkedSourceText text={String(event.overall_instruction)} partIndex={annotations.length*2} /></p> : null}
     </article>
   );
 }

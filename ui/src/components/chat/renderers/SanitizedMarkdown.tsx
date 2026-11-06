@@ -11,6 +11,9 @@ import { PointerContextMenu, type PointerMenuState } from "../../ui/PointerConte
 import { offerWebLink, webLinkActions } from "../../../lib/linkActions";
 import { useUiStore } from "../../../store/uiStore";
 import { LocalImage } from "../AttachmentView";
+import { useSourceTextRanges } from "../searchPassage";
+import { markMarkdownSource } from "./searchMarkdown";
+import type { Root } from "hast";
 
 // The one sanitized Markdown renderer in the product. An assistant message and the
 // file viewer's rendered Markdown form both go through it, so `rehypeSanitize`,
@@ -76,6 +79,9 @@ function WebLink({ href, children, ...rest }: ComponentProps<"a"> & { href: stri
 }
 
 export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath, onOpenInBrowser }: { text: string; onOpenFile?: (link: FileLink) => void; agentId?: string; sourcePath?: string; onOpenInBrowser?: (path: string) => Promise<unknown> }) {
+  const ranges = useSourceTextRanges(text);
+  const rangesRef = useRef(ranges);
+  rangesRef.current = ranges;
   // The component map must stay referentially stable for the life of the message: a new map
   // remounts every block under it, so rebuilding it per streamed delta drops a settled diagram
   // back to source and repeats main-thread Mermaid work (FS-03.R37, TS-08.R40). The fence check
@@ -90,6 +96,7 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath, onOpe
   agentRef.current = agentId;
   const sourcePathRef = useRef(sourcePath);
   sourcePathRef.current = sourcePath;
+  const searchPlugin = useMemo(() => () => (tree: Root) => markMarkdownSource(tree,textRef.current,rangesRef.current), []);
   const [menu, setMenu] = useState<PointerMenuState | null>(null);
   const pushError = useUiStore((state) => state.pushError);
   const onPathContextMenu = (mouse: ReactMouseEvent<HTMLButtonElement | HTMLSpanElement>) => {
@@ -145,7 +152,7 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath, onOpe
     <>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeSanitize, IMAGE_SCHEMA]]}
+        rehypePlugins={[[rehypeSanitize, IMAGE_SCHEMA], searchPlugin]}
         urlTransform={transformUrl}
         components={components}
       >

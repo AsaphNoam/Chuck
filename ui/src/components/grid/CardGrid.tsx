@@ -15,6 +15,7 @@ import { EmptyState } from "./EmptyState";
 import { NewAgentModal } from "../../features/launch/NewAgentModal";
 import { ThinkTankSetupDialog } from "../../features/thinktank/ThinkTankSetupDialog";
 import { useProjects, useRoles } from "../../api/config";
+import { ProjectChatSearch } from "../../features/dashboard/ProjectChatSearch";
 import { personaIdentityLabel } from "../../lib/personas";
 import { useTasks } from "../../api/tasks";
 import { useSchedules } from "../../api/schedules";
@@ -342,6 +343,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const body =
     ids.length === 0 ? (
 		<>
+			{projectID && <PageHeader title={projectTitle ?? projectID} titleAccessory={<ProjectChatSearch key={projectID} project={projectID} />} />}
 			<TaskAttentionLink projectID={projectID} />
 			<EmptyState onNewAgent={() => setShowNewAgent(true)} actions={thinkTankAction} />
 		</>
@@ -350,6 +352,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
       <PageHeader
         className="grid-toolbar"
         title={projectTitle ?? "Agents"}
+        titleAccessory={projectID ? <ProjectChatSearch key={projectID} project={projectID} /> : undefined}
         actions={<><TaskAttentionLink projectID={projectID} />{hasExpandedOnGrid && <IconButton type="button" aria-label="Collapse all" title="Collapse all" onClick={collapseAll}><CollapseAllIcon /></IconButton>}<Button variant="primary" type="button" onClick={() => setShowNewAgent(true)}>New agent</Button>{thinkTankAction}<DensityControl /></>}
         data-slot="header"
       />

@@ -1,4 +1,22 @@
 @layer ad-features {
+.transcript-wrap mark[data-search-passage] {
+  background: var(--ad-highlight);
+  color: var(--ad-text-primary);
+}
+
+.transcript-wrap [data-search-passage]:focus,
+.transcript-wrap [data-search-event]:focus {
+  outline: var(--ad-border-thick) solid var(--ad-highlight);
+  outline-offset: var(--ad-space-1);
+}
+
+.transcript-wrap [data-search-excerpt] {
+  display: block;
+  background: var(--ad-surface-emphasis);
+  color: var(--ad-text-primary);
+  padding: var(--ad-space-2);
+}
+
 /* The full agent page (FS-12.R61, TS-08.R112): a quiet breadcrumb row above one
    raised card holding the header, runtime band, tabs, reading column and
    composer. Rules under .chat-panel stay off the dashboard pane

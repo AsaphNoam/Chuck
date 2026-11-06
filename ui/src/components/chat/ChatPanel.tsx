@@ -37,6 +37,7 @@ import { OverflowMenu } from "../shell/OverflowMenu";
 import { capVisible } from "../../lib/navCap";
 import { deriveAgentSiblings, sameSiblings, type AgentSibling } from "../../lib/agentSiblings";
 import { agentConversationPath } from "../../lib/agentConversation";
+import { useSearchReference } from "../../features/dashboard/searchReference";
 
 function runtimeSelection(agent: AgentState): RuntimeSelection {
   return { backend: agent.backend, model: agent.model, effort: agent.effort ?? "" };
@@ -82,6 +83,8 @@ function AgentPanel({ id }: { id: string }) {
   const pendingAnnotations = useAnnotationStore((state) => state.bySource[id]?.length ?? 0);
   const discardAnnotations = useAnnotationStore((state) => state.discard);
   const events = useTranscriptStore((state) => state.byAgent[id] ?? []);
+  const transcriptSettled = useTranscriptStore((state) => Boolean(state.settled[id]));
+  const search = useSearchReference(id, agentsHydrated && transcriptSettled, agent?.archived);
   const held = useHeldStore((state) => state.byAgent[id]);
   const heldAfterSeq = useHeldStore((state) => state.afterSeqByAgent[id] ?? 0);
   const releaseHeld = useHeldStore((state) => state.release);
@@ -91,7 +94,8 @@ function AgentPanel({ id }: { id: string }) {
   const { data: roles } = useRoles();
   // The Think Tank tab appears for any room membership, idle or ended (FS-03.R71).
   const inRooms = (useAgentThinkTanks(id).data?.rooms ?? []).length > 0;
-  const [tab, setTab] = useState(() => initialTab(params.get("tab"), agent?.interface));
+  const [tab, setTab] = useState(() => search.requested ? "transcript" : initialTab(params.get("tab"), agent?.interface));
+  useEffect(() => { if (search.requested) setTab("transcript"); }, [search.requested, search.reveal?.key]);
   const [reveal, setReveal] = useState<{ seq: number } | null>(null);
   const [runtime, setRuntime] = useState<RuntimeSelection>(() => agent ? runtimeSelection(agent) : { backend: "", model: "", effort: "" });
   const [switchError, setSwitchError] = useState<string | null>(null);
@@ -110,12 +114,12 @@ function AgentPanel({ id }: { id: string }) {
   // manual switch the user already made.
   const appliedDefault = useRef(false);
   useEffect(() => {
-    if (appliedDefault.current || params.get("tab")) return;
+    if (search.requested || appliedDefault.current || params.get("tab")) return;
     if (agent?.interface === "terminal") {
       appliedDefault.current = true;
       setTab("terminal");
     }
-  }, [agent?.interface, params]);
+  }, [agent?.interface, params, search.requested]);
 
   // A successful switch is published as an updated agent record. Re-seed from
   // that authoritative identity instead of keeping the former pending choice.
@@ -408,7 +412,8 @@ function AgentPanel({ id }: { id: string }) {
           {agent.interface === "terminal" && <Tabs.Trigger value="terminal">Terminal</Tabs.Trigger>}
         </Tabs.List>
         <Tabs.Content value="transcript" className="chat-tab-content" data-slot="content">
-          <TranscriptView agentId={id} events={events} sourceActive={!agent.archived} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} fileTabs={fileTabs} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} panelSlots={panelSlots} />
+          {search.notice}
+          <TranscriptView agentId={id} events={events} sourceActive={!agent.archived} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} fileTabs={fileTabs} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} searchReveal={search.reveal} readingSearch={search.requested} panelSlots={panelSlots} />
         </Tabs.Content>
         <Tabs.Content value="files" className="chat-tab-content" data-slot="content">
           <FilesTab agentId={id} onReveal={revealInTranscript} onOpenFile={openFileInViewer} />

@@ -11,6 +11,7 @@ import { TranscriptView } from "../../components/chat/TranscriptView";
 import type { FileLink } from "../../components/chat/renderers/filePath";
 import { ownerKey } from "../fileTabs/model";
 import { CONVERSATION_FILE_KEYS, useFileTabRoute } from "../fileTabs/useFileTabRoute";
+import { useSearchReference } from "../dashboard/searchReference";
 
 export function ArchiveAgentPage() {
   const { id = "" } = useParams();
@@ -44,6 +45,7 @@ export function ArchiveAgentPage() {
   // Resume/Restore, and a known session without a readable transcript says so
   // (FS-05.R42, INV §7/§8).
   const [load, setLoad] = useState<TranscriptLoad>({ state: "loading" });
+  const search = useSearchReference(id, load.state === "ready" || load.state === "empty", agent?.archived);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let current = true;
@@ -122,7 +124,7 @@ export function ArchiveAgentPage() {
         )}
       </header>
       {error ? <p className="archive-error">{error}</p> : <LoadNotice load={load} onRetry={() => setAttempt((n) => n + 1)} />}
-      <div data-slot="content">{!unknown && <TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} fileTabs={fileTabs} onOpenFile={openFileInViewer} inlineDiffs panelSlots={panelSlots} />}</div>
+      <div data-slot="content">{search.notice}{!unknown && <TranscriptView agentId={id} events={events} sourceActive={false} annotationsEnabled={agent?.interface !== "terminal"} fileTabs={fileTabs} onOpenFile={openFileInViewer} searchReveal={search.reveal} readingSearch={search.requested} inlineDiffs panelSlots={panelSlots} />}</div>
       {/* No Composer — read-only view */}
       <div />
       </div>

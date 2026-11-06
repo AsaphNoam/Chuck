@@ -3,8 +3,10 @@ import * as Dialog from "@radix-ui/react-dialog";
 import type { AttachmentDescriptor } from "../../api/types";
 import { attachmentURL } from "../../api/client";
 import { isPreviewImage, type DraftAttachment } from "./attachments";
+import { MarkedSourceText, SearchEventContext, useSourceTextRanges } from "./searchPassage";
+import { useContext } from "react";
 
-type ViewItem = { name: string; size: number; kind: "image" | "file"; src?: string; draft?: DraftAttachment };
+type ViewItem = { name: string; size: number; kind: "image" | "file"; src?: string; draft?: DraftAttachment; partIndex?: number };
 
 export function DraftAttachments({ files, onRemove, disabled = false }: { files: DraftAttachment[]; onRemove?: (id: string) => void; disabled?: boolean }) {
   return files.length ? <div className="chat-attachment-strip" aria-label="Attachments">
@@ -13,8 +15,11 @@ export function DraftAttachments({ files, onRemove, disabled = false }: { files:
 }
 
 export function MessageAttachments({ agentId, attachments }: { agentId: string; attachments: AttachmentDescriptor[] }) {
+  const event = useContext(SearchEventContext);
+  const offset = (event?.kind ?? event?.type) === "assistant_image" ? 0 : 1;
   return attachments.length ? <div className="chat-attachment-strip chat-message-attachments">
-    {attachments.map((attachment) => <AttachmentTile key={attachment.id} item={{
+    {attachments.map((attachment,index) => <AttachmentTile key={attachment.id} item={{
+      partIndex: offset+index,
       name: attachment.name,
       size: attachment.size,
       kind: attachment.kind,
@@ -30,6 +35,7 @@ export function AssistantImageRow({ agentId, attachment, path, name, error }: { 
 }
 
 function AttachmentTile({ item, onRemove, disabled = false }: { item: ViewItem; onRemove?: () => void; disabled?: boolean }) {
+  const matchedName = useSourceTextRanges(item.name,item.partIndex).length > 0;
   const [open, setOpen] = useState(false);
   const [src, setSrc] = useState<string | null>(null);
   const [imageError, setImageError] = useState("");
@@ -94,14 +100,15 @@ function AttachmentTile({ item, onRemove, disabled = false }: { item: ViewItem; 
   };
   const image = item.kind === "image";
   return <div className="chat-attachment" title={item.name}>
+    {image && src && matchedName && <span className="chat-attachment-name"><MarkedSourceText text={item.name} partIndex={item.partIndex} /></span>}
     {image && src ? <button ref={triggerRef} type="button" className="chat-attachment-preview" aria-label={`Open image ${item.name}`} onClick={() => setOpen(true)}>
       <img src={src} alt={item.name} onError={imageFailed} />
     </button> : image ? <div className="chat-attachment-file" title={item.name}>
-      <span className="chat-attachment-name">{item.name}</span>
+      <span className="chat-attachment-name"><MarkedSourceText text={item.name} partIndex={item.partIndex} /></span>
       <span className="chat-attachment-meta">{imageError ? `Image unavailable: ${imageError}` : loading ? "Loading image preview…" : formatSize(item.size)}</span>
       {imageError && <button type="button" className="chat-attachment-retry" onClick={() => void load()}>Retry image</button>}
     </div> : <div className="chat-attachment-file" title={item.name}>
-      <span className="chat-attachment-name">{item.name}</span>
+      <span className="chat-attachment-name"><MarkedSourceText text={item.name} partIndex={item.partIndex} /></span>
       <span className="chat-attachment-meta">{formatSize(item.size)} · Agent reads uploaded file</span>
     </div>}
     {onRemove && <button type="button" className="chat-attachment-remove" aria-label={`Remove ${item.name}`} disabled={disabled} onClick={onRemove}>Remove</button>}
@@ -170,7 +177,7 @@ export function LocalImage({ agentId, path, alt }: { agentId: string; path: stri
   };
   return <>
     <button ref={triggerRef} type="button" className="chat-local-image" onClick={() => { setOpen(true); void load(); }}>
-      <span>{alt || path}</span><span>Open local image</span>
+      <span><MarkedSourceText text={alt || path} /></span><span>Open local image</span>
     </button>
     <Dialog.Root open={open} onOpenChange={setDialogOpen}>
       <Dialog.Portal>
