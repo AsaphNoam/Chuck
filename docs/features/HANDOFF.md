@@ -23,8 +23,8 @@ are not live queues.
   generated embed covered). SELF-ANNOTATIONS is closed (all three findings repaired).
 - **Next architecture audit:** combined source candidate `b1574fd9` assessed; ARCH-POST021-1–4
   are repaired with exact commits and focused evidence in the
-  [receipt](../archive/reviews/architecture/v0.21.0-next.json). Release signoff remains incomplete
-  pending committed release preparation and its independent affected-coverage evidence.
+  [receipt](../archive/reviews/architecture/v0.21.0-next.json). Independent preparation coverage at
+  `be766a50` completes architectural signoff; existing native/provider/device gates remain owed.
 - **File editing review:** FILE-EDIT-1–3 are closed: case aliases share save serialization,
   explicit file opens preserve refused edits until acknowledged leave, and stale browser pages
   cannot remove or overwrite newer durable drafts. Full closure passes; device gates below remain.
@@ -54,7 +54,9 @@ README/install commands and pinned components need no change. Package tests and 
 (`/private/tmp/chuck-release-{knowledge,specs}.log`). `make dist VERSION=0.22.0` passes with
 `CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1` and the same isolated Go cache
 (`/private/tmp/chuck-release-dist-final.log`); generated embed bytes are unchanged.
-Independent preparation coverage remains required before tagging. No tag or push.
+Independent preparation coverage at `be766a50` passes with no new findings. The dist log embeds
+precommit metadata `4e9ba7b0`; refresh binary metadata at the final committed candidate before
+tagging. Hosted archive/install verification remains owed. No tag or push.
 
 ## Acceptance gates still owed
 

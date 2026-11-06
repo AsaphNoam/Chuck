@@ -2,10 +2,10 @@
   "schema": 1,
   "previous_release": "v0.21.0",
   "reviewed_commit": "b1574fd979e3e5987e7b55b2a32eb21e51b72417",
-  "review_complete": false,
+  "review_complete": true,
   "reviewer": "Fresh independent Codex parent with focused file-durability, input-delivery and installed-runtime reviewers; 2026-11-06; no product authorship in this run",
   "coverage": [
-    "Scope: combined v0.21.0..b1574fd9 source audit finished. Extends v0.20.0-next.json and its verified ARCH-NEXT-1–4 repairs. Detailed authority/scenario map and inert failing probes are in v0.21.0-next.md. Unrelated dirty docs/ideas.md preserved. Required candidate release preparation is not committed; review_complete remains false until exact preparation receives independent affected-coverage evidence. This is not a completed TS-06.R36 release signoff.",
+    "Scope: combined v0.21.0..b1574fd9 source audit finished. Extends v0.20.0-next.json and its verified ARCH-NEXT-1–4 repairs. Detailed authority/scenario map and inert failing probes are in v0.21.0-next.md. Unrelated dirty docs/ideas.md preserved. Independent release-preparation coverage at be766a50f696f78e5af0b8bda97dc4bf6ff0e0bb is appended below; together with verified repair closure it completes TS-06.R36 signoff. Historical evidence limits and owed gates remain live.",
     "Saved work: host descriptor/revision admission plus atomic replacement and browser IndexedDB lineage/generation own saves/drafts. Traced no-follow checks, parent-identity serialization, metadata refusal, uncertain saves, source-qualified retained-room identity, bounded draft admission and leave guards. Independent focused backend tests and 54 file UI tests pass; prior full f03badd7 closure reused. ARCH-POST021-4 real-hook probe shows a pre-save refresh can replace the saved display; disk bytes remain safe. No fresh rendered, OS kill/reopen or native evidence.",
     "Input/information: annotation receipts and source events own stable annotation acceptance, while runtime held identity and message receipts own recovery. New real HTTP/runtime/SQLite probe, repeated by parent, confirms ARCH-POST021-1: standalone self annotations send an id-less message; unacknowledged withdrawal leaves no recovery offer. The source annotation card remains manually retrievable. Assignment-owned input and paused-run admission repairs remain present; uncertain standalone Steer remains an affected-path check for the fixer, not an independently reproduced failure here.",
     "Work progress/results: durable task generation/handle, report transaction, stage cursor, dispatcher and descendant release remain authority. internal/pipeline and focused real-state Pipeline/TaskWait/QuotaRestart tests pass. Traced ordinary-task versus pipeline-stage report routing, handle/yield/stop fences, durable decisions and dedicated-coordinator final report guidance. Prior native-unusable recovery-round closure remains present. No model prose is treated as success; the reported effort-budget field cause is still undetermined.",
@@ -23,6 +23,12 @@
     { "id": "ARCH-POST021-4", "severity": "worth_fixing" }
   ],
   "updates": [
+    {
+      "kind": "coverage",
+      "commits": ["be766a50f696f78e5af0b8bda97dc4bf6ff0e0bb"],
+      "verified": true,
+      "evidence": "Fresh independent preparation reviewer, 2026-11-06, no authorship of preparation/product/repairs: inspected exact three-file preparation diff, FS-03.R109-R112, TS-03.R78-R80, INV section 10, unchanged FileViewer/freshness and annotation delivery owners, embedded operator-package publication and release assembly consumers. HTML sandbox/source annotation/default-host-browser restrictions, settled refresh/deferred replacement, and stable self-targeted annotation recovery guidance match their requirements and existing implementation evidence. Release notes retain native/provider/device limits and accurately describe deliberate original-file Save, browser-local drafts and Installed provider default. go test ./internal/agentknowledge -count=1 independently passes, exercising byte-identical owner-only .agents/.claude publication from the current embedded package; this proves offered guidance, not model consumption. bash -n scripts/release/assemble.sh passes. Reused passing package/spec logs and two make dist VERSION=0.22.0 runs; final /private/tmp/chuck-release-dist-final.log built current guidance and unchanged UI/embed, with precommit metadata Commit=4e9ba7b0 (not exact preparation binary identity). Final committed candidate requires metadata refresh before tagging; hosted archive/install checks remain owed. Traced macos-15 arm64 assertion, go.mod toolchain, private Node 22.22.0 checksum and unchanged Claude ACP 0.85.1, Codex ACP 2.1.1+chuck.1 / CLI 0.159.3 pins through assembly. Reused full both-variant Go and 1172-test UI closure at 84f65de9 for unchanged product inputs. No new findings; combined audit and exact repairs remain authoritative. No new rendered/native/device/credentialed-provider or archive-install claim."
+    },
     {
       "kind": "fix",
       "commits": [
