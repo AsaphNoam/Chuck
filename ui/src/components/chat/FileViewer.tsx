@@ -188,7 +188,7 @@ export function useFileReader({ agentId, link, load, probe, editor, selected = t
     cancelEdit: () => { setEditing(false); setReloadKey((key) => key + 1); },
     setSelectionActive,
     apply,
-    read,
+    read: () => scheduleRef.current ? scheduleRef.current("reload", read) : read(),
     setRendered,
     // A Reload already reading is the same request (TS-08.R144).
     reload: () => { if (!editing && !reading && (view.status !== "loading" || dropped)) setReloadKey((key) => key + 1); },

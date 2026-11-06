@@ -100,7 +100,7 @@ export function useFileFreshness({ identity, selected, snapshot, probe, read, ap
       visibilityGeneration += 1;
       clearTimeout(timer);
       if (document.hidden) latest.current.cancelPending?.();
-      if (!document.hidden) void tick();
+      if (!document.hidden) { since = Date.now(); void tick(); }
     };
     document.addEventListener("visibilitychange", visibility);
     void tick();

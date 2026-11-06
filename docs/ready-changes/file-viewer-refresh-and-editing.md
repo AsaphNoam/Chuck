@@ -1,6 +1,6 @@
 # File-viewer refresh and editing
 
-**State:** In progress
+**State:** Finished
 **Why:** Operator `/design-feature` request on 2026-11-05: viewer files stay stale during agent
 work; refresh without repeated disruption and allow direct editing. Scope confirmed with a small
 unobtrusive status spinner and retained readable content; optimistic save conflicts and owned-file
@@ -46,7 +46,7 @@ and generated embed.
 
 ## Waiting on
 
-Nothing. Selected by `/work` on 2026-11-06.
+Nothing. Implemented by `/work` on 2026-11-06; available for independent review.
 
 ## Implementation direction
 
@@ -64,7 +64,10 @@ verify their boundaries before the combined actual-product journey.
   filtering and explicit PUT denial; exact BOM/CRLF/UTF-8 disk bytes and mode; symlink, hard-link,
   ACL/xattr and unsafe-file refusal; parent/target replacement, concurrent saves and post-replace
   uncertainty injection. Focused server `-race` checks pass.
-- Full UI suite: 1170 tests pass. Timer/request-order tests cover quiet coalescing, selection,
+- Full UI suite: 1170 tests pass with `--maxWorkers=1 --minWorkers=1`; parallel runs hit the
+  existing CardGrid waiting-input transition timing failure, also passing its isolated file.
+  `make test` (untagged and FTS5), final `make dist`, presentation and spec checks pass.
+  Timer/request-order tests cover quiet coalescing, selection,
   visibility, stale replies, saved-snapshot fencing and one in-flight request per tab. Draft and
   router tests cover capacity, lineage, in-flight typing, conflicts and unsafe Back/navigation.
 - Real Chromium IndexedDB transactions preserve exact text/base/source across reload, refuse

@@ -15,8 +15,9 @@ describe("selected file freshness", () => {
     let hidden = false;
     vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
     const probe = vi.fn(async () => ({ path: "x", observed_revision: "one" }));
+    const read = vi.fn(async () => snapshot("one"));
     const cancelPending = vi.fn();
-    renderHook(() => useFileFreshness({ identity: "a:x", selected: true, snapshot: snapshot("one"), probe, read: async () => snapshot("one"), apply: vi.fn(), blocked: false, retry: 0, cancelPending }));
+    renderHook(() => useFileFreshness({ identity: "a:x", selected: true, snapshot: snapshot("old"), probe, read, apply: vi.fn(), blocked: false, retry: 0, cancelPending }));
     await advance(0);
     expect(probe).toHaveBeenCalledTimes(1);
     act(() => { hidden = true; document.dispatchEvent(new Event("visibilitychange")); });
@@ -25,6 +26,11 @@ describe("selected file freshness", () => {
     expect(probe).toHaveBeenCalledTimes(1);
     await act(async () => { hidden = false; document.dispatchEvent(new Event("visibilitychange")); });
     expect(probe).toHaveBeenCalledTimes(2);
+    expect(read).not.toHaveBeenCalled();
+    await advance(1999);
+    expect(read).not.toHaveBeenCalled();
+    await advance(1);
+    expect(read).toHaveBeenCalledTimes(1);
   });
 
   it("discards a refresh candidate when Save has already applied a newer snapshot", async () => {

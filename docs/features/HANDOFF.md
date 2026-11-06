@@ -38,22 +38,13 @@ are not live queues.
 
 ## Active change
 
-**File-viewer refresh and editing — in progress.**
-[Change](../ready-changes/file-viewer-refresh-and-editing.md). Backend probe/conditional-save
-and draft storage/editor are delegated; parent owns selected-reader refresh and integration.
-Draft editor/store and selected-reader refresh are implemented. Focused reader/tab/freshness tests
-pass (44); editor tests and real Chromium IndexedDB reload/capacity checks pass. Backend route
-verification and combined product rendering/closure remain in progress.
-Backend routes and adversarial filesystem/remote tests pass, including focused race checks.
-Actual embedded Chromium journeys pass live/archive/room/Focus saves, conflict/recovery and
-quiet/selection-gated refresh in all four appearances at 1024/1440px; phone supplement in progress.
-Full UI suite passes 1170 tests; `make dist`, presentation and final spec checks pass. Untagged
-Go suite passes; tagged suite remains running. Next: confirm tagged closure and final audit, then
-mark finished and add the substantive unit to review. Logs: `/private/tmp/chuck-file-{ui-closure-final,
-go-closure-final,dist-final,specs-final}.log`; rendered proof `/private/tmp/chuck-file-editing-final`.
-Existing dirty `docs/ideas.md` and generated `dist/index.html` are unrelated and preserved.
+None.
 
 ## Acceptance gates still owed
+
+- **File freshness/editing (FS-03.A86–A88):** actual Chromium desktop live/archive/room/Focus
+  journeys and the real phone bundle at 360/390/430px pass. Phone SSE/tracked-file admission was
+  fixture-controlled; physical-device, real paired reconnect and non-Chromium gates remain open.
 
 - **FS-03.A85 native default browser:** JXA lookup ran but this environment has no configured
   default web browser. On a normal Mac, right-click a self-contained HTML file and select
@@ -218,6 +209,19 @@ Existing dirty `docs/ideas.md` and generated `dist/index.html` are unrelated and
 
 ## Review queue
 
+- **File-viewer refresh and editing** (2026-11-06):
+  [change](../ready-changes/file-viewer-refresh-and-editing.md), FS-03.R110–R112 /
+  TS-03.R80–R81 / TS-05.R29 / TS-08.R153–R155. One substantive unit, starting at
+  `bd1330aa` (inclusive), backend `37be8bcb`, UI `21475558` and final lifecycle closure.
+  Shared selected-visible refresh retains snapshots; exact-byte conditional local saves,
+  source-qualified IndexedDB drafts and explicit comparison/recovery; phone stays read-only.
+  `make test` (both builds), focused server `-race`, `make dist`, specs and full UI suite
+  (1170 tests, `--maxWorkers=1 --minWorkers=1`) pass. Parallel UI runs intermittently failed the
+  existing CardGrid waiting-input transition test; its isolated 42-test file and serial full suite
+  pass, with no dashboard changes. Logs `/private/tmp/chuck-file-{go-closure-final,
+  ui-closure-final,dist-final,specs-final}.log`; browser proof `/private/tmp/chuck-file-editing-final`.
+  Final audit fixed foreground quiet-window reset; editor comparison reads share the tab limiter.
+
 - **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
   Current agent is available for any non-archived source; the handler wakes a stopped source,
   holds behind a running turn, or steers (`target.steer`) when the runtime advertises it; desktop
@@ -279,6 +283,10 @@ specs, live user state or unrelated dirty files changed.
 None.
 
 ## Changelog
+
+- **2026-11-06 — File-viewer refresh and editing:** finished the approved change, including
+  conditional host saves, recoverable drafts and selected-visible quiet refresh. Closure passes;
+  review unit added without replacing existing queues. Unrelated `docs/ideas.md` remains dirty.
 
 - **2026-11-06 — Self-annotation fixes (INV §§1/2/8/10/11/15):** SELF-ANNOTATIONS-1–3
   and their originating review unit closed by `242860c1`. Self batches share ordinary assignment
