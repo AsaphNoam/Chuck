@@ -20,7 +20,7 @@ are not live queues.
   awaiting the next clean-clone CI run.
 - **Review state:** CI-CARDGRID and TASK-FORM are closed. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
-  generated embed covered). SELF-ANNOTATIONS (three findings) remain open below.
+  generated embed covered). SELF-ANNOTATIONS is closed (all three findings repaired).
 - **Recovery fix:** RECOVERED-QUEUE-1–3 are closed in `0e98d3c4`. Withdrawal acknowledges only
   durably restored text; successful Steer fences stale reads on desktop/phone. All closure checks pass.
   Fresh queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
@@ -38,13 +38,7 @@ are not live queues.
 
 ## Active change
 
-SELF-ANNOTATIONS repair verification. Shared assignment admission, matching held-batch
-delivery and surviving desktop/phone Steer feedback are implemented. Focused server
-continuation/replay/paused-run tests and UI regressions pass (including pre-fix failures).
-Full UI suite (1,157 tests), UI build and `make build` pass; one added phone queued-input
-case passes focused verification. Final full UI rerun and `make test` are in progress;
-close the three findings below after those pass. Logs: `/tmp/self-annotation-*-closure.log`.
-Preserve unrelated `docs/ideas.md` and embedded `internal/server/ui/dist/index.html` edits.
+None.
 
 ## Acceptance gates still owed
 
@@ -269,43 +263,25 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### SELF-ANNOTATIONS — self-targeted annotations behave like chat messages (2026-11-05) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Reviewed `17697763` against FS-13.R23/R37/A27, FS-03.R48–R50 and TS-03.R78.
-The originating review unit remains open; no product code or specifications changed.
-
-- **Must fix** — **SELF-ANNOTATIONS-1 (INV §2/§10/§15): preserve assignment admission for self batches.**
-  `internal/server/sessions.go:319–336` directly calls `SendMessageOrHold` without the ordinary
-  prompt route's `QueueAssignmentInput` / continuation handling
-  (`internal/server/attachments.go:502–537`). When an agent's assignment is waiting but its chat
-  runtime is idle, sending a self batch starts a standalone turn and returns `delivery: sent`,
-  instead of retaining the instruction for that assignment's continuation. This bypasses the
-  assignment lifecycle and its durable input ownership (FS-13.R37, FS-03.R48, TS-09.R69).
-  An isolated Go overlay using the existing waiting-assignee fixture reproduces HTTP 202 with
-  `delivery: sent` where ordinary chat returns `queued`. Reuse the ordinary recorded-input and
-  continuation seam, retain the annotation source record/receipt semantics, and extend the client
-  delivery vocabulary and pending display accordingly. Verify a waiting assignment receives the
-  block through continuation exactly once, including restart/retry and paused-run cases.
-
-- **Must fix** — **SELF-ANNOTATIONS-2 (INV §1/§8/§11): match the delivered batch before clearing a hold.**
-  `ui/src/components/chat/ChatPanel.tsx`'s delivered-hold effect clears any held annotation block
-  when any annotation card has a later `prompt_seq`. Queue batch A, then capture and Steer distinct
-  batch B while the same turn is busy: B's prompt pairs with B's card, but its sequence clears A's
-  client hold. A remains queued in the runtime because a non-promoted steer does not remove the
-  existing hold (`internal/runtime/chat.go`, `SteerMessage`). The pending tail and Withdraw disappear
-  even though the agent will still receive A, violating FS-03.R48 and FS-13.R37. Carry/match the
-  delivered batch's text or identity before releasing its hold; add a ChatPanel regression for
-  queue-A/steer-B that keeps A visible and withdrawable until A actually delivers.
-
-- **Must fix** — **SELF-ANNOTATIONS-3 (INV §8): report the annotation Steer outcome.**
-  `ui/src/components/chat/annotationDelivery.ts:99–105` consumes only `held` and discards
-  `steered` / `new_turn`. If the turn ends between clicking Steer and native delivery, both desktop
-  and phone clear the tray without telling the person the annotation started a new turn. FS-13.R37
-  adopts FS-03.R50, which requires distinguishing those outcomes; no annotation exception is
-  specified. Surface the existing outcome wording in an owner that survives clearing the tray,
-  and verify both outcomes on desktop and phone. This is independent of the held-tail bug.
+None.
 
 ## Changelog
+
+- **2026-11-06 — Self-annotation fixes (INV §§1/2/8/10/11/15):** SELF-ANNOTATIONS-1–3
+  and their originating review unit closed by `242860c1`. Self batches share ordinary assignment
+  admission and paused-run continuation; stable input receipts reconcile interrupted acceptance
+  without duplicating input. Desktop and phone refresh pending input even after receipt replay.
+  A delivered annotation clears only the matching held text, and Steer reports running-turn versus
+  new-turn delivery outside the cleared tray. Regression evidence includes pre-fix failures for
+  assignment admission, unrelated-held-batch clearing and missing desktop feedback; waiting-task
+  startup recovery/retry, paused-run replay, phone feedback and queued-input display pass.
+  Checked repair scope `242860c1`: `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1
+  GOCACHE=/private/tmp/chuck-go-cache make test` (both full Go suites, loopback-capable execution),
+  `make build`, full UI Vitest (1,158 tests), UI style/presentation checks and build, and
+  `git diff --check` pass. Logs: `/tmp/self-annotation-go-closure.log`,
+  `/tmp/self-annotation-ui-closure.log`, `/tmp/self-annotation-ui-build.log`.
+  Existing native/provider/device gates remain owed. Unrelated `docs/ideas.md` and embedded
+  `internal/server/ui/dist/index.html` edits were preserved; embedded UI was not regenerated.
 
 - **2026-11-05 — Think Tank setup layout fixes (INV §§8/13):** TT-SETUP-1/2 closed by
   separating participant identity from controls and constraining the empty picker to its grid
