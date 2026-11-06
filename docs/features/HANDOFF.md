@@ -45,7 +45,16 @@ are not live queues.
 
 ## Active change
 
-None.
+Release v0.22.0 preparation (version confirmed by the operator on 2026-11-06).
+Clean detached worktree: `/private/tmp/chuck-release-next`; unrelated `docs/ideas.md` edits remain
+in the main checkout. Release notes: [v0.22.0](../archive/state/RELEASE-v0.22.0-notes.md).
+Full Go/UI results at `84f65de9` are reusable for unchanged product inputs. The range audit
+refreshed canonical operator guidance for HTML previews, settled refresh and self annotations;
+README/install commands and pinned components need no change. Package tests and spec checks pass
+(`/private/tmp/chuck-release-{knowledge,specs}.log`). `make dist VERSION=0.22.0` passes with
+`CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1` and the same isolated Go cache
+(`/private/tmp/chuck-release-dist-final.log`); generated embed bytes are unchanged.
+Independent preparation coverage remains required before tagging. No tag or push.
 
 ## Acceptance gates still owed
 
