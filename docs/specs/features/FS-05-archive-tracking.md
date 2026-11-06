@@ -490,7 +490,7 @@ R22's `active` validation remain binding.
   TS-03.R82–R84 and TS-08.R156–R157. Real SQLite/HTTP, migration/repair and component tests cover
   the contracts; `project-search-journey.mjs` exercises the embedded product at 1024/1440 in all
   appearances, including exact source reveal and stable reading during fake-provider updates.
-  [Ready change](../../ready-changes/project-chat-search.md). No product decision remains open.
+  No product decision remains open.
 
 - **Offline reindex preservation:** the operator approved R43–R45/A26–A27's partial-repair policy
   on 2026-10-22 for CR-A1-1/2. Healthy conversations are rebuilt; failed ones retain their prior data

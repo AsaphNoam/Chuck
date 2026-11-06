@@ -24,37 +24,27 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 - **Field causes:** EFFORT-BUDGET awaits the affected worker's manifest/trace; no cause or fix is
   established. Frequent-429 and unchecked permission-save reports need affected server evidence.
 - **Future work:** direct-action migration stays paused on its transport blocker; passive quota
-  snapshots stay TBD. Project chat search implementation is in final verification.
+  snapshots stay TBD. Project chat search is finished and available for independent review.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`, use `GOFLAGS=-p=1` and a writable isolated Go cache.
   Full suites need loopback-capable execution.
 
 ## Active change
 
-**In progress:** [Project chat search](../ready-changes/project-chat-search.md), selected by `/work`
-on 2026-11-06. Next slices: bounded transactional search provenance, project-search query and
-read-only match resolver, then shared UI reveal and rendered acceptance. Separate owners work on
-index/migration, archive queries and UI; the main agent owns HTTP integration and final verification.
-Specifications remain planned until verified. Unrelated `docs/ideas.md` edits are preserved.
+No implementation is active. Project chat search finished on 2026-11-06; see the review queue.
+Unrelated `docs/ideas.md` edits remain preserved.
 
-Checkpoint: source provenance migration, shared index builder, project query and HTTP resolver are
-implemented. Tagged/untagged focused archive/HTTP tests pass, including independent Unicode and
-cross-event positions, old-row reconstruction without writes, stale digests, malformed provenance,
-document bounds, real storage failure and search admission. Tagged focused
-provenance/reindex tests and untagged index/state suites pass (isolated Go cache at
-`/private/tmp/chuck-search-go-cache`; archive's independent cache is
-`/private/tmp/agentdeck-archive-gocache`). Exact Unicode offsets, failed transactional publication,
-bounded provenance and rollback preserve existing documents. UI source integration and its 1180
-tests pass; rendered journeys pass at 1024/1440 in all appearances, with live reading/cross-event
-follow-up running. Next: finish the real source-budget case and closure suites, then record review
-availability. The source-budget and crash-torn-tail checks pass; browser4 passes all 23 checks,
-including collapsed-turn expansion, cross-event source reveal and stable reading under a new live
-reply. The deterministic presentation matrix renders in all four appearances without page errors.
-`make embed` and `make build` pass; all 1180 UI tests pass. The final full Go closure is running
-against the complete source at `/private/tmp/chuck-search-final-go.log`.
-Final integration also caps SQLite's token-counted fallback snippet to 256 code points in SQL;
-the oversized single-token regression passes (`/private/tmp/chuck-search-preview-bound.log`).
-Full suites require approved loopback access; sandbox-only execution failed to bind
-test listeners. Logs: `/private/tmp/chuck-search-{full-go-approved,full-ui,browser3}.log`.
+Verification for product inputs through `59c15236`: `make test` passes both Go variants,
+`make build` and `make embed` pass, and all 1180 UI tests pass. The additional untagged fallback
+priority/paging regression passes after the full run. Unset `CHUCK_RUNTIME_ROOT`, use
+`GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-search-go-cache`; full suites need approved loopback
+access. Logs: `/private/tmp/chuck-search-{final-go2,final-build2,embed,full-ui,fallback-final}.log`.
+All 23 real-browser checks pass at 1024/1440 across all four appearances, including collapsed
+turns, later merged deltas, cross-event phrases, annotations, attachments, code, direct reload/back,
+keyboard entry and stable reading during a new fake-provider reply. Report/screenshots:
+`/private/tmp/chuck-search-browser4/`; deterministic matrix: `/private/tmp/chuck-search-matrix/`.
+Error/metadata/unavailable browser branches use controlled read responses; real tagged/untagged
+SQLite and HTTP tests cover those storage contracts. No native-provider or performance claim.
+Temporary browser fixtures and the Vite server are stopped.
 
 Release v0.22.0 remains verified and annotated locally in `/private/tmp/chuck-release-next`.
 Publication is not authorized; no push is part of this implementation.
@@ -210,14 +200,12 @@ Publication is not authorized; no push is part of this implementation.
 
 ## Changelog
 
-- **2026-11-06 — Project chat search specified:** operator approved SQLite FTS5 reuse with
-  partial words, lifecycle priority and exact excerpt opening. FS-05.R46–R53/A28–A32,
-  TS-02.R63–R64, TS-03.R82–R84 and TS-08.R156–R157 are planned;
-  [project-chat-search](../ready-changes/project-chat-search.md) is Waiting to start. Source spans
-  share the existing database; old index rows remain intact with verified read-only location
-  reconstruction or an explicit unavailable state. Independent source review found a join-separator
-  mapping conflict, now corrected. Spec integrity, twin launcher comparison and diff checks pass;
-  implementation/rendered acceptance remain owed. No product code or active-release change.
+- **2026-11-06 — Project chat search finished:** compact project-heading search reuses SQLite
+  FTS5 with partial words and running/stopped/archived priority. Exact source references open the
+  shared live/archive renderer at the real passage; older rows reconstruct only after byte equality
+  is proved, otherwise normal opening stays available. Migration/repair remain transactional and
+  source reads/provenance/previews are bounded. FS-05.R46–R53/A28–A32, TS-02.R63–R64,
+  TS-03.R82–R84 and TS-08.R156–R157 are implemented. Closure evidence is above; review is available.
 
 ## Decisions needing input
 
@@ -239,7 +227,13 @@ Publication is not authorized; no push is part of this implementation.
 
 ## Review queue
 
-None.
+- **Project chat search and matching-passage navigation:** available for independent `/review`.
+  Unit starts after `41edd4ed`, with substantive commits `d950c437`, `80d80257`, `62865d1f` and
+  `59c15236`; the closure also strengthens the untagged fallback paging test. Requirements:
+  FS-05.R46–R53/A28–A32; TS-02.R63–R64; TS-03.R82–R84; TS-08.R156–R157.
+  Sweep provenance/digest/source equality, optional-map bounds and repair, SQL scope/ranking before
+  paging, shared UTF-8 source reveal and reading-mode lifetime. Verification and browser receipts
+  are recorded above. This is one unit; checkpoint/closure commits do not create separate units.
 
 ## Investigations awaiting evidence
 

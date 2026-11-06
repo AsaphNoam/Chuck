@@ -98,4 +98,36 @@ func TestProjectSearchMetadataFallback(t *testing.T) {
 	if resp.SearchMode != "metadata" || resp.Total != 1 || len(resp.Results) != 1 || resp.Results[0].LocationStatus != "metadata_only" || resp.Results[0].SearchRef != nil {
 		t.Fatalf("response=%+v", resp)
 	}
+	// Exercise the fallback SQL's own grouping before LIMIT, rather than
+	// inferring its priority from the separate FTS query's tests.
+	for _, row := range []struct {
+		id, project, iface string
+		archived, running  bool
+	}{
+		{"a_running", "project-a", "chat", false, true},
+		{"a_archived", "project-a", "chat", true, false},
+		{"b_running", "project-b", "chat", false, true},
+		{"t_running", "project-a", "terminal", false, true},
+	} {
+		if _, err := db.Exec(`INSERT INTO sessions(agent_id,name,role,project,backend,model,interface,cwd,system_prompt,created_at,updated_at) VALUES(?,'Alpha','reviewer',?,'claude','sonnet',?,'/tmp','', '2026-07-01','2026-07-03')`, row.id, row.project, row.iface); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(`INSERT INTO agents(agent_id,name,role,project,backend,model,interface,created_at,archived) VALUES(?,'Alpha','reviewer',?,'claude','sonnet',?,'2026-07-01',?)`, row.id, row.project, row.iface, row.archived); err != nil {
+			t.Fatal(err)
+		}
+		if row.running {
+			if _, err := db.Exec(`INSERT INTO running(agent_id,pid,session_id,interface,started_at) VALUES(?,1,'fake',?,'2026-07-01')`, row.id, row.iface); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for offset, want := range []string{"a_running", "a_project", "a_archived"} {
+		page, err := New(db).ProjectSearch(context.Background(), Query{Project: "project-a", Q: "Alph", Limit: 1, Offset: offset, ProjectSearch: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 3 || len(page.Results) != 1 || page.Results[0].AgentID != want {
+			t.Fatalf("offset %d response=%+v want=%s", offset, page, want)
+		}
+	}
 }
