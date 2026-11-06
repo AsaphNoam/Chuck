@@ -6,8 +6,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Current position
 
-- **Release candidate:** v0.22.0, version confirmed on 2026-11-06; local tag pending this
-  administrative closure. [Notes](../archive/state/RELEASE-v0.22.0-notes.md).
+- **Locally tagged:** v0.22.0 at `62675131`, version confirmed on 2026-11-06; unpushed.
+  [Notes](../archive/state/RELEASE-v0.22.0-notes.md).
   Latest published release remains [v0.21.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.21.0).
 - **Architecture:** combined audit and all four repairs are complete; independent preparation
   signoff at `6dfae975` covers `be766a50` with no new findings.
@@ -16,7 +16,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   reused for unchanged product inputs. Release preparation passes package/spec checks and
   `make dist VERSION=0.22.0`; embed bytes are unchanged. Logs:
   `/private/tmp/chuck-release-{dist-final,knowledge,specs}.log`.
-  Final candidate binary metadata refresh remains the last local build step.
+  Final tagged-candidate `make build VERSION=0.22.0` passes with exact `62675131` metadata
+  and `sqlite_fts5` (`/private/tmp/chuck-release-build-tag.log`).
 - **Publication:** not authorized or pushed. Supported arm64 `macos-15` assembly, fresh archive/
   install checks and clean-clone CI remain owed on publication; prior main CI failure was repaired.
   Native/provider/device gates below remain owed.
@@ -29,8 +30,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-Release v0.22.0: commit this administrative closure, refresh binary metadata, rerun the architecture
-gate, create the annotated local tag, then request explicit authorization to push main and the tag.
+Release v0.22.0 is verified and annotated locally; the final architecture gate passes.
+Await explicit authorization to push main and `v0.22.0`, publishing all unpushed main commits.
 Clean release worktree: `/private/tmp/chuck-release-next`; unrelated `docs/ideas.md` edits remain
 in the main checkout. Publication verification is still required after an authorized push.
 
