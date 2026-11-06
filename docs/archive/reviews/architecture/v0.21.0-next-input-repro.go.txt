@@ -1,0 +1,89 @@
+package server
+
+import (
+ "context"
+ "encoding/json"
+ "net/http"
+ "testing"
+
+ "github.com/AsaphNoam/Chuck/internal/runtime"
+)
+
+// New self-targeted annotations promise ordinary queued-message withdrawal
+// semantics. Observe the real HTTP/store boundary without acknowledging the
+// withdrawn content, as when that response is lost or draft storage fails.
+func TestArchitectureSelfAnnotationWithdrawRecovery(t *testing.T) {
+ srv, handler, id, _ := busyAttachmentTestServer(t)
+ batch := runtime.AnnotationData{CommandID: "arch-withdraw-1", Annotations: []runtime.Annotation{{Seq: 1, Excerpt: "target phrase", Instruction: "review this exact instruction"}}, Target: runtime.AnnotationTarget{Kind: "self"}}
+ res, body := postJSONHandler(t, handler, "/api/sessions/"+id+"/annotations", batch)
+ if res.StatusCode != http.StatusAccepted { t.Fatalf("annotation: %d %s", res.StatusCode, body) }
+ hold := serveLocal(t, handler, http.MethodGet, "/api/sessions/"+id+"/prompt", nil)
+ t.Logf("hold: %d %s", hold.Code, hold.Body)
+ withdrawn := serveLocal(t, handler, http.MethodDelete, "/api/sessions/"+id+"/prompt", nil)
+ t.Logf("withdraw: %d %s", withdrawn.Code, withdrawn.Body)
+ var wire struct { Withdrawn bool `json:"withdrawn"`; Message runtime.Message `json:"message"` }
+ if err := json.Unmarshal(withdrawn.Body.Bytes(), &wire); err != nil || !wire.Withdrawn { t.Fatalf("withdraw: %v %s", err, withdrawn.Body) }
+ if wire.Message.RequestID == "" { t.Error("withdrawn annotation has no recovery identity") }
+ rec, err := srv.stateStore.AttachmentRecovery(id)
+ if err != nil || rec.Delivery != "released" { t.Errorf("withdrawal must stay recoverable until draft acknowledgement: rec=%+v err=%v", rec, err) }
+ read := serveLocal(t, handler, http.MethodGet, "/api/sessions/"+id+"/prompt", nil)
+ t.Logf("read after unacknowledged withdrawal: %d %s", read.Code, read.Body)
+ res, body = postJSONHandler(t, handler, "/api/sessions/"+id+"/annotations", batch)
+ t.Logf("same-command replay: %d %s", res.StatusCode, body)
+}
+
+// A control at the ordinary HTTP path confirms that the recovery guarantee
+// applies even when a legacy text-only caller did not supply a request ID.
+func TestArchitectureLegacyPromptWithdrawRecoveryControl(t *testing.T) {
+ srv, handler, id, _ := busyAttachmentTestServer(t)
+ res, body := postJSONHandler(t, handler, "/api/sessions/"+id+"/prompt", map[string]string{"text":"ordinary control input"})
+ if res.StatusCode != http.StatusAccepted { t.Fatalf("prompt: %d %s", res.StatusCode, body) }
+ withdrawn := serveLocal(t, handler, http.MethodDelete, "/api/sessions/"+id+"/prompt", nil)
+ var wire struct { Message runtime.Message `json:"message"` }
+ if err := json.Unmarshal(withdrawn.Body.Bytes(), &wire); err != nil { t.Fatal(err) }
+ rec, err := srv.stateStore.AttachmentRecovery(id)
+ if wire.Message.RequestID == "" || err != nil || rec.Delivery != "released" || rec.RequestID != wire.Message.RequestID { t.Fatalf("ordinary withdrawal lost recovery: %s rec=%+v err=%v", withdrawn.Body, rec, err) }
+ t.Logf("ordinary legacy withdrawal recovery: request_id=%q delivery=%q", rec.RequestID, rec.Delivery)
+}
+
+// Stop is a direct normal-use boundary, requiring no lost response. Compare
+// accepted self annotations with ordinary text and inspect the exact saved text
+// among all released receipts (another interrupted turn may have its own one).
+func TestArchitectureHeldInputStopRecovery(t *testing.T) {
+ for _, annotation := range []bool{false,true} {
+  name := "ordinary"
+  if annotation { name = "self_annotation" }
+  t.Run(name,func(t *testing.T) {
+   srv, handler, id, _ := busyAttachmentTestServer(t)
+   path := "/api/sessions/"+id
+   exact := "ordinary stop input"
+   if annotation {
+    batch := runtime.AnnotationData{CommandID:"arch-stop-1", Annotations:[]runtime.Annotation{{Seq:1,Excerpt:"target phrase",Instruction:"review stop input"}},Target:runtime.AnnotationTarget{Kind:"self"}}
+    exact = runtime.FormatAnnotationBlock(batch)
+    res, body := postJSONHandler(t,handler,path+"/annotations",batch)
+    if res.StatusCode != http.StatusAccepted { t.Fatalf("annotation: %d %s",res.StatusCode,body) }
+   } else {
+    res, body := postJSONHandler(t,handler,path+"/prompt",map[string]string{"text":exact})
+    if res.StatusCode != http.StatusAccepted { t.Fatalf("prompt: %d %s",res.StatusCode,body) }
+   }
+   held,_,err := srv.registry.HeldMessage(id)
+   if err != nil || held.Text != exact { t.Fatalf("accepted hold: %+v %v",held,err) }
+   if err := srv.registry.Stop(context.Background(),id); err != nil { t.Fatal(err) }
+   if err := srv.stateStore.ReleaseRestartedAttachments(); err != nil { t.Fatal(err) }
+   rows,err := srv.stateStore.DB().Query(`SELECT message_json,delivery FROM attachment_receipts WHERE agent_id=?`,id)
+   if err != nil { t.Fatal(err) }
+   found := false
+   for rows.Next() {
+    var raw,delivery string
+    if err := rows.Scan(&raw,&delivery); err != nil { t.Fatal(err) }
+    var message runtime.Message
+    if err := json.Unmarshal([]byte(raw),&message); err != nil { t.Fatal(err) }
+    if message.Text == exact && delivery == "released" { found = true }
+   }
+   if err := rows.Err(); err != nil { t.Fatal(err) }
+   rows.Close()
+   t.Logf("accepted held input released for recovery=%v, durable annotation events=%d",found,annotationEventCount(t,srv,id))
+   if !found { t.Error("Stop discarded accepted held input instead of retaining exact released recovery") }
+  })
+ }
+}

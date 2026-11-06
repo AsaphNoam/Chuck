@@ -1,0 +1,19 @@
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { useFileFreshness } from "./useFileFreshness";
+const snap = (revision: string) => ({ observed_revision: revision, content: revision, path: "x", agent_id: "a", size: 1, mod_time: "", line_count: 1, language: "text", truncated: false });
+afterEach(() => { cleanup(); vi.useRealTimers(); });
+it("does not replace the saved snapshot with a refresh read started before save", async () => {
+  vi.useFakeTimers();
+  let finish!: (file: ReturnType<typeof snap>) => void;
+  const apply = vi.fn();
+  const { rerender } = renderHook(({ blocked, snapshot }) => useFileFreshness({ identity: "a:x", selected: true, snapshot,
+    probe: async () => ({ path: "x", observed_revision: "reviewed-external" }),
+    read: () => new Promise((done) => { finish = done; }), apply, blocked, retry: 0 }),
+    { initialProps: { blocked: true, snapshot: snap("original") } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+  expect(finish).toBeTypeOf("function");
+  rerender({ blocked: false, snapshot: snap("saved") });
+  await act(async () => { finish(snap("reviewed-external")); });
+  expect(apply).not.toHaveBeenCalled();
+});
