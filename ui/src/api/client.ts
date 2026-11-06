@@ -415,6 +415,26 @@ export function getFileContent(agentId: string, path: string) {
   );
 }
 
+export function probeFileContent(agentId: string, path: string) {
+  return json<import("./types").FileProbe>(`/api/sessions/${encodeURIComponent(agentId)}/file?path=${encodeURIComponent(path)}&probe=1`);
+}
+
+export function probeSourceFile(roomId: string, sourceId: string, path: string) {
+  return json<import("./types").FileProbe>(`/api/think-tanks/${encodeURIComponent(roomId)}/sources/${encodeURIComponent(sourceId)}/file?path=${encodeURIComponent(path)}&probe=1`);
+}
+
+export function saveFileContent(agentId: string, path: string, base_revision: string, content: string) {
+  return json<FileContent>(`/api/sessions/${encodeURIComponent(agentId)}/file`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, base_revision, content }),
+  });
+}
+
+export function saveSourceFile(roomId: string, sourceId: string, path: string, base_revision: string, content: string) {
+  return json<FileContent>(`/api/think-tanks/${encodeURIComponent(roomId)}/sources/${encodeURIComponent(sourceId)}/file`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, base_revision, content }),
+  });
+}
+
 // getAvailableCommands backs the composer `#` picker: the running chat agent's
 // latest ACP command/skill snapshot (TS-03.R24). A stopped/non-chat agent errors,
 // which the composer treats as "no commands".

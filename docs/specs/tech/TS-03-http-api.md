@@ -1148,7 +1148,7 @@ validation/read/launch failures return the existing visible error envelope. Thes
 the whole-mux local Host/Origin guard and are absent from the remote route allowlist. They add no
 raw HTML or linked-resource serving and never run during file reads (FS-03.R109).
 
-**R80 (planned) — File freshness extends the existing authorized GETs.** FS-03.R110 uses
+**R80 — File freshness extends the existing authorized GETs.** FS-03.R110 uses
 `GET /api/sessions/{id}/file?path=<p>&probe=1` and the same query on
 `GET /api/think-tanks/{id}/sources/{source_id}/file`. A probe returns bounded JSON
 `{path, observed_revision}` without content. The opaque observation fingerprint includes opened
@@ -1169,7 +1169,7 @@ retains the 512 KiB bound; images/truncated reads never receive a writable revis
 detect observed changes, not every transient write between samples. These additions supersede
 R48's no-polling clause only; old clients can keep ordinary GET/Reload.
 
-**R81 (planned) — Desktop text saves are explicit conditional file replacements.** Add local-only
+**R81 — Desktop text saves are explicit conditional file replacements.** Add local-only
 `PUT /api/sessions/{id}/file` and
 `PUT /api/think-tanks/{id}/sources/{source_id}/file`, accepting JSON
 `{path, base_revision, content}`. Session lookup and path resolution match R48; rooms use retained

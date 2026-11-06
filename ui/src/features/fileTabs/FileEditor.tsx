@@ -78,11 +78,20 @@ export function FileEditor({ identity, initial, displayMode = "source", load, sa
         setComparison(disk); setNotice("The file changed. Compare it with your draft and explicitly use this version before saving."); return;
       }
       const saved = await save(submitted.baseRevision, submitted.text);
+      if (alive.current && current.current.lineage === submitted.lineage) {
+        current.current = { ...current.current, baseRevision: revisionOf(saved) };
+        setDraft(current.current);
+      }
       await acknowledgeDraft(submitted, revisionOf(saved));
       if (!alive.current || current.current.lineage !== submitted.lineage) return;
-      if (current.current.generation === submitted.generation) { markDraftUnsafe(submitted.key, false); onSaved(saved); }
+      if (current.current.generation === submitted.generation) {
+        if (getDraft(identity)?.lineage === submitted.lineage) {
+          update({ ...current.current, baseRevision: revisionOf(saved) });
+          setNotice("The file was saved, but browser draft cleanup failed. The draft is retained locally; discard it to leave editing.");
+        } else { markDraftUnsafe(submitted.key, false); onSaved(saved); }
+      }
       else {
-        const surviving = { ...current.current, baseRevision: revisionOf(saved) };
+        const surviving = getDraft(identity) ?? { ...current.current, baseRevision: revisionOf(saved) };
         update(surviving);
         setNotice("Saved the submitted version. Newer edits remain unsaved.");
       }
@@ -91,6 +100,9 @@ export function FileEditor({ identity, initial, displayMode = "source", load, sa
   }
   async function cancel() {
     await discardDraft(identity, draft.lineage);
+    if (getDraft(identity)?.lineage === draft.lineage) {
+      setNotice("The recovered draft could not be removed from browser storage. Your edit is retained; try discarding again."); return;
+    }
     markDraftUnsafe(draft.key, false);
     if (alive.current) onCancel();
   }

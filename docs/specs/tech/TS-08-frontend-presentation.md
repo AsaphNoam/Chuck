@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -1988,7 +1988,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   session or retained room source. Shared menu helpers retain Copy path and failure toasts.
   Phone callers omit the host-action callback and the remote server never registers the route.
 
-- **R153 (planned) — Refresh keeps the existing snapshot mounted.** FS-03.R110 extends
+- **R153 — Refresh keeps the existing snapshot mounted.** FS-03.R110 extends
   `useFileReader`, `FileTabsReader` and their injected session/retained-source loaders with a shared
   probe capability; never fall back from a room/phone loader to an unrestricted session route.
   Poll only the selected file in each visible mounted reader, at most once per second with one
@@ -2011,7 +2011,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   tokens and a static reduced-motion state. Snapshot read time advances only when applied. Do not
   report an agent's turn finished based on a quiet file. This supersedes R144's prohibition on
   background refresh only for selected-visible-file work; no inactive-tab refresh is introduced.
-- **R154 (planned) — Editing shares the source-qualified file-tab owner.** FS-03.R111–R112
+- **R154 — Editing shares the source-qualified file-tab owner.** FS-03.R111–R112
   uses the existing reader toolbar and feature-owned state, not a separate editor route. Reuse
   the shared multi-line input primitive with a bounded scrolling source-editor configuration;
   no editor framework is required. Edit captures exact source, base revision and draft generation;
@@ -2029,7 +2029,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   outcome requires reread/comparison, never automatic retry. Phone has no save callback or Edit
   affordance; server denial remains authoritative. Validate keyboard focus, read-only reasons,
   selection gating, quiet refresh, comparison and recovery in rendered actual-product journeys.
-- **R155 (planned) — Recoverable edit drafts are separate bounded browser data.** Use a
+- **R155 — Recoverable edit drafts are separate bounded browser data.** Use a
   feature-owned versioned IndexedDB store separate from `chuck.file-tabs.v1`; R141's descriptor
   record remains byte-free. Key by browser origin, owner kind/id, retained source identity and
   normalized requested path, retaining the base revision/target identity. Aliases may hold separate

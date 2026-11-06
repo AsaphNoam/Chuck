@@ -10,6 +10,7 @@ export const draftKey = (id: DraftIdentity) => JSON.stringify([id.owner, id.sour
 const bytes = (value: string) => new TextEncoder().encode(value).length;
 const records = new Map<string, FileDraft>();
 const durable = new Map<string, FileDraft>();
+const pendingWrites = new Map<string, { draft: FileDraft }>();
 const unsafeEditors = new Set<string>();
 export function markDraftUnsafe(key: string, unsafe: boolean) { if (unsafe) unsafeEditors.add(key); else unsafeEditors.delete(key); changed(); }
 const listeners = new Set<() => void>();
@@ -90,30 +91,42 @@ export function putDraft(draft: FileDraft): boolean {
     return false;
   }
   records.set(draft.key, draft); changed();
+  const queued = pendingWrites.get(draft.key);
+  if (queued) { queued.draft = draft; return true; }
+  const write = { draft };
+  pendingWrites.set(draft.key, write);
+  let persisted = draft;
   void persist((store) => {
+    persisted = write.draft;
+    if (pendingWrites.get(draft.key) === write) pendingWrites.delete(draft.key);
     // Check the durable origin-wide budget inside the write transaction too:
     // another browser tab may have admitted drafts since this page restored.
     let count = 1;
-    let total = bytes(JSON.stringify(draft));
+    let total = bytes(JSON.stringify(persisted));
     const cursor = store.openCursor();
     cursor.onsuccess = () => {
       const item = cursor.result;
-      if (!item) { store.put(draft); return; }
-      if (item.key !== draft.key) {
+      if (!item) { store.put(persisted); return; }
+      if (item.key !== persisted.key) {
         if (!valid(item.value)) { store.transaction.abort(); return; }
         count++; total += bytes(JSON.stringify(item.value));
         if (count > MAX_DRAFTS || total > MAX_DRAFT_BYTES) { store.transaction.abort(); return; }
       }
       item.continue();
     };
-  }, () => { durable.set(draft.key, draft); });
+  }, () => { durable.set(persisted.key, persisted); });
   return true;
 }
 export function discardDraft(identity: DraftIdentity, lineage?: string) {
   const key = draftKey(identity);
   if (lineage && records.get(key)?.lineage !== lineage) return queue;
-  records.delete(key); changed();
-  return persist((store) => { store.delete(key); }, () => { durable.delete(key); });
+  const discarded = records.get(key);
+  // Freeze an earlier queued write so edits after discard cannot move before it.
+  pendingWrites.delete(key);
+  return persist((store) => { store.delete(key); }, () => {
+    if (records.get(key) === discarded) records.delete(key);
+    durable.delete(key);
+  });
 }
 /** Apply a save only to its surviving lineage; typing during Save retains its exact text. */
 export async function acknowledgeDraft(submitted: FileDraft, savedRevision: string) {
@@ -126,7 +139,7 @@ export async function acknowledgeDraft(submitted: FileDraft, savedRevision: stri
 export async function purgeOwnerDrafts(owner: string) { for (const draft of listDrafts(owner)) await discardDraft(draft); }
 export function flushDrafts() { return queue; }
 let confirmLeave: (() => Promise<boolean>) | undefined;
-export function registerDraftLeaveConfirmation(confirm: () => Promise<boolean>) { confirmLeave = confirm; return () => { if (confirmLeave === confirm) confirmLeave = undefined; }; }
+export function registerDraftLeaveConfirmation(callback: () => Promise<boolean>) { confirmLeave = callback; return () => { if (confirmLeave === callback) confirmLeave = undefined; }; }
 export function draftRecoveryAvailable(draft: FileDraft) { return durable.get(draft.key) === draft; }
 export function draftPersistenceUnsafe() { return unsafeEditors.size > 0 || pending > 0 || [...records.values()].some((draft) => !draftRecoveryAvailable(draft)); }
 export async function confirmDraftLeave() {

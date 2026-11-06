@@ -1740,9 +1740,7 @@ a.agent-mini-card:focus-visible {
   color: var(--ad-surface-canvas);
 }
 
-/* The panel says when it read the file, because it deliberately does not watch or
-   poll one: a file the agent rewrites keeps showing the earlier read until
-   Reload (FS-03.R52). */
+/* Quiet refresh never changes this timestamp before applying a snapshot. */
 .file-viewer-meta {
   color: var(--ad-text-muted);
   flex: none;
@@ -1751,6 +1749,37 @@ a.agent-mini-card:focus-visible {
   margin: 0;
   padding: var(--ad-space-2) var(--ad-space-3);
 }
+
+.file-freshness-indicator {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-inline-start: var(--ad-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--ad-radius-round);
+  vertical-align: middle;
+}
+
+.file-freshness-indicator[data-changing] {
+  border-color: var(--ad-text-muted);
+  border-inline-end-color: transparent;
+  animation: file-freshness-spin 1s linear infinite;
+}
+
+@keyframes file-freshness-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-freshness-indicator[data-changing] { animation: none; }
+}
+
+.file-editor { min-width: 0; }
+.file-editor-actions { display: flex; flex-wrap: wrap; gap: var(--ad-space-2); align-items: center; margin-block-end: var(--ad-space-3); }
+.file-editor textarea { width: 100%; font-family: var(--ad-font-mono); }
+.file-editor-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ad-space-3); }
+.file-editor-comparison > section { min-width: 0; }
+.file-editor-comparison pre { max-height: 60vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* The document scrolls vertically; only a table, fence, diagram or source
    listing that needs it scrolls sideways, inside its own box (FS-03.R92,

@@ -11,16 +11,20 @@ try {
   const admitted = await page.evaluate(async () => {
     const store = await import("/src/features/fileTabs/drafts.ts");
     await store.restoreDrafts();
+    let writes = 0;
+    const transaction = IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction = function (...args) { if (args[1] === "readwrite") writes++; return transaction.apply(this, args); };
     for (let index = 0; index < 50; index++) {
       const identity = { owner: "conversation:browser-recovery", source: "retained", path: `file-${index}.md` };
       const draft = { ...identity, version: 1, key: store.draftKey(identity), lineage: `edit-${index}`, generation: 1, text: `exact\r\n${index}\n雪`, baseRevision: `revision-${index}`, displayMode: "source" };
       if (!store.putDraft(draft)) throw new Error(`Unexpected refusal ${index}`);
+      if (index === 0) for (let generation = 2; generation <= 1000; generation++) store.putDraft({ ...draft, generation });
     }
     await store.flushDrafts();
     const drafts = store.listDrafts("conversation:browser-recovery");
-    return { count: drafts.length, durable: drafts.every(store.draftRecoveryAvailable), unsafe: store.draftPersistenceUnsafe() };
+    return { count: drafts.length, durable: drafts.every(store.draftRecoveryAvailable), unsafe: store.draftPersistenceUnsafe(), writes };
   });
-  assert.deepEqual(admitted, { count: 50, durable: true, unsafe: false });
+  assert.deepEqual(admitted, { count: 50, durable: true, unsafe: false, writes: 50 });
   await page.reload();
   const recovered = await page.evaluate(async () => {
     const store = await import("/src/features/fileTabs/drafts.ts");
@@ -47,5 +51,5 @@ try {
   await page.reload();
   const count = await page.evaluate(async () => { const store = await import("/src/features/fileTabs/drafts.ts"); await store.restoreDrafts(); return store.listDrafts("conversation:browser-recovery").length; });
   assert.equal(count, 50);
-  console.log("PASS: real IndexedDB acknowledged 50 drafts; reload retained exact CRLF/UTF-8, base/source identity; draft 51 refused without eviction; stale-page transaction enforced origin capacity.");
+  console.log("PASS: real IndexedDB acknowledged 50 drafts; 1000 rapid generations coalesced to one transaction; reload retained exact CRLF/UTF-8, base/source identity; draft 51 refused without eviction; stale-page transaction enforced origin capacity.");
 } finally { await browser.close(); }

@@ -42,7 +42,7 @@ rendered live/archive/room/Focus file and read-only phone journeys covering cont
 selection, reduced motion, conflict, storage failure and recovery. Cover all four desktop appearances
 at the supported floor and wider, and phone at 360/390/430px. Preserve existing physical-phone gates.
 Implementation closure follows TS-06 and workflow §2, including applicable Go/UI/presentation checks
-and generated embed; no such product proof is claimed by this design-only change.
+and generated embed.
 
 ## Waiting on
 
@@ -57,3 +57,23 @@ path. The main failure to prevent is losing either reading context or unsaved te
 Use existing controls and semantic tokens; motion is limited to the freshness spinner, static
 under reduced motion. Backend, draft editor and refresh integration are separate work slices;
 verify their boundaries before the combined actual-product journey.
+
+## Implemented verification
+
+- Real registered session/room routes, retained source after session removal, remote probe
+  filtering and explicit PUT denial; exact BOM/CRLF/UTF-8 disk bytes and mode; symlink, hard-link,
+  ACL/xattr and unsafe-file refusal; parent/target replacement, concurrent saves and post-replace
+  uncertainty injection. Focused server `-race` checks pass.
+- Full UI suite: 1170 tests pass. Timer/request-order tests cover quiet coalescing, selection,
+  visibility, stale replies, saved-snapshot fencing and one in-flight request per tab. Draft and
+  router tests cover capacity, lineage, in-flight typing, conflicts and unsafe Back/navigation.
+- Real Chromium IndexedDB transactions preserve exact text/base/source across reload, refuse
+  draft 51 without eviction, enforce capacity across pages and coalesce 1000 generations to one
+  pending write (`ui/scripts/drafts-browser.mjs`).
+- Actual embedded app with isolated `stress-fixture` fake ACP: live/archive/room/Focus saves,
+  independently inspected disk bytes and unchanged transcript, conflict/adopt/retry, continuous
+  writes, selection-gated refresh, reduced motion and reload recovery. All four appearances at
+  1024/1440px; screenshots `/private/tmp/chuck-file-editing-final`.
+- Real phone bundle at 360/390/430px: fixture file GETs, no Edit/Save or PUT; screenshots
+  `/private/tmp/chuck-file-editing-phone`. Its SSE/tracked-file admission is fixture-controlled;
+  this does not close real tailnet pairing, physical-phone or non-Chromium gates.

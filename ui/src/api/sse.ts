@@ -18,6 +18,7 @@ import { useUiStore } from "../store/uiStore";
 import { discardChatDraft } from "../components/chat/drafts";
 import { ownerKey } from "../features/fileTabs/model";
 import { fileTabs } from "../features/fileTabs/store";
+import { listDrafts, purgeOwnerDrafts, restoreDrafts } from "../features/fileTabs/drafts";
 import { notificationAgentId, openAgentConversation } from "../lib/agentConversation";
 
 function parseBusData(raw: string): unknown {
@@ -128,7 +129,15 @@ class SseClient {
       queryClient.removeQueries({ queryKey: THINK_TANK_KEYS.room(parsed.data.room_id) });
       // Room drafts are browser state with no other cleanup boundary (INV §1).
       useAnnotationStore.getState().discard(`room:${parsed.data.room_id}`);
-      fileTabs.dropOwner(ownerKey("room", parsed.data.room_id));
+      const owner = ownerKey("room", parsed.data.room_id);
+      void restoreDrafts().then(async () => {
+        const count = listDrafts(owner).length;
+        if (count > 0 && window.location.pathname.includes(encodeURIComponent(parsed.data.room_id))) {
+          useUiStore.getState().pushError("Think Tank deleted", `${count} unsaved file edit${count === 1 ? " was" : "s were"} removed with the room.`);
+        }
+        await purgeOwnerDrafts(owner);
+      });
+      fileTabs.dropOwner(owner);
       return;
     }
     queryClient.invalidateQueries({ queryKey: THINK_TANK_KEYS.room(parsed.data.room_id) });

@@ -16,6 +16,7 @@ type Intent = { kind: ReadKind; start: () => Promise<unknown>; resolve: (value: 
 export function createReadLimiter(max = 4) {
   let running = 0;
   let selected: string | null = null;
+  const active = new Set<string>();
   const waiting = new Map<string, Intent>();
 
   const drop = (id: string) => {
@@ -29,15 +30,19 @@ export function createReadLimiter(max = 4) {
   };
   const pump = () => {
     while (running < max && waiting.size > 0) {
-      const id = selected !== null && waiting.has(selected) ? selected : waiting.keys().next().value as string;
+      const id = selected !== null && waiting.has(selected) && !active.has(selected)
+        ? selected : [...waiting.keys()].find((key) => !active.has(key));
+      if (id === undefined) break;
       const intent = waiting.get(id)!;
       waiting.delete(id);
       running += 1;
+      active.add(id);
       let started: Promise<unknown>;
       try { started = intent.start(); }
       catch (error) { started = Promise.reject(error); }
       started.then(intent.resolve, intent.reject).finally(() => {
         running -= 1;
+        active.delete(id);
         pump();
       });
     }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
@@ -14,7 +14,7 @@ import {
   type ThinkTankLaunch,
 } from "../../api/thinkTanks";
 import { useProjects } from "../../api/config";
-import { openSourceFileInBrowser } from "../../api/client";
+import { openSourceFileInBrowser, probeSourceFile, saveSourceFile } from "../../api/client";
 import type { AnnotationDraft, FileContent, TranscriptEvent } from "../../api/types";
 import { Button, ConfirmDialog } from "../../components/ui";
 import { BackIcon, CommandIcon, FileIcon, PauseIcon, RoomIcon } from "../../components/ui/icons";
@@ -22,6 +22,9 @@ import { useAgentStore } from "../../store/agentStore";
 import { AnnotationContextMenu, type AnnotationMenuState } from "../../components/chat/AnnotationContextMenu";
 import { FileViewerView } from "../../components/chat/FileViewer";
 import { FileTabsNotice, FileTabsReader } from "../fileTabs/FileTabs";
+import { confirmDraftLeave, draftRecoveryAvailable, purgeOwnerDrafts, restoreDrafts, useDraftSummary } from "../fileTabs/drafts";
+import { FileEditorLeaveGuard } from "../fileTabs/FileEditorLeaveGuard";
+import { UnsavedEdits } from "../../components/chat/ReaderWorkspace";
 import { ownerKey, type FileTab } from "../fileTabs/model";
 import { ROOM_FILE_KEYS, useFileTabRoute } from "../fileTabs/useFileTabRoute";
 import { SanitizedMarkdown } from "../../components/chat/renderers/SanitizedMarkdown";
@@ -122,6 +125,9 @@ function Room({ room }: { room: ThinkTankDetail }) {
   // The room's saved file tabs, each tied to the retained source it was opened
   // from; `?file=&source=&line=` name the active one (FS-21.R59, TS-08.R143).
   const fileTabs = useFileTabRoute(ownerKey("room", id), ROOM_FILE_KEYS);
+  const draftSummary = useDraftSummary(fileTabs.owner);
+  const [draftsReady, setDraftsReady] = useState(false);
+  useEffect(() => { void restoreDrafts().finally(() => setDraftsReady(true)); }, []);
   const openFile = (link: FileLink, source: string) => fileTabs.open({ ...link, source });
 
   // A participant's links open from that participant's retained workspace, so
@@ -464,6 +470,14 @@ function Room({ room }: { room: ThinkTankDetail }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+      <FileEditorLeaveGuard />
+      {draftSummary.drafts.some((draft) => !draftRecoveryAvailable(draft)) && <p className="file-tabs-notice" role="alert">Some unsaved edits are not confirmed recoverable. Leaving may lose those changes.</p>}
+      {draftSummary.drafts.length > 0 && <UnsavedEdits drafts={draftSummary.drafts} labelFor={(draft) => {
+        const source = sources.find((item) => item.source_id === draft.source);
+        return source ? `${source.agent_name} · ${projectTitle(source.project)}` : draft.source;
+      }} onOpen={(draft) => {
+        fileTabs.open({ path: draft.path, source: draft.source ?? "" });
+      }} />}
       {fileTabs.tabs.length === 0 && <FileTabsNotice />}
       {fileTabs.tabs.length > 0 && (
         <FileTabsReader
@@ -475,10 +489,13 @@ function Room({ room }: { room: ThinkTankDetail }) {
           onClose={fileTabs.close}
           onMove={fileTabs.move}
           onResolved={fileTabs.resolved}
+          owner={fileTabs.owner}
           // Saved data names a source; the read still goes through this room's
           // retained-source route for it (TS-14.R12).
           contextFor={(tab) => tab.source ?? ""}
           loadFor={(tab) => (path) => loadSourceFile(id, tab.source ?? "", path)}
+          probeFor={(tab) => (path) => probeSourceFile(id, tab.source ?? "", path)}
+          saveFor={(tab) => (path, baseRevision, content) => saveSourceFile(id, tab.source ?? "", path, baseRevision, content)}
           openBrowserFor={(tab, path) => openSourceFileInBrowser(id, tab.source ?? "", path)}
           sourceLabel={sourceLabel}
           renderView={(reader, strip, tab) => (
@@ -520,18 +537,21 @@ function Room({ room }: { room: ThinkTankDetail }) {
         title="Delete this Think Tank?"
         confirmLabel="Delete room"
         destructive
+        confirmDisabled={!draftsReady}
         onCancel={() => setConfirm("")}
-        onConfirm={() => {
+        onConfirm={() => { void confirmDraftLeave().then((safe) => {
+          if (!safe) return;
           setConfirm("");
           act(async () => {
             await remove.mutateAsync(undefined);
             discardDrafts(sourceKey);
+            await purgeOwnerDrafts(fileTabs.owner);
             fileTabs.forget();
             navigate(`/project/${encodeURIComponent(room.origin_project)}`);
           });
-        }}
+        }); }}
       >
-        <p>This deletes the room's discussion and retained activity. Participant agents and their own conversations stay.{room.judge.enabled && room.judge_status !== "completed" ? " The pending synthesis will not run." : ""}</p>
+        <p>This deletes the room's discussion and retained activity. Participant agents and their own conversations stay.{!draftsReady ? " Checking for unsaved file edits…" : draftSummary.drafts.length > 0 ? ` It also permanently discards ${draftSummary.drafts.length} unsaved file edit${draftSummary.drafts.length === 1 ? "" : "s"} stored in this browser.` : ""}{room.judge.enabled && room.judge_status !== "completed" ? " The pending synthesis will not run." : ""}</p>
       </ConfirmDialog>
       <NewAgentModal
         open={judgeRepair}

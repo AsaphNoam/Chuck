@@ -357,6 +357,14 @@ const readerMarkdown = [
 // fixture shares the real view; widths come from the fixture stylesheet.
 function matrixReader(): FileReader {
   return {
+    freshness: { changing: false, available: false, stale: null },
+    editing: false,
+    editor: undefined,
+    setEditing: () => undefined,
+    cancelEdit: () => undefined,
+    setSelectionActive: () => undefined,
+    apply: () => undefined,
+    read: async () => { throw new Error("Static fixture"); },
     link: { path: "docs/reader-fixture-with-a-deliberately-long-file-name.md" },
     view: { status: "loaded", readAt: new Date("2026-10-17T09:00:00Z"), file: { agent_id: "fixture", path: "docs/reader-fixture-with-a-deliberately-long-file-name.md", size: readerMarkdown.length, mod_time: "", line_count: 13, content: readerMarkdown, truncated: false, language: "markdown" } },
     rendered: true,

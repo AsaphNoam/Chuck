@@ -6,7 +6,8 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
-import { FileViewer } from "./FileViewer";
+import { FileViewer, FileViewerView, useFileReader } from "./FileViewer";
+import { draftKey, putDraft } from "../../features/fileTabs/drafts";
 import { CONVERSATION_FILE_KEYS, readFileTarget, writeFileTarget } from "../../features/fileTabs/useFileTabRoute";
 
 const GO_SOURCE = "package state\n\nfunc Read() {}\n";
@@ -53,6 +54,23 @@ function refuse(code: string, message: string, status = 422) {
 }
 
 describe("FileViewer", () => {
+  it("keeps a recovered draft editable when the source file was deleted", async () => {
+    const identity = { owner: "conversation:deleted-file-recovery", path: "deleted.txt" };
+    putDraft({ ...identity, version: 1, key: draftKey(identity), lineage: "kept", generation: 1, text: "keep my work", baseRevision: "old", displayMode: "source" });
+    const save = vi.fn();
+    function RecoveredReader() {
+      const reader = useFileReader({ agentId: "deleted-file-recovery", link: { path: identity.path },
+        load: async () => { throw new Error("File no longer exists"); }, editor: { identity, save } });
+      return <FileViewerView reader={reader} />;
+    }
+    render(<RecoveredReader />);
+    expect(await screen.findByLabelText("File source draft")).toHaveValue("keep my work");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText(/Save was not confirmed/);
+    expect(screen.getByLabelText("File source draft")).toHaveValue("keep my work");
+    expect(save).not.toHaveBeenCalled();
+  });
   // FS-03.R109: verify the actual reader's mode/citation/reload boundary.
   // jsdom cannot prove frame rendering/isolation; the Chromium journey does.
   it("previews complete HTML in an opaque script sandbox and preserves Source and Reload", async () => {
@@ -212,8 +230,7 @@ describe("FileViewer", () => {
     expect(scrolled).toEqual(["80"]);
   });
 
-  // A slow Reload shows its short placeholder, which clamps the body to its top
-  // and scrolls; that is not the reader moving (FS-03.R95, TS-08.R130).
+  // A slow Reload retains the readable snapshot and its anchors (FS-03.R110).
   describe("keeps the reading place through a slow Reload", () => {
     afterEach(() => vi.restoreAllMocks());
 
@@ -243,8 +260,9 @@ describe("FileViewer", () => {
     const scrollTo = (top: number) => { body().scrollTop = top; fireEvent.scroll(body()); };
     const reloadToPlaceholder = async () => {
       fireEvent.click(screen.getByRole("button", { name: "Reload" }));
-      await screen.findByText("Reading…");
-      scrollTo(0);
+      await screen.findByRole("img", { name: "File changing or updating" });
+      expect(screen.queryByText("Reading…")).toBeNull();
+      expect(body().scrollTop).toBe(400);
     };
     const markdown = (count: number) => ({ language: "markdown", content: Array.from({ length: count }, (_, i) => `Paragraph ${i + 1}`).join("\n\n") });
 
@@ -290,14 +308,14 @@ describe("FileViewer", () => {
       scrollTo(400);
       fireEvent.click(screen.getByRole("button", { name: "Reload" }));
       await screen.findByRole("alert");
-      scrollTo(0);
+      expect(body().scrollTop).toBe(400);
       fireEvent.click(screen.getByRole("button", { name: "Reload" }));
       await waitFor(() => expect(document.querySelectorAll("[data-file-line]")).toHaveLength(100));
       expect(body().scrollTop).toBe(400);
     });
   });
 
-  it("re-reads only on Reload, never by watching or polling", async () => {
+  it("keeps legacy snapshots without an observation revision on explicit Reload", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       render(<FileViewer agentId="a_1" link={{ path: "internal/state/messages.go" }} onClose={vi.fn()} />);

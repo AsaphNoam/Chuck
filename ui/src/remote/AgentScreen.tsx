@@ -9,6 +9,7 @@ import {
   getHeldPrompt,
   dismissPromptRecovery,
   getTrackedFiles,
+  probeFileContent,
   renameAgent,
   getTranscriptWindow,
   resumeAgent,
@@ -849,6 +850,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             onSelect={fileTabs.select}
             onClose={fileTabs.close}
             onMove={fileTabs.move}
+            probeFor={() => (path) => probeFileContent(agentId, path)}
             contextFor={() => agentId}
             onEmptied={() => filesHeading.current?.focus()}
             renderView={(reader, strip, open) => (

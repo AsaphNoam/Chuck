@@ -47,9 +47,10 @@ verification and combined product rendering/closure remain in progress.
 Backend routes and adversarial filesystem/remote tests pass, including focused race checks.
 Actual embedded Chromium journeys pass live/archive/room/Focus saves, conflict/recovery and
 quiet/selection-gated refresh in all four appearances at 1024/1440px; phone supplement in progress.
-Latest focused UI integration passes 77 tests. Full UI suite passes (1166 tests before the last
-recovery-edge test). Go closure is rerunning against stable sources after an earlier concurrent
-compile saw half of the new error constants. Next: finish closure, regenerate embed, reconcile specs.
+Full UI suite passes 1170 tests; `make dist`, presentation and final spec checks pass. Untagged
+Go suite passes; tagged suite remains running. Next: confirm tagged closure and final audit, then
+mark finished and add the substantive unit to review. Logs: `/private/tmp/chuck-file-{ui-closure-final,
+go-closure-final,dist-final,specs-final}.log`; rendered proof `/private/tmp/chuck-file-editing-final`.
 Existing dirty `docs/ideas.md` and generated `dist/index.html` are unrelated and preserved.
 
 ## Acceptance gates still owed

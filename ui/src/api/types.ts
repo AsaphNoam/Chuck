@@ -278,6 +278,10 @@ export interface TrackedFile {
 // highlighting hint — empty when the extension is unknown. A validated raster
 // image instead has empty text and an optional base64 image snapshot.
 export interface FileContent {
+  observed_revision?: string;
+  revision?: string;
+  editable?: boolean;
+  edit_refusal?: string;
   agent_id: string;
   path: string;
   size: number;
@@ -288,6 +292,8 @@ export interface FileContent {
   language: string;
   image?: { mime_type: string; data: string };
 }
+
+export interface FileProbe { path: string; observed_revision: string }
 
 // AvailableCommand is one entry of the composer `#` command picker: an ACP
 // command/skill advertised by the running chat agent (TS-03.R24 / FS-03.R33).

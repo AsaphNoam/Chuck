@@ -320,7 +320,7 @@ Native configuration-source consent is not authentication consent. TS-07.R19 ret
 personal-auth and private-session-home ownership; selected setup roots cannot silently replace
 them. No new source credentials enter snapshots, manifests or driver IDs.
 
-**R29 (planned) — Local file editing grants bounded explicit write authority.** For
+**R29 — Local file editing grants bounded explicit write authority.** For
 FS-03.R111–R112 and TS-03.R81, same-machine API callers behind `localOnly` may replace existing
 complete UTF-8 regular files owned by Chuck's OS user and writable under their existing mode/ACL,
 including outside all projects. The parent must permit creating/replacing the entry. This is a

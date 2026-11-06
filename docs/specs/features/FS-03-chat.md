@@ -945,7 +945,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   The room uses the selected retained source's working directory. This extends R52's read-only
   viewer with isolated execution and this one explicit host action; Markdown remains sanitized.
 
-- **R110 (planned) — File previews follow settled changes without hiding the current read.**
+- **R110 — File previews follow settled changes without hiding the current read.**
   Mounted desktop conversation, archive and Think Tank readers and permitted phone previews
   detect external changes to the selected file. After approximately two seconds of observed file
   inactivity, a new snapshot replaces the old one, preserving display mode and approximate reading
@@ -963,7 +963,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   retry; an initial read failure keeps the existing error treatment. Existing annotations remain
   point-in-time captures. This supersedes R52's manual-only freshness and R102's unconditional
   cached-snapshot return, leaving tab identity, citations and per-mode positions intact.
-- **R111 (planned) — Desktop file tabs offer deliberate text editing.** Complete UTF-8 text
+- **R111 — Desktop file tabs offer deliberate text editing.** Complete UTF-8 text
   files offer **Edit**, then **Save** and **Cancel**, in desktop live/archive/Think Tank readers
   and Focus file. Editing uses exact source text, including Markdown, JSON and HTML, without
   formatting or executing the draft. Images, binary, truncated and unwritable files remain
@@ -977,7 +977,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   authorization. Existing owned, writable regular files may be edited outside the workspace too;
   symlink targets, hard-linked files and files whose access metadata cannot safely survive
   replacement are refused. This supersedes R52's no-writing clause only for these deliberate saves.
-- **R112 (planned) — Unsaved edits survive navigation and conflicts visibly.** Drafts are
+- **R112 — Unsaved edits survive navigation and conflicts visibly.** Drafts are
   browser-local, scoped to the conversation/room and retained source plus file, separate from
   saved tab descriptors. Keep exact text and its edit-base identity across tab switching, closing
   the reader/tab, navigation and reload until successful save or explicit discard; reopen the
@@ -1719,19 +1719,19 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
   actual HTTP route dispatch tests and a focused Chromium journey; native default-browser launch
   remains a separate OS receipt when not exercised.
 
-- **A86 (planned, R110) —** Repeatedly rewrite a selected text file during an active agent turn:
+- **A86 (R110) —** Repeatedly rewrite a selected text file during an active agent turn:
   the old content remains readable with one small status spinner, no blocking layer, no layout
   shift and no per-write announcements; one settled update preserves mode and reading position.
   Repeat with image/HTML previews, a text selection, a hidden page, tab switches, reconnect,
   deletion and a delayed stale response. Background tabs do not fan out reads; selection rechecks
   them. *Verify:* deterministic timer/request-order component tests, HTTP freshness tests and a
   rendered desktop/phone journey, including reduced motion and all supported desktop appearances.
-- **A87 (planned, R111–R112) —** Edit source in live/archive/room and Focus file; save and
+- **A87 (R111–R112) —** Edit source in live/archive/room and Focus file; save and
   independently inspect exact disk bytes, unchanged transcript/agent-turn state and correct room
   source. Cancel explicitly discards a changed draft. Image/truncated/unwritable files explain
   read-only state, and phone cannot write through UI or direct HTTP. *Verify:* handler/filesystem
   and shared-reader tests plus a rendered edit/save/cancel journey.
-- **A88 (planned, R112) —** Start an edit, change the file externally and attempt Save: compare
+- **A88 (R112) —** Start an edit, change the file externally and attempt Save: compare
   current disk text and draft without losing either; revise against the displayed version and
   retry deliberately. Exercise delete/recreate, permission denial, lost save response and newer
   edits arriving during Save: their text survives, their base advances only for the same edit
@@ -1744,10 +1744,12 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
 
 ## 6. Deviations & open decisions
 
-- **File freshness/editing design, 2026-11-05:** R110–R112/A86–A88 are approved, planned scope,
+- **File freshness/editing, 2026-11-06:** R110–R112/A86–A88 are implemented scope,
   with optimistic external-writer conflict detection and local owned-file write admission.
-  TS-03.R80–R81, TS-05.R29 and TS-08.R153–R155 define the technical contract. No code shipped;
-  phone remains read-only.
+  TS-03.R80–R81, TS-05.R29 and TS-08.R153–R155 define the technical contract. Registered-route,
+  adversarial filesystem, request-order and draft tests plus real Chromium live/archive/room/Focus
+  journeys verify saves, conflicts, recovery and quiet refresh. Phone remains read-only;
+  physical-device and non-Chromium gates remain open.
 
 - **File tabs shipped, 2026-10-25:** R101–R106/A80–A82 (with FS-20.R56/A28 and
   FS-21.R59/A42) are covered by `ui/src/features/fileTabs` model/store/route/surface tests,

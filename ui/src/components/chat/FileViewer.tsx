@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { getFileContent } from "../../api/client";
-import type { FileContent } from "../../api/types";
+import { getFileContent, probeFileContent } from "../../api/client";
+import type { FileContent, FileProbe } from "../../api/types";
+import { useFileFreshness } from "../../features/fileTabs/useFileFreshness";
+import { FileEditor } from "../../features/fileTabs/FileEditor";
+import { confirmDraftLeave, draftPersistenceUnsafe, draftKey, getDraft, restoreDrafts, type DraftIdentity } from "../../features/fileTabs/drafts";
 import { CodeBlock } from "./renderers/CodeBlock";
 import { SanitizedMarkdown } from "./renderers/SanitizedMarkdown";
 import type { FileLink } from "./renderers/filePath";
@@ -18,6 +21,14 @@ import { ReadDropped, type ReadKind } from "../../features/fileTabs/readLimiter"
 // `features/fileTabs`), so it is told which file to show and reports Close upward.
 
 const MARKDOWN_LANGUAGES = new Set(["markdown"]);
+const editRefusal = (reason?: string) => ({
+  incomplete_text: "Only complete text files can be edited.",
+  remote_read_only: "Phone previews are read-only.",
+  symlink: "Symbolic links are read-only.", hard_link: "Hard-linked files are read-only.",
+  not_owned: "The server account does not own this file.", not_writable: "This file is not writable.",
+  unsupported_metadata: "This file's access metadata cannot be safely preserved.",
+  parent_not_writable: "The file's folder is not writable.",
+} as Record<string, string>)[reason ?? ""] ?? "This file cannot be safely edited.";
 
 type ViewState =
   | { status: "loading" }
@@ -37,15 +48,19 @@ export type FileReader = ReturnType<typeof useFileReader>;
  * `jump` changes when the tab is reopened at a citation, which then wins over
  * the saved position once.
  */
-export function useFileReader({ agentId, link, load, onPathResolved, initialView, jump = 0, onViewChange, schedule }: {
+export function useFileReader({ agentId, link, load, probe, editor, selected = true, onPathResolved, initialView, jump = 0, onViewChange, schedule, cancelPending }: {
   agentId: string;
   link: FileLink | null;
   load?: (path: string) => Promise<FileContent>;
+  probe?: (path: string) => Promise<FileProbe>;
+  selected?: boolean;
+  editor?: { identity: DraftIdentity; save: (baseRevision: string, content: string) => Promise<FileContent> };
   onPathResolved?: (path: string) => void;
   initialView?: TabView;
   jump?: number;
   onViewChange?: (view: TabView) => void;
-  schedule?: (kind: ReadKind, start: () => Promise<FileContent>) => Promise<FileContent>;
+  schedule?: <T>(kind: ReadKind, start: () => Promise<T>) => Promise<T>;
+  cancelPending?: () => void;
 }) {
   const [view, setView] = useState<ViewState>({ status: "loading" });
   const [rendered, setRenderedState] = useState(initialView?.rendered ?? true);
@@ -53,6 +68,10 @@ export function useFileReader({ agentId, link, load, onPathResolved, initialView
   // A tab's read that its limiter dropped before it started; it reads again
   // when the tab is next selected.
   const [dropped, setDropped] = useState(false);
+  const [selectionActive, setSelectionActive] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
   // Per-read request token: opening another file, switching agents, closing, or
   // reloading must not be overwritten by a slower earlier read landing
   // afterwards — the same guard FilesTab/CommandsTab already carry (TS-08.R57, INV §1).
@@ -115,12 +134,15 @@ export function useFileReader({ agentId, link, load, onPathResolved, initialView
     }
     republished.current = null;
     const token = ++readToken.current;
-    setView({ status: "loading" });
+    setReadError(null);
+    setReading(true);
+    setView((previous) => previous.status === "loaded" ? previous : { status: "loading" });
     setDropped(false);
     const start = () => (loadRef.current ? loadRef.current(path) : getFileContent(agentId, path));
     (scheduleRef.current ? scheduleRef.current(reloadKey > 0 ? "reload" : "open", start) : start())
       .then((file) => {
         if (readToken.current !== token) return;
+        setReading(false);
         setView({ status: "loaded", file, readAt: new Date() });
         if (file.path !== path && resolvedRef.current) {
           republished.current = file.path;
@@ -129,12 +151,27 @@ export function useFileReader({ agentId, link, load, onPathResolved, initialView
       })
       .catch((error: unknown) => {
         if (readToken.current !== token) return;
+        setReading(false);
+        if (!(error instanceof ReadDropped)) setReadError(error instanceof Error ? error.message : "That file could not be read.");
         if (error instanceof ReadDropped) setDropped(true);
-        else setView({ status: "error", reason: error instanceof Error ? error.message : "That file could not be read." });
+        else setView((previous) => previous.status === "loaded" ? previous : { status: "error", reason: error instanceof Error ? error.message : "That file could not be read." });
       });
   }, [agentId, path, reloadKey]);
   // An unmounted reader's late reply must not report a path for a closed tab.
   useEffect(() => () => { readToken.current += 1; }, []);
+
+  const apply = (file: FileContent) => { setReadError(null); setView({ status: "loaded", file, readAt: new Date() }); };
+  const read = () => loadRef.current ? loadRef.current(path!) : getFileContent(agentId, path!);
+  const freshness = useFileFreshness({
+    identity: `${agentId}:${path}`, selected: selected && path !== null,
+    snapshot: view.status === "loaded" ? view.file : null,
+    probe: path !== null && (probe || !load) ? () => {
+      const start = () => probe ? probe(path) : probeFileContent(agentId, path);
+      return scheduleRef.current ? scheduleRef.current("open", start) : start();
+    } : undefined,
+    read: () => scheduleRef.current ? scheduleRef.current("open", read) : read(),
+    apply, blocked: selectionActive || editing, retry: reloadKey, cancelPending,
+  });
 
   const setRendered = (next: boolean) => {
     setRenderedState(next);
@@ -144,9 +181,17 @@ export function useFileReader({ agentId, link, load, onPathResolved, initialView
     link,
     view,
     rendered,
+    freshness: { ...freshness, changing: freshness.changing || reading, stale: readError || freshness.stale },
+    editing,
+    editor,
+    setEditing,
+    cancelEdit: () => { setEditing(false); setReloadKey((key) => key + 1); },
+    setSelectionActive,
+    apply,
+    read,
     setRendered,
     // A Reload already reading is the same request (TS-08.R144).
-    reload: () => { if (view.status !== "loading" || dropped) setReloadKey((key) => key + 1); },
+    reload: () => { if (!editing && !reading && (view.status !== "loading" || dropped)) setReloadKey((key) => key + 1); },
     dropped,
     positions,
     pendingLine,
@@ -194,6 +239,28 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
   const bodyRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<PointerMenuState | null>(null);
   const pushError = useUiStore((state) => state.pushError);
+  const editorIdentity = reader.editor?.identity;
+  const recoveredDraft = editorIdentity ? getDraft(editorIdentity) : undefined;
+  const editInitial: FileContent | undefined = view.status === "loaded" ? view.file : recoveredDraft ? {
+    agent_id: editorIdentity!.owner, path: recoveredDraft.path, content: recoveredDraft.text,
+    revision: recoveredDraft.baseRevision, size: new TextEncoder().encode(recoveredDraft.text).length,
+    mod_time: "", line_count: 0, language: "text", truncated: false,
+  } : undefined;
+  useEffect(() => {
+    let active = true;
+    if (editorIdentity) void restoreDrafts().then(() => {
+      if (active && getDraft(editorIdentity)) reader.setEditing(true);
+    });
+    return () => { active = false; };
+  }, [editorIdentity?.owner, editorIdentity?.source, editorIdentity?.path]);
+  useEffect(() => {
+    const changed = () => {
+      const selection = window.getSelection();
+      reader.setSelectionActive(Boolean(selection && !selection.isCollapsed && bodyRef.current?.contains(selection.anchorNode)));
+    };
+    document.addEventListener("selectionchange", changed);
+    return () => { document.removeEventListener("selectionchange", changed); reader.setSelectionActive(false); };
+  }, [reader.setSelectionActive]);
 
   const shownPath = view.status === "loaded" ? view.file.path : link.path;
   const isMarkdown = view.status === "loaded" && MARKDOWN_LANGUAGES.has(view.file.language);
@@ -214,7 +281,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
   // The one mapping from a selection to a file draft, for the context menu and
   // the touch action alike (TS-08.R133): Source captures its line range,
   // Rendered only the path (FS-13.R25).
-  const currentSelection = () => view.status === "loaded" && !view.file.image && !showFormatted && !showHtml ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
+  const currentSelection = () => !reader.editing && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
 
   const openFileMenu = (x: number, y: number) => setMenu({ x, y, actions: webLinkActions(shownPath, pushError, onOpenInBrowser) });
   useEffect(() => { setMenu(null); }, [shownPath, view.status, rendered]);
@@ -246,18 +313,22 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
       <header className="file-viewer-header" data-slot="header">
         <span className="file-viewer-path" title={shownPath} onContextMenu={isHtml ? (event) => { event.preventDefault(); openFileMenu(event.clientX, event.clientY); } : undefined}>{shownPath}</span>
         <div className="file-viewer-actions" data-slot="actions">
-          {(isMarkdown || canPreviewHtml || formattedJSON !== null) && (
+          {!reader.editing && (isMarkdown || canPreviewHtml || formattedJSON !== null) && (
             <div className="file-viewer-form" role="group" aria-label={isMarkdown ? "Markdown display" : isHtml ? "HTML display" : "JSON display"}>
               <button type="button" aria-pressed={showRendered || showHtml || showFormatted} disabled={!isMarkdown && link.line !== undefined} title={!isMarkdown && link.line !== undefined ? "Showing the cited source line; open this file without a line citation to render it." : undefined} onClick={() => setRendered(true)}>{isMarkdown || isHtml ? "Rendered" : "Formatted"}</button>
               <button type="button" aria-pressed={!showRendered && !showHtml && !showFormatted} onClick={() => setRendered(false)}>Source</button>
             </div>
           )}
-          <button type="button" className="ad-button-secondary" onClick={reader.reload}>Reload</button>
-          {onAnnotateSelection && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml && (
+          <button type="button" className="ad-button-secondary" disabled={reader.editing} title={reader.editing ? "Save or Cancel the edit before reloading." : undefined} onClick={reader.reload}>Reload</button>
+          {reader.editor && !reader.editing && view.status === "loaded" && <button type="button" className="ad-button-secondary" disabled={!view.file.editable || !view.file.revision} title={view.file.editable ? undefined : `Read-only: ${editRefusal(view.file.edit_refusal)}`} onClick={() => reader.setEditing(true)}>Edit</button>}
+          {!reader.editing && onAnnotateSelection && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml && (
             <button type="button" className="ad-button-secondary" onPointerDown={() => { pressed.current = currentSelection()?.draft ?? null; }} onClick={(click) => { click.currentTarget.focus(); annotateSelection(); }}>Annotate selection</button>
           )}
           {actions}
-          {onClose && <button type="button" className="ad-button-secondary" onClick={onClose}>{closeLabel}</button>}
+          {onClose && <button type="button" className="ad-button-secondary" onClick={() => {
+            if (reader.editor && draftPersistenceUnsafe()) void confirmDraftLeave().then((allowed) => { if (allowed) onClose(); });
+            else onClose();
+          }}>{closeLabel}</button>}
         </div>
       </header>
       {selectionHint && view.status === "loaded" && <p className="file-viewer-meta" role="status">Select text in the file to annotate it.</p>}
@@ -268,6 +339,10 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
             : `${view.file.line_count} line${view.file.line_count === 1 ? "" : "s"}`}
           {" · read "}
           <time dateTime={view.readAt.toISOString()}>{view.readAt.toLocaleTimeString()}</time>
+          <span className="file-freshness-indicator" data-changing={reader.freshness.changing || undefined} role="img" aria-label={reader.freshness.changing ? "File changing or updating" : "File checked"} />
+          {reader.freshness.available && " · Update available"}
+          {reader.freshness.stale && <span role="alert"> · Stale: {reader.freshness.stale} <button type="button" onClick={reader.reload} disabled={reader.editing}>Retry</button></span>}
+          {reader.editor && !view.file.editable && <span> · Read-only: {editRefusal(view.file.edit_refusal)}</span>}
         </p>
       )}
       <div
@@ -286,7 +361,12 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
       >
         {view.status === "loading" && <p className="tab-placeholder">Reading…</p>}
         {view.status === "error" && <p className="file-viewer-error" role="alert">{view.reason}</p>}
-        {view.status === "loaded" && (view.file.image ? (
+        {reader.editing && reader.editor && editInitial ? (
+          <FileEditor key={draftKey(reader.editor.identity)} identity={reader.editor.identity} initial={editInitial} displayMode={mode}
+            load={reader.read} save={reader.editor.save}
+            onSaved={(file) => { reader.apply(file); reader.setEditing(false); }}
+            onCancel={reader.cancelEdit} />
+        ) : view.status === "loaded" && (view.file.image ? (
           <FileImage key={view.readAt.getTime()} image={view.file.image} path={view.file.path} />
         ) : showHtml ? (
           <HtmlPreview key={view.readAt.getTime()} content={view.file.content} path={view.file.path} onContextMenu={onOpenInBrowser ? openFileMenu : undefined} />

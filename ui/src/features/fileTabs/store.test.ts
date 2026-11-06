@@ -64,6 +64,23 @@ describe("read limiter (TS-08.R144)", () => {
     return { promise, resolve };
   }
 
+  it("serializes a tab's requests and retains only its latest pending intent", async () => {
+    const limiter = createReadLimiter(4);
+    limiter.select("one");
+    const first = deferred();
+    const initial = limiter.run("one", "open", () => first.promise);
+    const starts: string[] = [];
+    const replaced = limiter.run("one", "open", async () => { starts.push("old"); return "old"; });
+    const latest = limiter.run("one", "reload", async () => { starts.push("latest"); return "latest"; });
+    await expect(replaced).rejects.toBeInstanceOf(ReadDropped);
+    expect(starts).toEqual([]);
+    expect(limiter.outstanding).toBe(1);
+    first.resolve("first");
+    await initial;
+    expect(await latest).toBe("latest");
+    expect(starts).toEqual(["latest"]);
+  });
+
   it("keeps four reads outstanding, serves the selected tab first and drops unselected opens", async () => {
     const limiter = createReadLimiter(4);
     const reads = Array.from({ length: 4 }, deferred);

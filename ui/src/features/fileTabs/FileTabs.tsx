@@ -3,15 +3,16 @@ import { createPortal } from "react-dom";
 import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { FileContent } from "../../api/types";
+import type { FileContent, FileProbe } from "../../api/types";
 import { useFileReader, type FileReader } from "../../components/chat/FileViewer";
 import { CloseIcon, MoveLeftIcon, MoveRightIcon } from "../../components/ui/icons";
-import type { FileTab } from "./model";
+import { pathKey, type FileTab } from "./model";
 import { createReadLimiter, type ReadLimiter } from "./readLimiter";
 import { fileTabs, flushFileTabs, useFileTabsStore } from "./store";
 import { PointerContextMenu, type PointerMenuState } from "../../components/ui/PointerContextMenu";
 import { webLinkActions } from "../../lib/linkActions";
 import { useUiStore } from "../../store/uiStore";
+import { confirmDraftLeave, draftPersistenceUnsafe, useDraftSummary } from "./drafts";
 
 // The tabbed reader every surface shares (FS-03.R101–R102, TS-08.R142/R145).
 // One host per tab visited while this owner is mounted keeps that tab's read,
@@ -29,6 +30,9 @@ export type TabReaderProps = {
   /** The read context a tab's file comes from: the agent, or the room source. */
   contextFor: (tab: FileTab) => string;
   loadFor?: (tab: FileTab) => ((path: string) => Promise<FileContent>) | undefined;
+  probeFor?: (tab: FileTab) => ((path: string) => Promise<FileProbe>) | undefined;
+  saveFor?: (tab: FileTab) => ((path: string, baseRevision: string, content: string) => Promise<FileContent>) | undefined;
+  owner?: string;
   openBrowserFor?: (tab: FileTab, path: string) => Promise<unknown>;
   /** Names a tab's room source where equal file names need telling apart. */
   sourceLabel?: (tab: FileTab) => string;
@@ -67,12 +71,20 @@ export function FileTabsReader(props: TabReaderProps) {
 
   const restoreTabFocus = useRef(false);
   const close = (id: string) => {
-    restoreTabFocus.current = true;
-    const last = tabs.length === 1;
-    props.onClose(id);
-    if (last) props.onEmptied?.();
+    const perform = () => {
+      restoreTabFocus.current = true;
+      const last = tabs.length === 1;
+      props.onClose(id);
+      if (last) props.onEmptied?.();
+    };
+    if (props.owner && draftPersistenceUnsafe()) void confirmDraftLeave().then((allowed) => { if (allowed) perform(); });
+    else perform();
   };
-  const strip = <TabStrip {...props} onClose={close} restoreTabFocus={restoreTabFocus} />;
+  const select = (id: string) => {
+    if (props.owner && draftPersistenceUnsafe()) void confirmDraftLeave().then((allowed) => { if (allowed) props.onSelect(id); });
+    else props.onSelect(id);
+  };
+  const strip = <TabStrip {...props} onClose={close} onSelect={select} restoreTabFocus={restoreTabFocus} />;
   const byId = new Map(tabs.map((tab) => [tab.id, tab]));
   return (
     <>
@@ -96,11 +108,18 @@ function TabHost({ tab, selected, props, limiter, strip, target }: {
     agentId: props.contextFor(tab),
     link: tab.line ? { path: tab.path, line: tab.line } : { path: tab.path },
     load: props.loadFor?.(tab),
+    probe: props.probeFor?.(tab),
+    selected: selected && target !== null,
+    editor: props.owner && props.saveFor?.(tab) ? {
+      identity: { owner: props.owner, source: tab.source, path: tab.path },
+      save: (baseRevision, content) => props.saveFor!(tab)!(tab.path, baseRevision, content),
+    } : undefined,
     onPathResolved: props.onResolved ? (path) => props.onResolved?.(tab.id, path) : undefined,
     initialView,
     jump: props.jumps[tab.id] ?? 0,
     onViewChange: (view) => fileTabs.setView(tab.id, view),
     schedule: (kind, start) => limiter.run(tab.id, kind, start),
+    cancelPending: () => limiter.cancel(tab.id),
   });
   const { dropped, reload } = reader;
   useEffect(() => { if (selected && dropped) reload(); }, [selected, dropped, reload]);
@@ -114,7 +133,8 @@ function TabHost({ tab, selected, props, limiter, strip, target }: {
 const reducedMotion = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const fileName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
 
-function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, openBrowserFor, restoreTabFocus }: TabReaderProps & { restoreTabFocus: { current: boolean } }) {
+function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, openBrowserFor, restoreTabFocus, owner }: TabReaderProps & { restoreTabFocus: { current: boolean } }) {
+  const drafts = useDraftSummary(owner ?? "").drafts;
   const [menu, setMenu] = useState<PointerMenuState | null>(null);
   const tabIds = JSON.stringify(tabs.map((tab) => tab.id));
   useEffect(() => setMenu(null), [active?.id, tabIds]);
@@ -180,7 +200,7 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, openBr
                   <SortableTab
                     key={tab.id}
                     tab={tab}
-                    name={names[index]}
+                    name={`${names[index]}${drafts.some((draft) => pathKey(draft.path) === pathKey(tab.path) && (draft.source ?? "") === (tab.source ?? "")) ? " · unsaved" : ""}`}
                     source={source}
                     title={[tab.path, sourceLabel?.(tab)].filter(Boolean).join(" — ")}
                     selected={tab.id === active?.id}

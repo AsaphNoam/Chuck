@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { copyText } from "../../lib/copyText";
@@ -11,7 +11,9 @@ import { AnnotationTrayView, useDesktopAnnotationDelivery } from "./AnnotationTr
 import { FileViewerView } from "./FileViewer";
 import { FileTabsNotice, FileTabsReader } from "../../features/fileTabs/FileTabs";
 import type { FileTabRoute } from "../../features/fileTabs/useFileTabRoute";
-import { openFileInBrowser } from "../../api/client";
+import { openFileInBrowser, probeFileContent, saveFileContent } from "../../api/client";
+import { confirmDraftLeave, draftRecoveryAvailable, restoreDrafts, useDraftSummary, type FileDraft } from "../../features/fileTabs/drafts";
+import { FileEditorLeaveGuard } from "../../features/fileTabs/FileEditorLeaveGuard";
 
 // The transcript's reader workspace: the conversation's file tabs and the
 // pending-annotation tray beside the conversation, or both inside Focus file
@@ -29,6 +31,8 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
   onReturnFocus: () => void;
 }) {
   const file = tabs?.active ?? null;
+  const owner = tabs?.owner ?? `conversation:${agentId}`;
+  const draftSummary = useDraftSummary(owner);
   const [focusTarget, setFocusTarget] = useState<HTMLDivElement | null>(null);
   const delivery = useDesktopAnnotationDelivery(agentId, sourceActive);
   const drafts = useAnnotationStore((state) => state.bySource[agentId]?.length ?? 0);
@@ -38,9 +42,15 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
   const [focusRequested, setFocused] = useState(false);
   // Focus ends with the file; a later file opens beside the conversation.
   const focused = focusRequested && file !== null && panelSlots !== undefined;
+  const changeFocus = async (next: boolean) => {
+    if (next === focused) return;
+    if (await confirmDraftLeave()) setFocused(next);
+  };
   if (focusRequested && file === null) setFocused(false);
   const [menu, setMenu] = useState<AnnotationMenuState | null>(null);
   const focusButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => { void restoreDrafts(); }, []);
 
   const tray = annotationsEnabled && drafts > 0;
   const report = panelSlots?.report;
@@ -62,7 +72,10 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
       onClose={tabs.close}
       onMove={tabs.move}
       onResolved={tabs.resolved}
+      owner={tabs.owner}
       contextFor={() => agentId}
+      probeFor={() => (path) => probeFileContent(agentId, path)}
+      saveFor={() => (path, baseRevision, content) => saveFileContent(agentId, path, baseRevision, content)}
       openBrowserFor={(_tab, path) => openFileInBrowser(agentId, path)}
       onEmptied={onReturnFocus}
       target={focused ? focusTarget : panelSlots?.start || undefined}
@@ -88,8 +101,8 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
               onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
             }) : undefined}
             actions={focused
-              ? <button type="button" className="ad-button-secondary" onClick={() => setFocused(false)}>Return to chat</button>
-              : panelSlots && <button type="button" className="ad-button-secondary" ref={focusButton} onClick={() => setFocused(true)}>Focus file</button>}
+              ? <button type="button" className="ad-button-secondary" onClick={() => void changeFocus(false)}>Return to chat</button>
+              : panelSlots && <button type="button" className="ad-button-secondary" ref={focusButton} onClick={() => void changeFocus(true)}>Focus file</button>}
           />
         </MenuPortalContext.Provider>
       )}
@@ -100,12 +113,18 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
 
   return (
     <>
+      <FileEditorLeaveGuard />
+      {draftSummary.drafts.some((draft) => !draftRecoveryAvailable(draft)) && <p className="file-tabs-notice" role="alert">Some unsaved edits are not confirmed recoverable. Leaving may lose those changes.</p>}
+      {draftSummary.drafts.length > 0 && <UnsavedEdits drafts={draftSummary.drafts} onOpen={(draft) => {
+        tabs?.open({ path: draft.path, source: draft.source });
+        setFocused(false);
+      }} />}
       {tabs?.tabs.length === 0 && <FileTabsNotice />}
       {readers}
       {focused ? (
         <FocusFile
           drafts={tray ? drafts : 0}
-          onClose={() => setFocused(false)}
+          onClose={() => { void changeFocus(false); }}
           onCloseAutoFocus={() => requestAnimationFrame(() => {
             if (focusButton.current) focusButton.current.focus();
             else onReturnFocus();
@@ -122,6 +141,29 @@ export function ReaderWorkspace({ agentId, tabs, annotationsEnabled, sourceActiv
         </>
       )}
     </>
+  );
+}
+
+export function UnsavedEdits({ drafts, onOpen, labelFor }: {
+  drafts: FileDraft[];
+  onOpen: (draft: FileDraft) => void;
+  labelFor?: (draft: FileDraft) => string | undefined;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (drafts.length === 0) return null;
+  return (
+    <section className="file-tabs-notice" aria-label="Unsaved edits">
+      <button type="button" className="ad-button-secondary" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+        {expanded ? "Hide unsaved edits" : `Unsaved edits (${drafts.length})`}
+      </button>
+      {expanded && <ul>
+        {drafts.map((draft) => <li key={draft.key}>
+          <button type="button" className="ad-button-secondary" onClick={() => onOpen(draft)}>
+            {draft.path}{labelFor?.(draft) ? ` · ${labelFor(draft)}` : ""} · {draftRecoveryAvailable(draft) ? "recovery available" : "recovery not confirmed"}
+          </button>
+        </li>)}
+      </ul>}
+    </section>
   );
 }
 
