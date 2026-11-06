@@ -212,17 +212,7 @@ None.
 
 ## Review queue
 
-- **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
-  Current agent is available for any non-archived source; the handler wakes a stopped source,
-  holds behind a running turn, or steers (`target.steer`) when the runtime advertises it; desktop
-  tray and phone form offer **Steer** while busy. R23 suppression now pairs each block prompt with the
-  nearest earlier unpaired self card (`prompt_seq` lets ChatPanel clear the held tail). Review note: a
-  queued batch replaces any held chat message, per FS-03.R48. `internal/server/sessions.go`,
-  `ui/src/components/chat/annotationDelivery.ts`, `ui/src/store/transcriptStore.ts`.
-
-- **Think Tank setup fit and annotation toast removal** (2026-11-01): setup dialog widens to
-  1120px with participants beside the goal at >=960px; the desktop and phone "Annotations sent to
-  …" notices and `sentTo` delivery state are gone (FS-13.R29/R35 wording updated).
+None.
 
 ## Investigations awaiting evidence
 
@@ -273,6 +263,12 @@ specs, live user state or unrelated dirty files changed.
 None.
 
 ## Changelog
+
+- **2026-11-06 — Review queue reconciled:** removed stale self-annotation and Think Tank setup
+  entries after confirming their recorded reviews and fix closures (`36fae1fd`, `6245157b`).
+  No eligible review unit remains; no new product review or fix-model recommendation is needed.
+  This state-only correction has no applicable surface under INV §§1–17. Unrelated dirty
+  `docs/ideas.md` preserved.
 
 - **2026-11-06 — File-editing review fixes closed (INV §§1/5/8/9/10/15):** FILE-EDIT-1
   serializes saves by pinned parent directory identity, preserving no-follow checks while covering
