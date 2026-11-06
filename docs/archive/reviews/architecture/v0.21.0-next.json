@@ -22,5 +22,26 @@
     { "id": "ARCH-POST021-3", "severity": "must_fix" },
     { "id": "ARCH-POST021-4", "severity": "worth_fixing" }
   ],
-  "updates": []
+  "updates": [
+    {
+      "kind": "fix",
+      "commits": [
+        "84f65de97db83bd6ecf5b0eb13a10cb195ec7148",
+        "61954e00bba276e95246f4fc815281e24982482f",
+        "8e50b4b2b1afd321dcaa041b013a11d512318250",
+        "688c4b10ca3967114979df7b13a5b8bbc6dbca25",
+        "ae26824741e67bb40d79070e71d203aba083fb0d"
+      ],
+      "finding_ids": ["ARCH-POST021-1", "ARCH-POST021-2", "ARCH-POST021-3", "ARCH-POST021-4"],
+      "closes": ["ARCH-POST021-1", "ARCH-POST021-2", "ARCH-POST021-3", "ARCH-POST021-4"],
+      "verified": true,
+      "evidence": "ARCH-POST021-1: standalone self-targeted Send and Steer retain annotation-scoped ordinary input receipts before runtime effects; interrupted standalone prompt reconciliation preserves uncertainty. TestSelfAnnotation group passes through real HTTP/runtime/SQLite, including unacknowledged withdrawal, Stop, exact recovery reads, replay without duplicate source events and uncertain native-Steer transport closure without automatic hold. Old-source overlay fails withdrawal/Stop with missing identity and uncertain Steer with internal error/no receipt. TS-03.R78 now explicitly covers standalone recovery. ARCH-POST021-2: operator approved macos-15; official https://docs.github.com/en/actions/reference/runners/github-hosted-runners and https://github.com/actions/runner-images confirm the arm64 image on 2026-11-06. YAML parse/runner/arm64-guard assertions and bash -n scripts/release/assemble.sh pass. Architecture assertion, setup-go go.mod version, Node 22 build setup and checksum-pinned private Node 22.22.0 darwin-arm64 runtime remain; assembly has no macos-14 path assumption. No hosted job, archive/install or publication claim. ARCH-POST021-3: canonical operate-agents now describes explicit desktop source Save, read-only phone/unsupported files and separate browser-local draft recovery without agent-tool authority; go test ./internal/agentknowledge passes. ARCH-POST021-4: refresh completion checks its starting snapshot revision; deferred-read-across-Save regression fails old hook and passes repaired hook (5/5). Generated embed refreshed via make dist UI stage; make build passes. Full UI closure passes all 1172 tests with two workers. Release preparation and its independent affected-coverage evidence remain absent; review_complete stays false, and native/provider/device gates remain owed."
+    },
+    {
+      "kind": "coverage",
+      "commits": ["84f65de97db83bd6ecf5b0eb13a10cb195ec7148"],
+      "verified": true,
+      "evidence": "Final closure on the repair source at 84f65de9: make test passes both go test ./... and go test -tags sqlite_fts5 ./..., with CHUCK_RUNTIME_ROOT unset, GOFLAGS=-p=1, writable isolated GOCACHE=/private/tmp/chuck-fix-go-cache and loopback-capable execution (log /private/tmp/chuck-fix-test-final.log). Focused new annotation recovery tests pass under -race (annotation-recovery-race.log). Full npm test -- --maxWorkers=2 --minWorkers=1 passes 1172/1172 (chuck-fix-ui-closure.log); make dist's UI build/style/embed stage and final make build pass (chuck-fix-dist.log, chuck-fix-build-final.log). Final make check-specs, eight architectural receipt-validator tests, receipt JSON parsing and git diff --check pass. Earlier interrupted checks and dependency-refresh/resource-contention UI attempts are superseded by these complete passing runs. No hosted release, archive/install, live provider, native/device or new rendered-browser evidence. Finding repair closure does not complete the separate pending release-preparation signoff."
+    }
+  ]
 }

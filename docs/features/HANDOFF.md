@@ -13,18 +13,18 @@ are not live queues.
   [Notes](../archive/state/RELEASE-v0.21.0-notes.md), also the release body. Release CI
   41222233162 passed on attempt 2 (attempt 1 was cancelled by GitHub's `macos-14` brownout);
   downloaded archive size 325336221 and SHA256 `36c955dd…f24ac` match the manifest.
-- **Release runner:** `.github/workflows/release.yml` still uses `macos-14`, retired by GitHub
-  2026-11-02 (official announcement/inventory verified 2026-11-06). ARCH-POST021-2 below owns
-  this existing blocker; supported arm64 replacement (such as `macos-15`) is an operator decision.
+- **Release runner:** operator-approved `macos-15` replaces retired `macos-14` in `61954e00`.
+  Current GitHub runner inventory confirms arm64; the architecture assertion and toolchain/runtime
+  pins remain. Hosted archive/install verification is still owed at release time.
 - **Main CI:** prior runs 41222233023 and 41223054609 failed on CI-CARDGRID-1; repaired locally,
   awaiting the next clean-clone CI run.
 - **Review state:** CI-CARDGRID and TASK-FORM are closed. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered). SELF-ANNOTATIONS is closed (all three findings repaired).
-- **Next architecture audit:** combined source candidate `b1574fd9` assessed; ARCH-POST021 below
-  has three Must-fix findings and one Worth-fixing finding. The
-  [receipt](../archive/reviews/architecture/v0.21.0-next.json) remains incomplete pending committed
-  release preparation and its independent affected-coverage evidence; no final package signoff.
+- **Next architecture audit:** combined source candidate `b1574fd9` assessed; ARCH-POST021-1–4
+  are repaired with exact commits and focused evidence in the
+  [receipt](../archive/reviews/architecture/v0.21.0-next.json). Release signoff remains incomplete
+  pending committed release preparation and its independent affected-coverage evidence.
 - **File editing review:** FILE-EDIT-1–3 are closed: case aliases share save serialization,
   explicit file opens preserve refused edits until acknowledged leave, and stale browser pages
   cannot remove or overwrite newer durable drafts. Full closure passes; device gates below remain.
@@ -264,52 +264,28 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### ARCH-POST021 — combined candidate after v0.21.0 (2026-11-06) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-[Report and evidence](../archive/reviews/architecture/v0.21.0-next.md),
-[receipt](../archive/reviews/architecture/v0.21.0-next.json). Reviewed committed candidate
-`b1574fd979e3e5987e7b55b2a32eb21e51b72417`; unrelated dirty ideas preserved. Source audit is
-finished, but TS-06.R36 signoff remains incomplete until workflow §16 preparation is committed
-and independently checked. Append exact finding repairs/verification to this receipt; no repeat
-of unaffected investigations is needed solely for finding fixes.
-
-- **Must fix** — **ARCH-POST021-1:** standalone self-annotations bypass durable input recovery.
-  `internal/server/sessions.go:341–369` creates request-bearing `input` only for assignment
-  admission, then sends the original id-less `msg` on the standalone fallback. Runtime transitions
-  ignore an empty request ID. Withdraw a held self batch and lose its response/fail browser draft
-  persistence, or Stop while it is held: no released input receipt remains. Ordinary text controls
-  preserve it. FS-13.R37, FS-03.R90/R100 and TS-03.R74 require the shared recovery behavior
-  (INV §2/10/11/15).
-  Independent HTTP/runtime/SQLite probes fail 3/3 for annotations and pass 3/3 for ordinary text;
-  parent independently repeats the withdrawal failure. The source annotation event remains for
-  manual copying; this is loss of managed pending-input recovery, not all instruction bytes.
-  Preserve the ordinary prompt receipt through standalone annotation delivery and cover
-  unacknowledged withdrawal/Stop; check uncertain Steer through the affected seam too.
-- **Must fix** — **ARCH-POST021-2:** release assembly still selects a retired hosted runner at
-  `.github/workflows/release.yml:17`. This normalizes the existing release-runner blocker above,
-  not a newly discovered runtime defect. GitHub's
-  [official announcement](https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement/)
-  and runner inventory confirm retirement on 2026-11-02; a next tag/manual release cannot obtain
-  that configured image to assemble/verify the archive (TS-06.R13–R14/R21; INV §10). Select a supported
-  arm64 image, retain the architecture assertion and verify packaging/toolchain assumptions.
-  No hosted job was triggered; the operator image decision remains pending.
-- **Must fix** — **ARCH-POST021-3:** installed operator guidance denies shipped file editing.
-  `internal/agentknowledge/operating-chuck/references/operate-agents.md:10` still categorically
-  says the viewer does not write files. FS-03.R111 now permits deliberate desktop source Save;
-  R112 also adds browser-local draft contents as an exception to descriptor-only tab persistence.
-  An ordinary product question therefore receives stale release-managed interface advice
-  (FS-18.R1/R3/R5, TS-11.R1/R8, INV §10). Publication tests pass while distributing that false
-  claim. Update the canonical reference precisely, retaining phone/read-only and explicit-save
-  limits without implying agent-tool authority; reuse the existing publication check.
-- **Worth fixing** — **ARCH-POST021-4:** a pre-save refresh can replace the saved view with older
-  bytes. `ui/src/features/fileTabs/useFileFreshness.ts:67–78` checks lifecycle validity after read,
-  but not whether Save applied a newer snapshot meanwhile; `FileViewer.tsx:367` applies Save and
-  unblocks editing. A deferred refresh for reviewed external content then overwrites the saved
-  view (FS-03.R111; TS-08.R153–R154; INV §1/5/8). Real-hook schedule probe fails independently and in the
-  parent repeat. Disk remains safe and a later poll normally repairs the display. Fence read
-  completion against its starting snapshot generation and retain that schedule as a regression.
+None.
 
 ## Changelog
+
+- **2026-11-06 — ARCH-POST021 repairs (INV §1/2/5/8/10/11/15/17):** `84f65de9`
+  retains standalone self-annotation input receipts through Send and Steer, with real
+  HTTP/runtime/SQLite withdrawal, Stop and uncertain-Steer regressions; all fail old-source
+  overlays and pass the repair, including focused race checks. TS-03.R78 clarified.
+  Operator-approved `61954e00` selects supported arm64 `macos-15`, retaining architecture
+  and pinned-runtime checks; YAML/guard assertions and assembly shell syntax pass.
+  `8e50b4b2` corrects installed desktop editing/draft guidance; agentknowledge publication
+  checks pass. `688c4b10` fences deferred refreshes against a newer saved snapshot; old-hook
+  regression fails and all five hook tests pass. `ae268247` refreshes generated embed output.
+  UI closure passes 1172/1172 with two workers, UI production/style build and binary build pass.
+  Full `make test` closure (untagged and sqlite_fts5) passes on final repair source `84f65de9`,
+  with `CHUCK_RUNTIME_ROOT` unset, `GOFLAGS=-p=1` and isolated writable Go cache
+  (`/private/tmp/chuck-fix-test-final.log`). Final spec checks and receipt-validator tests pass;
+  `git diff --check` passes. Earlier interrupted checks and resource-contention UI attempts are
+  superseded by these complete passing runs.
+  Exact repair commits/evidence appended to the architectural receipt; release signoff remains
+  incomplete pending committed preparation and independent affected-coverage evidence.
+  No hosted assembly/publication or new native/provider/device claim. Unrelated dirty ideas preserved.
 
 - **2026-11-06 — Combined architectural source audit:** reviewed `v0.21.0..b1574fd9` with
   independent file-durability, input-delivery and installed-runtime reviewers; recorded
