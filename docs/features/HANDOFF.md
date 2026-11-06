@@ -38,7 +38,14 @@ are not live queues.
 
 ## Active change
 
-None.
+**File-viewer refresh and editing — in progress.**
+[Change](../ready-changes/file-viewer-refresh-and-editing.md). Backend probe/conditional-save
+and draft storage/editor are delegated; parent owns selected-reader refresh and integration.
+Draft editor/store and selected-reader refresh are implemented. Focused reader/tab/freshness tests
+pass (44); editor tests and real Chromium IndexedDB reload/capacity checks pass. Backend route
+verification and combined product rendering/closure remain in progress.
+Next: finish source-qualified integration and guards, verify the actual product, then run closure.
+Existing dirty `docs/ideas.md` and generated `dist/index.html` are unrelated and preserved.
 
 ## Acceptance gates still owed
 

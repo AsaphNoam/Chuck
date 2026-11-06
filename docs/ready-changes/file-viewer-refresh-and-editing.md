@@ -1,6 +1,6 @@
 # File-viewer refresh and editing
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator `/design-feature` request on 2026-11-05: viewer files stay stale during agent
 work; refresh without repeated disruption and allow direct editing. Scope confirmed with a small
 unobtrusive status spinner and retained readable content; optimistic save conflicts and owned-file
@@ -46,4 +46,14 @@ and generated embed; no such product proof is claimed by this design-only change
 
 ## Waiting on
 
-Nothing. Ready for explicit `/work` selection; no implementation started.
+Nothing. Selected by `/work` on 2026-11-06.
+
+## Implementation direction
+
+Extend the existing reader: keep the file and read time steady during writes, with a fixed-size
+status indicator. Source editing occupies the same reader; Save/Cancel and comparison state stay
+explicit. The primary task is reading agent-produced files, with deliberate edits as the second
+path. The main failure to prevent is losing either reading context or unsaved text to a late reply.
+Use existing controls and semantic tokens; motion is limited to the freshness spinner, static
+under reduced motion. Backend, draft editor and refresh integration are separate work slices;
+verify their boundaries before the combined actual-product journey.
