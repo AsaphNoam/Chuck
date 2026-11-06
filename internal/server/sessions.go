@@ -258,6 +258,16 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 						writeAPIError(w, apiError(runtime.CodeConflict, "annotation input identity already belongs to different content"))
 						return
 					}
+					if input.Delivery == "unknown" || input.Delivery == "prepared" && input.AssignmentTaskID == "" {
+						ae := apiError(runtime.CodeDeliveryUncertain, "This message may already have reached the agent. Inspect history; recover it only with a deliberate new Send.")
+						ae.Details = map[string]any{"agent_id": sourceID, "request_id": input.RequestID, "recovery": "/api/sessions/" + sourceID + "/prompt"}
+						writeAPIError(w, ae)
+						return
+					}
+					if input.Delivery == "failed" {
+						writeAPIError(w, apiError(runtime.CodeConflict, "The message was refused and was not delivered; send it again deliberately."))
+						return
+					}
 					if err := s.stateStore.SetAnnotationEffect(sourceID, commandID, "input:"+input.RequestID, "accepted"); err != nil {
 						writeAPIError(w, apiError(runtime.CodeInternal, "cannot reconcile annotation acceptance"))
 						return
@@ -325,54 +335,86 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		msg := runtime.Message{Text: runtime.FormatAnnotationBlock(body)}
+		msg := runtime.Message{Text: runtime.FormatAnnotationBlock(body), RequestID: "annotation-" + commandID}
+		if commandID == "" {
+			msg.RequestID = mintHookToken()
+		}
 		deliver = func() *runtime.APIError {
+			if s.attachmentStartupErr != nil {
+				return apiError(runtime.CodeInternal, "attachment recovery is unavailable; restart after repairing storage")
+			}
+			action := "prompt"
 			if body.Target.Steer {
-				outcome, err := s.registry.SteerMessage(r.Context(), sourceID, msg)
+				action = "steer"
+			}
+			raw, _ := json.Marshal(msg)
+			recorded := state.AttachmentReceipt{AgentID: sourceID, RequestID: msg.RequestID, PayloadHash: messagePayloadHash(action, msg), MessageJSON: string(raw), Action: action}
+			if !body.Target.Steer {
+				admitted, ok, err := s.admitConversationInput(r.Context(), recorded, msg)
 				if err != nil {
+					return apiError(runtime.CodeInternal, "cannot retain annotation input")
+				}
+				if ok {
+					delivery = receiptDelivery(admitted.Delivery)
+					if admitted.Delivery == "prepared" {
+						delivery = "queued"
+					}
+					s.continueQueuedInput()
+					return nil
+				}
+			}
+			if err := s.stateStore.CreateAttachmentReceipt(recorded); err != nil {
+				return apiError(runtime.CodeInternal, "cannot retain annotation input")
+			}
+			// Runtime transitions now advance the same durable input identity for
+			// standalone Send and Steer as for ordinary composer messages.
+			failed := func(err error) *runtime.APIError {
+				rec, readErr := s.stateStore.AttachmentReceipt(sourceID, msg.RequestID)
+				if readErr != nil {
+					return apiError(runtime.CodeInternal, "cannot verify annotation input acceptance")
+				}
+				if rec.Delivery == "unknown" || errors.Is(err, runtime.ErrMessageAccepted) && rec.Delivery == "prepared" {
+					ae := apiError(runtime.CodeDeliveryUncertain, "This message may already have reached the agent. Inspect history; recover it only with a deliberate new Send.")
+					ae.Details = map[string]any{"agent_id": sourceID, "request_id": msg.RequestID, "recovery": "/api/sessions/" + sourceID + "/prompt"}
+					return ae
+				}
+				if rec.Delivery == "prepared" {
+					if removeErr := s.stateStore.RemoveAttachmentReceipt(sourceID, msg.RequestID); removeErr != nil {
+						return apiError(runtime.CodeInternal, "cannot release annotation input receipt")
+					}
+				}
+				if body.Target.Steer {
 					if errors.Is(err, runtime.ErrSteerRefused) {
 						return apiError(runtime.CodeInternal, steerRefusalText(err))
 					}
 					return steerError(err)
 				}
-				delivery = string(outcome)
-				return nil
-			}
-			input := msg
-			input.RequestID = "annotation-" + commandID
-			if commandID == "" {
-				input.RequestID = mintHookToken()
-			}
-			raw, _ := json.Marshal(input)
-			recorded := state.AttachmentReceipt{AgentID: sourceID, RequestID: input.RequestID, PayloadHash: messagePayloadHash("prompt", input), MessageJSON: string(raw), Action: "prompt"}
-			admitted, ok, err := s.admitConversationInput(r.Context(), recorded, input)
-			if err != nil {
-				return apiError(runtime.CodeInternal, "cannot retain annotation input")
-			}
-			if ok {
-				delivery = receiptDelivery(admitted.Delivery)
-				if admitted.Delivery == "prepared" {
-					delivery = "queued"
+				if ae, ok := err.(*runtime.APIError); ok {
+					return ae
 				}
-				s.continueQueuedInput()
+				return sessionOpError(err)
+			}
+			if body.Target.Steer {
+				outcome, err := s.registry.SteerMessage(r.Context(), sourceID, msg)
+				if err != nil {
+					return failed(err)
+				}
+				delivery = string(outcome)
 				return nil
 			}
 			held, err := s.registry.SendMessageOrHold(r.Context(), sourceID, msg)
 			if errors.Is(err, runtime.ErrNoHandle) {
 				woken, ae := s.wakeAgent(r.Context(), sourceID)
 				if ae != nil {
-					return ae
+					return failed(ae)
 				}
 				if !woken {
-					return apiError(runtime.CodeConflict, "the source agent is not running and cannot be woken")
+					return failed(apiError(runtime.CodeConflict, "the source agent is not running and cannot be woken"))
 				}
 				held, err = s.registry.SendMessageOrHold(r.Context(), sourceID, msg)
 			}
 			if err != nil {
-				if ae, ok := err.(*runtime.APIError); ok {
-					return ae
-				}
-				return sessionOpError(err)
+				return failed(err)
 			}
 			delivery = promptDelivery(held)
 			return nil

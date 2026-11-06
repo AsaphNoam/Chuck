@@ -1132,8 +1132,10 @@ before `SendMessageOrHold` with the annotation block, waking through the shared 
 and retrying once when the session has no handle, or `SteerMessage` for a
 steer, mapping refusals as the steer route does. Success adds `delivery`: `sent`, `held`,
 `steered`, `new_turn` or `queued` (retained for assignment continuation); same-command replay
-of an accepted receipt omits it. Assignment-owned input uses a stable annotation-scoped message
-receipt so restart or an interrupted annotation acceptance cannot enqueue it twice. No new route,
+of an accepted receipt omits it. All self-targeted input uses a stable annotation-scoped message
+receipt through assignment admission, standalone Send and Steer, retaining the ordinary input
+recovery states for unacknowledged withdrawal, Stop and uncertain delivery. Restart or interrupted
+annotation acceptance cannot enqueue it twice. No new route,
 SSE event or held-message shape is added; clients refresh the existing input read after self
 acceptance, including replay, to recover held or assignment-queued input.
 
