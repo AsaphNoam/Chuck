@@ -44,7 +44,12 @@ and draft storage/editor are delegated; parent owns selected-reader refresh and 
 Draft editor/store and selected-reader refresh are implemented. Focused reader/tab/freshness tests
 pass (44); editor tests and real Chromium IndexedDB reload/capacity checks pass. Backend route
 verification and combined product rendering/closure remain in progress.
-Next: finish source-qualified integration and guards, verify the actual product, then run closure.
+Backend routes and adversarial filesystem/remote tests pass, including focused race checks.
+Actual embedded Chromium journeys pass live/archive/room/Focus saves, conflict/recovery and
+quiet/selection-gated refresh in all four appearances at 1024/1440px; phone supplement in progress.
+Latest focused UI integration passes 77 tests. Full UI suite passes (1166 tests before the last
+recovery-edge test). Go closure is rerunning against stable sources after an earlier concurrent
+compile saw half of the new error constants. Next: finish closure, regenerate embed, reconcile specs.
 Existing dirty `docs/ideas.md` and generated `dist/index.html` are unrelated and preserved.
 
 ## Acceptance gates still owed

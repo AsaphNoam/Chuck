@@ -30,15 +30,19 @@ const fileReadLimit = 512 * 1024
 // Path is the normalized requested spelling the viewer displays; Language is a
 // highlighting hint derived from the extension alone, never from sniffing.
 type fileContent struct {
-	AgentID   string     `json:"agent_id"`
-	Path      string     `json:"path"`
-	Size      int64      `json:"size"`
-	ModTime   string     `json:"mod_time"`
-	LineCount int        `json:"line_count"`
-	Content   string     `json:"content"`
-	Truncated bool       `json:"truncated"`
-	Language  string     `json:"language"`
-	Image     *fileImage `json:"image,omitempty"`
+	ObservedRevision string     `json:"observed_revision"`
+	Revision         string     `json:"revision,omitempty"`
+	Editable         bool       `json:"editable"`
+	EditRefusal      string     `json:"edit_refusal,omitempty"`
+	AgentID          string     `json:"agent_id"`
+	Path             string     `json:"path"`
+	Size             int64      `json:"size"`
+	ModTime          string     `json:"mod_time"`
+	LineCount        int        `json:"line_count"`
+	Content          string     `json:"content"`
+	Truncated        bool       `json:"truncated"`
+	Language         string     `json:"language"`
+	Image            *fileImage `json:"image,omitempty"`
 }
 
 type fileImage struct {
@@ -80,6 +84,10 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 	// The request log records neither the query nor the refusal code, so each
 	// refusal is logged here: a report of a link that would not open can then be
 	// tied to the path that reached the server and the boundary it hit (INV §8).
+	if r.Method == http.MethodPut {
+		s.serveFileSave(w, r, snap.Cwd, id)
+		return
+	}
 	requested := r.URL.Query().Get("path")
 	refuse := func(apiErr *runtime.APIError) {
 		if remoteNoFollowFileRead(r.Context()) && apiErr.Code == codeRemoteFileNotTracked {
@@ -93,6 +101,15 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 	path, display, apiErr := resolveFileReadPath(snap.Cwd, requested)
 	if apiErr != nil {
 		refuse(apiErr)
+		return
+	}
+	if r.URL.Query().Get("probe") == "1" {
+		out, ae := probeLocalFile(path, display, remoteNoFollowFileRead(r.Context()))
+		if ae != nil {
+			refuse(ae)
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
 		return
 	}
 	out, apiErr := readLocalFileWithOptions(path, display, remoteNoFollowFileRead(r.Context()))
@@ -182,6 +199,10 @@ func readLocalFileAfterClassification(path, display string, afterClassification 
 }
 
 func readLocalFileAfterClassificationWithOptions(path, display string, afterClassification func(), noFollow bool) (fileContent, *runtime.APIError) {
+	return readLocalFileSnapshot(path, display, afterClassification, noFollow, false, nil)
+}
+
+func readLocalFileSnapshot(path, display string, afterClassification func(), noFollow, probeOnly bool, afterRead func()) (fileContent, *runtime.APIError) {
 	// Classify the target's kind before opening it. Opening is
 	// what distinguishes a non-regular file on some platforms but not others: a
 	// socket refuses the open on Linux and accepts it on macOS, and a FIFO would
@@ -232,6 +253,13 @@ func readLocalFileAfterClassificationWithOptions(path, display string, afterClas
 	if !info.Mode().IsRegular() {
 		return fileContent{}, apiError(runtime.CodeNotAFile, "that path does not name a regular file")
 	}
+	before, err := fileDescriptorStamp(f)
+	if err != nil {
+		return fileContent{}, apiError(runtime.CodeFileUnreadable, "that file could not be read")
+	}
+	if probeOnly {
+		return fileContent{Path: display, ObservedRevision: opaqueFileRevision(before)}, nil
+	}
 	imageFile := isImageFilePath(display)
 	limit := fileReadLimit
 	if imageFile {
@@ -243,11 +271,32 @@ func readLocalFileAfterClassificationWithOptions(path, display string, afterClas
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return fileContent{}, apiError(runtime.CodeFileUnreadable, "that file could not be read")
 	}
+	if afterRead != nil {
+		afterRead()
+	}
 	truncated := n > limit
 	if truncated {
 		n = limit
 	}
 	body := buf[:n]
+	after, err := fileDescriptorStamp(f)
+	if err != nil || before != after {
+		return fileContent{}, apiError(runtime.CodeFileChanging, "that file is changing; try again")
+	}
+	decorate := func(out fileContent) fileContent {
+		out.ObservedRevision = opaqueFileRevision(before)
+		out.EditRefusal = "incomplete_text"
+		if !out.Truncated && out.Image == nil {
+			out.Revision = textFileRevision(before, body)
+			out.EditRefusal = fileEditRefusal(path, f)
+			out.Editable = out.EditRefusal == ""
+		}
+		if noFollow {
+			out.Editable = false
+			out.EditRefusal = "remote_read_only"
+		}
+		return out
+	}
 	if imageFile {
 		if truncated {
 			return fileContent{}, apiError(runtime.CodeValidation, "that image exceeds the size limit")
@@ -256,11 +305,11 @@ func readLocalFileAfterClassificationWithOptions(path, display string, afterClas
 		if inspectErr != nil || descriptor.Kind != attachment.KindImage {
 			return fileContent{}, apiError(runtime.CodeValidation, "that image is invalid or unsupported")
 		}
-		return fileContent{
+		return decorate(fileContent{
 			Path: display, Size: info.Size(), ModTime: info.ModTime().UTC().Format(time.RFC3339),
 			Content: "", LineCount: 0, Language: languageForPath(display),
 			Image: &fileImage{MIMEType: descriptor.MIMEType, Data: base64.StdEncoding.EncodeToString(body)},
-		}, nil
+		}), nil
 	}
 	if truncated {
 		// Do not split a multi-byte rune at the limit: trim the trailing partial
@@ -271,7 +320,7 @@ func readLocalFileAfterClassificationWithOptions(path, display string, afterClas
 		return fileContent{}, apiError(runtime.CodeNotText, "that file is not text")
 	}
 	text := string(body)
-	return fileContent{
+	return decorate(fileContent{
 		Path:      display,
 		Size:      info.Size(),
 		ModTime:   info.ModTime().UTC().Format(time.RFC3339),
@@ -279,7 +328,7 @@ func readLocalFileAfterClassificationWithOptions(path, display string, afterClas
 		Content:   text,
 		Truncated: truncated,
 		Language:  languageForPath(display),
-	}, nil
+	}), nil
 }
 
 func isImageFilePath(path string) bool {

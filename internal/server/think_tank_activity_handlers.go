@@ -210,9 +210,22 @@ func (s *Server) handleThinkTankSourceFile(w http.ResponseWriter, r *http.Reques
 		if src.SourceID != sourceID {
 			continue
 		}
+		if r.Method == http.MethodPut {
+			s.serveFileSave(w, r, src.Cwd, src.AgentID)
+			return
+		}
 		path, display, ae := resolveFileReadPath(src.Cwd, r.URL.Query().Get("path"))
 		if ae != nil {
 			writeAPIError(w, ae)
+			return
+		}
+		if r.URL.Query().Get("probe") == "1" {
+			out, ae := probeLocalFile(path, display, false)
+			if ae != nil {
+				writeAPIError(w, ae)
+				return
+			}
+			writeJSON(w, http.StatusOK, out)
 			return
 		}
 		out, ae := readLocalFileWithOptions(path, display, false)

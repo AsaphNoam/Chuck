@@ -162,6 +162,10 @@ const (
 	CodeNotText              = "not_text"              // 422
 	CodeFileUnreadable       = "file_unreadable"       // 422
 	CodeWorkspaceUnavailable = "workspace_unavailable" // 422
+	CodeFileChanging         = "file_changing"         // 409
+	CodeFileConflict         = "file_conflict"         // 409
+	CodeFileSaveUncertain    = "file_save_uncertain"   // 409
+	CodeFileNotEditable      = "file_not_editable"     // 422
 
 	// CodeBackgroundTaskControlUnavailable: no negotiated targeted stop (TS-03.R44).
 	CodeBackgroundTaskControlUnavailable = "background_task_control_unavailable" // 422
@@ -203,7 +207,7 @@ func (e *APIError) HTTPStatus() int {
 // statusForCode maps an error code to its HTTP status. Unknown codes map to 500.
 func statusForCode(code string) int {
 	switch code {
-	case CodeValidation, CodeTerminalUnavailable, CodeSourceInvalid,
+	case CodeFileNotEditable, CodeValidation, CodeTerminalUnavailable, CodeSourceInvalid,
 		CodeAttachmentCapability, CodeAttachmentType,
 		CodePathRefused, CodeNotAFile, CodeNotText, CodeFileUnreadable, CodeWorkspaceUnavailable,
 		CodeBackgroundTaskControlUnavailable, CodeCloneUnavailable,
@@ -214,7 +218,7 @@ func statusForCode(code string) int {
 		return http.StatusBadRequest // 400
 	case CodeNotFound, CodeGroupNotFound, CodeSourceNotFound:
 		return http.StatusNotFound // 404
-	case CodeConflict, CodeDeliveryUncertain, CodeHeldChanged, CodeAgentNotRunning, CodeSwitchInProgress,
+	case CodeFileChanging, CodeFileConflict, CodeFileSaveUncertain, CodeConflict, CodeDeliveryUncertain, CodeHeldChanged, CodeAgentNotRunning, CodeSwitchInProgress,
 		CodeSourceChanged, CodeSourceConflict, CodeApprovalRequired,
 		CodeAgentArchived, CodeAgentArchiving, CodeProjectArchived, CodeProjectArchiving,
 		CodeBackendExists, CodeBackendCatalogChanged, CodeDirectoryPickerBusy,
