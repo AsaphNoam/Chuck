@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2055,6 +2055,52 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   removes its drafts with an unsaved-work warning, while archive/stop does not. Clearing browser
   site data removes them; there is no server copy or cross-device sync. This is the explicit
   content-persistence exception to R141, without changing saved-tab descriptor compatibility.
+
+- **R156 — Project search belongs to its existing feature owner.** (planned)
+  FS-05.R46–R53 extend the scoped project heading using the existing field, popup/keyboard and
+  semantic-token seams; feature code owns query/debounce, result paging, routing and errors.
+  Debounce by 250 ms, abort superseded reads and guard completion by project/query generation.
+  Render one compact row per chat with its actual name, lifecycle state and plain-text excerpt;
+  preserve the grid, launch controls and long project-name readability at the desktop floor.
+  Support the declared keyboard flow, loading, empty, retry and location-unavailable states;
+  clearing/dismissing a search leaves the grid state intact. Load more uses the rendered result
+  count; detect duplicate/reordered boundaries and refresh the head using the Archive's existing
+  merge/recovery pattern rather than duplicating or omitting chats. No persistent search history,
+  second transcript cache, new design system, animation dependency or phone search is added.
+  Any new public presentation hooks join the existing contract during implementation.
+
+- **R157 — One shared source-aware reveal serves live and archived chats.** (planned)
+  A result navigates to `/agent/{id}` or `/archive/{id}` using current archived identity and adds
+  `search_doc`, `search_rev`, `search_start`, `search_end` to the URL from TS-03.R83's reference.
+  Preserve unrelated route parameters, including saved file-reader tabs. Parse/validate the
+  reference on direct load/back/forward and resolve it using the same feature-owned helper on
+  both routes. A link carries no excerpt text, local filesystem path or executable instruction.
+  Resolve after session identity/transcript hydration; scope every async completion to the current
+  agent/reference and cancel on route change. If archival changed since search, open the correct
+  existing route without restoring/resuming. Unavailable location retains the readable chat and
+  explicit normal-opening alternative, never a misleading success highlight.
+
+  Extend `TranscriptView`'s existing reveal and the shared live/replay `appendRenderedEvent` fold,
+  rather than adding a second transcript renderer. Retain constituent source seq/part offsets when
+  adjacent assistant deltas merge, separated by activity identity; translate UTF-8 source bytes to
+  JavaScript UTF-16 offsets before addressing rendered text. Map a source range to its containing
+  bubble and the actual passage within it, not merely its first event. Use the Markdown renderer's
+  existing source positions (and code-block source ranges) plus literal text/attachment/annotation
+  ranges; preserve sanitization and link handling, never inject engine-generated HTML. A range that
+  is not directly rendered reveals its containing source block with a plain-text matched-excerpt
+  indication, without claiming an inline word highlight. Expand the containing turn and any
+  existing disclosure needed to see that source, scroll/focus once after rendering, and visibly
+  mark the target using existing semantic highlight/focus tokens. Clear the prior target on a new
+  reference or agent; rerenders do not repeat the reveal or reopen a turn the reader then closes.
+
+  Set the transcript into explicit reading mode before the initial bottom-follow effect or resize
+  observer can move it. Live append, reasoning, image/diagram layout and late hydration must not
+  pull it away; the existing Jump to latest action explicitly restores following. Preserve normal
+  open-at-latest behavior without a search reference. FS-05.A29–A32 require rendered live/stopped/
+  archived journeys, direct-link reload and keyboard focus at 1024 px and a wider desktop in the
+  supported appearances, covering collapsed turns, long messages/Markdown/code, later merged
+  deltas, attachment names, multi-event excerpts, unavailable sources and new replies during
+  reveal. Automated source tests alone do not close these rendered gates (INV §1/§2/§8/§11/§17).
 
 ## 3. Interfaces & data shapes
 

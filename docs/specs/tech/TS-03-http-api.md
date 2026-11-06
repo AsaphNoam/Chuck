@@ -1205,6 +1205,82 @@ reason, never file/draft bytes or revision digests. No save event or prompt is s
 Verify actual registered HTTP routes, remote denials/filters, adversarial file fixtures, exact
 disk bytes/metadata, concurrent saves and failure injection; update UI schemas/client together.
 
+**R82 — Project search is an opt-in view of the existing project archive read.** (planned)
+For FS-05.R46–R47/R51/R53, extend `GET /api/archive/projects/{project}` with
+`view=project_search`; absent `view` retains R20's current archive behavior and response. This view
+returns the existing flat project response with `query`, `search_mode`, `total`, `limit`, `offset`
+and non-null `results`, including matching non-archived and archived chat sessions. This view
+rejects the optional `active` filter rather than turning lifecycle priority into an exclusion.
+Scope and the
+chat-interface filter apply in SQL before counting/paging. Unknown projects with no recorded
+sessions return the existing empty project result; validate project identity through the existing
+path boundary. A blank/whitespace query returns no search hits, never an archived-only listing.
+
+Reuse the shared query parser with an explicit project-search mode. Bound this mode to 512 UTF-8
+query bytes and 32 terms; quote/escape every literal rather than accepting raw MATCH operators.
+For each unquoted term with at least two Unicode code points, append FTS5's `*` outside the quoted
+literal; quoted phrases and one-character terms stay exact. Punctuation is tokenized by the
+existing `unicode61 remove_diacritics 2` tokenizer (only the final token of a punctuation-bearing
+prefix phrase is expanded). Terms remain ANDed within one document. Preserve existing BM25 column
+weights and distinct-session collapse. Order in SQL by lifecycle bucket (running non-archived,
+stopped non-archived, archived), best-document BM25, `updated_at DESC`, then `agent_id`, before
+LIMIT/OFFSET. Default limit is 20, maximum 50; offset remains nonnegative. Invalid view/input uses
+R3's 422 validation error. The untagged/unavailable-module path retains metadata-only LIKE semantics,
+the same lifecycle buckets and no transcript-location claims. Ordinary Archive queries remain exact.
+
+**R83 — An excerpt reference identifies indexed bytes, not a guessed turn endpoint.** (planned)
+Project-search rows retain `snippet`/`matched_in` and add optional
+`search_ref:{document_id,content_sha256,start_byte,end_byte}` for transcript excerpts, plus
+`location_status:"reference"|"metadata_only"|"unavailable"`. Select the best matching transcript
+document independently of a metadata document winning overall rank. On that exact FTS row, use
+SQLite `highlight()` to identify original-text match intervals: markers must be absent from the
+source and are parsed server-side into half-open UTF-8 ranges, never returned as trusted HTML.
+Choose the first matched interval in that document deterministically; form a contiguous excerpt
+of at most 256 Unicode code points around it, including its beginning and clipping only at
+code-point boundaries; a match may be longer than its preview. `search_ref`
+names that interval, not the document's last sequence. Metadata-only hits have no reference.
+Do not identify an occurrence by searching the clipped `snippet()` string in rendered text.
+
+Close result cursors before dependent lookups on the store's single connection. Enrich one selected
+document at a time, admitting at most 4 MiB indexed UTF-8 content per document before allocating
+highlight output; larger hits retain a bounded SQLite snippet and `location_status:"unavailable"`.
+Enrichment uses a cancellation-aware two-second request budget, at most two in-flight project
+searches server-wide and no unbounded request queue. Exhaustion is a visible retryable read error,
+not an empty/partial result set. Keep result ordering/counts independent of location availability.
+
+`GET /api/sessions/{id}/search-match?document_id=<d>&sha256=<h>&start=<b>&end=<b>` resolves a
+selected reference read-only. Require a known recorded session, a bounded known document id,
+64-character hex digest and `0 <= start < end <= content UTF-8 length`; document ids are at most
+128 UTF-8 bytes and offsets must fall on valid code-point boundaries. Reject malformed input
+with 422 and an unknown session with 404. Verify the current document/digest, source span
+boundaries and equality of the retained source slices to their indexed bytes before returning
+`{status:"exact",ranges:[{seq,part_index,start_byte,end_byte}]}`; all
+collections are non-null. Ranges refer to original projected source parts and may span more than
+one event: split intervals across explicitly recorded join separators, omitting those artificial
+bytes while retaining every contributing source range. Only unknown/unaccounted-for bytes fail
+mapping. Missing/changed content, invalid provenance or unavailable source returns
+`{status:"unavailable",reason:<safe bounded explanation>,ranges:[]}`, never a fabricated locator.
+Actual storage/read failures use R3 errors rather than becoming a successful unavailable result.
+Apply the same 4 MiB indexed-document admission bound before loading/hash verification here.
+
+For rows lacking TS-02.R63 provenance, attempt TS-02.R64's validated transient reconstruction only
+on selection/reload, not for every keystroke. All resolver source reads, with or without stored
+provenance, admit at most 32 MiB canonical transcript bytes and the existing per-record bound,
+one reconstruction per request, two resolutions in flight server-wide, and a two-second
+cancellation-aware read budget; stop once all needed source ranges/document boundaries are read.
+Budget/source mismatch reports location-unavailable without dropping the hit or modifying data.
+The new read inherits the local Host/Origin and session-read boundaries; add no remote allowlist
+entry, filesystem path input, repair action, provider call or transcript/query logging.
+
+**R84 — Verify the complete search-to-source boundary.** (planned) FS-05.A28–A32 require
+real SQLite queries under tagged and untagged builds and real JSON serialization. Prove project
+and chat filtering, lifecycle buckets before pagination, prefix/phrase escaping and preserved
+ordinary-Archive semantics. Derive expected source event/part offsets from independent fixture
+text, including repeated passages, terms across events in one turn, annotations, later assistant
+deltas, accents/non-Latin text, empty collections, stale digests and budget exhaustion. Exercise
+upgraded old documents and failed reconstruction; verify no GET writes or lifecycle/provider calls.
+Keep endpoint/client Go/TypeScript shapes aligned (INV §7/§8/§11/§14/§16/§17).
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

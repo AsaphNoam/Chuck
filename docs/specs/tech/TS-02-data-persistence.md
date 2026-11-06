@@ -944,6 +944,50 @@ lost-response replay against real durable receipts/mail/transcripts, plus old re
 **R61 — retired 2026-10-30:** unshipped session-reset field/migration withdrawn; FS-01.R57
 and TS-10.R62 reuse R45/R50's existing reset/due fields and reason vocabulary.
 
+**R63 — Search provenance extends the existing SQLite projection.** (planned) For
+FS-05.R48/R51–R52, retain `sessions_fts` and R16's metadata/turn/flush/close/legacy documents,
+tokenizer, matching boundaries and authoritative transcript format. One forward-only migration
+adds an ordinary derived `session_search_spans` table keyed by `(agent_id, document_id)`, with
+`version`, `content_sha256` and `spans_json`. Version 1 stores
+`{spans:[{start_byte,end_byte,seq,part_index,source_start_byte,source_end_byte}],
+separators:[{start_byte,end_byte}]}`. Each ordered non-overlapping source span maps half-open UTF-8
+byte offsets in the exact indexed `content` to `transcript.ProjectEvent`'s original text part;
+source/document slice bytes must agree. Record trimming and inter-part/inter-event join
+separators explicitly; separators have no invented source event. Store no additional conversation
+text, tokens or second searchable index. Empty/metadata documents require no text-span row.
+
+Extend the shared projection/document builder to produce text and provenance together; do not
+duplicate the event-type switch or the FTS tokenizer. Live turn flush, explicit annotation flush,
+generation-close flush and offline replay use that builder. Write/delete a document and its span
+row in the same transaction, with a digest of the exact UTF-8 indexed text. Release both buffered
+representations only after successful publication, retaining later-sequence events. Span lengths
+and source offsets are validated and proportional to indexed parts. Admit at most 100,000 spans
+and 8 MiB encoded provenance per document (including separators), enforcing bounds while collecting
+and before decoding stored payloads rather than after unbounded accumulation. If this optional
+mapping exceeds its budget, omit it while retaining the
+complete searchable document; location resolution reports its bounded failure under TS-03.R83.
+Neither a provenance budget nor a write failure silently truncates indexed text. R10's
+unavailable-FTS path skips derived FTS/span writes together
+while preserving authoritative state/rollups. Do not change FTS table shape or rebuild it at upgrade.
+
+**R64 — Provenance has the existing repair and compatibility lifetime.** (planned)
+Migration leaves all existing FTS documents intact and without guessed span rows. A missing span
+row is a supported older-document state, not database corruption. TS-03.R83 may reconstruct
+provenance transiently from a captured complete canonical transcript prefix through the selected
+document boundary, using R63's pure builder without running `Reindex` or writing on the read path.
+Accept only a reconstruction whose selected document bytes equal the stored content and digest;
+for legacy documents require that equality too, never infer a sequence from `legacy` or a turn's
+final event. On mismatch/unavailability, preserve the search hit and return location-unavailable.
+Transient builders use R63's provenance bounds as well as TS-03.R83's read budget.
+
+Include span rows in R56–R58's existing per-conversation repair transaction and rollback unit.
+Successful offline reindex recreates them using the shared builder; failure or process interruption
+preserves that conversation's prior text and span rows together. Session/document deletion removes
+only associated provenance. Archival, Stop, Resume and backend switching retain it with the same
+stable session identity. No new retention policy, automatic repair, external files or engine
+dependency is introduced. Verify populated-store upgrade under both SQLite build variants,
+live/replay equality, digest mismatch and interrupted reindex (FS-05.A29/A32; INV §2/§7/§9/§11/§16).
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

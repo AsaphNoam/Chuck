@@ -184,6 +184,17 @@ in the main checkout. Publication verification is still required after an author
   Steer during a running command, and refused model switch where policy allows. Automated assembly,
   fake-runtime, release-CI assembly, and native-provider proofs passed; live receipts are owed.
 
+## Changelog
+
+- **2026-11-06 — Project chat search specified:** operator approved SQLite FTS5 reuse with
+  partial words, lifecycle priority and exact excerpt opening. FS-05.R46–R53/A28–A32,
+  TS-02.R63–R64, TS-03.R82–R84 and TS-08.R156–R157 are planned;
+  [project-chat-search](../ready-changes/project-chat-search.md) is Waiting to start. Source spans
+  share the existing database; old index rows remain intact with verified read-only location
+  reconstruction or an explicit unavailable state. Independent source review found a join-separator
+  mapping conflict, now corrected. Spec integrity, twin launcher comparison and diff checks pass;
+  implementation/rendered acceptance remain owed. No product code or active-release change.
+
 ## Decisions needing input
 
 - Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID

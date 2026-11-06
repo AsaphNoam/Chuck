@@ -181,10 +181,28 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   normally; never silently claim to have revealed the matching excerpt.
 - **R50 — Existing data boundary.** (planned) Search is a read-only local operation over
   already retained session/conversation data; it changes neither transcript contents nor retention.
-  Tool activity remains excluded by R41. Search-engine selection, enhanced matching semantics and
-  freshness guarantees remain the explicit pending decisions below; R25–R30's shipped Archive
-  contract is unchanged by this draft. Phone search, semantic topic retrieval and cross-turn term
-  aggregation are not yet approved scope.
+  Tool activity remains excluded by R41. R51–R53 define project search's matching, compatibility
+  and freshness; R25–R30's ordinary Archive contract remains unchanged. Phone search, typo
+  correction, semantic topic retrieval and cross-turn term aggregation are outside this change.
+- **R51 — Partial words reuse the existing search engine.** (planned) Project search uses
+  SQLite FTS5, without another search engine or index of searchable text. Unquoted terms of at
+  least two characters also match word beginnings; quoted terms/phrases retain exact token/phrase
+  matching. All terms must still match one metadata or transcript document, not scattered turns.
+  Names retain higher relevance weight than transcript text within R47's lifecycle groups.
+  A metadata-only build advertises that limitation and retains its existing metadata substring
+  matching; it never offers transcript excerpts or passage navigation.
+- **R52 — Older and unavailable locations remain honest.** (planned) Existing chat/search
+  data survives upgrade. For an older indexed document without passage provenance, resolve the
+  location from its retained transcript only when it can be proved to describe the indexed text.
+  If its source is missing, changed, incompatible or exceeds the bounded location-read budget,
+  keep the result and excerpt, identify passage navigation as unavailable and offer Open chat.
+  Do not silently land at another occurrence. No search triggers reindex, stops the server or
+  rewrites old history; the existing offline reindex can regenerate passage locations.
+- **R53 — Freshness follows persisted document boundaries.** (planned) Completed turns,
+  explicitly flushed annotations and text flushed on generation close become searchable through
+  the existing indexing lifecycle. An unfinished buffered turn is not promised searchable. The
+  project search explains this scope and refreshes on the next query/retry; it adds no live
+  transcript subscription solely to search or automatic reindex.
 
 ## 3. States & transitions
 
@@ -449,19 +467,28 @@ R22's `active` validation remain binding.
   projects before the prior request completes; verify stale results never win. Exercise loading,
   empty, failed/Retry, clear, keyboard selection and dismissal. *Verify:* focused component and
   handler tests plus a rendered keyboard journey. Confirm no tool-only text enters the corpus.
+- **A31** (planned) (R51–R53) — Search `auth` for `authentication`, repeat with a quoted
+  exact term/phrase, punctuation, accents, non-Latin text and literal query operators. Verify
+  complete-term one-character behavior, same-document AND semantics, rejection of over-limit input,
+  metadata-only fallback and the stated unfinished-turn limit. *Verify:* tagged/untagged real-SQL
+  endpoint tests; retain the ordinary Archive's existing exact-query tests.
+- **A32** (planned) (R48, R52) — Upgrade populated FTS and fallback stores without changing
+  existing documents. Resolve an older hit through validated source reconstruction; preserve a
+  mismatching/missing/over-budget legacy hit with an explicit unavailable state. After offline
+  reindex, verify fresh provenance, the same source passage and atomic rollback of text plus
+  provenance on failure. Test a later merged assistant delta, multi-event matching, repeated
+  passages, attachment names, Unicode byte offsets and Markdown/code rendering. *Verify:* migration,
+  index/reindex and real-HTTP locator tests with independent source-event expectations, plus A29's
+  browser journey. No engine-performance or native-provider claim follows from these checks.
 
 ## 6. Deviations & open decisions
 
-- **Project search design, 2026-11-05:** the operator confirmed non-archived-first/running-first
-  priority, asked to reuse a popular smart-search package, and required opening at the displayed
-  excerpt. R46–R50/A28–A30 capture the feature draft. Candidate recommendation: embedded Bleve,
-  providing package-owned fuzzy/prefix/phrase matching and term offsets for excerpts; exact
-  matching policy is still proposed, not approved. It needs an additional rebuildable local
-  index beside SQLite's existing FTS projection. Confirm that storage/maintenance tradeoff before
-  technical design and ready-change promotion. Existing SQLite is the lower-complexity alternative
-  but does not supply typo tolerance. No external service, model download, embedding generation or
-  cloud search has been approved. Transcript reveal must identify the actual matched event/passage;
-  the current turn document's final sequence alone is insufficient.
+- **Project search approved direction, 2026-11-06:** keep SQLite FTS5 and add partial-word
+  matching, project scope, non-archived-first/running-first priority and exact excerpt navigation.
+  Bleve and a second searchable-text index were considered and declined for this change: their
+  main incremental benefit was typo tolerance. R46–R53/A28–A32 are planned, not shipped;
+  TS-02.R63–R64, TS-03.R82–R84 and TS-08.R156–R157 define the implementation contract.
+  [Ready change](../../ready-changes/project-chat-search.md). No product decision remains open.
 
 - **Offline reindex preservation:** the operator approved R43–R45/A26–A27's partial-repair policy
   on 2026-10-22 for CR-A1-1/2. Healthy conversations are rebuilt; failed ones retain their prior data

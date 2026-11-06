@@ -43,6 +43,9 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`project-chat-search.md`](project-chat-search.md) — SQLite-backed project search with partial
+  words, running/non-archived priority and exact matching-passage navigation.
+
 - [`file-viewer-refresh-and-editing.md`](file-viewer-refresh-and-editing.md) — settled file updates
   with an unobtrusive spinner, desktop source editing and recoverable local drafts/conflicts.
 
