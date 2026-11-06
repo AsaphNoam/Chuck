@@ -21,6 +21,9 @@ are not live queues.
 - **Review state:** CI-CARDGRID and TASK-FORM are closed. The v0.21.0 architectural review
   ([receipt](../archive/reviews/architecture/v0.20.0-next.json)) is closed (ARCH-NEXT-1–4 fixed;
   generated embed covered). SELF-ANNOTATIONS is closed (all three findings repaired).
+- **File editing review:** FILE-EDIT-1–3 are closed: case aliases share save serialization,
+  explicit file opens preserve refused edits until acknowledged leave, and stale browser pages
+  cannot remove or overwrite newer durable drafts. Full closure passes; device gates below remain.
 - **Recovery fix:** RECOVERED-QUEUE-1–3 are closed in `0e98d3c4`. Withdrawal acknowledges only
   durably restored text; successful Steer fences stale reads on desktop/phone. All closure checks pass.
   Fresh queue/normal delivery do not reproduce the broader report; exact attribution is undetermined.
@@ -209,20 +212,6 @@ None.
 
 ## Review queue
 
-- **File-viewer refresh and editing** (2026-11-06):
-  [change](../ready-changes/file-viewer-refresh-and-editing.md), FS-03.R110–R112 /
-  TS-03.R80–R81 / TS-05.R29 / TS-08.R153–R155. One substantive unit, starting at
-  `bd1330aa` (inclusive), backend `37be8bcb`, UI `21475558` and final lifecycle closure.
-  Shared selected-visible refresh retains snapshots; exact-byte conditional local saves,
-  source-qualified IndexedDB drafts and explicit comparison/recovery; phone stays read-only.
-  `make test` (both builds), focused server `-race`, `make dist`, specs and full UI suite
-  (1170 tests, `--maxWorkers=1 --minWorkers=1`) pass. Parallel UI runs intermittently failed the
-  existing CardGrid waiting-input transition test; its isolated 42-test file and serial full suite
-  pass, with no dashboard changes. Logs `/private/tmp/chuck-file-{go-closure-final,
-  ui-closure-final,dist-final,specs-final}.log`; browser proof `/private/tmp/chuck-file-editing-final`.
-  Final audit fixed foreground quiet-window reset; editor comparison reads share the tab limiter.
-  Independent review of `bd1330aa^..617b780b` found FILE-EDIT-1–3 below; this unit remains open.
-
 - **Self-targeted annotations behave like chat messages** (2026-11-02): FS-13.R37 / TS-03.R78 —
   Current agent is available for any non-archived source; the handler wakes a stopped source,
   holds behind a running turn, or steers (`target.steer`) when the runtime advertises it; desktop
@@ -281,51 +270,28 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### File-viewer refresh and editing — `bd1330aa^..617b780b` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** — **FILE-EDIT-1 (INV §5, §9): case aliases bypass same-file save serialization.**
-  `internal/server/filewrite.go:229` keys the save lock by canonical parent device/inode plus the
-  requested final basename. On a case-insensitive filesystem, `source.txt` and `SOURCE.TXT` address
-  the same file but acquire different locks. Concurrent Chuck saves with different submitted text
-  can both accept the same base and return success; the later replacement silently overwrites the
-  other accepted edit. This violates FS-03.A88 and TS-03.R81's Chuck-save serialization guarantee,
-  independently of the accepted race with noncooperating external writers. Resolve equivalent
-  directory-entry spellings into one serialization authority (or use a safely broader existing
-  lock scope), preserving no-follow admission/revalidation. Add a case-insensitive filesystem
-  regression with distinct submitted bytes and exactly one accepted shared base. Parent-verified
-  Go overlay `/private/tmp/chuck_review_overlay.json`, test
-  `TestReviewCaseAliasConcurrentSaves`, reproduces double success in all three runs; its prepared
-  barrier aligns the concurrent saves and actual `os.SameFile` establishes alias identity.
-
-- **Must fix** — **FILE-EDIT-2 (INV §1, §8, §10, §15): opening another file loses a capacity-refused
-  draft before leave confirmation.** `ui/src/features/fileTabs/useFileTabRoute.ts:123–130`
-  mutates the active file-tab store before projecting the URL. New file-link and **Unsaved edits**
-  opens reach this path without the preflight used by tab-strip selection. With 50 existing drafts,
-  typing in a 51st editor is correctly refused by the draft store and retained only in the mounted
-  editor. Opening another file unmounts that editor immediately; the router's leave confirmation
-  arrives afterward. Choosing **Cancel** keeps the old URL but leaves the other file selected,
-  and the refused text is already lost. FS-03.R112 / TS-08.R155 require preserving the in-memory
-  edit until acknowledged leave. Flush/check/confirm before changing either tab state or URL for
-  every open path, and preserve state when cancelled. Parent-verified reproduction:
-  `/private/tmp/draft-review.test.tsx`, with
-  `/private/tmp/draft-review.vitest.config.mjs`, drives the actual editor, route hook, draft store
-  and leave guard; it confirms the lost editor and URL/selection mismatch after **Cancel**.
-
-- **Must fix** — **FILE-EDIT-3 (INV §1, §5, §8, §15): a stale browser tab deletes a newer durable
-  draft lineage.** `ui/src/features/fileTabs/drafts.ts:120–128` checks lineage only against the
-  calling page's in-memory records, then unconditionally deletes the IndexedDB key. Open one draft
-  in browser tabs A and B; in B discard it and start a new edit at the same owner/source/path.
-  After B reports recovery available, discard the old draft still open in A. A deletes B's newer
-  durable record. B keeps showing recovery available, but reload loses its text. Save acknowledgement
-  uses the same deletion path and can likewise clear another page's newer lineage. This violates
-  TS-08.R154–R155's lineage and transactional generation boundaries and FS-03.R112's recovery
-  promise. Check the persisted lineage/generation inside the same read-write transaction before
-  removing or replacing a draft; stale operations must preserve newer durable work. Add two-page
-  IndexedDB coverage for stale discard and save acknowledgement. Actual-product Chromium proof:
-  `/private/tmp/file-review-cross-tab.mjs`; it verifies B's newer text in IndexedDB before A's
-  discard, the empty store afterward despite B's recovery label, and no recovered editor on reload.
+None.
 
 ## Changelog
+
+- **2026-11-06 — File-editing review fixes closed (INV §§1/5/8/9/10/15):** FILE-EDIT-1
+  serializes saves by pinned parent directory identity, preserving no-follow checks while covering
+  case aliases; distinct files in that directory also serialize. FILE-EDIT-2 checks/flushes unsafe
+  drafts before explicit opens change selection or URL; Cancel preserves text/selection and an
+  approved projection avoids a second prompt. FILE-EDIT-3 compares durable lineage/generation,
+  base and text inside the IndexedDB transaction before replacement/removal; stale writes retain
+  memory without claiming recovery. Original defects reproduced before repair. The retained alias
+  regression fails against original code; focused `-race` and the 100-iteration review overlay pass.
+  Actual editor/router regression passes; `(cd ui && node scripts/drafts-browser.mjs)`
+  against loopback Vite covers stale discard/save/write and
+  newer typing across two pages, both newer lineages and generations, with exact reload recovery.
+  Closure: `env -u CHUCK_RUNTIME_ROOT GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-file-fix-gocache
+  make test` passes both Go suites; full UI suite 1171/1171, build/style checks, generated embed
+  (`make -o ui embed`, reusing that UI build), binary build and diff checks pass. Logs:
+  `/private/tmp/file-fix-{go-final,ui,ui-build,build,drafts-after,race}.log`.
+  Initial Go compile overlapped embed generation; rerun passed after assets settled. Unit closed
+  without adding a review unit; native/device/provider gates remain unchanged. Unrelated dirty
+  `docs/ideas.md` preserved.
 
 - **2026-11-06 — File-viewer refresh/editing review:** reviewed `bd1330aa^..617b780b`;
   recorded FILE-EDIT-1–3 and retained the unit for fixes. Focused UI suites pass 80/80;

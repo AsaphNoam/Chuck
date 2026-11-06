@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useRef } from "react";
 import { UNSAFE_DataRouterContext, useBlocker } from "react-router-dom";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { confirmDraftLeave, draftPersistenceUnsafe, registerDraftLeaveConfirmation, useDraftSummary } from "./drafts";
+import { DRAFT_LEAVE_APPROVED } from "./useFileTabRoute";
 
 export function FileEditorLeaveGuard() {
   const [open, setOpen] = React.useState(false);
@@ -23,7 +24,8 @@ function RouterDraftBlocker() {
   // Subscribe to persistence acknowledgements as well as typing. The existing
   // data router covers links, imperative navigation and Back with one blocker.
   useDraftSummary("");
-  const blocker = useBlocker(() => draftPersistenceUnsafe());
+  const blocker = useBlocker(({ nextLocation, historyAction }) =>
+    !(historyAction !== "POP" && nextLocation.state?.[DRAFT_LEAVE_APPROVED]) && draftPersistenceUnsafe());
   useEffect(() => {
     if (blocker.state !== "blocked") return;
     let active = true;

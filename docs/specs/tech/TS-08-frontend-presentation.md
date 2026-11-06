@@ -2044,6 +2044,10 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   may lose changes; controlled leave requires acknowledgement, and page unload uses the browser's
   native unsaved-work guard while persistence is pending/failed. Successfully saved/submitted
   generations and explicit discarded drafts are removed transactionally; newer generations remain.
+  Before replacing or removing a persisted draft, compare its lineage and generation against this
+  page's last acknowledged version inside the same read-write transaction. Stale pages cannot
+  overwrite or delete another page's newer durable work; refused writes retain memory and leave
+  recovery unavailable for that unpersisted text.
   Keep closed-tab drafts discoverable in the owning reader's **Unsaved edits** recovery action,
   including a recovery entry in the owning chat/room when the reader is closed or no tabs are open.
   Restoring one reopens its original source-qualified tab and

@@ -38,6 +38,14 @@ function valid(value: unknown): value is FileDraft {
     bytes(d.text) <= MAX_DRAFT_TEXT_BYTES && typeof d.baseRevision === "string" && d.baseRevision.length <= 4096 &&
     ["rendered", "formatted", "source"].includes(d.displayMode) && d.key === draftKey(d);
 }
+// Compare within the write transaction: local memory alone cannot authorize
+// replacing a record another browser page has since changed.
+function sameVersion(value: unknown, expected: FileDraft | undefined) {
+  if (value === undefined) return expected === undefined;
+  return valid(value) && !!expected && value.lineage === expected.lineage &&
+    value.generation === expected.generation && value.baseRevision === expected.baseRevision &&
+    value.text === expected.text;
+}
 let restoring: Promise<void> | undefined;
 export function restoreDrafts() {
   return restoring ??= (async () => {
@@ -103,11 +111,18 @@ export function putDraft(draft: FileDraft): boolean {
     // another browser tab may have admitted drafts since this page restored.
     let count = 1;
     let total = bytes(JSON.stringify(persisted));
+    let found = false;
     const cursor = store.openCursor();
     cursor.onsuccess = () => {
       const item = cursor.result;
-      if (!item) { store.put(persisted); return; }
-      if (item.key !== persisted.key) {
+      if (!item) {
+        if (!found && durable.has(persisted.key)) { store.transaction.abort(); return; }
+        store.put(persisted); return;
+      }
+      if (item.key === persisted.key) {
+        found = true;
+        if (!sameVersion(item.value, durable.get(persisted.key))) { store.transaction.abort(); return; }
+      } else {
         if (!valid(item.value)) { store.transaction.abort(); return; }
         count++; total += bytes(JSON.stringify(item.value));
         if (count > MAX_DRAFTS || total > MAX_DRAFT_BYTES) { store.transaction.abort(); return; }
@@ -123,7 +138,12 @@ export function discardDraft(identity: DraftIdentity, lineage?: string) {
   const discarded = records.get(key);
   // Freeze an earlier queued write so edits after discard cannot move before it.
   pendingWrites.delete(key);
-  return persist((store) => { store.delete(key); }, () => {
+  return persist((store) => {
+    const request = store.get(key);
+    request.onsuccess = () => {
+      if (sameVersion(request.result, durable.get(key))) store.delete(key);
+    };
+  }, () => {
     if (records.get(key) === discarded) records.delete(key);
     durable.delete(key);
   });

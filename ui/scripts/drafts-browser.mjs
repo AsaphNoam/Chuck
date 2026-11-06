@@ -51,5 +51,48 @@ try {
   await page.reload();
   const count = await page.evaluate(async () => { const store = await import("/src/features/fileTabs/drafts.ts"); await store.restoreDrafts(); return store.listDrafts("conversation:browser-recovery").length; });
   assert.equal(count, 50);
+  // Separate JS realms share actual IndexedDB: page A's local lineage cannot
+  // authorize deleting/replacing the record page B has since acknowledged.
+  for (const replacement of ["lineage", "generation"]) for (const action of ["discard", "save", "save-with-newer-text", "write"]) {
+    const shared = await browser.newContext();
+    const a = await shared.newPage(), b = await shared.newPage();
+    await a.goto(base);
+    await a.evaluate(async () => {
+      const store = await import("/src/features/fileTabs/drafts.ts");
+      const identity = { owner: "conversation:cross-page", path: "shared.md" };
+      store.putDraft({ ...identity, version: 1, key: store.draftKey(identity), lineage: "old", generation: 1, text: "old text", baseRevision: "r1", displayMode: "source" });
+      await store.flushDrafts();
+    });
+    await b.goto(base);
+    await b.evaluate(async (replacement) => {
+      const store = await import("/src/features/fileTabs/drafts.ts");
+      await store.restoreDrafts();
+      const old = store.listDrafts("conversation:cross-page")[0];
+      if (replacement === "lineage") await store.discardDraft(old, old.lineage);
+      const newer = { ...old, lineage: replacement === "lineage" ? "new" : "old", generation: 2, text: "newer durable work" };
+      store.putDraft(newer); await store.flushDrafts();
+      if (!store.draftRecoveryAvailable(newer)) throw new Error("B never acknowledged recovery");
+    }, replacement);
+    await a.evaluate(async (action) => {
+      const store = await import("/src/features/fileTabs/drafts.ts");
+      const old = store.listDrafts("conversation:cross-page")[0];
+      if (action === "discard") await store.discardDraft(old, old.lineage);
+      else if (action === "save") await store.acknowledgeDraft(old, "r2");
+      else {
+        store.putDraft({ ...old, generation: 2, text: "stale page typing" });
+        await store.flushDrafts();
+        if (action === "save-with-newer-text") await store.acknowledgeDraft(old, "r2");
+      }
+    }, action);
+    await b.reload();
+    const retained = await b.evaluate(async () => {
+      const store = await import("/src/features/fileTabs/drafts.ts");
+      await store.restoreDrafts();
+      return store.listDrafts("conversation:cross-page").map(({ lineage, text, baseRevision }) => ({ lineage, text, baseRevision }));
+    });
+    assert.deepEqual(retained, [{ lineage: replacement === "lineage" ? "new" : "old", text: "newer durable work", baseRevision: "r1" }], `${replacement}: ${action}`);
+    await shared.close();
+  }
+  console.log("PASS: stale cross-page discard, save acknowledgement and writes preserve newer durable lineage after reload.");
   console.log("PASS: real IndexedDB acknowledged 50 drafts; 1000 rapid generations coalesced to one transaction; reload retained exact CRLF/UTF-8, base/source identity; draft 51 refused without eviction; stale-page transaction enforced origin capacity.");
 } finally { await browser.close(); }

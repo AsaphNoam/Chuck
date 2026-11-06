@@ -3,6 +3,7 @@ import { useLocation, useNavigationType, useSearchParams } from "react-router-do
 import { type FileTab, type FileTarget, type OwnerTabs } from "./model";
 import { fileTabs, useFileTabsStore } from "./store";
 import { useUiStore } from "../../store/uiStore";
+import { confirmDraftLeave, draftPersistenceUnsafe } from "./drafts";
 
 // A route's saved file tabs and its address (TS-08.R143). The tab set is the
 // owner's saved record; the address names only the active tab, so a file URL
@@ -15,6 +16,7 @@ export const ROOM_FILE_KEYS: FileTabKeys = { file: "file", line: "line", source:
 
 /** Marks an address this hook wrote, so it is not read back as a new request. */
 const PROJECTED = "chuckFileTabs";
+export const DRAFT_LEAVE_APPROVED = "chuckDraftLeaveApproved";
 
 export type FileTabRoute = ReturnType<typeof useFileTabRoute>;
 
@@ -60,8 +62,8 @@ export function useFileTabRoute(owner: string, keys: FileTabKeys, options: { onO
   const onOpenRef = useRef(options.onOpen);
   onOpenRef.current = options.onOpen;
 
-  const project = (tab: FileTab | null | undefined, push = false) =>
-    setParams((current) => writeFileTarget(current, keys, tab), { replace: !push, state: { [PROJECTED]: true } });
+  const project = (tab: FileTab | null | undefined, push = false, draftLeaveApproved = false) =>
+    setParams((current) => writeFileTarget(current, keys, tab), { replace: !push, state: { [PROJECTED]: true, [DRAFT_LEAVE_APPROVED]: draftLeaveApproved } });
   const jump = (id: string) => setJumps((current) => ({ ...current, [id]: (current[id] ?? 0) + 1 }));
 
   // Each address is applied once; a repeated run for the same location (React's
@@ -121,13 +123,17 @@ export function useFileTabRoute(owner: string, keys: FileTabKeys, options: { onO
     jumps,
     /** An explicit open from a link, a Files row or a diff. */
     open(target: FileTarget) {
-      const opened = fileTabs.open(owner, target);
-      if (!opened) return;
-      onOpenRef.current?.();
-      if (target.line) jump(opened.tab.id);
-      setHidden(false);
-      // The first open from a closed reader is the one history entry (FS-03.R106).
-      project(opened.tab, !urlHasFile || hidden);
+      const perform = (approved: boolean) => {
+        const opened = fileTabs.open(owner, target);
+        if (!opened) return;
+        onOpenRef.current?.();
+        if (target.line) jump(opened.tab.id);
+        setHidden(false);
+        // The first open from a closed reader is the one history entry (FS-03.R106).
+        project(opened.tab, !urlHasFile || hidden, approved);
+      };
+      if (draftPersistenceUnsafe()) void confirmDraftLeave().then((allowed) => { if (allowed) perform(true); });
+      else perform(false);
     },
     select(id: string) {
       fileTabs.select(owner, id);

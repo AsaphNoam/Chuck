@@ -166,7 +166,7 @@ func (s *Server) serveFileSave(w http.ResponseWriter, r *http.Request, cwd, agen
 }
 
 // Locks live only as long as an owner or waiter. Admission also bounds distinct
-// concurrent targets, rather than retaining an attacker-controlled path map.
+// concurrent parent directories, rather than retaining an attacker-controlled path map.
 var fileSaveLocks = struct {
 	sync.Mutex
 	entries map[string]*fileSaveLock
@@ -226,13 +226,15 @@ func saveLocalFileWithHooks(path, display, base string, content []byte, prepared
 	if unix.Fstat(pfd, &parentStat) != nil {
 		return fileContent{}, fileOpenError(err)
 	}
-	unlock, ok := lockFileSave(fmt.Sprintf("%d:%d:%s", parentStat.Dev, parentStat.Ino, name))
+	// Serialize the whole pinned directory: distinct names can address the same
+	// entry on case-insensitive or normalization-insensitive filesystems.
+	unlock, ok := lockFileSave(fmt.Sprintf("%d:%d", parentStat.Dev, parentStat.Ino))
 	if !ok {
 		return fileContent{}, apiError(runtime.CodeFileChanging, "too many concurrent file saves; try again")
 	}
 	defer unlock()
 	// A preceding save may have created/removed an entry while we waited.
-	// Refresh directory metadata under the target lock; its pinned identity
+	// Refresh directory metadata under the parent lock; its pinned identity
 	// remains the one used for the lock key.
 	if unix.Fstat(pfd, &parentStat) != nil {
 		return fileContent{}, apiError(runtime.CodeFileUnreadable, "that parent directory could not be read")

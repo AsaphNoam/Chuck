@@ -1182,8 +1182,8 @@ both route families. Reject `409 file_conflict` when current exact bytes, identi
 metadata differ from the supplied base; conflict carries no replacement and clients reread via
 the same authorized GET for comparison. Refuse missing targets instead of recreating them.
 
-Serialize Chuck saves by canonical parent identity plus final basename, with bounded/ref-counted
-lock entries removed after the last waiter. Under that lock, revalidate the opened parent/target,
+Serialize Chuck saves by canonical parent identity, so case aliases share authority, with
+bounded/ref-counted lock entries removed after the last waiter. Under that lock, revalidate the opened parent/target,
 hash the complete current text, prepare and sync an exclusively created same-directory temporary
 file, preserve supported access metadata, recheck the target revision immediately before atomic
 replacement, then sync the directory. Preserve exact submitted UTF-8 bytes and newline spelling.

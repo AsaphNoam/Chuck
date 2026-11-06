@@ -222,6 +222,62 @@ func TestFileViewerConcurrentSavesHaveOneWinner(t *testing.T) {
 	}
 }
 
+func TestFileViewerCaseAliasConcurrentSavesHaveOneWinner(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "source.txt")
+	alias := filepath.Join(dir, "SOURCE.TXT")
+	writeFile(t, path, "original")
+	first, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := os.Stat(alias)
+	if err != nil || !os.SameFile(first, second) {
+		t.Skip("filesystem does not resolve these names to the same file")
+	}
+	old, ae := readLocalFile(path, "source.txt")
+	if ae != nil {
+		t.Fatal(ae)
+	}
+	ready := make(chan struct{}, 2)
+	release := make(chan struct{})
+	results := make(chan string, 2)
+	for i, target := range []string{path, alias} {
+		go func(target, content string) {
+			_, saveErr := saveLocalFile(target, target, old.Revision, []byte(content), func() {
+				ready <- struct{}{}
+				<-release
+			})
+			if saveErr == nil {
+				results <- "saved"
+			} else {
+				results <- saveErr.Code
+			}
+		}(target, []string{"first", "second"}[i])
+	}
+	<-ready
+	// An incorrect lock permits both saves to reach the prepared boundary.
+	overlapped := false
+	select {
+	case <-ready:
+		overlapped = true
+	case <-time.After(200 * time.Millisecond):
+	}
+	close(release)
+	counts := map[string]int{<-results: 1}
+	counts[<-results]++
+	if overlapped {
+		t.Fatal("case aliases entered save preparation concurrently")
+	}
+	if counts["saved"] != 1 || counts["file_conflict"] != 1 {
+		t.Fatalf("results: %v", counts)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil || (string(content) != "first" && string(content) != "second") {
+		t.Fatalf("saved content = %q, error = %v", content, err)
+	}
+}
+
 func TestFileViewerUnstableReadAndUncertainSave(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "source.txt")
 	writeFile(t, path, "original")

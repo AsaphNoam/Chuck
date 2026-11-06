@@ -46,7 +46,8 @@ and generated embed.
 
 ## Waiting on
 
-Nothing. Implemented by `/work` on 2026-11-06; available for independent review.
+Nothing. Independent review and repairs for FILE-EDIT-1–3 closed on 2026-11-06;
+native/device acceptance gates remain recorded in the handoff.
 
 ## Implementation direction
 
