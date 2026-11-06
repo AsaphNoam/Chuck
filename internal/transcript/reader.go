@@ -58,6 +58,13 @@ var ErrPrefixUnavailable = errors.New("transcript: captured prefix is unavailabl
 // append-only, so the bytes inside a captured prefix never change and a
 // reader bounded by it sees one fixed history while appends continue.
 func CompletePrefix(home, agentID string) (int64, error) {
+	return CompletePrefixWithBudget(home, agentID, nil)
+}
+
+// CompletePrefixWithBudget charges backward tail inspection to the same
+// writer used to bound a subsequent prefix read. This includes a crash-torn
+// tail, whose size need not obey the ordinary complete-record limit.
+func CompletePrefixWithBudget(home, agentID string, budget io.Writer) (int64, error) {
 	f, err := os.Open(transcriptPath(home, agentID))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -70,7 +77,11 @@ func CompletePrefix(home, agentID string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("transcript: stat prefix: %w", err)
 	}
-	n, err := completeLength(f, fi.Size())
+	var observe func([]byte) error
+	if budget != nil {
+		observe = func(p []byte) error { _, err := budget.Write(p); return err }
+	}
+	n, err := completeLengthObserved(f, fi.Size(), observe)
 	if err != nil {
 		return 0, fmt.Errorf("transcript: read prefix: %w", err)
 	}

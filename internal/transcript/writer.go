@@ -211,6 +211,10 @@ func truncateToLastNewline(path string) error {
 // last '\n': the prefix made only of complete records. It is 0 when no newline
 // exists. The torn-tail repair and fixed-prefix readers share it.
 func completeLength(f *os.File, size int64) (int64, error) {
+	return completeLengthObserved(f, size, nil)
+}
+
+func completeLengthObserved(f *os.File, size int64, observe func([]byte) error) (int64, error) {
 	const chunk = 64 * 1024
 	buf := make([]byte, chunk)
 	for off := size; off > 0; {
@@ -221,6 +225,11 @@ func completeLength(f *os.File, size int64) (int64, error) {
 		start := off - readLen
 		if _, err := f.ReadAt(buf[:readLen], start); err != nil {
 			return 0, err
+		}
+		if observe != nil {
+			if err := observe(buf[:readLen]); err != nil {
+				return 0, err
+			}
 		}
 		for i := int(readLen) - 1; i >= 0; i-- {
 			if buf[i] == '\n' {

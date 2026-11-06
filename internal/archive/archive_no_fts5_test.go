@@ -3,6 +3,7 @@
 package archive
 
 import (
+	"context"
 	"testing"
 
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -77,5 +78,24 @@ VALUES ('a2', 'Beta Agent', 'implementer', 'project-beta', 'claude', 'sonnet', '
 	}
 	if resp.Results[0].AgentID != "a1" {
 		t.Fatalf("expected agent_id='a1', got '%s'", resp.Results[0].AgentID)
+	}
+}
+
+func TestProjectSearchMetadataFallback(t *testing.T) {
+	st, err := state.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	db := st.DB()
+	if _, err := db.Exec(`INSERT INTO sessions(agent_id,name,role,project,backend,model,interface,cwd,system_prompt,created_at,updated_at,grp) VALUES ('a_project','Alpha','reviewer','project-a','claude','sonnet','chat','/tmp/a','', '2026-07-01','2026-07-02','')`); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := New(db).ProjectSearch(context.Background(), Query{Project: "project-a", Q: "Alph", ProjectSearch: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.SearchMode != "metadata" || resp.Total != 1 || len(resp.Results) != 1 || resp.Results[0].LocationStatus != "metadata_only" || resp.Results[0].SearchRef != nil {
+		t.Fatalf("response=%+v", resp)
 	}
 }

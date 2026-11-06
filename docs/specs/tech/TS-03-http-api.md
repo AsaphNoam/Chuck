@@ -1205,7 +1205,7 @@ reason, never file/draft bytes or revision digests. No save event or prompt is s
 Verify actual registered HTTP routes, remote denials/filters, adversarial file fixtures, exact
 disk bytes/metadata, concurrent saves and failure injection; update UI schemas/client together.
 
-**R82 — Project search is an opt-in view of the existing project archive read.** (planned)
+**R82 — Project search is an opt-in view of the existing project archive read.**
 For FS-05.R46–R47/R51/R53, extend `GET /api/archive/projects/{project}` with
 `view=project_search`; absent `view` retains R20's current archive behavior and response. This view
 returns the existing flat project response with `query`, `search_mode`, `total`, `limit`, `offset`
@@ -1228,7 +1228,7 @@ LIMIT/OFFSET. Default limit is 20, maximum 50; offset remains nonnegative. Inval
 R3's 422 validation error. The untagged/unavailable-module path retains metadata-only LIKE semantics,
 the same lifecycle buckets and no transcript-location claims. Ordinary Archive queries remain exact.
 
-**R83 — An excerpt reference identifies indexed bytes, not a guessed turn endpoint.** (planned)
+**R83 — An excerpt reference identifies indexed bytes, not a guessed turn endpoint.**
 Project-search rows retain `snippet`/`matched_in` and add optional
 `search_ref:{document_id,content_sha256,start_byte,end_byte}` for transcript excerpts, plus
 `location_status:"reference"|"metadata_only"|"unavailable"`. Select the best matching transcript
@@ -1272,7 +1272,7 @@ Budget/source mismatch reports location-unavailable without dropping the hit or 
 The new read inherits the local Host/Origin and session-read boundaries; add no remote allowlist
 entry, filesystem path input, repair action, provider call or transcript/query logging.
 
-**R84 — Verify the complete search-to-source boundary.** (planned) FS-05.A28–A32 require
+**R84 — Verify the complete search-to-source boundary.** FS-05.A28–A32 require
 real SQLite queries under tagged and untagged builds and real JSON serialization. Prove project
 and chat filtering, lifecycle buckets before pagination, prefix/phrase escaping and preserved
 ordinary-Archive semantics. Derive expected source event/part offsets from independent fixture

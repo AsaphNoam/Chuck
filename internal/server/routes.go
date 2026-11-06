@@ -147,6 +147,7 @@ func (s *Server) routeTable() []routeEntry {
 	api("POST /api/sessions", s.handleLaunch)
 	api("GET /api/sessions/{id}", s.handleSessionDetail)
 	api("GET /api/sessions/{id}/transcript", s.handleTranscript)
+	api("GET /api/sessions/{id}/search-match", s.handleSearchMatch)
 	api("POST /api/sessions/{id}/prompt", s.handlePrompt)
 	api("GET /api/sessions/{id}/prompt", s.handleGetPrompt)
 	api("DELETE /api/sessions/{id}/prompt", s.handleWithdrawPrompt)

@@ -36,13 +36,20 @@ read-only match resolver, then shared UI reveal and rendered acceptance. Separat
 index/migration, archive queries and UI; the main agent owns HTTP integration and final verification.
 Specifications remain planned until verified. Unrelated `docs/ideas.md` edits are preserved.
 
-Checkpoint: source provenance migration and shared index builder are implemented. Tagged focused
+Checkpoint: source provenance migration, shared index builder, project query and HTTP resolver are
+implemented. Tagged/untagged focused archive/HTTP tests pass, including independent Unicode and
+cross-event positions, old-row reconstruction without writes, stale digests, malformed provenance,
+document bounds, real storage failure and search admission. Tagged focused
 provenance/reindex tests and untagged index/state suites pass (isolated Go cache at
 `/private/tmp/chuck-search-go-cache`; archive's independent cache is
 `/private/tmp/agentdeck-archive-gocache`). Exact Unicode offsets, failed transactional publication,
-bounded provenance and rollback preserve existing documents. HTTP and UI integration remain in
-progress; the initial tagged HTTP resolver checks pass. Next: complete resolver negative/budget
-checks, source-aware shared rendering, and real-browser search journeys before closure.
+bounded provenance and rollback preserve existing documents. UI source integration and its 1180
+tests pass; rendered journeys pass at 1024/1440 in all appearances, with live reading/cross-event
+follow-up running. Next: finish the real source-budget case and closure suites, then record review
+availability. The source-budget and crash-torn-tail checks pass; browser3 now passes all 25 checks,
+including cross-event source reveal and stable reading under a new live reply.
+Full suites require approved loopback access; sandbox-only execution failed to bind
+test listeners. Logs: `/private/tmp/chuck-search-{full-go-approved,full-ui,browser3}.log`.
 
 Release v0.22.0 remains verified and annotated locally in `/private/tmp/chuck-release-next`.
 Publication is not authorized; no push is part of this implementation.

@@ -162,6 +162,15 @@ func (s *Server) handleArchiveProject(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError(runtime.CodeValidation, "invalid project"))
 		return
 	}
+	view := r.URL.Query().Get("view")
+	if view == "project_search" {
+		s.handleProjectSearch(w, r, projectID)
+		return
+	}
+	if view != "" {
+		writeAPIError(w, apiError(runtime.CodeValidation, "invalid archive view"))
+		return
+	}
 	q, ae := parseArchiveQuery(r)
 	if ae != nil {
 		writeAPIError(w, ae)
@@ -173,6 +182,36 @@ func (s *Server) handleArchiveProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"query": strings.TrimSpace(q.Q), "search_mode": mode, "total": total, "limit": q.Limit, "offset": q.Offset, "results": append([]archiveAgentResult{}, rows...)})
+}
+
+func (s *Server) handleProjectSearch(w http.ResponseWriter, r *http.Request, project string) {
+	limit, limitErr := parseIntQuery(r, "limit", 20)
+	offset, offsetErr := parseIntQuery(r, "offset", 0)
+	query := r.URL.Query().Get("q")
+	_, activePresent := r.URL.Query()["active"]
+	if limitErr != nil || offsetErr != nil || limit < 1 || limit > 50 || offset < 0 || activePresent {
+		writeAPIError(w, apiError(runtime.CodeValidation, "project search requires limit 1–50, nonnegative offset and no active filter"))
+		return
+	}
+	if err := persistarchive.ValidateProjectSearchQuery(query); err != nil {
+		writeAPIError(w, apiError(runtime.CodeValidation, err.Error()))
+		return
+	}
+	select {
+	case projectSearchReads <- struct{}{}:
+		defer func() { <-projectSearchReads }()
+	default:
+		writeAPIError(w, apiError(runtime.CodeInternal, "Search is busy. Retry shortly."))
+		return
+	}
+	resp, err := persistarchive.New(s.stateStore.DB()).ProjectSearch(r.Context(), persistarchive.Query{
+		Q: query, Project: project, Limit: limit, Offset: offset, ProjectSearch: true,
+	})
+	if err != nil {
+		writeAPIError(w, apiError(runtime.CodeInternal, "Cannot search chats. Retry."))
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func parseIntQuery(r *http.Request, key string, def int) (int, error) {

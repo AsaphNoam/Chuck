@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -22,6 +23,9 @@ type Query struct {
 	// uses it for independent per-project agent pages instead of slicing an
 	// already-truncated cross-project projection.
 	Project string
+	// ProjectSearch selects the opt-in project-chat search contract. Ordinary
+	// Archive queries deliberately keep their exact-token behavior.
+	ProjectSearch bool
 }
 
 type Response struct {
@@ -34,27 +38,37 @@ type Response struct {
 }
 
 type Result struct {
-	AgentID      string   `json:"agent_id"`
-	Name         string   `json:"name"`
-	Role         string   `json:"role"`
-	Project      string   `json:"project"`
-	Backend      string   `json:"backend"`
-	Model        string   `json:"model"`
-	Effort       string   `json:"effort"`
-	Fast         bool     `json:"fast"`
-	Interface    string   `json:"interface"`
-	Group        string   `json:"group,omitempty"`
-	CreatedAt    string   `json:"created_at"`
-	UpdatedAt    string   `json:"updated_at"`
-	TurnCount    int      `json:"turn_count"`
-	FilesTouched int      `json:"files_touched"`
-	CommandsRun  int      `json:"commands_run"`
-	Active       bool     `json:"active"`
-	Archived     bool     `json:"archived"`
-	MatchedIn    []string `json:"matched_in,omitempty"`
-	Snippet      string   `json:"snippet,omitempty"`
+	AgentID        string     `json:"agent_id"`
+	Name           string     `json:"name"`
+	Role           string     `json:"role"`
+	Project        string     `json:"project"`
+	Backend        string     `json:"backend"`
+	Model          string     `json:"model"`
+	Effort         string     `json:"effort"`
+	Fast           bool       `json:"fast"`
+	Interface      string     `json:"interface"`
+	Group          string     `json:"group,omitempty"`
+	CreatedAt      string     `json:"created_at"`
+	UpdatedAt      string     `json:"updated_at"`
+	TurnCount      int        `json:"turn_count"`
+	FilesTouched   int        `json:"files_touched"`
+	CommandsRun    int        `json:"commands_run"`
+	Active         bool       `json:"active"`
+	Archived       bool       `json:"archived"`
+	MatchedIn      []string   `json:"matched_in,omitempty"`
+	Snippet        string     `json:"snippet,omitempty"`
+	SearchRef      *SearchRef `json:"search_ref,omitempty"`
+	LocationStatus string     `json:"location_status,omitempty"`
 
 	content string
+}
+
+// SearchRef identifies the exact UTF-8 byte interval in an indexed document.
+type SearchRef struct {
+	DocumentID    string `json:"document_id"`
+	ContentSHA256 string `json:"content_sha256"`
+	StartByte     int    `json:"start_byte"`
+	EndByte       int    `json:"end_byte"`
 }
 
 func New(db *sql.DB) *Archive {
@@ -62,6 +76,9 @@ func New(db *sql.DB) *Archive {
 }
 
 func (a *Archive) Search(q Query) (Response, error) {
+	if q.ProjectSearch {
+		return a.ProjectSearch(context.Background(), q)
+	}
 	if q.Limit <= 0 {
 		q.Limit = 50
 	}
@@ -462,7 +479,18 @@ func ftsQuery(q string) string {
 }
 
 func splitTerms(q string) []string {
-	var out []string
+	terms, _ := parseQueryTerms(q, false)
+	out := make([]string, 0, len(terms))
+	for _, term := range terms {
+		out = append(out, term.text)
+	}
+	return out
+}
+
+// Both archive views use the same literal/phrase lexer. Project search adds
+// explicit quote validation and bounds; ordinary Archive keeps its tolerance.
+func parseQueryTerms(q string, projectSearch bool) ([]projectTerm, error) {
+	var out []projectTerm
 	for len(q) > 0 {
 		q = strings.TrimSpace(q)
 		if q == "" {
@@ -471,19 +499,31 @@ func splitTerms(q string) []string {
 		if q[0] == '"' {
 			end := strings.Index(q[1:], `"`)
 			if end >= 0 {
-				out = append(out, q[1:1+end])
+				if projectSearch && end == 0 {
+					return nil, fmt.Errorf("empty quoted phrase")
+				}
+				out = append(out, projectTerm{text: q[1 : 1+end], quoted: true})
 				q = q[2+end:]
+				if projectSearch && len(out) > 32 {
+					return nil, fmt.Errorf("more than 32 terms")
+				}
 				continue
+			}
+			if projectSearch {
+				return nil, fmt.Errorf("unmatched quote")
 			}
 		}
 		fields := strings.Fields(q)
 		if len(fields) == 0 {
 			break
 		}
-		out = append(out, fields[0])
+		out = append(out, projectTerm{text: fields[0]})
 		q = strings.TrimPrefix(q, fields[0])
+		if projectSearch && len(out) > 32 {
+			return nil, fmt.Errorf("more than 32 terms")
+		}
 	}
-	return out
+	return out, nil
 }
 
 func matchedIn(r Result, q string) []string {

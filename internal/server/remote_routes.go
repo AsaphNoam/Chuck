@@ -110,6 +110,7 @@ var remoteDenied = map[string]bool{
 	"GET /api/layout": true, "PUT /api/layout": true,
 	"POST /api/directory-picker": true, "POST /api/hook": true,
 	"GET /api/archive": true, "GET /api/archive/projects/{project}": true,
+	"GET /api/sessions/{id}/search-match":  true,
 	"POST /api/projects/{project}/archive": true, "POST /api/projects/{project}/restore": true,
 	"POST /api/projects/{project}/worktree-fork": true, "GET /api/projects/{project}/worktree": true,
 	"GET /api/pipeline-proposals": true, "POST /api/pipeline-proposals/{id}/decline": true,

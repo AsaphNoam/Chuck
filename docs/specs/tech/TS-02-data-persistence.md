@@ -944,7 +944,7 @@ lost-response replay against real durable receipts/mail/transcripts, plus old re
 **R61 — retired 2026-10-30:** unshipped session-reset field/migration withdrawn; FS-01.R57
 and TS-10.R62 reuse R45/R50's existing reset/due fields and reason vocabulary.
 
-**R63 — Search provenance extends the existing SQLite projection.** (planned) For
+**R63 — Search provenance extends the existing SQLite projection.** For
 FS-05.R48/R51–R52, retain `sessions_fts` and R16's metadata/turn/flush/close/legacy documents,
 tokenizer, matching boundaries and authoritative transcript format. One forward-only migration
 adds an ordinary derived `session_search_spans` table keyed by `(agent_id, document_id)`, with
@@ -970,7 +970,7 @@ Neither a provenance budget nor a write failure silently truncates indexed text.
 unavailable-FTS path skips derived FTS/span writes together
 while preserving authoritative state/rollups. Do not change FTS table shape or rebuild it at upgrade.
 
-**R64 — Provenance has the existing repair and compatibility lifetime.** (planned)
+**R64 — Provenance has the existing repair and compatibility lifetime.**
 Migration leaves all existing FTS documents intact and without guessed span rows. A missing span
 row is a supported older-document state, not database corruption. TS-03.R83 may reconstruct
 provenance transiently from a captured complete canonical transcript prefix through the selected
