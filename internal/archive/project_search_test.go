@@ -5,7 +5,9 @@ package archive
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestProjectSearchPrefixAndReference(t *testing.T) {
@@ -125,5 +127,26 @@ func TestProjectSearchBlankAndBounds(t *testing.T) {
 	}
 	if _, err := a.ProjectSearch(context.Background(), Query{Project: "my-app", Q: `"unfinished`, ProjectSearch: true}); err == nil {
 		t.Fatal("unmatched quote accepted")
+	}
+}
+
+// SQLite snippets count tokens, not characters: one oversized token must not
+// escape the document admission bound through its fallback preview.
+func TestProjectSearchOversizedDocumentKeepsBoundedPreview(t *testing.T) {
+	db, cleanup := openArchiveTestDB(t)
+	defer cleanup()
+	if err := insertSession(db, "a_oversized", "Oversized", "worker", "large-project", "", "2026-11-06T10:00:00Z", strings.Repeat("z", projectSearchDocumentLimit+1)); err != nil {
+		t.Fatal(err)
+	}
+	response, err := New(db).ProjectSearch(context.Background(), Query{Project: "large-project", Q: "zz", ProjectSearch: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Results) != 1 {
+		t.Fatalf("results=%+v", response.Results)
+	}
+	row := response.Results[0]
+	if row.LocationStatus != "unavailable" || row.SearchRef != nil || utf8.RuneCountInString(row.Snippet) > 256 {
+		t.Fatalf("location=%s reference=%+v preview characters=%d", row.LocationStatus, row.SearchRef, utf8.RuneCountInString(row.Snippet))
 	}
 }

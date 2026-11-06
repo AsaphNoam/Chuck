@@ -63,7 +63,7 @@ func (a *Archive) ProjectSearch(parent context.Context, q Query) (Response, erro
 	queryArgs = append(queryArgs, q.Limit, q.Offset)
 	rows, err := a.db.QueryContext(ctx, `WITH matching_documents AS (
  SELECT agent_id,document_id,bm25(sessions_fts,0,0,8,4,4,2,1,1,1) score,
-        snippet(sessions_fts,8,'','','…',12) snippet
+        substr(snippet(sessions_fts,8,'','','…',12),1,256) snippet
  FROM sessions_fts WHERE sessions_fts MATCH ?
 ), ranked_documents AS (
  SELECT agent_id,document_id,score,snippet,

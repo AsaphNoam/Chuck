@@ -51,6 +51,8 @@ including collapsed-turn expansion, cross-event source reveal and stable reading
 reply. The deterministic presentation matrix renders in all four appearances without page errors.
 `make embed` and `make build` pass; all 1180 UI tests pass. The final full Go closure is running
 against the complete source at `/private/tmp/chuck-search-final-go.log`.
+Final integration also caps SQLite's token-counted fallback snippet to 256 code points in SQL;
+the oversized single-token regression passes (`/private/tmp/chuck-search-preview-bound.log`).
 Full suites require approved loopback access; sandbox-only execution failed to bind
 test listeners. Logs: `/private/tmp/chuck-search-{full-go-approved,full-ui,browser3}.log`.
 
