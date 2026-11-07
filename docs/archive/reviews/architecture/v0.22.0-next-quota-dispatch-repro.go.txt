@@ -1,0 +1,85 @@
+package server
+
+import (
+ "context"
+ "os"
+ "path/filepath"
+ "strings"
+ "testing"
+ "time"
+
+ "github.com/AsaphNoam/Chuck/internal/runtime"
+ "github.com/AsaphNoam/Chuck/internal/state"
+)
+
+// Independent authorities: TS-10.R46 requires same-selection authorization;
+// TS-04.R97 requires routing settings parity. Observe actual session/new
+// payload plus durable check admission, rather than merely comparing hashes.
+func TestAuditRoutingEditAuthorizesDifferentProfile(t *testing.T) {
+ t.Setenv("FAKEACP_CAPS","1")
+ dir := t.TempDir()
+ dump := filepath.Join(dir,"new.json")
+ t.Setenv("CLAUDE_CONFIG_DIR",dir)
+ t.Setenv("FAKEACP_NEW_DUMP",dump)
+ settings := filepath.Join(dir,"settings.json")
+ if err := os.WriteFile(settings,[]byte(`{"env":{"ANTHROPIC_BASE_URL":"https://account-a.example"}}`),0600); err != nil {t.Fatal(err)}
+ s,ts,log := activationTestServer(t)
+ id := launchAndWaitIdle(t,ts,"impl","tmpproj")
+ frozen,err := s.quotaCheckSpec(id); if err != nil {t.Fatal(err)}
+ if err := os.WriteFile(settings,[]byte(`{"env":{"ANTHROPIC_BASE_URL":"https://account-b.example"}}`),0600); err != nil {t.Fatal(err)}
+ observeUnknownQuota(t,s,id)
+ s.dispatchQuotaContinuations(context.Background())
+ q := waitQuota(t,s,id,func(q state.QuotaIntent)bool{return q.CheckReady && q.State==state.QuotaScheduled})
+ raw,err := os.ReadFile(dump); if err != nil {t.Fatal(err)}
+ if !strings.Contains(string(raw),"https://account-b.example") {t.Fatalf("probe did not consume edited routing: %s",raw)}
+ current,err := s.quotaCheckSpec(id); if err != nil {t.Fatal(err)}
+ if quotaSelectionKey(current)!=quotaSelectionKey(frozen) || !s.quotaCheckStillMatches(q) {t.Fatal("routing edit was detected; hypothesis disproven")}
+ s.dispatchQuotaContinuations(context.Background())
+ waitQuota(t,s,id,func(q state.QuotaIntent)bool{return q.State==state.QuotaContinued})
+ waitStatus(t,s,id,"idle")
+ if promptCount(t,log)!=2 {t.Fatalf("probe plus continuation prompts=%d",promptCount(t,log))}
+ t.Log("live process launched with routing A; later probe session/new carried routing B; unchanged selection key admitted original conversation")
+}
+
+// TS-10.R47 requires independent records to dispatch when cleanup fails.
+// One recorded cleanup with an unresponsive real subprocess and one due row
+// is the smallest distinguishing production-dispatch schedule.
+func TestAuditSlowQuotaCleanupBlocksIndependentDueClaim(t *testing.T) {
+ s := testServer(t, true)
+ s.registry.Chat().SetCommand(buildFakeACP(t))
+ q := seedQuotaHTTP(t, s, "cleanup")
+ if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET state='needs_attention', due_at=NULL, check_session='probe', check_backend='codex-acp' WHERE agent_id=?`, q.AgentID); err != nil { t.Fatal(err) }
+ s.quotaCleanupSpecs = map[string]runtime.QuotaCheckSpec{q.AgentID+"\x00probe": {BackendType:"codex-acp", Env:[]string{"HOME="+t.TempDir(),"FAKEACP_INIT_HANG=1"}}}
+ other := seedQuotaHTTP(t, s, "independent")
+ if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET due_at=? WHERE agent_id=?`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339),other.AgentID); err != nil { t.Fatal(err) }
+ done := make(chan struct{})
+ begin := time.Now()
+ go func(){ defer close(done); s.dispatchQuotaContinuations(context.Background()) }()
+ time.Sleep(500*time.Millisecond)
+ fresh,err := s.stateStore.GetQuota(other.AgentID)
+ if err != nil {t.Fatal(err)}
+ if fresh.State != state.QuotaScheduled {t.Fatalf("independent due row progressed during cleanup: %+v", fresh)}
+ select { case <-done: t.Fatal("dispatch returned before stalled cleanup timeout"); default: }
+ <-done
+ t.Logf("independent due claim blocked for %v by one cleanup initialization timeout",time.Since(begin))
+}
+
+// TS-10.R40 requires failures to surface and due work to remain recoverable.
+// Fault exactly the config re-read after the durable claim; repair the file,
+// then inspect the durable row and normal due query without restarting.
+func TestAuditConfigReadFailureStrandsClaim(t *testing.T) {
+ s := testServer(t,true)
+ q := seedQuotaHTTP(t,s,"config-claim")
+ if _,err := s.stateStore.DB().Exec(`UPDATE quota_intents SET due_at=? WHERE agent_id=?`,time.Now().UTC().Add(-time.Second).Format(time.RFC3339),q.AgentID); err != nil {t.Fatal(err)}
+ q,_ = s.stateStore.GetQuota(q.AgentID)
+ claimed,ok := s.claimDueQuota(q)
+ if !ok {t.Fatal("claim refused")}
+ cfg,err := os.ReadFile(filepath.Join(s.configStore.Home(),"config.json")); if err != nil {t.Fatal(err)}
+ if err := os.WriteFile(filepath.Join(s.configStore.Home(),"config.json"),[]byte("{"),0600); err != nil {t.Fatal(err)}
+ s.startQuotaContinuation(context.Background(),claimed)
+ if err := os.WriteFile(filepath.Join(s.configStore.Home(),"config.json"),cfg,0600); err != nil {t.Fatal(err)}
+ fresh,err := s.stateStore.GetQuota(q.AgentID); if err != nil {t.Fatal(err)}
+ due,err := s.stateStore.DueQuotaIntents(time.Now().UTC().Add(time.Hour),8); if err != nil {t.Fatal(err)}
+ if fresh.State != state.QuotaClaimed || fresh.ProviderStarted || len(due)!=0 {t.Fatalf("unexpected recovered claim: %+v due=%+v",fresh,due)}
+ t.Logf("config repaired but claim remains unstarted %s, reason=%q and absent from due sweep",fresh.State,fresh.ReasonCode)
+}

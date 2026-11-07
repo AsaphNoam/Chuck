@@ -12,6 +12,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 - **Architecture:** combined audit and all four repairs are complete; independent preparation
   signoff at `6dfae975` covers `be766a50` with no new findings.
   [Receipt](../archive/reviews/architecture/v0.21.0-next.json). Release gate passes.
+  Focused quota-flow audit on 2026-11-07 at `8d9cb623` found three additional Must-fix and two
+  Worth-fixing defects; NESTED-QUOTA-1 remains independently owned below. The new findings block
+  current-candidate release; the earlier gate result above describes v0.22.0 preparation only.
+  [Quota report](../archive/reviews/architecture/v0.22.0-next-quota.md) /
+  [bounded receipt](../archive/reviews/architecture/v0.22.0-next.json); this focused audit is not
+  combined next-release signoff.
 - **Verification:** full `make test` (both Go variants) and 1172 UI tests pass at `84f65de9`,
   reused for unchanged product inputs. Release preparation passes package/spec checks and
   `make dist VERSION=0.22.0`; embed bytes are unchanged. Logs:
@@ -369,12 +375,57 @@ global installation as part of this investigation.
 
 ## Review findings
 
-### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07)
+### ARCH-QUOTA — interruption detection through same-work continuation (2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-**Fix model:** medium — Codex Terra or Claude Opus.
+Focused audit at `8d9cb623`; [report and probes](../archive/reviews/architecture/v0.22.0-next-quota.md)
+and [receipt](../archive/reviews/architecture/v0.22.0-next.json). Existing NESTED-QUOTA-1 retains
+the root-refusal detection owner; do not duplicate it. No product code or normative specs changed.
 
-- **Must fix — NESTED-QUOTA-1 (confirmed symptom; probable integration normalization cause;
-  fix complexity: medium).** `internal/runtime/quota.go:completePromptTurn`, Claude adapter
+- **Must fix** — **ARCH-QUOTA-1** (fix complexity: medium).
+  `internal/runtime/quota.go:191–245`: after accepted Cancel, a late typed AIR quota result
+  overwrites `cancelled` with `error` and fresh quota evidence. The ordinary settlement callback
+  can consequently arm recovery for the cancelled work. TS-04.R86 and FS-01.R43 require manual
+  cancellation to win (INV §1/§11). The real runtime/transport probe fails with non-nil quota on the cancelled
+  turn. Preserve cancellation precedence across both result and retained-update evidence; verify
+  through server settlement that no new recovery schedule or continuation is created.
+- **Must fix** — **ARCH-QUOTA-2** (fix complexity: medium).
+  `internal/runtime/quota_check.go:253–269,441–442` and
+  `internal/server/quota_check.go:32–43,82–103`: isolated checks do not establish the same effective
+  model/account route as the interrupted process. Native-inherited Claude models are omitted when
+  the probe disables settings; mutable routing files are reread but excluded from the selection
+  fingerprint. A probe can report ready under another model or route and authorize the original
+  conversation. FS-01.R49/R51, TS-04.R97 and TS-10.R46 require same-selection evidence (INV §2/§12). Pinned SDK
+  settings resolution plus fake wire/store probes confirm both cases. Carry provable effective
+  selection through the existing check boundary, or refuse when equivalence is unknown; revalidate
+  it before continuation. Do not load work instructions or silently switch authentication.
+- **Must fix** — **ARCH-QUOTA-3** (fix complexity: medium).
+  `internal/runtime/quota_check.go:106–109,328–353`: a streaming Codex retry warning remains in
+  `probe.failure` after a successful reply and clean `end_turn`, so the check becomes
+  `needs_attention/check_failed` instead of authorizing continuation. Pinned Codex clears its
+  recovered warning internally without a clear notification; ordinary runtime completion already
+  handles that contract. TS-04.R86/R97 and INV §11 govern. Reuse terminal-success normalization at the check
+  boundary while preserving real terminal failures; the archived recovered-warning probe fails.
+- **Worth fixing** — **ARCH-QUOTA-4** (fix complexity: medium).
+  `internal/server/quota_dispatch.go:16`, `quota_check.go:312–338`, and
+  `task_dispatcher.go:41–52`: exact-session cleanup blocks the shared dispatcher before unrelated
+  quota, task, pipeline and timed-start work. One stalled initialization delayed an independent
+  due claim by 5.005 seconds; eight selected references can serialize roughly 40 seconds of timeout
+  waits. TS-10.R47 and INV §16 require independent dispatch despite a failed cleanup. Keep bounded cleanup
+  ownership/cooldown/cursor, but perform provider I/O outside the shared admission sweep. Verify an
+  unrelated due record advances while cleanup is held. This is bounded delay, not permanent starvation.
+- **Worth fixing** — **ARCH-QUOTA-5** (fix complexity: medium).
+  `internal/server/quota_dispatch.go:106–108` and `quota_check.go:219–221`: a configuration read error
+  after the durable claim silently returns, leaving an unstarted `claimed` row with no reason and
+  no future due-query eligibility. Repairing configuration does not restore progress until restart
+  or manual control. The store probe faults only that reread and confirms the orphaned claim.
+  FS-01.R44, TS-10.R40/R43 and INV §7/§9 govern truthful failure/recovery. Explicitly defer or hold the exact
+  unstarted claim on policy-read failure and test recovery without restarting. Trigger requires a
+  transient read failure or malformed external config edit; ordinary atomic settings saves are safe.
+
+### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — **NESTED-QUOTA-1** (confirmed symptom; probable integration normalization cause;
+  fix complexity: medium). `internal/runtime/quota.go:completePromptTurn`, Claude adapter
   native-error normalization and `rpcQuotaRefusal`: after a foreground child fails, the root's
   own synthetic `usage_limit_reached` refusal is rendered as assistant text and completes
   `end_turn` without quota evidence (native root line 456; Chuck seq 801–802 above). The requested

@@ -1,0 +1,54 @@
+package runtime
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestAuditQuotaCheckRecoveredRetryWarning(t *testing.T) {
+	h := newQuotaCheckHarness(t)
+	// Codex ACP 2.1.1 recordRetryWarning emits severity warning with empty
+	// actions; completeRetryIncidentOnTurnProgress clears it internally, and
+	// a successful prompt returns end_turn without sessionFailure metadata.
+	// TS-04.R86 and R97 make that recovered success eligible for readiness.
+	warning := `{"id":"check:retry","revision":1,"category":"limit","severity":"warning","title":"Too many requests; retrying","actions":[]}`
+	spec, _ := h.spec("codex-acp", "FAKEACP_FAILURE_UPDATE="+warning)
+	out := h.c.RunQuotaCheck(context.Background(), spec)
+	if out.Outcome != "ready" || !out.Cleaned {
+		t.Fatalf("successful model reply after retry warning: %+v; want ready and cleaned", out)
+	}
+}
+
+func TestAuditQuotaResultAfterCancelKeepsCancelled(t *testing.T) {
+	// TS-04.R86: cancellation keeps cancelled even when provider terminal
+	// failure metadata arrives after cancellation claimed the executing turn.
+	hold := filepath.Join(t.TempDir(), "release")
+	q := quotaFailure("late:error", 1, "limit", "error")
+	c, h, ch, _ := startQuotaTestAgent(t, "hold_turn", "FAKEACP_HOLD_FILE="+hold,
+		"FAKEACP_HOLD_IGNORE_CANCEL=1", "FAKEACP_FAILURE_RESULT="+q)
+	c.cancelGrace = 0
+	if err := c.SendPrompt(context.Background(), h.AgentID, "continue"); err != nil {
+		t.Fatal(err)
+	}
+	waitForChunk(t, ch, "working")
+	if ok, err := c.Cancel(context.Background(), h.AgentID); err != nil || !ok {
+		t.Fatalf("Cancel = %v, %v", ok, err)
+	}
+	if err := os.WriteFile(hold, []byte("go"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range drainTurn(t, ch) {
+		if ev.Type == EvTurnEnd {
+			var end TurnEndData
+			if err := json.Unmarshal(ev.Data, &end); err != nil {
+				t.Fatal(err)
+			}
+			if end.StopReason != "cancelled" || end.Quota != nil {
+				t.Fatalf("cancelled turn became %+v; want cancelled without new quota", end)
+			}
+		}
+	}
+}

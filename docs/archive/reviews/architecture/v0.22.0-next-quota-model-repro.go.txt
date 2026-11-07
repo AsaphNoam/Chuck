@@ -1,0 +1,24 @@
+package runtime
+
+import (
+ "context"
+ "encoding/json"
+ "os"
+ "path/filepath"
+ "testing"
+)
+
+func TestReviewQuotaCheckInheritedModelCannotProveSameModel(t *testing.T) {
+ h := newQuotaCheckHarness(t)
+ if err := os.MkdirAll(filepath.Join(h.dir, ".claude"), 0700); err != nil { t.Fatal(err) }
+ if err := os.WriteFile(filepath.Join(h.dir, ".claude", "settings.json"), []byte(`{"model":"user-model"}`), 0600); err != nil { t.Fatal(err) }
+ spec, _ := h.spec("claude-acp")
+ spec.ModelID = ""
+ out := h.c.RunQuotaCheck(context.Background(), spec)
+ raw, err := os.ReadFile(h.newDump)
+ if err != nil { t.Fatal(err) }
+ var params map[string]any
+ if err := json.Unmarshal(raw, &params); err != nil { t.Fatal(err) }
+ t.Logf("outcome=%+v session/new=%s", out, raw)
+ if out.Outcome == "ready" { t.Fatal("native inherited model omitted from disabled filesystem settings, yet probe reports ready") }
+}

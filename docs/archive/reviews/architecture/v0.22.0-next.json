@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "previous_release": "v0.22.0",
+  "reviewed_commit": "8d9cb623139c524ef587ba300890860f9d23e871",
+  "review_complete": false,
+  "reviewer": "Fresh Codex parent with independent detection/runtime, durable scheduling, and installed-contract reviewers; 2026-11-07; no product authorship in this run",
+  "coverage": [
+    "Explicitly focused quota interruption-to-continuation audit, complete within its stated scope; not combined next-release signoff. Detailed authority/scenario map and bounded replay probes: v0.22.0-next-quota.md. Previous combined capability map and verified fixes remain in v0.21.0-next.json. Other next-release changes and release preparation are not certified here. Unrelated dirty docs/ideas.md preserved.",
+    "Detection: native/provider terminal carrier -> validated root AIR/RPC evidence -> runtime completion -> settlement before terminal publication/successor. NESTED-QUOTA-1 remains the original owner of the real flattened Claude refusal. Historical raw ACP, selected executable and Auto continue configuration remain unknown; source and fake success cannot refute the incident. Existing terminal-429, root/child/replay, RPC and reset tests pass. ARCH-QUOTA-1 independently reproduces cancellation losing to late AIR quota evidence.",
+    "Durable progress/control: SQLite per-agent episode, revision/token claims, exact generation/turn, domain owner/capacity predicates, manual snapshots and restart recovery remain authority. Existing actual-store/server tests pass in both SQLite builds. Traced same-session live/resume activation, task/room assignment preservation, bounded allowance, cancellation and uncertain-delivery holds; no additional unsafe-replay or owner defect confirmed. ARCH-QUOTA-5 strands a claim after policy reread failure; ARCH-QUOTA-4 serializes cleanup timeout before shared dispatch.",
+    "Isolated access checks: sanitized provider selection -> disposable ACP process/session -> model reply plus terminal settlement -> cleanup -> exact current-chain admission. ARCH-QUOTA-2 confirms missing inherited Claude model and mutable account-routing mismatch using actual emitted wire plus store admission and pinned SDK settings resolution. ARCH-QUOTA-3 reproduces a recovered Codex retry warning falsely becoming check_failed. No check result is task success; actual continuation alone settles the original work.",
+    "Observation/history: traced existing projection, desktop/phone QuotaBanner consumption, exact-turn root progress and durable idempotent continuation notice repair. Reused source/API/runtime tests; no new rendered/device evidence. The flattened-root detection defect can also make success/notice inference untrustworthy; this remains the detection owner's consequence, not a duplicate observability finding.",
+    "Installed inputs: source inspected release cache Claude ACP 0.85.1 / SDK 0.3.286 and Codex ACP 2.1.1, release steering patch +chuck.1, CLI pin 0.159.3. Claude isolation-option forwarding/close and Codex local rename/title suppression/delete-to-archive are source-backed; cached Codex source hash matches release input. Current global Claude adapter 0.59.0 in the prior investigation is not proven to be the incident executable. No installation changes, credentialed model calls, native quota/reset receipt or actual delayed provider continuation; all existing live gates remain owed. No performance/cost claim beyond measured fake-process cleanup delay."
+  ],
+  "findings": [
+    { "id": "NESTED-QUOTA-1", "severity": "must_fix" },
+    { "id": "ARCH-QUOTA-1", "severity": "must_fix" },
+    { "id": "ARCH-QUOTA-2", "severity": "must_fix" },
+    { "id": "ARCH-QUOTA-3", "severity": "must_fix" },
+    { "id": "ARCH-QUOTA-4", "severity": "worth_fixing" },
+    { "id": "ARCH-QUOTA-5", "severity": "worth_fixing" }
+  ],
+  "updates": []
+}
