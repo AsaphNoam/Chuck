@@ -16,6 +16,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   and recorded in the [bounded receipt](../archive/reviews/architecture/v0.22.0-next.json)
   ([report](../archive/reviews/architecture/v0.22.0-next-quota.md)). NESTED-QUOTA-1 is closed by
   managed-adapter repair `8f27207b`; this focused audit is not combined next-release signoff.
+  Fresh combined source audit through `3cd5e881` found no additional defects
+  ([report](../archive/reviews/architecture/v0.22.0-next-combined.md)). The next-release receipt
+  remains incomplete pending committed release preparation and independent affected coverage;
+  closed quota findings do not require another review.
 - **Verification:** full `make test` (both Go variants) and 1172 UI tests pass at `84f65de9`,
   reused for unchanged product inputs. Release preparation passes package/spec checks and
   `make dist VERSION=0.22.0`; embed bytes are unchanged. Logs:
@@ -225,6 +229,14 @@ Publication is not authorized; no push is part of this implementation.
   fake-runtime, release-CI assembly, and native-provider proofs passed; live receipts are owed.
 
 ## Changelog
+
+- **2026-11-07 — Combined architectural source audit:** no new findings through `3cd5e881`.
+  Search storage/repair, exact passage delivery, quota ownership/restart and managed adapter
+  assembly contracts checked with independent reviewers. Tagged/untagged search-storage suites,
+  focused search HTTP/UI, pipeline, knowledge/release and approved-loopback owner checks pass.
+  Receipt retains original quota owners/verified repairs. Next-release preparation is still absent;
+  review is not release signoff. Installed current remains v0.20.0 with the unpatched Claude
+  adapter; no rollout/provider/device claim. Unrelated ideas edits preserved.
 
 - **2026-11-07 — NESTED-QUOTA-1 managed carrier repair (INV §11/§12/§17):** patch pinned Claude
   ACP to fail a held prompt on its own background summary's same-cycle root quota refusal.
