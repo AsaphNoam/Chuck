@@ -86,3 +86,44 @@ func TestQuotaCleanupAdvancesPastBlockedBatch(t *testing.T) {
 		t.Fatalf("blocked references lost: %d err=%v", len(refs), err)
 	}
 }
+
+// ARCH-QUOTA-4 / TS-10.R47: an exact cleanup held by an unresponsive provider
+// process does not delay an independent due claim on the shared dispatch loop.
+func TestStalledQuotaCleanupDoesNotDelayIndependentClaim(t *testing.T) {
+	s := testServer(t, true)
+	s.registry.Chat().SetCommand(buildFakeACP(t))
+	q := seedQuotaHTTP(t, s, "cleanup")
+	if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET state='needs_attention', due_at=NULL, check_session='probe', check_backend='codex-acp' WHERE agent_id=?`, q.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	s.quotaCleanupSpecs = map[string]runtime.QuotaCheckSpec{q.AgentID + "\x00probe": {BackendType: "codex-acp", Env: []string{"HOME=" + t.TempDir(), "FAKEACP_INIT_HANG=1"}}}
+	other := seedQuotaHTTP(t, s, "independent")
+	if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET due_at=? WHERE agent_id=?`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339), other.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	begin := time.Now()
+	s.dispatchQuotaContinuations(context.Background())
+	if elapsed := time.Since(begin); elapsed > 2*time.Second {
+		t.Fatalf("dispatch waited %v on the stalled cleanup", elapsed)
+	}
+	if fresh, err := s.stateStore.GetQuota(other.AgentID); err != nil || fresh.State == state.QuotaScheduled {
+		t.Fatalf("independent due row did not advance during cleanup: %+v err=%v", fresh, err)
+	}
+	s.quotaCheckMu.Lock()
+	busy := s.quotaCleanupBusy
+	s.quotaCheckMu.Unlock()
+	if !busy {
+		t.Fatal("cleanup did not stay owned while its provider stalled")
+	}
+	for deadline := time.Now().Add(15 * time.Second); busy && time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		s.quotaCheckMu.Lock()
+		busy = s.quotaCleanupBusy
+		s.quotaCheckMu.Unlock()
+	}
+	if busy {
+		t.Fatal("bounded cleanup never released its sweep")
+	}
+	if fresh, _ := s.stateStore.GetQuota(q.AgentID); fresh.CheckSession != "probe" {
+		t.Fatalf("failed cleanup lost its exact reference: %+v", fresh)
+	}
+}

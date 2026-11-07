@@ -381,14 +381,6 @@ Focused audit at `8d9cb623`; [report and probes](../archive/reviews/architecture
 and [receipt](../archive/reviews/architecture/v0.22.0-next.json). Existing NESTED-QUOTA-1 retains
 the root-refusal detection owner; do not duplicate it. No product code or normative specs changed.
 
-- **Worth fixing** — **ARCH-QUOTA-4** (fix complexity: medium).
-  `internal/server/quota_dispatch.go:16`, `quota_check.go:312–338`, and
-  `task_dispatcher.go:41–52`: exact-session cleanup blocks the shared dispatcher before unrelated
-  quota, task, pipeline and timed-start work. One stalled initialization delayed an independent
-  due claim by 5.005 seconds; eight selected references can serialize roughly 40 seconds of timeout
-  waits. TS-10.R47 and INV §16 require independent dispatch despite a failed cleanup. Keep bounded cleanup
-  ownership/cooldown/cursor, but perform provider I/O outside the shared admission sweep. Verify an
-  unrelated due record advances while cleanup is held. This is bounded delay, not permanent starvation.
 
 ### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
 

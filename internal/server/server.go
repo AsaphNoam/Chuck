@@ -98,6 +98,7 @@ type Server struct {
 	quotaChecks        map[string]bool
 	quotaCleanupTried  map[string]time.Time
 	quotaCleanupCursor string // last visited agent, including skipped/failed cleanup rows
+	quotaCleanupBusy   bool   // a cleanup sweep runs off the shared dispatch loop
 	quotaChecked       map[string]string
 	quotaCleanupSpecs  map[string]runtime.QuotaCheckSpec
 	// thinkTankKick nudges the Think Tank progression dispatcher.

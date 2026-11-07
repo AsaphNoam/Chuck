@@ -13,7 +13,7 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 	if s.registry == nil {
 		return
 	}
-	s.cleanupQuotaChecks(ctx)
+	s.startQuotaCleanup(ctx)
 	due, err := s.stateStore.DueQuotaIntents(time.Now().UTC(), taskDispatchBatch)
 	if err != nil {
 		s.log.Error("read due quota continuations", "err", err)

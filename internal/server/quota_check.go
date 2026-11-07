@@ -296,6 +296,27 @@ func (s *Server) admitQuotaCheck(q state.QuotaIntent, spec runtime.QuotaCheckSpe
 	return started, true
 }
 
+// startQuotaCleanup runs one cleanup sweep outside the shared dispatch loop,
+// so a stalled provider cleanup cannot delay unrelated quota, task, pipeline
+// or timed-start admission (TS-10.R47). A sweep still running skips this tick.
+func (s *Server) startQuotaCleanup(ctx context.Context) {
+	s.quotaCheckMu.Lock()
+	if s.quotaCleanupBusy {
+		s.quotaCheckMu.Unlock()
+		return
+	}
+	s.quotaCleanupBusy = true
+	s.quotaCheckMu.Unlock()
+	go func() {
+		defer func() {
+			s.quotaCheckMu.Lock()
+			s.quotaCleanupBusy = false
+			s.quotaCheckMu.Unlock()
+		}()
+		s.cleanupQuotaChecks(ctx)
+	}()
+}
+
 // cleanupQuotaChecks retries exact disposal of recorded probe sessions that no
 // running check owns, never loading, prompting or scanning other history.
 func (s *Server) cleanupQuotaChecks(ctx context.Context) {
