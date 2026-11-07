@@ -1401,9 +1401,12 @@ manual rather than broadening permissions. Claude supports explicit `persistSess
 `tools:[]`, `strictMcpConfig:true` and `settingSources:[]` through its existing
 `_meta.claudeCode.options`: pinned ACP 0.85.1 defaults to user/project/local settings, which carry
 CLAUDE.md instructions, hooks, plugins and MCP. The routing keys those layers would have applied to
-the interrupted work (`env`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`,
+the interrupted work (`env`, `model`, `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`,
 `forceLoginMethod`, `forceLoginOrgUUID`, `modelOverrides`, `availableModels`; user settings, then
-the work cwd's project and local settings) travel as the check's programmatic `settings`. An
+the work cwd's project and local settings) travel as the check's programmatic `settings`, so a
+native-inherited model (empty provider model ID) is still the model checked. A live original's
+routing is read once at its launch and frozen with its selection; a resume's is read when the
+selection is resolved. The routing is part of the selection fingerprint. An
 unreadable layer, or routing that would replace the adapter's own `CLAUDE_MODEL_CONFIG` settings
 tier, is unsupported. Do not use `--bare` or a fresh auth home as an account-preserving shortcut.
 

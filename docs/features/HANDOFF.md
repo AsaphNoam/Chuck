@@ -381,16 +381,6 @@ Focused audit at `8d9cb623`; [report and probes](../archive/reviews/architecture
 and [receipt](../archive/reviews/architecture/v0.22.0-next.json). Existing NESTED-QUOTA-1 retains
 the root-refusal detection owner; do not duplicate it. No product code or normative specs changed.
 
-- **Must fix** — **ARCH-QUOTA-2** (fix complexity: medium).
-  `internal/runtime/quota_check.go:253–269,441–442` and
-  `internal/server/quota_check.go:32–43,82–103`: isolated checks do not establish the same effective
-  model/account route as the interrupted process. Native-inherited Claude models are omitted when
-  the probe disables settings; mutable routing files are reread but excluded from the selection
-  fingerprint. A probe can report ready under another model or route and authorize the original
-  conversation. FS-01.R49/R51, TS-04.R97 and TS-10.R46 require same-selection evidence (INV §2/§12). Pinned SDK
-  settings resolution plus fake wire/store probes confirm both cases. Carry provable effective
-  selection through the existing check boundary, or refuse when equivalence is unknown; revalidate
-  it before continuation. Do not load work instructions or silently switch authentication.
 - **Worth fixing** — **ARCH-QUOTA-4** (fix complexity: medium).
   `internal/server/quota_dispatch.go:16`, `quota_check.go:312–338`, and
   `task_dispatcher.go:41–52`: exact-session cleanup blocks the shared dispatcher before unrelated

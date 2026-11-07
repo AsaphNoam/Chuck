@@ -33,8 +33,9 @@ func (h quotaCheckHarness) spec(backendType string, env ...string) (QuotaCheckSp
 	recorded := &[]string{}
 	base := []string{"HOME=" + h.dir, "FAKEACP_SCENARIO=stream_text", "FAKEACP_CAPS=1", "FAKEACP_PROMPT_LOG=" + h.prompts,
 		"FAKEACP_NEW_RAW_DUMP=" + h.newDump, "FAKEACP_CLOSE_LOG=" + h.closeLog, "FAKEACP_DELETE_LOG=" + h.delLog}
-	return QuotaCheckSpec{BackendType: backendType, ModelID: "claude-sonnet-4-6", Env: append(base, env...), SourceCwd: h.dir,
-		OnSessionCreated: func(id string) error {
+	env = append(base, env...)
+	return QuotaCheckSpec{BackendType: backendType, ModelID: "claude-sonnet-4-6", Env: env, SourceCwd: h.dir,
+		Routing: QuotaCheckRouting(backendType, env, h.dir), OnSessionCreated: func(id string) error {
 			// The probe session is durable before any prompt crosses the wire.
 			if _, err := os.Stat(h.prompts); err == nil {
 				return errors.New("prompt sent before session was recorded")
@@ -108,6 +109,7 @@ func TestQuotaCheckClaudeExcludesAmbientSettingsButKeepsRouting(t *testing.T) {
 	write(filepath.Join(project, ".claude", "settings.local.json"), `{"env":{"SHARED":"local"},"permissions":{"allow":["Bash"]}}`)
 	spec, _ := h.spec("claude-acp")
 	spec.SourceCwd = project
+	spec.Routing = QuotaCheckRouting(spec.BackendType, spec.Env, project)
 	if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != "ready" {
 		t.Fatalf("outcome = %+v", out)
 	}
@@ -141,6 +143,39 @@ func TestQuotaCheckClaudeExcludesAmbientSettingsButKeepsRouting(t *testing.T) {
 	spec, recorded = h.spec("claude-acp")
 	if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != "unsupported" || len(*recorded) != 0 {
 		t.Fatalf("unreadable settings = %+v", out)
+	}
+}
+
+// ARCH-QUOTA-2, TS-04.R97: with filesystem settings disabled, a native-inherited
+// model (empty ModelID) still reaches the check through its routing settings.
+func TestQuotaCheckCarriesInheritedClaudeModel(t *testing.T) {
+	h := newQuotaCheckHarness(t)
+	if err := os.MkdirAll(filepath.Join(h.dir, ".claude"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(h.dir, ".claude", "settings.json"), []byte(`{"model":"user-model"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	spec, _ := h.spec("claude-acp")
+	spec.ModelID = ""
+	if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != "ready" {
+		t.Fatalf("outcome = %+v", out)
+	}
+	var params struct {
+		Meta struct {
+			ClaudeCode struct {
+				Options map[string]any `json:"options"`
+			} `json:"claudeCode"`
+		} `json:"_meta"`
+	}
+	raw, _ := os.ReadFile(h.newDump)
+	if err := json.Unmarshal(raw, &params); err != nil {
+		t.Fatal(err)
+	}
+	opts := params.Meta.ClaudeCode.Options
+	settings, _ := opts["settings"].(map[string]any)
+	if opts["model"] != nil || settings["model"] != "user-model" {
+		t.Fatalf("session/new = %s; want the inherited model in routing settings", raw)
 	}
 }
 

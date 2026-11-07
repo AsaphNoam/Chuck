@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -188,6 +189,67 @@ func TestQuotaCheckFollowsInterruptedSelection(t *testing.T) {
 	}
 	if lines := promptLines(t, log); len(lines) != 1 || !strings.Contains(lines[0], "Reply with exactly OK") {
 		t.Fatalf("prompts = %q, want only the isolated check", lines)
+	}
+}
+
+// ARCH-QUOTA-2, TS-04.R97/TS-10.R46: a live process keeps the Claude routing
+// it loaded at launch, so its check carries that route despite a later edit;
+// a resume would load the edited route, so a checked stopped selection no
+// longer matches once routing changes.
+func TestQuotaCheckRoutingFollowsTheContinuedProcess(t *testing.T) {
+	t.Setenv("FAKEACP_CAPS", "1")
+	dir := t.TempDir()
+	dump := filepath.Join(dir, "new.json")
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	t.Setenv("FAKEACP_NEW_DUMP", dump)
+	settings := filepath.Join(dir, "settings.json")
+	route := func(name string) {
+		t.Helper()
+		if err := os.WriteFile(settings, []byte(`{"env":{"ANTHROPIC_BASE_URL":"https://`+name+`.example"}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	route("account-a")
+	s, ts, log := activationTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	if _, err := s.quotaCheckSpec(id); err != nil {
+		t.Fatal(err)
+	}
+	route("account-b")
+	observeUnknownQuota(t, s, id)
+	s.dispatchQuotaContinuations(context.Background())
+	waitQuota(t, s, id, func(q state.QuotaIntent) bool { return q.CheckReady && q.State == state.QuotaScheduled })
+	raw, err := os.ReadFile(dump)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "https://account-a.example") || strings.Contains(string(raw), "account-b") {
+		t.Fatalf("live check session/new = %s; want the launch route", raw)
+	}
+	s.dispatchQuotaContinuations(context.Background())
+	waitQuota(t, s, id, func(q state.QuotaIntent) bool { return q.State == state.QuotaContinued })
+	waitStatus(t, s, id, "idle")
+	if got := promptCount(t, log); got != 2 {
+		t.Fatalf("probe plus continuation prompts = %d", got)
+	}
+
+	generation := s.registry.Generation(id)
+	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/stop", nil); resp.StatusCode != 200 {
+		t.Fatalf("stop status = %d: %s", resp.StatusCode, body)
+	}
+	if _, err := s.stateStore.ObserveQuota(state.QuotaObservation{AgentID: id, EpisodeID: "stopped-routing", SourceGeneration: generation,
+		ExecutingTurn: "interrupted-turn", Owner: state.QuotaOwner{Kind: "ordinary"}, ObservedAt: time.Now().UTC().Add(-61 * time.Minute),
+		State: state.QuotaUnknownReset, Check: true}); err != nil {
+		t.Fatal(err)
+	}
+	s.dispatchQuotaContinuations(context.Background())
+	ready := waitQuota(t, s, id, func(q state.QuotaIntent) bool { return q.CheckReady && q.State == state.QuotaScheduled })
+	if !s.quotaCheckStillMatches(ready) {
+		t.Fatal("unchanged stopped routing does not match its check")
+	}
+	route("account-c")
+	if s.quotaCheckStillMatches(ready) {
+		t.Fatal("a routing edit after the check still authorizes the resumed continuation")
 	}
 }
 

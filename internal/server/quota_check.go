@@ -73,8 +73,9 @@ func (s *Server) quotaCheckSpec(agentID string) (runtime.QuotaCheckSpec, error) 
 	if ae != nil {
 		return runtime.QuotaCheckSpec{}, ae
 	}
+	env := s.quotaCheckEnv(be, model, providerEnv)
 	return runtime.QuotaCheckSpec{BackendType: be.Type, ModelID: contract.ProviderModelID(), Effort: a.Effort, Fast: a.Fast,
-		Env: s.quotaCheckEnv(be, model, providerEnv), SourceCwd: snap.Cwd}, nil
+		Env: env, SourceCwd: snap.Cwd, Routing: runtime.QuotaCheckRouting(be.Type, env, snap.Cwd)}, nil
 }
 
 // quotaSelectionKey fingerprints a check selection so a later continuation
@@ -83,7 +84,7 @@ func quotaSelectionKey(spec runtime.QuotaCheckSpec) string {
 	env := append([]string(nil), spec.Env...)
 	sort.Strings(env)
 	h := sha256.New()
-	for _, part := range append([]string{spec.BackendType, spec.ModelID, spec.Effort, strconv.FormatBool(spec.Fast), spec.SourceCwd}, env...) {
+	for _, part := range append([]string{spec.BackendType, spec.ModelID, spec.Effort, strconv.FormatBool(spec.Fast), spec.SourceCwd, spec.Routing}, env...) {
 		h.Write([]byte(part))
 		h.Write([]byte{0})
 	}

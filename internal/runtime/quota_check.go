@@ -45,12 +45,14 @@ type QuotaCheckSpec struct {
 	Fast             bool
 	Env              []string
 	SourceCwd        string
+	Routing          string // QuotaCheckRouting of this selection
 	OnSessionCreated func(sessionID string) error
 }
 
 func quotaSelectionOf(spec LaunchSpec) QuotaCheckSpec {
 	return QuotaCheckSpec{BackendType: spec.BackendType, ModelID: spec.ModelID,
-		Env: append([]string(nil), spec.QuotaCheckEnv...), SourceCwd: spec.Cwd}
+		Env: append([]string(nil), spec.QuotaCheckEnv...), SourceCwd: spec.Cwd,
+		Routing: QuotaCheckRouting(spec.BackendType, spec.QuotaCheckEnv, spec.Cwd)}
 }
 
 // QuotaCheckSelection returns the live process's frozen check selection, so a
@@ -255,11 +257,16 @@ func (c *ChatRuntime) driveQuotaCheck(ctx context.Context, as *agentState, ad ba
 		// No filesystem settings layer: those carry work instructions, hooks,
 		// plugins and MCP. Only their routing keys are carried, as flag settings.
 		options := map[string]any{"persistSession": false, "tools": []any{}, "strictMcpConfig": true, "settingSources": []any{}}
-		routing, err := claudeCheckSettings(as.cmd.Env, spec.SourceCwd)
-		if err != nil {
+		// The selection's frozen routing, not a reread: the original process
+		// keeps what it loaded at launch even if the files changed since.
+		if spec.Routing == quotaRoutingUnsupported {
 			return QuotaCheckOutcome{Outcome: "unsupported"}
 		}
-		if routing != nil {
+		if spec.Routing != "" {
+			var routing map[string]any
+			if json.Unmarshal([]byte(spec.Routing), &routing) != nil {
+				return QuotaCheckOutcome{Outcome: "unsupported"}
+			}
 			options["settings"] = routing
 		}
 		if spec.ModelID != "" {
@@ -438,11 +445,39 @@ func (c *ChatRuntime) CleanupQuotaCheckSession(ctx context.Context, spec QuotaCh
 }
 
 // claudeCheckRoutingKeys are the Claude settings that select the account, auth
-// route or model mapping. A check copies only these from the settings layers
-// the original process loads; hooks, instructions, plugins, permissions and
-// MCP stay out (FS-01.R51).
-var claudeCheckRoutingKeys = []string{"env", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport",
+// route, model or model mapping. A check copies only these from the settings
+// layers the original process loads, so a native-inherited model (empty
+// ModelID) is still the one checked; hooks, instructions, plugins, permissions
+// and MCP stay out (FS-01.R51).
+var claudeCheckRoutingKeys = []string{"env", "model", "apiKeyHelper", "awsAuthRefresh", "awsCredentialExport",
 	"forceLoginMethod", "forceLoginOrgUUID", "modelOverrides", "availableModels"}
+
+// quotaRoutingUnsupported marks a selection whose Claude settings layers could
+// not be shown equivalent when it was resolved; no JSON object equals it.
+const quotaRoutingUnsupported = "unsupported"
+
+// QuotaCheckRouting resolves the Claude routing settings an isolated check
+// carries for a selection: canonical JSON, "" for none or another backend. A
+// live process freezes it at launch; a resume resolves it now, and the
+// selection key includes it so a later edit is not mistaken for the checked
+// route (TS-04.R97, TS-10.R46).
+func QuotaCheckRouting(backendType string, env []string, sourceCwd string) string {
+	if backendType != "claude-acp" {
+		return ""
+	}
+	routing, err := claudeCheckSettings(env, sourceCwd)
+	if err != nil {
+		return quotaRoutingUnsupported
+	}
+	if routing == nil {
+		return ""
+	}
+	raw, err := json.Marshal(routing)
+	if err != nil {
+		return quotaRoutingUnsupported
+	}
+	return string(raw)
+}
 
 // claudeCheckSettings reads the user, project and local settings layers of the
 // interrupted work and returns their merged routing keys, nil when there are
