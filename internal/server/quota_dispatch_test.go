@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -209,4 +211,54 @@ func TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart(t *testing.T)
 func quotaResetFor(due time.Time) *time.Time {
 	reset := due.Add(-state.QuotaResetBuffer)
 	return &reset
+}
+
+// ARCH-QUOTA-5, FS-01.R44/TS-10.R40: a policy reread failure after the durable
+// claim defers that exact unstarted claim with a visible reason, so repairing
+// the configuration lets the ordinary due sweep admit it again without restart.
+func TestQuotaPolicyReadFailureDefersClaim(t *testing.T) {
+	for _, action := range []string{state.QuotaActionContinue, state.QuotaActionCheck} {
+		t.Run(action, func(t *testing.T) {
+			s := testServer(t, true)
+			q := seedQuotaHTTP(t, s, "policy-"+action)
+			if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET next_action=?, due_at=? WHERE agent_id=?`,
+				action, time.Now().UTC().Add(-time.Second).Format(time.RFC3339), q.AgentID); err != nil {
+				t.Fatal(err)
+			}
+			q, _ = s.stateStore.GetQuota(q.AgentID)
+			claimed, ok := s.claimDueQuota(q)
+			if !ok {
+				t.Fatal("claim refused")
+			}
+			path := filepath.Join(s.configStore.Home(), "config.json")
+			cfg, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if action == state.QuotaActionCheck {
+				if _, ok := s.admitQuotaCheck(claimed, runtime.QuotaCheckSpec{}, nil); ok {
+					t.Fatal("check admitted with an unreadable policy")
+				}
+			} else {
+				s.startQuotaContinuation(context.Background(), claimed)
+			}
+			if err := os.WriteFile(path, cfg, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			fresh, err := s.stateStore.GetQuota(q.AgentID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			due, err := s.stateStore.DueQuotaIntents(time.Now().UTC().Add(time.Hour), 8)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fresh.State != state.QuotaDeferred || fresh.ReasonCode != "store_failure" || fresh.ProviderStarted || len(due) != 1 {
+				t.Fatalf("after policy read failure: %+v due=%d; want a deferred, re-admittable claim", fresh, len(due))
+			}
+		})
+	}
 }

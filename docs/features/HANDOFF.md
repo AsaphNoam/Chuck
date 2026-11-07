@@ -389,14 +389,6 @@ the root-refusal detection owner; do not duplicate it. No product code or normat
   waits. TS-10.R47 and INV §16 require independent dispatch despite a failed cleanup. Keep bounded cleanup
   ownership/cooldown/cursor, but perform provider I/O outside the shared admission sweep. Verify an
   unrelated due record advances while cleanup is held. This is bounded delay, not permanent starvation.
-- **Worth fixing** — **ARCH-QUOTA-5** (fix complexity: medium).
-  `internal/server/quota_dispatch.go:106–108` and `quota_check.go:219–221`: a configuration read error
-  after the durable claim silently returns, leaving an unstarted `claimed` row with no reason and
-  no future due-query eligibility. Repairing configuration does not restore progress until restart
-  or manual control. The store probe faults only that reread and confirms the orphaned claim.
-  FS-01.R44, TS-10.R40/R43 and INV §7/§9 govern truthful failure/recovery. Explicitly defer or hold the exact
-  unstarted claim on policy-read failure and test recovery without restarting. Trigger requires a
-  transient read failure or malformed external config edit; ordinary atomic settings saves are safe.
 
 ### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
 

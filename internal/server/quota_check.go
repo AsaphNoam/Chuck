@@ -218,7 +218,11 @@ func (s *Server) admitQuotaCheck(q state.QuotaIntent, spec runtime.QuotaCheckSpe
 	s.configMu.Lock()
 	defer s.configMu.Unlock()
 	cfg, err := s.configStore.ReadConfig()
-	if err != nil || !cfg.AutoContinue {
+	if err != nil {
+		s.deferQuotaPolicyFailure(q, err)
+		return state.QuotaIntent{}, false
+	}
+	if !cfg.AutoContinue {
 		return state.QuotaIntent{}, false
 	}
 	fresh, err := s.stateStore.GetQuota(q.AgentID)

@@ -73,6 +73,20 @@ func (s *Server) claimDueQuota(q state.QuotaIntent) (state.QuotaIntent, bool) {
 	return fresh, true
 }
 
+// deferQuotaPolicyFailure returns an unstarted claim to the due sweep with a
+// visible reason when the live policy cannot be reread, rather than stranding
+// it until restart (FS-01.R44, TS-10.R40/R43). Callers hold configMu.
+func (s *Server) deferQuotaPolicyFailure(q state.QuotaIntent, err error) {
+	s.log.Error("read quota continuation policy", "err", err)
+	if q.State != state.QuotaClaimed {
+		return
+	}
+	if err := s.stateStore.DeferQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, time.Now().UTC().Add(taskDispatchInterval), "store_failure"); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
+		s.log.Error("defer quota claim after policy read failure", "err", err)
+	}
+	_, _ = s.stateMgr.Touch(q.AgentID)
+}
+
 func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent) {
 	if q.NextAction == state.QuotaActionCheck {
 		return // a check never wakes the interrupted conversation
@@ -104,7 +118,11 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 	s.configMu.Lock()
 	defer s.configMu.Unlock()
 	cfg, err := s.configStore.ReadConfig()
-	if err != nil || !cfg.AutoContinue {
+	if err != nil {
+		s.deferQuotaPolicyFailure(q, err)
+		return
+	}
+	if !cfg.AutoContinue {
 		return
 	}
 	if q.State != state.QuotaClaimed {
