@@ -14,8 +14,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   [Receipt](../archive/reviews/architecture/v0.21.0-next.json). Release gate passes.
   Focused quota-flow audit on 2026-11-07 at `8d9cb623`: its five ARCH-QUOTA findings are fixed
   and recorded in the [bounded receipt](../archive/reviews/architecture/v0.22.0-next.json)
-  ([report](../archive/reviews/architecture/v0.22.0-next-quota.md)). NESTED-QUOTA-1 remains open
-  below and blocks current-candidate release; this focused audit is not combined next-release signoff.
+  ([report](../archive/reviews/architecture/v0.22.0-next-quota.md)). NESTED-QUOTA-1 is closed by
+  managed-adapter repair `8f27207b`; this focused audit is not combined next-release signoff.
 - **Verification:** full `make test` (both Go variants) and 1172 UI tests pass at `84f65de9`,
   reused for unchanged product inputs. Release preparation passes package/spec checks and
   `make dist VERSION=0.22.0`; embed bytes are unchanged. Logs:
@@ -34,7 +34,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-NESTED-QUOTA-1 repair is verified; receipt/handoff closure follows the repair commit.
+No implementation is active. NESTED-QUOTA-1 is closed by verified repair `8f27207b`.
 The operator approved the pinned Claude adapter patch carrier on 2026-11-07. The managed
 `0.85.1+chuck.1` patch, complete source/output hashes and assembly regression gate are in place.
 Focused adapter regression is red before/green after; independent guard review passes. Real CLI
@@ -426,36 +426,12 @@ global installation as part of this investigation.
 
 ### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** — **NESTED-QUOTA-1** (confirmed cause; blocked on the repair-carrier decision
-  below; fix complexity: medium). **Cause, replayed 2026-11-07:** the incident process (still
-  running, pid 69277, `CHUCK_AGENT_ID=a_e73e01`) is the dev server's PATH adapter, global Claude
-  ACP 0.59.0, with `CLAUDE_CODE_EXECUTABLE` native CLI 2.1.296. The user turn had launched
-  background arms; native lines 440/444 are `origin:task-notification` cycles, and the 456 root
-  refusal belongs to such a cycle. Both 0.59.0 (`acp-agent.js:1863,1990`) and pinned 0.85.1
-  (`:3921,4144`) treat that result as autonomous, ignore its `is_error`, and settle the held-open
-  turn with its earlier deferred `end_turn`; neither emits AIR failure metadata (0.85.1 does not
-  even stream the refusal text). The only structured trace is the vendor
-  `_claude/rateLimit` usage_update `status:rejected`. Disposable replay: real CLI 2.1.296
-  against a loopback fake API with a fake OAuth token (`/private/tmp/chuck-nq-scripts/`, outputs in
-  `/private/tmp/chuck-nq-run/`; no credentials or real quota). Chuck seq 801–802 reproduced
-  exactly with 0.59.0. The foreground-only shape gives `is_error:true`: pinned+AIR emits a typed
-  `limit/error` failure Chuck already treats as quota; adapters without AIR send the terminal RPC
-  `errorKind:rate_limit` plus usage-limit sentence, now fixed (changelog). Remaining repair needs
-  a carrier for the autonomous-cycle shape; FS-01.R40/R55, TS-04.R86/R105 and INV §11/§12 govern.
-  Do not scrape streamed text or stored conversations.
+None. NESTED-QUOTA-1 closed at `8f27207b`; exact repair and focused evidence recorded in the
+[quota receipt](../archive/reviews/architecture/v0.22.0-next.json). Existing provider/device gates
+remain owed. The running PATH adapter is not patched by this managed-release repair.
 
 ## Blocked on human
 
-- **NESTED-QUOTA-1 repair carrier (2026-11-07):** a usage-limit refusal in a background
-  task-notification cycle reaches Chuck as plain `end_turn` from both Claude adapters (finding
-  above). Options: (a) a reviewed pinned Claude ACP release patch, like Codex's `+chuck.1`, that
-  settles a held turn with a quota session failure when its autonomous cycle ends in a root
-  usage-limit refusal (standard Chuck AIR path; upstream report too); (b) treat the vendor
-  `_claude/rateLimit status:rejected` without later `allowed` as terminal quota evidence for an
-  otherwise successful turn (no adapter change, but a new `_meta`-based policy against the
-  standard-ACP preference, and account-wide rather than request-scoped); (c) leave manual
-  recovery and wait for upstream. Separately, the dev server (`./bin/chuck` without
-  `CHUCK_RUNTIME_ROOT`) runs the unpinned global adapter 0.59.0, which lacks AIR session failures.
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
   The four requested product changes are committed and independently reviewable. No unrelated

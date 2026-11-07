@@ -42,6 +42,14 @@
       "closes": [],
       "verified": true,
       "evidence": "Partial. Loopback replay with real CLI 2.1.296 and a fake OAuth token through Claude ACP 0.59.0 (the incident's running adapter) and pinned 0.85.1: a foreground usage-limit refusal reaches adapters without AIR as RPC errorKind:rate_limit plus the usage-limit sentence; rpcQuotaRefusal now admits it, and the TestTerminalRPCQuotaRefusalEntersRecovery/TestQuotaCheckRecognizesTerminalRPCQuota cases fail before the change. Plain API Error throttling and other non-quota categories stay excluded. Full make test (both Go variants) and make build pass. The incident's actual background task-notification cycle settles as plain end_turn in both adapters with no failure metadata; that repair awaits an operator carrier decision (HANDOFF Blocked on human)."
+    },
+    {
+      "kind": "fix",
+      "commits": ["8f27207b081563a40154c3e81fca51d5cc366e3e"],
+      "finding_ids": ["NESTED-QUOTA-1"],
+      "closes": ["NESTED-QUOTA-1"],
+      "verified": true,
+      "evidence": "Operator approved managed Claude ACP 0.85.1+chuck.1 carrier on 2026-11-07. Version-locked zero-fuzz patch, complete upstream/patched acp-agent.js hashes and assembly-stage regression gate. Only a held prompt's task-notification result with is_error, num_turns > 0 and same-cycle root synthetic usage-limit evidence joins the existing failure path; cancellation, child-only evidence, ordinary throttling, unrelated origins, successful/placeholder results and unheld prompts remain excluded. Candidate cleared on results, activation and later root frames. scripts/release/test-claude-quota-patch.mjs fails on pristine pinned source and passes patched; independent guard review passed. Actual CLI 2.1.296 against loopback fake API with fake OAuth and isolated home reproduces background refusal: patched AIR terminal result carries limit/error/actions:[] and reset wording; legacy result carries RPC errorKind:rate_limit plus reset wording. Logs /private/tmp/chuck-claude-quota-{wire,legacy-wire}.log; fixtures /private/tmp/chuck-nq-scripts; stage /private/tmp/chuck-claude-quota-stage. make check-specs, shell/Node syntax, focused release/backend/runtime quota tests and full internal/release tests pass. No Go product/UI changes; no credentials or real provider requests. Fixtures stopped. Managed release assembly/install and credentialed quota/continuation gates remain owed; PATH/global 0.59.0 is unchanged. Bounded audit remains review_complete:false, not combined next-release signoff."
     }
   ]
 }
