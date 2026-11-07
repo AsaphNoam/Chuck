@@ -28,13 +28,13 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 - **Field causes:** EFFORT-BUDGET awaits the affected worker's manifest/trace; no cause or fix is
   established. Frequent-429 and unchecked permission-save reports need affected server evidence.
 - **Future work:** direct-action migration stays paused on its transport blocker; passive quota
-  snapshots stay TBD. Project chat search is finished and available for independent review.
+  snapshots stay TBD. Project chat search review found two UI defects; its unit remains open for fixes.
 - **Checks:** unset `CHUCK_RUNTIME_ROOT`, use `GOFLAGS=-p=1` and a writable isolated Go cache.
   Full suites need loopback-capable execution.
 
 ## Active change
 
-No implementation is active. Project chat search finished on 2026-11-06; see the review queue.
+No implementation is active. Project chat search was reviewed on 2026-11-07; see its findings and review queue.
 Unrelated `docs/ideas.md` edits remain preserved.
 
 Verification for product inputs through `59c15236`: `make test` passes both Go variants,
@@ -204,6 +204,18 @@ Publication is not authorized; no push is part of this implementation.
 
 ## Changelog
 
+- **2026-11-07 — Project chat search reviewed:** backend and HTTP review found no actionable
+  defects; independent rendered checks confirmed hidden keyboard selection and incomplete return
+  to normal transcript following (SEARCH-1–2 below). Unit remains open. Tagged/untagged archive,
+  index and transcript tests plus tagged search HTTP tests pass. Rendered source-navigation,
+  reload/back, live-reading and recovery journeys pass at 1024/1440 in all four appearances,
+  with the two additional browser regressions recorded below. Browser report/screenshots:
+  `/private/tmp/chuck-review-ui-browser/`; isolated fixture and Chromium are stopped.
+  Invariant sweep: applicable
+  classes 1/2/4/7/8/9/10/11/13/14/16/17 checked; no applicable surface for 3/5/6/12/15.
+  Material tests have independent source-offset/lifecycle/store oracles; the existing recovery
+  journey only checked URL/highlight removal and missed following restoration. No pending local
+  implementation choices were recorded for this unit.
 - **2026-11-07 — NESTED-QUOTA-1 cause replayed; RPC carrier fixed (INV §11):** a replay with the
   real CLI showed that native usage-limit refusals arrive as terminal RPC `errorKind:rate_limit`
   with the usage-limit sentence on adapters without AIR. TS-04.R105 now admits that grammar for
@@ -243,7 +255,8 @@ Publication is not authorized; no push is part of this implementation.
 
 ## Review queue
 
-- **Project chat search and matching-passage navigation:** available for independent `/review`.
+- **Project chat search and matching-passage navigation:** reviewed 2026-11-07; open for
+  SEARCH-1–2 fixes and independent fix review.
   Unit starts after `41edd4ed`, with substantive commits `d950c437`, `80d80257`, `62865d1f` and
   `59c15236`; the closure also strengthens the untagged fallback paging test. Requirements:
   FS-05.R46–R53/A28–A32; TS-02.R63–R64; TS-03.R82–R84; TS-08.R156–R157.
@@ -384,6 +397,25 @@ but does not establish the incident's final SDK result or wire branch. Do not re
 global installation as part of this investigation.
 
 ## Review findings
+
+### Project chat search and matching-passage navigation — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** — **SEARCH-1** (INV §8; fix complexity: easy). At
+  `ui/src/features/dashboard/ProjectChatSearch.tsx:78–80`, arrow keys update selection without
+  scrolling the active option into the bounded popup. With 20 results, 15 ArrowDown presses leave
+  the selected row below the visible popup (row top 1289.9, popup bottom 778, popup scrollTop 0);
+  Enter opens that invisible selection. This breaks the visible keyboard-selection flow required
+  by FS-05.R49/A30 and TS-08.R156. Scroll the active option into view within the popup, preserving
+  input focus; verify ArrowDown/ArrowUp and wrapping across the scroll boundary in a real browser.
+- **Must fix** — **SEARCH-2** (INV §1/§8; fix complexity: easy). At
+  `ui/src/components/chat/TranscriptView.tsx:58–64`, leaving search reading mode resets
+  `readingRef` but does not restore bottom-follow state or scroll to latest. On an unavailable
+  passage, clicking **Open chat normally** clears the URL/highlight but leaves the long transcript
+  at scrollTop 0 (scrollHeight 6573, clientHeight 241) with **Jump to latest** still shown.
+  This violates TS-08.R157's normal open-at-latest behavior and FS-05.R49's normal-opening
+  recovery. Restore ordinary following when explicitly opening normally; extend the recovery
+  journey to assert bottom position and following after a later reply, while preserving reading
+  mode during an active search reference.
 
 ### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
 
