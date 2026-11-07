@@ -6,7 +6,13 @@ import { parseSearchReference, useSearchReference } from "./searchReference";
 
 function Location() { const location = useLocation(); return <output>{location.pathname}{location.search}</output>; }
 const row = { agent_id: "chat", name: "Authentication discussion", active: true, archived: false, snippet: "authentication", location_status: "reference", search_ref: { document_id: "turn:7", content_sha256: "a".repeat(64), start_byte: 12, end_byte: 26 } };
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
+let originalScrollIntoView: PropertyDescriptor | undefined;
+afterEach(() => {
+  cleanup(); vi.restoreAllMocks(); vi.useRealTimers();
+  if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+  else delete (HTMLElement.prototype as HTMLElement & { scrollIntoView?: () => void }).scrollIntoView;
+  originalScrollIntoView = undefined;
+});
 
 describe("project chat search", () => {
   // FS-05.R49: a response that ignores cancellation must not overwrite newer input.
@@ -65,6 +71,29 @@ describe("project chat search", () => {
     expect(screen.getAllByRole("option")).toHaveLength(20);
     expect(String(fetcher.mock.calls[1][0])).toContain("offset=20");
     expect(String(fetcher.mock.calls[3][0])).toContain("offset=0");
+  });
+
+  it("scrolls the selected option into view while keeping keyboard focus in the field", async () => {
+    vi.useFakeTimers();
+    const scrollIntoView = vi.fn();
+    originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    const results = Array.from({ length: 20 }, (_, index) => ({ ...row, agent_id: `chat-${index}`, name: `Chat ${index}` }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ results, total: 20, search_mode: "full_text" })));
+    render(<MemoryRouter><ProjectChatSearch project="a" /></MemoryRouter>);
+    const field = screen.getByRole("combobox", { name: "Search chats" });
+    field.focus();
+    fireEvent.change(field, { target: { value: "auth" } });
+    await act(async () => { vi.advanceTimersByTime(250); });
+    for (let index = 0; index < 15; index++) fireEvent.keyDown(field, { key: "ArrowDown" });
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(screen.getByRole("option", { name: /Chat 15/ }));
+    expect(document.activeElement).toBe(field);
+    expect(screen.getByRole("option", { name: /Chat 15/ })).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(field, { key: "ArrowDown" });
+    fireEvent.keyDown(field, { key: "ArrowUp" });
+    expect(screen.getByRole("option", { name: /Chat 15/ })).toHaveAttribute("aria-selected", "true");
+    expect(document.activeElement).toBe(field);
   });
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { searchArchiveProject } from "../../api/client";
 import type { ArchiveResult } from "../../api/types";
@@ -25,6 +25,10 @@ export function ProjectChatSearch({ project }: { project: string }) {
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const input = useRef<HTMLInputElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    popup.current?.querySelector<HTMLElement>(`#project-chat-result-${selected}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [open, selected, rows]);
   const load = async (append = false) => {
     request.current?.abort();
     const controller = new AbortController();
@@ -81,7 +85,7 @@ export function ProjectChatSearch({ project }: { project: string }) {
         }
         if (event.key === "Enter" && open && rows[selected]) { event.preventDefault(); choose(rows[selected]); }
       }} />
-    {open && query.trim() && <div className="project-chat-popup">
+    {open && query.trim() && <div ref={popup} className="project-chat-popup">
       <p className="form-info">{mode === "metadata" ? "Session metadata only; transcript search unavailable in this build." : "Completed turns and saved annotations. All terms match within one turn or metadata record."}</p>
       {loading && <p role="status">Searching…</p>}
       {error && <p role="alert">{error} <button type="button" onClick={() => setAttempt((value) => value + 1)}>Retry</button></p>}

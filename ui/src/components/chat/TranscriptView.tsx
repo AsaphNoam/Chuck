@@ -55,11 +55,21 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   const readingRef = useRef(readingSearch);
   const readingIdentity = `${agentId}:${searchReveal?.key ?? (readingSearch ? "pending" : "")}`;
   const previousReading = useRef(readingIdentity);
+  const wasReading = useRef(readingSearch);
   if (previousReading.current !== readingIdentity) {
     previousReading.current = readingIdentity;
     readingRef.current = readingSearch;
     if (readingSearch) atBottomRef.current = false;
   }
+  useLayoutEffect(() => {
+    if (wasReading.current && !readingSearch) {
+      readingRef.current = false;
+      atBottomRef.current = true;
+      setAtBottom(true);
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+    wasReading.current = readingSearch;
+  }, [readingIdentity, readingSearch]);
   const lastTopRef = useRef(0);
   const [atBottom, setAtBottom] = useState(!readingSearch);
   const [menu, setMenu] = useState<AnnotationMenuState | null>(null);

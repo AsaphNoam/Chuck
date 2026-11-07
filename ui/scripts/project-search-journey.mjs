@@ -14,6 +14,7 @@ mkdirSync(out, { recursive: true });
 const base = fixture.desktop;
 const project = fixture.project || "search-project";
 const checks = [], errors = [], lifecycle = [];
+let liveSearchResult;
 const browser = await chromium.launch();
 const record = (name, detail) => { checks.push({ name, pass: true, detail }); console.log(`PASS ${name}`); };
 const api = async (path, body, method = body === undefined ? "GET" : "POST") => {
@@ -109,6 +110,7 @@ try {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     assert(liveResult, "completed live turn becomes searchable");
+    liveSearchResult = liveResult;
     await search(page, "livepassageneedle");
     await page.getByRole("option").filter({ hasText: liveResult.name }).getByRole("button").click();
     await target(page, { expected: "livepassageneedle" });
@@ -138,6 +140,75 @@ try {
   await page.unroute(archivePattern);
 
   const referenceRows = await api(`/api/archive/projects/${encodeURIComponent(project)}?view=project_search&q=${encodeURIComponent(first.query)}&limit=20&offset=0`);
+  // Controlled 20-row popup proves keyboard selection remains visible at both
+  // scroll boundaries while focus stays in the combobox.
+  const seed = referenceRows.results.find((row) => row.search_ref) || referenceRows.results[0];
+  const manyRows = Array.from({ length: 20 }, (_, index) => ({ ...seed, agent_id: `keyboard-${index}`, name: `Keyboard result ${index}` }));
+  await page.route(archivePattern, async (route) => {
+    if (new URL(route.request().url()).searchParams.get("view") === "project_search") {
+      await route.fulfill({ json: { results: manyRows, total: manyRows.length, search_mode: "full_text" } });
+    } else await route.continue();
+  });
+  await page.goto(`${base}/project/${encodeURIComponent(project)}`);
+  const keyboardField = page.getByRole("combobox", { name: "Search chats" });
+  await keyboardField.fill("keyboardfixture");
+  const keyboardPopup = page.locator(".project-chat-popup");
+  await keyboardPopup.waitFor();
+  await page.getByRole("option", { name: /Keyboard result 19/ }).waitFor();
+  const assertActiveVisible = async (index) => {
+    const option = page.getByRole("option", { name: `Keyboard result ${index}` });
+    assert.equal(await option.getAttribute("aria-selected"), "true");
+    const [rowBox, popupBox, focused] = await Promise.all([
+      option.boundingBox(), keyboardPopup.boundingBox(), keyboardField.evaluate((element) => document.activeElement === element),
+    ]);
+    assert(rowBox && popupBox && rowBox.y >= popupBox.y && rowBox.y + rowBox.height <= popupBox.y + popupBox.height,
+      `active keyboard option ${index} is inside visible popup`);
+    assert(focused, "keyboard focus remains in search field");
+  };
+  for (let index = 0; index < 15; index++) await keyboardField.press("ArrowDown");
+  await assertActiveVisible(15);
+  await keyboardField.press("ArrowUp");
+  await assertActiveVisible(14);
+  await keyboardField.press("ArrowUp");
+  await assertActiveVisible(13);
+  // Wrap from the first row to the last, then back, across the scroll boundary.
+  for (let index = 0; index < 7; index++) await keyboardField.press("ArrowDown");
+  await assertActiveVisible(0);
+  await keyboardField.press("ArrowUp");
+  await assertActiveVisible(19);
+  await keyboardField.press("ArrowDown");
+  await assertActiveVisible(0);
+  record("controlled 20-result keyboard selection stays visible through down/up and wrapping");
+  await page.unroute(archivePattern);
+
+  if (liveSearchResult) {
+    const ref = liveSearchResult.search_ref;
+    const params = new URLSearchParams({ search_doc: ref.document_id, search_rev: ref.content_sha256, search_start: String(ref.start_byte), search_end: String(ref.end_byte) });
+    await page.route("**/api/sessions/*/search-match?*", (route) => route.fulfill({ json: { status: "unavailable", reason: "Controlled retained source unavailable", ranges: [] } }));
+    await page.goto(`${base}/${liveSearchResult.archived ? "archive" : "agent"}/${liveSearchResult.agent_id}?${params}`);
+    await page.getByRole("button", { name: "Open chat normally", exact: true }).click();
+    const assertFollowing = async (label) => {
+      await page.waitForFunction(() => {
+        const list = document.querySelector(".transcript-view");
+        return Boolean(list && list.scrollHeight - list.scrollTop - list.clientHeight < 24);
+      });
+      assert.equal(await page.getByRole("button", { name: "Jump to latest" }).count(), 0, `${label}: latest-follow action is hidden`);
+    };
+    await assertFollowing("normal opening");
+    await api(`/api/sessions/${liveSearchResult.agent_id}/prompt`, { text: "Recovery follow-up reply. ".repeat(120) });
+    await page.getByText("Recovery follow-up reply.", { exact: false }).first().waitFor();
+    let recoveryTurnIndexed = false;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const completed = await api(`/api/archive/projects/${encodeURIComponent(project)}?view=project_search&q=recovery%20follow-up`);
+      if (completed.results.some((row) => row.agent_id === liveSearchResult.agent_id)) { recoveryTurnIndexed = true; break; }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    assert(recoveryTurnIndexed, "later recovery reply turn completes and is indexed");
+    await assertFollowing("later live reply");
+    record("unavailable search recovery restores latest following through a later live reply");
+    await page.unroute("**/api/sessions/*/search-match?*");
+  }
+
   const result = referenceRows.results.find((row) => row.agent_id === first.agent_id);
   assert(result?.search_ref, "real server supplies reference for recovery branch");
   const ref = result.search_ref;
