@@ -233,7 +233,8 @@ func TestQuotaCheckRecognizesTerminalRPCQuota(t *testing.T) {
 	}{
 		{"claude-acp", `{}`, incidentText, "quota", nextJerusalem10pm(t)},
 		{"codex-acp", `{"message":"You’ve hit your usage limit. Try again at Oct 21st, 2099 9:00 AM.","codexErrorInfo":"usageLimitExceeded"}`, "", "quota", utc("2099-10-21T09:00:00Z")},
-		{"claude-acp", `{"errorKind":"rate_limit"}`, incidentText, "failed", time.Time{}},
+		{"claude-acp", `{"errorKind":"rate_limit"}`, incidentText, "quota", nextJerusalem10pm(t)},
+		{"claude-acp", `{"errorKind":"rate_limit"}`, "Internal error: API Error: Request rejected (429) · rate limited", "failed", time.Time{}},
 	} {
 		h := newQuotaCheckHarness(t)
 		spec, _ := h.spec(tc.backend, "TZ=UTC", "FAKEACP_PROMPT_REJECT_DATA="+tc.data, "FAKEACP_PROMPT_REJECT_MESSAGE="+tc.message)

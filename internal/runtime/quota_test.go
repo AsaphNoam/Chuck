@@ -694,7 +694,12 @@ func TestTerminalRPCQuotaRefusalEntersRecovery(t *testing.T) {
 		{"unrecognized category uses quota grammar", "claude-acp", `{"errorKind":"future_kind"}`, incidentText, true, true, "incident"},
 		{"billing category without text", "claude-acp", `{"errorKind":"billing_error"}`, "", true, true, ""},
 		{"account on hold", "claude-acp", `{"errorKind":"account_on_hold"}`, "", false, true, ""},
-		{"explicit throttling overrides matching text", "claude-acp", `{"errorKind":"rate_limit"}`, incidentText, true, false, ""},
+		// NESTED-QUOTA-1: native CLI 2.1.296 through Claude ACP 0.59.0/0.85.1
+		// (replayed 2026-11-07) categorizes its usage-limit refusal rate_limit;
+		// plain 429 throttling carries the CLI's `API Error:` text instead.
+		{"usage-limit refusal categorized rate_limit", "claude-acp", `{"errorKind":"rate_limit"}`, incidentText, true, true, "incident"},
+		{"plain throttling", "claude-acp", `{"errorKind":"rate_limit"}`, "Internal error: API Error: Request rejected (429) · rate limited", true, false, ""},
+		{"explicit non-quota category overrides matching text", "claude-acp", `{"errorKind":"overloaded"}`, incidentText, true, false, ""},
 		{"generic protocol error", "claude-acp", `{}`, "", true, false, ""},
 		{"clock without quota grammar", "claude-acp", `{}`, "Internal error: request failed; retry at 22:00 (Asia/Jerusalem)", false, false, ""},
 		{"oversized carrier", "claude-acp", `{"errorKind":"billing_error","pad":"` + strings.Repeat("x", maxSessionFailureBytes) + `"}`, "", false, false, ""},

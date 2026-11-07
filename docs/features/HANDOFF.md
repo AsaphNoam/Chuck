@@ -204,6 +204,12 @@ Publication is not authorized; no push is part of this implementation.
 
 ## Changelog
 
+- **2026-11-07 — NESTED-QUOTA-1 cause replayed; RPC carrier fixed (INV §11):** a replay with the
+  real CLI showed that native usage-limit refusals arrive as terminal RPC `errorKind:rate_limit`
+  with the usage-limit sentence on adapters without AIR. TS-04.R105 now admits that grammar for
+  `rate_limit`, while plain `API Error:` throttling stays excluded. The incident's actual
+  background-cycle shape is dropped inside both Claude adapters and remains open, blocked on the
+  carrier decision.
 - **2026-11-07 — Quota architecture findings fixed (ARCH-QUOTA-1–5):** accepted Cancel now beats
   late quota evidence (INV §1/§11); isolated checks share ordinary terminal-success recovery
   (INV §11) and carry the continued process's inherited Claude model and launch-frozen routing,
@@ -381,23 +387,36 @@ global installation as part of this investigation.
 
 ### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** — **NESTED-QUOTA-1** (confirmed symptom; probable integration normalization cause;
-  fix complexity: medium). `internal/runtime/quota.go:completePromptTurn`, Claude adapter
-  native-error normalization and `rpcQuotaRefusal`: after a foreground child fails, the root's
-  own synthetic `usage_limit_reached` refusal is rendered as assistant text and completes
-  `end_turn` without quota evidence (native root line 456; Chuck seq 801–802 above). The requested
-  evaluation stops without entering recovery. This is root provider evidence, not a request to
-  promote arbitrary tool text to root quota. FS-01.R40/R55/R57, TS-04.R86/R105/R107 and INV §11
-  govern the boundary. Trace/replay the actual native-to-ACP terminal mapping; preserve the
-  provider-owned usage-limit signal through the supported adapter boundary and reuse ordinary
-  quota settlement/reset scheduling. Verify root rejection even after child failure, ordinary
-  assistant/tool lookalikes, transient throttling, ownership, and reset-plus-one-minute behavior.
-  Do not indiscriminately reclassify every `rate_limit` or scrape stored conversations at runtime.
-  No separate observability defect is established: retained native history resolves the error's
-  origin; exact wire mapping remains a fix-validation prerequisite.
+- **Must fix** — **NESTED-QUOTA-1** (confirmed cause; blocked on the repair-carrier decision
+  below; fix complexity: medium). **Cause, replayed 2026-11-07:** the incident process (still
+  running, pid 69277, `CHUCK_AGENT_ID=a_e73e01`) is the dev server's PATH adapter, global Claude
+  ACP 0.59.0, with `CLAUDE_CODE_EXECUTABLE` native CLI 2.1.296. The user turn had launched
+  background arms; native lines 440/444 are `origin:task-notification` cycles, and the 456 root
+  refusal belongs to such a cycle. Both 0.59.0 (`acp-agent.js:1863,1990`) and pinned 0.85.1
+  (`:3921,4144`) treat that result as autonomous, ignore its `is_error`, and settle the held-open
+  turn with its earlier deferred `end_turn`; neither emits AIR failure metadata (0.85.1 does not
+  even stream the refusal text). The only structured trace is the vendor
+  `_claude/rateLimit` usage_update `status:rejected`. Disposable replay: real CLI 2.1.296
+  against a loopback fake API with a fake OAuth token (`/private/tmp/chuck-nq-scripts/`, outputs in
+  `/private/tmp/chuck-nq-run/`; no credentials or real quota). Chuck seq 801–802 reproduced
+  exactly with 0.59.0. The foreground-only shape gives `is_error:true`: pinned+AIR emits a typed
+  `limit/error` failure Chuck already treats as quota; adapters without AIR send the terminal RPC
+  `errorKind:rate_limit` plus usage-limit sentence, now fixed (changelog). Remaining repair needs
+  a carrier for the autonomous-cycle shape; FS-01.R40/R55, TS-04.R86/R105 and INV §11/§12 govern.
+  Do not scrape streamed text or stored conversations.
 
 ## Blocked on human
 
+- **NESTED-QUOTA-1 repair carrier (2026-11-07):** a usage-limit refusal in a background
+  task-notification cycle reaches Chuck as plain `end_turn` from both Claude adapters (finding
+  above). Options: (a) a reviewed pinned Claude ACP release patch, like Codex's `+chuck.1`, that
+  settles a held turn with a quota session failure when its autonomous cycle ends in a root
+  usage-limit refusal (standard Chuck AIR path; upstream report too); (b) treat the vendor
+  `_claude/rateLimit status:rejected` without later `allowed` as terminal quota evidence for an
+  otherwise successful turn (no adapter change, but a new `_meta`-based policy against the
+  standard-ACP preference, and account-wide rather than request-scoped); (c) leave manual
+  recovery and wait for upstream. Separately, the dev server (`./bin/chuck` without
+  `CHUCK_RUNTIME_ROOT`) runs the unpinned global adapter 0.59.0, which lacks AIR session failures.
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
   The four requested product changes are committed and independently reviewable. No unrelated

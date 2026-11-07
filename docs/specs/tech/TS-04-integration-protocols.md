@@ -1570,8 +1570,10 @@ prose. A fallback requires a verified provider-specific terminal quota carrier a
 quota category/error grammar, not RPC `-32603`, a date, HTTP 429 or a substring alone.
 Supported Claude cases use `data.errorKind` values `billing_error`/`account_on_hold`, or the
 verified native quota-error prefix/grammar in the terminal RPC message when categorical
-evidence is absent or unrecognized. An explicit recognized non-quota category such as
-`rate_limit` remains excluded. Codex's supported fallback uses
+evidence is absent or unrecognized, or is `rate_limit`: the native CLI categorizes its own
+usage-limit refusal `rate_limit` (replayed 2026-11-07 with CLI 2.1.296 through Claude ACP 0.59.0
+and 0.85.1), while plain 429 throttling carries the CLI's `API Error: …` text and stays
+excluded. Any other explicit recognized non-quota category remains excluded. Codex's supported fallback uses
 `data.codexErrorInfo:usageLimitExceeded`; generic throttling is excluded. The native text
 grammar is a fallback only at this provider-owned terminal boundary, never a general transcript
 classifier. Bind its normalized failure identity deterministically to the captured source

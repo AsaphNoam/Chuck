@@ -759,10 +759,13 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   The operator replaced R56/A38's unshipped preliminary-check policy with a direct attempt,
   including a session reset reported beside a monthly spend cap. Existing unknown-reset checks
   and manual-intervention rules remain otherwise unchanged. No historical failure is rearmed.
-  Open review note: pinned Claude ACP 0.85.1's own `providerFailureCategory` ranks its
-  usage-limit text above `errorKind`, whereas TS-04.R105 keeps an explicit `rate_limit`
-  excluded. If a real spend/usage refusal arrives with `rate_limit`, it stays an ordinary error;
-  prompt-failure diagnostics now log the `errorKind` value so a recurrence settles this.
+  Settled 2026-11-07: a replayed native usage-limit refusal arrives as `errorKind:rate_limit`
+  with the usage-limit sentence, so TS-04.R105 now lets that grammar decide for `rate_limit`,
+  matching the pinned adapter's own `providerFailureCategory` ranking.
+  Known gap: a refusal in a task-notification cycle of a turn held open for background
+  subagents is dropped by both Claude ACP 0.59.0 and 0.85.1, which settle the turn as plain
+  `end_turn` without failure metadata (R55/R40 unmet for that shape; awaiting an operator
+  decision on the repair carrier).
 
 - **Quota reset fallback (design 2026-10-16):** R48–R51/A31–A34 extend the confirmed reset extraction
   and bounded recovery direction with the operator's preference for checks outside the interrupted

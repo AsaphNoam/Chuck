@@ -20,17 +20,20 @@ var claudeUsageLimitPrefixes = []string{"You've hit your", "You've reached your"
 	"Fable 5 requires usage credits", "You're out of extra usage", "Your seat type doesn't include extra usage"}
 
 // claudeNonQuotaErrorKinds are the pinned Claude adapter's recognized
-// non-quota `errorKind` values; matching text cannot override them.
+// non-quota `errorKind` values; matching text cannot override them. A
+// `rate_limit` refusal is absent: the native CLI categorizes its own
+// usage-limit refusal that way, so its grammar decides (TS-04.R105).
 var claudeNonQuotaErrorKinds = map[string]bool{"authentication_failed": true, "oauth_org_not_allowed": true,
-	"verification_required": true, "cloud_credential_error": true, "rate_limit": true, "overloaded": true,
+	"verification_required": true, "cloud_credential_error": true, "overloaded": true,
 	"invalid_request": true, "model_not_found": true, "max_output_tokens": true, "server_error": true,
 	"incomplete_tool_call": true, "worker_shutdown": true, "no_result": true, "transport_lost": true}
 
 // rpcQuotaRefusal classifies a terminal session/prompt RPC error that arrived
 // without AIR quota metadata (TS-04.R105). Only verified provider carriers
 // count: Claude's `data.errorKind` billing_error/account_on_hold, or, when the
-// category is absent or unrecognized, the SDK's usage-limit grammar opening
-// the adapter's `Internal error: ` detail; Codex's `data.codexErrorInfo`
+// category is absent, unrecognized or rate_limit, the SDK's usage-limit
+// grammar opening the adapter's `Internal error: ` detail (plain throttling
+// reads `API Error: …` and stays excluded); Codex's `data.codexErrorInfo`
 // usageLimitExceeded. Oversized or malformed carriers stay ordinary errors.
 func rpcQuotaRefusal(backendType string, err error) bool {
 	var rpcErr *rpcError
