@@ -171,6 +171,24 @@ func TestQuotaCheckReportsIntervention(t *testing.T) {
 	}
 }
 
+// ARCH-QUOTA-3, TS-04.R86/R97: pinned Codex clears a streaming retry warning
+// internally, so its clean end_turn reply makes the check ready, as in an
+// ordinary turn; a terminal failure on the result still fails the check.
+func TestQuotaCheckRecoveredRetryWarningIsReady(t *testing.T) {
+	warning := `{"id":"check:retry","revision":1,"category":"limit","severity":"warning","title":"Too many requests; retrying","actions":[]}`
+	terminal := `{"id":"check:server","revision":1,"category":"service","severity":"error","title":"Service unavailable","actions":[]}`
+	for env, want := range map[string]string{
+		"FAKEACP_FAILURE_UPDATE=" + warning:  "ready",
+		"FAKEACP_FAILURE_RESULT=" + terminal: "failed",
+	} {
+		h := newQuotaCheckHarness(t)
+		spec, _ := h.spec("codex-acp", env)
+		if out := h.c.RunQuotaCheck(context.Background(), spec); out.Outcome != want || !out.Cleaned {
+			t.Fatalf("%s: outcome = %+v, want %s and cleaned", env, out, want)
+		}
+	}
+}
+
 // TS-04.R105: isolated checks share the terminal RPC quota classifier and
 // reset resolver; explicit throttling stays an ordinary failed check.
 func TestQuotaCheckRecognizesTerminalRPCQuota(t *testing.T) {

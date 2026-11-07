@@ -332,6 +332,9 @@ func (c *ChatRuntime) driveQuotaCheck(ctx context.Context, as *agentState, ad ba
 	if hasResultFailure && (failure == nil || resultFailure.ID == failure.ID && resultFailure.Revision >= failure.Revision || resultFailure.Quota && !failure.Quota) {
 		failure = &resultFailure
 	}
+	if err == nil && recoveredByTerminalSuccess(res, hasResultFailure) {
+		failure = nil // a recovered streaming warning, as in an ordinary turn
+	}
 	quota, text, observed := rpcQuotaRefusal(spec.BackendType, err), promptErrorText(err), promptErrorArrival(err)
 	if failure != nil {
 		quota, text, observed = failure.Quota, failure.Text+"\n"+text, failure.ObservedAt

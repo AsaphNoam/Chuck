@@ -391,13 +391,6 @@ the root-refusal detection owner; do not duplicate it. No product code or normat
   settings resolution plus fake wire/store probes confirm both cases. Carry provable effective
   selection through the existing check boundary, or refuse when equivalence is unknown; revalidate
   it before continuation. Do not load work instructions or silently switch authentication.
-- **Must fix** — **ARCH-QUOTA-3** (fix complexity: medium).
-  `internal/runtime/quota_check.go:106–109,328–353`: a streaming Codex retry warning remains in
-  `probe.failure` after a successful reply and clean `end_turn`, so the check becomes
-  `needs_attention/check_failed` instead of authorizing continuation. Pinned Codex clears its
-  recovered warning internally without a clear notification; ordinary runtime completion already
-  handles that contract. TS-04.R86/R97 and INV §11 govern. Reuse terminal-success normalization at the check
-  boundary while preserving real terminal failures; the archived recovered-warning probe fails.
 - **Worth fixing** — **ARCH-QUOTA-4** (fix complexity: medium).
   `internal/server/quota_dispatch.go:16`, `quota_check.go:312–338`, and
   `task_dispatcher.go:41–52`: exact-session cleanup blocks the shared dispatcher before unrelated

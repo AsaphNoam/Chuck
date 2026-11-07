@@ -171,6 +171,16 @@ func (r *Registry) ClearQuotaBlock(agentID, generation, turnID string) {
 	}
 }
 
+// recoveredByTerminalSuccess reports a terminal end_turn without failure
+// metadata. Both pinned providers clear an active streaming failure internally
+// after a real model success; that recovery has no clear notification on the
+// wire, so this result is the confirmation (TS-04.R86). Ordinary turns and
+// isolated checks share it.
+func recoveredByTerminalSuccess(result json.RawMessage, hasResultFailure bool) bool {
+	var plain acpPromptResult
+	return !hasResultFailure && json.Unmarshal(result, &plain) == nil && plain.StopReason == "end_turn"
+}
+
 // completePromptTurn is shared by user prompts and every owned activation.
 // Streaming failure metadata becomes terminal evidence only at completion.
 func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey string, result json.RawMessage, promptErr error) {
@@ -204,10 +214,7 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 			as.turnQuota = &QuotaEvidence{FailureID: resultFailure.ID, Revision: resultFailure.Revision}
 		}
 	}
-	// Both pinned providers clear an active quota failure internally after a
-	// real model success. That recovery has no clear notification on the wire;
-	// a successful terminal result without failure metadata is the confirmation.
-	if !hasResultFailure && td.StopReason == "end_turn" && validInlineReceipt(result) {
+	if td.StopReason != "cancelled" && recoveredByTerminalSuccess(result, hasResultFailure) {
 		as.turnFailure = nil
 		as.turnQuota = nil
 	}
