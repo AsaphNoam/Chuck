@@ -40,7 +40,7 @@ func buildFakeVersion(t *testing.T, parent, version string) string {
 
 func testComponents(version string) map[string]string {
 	return map[string]string{
-		"node": "22.0.0", "claude-agent-acp": "0.85.1", "codex-acp": "2.1.1+chuck.1",
+		"node": "22.0.0", "claude-agent-acp": "0.85.1+chuck.1", "codex-acp": "2.1.1+chuck.1",
 		"claude": "2.1.286", "codex": "0.159.3", "chuck": version,
 	}
 }

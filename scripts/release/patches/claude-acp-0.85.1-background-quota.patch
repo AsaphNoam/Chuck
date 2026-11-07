@@ -1,0 +1,54 @@
+--- a/node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js
++++ b/node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js
+@@ -2263,6 +2263,8 @@
+         let lastAssistantError;
+         let lastAssistantWasUsageLimit = false;
+         let lastAssistantFailureTitle;
++        // A root usage-limit banner belongs only to the next result cycle.
++        let cycleRootUsageLimit;
+         // When a streaming classifier refuses a turn, the assistant message carries
+         // stop_reason "refusal" and structured stop_details. We capture the
+         // human-readable explanation so the terminal `result` can surface it.
+@@ -2478,6 +2480,7 @@
+             lastAssistantError = undefined;
+             lastAssistantWasUsageLimit = false;
+             lastAssistantFailureTitle = undefined;
++            cycleRootUsageLimit = undefined;
+             lastRefusalExplanation = null;
+             // Do NOT reset currentStreamMessageId or the streamed blocks here. Turn
+             // activation can fire mid-message (the replayed user echo with
+@@ -4142,6 +4145,16 @@
+                             // failActive a live turn (the held one, or the user's next
+                             // prompt) whose own result recorded a different outcome.
+                             if (isAutonomousResult) {
++                                // Chuck: the held prompt still owns its background summary.
++                                // A root refusal in that summary is terminal quota evidence,
++                                // not the successful outcome saved before the child finished.
++                                const quota = cycleRootUsageLimit;
++                                if (message.origin.kind === "task-notification" &&
++                                    isHeldOpen(session.activeTurn) && message.is_error &&
++                                    message.num_turns > 0 && quota) {
++                                    await failActiveWithSessionFailure("quota_exhausted", internalErrorForClient(errorKindData(quota.error), quota.title), quota.title);
++                                    break;
++                                }
+                                 // A held turn's followup can itself plan: the subagent
+                                 // finishes, the model writes the plan and calls ExitPlanMode
+                                 // inside the task-notification cycle, and the user answers it
+@@ -4438,6 +4451,7 @@
+                             }
+                         }
+                         finally {
++                            cycleRootUsageLimit = undefined;
+                             if (!isAutonomousResult) {
+                                 session.emittedAssistantText = false;
+                                 // The early exits above (cancelled guard, refusal) skip the
+@@ -4719,6 +4733,9 @@
+                         // measurement. A turn with no real frame leaves the snapshot null
+                         // and the result emits no usage_update, keeping the client's value.
+                         if (message.type === "assistant" && message.parent_tool_use_id === null) {
++                            cycleRootUsageLimit = isSyntheticUsageLimitMessage(message.message)
++                                ? { error: message.error, title: assistantMessageText(message.message) }
++                                : undefined;
+                             if (message.message.model !== "<synthetic>") {
+                                 lastAssistantUsage = snapshotFromUsage(message.message.usage);
+                                 lastAssistantTotalUsage = totalTokens(lastAssistantUsage);

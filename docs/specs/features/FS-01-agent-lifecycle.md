@@ -764,8 +764,9 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   matching the pinned adapter's own `providerFailureCategory` ranking.
   Known gap: a refusal in a task-notification cycle of a turn held open for background
   subagents is dropped by both Claude ACP 0.59.0 and 0.85.1, which settle the turn as plain
-  `end_turn` without failure metadata (R55/R40 unmet for that shape; awaiting an operator
-  decision on the repair carrier).
+  `end_turn` without failure metadata. The operator approved a managed-adapter patch on
+  2026-11-07; TS-04.R86 defines the held-turn, same-cycle root failure carrier. PATH adapters
+  remain unaffected; credentialed provider acceptance remains owed.
 
 - **Quota reset fallback (design 2026-10-16):** R48–R51/A31–A34 extend the confirmed reset extraction
   and bounded recovery direction with the operator's preference for checks outside the interrupted

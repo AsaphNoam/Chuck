@@ -1124,6 +1124,16 @@ without failure metadata remain recoverable, and cancellation keeps `cancelled`.
 The same failure id/revision seen in an update and result yields one episode. Root ownership is
 never inferred from child activity, current counters, arbitrary message text or an HTTP 429.
 
+The managed Claude 0.85.1 adapter applies a version-locked `+chuck.1` repair: when a
+held user turn's `task-notification` followup ends with `is_error:true`, `num_turns > 0`
+and a root synthetic usage-limit assistant frame from that same result cycle, settle
+the held prompt through the existing quota `sessionFailure` path (legacy clients receive
+the existing terminal RPC error). Clear that candidate on every result, turn activation,
+or later real root assistant frame. Child frames, unrelated autonomous origins, successful
+results, zero-turn placeholders and unheld turns do not authorize this repair; cancellation
+takes precedence. Release assembly verifies complete input/output hashes and zero-fuzz patch
+application. Unmanaged PATH adapters remain unchanged.
+
 **R87 (implemented conservative unknown-reset behavior 2026-10-11; provider timestamp verification remains open) — Only applicable reset evidence can authorize timed continuation.** Decode
 Claude `usage_update._meta["_claude/rateLimit"]` separately from context usage; its subscription
 `status:"rejected"`, `rateLimitType` and finite `resetsAt` can describe the blocking window only

@@ -15,6 +15,9 @@ NODE_VERSION="${NODE_VERSION:-22.22.0}"
 # dependency update and requires refreshing the matching Node archive.
 NODE_SHA256="5ed4db0fcf1eaf84d91ad12462631d73bf4576c1377e192d222e48026a902640"
 CLAUDE_ACP_VERSION="0.85.1"
+CLAUDE_ACP_COMPONENT_VERSION="${CLAUDE_ACP_VERSION}+chuck.1"
+CLAUDE_ACP_SOURCE_SHA256="644daa80157fcdfe7b806cbd23b56f75be4fed146a890aa5e219204e689aca13"
+CLAUDE_ACP_PATCHED_SHA256="1a46fee6cf61a7e5c9a119173812dec95a8d60b6ad162d01f25ba07cb56c4867"
 CODEX_ACP_VERSION="2.1.1"
 CODEX_ACP_COMPONENT_VERSION="${CODEX_ACP_VERSION}+chuck.1"
 CODEX_ACP_SOURCE_SHA256="4b76310393d756a0f111687cd9df899720f36f7c59b1eb1d86429484034ff91b"
@@ -65,6 +68,18 @@ cp scripts/release/package.json scripts/release/package-lock.json "$stage/runtim
 [ -x "$stage/runtime/$CLAUDE_NATIVE" ] || die "bundled Claude Code was not installed"
 [ -x "$stage/runtime/$CODEX_NATIVE" ] || die "bundled Codex CLI was not installed"
 
+# Claude ACP drops root quota refusals from held-turn background followups.
+# Keep this repair tied to the complete reviewed upstream artifact (TS-04.R86).
+claude_acp_source="$stage/runtime/node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js"
+claude_acp_sum="$(shasum -a 256 "$claude_acp_source" | awk '{print $1}')"
+[ "$claude_acp_sum" = "$CLAUDE_ACP_SOURCE_SHA256" ] \
+  || die "Claude ACP ${CLAUDE_ACP_VERSION} source does not match the reviewed patch input"
+patch --fuzz=0 -p1 -d "$stage/runtime" < "scripts/release/patches/claude-acp-${CLAUDE_ACP_VERSION}-background-quota.patch"
+claude_acp_sum="$(shasum -a 256 "$claude_acp_source" | awk '{print $1}')"
+[ "$claude_acp_sum" = "$CLAUDE_ACP_PATCHED_SHA256" ] \
+  || die "Claude ACP quota patch did not produce the complete reviewed output"
+"$stage/runtime/node/bin/node" scripts/release/test-claude-quota-patch.mjs "$stage/runtime"
+
 # Codex ACP advertises steering but its idle branch starts a detached turn.
 # Keep Chuck's no-consumption fallback explicit and version-locked until an
 # upstream release provides the same request-level contract (TS-04.R51/R79).
@@ -105,7 +120,7 @@ esac
 
 "$stage/libexec/chuck" release wrapper --dir "$stage"
 "$stage/libexec/chuck" release manifest --dir "$stage" --version "$VERSION" \
-  --node "$NODE_VERSION" --claude-acp "$CLAUDE_ACP_VERSION" --codex-acp "$CODEX_ACP_COMPONENT_VERSION" \
+  --node "$NODE_VERSION" --claude-acp "$CLAUDE_ACP_COMPONENT_VERSION" --codex-acp "$CODEX_ACP_COMPONENT_VERSION" \
   --claude "$CLAUDE_CLI_VERSION" --codex "$CODEX_CLI_VERSION"
 
 mkdir -p "$OUT_DIR"

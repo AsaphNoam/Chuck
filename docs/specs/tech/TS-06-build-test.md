@@ -266,6 +266,11 @@ release documentation move together. R26's assembly proofs carry forward against
 installed Codex package whose version satisfies the adapter's declared range, a hashed unpatched
 adapter bundle, the version-named steering patch applied with zero fuzz, a hashed patched output,
 the `2.1.1+chuck.1` component report and the source comparison proving the patch is still needed.
+Claude's R86 background-quota repair likewise uses a version-named zero-fuzz patch against
+the complete hashed `dist/acp-agent.js`, verifies the complete patched output, and reports
+`0.85.1+chuck.1`. Run `scripts/release/test-claude-quota-patch.mjs` against the staged runtime
+before packaging; its focused adapter-branch regression complements the isolated native replay
+and does not replace credentialed provider acceptance.
 The fake ACP runtime adds the reviewed 2.1.1 AIR tool-call shapes, Claude notices and the Claude
 steer-backgrounds-tool marker from the inspected dists, not Chuck's mapper. Real-provider evidence
 reruns R31's two-point smoke for both providers, adding one notice (where a provider emits one),

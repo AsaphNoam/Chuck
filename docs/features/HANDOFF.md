@@ -34,7 +34,19 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-No implementation is active. Project chat search's SEARCH-1–2 findings are closed on 2026-11-07.
+NESTED-QUOTA-1 repair is verified; receipt/handoff closure follows the repair commit.
+The operator approved the pinned Claude adapter patch carrier on 2026-11-07. The managed
+`0.85.1+chuck.1` patch, complete source/output hashes and assembly regression gate are in place.
+Focused adapter regression is red before/green after; independent guard review passes. Real CLI
+2.1.296 plus isolated fake OAuth/loopback API replays the actual background notification refusal:
+AIR returns terminal `limit/error/actions:[]`, legacy returns `errorKind:rate_limit` plus reset
+text. No credentials/provider calls. Logs `/private/tmp/chuck-claude-quota-{wire,legacy-wire}.log`;
+fixtures `/private/tmp/chuck-nq-scripts/`, staged runtime `/private/tmp/chuck-claude-quota-stage`.
+`make check-specs`, adapter lifecycle checks, shell/Node syntax and focused release/backend/runtime
+quota tests pass (`/private/tmp/chuck-claude-quota-{specs,tests}.log`). No Go product/UI change;
+full assembly/install and credentialed quota/continuation acceptance remain owed. PATH/global
+adapters (including the dev server's 0.59.0) are unaffected; this is a managed-release repair.
+Project chat search's SEARCH-1–2 findings are closed on 2026-11-07.
 Unrelated `docs/ideas.md` edits remain preserved.
 
 Search fix closure: `make check-specs`, all 1181 UI tests and `make embed` pass; generated UI is
@@ -213,6 +225,12 @@ Publication is not authorized; no push is part of this implementation.
   fake-runtime, release-CI assembly, and native-provider proofs passed; live receipts are owed.
 
 ## Changelog
+
+- **2026-11-07 — NESTED-QUOTA-1 managed carrier repair (INV §11/§12/§17):** patch pinned Claude
+  ACP to fail a held prompt on its own background summary's same-cycle root quota refusal.
+  Clear stale candidates, preserve cancellation/child exclusions; lock release input/output hashes
+  and report `0.85.1+chuck.1`. Focused regression fails before/passes after; actual CLI/fake API
+  replay verifies AIR and legacy terminal carriers. Native/provider publication gates remain owed.
 
 - **2026-11-07 — Project search findings closed (INV §1/§8):** SEARCH-1 now scrolls the active
   result into the popup while retaining keyboard focus; SEARCH-2 restores latest following when
