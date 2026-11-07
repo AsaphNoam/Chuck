@@ -279,6 +279,65 @@ evidence; prompt delivery alone cannot establish improvement. History separates 
 recovery (`fb410fdb`); it does not establish when the reported inference began. No product code,
 specs, live user state or unrelated dirty files changed.
 
+## Closed investigations
+
+### NESTED-QUOTA — Add source 3 did not automatically continue (2026-11-07)
+
+**Report (verbatim):**
+
+> an agent looked into a single event where the chuck quota continuation didn't work, this is the explanation it gave:
+>
+> Chuck did not schedule continuation because this failure arrived as a tool result, while the main conversation ended normally.
+>
+> In “Add source 3” (a_e73e01), I verified:
+>
+> Event 800: a tool failed with the provider’s spend-limit error.
+> Event 801: the assistant repeated that error as ordinary text.
+> Event 802: the turn finished with stop_reason: end_turn.
+> Chuck’s recovery logic requires a recognized quota failure from the main provider session. It does not schedule recovery from errors embedded in tool output or assistant text. Consequently, this turn never entered quota recovery for 7:21pm.
+>
+> My earlier spend-cap explanation was incomplete: the current code accepts a verified reset time even when the message mentions a spend limit. The issue here is how the nested failure reached Chuck, not the monthly-limit wording.
+>
+> Your later “Keep going” successfully restarted work. This exposes a recovery gap for nested provider failures; I made no changes.
+
+**Classification / confidence: works as specified — confirmed.** FS-01.R40/R55 explicitly exclude
+tool/assistant text; TS-04.R105 also excludes child events. This is an existing product boundary,
+not a missing specification or demonstrated code defect. FS-01.R57 permits a valid reset beside
+monthly-spend wording only after independent terminal quota classification. Extending recovery to
+native nested failures needs a product decision about trusted child evidence and which unfinished
+work to continue; it must not be implemented by matching arbitrary transcript text. Product question:
+should a verified native child quota refusal authorize continuation of its parent, and under what
+ownership and successful-parent-completion conditions? No fix unit or Fix model recommendation.
+
+**Evidence:** read-only `read_agent_transcript(a_e73e01, since_seq:790/799)` on 2026-11-07
+(snapshot through 987) identifies **Add source 3**, Hoid project `hoid-20261029t181502z`.
+The bounded transcript shows foreground `think` (`subagent_type:general-purpose`,
+`run_in_background:false`), nested assessor activity, then the failed tool result:
+
+> Agent terminated early due to an API error: You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your session limit resets 7:20pm (Asia/Jerusalem) (error type rate_limit, HTTP 429, request id req_011CgmvuwtPYAkJmNTSKQBUv, model sent to the API: claude-opus-5-5)
+
+The assistant repeats the usage/reset sentence, followed by `turn end (end_turn)`, then the user's
+`Keep going` and resumed tool work. This independently verifies the reported sequence, but the
+transcript API does not expose individual sequence labels or raw terminal RPC metadata. Incident
+Chuck version, Auto continue configuration and event timestamps were not supplied; no historical
+database inspection or 19:21 dispatch-eligibility claim is made.
+
+**Code evidence at `4255da86`:** `internal/runtime/chat.go:onNotification` routes child frames away
+before root failure capture. `internal/runtime/session_failure.go:decodeSessionFailureRecord`
+requires a typed AIR session-failure envelope; failed-tool text is not such an envelope.
+`internal/runtime/quota.go:completePromptTurn` obtains quota evidence from root failure metadata or
+`rpcQuotaRefusal` on the terminal prompt error, never transcript prose.
+`internal/server/quota.go:settleQuotaTurn` creates an episode only with non-nil quota evidence.
+An explicit terminal Claude `data.errorKind:rate_limit` is independently excluded by the classifier;
+the words `error type rate_limit` inside this tool result do not prove that terminal field existed.
+`6bbf4c3f` introduced the terminal-RPC fallback with the same text/child exclusions;
+`945ce4ca` repaired reset resolution, not evidence scope. Existing regression sources
+`TestQuotaNotificationIgnoredForReplayAndChildScope` and
+`TestTerminalRPCQuotaRefusalSharedByActivationNotProse` protect that boundary. No tests were run
+or added: investigation stopped on the specified-behavior classification under workflow §12.2.
+Only this state record changed; product code, specifications and unrelated `docs/ideas.md` edits
+remain untouched.
+
 ## Review findings
 
 None.
