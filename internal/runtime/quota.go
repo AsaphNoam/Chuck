@@ -211,7 +211,9 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 		as.turnFailure = nil
 		as.turnQuota = nil
 	}
-	if as.caps.SessionFailure && as.turnQuota != nil && td.Quota == nil {
+	// TS-04.R86/FS-01.R43: an accepted Cancel wins over late provider quota
+	// evidence, so the cancelled work is never re-armed for continuation.
+	if as.caps.SessionFailure && as.turnQuota != nil && td.Quota == nil && td.StopReason != "cancelled" {
 		q := *as.turnQuota
 		td.Quota = &q
 	}

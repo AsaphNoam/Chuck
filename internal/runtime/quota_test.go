@@ -306,6 +306,47 @@ func TestCancelledTurnLateCompletionDoesNotConfirmQuotaRecovery(t *testing.T) {
 	}
 }
 
+// ARCH-QUOTA-1, TS-04.R86: quota evidence arriving with or before the late
+// completion of an accepted Cancel cannot replace cancelled or reach settlement.
+func TestCancelledTurnIgnoresLateQuotaEvidence(t *testing.T) {
+	q := quotaFailure("late:error", 1, "limit", "error")
+	for _, carrier := range []string{"FAKEACP_FAILURE_RESULT", "FAKEACP_FAILURE_UPDATE"} {
+		t.Run(carrier, func(t *testing.T) {
+			hold := filepath.Join(t.TempDir(), "release")
+			c, h, ch, _ := startQuotaTestAgent(t, "hold_turn", "FAKEACP_HOLD_FILE="+hold,
+				"FAKEACP_HOLD_IGNORE_CANCEL=1", carrier+"="+q)
+			c.cancelGrace = 0
+			mu, calls := recordQuotaSettlement(c)
+			if err := c.SendPrompt(context.Background(), h.AgentID, "continue"); err != nil {
+				t.Fatal(err)
+			}
+			waitForChunk(t, ch, "working")
+			if ok, err := c.Cancel(context.Background(), h.AgentID); err != nil || !ok {
+				t.Fatalf("Cancel = %v, %v", ok, err)
+			}
+			if err := os.WriteFile(hold, []byte("go"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, ev := range drainTurn(t, ch) {
+				if ev.Type == EvTurnEnd {
+					var end TurnEndData
+					if err := json.Unmarshal(ev.Data, &end); err != nil {
+						t.Fatal(err)
+					}
+					if end.StopReason != "cancelled" || end.Quota != nil {
+						t.Fatalf("cancelled turn became %+v; want cancelled without quota", end)
+					}
+				}
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(*calls) != 1 || (*calls)[0].quota != nil || (*calls)[0].successful {
+				t.Fatalf("settlement calls = %+v; want one unsuccessful call without quota", *calls)
+			}
+		})
+	}
+}
+
 func TestQuotaStaleCompletionCannotSettleAfterTurnChanges(t *testing.T) {
 	c, h, _, as := startQuotaTestAgent(t, "stream_text")
 	mu, calls := recordQuotaSettlement(c)

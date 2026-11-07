@@ -381,13 +381,6 @@ Focused audit at `8d9cb623`; [report and probes](../archive/reviews/architecture
 and [receipt](../archive/reviews/architecture/v0.22.0-next.json). Existing NESTED-QUOTA-1 retains
 the root-refusal detection owner; do not duplicate it. No product code or normative specs changed.
 
-- **Must fix** — **ARCH-QUOTA-1** (fix complexity: medium).
-  `internal/runtime/quota.go:191–245`: after accepted Cancel, a late typed AIR quota result
-  overwrites `cancelled` with `error` and fresh quota evidence. The ordinary settlement callback
-  can consequently arm recovery for the cancelled work. TS-04.R86 and FS-01.R43 require manual
-  cancellation to win (INV §1/§11). The real runtime/transport probe fails with non-nil quota on the cancelled
-  turn. Preserve cancellation precedence across both result and retained-update evidence; verify
-  through server settlement that no new recovery schedule or continuation is created.
 - **Must fix** — **ARCH-QUOTA-2** (fix complexity: medium).
   `internal/runtime/quota_check.go:253–269,441–442` and
   `internal/server/quota_check.go:32–43,82–103`: isolated checks do not establish the same effective

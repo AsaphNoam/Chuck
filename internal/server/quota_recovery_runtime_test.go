@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -71,6 +74,39 @@ func TestFailedProviderTurnAdmitsLaterMailAfterQuotaCancellation(t *testing.T) {
 				t.Fatalf("provider prompts=%d pending=%+v status=%+v quota=%+v", got, pending, st, q)
 			}
 		})
+	}
+}
+
+// ARCH-QUOTA-1, FS-01.R43: a late provider quota result after an accepted
+// turn Cancel creates no recovery episode and no continuation prompt.
+func TestCancelledTurnLateQuotaCreatesNoContinuation(t *testing.T) {
+	hold := filepath.Join(t.TempDir(), "release")
+	t.Setenv("FAKEACP_CAPS", "1")
+	t.Setenv("FAKEACP_HOLD_FILE", hold)
+	t.Setenv("FAKEACP_HOLD_IGNORE_CANCEL", "1")
+	t.Setenv("FAKEACP_FAILURE_RESULT", `{"id":"late-quota","revision":1,"category":"limit","severity":"error","title":"Account quota exhausted","actions":[]}`)
+	srv, ts, promptLog := activationTestServer(t)
+	t.Setenv("FAKEACP_SCENARIO", "hold_turn") // after the harness default; read at launch
+	srv.registry.Chat().SetCancelGrace(0)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "first"}); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("prompt = %d: %s", resp.StatusCode, body)
+	}
+	waitPrompts(t, promptLog, 1)
+	waitStatus(t, srv, id, "busy")
+	if resp, raw := post(t, ts.URL+"/api/sessions/"+id+"/cancel", map[string]string{"target": "turn"}); resp.StatusCode != http.StatusAccepted || !strings.Contains(string(raw), `"cancelled":true`) {
+		t.Fatalf("cancel = %d: %s", resp.StatusCode, raw)
+	}
+	if err := os.WriteFile(hold, []byte("go"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, srv, id, "idle")
+	srv.dispatchQuotaContinuations(context.Background())
+	if q, err := srv.stateStore.GetQuota(id); !errors.Is(err, state.ErrNotFound) {
+		t.Fatalf("quota after cancelled turn = %+v, %v; want no episode", q, err)
+	}
+	if got := promptCount(t, promptLog); got != 1 {
+		t.Fatalf("provider prompts = %d, want no continuation", got)
 	}
 }
 
