@@ -12,12 +12,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 - **Architecture:** combined audit and all four repairs are complete; independent preparation
   signoff at `6dfae975` covers `be766a50` with no new findings.
   [Receipt](../archive/reviews/architecture/v0.21.0-next.json). Release gate passes.
-  Focused quota-flow audit on 2026-11-07 at `8d9cb623` found three additional Must-fix and two
-  Worth-fixing defects; NESTED-QUOTA-1 remains independently owned below. The new findings block
-  current-candidate release; the earlier gate result above describes v0.22.0 preparation only.
-  [Quota report](../archive/reviews/architecture/v0.22.0-next-quota.md) /
-  [bounded receipt](../archive/reviews/architecture/v0.22.0-next.json); this focused audit is not
-  combined next-release signoff.
+  Focused quota-flow audit on 2026-11-07 at `8d9cb623`: its five ARCH-QUOTA findings are fixed
+  and recorded in the [bounded receipt](../archive/reviews/architecture/v0.22.0-next.json)
+  ([report](../archive/reviews/architecture/v0.22.0-next-quota.md)). NESTED-QUOTA-1 remains open
+  below and blocks current-candidate release; this focused audit is not combined next-release signoff.
 - **Verification:** full `make test` (both Go variants) and 1172 UI tests pass at `84f65de9`,
   reused for unchanged product inputs. Release preparation passes package/spec checks and
   `make dist VERSION=0.22.0`; embed bytes are unchanged. Logs:
@@ -206,6 +204,12 @@ Publication is not authorized; no push is part of this implementation.
 
 ## Changelog
 
+- **2026-11-07 — Quota architecture findings fixed (ARCH-QUOTA-1–5):** accepted Cancel now beats
+  late quota evidence (INV §1/§11); isolated checks share ordinary terminal-success recovery
+  (INV §11) and carry the continued process's inherited Claude model and launch-frozen routing,
+  which joins the selection key (INV §2/§12; TS-04.R97 updated); a policy reread failure defers
+  the exact claim (INV §7/§9); probe cleanup runs off the shared dispatch loop (INV §16).
+  Each has a focused regression; receipt updated. NESTED-QUOTA-1 remains open.
 - **2026-11-06 — Project chat search finished:** compact project-heading search reuses SQLite
   FTS5 with partial words and running/stopped/archived priority. Exact source references open the
   shared live/archive renderer at the real passage; older rows reconstruct only after byte equality
@@ -374,13 +378,6 @@ but does not establish the incident's final SDK result or wire branch. Do not re
 global installation as part of this investigation.
 
 ## Review findings
-
-### ARCH-QUOTA — interruption detection through same-work continuation (2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Focused audit at `8d9cb623`; [report and probes](../archive/reviews/architecture/v0.22.0-next-quota.md)
-and [receipt](../archive/reviews/architecture/v0.22.0-next.json). Existing NESTED-QUOTA-1 retains
-the root-refusal detection owner; do not duplicate it. No product code or normative specs changed.
-
 
 ### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
 

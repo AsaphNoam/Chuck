@@ -20,5 +20,20 @@
     { "id": "ARCH-QUOTA-4", "severity": "worth_fixing" },
     { "id": "ARCH-QUOTA-5", "severity": "worth_fixing" }
   ],
-  "updates": []
+  "updates": [
+    {
+      "kind": "fix",
+      "commits": [
+        "bafade3eec4d562144b17afe6eb5a7af864f8f88",
+        "efc65aaac025ca5bd686ffd37f03e757f89d90aa",
+        "5a8718a0be1a18a91b6b5eee80e5e7d8483e442e",
+        "1b5d3e5c704eec5e817f8df20fae3da522878706",
+        "a6d11c2bae072f8a2e4b6f702eef5e61db38bf3e"
+      ],
+      "finding_ids": ["ARCH-QUOTA-1", "ARCH-QUOTA-2", "ARCH-QUOTA-3", "ARCH-QUOTA-4", "ARCH-QUOTA-5"],
+      "closes": ["ARCH-QUOTA-1", "ARCH-QUOTA-2", "ARCH-QUOTA-3", "ARCH-QUOTA-4", "ARCH-QUOTA-5"],
+      "verified": true,
+      "evidence": "Archived probes converted to regressions, each confirmed failing before its fix: TestCancelledTurnIgnoresLateQuotaEvidence (result and update carriers) plus server TestCancelledTurnLateQuotaCreatesNoContinuation (no episode, one prompt); TestQuotaCheckRecoveredRetryWarningIsReady (terminal failure control still fails); TestQuotaCheckCarriesInheritedClaudeModel and TestQuotaCheckRoutingFollowsTheContinuedProcess (live check carries launch route A after edit to B and continues; stopped selection stops matching after a routing edit); TestQuotaPolicyReadFailureDefersClaim (continue and check, re-admitted by due query); TestStalledQuotaCleanupDoesNotDelayIndependentClaim (dispatch returns and independent row advances while cleanup holds; reference retained). Focused runtime/server quota suites pass, with -race; full make test (both Go variants) and make build pass after the final repair. TS-04.R97 updated for model/routing freezing. NESTED-QUOTA-1 remains open; no live provider, credential or device gate claimed."
+    }
+  ]
 }
