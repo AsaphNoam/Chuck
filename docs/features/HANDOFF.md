@@ -279,7 +279,7 @@ evidence; prompt delivery alone cannot establish improvement. History separates 
 recovery (`fb410fdb`); it does not establish when the reported inference began. No product code,
 specs, live user state or unrelated dirty files changed.
 
-## Closed investigations
+## Investigations with fixable findings
 
 ### NESTED-QUOTA — Add source 3 did not automatically continue (2026-11-07)
 
@@ -300,14 +300,19 @@ specs, live user state or unrelated dirty files changed.
 >
 > Your later “Keep going” successfully restarted work. This exposes a recovery gap for nested provider failures; I made no changes.
 
-**Classification / confidence: works as specified — confirmed.** FS-01.R40/R55 explicitly exclude
-tool/assistant text; TS-04.R105 also excludes child events. This is an existing product boundary,
-not a missing specification or demonstrated code defect. FS-01.R57 permits a valid reset beside
-monthly-spend wording only after independent terminal quota classification. Extending recovery to
-native nested failures needs a product decision about trusted child evidence and which unfinished
-work to continue; it must not be implemented by matching arbitrary transcript text. Product question:
-should a verified native child quota refusal authorize continuation of its parent, and under what
-ownership and successful-parent-completion conditions? No fix unit or Fix model recommendation.
+**Correction (2026-11-07):** the initial works-as-specified conclusion at `8a8d7fab` is withdrawn.
+The operator's screenshot prompted checking native provider history, which proves that event 801
+was a root provider-generated API error, not an ordinary assistant repetition of child output.
+The normalized transcript alone could not establish its origin. A protocol `end_turn` does not
+prove the model successfully completed its turn or the user's task.
+
+**Classification / confidence:** root quota refusal flattened into successful-looking completion
+is **confirmed** from native and Chuck logs; exact adapter/runtime normalization cause is
+**probable**, pending the historical raw ACP carrier or an equivalent replay. FS-01.R40 and
+TS-04.R86 require provider terminal quota state and unsuccessful completion despite misleading
+`end_turn`. FS-01.R55/TS-04.R105's transcript/child exclusions remain correct, but do not explain
+away this independent root refusal. FS-01.R57 allows monthly-spend wording beside a valid future
+reset. No new policy for restarting a parent solely from child evidence is needed for this incident.
 
 **Evidence:** read-only `read_agent_transcript(a_e73e01, since_seq:790/799)` on 2026-11-07
 (snapshot through 987) identifies **Add source 3**, Hoid project `hoid-20261029t181502z`.
@@ -316,11 +321,24 @@ The bounded transcript shows foreground `think` (`subagent_type:general-purpose`
 
 > Agent terminated early due to an API error: You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your session limit resets 7:20pm (Asia/Jerusalem) (error type rate_limit, HTTP 429, request id req_011CgmvuwtPYAkJmNTSKQBUv, model sent to the API: claude-opus-5-5)
 
-The assistant repeats the usage/reset sentence, followed by `turn end (end_turn)`, then the user's
-`Keep going` and resumed tool work. This independently verifies the reported sequence, but the
-transcript API does not expose individual sequence labels or raw terminal RPC metadata. Incident
-Chuck version, Auto continue configuration and event timestamps were not supplied; no historical
-database inspection or 19:21 dispatch-eligibility claim is made.
+Read-only local `/Users/mcnoam/.chuck/sessions/a_e73e01/transcript.ndjson` independently confirms
+exact seq 800/801/802 at `2026-11-06T15:43:01Z`, with seq 801 `assistant_text` and seq 802
+`turn_end` carrying `stop_reason:end_turn` and no quota evidence. `Keep going` later resumes work.
+
+**Decisive native evidence:**
+`/Users/mcnoam/.claude/projects/-Users-mcnoam-Projects-Hoid/10fcd54e-100b-458c-a93a-355101fd81d7.jsonl:456`
+records `isSidechain:false`, `model:<synthetic>`, `isApiErrorMessage:true`,
+`apiError:usage_limit_reached`, `error:rate_limit`, HTTP 429, root request
+`req_011Cgmvuya5hGc3c4BRmns1J`, timestamp `2026-11-06T15:43:01.882Z`, and the exact displayed
+quota sentence. Its structured `quotaLimits` reports rejected `five_hour` and
+`resetsAt:1793985600`. The child log
+`10fcd54e-100b-458c-a93a-355101fd81d7/subagents/agent-a87a85219cf3999a7.jsonl:21`
+records a separate rejected request `req_011CgmvuwtPYAkJmNTSKQBUv` at `15:43:01.485Z`;
+root line 455 contains that child's failed tool result. Thus both child and root failed.
+The root synthetic message has zero input/output token usage; treating it as generated explanatory
+prose was unsupported. Incident CLI version is `2.1.296`; exact historical adapter artifact,
+Chuck version and Auto continue configuration are not yet established. No raw ACP capture or
+historical quota-database inspection is claimed; exact dispatch eligibility remains unverified.
 
 **Code evidence at `4255da86`:** `internal/runtime/chat.go:onNotification` routes child frames away
 before root failure capture. `internal/runtime/session_failure.go:decodeSessionFailureRecord`
@@ -329,18 +347,46 @@ requires a typed AIR session-failure envelope; failed-tool text is not such an e
 `rpcQuotaRefusal` on the terminal prompt error, never transcript prose.
 `internal/server/quota.go:settleQuotaTurn` creates an episode only with non-nil quota evidence.
 An explicit terminal Claude `data.errorKind:rate_limit` is independently excluded by the classifier;
-the words `error type rate_limit` inside this tool result do not prove that terminal field existed.
+native usage-limit failures can also carry `error:rate_limit`, so raw native and ACP fields must not
+be conflated. No proof yet establishes the actual terminal ACP category/result for this incident.
 `6bbf4c3f` introduced the terminal-RPC fallback with the same text/child exclusions;
 `945ce4ca` repaired reset resolution, not evidence scope. Existing regression sources
 `TestQuotaNotificationIgnoredForReplayAndChildScope` and
-`TestTerminalRPCQuotaRefusalSharedByActivationNotProse` protect that boundary. No tests were run
-or added: investigation stopped on the specified-behavior classification under workflow §12.2.
-Only this state record changed; product code, specifications and unrelated `docs/ideas.md` edits
-remain untouched.
+`TestTerminalRPCQuotaRefusalSharedByActivationNotProse` protect that boundary, but do not prove
+normalization of this native synthetic root error. No tests run or added; no equivalent wire replay
+has been established. Only this state record changed; product code, specifications and unrelated
+`docs/ideas.md` edits remain untouched.
+
+**Bounded independent adapter inspection:** current global installation at
+`/Users/mcnoam/.local/lib/node_modules/@agentclientprotocol/claude-agent-acp` declares 0.59.0
+with SDK 0.3.207; repository release inputs pin 0.85.1/0.3.286. This is not proof of the
+historical executable. In installed `dist/acp-agent.js:2330–2337`, root `message.error` is
+remembered as `lastAssistantError`; ordinary content conversion at 2395–2474 does not preserve
+`isApiErrorMessage`. Terminal failure at 2043–2044/2079–2080 depends on subsequent
+`message.is_error`; otherwise 2125 can settle normally. This supports the normalization hypothesis,
+but does not establish the incident's final SDK result or wire branch. Do not repair or update the
+global installation as part of this investigation.
 
 ## Review findings
 
-None.
+### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07)
+
+**Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix — NESTED-QUOTA-1 (confirmed symptom; probable integration normalization cause;
+  fix complexity: medium).** `internal/runtime/quota.go:completePromptTurn`, Claude adapter
+  native-error normalization and `rpcQuotaRefusal`: after a foreground child fails, the root's
+  own synthetic `usage_limit_reached` refusal is rendered as assistant text and completes
+  `end_turn` without quota evidence (native root line 456; Chuck seq 801–802 above). The requested
+  evaluation stops without entering recovery. This is root provider evidence, not a request to
+  promote arbitrary tool text to root quota. FS-01.R40/R55/R57, TS-04.R86/R105/R107 and INV §11
+  govern the boundary. Trace/replay the actual native-to-ACP terminal mapping; preserve the
+  provider-owned usage-limit signal through the supported adapter boundary and reuse ordinary
+  quota settlement/reset scheduling. Verify root rejection even after child failure, ordinary
+  assistant/tool lookalikes, transient throttling, ownership, and reset-plus-one-minute behavior.
+  Do not indiscriminately reclassify every `rate_limit` or scrape stored conversations at runtime.
+  No separate observability defect is established: retained native history resolves the error's
+  origin; exact wire mapping remains a fix-validation prerequisite.
 
 ## Blocked on human
 
