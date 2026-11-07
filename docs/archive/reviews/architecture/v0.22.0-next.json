@@ -34,6 +34,14 @@
       "closes": ["ARCH-QUOTA-1", "ARCH-QUOTA-2", "ARCH-QUOTA-3", "ARCH-QUOTA-4", "ARCH-QUOTA-5"],
       "verified": true,
       "evidence": "Archived probes converted to regressions, each confirmed failing before its fix: TestCancelledTurnIgnoresLateQuotaEvidence (result and update carriers) plus server TestCancelledTurnLateQuotaCreatesNoContinuation (no episode, one prompt); TestQuotaCheckRecoveredRetryWarningIsReady (terminal failure control still fails); TestQuotaCheckCarriesInheritedClaudeModel and TestQuotaCheckRoutingFollowsTheContinuedProcess (live check carries launch route A after edit to B and continues; stopped selection stops matching after a routing edit); TestQuotaPolicyReadFailureDefersClaim (continue and check, re-admitted by due query); TestStalledQuotaCleanupDoesNotDelayIndependentClaim (dispatch returns and independent row advances while cleanup holds; reference retained). Focused runtime/server quota suites pass, with -race; full make test (both Go variants) and make build pass after the final repair. TS-04.R97 updated for model/routing freezing. NESTED-QUOTA-1 remains open; no live provider, credential or device gate claimed."
+    },
+    {
+      "kind": "fix",
+      "commits": ["fc9e46db95d87a910d0aa3bd34c7828a3cd2e17d"],
+      "finding_ids": ["NESTED-QUOTA-1"],
+      "closes": [],
+      "verified": true,
+      "evidence": "Partial. Loopback replay with real CLI 2.1.296 and a fake OAuth token through Claude ACP 0.59.0 (the incident's running adapter) and pinned 0.85.1: a foreground usage-limit refusal reaches adapters without AIR as RPC errorKind:rate_limit plus the usage-limit sentence; rpcQuotaRefusal now admits it, and the TestTerminalRPCQuotaRefusalEntersRecovery/TestQuotaCheckRecognizesTerminalRPCQuota cases fail before the change. Plain API Error throttling and other non-quota categories stay excluded. Full make test (both Go variants) and make build pass. The incident's actual background task-notification cycle settles as plain end_turn in both adapters with no failure metadata; that repair awaits an operator carrier decision (HANDOFF Blocked on human)."
     }
   ]
 }
