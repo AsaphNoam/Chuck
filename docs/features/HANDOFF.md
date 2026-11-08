@@ -6,10 +6,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Current position
 
-- **Release preparation:** v0.23.0 proposed for project chat search and quota recovery repairs;
-  version confirmation is pending before tagging. No push/publication is authorized.
-  [Notes](../archive/state/RELEASE-v0.23.0-notes.md). Existing local v0.22.0 tag is unpushed;
-  latest published release remains v0.21.0.
+- **Release:** operator confirmed v0.23.0 and authorized push on 2026-11-08. Main and the
+  annotated v0.23.0 tag at `f3f34986` are pushed. Release CI failed before assembly/publication:
+  GitHub lacks the local-only v0.22.0 baseline tag, so its gate selects the older receipt.
+  [Notes](../archive/state/RELEASE-v0.23.0-notes.md). Latest published remains v0.21.0.
 - **Architecture:** combined source audit and all quota repairs are reused, as explicitly
   directed by the operator on 2026-11-08. No second architectural review.
   [Receipt](../archive/reviews/architecture/v0.22.0-next.json) includes release preparation.
@@ -31,8 +31,8 @@ and evidence are in the archive and architectural receipt.
 
 Unrelated docs/ideas.md edits remain preserved in the main checkout. Use the existing clean
 /private/tmp/chuck-release-next checkout for release verification/tagging.
-Next: obtain version confirmation, pass the architectural gate, then create the local annotated
-tag. Push requires explicit authorization.
+Next: resolve RELEASE-023-BASELINE below, rerun the same release job and verify publication.
+No architecture review rerun or product-code change is needed.
 
 ## Acceptance gates still owed
 
@@ -251,7 +251,15 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-None. Original quota findings are closed with exact verified repairs in the architecture receipt.
+### v0.23.0 publication baseline — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+- **Must fix** RELEASE-023-BASELINE — release run `42450625734` failed the architectural gate
+  before assembly. Local v0.22.0 tag is absent from origin; clean CI therefore selects
+  v0.21.0-next.json and reports uncovered commit `41edd4ed`. Local gate passed using v0.22.0.
+  Original combined audit and quota closures remain valid. Operator approval requested to push
+  the baseline tag, promptly cancel its own release workflow, and rerun v0.23.0 without moving
+  either tag. No publication or fresh install is claimed. Failed logs:
+  `/private/tmp/chuck-v023-release-failed.log`.
 
 ## Blocked on human
 
