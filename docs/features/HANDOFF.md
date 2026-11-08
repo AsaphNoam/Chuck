@@ -7,16 +7,20 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 ## Current position
 
 - **Release:** operator confirmed v0.23.0 and authorized push on 2026-11-08. Main and the
-  annotated v0.23.0 tag at `f3f34986` are pushed. Release CI failed before assembly/publication:
-  GitHub lacks the local-only v0.22.0 baseline tag, so its gate selects the older receipt.
-  [Notes](../archive/state/RELEASE-v0.23.0-notes.md). Latest published remains v0.21.0.
+  annotated v0.23.0 tag at `f3f34986` are pushed. Missing v0.22.0 baseline tag was pushed with
+  explicit approval; its own workflow `42450809571` is cancelled. v0.23.0 retry `42450625734`
+  passed architecture, assembly, transaction/bootstrap and fresh-install checks, then published
+  [v0.23.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.23.0).
+  [Notes](../archive/state/RELEASE-v0.23.0-notes.md) are published too. Archive/manifest/installer
+  assets are present; manifest size and SHA-256 match GitHub's uploaded archive metadata.
 - **Architecture:** combined source audit and all quota repairs are reused, as explicitly
   directed by the operator on 2026-11-08. No second architectural review.
   [Receipt](../archive/reviews/architecture/v0.22.0-next.json) includes release preparation.
-  No open review units or Must-fix findings.
-- **Verification:** full Go closure after the RPC repair and all 1181 UI tests are reused for
-  unchanged inputs. Release dist build, package/release tests and spec checks are recorded in
-  the receipt. Hosted assembly/install and native/provider/device gates below remain owed.
+  Original audit findings are closed; separate publication-time CI findings remain below.
+- **Verification:** hosted release assembly and fresh installation pass. Main CI retry
+  `42450626202` passes both Go variants, specs, gate tests and vet, but fails one of 1181 UI
+  tests (waiting-input pane opening). All 42 CardGrid tests pass locally. Do not claim full
+  clean-clone CI success. Native/provider/device gates below remain owed.
 - **Installed runtime:** managed current was v0.20.0 at audit; no install or running-dashboard
   update is part of this release preparation. Global PATH adapters remain unpatched.
 - **Checks:** unset CHUCK_RUNTIME_ROOT; use GOFLAGS=-p=1 and a writable isolated GOCACHE.
@@ -24,15 +28,15 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-Release preparation only. Shipped operating-chuck guidance and README/install text remain
+Release publication is complete. Shipped operating-chuck guidance and README/install text remain
 accurate for this range; no content update is needed. Managed Claude ACP's pinned repair is
 reported as 0.85.1+chuck.1 by assembly. Search and quota fixes are closed; historical details
 and evidence are in the archive and architectural receipt.
 
 Unrelated docs/ideas.md edits remain preserved in the main checkout. Use the existing clean
 /private/tmp/chuck-release-next checkout for release verification/tagging.
-Next: resolve RELEASE-023-BASELINE below, rerun the same release job and verify publication.
-No architecture review rerun or product-code change is needed.
+Main CI retry failed the UI check below after passing Go. Next fix work should diagnose that
+failure and repair the separately confirmed annotation fixture race. No architecture rerun.
 
 ## Acceptance gates still owed
 
@@ -251,15 +255,30 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### v0.23.0 publication baseline — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+### Annotation replay test scheduling — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
-- **Must fix** RELEASE-023-BASELINE — release run `42450625734` failed the architectural gate
-  before assembly. Local v0.22.0 tag is absent from origin; clean CI therefore selects
-  v0.21.0-next.json and reports uncovered commit `41edd4ed`. Local gate passed using v0.22.0.
-  Original combined audit and quota closures remain valid. Operator approval requested to push
-  the baseline tag, promptly cancel its own release workflow, and rerun v0.23.0 without moving
-  either tag. No publication or fresh install is claimed. Failed logs:
-  `/private/tmp/chuck-v023-release-failed.log`.
+- **Worth fixing** RELEASE-023-CI-1 — `internal/server/annotations_self_delivery_test.go:35–47`
+  performs synthetic restart/replay while the first POST has already scheduled asynchronous
+  dispatch (`sessions.go:362`, `queued_input.go:42`). Dispatch can clear assignment ownership
+  and submit the receipt before replay; then `sessions.go:261` correctly refuses uncertain
+  delivery with 409. Main CI `42450626202` first attempt failed at this race; exact local test
+  passes 20 repeats. No product defect established. A bounded fixture correction should hold
+  existing `taskSweepMu` across admission and synthetic replay, then release it before explicit
+  dispatch; retain the replay safety assertion and verify focused repeats/server checks.
+  Full CI retry passed Go, then failed a separate UI check below. Evidence: `/private/tmp/chuck-v023-main-ci-failed.log`,
+  `/private/tmp/chuck-v023-annotation-repeat.log`. Do not change product receipt safety for this.
+
+### Published v0.23.0 main-CI UI failure — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** RELEASE-023-CI-2 — main CI `42450626202` retry failed
+  `CardGrid > opens a pane on a new waiting-input transition and keeps a collapsed one collapsed`
+  in `ui/src/components/grid/CardGrid.test.tsx:405–433`: missing `Composer a_1`. 1180 tests pass,
+  one fails. All 42 tests in that file pass in a fresh local focused run; Linux CI's cause is
+  not yet established and may be fixture scheduling or product behavior. Diagnose under the
+  hosted schedule and retain FS-02.A43's transition/collapsed-pane guarantee; do not weaken
+  assertions to get a green build. Release workflow already published v0.23.0 after its own
+  checks passed; this is a live failed CI gate, not an owed/unrun native acceptance item.
+  Logs `/private/tmp/chuck-v023-main-ci-retry-failed.log`, `/private/tmp/chuck-v023-cardgrid.log`.
 
 ## Blocked on human
 
@@ -275,4 +294,4 @@ Editing that older release is separate publication work.
 ## Release record
 
 Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
-Latest published notes: [v0.21.0](../archive/state/RELEASE-v0.21.0-notes.md).
+Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).

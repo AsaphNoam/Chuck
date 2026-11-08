@@ -21,8 +21,13 @@ The combined architectural source audit and verified quota repairs are reused in
 `docs/archive/reviews/architecture/v0.22.0-next.json`; no second architecture review was run.
 Recorded full Go and UI closure is reused for unchanged inputs. Release preparation builds
 the embedded UI and FTS5 binary and verifies operating-package/release contracts.
-Hosted archive assembly and fresh installation run on publication. Credentialed provider,
+Hosted archive assembly, transaction/bootstrap checks and fresh installation passed on publication.
+The archive, checksum manifest and installer are attached to the GitHub Release. Credentialed provider,
 physical-device and native journeys remain owed as listed in the live handoff.
+
+The separate main CI retry passed Go checks but failed one dashboard waiting-input pane UI test;
+the focused local CardGrid suite passes. This remains an open finding in the handoff. The first
+main CI attempt also exposed an annotation replay fixture race, recorded for follow-up.
 
 The release range requires no operating-chuck content change: quota guidance already describes
 the recovery policy and search adds a human UI capability without changing agent-tool authority.
