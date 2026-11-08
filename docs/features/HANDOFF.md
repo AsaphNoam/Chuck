@@ -1,83 +1,38 @@
 # Chuck — Implementation handoff
 
-Settled history through v0.22.0 preparation is archived in
-[HANDOFF-through-2026-11-06](../archive/state/HANDOFF-through-2026-11-06.md).
+Settled history through v0.23.0 preparation is archived in
+[HANDOFF-through-2026-11-08](../archive/state/HANDOFF-through-2026-11-08.md).
 Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live queues.
 
 ## Current position
 
-- **Locally tagged:** v0.22.0 at `62675131`, version confirmed on 2026-11-06; unpushed.
-  [Notes](../archive/state/RELEASE-v0.22.0-notes.md).
-  Latest published release remains [v0.21.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.21.0).
-- **Architecture:** combined audit and all four repairs are complete; independent preparation
-  signoff at `6dfae975` covers `be766a50` with no new findings.
-  [Receipt](../archive/reviews/architecture/v0.21.0-next.json). Release gate passes.
-  Focused quota-flow audit on 2026-11-07 at `8d9cb623`: its five ARCH-QUOTA findings are fixed
-  and recorded in the [bounded receipt](../archive/reviews/architecture/v0.22.0-next.json)
-  ([report](../archive/reviews/architecture/v0.22.0-next-quota.md)). NESTED-QUOTA-1 is closed by
-  managed-adapter repair `8f27207b`; this focused audit is not combined next-release signoff.
-  Fresh combined source audit through `3cd5e881` found no additional defects
-  ([report](../archive/reviews/architecture/v0.22.0-next-combined.md)). The next-release receipt
-  remains incomplete pending committed release preparation and independent affected coverage;
-  closed quota findings do not require another review.
-- **Verification:** full `make test` (both Go variants) and 1172 UI tests pass at `84f65de9`,
-  reused for unchanged product inputs. Release preparation passes package/spec checks and
-  `make dist VERSION=0.22.0`; embed bytes are unchanged. Logs:
-  `/private/tmp/chuck-release-{dist-final,knowledge,specs}.log`.
-  Final tagged-candidate `make build VERSION=0.22.0` passes with exact `62675131` metadata
-  and `sqlite_fts5` (`/private/tmp/chuck-release-build-tag.log`).
-- **Publication:** not authorized or pushed. Supported arm64 `macos-15` assembly, fresh archive/
-  install checks and clean-clone CI remain owed on publication; prior main CI failure was repaired.
-  Native/provider/device gates below remain owed.
-- **Field causes:** EFFORT-BUDGET awaits the affected worker's manifest/trace; no cause or fix is
-  established. Frequent-429 and unchecked permission-save reports need affected server evidence.
-- **Future work:** direct-action migration stays paused on its transport blocker; passive quota
-  snapshots stay TBD. Project chat search's two UI findings are repaired and its unit is closed.
-- **Checks:** unset `CHUCK_RUNTIME_ROOT`, use `GOFLAGS=-p=1` and a writable isolated Go cache.
-  Full suites need loopback-capable execution.
+- **Release preparation:** v0.23.0 proposed for project chat search and quota recovery repairs;
+  version confirmation is pending before tagging. No push/publication is authorized.
+  [Notes](../archive/state/RELEASE-v0.23.0-notes.md). Existing local v0.22.0 tag is unpushed;
+  latest published release remains v0.21.0.
+- **Architecture:** combined source audit and all quota repairs are reused, as explicitly
+  directed by the operator on 2026-11-08. No second architectural review.
+  [Receipt](../archive/reviews/architecture/v0.22.0-next.json) includes release preparation.
+  No open review units or Must-fix findings.
+- **Verification:** full Go closure after the RPC repair and all 1181 UI tests are reused for
+  unchanged inputs. Release dist build, package/release tests and spec checks are recorded in
+  the receipt. Hosted assembly/install and native/provider/device gates below remain owed.
+- **Installed runtime:** managed current was v0.20.0 at audit; no install or running-dashboard
+  update is part of this release preparation. Global PATH adapters remain unpatched.
+- **Checks:** unset CHUCK_RUNTIME_ROOT; use GOFLAGS=-p=1 and a writable isolated GOCACHE.
+  Full Go suites need loopback-capable execution.
 
 ## Active change
 
-No implementation is active. NESTED-QUOTA-1 is closed by verified repair `8f27207b`.
-The operator approved the pinned Claude adapter patch carrier on 2026-11-07. The managed
-`0.85.1+chuck.1` patch, complete source/output hashes and assembly regression gate are in place.
-Focused adapter regression is red before/green after; independent guard review passes. Real CLI
-2.1.296 plus isolated fake OAuth/loopback API replays the actual background notification refusal:
-AIR returns terminal `limit/error/actions:[]`, legacy returns `errorKind:rate_limit` plus reset
-text. No credentials/provider calls. Logs `/private/tmp/chuck-claude-quota-{wire,legacy-wire}.log`;
-fixtures `/private/tmp/chuck-nq-scripts/`, staged runtime `/private/tmp/chuck-claude-quota-stage`.
-`make check-specs`, adapter lifecycle checks, shell/Node syntax and focused release/backend/runtime
-quota tests pass (`/private/tmp/chuck-claude-quota-{specs,tests}.log`). No Go product/UI change;
-full assembly/install and credentialed quota/continuation acceptance remain owed. PATH/global
-adapters (including the dev server's 0.59.0) are unaffected; this is a managed-release repair.
-Project chat search's SEARCH-1–2 findings are closed on 2026-11-07.
-Unrelated `docs/ideas.md` edits remain preserved.
+Release preparation only. Shipped operating-chuck guidance and README/install text remain
+accurate for this range; no content update is needed. Managed Claude ACP's pinned repair is
+reported as 0.85.1+chuck.1 by assembly. Search and quota fixes are closed; historical details
+and evidence are in the archive and architectural receipt.
 
-Search fix closure: `make check-specs`, all 1181 UI tests and `make embed` pass; generated UI is
-current. Focused search/transcript tests pass (43 tests). Logs:
-`/private/tmp/chuck-search-fix-{specs,ui,embed-final}.log`.
-All 25 extended real-Chromium checks pass at 1024/1440 in all four appearances, including
-20-result ArrowDown/ArrowUp/wrapping with visible selection and retained input focus, unavailable
-search recovery to bottom-following through a later completed fake-provider reply, and active
-search reading-position preservation. Report/screenshots: `/private/tmp/chuck-search-fix-browser/`.
-Controlled popup/unavailable responses prove UI behavior; no native/provider claim. Fixture and
-Chromium are stopped. Repairs restore FS-05.R49/A30 and TS-08.R156–R157; no specification change.
-
-Verification for product inputs through `59c15236`: `make test` passes both Go variants,
-`make build` and `make embed` pass, and all 1180 UI tests pass. The additional untagged fallback
-priority/paging regression passes after the full run. Unset `CHUCK_RUNTIME_ROOT`, use
-`GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-search-go-cache`; full suites need approved loopback
-access. Logs: `/private/tmp/chuck-search-{final-go2,final-build2,embed,full-ui,fallback-final}.log`.
-All 23 real-browser checks pass at 1024/1440 across all four appearances, including collapsed
-turns, later merged deltas, cross-event phrases, annotations, attachments, code, direct reload/back,
-keyboard entry and stable reading during a new fake-provider reply. Report/screenshots:
-`/private/tmp/chuck-search-browser4/`; deterministic matrix: `/private/tmp/chuck-search-matrix/`.
-Error/metadata/unavailable browser branches use controlled read responses; real tagged/untagged
-SQLite and HTTP tests cover those storage contracts. No native-provider or performance claim.
-Temporary browser fixtures and the Vite server are stopped.
-
-Release v0.22.0 remains verified and annotated locally in `/private/tmp/chuck-release-next`.
-Publication is not authorized; no push is part of this implementation.
+Unrelated docs/ideas.md edits remain preserved in the main checkout. Use the existing clean
+/private/tmp/chuck-release-next checkout for release verification/tagging.
+Next: obtain version confirmation, pass the architectural gate, then create the local annotated
+tag. Push requires explicit authorization.
 
 ## Acceptance gates still owed
 
@@ -228,58 +183,6 @@ Publication is not authorized; no push is part of this implementation.
   Steer during a running command, and refused model switch where policy allows. Automated assembly,
   fake-runtime, release-CI assembly, and native-provider proofs passed; live receipts are owed.
 
-## Changelog
-
-- **2026-11-07 — Combined architectural source audit:** no new findings through `3cd5e881`.
-  Search storage/repair, exact passage delivery, quota ownership/restart and managed adapter
-  assembly contracts checked with independent reviewers. Tagged/untagged search-storage suites,
-  focused search HTTP/UI, pipeline, knowledge/release and approved-loopback owner checks pass.
-  Receipt retains original quota owners/verified repairs. Next-release preparation is still absent;
-  review is not release signoff. Installed current remains v0.20.0 with the unpatched Claude
-  adapter; no rollout/provider/device claim. Unrelated ideas edits preserved.
-
-- **2026-11-07 — NESTED-QUOTA-1 managed carrier repair (INV §11/§12/§17):** patch pinned Claude
-  ACP to fail a held prompt on its own background summary's same-cycle root quota refusal.
-  Clear stale candidates, preserve cancellation/child exclusions; lock release input/output hashes
-  and report `0.85.1+chuck.1`. Focused regression fails before/passes after; actual CLI/fake API
-  replay verifies AIR and legacy terminal carriers. Native/provider publication gates remain owed.
-
-- **2026-11-07 — Project search findings closed (INV §1/§8):** SEARCH-1 now scrolls the active
-  result into the popup while retaining keyboard focus; SEARCH-2 restores latest following when
-  explicitly leaving search reading mode. The extended browser journey proves both regressions
-  and a later completed live reply without disturbing active passage reading. Full UI/build/spec
-  checks pass; the originating unit is closed. NESTED-QUOTA-1 and existing acceptance gates remain open.
-- **2026-11-07 — Project chat search reviewed:** backend and HTTP review found no actionable
-  defects; independent rendered checks confirmed hidden keyboard selection and incomplete return
-  to normal transcript following (SEARCH-1–2, now closed above). Tagged/untagged archive,
-  index and transcript tests plus tagged search HTTP tests pass. Rendered source-navigation,
-  reload/back, live-reading and recovery journeys pass at 1024/1440 in all four appearances,
-  with the two additional browser regressions repaired above. Browser report/screenshots:
-  `/private/tmp/chuck-review-ui-browser/`; isolated fixture and Chromium are stopped.
-  Invariant sweep: applicable
-  classes 1/2/4/7/8/9/10/11/13/14/16/17 checked; no applicable surface for 3/5/6/12/15.
-  Material tests have independent source-offset/lifecycle/store oracles; the existing recovery
-  journey only checked URL/highlight removal and missed following restoration. No pending local
-  implementation choices were recorded for this unit.
-- **2026-11-07 — NESTED-QUOTA-1 cause replayed; RPC carrier fixed (INV §11):** a replay with the
-  real CLI showed that native usage-limit refusals arrive as terminal RPC `errorKind:rate_limit`
-  with the usage-limit sentence on adapters without AIR. TS-04.R105 now admits that grammar for
-  `rate_limit`, while plain `API Error:` throttling stays excluded. The incident's actual
-  background-cycle shape is dropped inside both Claude adapters and remains open, blocked on the
-  carrier decision.
-- **2026-11-07 — Quota architecture findings fixed (ARCH-QUOTA-1–5):** accepted Cancel now beats
-  late quota evidence (INV §1/§11); isolated checks share ordinary terminal-success recovery
-  (INV §11) and carry the continued process's inherited Claude model and launch-frozen routing,
-  which joins the selection key (INV §2/§12; TS-04.R97 updated); a policy reread failure defers
-  the exact claim (INV §7/§9); probe cleanup runs off the shared dispatch loop (INV §16).
-  Each has a focused regression; receipt updated. NESTED-QUOTA-1 remains open.
-- **2026-11-06 — Project chat search finished:** compact project-heading search reuses SQLite
-  FTS5 with partial words and running/stopped/archived priority. Exact source references open the
-  shared live/archive renderer at the real passage; older rows reconstruct only after byte equality
-  is proved, otherwise normal opening stays available. Migration/repair remain transactional and
-  source reads/provenance/previews are bounded. FS-05.R46–R53/A28–A32, TS-02.R63–R64,
-  TS-03.R82–R84 and TS-08.R156–R157 are implemented. Closure evidence is above; review is available.
-
 ## Decisions needing input
 
 - Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID
@@ -346,101 +249,9 @@ evidence; prompt delivery alone cannot establish improvement. History separates 
 recovery (`fb410fdb`); it does not establish when the reported inference began. No product code,
 specs, live user state or unrelated dirty files changed.
 
-## Investigations with fixable findings
-
-### NESTED-QUOTA — Add source 3 did not automatically continue (2026-11-07)
-
-**Report (verbatim):**
-
-> an agent looked into a single event where the chuck quota continuation didn't work, this is the explanation it gave:
->
-> Chuck did not schedule continuation because this failure arrived as a tool result, while the main conversation ended normally.
->
-> In “Add source 3” (a_e73e01), I verified:
->
-> Event 800: a tool failed with the provider’s spend-limit error.
-> Event 801: the assistant repeated that error as ordinary text.
-> Event 802: the turn finished with stop_reason: end_turn.
-> Chuck’s recovery logic requires a recognized quota failure from the main provider session. It does not schedule recovery from errors embedded in tool output or assistant text. Consequently, this turn never entered quota recovery for 7:21pm.
->
-> My earlier spend-cap explanation was incomplete: the current code accepts a verified reset time even when the message mentions a spend limit. The issue here is how the nested failure reached Chuck, not the monthly-limit wording.
->
-> Your later “Keep going” successfully restarted work. This exposes a recovery gap for nested provider failures; I made no changes.
-
-**Correction (2026-11-07):** the initial works-as-specified conclusion at `8a8d7fab` is withdrawn.
-The operator's screenshot prompted checking native provider history, which proves that event 801
-was a root provider-generated API error, not an ordinary assistant repetition of child output.
-The normalized transcript alone could not establish its origin. A protocol `end_turn` does not
-prove the model successfully completed its turn or the user's task.
-
-**Classification / confidence:** root quota refusal flattened into successful-looking completion
-is **confirmed** from native and Chuck logs; exact adapter/runtime normalization cause is
-**probable**, pending the historical raw ACP carrier or an equivalent replay. FS-01.R40 and
-TS-04.R86 require provider terminal quota state and unsuccessful completion despite misleading
-`end_turn`. FS-01.R55/TS-04.R105's transcript/child exclusions remain correct, but do not explain
-away this independent root refusal. FS-01.R57 allows monthly-spend wording beside a valid future
-reset. No new policy for restarting a parent solely from child evidence is needed for this incident.
-
-**Evidence:** read-only `read_agent_transcript(a_e73e01, since_seq:790/799)` on 2026-11-07
-(snapshot through 987) identifies **Add source 3**, Hoid project `hoid-20261029t181502z`.
-The bounded transcript shows foreground `think` (`subagent_type:general-purpose`,
-`run_in_background:false`), nested assessor activity, then the failed tool result:
-
-> Agent terminated early due to an API error: You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your session limit resets 7:20pm (Asia/Jerusalem) (error type rate_limit, HTTP 429, request id req_011CgmvuwtPYAkJmNTSKQBUv, model sent to the API: claude-opus-5-5)
-
-Read-only local `/Users/mcnoam/.chuck/sessions/a_e73e01/transcript.ndjson` independently confirms
-exact seq 800/801/802 at `2026-11-06T15:43:01Z`, with seq 801 `assistant_text` and seq 802
-`turn_end` carrying `stop_reason:end_turn` and no quota evidence. `Keep going` later resumes work.
-
-**Decisive native evidence:**
-`/Users/mcnoam/.claude/projects/-Users-mcnoam-Projects-Hoid/10fcd54e-100b-458c-a93a-355101fd81d7.jsonl:456`
-records `isSidechain:false`, `model:<synthetic>`, `isApiErrorMessage:true`,
-`apiError:usage_limit_reached`, `error:rate_limit`, HTTP 429, root request
-`req_011Cgmvuya5hGc3c4BRmns1J`, timestamp `2026-11-06T15:43:01.882Z`, and the exact displayed
-quota sentence. Its structured `quotaLimits` reports rejected `five_hour` and
-`resetsAt:1793985600`. The child log
-`10fcd54e-100b-458c-a93a-355101fd81d7/subagents/agent-a87a85219cf3999a7.jsonl:21`
-records a separate rejected request `req_011CgmvuwtPYAkJmNTSKQBUv` at `15:43:01.485Z`;
-root line 455 contains that child's failed tool result. Thus both child and root failed.
-The root synthetic message has zero input/output token usage; treating it as generated explanatory
-prose was unsupported. Incident CLI version is `2.1.296`; exact historical adapter artifact,
-Chuck version and Auto continue configuration are not yet established. No raw ACP capture or
-historical quota-database inspection is claimed; exact dispatch eligibility remains unverified.
-
-**Code evidence at `4255da86`:** `internal/runtime/chat.go:onNotification` routes child frames away
-before root failure capture. `internal/runtime/session_failure.go:decodeSessionFailureRecord`
-requires a typed AIR session-failure envelope; failed-tool text is not such an envelope.
-`internal/runtime/quota.go:completePromptTurn` obtains quota evidence from root failure metadata or
-`rpcQuotaRefusal` on the terminal prompt error, never transcript prose.
-`internal/server/quota.go:settleQuotaTurn` creates an episode only with non-nil quota evidence.
-An explicit terminal Claude `data.errorKind:rate_limit` is independently excluded by the classifier;
-native usage-limit failures can also carry `error:rate_limit`, so raw native and ACP fields must not
-be conflated. No proof yet establishes the actual terminal ACP category/result for this incident.
-`6bbf4c3f` introduced the terminal-RPC fallback with the same text/child exclusions;
-`945ce4ca` repaired reset resolution, not evidence scope. Existing regression sources
-`TestQuotaNotificationIgnoredForReplayAndChildScope` and
-`TestTerminalRPCQuotaRefusalSharedByActivationNotProse` protect that boundary, but do not prove
-normalization of this native synthetic root error. No tests run or added; no equivalent wire replay
-has been established. Only this state record changed; product code, specifications and unrelated
-`docs/ideas.md` edits remain untouched.
-
-**Bounded independent adapter inspection:** current global installation at
-`/Users/mcnoam/.local/lib/node_modules/@agentclientprotocol/claude-agent-acp` declares 0.59.0
-with SDK 0.3.207; repository release inputs pin 0.85.1/0.3.286. This is not proof of the
-historical executable. In installed `dist/acp-agent.js:2330–2337`, root `message.error` is
-remembered as `lastAssistantError`; ordinary content conversion at 2395–2474 does not preserve
-`isApiErrorMessage`. Terminal failure at 2043–2044/2079–2080 depends on subsequent
-`message.is_error`; otherwise 2125 can settle normally. This supports the normalization hypothesis,
-but does not establish the incident's final SDK result or wire branch. Do not repair or update the
-global installation as part of this investigation.
-
 ## Review findings
 
-### NESTED-QUOTA — root usage-limit refusal loses quota recovery (investigation 2026-11-07) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-None. NESTED-QUOTA-1 closed at `8f27207b`; exact repair and focused evidence recorded in the
-[quota receipt](../archive/reviews/architecture/v0.22.0-next.json). Existing provider/device gates
-remain owed. The running PATH adapter is not patched by this managed-release repair.
+None. Original quota findings are closed with exact verified repairs in the architecture receipt.
 
 ## Blocked on human
 
@@ -455,5 +266,5 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-Prepared notes: [v0.22.0](../archive/state/RELEASE-v0.22.0-notes.md).
+Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.21.0](../archive/state/RELEASE-v0.21.0-notes.md).
