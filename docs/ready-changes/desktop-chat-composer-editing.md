@@ -1,6 +1,6 @@
 # Desktop chat composer editing
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator request on 2026-11-09 and follow-up approval to include undoing autocomplete.
 **Relevant requirements:** [FS-03.R113–R116](../specs/features/FS-03-chat.md#214-composer-editing),
 [TS-08.R158–R160](../specs/tech/TS-08-frontend-presentation.md#219-desktop-composer-editing),

@@ -43,9 +43,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
-- [`desktop-chat-composer-editing.md`](desktop-chat-composer-editing.md) — grouped deletion
-  undo, numbered list continuation and nesting, and undoable autocomplete.
-
 - [`file-viewer-refresh-and-editing.md`](file-viewer-refresh-and-editing.md) — settled file updates
   with an unobtrusive spinner, desktop source editing and recoverable local drafts/conflicts.
 

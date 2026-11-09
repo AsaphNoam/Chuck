@@ -28,15 +28,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-Release publication is complete. Shipped operating-chuck guidance and README/install text remain
-accurate for this range; no content update is needed. Managed Claude ACP's pinned repair is
-reported as 0.85.1+chuck.1 by assembly. Search and quota fixes are closed; historical details
-and evidence are in the archive and architectural receipt.
+**In progress:** [Desktop chat composer editing](../ready-changes/desktop-chat-composer-editing.md).
+The local history and numbered-list rules pass `npm test -- composerEditing.test.ts` (10 tests).
+Next wire the native textarea and shared picker through the draft write path. Verify exact text, selection and draft
+ownership in component tests and rendered agent chat and expanded dashboard journeys.
 
-Unrelated docs/ideas.md edits remain preserved in the main checkout. Use the existing clean
-/private/tmp/chuck-release-next checkout for release verification/tagging.
-Main CI retry failed the UI check below after passing Go. Next fix work should diagnose that
-failure and repair the separately confirmed annotation fixture race. No architecture rerun.
+Main CI's two release findings remain in the separate fix queue below.
 
 ## Acceptance gates still owed
 
