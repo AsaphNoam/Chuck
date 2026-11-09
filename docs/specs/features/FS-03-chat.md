@@ -1006,8 +1006,8 @@ when accepted by HTTP but an id-less repeat is still a new command.
   restores the text and selection from before the step, and redo reapplies it. Automatic list
   formatting and indentation are each reversible as one step. Undo history belongs to the current
   editing session and draft. A fresh composer or an external draft replacement starts a new history.
-  Submission ends the history for the text that was sent. Deleting the draft down to empty remains
-  undoable in the current composer. The current unsent text still follows R36.
+  When submission clears the sent text, its edit history ends. Deleting the draft down to empty
+  remains undoable in the current composer. The current unsent text still follows R36.
 - **R114 (planned) — Numbered list continuation.** In the same composer, Shift+Enter at the end
   of a nonempty item with a decimal number, period and space starts the next item at that level
   with the next number. A newline on a marker-only item removes it and leaves the caret on a plain
@@ -1024,6 +1024,10 @@ when accepted by HTTP but an id-less repeat is still a new command.
   edit, Tab and Shift+Tab move focus as usual. With the picker closed, Escape lets the next Tab or
   Shift+Tab leave the composer. The paired phone and Think Tank room composers are outside this
   change.
+- **R116 (planned) — Undo an autocomplete selection.** Accepting a file or command result by
+  keyboard or pointer is one undoable replacement. One undo restores the exact draft, including
+  the original trigger and partial query, and its previous caret or selection. Redo reapplies
+  the same insertion and restores its resulting caret. Neither action submits a prompt.
 
 ## 3. States & transitions
 
@@ -1783,6 +1787,11 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
   Accept an autocomplete result with Tab and exit a list via Escape then Tab. Send with Enter
   and check the exact visible text reaches the prompt and transcript. *Verify:* focused editing
   tests and a rendered journey through agent chat and the expanded dashboard pane.
+- **A91 (planned)** (R116) — In the middle of a draft, accept a file using the keyboard and
+  a command using the pointer. Undo each acceptance once and check the full draft and caret
+  match their pre-acceptance state. Redo and check the same result and trailing space return.
+  Verify only the visible draft persists across reload and no edit sends a prompt. *Verify:*
+  composer integration tests and the rendered keyboard and pointer journey.
 
 ## 6. Deviations & open decisions
 

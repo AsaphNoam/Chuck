@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2101,6 +2101,56 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   supported appearances, covering collapsed turns, long messages/Markdown/code, later merged
   deltas, attachment names, multi-event excerpts, unavailable sources and new replies during
   reveal. Automated source tests alone do not close these rendered gates (INV §1/§2/§8/§11/§17).
+
+### 2.19 Desktop composer editing
+
+- **R158 (planned) — One bounded edit history for the desktop composer.** FS-03.R113–R116 use
+  the existing `Composer` and native `AutoGrowTextarea` on the full agent page and expanded
+  dashboard pane. Keep the behavior in the chat feature. One local history orders native text
+  input and explicit replacements, with before/after text changes and UTF-16 selection endpoints
+  and direction. Observe native input and its pre-edit selection. Let the browser perform
+  ordinary deletion, typing, paste, cut and input-method composition. Record composition once
+  it commits. Never route a composing key to list formatting, autocomplete acceptance or Send.
+  Group only adjacent, same-direction collapsed deletions within 500 ms of the last edit or
+  during the same uninterrupted key hold. Caret or selection changes, blur, another kind of edit
+  and undo/redo close the group. Undo or redo advances the same history once per invocation.
+  Handle the platform shortcuts and browser history input events when delivered to the textarea.
+  Do not record a native history replay as a new edit. A new edit clears redo. Retain up to
+  100 undo/redo steps and 4 MiB of recorded text per mounted composer, evicting the oldest undo
+  steps. An edit too large to record leaves its text intact and starts a fresh history. History
+  stays in memory and is never persisted, transmitted, or logged (INV §1/§2/§3/§16).
+
+- **R159 (planned) — Edits share the current draft's write path.** User edits, list commands,
+  picker replacements and replay commit text once through `setChatDraft`, advancing the current
+  draft revision and synchronizing the picker from the resulting selection after React commits
+  the value. Capture the actual selection before the shared picker accept path mutates text,
+  including pointer acceptance, and replay the stored replacement without consulting fresh
+  suggestions. Retain the existing picker request fencing and Think Tank caller behavior.
+  Scope history and pending selection writes to the mounted composer, agent and draft lineage.
+  Treat hydration, held/withdrawn restoration and other external replacements as new history
+  baselines. Clearing submitted text ends its lineage without recording a deletion.
+  A definite refusal or uncertain-send restoration uses the existing draft recovery path and
+  may establish a fresh baseline only for the still-owned revision. Later replies cannot reset
+  a newer draft's history or selection. Keep attachment ownership and delivery handling in the
+  existing send/steer paths. Undo/redo affects text only. The persisted draft shape and prompt
+  contract stay the same (INV §1/§2/§3/§10).
+
+- **R160 (planned) — List commands edit only the current numbered item.** Resolve the
+  logical line, enclosing list and active code fence from draft text when a list shortcut is
+  invoked. Recognize decimal period markers in ordinary list context. Use the parent marker's
+  content column for nesting and the nearest preceding item at the destination level for its
+  next number. Start a new child list at one. Generate CommonMark-compatible prefixes.
+  Change only the current line prefix or insert the new line and prefix, leaving the rest of
+  the draft exact. Store a continuation's newline and generated marker as separate undo steps
+  while committing the visible result once. Preserve the body-relative caret on indentation and
+  promotion. For an ambiguous list context, invalid destination, selection or code fence,
+  use the ordinary newline or focus behavior. The picker gets first refusal on its shortcuts.
+  With the picker closed, Escape in a list arms a one-shot focus-navigation bypass for the
+  next Tab/Shift+Tab. Clear it on other interaction or blur. Use FS-03.A89–A91 to verify real
+  keyboard and pointer events, selection, exact payload, and draft isolation in both desktop
+  entry points. Exercise a held key, an input-method composition sequence, a delayed send with
+  newer edits and platform undo/redo. Component tests alone do not close the rendered keyboard
+  gate (INV §1/§2/§10/§17).
 
 ## 3. Interfaces & data shapes
 

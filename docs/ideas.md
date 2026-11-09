@@ -33,11 +33,6 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
-- **Chat composer editing shortcuts.** Requested on 2026-11-09: undo a burst of deletions
-  as one edit, continue numbered lists on a newline, and use Tab to create sublists.
-  [Draft behavior and acceptance](specs/features/FS-03-chat.md#214-composer-editing)
-  await confirmation of the desktop scope and keyboard behavior.
-
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;
