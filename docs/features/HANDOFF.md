@@ -282,6 +282,12 @@ specs, live user state or unrelated dirty files changed.
 
 ## Blocked on human
 
+- **Chat composer editing shortcuts:** confirm desktop scope and the proposed keyboard behavior
+  in [the feature draft](../specs/features/FS-03-chat.md#214-composer-editing) before technical
+  design. The idea is recorded in [Ideas being defined](../ideas.md#ideas-being-defined).
+  The chat spec passes its focused check. The full spec check reports missing invariant tags on
+  the two existing release CI findings above.
+
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
   The four requested product changes are committed and independently reviewable. No unrelated

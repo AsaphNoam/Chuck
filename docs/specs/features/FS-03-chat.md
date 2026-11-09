@@ -997,6 +997,34 @@ when accepted by HTTP but an id-less repeat is still a new command.
   unsaved, consistent with deletion of its saved tabs; merely archiving or stopping does not.
   This is an explicit draft-content exception to R103's descriptor-only persistence.
 
+### 2.14 Composer editing
+
+- **R113 (planned) — Grouped undo and redo.** In desktop agent chat and its expanded dashboard
+  pane, consecutive, rapid Backspace or Delete edits of adjacent text in the same direction form
+  one undo step, including a held key. A pause, caret or selection move, change of direction, or
+  different edit ends the group. Deleting a selection is one step. The platform undo shortcut
+  restores the text and selection from before the step, and redo reapplies it. Automatic list
+  formatting and indentation are each reversible as one step. Undo history belongs to the current
+  editing session and draft. A fresh composer or an external draft replacement starts a new history.
+  Submission ends the history for the text that was sent. Deleting the draft down to empty remains
+  undoable in the current composer. The current unsent text still follows R36.
+- **R114 (planned) — Numbered list continuation.** In the same composer, Shift+Enter at the end
+  of a nonempty item with a decimal number, period and space starts the next item at that level
+  with the next number. A newline on a marker-only item removes it and leaves the caret on a plain
+  line. Undo immediately after an automatically inserted marker leaves a plain newline. Ordinary
+  newlines, selected text replacement, and newlines within fenced code keep their usual behavior.
+  Enter continues to send when the picker does not consume it. Pasted text and other existing
+  list lines are not automatically renumbered. The draft, submitted text, and transcript use
+  literal list markers and indentation under the existing text contract.
+- **R115 (planned) — Numbered sublists.** With the caret in a numbered item below an eligible
+  preceding item, Tab indents it one level and assigns the next number at the child level, starting
+  at `1.` for the first child. Shift+Tab on a nested item promotes it one level and assigns its
+  number at the destination level. This works on a new item and while editing within an existing
+  list. The autocomplete picker keeps priority for accepting a result. Outside an eligible list
+  edit, Tab and Shift+Tab move focus as usual. With the picker closed, Escape lets the next Tab or
+  Shift+Tab leave the composer. The paired phone and Think Tank room composers are outside this
+  change.
+
 ## 3. States & transitions
 
 - **Open/reload:** panel fetches durable events → normalizes/folds them → subscribes to live SSE
@@ -1741,6 +1769,20 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
   promise. Exercise two concurrent Chuck saves and verify only one accepts the shared base;
   document the remaining noncooperating external-writer race. *Verify:* adversarial
   filesystem/handler tests, draft-store/request-order tests and a rendered conflict/recovery journey.
+
+- **A89 (planned)** (R113) — In a real desktop browser, hold Backspace across a line break and
+  undo once to restore the full burst and caret. Redo restores the deletion. Repeat with fast
+  discrete Delete presses, then with two bursts separated by a pause or caret move. Delete a
+  selection, including the entire draft, and restore it as one step. Switch agents and complete
+  a send to verify that undo cannot resurrect another draft or submitted text. Reload to verify
+  the current draft still restores. *Verify:* focused edit tests and a rendered keyboard journey.
+- **A90 (planned)** (R114–R115) — Type `1. First`, continue with Shift+Enter, then nest the new
+  item with Tab, continue its child numbering, and return to the parent level with Shift+Tab.
+  Indent an existing item in the middle of a list and undo the move. End an empty item, undo a
+  generated marker to leave a plain newline, and check prose, code fences, and pasted lists.
+  Accept an autocomplete result with Tab and exit a list via Escape then Tab. Send with Enter
+  and check the exact visible text reaches the prompt and transcript. *Verify:* focused editing
+  tests and a rendered journey through agent chat and the expanded dashboard pane.
 
 ## 6. Deviations & open decisions
 
