@@ -1,6 +1,6 @@
 # Desktop chat composer editing
 
-**State:** In progress
+**State:** Finished
 **Why:** Operator request on 2026-11-09 and follow-up approval to include undoing autocomplete.
 **Relevant requirements:** [FS-03.R113–R116](../specs/features/FS-03-chat.md#214-composer-editing),
 [TS-08.R158–R160](../specs/tech/TS-08-frontend-presentation.md#219-desktop-composer-editing),
@@ -39,3 +39,16 @@ draft ownership while switching agents or awaiting send completion.
 ## Waiting on
 
 None.
+
+## Delivered verification
+
+- `make check-specs`, `cd ui && npm test` (1,193 tests in 115 files), and `cd ui && npm run build`
+  passed for the completed source and specification changes.
+- Rendered the full agent chat and expanded dashboard chat in Playwright Chromium against fixture
+  API responses. Verified held Backspace across a newline, timed and caret-separated Delete groups,
+  backward selection replay, file and command replacement, Escape followed by either Tab direction,
+  numbered continuation/nesting/promotion, plain and fenced newlines, literal multiline input,
+  exact prompt and transcript text, reload and agent isolation, and newer edits during delayed send.
+  Chromium DevTools drove composition and a composing key event exercised the Send guard.
+  Local harness and results are at `/private/tmp/chuck-composer-browser.mjs` and
+  `/private/tmp/chuck-composer-browser.log`.

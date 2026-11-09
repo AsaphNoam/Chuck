@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { getAvailableCommands, searchSessionFiles } from "../../api/client";
 import type { AvailableCommand } from "../../api/types";
 
@@ -59,10 +59,9 @@ function filterCommands(commands: AvailableCommand[], query: string): PickerItem
 /** useAutocomplete owns trigger detection, suggestion fetching for one source
  *  agent, keyboard navigation and insertion. `qualify` may rewrite an inserted
  *  token, e.g. to name the participant whose workspace it came from. */
-export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, mentions, fileGroup, onMention }: {
+export function useAutocomplete({ sourceId, text, onText, onReplace, textareaRef, qualify, mentions, fileGroup, onMention }: {
   sourceId: string;
   text: string;
-  onText: (next: string) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   qualify?: (item: PickerItem) => string;
   /** Participants offered before files on `@`; selecting one reports its
@@ -70,7 +69,7 @@ export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, 
   mentions?: MentionTarget[];
   fileGroup?: string;
   onMention?: (agentId: string, start: number, end: number) => void;
-}) {
+} & ({ onText: (next: string) => void; onReplace?: never } | { onReplace: (next: string, caret: number) => void; onText?: never })) {
   const [trigger, setTrigger] = useState<Trigger | null>(null);
   const [items, setItems] = useState<PickerItem[]>([]);
   const [highlight, setHighlight] = useState(0);
@@ -83,13 +82,14 @@ export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, 
   const open = trigger !== null && trigger.start !== dismissedStart && sourceId !== "";
   const hasSuggestions = open && items.length > 0;
 
-  const reset = () => {
+  const reset = useCallback(() => {
     reqRef.current++;
+    pendingCursor.current = null;
     setTrigger(null);
     setItems([]);
     setHighlight(0);
     setDismissedStart(null);
-  };
+  }, []);
 
   // Fetch suggestions whenever the active trigger, its query or the source
   // changes. A per-request token discards stale answers (INV §1); any failure
@@ -160,8 +160,12 @@ export function useAutocomplete({ sourceId, text, onText, textareaRef, qualify, 
     const cursor = el?.selectionStart ?? text.length;
     const insert = item.mention || !qualify ? item.insert : qualify(item);
     const next = text.slice(0, trigger.start) + insert + text.slice(cursor);
-    pendingCursor.current = trigger.start + insert.length;
-    onText(next);
+    const caret = trigger.start + insert.length;
+    if (onReplace) onReplace(next, caret);
+    else {
+      pendingCursor.current = caret;
+      onText(next);
+    }
     if (item.mention) onMention?.(item.mention, trigger.start, trigger.start + insert.trimEnd().length);
     setTrigger(null);
     setItems([]);

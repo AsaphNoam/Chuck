@@ -999,7 +999,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
 
 ### 2.14 Composer editing
 
-- **R113 (planned) — Grouped undo and redo.** In desktop agent chat and its expanded dashboard
+- **R113 — Grouped undo and redo.** In desktop agent chat and its expanded dashboard
   pane, consecutive, rapid Backspace or Delete edits of adjacent text in the same direction form
   one undo step, including a held key. A pause, caret or selection move, change of direction, or
   different edit ends the group. Deleting a selection is one step. The platform undo shortcut
@@ -1008,7 +1008,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   editing session and draft. A fresh composer or an external draft replacement starts a new history.
   When submission clears the sent text, its edit history ends. Deleting the draft down to empty
   remains undoable in the current composer. The current unsent text still follows R36.
-- **R114 (planned) — Numbered list continuation.** In the same composer, Shift+Enter at the end
+- **R114 — Numbered list continuation.** In the same composer, Shift+Enter at the end
   of a nonempty item with a decimal number, period and space starts the next item at that level
   with the next number. A newline on a marker-only item removes it and leaves the caret on a plain
   line. Undo immediately after an automatically inserted marker leaves a plain newline. Ordinary
@@ -1016,7 +1016,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   Enter continues to send when the picker does not consume it. Pasted text and other existing
   list lines are not automatically renumbered. The draft, submitted text, and transcript use
   literal list markers and indentation under the existing text contract.
-- **R115 (planned) — Numbered sublists.** With the caret in a numbered item below an eligible
+- **R115 — Numbered sublists.** With the caret in a numbered item below an eligible
   preceding item, Tab indents it one level and assigns the next number at the child level, starting
   at `1.` for the first child. Shift+Tab on a nested item promotes it one level and assigns its
   number at the destination level. This works on a new item and while editing within an existing
@@ -1024,7 +1024,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   edit, Tab and Shift+Tab move focus as usual. With the picker closed, Escape lets the next Tab or
   Shift+Tab leave the composer. The paired phone and Think Tank room composers are outside this
   change.
-- **R116 (planned) — Undo an autocomplete selection.** Accepting a file or command result by
+- **R116 — Undo an autocomplete selection.** Accepting a file or command result by
   keyboard or pointer is one undoable replacement. One undo restores the exact draft, including
   the original trigger and partial query, and its previous caret or selection. Redo reapplies
   the same insertion and restores its resulting caret. Neither action submits a prompt.
@@ -1774,20 +1774,20 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
   document the remaining noncooperating external-writer race. *Verify:* adversarial
   filesystem/handler tests, draft-store/request-order tests and a rendered conflict/recovery journey.
 
-- **A89 (planned)** (R113) — In a real desktop browser, hold Backspace across a line break and
+- **A89** (R113) — In a real desktop browser, hold Backspace across a line break and
   undo once to restore the full burst and caret. Redo restores the deletion. Repeat with fast
   discrete Delete presses, then with two bursts separated by a pause or caret move. Delete a
   selection, including the entire draft, and restore it as one step. Switch agents and complete
   a send to verify that undo cannot resurrect another draft or submitted text. Reload to verify
   the current draft still restores. *Verify:* focused edit tests and a rendered keyboard journey.
-- **A90 (planned)** (R114–R115) — Type `1. First`, continue with Shift+Enter, then nest the new
+- **A90** (R114–R115) — Type `1. First`, continue with Shift+Enter, then nest the new
   item with Tab, continue its child numbering, and return to the parent level with Shift+Tab.
   Indent an existing item in the middle of a list and undo the move. End an empty item, undo a
   generated marker to leave a plain newline, and check prose, code fences, and pasted lists.
   Accept an autocomplete result with Tab and exit a list via Escape then Tab. Send with Enter
   and check the exact visible text reaches the prompt and transcript. *Verify:* focused editing
   tests and a rendered journey through agent chat and the expanded dashboard pane.
-- **A91 (planned)** (R116) — In the middle of a draft, accept a file using the keyboard and
+- **A91** (R116) — In the middle of a draft, accept a file using the keyboard and
   a command using the pointer. Undo each acceptance once and check the full draft and caret
   match their pre-acceptance state. Redo and check the same result and trailing space return.
   Verify only the visible draft persists across reload and no edit sends a prompt. *Verify:*

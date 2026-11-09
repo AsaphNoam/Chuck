@@ -80,7 +80,7 @@ export class ComposerHistory {
     if (before.text === after.text) return;
     if (before.selection.start !== before.selection.end || after.selection.start !== after.selection.end) deletion = undefined;
     let step = difference(before, after, deletion);
-    const previous = this.undo.at(-1);
+    const previous = this.undo[this.undo.length - 1];
     const group = this.deletion;
     if (step.inserted || step.offset !== after.selection.start) deletion = undefined;
     if (deletion && group && previous && deletion.direction === group.direction &&

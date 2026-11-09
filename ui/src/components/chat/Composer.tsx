@@ -1,6 +1,6 @@
 import { AutoGrowTextarea } from "../ui";
 import { SendIcon, StopIcon } from "../ui/icons";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { QUEUED_FOR_ASSIGNMENT_NOTICE, cancelTurn, sendPrompt, steerPrompt } from "../../api/client";
 import { readHeldRecovery, reconcileSteerRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
@@ -9,6 +9,7 @@ import { RunningTasks } from "./RunningTasks";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
 import { useAutocomplete } from "./autocomplete";
+import { useComposerEditing } from "./useComposerEditing";
 import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "./attachments";
 import { DraftAttachments } from "./AttachmentView";
 import type { AttachmentCapabilities } from "../../api/types";
@@ -65,23 +66,33 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   const pickerRef = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
   currentAgentId.current = agentId;
+  const editing = useComposerEditing(agentId, text, setText, textareaRef);
+  const resetEditing = editing.reset;
   const autocomplete = useAutocomplete({
     sourceId: agentId,
     text,
     textareaRef,
-    onText: (next) => {
-      setText(next);
-      setChatDraft(agentId, next);
-    },
+    onReplace: editing.replace,
   });
+  const resetAutocomplete = autocomplete.reset;
+  const replaceDraftBaseline = useCallback((next: string) => {
+    resetEditing();
+    resetAutocomplete();
+    setText(next);
+  }, [resetEditing, resetAutocomplete]);
+
+  useLayoutEffect(() => editing.flush(autocomplete.syncTrigger));
+
+  useLayoutEffect(() => {
+    replaceDraftBaseline(getChatDraft(agentId));
+    return subscribeChatDraft(agentId, replaceDraftBaseline);
+  }, [agentId, replaceDraftBaseline]);
 
   useEffect(() => {
     let current = true;
     const initialRevision = chatDraftRevision(agentId);
-    setText(getChatDraft(agentId));
     setError(null);
     setNotice(null);
-    autocomplete.reset();
     setSteering(steeringAgents.current.has(agentId));
     setFiles([]);
     const needsAttachmentRestore = hasPersistedAttachmentDraft(agentId);
@@ -103,7 +114,6 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
 
-  useEffect(() => subscribeChatDraft(agentId, setText), [agentId]);
   useEffect(() => subscribeAttachmentDraft(agentId, setFiles), [agentId]);
 
   const saveFiles = (next: DraftAttachment[]) => {
@@ -231,7 +241,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   useEffect(() => {
     if (running || !held) return;
     if (text === "") {
-      setText(held);
+      replaceDraftBaseline(held);
       setChatDraft(agentId, held);
     }
     releaseHeld(agentId);
@@ -268,8 +278,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     const draftRev = chatDraftRevision(agentId);
     const beforeSeq = latestTranscriptSeq(agentId);
     const requestId = chatDraftRequestId(agentId) || crypto.randomUUID();
-    setText("");
-    autocomplete.clearTrigger();
+    replaceDraftBaseline("");
     try {
       // A stopped chat agent is woken by this same request (FS-03.R35), so the
       // composer submits normally and only the reply takes longer to start.
@@ -290,7 +299,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         if (ownsDraft) setChatDraft(agentId, prompt);
         if (currentAgentId.current === agentId) {
           setError("Send delivery is uncertain — the message may have reached the agent. Check recovery/history, then use Send deliberately if needed.");
-          if (ownsDraft) setText(prompt);
+          if (ownsDraft) replaceDraftBaseline(prompt);
         }
         return;
       }
@@ -306,7 +315,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       // different chat the person opened while this request was in flight.
       if (currentAgentId.current === agentId) {
         setError(`Failed to send — ${reason}. Your message was restored.`);
-        setText(prompt);
+        replaceDraftBaseline(prompt);
       }
     }
   };
@@ -384,18 +393,17 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     const end = textarea?.selectionEnd ?? start;
     const token = (start > 0 && !/\s/.test(text[start - 1]) ? " " : "") + trigger;
     const next = text.slice(0, start) + token + text.slice(end);
-    setText(next);
-    setChatDraft(agentId, next);
-    requestAnimationFrame(() => {
-      if (!textarea) return;
-      textarea.focus();
-      textarea.setSelectionRange(start + token.length, start + token.length);
-      autocomplete.syncTrigger(textarea);
-    });
+    textarea?.focus();
+    editing.replace(next, start + token.length);
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (autocomplete.onKeyDown(event)) return;
+    if (editing.isComposing(event)) return;
+    if (autocomplete.onKeyDown(event)) {
+      editing.breakInteraction();
+      return;
+    }
+    if (editing.onKeyDown(event)) return;
     // Picker closed (or showing an empty state): Enter submits, Shift+Enter newlines.
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -417,14 +425,20 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
           maxHeight="40vh"
           placeholder={variant ? undefined : "Add direction to this session…"}
           value={text}
-          onChange={(event) => {
-            const next = event.target.value;
-            setText(next);
-            setChatDraft(agentId, next);
-            autocomplete.syncTrigger(event.target);
+          {...editing.input}
+          onKeyUp={(event) => {
+            editing.input.onKeyUp(event);
+            if (!editing.isComposing(event) && document.activeElement === event.currentTarget) autocomplete.syncTrigger(event.currentTarget);
           }}
-          onKeyUp={(event) => autocomplete.syncTrigger(event.currentTarget)}
           onClick={(event) => autocomplete.syncTrigger(event.currentTarget)}
+          onCompositionStart={(event) => {
+            editing.input.onCompositionStart(event);
+            autocomplete.clearTrigger();
+          }}
+          onCompositionEnd={(event) => {
+            editing.input.onCompositionEnd(event);
+            autocomplete.syncTrigger(event.currentTarget);
+          }}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
         />

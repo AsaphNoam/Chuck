@@ -64,7 +64,7 @@ describe("numbered composer lists", () => {
     expect(editNumberedList(at("1. First\n2. "), "continue")?.next).toEqual(at("1. First\n"));
   });
 
-  it.each(["prose", "````text\n```\n1. example", "1. ```\n   1. example", "    1. indented code", "prose\n2. continuation"])(
+  it.each(["prose", "````text\n```\n1. example", "1. ```", "1. ```\n   1. example", "    1. indented code", "prose\n2. continuation"])(
     "leaves ordinary newlines alone in %j", (text) => {
       expect(editNumberedList(at(text), "continue")).toBeUndefined();
     },

@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2104,7 +2104,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
 
 ### 2.19 Desktop composer editing
 
-- **R158 (planned) — One bounded edit history for the desktop composer.** FS-03.R113–R116 use
+- **R158 — One bounded edit history for the desktop composer.** FS-03.R113–R116 use
   the existing `Composer` and native `AutoGrowTextarea` on the full agent page and expanded
   dashboard pane. Keep the behavior in the chat feature. One local history orders native text
   input and explicit replacements, with before/after text changes and UTF-16 selection endpoints
@@ -2120,7 +2120,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   steps. An edit too large to record leaves its text intact and starts a fresh history. History
   stays in memory and is never persisted, transmitted, or logged (INV §1/§2/§3/§16).
 
-- **R159 (planned) — Edits share the current draft's write path.** User edits, list commands,
+- **R159 — Edits share the current draft's write path.** User edits, list commands,
   picker replacements and replay commit text once through `setChatDraft`, advancing the current
   draft revision and synchronizing the picker from the resulting selection after React commits
   the value. Capture the actual selection before the shared picker accept path mutates text,
@@ -2135,7 +2135,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   existing send/steer paths. Undo/redo affects text only. The persisted draft shape and prompt
   contract stay the same (INV §1/§2/§3/§10).
 
-- **R160 (planned) — List commands edit only the current numbered item.** Resolve the
+- **R160 — List commands edit only the current numbered item.** Resolve the
   logical line, enclosing list and active code fence from draft text when a list shortcut is
   invoked. Recognize decimal period markers in ordinary list context. Use the parent marker's
   content column for nesting and the nearest preceding item at the destination level for its

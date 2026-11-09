@@ -28,12 +28,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**In progress:** [Desktop chat composer editing](../ready-changes/desktop-chat-composer-editing.md).
-The local history and numbered-list rules pass `npm test -- composerEditing.test.ts` (10 tests).
-Next wire the native textarea and shared picker through the draft write path. Verify exact text, selection and draft
-ownership in component tests and rendered agent chat and expanded dashboard journeys.
+None.
 
-Main CI's two release findings remain in the separate fix queue below.
+The two release CI findings are available for fix work.
 
 ## Acceptance gates still owed
 
@@ -204,7 +201,9 @@ Main CI's two release findings remain in the separate fix queue below.
 
 ## Review queue
 
-None.
+- [Desktop chat composer editing](../ready-changes/desktop-chat-composer-editing.md) — review
+  the change after `bd2cf9f4` for FS-03.R113–R116/A89–A91 and TS-08.R158–R160. Focus on native
+  input/history ordering, selection replay, draft lineage and the shared picker boundary.
 
 ## Investigations awaiting evidence
 
@@ -259,8 +258,8 @@ specs, live user state or unrelated dirty files changed.
   dispatch (`sessions.go:362`, `queued_input.go:42`). Dispatch can clear assignment ownership
   and submit the receipt before replay; then `sessions.go:261` correctly refuses uncertain
   delivery with 409. Main CI `42450626202` first attempt failed at this race; exact local test
-  passes 20 repeats. No product defect established. A bounded fixture correction should hold
-  existing `taskSweepMu` across admission and synthetic replay, then release it before explicit
+  passes 20 repeats (INV §17). No product defect established. A bounded fixture correction should
+  hold existing `taskSweepMu` across admission and synthetic replay, then release it before explicit
   dispatch; retain the replay safety assertion and verify focused repeats/server checks.
   Full CI retry passed Go, then failed a separate UI check below. Evidence: `/private/tmp/chuck-v023-main-ci-failed.log`,
   `/private/tmp/chuck-v023-annotation-repeat.log`. Do not change product receipt safety for this.
@@ -271,9 +270,9 @@ specs, live user state or unrelated dirty files changed.
   `CardGrid > opens a pane on a new waiting-input transition and keeps a collapsed one collapsed`
   in `ui/src/components/grid/CardGrid.test.tsx:405–433`: missing `Composer a_1`. 1180 tests pass,
   one fails. All 42 tests in that file pass in a fresh local focused run; Linux CI's cause is
-  not yet established and may be fixture scheduling or product behavior. Diagnose under the
-  hosted schedule and retain FS-02.A43's transition/collapsed-pane guarantee; do not weaken
-  assertions to get a green build. Release workflow already published v0.23.0 after its own
+  not yet established and may be fixture scheduling or product behavior (no invariant class).
+  Diagnose under the hosted schedule and retain the assertions for FS-02.A43's
+  transition/collapsed-pane guarantee. Release workflow already published v0.23.0 after its own
   checks passed; this is a live failed CI gate, not an owed/unrun native acceptance item.
   Logs `/private/tmp/chuck-v023-main-ci-retry-failed.log`, `/private/tmp/chuck-v023-cardgrid.log`.
 
@@ -295,6 +294,8 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
-- **2026-11-09 — Feature design:** queued [desktop composer editing](../ready-changes/desktop-chat-composer-editing.md)
-  for grouped deletion undo, numbered lists and undoable autocomplete. The full spec check
-  still reports the same missing invariant tags on the two release CI findings as the baseline.
+- **2026-11-09 — Implementation:** finished
+  [desktop composer editing](../ready-changes/desktop-chat-composer-editing.md).
+  Specification checks, 1,193 UI tests, the production UI build and both rendered Chromium
+  journeys passed. Added the invariant classifications required by the spec check to the two
+  open CI findings.

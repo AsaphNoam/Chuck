@@ -281,6 +281,25 @@ describe("Composer autocomplete", () => {
     expect(ta.value).toBe("/$plan ");
   });
 
+  it("undoes pointer autocomplete with the original backward selection and redoes the same text", async () => {
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(ta, "Use #rev and leave this");
+    ta.setSelectionRange(8, 12, "backward");
+    fireEvent.click(ta);
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /\/review/ }));
+    expect(ta.value).toBe("Use /review  and leave this");
+    fireEvent.keyDown(ta, { key: "z", metaKey: true });
+    expect([ta.value, ta.selectionStart, ta.selectionEnd, ta.selectionDirection])
+      .toEqual(["Use #rev and leave this", 8, 12, "backward"]);
+    const redo = new InputEvent("beforeinput", { inputType: "historyRedo", bubbles: true, cancelable: true });
+    fireEvent(ta, redo);
+    expect(redo.defaultPrevented).toBe(true);
+    expect([ta.value, ta.selectionStart, ta.selectionEnd, getChatDraft("a_1")])
+      .toEqual(["Use /review  and leave this", 12, 12, "Use /review  and leave this"]);
+    expect(promptBodies).toHaveLength(0);
+  });
+
   // FS-03.R33: each @ source is selectable as soon as it answers, before the other settles.
   it.each([
     ["file search", "/api/sessions/:id/file-search", "/$plan", "/$plan "],
@@ -399,18 +418,24 @@ describe("Composer autocomplete", () => {
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
     type(ta, "message A");
     fireEvent.keyDown(ta, { key: "Enter" });
-    await waitFor(() => expect(ta.value).toBe(""));
+    await waitFor(() => expect(resolvePrompt).not.toBeNull());
+    expect(ta.value).toBe("");
 
     // The person starts a new draft for the same chat before A's send resolves.
     type(ta, "message B");
+    type(ta, "message B revised");
     resolvePrompt?.(HttpResponse.json({}, { status: 202 }));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => expect(useTranscriptStore.getState().byAgent.a_1)
+      .toEqual([expect.objectContaining({ text: "message A" })]));
 
-    // A's accepted send must not discard the newer draft B.
+    expect(ta.value).toBe("message B revised");
+    fireEvent.keyDown(ta, { key: "z", ctrlKey: true });
     expect(ta.value).toBe("message B");
     view.unmount();
     render(<Composer agentId="a_1" busy={false} />);
-    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("message B");
+    const restored = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.keyDown(restored, { key: "z", ctrlKey: true });
+    expect(restored.value).toBe("message B");
   });
 
   it("keeps a newer same-agent draft typed while a rejected send is in flight", async () => {

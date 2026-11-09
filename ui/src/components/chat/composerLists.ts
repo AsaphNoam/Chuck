@@ -5,6 +5,11 @@ const MARKER = /^( *)(\d{1,9})\.( {1,4}(?![ \t])| +$)(.*)$/;
 const FENCE = /^( *)(`{3,}|~{3,})(.*)$/;
 const MAX_NUMBER = 999_999_999;
 
+function openingFence(line: string) {
+  const match = FENCE.exec(line);
+  if (match && match[1].length <= 3 && (match[2][0] === "~" || !match[3].includes("`"))) return match[2];
+}
+
 function itemOn(line: string): Item | undefined {
   const match = MARKER.exec(line);
   if (!match) return;
@@ -46,20 +51,19 @@ function listContext(text: string, cursor: number) {
       if (!line.trim() || indent >= fence.column) continue;
       fence = undefined;
     }
-    const inList = preceding && level >= 0 && (!paragraph || preceding.number === 1 || level < path.length);
-    if (inList) path.splice(level, path.length, preceding);
+    const inList: Item | undefined = preceding && level >= 0 && (!paragraph || preceding.number === 1 || level < path.length)
+      ? preceding : undefined;
+    if (inList) path.splice(level, path.length, inList);
     else if (line.trim()) {
-      while (path.length && indent < path.at(-1)!.width) path.pop();
+      while (path.length && indent < path[path.length - 1].width) path.pop();
     }
 
-    const column = inList ? preceding.width : path.at(-1)?.width ?? 0;
-    const opening = FENCE.exec(inList ? preceding.body : line.slice(column));
-    if (opening && opening[1].length <= 3 && (opening[2][0] === "~" || !opening[3].includes("`"))) {
-      fence = { marker: opening[2], column };
-    }
+    const column: number = inList?.width ?? path[path.length - 1]?.width ?? 0;
+    const opening = openingFence(inList?.body ?? line.slice(column));
+    if (opening) fence = { marker: opening, column };
     paragraph = !!line.trim() && !inList && !fence;
   }
-  if (fence && item.indent >= fence.column) return;
+  if ((fence && item.indent >= fence.column) || openingFence(item.body)) return;
   const level = levelOf(item, path);
   if (level < 0 || (level === path.length && paragraph && item.number !== 1)) return;
   return { start, end, item, level, path };
