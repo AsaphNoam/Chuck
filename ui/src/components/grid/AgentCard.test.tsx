@@ -50,7 +50,7 @@ describe("AgentCard", () => {
     expect(screen.getByText("Chat view")).toBeInTheDocument();
   });
 
-  it("falls back to the project id when its title is unavailable", () => {
+  it("omits the project when its title is unavailable", () => {
     render(
       <MemoryRouter>
         <DndContext>
@@ -65,7 +65,8 @@ describe("AgentCard", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("implementer · chuck-v0-1-2-demo-20260726t230903z")).toBeInTheDocument();
+    expect(screen.getByText("implementer")).toBeInTheDocument();
+    expect(screen.queryByText(/chuck-v0-1-2-demo-20260726t230903z/)).not.toBeInTheDocument();
   });
 
   it("links an associated stage agent back to its pipeline run", () => {

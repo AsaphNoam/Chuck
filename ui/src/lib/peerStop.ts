@@ -1,4 +1,5 @@
 import type { AgentStatus, TranscriptEvent } from "../api/types";
+import { agentName, projectTitle } from "./labels";
 
 /** Origin of the host-owned peer Stop approval (FS-03.R91, TS-03.R71). */
 export const PEER_STOP_ORIGIN = "chuck_peer_stop";
@@ -36,9 +37,10 @@ export function peerStopRequest(event: TranscriptEvent): PeerStopRequest | null 
   return { requester, target, reason: String(event.reason ?? "") };
 }
 
-/** peerLabel names an agent with its project and stable id. */
-export function peerLabel(peer: PeerIdentity): string {
-  return `${peer.name || peer.agent_id} · ${peer.project} · ${peer.agent_id}`;
+/** peerLabel names an agent with its project title; internal ids are never shown. */
+export function peerLabel(peer: PeerIdentity, projects?: Parameters<typeof projectTitle>[0]): string {
+  const project = projectTitle(projects, peer.project);
+  return project ? `${agentName(peer.name)} · ${project}` : agentName(peer.name);
 }
 
 /** A host request is decidable only while its requester waits on it: the

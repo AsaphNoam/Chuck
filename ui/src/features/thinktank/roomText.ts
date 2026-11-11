@@ -7,7 +7,7 @@ const addresseeContext = z.object({ addressees: z.array(z.object({ agent_id: z.s
 export function entryAddressees(entry: ThinkTankEntry): string {
   const parsed = addresseeContext.safeParse(entry.context);
   if (!parsed.success) return "";
-  return [...new Map(parsed.data.addressees.map((a) => [a.agent_id, `${a.name} (${a.project})`])).values()].join(", ");
+  return [...new Map(parsed.data.addressees.map((a) => [a.agent_id, a.name])).values()].join(", ");
 }
 
 /** Plain-language room vocabulary shared by the room page and room lists

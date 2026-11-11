@@ -460,7 +460,7 @@ describe("ThinkTankPage", () => {
     };
     server.use(http.get("/api/think-tanks/tt_fixture/entries", () => HttpResponse.json({ entries: [addressed], complete: true })));
     renderRoom();
-    expect(await screen.findByText("Addressed to Ari (alpha) · shared with the room")).toBeTruthy();
+    expect(await screen.findByText("Addressed to Ari · shared with the room")).toBeTruthy();
   });
 
   it("disambiguates duplicate names by project and identity", async () => {
@@ -470,8 +470,8 @@ describe("ThinkTankPage", () => {
     renderRoom();
     const box = await screen.findByLabelText("Message the room") as HTMLTextAreaElement;
     fireEvent.change(box, { target: { value: "@", selectionStart: 1 } });
-    expect(await screen.findByRole("option", { name: /@Ari \(alpha · a_one\)/ })).toBeTruthy();
-    expect(screen.getByRole("option", { name: /@Ari \(alpha · a_two\)/ })).toBeTruthy();
+    expect(await screen.findByRole("option", { name: /@Ari \(Alpha #1\)/ })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /@Ari \(Alpha #2\)/ })).toBeTruthy();
   });
 
   it("offers exhausted live targets with their limit and excludes departed or missing targets", async () => {

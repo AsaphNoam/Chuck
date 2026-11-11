@@ -88,7 +88,7 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
     a terminal state since this phone last opened Home, with their outcome. An agent whose task or
     run is under **Needs you** is not listed again here; that entry opens its conversation.
 - **R12 — A decision carries its context.** A permission request opens as a card showing
-  the agent (`role@project`), the tool and its command or a diff summary, and the agent's latest
+  the agent (its name, or its role when unnamed), the tool and its command or a diff summary, and the agent's latest
   message, with **Approve** and **Deny** exactly as on the desktop (FS-03.R15/R21). A `waiting_input`
   question shows the agent's latest message and a reply box. Each card also opens the full
   conversation.
@@ -231,7 +231,8 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   do not notify the phone. The desktop per-type mutes (FS-02.R24) also apply, and each phone has its
   own notifications switch.
 - **R19 — Notification text is minimal.** A notification names the agent or run, the
-  project, and the kind of attention (for example "implementer@my-app needs permission"). It never
+  project title, and the kind of attention (for example "Atlas in My App needs permission"); it
+  never shows the project id (FS-02.R69). It never
   includes commands, diffs, message text, or file contents; those appear only inside the app.
 - **R20 — Notifications are grouped.** Attention from one project or run arriving within a
   short window replaces or updates one notification instead of stacking many.

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getTranscript, restoreAgent, resumeAgent } from "../../api/client";
 import { useProjects } from "../../api/config";
+import { projectTitle as projectTitleFor } from "../../lib/labels";
 import { sseClient } from "../../api/sse";
 import { AgentBreadcrumb, AgentIdentity } from "../../components/chat/ChatPanel";
 import { AgentStage, type PanelSlots } from "../../components/chat/AgentStage";
@@ -39,7 +40,7 @@ export function ArchiveAgentPage() {
   const fast = metadata?.fast === true;
   const createdAt = textField(metadata?.created_at);
   const { data: projects } = useProjects();
-  const projectTitle = (project && projects?.[project]?.title) || project;
+  const projectTitle = projectTitleFor(projects, project);
 
   // The read outcome is surfaced, never swallowed: an unknown id offers no
   // Resume/Restore, and a known session without a readable transcript says so

@@ -10,6 +10,7 @@ import { sseClient } from "../../api/sse";
 import { ArchiveAgentPage } from "./ArchiveAgentPage";
 
 const server = setupServer(
+  http.get("/api/projects", () => HttpResponse.json({ chuck: { title: "Chuck Project" } })),
   http.get("/api/sessions/:id/think-tank-results", () => HttpResponse.json({
     version: 1, complete: true, results: [],
   })),
@@ -63,7 +64,7 @@ describe("ArchiveAgentPage switched session identity", () => {
 
     renderArchive("a_switched");
 
-    await waitFor(() => expect(document.querySelector(".agent-heading-details")).toHaveTextContent(/^chuck · claude · sonnet · Normal speed$/));
+    await waitFor(() => expect(document.querySelector(".agent-heading-details")).toHaveTextContent(/^Chuck Project · claude · sonnet · Normal speed$/));
     expect(document.querySelector(".agent-heading-details")).not.toHaveTextContent("codex");
     expect(screen.getByRole("heading", { name: "Atlas" })).toBeInTheDocument();
     expect(document.querySelector("time")?.getAttribute("datetime")).toBe("2026-07-24T12:30:00Z");
@@ -110,7 +111,8 @@ describe("ArchiveAgentPage", () => {
     expect(await screen.findByText("Sure, I'll do that.")).toBeInTheDocument();
     expect(document.querySelectorAll("article.assistant-message")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Atlas" })).toBeInTheDocument();
-    expect(document.querySelector(".agent-heading-details")).toHaveTextContent(/^chuck · codex · gpt-5\.6-sol · Normal speed$/);
+    await waitFor(() => expect(document.querySelector(".agent-heading-details")).toHaveTextContent(/^Chuck Project · codex · gpt-5\.6-sol · Normal speed$/));
+    expect(document.querySelector(".agent-heading-details")).not.toHaveTextContent(/^chuck ·/);
     expect(screen.getByRole("link", { name: "Back to Archive" })).toHaveAttribute("href", "/archive");
     expect(screen.getByText(/Archived · read-only/)).toBeInTheDocument();
     expect(document.querySelector("time")?.getAttribute("datetime")).toBe("2026-07-24T12:30:00Z");

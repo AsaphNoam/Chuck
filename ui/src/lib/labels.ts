@@ -10,6 +10,28 @@ export function displayLabel(entries: readonly LabelEntry[], id: string): string
   return duplicates ? `${entry[1]} (${entry[0]})` : entry[1];
 }
 
+// Internal ids are never rendered as a stand-in for a missing name; these neutral words are.
+export const UNNAMED_AGENT = "Unnamed agent";
+export const UNAVAILABLE_AGENT = "Unavailable agent";
+export const UNAVAILABLE_PROJECT = "Unavailable project";
+
+/** An agent's name, or a neutral placeholder — never its id. */
+export function agentName(name: string | null | undefined): string {
+  return name?.trim() || UNNAMED_AGENT;
+}
+
+/** A project's configured title. While the project list is still loading this is empty; once
+ *  loaded, a missing or untitled project reads as unavailable rather than exposing its id. */
+export function projectTitle(
+  projects: Readonly<Record<string, { title?: string } | undefined>> | null | undefined,
+  id: string | null | undefined,
+): string {
+  if (!id) return "";
+  const title = projects?.[id]?.title?.trim();
+  if (title) return title;
+  return projects ? UNAVAILABLE_PROJECT : "";
+}
+
 /** `[id, label]` for every entry, in order, for rendering a select's options. */
 export function displayLabels(entries: readonly LabelEntry[]): [string, string][] {
   return entries.map(([id]) => [id, displayLabel(entries, id)]);

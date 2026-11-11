@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/remote"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
@@ -71,6 +72,9 @@ func TestPushSenderNotifiesAttentionOnce(t *testing.T) {
 	if err := s.configStore.WriteConfig(cfg); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.configStore.WriteProject("my-app", config.Project{Title: "My App"}); err != nil {
+		t.Fatal(err)
+	}
 	pairTestDevice(t, s, "d1", "n")
 	if err := s.stateStore.SetRemoteDevicePush("d1", "https://fcm.googleapis.com/fcm/send/x", "k", "a"); err != nil {
 		t.Fatal(err)
@@ -112,7 +116,7 @@ func TestPushSenderNotifiesAttentionOnce(t *testing.T) {
 	agent("a3", "done", "")                            // completion
 	waitFor(t, func() bool { return len(snapshot()) == 1 })
 	first := snapshot()[0].note
-	if first.Body != "implementer@my-app needs permission" || first.URL != "/agent/a1" || first.Tag != "project:my-app" {
+	if first.Body != "implementer in My App needs permission" || first.URL != "/agent/a1" || first.Tag != "project:my-app" {
 		t.Fatalf("note = %+v", first)
 	}
 	for _, leak := range []string{"rm -rf", "secret", "Should I continue"} {
@@ -125,7 +129,7 @@ func TestPushSenderNotifiesAttentionOnce(t *testing.T) {
 	agent("b1", "error", "")
 	agent("b2", "error", "")
 	waitFor(t, func() bool { return len(snapshot()) == 2 })
-	if got := snapshot()[1].note; got.Body != "2 items in my-app need you" || got.Tag != "project:my-app" || snapshot()[1].topic != remote.PushTopic("project:my-app") {
+	if got := snapshot()[1].note; got.Body != "2 items in My App need you" || got.Tag != "project:my-app" || snapshot()[1].topic != remote.PushTopic("project:my-app") {
 		t.Fatalf("summary = %+v", got)
 	}
 	time.Sleep(pushWindow + 100*time.Millisecond)
@@ -180,7 +184,7 @@ func TestPushDeliveryRechecksPolicyEachAttempt(t *testing.T) {
 		}
 		return http.StatusInternalServerError, nil
 	}
-	note := noteFor(attentionItem{Kind: "agent", ID: "a1", Title: "implementer@my-app", Project: "my-app", Reason: reasonPermission})
+	note := noteFor(attentionItem{Kind: "agent", ID: "a1", Title: "implementer", Project: "my-app", Reason: reasonPermission})
 
 	// Retries run to the bound while the policy allows sending.
 	setPolicy(true, nil)

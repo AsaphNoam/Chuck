@@ -403,7 +403,7 @@ Requirements are user-observable.
 - **R61 — The full agent page adopts the Figma agent-conversation composition.** The
   `AgentConversation` study in AgentDeck — Theme Exploration (`OykxmXqZnnyA67QA1lv3AU`) governs
   the desktop active and archived agent pages: a quiet breadcrumb row above the panel (Back,
-  project / agent, and the stable agent id at the right); one softly raised, rounded panel; an
+  project / agent; the agent id is not shown, FS-02.R69); one softly raised, rounded panel; an
   identity header with a monogram tile carrying a state dot, the agent name with its existing
   live-state label (or Stopped / Archived · read-only), a role · project · speed line, and a
   labelled context meter at the right; a separate low runtime band; quiet underline tabs; a
@@ -590,7 +590,7 @@ Requirements are user-observable.
 
 - **R70 — Sibling agents read as miniature agent cards in the breadcrumb.** When
   FS-03.R98's sibling entries are present, they replace R61's "project / agent" path text in the
-  breadcrumb row, between Back and the stable agent id, preceded by the project title as a quiet
+  breadcrumb row after Back, preceded by the project title as a quiet
   label. Each entry is a single-line, softly rounded mini card with a small monogram tile carrying
   the state dot (as in the agent header) and the agent name; it shows no preview, meter, role or
   runtime. The current entry is raised/outlined with a non-color current indicator; other entries
@@ -598,7 +598,7 @@ Requirements are user-observable.
   mini-card scale, and busy keeps the pulsing dot under the existing reduced-motion rule. Names
   truncate visually with their full accessible name retained. The row stays one line at the
   1024px floor with five entries plus `+n`, never wraps or pushes the agent panel down, and keeps
-  Back and the agent id visible. All three appearances use their semantic palettes.
+  Back visible. All three appearances use their semantic palettes.
 
 - **R71 — Pipelines follows the approved Figma Make pipelines study.** The
   persistent header pairs a small pipeline mark with the route title, a quiet description,
@@ -898,7 +898,7 @@ Requirements are user-observable.
 - **A40** (R70) — Render an agent page at 1024px and 1440px in Core, Sky & Grove and
   Studio with two, five and seven running siblings, a long agent name and a long project title,
   covering busy, idle, waiting, error and done states: the mini cards stay on one breadcrumb line
-  with Back and the agent id visible, the current entry is identifiable without color, attention
+  with Back visible, the current entry is identifiable without color, attention
   tones match the dashboard cards, and the panel below does not move compared with the unchanged
   single-agent breadcrumb. The opened `+n` menu lies inside the viewport, and under reduced
   motion no busy dot animates, including one that turns busy while the page is open. *Verify:* presentation checks and the A76 rendered pass; covered by

@@ -166,7 +166,8 @@ shows the server's message in an error toast and leaves the card available for a
 
 **R25.** A card's project subtitle displays the current configured project title, not its durable
 project id. If the corresponding project definition is unavailable (for example, it was force-deleted
-after the agent launched), the card falls back to that id so the agent remains identifiable.
+after the agent launched), the subtitle omits the project rather than showing its id (R69); the agent
+name identifies the card.
 
 **R26.** The context-usage meter renders `context_pct` (0..1) as a proportional bar with a rounded,
 visible percentage label, color-ramped green (`< 0.6`) → amber (`0.6–0.85`) → red (`> 0.85`). Zero
@@ -302,6 +303,13 @@ pipeline runs by their readable name alone, without a parenthesised id or provid
 example `Claude Sonnet`, not `Claude Sonnet (sonnet)`). A parenthesised id is added only when two
 entries in the same list share a readable name. Status suffixes such as `(archived)` become a small
 **archived** tag beside the name. Selected values, stored data and the API stay keyed by id.
+Beyond that duplicate-name case, no surface (desktop or phone, including headings, chips,
+tooltips, toasts and errors) shows an internal agent, project, session, task, run, room,
+template or proposal id: a missing name reads as a neutral phrase such as *Unnamed agent*,
+*Unavailable project*, *Untitled pipeline* or *Untitled stage*, and an unloaded name is left blank
+rather than filled with the id (operator decision 2026-11-11). Ids the person authors and edits as
+such — settings slug fields, template stage and participant ids, model ids — and CLI commands
+remain visible.
 
 **R70** — The Tasks page's all-projects view and its project filter omit archived
 projects. Their tasks are not changed. A Tasks route or saved focus naming an archived project
@@ -705,10 +713,10 @@ granted permission uses a Web Notification. — `sse.test.ts` "drops muted notif
 **A12.** Toast auto-dismiss timers are per-toast; a new toast does not restart older timers. —
 `NotificationCenter.test.tsx` "dismisses each toast independently".
 
-**A13.** A dashboard card with a configured project renders its title rather than its id, falls back
-to the id if the definition is absent, and visibly labels a zero-value context meter. —
+**A13.** A dashboard card with a configured project renders its title rather than its id, omits the
+project if the definition is absent, and visibly labels a zero-value context meter. —
 `CardGrid.test.tsx` "uses the configured project title on agent cards"; `AgentCard.test.tsx`
-"falls back to the project id when its title is unavailable"; `ContextBar.test.tsx` "labels zero
+"omits the project when its title is unavailable"; `ContextBar.test.tsx` "labels zero
 context usage"; J5.
 
 **A14.** A stopped card's context menu shows **Resume** and resumes through the existing endpoint;

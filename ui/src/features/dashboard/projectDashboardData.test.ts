@@ -12,6 +12,6 @@ describe("deriveDashboardProjects", () => {
     expect(entries.map((entry) => entry.id)).toEqual(["alpha", "gone"]);
     expect(entries[0].agents.map((entry) => entry.agent_id)).toEqual(["live", "stopped"]);
     expect(entries[0].stateSummary).toBe("1 busy · 1 done");
-    expect(entries[1]).toMatchObject({ unavailable: true, title: "gone" });
+    expect(entries[1]).toMatchObject({ unavailable: true, title: "Unavailable project" });
   });
 });

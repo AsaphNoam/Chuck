@@ -63,7 +63,8 @@ import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAt
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
 import { GroupPicker, groupNameError, projectGroupLabels } from "../components/ui/GroupPicker";
-import { useRoles } from "../api/config";
+import { useProjects, useRoles } from "../api/config";
+import { agentName } from "../lib/labels";
 import { personaIdentityLabel } from "../lib/personas";
 import type { RoleResponse } from "../schemas/role";
 import { decodeQuotaState } from "../lib/quota";
@@ -95,7 +96,7 @@ function retainEarlier(events: TranscriptEvent[]) {
 }
 
 export function agentTitle(agent: Pick<AgentState, "name" | "role" | "project">, role?: Partial<RoleResponse>) {
-  return agent.name || `${personaIdentityLabel(agent.role, role)}@${agent.project}`;
+  return agent.name || personaIdentityLabel(agent.role, role);
 }
 
 /** requestSummary shows the command or the file a permission is for (FS-20.R12). */
@@ -152,6 +153,7 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   onSettled: () => void;
 }) {
   const { data: roles } = useRoles();
+  const { data: projects } = useProjects();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const decide = async (decision: "approve" | "deny") => {
@@ -172,13 +174,13 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   return (
     <section className="phone-card phone-decision" aria-label="Permission request">
       <p className="phone-card-kicker">{agentTitle(agent, roles?.[agent.role])} needs permission</p>
-      <h2>{peerStop ? `Stop ${peerStop.target.name || peerStop.target.agent_id}` : String(event.name ?? "Tool")}</h2>
+      <h2>{peerStop ? `Stop ${agentName(peerStop.target.name)}` : String(event.name ?? "Tool")}</h2>
       {peerStop && (
         <dl className="phone-peer-stop">
           <dt>Requested by</dt>
-          <dd>{peerLabel(peerStop.requester)}</dd>
+          <dd>{peerLabel(peerStop.requester, projects)}</dd>
           <dt>Agent to stop</dt>
-          <dd>{peerLabel(peerStop.target)}</dd>
+          <dd>{peerLabel(peerStop.target, projects)}</dd>
         </dl>
       )}
       {summary && <pre className="phone-pre">{clip(summary, 1200)}</pre>}

@@ -18,7 +18,7 @@ import type {
   PipelineWorkspaceSelection,
 } from "../../schemas/pipeline";
 import type { Backend } from "../../schemas/backends";
-import { displayLabel, displayLabels } from "../../lib/labels";
+import { displayLabel, displayLabels, projectTitle } from "../../lib/labels";
 import { describeWorkspace } from "./proposalSummary";
 
 type Assignment = PipelineStartRequest["orchestrator"];
@@ -378,7 +378,7 @@ export function RunStartForm({
       {template && (!stepMode || step === 1) && <div className={stepMode ? "pipeline-start-pane pipeline-start-review" : "pipeline-subsection"} data-slot="content">
         {stepMode && <>
         <div className="pipeline-review-hero"><p className="pipeline-eyebrow">Ready to launch</p><h3>{displayName || template?.title || "Untitled run"}</h3><p>{goal}</p></div>
-        <dl className="pipeline-review-facts"><div><dt>Template</dt><dd>{template?.title || templateID}</dd></div><div><dt>Project</dt><dd>{projects.data?.[project]?.title || project}</dd></div><div><dt>Workspace</dt><dd>{describeWorkspace(selectedWorkspace)}</dd></div><div><dt>Stages</dt><dd>{template?.stages.length ?? 0}</dd></div><div><dt>Named inputs</dt><dd>{Object.values(inputs).filter((value) => value.trim()).length}</dd></div></dl>
+        <dl className="pipeline-review-facts"><div><dt>Template</dt><dd>{template?.title || "Untitled pipeline"}</dd></div><div><dt>Project</dt><dd>{projectTitle(projects.data, project)}</dd></div><div><dt>Workspace</dt><dd>{describeWorkspace(selectedWorkspace)}</dd></div><div><dt>Stages</dt><dd>{template?.stages.length ?? 0}</dd></div><div><dt>Named inputs</dt><dd>{Object.values(inputs).filter((value) => value.trim()).length}</dd></div></dl>
         <ol className="pipeline-review-runtimes">{runtimeRows.map((row, index) => <li key={row.key}><span>{index + 1}</span><div><strong>{row.label}</strong><small>{runtimeSummary(row.value, backends.data?.backends)}</small></div></li>)}</ol>
         </>}
       </div>}
@@ -387,7 +387,7 @@ export function RunStartForm({
       {conflicts.length > 0 && <div className="pipeline-warning">
         <strong>Shared project workspace</strong>
         <p>These active agents or runs use the same project directory. Chuck does not isolate their filesystem changes.</p>
-        <ul>{conflicts.map((conflict) => <li key={`${conflict.kind}-${conflict.id}`}>{conflict.kind}: {conflict.name} <code>{conflict.id}</code></li>)}</ul>
+        <ul>{conflicts.map((conflict) => <li key={`${conflict.kind}-${conflict.id}`}>{conflict.kind}: {conflict.name}</li>)}</ul>
         <button type="button" className="ad-button-primary" disabled={start.isPending} onClick={() => submit(true)}>Confirm shared workspace and start</button>
       </div>}
       {notice && <p className="form-info">{notice}</p>}

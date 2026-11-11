@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { newCommandID, useThinkTankMessage } from "../../api/thinkTanks";
+import { useProjects } from "../../api/config";
+import { projectTitle } from "../../lib/labels";
 import { useAutocomplete, type MentionTarget } from "../../components/chat/autocomplete";
 import { AutoGrowTextarea, VisuallyHidden } from "../../components/ui";
 import { RoomIcon, SendIcon } from "../../components/ui/icons";
@@ -39,6 +41,7 @@ export function RoomComposer({ room }: { room: ThinkTankDetail }) {
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [commandID, setCommandID] = useState(newCommandID);
   const [error, setError] = useState("");
+  const projects = useProjects();
   const send = useThinkTankMessage(room.room_id);
   const ended = room.phase === "ended";
   const held = !!room.active || room.active_attempts.length > 0 || room.phase === "openings" || room.phase === "setup";
@@ -51,14 +54,16 @@ export function RoomComposer({ room }: { room: ThinkTankDetail }) {
   // Live participants may be addressed; duplicate names carry their project.
   const targets: MentionTarget[] = useMemo(() => {
     const live = room.members.filter((m) => m.role === "participant" && m.state !== "departed" && m.exists);
-    return live.map((m) => ({
+    return live.map((m) => {
+    const same = live.filter((o) => o.name === m.name && o.project === m.project);
+    return {
     agentId: m.agent_id,
     label: live.filter((o) => o.name === m.name).length > 1
-      ? `${m.name} (${m.project}${live.filter((o) => o.name === m.name && o.project === m.project).length > 1 ? ` · ${m.agent_id}` : ""})`
+      ? `${m.name} (${projectTitle(projects.data, m.project)}${same.length > 1 ? ` #${same.indexOf(m) + 1}` : ""})`
       : m.name,
     note: m.completed >= m.limit ? "No turns left" : `${m.limit - m.completed} turns left`,
-    }));
-  }, [room.members]);
+    };});
+  }, [room.members, projects.data]);
 
   const changeText = (next: string) => {
     setMentions((current) => shiftMentions(current, text, next));

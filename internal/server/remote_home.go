@@ -16,17 +16,20 @@ import (
 // attentionItem is one row of the phone's Home (FS-20.R33). Reason is a short,
 // in-vocabulary line; message, command, and diff text never appear here.
 type attentionItem struct {
-	Kind        string    `json:"kind"` // agent | run
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Project     string    `json:"project"`
-	State       string    `json:"state"`
-	Reason      string    `json:"reason"`
-	AgentID     string    `json:"agent_id,omitempty"` // the conversation to open
-	StageNumber int       `json:"stage_number,omitempty"`
-	StageCount  int       `json:"stage_count,omitempty"`
-	Outcome     string    `json:"outcome,omitempty"`
-	Since       time.Time `json:"since"`
+	Kind    string `json:"kind"` // agent | run
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Project string `json:"project"`
+	// ProjectTitle is the configured title push notifications show; the
+	// project id is never shown to the person (FS-02.R69).
+	ProjectTitle string    `json:"-"`
+	State        string    `json:"state"`
+	Reason       string    `json:"reason"`
+	AgentID      string    `json:"agent_id,omitempty"` // the conversation to open
+	StageNumber  int       `json:"stage_number,omitempty"`
+	StageCount   int       `json:"stage_count,omitempty"`
+	Outcome      string    `json:"outcome,omitempty"`
+	Since        time.Time `json:"since"`
 }
 
 // Attention reasons. Push notifications reuse them, so Home and push cannot
@@ -121,6 +124,15 @@ func (s *Server) attention() (attentionLists, error) {
 	})
 	out.NeedsYou = boundItems(out.NeedsYou)
 	out.ActiveRuns = boundItems(out.ActiveRuns)
+	// Titles only label notifications; an unreadable catalog leaves them blank
+	// rather than failing attention.
+	if projects, err := s.configStore.ListProjects(); err == nil {
+		for _, list := range [][]attentionItem{out.NeedsYou, out.ActiveRuns} {
+			for i := range list {
+				list[i].ProjectTitle = projects[list[i].Project].Title
+			}
+		}
+	}
 	return out, nil
 }
 
@@ -131,13 +143,13 @@ func boundItems(items []attentionItem) []attentionItem {
 	return items
 }
 
-// agentTitle is the role@project address the desktop shows, or the display
-// name when one was set.
+// agentTitle is the agent's display name, or its role when none was set; the
+// project id is never part of it (FS-02.R69).
 func agentTitle(a state.AgentState) string {
 	if a.Name != "" {
 		return a.Name
 	}
-	return a.Role + "@" + a.Project
+	return a.Role
 }
 
 // handleRemoteHome implements tailnet-only GET /api/remote/home.

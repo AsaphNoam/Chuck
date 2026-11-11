@@ -11,6 +11,8 @@ import {
 import type { PipelineRunDetail } from "../../schemas/pipeline";
 import { decisionOnlyLabel, evidenceVisits } from "../../lib/ownerDecision";
 import { useAgentStore } from "../../store/agentStore";
+import { useProjects } from "../../api/config";
+import { agentName, projectTitle } from "../../lib/labels";
 import { RunWorkspace } from "./RunWorkspace";
 import { WorkspaceRemoveDialog } from "./WorkspaceRemoveDialog";
 
@@ -22,6 +24,7 @@ export function RunsLedger() {
     return [...byID.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   }, [pages]);
   const total = pages[0]?.total ?? runs.length;
+  const projects = useProjects();
 
   if (query.isLoading) return <RunsSkeleton />;
   if (query.error) return <p className="form-error">{query.error.message}</p>;
@@ -34,9 +37,9 @@ export function RunsLedger() {
       <div className="pipeline-ledger-head" aria-hidden="true"><span>Run</span><span>Current / final stage</span><span>Project</span><span>State / outcome</span><span>Updated</span><span /></div>
       {runs.map((run) => (
         <Link className="pipeline-ledger-row" key={run.run_id} to={`/pipelines/runs/${encodeURIComponent(run.run_id)}`} data-slot="item">
-          <span className="pipeline-ledger-identity"><strong>{run.display_name || run.template_id}</strong><small><code>{run.run_id}</code></small></span>
-          <span className="pipeline-ledger-stage">{run.current_stage_title || run.current_stage_id || "Complete"}</span>
-          <span className="pipeline-ledger-project">{run.project}</span>
+          <span className="pipeline-ledger-identity"><strong>{run.display_name || "Pipeline run"}</strong></span>
+          <span className="pipeline-ledger-stage">{run.current_stage_title || (run.current_stage_id ? "Untitled stage" : "Complete")}</span>
+          <span className="pipeline-ledger-project">{projectTitle(projects.data, run.project)}</span>
           <span className="pipeline-ledger-status"><span className={`pipeline-state pipeline-state-${run.state}`}>{humanize(run.state)}</span>{run.final_outcome && <small className={`pipeline-outcome pipeline-state-${run.final_outcome}`}>{humanize(run.final_outcome)}</small>}</span>
           <time dateTime={run.updated_at}>{formatRelative(run.updated_at)}</time>
           <span className="pipeline-row-arrow" aria-hidden="true">→</span>
@@ -62,6 +65,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
   const repairCleanup = usePipelineControl("repair-cleanup");
   const stopRun = usePipelineControl("stop");
   const deleteRun = useDeletePipelineRun();
+  const projects = useProjects();
   const [continuation, setContinuation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -123,13 +127,13 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
     <article className={detail.isFetching ? "pipeline-run-page pipeline-updating" : "pipeline-run-page"} data-ui="pipeline-run">
       <Link className="pipeline-back-link" to="/pipelines/runs">← All runs</Link>
       <section className="pipeline-run-hero" data-slot="live">
-        <div className="pipeline-run-kicker"><code>{run.run_id}</code><span className={`pipeline-state pipeline-state-${run.state}`}>{run.final_outcome || run.state}</span></div>
-        <div className="pipeline-run-title"><div><h2>{run.display_name || data.template.title}</h2><p>{run.goal}</p></div><div className="pipeline-live-stage"><small>{terminal ? "Final position" : "Current stage"}</small><strong>{stage?.title ?? (run.current_stage_id || "Complete")}</strong>{stage && <span>Stage {stageIndex + 1} of {stages.length}</span>}{nextStage && <span>Usual next: {nextStage.title}</span>}{!terminal && <span>Automatic recovery {run.recovery_rounds_used} of {run.recovery_limit}</span>}</div></div>
-        <p className="pipeline-run-context">{run.project} · {data.template.title}</p>
+        <div className="pipeline-run-kicker"><span className={`pipeline-state pipeline-state-${run.state}`}>{run.final_outcome || run.state}</span></div>
+        <div className="pipeline-run-title"><div><h2>{run.display_name || data.template.title}</h2><p>{run.goal}</p></div><div className="pipeline-live-stage"><small>{terminal ? "Final position" : "Current stage"}</small><strong>{stage?.title ?? (run.current_stage_id ? "Untitled stage" : "Complete")}</strong>{stage && <span>Stage {stageIndex + 1} of {stages.length}</span>}{nextStage && <span>Usual next: {nextStage.title}</span>}{!terminal && <span>Automatic recovery {run.recovery_rounds_used} of {run.recovery_limit}</span>}</div></div>
+        <p className="pipeline-run-context">{projectTitle(projects.data, run.project)} · {data.template.title}</p>
         {data.workspace && <RunWorkspace workspace={data.workspace} terminal={terminal} onRemove={() => setRemoveOpen(true)} />}
         {removeOpen && data.workspace && <WorkspaceRemoveDialog workspaceID={data.workspace.workspace_id} onClose={() => setRemoveOpen(false)} />}
         {currentTask?.room && <div className="pipeline-owner-strip"><div><small>Think Tank stage</small><strong>{roomPhaseLabel(currentTask)}</strong><span>{currentTask.attention_reason || "The judge's published synthesis becomes this stage's output."}</span></div></div>}
-        {currentTask && !currentTask.room && <div className="pipeline-owner-strip"><div><small>Standing owner</small><strong>{currentTask.standing_owner.name || currentTask.standing_owner.agent_id || "Starting"}</strong><span>{humanize(currentTask.standing_owner.state || currentTask.state)}</span></div>{currentTask.coordinator && <div><small>Stage coordinator</small><strong>{currentTask.coordinator.name || currentTask.coordinator.agent_id || "Starting"}</strong><span>{currentTask.coordinator.report_summary ? "Reports to standing owner" : humanize(currentTask.coordinator.state || "assigned")}</span></div>}</div>}
+        {currentTask && !currentTask.room && <div className="pipeline-owner-strip"><div><small>Standing owner</small><strong>{currentTask.standing_owner.name || currentTask.standing_owner.agent_id ? agentName(currentTask.standing_owner.name) : "Starting"}</strong><span>{humanize(currentTask.standing_owner.state || currentTask.state)}</span></div>{currentTask.coordinator && <div><small>Stage coordinator</small><strong>{currentTask.coordinator.name || currentTask.coordinator.agent_id ? agentName(currentTask.coordinator.name) : "Starting"}</strong><span>{currentTask.coordinator.report_summary ? "Reports to standing owner" : humanize(currentTask.coordinator.state || "assigned")}</span></div>}</div>}
         {run.attention_reason && <div className="pipeline-warning"><strong>Needs attention</strong><p>{humanize(run.attention_reason)}</p>{run.pause_question && <p><strong>Question:</strong> {run.pause_question}</p>}{recovered && <p>{restarted ? "The stage agent was stopped when Chuck restarted" : "The stage agent is not running after this failure"}, so its chat can no longer report against this run. Retry the stage to run it again with a fresh agent.</p>}</div>}
         <div className="pipeline-run-actions" data-slot="actions">
           {currentTask?.room && <Link className="pipeline-link-button" to={`/think-tank/${currentTask.room.room_id}`}>Open Think Tank</Link>}
@@ -149,7 +153,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
       <section className="pipeline-timeline" data-slot="timeline">
         <div className="pipeline-timeline-heading"><div><p className="pipeline-eyebrow">Durable stage work</p><h3>{data.stage_tasks.length} task{data.stage_tasks.length === 1 ? "" : "s"}</h3></div><span>Oldest → newest</span></div>
         <ol>
-          {data.stage_tasks.map((item) => <StageTask key={item.task_id} task={item} tasks={data.stage_tasks} titles={stageTitles} title={stageTitles.get(item.stage_id) ?? item.stage_id} current={item.task_id === run.current_task_id} />)}
+          {data.stage_tasks.map((item) => <StageTask key={item.task_id} task={item} tasks={data.stage_tasks} titles={stageTitles} title={stageTitles.get(item.stage_id) || "Untitled stage"} current={item.task_id === run.current_task_id} />)}
         </ol>
       </section>
     </article>
@@ -170,10 +174,10 @@ function roomPhaseLabel(task: PipelineRunDetail["stage_tasks"][number]) {
 }
 
 /** decisionLabel states the owner's recorded routing choice (FS-14.R103). */
-function decisionLabel(decision: NonNullable<PipelineRunDetail["stage_tasks"][number]["decision"]>) {
+function decisionLabel(decision: NonNullable<PipelineRunDetail["stage_tasks"][number]["decision"]>, titles: Map<string, string>) {
   if (decision.action === "complete") return "Completed the run";
   if (decision.action === "needs_input") return `Asked: ${decision.question}`;
-  return `Next: ${decision.stage_id}`;
+  return `Next: ${titles.get(decision.stage_id) || "Untitled stage"}`;
 }
 
 function StageTask({ task, tasks, titles, title, current }: { task: PipelineRunDetail["stage_tasks"][number]; tasks: PipelineRunDetail["stage_tasks"]; titles: Map<string, string>; title: string; current: boolean }) {
@@ -184,12 +188,12 @@ function StageTask({ task, tasks, titles, title, current }: { task: PipelineRunD
   return <li id={`visit-${task.task_id}`} className={current ? "pipeline-timeline-item pipeline-timeline-current" : "pipeline-timeline-item"} data-slot="attempt">
     <span className="pipeline-timeline-line" aria-hidden="true" />
     <details open={current}>
-      <summary><span className="pipeline-stage-number">{task.visit_sequence || task.stage_index + 1}</span><span className="pipeline-attempt-identity"><strong>{title}</strong><small>{room ? `Think Tank · ${roomPhaseLabel(task)}` : `${task.standing_owner.name || task.standing_owner.agent_id || "Standing owner"} · step ${task.stage_index + 1} · attempt ${task.attempt_number}`}</small></span><span className={`pipeline-state pipeline-state-${outcome}`}>{humanize(outcome)}</span><span className="pipeline-disclosure-chevron" aria-hidden="true">⌄</span></summary>
+      <summary><span className="pipeline-stage-number">{task.visit_sequence || task.stage_index + 1}</span><span className="pipeline-attempt-identity"><strong>{title}</strong><small>{room ? `Think Tank · ${roomPhaseLabel(task)}` : `${task.standing_owner.name || task.standing_owner.agent_id ? agentName(task.standing_owner.name) : "Standing owner"} · step ${task.stage_index + 1} · attempt ${task.attempt_number}`}</small></span><span className={`pipeline-state pipeline-state-${outcome}`}>{humanize(outcome)}</span><span className="pipeline-disclosure-chevron" aria-hidden="true">⌄</span></summary>
       <div className="pipeline-attempt-body">
         {room && <p className="pipeline-room-source"><Link to={`/think-tank/${room.room_id}`}>Open Think Tank room</Link>{room.source_entry_seq > 0 && <span> · Output is the judge's synthesis (room entry {room.source_entry_seq}). Completion means a synthesis was produced, not that participants agreed.</span>}</p>}
         {task.result?.summary ? <p className="pipeline-result-summary">{task.result.summary}</p> : <p className="pipeline-unreported">{room ? (task.attention_reason || "The room has not published a judge synthesis yet.") : current ? "The standing owner has not accepted a stage outcome yet." : "No stage outcome was recorded."}</p>}
         {decisionOnly && <p className="pipeline-unreported">{decisionOnly}</p>}
-        {task.decision && !task.decision.implicit && <section><h4>Owner decision</h4><p>{decisionLabel(task.decision)}{task.decision.reason ? ` — ${task.decision.reason}` : ""}</p>{evidence.length > 0 && <ul aria-label="Evidence visits">{evidence.map((item) => <li key={item.taskId}>{item.stepTitle} → <a href={`#visit-${item.taskId}`}>{item.label}</a></li>)}</ul>}</section>}
+        {task.decision && !task.decision.implicit && <section><h4>Owner decision</h4><p>{decisionLabel(task.decision, titles)}{task.decision.reason ? ` — ${task.decision.reason}` : ""}</p>{evidence.length > 0 && <ul aria-label="Evidence visits">{evidence.map((item) => <li key={item.taskId}>{item.stepTitle} → <a href={`#visit-${item.taskId}`}>{item.label}</a></li>)}</ul>}</section>}
         {task.coordinator && <section><h4>Coordinator report to standing owner</h4><p>{task.coordinator.report_summary || "No coordinator report recorded."}</p></section>}
         {task.result?.details && <section><h4>Result details</h4><pre>{task.result.details}</pre></section>}
         {Object.entries(task.result?.outputs ?? {}).map(([name, value]) => <section key={name}><h4>Output · {name}</h4><pre>{value}</pre></section>)}

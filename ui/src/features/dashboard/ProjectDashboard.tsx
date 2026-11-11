@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { createPortal } from "react-dom";
 import { configErrorMessage, QUERY_KEYS, useCreateProject, useProjects, useUpdateProject } from "../../api/config";
+import { UNAVAILABLE_PROJECT } from "../../lib/labels";
 import { useAgentStore } from "../../store/agentStore";
 import { CardGrid, type CardGridOpeners } from "../../components/grid/CardGrid";
 import { archiveProject, getWorktreeStatus } from "../../api/client";
@@ -357,7 +358,7 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
           <button type="button" onClick={() => setForkOpen(true)}>New worktree project</button>
         )}
       </div>
-      <CardGrid projectID={id} fixedProject={project ? id : undefined} projectTitle={project?.title ?? id} openersRef={openersRef} />
+      <CardGrid projectID={id} fixedProject={project ? id : undefined} projectTitle={project?.title || UNAVAILABLE_PROJECT} openersRef={openersRef} />
       {/* Rooms follow the agent grid, one card per row (FS-02.R71). */}
       <RoomList project={id} />
       {bgMenu && createPortal(

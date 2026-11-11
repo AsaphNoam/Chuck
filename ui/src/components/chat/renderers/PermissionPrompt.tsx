@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { decidePermission } from "../../../api/client";
+import { useProjects } from "../../../api/config";
+import { agentName } from "../../../lib/labels";
 import type { PermissionResolution, TranscriptEvent } from "../../../api/types";
 import { hostRequestEnded, PEER_STOP_CONSEQUENCE, peerLabel, peerStopRequest } from "../../../lib/peerStop";
 import { useAgentStore } from "../../../store/agentStore";
@@ -10,6 +12,7 @@ export function PermissionPrompt({ agentId, event }: { agentId: string; event: T
   const status = useAgentStore((state) => state.agents[agentId]?.state);
   const toolCallId = String(event.tool_call_id ?? "");
   const peerStop = peerStopRequest(event);
+  const { data: projects } = useProjects();
   // A host request outlives nothing: once its requester stopped, it can no
   // longer be decided and replays as cancelled (TS-04.R94).
   const resolved = (event.resolved as PermissionResolution | undefined) ?? (hostRequestEnded(event, status) ? "cancelled" : undefined);
@@ -28,7 +31,7 @@ export function PermissionPrompt({ agentId, event }: { agentId: string; event: T
     }
   };
   const label = peerStop
-    ? `Stop ${peerStop.target.name || peerStop.target.agent_id}`
+    ? `Stop ${agentName(peerStop.target.name)}`
     : String(event.name ?? event.tool ?? "Permission required");
   if (resolved) {
     const presentation = resolutionPresentation[resolved];
@@ -53,9 +56,9 @@ export function PermissionPrompt({ agentId, event }: { agentId: string; event: T
         <>
           <dl data-slot="peers">
             <dt>Requested by</dt>
-            <dd>{peerLabel(peerStop.requester)}</dd>
+            <dd>{peerLabel(peerStop.requester, projects)}</dd>
             <dt>Agent to stop</dt>
-            <dd>{peerLabel(peerStop.target)}</dd>
+            <dd>{peerLabel(peerStop.target, projects)}</dd>
           </dl>
           <p data-slot="reason">{peerStop.reason}</p>
           <p data-slot="consequence">{PEER_STOP_CONSEQUENCE}</p>

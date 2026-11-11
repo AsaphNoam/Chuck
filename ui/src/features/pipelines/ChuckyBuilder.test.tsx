@@ -303,14 +303,14 @@ describe("ChuckyBuilder proposal collapse", () => {
 
   it("names a start proposal's template as gone once that template is deleted", async () => {
     renderProposals([runProposal]);
-    expect(await screen.findByText("delivery (template is gone)")).toBeInTheDocument();
+    expect(await screen.findByText("Template is gone")).toBeInTheDocument();
   });
 
-  it("lists a proposal whose payload cannot be summarized with its kind and id", async () => {
+  it("lists a proposal whose payload cannot be summarized with its kind", async () => {
     renderProposals([{ ...runProposal, payload: { unexpected: true } }]);
 
     expect(await screen.findByText("Start run")).toBeInTheDocument();
-    expect(screen.getByText("pp_456")).toBeInTheDocument();
+    expect(screen.queryByText("pp_456")).toBeNull();
     expect(screen.getByText("This proposal cannot be summarized.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Review exact proposal" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();

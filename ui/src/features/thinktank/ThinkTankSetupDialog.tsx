@@ -6,6 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useNavigate } from "react-router-dom";
 import { newCommandID, useCreateThinkTank, type ThinkTankLaunch } from "../../api/thinkTanks";
 import { useProjects, useRoles } from "../../api/config";
+import { projectTitle as projectTitleOf } from "../../lib/labels";
 import { personaIdentityLabel } from "../../lib/personas";
 import { useAgentStore } from "../../store/agentStore";
 import { NewAgentModal } from "../launch/NewAgentModal";
@@ -46,7 +47,7 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
   const [error, setError] = useState("");
   const [commandID, setCommandID] = useState(newCommandID);
 
-  const projectTitle = (id: string) => projects.data?.[id]?.title ?? id;
+  const projectTitle = (id: string) => projectTitleOf(projects.data, id);
   const candidates = useMemo(() => Object.values(agents)
     .filter((a) => a.interface === "chat" && !a.archived && !projects.data?.[a.project]?.archived)
     .filter((a) => !rows.some((r) => r.agentID === a.agent_id))

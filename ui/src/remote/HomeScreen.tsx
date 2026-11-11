@@ -7,6 +7,7 @@ import { phoneFetch } from "./api";
 import { deriveDashboardProjects } from "../features/dashboard/projectDashboardData";
 import { PhoneIcon } from "./PhoneIcon";
 import { VisuallyHidden } from "../components/ui";
+import { projectTitle } from "../lib/labels";
 const DEBOUNCE_MS = 400;
 
 /** itemPath is where a Home row opens. */
@@ -23,12 +24,19 @@ function relative(iso: string): string {
   return hours < 24 ? `${hours} h ago` : new Date(iso).toLocaleDateString();
 }
 
+function usePhoneProjects() {
+  const revision = useConnection((state) => state.revision);
+  return useQuery({ queryKey: ["projects", revision], queryFn: () => phoneFetch<Record<string, { title: string; color: [number, number, number]; archived?: boolean }>>("/api/projects"), placeholderData: (previous) => previous });
+}
+
 function Row({ item }: { item: AttentionItem }) {
+  const projects = usePhoneProjects();
+  const project = projectTitle(projects.data, item.project);
   const stage = item.stage_number && item.stage_count ? `Stage ${item.stage_number} of ${item.stage_count}` : "";
   return (
     <li>
       <button type="button" className="phone-row phone-attention" onClick={() => navigate(itemPath(item))}>
-        <span className="phone-attention-meta"><span><PhoneIcon name={item.kind === "run" ? "pipeline" : "agent"} size={15} />{item.kind === "run" ? "Pipeline" : "Agent"} · {item.project}</span><small>{relative(item.since)}</small></span>
+        <span className="phone-attention-meta"><span><PhoneIcon name={item.kind === "run" ? "pipeline" : "agent"} size={15} />{item.kind === "run" ? "Pipeline" : "Agent"}{project ? ` · ${project}` : ""}</span><small>{relative(item.since)}</small></span>
         <span className="phone-attention-heading"><span className="phone-row-title">{item.title}</span><PhoneIcon name="arrow" size={17} /></span>
         <span className="phone-row-reason">
           {item.reason}
@@ -76,8 +84,7 @@ export function HomeScreen() {
 
 function Projects() {
   const agents = useConnection((state) => state.agents);
-  const revision = useConnection((state) => state.revision);
-  const projects = useQuery({ queryKey: ["projects", revision], queryFn: () => phoneFetch<Record<string, { title: string; color: [number, number, number]; archived?: boolean }>>("/api/projects"), placeholderData: (previous) => previous });
+  const projects = usePhoneProjects();
   if (!projects.data) return <p className="phone-empty">Loading projects…</p>;
   const entries = deriveDashboardProjects(projects.data, agents);
   return <section className="phone-section" aria-label="Projects"><div className="phone-section-title"><h2>Projects</h2><span className="phone-count">{entries.filter((project) => !project.unavailable).length} active</span></div><ul className="phone-list phone-project-list">{entries.map((project) => <li key={project.id}><button type="button" className={`phone-row phone-project-row${project.unavailable ? " phone-project-unavailable" : ""}`} onClick={() => navigate(`/project/${encodeURIComponent(project.id)}`)}><span className="phone-project-mark" style={project.color ? { "--ad-project-accent": `rgb(${project.color.join(",")})` } as CSSProperties : undefined}><PhoneIcon name="folder" /></span><span className="phone-row-text"><span className="phone-row-title">{project.title}</span><span className="phone-row-reason">{project.unavailable ? "Project unavailable" : `${project.agents.length} agents · ${project.stateSummary}`}</span></span><span className="phone-project-count">{project.agents.length}</span><PhoneIcon name="arrow" size={16} /></button></li>)}</ul>{entries.length === 0 && <p className="phone-empty">No active projects. Configure a project on your Mac.</p>}</section>;

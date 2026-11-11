@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useAgentThinkTanks } from "../../api/thinkTanks";
 import { agentConversationPath } from "../../lib/agentConversation";
 import { useProjects } from "../../api/config";
+import { projectTitle as projectTitleOf } from "../../lib/labels";
 import type { ThinkTankSummary } from "../../schemas/thinkTank";
 import { phaseLabel, roomTitle, thinkTankPath } from "./roomText";
 
@@ -48,7 +49,7 @@ function Membership({ room, agentId }: { room: ThinkTankSummary; agentId: string
   const projects = useProjects();
   const linked = room.roster.filter((member) => member.agent_id !== agentId);
   const duplicateNames = new Set(linked.filter((member, index) => linked.some((other, otherIndex) => otherIndex !== index && other.name === member.name)).map((member) => member.name));
-  const projectLabel = (project: string) => projects.data?.[project]?.title ?? project;
+  const projectLabel = (project: string) => projectTitleOf(projects.data, project);
   const labels = linked.map((member) => duplicateNames.has(member.name)
     ? member.name + " · " + projectLabel(member.project)
     : member.name);
@@ -56,7 +57,7 @@ function Membership({ room, agentId }: { room: ThinkTankSummary; agentId: string
   labels.forEach((label, index) => labelsByText.set(label, [...(labelsByText.get(label) ?? []), index]));
   for (const indexes of labelsByText.values()) {
     if (indexes.length > 1) {
-      for (const index of indexes) labels[index] += " · " + linked[index].agent_id;
+      for (const index of indexes) labels[index] += " #" + (indexes.indexOf(index) + 1);
     }
   }
   const active = new Set(room.active_attempts.map((attempt) => attempt.agent_id));

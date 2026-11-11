@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import { AutoGrowTextarea, Button } from "../../components/ui";
-import { useBackends, useConfig, useRoles } from "../../api/config";
+import { projectTitle } from "../../lib/labels";
+import { useBackends, useConfig, useProjects, useRoles } from "../../api/config";
 import { personaLabel } from "../../lib/personas";
 import { resetRuntimeForBackend, resetRuntimeForModel } from "../../lib/runtimeSelection";
 import {
@@ -56,10 +57,10 @@ function prerequisiteError(selection: WorkPrerequisiteSelection): string {
 function sourceLabel(sourceKind: WorkSourceKind, sourceID: string, tasks: Task[], runs: PipelineRunSummary[]): string {
   if (sourceKind === "task") {
     const task = tasks.find((item) => item.task_id === sourceID);
-    return task ? `${task.display_name} · ${task.state} · ${task.task_id}` : `Unavailable task · ${sourceID}`;
+    return task ? `${task.display_name} · ${task.state}` : "Unavailable task";
   }
   const run = runs.find((item) => item.run_id === sourceID);
-  return run ? `${run.display_name || run.template_id} · ${run.state} · ${run.run_id}` : `Unavailable run · ${sourceID}`;
+  return run ? `${run.display_name || "Pipeline run"} · ${run.state}` : "Unavailable run";
 }
 
 function armDescription(arm: TaskArm, tasks: Task[], runs: PipelineRunSummary[]): string {
@@ -131,8 +132,8 @@ function PrerequisitePicker({
         >
           <option value="">Choose a {selection.sourceKind === "task" ? "task" : "pipeline run"}</option>
           {!knownSelection && selection.sourceID && <option value={selection.sourceID}>{sourceLabel(selection.sourceKind, selection.sourceID, tasks, runs)}</option>}
-          {namedTasks.map((task) => <option key={task.task_id} value={task.task_id}>{task.display_name} · {task.state} · {task.task_id}</option>)}
-          {namedRuns.map((run) => <option key={run.run_id} value={run.run_id}>{run.display_name || run.template_id} · {run.state} · {run.run_id}</option>)}
+          {namedTasks.map((task) => <option key={task.task_id} value={task.task_id}>{task.display_name} · {task.state}</option>)}
+          {namedRuns.map((run) => <option key={run.run_id} value={run.run_id}>{run.display_name || "Pipeline run"} · {run.state}</option>)}
         </select>
       </label>
       {selection.sourceKind === "task" ? (
@@ -382,6 +383,7 @@ function StartAtFields({ startAt, onTimeOnly, onStartAt, onOnTimeOnly }: {
  *  dependency choice that belonged to the old project (FS-16.R40/R45). */
 export function CreateTaskForm({ projects, initialProject }: { projects: string[]; initialProject: string }) {
   const [project, setProject] = useState(initialProject);
+  const projectsQuery = useProjects();
   const create = useCreateTask(project || undefined);
   const tasksQuery = useTasks(project || undefined);
   const runsQuery = usePipelineRuns();
@@ -431,7 +433,7 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
             run_only_on_time: startAt ? onTimeOnly : undefined,
           })
           .then(() => {
-            setCreated(`Created “${name}” in ${project}.`);
+            setCreated(`Created “${name}” in ${projectTitle(projectsQuery.data, project)}.`);
             setName("");
             setInstruction("");
             setSignal("");
@@ -458,7 +460,7 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
             }}
           >
             <option value="">Choose a project</option>
-            {projects.map((item) => <option key={item} value={item}>{item}</option>)}
+            {projects.map((item) => <option key={item} value={item}>{projectTitle(projectsQuery.data, item)}</option>)}
           </select>
         </label>
         <label>
@@ -504,6 +506,7 @@ export function FireSignalForm({ projects, project, name, onChange }: {
   onChange: (draft: { project: string; name: string }) => void;
 }) {
   const fire = useFireSignal(project || undefined);
+  const projectsQuery = useProjects();
   const [error, setError] = useState("");
   const [released, setReleased] = useState("");
   return (
@@ -516,7 +519,7 @@ export function FireSignalForm({ projects, project, name, onChange }: {
         setReleased("");
         fire.mutateAsync(name.trim())
           .then((result) => {
-            setReleased(`Fired ${name.trim()} in ${project}; ${result.released} wait${result.released === 1 ? "" : "s"} released.`);
+            setReleased(`Fired ${name.trim()} in ${projectTitle(projectsQuery.data, project)}; ${result.released} wait${result.released === 1 ? "" : "s"} released.`);
             onChange({ project, name: "" });
           })
           .catch((err: unknown) => setError(errorMessage(err)));
@@ -526,7 +529,7 @@ export function FireSignalForm({ projects, project, name, onChange }: {
         Signal project
         <select value={project} required onChange={(e) => onChange({ project: e.target.value, name })}>
           <option value="">Choose a project</option>
-          {projects.map((item) => <option key={item} value={item}>{item}</option>)}
+          {projects.map((item) => <option key={item} value={item}>{projectTitle(projectsQuery.data, item)}</option>)}
         </select>
       </label>
       <label>

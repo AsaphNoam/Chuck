@@ -262,10 +262,10 @@ describe("ChatPanel back target", () => {
     renderPanel("a_live");
 
     expect(screen.getByRole("link", { name: "Back to project" })).toHaveAttribute("href", "/project/app");
-    // FS-12.R61 — the breadcrumb names where the agent lives and its stable id.
+    // FS-12.R61 — the breadcrumb names where the agent lives; internal ids are never shown.
     const crumb = screen.getByRole("navigation", { name: "Agent location" });
     expect(crumb).toHaveTextContent("App/Nova");
-    expect(crumb).toHaveTextContent("a_live");
+    expect(crumb).not.toHaveTextContent("a_live");
   });
 
   it("falls back to the projects home when the project is absent from the catalog", () => {
@@ -326,7 +326,8 @@ describe("ChatPanel sibling agents", () => {
     expect(waiting).toHaveClass("waiting_input");
 
     fireEvent.click(waiting);
-    await waitFor(() => expect(crumb()).toHaveTextContent("waiting"));
+    await waitFor(() => expect(crumb().querySelector("[aria-current='page']")).toHaveTextContent("Waiting"));
+    expect(crumb()).not.toHaveTextContent("waiting");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Waiting");
     expect(crumb().querySelector("[aria-current='page']")).toHaveTextContent("Waiting");
   });
@@ -757,6 +758,7 @@ it("keeps room navigation compact while exposing concurrent active and retained 
     return new Response("{}", { status: 404 });
   });
   useAgentStore.setState({ agents: { a_room: liveAgent("a_room") }, order: ["a_room"], hydrated: true, hydrating: false });
+  mocks.useProjects.mockReturnValue({ data: { app: { title: "App", archived: false }, ops: { title: "Ops", archived: false } } });
   renderPanel("a_room");
 
   const tab = await screen.findByRole("tab", { name: "Think Tank" });
@@ -764,8 +766,8 @@ it("keeps room navigation compact while exposing concurrent active and retained 
   fireEvent.click(tab);
   const nav = await screen.findByRole("navigation", { name: "Shared decision navigation" });
   expect(within(nav).getByRole("link", { name: "Shared decision" })).toHaveAttribute("href", "/think-tank/tt_compact");
-  expect(screen.getByRole("link", { name: "Ari · app, taking a room turn" })).toHaveAttribute("href", "/agent/a_ari");
-  expect(screen.getByRole("link", { name: "Ari · ops, taking a room turn" })).toHaveAttribute("href", "/agent/a_ari_2");
+  expect(screen.getByRole("link", { name: "Ari · App, taking a room turn" })).toHaveAttribute("href", "/agent/a_ari");
+  expect(screen.getByRole("link", { name: "Ari · Ops, taking a room turn" })).toHaveAttribute("href", "/agent/a_ari_2");
   expect(screen.getByText("Lee (unavailable)")).toBeInTheDocument();
   expect(screen.queryByText("long explanation")).toBeNull();
   expect(screen.queryByText(/turns left/)).toBeNull();

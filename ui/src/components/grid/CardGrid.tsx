@@ -15,6 +15,7 @@ import { EmptyState } from "./EmptyState";
 import { NewAgentModal } from "../../features/launch/NewAgentModal";
 import { ThinkTankSetupDialog } from "../../features/thinktank/ThinkTankSetupDialog";
 import { useProjects, useRoles } from "../../api/config";
+import { projectTitle as projectTitleFor } from "../../lib/labels";
 import { ProjectChatSearch } from "../../features/dashboard/ProjectChatSearch";
 import { personaIdentityLabel } from "../../lib/personas";
 import { useTasks } from "../../api/tasks";
@@ -343,7 +344,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
   const body =
     ids.length === 0 ? (
 		<>
-			{projectID && <PageHeader title={projectTitle ?? projectID} titleAccessory={<ProjectChatSearch key={projectID} project={projectID} />} />}
+			{projectID && <PageHeader title={projectTitle ?? ""}titleAccessory={<ProjectChatSearch key={projectID} project={projectID} />} />}
 			<TaskAttentionLink projectID={projectID} />
 			<EmptyState onNewAgent={() => setShowNewAgent(true)} actions={thinkTankAction} />
 		</>
@@ -387,7 +388,7 @@ export function CardGrid({ projectID, projectTitle, fixedProject, openersRef }: 
                             <LiveAgentCard
                               key={agent.agent_id}
                               agent={agent}
-                              projectTitle={projects.data?.[agent.project]?.title}
+                              projectTitle={projectTitleFor(projects.data, agent.project)}
                               showProject={!projectID}
                               expanded={expanded.includes(agent.agent_id)}
                               onToggle={() => toggleExpanded(agent.agent_id)}

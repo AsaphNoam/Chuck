@@ -254,7 +254,7 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   wording alone is not treated as approval. Launching the builder keeps the person on the Pipelines
   approval surface rather than navigating into the builder chat, because the Save/Start controls live
   there. The builder session panel reflects the session's live state: while agent state is still
-  hydrating it shows a loading line; while the builder runs it shows the session id and an **Open
+  hydrating it shows a loading line; while the builder runs it says so (without its session id) and shows an **Open
   Chucky chat** link; and once the builder has stopped it withholds that link and states that the
   session stopped while its pending proposals remain available for approval below.
 - **R28.** Runs can be started and controlled from the Pipelines page and local CLI/API.

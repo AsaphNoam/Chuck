@@ -19,7 +19,7 @@ export function AgentCard({ agent, lastLine, projectTitle, roleLabel = agent.rol
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: agent.agent_id, disabled: expanded });
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition };
   const preview = agent.detail || lastLine || "";
-  const projectLabel = projectTitle?.trim() || agent.project;
+  const projectLabel = showProject ? projectTitle?.trim() : "";
   const expandable = agent.interface === "chat" && Boolean(onToggle);
   const menu = (event: MouseEvent) => {
     event.preventDefault();
@@ -87,7 +87,7 @@ export function AgentCard({ agent, lastLine, projectTitle, roleLabel = agent.rol
         {preview && <p className="agent-preview" data-slot="preview">{preview}</p>}
         {failed && <p className="agent-card-hint">{restartHint(agent.interface)}</p>}
         <div className="agent-card-footer">
-          <span className="agent-subtitle">{showProject ? `${roleLabel} · ${projectLabel}` : roleLabel}</span>
+          <span className="agent-subtitle">{projectLabel ? `${roleLabel} · ${projectLabel}` : roleLabel}</span>
           {agent.pipeline && (
             <Link className="pipeline-association" to={`/pipelines/runs/${encodeURIComponent(agent.pipeline.run_id)}`} onClick={stop}>
               {agent.pipeline.run_name} · {agent.pipeline.stage_id} · attempt {agent.pipeline.attempt_no}

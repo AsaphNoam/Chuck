@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { continuePipelineRun, getPipelineRun, repairPipelineCleanup, replacePipelineOrchestrator, retryPipelineRun, stopPipelineRun } from "../api/pipelines";
 import type { PipelineRuntimeAssignment as RuntimeAssignment } from "../schemas/pipeline";
 import { decisionOnlyLabel, evidenceVisits } from "../lib/ownerDecision";
-import { getRuntimeOptions } from "./api";
+import { projectTitle } from "../lib/labels";
+import { getRuntimeOptions, phoneFetch } from "./api";
 import { useConnection } from "./connection";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
@@ -34,6 +35,7 @@ export function RunScreen({ runId }: { runId: string }) {
   const [stopOpen, setStopOpen] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const run = async (operation: () => Promise<unknown>, after?: () => void) => { setBusy(true); setError(""); try { await operation(); after?.(); } catch (err) { setError(errorText(err)); } finally { setBusy(false); void client.invalidateQueries({ queryKey: ["run"] }); } };
+  const projects = useQuery({ queryKey: ["projects", revision], queryFn: () => phoneFetch<Record<string, { title: string }>>("/api/projects"), placeholderData: (previous) => previous });
   const data = detail.data;
   if (!data) return <p className="phone-empty">{detail.isError ? errorText(detail.error) : "Loading…"}</p>;
   const { run: pipeline, controls, template } = data; const rev = pipeline.revision; const disabled = offline || busy;
@@ -43,13 +45,13 @@ export function RunScreen({ runId }: { runId: string }) {
     ?? stageTasks.find((task) => task.stage_id === pipeline.current_stage_id && task.state !== "completed");
   const terminal = pipeline.state === "completed" || pipeline.state === "stopped";
   const approving = pipeline.pending_action === "await_approval"; const answering = pipeline.attention_reason === "needs_input";
-  const headingStage = stage?.title ?? pipeline.current_stage_id;
+  const headingStage = stage?.title ?? (pipeline.current_stage_id ? "Untitled stage" : "");
   const stageTitles = new Map(template.stages.map((item) => [item.id, item.title]));
   const inputs = Object.entries(data.inputs);
   return <div className="phone-agent phone-run-page">
     <button type="button" className="phone-link phone-run-back ad-button-secondary" onClick={() => navigate(`/project/${encodeURIComponent(pipeline.project)}`)}><PhoneIcon name="back" size={16} />Project</button>
     <header className="phone-agent-header phone-page-heading">
-      <p className="phone-eyebrow">PIPELINE RUN · {pipeline.project}</p>
+      <p className="phone-eyebrow">PIPELINE RUN · {projectTitle(projects.data, pipeline.project)}</p>
       <h1>{pipeline.display_name || template.title}</h1>
       <p className="phone-meta">{pipeline.goal}</p>
       <span className="phone-status" data-tone={runTone(pipeline.state)}>{humanize(pipeline.final_outcome || pipeline.state)}</span>
@@ -84,7 +86,7 @@ export function RunScreen({ runId }: { runId: string }) {
       <div className="phone-section-title"><div><p className="phone-eyebrow">STAGE HISTORY</p><h2 id="phone-run-progress">Progress</h2></div><span>{stageTasks.length} attempt{stageTasks.length === 1 ? "" : "s"}</span></div>
       {stageTasks.length ? <ol className="phone-timeline">{stageTasks.map((task) => {
         const outcome = task.result?.outcome || task.state;
-        const title = stageTitles.get(task.stage_id) || task.stage_id;
+        const title = stageTitles.get(task.stage_id) || "Untitled stage";
         const current = task.task_id === currentTask?.task_id;
         return <li key={task.task_id} id={`visit-${task.task_id}`} data-current={current || undefined} data-tone={runTone(outcome)}>
           <span className="phone-timeline-marker"><PhoneIcon name={outcome === "completed" || outcome === "success" ? "check" : "pipeline"} size={15} /></span>
@@ -94,7 +96,7 @@ export function RunScreen({ runId }: { runId: string }) {
             {task.result?.summary ? <p>{task.result.summary}</p> : <p className="phone-meta">{task.room ? (task.attention_reason || "The room has not published a judge synthesis yet.") : current ? "The stage has not reported an outcome yet." : "No outcome was recorded."}</p>}
             {decisionOnlyLabel(task, stageTasks) && <p className="phone-meta">{decisionOnlyLabel(task, stageTasks)}</p>}
             {task.decision && !task.decision.implicit && <div className="phone-meta">
-              <p>Owner decision: {task.decision.action === "complete" ? "Complete the run" : task.decision.action === "needs_input" ? "Needs input" : `Next: ${stageTitles.get(task.decision.stage_id) || task.decision.stage_id}`}{task.decision.reason ? ` — ${task.decision.reason}` : ""}</p>
+              <p>Owner decision: {task.decision.action === "complete" ? "Complete the run" : task.decision.action === "needs_input" ? "Needs input" : `Next: ${stageTitles.get(task.decision.stage_id) || "Untitled stage"}`}{task.decision.reason ? ` — ${task.decision.reason}` : ""}</p>
               {task.decision.question && <p>Question: {task.decision.question}</p>}
               {evidenceVisits(task, stageTasks, stageTitles).map((item) => <p key={item.taskId}>Evidence: {item.stepTitle} → <a href={`#visit-${item.taskId}`}>{item.label}</a></p>)}
             </div>}

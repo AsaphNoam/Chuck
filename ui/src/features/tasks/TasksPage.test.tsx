@@ -174,7 +174,7 @@ describe("Tasks work in motion", () => {
     expect(within(await rowOf("Draft release notes")).getByText(/delegated by Coordinate release/)).toBeInTheDocument();
     expect(within(await rowOf("Coordinate release")).queryByText(/leads to/)).not.toBeInTheDocument();
     expect(within(await rowOf("Design schema")).getByText(/leads to Implement API/)).toBeInTheDocument();
-    expect(within(await rowOf("Follow up on removed work")).getByText(/unavailable task tk_gone/)).toBeInTheDocument();
+    expect(within(await rowOf("Follow up on removed work")).getByText(/unavailable task/)).toBeInTheDocument();
     expect(within(await rowOf("Migrate orders")).getByText("Waiting for work updates")).toBeInTheDocument();
     expect(within(await rowOf("Publish notes")).getByText("Finishing cleanup")).toBeInTheDocument();
 
@@ -280,7 +280,7 @@ describe("Tasks work in motion", () => {
     expect(tag.parentElement).toHaveTextContent(/^Lead archived$/);
     expect(within(row).queryByRole("link", { name: /Lead/ })).not.toBeInTheDocument();
     const missing = await rowOf("Draft release notes");
-    expect(within(missing).getByText("ag_gone (unavailable)")).toBeInTheDocument();
+    expect(within(missing).getByText("Unavailable agent")).toBeInTheDocument();
   });
 
   // FS-16.R23/A11 — parked work offers only the repair that can succeed.
@@ -288,7 +288,7 @@ describe("Tasks work in motion", () => {
     renderPage("/tasks?project=my-app");
     const row = await openTask("Follow up on removed work");
     expect(within(row).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
-    expect(within(row).getByText(/Task: Unavailable task · tk_gone/)).toBeInTheDocument();
+    expect(within(row).getByText(/Task: Unavailable task/)).toBeInTheDocument();
     fireEvent.click(within(row).getByText("Advanced signals"));
     fireEvent.change(within(row).getByLabelText("Wait for signal"), { target: { value: "ci-green" } });
     fireEvent.click(within(row).getByRole("button", { name: "Re-arm" }));
@@ -302,7 +302,7 @@ describe("Tasks work in motion", () => {
     const row = await openTask("Follow up on removed work");
     expect(within(row).getByText(/Re-arm replaces this entire wait set/)).toBeInTheDocument();
     const named = within(row).getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Tidy fixtures · ready · tk_r" });
+    await within(named).findByRole("option", { name: "Tidy fixtures · ready" });
     fireEvent.change(named, { target: { value: "tk_r" } });
     fireEvent.click(within(row).getByRole("button", { name: "Re-arm" }));
     expect(await within(row).findByRole("alert")).toHaveTextContent("wait graph changed");
@@ -323,7 +323,7 @@ describe("Tasks work in motion", () => {
     renderPage("/tasks?project=my-app");
     const row = await openTask("Follow up on removed work");
     const named = within(row).getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Tidy fixtures · ready · tk_r" });
+    await within(named).findByRole("option", { name: "Tidy fixtures · ready" });
     fireEvent.change(named, { target: { value: "tk_r" } });
     fireEvent.change(within(row).getByLabelText(/Start at/), { target: { value: "2030-01-15T09:30" } });
     expect(within(row).getByLabelText(/Run only on time/)).toBeChecked();
@@ -341,13 +341,13 @@ describe("Tasks work in motion", () => {
     const { client } = renderPage("/tasks?project=my-app");
     const row = await openTask("Follow up on removed work");
     const named = within(row).getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Tidy fixtures · ready · tk_r" });
+    await within(named).findByRole("option", { name: "Tidy fixtures · ready" });
     fireEvent.change(named, { target: { value: "tk_r" } });
     taskLists["my-app"] = wire("my-app").filter((task) => task.task_id !== "tk_r");
     await client.invalidateQueries({ queryKey: ["tasks", "my-app"] });
     await waitFor(() => expect(screen.queryByRole("button", { name: /^Tidy fixtures/ })).not.toBeInTheDocument());
     expect((within(row).getByLabelText("Named prerequisite") as HTMLSelectElement).value).toBe("tk_r");
-    expect(within(row).getByRole("option", { name: "Unavailable task · tk_r" })).toBeInTheDocument();
+    expect(within(row).getByRole("option", { name: "Unavailable task" })).toBeInTheDocument();
   });
 
   // INV §2 — retry follows the server's retry_eligible, and a refusal stays visible.
@@ -377,7 +377,7 @@ describe("Tasks work in motion", () => {
   it("withholds stage-restricted controls while run ownership is unavailable", async () => {
     renderPage("/tasks?project=my-app");
     const row = await openTask("Build stage");
-    expect(within(row).getAllByRole("link", { name: "pr_1" })[0]).toHaveAttribute("href", "/pipelines/runs/pr_1");
+    expect(within(row).getAllByRole("link", { name: "Pipeline run" })[0]).toHaveAttribute("href", "/pipelines/runs/pr_1");
     expect(await within(row).findByText(/Stage ownership could not be loaded/)).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Record result" })).not.toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
@@ -395,7 +395,7 @@ describe("Tasks work in motion", () => {
     fireEvent.click(signal.getByRole("button", { name: "Fire" }));
     await waitFor(() => expect(lastRequest?.url).toBe("signal"));
     expect(lastRequest?.body).toEqual({ project: "my-app", name: "ci-green" });
-    expect(await signal.findByText(/Fired ci-green in my-app; 1 wait released/)).toBeInTheDocument();
+    expect(await signal.findByText(/Fired ci-green in My App; 1 wait released/)).toBeInTheDocument();
   });
 
   it("shows a cancelled task's unfired signal as history, not a live wait (FS-16.R42)", async () => {
@@ -430,7 +430,7 @@ describe("Create task manually", () => {
     fireEvent.change(create.getByLabelText("Name"), { target: { value: "follow up" } });
     fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "continue" } });
     const prerequisite = create.getByLabelText("Named prerequisite");
-    await within(prerequisite).findByRole("option", { name: "Tidy fixtures · ready · tk_r" });
+    await within(prerequisite).findByRole("option", { name: "Tidy fixtures · ready" });
     fireEvent.change(prerequisite, { target: { value: "tk_r" } });
     expect(create.getByText("Advanced · prerequisite")).toBeInTheDocument();
     fireEvent.click(create.getByLabelText("Success"));
@@ -472,7 +472,7 @@ describe("Create task manually", () => {
     const create = createForm();
     fireEvent.change(create.getByLabelText("Name"), { target: { value: "draft name" } });
     const named = create.getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Tidy fixtures · ready · tk_r" });
+    await within(named).findByRole("option", { name: "Tidy fixtures · ready" });
     fireEvent.change(named, { target: { value: "tk_r" } });
     disclosure.open = false;
     disclosure.open = true;
@@ -488,7 +488,7 @@ describe("Create task manually", () => {
     fireEvent.change(create.getByLabelText("Name"), { target: { value: "review" } });
     fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "review it" } });
     fireEvent.change(create.getByLabelText("Source type"), { target: { value: "pipeline_run" } });
-    await create.findByRole("option", { name: "Release · completed · pr_1" });
+    await create.findByRole("option", { name: "Release · completed" });
     fireEvent.change(create.getByLabelText("Named prerequisite"), { target: { value: "pr_1" } });
     fireEvent.click(create.getByLabelText("Failure"));
     fireEvent.change(create.getByLabelText("Context reference ID"), { target: { value: "cx_1" } });
@@ -496,7 +496,7 @@ describe("Create task manually", () => {
     fireEvent.click(create.getByRole("button", { name: "Create task" }));
     await waitFor(() => expect(lastRequest?.url).toBe("create"));
     expect(lastRequest?.body).toMatchObject({ project: "my-app", target_kind: "launch", arms: [{ source_kind: "pipeline_run", source_id: "pr_1", satisfying_outcomes: ["success", "failure"] }], attachments: [{ context_ref_id: "cx_1", label: "brief" }] });
-    expect(await create.findByText(/Created “review” in my-app/)).toBeInTheDocument();
+    expect(await create.findByText(/Created “review” in My App/)).toBeInTheDocument();
   });
 
   it("disambiguates duplicate task names and submits the selected stable ID", async () => {
@@ -504,8 +504,8 @@ describe("Create task manually", () => {
     renderPage("/tasks?project=my-app");
     const create = createForm();
     const named = create.getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Build · ready · tk_x" });
-    expect(within(named).getByRole("option", { name: "Build · ready · tk_y" })).toBeInTheDocument();
+    await within(named).findAllByRole("option", { name: "Build · ready" });
+    expect(within(named).getAllByRole("option", { name: "Build · ready" })).toHaveLength(2);
     fireEvent.change(named, { target: { value: "tk_y" } });
     fireEvent.change(create.getByLabelText("Name"), { target: { value: "follow up" } });
     fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "continue" } });
@@ -517,7 +517,7 @@ describe("Create task manually", () => {
   it("keeps an unavailable outcome visible when changing source type and blocks submission until corrected", async () => {
     renderPage("/tasks?project=my-app");
     const create = createForm();
-    await within(create.getByLabelText("Named prerequisite")).findByRole("option", { name: "Tidy fixtures · ready · tk_r" });
+    await within(create.getByLabelText("Named prerequisite")).findByRole("option", { name: "Tidy fixtures · ready" });
     fireEvent.change(create.getByLabelText("Named prerequisite"), { target: { value: "tk_r" } });
     fireEvent.click(create.getByLabelText("Blocked"));
     fireEvent.change(create.getByLabelText("Source type"), { target: { value: "pipeline_run" } });
@@ -538,7 +538,7 @@ describe("Create task manually", () => {
     fireEvent.change(create.getByLabelText("Source type"), { target: { value: "pipeline_run" } });
     expect(await create.findByText("No matching runs in the loaded pages yet.")).toBeInTheDocument();
     fireEvent.click(create.getByRole("button", { name: "Load more runs" }));
-    await create.findByRole("option", { name: "Release · completed · pr_page2" });
+    await create.findByRole("option", { name: "Release · completed" });
   });
 
   it("keeps manual IDs in the same selection and preserves the draft after refusal", async () => {

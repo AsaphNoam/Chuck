@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { actOnGroup, type GroupActionResult } from "../../api/client";
 import type { AgentState } from "../../api/types";
 import { ConfirmDialog } from "../ui";
+import { agentName, UNAVAILABLE_AGENT } from "../../lib/labels";
 
 type Action = "stop" | "archive";
 type Selection = { action: Action; group: string; agents: AgentState[] };
@@ -20,7 +21,7 @@ export function useGroupActions({ project, projectTitle, disabled = false }: { p
     setError("");
     try {
       const data = await actOnGroup(project, selection.group, selection.action);
-      setOutcome({ action: selection.action, data, names: Object.fromEntries(selection.agents.map((agent) => [agent.agent_id, agent.name || agent.agent_id])) });
+      setOutcome({ action: selection.action, data, names: Object.fromEntries(selection.agents.map((agent) => [agent.agent_id, agentName(agent.name)])) });
       setSelection(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -40,12 +41,12 @@ export function useGroupActions({ project, projectTitle, disabled = false }: { p
     },
     feedback: <>
       {outcome && <section className="group-action-result" role="status" aria-label="Group action result">
-        <p>{outcome.action === "archive" ? "Archive" : "Stop"} group “{outcome.data.group}” in {projectTitle || outcome.data.project}: {outcome.data.results.filter((result) => result.ok).length} succeeded{failures.length ? `, ${failures.length} failed` : "."}</p>
-        {failures.length > 0 && <ul>{failures.map((result) => <li key={result.agent_id}>{outcome.names[result.agent_id] || result.agent_id}: {result.error?.message || "Action failed"}</li>)}</ul>}
+        <p>{outcome.action === "archive" ? "Archive" : "Stop"} group “{outcome.data.group}” in {projectTitle || "this project"}: {outcome.data.results.filter((result) => result.ok).length} succeeded{failures.length ? `, ${failures.length} failed` : "."}</p>
+        {failures.length > 0 && <ul>{failures.map((result) => <li key={result.agent_id}>{outcome.names[result.agent_id] || UNAVAILABLE_AGENT}: {result.error?.message || "Action failed"}</li>)}</ul>}
         <button type="button" className="ad-button-secondary" onClick={() => setOutcome(null)}>Dismiss</button>
       </section>}
       {selection && <ConfirmDialog open title={`${label} “${selection.group}”?`} confirmLabel={label} destructive pending={pending} confirmDisabled={disabled} onCancel={() => { if (!inFlight.current) setSelection(null); }} onConfirm={() => void submit()}>
-        <p>Project: {projectTitle || project}. Group: {selection.group}.</p>
+        <p>{projectTitle ? `Project: ${projectTitle}. ` : ""}Group: {selection.group}.</p>
         <p>{selection.agents.length} members · {selection.agents.filter((agent) => agent.running).length} running.</p>
         <p>{selection.action === "archive" ? "Stop running members and archive all members. Conversations are retained; restore agents individually from Archive." : "Stop running members. The group and conversations remain available to resume."}</p>
         {error && <p className="form-error" role="alert">{error}</p>}

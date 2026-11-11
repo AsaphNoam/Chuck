@@ -16,6 +16,6 @@ export function decisionOnlyLabel(task: StageTask, tasks: StageTask[]) {
 export function evidenceVisits(task: StageTask, tasks: StageTask[], titles: Map<string, string>) {
   return Object.entries(task.decision?.required_checks ?? {}).map(([stepId, taskId]) => {
     const visit = tasks.find((item) => item.task_id === taskId);
-    return { stepTitle: titles.get(stepId) ?? stepId, taskId, label: visit ? `Visit ${visitNumber(visit)}` : taskId };
+    return { stepTitle: titles.get(stepId) ?? "Unavailable step", taskId, label: visit ? `Visit ${visitNumber(visit)}` : "Unavailable visit" };
   });
 }

@@ -7,7 +7,7 @@ import { navigate } from "./router";
 import { useSuggestedName } from "../features/launch/useSuggestedName";
 import { GroupPicker, groupNameError, projectGroupLabels } from "../components/ui/GroupPicker";
 import { isCanonicalNoPersona, personaLabel } from "../lib/personas";
-import { displayLabel, displayLabels } from "../lib/labels";
+import { displayLabel, displayLabels, projectTitle } from "../lib/labels";
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -95,16 +95,16 @@ export function NewAgentForm({ project: initialProject, initialGroup = "", initi
     } catch (err) { setError(errorText(err)); setAdvancedOpen(true); }
     finally { setBusy(false); onBusyChange?.(false); }
   };
-  const projectLabel = projects.data?.[project]?.title || project;
+  const projectLabel = projectTitle(projects.data, project);
   return <form className="phone-card phone-form" aria-label="New agent" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
     <h2>New agent</h2>
-    <p className="phone-meta">{roleID ? displayLabel(personaLabels, roleID) || roleID : "Loading persona…"} · {selectedBackend?.name || "Configured backend"} · {selectedModel?.name || "Default model"} · Chat{runtime.fast ? " · Fast mode" : ""}{chooseProject ? ` · ${projectLabel}` : ""}{group.trim() ? ` · ${group.trim()}` : ""}</p>
+    <p className="phone-meta">{roleID ? displayLabel(personaLabels, roleID) || roleID : "Loading persona…"} · {selectedBackend?.name || "Configured backend"} · {selectedModel?.name || "Default model"} · Chat{runtime.fast ? " · Fast mode" : ""}{chooseProject && projectLabel ? ` · ${projectLabel}` : ""}{group.trim() ? ` · ${group.trim()}` : ""}</p>
     {summary && <p className="phone-meta">{summary}</p>}
     <details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
       <summary>Advanced</summary>
       {chooseProject && <label className="phone-field">Project<select value={project} onChange={(event) => { setProject(event.target.value); setGroup(""); }}>
-        {!projects.data?.[project] && <option value={project}>{project}{projects.data ? " (unavailable)" : ""}</option>}
-        {projectChoices.map(([id, value]) => <option key={id} value={id}>{value.title || id}{value.archived ? " (archived)" : ""}</option>)}
+        {!projects.data?.[project] && <option value={project}>{projectLabel || "Loading…"}</option>}
+        {projectChoices.map(([id, value]) => <option key={id} value={id}>{projectTitle(projects.data, id)}{value.archived ? " (archived)" : ""}</option>)}
       </select></label>}
       {projectInvalid && <p className="phone-error">This project is unavailable. Choose another project.</p>}
       <label className="phone-field">Persona<select value={roleID} onChange={(event) => setRole(event.target.value)}>

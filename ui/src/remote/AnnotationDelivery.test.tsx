@@ -22,7 +22,10 @@ vi.mock("../api/client", async (original) => ({
     { agent_id: "a1", seq: 2, type: "assistant_text", ts: "", data: { text: "second response" } },
   ] })),
 }));
-vi.mock("../api/config", () => ({ useRoles: () => ({ data: { implementer: { title: "Implementer" } } }) }));
+vi.mock("../api/config", () => ({
+  useRoles: () => ({ data: { implementer: { title: "Implementer" } } }),
+  useProjects: () => ({ data: { project: { title: "Project" } } }),
+}));
 vi.mock("./api", async (original) => ({ ...await original<object>(), phoneFetch: vi.fn(async (path: string) => path === "/api/roles" ? { implementer: { title: "Implementer" } } : path === "/api/projects" ? { project: { title: "Project" } } : {}), getRuntimeOptions: vi.fn(async () => ({ backends: [] })) }));
 
 const agent = { agent_id: "a1", name: "Source", role: "implementer", project: "project", interface: "chat", running: true, state: "idle" } as AgentState;

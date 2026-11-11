@@ -14,6 +14,7 @@ import {
   type ThinkTankLaunch,
 } from "../../api/thinkTanks";
 import { useProjects } from "../../api/config";
+import { projectTitle as projectTitleOf } from "../../lib/labels";
 import { openSourceFileInBrowser, probeSourceFile, saveSourceFile } from "../../api/client";
 import type { AnnotationDraft, FileContent, TranscriptEvent } from "../../api/types";
 import { Button, ConfirmDialog } from "../../components/ui";
@@ -145,7 +146,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
   };
   const sourceLabel = (tab: FileTab) => {
     const source = sources.find((s) => s.source_id === tab.source);
-    return source ? `${source.agent_name} · ${projects.data?.[source.project]?.title ?? source.project}` : "Unavailable workspace";
+    return source ? `${source.agent_name} · ${projectTitleOf(projects.data, source.project)}` : "Unavailable workspace";
   };
 
   const act = (run: () => Promise<unknown>) => {
@@ -159,7 +160,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
   const turnChoices = useTurnChoices(room.room_id);
   const status = roomStatus(room);
   const ended = room.phase === "ended";
-  const originTitle = projects.data?.[room.origin_project]?.title ?? room.origin_project;
+  const originTitle = projectTitleOf(projects.data, room.origin_project);
   const participants = room.members.filter((m) => m.role === "participant");
   const judges = room.members.filter((m) => m.role === "judge");
   const failedTurn = room.failed.length > 0 && room.hold !== "";
@@ -221,7 +222,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
     if (row.published) placed.add(row.attempt_id);
   }
   const loose = [...byAttempt.keys()].filter((attempt) => !placed.has(attempt));
-  const projectTitle = (project: string) => projects.data?.[project]?.title ?? project;
+  const projectTitle = (project: string) => projectTitleOf(projects.data, project);
   const fileList = files.data?.files ?? [];
   const commandList = commands.data?.commands ?? [];
   const writing = room.active_attempts.map((a) => memberName(room, a.agent_id));
@@ -234,7 +235,6 @@ function Room({ room }: { room: ThinkTankDetail }) {
       <nav className="think-tank-breadcrumb" aria-label="Room location">
         <Link to={`/project/${encodeURIComponent(room.origin_project)}`}><BackIcon />Project</Link>
         <span className="think-tank-breadcrumb-path">{originTitle}<span aria-hidden="true">/</span><strong>Think Tank</strong></span>
-        <code>{room.room_id}</code>
       </nav>
       <header className="think-tank-header" data-slot="header">
         <div className="think-tank-heading">
@@ -258,7 +258,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
         <span className="think-tank-context-rule" aria-hidden="true" />
         <span>Independent openings <b>{room.openings ? "On" : "Off"}</b></span>
         <span>Final synthesis <b>{room.judge.enabled ? "On" : "Off"}</b></span>
-        {room.pipeline && <Link className="think-tank-pipeline" to={`/pipelines/runs/${encodeURIComponent(room.pipeline.run_id)}`}>Pipeline run · stage {room.pipeline.stage_id}</Link>}
+        {room.pipeline && <Link className="think-tank-pipeline" to={`/pipelines/runs/${encodeURIComponent(room.pipeline.run_id)}`}>Pipeline run</Link>}
       </div>
       <details className="think-tank-goal" data-slot="goal">
         <summary>

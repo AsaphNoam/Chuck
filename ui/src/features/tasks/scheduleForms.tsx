@@ -4,6 +4,8 @@ import {
   useCreateSchedule, useDeleteSchedule, useEditSchedule, usePauseSchedule, useResumeSchedule,
   type ScheduleInput,
 } from "../../api/schedules";
+import { useProjects } from "../../api/config";
+import { projectTitle } from "../../lib/labels";
 import { SCHEDULE_FREQUENCIES, WEEKDAYS, scheduleNeedsAttention, type Schedule, type ScheduleRule } from "../../schemas/schedule";
 import type { Task } from "../../schemas/task";
 import { EMPTY_TARGET, RunOnlyOnTimeField, TargetFields, errorMessage, useTargetPayload, type TargetDraft } from "./taskForms";
@@ -75,6 +77,7 @@ export function ScheduleForm({ projects, initialProject, schedule, onDone }: {
   onDone?: () => void;
 }) {
   const [project, setProject] = useState(schedule?.project ?? initialProject);
+  const { data: catalog } = useProjects();
   const create = useCreateSchedule(project || undefined);
   const edit = useEditSchedule(project || undefined);
   const [name, setName] = useState(schedule?.display_name ?? "");
@@ -122,7 +125,7 @@ export function ScheduleForm({ projects, initialProject, schedule, onDone }: {
           Project
           <select value={project} required onChange={(e) => { setProject(e.target.value); setTarget((current) => ({ ...current, agentID: "" })); }}>
             <option value="">Choose a project</option>
-            {projects.map((item) => <option key={item} value={item}>{item}</option>)}
+            {projects.map((item) => <option key={item} value={item}>{projectTitle(catalog, item)}</option>)}
           </select>
         </label>
       )}

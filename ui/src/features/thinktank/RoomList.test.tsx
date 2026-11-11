@@ -72,7 +72,7 @@ describe("RoomList cards", () => {
     rooms = [{ ...summary(), origin_project: "ghost" }];
     renderList(null);
     const card = (await screen.findByRole("link", { name: "Cache choice" })).closest("li")!;
-    expect((await within(card as HTMLElement).findByText(/project removed/)).textContent).toBe("Origin: ghost · project removed");
+    expect((await within(card as HTMLElement).findByText(/project removed/)).textContent).toBe("Origin: Unavailable project · project removed");
   });
 
   // FS-02.R71: the heading collapses the cards, keeps the count and

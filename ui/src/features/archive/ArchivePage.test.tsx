@@ -43,6 +43,7 @@ const mockInactive: ArchiveResult = {
 };
 
 const server = setupServer(
+  http.get("/api/projects", () => HttpResponse.json({ "my-app": { title: "Billing Portal" } })),
   http.get("/api/archive", ({ request }) => {
     const url = new URL(request.url);
     const q = url.searchParams.get("q") ?? "";
@@ -99,7 +100,8 @@ describe("ArchivePage", () => {
   it("shows role · project and backend · model for each result", async () => {
     renderArchive();
     await screen.findByText("Atlas");
-    expect(screen.getByText("implementer · my-app")).toBeInTheDocument();
+    expect(await screen.findByText("implementer · Billing Portal")).toBeInTheDocument();
+    expect(screen.queryByText("implementer · my-app")).not.toBeInTheDocument();
     expect(screen.getByText("claude · sonnet-4-6 · Normal speed")).toBeInTheDocument();
   });
 

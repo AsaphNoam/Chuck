@@ -398,7 +398,7 @@ export function taskReason(row: WorkRow): string {
       ...row.external.filter((wait) => wait.state === "unsatisfied")
         .map((wait) => wait.kind === "signal" ? `signal ${wait.name}`
           : wait.kind === "time" ? startTimeLabel(wait.dueAt)
-          : `run ${wait.runID} → ${wait.outcomes.join(" or ")}`),
+          : `pipeline run → ${wait.outcomes.join(" or ")}`),
     ];
     if (waits.length > 0) return `Waits for ${waits.join("; ")}`;
   }

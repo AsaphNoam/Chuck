@@ -172,7 +172,7 @@ export function ChuckyBuilder({
     </div>}
 
     {showLauncher && builderID && <div className="pipeline-builder-session">
-      <p>{!agentsHydrated ? "Loading builder session…" : builderRunning ? <>Builder session: <code>{builderID}</code></> : "The builder session has stopped. Its pending proposals remain available below."}</p>
+      <p>{!agentsHydrated ? "Loading builder session…" : builderRunning ? "Chucky builder is running." : "The builder session has stopped. Its pending proposals remain available below."}</p>
       {builderRunning && <Link to={`/agent/${builderID}`}>Open Chucky chat</Link>}
     </div>}
     {proposalFailure && <p className="form-error">{proposalFailure}</p>}
@@ -234,7 +234,6 @@ function ProposalCard({
   return <article className="pipeline-proposal">
     <div className="pipeline-proposal-summary">
       <strong>{proposalKindLabel(entry.kind)}</strong>
-      <code>{entry.proposal_id}</code>
       {summary.map((field) => <span key={field.label} className="pipeline-proposal-field">
         <small>{field.label}</small>{field.value}
       </span>)}

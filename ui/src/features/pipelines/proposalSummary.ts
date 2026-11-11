@@ -49,7 +49,7 @@ export function summarizeProposal(
   if (proposal.kind === "save_template") {
     const stages = proposal.payload.template.stages.length;
     return [
-      { label: "Template", value: clipProposalValue(proposal.payload.template.title || proposal.payload.id) },
+      { label: "Template", value: clipProposalValue(proposal.payload.template.title || "Untitled pipeline") },
       { label: "Stages", value: `${stages} stage${stages === 1 ? "" : "s"}` },
     ];
   }
@@ -62,10 +62,9 @@ export function summarizeProposal(
 }
 
 function resolveTemplateTitle(templateID: string, templates: PipelineTemplateRecord[] | undefined) {
-  // Until the library has loaded, the id is the honest answer: claiming the
-  // template is gone before knowing would be worse than naming it plainly.
-  if (!templates) return clipProposalValue(templateID);
+  // Until the library has loaded, claiming the template is gone would be worse than a neutral label.
+  if (!templates) return "Pipeline template";
   const record = templates.find((entry) => entry.id === templateID);
-  if (!record) return `${clipProposalValue(templateID)} (template is gone)`;
-  return clipProposalValue(record.template.title || record.id);
+  if (!record) return "Template is gone";
+  return clipProposalValue(record.template.title || "Untitled pipeline");
 }

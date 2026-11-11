@@ -685,7 +685,7 @@ R146 replaces the tail task-list slot with a composer-side running indicator.
 - **R60 (shipped 2026-09-23) — Run supervision uses the existing detail projection without a rail.**
   `RunBrowser` derives current/final stage position, the next human stage title, and each attempt's
   human title from the run detail's frozen template and stage-task fields. An absent or unmatched
-  stage id falls back to the available id without inventing progress or a next stage. The existing
+  stage id reads *Untitled stage* (FS-02.R69) without inventing progress or a next stage. The existing
   result and runtime fields supply each attempt; no endpoint, schema, store, persistence, or second
   projection is added (FS-14.R79, INV §2/§10). The run page renders one timeline track and removes
   the setup/value rail and its sticky positioning. It reuses core tokens and the existing run,
@@ -1016,7 +1016,9 @@ R146 replaces the tail task-list slot with a composer-side running indicator.
   `NewAgentModal`'s `displayLabel`, that returns the readable name and appends `(id)` only for
   duplicate names within the list (INV §2). All `name (id)` renders identified in selectors and
   status labels switch to it (`ui/src/lib/labels.ts`); the fixed, unique `BACKEND_TYPE_LABELS` just
-  drop their type suffix. Option `value`s and keys stay ids. FS-02.R70 filters `archived`
+  drop their type suffix. Option `value`s and keys stay ids. The same module's `agentName` and
+  `projectTitle` supply FS-02.R69's neutral missing-name phrases, so no surface re-derives an
+  id fallback. FS-02.R70 filters `archived`
   projects from the Tasks page's all-projects list and filter only, leaving an explicit focus as is.
 
 - **R92 (shipped 2026-10-08)** — FS-16.R46–R47 extend the existing `taskWork.ts` projection/Tasks rows with

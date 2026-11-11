@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { useThinkTanks } from "../../api/thinkTanks";
 import { useProjects } from "../../api/config";
+import { projectTitle as projectTitleOf } from "../../lib/labels";
 import { agentConversationPath } from "../../lib/agentConversation";
 import type { ThinkTankSummary } from "../../schemas/thinkTank";
 import { endReasonText, judgeText, phaseLabel, roomTitle, thinkTankPath } from "./roomText";
@@ -115,7 +116,7 @@ function RoomSymbol() {
 
 function RoomCard({ room, showOrigin }: { room: ThinkTankSummary; showOrigin: boolean }) {
   const projects = useProjects();
-  const projectTitle = (id: string) => projects.data?.[id]?.title ?? id;
+  const projectTitle = (id: string) => projectTitleOf(projects.data, id);
   const status = cardStatus(room);
   const chip = STATE_CHIP[status.tone];
   const speaking = new Set(room.active_attempts.map((a) => a.agent_id));
@@ -159,7 +160,7 @@ function RoomCard({ room, showOrigin }: { room: ThinkTankSummary; showOrigin: bo
         <div className="room-card-footer">
           <span>
             {showOrigin
-              ? <>Origin: <strong>{origin ? origin.title : room.origin_project}</strong>{!origin && projects.data && " · project removed"}</>
+              ? <>Origin: <strong>{projectTitleOf(projects.data, room.origin_project)}</strong>{!origin && projects.data && " · project removed"}</>
               : <>In this project <span>· shared participant conversations stay separate</span></>}
           </span>
           {judge && <span>{judge}</span>}

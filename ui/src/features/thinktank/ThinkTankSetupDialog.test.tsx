@@ -50,7 +50,7 @@ describe("ThinkTankSetupDialog", () => {
     const picker = await screen.findByRole("combobox", { name: "Existing agent" });
     const options = Array.from(picker.querySelectorAll("option")).map((o) => o.textContent);
     expect(options.some((o) => o?.includes("Olde"))).toBe(false);
-    expect(options).toContain("Ari (alpha) · opus · high");
+    await waitFor(() => expect(Array.from(picker.querySelectorAll("option")).map((o) => o.textContent)).toContain("Ari (Alpha) · opus · high"));
     const add = screen.getByRole("button", { name: "+ Add new agent…" });
     expect(add.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 

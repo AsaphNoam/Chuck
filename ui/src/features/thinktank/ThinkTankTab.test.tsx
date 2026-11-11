@@ -93,13 +93,13 @@ it("keeps project-qualified duplicate names distinct from literal names", async 
   ] })]);
   renderTab();
 
-  await screen.findByRole("link", { name: "Ari · Alpha · a_alpha" });
+  await screen.findByRole("link", { name: "Ari · Alpha #1" });
   const links = await screen.findAllByRole("link");
   const memberLinks = links.filter((link) => link.getAttribute("href")?.startsWith("/agent/"));
   expect(memberLinks.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
-    ["Ari · Alpha · a_alpha", "/agent/a_alpha"],
+    ["Ari · Alpha #1", "/agent/a_alpha"],
     ["Ari · Beta", "/agent/a_beta"],
-    ["Ari · Alpha · a_literal", "/agent/a_literal"],
+    ["Ari · Alpha #2", "/agent/a_literal"],
   ]);
   expect(new Set(memberLinks.map((link) => link.getAttribute("aria-label"))).size).toBe(3);
 });

@@ -219,17 +219,6 @@ a.agent-mini-card:focus-visible {
   opacity: 0.35;
 }
 
-.chat-breadcrumb-id {
-  background: transparent;
-  border: 0;
-  color: var(--ad-text-muted);
-  flex: none;
-  font-family: var(--ad-font-mono);
-  font-size: 0.75rem;
-  margin-left: auto;
-  padding: 0;
-}
-
 /* The card between two slots hosting the file viewer and annotation tray outside
    it (FS-12.R61). The stage allocates their widths and sets only those measured
    values (--ad-reader-*-width); the shapes below are static (FS-03.R93,

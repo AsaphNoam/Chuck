@@ -7,7 +7,8 @@ import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { useUiStore } from "../../store/uiStore";
 import { NewAgentModal } from "../../features/launch/NewAgentModal";
-import { useRoles } from "../../api/config";
+import { useProjects, useRoles } from "../../api/config";
+import { projectTitle } from "../../lib/labels";
 import { personaIdentityLabel } from "../../lib/personas";
 import { useAnnotationDelivery, type AnnotationDelivery } from "./annotationDelivery";
 
@@ -27,7 +28,9 @@ export function useDesktopAnnotationDelivery(sourceId: string, sourceActive: boo
 export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery }) {
   const { sourceId, sourceActive, source, recipients, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, showLaunch, setShowLaunch, launchedAgentId, send, canSteer, steer, onLaunched } = delivery;
   const { data: roles } = useRoles();
-  const drafts = useAnnotationStore((state) => state.bySource[sourceId] ?? []);
+  const { data: projects } = useProjects();
+  const agents = useAgentStore((state) => state.agents);
+  const drafts =useAnnotationStore((state) => state.bySource[sourceId] ?? []);
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
   const updateInstruction = useAnnotationStore((state) => state.updateInstruction);
   const remove = useAnnotationStore((state) => state.remove);
@@ -79,13 +82,13 @@ export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery 
           {target === "agent" && (
             <select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} disabled={sending} aria-label="Annotation recipient">
               <option value="">Choose an agent</option>
-              {choices.visible.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({personaIdentityLabel(agent.role, roles?.[agent.role])}@{agent.project})</option>)}
+              {choices.visible.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name} ({[personaIdentityLabel(agent.role, roles?.[agent.role]), projectTitle(projects, agent.project)].filter(Boolean).join(" · ")})</option>)}
             </select>
           )}
         </div>
         {target !== "self" && <label><input type="checkbox" checked={recordSource} disabled={sending} onChange={(event) => setRecordSource(event.target.checked)} /> Include in current agent's transcript</label>}
         {error && <p className="annotation-error">{error}</p>}
-        <button type="button" className="annotation-send ad-button-primary" onClick={() => void send()} disabled={sending}>{sending ? "Sending…" : target === "new" ? launchedAgentId ? `Retry delivery to ${launchedAgentId}` : "Continue to launch" : "Send annotations"}</button>
+        <button type="button" className="annotation-send ad-button-primary" onClick={() => void send()} disabled={sending}>{sending ? "Sending…" : target === "new" ? launchedAgentId ? agents[launchedAgentId]?.name?.trim() ? `Retry delivery to ${agents[launchedAgentId].name.trim()}` : "Retry delivery" : "Continue to launch" : "Send annotations"}</button>
         {canSteer && <button type="button" className="annotation-steer ad-button-secondary" onClick={() => void steer()} disabled={sending}>Steer</button>}
       </footer>
       <NewAgentModal open={showLaunch} onClose={() => setShowLaunch(false)} initialRole={source?.role} initialProject={source?.project} onLaunched={onLaunched} />

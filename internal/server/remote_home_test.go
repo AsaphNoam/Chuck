@@ -71,7 +71,7 @@ func TestRemoteHomeClassifiesAttention(t *testing.T) {
 		t.Fatalf("active runs = %v", home.ActiveRuns)
 	}
 	for _, it := range home.NeedsYou {
-		if it.Kind == "agent" && it.Title != "implementer@my-app" {
+		if it.Kind == "agent" && it.Title != "implementer" {
 			t.Fatalf("agent title = %q", it.Title)
 		}
 	}

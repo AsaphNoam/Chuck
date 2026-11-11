@@ -143,8 +143,7 @@ export function TemplatesPage() {
                   <small>{record.template.stages.length === 1 ? "stage" : "stages"}</small>
                 </span>
                 <span className="pipeline-template-identity">
-                  <strong>{record.template.title || record.id}</strong>
-                  <small><code>{record.id}</code></small>
+                  <strong>{record.template.title || "Untitled pipeline"}</strong>
                 </span>
                 <span className="pipeline-template-validation">
                   <span className={record.valid ? "pipeline-validation pipeline-validation-valid" : "pipeline-validation pipeline-validation-invalid"}>

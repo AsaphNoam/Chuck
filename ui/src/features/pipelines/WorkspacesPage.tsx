@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useProjects } from "../../api/config";
 import { usePipelineWorkspaces } from "../../api/pipelines";
-import { displayLabels } from "../../lib/labels";
+import { displayLabels, UNAVAILABLE_PROJECT } from "../../lib/labels";
 import { formatRelative } from "./RunBrowser";
 import { WorkspaceRemoveDialog, workspaceRemovable, workspaceStateLabel } from "./WorkspaceRemoveDialog";
 
@@ -34,8 +34,8 @@ export function WorkspacesPage() {
     {workspaces.length > 0 && <ul className="pipeline-workspace-list">
       {workspaces.map((item) => <li className="pipeline-workspace-row" key={item.workspace_id}>
         <div className="pipeline-workspace-identity">
-          <strong>{item.run_name || item.run_id}</strong>
-          <small>{item.project_name || item.project}</small>
+          <strong>{item.run_name || "Pipeline run"}</strong>
+          <small>{item.project_name || UNAVAILABLE_PROJECT}</small>
         </div>
         <dl className="pipeline-workspace-facts">
           <div><dt>Branch</dt><dd>{item.branch ? <code>{item.branch}</code> : "Project checkout"}</dd></div>

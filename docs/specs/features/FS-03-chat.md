@@ -788,7 +788,7 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   visible; the current agent is always among them, replacing the fifth when it would fall
   outside, and the rest sit under a `+n` control that names the hidden count and opens
   keyboard-accessible navigation to each hidden agent. When no other running agent shares the
-  project, the breadcrumb is unchanged. Back (R27), the stable agent id, archived pages, Think
+  project, the breadcrumb is unchanged. Back (R27), archived pages, Think
   Tank rooms, the dashboard, the phone companion and every API are unchanged; stopped siblings
   are reached through the project dashboard as before (operator decision 2026-10-18).
 

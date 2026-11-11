@@ -113,7 +113,7 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     } catch (err) {
       if (!current()) return;
       const reason = err instanceof Error ? err.message : "Sending annotations failed.";
-      setError(launched ? `Agent ${agentId} launched, but annotation delivery failed. ${reason} Retry to send to this agent.` : reason);
+      setError(launched ? `The new agent launched, but annotation delivery failed. ${reason} Retry to send to this agent.` : reason);
     } finally {
       if (current()) setSending(false);
     }

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQueries } from "@tanstack/react-query";
 import { Badge, Button, PageHeader } from "../../components/ui";
 import { useProjects, useRoles } from "../../api/config";
+import { UNAVAILABLE_AGENT, projectTitle } from "../../lib/labels";
 import { personaIdentityLabel } from "../../lib/personas";
 import { limitConcurrency, taskListOptions, useCancelTask, useDeleteTask, useRetryTask } from "../../api/tasks";
 import { usePipelineRun } from "../../api/pipelines";
@@ -34,7 +35,7 @@ function plural(count: number, word: string) {
  *  stable id; only a live, unarchived agent gets a chat link (FS-16.R44). */
 function AgentLabel({ id }: { id: string }) {
   const agent = useAgentStore((state) => state.agents[id]);
-  if (!agent) return <span className="task-agent-unavailable">{id} (unavailable)</span>;
+  if (!agent) return <span className="task-agent-unavailable">{UNAVAILABLE_AGENT}</span>;
   if (agent.archived) return <span>{agent.name} <Badge>archived</Badge></span>;
   return <Link to={`/agent/${encodeURIComponent(id)}`}>{agent.name}</Link>;
 }
@@ -49,7 +50,7 @@ function assigneeID(task: Task) {
 }
 
 function linkText(link: TaskLink, ended: boolean): ReactNode {
-  const name = link.source ? link.source.display_name : <span className="task-agent-unavailable">unavailable task {link.sourceID}</span>;
+  const name = link.source ? link.source.display_name : <span className="task-agent-unavailable">unavailable task</span>;
   if (link.kind === "delegation") return <>delegated by {name}</>;
   const mark = link.state === "satisfied" ? "met" : link.state === "unsatisfiable" ? "cannot be met" : ended ? "not met" : "pending";
   return <>after {name} → {link.outcomes.join(" or ")} ({mark})</>;
@@ -157,12 +158,12 @@ function TaskRowView({ row, open, onToggle, onSignal, hidden, collapseInfo, hidd
 
 /** StageOwnership withholds controls R36 forbids on an authoritative stage task;
  *  run lineage alone does not make a task the stage (TS-08.R83). */
-function useStageOwnership(task: Task): { owned: boolean; known: boolean; failed: boolean; runID: string } {
+function useStageOwnership(task: Task): { owned: boolean; known: boolean; failed: boolean; runID: string; runName: string } {
   const runID = task.lineage.pipeline_run_id;
   const run = usePipelineRun(runID || null);
-  if (!runID) return { owned: false, known: true, failed: false, runID };
-  if (!run.data) return { owned: false, known: false, failed: run.isError, runID };
-  return { owned: run.data.stage_tasks.some((stage) => stage.task_id === task.task_id), known: true, failed: false, runID };
+  if (!runID) return { owned: false, known: true, failed: false, runID, runName: "" };
+  if (!run.data) return { owned: false, known: false, failed: run.isError, runID, runName: "" };
+  return { owned: run.data.stage_tasks.some((stage) => stage.task_id === task.task_id), known: true, failed: false, runID, runName: run.data.run.display_name };
 }
 
 function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
@@ -213,7 +214,7 @@ function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
                 {wait.onTimeOnly && " · run only on time"}
               </li>
             ) : (
-              <li key={`e${index}`}>pipeline run <Link to={`/pipelines/runs/${encodeURIComponent(wait.runID)}`}>{wait.runID}</Link> → {wait.outcomes.join(" or ")} ({ended && wait.state === "unsatisfied" ? "not met" : wait.state})</li>
+              <li key={`e${index}`}><Link to={`/pipelines/runs/${encodeURIComponent(wait.runID)}`}>pipeline run</Link> → {wait.outcomes.join(" or ")} ({ended && wait.state === "unsatisfied" ? "not met" : wait.state})</li>
             ))}
           </ul>
         </div>
@@ -231,7 +232,7 @@ function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
       )}
       {stage.runID && (
         <p className="task-row-meta">
-          <span>Pipeline run <Link to={`/pipelines/runs/${encodeURIComponent(stage.runID)}`}>{stage.runID}</Link>{task.lineage.pipeline_stage_id ? ` · stage ${task.lineage.pipeline_stage_id}` : ""}</span>
+          <span><Link to={`/pipelines/runs/${encodeURIComponent(stage.runID)}`}>{stage.runName || "Pipeline run"}</Link></span>
           {stage.owned && <span>Stage work: record, re-arm and delete from its run.</span>}
           {!stage.known && (stage.failed
             ? <span>Stage ownership could not be loaded; record, re-arm and delete are withheld. Use the run.</span>
@@ -483,8 +484,8 @@ export function TasksPage() {
           Project
           <select value={focus} onChange={(e) => setSearch(e.target.value ? { project: e.target.value } : {})}>
             <option value={ALL}>All projects</option>
-            {projectNames.map((name) => <option key={name} value={name}>{catalog[name]?.title || name}</option>)}
-            {archivedFocus && <option value={focus}>{catalog[focus]?.title || focus}</option>}
+            {projectNames.map((name) => <option key={name} value={name}>{projectTitle(catalog, name)}</option>)}
+            {archivedFocus && <option value={focus}>{projectTitle(catalog, focus)}</option>}
             {unknownFocus && <option value={focus}>{focus} (unknown)</option>}
           </select>
         </label>
@@ -501,7 +502,7 @@ export function TasksPage() {
         <ProjectSection
           key={project}
           project={project}
-          title={catalog[project]?.title || project}
+          title={projectTitle(catalog, project)}
           query={queries[index]}
           scheduleQuery={scheduleQueries[index]}
           projects={projectNames}

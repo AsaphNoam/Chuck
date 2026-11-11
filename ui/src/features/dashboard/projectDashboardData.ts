@@ -1,4 +1,5 @@
 import type { AgentState } from "../../api/types";
+import { UNAVAILABLE_PROJECT } from "../../lib/labels";
 type DashboardProjectConfig = { title: string; color: [number, number, number]; archived?: boolean };
 
 export type DashboardProject = {
@@ -22,7 +23,7 @@ export function deriveDashboardProjects(
   const missing = [...new Set(Object.values(agents)
     .filter((agent) => !agent.archived && !projects?.[agent.project])
     .map((agent) => agent.project))]
-    .map((id) => ({ id, title: id, unavailable: true }));
+    .map((id) => ({ id, title: UNAVAILABLE_PROJECT, unavailable: true }));
   return [...active, ...missing].map((project) => {
     const projectAgents = orderProjectAgents(Object.values(agents).filter((agent) => agent.project === project.id && !agent.archived));
     const counts = projectAgents.reduce<Record<string, number>>((current, agent) => ({ ...current, [agent.state]: (current[agent.state] ?? 0) + 1 }), {});

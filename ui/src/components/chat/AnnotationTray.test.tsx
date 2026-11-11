@@ -23,7 +23,9 @@ vi.mock("../../features/launch/NewAgentModal", async () => {
     open ? React.createElement("button", { onClick: () => { launches++; onLaunched("new-agent"); } }, "Launch agent") : null };
 });
 
-const server = setupServer();
+const server = setupServer(
+  http.get("/api/projects", () => HttpResponse.json({ app: { title: "App Project" }, other: { title: "Other Project" } })),
+);
 beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterAll(() => server.close());
 
@@ -227,6 +229,7 @@ describe("AnnotationTray", () => {
 
   it("retries failed post-launch delivery to the same agent without launching another", async () => {
     seedTray(1);
+    useAgentStore.setState({ agents: { source: sourceAgent, "new-agent": { ...sourceAgent, agent_id: "new-agent", name: "Newbie" } } as never });
     const recipientIds: string[] = [];
     server.use(
       http.post("/api/sessions/source/annotations/validate", () => HttpResponse.json({ valid: true })),
@@ -242,9 +245,10 @@ describe("AnnotationTray", () => {
     fireEvent.click(screen.getByLabelText("New agent"));
     fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
     fireEvent.click(await screen.findByRole("button", { name: "Launch agent" }));
-    expect(await screen.findByText(/Agent new-agent launched, but annotation delivery failed/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry delivery to new-agent" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Retry delivery to new-agent" }));
+    expect(await screen.findByText(/The new agent launched, but annotation delivery failed/)).toBeInTheDocument();
+    expect(screen.queryByText(/new-agent/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry delivery to Newbie" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry delivery to Newbie" }));
     await waitFor(() => expect(useAnnotationStore.getState().bySource.source).toBeUndefined());
     expect(launches).toBe(1);
     expect(recipientIds).toEqual(["new-agent", "new-agent"]);
@@ -257,7 +261,7 @@ describe("AnnotationTray", () => {
   // an available target instead of a checked-but-disabled Current agent.
   // FS-13.A24 — the recipient list starts at the source project; outside agents
   // appear only on request, and hiding them clears an outside choice.
-  it("lists the source project's recipients until other projects are included", () => {
+  it("lists the source project's recipients until other projects are included", async () => {
     seedTray(1);
     useAgentStore.setState({ agents: {
       source: sourceAgent,
@@ -268,10 +272,11 @@ describe("AnnotationTray", () => {
     fireEvent.click(screen.getByLabelText(/Another agent/));
     const recipient = () => screen.getByLabelText("Annotation recipient") as HTMLSelectElement;
     const names = () => [...recipient().options].map((option) => option.textContent);
-    expect(names()).toEqual(["Choose an agent", expect.stringContaining("Near")]);
+    await waitFor(() => expect(names()).toEqual(["Choose an agent", "Near (implementer · App Project)"]));
     fireEvent.click(screen.getByLabelText("Include other projects"));
     expect(names()).toContainEqual(expect.stringContaining("Far ("));
-    expect(names().find((name) => name?.startsWith("Far"))).toContain("@other");
+    expect(names().find((name) => name?.startsWith("Far"))).toBe("Far (implementer · Other Project)");
+    expect(names().join(" ")).not.toMatch(/@|\bother\b/);
     fireEvent.change(recipient(), { target: { value: "far" } });
     fireEvent.click(screen.getByLabelText("Include other projects"));
     expect(recipient()).toHaveValue("");

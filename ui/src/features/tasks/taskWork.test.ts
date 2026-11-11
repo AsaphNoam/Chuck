@@ -201,7 +201,7 @@ describe("taskStatus and taskReason", () => {
 
   it("explains what armed work waits for, by name", () => {
     expect(taskReason(row("tk_c"))).toBe("Waits for Implement API → success");
-    expect(taskReason(row("tk_t"))).toBe("Waits for signal ci-green; run pr_1 → success");
+    expect(taskReason(row("tk_t"))).toBe("Waits for signal ci-green; pipeline run → success");
     expect(taskReason(row("tk_s"))).toBe("a prerequisite can no longer be satisfied");
     expect(taskReason(row("tk_k"))).toBe("Cleanup retrying: agent did not stop");
   });

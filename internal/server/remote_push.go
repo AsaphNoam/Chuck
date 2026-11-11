@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/config"
@@ -152,8 +151,8 @@ func noteMuted(note pushNote, muted map[string]bool) bool {
 // kind of attention — never commands, diffs, or message text (FS-20.R19).
 func noteFor(it attentionItem) pushNote {
 	who := it.Title
-	if !strings.Contains(who, "@") {
-		who = fmt.Sprintf("%s in %s", it.Title, it.Project)
+	if it.ProjectTitle != "" {
+		who = fmt.Sprintf("%s in %s", it.Title, it.ProjectTitle)
 	}
 	reason := it.Reason
 	if it.Kind == "run" {
@@ -244,7 +243,7 @@ func (s *Server) runPushSender(ctx context.Context) {
 				enqueue(noteFor(w.pending[0]))
 			default:
 				first := w.pending[0]
-				where := first.Project
+				where := first.ProjectTitle
 				if first.Kind == "run" {
 					where = first.Title
 				}
@@ -252,7 +251,11 @@ func (s *Server) runPushSender(ctx context.Context) {
 				for _, it := range w.pending {
 					types = append(types, pushMuteType(it))
 				}
-				enqueue(pushNote{Title: "Chuck", Body: fmt.Sprintf("%d items in %s need you", len(w.pending), where), Tag: tag, URL: "/", muteTypes: types})
+				body := fmt.Sprintf("%d items need you", len(w.pending))
+				if where != "" {
+					body = fmt.Sprintf("%d items in %s need you", len(w.pending), where)
+				}
+				enqueue(pushNote{Title: "Chuck", Body: body, Tag: tag, URL: "/", muteTypes: types})
 			}
 		}
 	}

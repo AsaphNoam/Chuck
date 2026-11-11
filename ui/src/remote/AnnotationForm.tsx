@@ -6,7 +6,8 @@ import { annotationAnchor } from "../lib/annotations";
 import { useAnnotationStore } from "../store/annotationStore";
 import { useAnnotationDelivery, type AnnotationDelivery } from "../components/chat/annotationDelivery";
 import { useConnection } from "./connection";
-import { useRoles } from "../api/config";
+import { useProjects, useRoles } from "../api/config";
+import { projectTitle } from "../lib/labels";
 import { personaIdentityLabel } from "../lib/personas";
 import { navigate } from "./router";
 import { PhoneSheet } from "./PhoneSheet";
@@ -83,6 +84,7 @@ export function PhoneAnnotations({ delivery, open, focusNewest, onClose }: {
 
 function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: AnnotationDelivery; focusNewest: number; onClose: () => void }) {
   const { data: roles } = useRoles();
+  const { data: projects } = useProjects();
   const { sourceId, sourceActive, source, recipients, connected, target, setTarget, recipientId, setRecipientId, recordSource, setRecordSource, sending, error, launchedAgentId, send, canSteer, steer } = delivery;
   const drafts = useAnnotationStore((state) => state.bySource[sourceId]) ?? noDrafts;
   const overall = useAnnotationStore((state) => state.overallBySource[sourceId] ?? "");
@@ -101,8 +103,8 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
     return fields?.[fields.length - 1];
   };
 
-  const launched = launchedAgentId ? recipients.find((agent) => agent.agent_id === launchedAgentId)?.name || launchedAgentId : null;
-  const sendLabel = sending ? "Sending…" : target === "new" ? launched ? `Retry delivery to ${launched}` : "Continue to launch" : "Send annotations";
+  const launched = launchedAgentId ? recipients.find((agent) => agent.agent_id === launchedAgentId)?.name?.trim() : undefined;
+  const sendLabel = sending ? "Sending…" : target === "new" ? launchedAgentId ? launched ? `Retry delivery to ${launched}` : "Retry delivery" : "Continue to launch" : "Send annotations";
 
   return (
     <PhoneSheet
@@ -167,7 +169,7 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
                 <option value="">Choose a running chat agent</option>
                 {choices.visible.map((other) => (
                   <option key={other.agent_id} value={other.agent_id}>
-                    {`${other.name || personaIdentityLabel(other.role, roles?.[other.role])}${other.project !== source?.project || !other.name ? `@${other.project}` : ""}`}
+                    {`${other.name || personaIdentityLabel(other.role, roles?.[other.role])}${(other.project !== source?.project || !other.name) && projectTitle(projects, other.project) ? ` · ${projectTitle(projects, other.project)}` : ""}`}
                   </option>
                 ))}
               </select>

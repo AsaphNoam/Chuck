@@ -307,7 +307,7 @@ describe("AgentScreen", () => {
   it("shows a permission with its command and latest message and approves it", async () => {
     renderScreen();
     const card = await screen.findByRole("region", { name: "Permission request" });
-    expect(card).toHaveTextContent("implementer@my-app needs permission");
+    expect(card).toHaveTextContent("implementer needs permission");
     expect(card).toHaveTextContent("rm -rf dist");
     expect(card).toHaveTextContent("I will remove the dist folder.");
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
@@ -472,11 +472,13 @@ describe("AgentScreen", () => {
       },
     };
     live = { agent_id: "a1", events: [request], has_more: false, pending_permission: request, latest_assistant: "" };
+    server.use(http.get("/api/projects", () => HttpResponse.json({ "my-app": { title: "My app" }, beta: { title: "Beta app" } })));
     renderScreen();
     const card = await screen.findByRole("region", { name: "Permission request" });
     expect(card).toHaveTextContent("Stop Nova");
-    expect(card).toHaveTextContent("Atlas · my-app · a1");
-    expect(card).toHaveTextContent("Nova · beta · a_tgt");
+    await waitFor(() => expect(card).toHaveTextContent("Atlas · My app"));
+    expect(card).toHaveTextContent("Nova · Beta app");
+    expect(card).not.toHaveTextContent(/a_tgt|\bbeta\b/);
     expect(card).toHaveTextContent("history is kept");
     expect(card).not.toHaveTextContent("\"agent_id\"");
     fireEvent.click(within(card).getByRole("button", { name: "Approve once" }));
@@ -1304,10 +1306,11 @@ describe("AgentScreen diff annotations", () => {
       launchStatus = 201;
       deliveryFailures = 1;
       fireEvent.click(within(form).getByRole("button", { name: "Launch and send" }));
-      expect(await screen.findByText(/Agent a3 launched, but annotation delivery failed/)).toBeInTheDocument();
+      expect(await screen.findByText(/The new agent launched, but annotation delivery failed/)).toBeInTheDocument();
       expect(window.location.pathname).toBe("/agent/a1");
       expect(useAnnotationStore.getState().bySource.a1).toHaveLength(1);
-      fireEvent.click(screen.getByRole("button", { name: "Retry delivery to a3" }));
+      act(() => useConnection.setState({ agents: { a1: idle, a3: { ...idle, agent_id: "a3", name: "fresh" } } }));
+      fireEvent.click(await screen.findByRole("button", { name: "Retry delivery to fresh" }));
       await waitFor(() => expect(window.location.pathname).toBe("/agent/a3"));
       const launches = posts.filter((post) => post.startsWith("launch"));
       expect(launches).toHaveLength(2);

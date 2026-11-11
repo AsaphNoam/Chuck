@@ -4,6 +4,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { cancelTurn, resumeAgent, setSessionConfig, switchRuntime } from "../../api/client";
 import { readHeldRecovery } from "../../lib/heldMessage";
 import { useBackends, useProjects, useRoles } from "../../api/config";
+import { projectTitle as projectTitleFor } from "../../lib/labels";
 import { personaIdentityLabel } from "../../lib/personas";
 import type { AgentState } from "../../api/types";
 import { sseClient } from "../../api/sse";
@@ -265,7 +266,7 @@ function AgentPanel({ id }: { id: string }) {
     }
   };
 
-  const projectTitle = (agent.project && projects?.[agent.project]?.title) || agent.project;
+  const projectTitle = projectTitleFor(projects, agent.project);
   const sessionSettings = (selectedModel?.efforts ?? []).length > 0 || !!currentModel?.fast;
   const failed = stoppedOnError(agent);
   // Resume reuses the card menu's endpoint and failure toast (FS-02.R27/R28).
@@ -438,8 +439,8 @@ function AgentPanel({ id }: { id: string }) {
   );
 }
 
-// The quiet row above the agent card: Back first, where the agent lives, and its
-// stable id (FS-12.R61). The archived page shares it.
+// The quiet row above the agent card: Back first, then where the agent lives
+// (FS-12.R61). The archived page shares it.
 // A live page with running siblings swaps the path text for one-click mini
 // agent cards (FS-03.R98, FS-12.R70); the archived page passes none.
 export function AgentBreadcrumb({ backTarget, backLabel, project, name, agentId, siblings }: { backTarget: string; backLabel: string; project?: string; name: string; agentId: string; siblings?: AgentSibling[] }) {
@@ -469,7 +470,6 @@ export function AgentBreadcrumb({ backTarget, backLabel, project, name, agentId,
           {name}
         </span>
       )}
-      <code className="chat-breadcrumb-id">{agentId}</code>
     </nav>
   );
 }

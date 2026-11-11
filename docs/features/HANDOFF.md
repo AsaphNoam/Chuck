@@ -202,7 +202,12 @@ The release CI annotation-replay finding (RELEASE-023-CI-1) is available for fix
 
 ## Review queue
 
-None.
+- **No raw ids in the UI** (2026-11-11, FS-02.R69 extension): desktop, phone and push text
+  replace agent/project/task/run/room/proposal id fallbacks and chips with names or neutral
+  phrases via `ui/src/lib/labels.ts` (`agentName`, `projectTitle`); attention items carry an
+  internal project title for push. Kept by design: duplicate-name `(id)` in selectors, settings
+  slug fields, template stage/participant ids, model ids, persona role slugs
+  (`personaIdentityLabel`). No rendered browser pass.
 
 ## Investigations awaiting evidence
 
@@ -288,6 +293,13 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
   layout's gap marker; product unchanged. Base fails 7/42 with a 300 ms delayed layout read,
   fix passes 42/42 delayed and normal; full `npm test` 1195/1195 twice; `make check-specs` ok.
   UI build not rerun (test-only). A new hosted main CI run must confirm.
+
+- **2026-11-11 — Work:** removed internal ids from user-facing text (operator request):
+  breadcrumb id chip, run/room/proposal/template code chips, `name || id` and `(id)` / `· id`
+  suffixes, project-slug fallbacks (now title, blank while loading, or *Unavailable project*),
+  phone `role@project` titles and push bodies. Specs: FS-02.R25/R69/A13, FS-03.R98, FS-12.R61/R70,
+  FS-14 builder panel, FS-20.R12/R19, TS-08.R60/R91. `make test`, full `npm test` and UI build;
+  CardGrid waiting-input flake (RELEASE-023-CI-2) is independent.
 
 - **2026-11-11 — Design:** [Think Tank templates](../ready-changes/think-tank-templates.md) are
   ready to start. Confirmed project-independent snapshots that load fresh launch settings into the
