@@ -97,7 +97,9 @@ var remoteDenied = map[string]bool{
 	"POST /api/think-tanks/{id}/pause": true, "POST /api/think-tanks/{id}/resume": true,
 	"POST /api/think-tanks/{id}/end": true, "POST /api/think-tanks/{id}/retry": true,
 	"POST /api/think-tanks/{id}/participants/{agent_id}/turn-limit": true,
-	"GET /api/sessions/{id}/think-tank-results":                     true,
+	"GET /api/think-tank-templates":                                 true, "POST /api/think-tank-templates": true,
+	"GET /api/think-tank-templates/{id}":        true,
+	"GET /api/sessions/{id}/think-tank-results": true,
 	// Retained pipeline workspace management and checkout removal are desktop
 	// actions (FS-14.R96, TS-09.R65); run detail carries status to the phone.
 	"GET /api/pipeline-workspaces": true, "GET /api/pipeline-workspaces/{id}": true,

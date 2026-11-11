@@ -140,6 +140,9 @@ func (s *Server) routeTable() []routeEntry {
 	api("POST /api/think-tanks/{id}/end", s.handleThinkTankControl(s.stateStore.EndThinkTank))
 	api("POST /api/think-tanks/{id}/retry", s.handleRetryThinkTank)
 	api("POST /api/think-tanks/{id}/participants/{agent_id}/turn-limit", s.handleThinkTankTurnLimit)
+	api("GET /api/think-tank-templates", s.handleThinkTankTemplates)
+	api("POST /api/think-tank-templates", s.handleSaveThinkTankTemplate)
+	api("GET /api/think-tank-templates/{id}", s.handleThinkTankTemplate)
 	api("POST /api/signals", s.handleFireSignal)
 
 	// Phase 1 session lifecycle (launch, control). The {id} routes

@@ -402,3 +402,47 @@ func TestThinkTankCreateWithGoalFilesAndJudgeInstructions(t *testing.T) {
 		t.Fatalf("files after delete = %d", n)
 	}
 }
+
+// FS-21.A43, TS-14.R30–R31: a draft save over REST keeps only portable launch
+// choices; project, group and agent identity never reach the snapshot.
+func TestThinkTankTemplateRESTRoundTrip(t *testing.T) {
+	_, h := roomRESTServer(t)
+	body := `{"command_id":"tpl-1","name":"Storage team","setup":{"openings":true,` +
+		`"participants":[{"agent_id":"a_one","limit":2,"instructions":"Argue for SQLite."},` +
+		`{"new":{"project":"beta","backend":"codex","model":"gpt","group":"g","name":" Cy "},"limit":3,"may_leave":false}],` +
+		`"judge":{"project":"alpha","backend":"claude"},"judge_instructions":"Rank them."}}`
+	rec := doJSON(t, h, http.MethodPost, "/api/think-tank-templates", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("save = %d %s", rec.Code, rec.Body.String())
+	}
+	var saved state.ThinkTankTemplateSummary
+	if err := json.Unmarshal(rec.Body.Bytes(), &saved); err != nil || saved.Name != "Storage team" {
+		t.Fatalf("summary = %+v %v", saved, err)
+	}
+	list := doJSON(t, h, http.MethodGet, "/api/think-tank-templates", "")
+	if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), `"templates":[{"id":"`+saved.ID+`"`) {
+		t.Fatalf("list = %d %s", list.Code, list.Body.String())
+	}
+	got := doJSON(t, h, http.MethodGet, "/api/think-tank-templates/"+saved.ID, "")
+	raw := got.Body.String()
+	for _, leaked := range []string{"a_one", "alpha", "beta", `"group"`, `"project"`} {
+		if strings.Contains(raw, leaked) {
+			t.Fatalf("template carries %s: %s", leaked, raw)
+		}
+	}
+	var tpl state.ThinkTankTemplate
+	if err := json.Unmarshal(got.Body.Bytes(), &tpl); err != nil {
+		t.Fatal(err)
+	}
+	p := tpl.Setup.Participants
+	if len(p) != 2 || p[0].Launch.Name != "Ari" || p[0].Instructions != "Argue for SQLite." || p[1].Launch.Name != "Cy" ||
+		p[1].MayLeave || !tpl.Setup.Openings || tpl.Setup.Judge == nil || tpl.Setup.JudgeInstructions != "Rank them." {
+		t.Fatalf("template = %+v", tpl)
+	}
+	if rec := doJSON(t, h, http.MethodGet, "/api/think-tank-templates/ttt_missing", ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("missing = %d", rec.Code)
+	}
+	if rec := doJSON(t, h, http.MethodPost, "/api/think-tank-templates", `{"command_id":"tpl-2","name":"x","room_id":"tt_missing"}`); rec.Code != http.StatusNotFound {
+		t.Fatalf("missing room = %d %s", rec.Code, rec.Body.String())
+	}
+}

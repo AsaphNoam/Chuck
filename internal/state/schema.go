@@ -939,6 +939,12 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 71,
 		sql:     `ALTER TABLE think_tank_members ADD COLUMN instructions TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// Project-independent Think Tank setup templates (FS-21.R60–R61,
+		// TS-14.R30), outside room, agent and project lifecycles.
+		version: 72,
+		apply:   migrateThinkTankTemplates,
+	},
 }
 
 // addPipelineVisitProvenance follows addPipelineDecisions for a legacy

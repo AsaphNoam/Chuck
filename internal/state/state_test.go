@@ -36,6 +36,7 @@ CREATE TABLE sessions (
 -- Every real v47 database has the rooms table (migration 36); later
 -- migrations extend it.
 CREATE TABLE think_tanks (room_id TEXT PRIMARY KEY);
+CREATE TABLE think_tank_members (room_id TEXT NOT NULL, agent_id TEXT NOT NULL);
 CREATE TABLE tasks (task_id TEXT PRIMARY KEY);
 -- Every real database has running rows (migration 1).
 CREATE TABLE running (agent_id TEXT PRIMARY KEY);

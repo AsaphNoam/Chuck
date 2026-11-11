@@ -35,9 +35,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
    `participants[].instructions` on create, member wire `instructions`, `read_think_tank`
    `participant_instructions` on the caller's own running attempt's first context page only.
    Focused state/messaging/server ThinkTank tests pass.
-2. Next: template persistence and REST (TS-14.R30–R31): migration 72 table, draft/room save
-   normalization, `GET/POST /api/think-tank-templates`, `GET /{id}`; add routes to `remoteDenied`.
-3. Then UI (TS-14.R33, FS-21.R60–R63): instructions field + participant-details display, Template
+2. Done: template persistence and REST (TS-14.R30–R31 shipped). `internal/state/think_tank_templates.go`
+   (migration 72), `internal/server/think_tank_template_handlers.go`; routes are `remoteDenied`.
+   Draft wire reuses `thinkTankParticipantRequest` (`agent_id` | `new` launch); GET returns
+   `setup.participants[].launch{role,backend,model,effort,fast,name}`, `judge`, `openings`.
+   Full `go test ./internal/state` and server ThinkTank/route tests pass.
+3. Next: UI (TS-14.R33, FS-21.R60–R63): instructions field + participant-details display, Template
    dropdown, row Edit, Save setup in modal and room; rendered narrow/wide journey.
 4. Closure: `make test`, `make build`, UI `npm test`/build; README index line for FS-21/TS-14 is in a
    file with another session's uncommitted hunk — stage only our hunk.

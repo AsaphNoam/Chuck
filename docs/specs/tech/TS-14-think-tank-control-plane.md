@@ -321,7 +321,7 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   only, and the detail wire lists attachment names plus the retained `judge.instructions` field for
   operator display. Pipeline rooms carry neither.
 
-- **R30 (planned) — Persist project-independent template snapshots (FS-21.R60–R61).** Add a
+- **R30 — Persist project-independent template snapshots (FS-21.R60–R61).** Add a
   versioned template record to the existing owner-only SQLite state, independent of room, agent
   and project lifecycles. Store its opaque id, name (1–120 runes), save command identity and
   normalized intent, and a typed setup payload. The payload contains ordered participant rows
@@ -331,7 +331,7 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   project/workspace paths, resolved prompts, environment, credentials or conversation identifiers.
   Resolve persona and provider configuration using ordinary fresh-launch rules in the destination
   project. An explicitly saved choice that is unavailable requires repair instead of substitution.
-- **R31 (planned) — Share template normalization across both save entry points.** A draft save
+- **R31 — Share template normalization across both save entry points.** A draft save
   accepts setup metadata only. For an existing-chat row, the server reads the authoritative
   `state.Agent` launch choices; the identity is lookup input only. A room save reads the committed
   setup and current configured caps from one SQLite snapshot, projecting fresh rows and the judge
