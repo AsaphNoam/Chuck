@@ -201,11 +201,6 @@ The two release CI findings are available for fix work.
 
 ## Review queue
 
-- **Pipeline stage work status** — Review the task-card styling for FS-14.R39/A17 and TS-08.R149.
-  The routed run-detail fixture passed in Chromium at 1024px and 1440px in all four appearances,
-  including reduced motion and live/archive link destinations. A fixture task update verified
-  waiting → running → finished in place. `make check-specs`, `npm test` (1193 tests), and
-  `npm run build` passed for the task-card change.
 - [Desktop chat composer editing](../ready-changes/desktop-chat-composer-editing.md) — review
   the change after `bd2cf9f4` for FS-03.R113–R116/A89–A91 and TS-08.R158–R160. Focus on native
   input/history ordering, selection replay, draft lineage and the shared picker boundary.
@@ -299,6 +294,11 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-11 — Review:** closed pipeline stage work status (`c947386b`, FS-14.R39/A17 and
+  TS-08.R149) with no findings. Independent Chromium runs exercised the routed fixture at
+  1024px and 1440px in all four appearances, including reduced motion and live/archive links.
+  Fixture updates confirmed waiting → running → finished in place in Core at 1024px.
+  Specification checks and all 10 run-browser tests passed. No fix model is needed.
 - **2026-11-09 — Implementation:** finished
   [desktop composer editing](../ready-changes/desktop-chat-composer-editing.md).
   Specification checks, 1,193 UI tests, the production UI build and both rendered Chromium
