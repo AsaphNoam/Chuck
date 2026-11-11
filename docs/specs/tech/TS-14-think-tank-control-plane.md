@@ -321,6 +321,52 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   only, and the detail wire lists attachment names plus the retained `judge.instructions` field for
   operator display. Pipeline rooms carry neither.
 
+- **R30 (planned) — Persist project-independent template snapshots (FS-21.R60–R61).** Add a
+  versioned template record to the existing owner-only SQLite state, independent of room, agent
+  and project lifecycles. Store its opaque id, name (1–120 runes), save command identity and
+  normalized intent, and a typed setup payload. The payload contains ordered participant rows
+  (portable launch choices, cap, leave flag, instructions), openings, and optional judge launch
+  choices and instructions. Portable choices are allowlisted to persona id, backend, model,
+  effort, fast and optional launch name. Never copy full launch requests, session snapshots,
+  project/workspace paths, resolved prompts, environment, credentials or conversation identifiers.
+  Resolve persona and provider configuration using ordinary fresh-launch rules in the destination
+  project. An explicitly saved choice that is unavailable requires repair instead of substitution.
+- **R31 (planned) — Share template normalization across both save entry points.** A draft save
+  accepts setup metadata only. For an existing-chat row, the server reads the authoritative
+  `state.Agent` launch choices; the identity is lookup input only. A room save reads the committed
+  setup and current configured caps from one SQLite snapshot, projecting fresh rows and the judge
+  from their retained launch intents and existing rows from authoritative agent metadata. If an
+  existing row has no recoverable launch choices, fail the save with an actionable row error.
+  Normalize and persist the whole snapshot in one transaction with no launches or room mutation.
+  Exact replay of a save command returns the committed template even if the source room or agent
+  has since changed or disappeared. Reusing the command for a different request is a conflict.
+  Apply R17's byte and roster bounds and R32's instruction bounds to the setup payload. Bound the
+  summary list with stable pagination and read one bounded payload at a time. Return typed errors
+  and preserve draft state on save or load failure. Routes inherit R11 and TS-05.R2–R3.
+- **R32 (planned) — Keep participant instructions in room context (FS-21.R63).** Add an immutable
+  optional `instructions` field to each participant in the room-create request (JSON and multipart
+  metadata), durable member row and local room-detail participant projection. Limit each to 8,000
+  Unicode runes under R17's overall admission budget. Include nonempty instructions in normalized
+  create/replay identity; omit empty values so prior commands still replay, and give legacy rows
+  and existing pipeline creation paths empty defaults. In `read_think_tank`, include
+  `participant_instructions` only on the first context page for the caller's current authorized
+  participant attempt. The value comes from that member row and survives retries; the result's
+  guidance identifies its room-turn scope. Reuse R10's compact public activity projection so raw
+  tool results never carry these instructions into shared room activity. Keep the field out of
+  history, peer and judge reads, SSE, launch configuration and ordinary private activations.
+  Retain existing tool identity, read-receipt rules and provider protocol. Update embedded room
+  guidance and result contract coverage with the additive field.
+- **R33 (planned) — Use the ordinary room draft and launch path (FS-21.R61–R62).** The dashboard
+  applies the loaded payload to its editable setup draft, projecting every slot into a fresh chat
+  launch with the dialog's origin project as its initial project. Loading and editing use existing
+  catalog choices and validators, preserve room-specific draft fields, and fence late loads from
+  closed, replaced or changed-project dialogs. Reuse the normal launch editor for prefilling and
+  editing an individual row. Only normal room create starts setup via R2. The template id is never
+  runtime or room authority and is unnecessary to start. Cover persisted projection and idempotency,
+  authority and redaction across REST/MCP/SSE, legacy replay, independent openings and retry in the
+  affected state/server/messaging suites. Exercise FS-21.A43–A45 in the built desktop UI and fake
+  provider journey as applicable, with narrow/wide rendering in all shipped appearances.
+
 ## 3. Interfaces & data shapes
 
 R22–R28 extend the initial interface inventory additively; the existing v1 fields and actions remain.
@@ -336,6 +382,16 @@ replay reuses original reserved participant identities before any new identity i
 Source ids are opaque immutable room-owned references, distinct from room/provider sequences.
 Retry identifies the failed setup slot or participant/judge attempt; only judge launch-setting repair
 is accepted after discussion starts. No retry edits goal/membership or replays a completed effect.
+
+R30–R33 extend the first-party dashboard contract (planned):
+
+- `GET /api/think-tank-templates` lists bounded template summaries (`id`, `name`) with an opaque
+  continuation. `GET /api/think-tank-templates/{id}` returns one versioned portable setup.
+- `POST /api/think-tank-templates` takes `command_id`, `name` and exactly one of `room_id` or a
+  typed `setup` draft with the existing-agent/fresh-choice distinction. It returns the committed
+  summary. Collections encode as arrays. No remote, CLI, agent-side template or SSE route is added.
+- `POST /api/think-tanks` accepts optional `participants[].instructions`. Local room detail exposes
+  the saved value; `read_think_tank` adds the attempt-scoped field specified in R32.
 
 ```text
 MCP read_think_tank(room_id?, cursor?, view?)

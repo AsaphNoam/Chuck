@@ -296,6 +296,10 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-11 — Design:** [Think Tank templates](../ready-changes/think-tank-templates.md) are
+  ready to start. Confirmed project-independent snapshots that load fresh launch settings into the
+  creation modal, editable participants, and optional room-specific instructions
+  (FS-21.R60–R63/A43–A45, TS-14.R30–R33).
 - **2026-11-11 — Fix:** closed desktop chat composer editing (COMPOSER-LIST-1–2; INV §8
   parsed user-facing data / §10 wiring drift). Shift+Enter no longer numbers lines
   inside a fence opened on an unordered item, and an item after an ATX heading continues from
