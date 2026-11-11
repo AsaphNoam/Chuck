@@ -1944,6 +1944,8 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   labels. No new theme, dependency, API, storage preference or synthetic execution model
   accompanies the visual overhaul. Browser evidence covers the real routes at 1024px and
   1440px in Core, Sky & Grove and Studio, including long content and loading/error/empty states.
+  Stage work cards expose the task record's state to local pipeline CSS through `data-task-state`
+  for FS-14.R39. The running dot reuses the existing state pulse and respects reduced motion.
 
 - **R150 — retired 2026-10-30:** unshipped session-hint presentation withdrawn; FS-01.R57
   reuses the existing quota banner and scheduled-continuation presentation.

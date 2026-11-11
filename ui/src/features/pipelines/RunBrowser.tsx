@@ -212,8 +212,10 @@ function TaskWorkCard({ item }: { item: PipelineRunDetail["stage_tasks"][number]
   const live = useAgentStore((state) => (item.agent_id ? state.agents[item.agent_id] : undefined));
   const route = live ? (live.running ? "live" : "archive") : item.route;
   const href = !item.agent_id || route === "unavailable" ? null : route === "live" ? `/agent/${encodeURIComponent(item.agent_id)}` : `/archive/${encodeURIComponent(item.agent_id)}`;
-  const content = <><span className={`pipeline-agent-dot pipeline-agent-dot-${item.state}`} /><span><strong>{item.display_name}</strong><small>{humanize(item.state)}{item.outcome ? ` · ${humanize(item.outcome)}` : ""}</small><em>{item.summary || "No result summary"}</em></span><span aria-hidden="true">{href ? "↗" : "—"}</span></>;
-  return href ? <Link className="pipeline-agent-card" to={href}>{content}</Link> : <div className="pipeline-agent-card pipeline-agent-unavailable">{content}</div>;
+  const content = <><span className="pipeline-agent-dot" aria-hidden="true" /><span><strong>{item.display_name}</strong><small>{humanize(item.state)}{item.outcome ? ` · ${humanize(item.outcome)}` : ""}</small><em>{item.summary || "No result summary"}</em></span><span aria-hidden="true">{href ? "↗" : "—"}</span></>;
+  return href
+    ? <Link className="pipeline-agent-card" data-task-state={item.state} to={href}>{content}</Link>
+    : <div className="pipeline-agent-card pipeline-agent-unavailable" data-task-state={item.state}>{content}</div>;
 }
 
 function RunsSkeleton() { return <div className="pipeline-ledger pipeline-skeleton" aria-label="Loading runs"><span /><span /><span /><span /></div>; }

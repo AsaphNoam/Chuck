@@ -319,6 +319,11 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   card named from its task and agent id rather than disappearing or failing the run page. Cards
   perform no lifecycle action: stopping, renaming, cloning, and every other agent mutation stay on
   the surfaces FS-01 and FS-02 own.
+  Stage work task cards make the recorded task state scannable. A running task has a
+  green border and pulsing status dot. A finished task has a muted green border and subdued
+  content and surface. Tasks that are armed, ready, or waiting use the same subdued treatment
+  with a neutral border. State and outcome labels remain visible, and reduced motion keeps the
+  running dot still.
 - **R40** — When a run has advanced past, or finished after, a stage whose
   delegated agents are still running, the run's page states how many remain running. This is
   disclosure only: it does not delay a transition, change R7's advance rule, add an attention
@@ -1071,8 +1076,11 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   and no card exposes a lifecycle action. When blocked continuation reuses one stage agent across
   two attempts, a task appears only under the attempt during which it was created. A run that
   finished while a delegated agent is still running states the distinct remaining-agent count even
-  when the visible delegated cards are capped. *Verify:* run-detail UI tests over a fixture with
-  delegated tasks, and J14.
+  when the visible delegated cards are capped. A running attempt with mixed task states makes
+  running work stand out from subdued finished and waiting work. Finished work retains a green
+  border, waiting work has a neutral border, and reduced motion keeps the running indicator
+  still. *Verify:* run-detail UI tests over a fixture with delegated tasks, J14, and a browser
+  run-detail fixture with mixed task states.
 - **A18** (R42) — A pending `save_template` proposal is actionable on Templates and
   counted on Runs, a pending `start_run` proposal is actionable on Runs and counted on Templates,
   and approving either still consumes it exactly once. *Verify:*

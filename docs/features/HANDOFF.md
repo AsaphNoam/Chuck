@@ -201,6 +201,11 @@ The two release CI findings are available for fix work.
 
 ## Review queue
 
+- **Pipeline stage work status** — Review the task-card styling for FS-14.R39/A17 and TS-08.R149.
+  The routed run-detail fixture passed in Chromium at 1024px and 1440px in all four appearances,
+  including reduced motion and live/archive link destinations. A fixture task update verified
+  waiting → running → finished in place. `make check-specs`, `npm test` (1193 tests), and
+  `npm run build` passed for the task-card change.
 - [Desktop chat composer editing](../ready-changes/desktop-chat-composer-editing.md) — review
   the change after `bd2cf9f4` for FS-03.R113–R116/A89–A91 and TS-08.R158–R160. Focus on native
   input/history ordering, selection replay, draft lineage and the shared picker boundary.

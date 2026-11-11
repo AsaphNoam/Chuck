@@ -407,16 +407,23 @@
 .pipeline-agent-heading > span { color: var(--ad-text-muted); font-family: var(--ad-font-mono); font-size: 0.62rem; }
 .pipeline-agent-grid { display: grid; gap: var(--ad-space-2); grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pipeline-agent-card { align-items: center; background: var(--ad-surface-subtle); border: var(--ad-border-thin) solid var(--ad-border-default); color: var(--ad-text-primary); display: grid; gap: var(--ad-space-2); grid-template-columns: auto minmax(0, 1fr) auto; min-height: 76px; padding: var(--ad-space-3); text-decoration: none; }
-.pipeline-agent-card:hover { border-color: var(--ad-action-secondary); }
+a.pipeline-agent-card:hover strong { text-decoration: underline; }
 .pipeline-agent-card em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipeline-agent-unavailable { color: var(--ad-text-muted); }
 .pipeline-agent-dot { background: var(--ad-state-unknown); border-radius: var(--ad-radius-round); height: 9px; width: 9px; }
-.pipeline-agent-dot-unknown { background: var(--ad-state-unknown); }
-.pipeline-agent-dot-busy { background: var(--ad-state-busy); }
-.pipeline-agent-dot-idle { background: var(--ad-state-idle); }
-.pipeline-agent-dot-waiting_input { background: var(--ad-state-waiting); }
-.pipeline-agent-dot-done { background: var(--ad-state-done); }
-.pipeline-agent-dot-error { background: var(--ad-state-error); }
+.pipeline-agent-card[data-task-state="running"] { border-color: var(--ad-state-done); }
+.pipeline-agent-card[data-task-state="running"] .pipeline-agent-dot {
+  animation: ad-state-pulse 2.4s ease-in-out infinite;
+  background: var(--ad-state-done);
+}
+.pipeline-agent-card:is([data-task-state="finished"], [data-task-state="armed"], [data-task-state="ready"], [data-task-state="waiting"]) {
+  background: color-mix(in srgb, var(--ad-surface-subtle) 30%, var(--ad-surface-panel));
+  color: color-mix(in srgb, var(--ad-text-primary) 55%, var(--ad-text-muted));
+}
+.pipeline-agent-card[data-task-state="finished"] {
+  border-color: color-mix(in srgb, var(--ad-state-done) 65%, var(--ad-border-default));
+}
+.pipeline-agent-card[data-task-state="finished"] .pipeline-agent-dot { background: var(--ad-state-done); }
 
 .pipeline-disclosure { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); }
 .pipeline-disclosure > summary { align-items: center; cursor: pointer; display: flex; font-weight: 750; justify-content: space-between; list-style: none; min-height: 52px; padding: var(--ad-space-3) var(--ad-space-4); }
@@ -563,6 +570,7 @@
   .pipeline-disclosure-body,
   .pipeline-start-pane,
   .pipeline-timeline-appended > details,
+  .pipeline-agent-card[data-task-state="running"] .pipeline-agent-dot,
   .pipeline-skeleton > span { animation: none; }
   .pipeline-ledger-row,
   .pipeline-template-row,
