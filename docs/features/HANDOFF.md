@@ -18,9 +18,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   [Receipt](../archive/reviews/architecture/v0.22.0-next.json) includes release preparation.
   Original audit findings are closed; separate publication-time CI findings remain below.
 - **Verification:** hosted release assembly and fresh installation pass. Main CI retry
-  `42450626202` passes both Go variants, specs, gate tests and vet, but fails one of 1181 UI
-  tests (waiting-input pane opening). All 42 CardGrid tests pass locally. Do not claim full
-  clean-clone CI success. Native/provider/device gates below remain owed.
+  `42450626202` passes both Go variants, specs, gate tests and vet, but failed one of 1181 UI
+  tests (waiting-input pane opening); that fixture race is fixed locally, unconfirmed by a new
+  hosted run. Do not claim full clean-clone CI success. Native/provider/device gates below
+  remain owed.
 - **Installed runtime:** managed current was v0.20.0 at audit; no install or running-dashboard
   update is part of this release preparation. Global PATH adapters remain unpatched.
 - **Checks:** unset CHUCK_RUNTIME_ROOT; use GOFLAGS=-p=1 and a writable isolated GOCACHE.
@@ -30,7 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 None.
 
-The two release CI findings are available for fix work.
+The release CI annotation-replay finding (RELEASE-023-CI-1) is available for fix work.
 
 ## Acceptance gates still owed
 
@@ -262,22 +263,6 @@ specs, live user state or unrelated dirty files changed.
   Full CI retry passed Go, then failed a separate UI check below. Evidence: `/private/tmp/chuck-v023-main-ci-failed.log`,
   `/private/tmp/chuck-v023-annotation-repeat.log`. Do not change product receipt safety for this.
 
-### Published v0.23.0 main-CI UI failure — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** RELEASE-023-CI-2 — main CI `42450626202` retry failed
-  `CardGrid > opens a pane on a new waiting-input transition and keeps a collapsed one collapsed`
-  in `ui/src/components/grid/CardGrid.test.tsx:405–433`: missing `Composer a_1`. 1180 tests pass,
-  one fails. All 42 tests in that file pass in a fresh local focused run; Linux CI's cause is
-  not yet established and may be fixture scheduling or product behavior (no invariant class).
-  Diagnose under the hosted schedule and retain the assertions for FS-02.A43's
-  transition/collapsed-pane guarantee. Release workflow already published v0.23.0 after its own
-  checks passed; this is a live failed CI gate, not an owed/unrun native acceptance item.
-  Logs `/private/tmp/chuck-v023-main-ci-retry-failed.log`, `/private/tmp/chuck-v023-cardgrid.log`.
-  2026-11-11: now reproduces locally under full-suite load (`cd ui && npm test`), on unchanged
-  `c53f253e` UI source and with the composer-list fix; focused file still passes 42/42. One
-  full run also failed `cycles composer focus across group sections` on the same missing
-  `Composer a_1` label. Logs `/tmp/fix-uitest-base.log`, `/tmp/fix-uitest.log`.
-
 ## Blocked on human
 
 - **File reader full UI closure:** permission requested through the asynchronous question to
@@ -295,6 +280,14 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-11 — Fix:** closed the v0.23.0 main-CI UI failure (RELEASE-023-CI-2; INV §17
+  tests prove their contract independently). CardGrid cases rendered, clicked or delivered a
+  waiting transition before the grid's layout read settled; a late read overwrote clicked panes
+  or reseeded the transition (correct FS-02.R61 behavior). Cases now wait for the seeded
+  layout's gap marker; product unchanged. Base fails 7/42 with a 300 ms delayed layout read,
+  fix passes 42/42 delayed and normal; full `npm test` 1195/1195 twice; `make check-specs` ok.
+  UI build not rerun (test-only). A new hosted main CI run must confirm.
 
 - **2026-11-11 — Design:** [Think Tank templates](../ready-changes/think-tank-templates.md) are
   ready to start. Confirmed project-independent snapshots that load fresh launch settings into the

@@ -84,6 +84,8 @@ afterEach(() => {
   dnd.onDragEnd = undefined;
   dnd.onDragOver = undefined;
   act(() => useAgentStore.setState({ agents: {}, order: [], hydrated: false, hydrating: false }));
+  // The UI store outlives a mount; layoutRead() needs each case to start from the default.
+  useUiStore.setState({ density: { perRow: 3, gap: 16 } });
 });
 afterAll(() => server.close());
 
@@ -94,6 +96,9 @@ function agent(id: string, overrides: Partial<AgentState> = {}): AgentState {
     context_pct: 0, updated_at: 1, ...overrides,
   };
 }
+
+/** SEEDED_GAP marks seedGrid's layout response; the store default and other cases use 16 or 20. */
+const SEEDED_GAP = 17;
 
 /** renderedIDs reads the cards in the order the grid actually drew them. */
 function renderedIDs() {
@@ -183,6 +188,7 @@ describe("CardGrid", () => {
       a_terminal: agent("a_terminal", { interface: "terminal" }),
     });
     renderWithQuery(<CardGrid />);
+    await layoutRead();
 
     fireEvent.click(await cardOf("a_chat"));
     const expandedCard = screen.getByLabelText("Composer a_chat").closest('[data-ui="agent-card"]');
@@ -290,6 +296,7 @@ describe("CardGrid", () => {
       return HttpResponse.json(body);
     }));
     renderWithQuery(<CardGrid />);
+    await layoutRead();
 
     for (const id of ["a_1", "a_2", "a_3", "a_4"]) fireEvent.click(await cardOf(id));
     fireEvent.pointerDown(screen.getByLabelText("Composer a_1"));
@@ -333,6 +340,7 @@ describe("CardGrid", () => {
     seedGrid(["a_1", "a_2", "a_3"], { a_1: agent("a_1"), a_2: agent("a_2"), a_3: agent("a_3") });
     Element.prototype.scrollIntoView = vi.fn();
     renderWithQuery(<CardGrid />);
+    await layoutRead();
     for (const id of ["a_1", "a_2", "a_3"]) fireEvent.click(await cardOf(id));
     const first = screen.getByLabelText("Composer a_1");
     const second = screen.getByLabelText("Composer a_2");
@@ -363,6 +371,7 @@ describe("CardGrid", () => {
       a_2: agent("a_2", { group: "beta" }),
     });
     renderWithQuery(<CardGrid />);
+    await layoutRead();
     for (const id of ["a_1", "a_2"]) fireEvent.click(await cardOf(id));
     expect(document.querySelectorAll('[data-ui="agent-group"]')).toHaveLength(2);
 
@@ -383,6 +392,7 @@ describe("CardGrid", () => {
   it("keeps a stopped pane open, opens nothing on a done transition, and removes a pane with its card", async () => {
     seedHydratedGrid(["a_1", "a_2"], { a_1: agent("a_1"), a_2: agent("a_2") });
     renderWithQuery(<CardGrid />);
+    await layoutRead();
     fireEvent.click(await cardOf("a_1"));
     expect(screen.getByLabelText("Composer a_1")).toBeInTheDocument();
 
@@ -407,7 +417,7 @@ describe("CardGrid", () => {
       a_1: agent("a_1", { state: "busy" }), a_2: agent("a_2", { state: "busy" }),
     });
     renderWithQuery(<CardGrid projectID="my-app" />);
-    await screen.findByText("a_1");
+    await layoutRead();
     expect(screen.queryByLabelText(/Composer a_/)).not.toBeInTheDocument();
 
     act(() => useAgentStore.getState().applyStateUpdate(agent("a_1", { state: "waiting_input" })));
@@ -533,6 +543,7 @@ describe("CardGrid", () => {
       return HttpResponse.json(body);
     }));
     renderWithQuery(<CardGrid projectID="my-app" />);
+    await layoutRead();
     for (const id of ["a_1", "a_2", "a_3", "a_4"]) fireEvent.click(await cardOf(id));
 
     act(() => useAgentStore.getState().applyStateUpdate(agent("a_5", { state: "waiting_input", updated_at: 5 })));
@@ -574,7 +585,7 @@ describe("CardGrid", () => {
       return HttpResponse.json(body);
     }));
     renderWithQuery(<CardGrid projectID="my-app" />);
-    await screen.findByText("a_1");
+    await layoutRead();
 
     act(() => {
       for (const n of [5, 4, 3, 2, 1]) {
@@ -749,8 +760,16 @@ describe("CardGrid", () => {
     groups: Record<string, { collapsed: boolean }> = {},
   ) {
     server.use(http.get("/api/layout", () =>
-      HttpResponse.json({ order: manualOrder, density: { perRow: 3, gap: 16 }, groups })));
+      HttpResponse.json({ order: manualOrder, density: { perRow: 3, gap: SEEDED_GAP }, groups })));
     act(() => useAgentStore.setState({ agents, order: manualOrder }));
+  }
+
+  /** layoutRead waits until seedGrid's layout has been applied. Cards render before that
+   *  read settles; a click before it is overwritten by the read's `expanded`, and a
+   *  waiting transition before it only reseeds (FS-02.R61). Under full-suite load the
+   *  read lands late enough to lose either, so interacting cases wait for its gap. */
+  async function layoutRead() {
+    await waitFor(() => expect(document.querySelector<HTMLElement>('[data-slot="grid"]')?.style.gap).toBe(`${SEEDED_GAP}px`));
   }
 
   /** seedHydratedGrid leaves the store the way a completed hydration burst leaves it.
@@ -879,6 +898,7 @@ describe("CardGrid", () => {
       a_4: agent("a_4"),
     });
     renderWithQuery(<CardGrid />);
+    await layoutRead();
     await waitFor(() => expect(renderedIDs()).toEqual(["a_2", "a_4", "a_1", "a_3"]));
 
     // Both stopped: a same-block drop, committed against the flat manual order exactly
@@ -1024,6 +1044,7 @@ describe("CardGrid", () => {
       a_moved: stage("a_moved", "work", 2, ""),
     }, { "Work — Ship": { collapsed: true } });
     renderWithQuery(<CardGrid projectID="my-app" />);
+    await layoutRead();
 
     const headers = () => [...document.querySelectorAll('[data-ui="agent-group"] header')];
     await waitFor(() => expect(headers()).toHaveLength(3));
