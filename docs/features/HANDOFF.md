@@ -201,9 +201,7 @@ The two release CI findings are available for fix work.
 
 ## Review queue
 
-- [Desktop chat composer editing](../ready-changes/desktop-chat-composer-editing.md) — reviewed
-  the change after `bd2cf9f4` for FS-03.R113–R116/A89–A91 and TS-08.R158–R160. Open for
-  COMPOSER-LIST-1–2 fixes and independent fix review.
+None.
 
 ## Investigations awaiting evidence
 
@@ -251,24 +249,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### Desktop chat composer editing — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** COMPOSER-LIST-1 (INV §8/§10; fix complexity: medium) —
-  `ui/src/components/chat/composerLists.ts:40–66` misses a fenced code block opened on an
-  unordered list item. Paste ```` - ```text\n  1. example ```` (with a real line break) and press
-  Shift+Enter at the end. Both desktop composers insert `  2. ` on the new line, editing
-  the code example. The app's Markdown parser classifies the numbered line as fenced code.
-  Preserve plain newlines in fenced code under list containers (FS-03.R114/A90, TS-08.R160).
-  Add a regression for the nested fence and verify it alongside the existing numbered-list
-  commands in both desktop entry points.
-- **Must fix** COMPOSER-LIST-2 (INV §8/§10; fix complexity: easy) —
-  `ui/src/components/chat/composerLists.ts:54–68` treats a Markdown heading as a paragraph
-  that only a list starting at `1.` can interrupt. Paste `# Notes\n2. Existing` (with a real
-  line break) and press Shift+Enter at the end. Both desktop composers insert only a newline,
-  although the app's Markdown parser recognizes an ordered list starting at 2. Distinguish
-  the heading from a paragraph so a valid item continues with `3. ` (FS-03.R114/A90,
-  TS-08.R160). Cover both the heading and the existing plain-paragraph fallback.
-
 ### Annotation replay test scheduling — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 - **Worth fixing** RELEASE-023-CI-1 — `internal/server/annotations_self_delivery_test.go:35–47`
@@ -293,6 +273,10 @@ specs, live user state or unrelated dirty files changed.
   transition/collapsed-pane guarantee. Release workflow already published v0.23.0 after its own
   checks passed; this is a live failed CI gate, not an owed/unrun native acceptance item.
   Logs `/private/tmp/chuck-v023-main-ci-retry-failed.log`, `/private/tmp/chuck-v023-cardgrid.log`.
+  2026-11-11: now reproduces locally under full-suite load (`cd ui && npm test`), on unchanged
+  `c53f253e` UI source and with the composer-list fix; focused file still passes 42/42. One
+  full run also failed `cycles composer focus across group sections` on the same missing
+  `Composer a_1` label. Logs `/tmp/fix-uitest-base.log`, `/tmp/fix-uitest.log`.
 
 ## Blocked on human
 
@@ -312,6 +296,13 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-11 — Fix:** closed desktop chat composer editing (COMPOSER-LIST-1–2; INV §8
+  parsed user-facing data / §10 wiring drift). Shift+Enter no longer numbers lines
+  inside a fence opened on an unordered item, and an item after an ATX heading continues from
+  any start number; paragraph fallback unchanged. Both regressions fail before the fix.
+  `make check-specs`, 69 composer/editing tests and the UI build passed; full `npm test` failed
+  only the pre-existing CardGrid load case (RELEASE-023-CI-2, also fails without this fix). Both
+  desktop entry points share `editNumberedList`; no rendered Chromium rerun.
 - **2026-11-11 — Review:** desktop chat composer editing remains open for COMPOSER-LIST-1–2.
   Specification checks, 67 focused tests and the existing Chromium keyboard/pointer journey
   passed. A separate Chromium probe reproduced both failures in full agent chat and the expanded

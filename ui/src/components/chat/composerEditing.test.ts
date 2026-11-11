@@ -64,7 +64,12 @@ describe("numbered composer lists", () => {
     expect(editNumberedList(at("1. First\n2. "), "continue")?.next).toEqual(at("1. First\n"));
   });
 
-  it.each(["prose", "````text\n```\n1. example", "1. ```", "1. ```\n   1. example", "    1. indented code", "prose\n2. continuation"])(
+  it("lets a non-1 item follow a heading, unlike a paragraph", () => {
+    expect(editNumberedList(at("# Notes\n2. Existing"), "continue")?.next).toEqual(at("# Notes\n2. Existing\n3. "));
+  });
+
+  it.each(["prose", "````text\n```\n1. example", "1. ```", "1. ```\n   1. example", "- ```text\n  1. example",
+    "    1. indented code", "prose\n2. continuation"])(
     "leaves ordinary newlines alone in %j", (text) => {
       expect(editNumberedList(at(text), "continue")).toBeUndefined();
     },

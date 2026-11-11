@@ -3,6 +3,8 @@ import { caret, type ComposerSnapshot } from "./composerHistory";
 type Item = { indent: number; number: number; width: number; body: string };
 const MARKER = /^( *)(\d{1,9})\.( {1,4}(?![ \t])| +$)(.*)$/;
 const FENCE = /^( *)(`{3,}|~{3,})(.*)$/;
+const BULLET = /^( *)[-*+]( {1,4}(?![ \t])| +$)(.*)$/;
+const HEADING = /^ {0,3}#{1,6}(?:[ \t]|$)/;
 const MAX_NUMBER = 999_999_999;
 
 function openingFence(line: string) {
@@ -58,10 +60,16 @@ function listContext(text: string, cursor: number) {
       while (path.length && indent < path[path.length - 1].width) path.pop();
     }
 
-    const column: number = inList?.width ?? path[path.length - 1]?.width ?? 0;
-    const opening = openingFence(inList?.body ?? line.slice(column));
+    const container: number = path[path.length - 1]?.width ?? 0;
+    // Unordered items only matter here as containers for a fence; their content
+    // column, not the enclosing one, bounds the fenced code.
+    const bullet = inList ? undefined : BULLET.exec(line);
+    const nested = bullet && bullet[1].length - container <= 3 ? bullet : undefined;
+    const column: number = inList?.width ?? (nested ? nested[1].length + 1 + nested[2].length : container);
+    const content = inList?.body ?? nested?.[3] ?? line.slice(column);
+    const opening = openingFence(content);
     if (opening) fence = { marker: opening, column };
-    paragraph = !!line.trim() && !inList && !fence;
+    paragraph = !!line.trim() && !inList && !fence && !HEADING.test(line.slice(container));
   }
   if ((fence && item.indent >= fence.column) || openingFence(item.body)) return;
   const level = levelOf(item, path);
