@@ -353,7 +353,7 @@ func TestThinkTankCreateWithGoalFilesAndJudgeInstructions(t *testing.T) {
 	srv, h := roomRESTServer(t)
 	files := map[string]string{"brief.md": "# Brief", "data.csv": "a,b"}
 	judged := `{"command_id":"cmd-files","goal":"Pick a cache","origin_project":"alpha","judge":{"project":"alpha","backend":"claude"},` +
-		`"judge_instructions":"Rank the options.","participants":[{"agent_id":"a_one","limit":2},{"agent_id":"a_two","limit":2}]}`
+		`"judge_instructions":"Rank the options.","participants":[{"agent_id":"a_one","limit":2,"instructions":"  Argue for SQLite. "},{"agent_id":"a_two","limit":2}]}`
 	rec := roomMultipart(t, h, judged, files)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create = %d %s", rec.Code, rec.Body.String())
@@ -364,6 +364,10 @@ func TestThinkTankCreateWithGoalFilesAndJudgeInstructions(t *testing.T) {
 	}
 	if len(room.Attachments) != 2 || room.Attachments[0].Name != "brief.md" || room.Judge.Instructions != "Rank the options." {
 		t.Fatalf("room = %+v", room)
+	}
+	// FS-21.R63: the operator reviews each participant's own instructions.
+	if room.Members[0].Instructions != "Argue for SQLite." || room.Members[1].Instructions != "" {
+		t.Fatalf("participant instructions = %+v", room.Members)
 	}
 	if again := roomMultipart(t, h, judged, files); again.Code != http.StatusCreated || !strings.Contains(again.Body.String(), room.RoomID) {
 		t.Fatalf("replay = %d %s", again.Code, again.Body.String())

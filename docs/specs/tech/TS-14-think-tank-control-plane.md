@@ -343,7 +343,7 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   Apply R17's byte and roster bounds and R32's instruction bounds to the setup payload. Bound the
   summary list with stable pagination and read one bounded payload at a time. Return typed errors
   and preserve draft state on save or load failure. Routes inherit R11 and TS-05.R2–R3.
-- **R32 (planned) — Keep participant instructions in room context (FS-21.R63).** Add an immutable
+- **R32 — Keep participant instructions in room context (FS-21.R63).** Add an immutable
   optional `instructions` field to each participant in the room-create request (JSON and multipart
   metadata), durable member row and local room-detail participant projection. Limit each to 8,000
   Unicode runes under R17's overall admission budget. Include nonempty instructions in normalized

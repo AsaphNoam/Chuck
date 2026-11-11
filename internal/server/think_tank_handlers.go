@@ -30,6 +30,8 @@ type thinkTankParticipantRequest struct {
 	New      *launchRequest `json:"new,omitempty"`
 	Limit    int            `json:"limit"`
 	MayLeave *bool          `json:"may_leave,omitempty"`
+	// Instructions reach only this participant on its room turns (FS-21.R63).
+	Instructions string `json:"instructions,omitempty"`
 }
 
 type thinkTankCreateRequest struct {
@@ -206,7 +208,8 @@ func (s *Server) handleCreateThinkTank(w http.ResponseWriter, r *http.Request) {
 		create.JudgeConfig = config
 	}
 	for _, p := range req.Participants {
-		m := state.ThinkTankMember{Cap: p.Limit, MayLeave: p.MayLeave == nil || *p.MayLeave}
+		m := state.ThinkTankMember{Cap: p.Limit, MayLeave: p.MayLeave == nil || *p.MayLeave,
+			Instructions: strings.TrimSpace(p.Instructions)}
 		switch {
 		case p.AgentID != "" && p.New == nil:
 			agent, err := s.stateStore.ReadAgent(p.AgentID)

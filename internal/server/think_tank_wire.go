@@ -165,6 +165,9 @@ type thinkTankMemberWire struct {
 	State      string `json:"state"`
 	SetupState string `json:"setup_state"`
 	SetupError string `json:"setup_error,omitempty"`
+	// Instructions are the operator's own room-specific direction, shown in
+	// local participant details (FS-21.R63).
+	Instructions string `json:"instructions,omitempty"`
 	// Live reports the normal agent behind this retained identity; a deleted
 	// agent keeps its attribution without an active-chat link (FS-21.R25).
 	Exists      bool   `json:"exists"`
@@ -280,7 +283,7 @@ func (s *Server) thinkTankDetailWire(d state.ThinkTankDetail) thinkTankDetailWir
 	for _, m := range d.Members {
 		w := thinkTankMemberWire{AgentID: m.AgentID, Name: m.AgentName, Project: m.Project, Role: m.Role,
 			Order: m.Order, Limit: m.Cap, Completed: m.Completed, MayLeave: m.MayLeave, State: m.State,
-			SetupState: m.SetupState, SetupError: m.SetupError}
+			SetupState: m.SetupState, SetupError: m.SetupError, Instructions: m.Instructions}
 		if agent, err := s.stateStore.ReadAgent(m.AgentID); err == nil {
 			w.Exists, w.Archived, w.Name = true, agent.Archived, agent.Name
 			if _, err := s.stateStore.ReadRunning(m.AgentID); err == nil {

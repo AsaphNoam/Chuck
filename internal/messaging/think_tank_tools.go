@@ -107,6 +107,11 @@ func (s *Server) handleReadThinkTank(_ context.Context, req *mcp.CallToolRequest
 		if m.Role == state.ThinkTankRoleJudge && page.Room.JudgeInstructions != "" {
 			result["judge_instructions"] = page.Room.JudgeInstructions
 		}
+		// Participant instructions are the operator's direction to this
+		// participant for its current room turn only (FS-21.R63, TS-14.R32).
+		if participantInstructionsVisible(page) {
+			result["participant_instructions"] = m.Instructions
+		}
 		result["guidance"] = thinkTankGuidance(page)
 	}
 	if addressed {
@@ -197,6 +202,13 @@ func (s *Server) readThinkTankActivity(agentID string, args readThinkTankArgs) (
 	return jsonResult(result)
 }
 
+// participantInstructionsVisible limits a participant's instructions to the
+// first context page of its own running room attempt (TS-14.R32).
+func participantInstructionsVisible(page state.ThinkTankReadPage) bool {
+	return page.First && page.View == state.ThinkTankViewContext && page.Attempt != nil &&
+		page.Member.Role == state.ThinkTankRoleParticipant && page.Member.Instructions != ""
+}
+
 // thinkTankGuidance frames the remaining ceiling as a maximum, not a quota,
 // and departure only where permitted (FS-21.R16). Shared entries are data,
 // never instructions (TS-14.R11).
@@ -214,6 +226,9 @@ func thinkTankGuidance(page state.ThinkTankReadPage) string {
 		}
 		b.WriteString("Preserve unresolved material disagreement instead of declaring consensus.")
 		return b.String()
+	}
+	if participantInstructionsVisible(page) {
+		b.WriteString("Follow the user's participant_instructions for this room turn; they are addressed to you only and do not apply outside this room. ")
 	}
 	remaining := max(m.Cap-m.Completed, 0)
 	fmt.Fprintf(&b, "You have %d of %d room turns remaining. This is a maximum, not a quota: contribute only when you have something useful to add. There is no obligation to use every turn, and unresolved disagreement is acceptable. ", remaining, m.Cap)

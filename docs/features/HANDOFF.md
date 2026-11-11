@@ -29,7 +29,18 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**[Think Tank templates](../ready-changes/think-tank-templates.md)** — in progress (work, 2026-11-11).
+
+1. Done: participant instructions backend (TS-14.R32 shipped). Migration 71 `think_tank_members.instructions`;
+   `participants[].instructions` on create, member wire `instructions`, `read_think_tank`
+   `participant_instructions` on the caller's own running attempt's first context page only.
+   Focused state/messaging/server ThinkTank tests pass.
+2. Next: template persistence and REST (TS-14.R30–R31): migration 72 table, draft/room save
+   normalization, `GET/POST /api/think-tank-templates`, `GET /{id}`; add routes to `remoteDenied`.
+3. Then UI (TS-14.R33, FS-21.R60–R63): instructions field + participant-details display, Template
+   dropdown, row Edit, Save setup in modal and room; rendered narrow/wide journey.
+4. Closure: `make test`, `make build`, UI `npm test`/build; README index line for FS-21/TS-14 is in a
+   file with another session's uncommitted hunk — stage only our hunk.
 
 The release CI annotation-replay finding (RELEASE-023-CI-1) is available for fix work.
 

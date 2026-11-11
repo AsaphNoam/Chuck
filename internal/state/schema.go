@@ -933,6 +933,12 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
  PRIMARY KEY(agent_id, document_id)
 );`,
 	},
+	{
+		// Optional room-specific participant instructions (FS-21.R63,
+		// TS-14.R32). Legacy and pipeline rows keep the empty default.
+		version: 71,
+		sql:     `ALTER TABLE think_tank_members ADD COLUMN instructions TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // addPipelineVisitProvenance follows addPipelineDecisions for a legacy

@@ -209,6 +209,41 @@ func TestThinkTankCreateValidatesAndReplays(t *testing.T) {
 	}
 }
 
+// FS-21.R63, TS-14.R32: participant instructions are bounded, durable and part
+// of replay identity; empty instructions leave earlier intents unchanged.
+func TestThinkTankParticipantInstructionsPersistAndReplay(t *testing.T) {
+	st, _ := newTestStore(t)
+	long := ttMember("a", 1)
+	long.Instructions = strings.Repeat("é", ThinkTankMaxInstructRunes+1)
+	if _, err := st.CreateThinkTank(ThinkTankCreate{CommandID: "x", Goal: "g", OriginProject: "p",
+		Members: []ThinkTankMember{long, ttMember("b", 1)}}); !errors.Is(err, ErrThinkTankInvalid) {
+		t.Fatalf("oversized instructions err = %v", err)
+	}
+	plain := ThinkTankCreate{CommandID: "plain", Goal: "g", OriginProject: "p", Members: []ThinkTankMember{ttMember("a", 1), ttMember("b", 1)}}
+	if intent := thinkTankCreateIntent(plain); strings.Contains(intent, "Instructions") {
+		t.Fatalf("empty instructions changed legacy intent: %s", intent)
+	}
+	a := ttMember("a", 2)
+	a.Instructions = "Argue for SQLite."
+	c := ThinkTankCreate{CommandID: "inst", Goal: "g", OriginProject: "p",
+		Members: []ThinkTankMember{a, {Cap: 2, MayLeave: true, SetupConfig: "fresh", Instructions: "Argue for files."}}}
+	first, err := st.CreateThinkTank(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, err := st.ReadThinkTank(first.Room.RoomID)
+	if err != nil || read.Members[0].Instructions != "Argue for SQLite." || read.Members[1].Instructions != "Argue for files." {
+		t.Fatalf("stored members = %+v %v", read.Members, err)
+	}
+	if again, err := st.CreateThinkTank(c); err != nil || again.Room.RoomID != first.Room.RoomID {
+		t.Fatalf("replay = %v", err)
+	}
+	c.Members[0].Instructions = "Argue for Postgres."
+	if _, err := st.CreateThinkTank(c); !errors.Is(err, ErrThinkTankConflict) {
+		t.Fatalf("changed instructions accepted: %v", err)
+	}
+}
+
 func TestThinkTankCreateReplayUsesImmutableIntent(t *testing.T) {
 	st, _ := newTestStore(t)
 	c := ThinkTankCreate{CommandID: "immutable", Goal: "g", OriginProject: "p", JudgeConfig: "original judge",

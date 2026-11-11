@@ -241,6 +241,52 @@ func TestThinkTankReadCarriesGoalFilesAndJudgeInstructions(t *testing.T) {
 	}
 }
 
+// FS-21.A45, TS-14.R32: each participant's instructions reach only its own
+// running room attempt's first context page, never a turnless or history read.
+func TestThinkTankParticipantInstructionsReachOnlyTheirOwnTurn(t *testing.T) {
+	store := newStore(t)
+	srv := New(store, nil)
+	srv.Register("tok-a", "a")
+	srv.Register("tok-b", "b")
+	a, b := connect(t, srv, "tok-a"), connect(t, srv, "tok-b")
+	d, err := store.CreateThinkTank(state.ThinkTankCreate{CommandID: "c", Goal: "Pick storage", OriginProject: "p",
+		Openings: true, Members: []state.ThinkTankMember{
+			{AgentID: "a", AgentName: "Ari", Project: "p", Cap: 2, Instructions: "Argue for SQLite."},
+			{AgentID: "b", AgentName: "Bea", Project: "p", Cap: 2, Instructions: "Argue for files."}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	room := d.Room.RoomID
+	if _, err := store.BeginThinkTankAttempt(state.ThinkTankBegin{RoomID: room, Revision: d.Room.Revision,
+		AgentID: "a", Turn: state.ThinkTankTurnOpening, Generation: "g", TurnID: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	own, isErr := callRoomTool(t, a, "read_think_tank", map[string]any{})
+	if isErr || own["participant_instructions"] != "Argue for SQLite." {
+		t.Fatalf("own opening read = %v", own)
+	}
+	if guidance, _ := own["guidance"].(string); !strings.Contains(guidance, "participant_instructions") {
+		t.Fatalf("guidance = %q", guidance)
+	}
+	history, _ := callRoomTool(t, a, "read_think_tank", map[string]any{"view": "history"})
+	peer, _ := callRoomTool(t, b, "read_think_tank", map[string]any{"room_id": room})
+	for name, obj := range map[string]map[string]any{"history": history, "turnless peer": peer} {
+		if _, ok := obj["participant_instructions"]; ok {
+			t.Fatalf("%s read carries instructions: %v", name, obj)
+		}
+	}
+	if d, err = store.ReadThinkTank(room); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.BeginThinkTankAttempt(state.ThinkTankBegin{RoomID: room, Revision: d.Room.Revision,
+		AgentID: "b", Turn: state.ThinkTankTurnOpening, Generation: "g", TurnID: "t2"}); err != nil {
+		t.Fatal(err)
+	}
+	if obj, _ := callRoomTool(t, b, "read_think_tank", map[string]any{}); obj["participant_instructions"] != "Argue for files." {
+		t.Fatalf("second participant read = %v", obj)
+	}
+}
+
 // FS-21.A34, TS-14.R25: a selected mention is shared with every participant
 // and explicitly identifies the addressee on its next room turn read.
 func TestThinkTankMentionAddressesParticipant(t *testing.T) {

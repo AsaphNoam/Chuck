@@ -110,6 +110,7 @@ const (
 const (
 	ThinkTankMaxGoalRunes     = 8000
 	ThinkTankMaxTitleRunes    = 120
+	ThinkTankMaxInstructRunes = 8000
 	ThinkTankMinParticipants  = 2
 	ThinkTankMaxParticipants  = 32
 	ThinkTankMaxTurnLimit     = 1000
@@ -253,6 +254,10 @@ type ThinkTankMember struct {
 	SetupError       string
 	LaunchGeneration string
 	StopTeardown     bool
+	// Instructions are the operator's immutable room-specific direction to
+	// this participant only (FS-21.R63). Omitted when empty so earlier
+	// create intents keep replaying (TS-14.R32).
+	Instructions string `json:",omitempty"`
 }
 
 type ThinkTankAttempt struct {
@@ -504,6 +509,9 @@ func validateThinkTankCreate(c ThinkTankCreate) error {
 		if m.Cap < 1 || m.Cap > ThinkTankMaxTurnLimit {
 			return thinkTankInvalid("turn limit must be 1 to %d", ThinkTankMaxTurnLimit)
 		}
+		if utf8.RuneCountInString(m.Instructions) > ThinkTankMaxInstructRunes {
+			return thinkTankInvalid("participant instructions exceed %d characters", ThinkTankMaxInstructRunes)
+		}
 	}
 	return nil
 }
@@ -515,7 +523,8 @@ func sameThinkTankCreate(room ThinkTank, members []ThinkTankMember, c ThinkTankC
 	}
 	for i, m := range members {
 		w := c.Members[i]
-		if (w.SetupConfig == "" && m.AgentID != w.AgentID) || m.Cap != w.Cap || m.MayLeave != w.MayLeave || m.SetupConfig != w.SetupConfig {
+		if (w.SetupConfig == "" && m.AgentID != w.AgentID) || m.Cap != w.Cap || m.MayLeave != w.MayLeave || m.SetupConfig != w.SetupConfig ||
+			m.Instructions != w.Instructions {
 			return false
 		}
 	}
@@ -573,7 +582,8 @@ func thinkTankCreateIntent(c ThinkTankCreate) string {
 		if m.SetupConfig != "" {
 			id = ""
 		}
-		members[i] = ThinkTankMember{AgentID: id, Cap: m.Cap, MayLeave: m.MayLeave, SetupConfig: m.SetupConfig}
+		members[i] = ThinkTankMember{AgentID: id, Cap: m.Cap, MayLeave: m.MayLeave, SetupConfig: m.SetupConfig,
+			Instructions: m.Instructions}
 	}
 	c.Members = members
 	// A multipart replay stores fresh opaque ids; content identity matches.
@@ -696,10 +706,10 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		}
 		if _, err := tx.Exec(`
 INSERT INTO think_tank_members(room_id, agent_id, agent_name, project, role, ord, cap, may_leave,
-  state, setup_state, setup_config)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  state, setup_state, setup_config, instructions)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			roomID, m.AgentID, m.AgentName, m.Project, ThinkTankRoleParticipant, i, m.Cap, m.MayLeave,
-			ThinkTankMemberActive, setup, m.SetupConfig); err != nil {
+			ThinkTankMemberActive, setup, m.SetupConfig, m.Instructions); err != nil {
 			return ThinkTankDetail{}, fmt.Errorf("state: insert think tank member: %w", err)
 		}
 	}
@@ -811,13 +821,14 @@ func scanThinkTank(row interface{ Scan(...any) error }) (ThinkTank, error) {
 }
 
 const thinkTankMemberColumns = `room_id, agent_id, agent_name, project, role, ord, cap, completed,
-  may_leave, state, checkpoint, setup_state, setup_config, setup_error, launch_generation, stop_teardown`
+  may_leave, state, checkpoint, setup_state, setup_config, setup_error, launch_generation, stop_teardown,
+  instructions`
 
 func scanThinkTankMember(row interface{ Scan(...any) error }) (ThinkTankMember, error) {
 	var m ThinkTankMember
 	if err := row.Scan(&m.RoomID, &m.AgentID, &m.AgentName, &m.Project, &m.Role, &m.Order, &m.Cap,
 		&m.Completed, &m.MayLeave, &m.State, &m.Checkpoint, &m.SetupState, &m.SetupConfig,
-		&m.SetupError, &m.LaunchGeneration, &m.StopTeardown); err != nil {
+		&m.SetupError, &m.LaunchGeneration, &m.StopTeardown, &m.Instructions); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ThinkTankMember{}, ErrNotFound
 		}
