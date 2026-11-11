@@ -76,8 +76,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 - [`think-tank-workspace-and-live-controls.md`](think-tank-workspace-and-live-controls.md) — titled
   room cards, standard chat composition and shared mentions, stable speaker tints, concurrent
   isolated openings, live ceilings, retained judge-chat results and grouping of new room agents.
-- [`think-tank-templates.md`](think-tank-templates.md) — project-independent setup templates,
-  editable fresh launch settings and optional participant instructions.
 
 
 ## Paused changes

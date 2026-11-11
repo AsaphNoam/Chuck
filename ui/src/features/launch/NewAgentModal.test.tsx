@@ -826,3 +826,23 @@ describe("NewAgentModal", () => {
     expect(screen.getByText("Advanced").closest("details")).toHaveAttribute("open");
   });
 });
+
+// FS-21.R62: editing a room launch draft reopens these settings with its
+// saved values; catalog defaults must not overwrite the saved model or effort
+// once backends load.
+describe("NewAgentModal prefilled launch", () => {
+  it("returns the saved launch choices unchanged", async () => {
+    let configured: Record<string, unknown> | null = null;
+    renderWithQuery(
+      <NewAgentModal open onClose={() => undefined} groupPicker={false} initialProject="billing" configureLabel="Apply changes"
+        initialLaunch={{ role: "reviewer", backend: "codex", model: "gpt-4o", effort: "low", name: "Cy" }}
+        onConfigure={(params) => { configured = params as unknown as Record<string, unknown>; }} />,
+    );
+    await waitFor(() => expect(screen.getAllByRole("option", { name: "GPT-4o" }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByRole("option", { name: "Reviewer" }).length).toBeGreaterThan(0));
+    expect(screen.getByLabelText(/name/i)).toHaveValue("Cy");
+    fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+    await waitFor(() => expect(configured).not.toBeNull());
+    expect(configured).toMatchObject({ role: "reviewer", project: "billing", backend: "codex", model: "gpt-4o", effort: "low", name: "Cy" });
+  });
+});

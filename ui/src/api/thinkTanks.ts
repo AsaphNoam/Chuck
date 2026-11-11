@@ -79,6 +79,8 @@ export interface ThinkTankParticipantInput {
   new?: ThinkTankLaunch;
   limit: number;
   may_leave: boolean;
+  /** Room-specific direction for this participant only (FS-21.R63). */
+  instructions?: string;
 }
 
 export interface CreateThinkTankInput {
@@ -298,6 +300,81 @@ function useRoomMutation<Input, Output>(run: (input: Input) => Promise<Output>) 
 export function useCreateThinkTank() {
   return useRoomMutation((input: CreateThinkTankInput) =>
     request("/api/think-tanks", thinkTankDetailSchema, createBody(input)));
+}
+
+/** Think Tank setup templates: project-independent portable snapshots
+ *  (FS-21.R60–R61, TS-14.R30–R33). The id is only a lookup key. */
+const templateLaunchSchema = z.object({
+  role: z.string(),
+  backend: z.string(),
+  model: z.string(),
+  effort: z.string(),
+  fast: z.boolean(),
+  name: z.string().optional().default(""),
+});
+export type ThinkTankTemplateLaunch = z.output<typeof templateLaunchSchema>;
+const templateSummarySchema = z.object({ id: z.string(), name: z.string() });
+export type ThinkTankTemplateSummary = z.output<typeof templateSummarySchema>;
+export const thinkTankTemplateSchema = templateSummarySchema.extend({
+  version: z.number(),
+  setup: z.object({
+    participants: z.array(z.object({
+      launch: templateLaunchSchema,
+      limit: z.number(),
+      may_leave: z.boolean(),
+      instructions: z.string().optional().default(""),
+    })),
+    openings: z.boolean(),
+    judge: templateLaunchSchema.optional(),
+    judge_instructions: z.string().optional().default(""),
+  }),
+});
+export type ThinkTankTemplate = z.output<typeof thinkTankTemplateSchema>;
+const TEMPLATE_KEYS = { list: ["think-tank-templates"] as const };
+
+export function useThinkTankTemplates(enabled = true) {
+  return useQuery({
+    queryKey: TEMPLATE_KEYS.list,
+    enabled,
+    queryFn: async ({ signal }) => {
+      const page = z.object({ templates: z.array(templateSummarySchema), next_cursor: z.string().optional() });
+      const all: ThinkTankTemplateSummary[] = [];
+      let cursor = "";
+      // Bounded: at most ten server pages reach the dropdown (INV §16).
+      for (let i = 0; i < 10; i++) {
+        const data = await request(`/api/think-tank-templates${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, page, { signal });
+        all.push(...data.templates);
+        if (!data.next_cursor) break;
+        cursor = data.next_cursor;
+      }
+      return all;
+    },
+  });
+}
+
+export function fetchThinkTankTemplate(id: string, signal?: AbortSignal) {
+  return request(`/api/think-tank-templates/${encodeURIComponent(id)}`, thinkTankTemplateSchema, { signal });
+}
+
+export interface SaveThinkTankTemplateInput {
+  command_id: string;
+  name: string;
+  room_id?: string;
+  setup?: {
+    participants: ThinkTankParticipantInput[];
+    openings: boolean;
+    judge?: ThinkTankLaunch;
+    judge_instructions?: string;
+  };
+}
+
+export function useSaveThinkTankTemplate() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveThinkTankTemplateInput) =>
+      request("/api/think-tank-templates", templateSummarySchema, post(input)),
+    onSuccess: () => client.invalidateQueries({ queryKey: TEMPLATE_KEYS.list }),
+  });
 }
 
 export function useThinkTankControl(id: string) {

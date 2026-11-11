@@ -17,6 +17,8 @@ export const thinkTankMemberSchema = z.object({
   state: z.enum(["active", "departed", "exhausted"]),
   setup_state: z.enum(["ready", "pending", "failed", "launching", "abandoned"]),
   setup_error: z.string().optional().default(""),
+  /** The operator's room-specific direction to this participant (FS-21.R63). */
+  instructions: z.string().optional().default(""),
   exists: z.boolean(),
   archived: z.boolean().optional().default(false),
   running: z.boolean(),

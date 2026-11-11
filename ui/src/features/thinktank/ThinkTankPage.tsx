@@ -60,6 +60,7 @@ import {
 } from "./roomText";
 import { RoomAnnotationTray } from "./RoomAnnotationTray";
 import { TurnLimitEditor } from "./TurnLimitEditor";
+import { RoomSaveSetup } from "./RoomSaveSetup";
 import { RoomComposer } from "./RoomComposer";
 import { speakerSlot } from "./speakerSlot";
 
@@ -244,6 +245,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
         <div className="think-tank-actions">
           <Button type="button" onClick={() => setPanel("files")}><FileIcon />Files <span className="think-tank-count">{files.isLoading ? "…" : files.isError ? "unavailable" : fileList.length}</span></Button>
           <Button type="button" onClick={() => setPanel("commands")}><CommandIcon />Commands <span className="think-tank-count">{commands.isLoading ? "…" : commands.isError ? "unavailable" : commandList.length}</span></Button>
+          <RoomSaveSetup roomID={room.room_id} title={roomTitle(room)} />
           {(!ended || room.deletable) && <span className="think-tank-action-rule" aria-hidden="true" />}
           {!ended && room.control === "running" && <Button type="button" onClick={() => act(() => control.mutateAsync("pause"))} busy={control.isPending}><PauseIcon />Pause</Button>}
           {!ended && room.control === "pause_requested" && <Button type="button" onClick={() => act(() => control.mutateAsync("resume"))}>Keep going</Button>}
@@ -595,6 +597,12 @@ function MemberCard({ room, member: m, project, runtime, children }: {
       </div>
       <p className="think-tank-member-state"><i aria-hidden="true" />{state}</p>
       {m.setup_error && <p className="form-error">{m.setup_error}</p>}
+      {m.instructions && (
+        <details className="think-tank-member-instructions">
+          <summary>Instructions</summary>
+          <p>{m.instructions}</p>
+        </details>
+      )}
       <TurnLimitEditor room={room} member={m} />
     </li>
   );

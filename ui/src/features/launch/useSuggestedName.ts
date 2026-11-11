@@ -16,9 +16,11 @@ function suggest(role: string): string {
 
 export function useSuggestedName(
   role: string,
+  /** A prefilled name (an edited launch draft) is kept like a typed one. */
+  initial?: string,
 ): [string, (v: string) => void] {
-  const [name, setName] = useState(() => suggest(role));
-  const dirtyRef = useRef(false);
+  const [name, setName] = useState(() => initial ?? suggest(role));
+  const dirtyRef = useRef(initial !== undefined);
 
   useEffect(() => {
     if (!dirtyRef.current) {

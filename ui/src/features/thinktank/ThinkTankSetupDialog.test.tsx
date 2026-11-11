@@ -122,3 +122,110 @@ describe("ThinkTankSetupDialog", () => {
     expect((created!.get("file_0") as File).name).toBe("brief.md");
   });
 });
+
+const savedTemplate = {
+  id: "ttt_1", name: "Storage team", version: 1,
+  setup: {
+    openings: true,
+    participants: [
+      { launch: { role: "critic", backend: "claude", model: "opus", effort: "high", fast: false, name: "Cy" }, limit: 4, may_leave: false, instructions: "Argue for SQLite." },
+      { launch: { role: "gone", backend: "claude", model: "opus", effort: "", fast: false, name: "Di" }, limit: 2, may_leave: true },
+    ],
+    judge: { role: "critic", backend: "claude", model: "opus", effort: "", fast: false, name: "" },
+    judge_instructions: "Rank them.",
+  },
+};
+
+function templateServer() {
+  server.use(
+    http.get("/api/roles", () => HttpResponse.json({ critic: { title: "Critic", system_prompt: "", skip_permissions: null } })),
+    http.get("/api/think-tank-templates", () => HttpResponse.json({ version: 1, templates: [{ id: "ttt_1", name: "Storage team" }] })),
+    http.get("/api/think-tank-templates/ttt_1", () => HttpResponse.json(savedTemplate)),
+  );
+}
+
+// FS-21.A43–A45 (R60–R63): templates load into this project's editable draft.
+describe("ThinkTankSetupDialog templates", () => {
+  it("loads a template as fresh launches here, keeps the goal, flags an unavailable persona, and starts after repair", async () => {
+    templateServer();
+    let body: Record<string, unknown> | null = null;
+    server.use(http.post("/api/think-tanks", async ({ request }) => {
+      body = await request.json() as Record<string, unknown>;
+      return HttpResponse.json(fixture.room, { status: 201 });
+    }));
+    renderDialog();
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Cache" } });
+    fireEvent.change(screen.getByLabelText("Goal"), { target: { value: "Pick a cache" } });
+    await screen.findByRole("option", { name: "Storage team" });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "ttt_1" } });
+    expect(await screen.findByText("Cy")).toBeTruthy();
+    expect(screen.getByLabelText("Title")).toHaveValue("Cache");
+    expect(screen.getByLabelText("Goal")).toHaveValue("Pick a cache");
+    expect(screen.getByLabelText("Instructions for Cy")).toHaveValue("Argue for SQLite.");
+    expect(await screen.findByText(/Persona “gone” is no longer available/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Think Tank" }));
+    expect(screen.getByRole("alert").textContent).toContain("unavailable settings");
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[1]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Existing agent" }), { target: { value: "a_one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Think Tank" }));
+    await waitFor(() => expect(body).not.toBeNull());
+    const sent = body as unknown as { openings: boolean; judge: { project: string }; judge_instructions: string; participants: { agent_id?: string; new?: { project: string; role: string; name: string }; limit: number; may_leave: boolean; instructions?: string }[] };
+    expect(sent.openings).toBe(true);
+    expect(sent.judge.project).toBe("alpha");
+    expect(sent.judge_instructions).toBe("Rank them.");
+    expect(sent.participants[0]).toMatchObject({ new: { project: "alpha", role: "critic", name: "Cy" }, limit: 4, may_leave: false, instructions: "Argue for SQLite." });
+    expect(sent.participants[1]).toMatchObject({ agent_id: "a_one" });
+  });
+
+  it("asks before a template replaces setup edits and keeps them on cancel", async () => {
+    templateServer();
+    renderDialog();
+    fireEvent.change(await screen.findByRole("combobox", { name: "Existing agent" }), { target: { value: "a_one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await screen.findByRole("option", { name: "Storage team" });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "ttt_1" } });
+    expect(await screen.findByText("Replace the current setup?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByText("Replace the current setup?")).toBeNull());
+    expect(screen.getByText("Ari")).toBeTruthy();
+    expect(screen.getByLabelText("Template")).toHaveValue("");
+  });
+
+  it("saves an unstarted setup without a goal, resolving existing chats on the server", async () => {
+    templateServer();
+    let saved: Record<string, unknown> | null = null;
+    server.use(http.post("/api/think-tank-templates", async ({ request }) => {
+      saved = await request.json() as Record<string, unknown>;
+      return HttpResponse.json({ id: "ttt_2", name: "Pair" }, { status: 201 });
+    }));
+    renderDialog();
+    const picker = await screen.findByRole("combobox", { name: "Existing agent" });
+    for (const id of ["a_one", "a_two"]) {
+      fireEvent.change(picker, { target: { value: id } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    }
+    fireEvent.change(screen.getByLabelText("Instructions for Bea"), { target: { value: "Be skeptical." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save setup…" }));
+    fireEvent.change(screen.getByLabelText("Template name"), { target: { value: "Pair" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Saved “Pair”.")).toBeTruthy();
+    const sent = saved as unknown as { name: string; setup: { participants: { agent_id?: string; instructions?: string }[] } };
+    expect(sent.name).toBe("Pair");
+    expect(sent.setup.participants).toMatchObject([{ agent_id: "a_one" }, { agent_id: "a_two", instructions: "Be skeptical." }]);
+    expect(screen.getByRole("button", { name: "Start Think Tank" })).toBeTruthy();
+  });
+
+  it("returns focus to the row when its launch editor is cancelled by keyboard", async () => {
+    templateServer();
+    renderDialog();
+    await screen.findByRole("option", { name: "Storage team" });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "ttt_1" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Cy" }));
+    const editor = await screen.findByRole("dialog", { name: "Edit Cy" });
+    fireEvent.keyDown(editor, { key: "Escape" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit Cy" })).toHaveFocus());
+    expect(screen.getByLabelText("Instructions for Cy")).toHaveValue("Argue for SQLite.");
+  });
+});

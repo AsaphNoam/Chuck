@@ -29,25 +29,17 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**[Think Tank templates](../ready-changes/think-tank-templates.md)** — in progress (work, 2026-11-11).
-
-1. Done: participant instructions backend (TS-14.R32 shipped). Migration 71 `think_tank_members.instructions`;
-   `participants[].instructions` on create, member wire `instructions`, `read_think_tank`
-   `participant_instructions` on the caller's own running attempt's first context page only.
-   Focused state/messaging/server ThinkTank tests pass.
-2. Done: template persistence and REST (TS-14.R30–R31 shipped). `internal/state/think_tank_templates.go`
-   (migration 72), `internal/server/think_tank_template_handlers.go`; routes are `remoteDenied`.
-   Draft wire reuses `thinkTankParticipantRequest` (`agent_id` | `new` launch); GET returns
-   `setup.participants[].launch{role,backend,model,effort,fast,name}`, `judge`, `openings`.
-   Full `go test ./internal/state` and server ThinkTank/route tests pass.
-3. Next: UI (TS-14.R33, FS-21.R60–R63): instructions field + participant-details display, Template
-   dropdown, row Edit, Save setup in modal and room; rendered narrow/wide journey.
-4. Closure: `make test`, `make build`, UI `npm test`/build; README index line for FS-21/TS-14 is in a
-   file with another session's uncommitted hunk — stage only our hunk.
+None.
 
 The release CI annotation-replay finding (RELEASE-023-CI-1) is available for fix work.
 
 ## Acceptance gates still owed
+
+- **Think Tank templates rendered journey (FS-21.A43–A44, TS-14.R33):** render the creation
+  modal (template load, unavailable-row repair, row Edit, Save setup) and room Save
+  setup/instructions in the built desktop app at narrow and wide widths, all shipped appearances,
+  with long names. The wide grid now reserves 8 left-column rows (`think-tank.css`). Only jsdom
+  and Go integration evidence exists; no fake-provider A45 activation journey was run.
 
 - **File freshness/editing (FS-03.A86–A88):** actual Chromium desktop live/archive/room/Focus
   journeys and the real phone bundle at 360/390/430px pass. Phone SSE/tracked-file admission was
@@ -216,6 +208,15 @@ The release CI annotation-replay finding (RELEASE-023-CI-1) is available for fix
 
 ## Review queue
 
+- **Think Tank templates** (2026-11-11, FS-21.R60–R63, TS-14.R30–R33): participant instructions
+  (migration 71; only the participant's own running-attempt first context read carries
+  `participant_instructions`), template storage/REST (migration 72, local-only routes, command
+  replay), and desktop UI (Template dropdown with replace confirmation, fresh launches in the
+  dialog's project, unavailable persona/runtime flags, row Edit via prefilled `NewAgentModal`
+  `initialLaunch`, existing-row replace, Save setup in modal and room). Review notes: existing-chat
+  rows save the agent's name as the launch name; draft save sends no title/goal; room save of a
+  departed member keeps it; templates have no rename/delete. Rendered pass owed (gates above).
+
 - **No raw ids in the UI** (2026-11-11, FS-02.R69 extension): desktop, phone and push text
   replace agent/project/task/run/room/proposal id fallbacks and chips with names or neutral
   phrases via `ui/src/lib/labels.ts` (`agentName`, `projectTitle`); attention items carry an
@@ -300,6 +301,11 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-11 — Work:** finished [Think Tank templates](../specs/features/FS-21-think-tanks.md)
+  (FS-21.R60–R63/A43–A45, TS-14.R30–R33). `make test`, `make build`, full UI `npm test`
+  (1201) and UI build pass; legacy v47 migration fixture gained the members table every real v47
+  database has. No rendered browser pass.
+
 - **2026-11-11 — Fix:** closed the v0.23.0 main-CI UI failure (RELEASE-023-CI-2; INV §17
   tests prove their contract independently). CardGrid cases rendered, clicked or delivered a
   waiting transition before the grid's layout read settled; a late read overwrote clicked panes
@@ -315,7 +321,7 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
   FS-14 builder panel, FS-20.R12/R19, TS-08.R60/R91. `make test`, full `npm test` and UI build;
   CardGrid waiting-input flake (RELEASE-023-CI-2) is independent.
 
-- **2026-11-11 — Design:** [Think Tank templates](../ready-changes/think-tank-templates.md) are
+- **2026-11-11 — Design:** Think Tank templates were made
   ready to start. Confirmed project-independent snapshots that load fresh launch settings into the
   creation modal, editable participants, and optional room-specific instructions
   (FS-21.R60–R63/A43–A45, TS-14.R30–R33).

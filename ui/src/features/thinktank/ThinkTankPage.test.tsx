@@ -581,3 +581,24 @@ describe("roomStatus", () => {
     expect(roomStatus({ ...base, hold: "Ari's turn failed: The provider reported an error." })).toEqual({ tone: "attention", text: "Ari's turn failed: The provider reported an error." });
   });
 });
+
+// FS-21.A44–A45 (R60, R63): the operator reviews a participant's instructions
+// and saves the room's setup by reference without leaving the room.
+describe("ThinkTankPage setup", () => {
+  it("shows participant instructions and saves the room setup", async () => {
+    (detail.members as { instructions?: string }[])[0].instructions = "Argue for SQLite.";
+    let saved: unknown = null;
+    server.use(http.post("/api/think-tank-templates", async ({ request }) => {
+      saved = await request.json();
+      return HttpResponse.json({ id: "ttt_1", name: "Cache team" }, { status: 201 });
+    }));
+    renderRoom();
+    expect(await screen.findByText("Argue for SQLite.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save setup" }));
+    fireEvent.change(await screen.findByLabelText("Template name"), { target: { value: "Cache team" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+    expect(await screen.findByText("Saved “Cache team”.")).toBeTruthy();
+    expect(saved).toMatchObject({ name: "Cache team", room_id: "tt_fixture" });
+    expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
+  });
+});

@@ -822,6 +822,21 @@ a.think-tank-author:hover {
   overflow-wrap: anywhere;
 }
 
+/* The operator's room-specific direction to one participant (FS-21.R63). */
+.think-tank-member-instructions > summary {
+  color: var(--ad-text-secondary);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.think-tank-member-instructions > p {
+  margin: var(--ad-space-1) 0 0;
+  max-height: 12rem;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
 .think-tank-member-meta {
   color: var(--ad-text-secondary);
   display: flex;
@@ -1470,7 +1485,7 @@ a.think-tank-author:hover {
     align-items: start;
     grid-auto-flow: dense;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: repeat(6, auto) 1fr;
+    grid-template-rows: repeat(8, auto) 1fr;
   }
 
   .think-tank-setup .config-form > * {
@@ -1479,7 +1494,7 @@ a.think-tank-author:hover {
 
   .think-tank-setup .config-form > .think-tank-setup-participants {
     grid-column: 2;
-    grid-row: 1 / span 7;
+    grid-row: 1 / span 9;
   }
 
   .think-tank-setup .config-form > .form-error,
@@ -1526,6 +1541,48 @@ a.think-tank-author:hover {
 
 .think-tank-setup-name .think-tank-setup-runtime {
   font-family: var(--ad-font-mono);
+}
+
+/* Template-loaded rows whose launch choice left the catalog stay in place,
+   flagged for repair (FS-21.R61). */
+.think-tank-setup-row[data-unavailable="true"] {
+  border-left: var(--ad-border-thick) solid var(--ad-state-error);
+  padding-left: var(--ad-space-2);
+}
+
+.think-tank-setup-problem,
+.think-tank-setup-replace,
+.think-tank-setup-instructions {
+  grid-column: 1 / -1;
+  margin: 0;
+  min-width: 0;
+}
+
+.think-tank-setup-instructions > summary {
+  color: var(--ad-text-secondary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.think-tank-setup-instructions > textarea {
+  margin-top: var(--ad-space-2);
+  width: 100%;
+}
+
+.think-tank-setup-save {
+  display: grid;
+  gap: var(--ad-space-2);
+  justify-items: start;
+}
+
+.think-tank-setup-save .think-tank-setup-add {
+  width: 100%;
+}
+
+.think-tank-setup-save input {
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 
 .think-tank-setup-add > select {

@@ -357,7 +357,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   source independently of the active tab. Room deletion removes its saved tab set in that browser;
   ending a room does not. No phone room screen or new room layout is introduced.
 
-- **R60 (planned) — Save a Think Tank setup as a named template.** **Save setup** is available in
+- **R60 — Save a Think Tank setup as a named template.** **Save setup** is available in
   the desktop creation modal and in an active or ended room. A save captures participant order,
   portable launch settings for each participant (persona, backend, model, effort, fast mode and
   optional launch name), configured turn limits, leave permissions, room-specific participant
@@ -368,7 +368,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   A valid setup can be saved before entering a title or goal. A successful save creates a named
   template independently of the room and keeps the modal or room open. A failed save preserves the
   setup and name for retry and identifies any participant whose launch choices cannot be recovered.
-- **R61 (planned) — Load a template into editable room setup.** The desktop new-room modal has a
+- **R61 — Load a template into editable room setup.** The desktop new-room modal has a
   **Template** dropdown with a blank setup choice and named templates. Applying one fills the
   roster and discussion settings and preserves the current title, goal and goal attachments.
   Changing templates or returning to blank setup asks before replacing unsaved setup edits.
@@ -379,13 +379,13 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   before starting. Loading and editing affect the draft only. **Start Think Tank** launches the
   configured participants through ordinary setup, and the judge launches at synthesis under R13.
   The saved template and previously created rooms retain their own settings.
-- **R62 (planned) — Edit participant setup before start.** Every participant row exposes **Edit**.
+- **R62 — Edit participant setup before start.** Every participant row exposes **Edit**.
   A new-agent row reopens the ordinary launch settings with its current values and applies changes
   in place. An existing-agent row allows replacement of the chat and editing of room-specific
   settings while preserving the selected chat's own configuration. Row order and settings are
   retained when editing a launch or replacing an agent. Cancel restores focus to the row and
   preserves the draft. Goal and membership remain fixed after start under R34.
-- **R63 (planned) — Give each participant optional instructions for this room.** The operator can
+- **R63 — Give each participant optional instructions for this room.** The operator can
   enter up to 8,000 characters for each fresh or existing participant and review those instructions
   in the room's participant details after start. The assigned participant receives its instructions
   alongside the shared goal when activated for a room turn, including openings and closing, with
@@ -676,7 +676,7 @@ completion; R37 defines partial opening publication and pending input on End.
   saved tabs; deleting the room clears its set on that browser. *Verify:* room integration tests
   with actual source-qualified loader arguments and a rendered room journey in all appearances.
 
-- **A43 (planned)** (R60–R62) — Save an unstarted setup without a goal. Reopen the modal from
+- **A43** (R60–R62) — Save an unstarted setup without a goal. Reopen the modal from
   another project and load it into a draft with a title, goal, and attachment. Edit a fresh launch
   in place, cancel another edit by keyboard, and decline a switch that would discard setup changes.
   Start and verify fresh participants in the new project, including one with the launch choices of
@@ -684,14 +684,14 @@ completion; R37 defines partial opening publication and pending input on End.
   to the new project. Reopen the saved template and verify its original settings and optional
   participant instructions. *Verify:* rendered desktop journey at narrow and wide supported widths
   with long names, plus room-creation integration coverage.
-- **A44 (planned)** (R60–R61) — Increase a room participant's ceiling, finish the discussion,
+- **A44** (R60–R61) — Increase a room participant's ceiling, finish the discussion,
   and save its setup. Reload and open the template. Verify the configured ceiling and launch
   choices are preserved, with fresh counters and a blank title, goal and file list. Remove a
   saved persona from the current catalog and confirm the affected row identifies it, preserves the
   remaining draft, and can be repaired in place before starting. Remove an original agent and
   delete the source room, then verify the template is still selectable. *Verify:* persistence and
   validation integration tests and a rendered recovery journey.
-- **A45 (planned)** (R63) — Give two participants distinct instructions and the judge its own
+- **A45** (R63) — Give two participants distinct instructions and the judge its own
   synthesis direction. Verify opening, discussion, closing and retried turns deliver the correct
   participant's text with the goal. Verify the other participant, the judge, ordinary private
   turns and shared history receive no automatic copy. Reload and inspect both participant
@@ -699,10 +699,10 @@ completion; R37 defines partial opening publication and pending input on End.
 
 ## 6. Deviations & open decisions
 
-- **Think Tank templates (confirmed 2026-11-11):** R60–R63/A43–A45 cover desktop room setup and
+- **Think Tank templates (implemented 2026-11-11):** R60–R63/A43–A45 cover desktop room setup and
   the room view. Project-independent templates store launch choices for fresh chats and optional
   participant instructions. Pipeline definitions and agent-facing template management are outside
-  the change.
+  the change. Saved templates cannot yet be renamed or deleted; no management surface is in scope.
 
 - **Quota recovery (implemented 2026-10-11):** FS-01.R40–R45 authorizes recovery for every
   quota-interrupted participant/private/closing/judge chat, including concurrent openings and

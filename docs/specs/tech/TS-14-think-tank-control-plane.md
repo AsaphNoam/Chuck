@@ -356,7 +356,7 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   history, peer and judge reads, SSE, launch configuration and ordinary private activations.
   Retain existing tool identity, read-receipt rules and provider protocol. Update embedded room
   guidance and result contract coverage with the additive field.
-- **R33 (planned) — Use the ordinary room draft and launch path (FS-21.R61–R62).** The dashboard
+- **R33 — Use the ordinary room draft and launch path (FS-21.R61–R62).** The dashboard
   applies the loaded payload to its editable setup draft, projecting every slot into a fresh chat
   launch with the dialog's origin project as its initial project. Loading and editing use existing
   catalog choices and validators, preserve room-specific draft fields, and fence late loads from
@@ -383,7 +383,7 @@ Source ids are opaque immutable room-owned references, distinct from room/provid
 Retry identifies the failed setup slot or participant/judge attempt; only judge launch-setting repair
 is accepted after discussion starts. No retry edits goal/membership or replays a completed effect.
 
-R30–R33 extend the first-party dashboard contract (planned):
+R30–R33 extend the first-party dashboard contract:
 
 - `GET /api/think-tank-templates` lists bounded template summaries (`id`, `name`) with an opaque
   continuation. `GET /api/think-tank-templates/{id}` returns one versioned portable setup.

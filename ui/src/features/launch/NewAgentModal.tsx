@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { getCapabilities } from "../../api/client";
 import { useRoles } from "../../api/config";
@@ -36,9 +36,15 @@ interface NewAgentModalProps {
   title?: string;
   /** Enable the ordinary dashboard group assignment. Room setup callers leave it off. */
   groupPicker?: boolean;
+  /** Prefill an edited launch draft; read once when this instance mounts
+   *  (FS-21.R62). Catalog defaults apply only after the person changes the
+   *  backend or model. */
+  initialLaunch?: { role?: string; backend?: string; model?: string; effort?: string; fast?: boolean; name?: string };
+  /** Submit label for onConfigure; defaults to "Use these settings". */
+  configureLabel?: string;
 }
 
-export function NewAgentModal({ open, onClose, initialRole, initialProject, initialGroup = "", fixedProject, onLaunched, onConfigure, title = "New agent", groupPicker = true }: NewAgentModalProps) {
+export function NewAgentModal({ open, onClose, initialRole, initialProject, initialGroup = "", fixedProject, onLaunched, onConfigure, title = "New agent", groupPicker = true, initialLaunch, configureLabel = "Use these settings" }: NewAgentModalProps) {
   const { data: rolesData } = useRoles();
   const { data: projectsData } = useProjects();
   const { data: backendsData, refetch: refetchBackends, isFetching: backendsFetching } = useBackends();
@@ -56,13 +62,14 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
     Object.keys(backendsData?.backends ?? {})[0] ??
     "";
 
-  const [role, setRole] = useState(initialRole ?? "");
+  const seed = useRef(initialLaunch?.backend ? initialLaunch : undefined);
+  const [role, setRole] = useState(initialLaunch?.role || initialRole || "");
   const roleInvalid = Boolean(role && rolesData && !rolesData[role]);
   const [project, setProject] = useState(fixedProject ?? initialProject ?? "");
-  const [backendId, setBackendId] = useState(defaultBackendId);
-  const [modelId, setModelId] = useState("");
-  const [effort, setEffort] = useState("");
-  const [fast, setFast] = useState(false);
+  const [backendId, setBackendId] = useState(seed.current?.backend || defaultBackendId);
+  const [modelId, setModelId] = useState(seed.current?.model ?? "");
+  const [effort, setEffort] = useState(seed.current?.effort ?? "");
+  const [fast, setFast] = useState(seed.current?.fast ?? false);
   const [agentInterface, setAgentInterface] = useState<"chat" | "terminal">("chat");
   const [optionsOpen, setOptionsOpen] = useState(false);
   useEffect(() => {
@@ -79,7 +86,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
     if (open) setGroup(initialGroup);
   }, [open, initialGroup]);
 
-  const [name, setName] = useSuggestedName(role);
+  const [name, setName] = useSuggestedName(role, initialLaunch ? initialLaunch.name ?? "" : undefined);
 
   // Set defaults once data loads: prefer the configured default_role/
   // default_project, falling back to the first available entry only when the
@@ -124,6 +131,11 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
   // launch-options retry does not overwrite the person's choices.
   const backendEntry = backendsData?.backends[backendId];
   useEffect(() => {
+    // A prefilled backend keeps its saved model until the person changes it.
+    if (seed.current) {
+      if (backendId === seed.current.backend && seed.current.model) return;
+      seed.current = undefined;
+    }
     const runtime = resetRuntimeForBackend(backendsData, backendId);
     setModelId(runtime.model);
     setEffort(runtime.effort);
@@ -150,6 +162,10 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
   const providerDescription = selectedBackend && providerRuntime && describeProviderRuntime(selectedBackend.type, providerRuntime);
 
   useEffect(() => {
+    if (seed.current) {
+      if (modelId === seed.current.model) return;
+      seed.current = undefined;
+    }
     setEffort(resetRuntimeForModel(backendsData, backendId, modelId).effort);
     setFast(false);
   }, [backendId, modelId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -379,7 +395,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
                 className="ad-button-primary"
                 disabled={launch.isPending || !role || roleInvalid || !project || unverifiedSelection || groupInvalid}
               >
-                {onConfigure ? "Use these settings" : launch.isPending ? "Launching…" : "Launch"}
+                {onConfigure ? configureLabel : launch.isPending ? "Launching…" : "Launch"}
               </button>
             </div>
           </form>
