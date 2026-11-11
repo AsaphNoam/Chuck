@@ -201,9 +201,9 @@ The two release CI findings are available for fix work.
 
 ## Review queue
 
-- [Desktop chat composer editing](../ready-changes/desktop-chat-composer-editing.md) — review
-  the change after `bd2cf9f4` for FS-03.R113–R116/A89–A91 and TS-08.R158–R160. Focus on native
-  input/history ordering, selection replay, draft lineage and the shared picker boundary.
+- [Desktop chat composer editing](../ready-changes/desktop-chat-composer-editing.md) — reviewed
+  the change after `bd2cf9f4` for FS-03.R113–R116/A89–A91 and TS-08.R158–R160. Open for
+  COMPOSER-LIST-1–2 fixes and independent fix review.
 
 ## Investigations awaiting evidence
 
@@ -251,6 +251,24 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
+### Desktop chat composer editing — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** COMPOSER-LIST-1 (INV §8/§10; fix complexity: medium) —
+  `ui/src/components/chat/composerLists.ts:40–66` misses a fenced code block opened on an
+  unordered list item. Paste ```` - ```text\n  1. example ```` (with a real line break) and press
+  Shift+Enter at the end. Both desktop composers insert `  2. ` on the new line, editing
+  the code example. The app's Markdown parser classifies the numbered line as fenced code.
+  Preserve plain newlines in fenced code under list containers (FS-03.R114/A90, TS-08.R160).
+  Add a regression for the nested fence and verify it alongside the existing numbered-list
+  commands in both desktop entry points.
+- **Must fix** COMPOSER-LIST-2 (INV §8/§10; fix complexity: easy) —
+  `ui/src/components/chat/composerLists.ts:54–68` treats a Markdown heading as a paragraph
+  that only a list starting at `1.` can interrupt. Paste `# Notes\n2. Existing` (with a real
+  line break) and press Shift+Enter at the end. Both desktop composers insert only a newline,
+  although the app's Markdown parser recognizes an ordered list starting at 2. Distinguish
+  the heading from a paragraph so a valid item continues with `3. ` (FS-03.R114/A90,
+  TS-08.R160). Cover both the heading and the existing plain-paragraph fallback.
+
 ### Annotation replay test scheduling — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
 
 - **Worth fixing** RELEASE-023-CI-1 — `internal/server/annotations_self_delivery_test.go:35–47`
@@ -294,6 +312,13 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-11 — Review:** desktop chat composer editing remains open for COMPOSER-LIST-1–2.
+  Specification checks, 67 focused tests and the existing Chromium keyboard/pointer journey
+  passed. A separate Chromium probe reproduced both failures in full agent chat and the expanded
+  dashboard (`/private/tmp/chuck-composer-review-probe.mjs`, fixture API). The app's Markdown
+  parser independently confirmed both block contexts. Tests use explicit text/selection and
+  request/transcript expectations. No pending local choices. Invariant sweep applied classes
+  1/2/3/5/8/10/13/16/17. Classes 4/6/7/9/11/12/14/15 had no applicable surface.
 - **2026-11-11 — Review:** closed pipeline stage work status (`c947386b`, FS-14.R39/A17 and
   TS-08.R149) with no findings. Independent Chromium runs exercised the routed fixture at
   1024px and 1440px in all four appearances, including reduced motion and live/archive links.
