@@ -221,6 +221,11 @@ func handle(msg *rpcMessage) {
 			}}}
 			res["_meta"] = meta
 		}
+		// FAKEACP_AGENT_NAME/VERSION report an adapter identity, e.g. a
+		// verified fork-point adapter (TS-04.R110).
+		if name := os.Getenv("FAKEACP_AGENT_NAME"); name != "" {
+			res["agentInfo"] = map[string]any{"name": name, "version": os.Getenv("FAKEACP_AGENT_VERSION")}
+		}
 		// FAKEACP_QUOTA advertises the packaged adapters' quota passthrough and
 		// names the file whose bytes each `_chuck/quota/read` returns verbatim.
 		if os.Getenv("FAKEACP_QUOTA") != "" {
@@ -317,7 +322,11 @@ func handle(msg *rpcMessage) {
 		}
 		// A real adapter may restore native context by replaying the prior
 		// conversation as session/update frames before it answers session/load.
-		emitLoadHistory()
+		if forkCut.Load() > 0 {
+			emitCutHistory()
+		} else {
+			emitLoadHistory()
+		}
 		if os.Getenv("FAKEACP_LOAD_EMPTY") != "" {
 			// ACP session/load keeps the requested sessionId authoritative; the
 			// pinned codex-acp adapter therefore returns an empty result on success.
@@ -415,8 +424,23 @@ func handle(msg *rpcMessage) {
 			return
 		}
 		initConfigOptions()
-		emitLoadHistory()
-		emitChunk("replayed source history")
+		// A fork point cuts the fork after the named message's turn; the
+		// replay then shows the cut history (FAKEACP_FORK_META_DUMP records
+		// the request's _meta, FAKEACP_FORK_WRONG_CUT replays one turn short).
+		var forkReq struct {
+			Meta json.RawMessage `json:"_meta"`
+		}
+		_ = json.Unmarshal(msg.Params, &forkReq)
+		if dump := os.Getenv("FAKEACP_FORK_META_DUMP"); dump != "" {
+			_ = os.WriteFile(dump, forkReq.Meta, 0o600)
+		}
+		forkCut.Store(forkCutOf(forkReq.Meta))
+		if forkCut.Load() > 0 {
+			emitCutHistory()
+		} else {
+			emitLoadHistory()
+			emitChunk("replayed source history")
+		}
 		forked := "fake-fork-1"
 		if os.Getenv("FAKEACP_FORK_EMPTY") != "" {
 			forked = ""
@@ -770,6 +794,21 @@ func applyConfigOption(id, value string) {
 // runScenario replays a named sequence and returns the prompt stopReason.
 func runScenario(name string) string {
 	switch name {
+	case "numbered_turns":
+		// Turn N streams "reply N" as one agent message with the standard ACP
+		// messageId "msg-N", the identity fork points record (TS-04.R110).
+		// FAKEACP_FIRST_TURN_NO_ID streams turn 1 without one.
+		n := turnCount.Add(1)
+		update := map[string]any{
+			"sessionUpdate": "agent_message_chunk", "messageId": "msg-" + strconv.FormatInt(n, 10),
+			"content": map[string]any{"type": "text", "text": "reply " + strconv.FormatInt(n, 10)},
+		}
+		if n == 1 && os.Getenv("FAKEACP_FIRST_TURN_NO_ID") != "" {
+			delete(update, "messageId")
+		}
+		emitUpdate(update)
+		return "end_turn"
+
 	case "", "stream_text":
 		for _, chunk := range []string{"Sure, ", "I'll ", "do that."} {
 			emitChunk(chunk)
@@ -1274,5 +1313,45 @@ func emitFileReports(promptParams json.RawMessage) {
 	if id := p.Meta.JetBrains.Air.Request.RequestID; id != "" {
 		report(id, []string{"main.go", "/etc/passwd", "../outside.go", "main.go"})
 		report(id, []string{"duplicate.go"})
+	}
+}
+
+// turnCount numbers numbered_turns prompts; forkCut is the turn a fork point
+// cut this process's forked session at (0: none).
+var turnCount, forkCut atomic.Int64
+
+// forkCutOf reads `_meta.jetbrains.air.fork.messageId` "msg-K" as K.
+func forkCutOf(meta json.RawMessage) int64 {
+	var m struct {
+		JetBrains struct {
+			Air struct {
+				Fork struct {
+					Version   int    `json:"version"`
+					MessageID string `json:"messageId"`
+				} `json:"fork"`
+			} `json:"air"`
+		} `json:"jetbrains"`
+	}
+	if json.Unmarshal(meta, &m) != nil || m.JetBrains.Air.Fork.Version != 1 {
+		return 0
+	}
+	k, err := strconv.ParseInt(strings.TrimPrefix(m.JetBrains.Air.Fork.MessageID, "msg-"), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return k
+}
+
+// emitCutHistory replays numbered turns 1..cut as person and agent messages.
+func emitCutHistory() {
+	cut := forkCut.Load()
+	if os.Getenv("FAKEACP_FORK_WRONG_CUT") != "" {
+		cut--
+	}
+	for i := int64(1); i <= cut; i++ {
+		n := strconv.FormatInt(i, 10)
+		emitUpdate(map[string]any{"sessionUpdate": "user_message_chunk", "content": map[string]any{"type": "text", "text": "prompt " + n}})
+		emitUpdate(map[string]any{"sessionUpdate": "agent_message_chunk", "messageId": "msg-" + n,
+			"content": map[string]any{"type": "text", "text": "reply " + n}})
 	}
 }

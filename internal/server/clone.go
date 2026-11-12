@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"unicode/utf8"
@@ -20,6 +22,9 @@ type cloneResponse struct {
 	HistoryHandoff    string `json:"history_handoff"`
 	ForkedFromAgentID string `json:"forked_from_agent_id"`
 	ForkedFromSeq     int64  `json:"forked_from_seq"`
+	// ComposeText is Edit's message text for the new agent's composer, unsent
+	// (TS-03.R86); absent for Clone and Fork from here.
+	ComposeText string `json:"compose_text,omitempty"`
 }
 
 // handleClone implements POST /api/sessions/{id}/clone: a new agent whose
@@ -27,7 +32,18 @@ type cloneResponse struct {
 // completed turn (FS-01.R36). The request carries no provider or session id;
 // every setting and the native source id come from the stored source.
 func (s *Server) handleClone(w http.ResponseWriter, r *http.Request) {
-	resp, ae := s.cloneAgent(r.Context(), r.PathValue("id"))
+	var req cloneRequest
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeAPIError(w, apiError(runtime.CodeValidation, "invalid clone body"))
+			return
+		}
+	}
+	if req.ThroughSeq < 0 || req.ComposeFromSeq < 0 || req.ComposeFromSeq != 0 && req.ThroughSeq == 0 {
+		writeAPIError(w, apiError(runtime.CodeValidation, "compose_from_seq requires through_seq"))
+		return
+	}
+	resp, ae := s.cloneAgent(r.Context(), r.PathValue("id"), req)
 	if ae != nil {
 		writeAPIError(w, ae)
 		return
@@ -35,7 +51,7 @@ func (s *Server) handleClone(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, resp)
 }
 
-func (s *Server) cloneAgent(ctx context.Context, sourceID string) (cloneResponse, *runtime.APIError) {
+func (s *Server) cloneAgent(ctx context.Context, sourceID string, req cloneRequest) (cloneResponse, *runtime.APIError) {
 	source, err := s.stateStore.ReadAgent(sourceID)
 	if err != nil {
 		return cloneResponse{}, apiError(runtime.CodeNotFound, "no such agent: "+sourceID)
@@ -62,27 +78,51 @@ func (s *Server) cloneAgent(ctx context.Context, sourceID string) (cloneResponse
 		return cloneResponse{}, cloneUnavailable(aff.Reason)
 	}
 
-	// The fork boundary is the source's latest completed turn; the clone gets a
-	// durable copy of the visible transcript through it.
-	prefix, boundary, err := transcript.CloneCompletedPrefix(s.configStore.Home(), sourceID)
+	// The fork boundary is the named completed turn, or the source's latest; the
+	// clone gets a durable copy of the visible transcript through it.
+	prefix, boundary, err := transcript.CloneCompletedPrefix(s.configStore.Home(), sourceID, req.ThroughSeq)
 	if err != nil {
 		return cloneResponse{}, apiError(runtime.CodeInternal, "read source transcript")
 	}
-	if boundary == 0 {
+	if boundary.Seq == 0 {
+		if req.ThroughSeq != 0 {
+			return cloneResponse{}, cloneUnavailable(runtime.ForkReasonNotTurnBoundary)
+		}
 		return cloneResponse{}, cloneUnavailable(state.CloneReasonNoSession)
+	}
+	plan := &runtime.ForkPlan{
+		SourceAgentID: sourceID, SourceSessionID: snap.LastSessionID, SourceSeq: boundary.Seq, Prefix: prefix,
+		HistoryPrimer: snap.HistoryPrimer,
+	}
+	composeText := ""
+	if req.ThroughSeq != 0 {
+		// A chosen turn forks at its stored provider point (TS-04.R110).
+		if aff := forkAffordance(boundary, snap.LastSessionID); !aff.Available {
+			return cloneResponse{}, cloneUnavailable(aff.Reason)
+		}
+		plan.ForkPoint = boundary.ForkPoint
+		if req.ComposeFromSeq != 0 {
+			after, err := transcript.ReadFile(s.configStore.Home(), sourceID, transcript.ReadOptions{SinceSeq: boundary.Seq})
+			if err != nil {
+				return cloneResponse{}, apiError(runtime.CodeInternal, "read source transcript")
+			}
+			text, ok := composeTextAfter(after, boundary.Seq, req.ComposeFromSeq)
+			if !ok {
+				return cloneResponse{}, apiError(runtime.CodeValidation, "compose_from_seq must name the message that began the next turn")
+			}
+			composeText = text
+		}
 	}
 
 	resp, ae := s.launchClaimed(ctx, launchRequest{
 		Name: cloneName(source.Name), Role: source.Role, Project: source.Project, Backend: source.Backend, Model: source.Model,
 		Effort: source.Effort, Fast: source.Fast, Interface: source.Interface, Group: source.Group,
-	}, launchOptions{ChuckAware: &snap.ChuckAware, Source: &snap, Fork: &runtime.ForkPlan{
-		SourceAgentID: sourceID, SourceSessionID: snap.LastSessionID, SourceSeq: boundary, Prefix: prefix,
-		HistoryPrimer: snap.HistoryPrimer,
-	}})
+	}, launchOptions{ChuckAware: &snap.ChuckAware, Source: &snap, Fork: plan})
 	if ae != nil {
 		return cloneResponse{}, ae
 	}
-	return cloneResponse{sessionResponse: resp, HistoryHandoff: "native_fork", ForkedFromAgentID: sourceID, ForkedFromSeq: boundary}, nil
+	return cloneResponse{sessionResponse: resp, HistoryHandoff: "native_fork", ForkedFromAgentID: sourceID,
+		ForkedFromSeq: boundary.Seq, ComposeText: composeText}, nil
 }
 
 // cloneName names a clone after its source, shortening the source name so the

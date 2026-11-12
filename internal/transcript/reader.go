@@ -2,7 +2,6 @@ package transcript
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -178,8 +177,7 @@ func forEachBuffered(br *bufio.Reader, opts ReadOptions, visit func(runtime.Even
 			}
 		}
 		if !oversized && len(line) > 0 {
-			var ev runtime.Event
-			if json.Unmarshal(line, &ev) == nil {
+			if ev, ok := decodeRecord(line); ok {
 				lastSeq = ev.Seq
 				keep := true
 				if !opts.IncludeMeta && (ev.Seq == 0 || ev.Type == runtime.EvSessionMeta) {

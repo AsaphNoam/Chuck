@@ -132,6 +132,9 @@ type ForkPlan struct {
 	SourceSeq       int64
 	Prefix          []Event
 	HistoryPrimer   string
+	// ForkPoint ends the fork at a chosen turn (TS-04.R110); nil forks at the
+	// source's latest turn, as plain Clone does.
+	ForkPoint *ForkPoint
 }
 
 // StartSystemPrompt is the system prompt handed to the backend process for this

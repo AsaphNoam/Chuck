@@ -1239,7 +1239,7 @@ not yet folded into the snapshot. The Codex contract test exercises extracted so
 importing the bundle starts its server. Real provider responses are unverified until the live
 receipts.
 
-**R110 (planned) — A fork point is a recorded agent-message identity sent as fork metadata.** For
+**R110 (implemented 2026-11-12; packaged live receipts owed) — A fork point is a recorded agent-message identity sent as fork metadata.** For
 FS-01.R58, the runtime records, with each completed root turn's end event, an opaque fork point:
 the native session id, the standard ACP `messageId` of that turn's last agent message chunk and
 the SHA-256 of that message's text. Turns without a `messageId`, and turns from before this ships,
@@ -1257,6 +1257,14 @@ under R65 and fails the fork. Provider ids and the `_meta` shape stay inside `in
 callers name a Chuck transcript sequence. A plain Clone sends no fork point and is unchanged.
 *Why:* this is an operator-approved exception (2026-11-11) to the standard-ACP-only rule, bounded
 by an identity gate and an after-the-fact proof instead of trust in an unadvertised key.
+*As built 2026-11-12:* the fingerprint uses the adapters' own `sha256:<hex>` form over the
+message text, and the fork point also records the recording adapter's identity, which the
+server's turn-end affordance checks; the runtime checks the forking process's identity again.
+Because the pinned Codex fork replays nothing, a fork with a fork point always opens the new
+session through `session/load` to obtain the replay, as Claude's fork already does. Whether
+Codex tolerates that load is unverified until the live receipt. `messageOccurrence` is not sent;
+both adapters prefer `messageId` and use the fingerprint only as a fallback. Code:
+`internal/runtime/fork.go`, `internal/server/fork_point.go`; fake: `numbered_turns`.
 
 **R111 (implemented 2026-11-12) — Recovery consults the snapshot only as an optional evidence source.** For
 FS-01.R59, R96's settlement gains a third, lowest-ranked reset source, `snapshot`: after quota

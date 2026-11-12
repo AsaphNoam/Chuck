@@ -885,7 +885,10 @@ func itoa(i int) string {
 
 // launchStartError maps a runtime Start failure to the right APIError (techspec §7.1).
 func launchStartError(err error) *runtime.APIError {
+	var refusal *runtime.ForkRefusal
 	switch {
+	case errors.As(err, &refusal):
+		return cloneUnavailable(refusal.Reason)
 	case errors.Is(err, runtime.ErrNotImplemented):
 		return apiError(runtime.CodeNotImplemented, err.Error())
 	case errors.Is(err, runtime.ErrAlreadyStarted):

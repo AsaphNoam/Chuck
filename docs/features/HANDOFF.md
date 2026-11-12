@@ -51,8 +51,18 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   snapshot is covered only by the unchanged existing recovery suites (no snapshot advertised).
   Migration 74 rebuilds `quota_intents` via a temp copy; the v47 legacy fixture gained the
   `agents` table every real database has. State suites pass under both SQLite variants.
-- **Next: slice 2, Edit / Fork from here** (TS-04.R110, TS-03.R86, TS-02.R65 fork point,
-  TS-08.R162 actions, FS-01.R58/A40).
+- **Slice 2 backend done — fork points (TS-04.R110, TS-03.R86, TS-02.R65).** Runtime records a
+  `ForkPoint` on each root turn_end (`Event.ForkPoint`, json:"-"; persisted only by the
+  transcript `record` wrapper); `openFork` gates on the verified list, sends
+  `_meta.jetbrains.air.fork`, loads the fork and checks the replay fingerprint. Server:
+  `internal/server/fork_point.go` (affordance on transcript reads and live turn_end, clone body,
+  `compose_text`). Tests: `internal/server/fork_point_test.go`; fake `numbered_turns`,
+  `FAKEACP_FORK_WRONG_CUT`, `FAKEACP_AGENT_NAME/VERSION`.
+- **Next: slice 2 UI** — desktop **Edit** on person messages and **Fork from here** on a
+  completed turn's last reply (TS-08.R162, FS-01.R58/A40): enabled when `agent.clone.available`
+  and the turn end's `fork.available`; Edit uses the turn end before the message (first message:
+  unavailable); `ConfirmDialog` with the file caveat; clone body; follow Clone navigation; seed
+  `compose_text` into the draft store; nothing on phone/terminal.
 - **Owed at closure:** `make test` (both variants), `make build`; phone browser journey for A49;
   live packaged receipts listed under acceptance gates.
 
@@ -62,6 +72,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   Codex, compared with the provider's own usage display (window identity, percentage, reset
   instant); the 390px phone disclosure journey. Real `get_usage` with `skipBehaviors` and real
   `account/rateLimits/read` shapes are unverified.
+- **Fork from a message (FS-01.A40):** one bounded credentialed fork each on packaged Claude and
+  Codex proving the new provider context ends at the chosen turn; Codex must also accept the
+  proof-only `session/load` of its fork.
 - **Mail detail (FS-06.A33):** independent Chromium used the built UI, an isolated Go server,
   fake ACP, real MCP send/read and fixture tool-call events. The unfinished send disclosures
   rendered Markdown and a refusal at 1024px in Core. Keyboard expansion and Markdown layout

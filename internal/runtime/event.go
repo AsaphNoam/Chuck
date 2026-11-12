@@ -58,6 +58,19 @@ type Event struct {
 	// (TS-01.R35). Child events otherwise reuse the root payloads.
 	ActivityID       string `json:"activity_id,omitempty"`
 	ParentActivityID string `json:"parent_activity_id,omitempty"`
+	// ForkPoint is a root turn_end's provider fork identity (TS-04.R110). It
+	// is never serialized to clients; only the transcript writer and reader
+	// persist it (TS-02.R65).
+	ForkPoint *ForkPoint `json:"-"`
+	// Fork is the server-computed turn-end fork affordance on transcript reads
+	// and live turn_end events (TS-03.R86); absent elsewhere.
+	Fork *ForkAffordance `json:"fork,omitempty"`
+}
+
+// ForkAffordance says whether Edit/Fork from here can end at this turn.
+type ForkAffordance struct {
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 // AssistantTextData — a streamed markdown delta. NOT cumulative; the client

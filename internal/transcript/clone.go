@@ -9,27 +9,28 @@ import (
 )
 
 // CloneCompletedPrefix is the sole clone builder (TS-02.R35): the source's
-// durable events through its last root turn_end, without the source's session
+// durable events through a root turn_end, without the source's session
 // metadata or annotation records, which belong to the source alone. The clone's
-// own session metadata comes from its normal launch path. A zero boundary means
-// the source has no completed turn to fork from.
-func CloneCompletedPrefix(home, sourceAgentID string) ([]runtime.Event, int64, error) {
+// own session metadata comes from its normal launch path. throughSeq names
+// that turn_end (TS-03.R86); zero means the latest one. The returned boundary
+// is the turn_end itself, zero-Seq when there is no such completed turn.
+func CloneCompletedPrefix(home, sourceAgentID string, throughSeq int64) ([]runtime.Event, runtime.Event, error) {
 	events, err := ReadFile(home, sourceAgentID, ReadOptions{})
 	if err != nil {
-		return nil, 0, err
+		return nil, runtime.Event{}, err
 	}
-	var boundary int64
+	var boundary runtime.Event
 	for _, ev := range events {
-		if ev.Type == runtime.EvTurnEnd && ev.ActivityID == "" {
-			boundary = ev.Seq
+		if ev.Type == runtime.EvTurnEnd && ev.ActivityID == "" && (throughSeq == 0 || ev.Seq == throughSeq) {
+			boundary = ev
 		}
 	}
-	if boundary == 0 {
-		return nil, 0, nil
+	if boundary.Seq == 0 {
+		return nil, runtime.Event{}, nil
 	}
 	prefix := make([]runtime.Event, 0, len(events))
 	for _, ev := range events {
-		if ev.Seq <= 0 || ev.Seq > boundary {
+		if ev.Seq <= 0 || ev.Seq > boundary.Seq {
 			continue
 		}
 		if ev.Type == runtime.EvSessionMeta || ev.Type == runtime.EvAnnotation {

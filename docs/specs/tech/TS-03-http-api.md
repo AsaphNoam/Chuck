@@ -1312,7 +1312,7 @@ serialized. No refresh route, query parameter or agent tool exists, and reading 
 makes no provider call. The quota-recovery projection of R72 accepts `reset_source:"snapshot"`
 (FS-01.R59).
 
-**R86 (planned) — Clone accepts a Chuck turn boundary.** For FS-01.R58, `POST
+**R86 (implemented 2026-11-12) — Clone accepts a Chuck turn boundary.** For FS-01.R58, `POST
 /api/sessions/{agent_id}/clone` accepts an optional body `{through_seq, compose_from_seq}`.
 `through_seq` is the transcript sequence of a completed root turn's end event in the source;
 `compose_from_seq`, valid only with it, names the person's message that began the next turn. The

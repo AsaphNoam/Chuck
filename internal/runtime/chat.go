@@ -250,11 +250,15 @@ type agentState struct {
 	// quotaReadInTurn marks a turn whose quota settlement already read the
 	// snapshot (TS-04.R111); guarded by mu.
 	quotaReadInTurn bool
-	cmd             *exec.Cmd
-	pgid            int
-	sessionID       string
-	transport       *Transport
-	adapter         backend.BackendAdapter
+	// liveMsg and replayMsg fingerprint the root turn's and a replay's last
+	// agent message for fork points (TS-04.R110); guarded by mu.
+	liveMsg   messageTracker
+	replayMsg messageTracker
+	cmd       *exec.Cmd
+	pgid      int
+	sessionID string
+	transport *Transport
+	adapter   backend.BackendAdapter
 	// configOptions is the live session's configuration advertisement, kept
 	// current by every set_config_option response because a model change rebuilds
 	// it (TS-04.R46). Guarded by mu, like every other live session field.
@@ -1328,6 +1332,7 @@ func (as *agentState) setExecTurn(turnID string) {
 	as.turnQuota = nil
 	as.turnFailure = nil
 	as.turnRateLimit = rateLimitEvidence{}
+	as.liveMsg.reset()
 	as.mu.Unlock()
 }
 
@@ -2083,6 +2088,17 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	if replay {
 		as.loadReplayDropped++
 	}
+	// Fork points (TS-04.R110): the live root turn's last agent message, and
+	// during a replay the replay's last agent message, which a later person
+	// message supersedes.
+	switch {
+	case kind == "agent_message_chunk" && replay:
+		as.replayMsg.observe(params)
+	case kind == "user_message_chunk" && replay:
+		as.replayMsg.reset()
+	case kind == "agent_message_chunk" && as.turnActive && as.execTurnID != "":
+		as.liveMsg.observe(params)
+	}
 	as.mu.Unlock()
 	if replay {
 		return
@@ -2291,6 +2307,14 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 		Ts:   time.Now().UTC().Format(time.RFC3339),
 
 		ActivityID: scope.ActivityID, ParentActivityID: scope.ParentActivityID,
+	}
+	// A root turn_end records its fork point once, with the event (TS-02.R65).
+	if typ == EvTurnEnd && scope.ActivityID == "" {
+		if fp := as.liveMsg.fingerprint(); fp != "" {
+			ev.ForkPoint = &ForkPoint{SessionID: as.sessionID, MessageID: as.liveMsg.id, Fingerprint: fp,
+				AdapterName: as.adapterInfo.Name, AdapterVersion: as.adapterInfo.Version}
+		}
+		as.liveMsg.reset()
 	}
 	ctx := as.ctx
 	as.mu.Unlock()

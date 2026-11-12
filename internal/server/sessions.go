@@ -708,6 +708,7 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	includeMeta := r.URL.Query().Get("include_meta") == "true"
+	native := s.currentNativeSession(id)
 	// A tailnet read is always windowed, even when the phone names no limit
 	// (FS-20.R13); loopback callers opt in with limit or before_seq.
 	if limit > 0 || beforeSeq > 0 || remoteFrom(r.Context()) != nil {
@@ -718,7 +719,7 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 		if chat := s.registry.Chat(); chat != nil {
 			tw.hostPending = func(toolCallID string) bool { return chat.PermissionPending(id, toolCallID) }
 		}
-		if err := transcript.ForEachFile(s.configStore.Home(), id, transcript.ReadOptions{IncludeMeta: includeMeta}, tw.visit); err != nil {
+		if err := transcript.ForEachFile(s.configStore.Home(), id, transcript.ReadOptions{IncludeMeta: includeMeta}, func(ev runtime.Event) error { s.decorateFork(&ev, native); return tw.visit(ev) }); err != nil {
 			writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
 			return
 		}
@@ -733,6 +734,9 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
 		return
+	}
+	for i := range events {
+		s.decorateFork(&events[i], native)
 	}
 	body := map[string]any{"agent_id": id, "events": events}
 	// A live request whose record did not commit rides beside history, never
