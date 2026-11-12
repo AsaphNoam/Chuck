@@ -31,7 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 None.
 
-The release CI annotation-replay finding (RELEASE-023-CI-1) is available for fix work.
+No review findings are open.
 
 ## Acceptance gates still owed
 
@@ -270,18 +270,7 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### Annotation replay test scheduling — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-- **Worth fixing** RELEASE-023-CI-1 — `internal/server/annotations_self_delivery_test.go:35–47`
-  performs synthetic restart/replay while the first POST has already scheduled asynchronous
-  dispatch (`sessions.go:362`, `queued_input.go:42`). Dispatch can clear assignment ownership
-  and submit the receipt before replay; then `sessions.go:261` correctly refuses uncertain
-  delivery with 409. Main CI `42450626202` first attempt failed at this race; exact local test
-  passes 20 repeats (INV §17). No product defect established. A bounded fixture correction should
-  hold existing `taskSweepMu` across admission and synthetic replay, then release it before explicit
-  dispatch; retain the replay safety assertion and verify focused repeats/server checks.
-  Full CI retry passed Go, then failed a separate UI check below. Evidence: `/private/tmp/chuck-v023-main-ci-failed.log`,
-  `/private/tmp/chuck-v023-annotation-repeat.log`. Do not change product receipt safety for this.
+None open.
 
 ## Blocked on human
 
@@ -300,6 +289,13 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-12 — Fix:** closed the v0.23.0 main-CI annotation replay race (RELEASE-023-CI-1;
+  INV §17 tests prove their contract independently). The self-annotation fixture now holds
+  `taskSweepMu` across admission and synthetic restart/replay, releasing it before explicit
+  dispatch, so asynchronous dispatch cannot consume the input first; replay safety assertion and
+  product receipt safety unchanged. Focused test 30/30, `-race` 10/10; `go vet` and both Go
+  variants of `./internal/server` pass. A new hosted main CI run must confirm.
 
 - **2026-11-11 — Work:** finished [Think Tank templates](../specs/features/FS-21-think-tanks.md)
   (FS-21.R60–R63/A43–A45, TS-14.R30–R33). `make test`, `make build`, full UI `npm test`

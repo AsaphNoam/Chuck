@@ -28,6 +28,16 @@ func TestSelfAnnotationWaitingAssignmentContinuation(t *testing.T) {
 	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id=?, assigned_generation=?, started_at=created_at WHERE task_id=?`, id, srv.taskGeneration(id), task.TaskID); err != nil {
 		t.Fatal(err)
 	}
+	// Hold the dispatcher until the synthetic restart/replay is done: admission
+	// schedules asynchronous dispatch, which would otherwise consume the input
+	// before replay and make replay correctly refuse uncertain delivery.
+	srv.taskSweepMu.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			srv.taskSweepMu.Unlock()
+		}
+	}()
 	code, body := selfAnnotation(t, ts.URL, id, "assignment-1", false)
 	if code != http.StatusAccepted || fieldOf(t, body, "delivery") != "queued" {
 		t.Fatalf("annotation not queued: %d %s", code, body)
@@ -46,6 +56,8 @@ func TestSelfAnnotationWaitingAssignmentContinuation(t *testing.T) {
 	if code, body := selfAnnotation(t, ts.URL, id, "assignment-1", false); code != http.StatusAccepted {
 		t.Fatalf("replay: %d %s", code, body)
 	}
+	locked = false
+	srv.taskSweepMu.Unlock()
 	srv.dispatchReadyTasks(context.Background())
 	dispatchUntilTaskState(t, srv, task.TaskID, state.TaskRunning)
 	waitPrompts(t, promptLog, 1)
