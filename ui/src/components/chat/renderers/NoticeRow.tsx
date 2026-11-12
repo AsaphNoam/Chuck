@@ -7,12 +7,17 @@ import { MailDisclosure, mailOf } from "./MailDetail";
 export function NoticeRow({ event }: { event: TranscriptEvent }) {
   const warning = event.severity === "warning";
   const chuckOrigin = event.origin === "chuck";
-  const description = String(event.description ?? "");
+  const title = String(event.title ?? "");
+  let description = String(event.description ?? "");
+  if (event.origin === "chuck_mail" && title.startsWith("Mail from ") && !description.includes("\n")) {
+    const prefix = `${title.slice("Mail from ".length)}: `;
+    if (description.startsWith(prefix)) description = description.slice(prefix.length);
+  }
   const mail = event.origin === "chuck_mail" ? mailOf(event) : undefined;
   return (
     <div className="notice-row" role="note">
       <Badge variant={warning ? "warning" : "neutral"}>{chuckOrigin ? "Chuck" : warning ? "warning" : "info"}</Badge>
-      <span className="notice-title">{String(event.title ?? "")}</span>
+      <span className="notice-title">{title}</span>
       {description ? <span className="notice-description">{description}</span> : null}
       {mail ? <div className="notice-mail"><MailDisclosure mail={mail} /></div> : null}
     </div>

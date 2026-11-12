@@ -27,8 +27,7 @@ describe("mail detail", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  // ANNOTATION-MAIL-HEADER-1: enable when the collapsed header is repaired.
-  it.skip.each([
+  it.each([
     ["an older saved notice", undefined],
     ["a notice with mail detail", { direction: "received", messages: [{ ...message, from_name: "Dashboard user", subject: "Annotations" }], truncated: false }],
   ])("shows the annotation sender once in %s", (_label, mail) => {
@@ -43,6 +42,11 @@ describe("mail detail", () => {
     const summary = screen.getByRole("note").textContent ?? "";
     expect(summary).toContain("Annotations");
     expect(summary.match(/Dashboard user/g)).toHaveLength(1);
+  });
+
+  it("preserves sender and subject associations in a mixed batch", () => {
+    render(<NoticeRow event={{ kind: "notice", origin: "chuck_mail", title: "Mail from Alice, Bob", description: "Alice: Plan\nBob: Review" } as TranscriptEvent} />);
+    expect(screen.getByRole("note").textContent).toContain("Alice: Plan\nBob: Review");
   });
 
   it("sent: shows the recipient, deferred, the error and the truncated note on the tool line", () => {

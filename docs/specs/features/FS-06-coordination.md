@@ -262,7 +262,8 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 - **R38** (shipped 2026-10-15) — When a turn receives mail directly in its prompt (R31–R32), the
   recipient transcript records one notice row in that turn naming each supplied message's sender
   and subject, so the person supervising can see why a mail-triggered turn started. The collapsed
-  row shows no bodies; R45 expands it to the supplied messages. The notice follows TS-04.R80's bounds and
+  row shows a single message's sender once; batches retain each sender's association with its subject.
+  The collapsed row shows no bodies; R45 expands it to the supplied messages. The notice follows TS-04.R80's bounds and
   projection: it never changes unread counts, status or notifications.
 - **R45 — The person can expand mail in an agent's activity.** (shipped 2026-11-12) Collapsed views stay as
   they are, and each one gains an expansion for the person supervising the agent:
