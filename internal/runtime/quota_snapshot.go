@@ -229,17 +229,21 @@ func (c *ChatRuntime) readQuota(key, provider string, as *agentState, timeout ti
 	q.mu.Lock()
 	sc := q.scopes[key]
 	sc.call = nil
+	var snap state.SubscriptionQuota
+	ok := false
 	if err == nil {
-		sc.last = call
+		snap, ok = normalizeQuotaRead(provider, res, now)
 	}
-	if err != nil {
-		// Keep the previous observation; the reason marks it stale.
+	if !ok {
+		// A failed or undecodable read keeps the previous observation; the
+		// reason marks it stale (FS-09.R83).
 		sc.snap.ReasonCode = state.QuotaReasonReadFailed
 		if errors.Is(err, context.DeadlineExceeded) {
 			sc.snap.ReasonCode = state.QuotaReasonReadTimeout
 		}
 	} else {
-		sc.snap = normalizeQuotaRead(provider, res, now)
+		sc.last = call
+		sc.snap = snap
 		c.armQuotaResetLocked(key, sc, now)
 	}
 	var agents []string
@@ -285,27 +289,24 @@ func (c *ChatRuntime) armQuotaResetLocked(key string, sc *quotaScope, now time.T
 }
 
 // normalizeQuotaRead maps one successful passthrough to the two projected
-// windows under TS-04.R89/R109. Unverifiable values stay unknown.
-func normalizeQuotaRead(provider string, raw json.RawMessage, now time.Time) state.SubscriptionQuota {
+// windows under TS-04.R89/R109. Unverifiable values stay unknown. ok is false
+// when the payload cannot be decoded; the caller treats that as a failed read.
+func normalizeQuotaRead(provider string, raw json.RawMessage, now time.Time) (state.SubscriptionQuota, bool) {
 	out := state.SubscriptionQuota{Provider: provider, CheckedAt: now.Format(time.RFC3339)}
 	observed := false
 	switch provider {
 	case "claude":
-		var body struct {
-			Available  bool                                 `json:"rate_limits_available"`
-			RateLimits map[string]*claudeQuotaWindowPayload `json:"rate_limits"`
-		}
-		if json.Unmarshal(raw, &body) != nil {
-			out.ReasonCode = state.QuotaReasonReadFailed
-			break
+		body, err := decodeClaudeQuota(raw)
+		if err != nil {
+			return out, false
 		}
 		if !body.Available {
 			out.ReasonCode = state.QuotaReasonNoSubscription
 			break
 		}
-		out.Windows.FiveHour, observed = body.RateLimits["five_hour"].window(now, observed)
+		out.Windows.FiveHour, observed = body.Windows["five_hour"].window(now, observed)
 		var weekly bool
-		out.Windows.Weekly, weekly = body.RateLimits["seven_day"].window(now, false)
+		out.Windows.Weekly, weekly = body.Windows["seven_day"].window(now, false)
 		observed = observed || weekly
 	case "codex":
 		var body struct {
@@ -316,8 +317,7 @@ func normalizeQuotaRead(provider string, raw json.RawMessage, now time.Time) sta
 			} `json:"snapshots"`
 		}
 		if json.Unmarshal(raw, &body) != nil {
-			out.ReasonCode = state.QuotaReasonReadFailed
-			break
+			return out, false
 		}
 		// Only the account's main snapshot (listed first); a model-specific
 		// limit never substitutes for the all-model windows.
@@ -352,12 +352,59 @@ func normalizeQuotaRead(provider string, raw json.RawMessage, now time.Time) sta
 	default:
 		out.Availability = "unavailable"
 	}
-	return out
+	return out, true
 }
 
 type claudeQuotaWindowPayload struct {
 	Utilization *float64 `json:"utilization"`
 	ResetsAt    *string  `json:"resets_at"`
+}
+
+// claudeQuota is one decoded Claude passthrough (sdk.d.ts rate_limits): named
+// window objects plus the model_scoped list of per-model weekly windows.
+type claudeQuota struct {
+	Available   bool
+	Windows     map[string]*claudeQuotaWindowPayload
+	ModelScoped []struct {
+		DisplayName string `json:"display_name"`
+		claudeQuotaWindowPayload
+	}
+}
+
+// claudeNamedWindows are the SDK's declared window members; a malformed one
+// fails the read. Other members are kept only when they decode as a window, so
+// an exhausted unidentified window still voids recovery evidence.
+var claudeNamedWindows = map[string]bool{
+	"five_hour": true, "seven_day": true, "seven_day_oauth_apps": true,
+	"seven_day_opus": true, "seven_day_sonnet": true,
+}
+
+func decodeClaudeQuota(raw json.RawMessage) (claudeQuota, error) {
+	var top struct {
+		Available  bool                       `json:"rate_limits_available"`
+		RateLimits map[string]json.RawMessage `json:"rate_limits"`
+	}
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return claudeQuota{}, err
+	}
+	out := claudeQuota{Available: top.Available, Windows: map[string]*claudeQuotaWindowPayload{}}
+	for name, v := range top.RateLimits {
+		if name == "model_scoped" {
+			if err := json.Unmarshal(v, &out.ModelScoped); err != nil {
+				return claudeQuota{}, err
+			}
+			continue
+		}
+		var w *claudeQuotaWindowPayload
+		if err := json.Unmarshal(v, &w); err != nil {
+			if claudeNamedWindows[name] {
+				return claudeQuota{}, err
+			}
+			continue
+		}
+		out.Windows[name] = w
+	}
+	return out, nil
 }
 
 // window decodes Claude's 0..100 utilization and ISO 8601 reset.
@@ -472,30 +519,50 @@ func exhaustedQuotaReset(provider string, raw json.RawMessage, modelID string, n
 	}
 	switch provider {
 	case "claude":
-		var body struct {
-			Available  bool                                 `json:"rate_limits_available"`
-			RateLimits map[string]*claudeQuotaWindowPayload `json:"rate_limits"`
-		}
-		if json.Unmarshal(raw, &body) != nil || !body.Available {
+		body, err := decodeClaudeQuota(raw)
+		if err != nil || !body.Available {
 			return nil
 		}
 		model := strings.ToLower(modelID)
-		for name, w := range body.RateLimits {
+		// A family window counts only when the model id names its family; an
+		// exhausted window whose family cannot be read is unknown.
+		family := func(name string, w *claudeQuotaWindowPayload) (applies, unknown bool) {
+			if name == "" {
+				return false, w.Utilization != nil && *w.Utilization >= 100
+			}
+			return model != "" && strings.Contains(model, name), false
+		}
+		var applicable []*claudeQuotaWindowPayload
+		for name, w := range body.Windows {
 			if w == nil {
 				continue
 			}
+			applies, unknown := true, false
 			switch name {
 			case "five_hour", "seven_day":
 			case "seven_day_opus", "seven_day_sonnet":
-				if model == "" || !strings.Contains(model, strings.TrimPrefix(name, "seven_day_")) {
-					continue
-				}
+				applies, unknown = family(strings.TrimPrefix(name, "seven_day_"), w)
 			default:
-				if w.Utilization != nil && *w.Utilization >= 100 {
-					return nil // an exhausted window that cannot be shown applicable
-				}
-				continue
+				applies, unknown = family("", w)
 			}
+			if unknown {
+				return nil
+			}
+			if applies {
+				applicable = append(applicable, w)
+			}
+		}
+		for i := range body.ModelScoped {
+			w := &body.ModelScoped[i]
+			applies, unknown := family(strings.ToLower(strings.TrimSpace(w.DisplayName)), &w.claudeQuotaWindowPayload)
+			if unknown {
+				return nil
+			}
+			if applies {
+				applicable = append(applicable, &w.claudeQuotaWindowPayload)
+			}
+		}
+		for _, w := range applicable {
 			var reset time.Time
 			known := false
 			if w.ResetsAt != nil {

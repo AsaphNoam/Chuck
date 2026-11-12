@@ -72,4 +72,16 @@ func TestQuotaSnapshotSchedulesAndPostponesRecovery(t *testing.T) {
 	if got := promptCount(t, promptLog); got != 1 {
 		t.Fatalf("provider prompts = %d, want the pre-check to start nothing", got)
 	}
+
+	// A deferred retry (here: busy behind a manual action) re-claims on every
+	// dispatch tick; it must not read the provider again (FS-09.R83). A read
+	// would report a strictly later reset and postpone instead of starting.
+	if err := os.WriteFile(file, snapshot(later.Add(24*time.Hour)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE quota_intents SET state='deferred', reason_code='busy', due_at=? WHERE agent_id=?`, past, id); err != nil {
+		t.Fatal(err)
+	}
+	srv.dispatchQuotaContinuations(context.Background())
+	waitPrompts(t, promptLog, 2)
 }

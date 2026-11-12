@@ -22,7 +22,15 @@ const init = await agent.initialize({ protocolVersion: 1, clientCapabilities: {}
 assert.deepEqual(init._meta.chuck, { quotaRead: { version: 1 } }, "initialize advertises quotaRead v1");
 assert.deepEqual(init._meta.steering, { supported: true }, "existing _meta keys are kept");
 
-const limits = { five_hour: { utilization: 42, resets_at: "2026-01-01T00:00:00Z" }, seven_day: null, extra: { kept: true } };
+// Shaped like sdk.d.ts rate_limits: window members, model_scoped as an array,
+// and extra_usage credits that must not leave the adapter (TS-04.R109).
+const windows = {
+    five_hour: { utilization: 42, resets_at: "2026-01-01T00:00:00Z" },
+    seven_day: null,
+    seven_day_opus: { utilization: 100, resets_at: "2026-01-03T00:00:00Z" },
+    model_scoped: [{ display_name: "Fable", utilization: 7, resets_at: null }],
+};
+const limits = { ...windows, extra_usage: { is_enabled: true, monthly_limit: 50, used_credits: 12, utilization: 24 }, future_member: 1 };
 const calls = [];
 const query = {
     usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async (opts) => {
@@ -34,7 +42,7 @@ agent.sessions = { live: { query, queryClosed: false }, closed: { query, queryCl
 const result = await agent.chuckQuotaRead({ sessionId: "live" });
 assert.deepEqual(Object.keys(result).sort(), ["rate_limits", "rate_limits_available"], "no extra fields leave the adapter");
 assert.equal(result.rate_limits_available, true);
-assert.equal(result.rate_limits, limits, "rate_limits is passed through unmodified");
+assert.deepEqual(result.rate_limits, windows, "only window members are forwarded, values unmodified");
 assert.deepEqual(calls, [{ skipBehaviors: true }], "behaviors are skipped");
 
 query.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET = async () => ({ rate_limits_available: false, rate_limits: null });

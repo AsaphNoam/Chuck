@@ -1202,7 +1202,9 @@ For FS-09.R83, each packaged adapter gains one reviewed patch adding the request
 initialize response. Chuck calls it only when advertised; an unpatched or newer adapter reads
 unsupported, never an error. The patch forwards provider data and maps nothing. Claude calls the
 SDK usage control on the session's live query with behaviors skipped
-(`sdk.d.ts:3054`, 0.3.286) and returns only `rate_limits_available` and `rate_limits`; Codex
+(`sdk.d.ts:3054`, 0.3.286) and returns only `rate_limits_available` and `rate_limits` reduced to
+its window members (`five_hour`, `seven_day`, `seven_day_oauth_apps`, `seven_day_opus`,
+`seven_day_sonnet` and the `model_scoped` array; `extra_usage` stays); Codex
 calls `account/rateLimits/read` and returns only each `RateLimitSnapshot`'s `limitId`, `primary`
 and `secondary` windows. Session cost, plan, account id, credits and upsell fields never leave the
 adapter. Normalization stays in Go under R89: Claude `five_hour`/`seven_day` carry a 0..100
@@ -1210,15 +1212,17 @@ adapter. Normalization stays in Go under R89: Claude `five_hour`/`seven_day` car
 `windowDurationMins` (300 → `five_hour`, 10080 → `weekly`) with integer `usedPercent` and
 epoch-second `resetsAt` (the pinned adapter's own `resetsAt * 1e3`, `dist/index.js:36196`), and
 any other duration or an out-of-range value is unknown. Claude's model-specific weekly windows
-are decoded for R111 only and are never projected. Observations live in one in-memory store
+(`seven_day_opus`/`seven_day_sonnet` and each `model_scoped` entry, whose family is its
+`display_name`) are decoded for R111 only and are never projected. Go decodes the Claude payload
+once for both uses, tolerating unknown members; a success it cannot decode is a failed read. Observations live in one in-memory store
 keyed by quota scope, the backend id plus R97's frozen routing value (an `unsupported` routing
 is its own unshared scope), replacing R89's per-session hold and its ban on a cross-session
 cache; the store still survives no server restart and is never persisted. The runtime issues the
 call at any session-open completion, at any root turn settlement and once at a stored window's
 reset plus R96's buffer, through any live advertising session of that scope, beside any
 in-flight prompt, with one call in flight per scope (concurrent triggers join it), a 10-second
-bound and no retry; a timeout or RPC error records a bounded reason and keeps the previous
-observation. No client request triggers a call, and no process is started to make one. The call and
+bound and no retry; a timeout, RPC error or undecodable answer records a bounded reason and keeps
+the previous observation. No client request triggers a call, and no process is started to make one. The call and
 its result create no journal event, activity transition, owner change or context-usage update.
 Each patch follows the existing reviewed-patch assembly (pinned input and output hashes, zero
 fuzz) and ships a contract test run at assembly against the patched bundle, like
@@ -1229,7 +1233,8 @@ path or command-text parser exists (INV §2/§12/§15).
 *As built 2026-11-12:* the patches are `claude-acp-0.85.1-quota-read.patch` and
 `codex-acp-2.1.1-quota-read.patch`, applied after each adapter's earlier reviewed patch with a
 pinned intermediate hash, and checked by `test-claude-quota-read-patch.mjs` and
-`test-codex-quota-read-patch.mjs`. Claude returns `{rate_limits_available, rate_limits}`; Codex
+`test-codex-quota-read-patch.mjs`. Claude returns `{rate_limits_available, rate_limits}` with
+only the window members above; Codex
 returns `{snapshots:[{limitId, primary, secondary}]}` with the account's main snapshot first,
 and only that first snapshot is normalized. The store lives in `internal/runtime/quota_snapshot.go`.
 A running agent's scope is frozen at launch. A stopped agent's scope is resolved once per server
@@ -1271,7 +1276,8 @@ FS-01.R59, R96's settlement gains a third, lowest-ranked reset source, `snapshot
 classification with no structured or text reset, one R109 read on the still-live process may
 supply the latest reset among exhausted applicable windows (100 percent used with a future
 reset; Claude family windows under R96's model rule). Immediately before the dispatcher admits a
-due continuation or starts an R97 check, one read may move `due_at` to a strictly later reported
+due continuation or starts an R97 check from `scheduled` (a `deferred` retry reads nothing), one
+read may move `due_at` to a strictly later reported
 reset plus the existing buffer, without charging a check; an equal, earlier or past reset changes
 nothing. Both reads go through any live session of the interrupted work's quota scope; with
 none, the scope's stored observation is used only if it was read after the interruption, and

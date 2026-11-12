@@ -14,13 +14,16 @@ import (
 )
 
 // Provider-owned payloads, written as each pinned adapter's passthrough
-// returns them (sdk.d.ts rate_limits; Codex RateLimitSnapshot windows).
+// returns them (sdk.d.ts:4242–4311 rate_limits window members, with
+// model_scoped as an array; Codex RateLimitSnapshot windows).
 const (
 	claudeQuotaBoth = `{"rate_limits_available":true,"rate_limits":{
 		"five_hour":{"utilization":42.5,"resets_at":"2026-11-12T18:00:00+02:00"},
 		"seven_day":{"utilization":7,"resets_at":"2026-11-15T09:30:00Z"},
+		"seven_day_oauth_apps":null,
 		"seven_day_opus":{"utilization":99,"resets_at":"2026-11-14T00:00:00Z"},
-		"extra_usage":{"utilization":3}}}`
+		"seven_day_sonnet":null,
+		"model_scoped":[{"display_name":"Fable","utilization":12,"resets_at":"2026-11-16T00:00:00Z"}]}}`
 	codexQuotaBoth = `{"snapshots":[
 		{"limitId":"codex","primary":{"usedPercent":12,"windowDurationMins":300,"resetsAt":1794500000},
 		 "secondary":{"usedPercent":61,"windowDurationMins":10080,"resetsAt":1794900000}},
@@ -35,7 +38,7 @@ func TestNormalizeQuotaReadMapsOnlyIdentifiedWindows(t *testing.T) {
 		name, provider, raw string
 		want                state.SubscriptionQuota
 	}{
-		{"claude both windows; model-specific and extra usage dropped", "claude", claudeQuotaBoth, state.SubscriptionQuota{
+		{"claude both windows; model-specific windows dropped", "claude", claudeQuotaBoth, state.SubscriptionQuota{
 			Provider: "claude", Availability: "complete", CheckedAt: stamp,
 			Windows: state.SubscriptionQuotaWindows{
 				FiveHour: state.SubscriptionQuotaWindow{UsedPercent: pct(42.5), ResetAt: "2026-11-12T16:00:00Z", ObservedAt: stamp},
@@ -60,18 +63,30 @@ func TestNormalizeQuotaReadMapsOnlyIdentifiedWindows(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := normalizeQuotaRead(tc.provider, json.RawMessage(tc.raw), now)
+			got, ok := normalizeQuotaRead(tc.provider, json.RawMessage(tc.raw), now)
+			if !ok {
+				t.Fatal("payload did not decode")
+			}
 			gotJSON, _ := json.Marshal(got)
 			wantJSON, _ := json.Marshal(tc.want)
 			if string(gotJSON) != string(wantJSON) {
 				t.Fatalf("normalized\n got %s\nwant %s", gotJSON, wantJSON)
 			}
-			for _, banned := range []string{"opus", "extra", "credit", "plan", "codex_other"} {
+			for _, banned := range []string{"opus", "Fable", "extra", "credit", "plan", "codex_other"} {
 				if strings.Contains(string(gotJSON), banned) {
 					t.Fatalf("projection leaks %q: %s", banned, gotJSON)
 				}
 			}
 		})
+	}
+	for _, raw := range []string{
+		`not json`,
+		`{"rate_limits_available":true,"rate_limits":{"five_hour":"full"}}`,
+		`{"rate_limits_available":true,"rate_limits":{"model_scoped":{"display_name":"Fable"}}}`,
+	} {
+		if _, ok := normalizeQuotaRead("claude", json.RawMessage(raw), now); ok {
+			t.Fatalf("undecodable payload %s read as a success", raw)
+		}
 	}
 }
 
@@ -219,7 +234,8 @@ func TestQuotaSnapshotFailedReadKeepsStaleValues(t *testing.T) {
 	q := newQuotaTest(t, claudeQuotaBoth)
 	h := q.start(t)
 	first := waitQuota(t, q.c, h.AgentID, checked)
-	q.setResult(t, "not json")
+	// Valid JSON the decoder cannot read is a failed read, not a new empty one.
+	q.setResult(t, `{"rate_limits_available":true,"rate_limits":{"five_hour":"full"}}`)
 	q.c.refreshQuota(q.c.quota.agents[h.AgentID])
 	stale := waitQuota(t, q.c, h.AgentID, func(s *state.SubscriptionQuota) bool { return s.ReasonCode != "" })
 	if stale.ReasonCode != state.QuotaReasonReadFailed || stale.CheckedAt != first.CheckedAt ||
@@ -301,6 +317,10 @@ func TestExhaustedQuotaResetAppliesTheWindowRule(t *testing.T) {
 		{"two exhausted use the later", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"seven_day":{"utilization":100,"resets_at":"` + later + `"}`), at(later)},
 		{"foreign family weekly ignored", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"seven_day_opus":{"utilization":100,"resets_at":"` + later + `"}`), at(soon)},
 		{"own family weekly counts", "claude", "claude-opus-4-7", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"seven_day_opus":{"utilization":100,"resets_at":"` + later + `"}`), at(later)},
+		{"empty model_scoped decodes", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"model_scoped":[]`), at(soon)},
+		{"own model-scoped family counts", "claude", "claude-fable-5-2", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"model_scoped":[{"display_name":"Fable","utilization":100,"resets_at":"` + later + `"}]`), at(later)},
+		{"foreign model-scoped family ignored", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"model_scoped":[{"display_name":"Fable","utilization":100,"resets_at":"` + later + `"}]`), at(soon)},
+		{"unnamed exhausted model-scoped window", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"model_scoped":[{"display_name":"","utilization":100,"resets_at":"` + later + `"}]`), nil},
 		{"nothing exhausted", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":99,"resets_at":"` + soon + `"}`), nil},
 		{"exhausted without reset", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":null}`), nil},
 		{"past reset", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"2026-11-12T09:00:00Z"}`), nil},

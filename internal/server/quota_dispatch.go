@@ -30,9 +30,13 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 			<-s.quotaStartSlots
 			continue
 		}
+		// Only admission from the schedule reads the snapshot; a deferred
+		// retry (busy, store failure) re-claims every dispatch tick and must
+		// not poll the provider (TS-04.R111, FS-09.R83).
+		precheck := q.State == state.QuotaScheduled
 		go func(q state.QuotaIntent) {
 			defer func() { <-s.quotaStartSlots }()
-			if s.postponeToSnapshotReset(q) {
+			if precheck && s.postponeToSnapshotReset(q) {
 				return
 			}
 			if q.NextAction == state.QuotaActionCheck {
