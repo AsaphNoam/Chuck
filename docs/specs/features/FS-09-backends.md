@@ -366,16 +366,21 @@ Configuration-source federation for Claude/Codex is FS-08.
   stale data remains visibly last observed, and a failed read preserves it with its failure reason.
 - **R81 — retired 2026-11-11:** unshipped ACP-only delivery with snapshot/refresh left TBD; the
   operator approved a native provider read, so R83 replaces it and keeps its presentation rules.
-- **R83 (planned)** — **A running session reads its own provider's complete quota snapshot.**
-  For a running chat session whose provider reports subscription windows, Chuck reads both R80
-  windows from that provider through the session's own packaged adapter. A read happens when the
-  session starts, after each of its turns ends, and when the person activates **Refresh** in the
-  disclosure; there is no timer. Refresh is offered while the session runs, including during a
-  turn, shows that a read is in progress and never stacks a second read. A read spends no model
-  turn and sends no conversation prompt, `/usage` or `/status` command; it scrapes no transcript
-  or command text, uses no separate provider login, and changes no transcript, context usage,
-  turn ownership or agent state. A stopped session offers no Refresh and is never started or woken
-  to read. A session authenticated without a subscription reads **Unavailable** with that reason.
+- **R83 (planned; shared source confirmed 2026-11-12)** — **Each backend has one quota snapshot
+  that every one of its chats shows.** Chuck keeps one current snapshot per backend quota scope:
+  the configured backend together with the provider routing its agents were launched with, so
+  two agents share a snapshot only when they use the same backend and the same routing. This
+  replaces R80's per-session scope; R80's ban on combining unrelated backends or credentials
+  stands. Chuck fills the snapshot automatically, through the packaged adapter of any running
+  session in that scope: when a session starts, after any of its sessions' turns ends, and once
+  shortly after a displayed reset time passes. There is no Refresh control, no polling and no
+  read started by opening the view. Every chat of that scope, running or stopped, shows the same
+  two R80 windows and last-checked time, so an idle chat reflects usage by its siblings. A read
+  spends no model turn and sends no conversation prompt, `/usage` or `/status` command; it scrapes
+  no transcript or command text, uses no separate provider login, and changes no transcript,
+  context usage, turn ownership or agent state. No session is started or woken to read; with no
+  running session in the scope the snapshot simply ages under its last-checked time. A scope
+  authenticated without a subscription reads **Unavailable** with that reason.
   A failed read keeps the previous values under R80's stale treatment with the failure reason.
   Only **5-hour** and **Weekly** are shown or exposed: a provider window that cannot be identified
   as one of them stays unknown, and model-specific weekly windows, extra-usage or credit balances,
@@ -797,16 +802,19 @@ Configuration-source federation for Claude/Codex is FS-08.
   is a 400 field error on `backends.<id>.name`, `backends.json` is unchanged, the editor shows the
   error and keeps the other edits. *Verify:* `internal/server` PUT-backends handler test and
   `BackendsEditor.test.tsx`.
-- **A52 (planned)** (R80, R83) — Against a fake of each provider, session start, each turn end and
-  **Refresh** each produce exactly one read and fill both windows; an ordinary, task, pipeline and
-  room turn sees no extra prompt, command, transcript event or owner transition, including a
-  Refresh pressed mid-turn. A non-subscription session reads Unavailable, a failed read keeps the
-  earlier values as stale with its reason, a stopped session offers no Refresh and starts nothing,
-  an unidentifiable window stays unknown, and no excluded window, balance, plan or account field
-  appears in the serialized projection. On packaged Claude and Codex, one bounded credentialed
+- **A52 (planned)** (R80, R83) — Against a fake of each provider, a session start, each turn end
+  and a passed reset each produce exactly one read and fill both windows; an ordinary, task,
+  pipeline and room turn sees no extra prompt, command, transcript event or owner transition.
+  With two agents on one backend and routing, a turn ending on one updates the view of the idle
+  and the stopped other; an agent on another backend, or on the same backend with different
+  routing, is unaffected. Simultaneous turn ends make one read. With no running session nothing
+  is started and the view ages. A non-subscription scope reads Unavailable, a failed read keeps
+  the earlier values as stale with its reason, an unidentifiable window stays unknown, no Refresh
+  control exists, and no excluded window, balance, plan or account field appears in the
+  serialized projection. On packaged Claude and Codex, one bounded credentialed
   read each matches the provider's own usage display for window identity, percentage and reset
   instant. *Verify:* contract tests of each packaged adapter's read against the pinned bundle,
-  runtime/API/projection tests, the A49 browser journey with Refresh, and the two live receipts.
+  runtime/API/projection tests, the A49 desktop/phone browser journey, and the two live receipts.
 
 ## 6. Deviations & open decisions
 

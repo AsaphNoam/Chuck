@@ -360,7 +360,9 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
   items only, a typed quota-read patch per packaged adapter and the adapters' existing
   `_meta.jetbrains.air.fork` key; Edit always forks; quota recovery may use the snapshot with the
   shipped behavior as fallback. Pinned-bundle evidence is in the change file; Claude's idle
-  usage read and both live receipts remain acceptance gates.
+  usage read and both live receipts remain acceptance gates. Amended the same day at the
+  operator's direction: one shared in-memory snapshot per backend quota scope, read automatically
+  and shown by every chat of that backend, with no Refresh control or route.
 
 - **2026-11-12 — Design:** agent mail visibility is ready as
   [expandable-agent-mail-activity](../ready-changes/expandable-agent-mail-activity.md)

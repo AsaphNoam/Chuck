@@ -81,7 +81,7 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
   the transcript; agent-facing views stay unchanged.
 
 - [`native-quota-snapshot-and-message-fork.md`](native-quota-snapshot-and-message-fork.md) —
-  complete 5-hour/Weekly quota with Refresh through a typed adapter read, Edit and Fork from here
+  complete 5-hour/Weekly quota per backend through a typed adapter read, Edit and Fork from here
   at a turn boundary, and snapshot-informed quota recovery with the current behavior as fallback.
 
 ## Paused changes

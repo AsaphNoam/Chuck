@@ -1298,20 +1298,19 @@ No provider-refresh endpoint or agent tool is added before the passive ACP trans
 Update current Go/TypeScript schemas and consumers together; the operator's API compatibility
 waiver applies, with no need for old-client aliases. Verify real serialized partial/unknown shapes,
 read failure, source change and stopped-session behavior independently of UI fixtures.
-**Superseded 2026-11-11 (planned):** R85 replaces the fixed `refresh_available:false`, the
-two-value availability and the no-refresh-endpoint rule; the rest stands.
+**Superseded 2026-11-12 (planned):** R85 replaces `refresh_available`, the two-value
+availability and the single-session source; the rest, including no refresh endpoint, stands.
 
-**R85 (planned) — Quota snapshots add one refresh action and a complete state.** For FS-09.R83
-and TS-04.R109, `subscription_quota.availability` becomes
-`"complete" | "partial" | "unavailable"`, `refresh_available` is true exactly while the session
-runs on an adapter advertising the read, and a boolean `refreshing` reports an in-flight read.
+**R85 (planned) — Quota snapshots are a shared backend-scope projection with no refresh
+action.** For FS-09.R83 and TS-04.R109, `subscription_quota.availability` becomes
+`"complete" | "partial" | "unavailable"` and `refresh_available` is removed.
 `reason_code` gains `unsupported_adapter`, `no_subscription`, `read_failed` and `read_timeout`.
-`POST /api/sessions/{agent_id}/quota-refresh` takes no body, returns `202` after requesting one
-read (joining one already in flight), `409 agent_not_running` for a stopped session and
-`422 quota_refresh_unavailable` when unadvertised; results arrive through the existing read and
-SSE projection, and the route starts, wakes or prompts nothing. It is a desktop route and is not
-added to the remote allow-list; the phone keeps the read-only view. The quota-recovery projection
-of R72 accepts `reset_source:"snapshot"` (FS-01.R59).
+Every agent read and SSE projection, running or stopped, desktop or phone, carries the current
+observation of that agent's quota scope, resolved server-side from its frozen launch selection;
+a change publishes to every agent of the scope. The scope key and routing value are never
+serialized. No refresh route, query parameter or agent tool exists, and reading the projection
+makes no provider call. The quota-recovery projection of R72 accepts `reset_source:"snapshot"`
+(FS-01.R59).
 
 **R86 (planned) — Clone accepts a Chuck turn boundary.** For FS-01.R58, `POST
 /api/sessions/{agent_id}/clone` accepts an optional body `{through_seq, compose_from_seq}`.

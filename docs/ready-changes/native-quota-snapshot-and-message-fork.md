@@ -10,8 +10,8 @@ and edit/fork from an earlier message (held 2026-10-14).
 
 ## Outcome
 
-The chat header shows complete 5-hour and Weekly subscription quota for the running session, with
-Refresh. A person can Edit a sent message or Fork from a reply, each creating a new agent that ends
+Every chat header shows its backend's complete 5-hour and Weekly subscription quota, kept current
+automatically from one shared snapshot per backend. A person can Edit a sent message or Fork from a reply, each creating a new agent that ends
 at that turn. Quota-interrupted work gets a known reset and a turn-free pre-check from the same
 snapshot, with today's recovery kept as the fallback.
 
@@ -20,8 +20,8 @@ snapshot, with today's recovery kept as the fallback.
 Three independently shippable parts; ACP stays the conversation transport.
 
 1. **Quota snapshot** — one small typed passthrough patch per packaged adapter
-   (`_chuck/quota/read`, advertised at initialize), Go normalization, the refresh route and the
-   disclosure's Refresh.
+   (`_chuck/quota/read`, advertised at initialize), Go normalization, and one in-memory snapshot
+   per backend quota scope (backend plus launch routing) that every agent of the scope projects.
 2. **Edit / Fork from here** — record a fork point per completed turn, send it as
    `_meta.jetbrains.air.fork` to a verified adapter version, prove the cut from the fork's replay,
    extend the clone route and add the two desktop message actions.
@@ -30,11 +30,14 @@ Three independently shippable parts; ACP stays the conversation transport.
 
 Operator decisions: quota and edit/fork only (Codex steering, model/effort and system-prompt
 delivery stay on the Wait-list); route through the packaged adapters, an approved exception to the
-standard-ACP-only rule and to the earlier no-patch/no-side-channel bans; Edit always forks; reads at
-session start, each turn end and manual Refresh; recovery uses approved 2026-11-12 with the current
-behavior as fallback. Not included: a native driver replacing either adapter, in-place transcript
-rewrite, file rewind, phone or terminal fork actions, phone Refresh, model-specific or credit
-windows in the view, a timer, and letting a healthy snapshot replace the target-model check.
+standard-ACP-only rule and to the earlier no-patch/no-side-channel bans; Edit always forks;
+recovery uses approved 2026-11-12 with the current behavior as fallback; and, on 2026-11-12, one
+shared snapshot per backend instead of per agent, read automatically at any session start, any
+turn end and once after a reset passes, with no Refresh control. Not included: a native driver
+replacing either adapter, in-place transcript rewrite, file rewind, phone or terminal fork
+actions, any client-triggered read, starting a process to read, persisting the snapshot,
+model-specific or credit windows in the view, polling, and letting a healthy snapshot replace
+the target-model check.
 
 ## How we will know it works
 

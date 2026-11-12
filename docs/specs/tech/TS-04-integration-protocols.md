@@ -1210,10 +1210,15 @@ adapter. Normalization stays in Go under R89: Claude `five_hour`/`seven_day` car
 `windowDurationMins` (300 → `five_hour`, 10080 → `weekly`) with integer `usedPercent` and
 epoch-second `resetsAt` (the pinned adapter's own `resetsAt * 1e3`, `dist/index.js:36196`), and
 any other duration or an out-of-range value is unknown. Claude's model-specific weekly windows
-are decoded for R111 only and are never projected. The runtime issues the call at session-open
-completion, at each root turn settlement and on TS-03.R85's refresh, on the live transport beside
-any in-flight prompt, with one call in flight per session, a 10-second bound and no retry; a
-timeout or RPC error records a bounded reason and keeps the previous observation. The call and
+are decoded for R111 only and are never projected. Observations live in one in-memory store
+keyed by quota scope, the backend id plus R97's frozen routing value (an `unsupported` routing
+is its own unshared scope), replacing R89's per-session hold and its ban on a cross-session
+cache; the store still survives no server restart and is never persisted. The runtime issues the
+call at any session-open completion, at any root turn settlement and once at a stored window's
+reset plus R96's buffer, through any live advertising session of that scope, beside any
+in-flight prompt, with one call in flight per scope (concurrent triggers join it), a 10-second
+bound and no retry; a timeout or RPC error records a bounded reason and keeps the previous
+observation. No client request triggers a call, and no process is started to make one. The call and
 its result create no journal event, activity transition, owner change or context-usage update.
 Each patch follows the existing reviewed-patch assembly (pinned input and output hashes, zero
 fuzz) and ships a contract test run at assembly against the patched bundle, like
@@ -1248,8 +1253,10 @@ supply the latest reset among exhausted applicable windows (100 percent used wit
 reset; Claude family windows under R96's model rule). Immediately before the dispatcher admits a
 due continuation or starts an R97 check, one read may move `due_at` to a strictly later reported
 reset plus the existing buffer, without charging a check; an equal, earlier or past reset changes
-nothing. When the interrupted process is gone, the read runs in R97's isolated process
-composition, opened and closed without the check prompt. Every read is bounded by R109's limit
+nothing. Both reads go through any live session of the interrupted work's quota scope; with
+none, the scope's stored observation is used only if it was read after the interruption, and
+otherwise there is no snapshot evidence. No process is started for a read. Every read is bounded
+by R109's limit
 and every non-success outcome, including unsupported, non-subscription, unknown window and
 conflict with failure evidence, returns "no snapshot evidence" to code paths that are otherwise
 byte-for-byte the shipped R96/R97 and TS-10.R45–R47 behavior; the snapshot can add or postpone a
