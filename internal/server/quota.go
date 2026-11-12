@@ -88,7 +88,7 @@ func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *r
 
 // resetSource keeps only the closed provenance enum of an accepted reset.
 func resetSource(resetAt *time.Time, source string) string {
-	if resetAt == nil || source != "structured" && source != "text" {
+	if resetAt == nil || source != "structured" && source != "text" && source != "snapshot" {
 		return ""
 	}
 	return source

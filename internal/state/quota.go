@@ -67,7 +67,7 @@ type QuotaObservation struct {
 	ObservedAt       time.Time
 	ResetAt          *time.Time
 	DueAt            *time.Time
-	ResetSource      string // "", structured or text
+	ResetSource      string // "", structured, text or snapshot (TS-04.R111)
 	State            string // disabled, unknown_reset, or scheduled
 	// Check asks an unknown_reset observation to schedule the chain's next
 	// isolated check when allowance remains (TS-10.R45).
@@ -217,7 +217,7 @@ func observeQuotaTx(tx *sql.Tx, in QuotaObservation) (QuotaIntent, error) {
 		return QuotaIntent{}, ErrQuotaConflict
 	}
 	if in.ObservedAt.IsZero() || (in.Check && in.State != QuotaUnknownReset) ||
-		(in.ResetSource != "" && in.ResetSource != "structured" && in.ResetSource != "text") {
+		(in.ResetSource != "" && in.ResetSource != "structured" && in.ResetSource != "text" && in.ResetSource != "snapshot") {
 		return QuotaIntent{}, ErrQuotaConflict
 	}
 	if err := validateQuotaOwnerTx(tx, in.Owner); err != nil {
@@ -391,6 +391,19 @@ func (s *Store) DeferQuota(agentID, episode string, revision int64, token string
 		return ErrQuotaConflict
 	}
 	res, err := s.db.Exec(`UPDATE quota_intents SET state='deferred', revision=revision+1, due_at=?, reason_code=?, provider_started=0, updated_at=? WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt_token=? AND provider_started=0`, formatTime(due), reason, formatTime(timeNow()), agentID, episode, revision, token)
+	return quotaCASResult(res, err)
+}
+
+// PostponeQuotaToSnapshotReset returns an unstarted claim to the schedule at a
+// strictly later snapshot reset plus the buffer (TS-04.R111). The next action,
+// check allowance and reason code are unchanged; it only moves the wait.
+func (s *Store) PostponeQuotaToSnapshotReset(agentID, episode string, revision int64, token string, reset time.Time) error {
+	if reset.IsZero() {
+		return ErrQuotaConflict
+	}
+	r := formatTime(reset.UTC())
+	res, err := s.db.Exec(`UPDATE quota_intents SET state='scheduled', revision=revision+1, reset_at=?, due_at=?, reset_source='snapshot', updated_at=? WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt_token=? AND provider_started=0 AND check_started=0 AND (reset_at IS NULL OR reset_at<?)`,
+		r, formatTime(reset.UTC().Add(QuotaResetBuffer)), formatTime(timeNow()), agentID, episode, revision, token, r)
 	return quotaCASResult(res, err)
 }
 

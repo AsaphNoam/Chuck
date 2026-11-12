@@ -281,3 +281,90 @@ func TestQuotaSnapshotArmsOneReadAfterAReset(t *testing.T) {
 		t.Fatal("re-arming the same reset replaced its timer")
 	}
 }
+
+// TestExhaustedQuotaResetAppliesTheWindowRule is FS-01.A41's window rule: the
+// latest reset among exhausted applicable windows; a foreign model family's
+// weekly window is ignored; anything unknown is no evidence.
+func TestExhaustedQuotaResetAppliesTheWindowRule(t *testing.T) {
+	now := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
+	soon, later := "2026-11-12T15:00:00Z", "2026-11-15T09:00:00Z"
+	claude := func(windows string) json.RawMessage {
+		return json.RawMessage(`{"rate_limits_available":true,"rate_limits":{` + windows + `}}`)
+	}
+	at := func(s string) *time.Time { v, _ := time.Parse(time.RFC3339, s); return &v }
+	cases := []struct {
+		name, provider, model string
+		raw                   json.RawMessage
+		want                  *time.Time
+	}{
+		{"exhausted weekly", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":40,"resets_at":"` + soon + `"},"seven_day":{"utilization":100,"resets_at":"` + later + `"}`), at(later)},
+		{"two exhausted use the later", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"seven_day":{"utilization":100,"resets_at":"` + later + `"}`), at(later)},
+		{"foreign family weekly ignored", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"seven_day_opus":{"utilization":100,"resets_at":"` + later + `"}`), at(soon)},
+		{"own family weekly counts", "claude", "claude-opus-4-7", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"seven_day_opus":{"utilization":100,"resets_at":"` + later + `"}`), at(later)},
+		{"nothing exhausted", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":99,"resets_at":"` + soon + `"}`), nil},
+		{"exhausted without reset", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":null}`), nil},
+		{"past reset", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"2026-11-12T09:00:00Z"}`), nil},
+		{"unidentified exhausted window", "claude", "claude-sonnet-4-6", claude(`"five_hour":{"utilization":100,"resets_at":"` + soon + `"},"mystery":{"utilization":100}`), nil},
+		{"no subscription", "claude", "claude-sonnet-4-6", json.RawMessage(`{"rate_limits_available":false,"rate_limits":null}`), nil},
+		{"codex weekly", "codex", "gpt-5.5", json.RawMessage(`{"snapshots":[{"limitId":"codex","primary":{"usedPercent":50,"windowDurationMins":300,"resetsAt":1794500000},"secondary":{"usedPercent":100,"windowDurationMins":10080,"resetsAt":1794900000}}]}`), func() *time.Time { v := time.Unix(1794900000, 0).UTC(); return &v }()},
+		{"codex unknown duration", "codex", "gpt-5.5", json.RawMessage(`{"snapshots":[{"limitId":"codex","primary":{"usedPercent":100,"windowDurationMins":60,"resetsAt":1794500000}}]}`), nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := exhaustedQuotaReset(tc.provider, tc.raw, tc.model, now)
+			if (got == nil) != (tc.want == nil) || got != nil && !got.Equal(*tc.want) {
+				t.Fatalf("reset = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestQuotaSettlementUsesSnapshotResetOnlyWithoutFailureReset: a quota turn
+// whose failure states no reset takes the snapshot's exhausted reset with
+// source snapshot, and the turn still reads once (FS-01.A41, FS-09.A52).
+func TestQuotaSettlementUsesSnapshotResetOnlyWithoutFailureReset(t *testing.T) {
+	reset := time.Now().UTC().Add(30 * time.Hour).Truncate(time.Second)
+	snapshot := `{"rate_limits_available":true,"rate_limits":{"five_hour":{"utilization":20,"resets_at":null},"seven_day":{"utilization":100,"resets_at":"` + reset.Format(time.RFC3339) + `"}}}`
+	failure := quotaFailure("limit:error", 1, "limit", "error")
+	dir := t.TempDir()
+	result, log := filepath.Join(dir, "quota.json"), filepath.Join(dir, "quota.log")
+	if err := os.WriteFile(result, []byte(snapshot), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, h, ch, _ := startQuotaTestAgent(t, "stream_text", "FAKEACP_QUOTA="+result, "FAKEACP_QUOTA_LOG="+log,
+		"FAKEACP_FAILURE_UPDATE="+failure, "FAKEACP_FAILURE_RESULT="+failure)
+	waitQuota(t, c, h.AgentID, checked)
+	mu, calls := recordQuotaSettlement(c)
+	if err := c.SendPrompt(context.Background(), h.AgentID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	drainTurn(t, ch)
+	mu.Lock()
+	got := append([]quotaSettlementCall(nil), *calls...)
+	mu.Unlock()
+	if len(got) != 1 || got[0].quota == nil || got[0].quota.ResetAt == nil || !got[0].quota.ResetAt.Equal(reset) || got[0].quota.ResetSource != "snapshot" {
+		t.Fatalf("settlement = %+v, want snapshot reset %s", got, reset)
+	}
+	time.Sleep(100 * time.Millisecond) // any stray turn-end refresh would land here
+	raw, _ := os.ReadFile(log)
+	if n := strings.Count(string(raw), "\n"); n != 2 {
+		t.Fatalf("reads = %d, want one at open and one for the quota turn", n)
+	}
+}
+
+// TestQuotaSettlementWithoutSnapshotEvidenceIsUnchanged: an unadvertised
+// adapter leaves the reset unknown exactly as before (FS-01.A41 fallback).
+func TestQuotaSettlementWithoutSnapshotEvidenceIsUnchanged(t *testing.T) {
+	failure := quotaFailure("limit:error", 1, "limit", "error")
+	c, h, ch, _ := startQuotaTestAgent(t, "stream_text", "FAKEACP_FAILURE_UPDATE="+failure, "FAKEACP_FAILURE_RESULT="+failure)
+	mu, calls := recordQuotaSettlement(c)
+	if err := c.SendPrompt(context.Background(), h.AgentID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	drainTurn(t, ch)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(*calls) != 1 || (*calls)[0].quota == nil || (*calls)[0].quota.ResetAt != nil || (*calls)[0].quota.ResetSource != "" {
+		t.Fatalf("settlement = %+v, want quota evidence with unknown reset", *calls)
+	}
+}

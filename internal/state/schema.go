@@ -1,6 +1,10 @@
 package state
 
-import "database/sql"
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+)
 
 type migration struct {
 	version int
@@ -952,6 +956,12 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 73,
 		apply:   migrateThinkTankTemplateIdentity,
 	},
+	{
+		// Snapshot-sourced resets (TS-02.R65, TS-04.R111): only the
+		// reset_source check widens; existing rows are copied unchanged.
+		version: 74,
+		apply:   migrateQuotaSnapshotResetSource,
+	},
 }
 
 // addPipelineVisitProvenance follows addPipelineDecisions for a legacy
@@ -1222,5 +1232,30 @@ CREATE TABLE attachment_receipts (
 	_, err := tx.Exec(`DROP TABLE attachment_receipts_v50;
 CREATE INDEX idx_attachment_recovery ON attachment_receipts(agent_id,updated_at)
 WHERE delivery IN ('released','failed') AND dismissed = 0;`)
+	return err
+}
+
+// migrateQuotaSnapshotResetSource rebuilds quota_intents from its own stored
+// definition with reset_source also accepting 'snapshot'; no column, row or
+// index changes (TS-02.R65).
+func migrateQuotaSnapshotResetSource(tx *sql.Tx) error {
+	const oldCheck = `CHECK (reset_source IN ('','structured','text'))`
+	var ddl string
+	if err := tx.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='quota_intents'`).Scan(&ddl); err != nil {
+		return err
+	}
+	if !strings.Contains(ddl, oldCheck) {
+		return fmt.Errorf("state: quota_intents reset_source check not found")
+	}
+	ddl = strings.Replace(ddl, oldCheck, `CHECK (reset_source IN ('','structured','text','snapshot'))`, 1)
+	// Copy through a temporary table rather than renaming: a rename revalidates
+	// every schema reference, which a partial legacy schema can fail.
+	_, err := tx.Exec(`CREATE TEMP TABLE quota_intents_v73 AS SELECT * FROM quota_intents;
+DROP TABLE quota_intents;
+` + ddl + `;
+INSERT INTO quota_intents SELECT * FROM temp.quota_intents_v73;
+DROP TABLE temp.quota_intents_v73;
+CREATE INDEX idx_quota_intents_due ON quota_intents(due_at, agent_id)
+  WHERE state IN ('scheduled','deferred') AND due_at IS NOT NULL;`)
 	return err
 }

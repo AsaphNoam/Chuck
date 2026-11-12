@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
@@ -721,3 +722,12 @@ func (r *Registry) AppendMailNotice(agentID string, data NoticeData) error {
 
 // Journals is the shared per-conversation journal set (TS-01.R39).
 func (r *Registry) Journals() *Journals { return r.chat.Journals() }
+
+// QuotaSnapshotReset reads agentID's scope snapshot for the recovery
+// pre-check (TS-04.R111); nil is "no snapshot evidence".
+func (r *Registry) QuotaSnapshotReset(agentID, modelID string, since time.Time) *time.Time {
+	if r == nil || r.chat == nil {
+		return nil
+	}
+	return r.chat.QuotaSnapshotReset(agentID, modelID, since)
+}

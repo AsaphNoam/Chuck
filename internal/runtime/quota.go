@@ -271,6 +271,17 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 		}
 	}
 	as.mu.Unlock()
+	// TS-04.R111: with no structured or text reset, one snapshot read on this
+	// still-live process may supply the latest exhausted applicable reset. It
+	// stands in for this turn end's ordinary refresh, so the turn reads once.
+	if td.Quota != nil && td.Quota.ResetAt == nil && !td.Quota.Intervention && as.quotaScope != "" {
+		if reset := c.quotaSnapshotReset(as.quotaScope, as, as.quotaSelection.ModelID, time.Now()); reset != nil {
+			td.Quota.ResetAt, td.Quota.ResetSource = reset, "snapshot"
+		}
+		as.mu.Lock()
+		as.quotaReadInTurn = true
+		as.mu.Unlock()
+	}
 	if terminal != nil {
 		// TS-04.R85: safe correlation only, never provider text.
 		slog.Warn("runtime: provider turn failed", "agent", as.agentID, "backend", backendType,

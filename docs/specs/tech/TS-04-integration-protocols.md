@@ -1258,7 +1258,7 @@ callers name a Chuck transcript sequence. A plain Clone sends no fork point and 
 *Why:* this is an operator-approved exception (2026-11-11) to the standard-ACP-only rule, bounded
 by an identity gate and an after-the-fact proof instead of trust in an unadvertised key.
 
-**R111 (planned) — Recovery consults the snapshot only as an optional evidence source.** For
+**R111 (implemented 2026-11-12) — Recovery consults the snapshot only as an optional evidence source.** For
 FS-01.R59, R96's settlement gains a third, lowest-ranked reset source, `snapshot`: after quota
 classification with no structured or text reset, one R109 read on the still-live process may
 supply the latest reset among exhausted applicable windows (100 percent used with a future
@@ -1274,6 +1274,12 @@ conflict with failure evidence, returns "no snapshot evidence" to code paths tha
 byte-for-byte the shipped R96/R97 and TS-10.R45–R47 behavior; the snapshot can add or postpone a
 schedule but cannot cancel one, mark a check ready, or write a reason code. *Why:* the new route
 must be removable without changing recovery outcomes (INV §3/§11).
+*As built 2026-11-12:* settlement reads only when the failure has no reset and no credit/plan/spend
+intervention text, which stays manual; that read stands in for the turn end's refresh, so the turn
+reads once. The pre-check runs in the dispatcher after the claim and before the continuation or
+check starts, via `Store.PostponeQuotaToSnapshotReset`, which compares against the stored reset
+and keeps the next action, allowance and reason. A Codex window of another duration that is
+exhausted, or a Claude exhausted window outside R96's rule, makes the evidence unknown.
 
 **R90 (implemented 2026-10-13) — Use negotiated image input and explicit host-file references.** For
 FS-03.R83, extend the existing runtime prompt value to exact text plus immutable ordered attachment

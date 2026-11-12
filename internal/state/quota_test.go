@@ -2,6 +2,7 @@ package state
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -250,5 +251,76 @@ func TestQuotaDeferralNoticeAndExactTupleClear(t *testing.T) {
 	}
 	if cleared, err := st.ClearQuota(q.AgentID, q.SourceGeneration, q.ExecutingTurn); err != nil || !cleared {
 		t.Fatalf("exact source tuple clear = %v, %v", cleared, err)
+	}
+}
+
+// TestQuotaSnapshotPostponeMovesOnlyToAStrictlyLaterReset is TS-04.R111's
+// pre-check write: a strictly later reset reschedules the unstarted claim with
+// the buffer and source snapshot, keeping the action and reason; an equal or
+// earlier reset changes nothing.
+func TestQuotaSnapshotPostponeMovesOnlyToAStrictlyLaterReset(t *testing.T) {
+	st, _ := newTestStore(t)
+	due := timeNow().Add(-time.Minute).UTC().Truncate(time.Second)
+	q := quotaFixture(t, st, "quota_snapshot", "episode", due)
+	if err := st.ClaimQuota(q.AgentID, q.EpisodeID, q.Revision, "token"); err != nil {
+		t.Fatal(err)
+	}
+	q, _ = st.GetQuota(q.AgentID)
+	if err := st.PostponeQuotaToSnapshotReset(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, *q.ResetAt); !errors.Is(err, ErrQuotaConflict) {
+		t.Fatalf("equal reset postponed: %v", err)
+	}
+	later := timeNow().Add(5 * time.Hour).UTC().Truncate(time.Second)
+	if err := st.PostponeQuotaToSnapshotReset(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, later); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := st.GetQuota(q.AgentID)
+	if got.State != QuotaScheduled || !got.ResetAt.Equal(later) || !got.DueAt.Equal(later.Add(QuotaResetBuffer)) ||
+		got.ResetSource != "snapshot" || got.NextAction != q.NextAction || got.ReasonCode != "" || got.ChecksStarted != q.ChecksStarted {
+		t.Fatalf("postponed intent = %+v", got)
+	}
+}
+
+// TestQuotaSnapshotResetSourceMigrationKeepsRows replays the v74 rebuild on a
+// populated table carrying the old check (TS-02.R65).
+func TestQuotaSnapshotResetSourceMigrationKeepsRows(t *testing.T) {
+	st, _ := newTestStore(t)
+	due := timeNow().Add(time.Hour).UTC().Truncate(time.Second)
+	before := quotaFixture(t, st, "quota_migrated", "episode", due)
+	tx, err := st.db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	// Restore the pre-v74 definition, then run the migration under test.
+	if _, err := tx.Exec(`ALTER TABLE quota_intents RENAME TO quota_intents_new;
+DROP INDEX idx_quota_intents_due;`); err != nil {
+		t.Fatal(err)
+	}
+	var ddl string
+	if err := tx.QueryRow(`SELECT sql FROM sqlite_master WHERE name='quota_intents_new'`).Scan(&ddl); err != nil {
+		t.Fatal(err)
+	}
+	ddl = strings.Replace(ddl, `'snapshot'`, ``, 1)
+	ddl = strings.Replace(ddl, `'text',)`, `'text')`, 1)
+	ddl = strings.Replace(ddl, `"quota_intents_new"`, `quota_intents`, 1)
+	ddl = strings.Replace(ddl, `CREATE TABLE quota_intents_new`, `CREATE TABLE quota_intents`, 1)
+	if _, err := tx.Exec(ddl + `; INSERT INTO quota_intents SELECT * FROM quota_intents_new; DROP TABLE quota_intents_new;
+CREATE INDEX idx_quota_intents_due ON quota_intents(due_at, agent_id) WHERE state IN ('scheduled','deferred') AND due_at IS NOT NULL;`); err != nil {
+		t.Fatalf("restore old table: %v\n%s", err, ddl)
+	}
+	if _, err := tx.Exec(`UPDATE quota_intents SET reset_source='snapshot'`); err == nil {
+		t.Fatal("restored table already accepts snapshot")
+	}
+	if err := migrateQuotaSnapshotResetSource(tx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`UPDATE quota_intents SET reset_source='snapshot' WHERE agent_id=?`, before.AgentID); err != nil {
+		t.Fatalf("migrated table refuses snapshot: %v", err)
+	}
+	var revision int64
+	var episode string
+	if err := tx.QueryRow(`SELECT revision, episode_id FROM quota_intents WHERE agent_id=?`, before.AgentID).Scan(&revision, &episode); err != nil ||
+		revision != before.Revision || episode != before.EpisodeID {
+		t.Fatalf("row after migration = %d %q err=%v", revision, episode, err)
 	}
 }

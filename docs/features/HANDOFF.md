@@ -42,8 +42,16 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   Checks: runtime/state/server/backend Go suites passed (default build); focused quota tests passed
   with `-race`; full UI vitest, tsc and `check:styles` passed; a fixture render showed keyboard
   open in all three appearances.
-- **Next: slice 3, recovery use (TS-04.R111, TS-02.R65 migration, FS-01.R59/A41)**, then
-  **slice 2, Edit / Fork from here** (TS-04.R110, TS-03.R86, TS-02.R65 fork point,
+- **Slice 3 done — recovery use (FS-01.R59, TS-04.R111, TS-02.R65 migration 74).** Settlement
+  snapshot evidence in `runtime/quota.go`; window rule `exhaustedQuotaReset`; pre-check
+  `Server.postponeToSnapshotReset` + `Store.PostponeQuotaToSnapshotReset`. Review note: an
+  intervention-text failure never consults the snapshot (stays manual). Tests: runtime window
+  table/settlement (`-race`), state postpone + migration replay, server
+  `TestQuotaSnapshotSchedulesAndPostponesRecovery`. A41's full A31–A34 rerun with a failing
+  snapshot is covered only by the unchanged existing recovery suites (no snapshot advertised).
+  Migration 74 rebuilds `quota_intents` via a temp copy; the v47 legacy fixture gained the
+  `agents` table every real database has. State suites pass under both SQLite variants.
+- **Next: slice 2, Edit / Fork from here** (TS-04.R110, TS-03.R86, TS-02.R65 fork point,
   TS-08.R162 actions, FS-01.R58/A40).
 - **Owed at closure:** `make test` (both variants), `make build`; phone browser journey for A49;
   live packaged receipts listed under acceptance gates.

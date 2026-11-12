@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,10 +35,13 @@ type quotaStore struct {
 }
 
 type quotaScope struct {
-	snap     state.SubscriptionQuota
-	inflight bool
-	resetAt  time.Time // armed post-reset read, zero when none
-	timer    *time.Timer
+	snap state.SubscriptionQuota
+	// call is the read in flight, joined by concurrent triggers; last is the
+	// latest successful read, kept raw for recovery evidence (TS-04.R111).
+	call    *quotaCall
+	last    *quotaCall
+	resetAt time.Time // armed post-reset read, zero when none
+	timer   *time.Timer
 }
 
 func newQuotaStore() *quotaStore {
@@ -166,21 +170,36 @@ func (c *ChatRuntime) refreshQuota(key string) {
 	if key == "" {
 		return
 	}
-	reader := c.quotaReader(key)
-	if reader == nil {
-		return
+	if reader := c.quotaReader(key); reader != nil {
+		c.startQuotaCall(key, reader)
 	}
+}
+
+// quotaCall is one bounded read of a scope; done closes when it settles.
+type quotaCall struct {
+	done chan struct{}
+	raw  json.RawMessage
+	err  error
+	at   time.Time
+}
+
+// startQuotaCall returns the scope's in-flight read, or starts one through
+// reader. Nil when the scope is unknown.
+func (c *ChatRuntime) startQuotaCall(key string, reader *agentState) *quotaCall {
 	q := c.quota
 	q.mu.Lock()
+	defer q.mu.Unlock()
 	sc := q.scopes[key]
-	if sc == nil || sc.inflight {
-		q.mu.Unlock()
-		return
+	if sc == nil {
+		return nil
 	}
-	sc.inflight = true
-	provider, timeout := sc.snap.Provider, q.timeout
-	q.mu.Unlock()
-	go c.readQuota(key, provider, reader, timeout)
+	if sc.call != nil {
+		return sc.call
+	}
+	call := &quotaCall{done: make(chan struct{})}
+	sc.call = call
+	go c.readQuota(key, sc.snap.Provider, reader, q.timeout, call)
+	return call
 }
 
 // quotaReader picks a live, advertising session of the scope.
@@ -195,7 +214,7 @@ func (c *ChatRuntime) quotaReader(key string) *agentState {
 	return nil
 }
 
-func (c *ChatRuntime) readQuota(key, provider string, as *agentState, timeout time.Duration) {
+func (c *ChatRuntime) readQuota(key, provider string, as *agentState, timeout time.Duration, call *quotaCall) {
 	as.mu.Lock()
 	sessionID := as.sessionID
 	as.mu.Unlock()
@@ -203,11 +222,16 @@ func (c *ChatRuntime) readQuota(key, provider string, as *agentState, timeout ti
 	res, err := as.transport.Call(ctx, quotaReadMethod, map[string]any{"sessionId": sessionID})
 	cancel()
 	now := time.Now().UTC()
+	call.raw, call.err, call.at = res, err, now
+	defer close(call.done)
 
 	q := c.quota
 	q.mu.Lock()
 	sc := q.scopes[key]
-	sc.inflight = false
+	sc.call = nil
+	if err == nil {
+		sc.last = call
+	}
 	if err != nil {
 		// Keep the previous observation; the reason marks it stale.
 		sc.snap.ReasonCode = state.QuotaReasonReadFailed
@@ -371,4 +395,144 @@ func (p *codexQuotaWindowPayload) window(now time.Time) state.SubscriptionQuotaW
 		w.ResetAt = time.Unix(*r, 0).UTC().Format(time.RFC3339)
 	}
 	return w
+}
+
+// quotaSnapshotReset is TS-04.R111's optional evidence: the latest reset among
+// the scope's exhausted windows applicable to modelID, or nil for "no snapshot
+// evidence". It reads through via when it advertises the read, else through
+// any live session of the scope; with none, only a stored read made after
+// since counts. No process is started.
+func (c *ChatRuntime) quotaSnapshotReset(key string, via *agentState, modelID string, since time.Time) *time.Time {
+	if key == "" {
+		return nil
+	}
+	reader := via
+	if reader == nil || !reader.quotaRead {
+		reader = c.quotaReader(key)
+	}
+	var raw json.RawMessage
+	if reader != nil {
+		call := c.startQuotaCall(key, reader)
+		if call == nil {
+			return nil
+		}
+		<-call.done // bounded by the read timeout
+		if call.err != nil {
+			return nil
+		}
+		raw = call.raw
+	} else {
+		c.quota.mu.Lock()
+		if sc := c.quota.scopes[key]; sc != nil && sc.last != nil && sc.last.at.After(since) {
+			raw = sc.last.raw
+		}
+		c.quota.mu.Unlock()
+		if raw == nil {
+			return nil
+		}
+	}
+	return exhaustedQuotaReset(quotaProviderOfKey(c, key), raw, modelID, time.Now().UTC())
+}
+
+func quotaProviderOfKey(c *ChatRuntime, key string) string {
+	c.quota.mu.Lock()
+	defer c.quota.mu.Unlock()
+	if sc := c.quota.scopes[key]; sc != nil {
+		return sc.snap.Provider
+	}
+	return ""
+}
+
+// QuotaSnapshotReset is quotaSnapshotReset for agentID's scope, for the
+// recovery pre-check (TS-04.R111).
+func (c *ChatRuntime) QuotaSnapshotReset(agentID, modelID string, since time.Time) *time.Time {
+	c.quota.mu.Lock()
+	key := c.quota.agents[agentID]
+	c.quota.mu.Unlock()
+	return c.quotaSnapshotReset(key, nil, modelID, since)
+}
+
+// exhaustedQuotaReset applies R96's window rule to one raw read: ordinary
+// windows apply to every model, a Claude model-specific weekly window only to
+// that family. Any applicable exhausted window without a future reset, or an
+// exhausted window that cannot be identified, makes the evidence unknown.
+func exhaustedQuotaReset(provider string, raw json.RawMessage, modelID string, now time.Time) *time.Time {
+	var latest *time.Time
+	exhausted := func(used *float64, reset time.Time, known bool) bool {
+		if used == nil || *used < 100 {
+			return true
+		}
+		if !known || !reset.After(now) {
+			return false
+		}
+		if latest == nil || reset.After(*latest) {
+			latest = &reset
+		}
+		return true
+	}
+	switch provider {
+	case "claude":
+		var body struct {
+			Available  bool                                 `json:"rate_limits_available"`
+			RateLimits map[string]*claudeQuotaWindowPayload `json:"rate_limits"`
+		}
+		if json.Unmarshal(raw, &body) != nil || !body.Available {
+			return nil
+		}
+		model := strings.ToLower(modelID)
+		for name, w := range body.RateLimits {
+			if w == nil {
+				continue
+			}
+			switch name {
+			case "five_hour", "seven_day":
+			case "seven_day_opus", "seven_day_sonnet":
+				if model == "" || !strings.Contains(model, strings.TrimPrefix(name, "seven_day_")) {
+					continue
+				}
+			default:
+				if w.Utilization != nil && *w.Utilization >= 100 {
+					return nil // an exhausted window that cannot be shown applicable
+				}
+				continue
+			}
+			var reset time.Time
+			known := false
+			if w.ResetsAt != nil {
+				if t, err := time.Parse(time.RFC3339, *w.ResetsAt); err == nil {
+					reset, known = t.UTC(), true
+				}
+			}
+			if !exhausted(w.Utilization, reset, known) {
+				return nil
+			}
+		}
+	case "codex":
+		var body struct {
+			Snapshots []struct {
+				Primary   *codexQuotaWindowPayload `json:"primary"`
+				Secondary *codexQuotaWindowPayload `json:"secondary"`
+			} `json:"snapshots"`
+		}
+		if json.Unmarshal(raw, &body) != nil || len(body.Snapshots) == 0 {
+			return nil
+		}
+		for _, w := range []*codexQuotaWindowPayload{body.Snapshots[0].Primary, body.Snapshots[0].Secondary} {
+			if w == nil || w.UsedPercent == nil || *w.UsedPercent < 100 {
+				continue
+			}
+			if w.WindowDurationMins == nil || (*w.WindowDurationMins != 300 && *w.WindowDurationMins != 10080) {
+				return nil
+			}
+			var reset time.Time
+			known := w.ResetsAt != nil && *w.ResetsAt > 0
+			if known {
+				reset = time.Unix(*w.ResetsAt, 0).UTC()
+			}
+			if !exhausted(w.UsedPercent, reset, known) {
+				return nil
+			}
+		}
+	}
+	return latest
 }

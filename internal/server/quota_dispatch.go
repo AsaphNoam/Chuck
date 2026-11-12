@@ -32,6 +32,9 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 		}
 		go func(q state.QuotaIntent) {
 			defer func() { <-s.quotaStartSlots }()
+			if s.postponeToSnapshotReset(q) {
+				return
+			}
 			if q.NextAction == state.QuotaActionCheck {
 				s.runQuotaCheck(ctx, q)
 				return
@@ -294,4 +297,32 @@ func (s *Server) beginQuotaRoomTurn(q state.QuotaIntent, generation, turn string
 	}
 	s.beginThinkTankCapture(q.AgentID, a, name, project)
 	return a, nil
+}
+
+// postponeToSnapshotReset is TS-04.R111's pre-check: immediately before a
+// claimed continuation or check starts, a fresh snapshot that still reports an
+// applicable window exhausted with a strictly later reset moves the wait there,
+// charging no check and waking nothing. Any other outcome changes nothing.
+func (s *Server) postponeToSnapshotReset(q state.QuotaIntent) bool {
+	spec, err := s.quotaCheckSpec(q.AgentID)
+	if err != nil {
+		return false
+	}
+	reset := s.registry.QuotaSnapshotReset(q.AgentID, spec.ModelID, q.ObservedAt)
+	if reset == nil || (q.ResetAt != nil && !reset.After(*q.ResetAt)) {
+		return false
+	}
+	if err := s.stateStore.PostponeQuotaToSnapshotReset(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, *reset); err != nil {
+		if !errors.Is(err, state.ErrQuotaConflict) {
+			s.log.Error("postpone quota continuation to snapshot reset", "err", err)
+		}
+		return false
+	}
+	_, _ = s.stateMgr.Touch(q.AgentID)
+	if q.Owner.Kind == "room" {
+		if detail, err := s.stateStore.ReadThinkTank(q.Owner.RoomID); err == nil {
+			s.publishThinkTankUpdate(detail)
+		}
+	}
+	return true
 }

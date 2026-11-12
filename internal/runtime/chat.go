@@ -247,11 +247,14 @@ type agentState struct {
 	backendID  string
 	quotaRead  bool
 	quotaScope string
-	cmd        *exec.Cmd
-	pgid       int
-	sessionID  string
-	transport  *Transport
-	adapter    backend.BackendAdapter
+	// quotaReadInTurn marks a turn whose quota settlement already read the
+	// snapshot (TS-04.R111); guarded by mu.
+	quotaReadInTurn bool
+	cmd             *exec.Cmd
+	pgid            int
+	sessionID       string
+	transport       *Transport
+	adapter         backend.BackendAdapter
 	// configOptions is the live session's configuration advertisement, kept
 	// current by every set_config_option response because a model change rebuilds
 	// it (TS-04.R46). Guarded by mu, like every other live session field.
@@ -1296,8 +1299,15 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) 
 	// Keep the gate until terminal subscribers have settled this owner. A racing
 	// Send cannot start a successor before the room completion callback returns.
 	c.emitIn(as, activityScope{TurnID: turnID}, EvTurnEnd, td)
-	// Every root turn end refreshes the scope snapshot (FS-09.R83).
-	c.refreshQuota(as.quotaScope)
+	// Every root turn end refreshes the scope snapshot once (FS-09.R83); a
+	// quota settlement that already read it stands in for this refresh.
+	as.mu.Lock()
+	readInTurn := as.quotaReadInTurn
+	as.quotaReadInTurn = false
+	as.mu.Unlock()
+	if !readInTurn {
+		c.refreshQuota(as.quotaScope)
+	}
 	as.mu.Lock()
 	as.execTurnID = ""
 	as.releaseTurnToolInputsLocked("")

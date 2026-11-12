@@ -343,7 +343,7 @@ orphaned processes.
   cannot. A small successful check does not guarantee that the original larger request fits the
   available quota. Checks can consume normal provider usage and are not free passive reads.
   Explicit provider errors requiring credits, a plan change or spend-cap intervention stay manual.
-- **R59 (planned; confirmed 2026-11-12)** — **A provider quota snapshot sharpens recovery and
+- **R59 (implemented 2026-11-12)** — **A provider quota snapshot sharpens recovery and
   never replaces it.** After R40 establishes quota exhaustion, Chuck may read FS-09.R83's snapshot
   for the interrupted work's own provider, account and model, without waking, prompting or
   appending to the interrupted conversation. It is used in exactly three ways. **Known reset:**
