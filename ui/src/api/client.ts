@@ -268,6 +268,15 @@ export function cloneAgent(agentId: string) {
   );
 }
 
+/** Clones an agent ending at a chosen completed turn: Fork from here, or Edit
+ * with the next message's text returned for the new composer (TS-03.R86). */
+export function cloneAgentAt(agentId: string, at: { through_seq: number; compose_from_seq?: number }) {
+  return json<{ agent: { agent_id: string }; forked_from_seq: number; compose_text?: string }>(
+    `/api/sessions/${agentId}/clone`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(at) },
+  );
+}
+
 /** Asks the runtime to stop one background task. 202 means accepted; the
  * durable task-state event that follows is the terminal truth (TS-03.R44). */
 export function stopBackgroundTask(agentId: string, taskId: string, activityId?: string) {

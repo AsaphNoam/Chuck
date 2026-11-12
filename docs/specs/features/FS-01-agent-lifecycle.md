@@ -151,7 +151,7 @@ orphaned processes.
   of remaining on the source card. The client routes only after the fork response returns the new
   `agent_id`; a refused or failed clone leaves the person on the source surface and exposes the
   existing actionable error.
-- **R58 (planned)** — **Edit a sent message or fork from a reply.** In a desktop chat
+- **R58 (implemented 2026-11-12; packaged live receipts owed)** — **Edit a sent message or fork from a reply.** In a desktop chat
   conversation, each message the person sent offers **Edit**, and the last reply of each completed
   turn offers **Fork from here**. Both create a new agent exactly as R36's Clone does (same
   configured identity, R39's name, a fork marker linking back, R38's navigation, source agent and

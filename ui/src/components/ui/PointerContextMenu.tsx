@@ -10,7 +10,8 @@ export const MenuPortalContext = createContext<HTMLElement | null>(null);
 export type PointerMenuState = {
   x: number;
   y: number;
-  actions: Array<{ label: string; select: () => void }>;
+  /** A disabled action shows its reason as the item's accessible description. */
+  actions: Array<{ label: string; select: () => void; disabled?: boolean; description?: string }>;
 };
 
 export function PointerContextMenu({ menu, onClose }: { menu: PointerMenuState | null; onClose: () => void }) {
@@ -42,6 +43,9 @@ export function PointerContextMenu({ menu, onClose }: { menu: PointerMenuState |
           key={action.label}
           type="button"
           data-slot="item"
+          disabled={action.disabled}
+          title={action.description}
+          aria-description={action.description}
           onClick={() => {
             action.select();
             onClose();

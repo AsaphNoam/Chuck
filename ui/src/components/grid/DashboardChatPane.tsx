@@ -29,6 +29,7 @@ export function DashboardChatPane({ agent }: { agent: AgentState }) {
         agentId={agent.agent_id}
         events={events}
         sourceActive={!agent.archived}
+        forkActionsEnabled={agent.interface === "chat" && !agent.archived}
         busy={agent.state === "busy"}
         onOpenFile={openOnAgentScreen}
         taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)}

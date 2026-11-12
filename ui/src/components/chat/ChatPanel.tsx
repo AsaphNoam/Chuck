@@ -415,7 +415,7 @@ function AgentPanel({ id }: { id: string }) {
         </Tabs.List>
         <Tabs.Content value="transcript" className="chat-tab-content" data-slot="content">
           {search.notice}
-          <TranscriptView agentId={id} events={events} sourceActive={!agent.archived} annotationsEnabled={agent.interface === "chat"} busy={agent.state === "busy"} fileTabs={fileTabs} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} searchReveal={search.reveal} readingSearch={search.requested} panelSlots={panelSlots} />
+          <TranscriptView agentId={id} events={events} sourceActive={!agent.archived} annotationsEnabled={agent.interface === "chat"} forkActionsEnabled={agent.interface === "chat" && !agent.archived} busy={agent.state === "busy"} fileTabs={fileTabs} onOpenFile={openFileInViewer} taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)} reveal={reveal} searchReveal={search.reveal} readingSearch={search.requested} panelSlots={panelSlots} />
         </Tabs.Content>
         <Tabs.Content value="files" className="chat-tab-content" data-slot="content">
           <FilesTab agentId={id} onReveal={revealInTranscript} onOpenFile={openFileInViewer} />

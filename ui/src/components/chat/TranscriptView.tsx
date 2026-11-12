@@ -8,6 +8,8 @@ import { claimWebLink } from "../../lib/linkActions";
 import { openFileInBrowser } from "../../api/client";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Button } from "../ui";
+import { forkActionFor, type ForkAction } from "./forkActions";
+import { ForkConfirmDialog } from "./ForkConfirmDialog";
 import { AssistantText } from "./renderers/AssistantText";
 import { AssistantImageRow, MessageAttachments } from "./AttachmentView";
 import { DiffBlock } from "./renderers/DiffBlock";
@@ -48,7 +50,7 @@ import { useQueryClient } from "@tanstack/react-query";
 // which is that pane's existing route to the full surface (FS-03.R53).
 // The desktop composer owns background-task control; transcripts stay read-only.
 // reveal names an event the caller is about to scroll to; a fresh object per request.
-export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, busy = false, fileTabs, onOpenFile, reveal = null, searchReveal = null, readingSearch = false, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; busy?: boolean; fileTabs?: FileTabRoute; onOpenFile?: (link: FileLink | null) => void; taskControl?: boolean; reveal?: { seq: number } | null; searchReveal?: SearchReveal | null; readingSearch?: boolean; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
+export function TranscriptView({ agentId, events, sourceActive = false, annotationsEnabled = true, forkActionsEnabled = false, busy = false, fileTabs, onOpenFile, reveal = null, searchReveal = null, readingSearch = false, inlineDiffs = false, panelSlots }: { agentId: string; events: TranscriptEvent[]; sourceActive?: boolean; annotationsEnabled?: boolean; forkActionsEnabled?: boolean; busy?: boolean; fileTabs?: FileTabRoute; onOpenFile?: (link: FileLink | null) => void; taskControl?: boolean; reveal?: { seq: number } | null; searchReveal?: SearchReveal | null; readingSearch?: boolean; inlineDiffs?: boolean; panelSlots?: PanelSlots }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(!readingSearch);
@@ -86,7 +88,10 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   // Annotating is a right-click action on the event under the pointer: it captures the
   // highlighted text when there is a selection inside that event, otherwise the whole event.
   const openMenu = (mouse: MouseEvent<HTMLDivElement>, event: TranscriptEvent) => {
-    if (!annotationsEnabled || !canAnnotate(event)) return;
+    const annotatable = annotationsEnabled && canAnnotate(event);
+    // Edit / Fork from here belong to the desktop chat only (FS-01.R58).
+    const fork = forkActionsEnabled ? forkActionFor(events, event, cloneAffordance) : null;
+    if (!annotatable && !fork) return;
     const selected = selectionWithin(mouse.currentTarget);
     mouse.preventDefault();
     const draft = eventDraft(event, selected);
@@ -95,11 +100,19 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
       y: mouse.clientY,
       label: selected ? "Annotate selection" : "Annotate whole event",
       copy: selected ? () => copyText(selected, pushError) : undefined,
-      annotate: () => addAnnotation(agentId, draft),
+      annotate: annotatable ? () => addAnnotation(agentId, draft) : undefined,
       link: claimWebLink(mouse),
       onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
+      fork: fork ? [{
+        label: fork.label,
+        disabled: !fork.available,
+        description: fork.available ? undefined : fork.reason,
+        select: () => { if (fork.available) setForkConfirm(fork); },
+      }] : undefined,
     });
   };
+  const [forkConfirm, setForkConfirm] = useState<ForkAction | null>(null);
+  const cloneAffordance = useAgentStore((state) => state.agents[agentId]?.clone);
 
   // Only a move toward older content leaves the bottom. A row whose height
   // settles after render (a diagram, an image) grows the list, and the browser's
@@ -250,6 +263,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
         onReturnFocus={() => scrollRef.current?.focus()}
       />
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
+      {forkActionsEnabled && <ForkConfirmDialog agentId={agentId} action={forkConfirm} onClose={() => setForkConfirm(null)} />}
     </div></SearchPassageContext.Provider>
   );
 }

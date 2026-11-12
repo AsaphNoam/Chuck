@@ -29,42 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**[Native quota snapshot and fork from a message](../ready-changes/native-quota-snapshot-and-message-fork.md)**
-— in progress since 2026-11-12.
-
-- **Slice 1 done — quota snapshot (FS-09.R80/R83, TS-04.R109, TS-03.R85, TS-08.R162 quota half).**
-  Patches `scripts/release/patches/*-quota-read.patch` with contract tests
-  `test-{claude,codex}-quota-read-patch.mjs`; assembly chains the hashes and reports `+chuck.2`.
-  Go store `internal/runtime/quota_snapshot.go` (reads at open, root turn end and once after a
-  reset; one in flight per scope; 10 s bound); stopped scope via `Server.quotaScope`; projection
-  through `state.Manager.SetSubscriptionQuotaProvider`. UI `SubscriptionQuotaDisclosure` in the
-  desktop header and phone `AgentScreen`. Fake adapter: `FAKEACP_QUOTA*`.
-  Checks: runtime/state/server/backend Go suites passed (default build); focused quota tests passed
-  with `-race`; full UI vitest, tsc and `check:styles` passed; a fixture render showed keyboard
-  open in all three appearances.
-- **Slice 3 done — recovery use (FS-01.R59, TS-04.R111, TS-02.R65 migration 74).** Settlement
-  snapshot evidence in `runtime/quota.go`; window rule `exhaustedQuotaReset`; pre-check
-  `Server.postponeToSnapshotReset` + `Store.PostponeQuotaToSnapshotReset`. Review note: an
-  intervention-text failure never consults the snapshot (stays manual). Tests: runtime window
-  table/settlement (`-race`), state postpone + migration replay, server
-  `TestQuotaSnapshotSchedulesAndPostponesRecovery`. A41's full A31–A34 rerun with a failing
-  snapshot is covered only by the unchanged existing recovery suites (no snapshot advertised).
-  Migration 74 rebuilds `quota_intents` via a temp copy; the v47 legacy fixture gained the
-  `agents` table every real database has. State suites pass under both SQLite variants.
-- **Slice 2 backend done — fork points (TS-04.R110, TS-03.R86, TS-02.R65).** Runtime records a
-  `ForkPoint` on each root turn_end (`Event.ForkPoint`, json:"-"; persisted only by the
-  transcript `record` wrapper); `openFork` gates on the verified list, sends
-  `_meta.jetbrains.air.fork`, loads the fork and checks the replay fingerprint. Server:
-  `internal/server/fork_point.go` (affordance on transcript reads and live turn_end, clone body,
-  `compose_text`). Tests: `internal/server/fork_point_test.go`; fake `numbered_turns`,
-  `FAKEACP_FORK_WRONG_CUT`, `FAKEACP_AGENT_NAME/VERSION`.
-- **Next: slice 2 UI** — desktop **Edit** on person messages and **Fork from here** on a
-  completed turn's last reply (TS-08.R162, FS-01.R58/A40): enabled when `agent.clone.available`
-  and the turn end's `fork.available`; Edit uses the turn end before the message (first message:
-  unavailable); `ConfirmDialog` with the file caveat; clone body; follow Clone navigation; seed
-  `compose_text` into the draft store; nothing on phone/terminal.
-- **Owed at closure:** `make test` (both variants), `make build`; phone browser journey for A49;
-  live packaged receipts listed under acceptance gates.
+None.
 
 ## Acceptance gates still owed
 
@@ -261,6 +226,24 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   switch shows it above the composer.
 
 ## Review queue
+
+- **QUOTA-FORK — native quota snapshot and fork from a message (2026-11-12).** Change file
+  [native-quota-snapshot-and-message-fork](../ready-changes/native-quota-snapshot-and-message-fork.md);
+  FS-09.R80/R83, FS-01.R58/R59, TS-04.R109–R111, TS-03.R85–R86, TS-02.R65, TS-08.R162.
+  Quota: adapter patches `scripts/release/patches/*-quota-read.patch` (+ contract tests, `+chuck.2`),
+  `internal/runtime/quota_snapshot.go`, `Server.quotaScope`, `SubscriptionQuotaDisclosure`.
+  Recovery: settlement evidence in `runtime/quota.go`, `exhaustedQuotaReset`,
+  `Server.postponeToSnapshotReset`, migration 74. Fork: `runtime/fork.go` (`ForkPoint`,
+  `openFork` gate/proof), transcript `record` wrapper, `internal/server/fork_point.go`,
+  `forkActionFor`/`ForkConfirmDialog`. Review notes: intervention-text failures never consult the
+  snapshot; a stopped agent's scope is resolved once per server process from its resume
+  selection; a fork point forces a proof-only `session/load` on Codex; `messageOccurrence` is not
+  sent; the actions live in the existing right-click message menu; the v47 legacy test fixture
+  gained an `agents` table. Not rendered: the fork-action journey (J7) and the phone quota view.
+  Closure checks at the final edit (2026-11-12): `make check-specs`; Go suites under both variants
+  (`GOFLAGS=-p=1`, default and `sqlite_fts5`, all packages; the server package rerun after the
+  quota-dispatch transcript test learned to drop the read-only `fork` marker); `make build`; UI
+  `tsc`, full vitest, `check:styles` and `npm run build`. Not run: `make dist`, hosted CI.
 
 - **MAIL-DETAIL — expandable agent mail in transcript activity (`a44abd23`).** Independent review
   found defects. Fix the grouped findings below before closing the unit.

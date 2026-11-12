@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2182,7 +2182,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Verify with FS-06.A33: grouping and matching tests that include parallel same-tool calls and
   unmatched records, component tests for each direction, and the phone check (INV §2/§10).
 
-- **R162 (planned) — Message fork actions and the quota view reuse existing controls.** For
+- **R162 (implemented 2026-11-12) — Message fork actions and the quota view reuse existing controls.** For
   FS-01.R58, desktop chat adds **Edit** to the person's message actions and **Fork from here** to
   the last reply of a completed turn, enabled only from TS-03.R86's server-computed
   `fork.available`; a disabled action shows the server's reason as its accessible description.
@@ -2195,6 +2195,11 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   primitive, token, motion or preference is added. Verify with FS-01.A40 and FS-09.A52:
   component tests for each enabled/disabled reason and the confirm/cancel paths, and the rendered
   desktop journey in all supported appearances (INV §10).
+  *As built 2026-11-12:* both actions are items in the transcript's existing right-click message
+  menu beside Copy and Annotate (`forkActionFor`, `ForkConfirmDialog`), on the agent page and the
+  dashboard chat pane; `PointerContextMenu` items gained `disabled` and an accessible description.
+  The quota disclosure is a native `<details>` with a `<meter>` per known window, rendered in
+  the presentation fixture; the rendered fork-action journey is still owed.
 
 ## 3. Interfaces & data shapes
 
