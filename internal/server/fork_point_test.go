@@ -110,12 +110,18 @@ func TestForkFromHereAndEditEndAtTheChosenTurn(t *testing.T) {
 		if ev.Seq > ends[1].Seq && ev.Type != runtime.EvForkBoundary && ev.Type != runtime.EvSessionMeta {
 			t.Fatalf("fork copied past the chosen turn: %+v", ev)
 		}
-		if ev.ForkPoint != nil {
+		if ev.ForkPoint != nil && *ev.ForkPoint != (runtime.ForkPoint{Copied: true}) {
 			t.Fatalf("copied event keeps the source's fork point: %+v", ev)
 		}
 	}
 	if got := rootTurnEnds(copied); len(got) != 2 {
 		t.Fatalf("fork holds %d turns, want 2", len(got))
+	}
+	// A copied turn says it was copied, not that it predates forking.
+	for _, end := range rootTurnEnds(readTranscriptAPI(t, base, out.Agent.AgentID)) {
+		if end.Fork == nil || end.Fork.Available || end.Fork.Reason != runtime.ForkReasonCopiedTurn {
+			t.Fatalf("copied turn affordance = %+v", end.Fork)
+		}
 	}
 
 	// Edit the third message: ends after turn 2 with that text, unsent.
@@ -145,19 +151,22 @@ func TestForkRefusalsLeaveNoPartialAgent(t *testing.T) {
 	ends := rootTurnEnds(readTranscriptAPI(t, base, src))
 	before, _ := srv.stateStore.ListAgents()
 	cases := []struct {
-		name string
-		body map[string]int64
-		want int
+		name   string
+		body   map[string]int64
+		want   int
+		reason string
 	}{
-		{"no fork point", map[string]int64{"through_seq": ends[0].Seq}, http.StatusUnprocessableEntity},
-		{"not a turn end", map[string]int64{"through_seq": ends[1].Seq - 1}, http.StatusUnprocessableEntity},
-		{"compose without boundary", map[string]int64{"compose_from_seq": 3}, http.StatusUnprocessableEntity},
-		{"compose not the next message", map[string]int64{"through_seq": ends[1].Seq, "compose_from_seq": ends[2].Seq}, http.StatusUnprocessableEntity},
-		{"replay proof fails", map[string]int64{"through_seq": ends[1].Seq}, http.StatusUnprocessableEntity},
+		{"no fork point", map[string]int64{"through_seq": ends[0].Seq}, http.StatusUnprocessableEntity, runtime.ForkReasonNoForkPoint},
+		{"not a turn end", map[string]int64{"through_seq": ends[1].Seq - 1}, http.StatusUnprocessableEntity, ""},
+		{"compose without boundary", map[string]int64{"compose_from_seq": 3}, http.StatusUnprocessableEntity, ""},
+		// Any message but the one that began the next turn, such as one sent
+		// while the agent was working, is refused with its reason.
+		{"compose not the next message", map[string]int64{"through_seq": ends[1].Seq, "compose_from_seq": ends[2].Seq}, http.StatusUnprocessableEntity, runtime.ForkReasonInjectedMessage},
+		{"replay proof fails", map[string]int64{"through_seq": ends[1].Seq}, http.StatusUnprocessableEntity, ""},
 	}
 	for _, tc := range cases {
 		resp, body := post(t, base+"/api/sessions/"+src+"/clone", tc.body)
-		if resp.StatusCode != tc.want {
+		if resp.StatusCode != tc.want || !strings.Contains(string(body), tc.reason) {
 			t.Fatalf("%s = %d %s", tc.name, resp.StatusCode, body)
 		}
 		waitStatus(t, srv, src, "idle")
@@ -186,6 +195,7 @@ func TestForkAffordanceReasons(t *testing.T) {
 		{"switched session", runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ForkPoint: point("s0", "@agentclientprotocol/codex-acp", "2.1.1")}, runtime.ForkReasonOtherSession},
 		{"unverified version", runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ForkPoint: point("s1", "@agentclientprotocol/codex-acp", "2.2.0")}, runtime.ForkReasonUnverifiedAdapter},
 		{"no fork point", runtime.Event{Type: runtime.EvTurnEnd, Data: ended}, runtime.ForkReasonNoForkPoint},
+		{"copied turn", runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ForkPoint: &runtime.ForkPoint{Copied: true}}, runtime.ForkReasonCopiedTurn},
 	}
 	for _, tc := range cases {
 		got := forkAffordance(tc.ev, "s1")

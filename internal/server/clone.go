@@ -108,7 +108,7 @@ func (s *Server) cloneAgent(ctx context.Context, sourceID string, req cloneReque
 			}
 			text, ok := composeTextAfter(after, boundary.Seq, req.ComposeFromSeq)
 			if !ok {
-				return cloneResponse{}, apiError(runtime.CodeValidation, "compose_from_seq must name the message that began the next turn")
+				return cloneResponse{}, cloneUnavailable(runtime.ForkReasonInjectedMessage)
 			}
 			composeText = text
 		}

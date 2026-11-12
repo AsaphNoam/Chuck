@@ -47,14 +47,14 @@ describe("forkActionFor (FS-01.R58)", () => {
   });
 });
 
-function renderChat(forkActionsEnabled = true) {
+function renderChat(forkActionsEnabled = true, transcript = events) {
   useAgentStore.setState({ agents: { a1: { agent_id: "a1", clone: ok } as never } });
   const queries = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
   return render(
     <QueryClientProvider client={queries}>
       <MemoryRouter initialEntries={["/agent/a1"]}>
         <Routes>
-          <Route path="/agent/a1" element={<TranscriptView agentId="a1" events={events} forkActionsEnabled={forkActionsEnabled} />} />
+          <Route path="/agent/a1" element={<TranscriptView agentId="a1" events={transcript} forkActionsEnabled={forkActionsEnabled} />} />
           <Route path="/agent/:id" element={<p>opened new agent</p>} />
         </Routes>
       </MemoryRouter>
@@ -95,6 +95,25 @@ describe("Edit and Fork from here in the desktop transcript (TS-08.R162)", () =>
     const edit = screen.getByRole("button", { name: "Edit" });
     expect(edit).toBeDisabled();
     expect(edit).toHaveAttribute("aria-description", "No fork point.");
+  });
+
+  it("disables Edit on a message sent while the agent was working, before anything is sent", () => {
+    const clone = vi.spyOn(client, "cloneAgentAt");
+    // "also" was injected into the running third turn as an ordinary root message.
+    const injected: TranscriptEvent[] = [
+      ...events.slice(0, 8),
+      { kind: "user_text", seq: 9, text: "also" },
+      { kind: "assistant_text", seq: 10, text: "reply three" },
+      { kind: "turn_end", seq: 11, stop_reason: "end_turn", fork: ok },
+    ];
+    const { container } = renderChat(true, injected);
+    rightClick(container, 9);
+    const edit = screen.getByRole("button", { name: "Edit" });
+    expect(edit).toBeDisabled();
+    expect(edit).toHaveAttribute("aria-description", "This message was sent while the agent was working; edit the message that began that turn.");
+    fireEvent.click(edit);
+    expect(clone).not.toHaveBeenCalled();
+    expect(forkActionFor(injected, injected[7], ok)).toMatchObject({ available: true, composeFromSeq: 8 });
   });
 
   it("offers neither action where the surface does not enable them", () => {

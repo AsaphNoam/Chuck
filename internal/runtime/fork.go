@@ -179,8 +179,12 @@ func (c *ChatRuntime) writeForkPrefix(as *agentState, plan *ForkPlan) error {
 	}
 	for _, ev := range plan.Prefix {
 		ev.Generation = as.generation
-		// A copied turn end belongs to the source's native session (TS-02.R65).
+		// A copied turn end belongs to the source's native session (TS-02.R65);
+		// it keeps only a marker so Edit/Fork from here can say why.
 		ev.ForkPoint, ev.Fork = nil, nil
+		if ev.Type == EvTurnEnd && ev.ActivityID == "" {
+			ev.ForkPoint = &ForkPoint{Copied: true}
+		}
 		// Clone history is persisted, not replayed as live activity.
 		obs := as.journal.Commit(CommitRequest{Event: ev, Committed: as.recordCommitted, Unpublished: true})
 		if !obs.Committed() || !obs.IndexOK {
@@ -221,6 +225,8 @@ type ForkPoint struct {
 	Fingerprint    string `json:"fingerprint"` // "sha256:<hex>" of the message text
 	AdapterName    string `json:"adapter_name,omitempty"`
 	AdapterVersion string `json:"adapter_version,omitempty"`
+	// Copied marks a turn end copied into a clone; it carries no identity.
+	Copied bool `json:"copied,omitempty"`
 }
 
 // forkPointAdapters is Chuck's verified fork-point list: adapter identities
@@ -241,6 +247,8 @@ func ForkPointAdapterVerified(name, version string) bool {
 // Fork refusal reasons (TS-03.R86), shown as the action's description.
 const (
 	ForkReasonNoForkPoint       = "Chuck has no fork point for this turn; it was recorded before forking at a turn was available."
+	ForkReasonCopiedTurn        = "This turn was copied from the agent this one was cloned from; fork there, or from a turn after the copy."
+	ForkReasonInjectedMessage   = "This message was sent while the agent was working; edit the message that began that turn."
 	ForkReasonOtherSession      = "This turn belongs to an earlier provider session that a runtime switch replaced."
 	ForkReasonUnverifiedAdapter = "This agent's adapter version is not verified to fork at a chosen turn."
 	ForkReasonNotTurnBoundary   = "Forking needs a completed turn."

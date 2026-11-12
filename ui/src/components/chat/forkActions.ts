@@ -13,6 +13,7 @@ export type ForkAction = {
 };
 
 const FIRST_MESSAGE = "The first message has no earlier turn to fork from.";
+const INJECTED_MESSAGE = "This message was sent while the agent was working; edit the message that began that turn.";
 
 function isRoot(event: TranscriptEvent) {
   return !event.activity_id;
@@ -40,6 +41,10 @@ export function forkActionFor(events: TranscriptEvent[], event: TranscriptEvent,
   if (kind(event) === "user_text") {
     const previous = [...events].reverse().find((item) => isRoot(item) && kind(item) === "turn_end" && typeof item.seq === "number" && item.seq < seq);
     if (!previous) return { label: "Edit", available: false, reason: FIRST_MESSAGE };
+    // Only the message that began a turn can be edited; one sent while the
+    // agent was working joined that turn (TS-03.R86).
+    const began = events.find((item) => isRoot(item) && kind(item) === "user_text" && typeof item.seq === "number" && item.seq > (previous.seq as number));
+    if (began && began.seq !== seq) return { label: "Edit", available: false, reason: INJECTED_MESSAGE };
     return gate({ label: "Edit", available: false, throughSeq: previous.seq, composeFromSeq: seq }, previous);
   }
   if (kind(event) !== "assistant_text") return null;

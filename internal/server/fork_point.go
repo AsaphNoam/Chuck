@@ -29,6 +29,8 @@ func forkAffordance(ev runtime.Event, currentSession string) *runtime.ForkAfford
 	switch fp := ev.ForkPoint; {
 	case td.StopReason != "end_turn":
 		reason = runtime.ForkReasonNotTurnBoundary
+	case fp != nil && fp.Copied:
+		reason = runtime.ForkReasonCopiedTurn
 	case fp == nil:
 		reason = runtime.ForkReasonNoForkPoint
 	case fp.SessionID == "" || fp.SessionID != currentSession:

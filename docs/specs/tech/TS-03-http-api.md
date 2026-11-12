@@ -1319,8 +1319,10 @@ makes no provider call. The quota-recovery projection of R72 accepts `reset_sour
 server resolves the boundary to TS-04.R110's stored fork point and copies the transcript through
 `through_seq`; the response adds `compose_text` with that message's text when requested, and
 `forked_from_seq` is the boundary. No provider id, message id or fingerprint is accepted or
-returned. Refusals extend R43's: `422 clone_unavailable` with reasons `no_fork_point`,
-`other_native_session`, `unverified_adapter`, `not_a_turn_boundary`, and the sanitized upstream
+returned. Refusals extend R43's: `422 clone_unavailable` with reasons `no_fork_point`, `copied_turn` (a turn
+end copied into a clone), `other_native_session`, `unverified_adapter`, `not_a_turn_boundary`,
+`not_turn_start` (a `compose_from_seq` that is not the message that began the next turn, such as
+one sent while the agent was working), and the sanitized upstream
 error when the provider or TS-04.R110's replay proof rejects the fork; none leaves partial state.
 The transcript read marks each turn-end event with `fork:{available, reason}` computed
 server-side from the same checks, so clients never infer eligibility. An empty body is today's

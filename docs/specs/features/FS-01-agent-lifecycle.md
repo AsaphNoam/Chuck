@@ -162,9 +162,11 @@ orphaned processes.
   Each action first shows one short confirmation stating that a new agent is created and that
   files changed since that point are not restored. The action is unavailable, with its reason,
   when R36 would refuse Clone (active turn, unresolved permission, terminal or non-forking runtime,
-  no native session), for **Edit** on the conversation's first message, and for a message whose
-  provider fork point Chuck does not hold: one sent before this shipped, or one belonging to an
-  earlier provider session replaced by switch runtime. A fork the provider rejects creates no
+  no native session), for **Edit** on the conversation's first message, for **Edit** on a message
+  sent while the agent was working (it joined that turn; only the message that began a turn is
+  editable), and for a message whose provider fork point Chuck does not hold: one sent before this
+  shipped, one belonging to an earlier provider session replaced by switch runtime, or a turn
+  copied into this agent by Clone, Edit or Fork from here (fork from the source agent instead). A fork the provider rejects creates no
   agent, transcript, process or messaging identity and reports the rejection. Nothing rewrites or
   truncates the source conversation, no file is rewound, and phone and terminal surfaces do not
   offer these actions.
