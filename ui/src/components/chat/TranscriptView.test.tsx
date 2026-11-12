@@ -12,6 +12,7 @@ import { useAnnotationStore } from "../../store/annotationStore";
 import { useHeldStore } from "../../store/heldStore";
 import { foldTranscript, useTranscriptStore } from "../../store/transcriptStore";
 import { annotationBlockSentinel } from "../../lib/annotations";
+import { readHeldRecovery } from "../../lib/heldMessage";
 import { TranscriptView } from "./TranscriptView";
 import { ConversationTabsRoute } from "../../features/fileTabs/testing";
 
@@ -363,6 +364,19 @@ describe("TranscriptView pending follow-up", () => {
     expect(screen.queryByText(/^Queued/)).toBeNull();
   });
 
+  // PIPE-CHAT-2: a failed background read is not evidence of a withdrawal.
+  it.skip("does not claim withdrawal after an ordinary prompt read for a stopped chat", async () => {
+    mswServer.use(http.get("/api/sessions/a1/prompt", () =>
+      HttpResponse.json({ error: { code: "not_found", message: "agent not started" } }, { status: 404 }),
+    ));
+    renderTranscript();
+
+    await act(() => readHeldRecovery("a1", () => true, true));
+
+    expect(screen.queryByText(/^Withdrawn, but/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Load withdrawn message" })).toBeNull();
+  });
+
   it("shows a held message as queued and outside the folded event list", () => {
     useHeldStore.getState().hold("a1", "also update the docs");
     renderTranscript(true, events, true);
@@ -409,6 +423,34 @@ describe("TranscriptView pending follow-up", () => {
     expect(await screen.findByText("Message not delivered — choose whether to send it again")).toBeInTheDocument();
     expect(screen.queryByText("Withdrawn, but the message and its attachments could not be loaded.")).toBeNull();
     expect(withdrawn).toBe(1);
+  });
+
+  // PIPE-CHAT-2: a second failed read must report the result of the retry.
+  it.skip("shows a new outcome when reloading a withdrawn message fails again", async () => {
+    const attachment = { id: "att_1", name: "shot.png", kind: "image", mime_type: "image/png", size: 4, sha256: "abcd" } as const;
+    let withdrawals = 0;
+    let reads = 0;
+    mswServer.use(
+      http.delete("/api/sessions/a1/prompt", () => {
+        withdrawals++;
+        return HttpResponse.json({ withdrawn: true, message: { held_id: "hold-1", text: "see image", attachments: [attachment] } });
+      }),
+      http.get("/api/sessions/a1/prompt", () => {
+        reads++;
+        return HttpResponse.json({ error: { code: "internal", message: "cannot read message recovery" } }, { status: 500 });
+      }),
+    );
+    useHeldStore.getState().hold("a1", "see image", 0, [attachment]);
+    renderTranscript(true, events, true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw" }));
+    const retry = await screen.findByRole("button", { name: "Load withdrawn message" });
+    const initialAlert = screen.getByRole("alert").textContent;
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(reads).toBe(2));
+    expect(withdrawals).toBe(1);
+    await waitFor(() => expect(screen.getByRole("alert")).not.toHaveTextContent(initialAlert!));
   });
 
   it("labels text recovery with uncertain delivery and accepts empty attachments", async () => {

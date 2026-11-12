@@ -269,7 +269,52 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-None open.
+### Blocked pipeline chat and withdrawn-message recovery (PIPE-CHAT) — **Fix model:** difficult — Codex Sol.
+
+Field report, 2026-11-12. The affected run, conversation, build and provider are unidentified.
+The report supplied no request log or provider receipt. The local dashboard has no paused run,
+and its retained run and input metadata did not identify the reported submission.
+
+> /investigate-bug messages sent though the chat to a pipeline orchestrator when it's blocked sometimes disappear, I think chuck treats them like tool calls (as if they came from the pipeline continue/send message box) because when it needed my explicit approval the agent said it came through as a system call through chuck so the approval was rejected. Also I have the Withdraw message box on but empty:Withdrawn, but the message and its attachments could not be loaded. Load withdrawn message (button doesn't do antyhing)
+
+The paused-run chat branch came from `376add97`. The shared recovery reader took on background
+reads in `0e98d3c4`. The HTTP reproduction reports the answer sent without a durable user event.
+Both withdrawal reproductions fail on current code. All three are committed skipped for the fix.
+
+- **Must fix** PIPE-CHAT-1 — confirmed, difficult. Sending an answer in the owner's chat during a
+  `needs_input` pause or a recoverable blocked visit enters the same continuation branch as the
+  run page. `internal/pipeline/actions.go` embeds the words in the next assignment, and
+  `internal/pipeline/assignment.go` clips that instruction under both the continuation and total
+  assignment limits. `internal/messaging/task_tools.go` exposes it through `get_assigned_task`.
+  `internal/server/queued_input.go` marks text-only input submitted before provider delivery, or
+  strips its text from the queued payload when attachments exist. The optimistic text bubble in
+  `ui/src/components/chat/Composer.tsx` has no durable user event to rehydrate. Preserve the full
+  accepted chat payload with its user provenance through assignment delivery, and verify the wire
+  payload, delivery status, replay, and transcript after reload for text and attachments. Keep
+  pipeline checkpoint and pending provider permission decisions on their explicit controls.
+  The reported approval refusal remains undetermined. FS-03.R99, FS-14.R99–R100/A63–A64,
+  TS-09.R69/R71, INV §2/§11/§15.
+- **Must fix** PIPE-CHAT-2 — confirmed, trivial/easy. `ui/src/lib/heldMessage.ts` marks any failed
+  prompt read as a failed withdrawal recovery, including `ChatPanel.tsx` hydration for a stopped
+  chat. `internal/server/sessions.go` returns 404 when a stopped chat has neither a live hold nor
+  queued or recoverable input. `TranscriptView.tsx` then displays a withdrawal that never occurred.
+  The retry issues another GET, but a repeated failure leaves the same alert and control. Tie the
+  notice to a confirmed withdrawal and show the outcome of retry. Both failure cases were reproduced
+  in `TranscriptView.test.tsx`; a transient failure with a successful retry is already covered.
+  FS-03.R90/A70, TS-08.R56, INV §1/§8/§11.
+- **Must fix** PIPE-CHAT-3 — confirmed by source, difficult. `internal/pipeline/actions.go` creates
+  and publishes a successor in `internal/pipeline/decisions.go` before its separate receipt bind.
+  Admission can observe the visit before that bind. A bind error after the visit commits is logged
+  and converted to ordinary standalone delivery in `internal/server/queued_input.go`, even though
+  the run has already advanced. Commit the successor and input receipt together before publication.
+  Inject a bind failure and race admission/retry against acceptance, verifying that no input is
+  lost, misrouted or delivered twice. TS-02.R55, TS-09.R69, INV §5/§15.
+- **Worth fixing** PIPE-CHAT-4 — confirmed observability gap, trivial/easy. The paused-run branch in
+  `internal/server/queued_input.go` bypasses the runtime's receipt transition logging. Request logs
+  alone cannot distinguish a chat Send accepted into a new visit, a chat turn, or input still queued.
+  Record bounded request/agent/run/visit identities, input surface and delivery transition, so the
+  operator can trace acceptance to provider submission without storing message text, attachment
+  metadata or raw provider errors in logs. TS-02.R55, TS-09.R69, INV §8/§11/§15.
 
 ## Blocked on human
 

@@ -121,19 +121,7 @@ func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
 		t.Run(route, func(t *testing.T) {
 			srv, ts, _ := activationTestServer(t)
 			id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
-			task := createPipelineSnapshotTask(t, srv, "pr_question", "tk_question", inputSnapshot)
-			if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='finished', outcome='success', assigned_agent_id=?, started_at=created_at, finished_at=created_at WHERE task_id=?`, id, task.TaskID); err != nil {
-				t.Fatal(err)
-			}
-			if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, id); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_stage_tasks SET state='closed' WHERE task_id=?`, task.TaskID); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_runs SET state='paused', attention_reason='needs_input', pause_question='Postgres or SQLite?', current_agent_id=? WHERE run_id='pr_question'`, id); err != nil {
-				t.Fatal(err)
-			}
+			task := createQuestionPause(t, srv, id)
 			var command any = map[string]string{"text": "Use SQLite", "request_id": "question-answer"}
 			if route == "annotations" {
 				command = runtime.AnnotationData{CommandID: "question-answer", Annotations: []runtime.Annotation{{Seq: 1, Excerpt: "database", Instruction: "Use SQLite"}}, Target: runtime.AnnotationTarget{Kind: "self"}}
@@ -158,6 +146,99 @@ func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
 			}
 		})
 	}
+}
+
+func createQuestionPause(t *testing.T, srv *Server, id string) state.Task {
+	t.Helper()
+	task := createPipelineSnapshotTask(t, srv, "pr_question", "tk_question", inputSnapshot)
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='finished', outcome='success', assigned_agent_id=?, started_at=created_at, finished_at=created_at WHERE task_id=?`, id, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_stage_tasks SET state='closed' WHERE task_id=?`, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_runs SET state='paused', attention_reason='needs_input', pause_question='Postgres or SQLite?', current_agent_id=? WHERE run_id='pr_question'`, id); err != nil {
+		t.Fatal(err)
+	}
+	return task
+}
+
+// FS-14.R100 promises ordinary conversation input. A fresh client must be able
+// to retrieve the accepted Send in queued input or in the durable transcript.
+func TestConversationAnswerRetainsHumanReplyInHistory(t *testing.T) {
+	t.Skip("PIPE-CHAT-1: answer reported sent is absent from the owner's durable transcript")
+	srv := testServer(t, true)
+	const id = "a_owner"
+	if err := srv.stateStore.WriteAgent(state.Agent{AgentID: id, Interface: "chat"}); err != nil {
+		t.Fatal(err)
+	}
+	task := createQuestionPause(t, srv, id)
+	h := srv.routes()
+	resp := doJSON(t, h, http.MethodPost, "/api/sessions/"+id+"/prompt", `{"text":"Use SQLite","request_id":"question-answer"}`)
+	if resp.Code != http.StatusAccepted {
+		t.Fatalf("answer = %d %s", resp.Code, resp.Body.String())
+	}
+	visit, err := srv.stateStore.LatestPipelineStageTask("pr_question")
+	if err != nil || visit.TaskID == task.TaskID {
+		t.Fatalf("accepted answer did not create a new visit: %s %v", visit.TaskID, err)
+	}
+	var acceptance struct {
+		Delivery string `json:"delivery"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &acceptance); err != nil {
+		t.Fatal(err)
+	}
+	if acceptance.Delivery == "queued" {
+		response := doGET(t, h, "/api/sessions/"+id+"/prompt")
+		var pending struct {
+			Queued []struct {
+				Text             string `json:"text"`
+				RequestID        string `json:"request_id"`
+				AssignmentTaskID string `json:"assignment_task_id"`
+			} `json:"queued"`
+		}
+		if response.Code != http.StatusOK {
+			t.Fatalf("read queued input = %d %s", response.Code, response.Body.String())
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &pending); err != nil {
+			t.Fatal(err)
+		}
+		for _, message := range pending.Queued {
+			if message.Text == "Use SQLite" && message.RequestID == "question-answer" && message.AssignmentTaskID == visit.TaskID {
+				return
+			}
+		}
+		t.Fatal("queued answer is absent from the new visit's pending input")
+	}
+	if acceptance.Delivery != "sent" {
+		t.Fatalf("answer delivery = %q, want queued or sent", acceptance.Delivery)
+	}
+	response := doGET(t, h, "/api/sessions/"+id+"/transcript")
+	var history struct {
+		Events []runtime.Event `json:"events"`
+	}
+	if response.Code != http.StatusOK {
+		t.Fatalf("read transcript = %d %s", response.Code, response.Body.String())
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &history); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range history.Events {
+		if event.Type != runtime.EvUserPrompt {
+			continue
+		}
+		var prompt runtime.UserPromptData
+		if err := json.Unmarshal(event.Data, &prompt); err != nil {
+			t.Fatal(err)
+		}
+		if prompt.Text == "Use SQLite" && prompt.RequestID == "question-answer" {
+			return
+		}
+	}
+	t.Fatal("answer reported sent is absent from the owner's durable transcript")
 }
 
 // ARCH-NEXT-2, TS-09.R69 — after queued input moved to the assignment's new
