@@ -504,8 +504,9 @@ describe("Create task manually", () => {
     renderPage("/tasks?project=my-app");
     const create = createForm();
     const named = create.getByLabelText("Named prerequisite");
-    await within(named).findAllByRole("option", { name: "Build · ready" });
-    expect(within(named).getAllByRole("option", { name: "Build · ready" })).toHaveLength(2);
+    // Same name and state: the shared duplicate-name rule keeps the choices distinct (FS-02.R69).
+    await within(named).findByRole("option", { name: "Build · ready (tk_x)" });
+    expect(within(named).getByRole("option", { name: "Build · ready (tk_y)" })).toBeInTheDocument();
     fireEvent.change(named, { target: { value: "tk_y" } });
     fireEvent.change(create.getByLabelText("Name"), { target: { value: "follow up" } });
     fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "continue" } });

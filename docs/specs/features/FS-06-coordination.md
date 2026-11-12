@@ -306,7 +306,9 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   token-bound Chuck chat agent may request Stop for one other agent across projects, including
   terminal, task, pipeline and Think Tank agents. Chuck itself withholds the effect until the
   operator approves that specific request. The approval prompt identifies the requester and target
-  by display name, project and stable id, includes the requester's bounded reason, and explains
+  by display name and project title, adding the stable id only when another known agent in that
+  project shares the name (the FS-02.R69 duplicate-name rule; the decision stays bound to the
+  request's ids either way), includes the requester's bounded reason, and explains
   that Stop ends the process while preserving history and permitting later wake. It offers only
   Approve once and Deny: neither provider permission mode, skip-permissions, Chuck-tool automatic
   approval, a role, a task relationship, nor agent-supplied claims of prior user approval can

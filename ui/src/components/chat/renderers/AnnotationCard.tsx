@@ -1,12 +1,20 @@
 import type { TranscriptEvent } from "../../../api/types";
 import { MarkedSourceText } from "../searchPassage";
 
-export function AnnotationCard({ event }: { event: TranscriptEvent }) {
+/** The recipient agent id of an annotation batch assigned to another agent, for name lookup. */
+export function annotationTargetId(event: TranscriptEvent): string | undefined {
+  const target = event.target as Record<string, unknown> | undefined;
+  return target?.kind !== "self" && typeof target?.agent_id === "string" ? target.agent_id : undefined;
+}
+
+/** recipientName is the caller's current name for the target; a retained card whose recipient is
+ *  no longer known reads neutrally rather than showing its id (FS-02.R69). */
+export function AnnotationCard({ event, recipientName }: { event: TranscriptEvent; recipientName?: string }) {
   const annotations = Array.isArray(event.annotations) ? event.annotations as Array<Record<string, unknown>> : [];
   const target = event.target as Record<string, unknown> | undefined;
   return (
     <article className="annotation-card" data-ui="transcript" data-variant="annotation">
-      <header><strong>Annotations assigned</strong><span>{target?.kind === "self" ? "Current agent" : target?.agent_id ? `Agent ${String(target.agent_id)}` : "Agent"}</span></header>
+      <header><strong>Annotations assigned</strong><span>{target?.kind === "self" ? "Current agent" : recipientName?.trim() || "Another agent"}</span></header>
       {annotations.map((annotation, index) => (
         <section key={index}>
           <p>{annotation.anchor_kind === "file"

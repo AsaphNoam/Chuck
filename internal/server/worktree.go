@@ -444,8 +444,7 @@ func (s *Server) worktreeFork(ctx context.Context, sourceID string, req forkRequ
 		return forkResult{}, apiError(runtime.CodeValidation, gitUnavailableMessage(err))
 	}
 	if !inside {
-		return forkResult{}, apiError(runtime.CodeValidation,
-			fmt.Sprintf("project %q is not inside a Git working tree", sourceID))
+		return forkResult{}, apiError(runtime.CodeValidation, notGitWorkTreeMessage(source))
 	}
 	repo, err := git.CommonDir(ctx, sourceCwd)
 	if err != nil {
@@ -627,6 +626,14 @@ func gitUnavailableMessage(err error) string {
 		return "Git is not installed on this machine"
 	}
 	return "cannot read the repository: " + err.Error()
+}
+
+// notGitWorkTreeMessage names the project by its title, never its slug (FS-02.R69).
+func notGitWorkTreeMessage(project config.Project) string {
+	if title := strings.TrimSpace(project.Title); title != "" {
+		return fmt.Sprintf("project %q is not inside a Git working tree", title)
+	}
+	return "this project is not inside a Git working tree"
 }
 
 // ---- Status (TS-12 §3) ----

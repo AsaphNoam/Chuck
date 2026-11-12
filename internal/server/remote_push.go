@@ -216,11 +216,15 @@ func (s *Server) runPushSender(ctx context.Context) {
 		if first || !cfg.RemoteEnabled {
 			return
 		}
-		now := time.Now()
+		var fresh []attentionItem
 		for _, it := range lists.NeedsYou {
-			if previous[attentionKey(it)] || pushMuted(it, cfg.Notifications.Muted) {
-				continue
+			if !previous[attentionKey(it)] && !pushMuted(it, cfg.Notifications.Muted) {
+				fresh = append(fresh, it)
 			}
+		}
+		s.labelProjects(fresh)
+		now := time.Now()
+		for _, it := range fresh {
 			tag := pushTag(it)
 			if w := windows[tag]; w != nil && now.Before(w.until) {
 				w.pending = append(w.pending, it)

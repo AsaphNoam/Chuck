@@ -17,7 +17,11 @@ const stageTask = {
   task_id: "task_1", run_id: "run_1", stage_id: "work", stage_index: 0, attempt_number: 1, state: "running", assignment_text: "Do the work.", standing_owner: { agent_id: "a_live", name: "Standing", state: "busy", route: "live", runtime: { backend: "codex", model: "gpt-5.6-sol" } }, work: [], created_at: "2026-07-26T00:00:00Z", updated_at: "2026-07-26T00:00:00Z",
 };
 const detail = { run, template, inputs: {}, assignments: run.assignments, orchestrator: run.orchestrator, dedicated_assignments: {}, stage_tasks: [stageTask], attempts: [], values: [], diagnostics: [], controls };
-const server = setupServer(http.get("/api/pipeline-runs", () => HttpResponse.json([])), http.get("/api/pipeline-runs/run_1", () => HttpResponse.json(detail)));
+const server = setupServer(
+  http.get("/api/pipeline-runs", () => HttpResponse.json([])),
+  http.get("/api/pipeline-runs/run_1", () => HttpResponse.json(detail)),
+  http.get("/api/projects", () => HttpResponse.json({ app: { title: "App Project" } })),
+);
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => { cleanup(); server.resetHandlers(); });
@@ -128,11 +132,15 @@ it("links stage-work cards to their agents by live or archive route", async () =
 });
 
 it("loads retained run pages to an exact complete-history state", async () => {
-  const retained = Array.from({ length: 51 }, (_, index) => ({ run_id: `run_${index}`, template_id: "delivery", display_name: `Run ${index + 1}`, project: "app", state: "completed", revision: 1, pending_action: "", current_stage_id: "work", current_stage_title: "Work", current_agent_id: "", attention_reason: "", final_outcome: "success", updated_at: new Date(Date.UTC(2026, 6, 26, 0, 0, 51 - index)).toISOString(), diagnostics: [] }));
+  const retained = Array.from({ length: 51 }, (_, index) => ({ run_id: `run_${index}`, template_id: "delivery", display_name: `Run ${index + 1}`, project: index === 0 ? "gone" : "app", state: "completed", revision: 1, pending_action: "", current_stage_id: "work", current_stage_title: "Work", current_agent_id: "", attention_reason: "", final_outcome: "success", updated_at: new Date(Date.UTC(2026, 6, 26, 0, 0, 51 - index)).toISOString(), diagnostics: [] }));
   server.use(http.get("/api/pipeline-runs", ({ request }) => { const url = new URL(request.url); const offset = Number(url.searchParams.get("offset") ?? 0); const limit = Number(url.searchParams.get("limit") ?? 50); return HttpResponse.json(retained.slice(offset, offset + limit), { headers: { "X-Total-Count": "51" } }); }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
   render(<QueryClientProvider client={client}><MemoryRouter><RunsLedger /></MemoryRouter></QueryClientProvider>);
   expect(await screen.findByText("50 of 51 retained runs")).toBeInTheDocument();
+  // FS-02.R69: configured titles render; a removed project reads neutrally, never as its id.
+  expect(await screen.findAllByText("App Project")).toHaveLength(49);
+  expect(screen.getByText("Unavailable project")).toBeInTheDocument();
+  expect(screen.queryByText("gone")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "More runs" }));
   expect(await screen.findByText("51 of 51 retained runs")).toBeInTheDocument();
 });

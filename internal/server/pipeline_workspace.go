@@ -24,7 +24,7 @@ import (
 func (s *Server) PlanWorkspace(ctx context.Context, workspaceID, projectID string, selection pipeline.WorkspaceSelection) (state.PipelineWorkspace, error) {
 	project, err := s.configStore.ReadProject(projectID)
 	if err != nil {
-		return state.PipelineWorkspace{}, fmt.Errorf("unknown project %q", projectID)
+		return state.PipelineWorkspace{}, errors.New("this project is no longer configured")
 	}
 	cwd, err := config.ExpandTilde(project.Cwd)
 	if err != nil {
@@ -49,7 +49,7 @@ func (s *Server) PlanWorkspace(ctx context.Context, workspaceID, projectID strin
 		return state.PipelineWorkspace{}, errors.New(gitUnavailableMessage(err))
 	}
 	if !inside {
-		return state.PipelineWorkspace{}, fmt.Errorf("project %q is not inside a Git working tree; use the project checkout", projectID)
+		return state.PipelineWorkspace{}, errors.New(notGitWorkTreeMessage(project) + "; use the project checkout")
 	}
 	repo, err := git.CommonDir(ctx, cwd)
 	if err != nil {

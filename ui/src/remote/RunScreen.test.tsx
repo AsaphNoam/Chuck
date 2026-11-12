@@ -37,6 +37,7 @@ const server = setupServer(
   http.post("/api/pipeline-runs/run_1/continue", control("continue")),
   http.post("/api/pipeline-runs/run_1/retry", control("retry")),
   http.post("/api/pipeline-runs/run_1/stop", control("stop")),
+  http.get("/api/projects", () => HttpResponse.json({ app: { title: "App Project" } })),
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -59,6 +60,7 @@ describe("RunScreen", () => {
   it("shows the run's stage and reason and continues with the typed input", async () => {
     renderScreen();
     expect(await screen.findByRole("heading", { name: "Ship" })).toBeInTheDocument();
+    expect(await screen.findByText("PIPELINE RUN · App Project")).toBeInTheDocument();
     expect(screen.getByText("Stage 2 of 3")).toBeInTheDocument();
     expect(screen.getByText("Stage needs input")).toBeInTheDocument();
     expect(screen.getByText("Implementation completed.")).toBeInTheDocument();

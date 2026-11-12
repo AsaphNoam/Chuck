@@ -16,7 +16,7 @@ import { ToolCall } from "./renderers/ToolCall";
 import { groupTranscriptRows, kindOf, ToolRun } from "./toolRun";
 import { currentToolLabel, resultsByCall } from "./toolLine";
 import { TurnError } from "./renderers/TurnError";
-import { AnnotationCard } from "./renderers/AnnotationCard";
+import { AnnotationCard, annotationTargetId } from "./renderers/AnnotationCard";
 import { NoticeRow } from "./renderers/NoticeRow";
 import { ThinkingDisclosure } from "./renderers/ThinkingDisclosure";
 import { ChildActivity } from "./renderers/ChildActivity";
@@ -443,6 +443,12 @@ function keyOf(event: TranscriptEvent, index: number) {
   return `i${index}`;
 }
 
+function AnnotationRow({ event }: { event: TranscriptEvent }) {
+  const targetId = annotationTargetId(event);
+  const recipientName = useAgentStore((state) => (targetId ? state.agents[targetId]?.name : undefined));
+  return <AnnotationCard event={event} recipientName={recipientName} />;
+}
+
 function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile, onOpenInBrowser }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void; onOpenFile?: (link: FileLink | null) => void; onOpenInBrowser?: (path: string) => Promise<unknown> }) {
   const kind = String(event.kind ?? event.type ?? "");
   if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} agentId={agentId} onOpenInBrowser={onOpenInBrowser} />;
@@ -453,7 +459,7 @@ function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile, onOpen
   if (kind === "diff") return <DiffBlock event={event} onAnnotate={onAnnotate} onOpenFile={onOpenFile} />;
   if (kind === "tool_call") return <ToolCall event={event} result={result} />;
   if (kind === "error") return <TurnError event={event} />;
-  if (kind === "annotation") return <AnnotationCard event={event} />;
+  if (kind === "annotation") return <AnnotationRow event={event} />;
   if (kind === "notice") return <NoticeRow event={event} />;
   if (kind === "reasoning") return <ThinkingDisclosure text={String(event.text ?? "")} activityId={event.activity_id} />;
   if (kind === "turn_end") return <hr className="turn-end" />;

@@ -124,16 +124,34 @@ func (s *Server) attention() (attentionLists, error) {
 	})
 	out.NeedsYou = boundItems(out.NeedsYou)
 	out.ActiveRuns = boundItems(out.ActiveRuns)
-	// Titles only label notifications; an unreadable catalog leaves them blank
-	// rather than failing attention.
-	if projects, err := s.configStore.ListProjects(); err == nil {
-		for _, list := range [][]attentionItem{out.NeedsYou, out.ActiveRuns} {
-			for i := range list {
-				list[i].ProjectTitle = projects[list[i].Project].Title
-			}
+	return out, nil
+}
+
+// unavailableProjectTitle labels a notification whose project is no longer
+// configured; it matches the phone's neutral label and never shows the id (FS-02.R69).
+const unavailableProjectTitle = "an unavailable project"
+
+// labelProjects sets ProjectTitle on items about to be notified. It reads the
+// catalog only when there is something to send; an unreadable catalog leaves
+// titles blank rather than blocking delivery (FS-20.R19).
+func (s *Server) labelProjects(items []attentionItem) {
+	if len(items) == 0 {
+		return
+	}
+	projects, err := s.configStore.ListProjects()
+	if err != nil {
+		return
+	}
+	for i := range items {
+		if items[i].Project == "" {
+			continue
+		}
+		if title := strings.TrimSpace(projects[items[i].Project].Title); title != "" {
+			items[i].ProjectTitle = title
+		} else {
+			items[i].ProjectTitle = unavailableProjectTitle
 		}
 	}
-	return out, nil
 }
 
 func boundItems(items []attentionItem) []attentionItem {

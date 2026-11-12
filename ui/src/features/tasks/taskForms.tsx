@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { AutoGrowTextarea, Button } from "../../components/ui";
-import { projectTitle } from "../../lib/labels";
+import { displayLabels, projectTitle, type LabelEntry } from "../../lib/labels";
 import { useBackends, useConfig, useProjects, useRoles } from "../../api/config";
 import { personaLabel } from "../../lib/personas";
 import { resetRuntimeForBackend, resetRuntimeForModel } from "../../lib/runtimeSelection";
@@ -97,6 +97,11 @@ function PrerequisitePicker({
   const namedTasks = selection.sourceKind === "task" ? tasks.filter((task) => task.project === project && task.task_id !== omitTaskID) : [];
   const namedRuns = selection.sourceKind === "pipeline_run" ? runs : [];
   const namedSourceCount = selection.sourceKind === "task" ? namedTasks.length : namedRuns.length;
+  // Same name and state is disambiguated by the shared duplicate-name rule (FS-02.R69).
+  const namedOptions = displayLabels([
+    ...namedTasks.map((task): LabelEntry => [task.task_id, `${task.display_name} · ${task.state}`]),
+    ...namedRuns.map((run): LabelEntry => [run.run_id, `${run.display_name || "Pipeline run"} · ${run.state}`]),
+  ]);
   const knownSelection = selection.sourceKind === "task"
     ? tasks.some((task) => task.task_id === selection.sourceID)
     : runs.some((run) => run.run_id === selection.sourceID);
@@ -132,8 +137,7 @@ function PrerequisitePicker({
         >
           <option value="">Choose a {selection.sourceKind === "task" ? "task" : "pipeline run"}</option>
           {!knownSelection && selection.sourceID && <option value={selection.sourceID}>{sourceLabel(selection.sourceKind, selection.sourceID, tasks, runs)}</option>}
-          {namedTasks.map((task) => <option key={task.task_id} value={task.task_id}>{task.display_name} · {task.state}</option>)}
-          {namedRuns.map((run) => <option key={run.run_id} value={run.run_id}>{run.display_name || "Pipeline run"} · {run.state}</option>)}
+          {namedOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select>
       </label>
       {selection.sourceKind === "task" ? (

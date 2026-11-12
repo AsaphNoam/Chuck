@@ -23,17 +23,17 @@ const projects = {
 const STATES = ["busy", "idle", "waiting_input", "error", "done"];
 const NAMES = ["Orchestrator", "Reviewer", "Implementer with a remarkably long agent name", "Tester", "Docs", "Planner", "Fixer"];
 const agent = (index, patch = {}) => ({
-  agent_id: `a${index + 1}`, name: NAMES[index], role: "impl", project: "app", backend: "claude", model: "m", fast: false,
+  agent_id: `crumb-agent-${index + 1}`, name: NAMES[index], role: "impl", project: "app", backend: "claude", model: "m", fast: false,
   interface: "chat", created_at: at, running: true, state: STATES[index % STATES.length], detail: "", context_pct: 0,
   updated_at: 0, archived: false, ...patch,
 });
-// The current page is a3 (long name, waiting) except in the seven case, where the
+// The current page is crumb-agent-3 (long name, waiting) except in the seven case, where the
 // current agent is the last and must replace the fifth visible slot.
 const scenarios = [
-  { name: "single", count: 1, current: "a1" },
-  { name: "two", count: 2, current: "a2" },
-  { name: "five", count: 5, current: "a3" },
-  { name: "seven", count: 7, current: "a7" },
+  { name: "single", count: 1, current: "crumb-agent-1" },
+  { name: "two", count: 2, current: "crumb-agent-2" },
+  { name: "five", count: 5, current: "crumb-agent-3" },
+  { name: "seven", count: 7, current: "crumb-agent-7" },
 ];
 
 const checks = [];
@@ -97,7 +97,7 @@ try {
           const waiting = document.querySelector(".agent-mini-card.waiting_input:not([aria-current])");
           return {
             nav: rect(nav), navScroll: nav.scrollWidth, navClient: nav.clientWidth,
-            back: rect(nav.querySelector(":scope > a")), id: rect(nav.querySelector(".chat-breadcrumb-id")),
+            back: rect(nav.querySelector(":scope > a")), text: nav.textContent,
             siblings: rect(nav.querySelector(".chat-breadcrumb-siblings")),
             card: rect(document.querySelector(".chat-card")),
             entries: [...nav.querySelectorAll(".chat-breadcrumb-siblings > .agent-mini-card")].map((entry) => entry.textContent),
@@ -139,8 +139,10 @@ try {
           await page.emulateMedia({ reducedMotion: "no-preference" });
         }
         record(`${label}: no breadcrumb overflow`, m.navScroll <= m.navClient + 1, `${m.navScroll}/${m.navClient}`);
-        record(`${label}: Back and id visible`, m.back.left >= m.nav.left - 1 && m.back.width > 0 && m.id.right <= m.nav.right + 1
-          && m.id.width > 0 && (!m.siblings || (m.siblings.left >= m.back.right && m.siblings.right <= m.id.left)), JSON.stringify({ back: m.back.right, id: m.id.left, siblings: m.siblings && [m.siblings.left, m.siblings.right] }));
+        // FS-02.R69: the breadcrumb shows no agent id; siblings sit between Back and the nav edge.
+        record(`${label}: Back visible, siblings inside`, m.back.left >= m.nav.left - 1 && m.back.width > 0
+          && (!m.siblings || (m.siblings.left >= m.back.right && m.siblings.right <= m.nav.right + 1)), JSON.stringify({ back: m.back.right, nav: m.nav.right, siblings: m.siblings && [m.siblings.left, m.siblings.right] }));
+        record(`${label}: no agent id text`, !agents.some((data) => m.text.includes(data.agent_id)), m.text);
         record(`${label}: no page errors`, errors.length === 0, errors.join("; "));
 
         const base = `breadcrumb-${skin || "core"}-${width}-${scenario.name}`;

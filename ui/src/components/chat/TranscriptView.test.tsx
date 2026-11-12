@@ -325,6 +325,17 @@ describe("TranscriptView self-annotation prompt", () => {
     expect(screen.getByText("carry on without me")).toBeInTheDocument();
   });
 
+  // FS-02.R69: the recipient reads by name while known and neutrally once it is not; never its id.
+  it("names another-agent recipients without their id", () => {
+    const assigned = { ...annotationEvent, data: { ...annotationEvent.data, target: { kind: "agent", agent_id: "a_recipient_9" } } };
+    useAgentStore.setState({ agents: { a_recipient_9: { agent_id: "a_recipient_9", name: "Reviewer" } as never } });
+    const { container } = renderTranscript(true, foldTranscript([assigned]));
+    expect(within(container.querySelector(".annotation-card") as HTMLElement).getByText("Reviewer")).toBeInTheDocument();
+    act(() => useAgentStore.setState({ agents: {} }));
+    expect(screen.getByText("Another agent")).toBeInTheDocument();
+    expect(container).not.toHaveTextContent("a_recipient_9");
+  });
+
   // FS-13.R37: a batch held behind the running turn lands after that turn's
   // output. Each card still quiets exactly one prompt, so a second block with
   // no unpaired card stays visible.

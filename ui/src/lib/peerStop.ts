@@ -37,10 +37,25 @@ export function peerStopRequest(event: TranscriptEvent): PeerStopRequest | null 
   return { requester, target, reason: String(event.reason ?? "") };
 }
 
-/** peerLabel names an agent with its project title; internal ids are never shown. */
-export function peerLabel(peer: PeerIdentity, projects?: Parameters<typeof projectTitle>[0]): string {
+/** peerLabel names an agent with its project title. Stop ends one specific process, so when another
+ *  known agent in the same project shares the name, the stable id is appended under the shared
+ *  duplicate-name rule (FS-02.R69, FS-06.R41); otherwise internal ids are never shown. */
+export function peerLabel(
+  peer: PeerIdentity,
+  projects?: Parameters<typeof projectTitle>[0],
+  others: readonly { agent_id: string; name?: string; project?: string }[] = [],
+): string {
+  const name = agentName(peer.name);
+  const clash = others.some((other) => other.agent_id !== peer.agent_id
+    && (other.project ?? "") === peer.project && agentName(other.name) === name);
+  const label = clash ? `${name} (${peer.agent_id})` : name;
   const project = projectTitle(projects, peer.project);
-  return project ? `${agentName(peer.name)} · ${project}` : agentName(peer.name);
+  return project ? `${label} · ${project}` : label;
+}
+
+/** Agents a peer label must stay distinct from: every known agent plus both request parties. */
+export function peerLabelPeers(request: PeerStopRequest, agents: Readonly<Record<string, { agent_id: string; name?: string; project?: string }>>) {
+  return [...Object.values(agents), request.requester, request.target];
 }
 
 /** A host request is decidable only while its requester waits on it: the

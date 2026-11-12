@@ -56,6 +56,25 @@ describe("PermissionPrompt", () => {
     fetchMock.mockRestore();
   });
 
+  // FS-06.R41/FS-02.R69: Stop ends one specific process, so same-name agents in one project
+  // keep their stable ids while the decision still binds the original tool call.
+  it("keeps same-name requester and target distinct within one project", async () => {
+    useAgentStore.setState({ agents: { a_req: { agent_id: "a_req", state: "waiting_input" } as never } });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    const same = { ...peerStop, peer_stop: {
+      requester: { agent_id: "a_req", name: "Builder", project: "alpha" },
+      target: { agent_id: "a_tgt", name: "Builder", project: "alpha" },
+    } };
+    renderPrompt(<PermissionPrompt agentId="a_req" event={same} />);
+    expect(screen.getByText("Builder (a_req) · Alpha Project")).toBeInTheDocument();
+    expect(screen.getByText("Builder (a_tgt) · Alpha Project")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Approve once" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ tool_call_id: "chuck_peer_stop_1", decision: "approve" });
+    fetchMock.mockRestore();
+    useAgentStore.setState({ agents: {} });
+  });
+
   it("never offers a peer Stop whose requester is no longer waiting on it", () => {
     useAgentStore.setState({ agents: { a_req: { agent_id: "a_req", state: "idle" } as never } });
     renderPrompt(<PermissionPrompt agentId="a_req" event={peerStop} />);

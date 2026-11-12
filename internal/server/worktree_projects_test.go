@@ -386,7 +386,7 @@ func TestWorktreeForkRejectionsLeaveNothingBehind(t *testing.T) {
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("non-repo fork status = %d body=%s, want 422", rec.Code, rec.Body)
 	}
-	if !strings.Contains(rec.Body.String(), "not inside a Git working tree") {
+	if body := rec.Body.String(); !strings.Contains(body, `project \"Plain\" is not inside`) || strings.Contains(body, `\"plain\"`) {
 		t.Fatalf("non-repo body = %s", rec.Body)
 	}
 

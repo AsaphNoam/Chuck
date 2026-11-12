@@ -299,8 +299,9 @@ func TestPipelineStartRequiresSharedWorkspaceAcknowledgement(t *testing.T) {
 	// acknowledge; this non-repository project then refuses it on validation.
 	request.Workspace = &pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: "isolated"}
 	rec = doRequest(t, srv.routes(), http.MethodPost, "/api/pipeline-runs", request)
-	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "not inside a Git working tree") {
-		t.Fatalf("isolated start = %d %s", rec.Code, rec.Body.String())
+	// FS-02.R69: the diagnostic names the project's title, not its slug.
+	if body := rec.Body.String(); rec.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `project \"Shared\" is not inside a Git working tree`) || strings.Contains(body, `\"shared\"`) {
+		t.Fatalf("isolated start = %d %s", rec.Code, body)
 	}
 }
 

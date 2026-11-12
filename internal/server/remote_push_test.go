@@ -137,6 +137,15 @@ func TestPushSenderNotifiesAttentionOnce(t *testing.T) {
 		t.Fatalf("sent %d, want no repeats", n)
 	}
 
+	// FS-20.R19/FS-02.R69: a removed project still delivers, with a neutral label and no id.
+	removed := state.AgentStateUpdate{AgentState: state.AgentState{AgentID: "r1", Role: "implementer", Project: "gone-slug", State: "error", UpdatedAt: time.Now().UnixMilli()}}
+	s.eventBus.SetSnapshot(removed)
+	s.eventBus.PublishStateUpdate(removed)
+	waitFor(t, func() bool { return len(snapshot()) == 3 })
+	if got := snapshot()[2].note; !strings.HasPrefix(got.Body, "implementer in an unavailable project ") || strings.Contains(got.Body, "gone-slug") {
+		t.Fatalf("removed-project note = %+v", got)
+	}
+
 	// A gone subscription is marked expired and not retried.
 	mu.Lock()
 	status = http.StatusGone

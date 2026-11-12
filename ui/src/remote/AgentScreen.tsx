@@ -34,7 +34,7 @@ import { foldTranscript, normalizeEvent } from "../store/transcriptStore";
 import { WorkingIndicator } from "../components/chat/WorkingIndicator";
 import { AssistantText } from "../components/chat/renderers/AssistantText";
 import { DiffBlock } from "../components/chat/renderers/DiffBlock";
-import { AnnotationCard } from "../components/chat/renderers/AnnotationCard";
+import { AnnotationCard, annotationTargetId } from "../components/chat/renderers/AnnotationCard";
 import { FileViewerView } from "../components/chat/FileViewer";
 import type { FileLink } from "../components/chat/renderers/filePath";
 import { FileTabsNotice, FileTabsReader } from "../features/fileTabs/FileTabs";
@@ -69,7 +69,7 @@ import { personaIdentityLabel } from "../lib/personas";
 import type { RoleResponse } from "../schemas/role";
 import { decodeQuotaState } from "../lib/quota";
 import { QuotaBanner } from "../components/agent/QuotaBanner";
-import { PEER_STOP_CONSEQUENCE, peerLabel, peerStopRequest } from "../lib/peerStop";
+import { PEER_STOP_CONSEQUENCE, peerLabel, peerLabelPeers, peerStopRequest } from "../lib/peerStop";
 
 // The phone reads a bounded window and keeps at most EARLIER_PAGES older ones
 // (FS-20.R13).
@@ -169,7 +169,9 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
       onSettled();
     }
   };
+  const agents = useConnection((state) => state.agents);
   const peerStop = peerStopRequest(event);
+  const peers = peerStop ? peerLabelPeers(peerStop, agents) : [];
   const summary = peerStop ? "" : requestSummary(event);
   return (
     <section className="phone-card phone-decision" aria-label="Permission request">
@@ -178,9 +180,9 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
       {peerStop && (
         <dl className="phone-peer-stop">
           <dt>Requested by</dt>
-          <dd>{peerLabel(peerStop.requester, projects)}</dd>
+          <dd>{peerLabel(peerStop.requester, projects, peers)}</dd>
           <dt>Agent to stop</dt>
-          <dd>{peerLabel(peerStop.target, projects)}</dd>
+          <dd>{peerLabel(peerStop.target, projects, peers)}</dd>
         </dl>
       )}
       {summary && <pre className="phone-pre">{clip(summary, 1200)}</pre>}
@@ -205,6 +207,12 @@ function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   );
 }
 
+function PhoneAnnotationRow({ event }: { event: TranscriptEvent }) {
+  const targetId = annotationTargetId(event);
+  const recipientName = useConnection((state) => (targetId ? state.agents[targetId]?.name : undefined));
+  return <AnnotationCard event={event} recipientName={recipientName} />;
+}
+
 function EventRow({ agentId, event, result, onAnnotate }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
   switch (event.kind) {
     case "user_text":
@@ -226,7 +234,7 @@ function EventRow({ agentId, event, result, onAnnotate }: { agentId: string; eve
     case "reasoning":
       return <ThinkingDisclosure text={String(event.text ?? "")} activityId={event.activity_id} />;
     case "annotation":
-      return <AnnotationCard event={event} />;
+      return <PhoneAnnotationRow event={event} />;
     default:
       return null;
   }

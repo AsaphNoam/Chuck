@@ -85,6 +85,7 @@ const server = setupServer(
   }),
   http.get("/api/sessions/a1/files", () => HttpResponse.json({ agent_id: "a1", files: [] })),
   http.get("/api/remote/runtime-options", () => HttpResponse.json({ backends: [] })),
+  http.get("/api/projects", () => HttpResponse.json({ "my-app": { title: "My app" } })),
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -483,6 +484,25 @@ describe("AgentScreen", () => {
     expect(card).not.toHaveTextContent("\"agent_id\"");
     fireEvent.click(within(card).getByRole("button", { name: "Approve once" }));
     await waitFor(() => expect(posts).toContain(`permission ${JSON.stringify({ tool_call_id: "chuck_peer_stop_9", decision: "approve" })}`));
+  });
+
+  // FS-06.R41/FS-02.R69: a target sharing its name with another agent in its project keeps its
+  // id; a removed project reads neutrally rather than as its id.
+  it("disambiguates a same-name peer Stop target and names a removed project neutrally", async () => {
+    const request = {
+      agent_id: "a1", seq: 5, type: "permission_request", ts: "",
+      data: {
+        tool_call_id: "chuck_peer_stop_9", name: "Stop Nova", reason: "it is looping", origin: "chuck_peer_stop",
+        peer_stop: { requester: { agent_id: "a1", name: "Atlas", project: "gone" }, target: { agent_id: "a_tgt", name: "Nova", project: "my-app" } },
+      },
+    };
+    useConnection.setState({ agents: { a1: agent, a_twin: { ...agent, agent_id: "a_twin", name: "Nova", project: "my-app" } } });
+    live = { agent_id: "a1", events: [request], has_more: false, pending_permission: request, latest_assistant: "" };
+    renderScreen();
+    const card = await screen.findByRole("region", { name: "Permission request" });
+    await waitFor(() => expect(card).toHaveTextContent("Nova (a_tgt) · My app"));
+    expect(card).toHaveTextContent("Atlas · Unavailable project");
+    expect(card).not.toHaveTextContent(/\bgone\b/);
   });
 
   // FS-03.A84: the phone shows the same one-line summaries with no output body.

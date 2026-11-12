@@ -158,7 +158,8 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
 - **R33 (shipped 2026-10-02) — The phone follows the desktop's dashboard → project → chat flow.** Home
   is the phone form of the desktop project dashboard (FS-02.R29/R30): every active configured
   project, including one with no agents, plus an unavailable-project entry for a force-deleted
-  project still referenced by a non-archived agent, each showing its title and color (or durable id),
+  project still referenced by a non-archived agent, each showing its title and color (a deleted
+  project reads *Unavailable project*, never its id — FS-02.R69),
   its agent count, and its live per-state summary, ordered as the desktop orders them. Above the
   projects, a compact **Needs you** list keeps R11's attention items for agents and pipeline runs,
   oldest first, each opening its card or conversation; it is hidden when empty. R11's **Moving** and
@@ -232,7 +233,8 @@ cloud service or account. This is the one planned exception to FS-00.R1/R2 (FS-0
   own notifications switch.
 - **R19 — Notification text is minimal.** A notification names the agent or run, the
   project title, and the kind of attention (for example "Atlas in My App needs permission"); it
-  never shows the project id (FS-02.R69). It never
+  never shows the project id (FS-02.R69); a project no longer configured still notifies, as
+  "in an unavailable project". It never
   includes commands, diffs, message text, or file contents; those appear only inside the app.
 - **R20 — Notifications are grouped.** Attention from one project or run arriving within a
   short window replaces or updates one notification instead of stacking many.
