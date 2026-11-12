@@ -2182,6 +2182,20 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Verify with FS-06.A33: grouping and matching tests that include parallel same-tool calls and
   unmatched records, component tests for each direction, and the phone check (INV §2/§10).
 
+- **R162 (planned) — Message fork actions and quota Refresh reuse existing controls.** For
+  FS-01.R58, desktop chat adds **Edit** to the person's message actions and **Fork from here** to
+  the last reply of a completed turn, enabled only from TS-03.R86's server-computed
+  `fork.available`; a disabled action shows the server's reason as its accessible description.
+  Both open the existing confirmation dialog primitive with the fixed file caveat, call the clone
+  route once, then follow Clone's navigation; `compose_text` seeds the new agent's composer draft
+  through the existing draft store and is never auto-sent. `AgentScreen` (phone) and terminal
+  views render neither action. For FS-09.R83, the Subscription quota disclosure gains a
+  **Refresh** button shown only when `refresh_available`, disabled and labelled as checking while
+  `refreshing`, with the result announced through the disclosure's existing live region. No new
+  primitive, token, motion or preference is added. Verify with FS-01.A40 and FS-09.A52:
+  component tests for each enabled/disabled reason and the confirm/cancel paths, and the rendered
+  desktop journey in all supported appearances (INV §10).
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

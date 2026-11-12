@@ -1192,6 +1192,69 @@ or `/status` prompt, parsed command output, private provider-client call or new 
 Revisit that transport only when an advertised primary wire surface and provider evidence resolve
 the wishlist. The chat disclosure uses existing UI primitives, semantic tokens and supported
 header layout under TS-08; it adds no new public presentation hook or dynamic-style exception.
+**Superseded 2026-11-11 (planned):** R109 replaces this requirement's transport exclusions (no
+extension method, no adapter patch) and its TBD; its normalization, validation, scope and
+retention rules stand and R109 builds on them.
+
+**R109 (planned) — A negotiated adapter extension returns the provider's typed quota snapshot.**
+For FS-09.R83, each packaged adapter gains one reviewed patch adding the request
+`_chuck/quota/read {sessionId}` and advertising `_meta.chuck.quotaRead = {version: 1}` in its
+initialize response. Chuck calls it only when advertised; an unpatched or newer adapter reads
+unsupported, never an error. The patch forwards provider data and maps nothing. Claude calls the
+SDK usage control on the session's live query with behaviors skipped
+(`sdk.d.ts:3054`, 0.3.286) and returns only `rate_limits_available` and `rate_limits`; Codex
+calls `account/rateLimits/read` and returns only each `RateLimitSnapshot`'s `limitId`, `primary`
+and `secondary` windows. Session cost, plan, account id, credits and upsell fields never leave the
+adapter. Normalization stays in Go under R89: Claude `five_hour`/`seven_day` carry a 0..100
+`utilization` and ISO 8601 `resets_at`; a Codex window is identified only by
+`windowDurationMins` (300 → `five_hour`, 10080 → `weekly`) with integer `usedPercent` and
+epoch-second `resetsAt` (the pinned adapter's own `resetsAt * 1e3`, `dist/index.js:36196`), and
+any other duration or an out-of-range value is unknown. Claude's model-specific weekly windows
+are decoded for R111 only and are never projected. The runtime issues the call at session-open
+completion, at each root turn settlement and on TS-03.R85's refresh, on the live transport beside
+any in-flight prompt, with one call in flight per session, a 10-second bound and no retry; a
+timeout or RPC error records a bounded reason and keeps the previous observation. The call and
+its result create no journal event, activity transition, owner change or context-usage update.
+Each patch follows the existing reviewed-patch assembly (pinned input and output hashes, zero
+fuzz) and ships a contract test run at assembly against the patched bundle, like
+`test-claude-quota-patch.mjs`. An adapter bump re-verifies the SDK method, which upstream marks
+experimental, and both wire shapes before the patch is carried forward. *Why:* one small typed
+passthrough reuses the adapter's authenticated process, so no second provider client, credential
+path or command-text parser exists (INV §2/§12/§15).
+
+**R110 (planned) — A fork point is a recorded agent-message identity sent as fork metadata.** For
+FS-01.R58, the runtime records, with each completed root turn's end event, an opaque fork point:
+the native session id, the standard ACP `messageId` of that turn's last agent message chunk and
+the SHA-256 of that message's text. Turns without a `messageId`, and turns from before this ships,
+record none. R65's `session/fork` carries the point as
+`_meta.jetbrains.air.fork = {version: 1, messageId, messageFingerprint}`, the only form both
+pinned adapters accept (`claude-agent-acp/dist/fork-session.js:7-24`,
+`codex-acp/dist/index.js:33447-33522`); both resolve it to an inclusive provider cut (Claude
+`upToMessageId`, Codex `lastTurnId`). Because the key is unadvertised and an adapter that ignores
+it would silently fork at the latest turn, a fork point is sent only to an adapter whose
+initialize identity and version are in Chuck's verified fork-point list (initially Claude ACP
+0.85.1 and Codex ACP 2.1.1, extended only with a recorded receipt), and only when the point's
+native session id equals the source's current one. The runtime then requires the fork's own
+replay to end at an agent message with the same fingerprint; otherwise it deletes the target
+under R65 and fails the fork. Provider ids and the `_meta` shape stay inside `internal/runtime`;
+callers name a Chuck transcript sequence. A plain Clone sends no fork point and is unchanged.
+*Why:* this is an operator-approved exception (2026-11-11) to the standard-ACP-only rule, bounded
+by an identity gate and an after-the-fact proof instead of trust in an unadvertised key.
+
+**R111 (planned) — Recovery consults the snapshot only as an optional evidence source.** For
+FS-01.R59, R96's settlement gains a third, lowest-ranked reset source, `snapshot`: after quota
+classification with no structured or text reset, one R109 read on the still-live process may
+supply the latest reset among exhausted applicable windows (100 percent used with a future
+reset; Claude family windows under R96's model rule). Immediately before the dispatcher admits a
+due continuation or starts an R97 check, one read may move `due_at` to a strictly later reported
+reset plus the existing buffer, without charging a check; an equal, earlier or past reset changes
+nothing. When the interrupted process is gone, the read runs in R97's isolated process
+composition, opened and closed without the check prompt. Every read is bounded by R109's limit
+and every non-success outcome, including unsupported, non-subscription, unknown window and
+conflict with failure evidence, returns "no snapshot evidence" to code paths that are otherwise
+byte-for-byte the shipped R96/R97 and TS-10.R45–R47 behavior; the snapshot can add or postpone a
+schedule but cannot cancel one, mark a check ready, or write a reason code. *Why:* the new route
+must be removable without changing recovery outcomes (INV §3/§11).
 
 **R90 (implemented 2026-10-13) — Use negotiated image input and explicit host-file references.** For
 FS-03.R83, extend the existing runtime prompt value to exact text plus immutable ordered attachment

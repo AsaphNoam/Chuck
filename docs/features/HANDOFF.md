@@ -326,6 +326,15 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-12 — Design:** native quota snapshot and fork from a message are ready as
+  [native-quota-snapshot-and-message-fork](../ready-changes/native-quota-snapshot-and-message-fork.md)
+  (FS-09.R83/A52 replacing R81/A50, FS-01.R58–R59/A40–A41, TS-04.R109–R111, TS-03.R85–R86,
+  TS-02.R65, TS-08.R162). The operator rejected a full move off ACP and approved, for these two
+  items only, a typed quota-read patch per packaged adapter and the adapters' existing
+  `_meta.jetbrains.air.fork` key; Edit always forks; quota recovery may use the snapshot with the
+  shipped behavior as fallback. Pinned-bundle evidence is in the change file; Claude's idle
+  usage read and both live receipts remain acceptance gates.
+
 - **2026-11-12 — Design:** agent mail visibility is ready as
   [expandable-agent-mail-activity](../ready-changes/expandable-agent-mail-activity.md)
   (FS-06.R45/A33, TS-04.R108, TS-08.R161, FS-03.R108 pointer; TS-08 is now Partial). The operator

@@ -364,20 +364,30 @@ Configuration-source federation for Claude/Codex is FS-08.
   read unknown individually; absent subscription support reads unavailable, never zero usage.
   Passing a reset or restoring an old observation does not claim refreshed allowance. Retained
   stale data remains visibly last observed, and a failed read preserves it with its failure reason.
-- **R81 (planned)** — **Availability does not interrupt work or fabricate quota.** Use only
-  provider-owned ACP subscription data. An ordinary usage update may populate an observed window
-  but never imply the other window is known, and quota utilization alone does not authorize
-  FS-01.R40's interrupted-work continuation. No background conversation prompts, `/usage` or
-  `/status` injection, transcript-text scraping, account-login side channel or periodic model turn
-  is used to fill the view. Complete Claude/Codex snapshot/read/refresh delivery stays **TBD** until
-  an ACP surface supplies it without occupying or changing the agent's work; the desired windows
-  are prepared and missing capabilities recorded in `docs/ideas.md`'s ACP Wait-list. A compact,
+- **R81 — retired 2026-11-11:** unshipped ACP-only delivery with snapshot/refresh left TBD; the
+  operator approved a native provider read, so R83 replaces it and keeps its presentation rules.
+- **R83 (planned)** — **A running session reads its own provider's complete quota snapshot.**
+  For a running chat session whose provider reports subscription windows, Chuck reads both R80
+  windows from that provider through the session's own packaged adapter. A read happens when the
+  session starts, after each of its turns ends, and when the person activates **Refresh** in the
+  disclosure; there is no timer. Refresh is offered while the session runs, including during a
+  turn, shows that a read is in progress and never stacks a second read. A read spends no model
+  turn and sends no conversation prompt, `/usage` or `/status` command; it scrapes no transcript
+  or command text, uses no separate provider login, and changes no transcript, context usage,
+  turn ownership or agent state. A stopped session offers no Refresh and is never started or woken
+  to read. A session authenticated without a subscription reads **Unavailable** with that reason.
+  A failed read keeps the previous values under R80's stale treatment with the failure reason.
+  Only **5-hour** and **Weekly** are shown or exposed: a provider window that cannot be identified
+  as one of them stays unknown, and model-specific weekly windows, extra-usage or credit balances,
+  plan name and account identifier are neither displayed nor returned to API clients. An ordinary
+  usage update may still populate one observed window without implying the other is known, and
+  quota utilization authorizes FS-01.R40's interrupted-work continuation only as FS-01.R59
+  specifies. A compact,
   keyboard-operable **Subscription quota** disclosure in the chat header shows the active
   provider's two quiet rows, separately from context usage. Known usage has a labelled percentage
   meter; unknown/unavailable values have explicit text rather than an empty zero-valued bar.
-  Unavailable passive refresh names the ACP limitation instead of offering a falsely usable
-  Refresh action. Closing/opening the disclosure does not start a runtime or a provider turn.
-  Use the current header's type/spacing/semantic colors and no new motion, theme or preference.
+  Closing/opening the disclosure does not start a runtime, a read or a provider turn. Use the
+  current header's type/spacing/semantic colors and no new motion, theme or preference.
 
 ## 3. States & transitions
 
@@ -782,16 +792,21 @@ Configuration-source federation for Claude/Codex is FS-08.
   timezone and stale/failed/unavailable treatment. *Verify:* provider-boundary/API/projection/UI
   tests and a focused desktop/phone browser journey in all supported appearances, including
   keyboard disclosure/focus, long reset labels and the current header/context-meter composition.
-- **A50 (planned)** (R81) — Observe a running ordinary, task, pipeline and room turn while the
-  quota view opens/updates. No extra provider prompt, command or owner transition occurs.
-  Full snapshot/refresh remains unavailable when ACP lacks a passive read. Once upstream exposes
-  it, verify actual paired-window identities, percentage units, reset instants, account scope and
-  availability on packaged/installed Claude and Codex before closing TBD. *Verify:* captured
-  pinned-adapter contract fixtures, fake-provider ownership tests and bounded live-provider receipts.
+- **A50 — retired 2026-11-11:** covered retired R81's unavailable snapshot; replaced by A52.
 - **A51** (R82) — Clear (or whitespace-fill) a seeded backend's display name and Save: the response
   is a 400 field error on `backends.<id>.name`, `backends.json` is unchanged, the editor shows the
   error and keeps the other edits. *Verify:* `internal/server` PUT-backends handler test and
   `BackendsEditor.test.tsx`.
+- **A52 (planned)** (R80, R83) — Against a fake of each provider, session start, each turn end and
+  **Refresh** each produce exactly one read and fill both windows; an ordinary, task, pipeline and
+  room turn sees no extra prompt, command, transcript event or owner transition, including a
+  Refresh pressed mid-turn. A non-subscription session reads Unavailable, a failed read keeps the
+  earlier values as stale with its reason, a stopped session offers no Refresh and starts nothing,
+  an unidentifiable window stays unknown, and no excluded window, balance, plan or account field
+  appears in the serialized projection. On packaged Claude and Codex, one bounded credentialed
+  read each matches the provider's own usage display for window identity, percentage and reset
+  instant. *Verify:* contract tests of each packaged adapter's read against the pinned bundle,
+  runtime/API/projection tests, the A49 browser journey with Refresh, and the two live receipts.
 
 ## 6. Deviations & open decisions
 
@@ -802,6 +817,8 @@ Configuration-source federation for Claude/Codex is FS-08.
   Codex ACP 2.1.1 keeps full rate-limit snapshots private; `/status` returns formatted text and
   `account/rateLimits/updated` emits no ACP update. Complete passive snapshot/read/refresh is TBD
   for both providers, rather than implemented by parsing commands or probing another account API.
+  **Superseded 2026-11-11:** the operator approved reading each provider's own snapshot through
+  its packaged adapter instead of waiting for ACP; R83/A52 replace R81/A50 and remain planned.
   The pinned live `SDKRateLimitInfo.utilization` and `resetsAt` declarations specify only numbers,
   not their units; percentages and time conversion require a provider/source receipt, not a guess
   based on magnitude. Full `/usage` utilization is explicitly 0..100 but is a different surface.

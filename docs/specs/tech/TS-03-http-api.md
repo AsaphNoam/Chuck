@@ -1298,6 +1298,34 @@ No provider-refresh endpoint or agent tool is added before the passive ACP trans
 Update current Go/TypeScript schemas and consumers together; the operator's API compatibility
 waiver applies, with no need for old-client aliases. Verify real serialized partial/unknown shapes,
 read failure, source change and stopped-session behavior independently of UI fixtures.
+**Superseded 2026-11-11 (planned):** R85 replaces the fixed `refresh_available:false`, the
+two-value availability and the no-refresh-endpoint rule; the rest stands.
+
+**R85 (planned) — Quota snapshots add one refresh action and a complete state.** For FS-09.R83
+and TS-04.R109, `subscription_quota.availability` becomes
+`"complete" | "partial" | "unavailable"`, `refresh_available` is true exactly while the session
+runs on an adapter advertising the read, and a boolean `refreshing` reports an in-flight read.
+`reason_code` gains `unsupported_adapter`, `no_subscription`, `read_failed` and `read_timeout`.
+`POST /api/sessions/{agent_id}/quota-refresh` takes no body, returns `202` after requesting one
+read (joining one already in flight), `409 agent_not_running` for a stopped session and
+`422 quota_refresh_unavailable` when unadvertised; results arrive through the existing read and
+SSE projection, and the route starts, wakes or prompts nothing. It is a desktop route and is not
+added to the remote allow-list; the phone keeps the read-only view. The quota-recovery projection
+of R72 accepts `reset_source:"snapshot"` (FS-01.R59).
+
+**R86 (planned) — Clone accepts a Chuck turn boundary.** For FS-01.R58, `POST
+/api/sessions/{agent_id}/clone` accepts an optional body `{through_seq, compose_from_seq}`.
+`through_seq` is the transcript sequence of a completed root turn's end event in the source;
+`compose_from_seq`, valid only with it, names the person's message that began the next turn. The
+server resolves the boundary to TS-04.R110's stored fork point and copies the transcript through
+`through_seq`; the response adds `compose_text` with that message's text when requested, and
+`forked_from_seq` is the boundary. No provider id, message id or fingerprint is accepted or
+returned. Refusals extend R43's: `422 clone_unavailable` with reasons `no_fork_point`,
+`other_native_session`, `unverified_adapter`, `not_a_turn_boundary`, and the sanitized upstream
+error when the provider or TS-04.R110's replay proof rejects the fork; none leaves partial state.
+The transcript read marks each turn-end event with `fork:{available, reason}` computed
+server-side from the same checks, so clients never infer eligibility. An empty body is today's
+Clone. Update Go and TypeScript shapes together under the operator's compatibility waiver.
 
 **R60 (implemented 2026-10-11) — Quota recovery uses explicit session control and live config.** For
 FS-01.R40–R45/FS-04.R53, GET/PUT `/api/config` exposes effective boolean `auto_continue`;

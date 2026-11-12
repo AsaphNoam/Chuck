@@ -79,35 +79,12 @@ These are capabilities AgentDeck implements above ACP, or has deliberately defer
 pinned adapter contract is missing or unverified. An adapter release is a reason to recheck the
 capability; it is not by itself authority to remove the fallback or ship the deferred feature.
 
-- **Passive subscription quota snapshot/read/updates — Claude and Codex (TBD, 2026-10-10).**
-  Needed for FS-09.R80–R81's 5-hour/weekly views and complete reset evidence for quota recovery.
-  Request a negotiated typed ACP read/bootstrap and change update carrying provider/account scope,
-  window identity/duration, utilization or remaining percentage, reset instant, observed timestamp,
-  explicit percentage/timestamp units, availability and model-specific blocking scope.
-  Claude 0.85.1 only forwards partial
-  `_claude/rateLimit` change events; its full SDK usage data is available only through a queued
-  `/usage` turn rendered as Markdown. Codex 2.1.1 holds `account/rateLimits/read`/`updated` privately
-  and renders `/status` text; it forwards no typed snapshot/reset update. Map Codex windows by
-  verified duration, not assumed primary/secondary names. Rechecked 2026-10-14 against Claude ACP
-  0.90.0 and Codex ACP 2.2.2: unchanged (Claude SDK adds only `overageEnabled`). Recheck official adapter capability,
-  wire shape and provider evidence before completing TBD. Do not silently substitute command-text
-  parsing, provider credential probes or an unrequested adapter patch.
-
-- **Edit a sent message / fork from an earlier message (held 2026-10-14).** From the 2026-08-10 play
-  session: editing the last message edits in place (like Codex), and editing or splitting at an
-  older one forks from that point. User rule (2026-10-14): ship only on standard ACP, never on a
-  vendor `_meta` extension. Standard ACP has no fork point, rewind, truncate or edit: SDK 1.8.0
-  `ForkSessionRequest` carries only `sessionId`, `cwd`, `additionalDirectories`, `mcpServers` and
-  `_meta`, and forks at the latest turn, so even edit-last cannot exclude the message being edited.
-  Both pinned adapters (Claude ACP 0.85.1 `dist/fork-session.js`, Codex ACP 2.1.1
-  `SessionFork.ts`) and the latest (0.90.0, 2.2.2) accept an unadvertised JetBrains extension,
-  `_meta.jetbrains.air.fork = {version: 1, messageId, …}`, forking after the turn holding that agent
-  message (Claude `upToMessageId`, Codex `thread/fork` `lastTurnId`); excluded by the rule above.
-  The only standard-ACP substitutes are lossy: a new session primed by `internal/server/primer.go`
-  (8000-token budget) re-sends history in a new shape that misses the provider prompt cache.
-  Chuck-side constraints still apply when the gate opens: append-only transcript (TS-02.R8, INV
-  §9), immutable per-turn search documents (TS-02.R16), no file rewind, and Chuck does not yet
-  capture adapter `messageId`s. Reopen when ACP standardizes a fork point or rewind.
+- **Typed quota read and fork point in standard ACP.** No longer waited on: the operator approved
+  packaged-adapter routes on 2026-11-11
+  ([ready change](ready-changes/native-quota-snapshot-and-message-fork.md)). When ACP standardizes
+  a subscription-quota read or a fork point, recheck whether TS-04.R109's two quota patches and
+  R110's `_meta.jetbrains.air.fork` use can be dropped. Other vendor extensions still need the
+  operator's explicit approval.
 - **Steering.** The pinned Claude 0.85.1 and Codex 2.1.1 adapters advertise
   `_session/steering`, and AgentDeck uses it. Codex 2.1.1 still starts a detached turn when a steer
   arrives idle and ignores AgentDeck's `promptRequired` metadata, so the packaged steering patch

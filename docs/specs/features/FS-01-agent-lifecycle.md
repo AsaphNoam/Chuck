@@ -151,6 +151,23 @@ orphaned processes.
   of remaining on the source card. The client routes only after the fork response returns the new
   `agent_id`; a refused or failed clone leaves the person on the source surface and exposes the
   existing actionable error.
+- **R58 (planned)** — **Edit a sent message or fork from a reply.** In a desktop chat
+  conversation, each message the person sent offers **Edit**, and the last reply of each completed
+  turn offers **Fork from here**. Both create a new agent exactly as R36's Clone does (same
+  configured identity, R39's name, a fork marker linking back, R38's navigation, source agent and
+  transcript untouched) and differ only in where the copied conversation ends. **Fork from here**
+  ends after the chosen turn and opens with an empty composer. **Edit** ends after the turn before
+  the chosen message and opens with that message's text in the composer, unsent; its attachments
+  are not carried. The provider context and the copied visible transcript end at the same turn.
+  Each action first shows one short confirmation stating that a new agent is created and that
+  files changed since that point are not restored. The action is unavailable, with its reason,
+  when R36 would refuse Clone (active turn, unresolved permission, terminal or non-forking runtime,
+  no native session), for **Edit** on the conversation's first message, and for a message whose
+  provider fork point Chuck does not hold: one sent before this shipped, or one belonging to an
+  earlier provider session replaced by switch runtime. A fork the provider rejects creates no
+  agent, transcript, process or messaging identity and reports the rejection. Nothing rewrites or
+  truncates the source conversation, no file is rewound, and phone and terminal surfaces do not
+  offer these actions.
 
 ### Resume
 
@@ -326,6 +343,25 @@ orphaned processes.
   cannot. A small successful check does not guarantee that the original larger request fits the
   available quota. Checks can consume normal provider usage and are not free passive reads.
   Explicit provider errors requiring credits, a plan change or spend-cap intervention stay manual.
+- **R59 (planned; confirmed 2026-11-12)** — **A provider quota snapshot sharpens recovery and
+  never replaces it.** After R40 establishes quota exhaustion, Chuck may read FS-09.R83's snapshot
+  for the interrupted work's own provider, account and model, without waking, prompting or
+  appending to the interrupted conversation. It is used in exactly three ways. **Known reset:**
+  when R48 finds no reset in the failure itself, the reset of a window the snapshot reports as
+  exhausted is a known reset and schedules R48's continuation with no R49 check; the failure's own
+  structured or text evidence always wins over the snapshot. **Right window:** when several
+  applicable windows are exhausted, the latest of their resets applies; a model-specific weekly
+  window counts only for the interrupted model's family, even though FS-09.R83 does not display
+  it. **Pre-check:** immediately before a scheduled continuation or an R49 check starts, a fresh
+  snapshot that still reports an applicable window exhausted with a future reset moves the wait
+  to that reset, spending no model turn and none of R49's six checks; an unchanged or past reset
+  never defers again. A snapshot showing available quota authorizes nothing by itself: R49's
+  target-model check and R44/R49's holds still apply. **Fallback:** whenever the snapshot is
+  unsupported, unavailable, failed, slow, incomplete, unidentifiable or contradicted by the
+  failure's own evidence, recovery behaves exactly as R48–R51 do without it. A snapshot problem
+  never cancels, delays or downgrades a recovery the existing evidence would have scheduled, and
+  adds no needs-attention reason, message or notification. The quota indicator and API name the
+  snapshot as the reset's source; R43's manual control, R45/R50's notice and R51 are unchanged.
   The conversation continues to say **Reset time unknown**, shows **Will check again at …** and
   the remaining check allowance, and offers the existing cancellation control. Repeated quota
   failures retain the allowance across changed failure identities and server restarts; partial
@@ -751,6 +787,26 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   continuation at reset plus 60s, no check) and the existing R43–R44/R48–R51 lifecycle, notice
   and rendered desktop/phone **Will continue at …** coverage under A31–A33, which this repair
   reaches through unchanged `reset_at`/`due_at` state.
+- **A40 (planned)** (R58) — Against a fork-capable fake session with three completed turns,
+  **Edit** on the second message creates one agent whose copied history and fork request both end
+  at turn one, with the fork marker, the message text in the composer and nothing sent; **Fork
+  from here** on turn two ends both at turn two with an empty composer. The source keeps all three
+  turns, and its later turns never reach either fork. Each unavailable case in R58 shows its reason
+  and sends no fork request; the confirmation names the file caveat; a rejected fork leaves no
+  partial state. On packaged Claude and Codex, one bounded credentialed fork each proves the new
+  conversation's provider context ends at the chosen turn. *Verify by* lifecycle/runtime/API
+  tests, chat message-action component tests, journey J7 and the two live receipts.
+- **A41 (planned)** (R59) — With a fake provider snapshot: an interruption whose failure carries
+  no reset but whose snapshot shows an exhausted Weekly window is scheduled at that reset plus
+  R48's buffer and charges no check; two exhausted windows use the later reset; a foreign model
+  family's weekly window is ignored; a reset stated by the failure wins over a different snapshot.
+  A pre-check that still sees exhaustion with a later reset moves the wait once, charges nothing
+  and wakes nothing, and an unchanged or past reset does not defer. A snapshot showing allowance
+  on an unknown-reset interruption still runs R49's check. Then repeat A31–A34's scenarios with
+  the snapshot unsupported, failing, timing out, incomplete and contradictory at interruption and
+  at pre-check: schedules, check counts, indicator states, notices and transcripts equal the
+  recorded no-snapshot results. *Verify by* runtime/server recovery tests sharing A31–A34's
+  fixtures, serialized projections, restart/cancel races and the existing quota banner journey.
 
 ## 6. Deviations & open decisions
 

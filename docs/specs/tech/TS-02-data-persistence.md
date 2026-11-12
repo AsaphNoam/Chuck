@@ -988,6 +988,16 @@ stable session identity. No new retention policy, automatic repair, external fil
 dependency is introduced. Verify populated-store upgrade under both SQLite build variants,
 live/replay equality, digest mismatch and interrupted reindex (FS-05.A29/A32; INV §2/§7/§9/§11/§16).
 
+**R65 (planned) — Fork points and snapshot resets extend existing records.** For TS-04.R110, a
+turn-end journal event gains an optional `fork_point` object written once with the event; it is
+never added to earlier events, search documents, exports or API payloads, and a clone's copied
+turn-end events omit it because they belong to another native session. Absence means "no fork
+point", so no backfill or migration of journals exists. For TS-04.R111, one migration widens
+`quota_intents.reset_source` to accept `snapshot`; existing rows are unchanged and no column,
+table or retention rule is added. Subscription quota observations stay in memory under
+TS-04.R89. Verify the migration on a populated store under both SQLite build variants and that
+an old journal replays with every fork action unavailable (INV §7/§9/§11).
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For
