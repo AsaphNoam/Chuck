@@ -31,7 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 None.
 
-No review findings are open.
+The internal-ID display review has findings available for fix work below.
 
 ## Acceptance gates still owed
 
@@ -217,12 +217,9 @@ No review findings are open.
   rows save the agent's name as the launch name; draft save sends no title/goal; room save of a
   departed member keeps it; templates have no rename/delete. Rendered pass owed (gates above).
 
-- **No raw ids in the UI** (2026-11-11, FS-02.R69 extension): desktop, phone and push text
-  replace agent/project/task/run/room/proposal id fallbacks and chips with names or neutral
-  phrases via `ui/src/lib/labels.ts` (`agentName`, `projectTitle`); attention items carry an
-  internal project title for push. Kept by design: duplicate-name `(id)` in selectors, settings
-  slug fields, template stage/participant ids, model ids, persona role slugs
-  (`personaIdentityLabel`). No rendered browser pass.
+- **No raw ids in the UI** (`178425ba`, FS-02.R69 extension): reviewed 2026-11-12. Open for
+  UI-IDS-1–6 fixes and independent fix review. The pipeline browser journey passed. The
+  breadcrumb browser harness still expects the removed chip and needs a rerun after repair.
 
 ## Investigations awaiting evidence
 
@@ -270,7 +267,46 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-None open.
+### No raw ids in the UI — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** UI-IDS-1 (INV §8/§10; fix complexity: medium) — After assigning an annotation to
+  another agent, the source transcript renders `Agent <id>` in
+  `ui/src/components/chat/renderers/AnnotationCard.tsx:9`. Desktop, archive and phone share this
+  card. The normal new-worktree start error also exposes a project slug: a configured non-Git
+  directory reaches `internal/server/pipeline_workspace.go:52`, and the diagnostic is shown by
+  `ui/src/features/pipelines/RunStartForm.tsx` and `ui/src/remote/ProjectScreen.tsx`. Use a readable
+  or neutral recipient label in live and retained cards and a human project label in the error.
+  Verify the distinct raw ids remain absent from the rendered card and the failed start message
+  (FS-02.R69).
+- **Must fix** UI-IDS-2 (INV §2/§8; fix complexity: easy) —
+  `ui/src/features/tasks/taskForms.tsx:125–137` removes the only disambiguator from named
+  prerequisite options. Two same-project runs of the same template can both use its default
+  name and be in the same state, so the operator sees identical options and may arm a task
+  against the wrong run. Tasks with the same name and state have the same problem. Reuse the
+  shared duplicate-name labeling rule and test distinct choices with unchanged submitted ids
+  (FS-02.R69, FS-16.R39–R40).
+- **Must fix** UI-IDS-3 (INV §8/§10; fix complexity: medium) —
+  `ui/src/lib/peerStop.ts:40–43` now shows only name and project title on both approval surfaces.
+  Same-name agents in one project can produce indistinguishable requester and target rows for an
+  operation that stops a specific process. FS-06.R41 also still expressly requires the stable id,
+  in conflict with FS-02.R69's general display rule. Resolve the identity contract for this
+  approval, retain unambiguous identity when names collide, and cover the same-name case on desktop
+  and phone without changing the id bound to the approval.
+- **Worth fixing** UI-IDS-4 (INV §7/§8/§10/§16; fix complexity: medium) —
+  `internal/server/remote_home.go:127–135` scans every project config on each attention evaluation,
+  including Home reads that discard the title and push evaluations with remote access disabled.
+  A missing project entry leaves push text without any project context
+  (`internal/server/remote_push.go:152–168`, FS-20.R19). Resolve titles for actual notifications,
+  preserve delivery with a neutral fallback for removed projects, and exercise that case. Align
+  FS-20.R33's deleted-project wording with the phone's neutral Home label while applying FS-02.R69.
+- **Worth fixing** UI-IDS-5 (INV §17; fix complexity: easy) — Chromium's
+  `ui/scripts/breadcrumb-render.mjs:142–143` dereferences the deliberately removed id chip, so
+  independent review stops at the first 1024px breadcrumb. Assert Back, absent id text, and
+  sibling bounds against the updated FS-12.A40 contract, then rerun the breadcrumb matrix.
+- **Worth fixing** UI-IDS-6 (INV §17; fix complexity: easy) — Focused component tests pass while
+  `RunBrowser.test.tsx` and many `AgentScreen.test.tsx` cases report unhandled `GET /api/projects`
+  requests introduced by the new labels. Seed the real response shape and check at least one
+  configured title and one unavailable project at the rendered boundary (TS-06.R35).
 
 ## Blocked on human
 
@@ -289,6 +325,14 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-12 — Review:** internal-ID display (`178425ba`) remains open for UI-IDS-1–6.
+  Five focused component files passed 143 tests with the fixture gaps above. Presentation checks
+  and focused Go remote home/push tests passed. Chromium's populated pipeline fixture passed 120
+  checks at 1024px and 1440px in Core,
+  Sky & Grove and Studio. The breadcrumb harness stopped on its obsolete id-chip assertion.
+  Invariant sweep applied classes 2/7/8/10/11/13/14/16/17. Classes 1/3/4/5/6/9/12/15 had no
+  applicable surface. The peer Stop identity contract needs reconciliation, as recorded above.
 
 - **2026-11-12 — Fix:** closed the v0.23.0 main-CI annotation replay race (RELEASE-023-CI-1;
   INV §17 tests prove their contract independently). The self-annotation fixture now holds
