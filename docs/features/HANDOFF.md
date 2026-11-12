@@ -31,14 +31,20 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 None.
 
+Think Tank templates have findings available for fix work below.
 
 ## Acceptance gates still owed
 
-- **Think Tank templates rendered journey (FS-21.A43–A44, TS-14.R33):** render the creation
-  modal (template load, unavailable-row repair, row Edit, Save setup) and room Save
-  setup/instructions in the built desktop app at narrow and wide widths, all shipped appearances,
-  with long names. The wide grid now reserves 8 left-column rows (`think-tank.css`). Only jsdom
-  and Go integration evidence exists; no fake-provider A45 activation journey was run.
+- **Think Tank templates (FS-21.A43–A45, TS-14.R33):** independent Chromium on the built
+  desktop bundle and isolated fake-ACP server passed load, unavailable-persona repair, long-row
+  layout, declined replacement, room instruction disclosure and room save dialog at 1024px/1600px
+  in all four appearances. Core also passed keyboard focus restoration, draft save without a goal,
+  active/ended room save and increased-ceiling reload. A saved existing-chat row launched as a
+  fresh destination chat and the source template remained intact.
+  Chromium reproduced TT-TEMPLATE-3 and TT-TEMPLATE-4. The state tests cover source deletion.
+  Recheck the affected rendered paths after repair and exercise A45 with fake-provider turns
+  through retry, closing and synthesis plus the SSE check in TT-TEMPLATE-1. The focused Go suites
+  and 78 component tests passed.
 
 - **File freshness/editing (FS-03.A86–A88):** actual Chromium desktop live/archive/room/Focus
   journeys and the real phone bundle at 360/390/430px pass. Phone SSE/tracked-file admission was
@@ -207,14 +213,10 @@ None.
 
 ## Review queue
 
-- **Think Tank templates** (2026-11-11, FS-21.R60–R63, TS-14.R30–R33): participant instructions
-  (migration 71; only the participant's own running-attempt first context read carries
-  `participant_instructions`), template storage/REST (migration 72, local-only routes, command
-  replay), and desktop UI (Template dropdown with replace confirmation, fresh launches in the
-  dialog's project, unavailable persona/runtime flags, row Edit via prefilled `NewAgentModal`
-  `initialLaunch`, existing-row replace, Save setup in modal and room). Review notes: existing-chat
-  rows save the agent's name as the launch name; draft save sends no title/goal; room save of a
-  departed member keeps it; templates have no rename/delete. Rendered pass owed (gates above).
+- **Think Tank templates** (`6451e66b`, `35f951e9`, `3b0f8ff8`, FS-21.R60–R63, TS-14.R30–R33):
+  reviewed 2026-11-12. Open for TT-TEMPLATE fixes below and independent fix review. Existing-chat
+  names are valid optional launch names. A departed participant remains a roster slot in the
+  snapshot, with no departure state. Template rename/delete is outside this change.
 
 ## Investigations awaiting evidence
 
@@ -262,7 +264,67 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-None.
+### Think Tank templates — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** TT-TEMPLATE-1 (INV §11/§14/§17; fix complexity: medium) — The first authorized
+  room context read returns private participant instructions. Shared room activity compacts that
+  tool result, but a valid ACP `tool_call_update` that echoes it becomes a `tool_result` with raw
+  content (`internal/runtime/acpmap.go:541–558`). The history publisher sends that event through
+  the ordinary `/api/events` stream, including paired phone (`internal/bus/bus.go:158–161`,
+  `internal/server/sse.go:59–67`). TS-14.R32 explicitly excludes the field from SSE. Cover the
+  real MCP response plus an echoing fake ACP frame, and verify the authorized read retains the
+  instructions while shared room activity and ordinary SSE exclude them. No shipped adapter echo
+  was observed in this review.
+- **Must fix** TT-TEMPLATE-2 (INV §3/§9/§17; fix complexity: medium) — Saving a room or an
+  existing-chat draft stores its source room or agent IDs in `intent` on the template row
+  (`internal/state/think_tank_templates.go:79–95,214–218,259–260`). The API response omits them,
+  but FS-21.R60 and TS-14.R30–R31 keep source identities outside the snapshot and use the agent
+  identity for lookup only. Use a fingerprint of the normalized replay request, account for
+  already-saved rows, and check stored data as well as exact replay/conflict after source deletion.
+- **Must fix** TT-TEMPLATE-3 (INV §1/§5/§8; fix complexity: easy) — A slow template response can
+  replace roster or discussion edits entered after requesting it, with no confirmation for
+  those edits (`ui/src/features/thinktank/ThinkTankSetupDialog.tsx:142–174`). Clearing to blank
+  also returns before advancing the token, so the late response can restore an unwanted template.
+  Fence pending loads on superseding setup changes, including blank, or make replacement an
+  explicit commit against the current draft (FS-21.R61, TS-14.R33). Chromium reproduced a limit
+  edit from 27 reverting to the template's 4. Cover that and a late response after switching to blank.
+- **Must fix** TT-TEMPLATE-4 (INV §15; fix complexity: easy) — Both save surfaces mint a new
+  command ID each time the operator submits (`ThinkTankSetupDialog.tsx:215–230`,
+  `RoomSaveSetup.tsx:15–24`). When a save commits and its response is lost, retry creates a second
+  copy. Retain the command for an identical retry and rotate it on a new intent or acknowledged
+  save. Chromium reproduced two draft templates after dropping the response to the first committed
+  save. Assert one template under the same schedule from both entry points (FS-21.R60, TS-14.R31).
+- **Must fix** TT-TEMPLATE-5 (INV §1/§8; fix complexity: easy) — After an existing-chat member
+  switches to Terminal following the discussion, Save setup on the ended room reports its launch
+  choices are unrecoverable. The query reads the portable fields but rejects the current interface
+  (`internal/state/think_tank_templates.go:110–116,156–163`). Keep chat eligibility for a draft
+  lookup and project the committed member's recoverable choices for a fresh chat. Exercise this
+  after a real retained member switch (FS-21.R60, TS-14.R31).
+- **Must fix** TT-TEMPLATE-6 (INV §8/§10; fix complexity: easy) — A template whose model remains
+  configured but no longer supports its saved effort or fast mode receives no row warning
+  (`ThinkTankSetupDialog.tsx:94–109`). Start proceeds to setup and can fail launch validation
+  (`internal/server/launch.go:396–404`). Check current model and chat capabilities for the saved
+  choices, mark the affected participant or judge, and make repair explicit before starting
+  (FS-21.R61, TS-14.R30/R33).
+- **Worth fixing** TT-TEMPLATE-7 (INV §7/§16; fix complexity: easy) — Room Save setup reads full
+  room detail inside the template transaction, including attempts and pending input bodies it
+  never uses (`internal/state/think_tank_templates.go:148–172`, `internal/state/think_tanks.go:904–951`).
+  Read the bounded setup and roster from the same snapshot without materializing unrelated history
+  and queued input. Verify room save with a large retained history and pending queue (TS-14.R31).
+- **Worth fixing** TT-TEMPLATE-8 (INV §9/§11; fix complexity: medium) — Template schema version
+  exists only on the wire. The table stores no version and reads label every retained payload with
+  the running build's constant (`internal/state/think_tank_templates.go:87–95,314–323`). Store the
+  version or a versioned payload, and verify that v1 data remains decodable across a schema change
+  (TS-14.R30).
+- **Worth fixing** TT-TEMPLATE-9 (INV §10/§16; fix complexity: easy) — The dropdown silently
+  discards any continuation after ten pages of 100 summaries (`ui/src/api/thinkTanks.ts:335–350`).
+  Older saved setups remain in SQLite but become unreachable through the desktop modal as new
+  templates accumulate. Expose further pages on demand while keeping each fetch bounded and
+  preserving draft state (FS-21.R61, TS-14.R31).
+- **Worth fixing** TT-TEMPLATE-10 (INV §8/§11; fix complexity: easy) — The instructions field's
+  native `maxLength` counts UTF-16 units (`ThinkTankSetupDialog.tsx:328–332`), so input consisting
+  of supplementary Unicode characters is cut off at 4,000 instead of the server's 8,000-rune
+  limit. Count runes and verify at the accepted and rejected boundaries (FS-21.R63, TS-14.R32).
 
 ## Blocked on human
 
