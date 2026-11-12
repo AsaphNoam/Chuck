@@ -311,3 +311,25 @@ export interface AvailableCommand {
   description: string;
   input_hint?: string;
 }
+
+// Chuck mail detail on a `notice` with origin "chuck_mail" (FS-06.R45, TS-08.R161).
+export type MailDirection = "received" | "sent" | "read";
+
+export interface MailDetail {
+  message_id?: string;
+  from_name?: string;
+  from_address?: string;
+  to_name?: string;
+  to_address?: string;
+  subject: string;
+  body: string;
+  created_at?: string;
+  wake: boolean;
+}
+
+export interface MailRecord {
+  direction: MailDirection;
+  messages: MailDetail[];
+  error?: { code: string; message: string };
+  truncated: boolean;
+}

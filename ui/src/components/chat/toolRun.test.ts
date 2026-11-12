@@ -30,3 +30,56 @@ describe("groupTranscriptRows", () => {
     expect(unrelated.map((row) => row.kind)).toEqual(["tool-run", "event"]);
   });
 });
+
+describe("groupTranscriptRows mail records (TS-08.R161)", () => {
+  const mail = (seq: number, direction: string, subject = "s") =>
+    event(seq, "notice", { origin: "chuck_mail", severity: "info", title: "Mail", mail: { direction, messages: [{ subject, body: "b", wake: true }], truncated: false } });
+  const call = (seq: number, id: string, name: string, extra: Record<string, unknown> = {}) => event(seq, "tool_call", { tool_call_id: id, name, ...extra });
+  const run = (rows: ReturnType<typeof groupTranscriptRows>) => {
+    const row = rows[0];
+    if (row.kind !== "tool-run") throw new Error("not a run");
+    return row.events;
+  };
+
+  it("attaches a sent record to the send_message call and a read record to check_messages", () => {
+    const rows = groupTranscriptRows([
+      call(1, "a", "mcp__chuck-messaging__send_message"),
+      mail(2, "sent"),
+      call(3, "b", "mcp.chuck-messaging.check_messages"),
+      mail(4, "read"),
+    ]);
+    expect(rows).toHaveLength(1);
+    const events = run(rows);
+    expect(events.map((item) => item.seq)).toEqual([1, 3]);
+    expect((events[0].mail as { direction: string }).direction).toBe("sent");
+    expect((events[1].mail as { direction: string }).direction).toBe("read");
+  });
+
+  it("matches Codex args.tool and pairs parallel same-tool calls in order", () => {
+    const events = run(groupTranscriptRows([
+      call(1, "a", "mcp", { args: { server: "chuck-messaging", tool: "send_message" } }),
+      call(2, "b", "mcp__chuck-messaging__send_message"),
+      mail(3, "sent", "first"),
+      mail(4, "sent", "second"),
+    ]));
+    expect(events.map((item) => (item.mail as { messages: { subject: string }[] }).messages[0].subject)).toEqual(["first", "second"]);
+  });
+
+  it("keeps an unmatched record as its own line in the run, and ignores other servers' tools", () => {
+    const events = run(groupTranscriptRows([call(1, "a", "mcp__other__send_message"), call(2, "b", "Edit"), mail(3, "sent")]));
+    expect(events.map((item) => item.seq)).toEqual([1, 2, 3]);
+    expect(events[0].mail).toBeUndefined();
+  });
+
+  it("turns a record outside any run into a one-line run", () => {
+    const rows = groupTranscriptRows([event(1, "assistant_text", { text: "hi" }), mail(2, "read")]);
+    expect(rows.map((row) => row.kind)).toEqual(["event", "tool-run"]);
+  });
+
+  it("never pulls a received notice or an old mail-less notice into a run", () => {
+    const old = event(3, "notice", { origin: "chuck_mail", severity: "info", title: "Mail" });
+    const rows = groupTranscriptRows([call(1, "a", "Edit"), mail(2, "received"), old]);
+    expect(rows.map((row) => row.kind)).toEqual(["tool-run", "event", "event"]);
+    expect(run(rows).map((item) => item.seq)).toEqual([1]);
+  });
+});

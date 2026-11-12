@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"strings"
+	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/state"
+	"github.com/AsaphNoam/Chuck/internal/strutil"
 )
 
 // EventType constants name the normalized transcript event kinds (techspec §4.2).
@@ -201,6 +203,83 @@ type NoticeData struct {
 	// PeerStop attributes a host-approved peer Stop. Only Chuck's peer Stop
 	// path writes it (TS-02.R49).
 	PeerStop *PeerStopNotice `json:"peer_stop,omitempty"`
+	// Mail is display-only detail of mail Chuck served to this agent. Only
+	// Chuck's mail paths write it (TS-04.R108).
+	Mail *MailNotice `json:"mail,omitempty"`
+}
+
+// MailNoticeOrigin marks a notice carrying Chuck mail detail.
+const MailNoticeOrigin = "chuck_mail"
+
+// maxMailNoticeBytes bounds one serialized mail detail (TS-04.R108).
+const maxMailNoticeBytes = 64 * 1024
+
+// MailNotice is the person's view of mail received inline, sent, or read
+// through check_messages. It never reaches agent-facing projections.
+type MailNotice struct {
+	Direction string       `json:"direction"` // "received" | "sent" | "read"
+	Messages  []MailDetail `json:"messages"`
+	Error     *MailError   `json:"error,omitempty"`
+	Truncated bool         `json:"truncated"`
+}
+
+// MailDetail is one message as the person sees it.
+type MailDetail struct {
+	MessageID   string `json:"message_id,omitempty"`
+	FromName    string `json:"from_name,omitempty"`
+	FromAddress string `json:"from_address,omitempty"`
+	ToName      string `json:"to_name,omitempty"`
+	ToAddress   string `json:"to_address,omitempty"`
+	Subject     string `json:"subject"`
+	Body        string `json:"body"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	Wake        bool   `json:"wake"`
+}
+
+// MailError is a refused send or read.
+type MailError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// MailDetailFromMessage is the one projection of a stored message into mail
+// detail, shared by inline delivery and check_messages (INV §2).
+func MailDetailFromMessage(m state.Message) MailDetail {
+	return MailDetail{
+		MessageID: m.MessageID, FromName: m.FromName, FromAddress: m.FromAddress,
+		Subject: m.Subject, Body: m.Body, Wake: m.Wake,
+		CreatedAt: m.CreatedAt.UTC().Format(time.RFC3339Nano),
+	}
+}
+
+// MailNoticeData builds the history-only notice for one mail record, clipped
+// to 64 KiB by dropping bodies from the last message backward.
+func MailNoticeData(title, description string, mail MailNotice) NoticeData {
+	mail.Messages = append([]MailDetail{}, mail.Messages...)
+	for i := len(mail.Messages) - 1; i >= 0; i-- {
+		raw, err := json.Marshal(mail)
+		if err == nil && len(raw) <= maxMailNoticeBytes {
+			break
+		}
+		mail.Messages[i].Body = ""
+		mail.Truncated = true
+	}
+	return NoticeData{
+		Severity:    "info",
+		Title:       strutil.ClipRunes(title, maxNoticeTitle),
+		Description: strutil.ClipRunes(description, maxNoticeDescription),
+		Origin:      MailNoticeOrigin,
+		Mail:        &mail,
+	}
+}
+
+// isMailNotice reports whether a committed notice carries mail detail. Those
+// are never deduplicated, so a live agent does not retain their bodies.
+func isMailNotice(raw json.RawMessage) bool {
+	var notice struct {
+		Origin string `json:"origin"`
+	}
+	return json.Unmarshal(raw, &notice) == nil && notice.Origin == MailNoticeOrigin
 }
 
 // PeerStopNotice is the audit metadata of one approved peer Stop. Phase

@@ -688,5 +688,19 @@ func (r *Registry) AppendPeerStopNoticeAndSync(agentID string, data NoticeData) 
 	return chat.AppendPeerStopNoticeAndSync(agentID, data)
 }
 
+// AppendMailNotice records Chuck mail detail on a live chat agent. Other
+// runtimes keep no chat transcript and get ErrNotImplemented (TS-04.R108).
+func (r *Registry) AppendMailNotice(agentID string, data NoticeData) error {
+	rt, err := r.ownerFor(agentID)
+	if err != nil {
+		return err
+	}
+	chat, ok := rt.(*ChatRuntime)
+	if !ok {
+		return ErrNotImplemented
+	}
+	return chat.AppendMailNotice(agentID, data)
+}
+
 // Journals is the shared per-conversation journal set (TS-01.R39).
 func (r *Registry) Journals() *Journals { return r.chat.Journals() }

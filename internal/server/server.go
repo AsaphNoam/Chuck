@@ -437,6 +437,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 	msg.SetTaskControl(s)
 	msg.SetPeerControl(s)
 	if registry != nil {
+		msg.SetMailRecordSink(s.recordMail)
 		registry.SetQuotaSettlement(s.settleQuotaTurn)
 		registry.SetMessageOutcomeHandler(s.stateStore.SetAttachmentDelivery)
 		s.attachmentStartupErr = s.stateStore.ReleaseRestartedAttachments()

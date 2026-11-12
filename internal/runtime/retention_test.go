@@ -79,3 +79,33 @@ func TestNoticeRetriesReuseCommittedEvent(t *testing.T) {
 		})
 	}
 }
+
+// TS-04.R108 / INV §16 — a mail record reaches the durable transcript and live
+// subscribers, but a live agent never retains its bodies for deduplication.
+func TestMailNoticeCommitsWithoutRetainingBodies(t *testing.T) {
+	w := &recordingWriter{}
+	c, as, published := newChatJournalState(t, w)
+	c.agents[as.agentID] = as
+	ch, cancel := as.hub.Subscribe()
+	defer cancel()
+	body := strings.Repeat("b", 4096)
+	data := MailNoticeData("Mail to Nova", "", MailNotice{Direction: "sent", Messages: []MailDetail{{ToName: "Nova", Subject: "s", Body: body}}})
+	for i := 0; i < 2; i++ {
+		if err := c.AppendMailNotice(as.agentID, data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	<-ch
+	if live := <-ch; len(w.seqs) != 2 || len(*published) != 2 || live.Type != EvNotice || !strings.Contains(string(live.Data), body) {
+		t.Fatalf("mail records not committed and published: durable=%d published=%d", len(w.seqs), len(*published))
+	}
+	as.mu.Lock()
+	retained := len(as.notices)
+	as.mu.Unlock()
+	if retained != 0 {
+		t.Fatalf("live agent retained %d mail notices", retained)
+	}
+	if err := c.AppendMailNotice("missing", data); err != ErrNoHandle {
+		t.Fatalf("append to absent agent = %v, want ErrNoHandle", err)
+	}
+}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
@@ -269,6 +270,54 @@ func TestCheckMessagesFiresReadSink(t *testing.T) {
 	}
 	if unread, err := st.UnreadCount("a_rev"); err != nil || unread != 0 {
 		t.Fatalf("UnreadCount(a_rev) = %d, %v; want 0", unread, err)
+	}
+}
+
+// TS-04.R108 — each send (accepted or refused) and each read reports one
+// display-only record for the caller, carrying what the agent actually sent
+// or received; the agent-facing result is unchanged.
+func TestSendAndCheckReportMailRecords(t *testing.T) {
+	st := newStore(t)
+	liveAgent(t, st, "a_impl", "Atlas", "implementer", "my-app")
+	liveAgent(t, st, "a_rev", "Nova", "reviewer", "my-app")
+	srv := New(st, nil)
+	srv.Register("tok-impl", "a_impl")
+	srv.Register("tok-rev", "a_rev")
+	type record struct {
+		agent string
+		mail  runtime.MailNotice
+	}
+	var records []record
+	srv.SetMailRecordSink(func(agentID string, mail runtime.MailNotice) { records = append(records, record{agentID, mail}) })
+
+	implCS := connect(t, srv, "tok-impl")
+	res, failed := call(t, implCS, "send_message", map[string]any{"to": "reviewer@my-app", "subject": "Plan", "body": "**ready**", "wake": false})
+	if failed || res["delivery"] != "queued_deferred" || len(res) != 6 {
+		t.Fatalf("send result changed: %v", res)
+	}
+	if res, failed := call(t, implCS, "send_message", map[string]any{"to": "nobody", "body": "lost"}); !failed || res["error"] != "recipient_not_found" {
+		t.Fatalf("refused send = %v", res)
+	}
+	revCS := connect(t, srv, "tok-rev")
+	if _, failed := call(t, revCS, "check_messages", nil); failed {
+		t.Fatal("check_messages failed")
+	}
+	if len(records) != 3 {
+		t.Fatalf("records = %+v, want sent, refused and read", records)
+	}
+	sent, refused, read := records[0], records[1], records[2]
+	if m := sent.mail.Messages; sent.agent != "a_impl" || sent.mail.Direction != "sent" || sent.mail.Error != nil || len(m) != 1 ||
+		m[0].ToName != "Nova" || m[0].ToAddress != "reviewer@my-app" || m[0].Subject != "Plan" || m[0].Body != "**ready**" ||
+		m[0].Wake || m[0].MessageID != res["message_id"] {
+		t.Fatalf("sent record = %+v", sent)
+	}
+	if e := refused.mail.Error; e == nil || e.Code != "recipient_not_found" || e.Message == "" ||
+		refused.mail.Messages[0].ToAddress != "nobody" || refused.mail.Messages[0].Body != "lost" {
+		t.Fatalf("refused record = %+v", refused)
+	}
+	if m := read.mail.Messages; read.agent != "a_rev" || read.mail.Direction != "read" || len(m) != 1 ||
+		m[0].FromName != "Atlas" || m[0].FromAddress != "implementer@my-app" || m[0].Body != "**ready**" || m[0].MessageID == "" {
+		t.Fatalf("read record = %+v", read)
 	}
 }
 

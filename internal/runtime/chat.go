@@ -1216,13 +1216,15 @@ func (c *ChatRuntime) prepareTurnPrompt(agentID, primary string, wakingFirst boo
 }
 
 // inlineMailNotice names each supplied message's sender and subject so the
-// person supervising the recipient can see why a mail-triggered turn started.
-// Bodies stay out of the transcript; the mailbox remains their surface.
+// person supervising the recipient can see why a mail-triggered turn started,
+// and keeps a display-only copy of exactly the supplied messages (TS-04.R108).
 func inlineMailNotice(messages []state.Message) *NoticeData {
 	senders := make([]string, 0, len(messages))
 	seen := map[string]bool{}
 	lines := make([]string, 0, len(messages))
+	details := make([]MailDetail, 0, len(messages))
 	for _, message := range messages {
+		details = append(details, MailDetailFromMessage(message))
 		sender := message.FromName
 		if sender == "" {
 			sender = message.FromAgent
@@ -1233,12 +1235,9 @@ func inlineMailNotice(messages []state.Message) *NoticeData {
 		}
 		lines = append(lines, sender+": "+message.Subject)
 	}
-	return &NoticeData{
-		Severity:    "info",
-		Title:       strutil.ClipRunes("Mail from "+strings.Join(senders, ", "), maxNoticeTitle),
-		Description: strutil.ClipRunes(strings.Join(lines, "\n"), maxNoticeDescription),
-		Origin:      "chuck_mail",
-	}
+	data := MailNoticeData("Mail from "+strings.Join(senders, ", "), strings.Join(lines, "\n"),
+		MailNotice{Direction: "received", Messages: details})
+	return &data
 }
 
 func validInlineReceipt(raw json.RawMessage) bool {
@@ -2328,9 +2327,10 @@ func (as *agentState) retainCommitted(ev Event) {
 // recordCommitted advances the live sequence and retains only notices for
 // deduplication. Full history belongs to the durable transcript, not agentState.
 func (as *agentState) recordCommitted(ev Event) {
+	retain := ev.Type == EvNotice && !isMailNotice(ev.Data)
 	as.mu.Lock()
 	as.seq = ev.Seq
-	if ev.Type == EvNotice {
+	if retain {
 		as.notices = append(as.notices, ev)
 	}
 	as.mu.Unlock()
@@ -2432,6 +2432,23 @@ func (c *ChatRuntime) AppendPeerStopNoticeAndSync(agentID string, data NoticeDat
 	ev := Event{Generation: as.generation, TurnID: as.execTurnID, Type: EvNotice}
 	as.mu.Unlock()
 	return c.commitNotice(as, CommitRequest{Event: ev}, data, "peer stop notice")
+}
+
+// AppendMailNotice appends one display-only mail record to a live chat
+// agent's transcript in its current turn (TS-04.R108).
+func (c *ChatRuntime) AppendMailNotice(agentID string, data NoticeData) error {
+	if data.Mail == nil {
+		return fmt.Errorf("invalid mail notice")
+	}
+	as, err := c.lookup(agentID)
+	if err != nil {
+		return err
+	}
+	as.mu.Lock()
+	ev := Event{Generation: as.generation, TurnID: as.execTurnID, Type: EvNotice}
+	as.mu.Unlock()
+	_, err = c.commitNotice(as, CommitRequest{Event: ev}, data, "mail notice")
+	return err
 }
 
 func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID string) error {

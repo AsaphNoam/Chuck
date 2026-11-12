@@ -33,6 +33,9 @@ None.
 
 ## Acceptance gates still owed
 
+- **Mail detail (FS-06.A33):** paired phone check of one mail expansion, and a real-browser look
+  at the desktop disclosures (only jsdom component tests and the style/selector build gate ran).
+
 - **Think Tank templates (FS-21.A43–A45, TS-14.R33):** independent Chromium on the built
   desktop bundle and isolated fake-ACP server passed load, unavailable-persona repair, long-row
   layout, declined replacement, room instruction disclosure and room save dialog at 1024px/1600px
@@ -211,7 +214,14 @@ None.
 
 ## Review queue
 
-None.
+- **MAIL-DETAIL — expandable agent mail in transcript activity (2026-11-12).** FS-06.R45/A33,
+  TS-04.R108, TS-08.R161. Go: `runtime.MailNoticeData`/`MailDetailFromMessage` (event.go),
+  `ChatRuntime.AppendMailNotice` (mail notices not retained for dedup), messaging
+  `SetMailRecordSink`, `internal/server/mail_records.go`. UI: `groupTranscriptRows` mail
+  attachment and `messagingTool` in `toolRun.tsx`, shared `renderers/MailDetail.tsx`. Review notes:
+  the UI matcher also accepts legacy server names `chuck`/`agentdeck-messaging`; a run holding
+  only unmatched mail is labelled "Chuck mail"; an empty `check_messages` is also recorded so
+  parallel-call pairing stays in order. Not rendered in a real browser; phone gate below.
 
 ## Investigations awaiting evidence
 
@@ -279,6 +289,12 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-12 — Work:** shipped expandable agent mail (FS-06.R45/A33, TS-04.R108, TS-08.R161;
+  INV §2/§8/§10/§11/§13/§15/§16). Received inline mail keeps a clipped copy in its notice; sends
+  (including refusals) and reads append a display-only notice to the caller's live chat
+  transcript; the UI attaches them to the matching tool line. Agent-facing projections are
+  unchanged (notice metadata disposition). `make test`, 1,220 UI tests and the UI build pass.
+
 - **2026-11-12 — Fix:** closed the Think Tank templates review (TT-TEMPLATE-1–10; INV
   §1/§3/§5/§7/§8/§9/§10/§11/§14/§15/§16/§17). ACP mapping strips echoed
   `participant_instructions` before transcript/history/SSE. Migration 73 stores template version
@@ -309,7 +325,7 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
   and shown by every chat of that backend, with no Refresh control or route.
 
 - **2026-11-12 — Design:** agent mail visibility is ready as
-  [expandable-agent-mail-activity](../ready-changes/expandable-agent-mail-activity.md)
+  expandable-agent-mail-activity
   (FS-06.R45/A33, TS-04.R108, TS-08.R161, FS-03.R108 pointer; TS-08 is now Partial). The operator
   chose to keep received bodies with the transcript, expand the notice and mail tool lines in
   place, leave agent-facing views unchanged, render bodies as Markdown, and have Chuck record

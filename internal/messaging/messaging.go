@@ -11,6 +11,7 @@ import (
 
 	"github.com/AsaphNoam/Chuck/internal/contextref"
 	"github.com/AsaphNoam/Chuck/internal/pipeline"
+	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/version"
 )
@@ -29,6 +30,7 @@ type Server struct {
 	onBudgetExceeded  func(agentID, turnID string, used int)
 	onMessageInserted func(fromAgentID, toAgentID string, wake bool)
 	onMessagesRead    func(agentID string)
+	onMailRecord      func(agentID string, mail runtime.MailNotice)
 	onTaskResult      func(taskID string)
 	budgetProvider    func() int
 	budgetByAgent     map[string]turnBudgetLimit
@@ -170,6 +172,24 @@ func (s *Server) taskResultRecorded(taskID string) {
 	s.mu.RUnlock()
 	if fn != nil {
 		fn(taskID)
+	}
+}
+
+// SetMailRecordSink wires the display-only record of each send_message or
+// check_messages the caller made (TS-04.R108). It runs after the mail store
+// commits and before the tool result returns; it never changes that result.
+func (s *Server) SetMailRecordSink(fn func(agentID string, mail runtime.MailNotice)) {
+	s.mu.Lock()
+	s.onMailRecord = fn
+	s.mu.Unlock()
+}
+
+func (s *Server) recordMail(agentID string, mail runtime.MailNotice) {
+	s.mu.RLock()
+	fn := s.onMailRecord
+	s.mu.RUnlock()
+	if fn != nil {
+		fn(agentID, mail)
 	}
 }
 

@@ -2156,7 +2156,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   newer edits and platform undo/redo. Component tests alone do not close the rendered keyboard
   gate (INV §1/§2/§10/§17).
 
-- **R161 (planned) — Mail detail expands in place.** This presents FS-06.R45 over
+- **R161 — Mail detail expands in place.** This presents FS-06.R45 over
   TS-04.R108's `notice.mail` detail. Durable events, R147's labels and annotation targets stay the
   same.
   - **Received:** `NoticeRow` renders an `origin:"chuck_mail"` notice with

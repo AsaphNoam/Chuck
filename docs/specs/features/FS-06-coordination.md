@@ -261,10 +261,10 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 
 - **R38** (shipped 2026-10-15) — When a turn receives mail directly in its prompt (R31–R32), the
   recipient transcript records one notice row in that turn naming each supplied message's sender
-  and subject, so the person supervising can see why a mail-triggered turn started. Bodies stay out
-  of the row; the mailbox remains their surface. The notice follows TS-04.R80's bounds and
+  and subject, so the person supervising can see why a mail-triggered turn started. The collapsed
+  row shows no bodies; R45 expands it to the supplied messages. The notice follows TS-04.R80's bounds and
   projection: it never changes unread counts, status or notifications.
-- **R45 (planned) — The person can expand mail in an agent's activity.** Collapsed views stay as
+- **R45 — The person can expand mail in an agent's activity.** (shipped 2026-11-12) Collapsed views stay as
   they are, and each one gains an expansion for the person supervising the agent:
   - **Received in the prompt:** R38's mail notice expands to list each supplied message: sender,
     subject, waking or deferred, sent time and body. Chuck keeps a copy of exactly the content that
@@ -399,9 +399,9 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   waking mail and updates read/unread state after direct delivery. Run cancellation does not start
   completed tasks for FYIs. Deferred addressability bypasses no task admission/archive/closure gate.
 - **A27** (shipped 2026-10-15; R38) — A waking-mail activation emits one notice naming the sender and
-  subject without the body:
+  subject, with the body only in its R45 detail:
   `internal/runtime/chat_test.go::TestStartActivationInjectsInlineMailTurn`.
-- **A33 (planned)** (R45) — Agent A sends waking and deferred mail to B, then sends one failing
+- **A33** (shipped 2026-11-12; R45) — Agent A sends waking and deferred mail to B, then sends one failing
   send. B receives the mail inline and later reads older mail with `check_messages`. In A's and
   B's transcripts, each collapsed view looks as before and expands to the right sender or
   recipient, subject, delivery class and Markdown body. The failed send shows its reason. After
@@ -409,7 +409,14 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   prompt, an R39 read of B's transcript, transcript search, unread counts and notifications are
   byte-for-byte or count-for-count unchanged. *Verify:* runtime/transcript tests for the saved
   copy and the unchanged agent-facing projections; UI tests for the three expansions; a paired
-  phone check of one expansion as a manual gate.
+  phone check of one expansion as a manual gate (owed). Evidence:
+  `internal/runtime/chat_test.go::TestStartActivationInjectsInlineMailTurn`,
+  `internal/runtime/retention_test.go::TestMailNoticeCommitsWithoutRetainingBodies`,
+  `internal/runtime/notices_test.go::TestMailNoticeDataClipsBodiesFromTheEnd`,
+  `internal/messaging/messaging_test.go::TestSendAndCheckReportMailRecords`,
+  `ui/src/components/chat/toolRun.test.ts` and
+  `ui/src/components/chat/renderers/MailDetail.test.tsx`. Agent-facing projections reuse the
+  notice's metadata disposition (`internal/transcript/project_test.go`).
 
 - **A1** (R2–R6) — Two token-bound agents discover, send, and read over the real HTTP MCP
   transport, with sender identity derived from session:
@@ -522,7 +529,8 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 
 ## 6. Deviations & open decisions
 
-- **Mail visibility design, 2026-11-12.** R45/A33 are planned. The operator chose to:
+- **Mail visibility design, 2026-11-12.** R45/A33 shipped 2026-11-12; A33's paired phone check
+  is still owed. The operator chose to:
   - keep a copy of received bodies with the transcript;
   - expand the existing notice and the mail tool lines in place;
   - leave every agent-facing view unchanged;
@@ -530,7 +538,7 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   - have Chuck record sent and read mail itself, because provider tool events are incomplete
     (TS-04.R108).
 
-  Technical contracts are TS-04.R108 and TS-08.R161. On shipping, R45 supersedes R38's
+  Technical contracts are TS-04.R108 and TS-08.R161. R45 superseded R38's
   bodies-out-of-the-row sentence and A27's "without the body".
 
 - **Peer authority design, 2026-10-16.** R39–R44/A28–A32 are planned. The operator confirmed

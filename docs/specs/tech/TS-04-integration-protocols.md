@@ -1700,11 +1700,13 @@ quota classification, using source-backed provider carriers and explicit expecte
 
 ### Mail visibility for the person
 
-**R108 (planned) — Chuck records the mail it serves as display-only notice detail.** For
+**R108 (implemented 2026-11-12) — Chuck records the mail it serves as display-only notice detail.** For
 FS-06.R45, add optional `NoticeData.mail` to R80's `notice` event, with origin `chuck_mail`:
-`{direction: "received"|"sent"|"read", messages: [MailDetail], error?, truncated}`.
-`MailDetail` has `message_id?`, sender name/address, recipient name/address, `subject`, `body`,
-`created_at` and `wake`, taken from `state.Message` or the accepted send. Chuck records the
+`{direction: "received"|"sent"|"read", messages: [MailDetail], error?: {code, message}, truncated}`.
+`MailDetail` has `message_id?`, `from_name?`/`from_address?`, `to_name?`/`to_address?`, `subject`,
+`body`, `created_at?` and `wake`, taken from `state.Message` through `runtime.MailDetailFromMessage`
+or from the accepted send. The messaging server reports each record through
+`SetMailRecordSink`; `internal/server/mail_records.go` appends it. Chuck records the
 detail itself because the provider-recorded tool events are not a complete source. In Chuck's own
 transcripts (checked 2026-11-11, `~/.chuck/sessions`), Codex saves `content: null` for both mail
 tool results. Claude saves `args: {}` on the `send_message` call, so its arguments are present

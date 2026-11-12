@@ -2662,4 +2662,47 @@ a.agent-mini-card:focus-visible {
     display: none;
   }
 }
+
+/* Chuck mail detail (FS-06.R45, TS-08.R161). */
+.notice-mail,
+.tool-call-mail {
+  flex-basis: 100%;
+}
+
+.mail-detail {
+  border-left: 2px solid var(--ad-border-default);
+  color: var(--ad-text-secondary);
+  display: grid;
+  gap: var(--ad-space-2);
+  padding-left: var(--ad-space-3);
+}
+
+.mail-meta {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-space-2);
+  margin: 0;
+}
+
+.mail-subject {
+  color: var(--ad-text-primary);
+}
+
+.mail-error {
+  color: var(--ad-state-error);
+  margin: 0;
+}
+
+.mail-note {
+  color: var(--ad-text-muted);
+  margin: 0;
+}
+
+.mail-message,
+.mail-body,
+.mail-party,
+.mail-wake {
+  min-width: 0;
+}
 }

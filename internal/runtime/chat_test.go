@@ -1641,6 +1641,12 @@ func TestStartActivationInjectsInlineMailTurn(t *testing.T) {
 	if notice.Title != "Mail from Nova" || notice.Description != "Nova: Review" || strings.Contains(notice.Description, "durable result") {
 		t.Fatalf("mail notice = %+v, want sender and subject without body", notice)
 	}
+	// FS-06.R45 — the notice keeps a display-only copy of exactly what the turn received.
+	if m := notice.Mail; m == nil || m.Direction != "received" || len(m.Messages) != 1 ||
+		m.Messages[0].Body != "Please review the durable result." || m.Messages[0].FromName != "Nova" ||
+		m.Messages[0].FromAddress != "reviewer@test" || !m.Messages[0].Wake || m.Messages[0].MessageID == "" || m.Truncated {
+		t.Fatalf("mail detail = %+v, want the received message", notice.Mail)
+	}
 
 	raw, err := os.ReadFile(dump)
 	if err != nil {

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/toolresult"
 )
@@ -154,6 +156,29 @@ func (s *Server) handleSendMessage(_ context.Context, req *mcp.CallToolRequest, 
 	if !ok {
 		return sessionUnknown()
 	}
+	sent := runtime.MailDetail{ToAddress: in.To, Subject: in.Subject, Body: in.Body, Wake: in.Wake == nil || *in.Wake,
+		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	res, extra, err := s.sendMessage(identity, in, &sent)
+	if err == nil {
+		s.recordMail(identity.AgentID, runtime.MailNotice{Direction: "sent", Messages: []runtime.MailDetail{sent}, Error: resultError(res)})
+	}
+	return res, extra, err
+}
+
+// resultError reads a refusal's code and message for the person's record.
+func resultError(res *mcp.CallToolResult) *runtime.MailError {
+	if res == nil || !res.IsError {
+		return nil
+	}
+	payload, _ := res.StructuredContent.(map[string]any)
+	code, _ := payload["error"].(string)
+	message, _ := payload["message"].(string)
+	return &runtime.MailError{Code: code, Message: message}
+}
+
+// sendMessage validates and inserts one message, filling sent with the
+// accepted recipient and id.
+func (s *Server) sendMessage(identity SessionIdentity, in sendMessageArgs, sent *runtime.MailDetail) (*mcp.CallToolResult, any, error) {
 	if l := len(in.Body); l < 1 || l > maxBodyLen {
 		return errResult(map[string]any{"ok": false, "error": "invalid_body",
 			"message": fmt.Sprintf("body must be 1..%d chars (got %d).", maxBodyLen, l)})
@@ -225,6 +250,7 @@ func (s *Server) handleSendMessage(_ context.Context, req *mcp.CallToolRequest, 
 		})
 	}
 	s.messageInserted(self, toID, wake)
+	sent.MessageID, sent.ToName, sent.ToAddress = msgID, recipient.Name, recipient.Role+"@"+recipient.Project
 	return jsonResult(map[string]any{
 		"ok":         true,
 		"message_id": msgID,
@@ -291,6 +317,16 @@ func (s *Server) handleCheckMessages(_ context.Context, req *mcp.CallToolRequest
 	if !ok {
 		return sessionUnknown()
 	}
+	read := []runtime.MailDetail{}
+	res, extra, err := s.checkMessages(identity, in, &read)
+	if err == nil {
+		s.recordMail(identity.AgentID, runtime.MailNotice{Direction: "read", Messages: read, Error: resultError(res)})
+	}
+	return res, extra, err
+}
+
+// checkMessages takes the caller's mail, filling read with what it returns.
+func (s *Server) checkMessages(identity SessionIdentity, in checkMessagesArgs, read *[]runtime.MailDetail) (*mcp.CallToolResult, any, error) {
 	markRead := boolOr(in.MarkRead, true)
 	deleteAfter := boolOr(in.DeleteAfter, false)
 	unreadOnly := boolOr(in.UnreadOnly, true)
@@ -313,6 +349,7 @@ func (s *Server) handleCheckMessages(_ context.Context, req *mcp.CallToolRequest
 
 	out := make([]outMessage, len(msgs))
 	for i, m := range msgs {
+		*read = append(*read, runtime.MailDetailFromMessage(m))
 		out[i] = outMessage{
 			MessageID:    m.MessageID,
 			From:         m.FromAgent,
