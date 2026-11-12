@@ -601,4 +601,21 @@ describe("ThinkTankPage setup", () => {
     expect(saved).toMatchObject({ name: "Cache team", room_id: "tt_fixture" });
     expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
   });
+
+  it("resends the room save command after a lost response", async () => {
+    const ids: string[] = [];
+    server.use(http.post("/api/think-tank-templates", async ({ request }) => {
+      ids.push((await request.json() as { command_id: string }).command_id);
+      return ids.length === 1 ? HttpResponse.error() : HttpResponse.json({ id: "ttt_1", name: "Cache team" }, { status: 201 });
+    }));
+    renderRoom();
+    fireEvent.click(await screen.findByRole("button", { name: "Save setup" }));
+    fireEvent.change(await screen.findByLabelText("Template name"), { target: { value: "Cache team" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+    expect(await screen.findByText(/could not be saved/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+    expect(await screen.findByText("Saved “Cache team”.")).toBeTruthy();
+    expect(ids).toHaveLength(2);
+    expect(ids[1]).toBe(ids[0]);
+  });
 });

@@ -9,6 +9,7 @@ import {
   fetchThinkTankTemplate,
   newCommandID,
   useCreateThinkTank,
+  useRetainedCommand,
   useSaveThinkTankTemplate,
   useThinkTankTemplates,
   type ThinkTankLaunch,
@@ -16,6 +17,7 @@ import {
   type ThinkTankTemplate,
 } from "../../api/thinkTanks";
 import { useBackends, useProjects, useRoles } from "../../api/config";
+import { launchSupportFor } from "../../schemas/backends";
 import { projectTitle as projectTitleOf } from "../../lib/labels";
 import { personaIdentityLabel } from "../../lib/personas";
 import { useAgentStore } from "../../store/agentStore";
@@ -31,6 +33,13 @@ const MAX_INSTRUCTIONS = 8000;
 type Row = {
   key: string; agentID?: string; launch?: ThinkTankLaunch; label: string; project: string; runtime: string;
   limit: number; mayLeave: boolean; instructions: string;
+};
+
+/** clipRunes limits text to max Unicode code points, matching the server's
+ *  rune limit; native maxLength counts UTF-16 units instead (FS-21.R63). */
+const clipRunes = (text: string, max: number) => {
+  const runes = Array.from(text);
+  return runes.length > max ? runes.slice(0, max).join("") : text;
 };
 
 /** runtimeLabel names an agent's model and effort as its card does. */
@@ -54,6 +63,7 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
   const create = useCreateThinkTank();
   const templates = useThinkTankTemplates(open);
   const saveTemplate = useSaveThinkTankTemplate();
+  const saveCommand = useRetainedCommand();
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
@@ -97,7 +107,22 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
     const backend = launch.backend ? backends?.backends[launch.backend] : undefined;
     if (launch.backend && backends && !backend) return `Runtime “${launch.backend}” is no longer available.`;
     if (launch.model && backend && !backend.models[launch.model]) return `Model “${launch.model}” is no longer available.`;
+    const { effort, fast } = unsupported(launch);
+    if (effort) return `${launch.effort} effort is no longer available for ${launch.model}.`;
+    if (fast) return `Fast mode is no longer available for ${launch.model}.`;
     return "";
+  };
+  /** unsupported checks saved effort and fast mode against the model's current
+   *  declaration and chat launch support, as launch validation will. */
+  const unsupported = (launch: ThinkTankLaunch) => {
+    const backend = launch.backend ? backends?.backends[launch.backend] : undefined;
+    const model = backend && launch.model ? backend.models[launch.model] : undefined;
+    if (!backend || !model) return { effort: false, fast: false };
+    const chat = launchSupportFor(backends?.backend_support, backend.type, "chat");
+    return {
+      effort: !!launch.effort && (!(model.efforts ?? []).includes(launch.effort) || chat?.effort === false),
+      fast: !!launch.fast && (!model.fast || chat?.fast === false),
+    };
   };
   /** editable drops unavailable runtime choices so the launch editor offers
    *  current defaults for them; an unavailable persona stays flagged there. */
@@ -106,11 +131,15 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
     const backend = launch.backend ? backends?.backends[launch.backend] : undefined;
     if (!backend) return { ...launch, backend: "", model: "", effort: "", fast: false };
     if (launch.model && !backend.models[launch.model]) return { ...launch, model: "", effort: "", fast: false };
-    return launch;
+    const { effort, fast } = unsupported(launch);
+    return { ...launch, effort: effort ? "" : launch.effort, fast: fast ? false : launch.fast };
   };
 
   const snapshot = JSON.stringify({ rows: rows.map(({ key: _key, ...r }) => r), openings, judge, instructions });
   const dirty = snapshot !== baseline && (rows.length > 0 || openings || judge !== null || instructions !== "" || baseline !== "");
+  // A roster or discussion edit supersedes a pending template load, so a late
+  // response never replaces edits made after requesting it (FS-21.R61).
+  useEffect(() => { loadToken.current++; }, [snapshot]);
 
   const update = (key: string, patch: Partial<Row>) => setRows((current) => current.map((r) => r.key === key ? { ...r, ...patch } : r));
   const move = (index: number, delta: number) => setRows((current) => {
@@ -158,6 +187,7 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
     setPendingTemplate(null);
     setError("");
     if (!id) {
+      loadToken.current++;
       applyTemplate(null);
       return;
     }
@@ -220,12 +250,12 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
       setError(problem);
       return;
     }
-    saveTemplate.mutate({
-      command_id: newCommandID(),
+    const intent = {
       name: saveName,
       setup: { participants: participantInputs(), openings, judge: judge ?? undefined, judge_instructions: judge && instructions.trim() ? instructions : undefined },
-    }, {
-      onSuccess: (saved) => { setSaving(false); setSaveNote(`Saved “${saved.name}”.`); },
+    };
+    saveTemplate.mutate({ command_id: saveCommand.idFor(intent), ...intent }, {
+      onSuccess: (saved) => { saveCommand.acknowledge(); setSaving(false); setSaveNote(`Saved “${saved.name}”.`); },
       onError: (err) => setError(err instanceof Error ? `The setup could not be saved: ${err.message}` : "The setup could not be saved."),
     });
   };
@@ -263,8 +293,13 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
                 <label htmlFor="think-tank-template">Template</label>
                 <select id="think-tank-template" value={templateID} onChange={(e) => requestTemplate(e.target.value)}>
                   <option value="">Blank setup</option>
-                  {(templates.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {(templates.templates ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
+                {templates.hasNextPage && (
+                  <button type="button" className="ad-button-secondary" onClick={() => void templates.fetchNextPage()} disabled={templates.isFetchingNextPage}>
+                    {templates.isFetchingNextPage ? "Loading templates…" : "Show more templates"}
+                  </button>
+                )}
                 {templates.isError && <p className="form-hint">Saved templates are unavailable right now.</p>}
               </div>
               <div className="form-field">
@@ -327,8 +362,8 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
                         )}
                         <details className="think-tank-setup-instructions" open={r.instructions !== "" || undefined}>
                           <summary>Instructions for {r.label}</summary>
-                          <AutoGrowTextarea aria-label={`Instructions for ${r.label}`} value={r.instructions} maxLength={MAX_INSTRUCTIONS} rows={2}
-                            onChange={(e) => { update(r.key, { instructions: e.target.value }); setCommandID(newCommandID()); }}
+                          <AutoGrowTextarea aria-label={`Instructions for ${r.label}`} value={r.instructions} rows={2}
+                            onChange={(e) => { update(r.key, { instructions: clipRunes(e.target.value, MAX_INSTRUCTIONS) }); setCommandID(newCommandID()); }}
                             placeholder="Optional: direction for this participant in this room only." />
                         </details>
                       </li>

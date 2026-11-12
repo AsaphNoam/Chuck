@@ -217,6 +217,112 @@ describe("ThinkTankSetupDialog templates", () => {
     expect(screen.getByRole("button", { name: "Start Think Tank" })).toBeTruthy();
   });
 
+  it("keeps a turn limit edited while a template was still loading", async () => {
+    templateServer();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    server.use(http.get("/api/think-tank-templates/ttt_1", async () => { await gate; return HttpResponse.json(savedTemplate); }));
+    renderDialog();
+    fireEvent.change(await screen.findByRole("combobox", { name: "Existing agent" }), { target: { value: "a_one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await screen.findByRole("option", { name: "Storage team" });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "ttt_1" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Replace setup" }));
+    fireEvent.change(screen.getByLabelText("Turn limit"), { target: { value: "27" } });
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByLabelText("Turn limit")).toHaveValue(27);
+    expect(screen.queryByText("Cy")).toBeNull();
+  });
+
+  it("does not restore a template that answers after returning to blank setup", async () => {
+    templateServer();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    server.use(http.get("/api/think-tank-templates/ttt_1", async () => { await gate; return HttpResponse.json(savedTemplate); }));
+    renderDialog();
+    await screen.findByRole("option", { name: "Storage team" });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "ttt_1" } });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "" } });
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText("Cy")).toBeNull();
+    expect(screen.getByLabelText("Template")).toHaveValue("");
+  });
+
+  it("flags a saved effort or fast mode the model no longer supports and blocks Start", async () => {
+    templateServer();
+    server.use(http.get("/api/backends", () => HttpResponse.json({
+      version: 2,
+      backends: { claude: { name: "Claude", type: "claude-acp", default_model: "opus", models: { opus: { name: "Opus", model: "opus", efforts: ["low", "medium"] } } } },
+      backend_support: { "claude-acp": { chat: { available: true, effort: true, fast: true } } },
+    })));
+    const fastJudge = { ...savedTemplate, setup: { ...savedTemplate.setup, judge: { ...savedTemplate.setup.judge, fast: true } } };
+    server.use(http.get("/api/think-tank-templates/ttt_1", () => HttpResponse.json(fastJudge)));
+    renderDialog();
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Cache" } });
+    fireEvent.change(screen.getByLabelText("Goal"), { target: { value: "Pick a cache" } });
+    await screen.findByRole("option", { name: "Storage team" });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "ttt_1" } });
+    expect(await screen.findByText(/high effort is no longer available for opus/)).toBeTruthy();
+    expect(screen.getByText(/Fast mode is no longer available for opus/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start Think Tank" }));
+    expect(screen.getByRole("alert").textContent).toContain("unavailable settings");
+  });
+
+  it("loads further template pages on request", async () => {
+    templateServer();
+    server.use(http.get("/api/think-tank-templates", ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      return HttpResponse.json(cursor === "p2"
+        ? { version: 1, templates: [{ id: "ttt_old", name: "Older setup" }] }
+        : { version: 1, templates: [{ id: "ttt_1", name: "Storage team" }], next_cursor: "p2" });
+    }));
+    renderDialog();
+    await screen.findByRole("option", { name: "Storage team" });
+    expect(screen.queryByRole("option", { name: "Older setup" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show more templates" }));
+    expect(await screen.findByRole("option", { name: "Older setup" })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Show more templates" })).toBeNull());
+  });
+
+  it("counts participant instructions in Unicode characters up to the server's limit", async () => {
+    renderDialog();
+    fireEvent.change(await screen.findByRole("combobox", { name: "Existing agent" }), { target: { value: "a_one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    const field = screen.getByLabelText("Instructions for Ari") as HTMLTextAreaElement;
+    fireEvent.change(field, { target: { value: "😀".repeat(8000) } });
+    expect(Array.from(field.value)).toHaveLength(8000);
+    fireEvent.change(field, { target: { value: "😀".repeat(8001) } });
+    expect(Array.from(field.value)).toHaveLength(8000);
+  });
+
+  it("resends one save command after a lost response and rotates it once acknowledged", async () => {
+    templateServer();
+    const ids: string[] = [];
+    server.use(http.post("/api/think-tank-templates", async ({ request }) => {
+      ids.push((await request.json() as { command_id: string }).command_id);
+      return ids.length === 1 ? HttpResponse.error() : HttpResponse.json({ id: "ttt_2", name: "Pair" }, { status: 201 });
+    }));
+    renderDialog();
+    const picker = await screen.findByRole("combobox", { name: "Existing agent" });
+    for (const id of ["a_one", "a_two"]) {
+      fireEvent.change(picker, { target: { value: id } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Save setup…" }));
+    fireEvent.change(screen.getByLabelText("Template name"), { target: { value: "Pair" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText(/could not be saved/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Saved “Pair”.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save setup…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(ids).toHaveLength(3));
+    expect(ids[1]).toBe(ids[0]);
+    expect(ids[2]).not.toBe(ids[0]);
+  });
+
   it("returns focus to the row when its launch editor is cancelled by keyboard", async () => {
     templateServer();
     renderDialog();

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { newCommandID, useSaveThinkTankTemplate } from "../../api/thinkTanks";
+import { useRetainedCommand, useSaveThinkTankTemplate } from "../../api/thinkTanks";
 import { Button, ConfirmDialog } from "../../components/ui";
 
 /** RoomSaveSetup saves an active or ended room's participants and discussion
@@ -8,6 +8,7 @@ import { Button, ConfirmDialog } from "../../components/ui";
  *  keeps the name for retry. */
 export function RoomSaveSetup({ roomID, title }: { roomID: string; title: string }) {
   const save = useSaveThinkTankTemplate();
+  const command = useRetainedCommand();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -18,8 +19,8 @@ export function RoomSaveSetup({ roomID, title }: { roomID: string; title: string
       setError("Name the template.");
       return;
     }
-    save.mutate({ command_id: newCommandID(), name, room_id: roomID }, {
-      onSuccess: (saved) => { setOpen(false); setNote(`Saved “${saved.name}”.`); },
+    save.mutate({ command_id: command.idFor({ name, roomID }), name, room_id: roomID }, {
+      onSuccess: (saved) => { command.acknowledge(); setOpen(false); setNote(`Saved “${saved.name}”.`); },
       onError: (err) => setError(err instanceof Error ? `The setup could not be saved: ${err.message}` : "The setup could not be saved."),
     });
   };

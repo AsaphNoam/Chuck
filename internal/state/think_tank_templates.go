@@ -1,7 +1,9 @@
 package state
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -96,6 +98,48 @@ func migrateThinkTankTemplates(tx *sql.Tx) error {
 	return err
 }
 
+// migrateThinkTankTemplateIdentity adds the stored payload version (existing
+// rows are v1) and replaces each saved intent, which named its source room or
+// agents, with the fingerprint SaveThinkTankTemplate now compares.
+func migrateThinkTankTemplateIdentity(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE think_tank_templates ADD COLUMN version INTEGER NOT NULL DEFAULT 1`); err != nil {
+		return err
+	}
+	return fingerprintLegacyTemplateIntents(tx)
+}
+
+func fingerprintLegacyTemplateIntents(tx *sql.Tx) error {
+	rows, err := tx.Query(`SELECT template_id, intent FROM think_tank_templates`)
+	if err != nil {
+		return err
+	}
+	intents := map[string]string{}
+	for rows.Next() {
+		var id, intent string
+		if err := rows.Scan(&id, &intent); err != nil {
+			rows.Close()
+			return err
+		}
+		intents[id] = intent
+	}
+	if err := closeRows(rows, "think tank templates"); err != nil {
+		return err
+	}
+	for id, intent := range intents {
+		if _, err := tx.Exec(`UPDATE think_tank_templates SET intent = ? WHERE template_id = ?`, templateIntentFingerprint([]byte(intent)), id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// templateIntentFingerprint identifies a normalized save request for exact
+// replay without persisting the source identities it names.
+func templateIntentFingerprint(normalized []byte) string {
+	sum := sha256.Sum256(normalized)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
 // portableLaunch reads only the allowlisted fields of a stored fresh-launch
 // request; project, group, driver and interface stay behind.
 func portableLaunch(raw string) (ThinkTankLaunchChoice, error) {
@@ -107,12 +151,15 @@ func portableLaunch(raw string) (ThinkTankLaunchChoice, error) {
 	return c, nil
 }
 
-func agentLaunchChoiceTx(tx *sql.Tx, agentID string) (ThinkTankLaunchChoice, error) {
+// agentLaunchChoiceTx reads an agent's portable launch choices for a fresh
+// chat. A draft row selects a chat, so draft lookup requires one; a committed
+// room member keeps its recoverable choices after switching to Terminal.
+func agentLaunchChoiceTx(tx *sql.Tx, agentID string, requireChat bool) (ThinkTankLaunchChoice, error) {
 	var c ThinkTankLaunchChoice
 	var iface string
 	err := tx.QueryRow(`SELECT name, role, backend, model, effort, fast, interface FROM agents WHERE agent_id = ?`, agentID).
 		Scan(&c.Name, &c.Role, &c.Backend, &c.Model, &c.Effort, &c.Fast, &iface)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && iface != "chat") {
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && requireChat && iface != "chat") {
 		return ThinkTankLaunchChoice{}, ErrNotFound
 	}
 	if err != nil {
@@ -128,7 +175,7 @@ func templateSetupFromDraftTx(tx *sql.Tx, d ThinkTankTemplateDraft) (ThinkTankTe
 		p := ThinkTankTemplateParticipant{Limit: r.Limit, MayLeave: r.MayLeave, Instructions: r.Instructions}
 		switch {
 		case r.AgentID != "" && r.Launch == nil:
-			c, err := agentLaunchChoiceTx(tx, r.AgentID)
+			c, err := agentLaunchChoiceTx(tx, r.AgentID, true)
 			if errors.Is(err, ErrNotFound) {
 				return ThinkTankTemplateSetup{}, thinkTankInvalid("participant %d's launch choices cannot be recovered; replace or remove it", i+1)
 			} else if err != nil {
@@ -146,26 +193,28 @@ func templateSetupFromDraftTx(tx *sql.Tx, d ThinkTankTemplateDraft) (ThinkTankTe
 }
 
 func templateSetupFromRoomTx(tx *sql.Tx, roomID string) (ThinkTankTemplateSetup, error) {
-	d, err := readThinkTankDetail(tx, roomID)
+	// Setup and roster only: attempts, history and pending input bodies are
+	// never part of a template (TS-14.R31, INV §16).
+	room, members, err := readThinkTankRoster(tx, roomID)
 	if err != nil {
 		return ThinkTankTemplateSetup{}, err
 	}
-	out := ThinkTankTemplateSetup{Participants: []ThinkTankTemplateParticipant{}, Openings: d.Room.Openings,
-		JudgeInstructions: d.Room.JudgeInstructions}
-	for _, m := range participantsOf(d.Members) {
+	out := ThinkTankTemplateSetup{Participants: []ThinkTankTemplateParticipant{}, Openings: room.Openings,
+		JudgeInstructions: room.JudgeInstructions}
+	for _, m := range participantsOf(members) {
 		p := ThinkTankTemplateParticipant{Limit: m.Cap, MayLeave: m.MayLeave, Instructions: m.Instructions}
 		if m.SetupConfig != "" {
 			p.Launch, err = portableLaunch(m.SetupConfig)
 		} else {
-			p.Launch, err = agentLaunchChoiceTx(tx, m.AgentID)
+			p.Launch, err = agentLaunchChoiceTx(tx, m.AgentID, false)
 		}
 		if err != nil {
 			return ThinkTankTemplateSetup{}, thinkTankInvalid("%s's launch choices cannot be recovered", m.AgentName)
 		}
 		out.Participants = append(out.Participants, p)
 	}
-	if d.Room.JudgeConfig != "" {
-		j, err := portableLaunch(d.Room.JudgeConfig)
+	if room.JudgeConfig != "" {
+		j, err := portableLaunch(room.JudgeConfig)
 		if err != nil {
 			return ThinkTankTemplateSetup{}, thinkTankInvalid("the judge's launch choices cannot be recovered")
 		}
@@ -215,7 +264,7 @@ func (s *Store) SaveThinkTankTemplate(req ThinkTankTemplateSave) (ThinkTankTempl
 	if err != nil {
 		return ThinkTankTemplateSummary{}, fmt.Errorf("state: encode template intent: %w", err)
 	}
-	intent := string(intentRaw)
+	intent := templateIntentFingerprint(intentRaw)
 	tx, err := s.db.Begin()
 	if err != nil {
 		return ThinkTankTemplateSummary{}, fmt.Errorf("state: begin save template: %w", err)
@@ -256,8 +305,8 @@ func (s *Store) SaveThinkTankTemplate(req ThinkTankTemplateSave) (ThinkTankTempl
 	if err != nil {
 		return ThinkTankTemplateSummary{}, err
 	}
-	if _, err := tx.Exec(`INSERT INTO think_tank_templates(template_id, command_id, name, intent, setup, created_at)
-VALUES(?, ?, ?, ?, ?, ?)`, id, req.CommandID, req.Name, intent, string(raw), formatTime(timeNow())); err != nil {
+	if _, err := tx.Exec(`INSERT INTO think_tank_templates(template_id, command_id, name, intent, setup, created_at, version)
+VALUES(?, ?, ?, ?, ?, ?, ?)`, id, req.CommandID, req.Name, intent, string(raw), formatTime(timeNow()), ThinkTankTemplateVersion); err != nil {
 		return ThinkTankTemplateSummary{}, fmt.Errorf("state: insert template: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -312,13 +361,18 @@ func (s *Store) ListThinkTankTemplates(cursor string, limit int) ([]ThinkTankTem
 }
 
 func (s *Store) ReadThinkTankTemplate(id string) (ThinkTankTemplate, error) {
-	t := ThinkTankTemplate{ID: id, Version: ThinkTankTemplateVersion}
+	t := ThinkTankTemplate{ID: id}
 	var raw string
-	err := s.db.QueryRow(`SELECT name, setup FROM think_tank_templates WHERE template_id = ?`, id).Scan(&t.Name, &raw)
+	err := s.db.QueryRow(`SELECT name, version, setup FROM think_tank_templates WHERE template_id = ?`, id).Scan(&t.Name, &t.Version, &raw)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ThinkTankTemplate{}, ErrNotFound
 	} else if err != nil {
 		return ThinkTankTemplate{}, fmt.Errorf("state: read template: %w", err)
+	}
+	// Each stored payload decodes by its own version; v1 is the current
+	// shape. A later schema adds a case that upgrades older payloads here.
+	if t.Version != 1 {
+		return ThinkTankTemplate{}, fmt.Errorf("state: template %s has unsupported version %d", id, t.Version)
 	}
 	if err := json.Unmarshal([]byte(raw), &t.Setup); err != nil {
 		return ThinkTankTemplate{}, fmt.Errorf("state: decode template %s: %w", id, err)

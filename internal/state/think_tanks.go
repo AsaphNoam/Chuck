@@ -880,30 +880,40 @@ func scanThinkTankEntry(row interface{ Scan(...any) error }) (ThinkTankEntry, er
 	return e, nil
 }
 
-func readThinkTankDetail(q thinkTankQueryer, roomID string) (ThinkTankDetail, error) {
+// readThinkTankRoster reads a room's setup row and its member roster only.
+func readThinkTankRoster(q thinkTankQueryer, roomID string) (ThinkTank, []ThinkTankMember, error) {
 	room, err := scanThinkTank(q.QueryRow(`SELECT `+thinkTankColumns+` FROM think_tanks WHERE room_id = ?`, roomID))
 	if err != nil {
-		return ThinkTankDetail{}, err
+		return ThinkTank{}, nil, err
 	}
-	d := ThinkTankDetail{Room: room, Members: []ThinkTankMember{}, Pending: []ThinkTankInput{}, Attempts: []ThinkTankAttempt{}}
+	members := []ThinkTankMember{}
 	rows, err := q.Query(`SELECT `+thinkTankMemberColumns+` FROM think_tank_members WHERE room_id = ? ORDER BY role DESC, ord`, roomID)
 	if err != nil {
-		return ThinkTankDetail{}, fmt.Errorf("state: read think tank members: %w", err)
+		return ThinkTank{}, nil, fmt.Errorf("state: read think tank members: %w", err)
 	}
 	for rows.Next() {
 		m, err := scanThinkTankMember(rows)
 		if err != nil {
 			rows.Close()
-			return ThinkTankDetail{}, err
+			return ThinkTank{}, nil, err
 		}
-		d.Members = append(d.Members, m)
+		members = append(members, m)
 	}
 	if err := closeRows(rows, "think tank members"); err != nil {
+		return ThinkTank{}, nil, err
+	}
+	return room, members, nil
+}
+
+func readThinkTankDetail(q thinkTankQueryer, roomID string) (ThinkTankDetail, error) {
+	room, members, err := readThinkTankRoster(q, roomID)
+	if err != nil {
 		return ThinkTankDetail{}, err
 	}
+	d := ThinkTankDetail{Room: room, Members: members, Pending: []ThinkTankInput{}, Attempts: []ThinkTankAttempt{}}
 	// Attempts are bounded by participant ceilings plus explicit retries; the
 	// detail keeps unfinished ones and the latest per agent/turn for accounting.
-	rows, err = q.Query(`SELECT `+thinkTankAttemptColumns+` FROM think_tank_attempts
+	rows, err := q.Query(`SELECT `+thinkTankAttemptColumns+` FROM think_tank_attempts
 WHERE room_id = ? AND (state IN ('running', 'withheld', 'failed') OR turn IN ('opening', 'closing', 'judge'))
 ORDER BY created_at, attempt_id`, roomID)
 	if err != nil {

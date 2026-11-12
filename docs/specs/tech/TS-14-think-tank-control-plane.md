@@ -331,11 +331,18 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   project/workspace paths, resolved prompts, environment, credentials or conversation identifiers.
   Resolve persona and provider configuration using ordinary fresh-launch rules in the destination
   project. An explicitly saved choice that is unavailable requires repair instead of substitution.
+  Store the payload's schema version on the row and decode each payload by its stored version;
+  an unknown version is a read error, never a reinterpretation as the current shape. The stored
+  intent is a SHA-256 fingerprint of the normalized save request, so no source room or agent
+  identity persists; migration 73 fingerprints rows saved before it.
 - **R31 — Share template normalization across both save entry points.** A draft save
   accepts setup metadata only. For an existing-chat row, the server reads the authoritative
   `state.Agent` launch choices; the identity is lookup input only. A room save reads the committed
   setup and current configured caps from one SQLite snapshot, projecting fresh rows and the judge
-  from their retained launch intents and existing rows from authoritative agent metadata. If an
+  from their retained launch intents and existing rows from authoritative agent metadata, whatever
+  the member's current interface; only a draft lookup requires a chat. The room read is limited to
+  setup and roster, without attempts or queued input. Each save surface retains its command id for
+  an identical retry and rotates it on a changed request or acknowledged save. If an
   existing row has no recoverable launch choices, fail the save with an actionable row error.
   Normalize and persist the whole snapshot in one transaction with no launches or room mutation.
   Exact replay of a save command returns the committed template even if the source room or agent
@@ -352,7 +359,8 @@ host activations, and REST/SSE for the UI. Shipped 2026-10-06; §5 lists the dev
   `participant_instructions` only on the first context page for the caller's current authorized
   participant attempt. The value comes from that member row and survives retries; the result's
   guidance identifies its room-turn scope. Reuse R10's compact public activity projection so raw
-  tool results never carry these instructions into shared room activity. Keep the field out of
+  tool results never carry these instructions into shared room activity; ACP mapping also removes
+  the key from an adapter's echoed tool result before transcript, history or SSE. Keep the field out of
   history, peer and judge reads, SSE, launch configuration and ordinary private activations.
   Retain existing tool identity, read-receipt rules and provider protocol. Update embedded room
   guidance and result contract coverage with the additive field.

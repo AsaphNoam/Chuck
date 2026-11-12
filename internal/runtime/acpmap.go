@@ -542,6 +542,7 @@ func mapSessionUpdateImages(params json.RawMessage, image func(acpContentBlock, 
 		if safe != nil {
 			content, _ = json.Marshal(safe)
 		}
+		content = withoutParticipantInstructions(content)
 		// Only a TERMINAL update produces a tool_result (ToolResultData.Status is
 		// "completed" | "failed"). An intermediate/in-progress update — or one that
 		// omits status — must not be mapped to a completed result, or the status
@@ -672,4 +673,59 @@ func nonNullRaw(raw json.RawMessage) json.RawMessage {
 		return json.RawMessage("null")
 	}
 	return raw
+}
+
+// participantInstructionsKey is the private read_think_tank field an adapter
+// may echo back in a tool result (TS-14.R32).
+const participantInstructionsKey = "participant_instructions"
+
+// withoutParticipantInstructions drops a room participant's private
+// instructions from an echoed tool result. The agent already received them
+// from Chuck's own MCP response; the transcript, history and /api/events
+// stream never carry them (TS-14.R32, INV §11/§14). Content without the key
+// passes through unchanged.
+func withoutParticipantInstructions(content json.RawMessage) json.RawMessage {
+	if !strings.Contains(string(content), participantInstructionsKey) {
+		return content
+	}
+	var blocks []map[string]any
+	if json.Unmarshal(content, &blocks) != nil {
+		return content
+	}
+	changed := false
+	for _, b := range blocks {
+		changed = stripInstructionsText(b) || changed
+		if inner, ok := b["content"].(map[string]any); ok {
+			changed = stripInstructionsText(inner) || changed
+		}
+	}
+	if !changed {
+		return content
+	}
+	out, err := json.Marshal(blocks)
+	if err != nil {
+		return content
+	}
+	return out
+}
+
+func stripInstructionsText(block map[string]any) bool {
+	text, ok := block["text"].(string)
+	if !ok || !strings.Contains(text, participantInstructionsKey) {
+		return false
+	}
+	var result map[string]any
+	if json.Unmarshal([]byte(text), &result) != nil {
+		return false
+	}
+	if _, ok := result[participantInstructionsKey]; !ok {
+		return false
+	}
+	delete(result, participantInstructionsKey)
+	b, err := json.Marshal(result)
+	if err != nil {
+		return false
+	}
+	block["text"] = string(b)
+	return true
 }

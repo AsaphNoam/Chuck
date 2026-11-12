@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useMemo, useRef } from "react";
 import { z } from "zod";
 import {
   thinkTankActivitySchema,
@@ -332,24 +333,21 @@ export const thinkTankTemplateSchema = templateSummarySchema.extend({
 export type ThinkTankTemplate = z.output<typeof thinkTankTemplateSchema>;
 const TEMPLATE_KEYS = { list: ["think-tank-templates"] as const };
 
+const templatePageSchema = z.object({ templates: z.array(templateSummarySchema), next_cursor: z.string().optional() });
+
+/** useThinkTankTemplates reads one bounded server page per fetch; further
+ *  pages load on demand, so no saved template becomes unreachable (INV §16). */
 export function useThinkTankTemplates(enabled = true) {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: TEMPLATE_KEYS.list,
     enabled,
-    queryFn: async ({ signal }) => {
-      const page = z.object({ templates: z.array(templateSummarySchema), next_cursor: z.string().optional() });
-      const all: ThinkTankTemplateSummary[] = [];
-      let cursor = "";
-      // Bounded: at most ten server pages reach the dropdown (INV §16).
-      for (let i = 0; i < 10; i++) {
-        const data = await request(`/api/think-tank-templates${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, page, { signal });
-        all.push(...data.templates);
-        if (!data.next_cursor) break;
-        cursor = data.next_cursor;
-      }
-      return all;
-    },
+    initialPageParam: "",
+    queryFn: ({ pageParam, signal }) =>
+      request(`/api/think-tank-templates${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ""}`, templatePageSchema, { signal }),
+    getNextPageParam: (page) => page.next_cursor || undefined,
   });
+  const templates: ThinkTankTemplateSummary[] | undefined = query.data?.pages.flatMap((p) => p.templates);
+  return { ...query, templates };
 }
 
 export function fetchThinkTankTemplate(id: string, signal?: AbortSignal) {
@@ -366,6 +364,22 @@ export interface SaveThinkTankTemplateInput {
     judge?: ThinkTankLaunch;
     judge_instructions?: string;
   };
+}
+
+/** useRetainedCommand holds one command id per request: an identical retry
+ *  after a lost response reuses it, so a committed save is replayed rather
+ *  than copied; a changed request or an acknowledged save rotates it
+ *  (INV §15, TS-14.R31). */
+export function useRetainedCommand() {
+  const held = useRef<{ key: string; id: string } | null>(null);
+  return useMemo(() => ({
+    idFor: (request: unknown) => {
+      const key = JSON.stringify(request);
+      if (held.current?.key !== key) held.current = { key, id: newCommandID() };
+      return held.current.id;
+    },
+    acknowledge: () => { held.current = null; },
+  }), []);
 }
 
 export function useSaveThinkTankTemplate() {

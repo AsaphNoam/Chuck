@@ -945,6 +945,13 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 72,
 		apply:   migrateThinkTankTemplates,
 	},
+	{
+		// Templates store their payload version, and replay identity is a
+		// fingerprint that keeps source room/agent ids out of the row
+		// (TS-14.R30–R31).
+		version: 73,
+		apply:   migrateThinkTankTemplateIdentity,
+	},
 }
 
 // addPipelineVisitProvenance follows addPipelineDecisions for a legacy

@@ -196,3 +196,30 @@ func TestOpenToolInputIsBounded(t *testing.T) {
 		t.Fatalf("bytes=%d, want only big2's %d", as.toolInputBytes, len(in.title)+len(in.args))
 	}
 }
+
+// TS-14.R32, INV §11/§14: an adapter that echoes Chuck's read_think_tank
+// result into a completed tool_call_update must not carry the participant's
+// private instructions into the transcript or the ordinary event stream. The
+// echoed text has the shape Chuck's MCP tool returns (one JSON object); the
+// rest of the result is kept.
+func TestEchoedRoomReadOmitsParticipantInstructions(t *testing.T) {
+	c, h, _, ch := startPermAgent(t, false, "")
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, _ := json.Marshal(map[string]any{"ok": true, "room_id": "tt_1", "goal": "Pick storage",
+		"participant_instructions": "Argue for SQLite.", "read_receipt": "rr_1"})
+	block, _ := json.Marshal(map[string]any{"type": "content", "content": map[string]any{"type": "text", "text": string(read)}})
+	c.mapScoped(as, activityScope{}, "tool_call", json.RawMessage(
+		`{"sessionId":"s","update":{"sessionUpdate":"tool_call","toolCallId":"r1","title":"mcp__chuck__read_think_tank","rawInput":{}}}`))
+	c.mapScoped(as, activityScope{}, "tool_call_update", json.RawMessage(
+		`{"sessionId":"s","update":{"sessionUpdate":"tool_call_update","toolCallId":"r1","status":"completed","content":[`+string(block)+`]}}`))
+	ev := waitForEvent(t, ch, EvToolResult)
+	if strings.Contains(string(ev.Data), "Argue for SQLite") || strings.Contains(string(ev.Data), "participant_instructions") {
+		t.Fatalf("echoed result carries instructions: %s", ev.Data)
+	}
+	if !strings.Contains(string(ev.Data), "rr_1") || !strings.Contains(string(ev.Data), "Pick storage") {
+		t.Fatalf("echoed result lost its public fields: %s", ev.Data)
+	}
+}
