@@ -269,6 +269,23 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
+### Duplicate annotation mail header (ANNOTATION-MAIL-HEADER) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+Field report, 2026-11-12. Chuck version and recipient surface were unspecified. No logs were supplied.
+
+> /investigate-bug when I send an annotation to another agent, the mail header shows up as 'Mail from Dashboard user Dashboard user: Annotations'
+
+- **Worth fixing** ANNOTATION-MAIL-HEADER-1 (confirmed, INV §8/§17, easy) — Assign an annotation
+  to another running chat agent (FS-13.R7, FS-06.R21). The server sets the sender to `Dashboard user`
+  and the subject to `Annotations` (`internal/server/sessions.go`, peer annotation handler).
+  `inlineMailNotice` (`internal/runtime/chat.go`) writes `Mail from Dashboard user` as the title and
+  `Dashboard user: Annotations` as the description. The shared `NoticeRow` renders both in one row,
+  repeating the attribution in the collapsed summary (FS-06.R38/R45). This dates to `5c4cc167`.
+  Confirmed against the rendered component with both the older notice payload and the current
+  expandable payload. Show the sender once for a single-message notice in the shared presentation,
+  retain the subject and disclosure, and preserve sender-to-subject attribution for mixed batches.
+  Enable the skipped cases in `ui/src/components/chat/renderers/MailDetail.test.tsx`.
+
 ### Expandable agent mail (MAIL-DETAIL) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Must fix** MAIL-DETAIL-1 (INV §1/§2/§10/§17, easy) — Completing a turn separates sent and read

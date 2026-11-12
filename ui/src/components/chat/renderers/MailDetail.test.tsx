@@ -27,6 +27,24 @@ describe("mail detail", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  // ANNOTATION-MAIL-HEADER-1: enable when the collapsed header is repaired.
+  it.skip.each([
+    ["an older saved notice", undefined],
+    ["a notice with mail detail", { direction: "received", messages: [{ ...message, from_name: "Dashboard user", subject: "Annotations" }], truncated: false }],
+  ])("shows the annotation sender once in %s", (_label, mail) => {
+    render(<NoticeRow event={{
+      kind: "notice",
+      origin: "chuck_mail",
+      severity: "info",
+      title: "Mail from Dashboard user",
+      description: "Dashboard user: Annotations",
+      mail,
+    } as TranscriptEvent} />);
+    const summary = screen.getByRole("note").textContent ?? "";
+    expect(summary).toContain("Annotations");
+    expect(summary.match(/Dashboard user/g)).toHaveLength(1);
+  });
+
   it("sent: shows the recipient, deferred, the error and the truncated note on the tool line", () => {
     const call = { kind: "tool_call", name: "mcp__chuck-messaging__send_message", mail: { direction: "sent", messages: [{ ...message, wake: false }], error: { code: "unknown_recipient", message: "No such agent" }, truncated: true } } as TranscriptEvent;
     render(<ToolCall event={call} />);
