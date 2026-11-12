@@ -929,6 +929,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   <label>** for the latest in-progress call of the running turn. R107's popover rows use the
   same label. Permission prompts keep showing the full request (R26). Durable events, archive
   content, search, agent-facing transcript reads and unknown-event JSON are unchanged.
+  Exception (planned): FS-06.R45 lets the person expand Chuck mail calls to see their messages.
 
 - **R109 — Self-contained HTML opens as a page in the existing file tab.**
   Complete `.html` and `.htm` files offer **Rendered** and **Source**, defaulting to Rendered;

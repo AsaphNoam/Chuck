@@ -326,6 +326,14 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-12 — Design:** agent mail visibility is ready as
+  [expandable-agent-mail-activity](../ready-changes/expandable-agent-mail-activity.md)
+  (FS-06.R45/A33, TS-04.R108, TS-08.R161, FS-03.R108 pointer; TS-08 is now Partial). The operator
+  chose to keep received bodies with the transcript, expand the notice and mail tool lines in
+  place, leave agent-facing views unchanged, render bodies as Markdown, and have Chuck record
+  sent and read mail itself. Evidence from real transcripts: Codex saves null mail tool results,
+  and Claude saves empty send arguments unless a permission request records them.
+
 - **2026-11-12 — Review:** internal-ID display (`178425ba`) remains open for UI-IDS-1–6.
   Five focused component files passed 143 tests with the fixture gaps above. Presentation checks
   and focused Go remote home/push tests passed. Chromium's populated pipeline fixture passed 120

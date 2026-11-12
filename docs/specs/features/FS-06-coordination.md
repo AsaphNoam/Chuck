@@ -264,6 +264,23 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   and subject, so the person supervising can see why a mail-triggered turn started. Bodies stay out
   of the row; the mailbox remains their surface. The notice follows TS-04.R80's bounds and
   projection: it never changes unread counts, status or notifications.
+- **R45 (planned) — The person can expand mail in an agent's activity.** Collapsed views stay as
+  they are, and each one gains an expansion for the person supervising the agent:
+  - **Received in the prompt:** R38's mail notice expands to list each supplied message: sender,
+    subject, waking or deferred, sent time and body. Chuck keeps a copy of exactly the content that
+    turn received with the transcript, so it outlives R8's mailbox expiry and is deleted with the
+    transcript. This supersedes R38's "bodies stay out of the row".
+  - **Sent:** a `send_message` call stays a line in the tool activity (FS-03.R26/R108) and
+    expands to show recipient, subject, waking or deferred, and body as the call recorded them. A
+    failed send also shows its failure reason.
+  - **Read through `check_messages`:** the call stays a line in the tool activity and expands to
+    show the returned messages with the same fields.
+
+  Bodies render as Markdown, like assistant messages. Reserved-user mail (R21) names the person as
+  its sender. Expansion works in live, archived and phone transcripts. The expansion only adds
+  visibility for the person. It does not change the agent's prompt, what agents receive when they
+  read a transcript (R39), transcript search, unread counts, read state, status, notifications,
+  wakes or mailbox retention. Other tool lines keep FS-03.R108's one-line limit.
 
 ### 4.5 Peer transcripts and approved Stop
 
@@ -382,6 +399,15 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
 - **A27** (shipped 2026-10-15; R38) — A waking-mail activation emits one notice naming the sender and
   subject without the body:
   `internal/runtime/chat_test.go::TestStartActivationInjectsInlineMailTurn`.
+- **A33 (planned)** (R45) — Agent A sends waking and deferred mail to B, then sends one failing
+  send. B receives the mail inline and later reads older mail with `check_messages`. In A's and
+  B's transcripts, each collapsed view looks as before and expands to the right sender or
+  recipient, subject, delivery class and Markdown body. The failed send shows its reason. After
+  the mailbox rows expire, archiving B and reloading still show B's received bodies. B's next
+  prompt, an R39 read of B's transcript, transcript search, unread counts and notifications are
+  byte-for-byte or count-for-count unchanged. *Verify:* runtime/transcript tests for the saved
+  copy and the unchanged agent-facing projections; UI tests for the three expansions; a paired
+  phone check of one expansion as a manual gate.
 
 - **A1** (R2–R6) — Two token-bound agents discover, send, and read over the real HTTP MCP
   transport, with sender identity derived from session:
@@ -493,6 +519,17 @@ Requirements are user-, agent-, and API-observable. R-item numbering is continuo
   `internal/messaging/pipeline_agent_task_target_test.go`.
 
 ## 6. Deviations & open decisions
+
+- **Mail visibility design, 2026-11-12.** R45/A33 are planned. The operator chose to:
+  - keep a copy of received bodies with the transcript;
+  - expand the existing notice and the mail tool lines in place;
+  - leave every agent-facing view unchanged;
+  - render bodies as Markdown;
+  - have Chuck record sent and read mail itself, because provider tool events are incomplete
+    (TS-04.R108).
+
+  Technical contracts are TS-04.R108 and TS-08.R161. On shipping, R45 supersedes R38's
+  bodies-out-of-the-row sentence and A27's "without the body".
 
 - **Peer authority design, 2026-10-16.** R39–R44/A28–A32 are planned. The operator confirmed
   cross-project reads including stopped/archived history and requests to stop any peer, with

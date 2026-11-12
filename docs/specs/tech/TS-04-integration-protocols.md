@@ -1628,6 +1628,40 @@ spend refusals without a usable target retain manual recovery. Retain the 16 KiB
 stderr or replay. Verify changed prose/punctuation and clock/date forms independently from
 quota classification, using source-backed provider carriers and explicit expected instants.
 
+### Mail visibility for the person
+
+**R108 (planned) — Chuck records the mail it serves as display-only notice detail.** For
+FS-06.R45, add optional `NoticeData.mail` to R80's `notice` event, with origin `chuck_mail`:
+`{direction: "received"|"sent"|"read", messages: [MailDetail], error?, truncated}`.
+`MailDetail` has `message_id?`, sender name/address, recipient name/address, `subject`, `body`,
+`created_at` and `wake`, taken from `state.Message` or the accepted send. Chuck records the
+detail itself because the provider-recorded tool events are not a complete source. In Chuck's own
+transcripts (checked 2026-11-11, `~/.chuck/sessions`), Codex saves `content: null` for both mail
+tool results. Claude saves `args: {}` on the `send_message` call, so its arguments are present
+only when a permission request also recorded them.
+
+- **Received:** `inlineMailNotice` adds `direction:"received"` and exactly the messages that turn
+  supplied. The title and description stay R38's summary.
+- **Sent and read:** after the mail store commits a `send_message` or `check_messages` for a
+  token-bound chat caller, and before the MCP response returns, the messaging service appends one
+  history-only notice to that caller's transcript. It generalizes the peer-Stop
+  `appendPeerNotice`/`commitNotice` seam. A refused send records the attempted recipient,
+  subject and body, with `error` set to the refusal code and message. A read records the
+  returned messages.
+- **Failure handling:** if the record cannot be appended, the send or read itself still
+  succeeds and its result is unchanged. Chuck logs a content-free warning, never a body, and the
+  line simply cannot be expanded. A caller without a durable chat transcript, such as a terminal
+  agent, gets no record.
+- **Bounds:** keep the existing mail limits (8,000-character body, subject cap, 15-message inline
+  batch, 50-message read). Clip the serialized detail to 64 KiB by dropping bodies from the last
+  message backward, keeping its headers, and set `truncated`.
+- **Agent views stay unchanged:** the notice keeps `transcript.ProjectEvent`'s metadata
+  disposition (`internal/transcript/project.go`). Recording therefore never reaches agent
+  context, R93 peer reads, context links, primers, search, the card preview, unread counts,
+  notifications or wakes. Do not change that disposition.
+- **Retention:** the detail lives and is deleted with the transcript. Existing transcripts are
+  not backfilled.
+
 ## 3. Interfaces & data shapes
 
 R97's internal check operation accepts a sanitized frozen provider selection (backend type,

@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2155,6 +2155,32 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   entry points. Exercise a held key, an input-method composition sequence, a delayed send with
   newer edits and platform undo/redo. Component tests alone do not close the rendered keyboard
   gate (INV §1/§2/§10/§17).
+
+- **R161 (planned) — Mail detail expands in place.** This presents FS-06.R45 over
+  TS-04.R108's `notice.mail` detail. Durable events, R147's labels and annotation targets stay the
+  same.
+  - **Received:** `NoticeRow` renders an `origin:"chuck_mail"` notice with
+    `mail.direction:"received"` as its existing collapsed summary, plus one disclosure.
+  - **Sent and read:** `groupTranscriptRows` joins a mail notice with `direction` `sent` or
+    `read` into the current tool run, as it does for answered permission chips. It attaches the
+    notice to the earliest unattached call in that run whose tool is the matching `send_message`
+    or `check_messages`.
+  - **Tool matching:** a call matches by tool name. That name is the suffix of a
+    `mcp__<server>__<tool>` or `mcp.<server>.<tool>` title or name, or Codex's `args.tool`, for
+    a messaging server.
+  - **Expandable line:** the matched `ToolCall` line keeps its R147 label and gains the
+    disclosure. An unmatched record renders as its own collapsed mail line in the run. Outside a
+    run, it renders as a one-line run.
+  - **Expanded content:** one shared `MailDetail` component renders each message's
+    sender/recipient, subject, waking/deferred, time, any error, and the body. The body goes
+    through the existing assistant Markdown renderer. A truncated record says so.
+  - **Phone and Think Tank:** `AgentScreen` and Think Tank reuse the same components, so the
+    phone matches desktop.
+  - **Not changed:** the working indicator and `RunningTasks` ignore mail notices. Every other
+    tool line keeps R147's one-line limit.
+
+  Verify with FS-06.A33: grouping and matching tests that include parallel same-tool calls and
+  unmatched records, component tests for each direction, and the phone check (INV §2/§10).
 
 ## 3. Interfaces & data shapes
 
