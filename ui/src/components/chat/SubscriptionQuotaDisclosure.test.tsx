@@ -57,6 +57,9 @@ describe("SubscriptionQuotaDisclosure (FS-09.A49/A52)", () => {
     [{ reason_code: "no_subscription" as const, checked_at: "2026-11-12T10:00:00Z" }, "This sign-in has no subscription quota."],
     [{ reason_code: "unsupported_adapter" as const, checked_at: undefined }, "This adapter version cannot read subscription quota."],
     [{ reason_code: undefined, checked_at: undefined }, "Not checked yet. It updates after this backend's next turn."],
+    // A failed first read has no earlier values to show.
+    [{ reason_code: "read_failed" as const, checked_at: undefined }, "The check failed. It updates after this backend's next turn."],
+    [{ reason_code: "read_timeout" as const, checked_at: undefined }, "The check timed out. It updates after this backend's next turn."],
   ])("explains an unavailable snapshot (%o)", (extra, text) => {
     render(<SubscriptionQuotaDisclosure value={{
       provider: "codex", availability: "unavailable", windows: { five_hour: {}, weekly: {} }, ...extra,

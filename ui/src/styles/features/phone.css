@@ -206,6 +206,8 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; --ad-phone-wallpaper-
 .phone-timeline [data-current] .phone-timeline-marker { color: var(--ad-state-waiting); background: color-mix(in srgb, var(--ad-state-waiting) 10%, var(--ad-surface-panel)); }
 .phone-details { font-size: 0.6875rem; border-top: var(--ad-border-thin) solid var(--ad-border-default); border-bottom: var(--ad-border-thin) solid var(--ad-border-default); padding: var(--ad-space-4) 0; overflow-wrap: anywhere; }
 .phone-details summary { cursor: pointer; }
+/* The Subscription quota summary is a phone action: 44px target (FS-12.R68). */
+.phone-app .subscription-quota summary { display: flex; align-items: center; min-height: 44px; }
 .phone-details p { margin: var(--ad-space-3) 0; }
 .phone-details-body { display: grid; gap: var(--ad-space-3); }
 /* The pending-annotation count stays reachable while Chat or Files scrolls (TS-08.R134). */

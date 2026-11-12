@@ -789,7 +789,8 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   continuation at reset plus 60s, no check) and the existing R43–R44/R48–R51 lifecycle, notice
   and rendered desktop/phone **Will continue at …** coverage under A31–A33, which this repair
   reaches through unchanged `reset_at`/`due_at` state.
-- **A40 (planned)** (R58) — Against a fork-capable fake session with three completed turns,
+- **A40 (implemented 2026-11-12; fake-provider API and component coverage; journey J7 and both
+  live receipts owed)** (R58) — Against a fork-capable fake session with three completed turns,
   **Edit** on the second message creates one agent whose copied history and fork request both end
   at turn one, with the fork marker, the message text in the composer and nothing sent; **Fork
   from here** on turn two ends both at turn two with an empty composer. The source keeps all three
@@ -798,7 +799,9 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   partial state. On packaged Claude and Codex, one bounded credentialed fork each proves the new
   conversation's provider context ends at the chosen turn. *Verify by* lifecycle/runtime/API
   tests, chat message-action component tests, journey J7 and the two live receipts.
-- **A41 (planned)** (R59) — With a fake provider snapshot: an interruption whose failure carries
+- **A41 (implemented 2026-11-12; fake-snapshot window-rule, scheduling, pre-check and
+  unadvertised-fallback coverage; the full A31–A34 no-evidence matrix and the banner journey
+  owed)** (R59) — With a fake provider snapshot: an interruption whose failure carries
   no reset but whose snapshot shows an exhausted Weekly window is scheduled at that reset plus
   R48's buffer and charges no check; two exhausted windows use the later reset; a foreign model
   family's weekly window is ignored; a reset stated by the failure wins over a different snapshot.

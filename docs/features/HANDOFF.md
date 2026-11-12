@@ -40,13 +40,16 @@ None.
   home, fake ACP): the complete state at 1024px, 1440px and the 390px phone page in Core and
   Sky & Grove showed no overflow, a visible focus ring, keyboard opening and no request on
   open. Stale, partial and unavailable states were not rendered. The phone page was loaded
-  without real pairing.
+  without real pairing. After QUOTA-FORK-7 the phone summary measured 390×44 in Chromium
+  (isolated markup with the real stylesheets, not the full phone page). The Claude adapter now
+  forwards only window members; the `model_scoped` decode is fixture-verified only.
 - **Fork from a message (FS-01.A40):** one bounded credentialed fork each on packaged Claude and
   Codex proving the new provider context ends at the chosen turn; Codex must also accept the
   proof-only `session/load` of its fork. Rendered 2026-11-12 in the same run at 1280px in Core:
   enabled and disabled Edit and Fork from here, both confirmations, navigation, Edit's unsent
   text and the unchanged source passed. Keyboard-only menu use, Sky & Grove and the dashboard
-  pane were not rendered. Re-render after QUOTA-FORK-2.
+  pane were not rendered. Re-render the disabled Edit on a message sent mid-turn and a copied
+  turn's reason (QUOTA-FORK-2/4 are component/API-tested only).
 - **Mail detail (FS-06.A33):** independent Chromium used the built UI, an isolated Go server,
   fake ACP, real MCP send/read and fixture tool-call events. The unfinished send disclosures
   rendered Markdown and a refusal at 1024px in Core. Keyboard expansion and Markdown layout
@@ -234,19 +237,6 @@ None.
 
 ## Review queue
 
-- **QUOTA-FORK — native quota snapshot and fork from a message (2026-11-12).** Change file
-  [native-quota-snapshot-and-message-fork](../ready-changes/native-quota-snapshot-and-message-fork.md);
-  FS-09.R80/R83, FS-01.R58/R59, TS-04.R109–R111, TS-03.R85–R86, TS-02.R65, TS-08.R162.
-  Commits `669f252c`, `d4c73ed2`, `8210fd21`, `7dd63325`. Independent review found defects. Fix
-  the grouped findings below before closing the unit. Code: adapter patches
-  `scripts/release/patches/*-quota-read.patch` (+ contract tests, `+chuck.2`),
-  `internal/runtime/quota_snapshot.go`, `Server.quotaScope`, `Server.postponeToSnapshotReset`,
-  migration 74, `runtime/fork.go`, `internal/server/fork_point.go`, `forkActionFor`,
-  `ForkConfirmDialog`, `SubscriptionQuotaDisclosure`. The six implementation review notes were
-  confirmed sound and need no question; the Codex proof-only `session/load` stays an owed live
-  gate. Review checks (2026-11-12): `make check-specs`; runtime, state, transcript and server Go
-  packages under both variants; the two new UI test files. Not run: `make dist`, hosted CI.
-
 - **MAIL-DETAIL — expandable agent mail in transcript activity (`a44abd23`).** Independent review
   found defects. Fix the grouped findings below before closing the unit.
 
@@ -295,51 +285,6 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
-
-### Native quota snapshot and fork from a message (QUOTA-FORK) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** QUOTA-FORK-1 (INV §2/§7/§11/§17, medium) — A real Claude usage answer cannot be
-  decoded. `quota_snapshot.go:294–309` and `:475–481` each decode `rate_limits` as a map of window
-  objects, but the pinned SDK type (`sdk.d.ts:4242–4311`) carries `model_scoped` as an array, present
-  (possibly empty) whenever the endpoint itself answered. Go then returns a type error for the whole
-  body (reproduced with the same types in a scratch program). `normalizeQuotaRead` answers
-  `unavailable`/`read_failed` with a new `checked_at`, replacing the earlier windows that FS-09.R83
-  says a failed read keeps, and `exhaustedQuotaReset` returns no evidence, so FS-01.R59 never applies
-  to Claude. The fixtures at `quota_snapshot_test.go:18–23` claim the SDK shape and omit that member.
-  `rate_limits` also carries `extra_usage` credits out of the adapter, which TS-04.R109 forbids and
-  `test-claude-quota-read-patch.mjs` asserts as intended. Decode the payload once, tolerating
-  unknown members, for both callers. Treat an undecodable success as a failed read. Decide whether
-  `model_scoped` windows count under R59's family rule. Forward only window members or amend R109.
-  Derive fixtures from the SDK type.
-- **Must fix** QUOTA-FORK-2 (INV §8/§10, easy) — **Edit** on a message sent while the agent was
-  working is offered and always fails. An injected message is recorded as an ordinary root
-  `user_text` inside the running turn (`chat.go:858`). `forkActions.ts:41–43` pairs it with the
-  previous turn end, and `fork_point.go:61–76` accepts only the message that began the next turn.
-  Confirming shows "Edit failed: compose_from_seq must name the message that began the next turn".
-  FS-01.R58 requires an unavailable action to state its reason beforehand. Mark that message
-  unavailable with a reason, or specify what Edit means for it. Cover it in the component and API
-  tests.
-- **Must fix** QUOTA-FORK-3 (INV §5/§16, easy) — A continuation deferred as busy reads the provider
-  every two seconds. `quota_dispatch.go:35` runs the pre-check on every claim, including retries of
-  a `deferred` intent (`DeferQuota` at `quota_dispatch.go:110`/`:156` and `quota_check.go:225`/`:264`,
-  `taskDispatchInterval` 2s). Each attempt makes a live `_chuck/quota/read`
-  (`quota_snapshot.go:405–419`), and each completed read republishes every agent of the scope
-  (`:245–254`). Trigger: a continuation falls due while its agent runs a manual turn. FS-09.R83
-  forbids polling and TS-04.R111 allows one read before admission. Pre-check only the admission from
-  `scheduled`. Test a busy deferral and count reads.
-- **Worth fixing** QUOTA-FORK-4 (INV §8, easy) — In a fork, every copied turn says its fork point
-  "was recorded before forking at a turn was available" (`fork.go:183`, `:243`, `fork_point.go:33`).
-  That is false for a fork made today, and it is the first thing a second Edit meets. Give copied
-  turns their own reason and add the case to FS-01.R58.
-- **Worth fixing** QUOTA-FORK-5 (INV §8, trivial) — When the first read of a scope fails or times
-  out, the disclosure says "showing earlier values" with none to show
-  (`SubscriptionQuotaDisclosure.tsx:9–10`, `:44`). Use a reason that does not claim earlier values.
-- **Worth fixing** QUOTA-FORK-6 (INV §10, trivial) — FS-01.A40/A41 and FS-09.A49/A52 still read
-  `(planned)` and A49 cites retired R81, although their requirements are marked implemented and
-  automated coverage exists. State the implemented coverage and the owed live gates.
-- **Worth fixing** QUOTA-FORK-7 (INV §10, trivial) — On the 390px phone page the **Subscription
-  quota** summary measured 346×14px in Chromium. FS-12.R68 gives every phone action a 44px
-  target. Give the summary the phone target height and re-measure.
 
 ### Expandable agent mail (MAIL-DETAIL) — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -443,6 +388,19 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-12 — Fix:** closed the QUOTA-FORK review (QUOTA-FORK-1–7; INV
+  §2/§5/§7/§8/§10/§11/§16/§17). One Go decoder reads the SDK's Claude usage shape
+  (`model_scoped` array, unknown members); an undecodable success is a failed read keeping
+  earlier windows; `model_scoped` windows count by family. The Claude adapter patch forwards only
+  window members (new pinned hash, still `+chuck.2`, unreleased). Only admission from `scheduled`
+  pre-checks the snapshot. Edit on a mid-turn message is disabled with its reason (API refuses
+  likewise); copied turns say so. First-read failure wording, phone summary 44px, A40/A41/A49/A52
+  coverage stated. Both Go variants (`go test ./...`, `-tags sqlite_fts5`), `make check-specs`,
+  `make build`, 1,240 UI tests and the UI build pass; one earlier full run timed out
+  `TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity` (bypasses the changed dispatcher;
+  5/5 alone and green in the rerun — load-sensitive, watch it); the patched
+  bundle contract tests pass against the pinned 0.85.1 input. Not run: `make dist`, hosted CI.
 
 - **2026-11-12 — Fix:** closed ANNOTATION-MAIL-HEADER-1 (INV §8/§17). Single-message mail
   notices show the sender once; batch attribution and expansion remain intact. The saved and

@@ -10,6 +10,12 @@ const REASON_TEXT: Record<NonNullable<SubscriptionQuota["reason_code"]>, string>
   read_timeout: "The last check timed out; showing earlier values.",
 };
 
+// With no window to show, a failed check cannot claim earlier values.
+const NO_VALUES_REASON_TEXT: Partial<typeof REASON_TEXT> = {
+  read_failed: "The check failed. It updates after this backend's next turn.",
+  read_timeout: "The check timed out. It updates after this backend's next turn.",
+};
+
 function WindowRow({ label, window }: { label: string; window: SubscriptionQuotaWindow }) {
   const used = window.used_percent;
   const reset = formatQuotaTime(window.reset_at);
@@ -41,7 +47,7 @@ export function SubscriptionQuotaDisclosure({ value }: { value?: SubscriptionQuo
       <div className="subscription-quota-body">
         <p className="subscription-quota-provider">{PROVIDER_LABEL[value.provider]} subscription</p>
         {unavailable && !value.windows.five_hour.observed_at && !value.windows.weekly.observed_at ? (
-          <p>{reason ?? (checked ? "The provider reported no 5-hour or Weekly window." : "Not checked yet. It updates after this backend's next turn.")}</p>
+          <p>{(value.reason_code && NO_VALUES_REASON_TEXT[value.reason_code]) ?? reason ?? (checked ? "The provider reported no 5-hour or Weekly window." : "Not checked yet. It updates after this backend's next turn.")}</p>
         ) : (
           <>
             <WindowRow label="5-hour" window={value.windows.five_hour} />

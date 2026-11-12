@@ -790,7 +790,8 @@ Configuration-source federation for Claude/Codex is FS-08.
   active model; the refusal shows the provider's reason and no substitute model is sent. *Verify by*
   fake ACP runtime switch tests and the `ChatPanel` runtime-picker component test.
 
-- **A49 (planned)** (R80–R81) — Feed independently serialized provider-owned observations for
+- **A49 (implemented 2026-11-12; normalization and disclosure component coverage; the
+  desktop/phone browser journey across appearances owed)** (R80, R83) — Feed independently serialized provider-owned observations for
   five-hour only, weekly only, both, null percentages/reset times, non-subscription authentication,
   stale data and read failure. Only supplied windows display known values; contexts/tokens and
   another backend/session cannot fill gaps or authorize a continuation. Inspect labels, reset
@@ -802,7 +803,8 @@ Configuration-source federation for Claude/Codex is FS-08.
   is a 400 field error on `backends.<id>.name`, `backends.json` is unchanged, the editor shows the
   error and keeps the other edits. *Verify:* `internal/server` PUT-backends handler test and
   `BackendsEditor.test.tsx`.
-- **A52 (planned)** (R80, R83) — Against a fake of each provider, a session start, each turn end
+- **A52 (implemented 2026-11-12; fake-provider runtime and adapter contract coverage; both
+  live receipts owed)** (R80, R83) — Against a fake of each provider, a session start, each turn end
   and a passed reset each produce exactly one read and fill both windows; an ordinary, task,
   pipeline and room turn sees no extra prompt, command, transcript event or owner transition.
   With two agents on one backend and routing, a turn ending on one updates the view of the idle
