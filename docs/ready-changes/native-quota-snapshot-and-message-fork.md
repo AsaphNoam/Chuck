@@ -1,6 +1,6 @@
 # Native quota snapshot and fork from a message
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-11-11, after a full move off ACP was assessed and
 rejected as too large. Replaces two ACP Wait-list entries: passive subscription quota (2026-10-10)
 and edit/fork from an earlier message (held 2026-10-14).

@@ -62,6 +62,7 @@ import { restoreWithdrawnDraft } from "../lib/heldMessage";
 import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
+import { SubscriptionQuotaDisclosure } from "../components/chat/SubscriptionQuotaDisclosure";
 import { GroupPicker, groupNameError, projectGroupLabels } from "../components/ui/GroupPicker";
 import { useProjects, useRoles } from "../api/config";
 import { agentName } from "../lib/labels";
@@ -834,6 +835,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
         <p className="phone-agent-runtime">{agent.model}{agent.effort ? ` · ${agent.effort} effort` : ""}</p>
       </header>
       <ContextBar detailed value={agent.context_pct} used={agent.context_used} size={agent.context_size} />
+      <SubscriptionQuotaDisclosure value={agent.subscription_quota} />
       <QuotaBanner value={quota} cancelPending={busy} cancelDisabled={offline} cancelError={quotaCancelError} onCancel={() => void cancelQuotaContinuation()} />
       <div className="phone-agent-tabs">
         <div className="phone-actions phone-tabs" role="tablist" aria-label="Agent views">

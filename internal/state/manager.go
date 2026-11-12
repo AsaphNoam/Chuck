@@ -24,6 +24,16 @@ type Manager struct {
 	writeMu sync.Mutex
 	knownMu sync.Mutex
 	known   map[string]bool
+
+	// subscriptionQuota resolves an agent's in-memory backend-scope quota
+	// snapshot at projection time (TS-03.R85); nil projects none.
+	subscriptionQuota func(agentID, backend string) *SubscriptionQuota
+}
+
+// SetSubscriptionQuotaProvider installs the scope snapshot lookup recompute
+// projects for every agent, running or stopped. Set before serving.
+func (m *Manager) SetSubscriptionQuotaProvider(fn func(agentID, backend string) *SubscriptionQuota) {
+	m.subscriptionQuota = fn
 }
 
 var errNoStateChange = errors.New("state: no state change")
@@ -587,6 +597,9 @@ WHERE a.agent_id = ?`, agentID)
 		return AgentStateUpdate{}, err
 	}
 	out.Quota = quota
+	if m.subscriptionQuota != nil {
+		out.SubscriptionQuota = m.subscriptionQuota(out.AgentID, out.Backend)
+	}
 
 	m.setKnown(agentID, true)
 	out.Clone = CloneAvailability(out.Interface, out.Archived, out.RuntimeCapabilities, nativeSession.String, CloneBusyState(out.State))

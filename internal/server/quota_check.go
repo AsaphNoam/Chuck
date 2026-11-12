@@ -78,6 +78,21 @@ func (s *Server) quotaCheckSpec(agentID string) (runtime.QuotaCheckSpec, error) 
 		Env: env, SourceCwd: snap.Cwd, Routing: runtime.QuotaCheckRouting(be.Type, env, snap.Cwd)}, nil
 }
 
+// quotaScope resolves a stopped agent's subscription quota scope from the
+// selection its resume would use, so it shares its siblings' snapshot
+// (FS-09.R83). A running agent's scope is frozen by the runtime at launch.
+func (s *Server) quotaScope(agentID string) (backendID, backendType, routing string, ok bool) {
+	a, err := s.stateStore.ReadAgent(agentID)
+	if err != nil {
+		return "", "", "", false
+	}
+	spec, err := s.quotaCheckSpec(agentID)
+	if err != nil {
+		return "", "", "", false
+	}
+	return a.Backend, spec.BackendType, spec.Routing, true
+}
+
 // quotaSelectionKey fingerprints a check selection so a later continuation
 // can prove it still targets the quota that was checked.
 func quotaSelectionKey(spec runtime.QuotaCheckSpec) string {

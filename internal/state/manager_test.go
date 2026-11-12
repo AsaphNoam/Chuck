@@ -460,3 +460,43 @@ VALUES ('a_term', 'T', 'r', 'p', 'b', 'm', 'terminal', '/tmp', '', '2026-10-19T0
 		t.Fatalf("running row kept: %v", err)
 	}
 }
+
+// TestManagerProjectsSubscriptionQuotaForStoppedAgents: the scope snapshot is
+// projected whether or not the agent runs, serialized under the TS-03.R85 shape
+// with no scope or routing member.
+func TestManagerProjectsSubscriptionQuotaForStoppedAgents(t *testing.T) {
+	st, _ := newTestStore(t)
+	mgr := NewManager(st, &capturePublisher{})
+	agent := testAgent("a_stopped", mustTime(t, "2026-06-22T10:00:00Z"))
+	if err := st.WriteAgent(agent); err != nil {
+		t.Fatal(err)
+	}
+	pct := 42.0
+	mgr.SetSubscriptionQuotaProvider(func(agentID, backend string) *SubscriptionQuota {
+		if agentID != agent.AgentID || backend != agent.Backend {
+			t.Fatalf("provider asked for %s/%s", agentID, backend)
+		}
+		return &SubscriptionQuota{Provider: "claude", Availability: "partial",
+			Windows: SubscriptionQuotaWindows{FiveHour: SubscriptionQuotaWindow{UsedPercent: &pct}}}
+	})
+	update, err := mgr.Touch(agent.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(update)
+	var body struct {
+		Running bool                       `json:"running"`
+		Quota   map[string]json.RawMessage `json:"subscription_quota"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Running || string(body.Quota["windows"]) != `{"five_hour":{"used_percent":42},"weekly":{}}` {
+		t.Fatalf("stopped agent projection = %s", raw)
+	}
+	for key := range body.Quota {
+		if key != "provider" && key != "availability" && key != "windows" {
+			t.Fatalf("unexpected subscription_quota member %q", key)
+		}
+	}
+}

@@ -1196,7 +1196,7 @@ header layout under TS-08; it adds no new public presentation hook or dynamic-st
 extension method, no adapter patch) and its TBD; its normalization, validation, scope and
 retention rules stand and R109 builds on them.
 
-**R109 (planned) — A negotiated adapter extension returns the provider's typed quota snapshot.**
+**R109 (implemented 2026-11-12; packaged live receipts owed) — A negotiated adapter extension returns the provider's typed quota snapshot.**
 For FS-09.R83, each packaged adapter gains one reviewed patch adding the request
 `_chuck/quota/read {sessionId}` and advertising `_meta.chuck.quotaRead = {version: 1}` in its
 initialize response. Chuck calls it only when advertised; an unpatched or newer adapter reads
@@ -1226,6 +1226,18 @@ fuzz) and ships a contract test run at assembly against the patched bundle, like
 experimental, and both wire shapes before the patch is carried forward. *Why:* one small typed
 passthrough reuses the adapter's authenticated process, so no second provider client, credential
 path or command-text parser exists (INV §2/§12/§15).
+*As built 2026-11-12:* the patches are `claude-acp-0.85.1-quota-read.patch` and
+`codex-acp-2.1.1-quota-read.patch`, applied after each adapter's earlier reviewed patch with a
+pinned intermediate hash, and checked by `test-claude-quota-read-patch.mjs` and
+`test-codex-quota-read-patch.mjs`. Claude returns `{rate_limits_available, rate_limits}`; Codex
+returns `{snapshots:[{limitId, primary, secondary}]}` with the account's main snapshot first,
+and only that first snapshot is normalized. The store lives in `internal/runtime/quota_snapshot.go`.
+A running agent's scope is frozen at launch. A stopped agent's scope is resolved once per server
+process from the selection its resume would use (`Server.quotaScope`). A scope never read reads
+`unavailable` with no reason ("not checked yet"). Passive `_claude/rateLimit` usage updates are
+not yet folded into the snapshot. The Codex contract test exercises extracted source, because
+importing the bundle starts its server. Real provider responses are unverified until the live
+receipts.
 
 **R110 (planned) — A fork point is a recorded agent-message identity sent as fork metadata.** For
 FS-01.R58, the runtime records, with each completed root turn's end event, an opaque fork point:

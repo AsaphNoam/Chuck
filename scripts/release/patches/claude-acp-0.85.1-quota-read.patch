@@ -1,0 +1,53 @@
+--- a/node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js
++++ b/node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js
+@@ -185,6 +185,14 @@
+  *  agreed ACP steering wire protocol; advertised to clients via the top-level
+  *  `InitializeResponse._meta.steering.supported`. */
+ const STEER_METHOD = "_session/steering";
++/** Chuck: read-only plan quota passthrough (`_meta.chuck.quotaRead`). */
++const CHUCK_QUOTA_READ_METHOD = "_chuck/quota/read";
++function parseChuckQuotaReadRequest(params) {
++    if (!params || typeof params !== "object" || typeof params.sessionId !== "string" || params.sessionId.length === 0) {
++        throw RequestError.invalidParams(undefined, "quota read params require a non-empty sessionId");
++    }
++    return { sessionId: params.sessionId };
++}
+ /** Stops one Claude background task without cancelling the parent prompt turn. */
+ const ASYNC_TASK_STOP_METHOD = "_session/async_task/stop";
+ function parseAsyncTaskStopRequest(value) {
+@@ -1385,6 +1393,7 @@
+                 steering: {
+                     supported: true,
+                 },
++                chuck: { quotaRead: { version: 1 } },
+             },
+         };
+     }
+@@ -2212,6 +2221,19 @@
+         await this.publishGoalFromPrompt(sessionId, firstText, steeredUuid);
+         return { outcome: "injected" };
+     }
++    /** Chuck: forwards only the SDK's plan rate limits. No turn, transcript
++     *  write or session update; behaviors (local transcript scan) are skipped. */
++    async chuckQuotaRead(params) {
++        const session = this.sessions[params.sessionId];
++        if (!session || session.queryClosed) {
++            throw RequestError.invalidParams(undefined, "Session not found");
++        }
++        const response = await session.query.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true });
++        return {
++            rate_limits_available: response?.rate_limits_available === true,
++            rate_limits: response?.rate_limits ?? null,
++        };
++    }
+     async stopAsyncTask(params) {
+         const session = this.sessions[params.sessionId];
+         const asyncTasks = session?.asyncTaskRuntime;
+@@ -8443,6 +8465,7 @@
+         .onRequest(methods.agent.session.prompt, (ctx) => runPromptWithCancellation(agent, ctx.params, ctx.signal))
+         .onNotification(methods.agent.session.cancel, (ctx) => agent.cancel(ctx.params))
+         .onRequest(STEER_METHOD, { parse: parseSteerRequest }, (ctx) => agent.steer(ctx.params))
++        .onRequest(CHUCK_QUOTA_READ_METHOD, { parse: parseChuckQuotaReadRequest }, (ctx) => agent.chuckQuotaRead(ctx.params))
+         .onRequest(ASYNC_TASK_STOP_METHOD, { parse: parseAsyncTaskStopRequest }, (ctx) => agent.stopAsyncTask(ctx.params))
+         .onRequest(GOAL_CONTROL_METHOD, { parse: parseGoalRequest }, (ctx) => agent.goal(ctx.params));
+ }

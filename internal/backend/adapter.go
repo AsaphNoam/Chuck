@@ -440,9 +440,10 @@ func LaunchCommand(ad BackendAdapter, managedRoot string) (string, []string) {
 }
 
 // CodexACPPatchedSHA256 is the SHA-256 of the managed Codex ACP entrypoint after
-// the release's version-locked `promptRequired` steering patch. It must equal
+// the release's version-locked patches (`promptRequired` steering, then the
+// `_chuck/quota/read` passthrough). It must equal
 // CODEX_ACP_PATCHED_SHA256 in scripts/release/assemble.sh (checked by test).
-const CodexACPPatchedSHA256 = "8424ea6e64c8b7e20f1ab325eaf8f8a033c7f24a161c663d7c42695a9c5363d9"
+const CodexACPPatchedSHA256 = "69b0afc9825cabfa80aa1c6b8f04ea75ce752d8448191e48212690c031718c73"
 
 // SteerArtifactVerified reports whether the adapter artifact that LaunchCommand
 // selects is proven to honour `idleBehavior:promptRequired` (TS-04.R101). Codex

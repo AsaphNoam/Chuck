@@ -67,6 +67,9 @@ export interface AgentState {
   state: AgentStatus;
   detail: string;
   quota?: QuotaWireState;
+  /** The backend's shared subscription quota snapshot (FS-09.R83, TS-03.R85); absent
+   * for a backend without one. Missing fields are unknown, never zero. */
+  subscription_quota?: SubscriptionQuota;
   /** Conversation history health (TS-03.R73); absent is legacy unknown, not healthy. */
   history_state?: "ok" | "degraded";
   /** Bounded reason, present only while degraded. */
@@ -332,4 +335,20 @@ export interface MailRecord {
   messages: MailDetail[];
   error?: { code: string; message: string };
   truncated: boolean;
+}
+
+/** One subscription window; each field is individually optional (TS-03.R85). */
+export interface SubscriptionQuotaWindow {
+  used_percent?: number;
+  reset_at?: string;
+  observed_at?: string;
+}
+
+/** A backend scope's provider quota snapshot, as delivered (TS-03.R85). */
+export interface SubscriptionQuota {
+  provider: "claude" | "codex";
+  availability: "complete" | "partial" | "unavailable";
+  windows: { five_hour: SubscriptionQuotaWindow; weekly: SubscriptionQuotaWindow };
+  checked_at?: string;
+  reason_code?: "unsupported_adapter" | "no_subscription" | "read_failed" | "read_timeout";
 }

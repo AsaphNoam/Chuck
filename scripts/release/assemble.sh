@@ -15,13 +15,17 @@ NODE_VERSION="${NODE_VERSION:-22.22.0}"
 # dependency update and requires refreshing the matching Node archive.
 NODE_SHA256="5ed4db0fcf1eaf84d91ad12462631d73bf4576c1377e192d222e48026a902640"
 CLAUDE_ACP_VERSION="0.85.1"
-CLAUDE_ACP_COMPONENT_VERSION="${CLAUDE_ACP_VERSION}+chuck.1"
+CLAUDE_ACP_COMPONENT_VERSION="${CLAUDE_ACP_VERSION}+chuck.2"
 CLAUDE_ACP_SOURCE_SHA256="644daa80157fcdfe7b806cbd23b56f75be4fed146a890aa5e219204e689aca13"
-CLAUDE_ACP_PATCHED_SHA256="1a46fee6cf61a7e5c9a119173812dec95a8d60b6ad162d01f25ba07cb56c4867"
+# Each adapter patch is applied in order with a pinned output; *_PATCHED_SHA256
+# is the final artifact after every patch.
+CLAUDE_ACP_BACKGROUND_QUOTA_SHA256="1a46fee6cf61a7e5c9a119173812dec95a8d60b6ad162d01f25ba07cb56c4867"
+CLAUDE_ACP_PATCHED_SHA256="d821dac7b4dbbd4f01161308a813cfd1f0a9b1f5dc4e44832efceb22590bdb5d"
 CODEX_ACP_VERSION="2.1.1"
-CODEX_ACP_COMPONENT_VERSION="${CODEX_ACP_VERSION}+chuck.1"
+CODEX_ACP_COMPONENT_VERSION="${CODEX_ACP_VERSION}+chuck.2"
 CODEX_ACP_SOURCE_SHA256="4b76310393d756a0f111687cd9df899720f36f7c59b1eb1d86429484034ff91b"
-CODEX_ACP_PATCHED_SHA256="8424ea6e64c8b7e20f1ab325eaf8f8a033c7f24a161c663d7c42695a9c5363d9"
+CODEX_ACP_STEERING_SHA256="8424ea6e64c8b7e20f1ab325eaf8f8a033c7f24a161c663d7c42695a9c5363d9"
+CODEX_ACP_PATCHED_SHA256="69b0afc9825cabfa80aa1c6b8f04ea75ce752d8448191e48212690c031718c73"
 # The Codex CLI is a direct runtime dependency, not just codex-acp's transitive
 # one: its platform binary is the single managed Codex a backend can explicitly
 # select as the Chuck bundle (TS-06.R30). Keep in step with
@@ -76,8 +80,17 @@ claude_acp_sum="$(shasum -a 256 "$claude_acp_source" | awk '{print $1}')"
   || die "Claude ACP ${CLAUDE_ACP_VERSION} source does not match the reviewed patch input"
 patch --fuzz=0 -p1 -d "$stage/runtime" < "scripts/release/patches/claude-acp-${CLAUDE_ACP_VERSION}-background-quota.patch"
 claude_acp_sum="$(shasum -a 256 "$claude_acp_source" | awk '{print $1}')"
-[ "$claude_acp_sum" = "$CLAUDE_ACP_PATCHED_SHA256" ] \
+[ "$claude_acp_sum" = "$CLAUDE_ACP_BACKGROUND_QUOTA_SHA256" ] \
   || die "Claude ACP quota patch did not produce the complete reviewed output"
+"$stage/runtime/node/bin/node" scripts/release/test-claude-quota-patch.mjs "$stage/runtime"
+
+# Chuck's read-only quota passthrough (`_chuck/quota/read`, TS-04.R109) applies
+# on top of the patch above; the contract test runs against the final bundle.
+patch --fuzz=0 -p1 -d "$stage/runtime" < "scripts/release/patches/claude-acp-${CLAUDE_ACP_VERSION}-quota-read.patch"
+claude_acp_sum="$(shasum -a 256 "$claude_acp_source" | awk '{print $1}')"
+[ "$claude_acp_sum" = "$CLAUDE_ACP_PATCHED_SHA256" ] \
+  || die "Claude ACP quota-read patch did not produce the complete reviewed output"
+"$stage/runtime/node/bin/node" scripts/release/test-claude-quota-read-patch.mjs "$stage/runtime"
 "$stage/runtime/node/bin/node" scripts/release/test-claude-quota-patch.mjs "$stage/runtime"
 
 # Codex ACP advertises steering but its idle branch starts a detached turn.
@@ -94,8 +107,16 @@ if grep -q 'idleBehavior' "$codex_acp_source"; then
 fi
 patch --fuzz=0 -p1 -d "$stage/runtime" < "scripts/release/patches/codex-acp-${CODEX_ACP_VERSION}-steering-prompt-required.patch"
 codex_acp_sum="$(shasum -a 256 "$codex_acp_source" | awk '{print $1}')"
-[ "$codex_acp_sum" = "$CODEX_ACP_PATCHED_SHA256" ] \
+[ "$codex_acp_sum" = "$CODEX_ACP_STEERING_SHA256" ] \
   || die "Codex ACP steering patch did not produce the complete reviewed output"
+
+# Chuck's read-only quota passthrough (`_chuck/quota/read`, TS-04.R109) applies
+# on top of the steering patch; the final hash is the steering-verified artifact.
+patch --fuzz=0 -p1 -d "$stage/runtime" < "scripts/release/patches/codex-acp-${CODEX_ACP_VERSION}-quota-read.patch"
+codex_acp_sum="$(shasum -a 256 "$codex_acp_source" | awk '{print $1}')"
+[ "$codex_acp_sum" = "$CODEX_ACP_PATCHED_SHA256" ] \
+  || die "Codex ACP quota-read patch did not produce the complete reviewed output"
+"$stage/runtime/node/bin/node" scripts/release/test-codex-quota-read-patch.mjs "$stage/runtime"
 
 # The direct Codex pin and codex-acp's range must dedupe. A nested second copy
 # recreates the catalog/runtime contradiction that the private pin closes.

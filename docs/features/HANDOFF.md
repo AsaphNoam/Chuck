@@ -29,10 +29,31 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**[Native quota snapshot and fork from a message](../ready-changes/native-quota-snapshot-and-message-fork.md)**
+— in progress since 2026-11-12.
+
+- **Slice 1 done — quota snapshot (FS-09.R80/R83, TS-04.R109, TS-03.R85, TS-08.R162 quota half).**
+  Patches `scripts/release/patches/*-quota-read.patch` with contract tests
+  `test-{claude,codex}-quota-read-patch.mjs`; assembly chains the hashes and reports `+chuck.2`.
+  Go store `internal/runtime/quota_snapshot.go` (reads at open, root turn end and once after a
+  reset; one in flight per scope; 10 s bound); stopped scope via `Server.quotaScope`; projection
+  through `state.Manager.SetSubscriptionQuotaProvider`. UI `SubscriptionQuotaDisclosure` in the
+  desktop header and phone `AgentScreen`. Fake adapter: `FAKEACP_QUOTA*`.
+  Checks: runtime/state/server/backend Go suites passed (default build); focused quota tests passed
+  with `-race`; full UI vitest, tsc and `check:styles` passed; a fixture render showed keyboard
+  open in all three appearances.
+- **Next: slice 3, recovery use (TS-04.R111, TS-02.R65 migration, FS-01.R59/A41)**, then
+  **slice 2, Edit / Fork from here** (TS-04.R110, TS-03.R86, TS-02.R65 fork point,
+  TS-08.R162 actions, FS-01.R58/A40).
+- **Owed at closure:** `make test` (both variants), `make build`; phone browser journey for A49;
+  live packaged receipts listed under acceptance gates.
 
 ## Acceptance gates still owed
 
+- **Quota snapshot (FS-09.A49/A52):** one bounded credentialed read each on packaged Claude and
+  Codex, compared with the provider's own usage display (window identity, percentage, reset
+  instant); the 390px phone disclosure journey. Real `get_usage` with `skipBehaviors` and real
+  `account/rateLimits/read` shapes are unverified.
 - **Mail detail (FS-06.A33):** independent Chromium used the built UI, an isolated Go server,
   fake ACP, real MCP send/read and fixture tool-call events. The unfinished send disclosures
   rendered Markdown and a refusal at 1024px in Core. Keyboard expansion and Markdown layout

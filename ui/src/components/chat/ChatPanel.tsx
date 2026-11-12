@@ -14,6 +14,7 @@ import { useHeldStore } from "../../store/heldStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { useUiStore } from "../../store/uiStore";
 import { ContextBar } from "../grid/ContextBar";
+import { SubscriptionQuotaDisclosure } from "./SubscriptionQuotaDisclosure";
 import { StateBadge, restartHint, stoppedOnError } from "../grid/StateBadge";
 import { Badge, VisuallyHidden } from "../ui";
 import { BackIcon } from "../ui/icons";
@@ -327,7 +328,7 @@ function AgentPanel({ id }: { id: string }) {
           status={agent.running ? <StateBadge state={agent.state} /> : failed ? <Badge variant="danger">Error</Badge> : <Badge>Stopped</Badge>}
           details={[personaIdentityLabel(agent.role, roles?.[agent.role]), projectTitle, ...(editableRuntime ? [] : [agent.backend, agent.model, agent.effort]), agent.fast ? "Fast mode" : "Normal speed"]}
         />
-        <div data-slot="context"><ContextBar detailed value={agent.context_pct} used={agent.context_used} size={agent.context_size} /></div>
+        <div data-slot="context"><ContextBar detailed value={agent.context_pct} used={agent.context_used} size={agent.context_size} /><SubscriptionQuotaDisclosure value={agent.subscription_quota} /></div>
         {!agent.running && (
           <button type="button" className="resume-btn ad-button-primary" disabled={resuming} onClick={() => void resume()}>
             {resuming ? "Resuming…" : "Resume"}

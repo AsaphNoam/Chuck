@@ -221,7 +221,36 @@ func handle(msg *rpcMessage) {
 			}}}
 			res["_meta"] = meta
 		}
+		// FAKEACP_QUOTA advertises the packaged adapters' quota passthrough and
+		// names the file whose bytes each `_chuck/quota/read` returns verbatim.
+		if os.Getenv("FAKEACP_QUOTA") != "" {
+			meta, _ := res["_meta"].(map[string]any)
+			if meta == nil {
+				meta = map[string]any{}
+			}
+			meta["chuck"] = map[string]any{"quotaRead": map[string]any{"version": 1}}
+			res["_meta"] = meta
+		}
 		respond(*msg.ID, res)
+	case "_chuck/quota/read":
+		// One line per read in FAKEACP_QUOTA_LOG; a missing or invalid result
+		// file answers an RPC error; FAKEACP_QUOTA_HANG never answers.
+		if logPath := os.Getenv("FAKEACP_QUOTA_LOG"); logPath != "" {
+			if f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+				_, _ = f.Write(append(append([]byte(nil), msg.Params...), '\n'))
+				_ = f.Close()
+			}
+		}
+		if os.Getenv("FAKEACP_QUOTA_HANG") != "" {
+			return
+		}
+		raw, err := os.ReadFile(os.Getenv("FAKEACP_QUOTA"))
+		var result json.RawMessage
+		if err != nil || json.Unmarshal(raw, &result) != nil {
+			respondErr(*msg.ID, -32603, "quota read failed")
+			return
+		}
+		respond(*msg.ID, result)
 	case "session/new":
 		// If asked, record that session/new was invoked so a resume test can
 		// prove a successful session/load did NOT fall back to a fresh session.

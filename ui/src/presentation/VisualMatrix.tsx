@@ -11,6 +11,7 @@ import { ToolCall } from "../components/chat/renderers/ToolCall";
 import { Composer } from "../components/chat/Composer";
 import { FileViewerView, type FileReader } from "../components/chat/FileViewer";
 import { QuotaBanner } from "../components/agent/QuotaBanner";
+import { SubscriptionQuotaDisclosure } from "../components/chat/SubscriptionQuotaDisclosure";
 import { NoticeRow } from "../components/chat/renderers/NoticeRow";
 import type { AgentState, AgentStatus } from "../api/types";
 import { DndContext } from "@dnd-kit/core";
@@ -134,7 +135,7 @@ export function VisualMatrix() {
         <div className="chat-card">
           <header className="chat-header" data-slot="header">
             <AgentIdentity name="Nova orchestration reviewer" state="busy" status={<StateBadge state="busy" />} details={["reviewer", "Chuck", "Fast mode"]} />
-            <div data-slot="context"><ContextBar detailed value={0.34} used={68000} size={200000} /></div>
+            <div data-slot="context"><ContextBar detailed value={0.34} used={68000} size={200000} /><SubscriptionQuotaDisclosure value={{ provider: "claude", availability: "partial", checked_at: "2026-10-10T10:00:00Z", reason_code: "read_failed", windows: { five_hour: { used_percent: 87, reset_at: "2026-10-10T12:00:00Z", observed_at: "2026-10-10T10:00:00Z" }, weekly: { observed_at: "2026-10-10T10:00:00Z" } } }} /></div>
           </header>
           <QuotaBanner value={{ episode_id: "fixture-episode", revision: 3, observed_at: "2026-10-10T10:00:00Z", reset_at: "2026-10-10T12:00:00Z", due_at: "2026-10-10T12:01:00Z", continuation_state: "scheduled" }} onCancel={() => undefined} />
           <QuotaBanner value={{ episode_id: "fixture-check", revision: 2, observed_at: "2026-10-10T10:00:00Z", reset_at: null, due_at: "2026-10-10T11:00:00Z", continuation_state: "scheduled", next_action: "check", checks_remaining: 5 }} onCancel={() => undefined} />

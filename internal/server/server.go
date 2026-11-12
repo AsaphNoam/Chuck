@@ -295,6 +295,9 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 			return transcript.Open(home, agentID, meta)
 		}, ix)
 		registry.SetStateTouch(touch)
+		stateMgr.SetSubscriptionQuotaProvider(func(agentID, _ string) *state.SubscriptionQuota {
+			return registry.SubscriptionQuota(agentID)
+		})
 		// History health is persisted outside the transcript and surfaced by
 		// the agent's state_update, never by appending to the failing log
 		// (FS-03.R99, TS-03.R73).
@@ -448,6 +451,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 			s.log.Error("release held attachments after restart", "err", s.attachmentStartupErr)
 		}
 		registry.SetQuotaManualBind(s.stateStore.BindQuotaManualTurn)
+		registry.SetQuotaScopeResolver(s.quotaScope)
 		registry.SetActivitySink(func(notice runtime.ActivityNotice) {
 			agentID := notice.AgentID
 			eventBus.Publish("runtime_activity", &agentID, notice)

@@ -74,6 +74,8 @@ type ChatRuntime struct {
 	touch           func(string)
 	quotaSettlement func(agentID, generation, turnID string, quota *QuotaEvidence, successful bool) error
 	quotaManualBind func(agentID, generation, turnID string) error
+	// quota is the in-memory backend-scope subscription snapshot store (TS-04.R109).
+	quota *quotaStore
 
 	transcriptHome string
 	openTranscript TranscriptOpener
@@ -93,6 +95,7 @@ func NewChatRuntime(s *state.Store) *ChatRuntime {
 		agents:             map[string]*agentState{},
 		cancelGrace:        defaultCancelGrace,
 		startupCallTimeout: defaultStartupCallTimeout,
+		quota:              newQuotaStore(),
 	}
 	c.journals = NewJournals(c.publishHistory)
 	return c
@@ -238,11 +241,17 @@ type agentState struct {
 	// adapterInfo is this process's initialize self-description, written once
 	// during startup before its session metadata is built.
 	adapterInfo adapterIdentity
-	cmd         *exec.Cmd
-	pgid        int
-	sessionID   string
-	transport   *Transport
-	adapter     backend.BackendAdapter
+	// backendID is the configured backend; quotaRead and quotaScope are the
+	// adapter's quota-read advertisement and the agent's backend quota scope
+	// (TS-04.R109), written once during startup like adapterInfo.
+	backendID  string
+	quotaRead  bool
+	quotaScope string
+	cmd        *exec.Cmd
+	pgid       int
+	sessionID  string
+	transport  *Transport
+	adapter    backend.BackendAdapter
 	// configOptions is the live session's configuration advertisement, kept
 	// current by every set_config_option response because a model change rebuilds
 	// it (TS-04.R46). Guarded by mu, like every other live session field.
@@ -451,6 +460,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		adapter:          ad,
 		processZone:      processZone(cmd.Env),
 		quotaSelection:   quotaSelectionOf(spec),
+		backendID:        spec.Agent.Backend,
 	}
 	as.journals = c.journals
 	as.journal = c.journals.Acquire(as.agentID)
@@ -564,6 +574,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 	c.agents[as.agentID] = as
 	c.mu.Unlock()
 
+	c.quotaSessionOpened(as)
 	return &Handle{AgentID: as.agentID, Pid: pgid, SessionID: sess.SessionID, Fast: applied.Fast}, nil
 }
 
@@ -1285,6 +1296,8 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) 
 	// Keep the gate until terminal subscribers have settled this owner. A racing
 	// Send cannot start a successor before the room completion callback returns.
 	c.emitIn(as, activityScope{TurnID: turnID}, EvTurnEnd, td)
+	// Every root turn end refreshes the scope snapshot (FS-09.R83).
+	c.refreshQuota(as.quotaScope)
 	as.mu.Lock()
 	as.execTurnID = ""
 	as.releaseTurnToolInputsLocked("")
@@ -1534,6 +1547,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		adapter:          ad,
 		processZone:      processZone(cmd.Env),
 		quotaSelection:   quotaSelectionOf(spec),
+		backendID:        spec.Agent.Backend,
 		// The notification callback is installed before session/load runs, so the
 		// replay gate has to be closed from construction — a provider that starts
 		// replaying immediately must not race an assignment made later.
@@ -1703,6 +1717,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	c.agents[as.agentID] = as
 	c.mu.Unlock()
 
+	c.quotaSessionOpened(as)
 	return &Handle{AgentID: as.agentID, Pid: pgid, SessionID: resolvedSessionID, Fast: applied.Fast}, nil
 }
 
@@ -2885,6 +2900,9 @@ func (c *ChatRuntime) readAdapterIdentity(as *agentState, ad backend.BackendAdap
 	as.setSteering(decodeSteeringSupport(initRes) && c.steerArtifactVerified(ad, artifact))
 	as.adapterInfo = decodeAdapterIdentity(initRes)
 	as.adapterInfo.Artifact = artifact
+	// Written once before the agent is registered, like adapterInfo.
+	as.quotaRead = decodeQuotaReadSupport(initRes)
+	as.quotaScope = c.bindQuotaScope(as.agentID, as.backendID, ad.Type(), as.quotaSelection.Routing)
 }
 
 func (as *agentState) steeringSupported() bool {

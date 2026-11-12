@@ -1301,7 +1301,7 @@ read failure, source change and stopped-session behavior independently of UI fix
 **Superseded 2026-11-12 (planned):** R85 replaces `refresh_available`, the two-value
 availability and the single-session source; the rest, including no refresh endpoint, stands.
 
-**R85 (planned) — Quota snapshots are a shared backend-scope projection with no refresh
+**R85 (implemented 2026-11-12) — Quota snapshots are a shared backend-scope projection with no refresh
 action.** For FS-09.R83 and TS-04.R109, `subscription_quota.availability` becomes
 `"complete" | "partial" | "unavailable"` and `refresh_available` is removed.
 `reason_code` gains `unsupported_adapter`, `no_subscription`, `read_failed` and `read_timeout`.

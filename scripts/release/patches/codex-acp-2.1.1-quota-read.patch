@@ -1,0 +1,67 @@
+--- a/node_modules/@agentclientprotocol/codex-acp/dist/index.js
++++ b/node_modules/@agentclientprotocol/codex-acp/dist/index.js
+@@ -36583,8 +36583,9 @@
+ // src/AcpExtensions.ts
+ var LEGACY_SET_SESSION_MODEL_METHOD = "session/set_model";
+ var SESSION_STEERING_METHOD = "_session/steering";
++var CHUCK_QUOTA_READ_METHOD = "_chuck/quota/read";
+ function isExtMethodRequest(request) {
+-  return request.method === "authentication/status" || request.method === "authentication/logout" || request.method === LEGACY_SET_SESSION_MODEL_METHOD || request.method === GOAL_CONTROL_METHOD || request.method === LEGACY_GOAL_CONTROL_METHOD || request.method === SESSION_STEERING_METHOD || request.method === ASYNC_TASK_STOP_METHOD;
++  return request.method === CHUCK_QUOTA_READ_METHOD || request.method === "authentication/status" ||request.method === "authentication/logout" || request.method === LEGACY_SET_SESSION_MODEL_METHOD || request.method === GOAL_CONTROL_METHOD || request.method === LEGACY_GOAL_CONTROL_METHOD || request.method === SESSION_STEERING_METHOD || request.method === ASYNC_TASK_STOP_METHOD;
+ }
+ 
+ // src/tool-calls/ClientCapabilities.ts
+@@ -37467,6 +37468,7 @@
+         steering: {
+           supported: true
+         },
++        chuck: { quotaRead: { version: 1 } },
+         // Only AIR gets the AIR extension, see `docs/air-extensions.md`.
+         ...this.capabilities.airClient ? {
+           [JETBRAINS_META_KEY]: {
+@@ -37495,6 +37497,28 @@
+       return {};
+     }
+     switch (methodRequest.method) {
++      case CHUCK_QUOTA_READ_METHOD: {
++        // Chuck: forward only each snapshot's limit id and raw windows. No turn,
++        // transcript write or session update; credits and plan stay here.
++        if (!this.sessions.get(methodRequest.params.sessionId)) {
++          throw RequestError.invalidParams(void 0, `Unknown session: ${methodRequest.params.sessionId}`);
++        }
++        const response = await this.runWithProcessCheck(() => this.codexAcpClient.getRateLimits());
++        const snapshots = [];
++        const seen = /* @__PURE__ */ new Set();
++        const add = (snapshot, fallbackId) => {
++          if (!snapshot) return;
++          const limitId = snapshot.limitId ?? fallbackId;
++          if (seen.has(limitId)) return;
++          seen.add(limitId);
++          snapshots.push({ limitId, primary: snapshot.primary ?? null, secondary: snapshot.secondary ?? null });
++        };
++        add(response?.rateLimits, "codex");
++        for (const [id, snapshot] of Object.entries(response?.rateLimitsByLimitId ?? {})) {
++          add(snapshot, id);
++        }
++        return { snapshots };
++      }
+       case "authentication/status":
+         return await this.runWithProcessCheck(() => this.codexAcpClient.getAuthenticationStatus());
+       case "authentication/logout": {
+@@ -40287,6 +40311,9 @@
+     action: external_exports.enum(["pause", "resume", "clear"])
+   }).passthrough()
+ ]);
++var chuckQuotaReadParamsParser = external_exports.object({
++  sessionId: external_exports.string().trim().min(1)
++}).passthrough();
+ var asyncTaskStopParamsParser = external_exports.object({
+   sessionId: external_exports.string().trim().min(1),
+   asyncTaskId: external_exports.string().trim().min(1)
+@@ -40371,5 +40398,5 @@
+         codexAcpServer = null;
+       }
+     });
+-  }).onRequest(methods.agent.initialize, (ctx) => getAgent().initialize(ctx.params)).onRequest(methods.agent.session.new, (ctx) => getAgent().newSession(ctx.params)).onRequest(methods.agent.session.load, (ctx) => getAgent().loadSession(ctx.params)).onRequest(methods.agent.session.fork, (ctx) => getAgent().forkSession(ctx.params)).onRequest(methods.agent.session.list, (ctx) => getAgent().listSessions(ctx.params)).onRequest(methods.agent.session.delete, (ctx) => getAgent().deleteSession(ctx.params)).onRequest(methods.agent.session.resume, (ctx) => getAgent().resumeSession(ctx.params)).onRequest(methods.agent.session.close, (ctx) => getAgent().closeSession(ctx.params)).onRequest(methods.agent.session.setMode, (ctx) => getAgent().setSessionMode(ctx.params)).onRequest(methods.agent.session.setConfigOption, (ctx) => getAgent().setSessionConfigOption(ctx.params)).onRequest(methods.agent.authenticate, (ctx) => getAgent().authenticate(ctx.params, ctx.requestId)).onRequest(methods.agent.logout, (ctx) => getAgent().logout(ctx.params)).onRequest(methods.agent.providers.list, (ctx) => getAgent().listProviders(ctx.params)).onRequest(methods.agent.providers.set, (ctx) => getAgent().setProvider(ctx.params)).onRequest(methods.agent.providers.disable, (ctx) => getAgent().disableProvider(ctx.params)).onRequest(methods.agent.session.prompt, (ctx) => getAgent().prompt(ctx.params, ctx.signal)).onNotification(methods.agent.session.cancel, (ctx) => getAgent().cancel(ctx.params)).onRequest("authentication/status", emptyExtensionParamsParser, (ctx) => getAgent().extMethod("authentication/status", ctx.params)).onRequest("authentication/logout", emptyExtensionParamsParser, (ctx) => getAgent().extMethod("authentication/logout", ctx.params)).onRequest(LEGACY_SET_SESSION_MODEL_METHOD, legacySetSessionModelParamsParser, (ctx) => getAgent().extMethod(LEGACY_SET_SESSION_MODEL_METHOD, ctx.params)).onRequest(SESSION_STEERING_METHOD, sessionSteerParamsParser, (ctx) => getAgent().extMethod(SESSION_STEERING_METHOD, ctx.params)).onRequest(ASYNC_TASK_STOP_METHOD, asyncTaskStopParamsParser, (ctx) => getAgent().extMethod(ASYNC_TASK_STOP_METHOD, ctx.params)).onRequest(GOAL_CONTROL_METHOD, goalControlParamsParser, (ctx) => getAgent().extMethod(GOAL_CONTROL_METHOD, ctx.params)).connect(acpJsonStream);
++  }).onRequest(methods.agent.initialize, (ctx) => getAgent().initialize(ctx.params)).onRequest(methods.agent.session.new, (ctx) => getAgent().newSession(ctx.params)).onRequest(methods.agent.session.load, (ctx) => getAgent().loadSession(ctx.params)).onRequest(methods.agent.session.fork, (ctx) => getAgent().forkSession(ctx.params)).onRequest(methods.agent.session.list, (ctx) => getAgent().listSessions(ctx.params)).onRequest(methods.agent.session.delete, (ctx) => getAgent().deleteSession(ctx.params)).onRequest(methods.agent.session.resume, (ctx) => getAgent().resumeSession(ctx.params)).onRequest(methods.agent.session.close, (ctx) => getAgent().closeSession(ctx.params)).onRequest(methods.agent.session.setMode, (ctx) => getAgent().setSessionMode(ctx.params)).onRequest(methods.agent.session.setConfigOption, (ctx) => getAgent().setSessionConfigOption(ctx.params)).onRequest(methods.agent.authenticate, (ctx) => getAgent().authenticate(ctx.params, ctx.requestId)).onRequest(methods.agent.logout, (ctx) => getAgent().logout(ctx.params)).onRequest(methods.agent.providers.list, (ctx) => getAgent().listProviders(ctx.params)).onRequest(methods.agent.providers.set, (ctx) => getAgent().setProvider(ctx.params)).onRequest(methods.agent.providers.disable, (ctx) => getAgent().disableProvider(ctx.params)).onRequest(methods.agent.session.prompt, (ctx) => getAgent().prompt(ctx.params, ctx.signal)).onNotification(methods.agent.session.cancel, (ctx) => getAgent().cancel(ctx.params)).onRequest("authentication/status", emptyExtensionParamsParser, (ctx) => getAgent().extMethod("authentication/status", ctx.params)).onRequest("authentication/logout", emptyExtensionParamsParser, (ctx) => getAgent().extMethod("authentication/logout", ctx.params)).onRequest(LEGACY_SET_SESSION_MODEL_METHOD, legacySetSessionModelParamsParser, (ctx) => getAgent().extMethod(LEGACY_SET_SESSION_MODEL_METHOD, ctx.params)).onRequest(SESSION_STEERING_METHOD, sessionSteerParamsParser, (ctx) => getAgent().extMethod(SESSION_STEERING_METHOD, ctx.params)).onRequest(CHUCK_QUOTA_READ_METHOD, chuckQuotaReadParamsParser, (ctx) => getAgent().extMethod(CHUCK_QUOTA_READ_METHOD, ctx.params)).onRequest(ASYNC_TASK_STOP_METHOD, asyncTaskStopParamsParser, (ctx) => getAgent().extMethod(ASYNC_TASK_STOP_METHOD, ctx.params)).onRequest(GOAL_CONTROL_METHOD, goalControlParamsParser, (ctx) => getAgent().extMethod(GOAL_CONTROL_METHOD, ctx.params)).connect(acpJsonStream);
+ }

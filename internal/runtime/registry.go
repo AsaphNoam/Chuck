@@ -201,6 +201,23 @@ func (r *Registry) SetStateTouch(touch func(string)) {
 	r.chat.SetStateTouch(touch)
 }
 
+// SetQuotaScopeResolver wires the stopped-agent quota scope lookup (TS-04.R109).
+func (r *Registry) SetQuotaScopeResolver(fn QuotaScopeResolver) {
+	if r == nil || r.chat == nil {
+		return
+	}
+	r.chat.SetQuotaScopeResolver(fn)
+}
+
+// SubscriptionQuota returns the agent's backend-scope quota snapshot, nil when
+// its backend has no subscription view (FS-09.R83).
+func (r *Registry) SubscriptionQuota(agentID string) *state.SubscriptionQuota {
+	if r == nil || r.chat == nil {
+		return nil
+	}
+	return r.chat.SubscriptionQuota(agentID)
+}
+
 // SetPersistence wires durable transcript/index sinks into the chat runtime.
 func (r *Registry) SetPersistence(home string, open TranscriptOpener, ix PersistenceIndexer) {
 	if r == nil || r.chat == nil {

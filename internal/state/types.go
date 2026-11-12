@@ -241,6 +241,10 @@ type AgentState struct {
 	// from its retained record (TS-09.R65); absent for ordinary agents.
 	Workspace *PipelineWorkspace `json:"workspace,omitempty"`
 	Quota     *QuotaProjection   `json:"quota,omitempty"`
+	// SubscriptionQuota is the agent's backend-scope provider snapshot, shared by
+	// every agent of the scope, running or stopped (FS-09.R83, TS-03.R85);
+	// absent for a backend without a subscription view.
+	SubscriptionQuota *SubscriptionQuota `json:"subscription_quota,omitempty"`
 	// HistoryState is the conversation's history health, "ok" or "degraded";
 	// absent is legacy unknown, not verified healthy. HistoryReason is a bounded
 	// vocabulary set only while degraded (FS-03.R99, TS-03.R73).

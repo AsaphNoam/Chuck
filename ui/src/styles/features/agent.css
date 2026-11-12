@@ -630,6 +630,59 @@ a.agent-mini-card:focus-visible {
   font-style: normal;
 }
 
+/* Subscription quota disclosure (FS-09.R83): quiet rows under the context meter,
+   in its type scale and semantic colours; no motion. */
+.subscription-quota {
+  color: var(--ad-text-muted);
+  font-size: 0.7rem;
+  margin-top: var(--ad-space-2);
+}
+
+.subscription-quota summary {
+  cursor: pointer;
+}
+
+.subscription-quota-body,
+.subscription-quota-row {
+  display: grid;
+  gap: var(--ad-space-2);
+}
+
+.subscription-quota-body {
+  margin-top: var(--ad-space-2);
+}
+
+.subscription-quota-body p {
+  margin: 0;
+}
+
+.subscription-quota-provider {
+  color: var(--ad-text-primary);
+}
+
+.subscription-quota-summary {
+  display: flex;
+  justify-content: space-between;
+}
+
+.subscription-quota-summary strong {
+  color: var(--ad-text-primary);
+  font-weight: 500;
+}
+
+.subscription-quota-row meter {
+  accent-color: var(--ad-state-done);
+  height: 5px;
+  width: 100%;
+}
+
+.subscription-quota-row em,
+.subscription-quota-checked {
+  font-family: var(--ad-font-mono);
+  font-size: 0.65rem;
+  font-style: normal;
+}
+
 /* Runtime band: backend/model stage behind Switch, effort and speed apply now
    (FS-03.R47). Borderless selects keep the band low. */
 .chat-runtime-picker {

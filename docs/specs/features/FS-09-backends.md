@@ -353,9 +353,9 @@ Configuration-source federation for Claude/Codex is FS-08.
   runtime reports as active, never the requested one. Chuck does not pick a substitute model, retry
   with another model or hide catalog entries from provider policy it cannot read.
 
-### Subscription quota views (planned)
+### Subscription quota views
 
-- **R80 (planned)** — **Claude and Codex have distinct subscription-window views.** Each
+- **R80 (implemented 2026-11-12)** — **Claude and Codex have distinct subscription-window views.** Each
   supported subscription view names its provider and shows separate **5-hour** and **Weekly**
   windows with used percentage, the corresponding reset date/time/timezone and last checked time.
   Values describe that provider session's subscription, never Chuck's context meter, token counts,
@@ -366,7 +366,7 @@ Configuration-source federation for Claude/Codex is FS-08.
   stale data remains visibly last observed, and a failed read preserves it with its failure reason.
 - **R81 — retired 2026-11-11:** unshipped ACP-only delivery with snapshot/refresh left TBD; the
   operator approved a native provider read, so R83 replaces it and keeps its presentation rules.
-- **R83 (planned; shared source confirmed 2026-11-12)** — **Each backend has one quota snapshot
+- **R83 (implemented 2026-11-12; packaged live receipts owed)** — **Each backend has one quota snapshot
   that every one of its chats shows.** Chuck keeps one current snapshot per backend quota scope:
   the configured backend together with the provider routing its agents were launched with, so
   two agents share a snapshot only when they use the same backend and the same routing. This
