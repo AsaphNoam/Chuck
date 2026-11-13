@@ -103,4 +103,24 @@ describe("turn projection (FS-03.A55–A56, TS-08.R100–R101)", () => {
   it("collects nested child seqs so a reveal can find the turn that hides them", () => {
     expect([...project(long)[0].seqs]).toEqual(expect.arrayContaining([8, 10]));
   });
+
+  // MAIL-DETAIL-1 (TS-08.R161): completion keeps sent/read records with their
+  // calls behind the activity control; received mail stays in the reading path.
+  it("tucks sent and read mail records with their calls and keeps received mail visible", () => {
+    const record = (seq: number, direction: string) => ({ kind: "notice", seq, origin: "chuck_mail", severity: "info", title: "Mail", mail: { direction, messages: [], truncated: false } });
+    const turn: TranscriptEvent[] = [
+      { kind: "user_text", seq: 1, text: "Coordinate" },
+      record(2, "received"),
+      { kind: "tool_call", seq: 3, tool_call_id: "t1", name: "mcp__chuck__send_message" },
+      record(4, "sent"),
+      { kind: "tool_result", seq: 5, tool_call_id: "t1", status: "completed", content: null },
+      { kind: "tool_call", seq: 6, tool_call_id: "t2", name: "mcp__chuck__check_messages" },
+      record(7, "read"),
+      { kind: "tool_result", seq: 8, tool_call_id: "t2", status: "completed", content: null },
+      { kind: "assistant_text", seq: 9, text: "Sent." },
+      { kind: "turn_end", seq: 10, stop_reason: "end_turn" },
+    ];
+    expect(shown(turn)).toEqual([[1, 2, 9, 10]]);
+    expect(tucked(turn)).toEqual([[3, 4, 5, 6, 7, 8]]);
+  });
 });

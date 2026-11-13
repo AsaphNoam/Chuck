@@ -55,9 +55,10 @@ None.
   rendered Markdown and a refusal at 1024px in Core. Keyboard expansion and Markdown layout
   also passed at 1024px/1600px in Sky & Grove.
   The authenticated 390px phone view expanded received and read mail. Received bodies remained
-  available after mailbox expiry and archive reload. Turn completion detached the records from
-  their tool calls. Recheck completed, archived and phone activity after repair. The physical
-  paired-phone check remains owed.
+  available after mailbox expiry and archive reload. The completion detachment is repaired and
+  covered by projection tests (2026-11-13). Re-render completed, archived and phone activity
+  end to end. The physical paired-phone check, including tapping the 44px Mail button, remains
+  owed.
 
 - **Think Tank templates (FS-21.A43–A45, TS-14.R33):** independent Chromium on the built
   desktop bundle and isolated fake-ACP server passed load, unavailable-persona repair, long-row
@@ -237,9 +238,6 @@ None.
 
 ## Review queue
 
-- **MAIL-DETAIL — expandable agent mail in transcript activity (`a44abd23`).** Independent review
-  found defects. Fix the grouped findings below before closing the unit.
-
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
 ownership and record the reviewed HEAD. Intended for a frontier reviewer; the charters' leads are
@@ -298,44 +296,6 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
-
-### Expandable agent mail (MAIL-DETAIL) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** MAIL-DETAIL-1 (INV §1/§2/§10/§17, easy) — Completing a turn separates sent and read
-  notices from their calls. `turnActivity.ts:117–135` hides tool calls and results while leaving the
-  notices in the reading path. `TurnList.tsx:67–72` groups each segment independently, leaving bare
-  tool lines and separate **Chuck mail** runs. Reproduced in Chromium on live completion, the
-  authenticated phone view and Archive. Keep outgoing mail in the corresponding tool activity and
-  keep received notices in the reading path. Check the same disclosure before and after turn
-  completion and after reload (FS-06.R45/A33, TS-08.R161).
-- **Must fix** MAIL-DETAIL-2 (INV §5/§8/§11/§17, medium) — `toolRun.tsx:45–74` pairs records by tool
-  name and first free call. Deny one send and approve the next in the same run. The denied call
-  never reaches MCP, so the successful send's recipient and body attach to the denied line. Two
-  parallel sends whose records arrive out of call order also swap their details. Both schedules
-  were reproduced against production grouping. The matcher additionally accepts `args.tool` from
-  an unspecified server. Associate records using trustworthy call evidence and leave ambiguous
-  records standalone. Align TS-08.R161's FIFO rule with FS-06.R45/A33. Cover denied, reversed and
-  missing records and an unrelated tool with the same argument.
-- **Must fix** MAIL-DETAIL-3 (INV §8/§11/§16/§17, easy) — Refused sends capture raw subject and
-  recipient fields (`internal/messaging/tools.go:154–163`). `internal/runtime/event.go:257–273`
-  can only drop bodies, so oversized headers or a refusal quoting a long address can still exceed
-  64 KiB. The real MCP and transcript API reproduced 71,909 bytes from a 70 KiB rejected subject,
-  even with `truncated` set. Bound rejected fields and the quoted display error, then verify the
-  final serialized byte limit while preserving the original tool refusal (TS-04.R108).
-- **Worth fixing** MAIL-DETAIL-4 (INV §10/§14, easy) — TS-08.R161 promises mail disclosure in Think
-  Tank activity. `internal/server/think_tank_capture.go:32–36` excludes notices. TS-14.R10
-  protects private mail from room storage, REST and SSE. Reconcile the presentation spec with that
-  boundary and verify room activity remains a receipt. The ordinary participant transcript can
-  still show its own mail detail.
-- **Worth fixing** MAIL-DETAIL-5 (INV §8/§13, easy) — The new Mail disclosure inherits the text-size
-  `tool-toggle` hit area (`MailDetail.tsx:20`, `agent.css:1240`). At 390px on a touch viewport the
-  received-mail button measures about 43 × 17 CSS pixels. Give the new disclosure a 44px touch
-  target while keeping its compact visible label, and verify by tap on the phone (FS-12.R68/A38).
-
-The legacy server aliases and standalone label are reasonable compatibility and display choices.
-Empty reads display **No messages returned**. Pairing still needs call identity.
-Focused Go and UI tests, the built UI and its style gates passed. The invariant sweep found no new
-registration lifecycle, runtime interface, or external CLI invocation (§4/§6/§12).
 
 ### Blocked pipeline chat and withdrawn-message recovery (PIPE-CHAT) — **Fix model:** difficult — Codex Sol.
 
@@ -401,6 +361,20 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-13 — Fix:** closed MAIL-DETAIL-1–5 and its unit. Sent/read records now stay with
+  their calls when a turn completes (INV §1/§2). Records attach only to the one call the run's order
+  proves, never FIFO; ambiguous parallel records stay standalone. Codex `args.tool` needs a
+  messaging `args.server` (INV §11/§17). Mail detail bounds header and error fields before bodies,
+  holding 64 KiB for refused sends (INV §16). TS-08.R161 now matches TS-14.R10, and a capture test
+  proves room activity drops mail detail (INV §10). The Mail button is 44px on coarse pointers
+  (INV §13). Its emulated-phone Chromium check measured 44×44, tapped, and stayed compact on
+  desktop. New tests failed before the fix. Spec deltas: TS-08.R161, TS-04.R108. At this fix's
+  tree, `make test` passes both Go variants. UI `npm test` passes 1244 tests with 2 skipped. UI
+  build and `make build` pass. A first `make test` run failed only
+  `TestDeferredAssignmentResumesOriginalAgent/retry_failure` ("lifecycle transition already in
+  progress"). That lifecycle test is outside this diff; it passed 5/5 alone and on the full rerun.
+  Watch it for flakiness. Owed: end-to-end re-render and physical phone tap (A33 gate above).
 
 - **2026-11-13 — Review planning:** queued two subsystem reviews, CR-A8 (pipeline pause, answer and
   recovery) and CR-A9 (Think Tank lifecycle and quota join), chosen from the October audit's scope

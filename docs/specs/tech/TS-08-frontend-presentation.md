@@ -2162,20 +2162,27 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   - **Received:** `NoticeRow` renders an `origin:"chuck_mail"` notice with
     `mail.direction:"received"` as its existing collapsed summary, plus one disclosure.
   - **Sent and read:** `groupTranscriptRows` joins a mail notice with `direction` `sent` or
-    `read` into the current tool run, as it does for answered permission chips. It attaches the
-    notice to the earliest unattached call in that run whose tool is the matching `send_message`
-    or `check_messages`.
+    `read` into the current tool run, as it does for answered permission chips. A record has no
+    call id, so it attaches only to a call proven by the run's order: an unattached call of the
+    matching `send_message` or `check_messages` tool that has no result before the record and
+    starts before the first result of any such call. A call answered earlier, such as a denied
+    one, or started later cannot own it. With no such call, or more than one (parallel calls),
+    the record stays its own line; records never pair first-in-first-out.
+  - **Turn completion:** sent and read records are turn activity, so a completed turn tucks them
+    behind its activity control with their calls. Received mail stays in the reading path.
   - **Tool matching:** a call matches by tool name. That name is the suffix of a
-    `mcp__<server>__<tool>` or `mcp.<server>.<tool>` title or name, or Codex's `args.tool`, for
-    a messaging server.
+    `mcp__<server>__<tool>` or `mcp.<server>.<tool>` title or name, or Codex's `args.tool` with
+    an `args.server`, for a messaging server.
   - **Expandable line:** the matched `ToolCall` line keeps its R147 label and gains the
     disclosure. An unmatched record renders as its own collapsed mail line in the run. Outside a
     run, it renders as a one-line run.
   - **Expanded content:** one shared `MailDetail` component renders each message's
     sender/recipient, subject, waking/deferred, time, any error, and the body. The body goes
     through the existing assistant Markdown renderer. A truncated record says so.
-  - **Phone and Think Tank:** `AgentScreen` and Think Tank reuse the same components, so the
-    phone matches desktop.
+  - **Phone:** `AgentScreen` reuses the same components, so the phone matches desktop.
+  - **Think Tank:** room activity never carries mail detail. TS-14.R10 keeps private mail out of
+    room storage, REST and SSE, so a room's mail call stays a compact receipt. The participant's
+    own transcript still expands its mail.
   - **Not changed:** the working indicator and `RunningTasks` ignore mail notices. Every other
     tool line keeps R147's one-line limit.
 

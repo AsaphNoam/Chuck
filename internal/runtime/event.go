@@ -265,16 +265,43 @@ func MailDetailFromMessage(m state.Message) MailDetail {
 	}
 }
 
+// maxMailFieldRunes bounds each header and error field of a mail record. A
+// refused send can carry an unvalidated subject or recipient, and its refusal
+// can quote one; accepted mail stays well inside this (TS-04.R108).
+const maxMailFieldRunes = 1000
+
 // MailNoticeData builds the history-only notice for one mail record, clipped
-// to 64 KiB by dropping bodies from the last message backward.
+// to 64 KiB: header and error fields are bounded first, then bodies drop from
+// the last message backward, and messages drop only if headers alone exceed it.
 func MailNoticeData(title, description string, mail MailNotice) NoticeData {
-	mail.Messages = append([]MailDetail{}, mail.Messages...)
-	for i := len(mail.Messages) - 1; i >= 0; i-- {
-		raw, err := json.Marshal(mail)
-		if err == nil && len(raw) <= maxMailNoticeBytes {
-			break
+	clip := func(s *string) {
+		if c := strutil.ClipRunes(*s, maxMailFieldRunes); c != *s {
+			*s, mail.Truncated = c, true
 		}
+	}
+	mail.Messages = append([]MailDetail{}, mail.Messages...)
+	for i := range mail.Messages {
+		m := &mail.Messages[i]
+		for _, field := range []*string{&m.MessageID, &m.FromName, &m.FromAddress, &m.ToName, &m.ToAddress, &m.Subject, &m.CreatedAt} {
+			clip(field)
+		}
+	}
+	if mail.Error != nil {
+		e := *mail.Error
+		clip(&e.Code)
+		clip(&e.Message)
+		mail.Error = &e
+	}
+	fits := func() bool {
+		raw, err := json.Marshal(mail)
+		return err == nil && len(raw) <= maxMailNoticeBytes
+	}
+	for i := len(mail.Messages) - 1; i >= 0 && !fits(); i-- {
 		mail.Messages[i].Body = ""
+		mail.Truncated = true
+	}
+	for len(mail.Messages) > 0 && !fits() {
+		mail.Messages = mail.Messages[:len(mail.Messages)-1]
 		mail.Truncated = true
 	}
 	return NoticeData{

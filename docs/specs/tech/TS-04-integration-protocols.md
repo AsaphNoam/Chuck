@@ -1757,8 +1757,11 @@ only when a permission request also recorded them.
   line simply cannot be expanded. A caller without a durable chat transcript, such as a terminal
   agent, gets no record.
 - **Bounds:** keep the existing mail limits (8,000-character body, subject cap, 15-message inline
-  batch, 50-message read). Clip the serialized detail to 64 KiB by dropping bodies from the last
-  message backward, keeping its headers, and set `truncated`.
+  batch, 50-message read). Clip the serialized detail to 64 KiB and set `truncated` when anything
+  is clipped. First bound each header and error field to 1,000 characters, since a refused send
+  carries unvalidated fields and its refusal can quote them. Then drop bodies from the last
+  message backward, keeping headers. Drop trailing messages only if headers alone still exceed
+  the limit. The tool's own refusal is unchanged.
 - **Agent views stay unchanged:** the notice keeps `transcript.ProjectEvent`'s metadata
   disposition (`internal/transcript/project.go`). Recording therefore never reaches agent
   context, R93 peer reads, context links, primers, search, the card preview, unread counts,

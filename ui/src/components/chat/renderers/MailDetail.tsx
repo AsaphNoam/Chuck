@@ -13,11 +13,19 @@ export function mailOf(event: TranscriptEvent): MailRecord | undefined {
   return { direction: record.direction, messages: record.messages ?? [], error: record.error, truncated: Boolean(record.truncated) };
 }
 
+// A sent or read record belongs with the call that produced it; received mail
+// is prompt content and stays in the reading path (TS-08.R161).
+export function isOutgoingMail(event: TranscriptEvent) {
+  if (String(event.kind ?? event.type ?? "") !== "notice" || event.origin !== "chuck_mail") return false;
+  const direction = mailOf(event)?.direction;
+  return direction === "sent" || direction === "read";
+}
+
 export function MailDisclosure({ mail }: { mail: MailRecord }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className="tool-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <button type="button" className="tool-toggle mail-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         {open ? "▾" : "▸"} Mail
       </button>
       {open && <MailDetail mail={mail} />}
@@ -47,7 +55,7 @@ export function MailDetail({ mail }: { mail: MailRecord }) {
           </article>
         );
       })}
-      {mail.truncated && <p className="mail-note">Some message bodies were omitted to fit the record.</p>}
+      {mail.truncated && <p className="mail-note">Parts of this mail were shortened or omitted to fit the record.</p>}
     </div>
   );
 }

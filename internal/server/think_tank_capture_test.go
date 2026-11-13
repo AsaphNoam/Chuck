@@ -75,6 +75,9 @@ func TestThinkTankCaptureProjectsRoomActivity(t *testing.T) {
 		roomEvent(t, "a_one", "g1", "t1", 6, runtime.EvDiff, runtime.DiffData{ToolCallID: "c3", Path: "notes.md", NewText: "x"}),
 		roomEvent(t, "a_one", "g1", "t0", 7, runtime.EvToolCall, runtime.ToolCallData{ToolCallID: "c4", Name: "Bash", Args: json.RawMessage(`{"command":"private"}`)}),
 		roomEvent(t, "a_two", "g1", "t1", 8, runtime.EvDiff, runtime.DiffData{ToolCallID: "c5", Path: "other.md"}),
+		// TS-08.R161/TS-14.R10: the participant's mail detail never enters the room.
+		roomEvent(t, "a_one", "g1", "t1", 9, runtime.EvNotice, runtime.MailNoticeData("Mail to b", "", runtime.MailNotice{
+			Direction: "sent", Messages: []runtime.MailDetail{{ToAddress: "b", Subject: "s", Body: "private mail body"}}})),
 	}
 	for _, ev := range events {
 		srv.captureThinkTankEvent(runtime.Observation{Event: ev, Outcome: runtime.CommitCommitted, IndexOK: true})
@@ -82,14 +85,14 @@ func TestThinkTankCaptureProjectsRoomActivity(t *testing.T) {
 	if _, err := srv.stateStore.StageThinkTankTurn("a_one", a.Token, state.ThinkTankReply, "A", "ttr_"+strings.TrimPrefix(a.AttemptID, "tta_")+"_0"); err != nil {
 		t.Fatal(err)
 	}
-	srv.finishThinkTankTurn(roomEvent(t, "a_one", "g1", "t1", 9, runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn"}))
+	srv.finishThinkTankTurn(roomEvent(t, "a_one", "g1", "t1", 10, runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn"}))
 	beginCapturedTurn(t, srv, room.RoomID, "a_two", "t2", cwdB)
 	srv.captureThinkTankEvent(runtime.Observation{Event: roomEvent(t, "a_two", "g1", "t2", 1, runtime.EvDiff, runtime.DiffData{ToolCallID: "d1", Path: "notes.md"}), Outcome: runtime.CommitCommitted, IndexOK: true})
 
 	base := "/api/think-tanks/" + room.RoomID
 	act := doJSON(t, h, http.MethodGet, base+"/activity", "")
 	body := act.Body.String()
-	for _, leaked := range []string{"private instruction", "secret-cursor", "ttk_secret", `"private"`, "other.md"} {
+	for _, leaked := range []string{"private instruction", "secret-cursor", "ttk_secret", `"private"`, "other.md", "private mail body"} {
 		if strings.Contains(body, leaked) {
 			t.Fatalf("activity leaked %q: %s", leaked, body)
 		}

@@ -1,5 +1,6 @@
 import type { TranscriptEvent } from "../../api/types";
 import { hasPendingPermission, type ChildNode } from "./runtimeActivity";
+import { isOutgoingMail } from "./renderers/MailDetail";
 
 // The turn projection (FS-03.R74, TS-08.R100–R101): one pure pass over the
 // nested root list that partitions it into root turns and, for each proven
@@ -132,6 +133,8 @@ function isActivity(event: TranscriptEvent) {
   const kind = kindOf(event);
   if (kind === "activity") return !hasPendingPermission(event.node as ChildNode);
   if (kind === "permission_request") return Boolean(event.resolved);
+  // Sent and read mail records travel with their calls (TS-08.R161).
+  if (isOutgoingMail(event)) return true;
   return kind === "assistant_text" || kind === "reasoning" || kind === "tool_call" || kind === "tool_result" || kind === "diff";
 }
 

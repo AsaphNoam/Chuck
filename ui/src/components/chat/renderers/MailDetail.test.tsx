@@ -56,7 +56,7 @@ describe("mail detail", () => {
     expect(screen.getByText("To Bob")).toBeTruthy();
     expect(screen.getByText("deferred")).toBeTruthy();
     expect(screen.getByText("unknown_recipient: No such agent")).toBeTruthy();
-    expect(screen.getByText("Some message bodies were omitted to fit the record.")).toBeTruthy();
+    expect(screen.getByText("Parts of this mail were shortened or omitted to fit the record.")).toBeTruthy();
   });
 
   it("read: an empty result says so", () => {

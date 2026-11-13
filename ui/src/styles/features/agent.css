@@ -2722,6 +2722,17 @@ a.agent-mini-card:focus-visible {
   flex-basis: 100%;
 }
 
+/* The compact Mail label keeps its text size; a touch pointer still gets a
+   44px target (FS-12.R68). */
+@media (pointer: coarse) {
+  .tool-toggle.mail-toggle {
+    align-items: center;
+    display: inline-flex;
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 .mail-detail {
   border-left: 2px solid var(--ad-border-default);
   color: var(--ad-text-secondary);

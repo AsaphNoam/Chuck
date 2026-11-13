@@ -109,6 +109,20 @@ func TestMailNoticeDataClipsBodiesFromTheEnd(t *testing.T) {
 	if messages[3].Body != big {
 		t.Fatal("clipping mutated the caller's messages")
 	}
+	// MAIL-DETAIL-3: a refused send's unvalidated subject and recipient, and a
+	// refusal quoting the recipient, are bounded too; the refusal code survives.
+	long := strings.Repeat("s", 70*1024)
+	refused := MailNoticeData("Mail not sent", "", MailNotice{Direction: "sent",
+		Messages: []MailDetail{{ToAddress: long, Subject: long, Body: long}},
+		Error:    &MailError{Code: "invalid_subject", Message: "no agent named " + long}})
+	raw, err = json.Marshal(refused.Mail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) > maxMailNoticeBytes || !refused.Mail.Truncated || refused.Mail.Error.Code != "invalid_subject" ||
+		len(refused.Mail.Messages) != 1 || !strings.HasPrefix(refused.Mail.Error.Message, "no agent named sss") {
+		t.Fatalf("refused detail bytes=%d truncated=%v code=%q", len(raw), refused.Mail.Truncated, refused.Mail.Error.Code)
+	}
 	small := MailNoticeData("t", "", MailNotice{Direction: "read", Messages: messages[:1]})
 	if small.Mail.Truncated || small.Mail.Messages[0].Body != "keep me" {
 		t.Fatalf("small detail was clipped: %+v", small.Mail)

@@ -55,14 +55,54 @@ describe("groupTranscriptRows mail records (TS-08.R161)", () => {
     expect((events[1].mail as { direction: string }).direction).toBe("read");
   });
 
-  it("matches Codex args.tool and pairs parallel same-tool calls in order", () => {
+  const result = (seq: number, id: string, status = "completed") => event(seq, "tool_result", { tool_call_id: id, status, content: null });
+  const subjects = (events: TranscriptEvent[]) => events.filter((item) => item.kind !== "tool_result").map((item) => (item.mail as { messages: { subject: string }[] } | undefined)?.messages[0].subject ?? item.seq);
+
+  it("matches Codex args.tool and pairs sequential same-tool calls by their order", () => {
     const events = run(groupTranscriptRows([
       call(1, "a", "mcp", { args: { server: "chuck-messaging", tool: "send_message" } }),
-      call(2, "b", "mcp__chuck-messaging__send_message"),
-      mail(3, "sent", "first"),
-      mail(4, "sent", "second"),
+      mail(2, "sent", "first"),
+      result(3, "a"),
+      call(4, "b", "mcp__chuck-messaging__send_message"),
+      mail(5, "sent", "second"),
+      result(6, "b"),
     ]));
-    expect(events.map((item) => (item.mail as { messages: { subject: string }[] }).messages[0].subject)).toEqual(["first", "second"]);
+    expect(subjects(events)).toEqual(["first", "second"]);
+  });
+
+  // MAIL-DETAIL-2: a denied call never reaches Chuck, so it cannot own a record.
+  it("attaches the approved send's record to it, not to an earlier denied send", () => {
+    const events = run(groupTranscriptRows([
+      call(1, "a", "mcp__chuck__send_message"),
+      event(2, "permission_request", { tool_call_id: "a", resolved: "deny" }),
+      result(3, "a", "failed"),
+      call(4, "b", "mcp__chuck__send_message"),
+      mail(5, "sent", "approved"),
+      result(6, "b"),
+    ]));
+    expect(subjects(events)).toEqual([1, 2, "approved"]);
+  });
+
+  it("leaves records standalone when parallel calls make the owner ambiguous", () => {
+    const reversed = run(groupTranscriptRows([
+      call(1, "a", "mcp__chuck__send_message"),
+      call(2, "b", "mcp__chuck__send_message"),
+      mail(3, "sent", "for-b"),
+      mail(4, "sent", "for-a"),
+      result(5, "b"),
+      result(6, "a"),
+    ]));
+    expect(subjects(reversed)).toEqual([1, 2, "for-b", "for-a"]);
+    expect(reversed.filter((item) => item.kind === "tool_call").every((item) => item.mail === undefined)).toBe(true);
+    // One record missing: still two possible owners, so nothing attaches.
+    const missing = run(groupTranscriptRows([call(1, "a", "mcp__chuck__send_message"), call(2, "b", "mcp__chuck__send_message"), mail(3, "sent", "one"), result(4, "a"), result(5, "b")]));
+    expect(missing.filter((item) => item.kind === "tool_call").every((item) => item.mail === undefined)).toBe(true);
+  });
+
+  it("ignores an unrelated tool whose args name a messaging tool without a messaging server", () => {
+    const events = run(groupTranscriptRows([call(1, "a", "mcp", { args: { tool: "send_message" } }), mail(2, "sent", "x")]));
+    expect(events[0].mail).toBeUndefined();
+    expect(subjects(events)).toEqual([1, "x"]);
   });
 
   it("keeps an unmatched record as its own line in the run, and ignores other servers' tools", () => {
