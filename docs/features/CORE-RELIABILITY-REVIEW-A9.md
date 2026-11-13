@@ -80,6 +80,21 @@ Each is a question for the review, not a finding. None has a test.
 11. Standalone rooms raise no attention beyond their own update event. Which holds can only a
     person clear, and how would that person learn of them away from the room page?
 
+12. `handleRename` takes no lifecycle claim at all. Beyond the launch window, what else can it
+    race?
+13. `MarkThinkTankMemberSetup` sets a hold on failure with no phase check. Can a setup failure
+    after End put a hold on an ended room, and does that block the judge?
+14. An unreadable judge config is logged at Debug and leaves the judge `ready`. Is it retried
+    every five seconds indefinitely?
+
+Weaker suspicions from the map, needing a probe: Stop between the running-row write and
+`commitStart` leaving the registry holding a dead runtime; a Resume or mail wake in the
+milliseconds between the session row and the running row tearing down the launch's registration;
+hold writes whose own failure is swallowed.
+
+The writer inventory for the room and quota tables is in
+[HOTSPOT-REVIEW-LEADS-2026-11-13.md](HOTSPOT-REVIEW-LEADS-2026-11-13.md).
+
 ## Reuse these proofs before adding any
 
 `internal/server/{think_tank_exit_test,think_tank_admission_test,think_tank_capture_test,

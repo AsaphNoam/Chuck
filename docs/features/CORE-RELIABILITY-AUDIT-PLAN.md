@@ -232,6 +232,10 @@ answer contract of 2026-10-30 onward, and room lifecycle beyond ASR-F's joint pi
 - **[CR-A9: Think Tank lifecycle and its quota join](CORE-RELIABILITY-REVIEW-A9.md).** Is every
   room phase, attempt and member launch owned and fenced, including under quota and restart?
 
+Leads from the same pass that neither slice owns, including the candidates considered and not
+queued and the writer inventory behind a possible transition-rule design, are kept in
+[HOTSPOT-REVIEW-LEADS-2026-11-13.md](HOTSPOT-REVIEW-LEADS-2026-11-13.md).
+
 ## Lower priority for this reliability-first round
 
 - **Updater/rollback:** include installed-runtime and data-preservation evidence in the proposed

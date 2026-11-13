@@ -77,8 +77,22 @@ Each is a question for the review, not a finding. None has a test.
 10. `BindPipelineStageTaskStandingAgent` runs in a separate transaction from start confirmation
     and its failure is logged at Debug. What rebinds a running stage with no standing agent?
 
+11. Steer goes straight to `SteerMessage` and never through `admitConversationInput`. What does a
+    Steer to a paused or waiting owner do to the run?
+12. Queued input bound to a task that finished, or to a closed or stopped run, is set to
+    `released` silently. Does the person learn their input was not delivered?
+13. An owner in `wait_for_tasks` is skipped by the stall check. Does that wait have any deadline
+    or attention reason?
+
+Weaker suspicions from the map, needing a probe: two concurrent `nudgeStalledOwner` calls each
+incrementing the counter; a nudge sent just after a report was accepted; the stall interrupt path
+skipping `notifyTaskWaiters`, which the other two interrupt paths call.
+
 Also sweep the state-changing calls whose errors are discarded or logged at Debug only in
 `queued_input.go`, `manager.go` and `task_dispatcher.go`.
+
+The writer inventory for `pipeline_runs` and `tasks` is in
+[HOTSPOT-REVIEW-LEADS-2026-11-13.md](HOTSPOT-REVIEW-LEADS-2026-11-13.md).
 
 ## Reuse these proofs before adding any
 
