@@ -144,7 +144,7 @@ func (c *ChatRuntime) onSubagentUpdate(as *agentState, params json.RawMessage) b
 		as.mu.Lock()
 		scope.TurnID = parent.TurnID
 		if parent.ActivityID == "" {
-			scope.TurnID = as.execTurnID
+			scope.TurnID = as.turn.execTurnID
 		}
 		_, known := as.children[u.SubagentSessionID]
 		full := len(as.children)-len(as.endedChildren) >= maxChildren

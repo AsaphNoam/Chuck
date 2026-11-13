@@ -108,7 +108,7 @@ func TestQuotaUpdateCompletesOrdinaryTurnOnceAndSuppressesHeldSuccessor(t *testi
 	}
 	if len(ends) != 1 || ends[0].StopReason != "error" || ends[0].Quota == nil || ends[0].Quota.FailureID != "turn-1:error" {
 		as.mu.Lock()
-		failure, cap := as.turnFailure, as.caps.SessionFailure
+		failure, cap := as.turn.turnFailure, as.caps.SessionFailure
 		as.mu.Unlock()
 		t.Fatalf("terminal quota events = %+v, failure=%+v capability=%v, want one quota error", ends, failure, cap)
 	}
@@ -126,7 +126,7 @@ func TestQuotaUpdateCompletesOrdinaryTurnOnceAndSuppressesHeldSuccessor(t *testi
 		t.Fatalf("provider prompt count = %d, want held successor suppressed", promptCount)
 	}
 	as.mu.Lock()
-	blocked, retained := as.quotaBlocked, as.held.Text
+	blocked, retained := as.quotaBlocked, as.turn.held.Text
 	as.mu.Unlock()
 	if !blocked || retained != "held successor" {
 		t.Fatalf("quota block/held text = %v/%q, want blocked with retained successor", blocked, retained)
@@ -186,8 +186,8 @@ func TestQuotaUpdateClearedBySuccessfulResultWithoutMetadata(t *testing.T) {
 	}
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	if as.turnFailure != nil || as.turnQuota != nil {
-		t.Fatalf("success left stale active failure: %+v / %+v", as.turnFailure, as.turnQuota)
+	if as.turn.turnFailure != nil || as.turn.turnQuota != nil {
+		t.Fatalf("success left stale active failure: %+v / %+v", as.turn.turnFailure, as.turn.turnQuota)
 	}
 }
 
@@ -363,8 +363,8 @@ func TestQuotaStaleCompletionCannotSettleAfterTurnChanges(t *testing.T) {
 	c, h, _, as := startQuotaTestAgent(t, "stream_text")
 	mu, calls := recordQuotaSettlement(c)
 	as.mu.Lock()
-	as.turnActive = true
-	as.execTurnID = "new-turn"
+	as.turn.turnActive = true
+	as.turn.execTurnID = "new-turn"
 	as.mu.Unlock()
 	c.completePromptTurn(as, "old-turn", "", json.RawMessage(`{"stopReason":"end_turn"}`), nil)
 	mu.Lock()
@@ -499,16 +499,16 @@ func TestQuotaNotificationIgnoredForReplayAndChildScope(t *testing.T) {
 	c, h, _, as := startQuotaTestAgent(t, "stream_text")
 	as.setExecTurn("root-turn")
 	as.mu.Lock()
-	as.turnActive = true
+	as.turn.turnActive = true
 	as.loadReplay = true
 	as.mu.Unlock()
 	quota := quotaFailure("failure-1", 1, "limit", "error")
 	params := []byte(`{"sessionId":"` + as.sessionID + `","update":{"sessionUpdate":"session_info_update","_meta":{"jetbrains":{"air":{"version":1,"sessionFailure":` + quota + `}}}}}`)
 	c.onNotification(as, "session/update", params)
 	as.mu.Lock()
-	if as.turnFailure != nil || as.turnQuota != nil {
+	if as.turn.turnFailure != nil || as.turn.turnQuota != nil {
 		as.mu.Unlock()
-		t.Fatalf("replay captured quota: failure=%+v quota=%+v", as.turnFailure, as.turnQuota)
+		t.Fatalf("replay captured quota: failure=%+v quota=%+v", as.turn.turnFailure, as.turn.turnQuota)
 	}
 	as.loadReplay = false
 	as.caps.Subagents = true
@@ -523,8 +523,8 @@ func TestQuotaNotificationIgnoredForReplayAndChildScope(t *testing.T) {
 	c.onNotification(as, "session/update", childParams)
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	if as.turnFailure != nil || as.turnQuota != nil {
-		t.Fatalf("child activity captured root quota: failure=%+v quota=%+v (agent %s)", as.turnFailure, as.turnQuota, h.AgentID)
+	if as.turn.turnFailure != nil || as.turn.turnQuota != nil {
+		t.Fatalf("child activity captured root quota: failure=%+v quota=%+v (agent %s)", as.turn.turnFailure, as.turn.turnQuota, h.AgentID)
 	}
 }
 
@@ -548,7 +548,7 @@ func TestQuotaSameIDRevisionResultDoesNotOverrideNewerUpdate(t *testing.T) {
 		t.Fatalf("turn result = %+v, want newer warning revision to supersede older quota", end)
 	}
 	as.mu.Lock()
-	failure := as.turnFailure
+	failure := as.turn.turnFailure
 	as.mu.Unlock()
 	if failure == nil || failure.ID != "same:error" || failure.Revision != 2 || failure.Quota {
 		t.Fatalf("retained failure = %+v, want non-quota revision 2", failure)
@@ -791,7 +791,7 @@ func TestTerminalRPCResetResolvesAtArrivalNotSettlement(t *testing.T) {
 
 		c := NewChatRuntime(nil)
 		ad, _ := backend.For("claude-acp")
-		as := &agentState{agentID: "a", generation: "g1", execTurnID: "t1", turnActive: true, adapter: ad, processZone: time.UTC}
+		as := &agentState{agentID: "a", generation: "g1", turn: currentTurn{execTurnID: "t1", turnActive: true}, adapter: ad, processZone: time.UTC}
 		var got *QuotaEvidence
 		stop := &struct{}{}
 		c.SetQuotaSettlement(func(_, _, _ string, q *QuotaEvidence, _ bool) error {

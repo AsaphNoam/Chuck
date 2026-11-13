@@ -201,35 +201,35 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 	provider := promptOutcome(result)
 	resultFailure, hasResultFailure := decodeSessionFailureRecord(result)
 	as.mu.Lock()
-	if as.stopped || as.stopping || !as.turnActive || as.execTurnID != turnID || as.promptSettlement != nil {
+	if as.stopped || as.stopping || !as.turn.turnActive || as.turn.execTurnID != turnID || as.turn.promptSettlement != nil {
 		as.mu.Unlock()
 		return
 	}
-	as.promptSettlement = make(chan struct{})
+	as.turn.promptSettlement = make(chan struct{})
 	cancelled := provider == TurnCancelled ||
-		as.cancelledTurnSeq != 0 && turnID == fmt.Sprintf("t_%012d", as.cancelledTurnSeq)
+		as.turn.cancelledTurnSeq != 0 && turnID == fmt.Sprintf("t_%012d", as.turn.cancelledTurnSeq)
 	td := TurnEndData{}
 	if hasResultFailure &&
-		(as.turnFailure == nil ||
-			resultFailure.ID == as.turnFailure.ID && resultFailure.Revision >= as.turnFailure.Revision ||
-			resultFailure.ID != as.turnFailure.ID && resultFailure.Quota && !as.turnFailure.Quota) {
-		if as.turnFailure != nil && as.turnFailure.ID == resultFailure.ID && as.turnFailure.Revision == resultFailure.Revision {
-			resultFailure.ObservedAt = as.turnFailure.ObservedAt // first frame of this revision
+		(as.turn.turnFailure == nil ||
+			resultFailure.ID == as.turn.turnFailure.ID && resultFailure.Revision >= as.turn.turnFailure.Revision ||
+			resultFailure.ID != as.turn.turnFailure.ID && resultFailure.Quota && !as.turn.turnFailure.Quota) {
+		if as.turn.turnFailure != nil && as.turn.turnFailure.ID == resultFailure.ID && as.turn.turnFailure.Revision == resultFailure.Revision {
+			resultFailure.ObservedAt = as.turn.turnFailure.ObservedAt // first frame of this revision
 		}
-		as.turnFailure = &resultFailure
-		as.turnQuota = nil
+		as.turn.turnFailure = &resultFailure
+		as.turn.turnQuota = nil
 		if resultFailure.Quota {
-			as.turnQuota = &QuotaEvidence{FailureID: resultFailure.ID, Revision: resultFailure.Revision}
+			as.turn.turnQuota = &QuotaEvidence{FailureID: resultFailure.ID, Revision: resultFailure.Revision}
 		}
 	}
 	if !cancelled && promptErr == nil && recoveredByTerminalSuccess(provider, hasResultFailure) {
-		as.turnFailure = nil
-		as.turnQuota = nil
+		as.turn.turnFailure = nil
+		as.turn.turnQuota = nil
 	}
 	// TS-04.R86/FS-01.R43: an accepted Cancel wins over late provider quota
 	// evidence, so the cancelled work is never re-armed for continuation.
-	if as.caps.SessionFailure && as.turnQuota != nil && !cancelled {
-		q := *as.turnQuota
+	if as.caps.SessionFailure && as.turn.turnQuota != nil && !cancelled {
+		q := *as.turn.turnQuota
 		td.Quota = &q
 	}
 	backendType := ""
@@ -239,18 +239,18 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 	// TS-04.R105: without AIR evidence for this turn, a verified quota carrier
 	// on the terminal RPC is the refusal. A current AIR record (including a
 	// newer non-quota or retryable revision) and cancellation keep precedence.
-	if td.Quota == nil && as.turnFailure == nil && !cancelled && rpcQuotaRefusal(backendType, promptErr) {
+	if td.Quota == nil && as.turn.turnFailure == nil && !cancelled && rpcQuotaRefusal(backendType, promptErr) {
 		td.Quota = &QuotaEvidence{FailureID: "rpc:" + turnID, Revision: 1}
 	}
 	if td.Quota != nil {
 		text, observed := promptErrorText(promptErr), promptErrorArrival(promptErr)
-		if as.turnFailure != nil {
-			text, observed = as.turnFailure.Text+"\n"+text, as.turnFailure.ObservedAt
+		if as.turn.turnFailure != nil {
+			text, observed = as.turn.turnFailure.Text+"\n"+text, as.turn.turnFailure.ObservedAt
 		}
-		td.Quota.ResetAt, td.Quota.Intervention = resolveQuotaReset(backendType, text, as.turnRateLimit, observed, as.processZone)
+		td.Quota.ResetAt, td.Quota.Intervention = resolveQuotaReset(backendType, text, as.turn.turnRateLimit, observed, as.processZone)
 		if td.Quota.ResetAt != nil {
 			td.Quota.ResetSource = "text"
-			if backendType == "claude-acp" && as.turnRateLimit.reset != nil {
+			if backendType == "claude-acp" && as.turn.turnRateLimit.reset != nil {
 				td.Quota.ResetSource = "structured"
 			}
 		}
@@ -262,9 +262,9 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 	// provider failure (e.g. exhausted 429 retries) despite its end_turn: it is
 	// neither a successful completion nor an inline-mail receipt (FS-03.R8).
 	var terminal, failed *SessionFailureRecord
-	if as.caps.SessionFailure && as.turnFailure != nil && (td.Quota != nil ||
-		hasResultFailure && as.turnFailure.Severity == "error" && !cancelled) {
-		f := *as.turnFailure
+	if as.caps.SessionFailure && as.turn.turnFailure != nil && (td.Quota != nil ||
+		hasResultFailure && as.turn.turnFailure.Severity == "error" && !cancelled) {
+		f := *as.turn.turnFailure
 		terminal = &f
 		if td.Quota == nil {
 			failed = &f
@@ -280,7 +280,7 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 			td.Quota.ResetAt, td.Quota.ResetSource = reset, "snapshot"
 		}
 		as.mu.Lock()
-		as.quotaReadInTurn = true
+		as.turn.quotaReadInTurn = true
 		as.mu.Unlock()
 	}
 	if terminal != nil {

@@ -247,12 +247,7 @@ type agentState struct {
 	backendID  string
 	quotaRead  bool
 	quotaScope string
-	// quotaReadInTurn marks a turn whose quota settlement already read the
-	// snapshot (TS-04.R111); guarded by mu.
-	quotaReadInTurn bool
-	// liveMsg and replayMsg fingerprint the root turn's and a replay's last
-	// agent message for fork points (TS-04.R110); guarded by mu.
-	liveMsg   messageTracker
+	// replayMsg fingerprints the last replayed agent message for fork points (TS-04.R110).
 	replayMsg messageTracker
 	cmd       *exec.Cmd
 	pgid      int
@@ -279,36 +274,22 @@ type agentState struct {
 	skipPerms        bool // auto-approve every permission request (techspec §5.2)
 	autoApproveTools map[string]struct{}
 
-	mu       sync.Mutex
-	noticeMu sync.Mutex
-	seq      int64
-	turnSeq  int64
-	// execTurnID is the turn actually executing, distinct from turnSeq, which
-	// a held/Steer successor reservation advances before the old turn's
-	// terminal emission. Events carry it so a consumer never infers ownership
-	// from the counter (TS-14.R4).
-	execTurnID             string
-	turnQuota              *QuotaEvidence
-	turnFailure            *SessionFailureRecord
-	turnRateLimit          rateLimitEvidence // applicable rejected Claude windows this turn
-	processZone            *time.Location    // effective provider process timezone; nil when unknown
-	quotaSelection         QuotaCheckSpec    // frozen sanitized selection for isolated checks
+	// mu protects the current turn and session fields used by the same claims.
+	// Acquire cancelMu, noticeMu or statusMu before mu when nesting. modeMu
+	// is independent and is never nested with these locks.
+	mu                     sync.Mutex
+	turn                   currentTurn
+	noticeMu               sync.Mutex
+	seq                    int64
+	processZone            *time.Location // effective provider process timezone; nil when unknown
+	quotaSelection         QuotaCheckSpec // frozen sanitized selection for isolated checks
 	quotaBlocked           bool
 	quotaBlockedGeneration string
 	quotaBlockedTurnID     string
 	context                contextReading
-	turnActive             bool
 	stopping               bool
-	toolNames              map[string]string         // toolCallID -> normalized name (for status detail)
-	toolInputs             map[string]*openToolInput // open toolCallID -> last recorded input (TS-04.R98)
-	toolInputSeq           uint64
-	toolInputBytes         int
-	pending                map[string]*pendingPerm    // toolCallID -> withheld permission request
-	cancelMu               sync.Mutex                 // serialize cancellation through permission settlement
-	resolved               map[string]struct{}        // toolCallIDs already settled this turn
-	hostApproved           map[string]*HostPermission // approved host requests not yet admitted
-	hostVoidSeq            uint64                     // bumped by requester cancellation; voids open host requests
-	notices                []Event                    // committed notices needed for generation-local deduplication
+	cancelMu               sync.Mutex // serializes Cancel operations, which release mu during permission settlement
+	notices                []Event    // committed notices needed for generation-local deduplication
 	journal                *Journal
 	journals               *Journals
 	journalAttachment      uint64 // this generation's writer attachment, guarded by mu
@@ -319,22 +300,13 @@ type agentState struct {
 	// an empty update clears it, and it dies with this agentState on stop/crash.
 	commands []CommandItem
 	stopped  bool
-	// cancelEscalated is set only when the current turn ignored cooperative
-	// cancellation and the fallback SIGINT was delivered successfully.
-	cancelEscalated bool
-	// cancelledTurnSeq is the turn sequence a Cancel claimed while it was active.
-	// That turn settles as `cancelled` even if the provider still answers
-	// `end_turn`, so a late completion never confirms quota recovery (FS-03.R9).
-	cancelledTurnSeq int64
 	// statusMu serializes every status-row read-modify-write together with its
 	// ownership decision; settledTurnID is the turn whose terminal status has
 	// been written. Busy is written only for an unsettled owning turn with no
 	// open permission gate (FS-02.R3/R22, FS-01.R52, INV §5).
-	statusMu      sync.Mutex
-	settledTurnID string
-	// Non-nil while the current prompt owns terminal settlement. EOF waits for
-	// that owner before tearing down the process and journal.
-	promptSettlement chan struct{}
+	statusMu sync.Mutex
+	// statusFinalized closes this generation's status writer after explicit Stop.
+	statusFinalized bool
 	// loadReplay is set only while ACP session/load is restoring provider-native
 	// context. A provider is allowed to replay the prior conversation as
 	// session/update frames during that call; those frames describe history
@@ -363,13 +335,52 @@ type agentState struct {
 	// roots are the working directory then additional directories: the scope a
 	// file-change report path must fall inside (TS-04.R66).
 	roots []string
-	// fileReportRequest is the one report request id this turn accepts.
-	fileReportRequest string
 	// tasks tracks announced background tasks by normalized id: unfinished ones
 	// plus a bounded terminal tail (TS-04.R64, INV §16).
 	tasks         map[string]*taskRef
 	openTasks     int
 	finishedTasks []string
+}
+
+// currentTurn contains the mutable state of the prompt and its queued successors.
+// All access is guarded by agentState.mu.
+type currentTurn struct {
+	// quotaReadInTurn marks a turn whose quota settlement already read the
+	// snapshot (TS-04.R111); guarded by mu.
+	quotaReadInTurn bool
+	// liveMsg fingerprints the last root-turn agent message for fork points (TS-04.R110).
+	liveMsg messageTracker
+	turnSeq int64
+	// execTurnID is the turn actually executing, distinct from turnSeq, which
+	// a held/Steer successor reservation advances before the old turn's
+	// terminal emission. Events carry it so a consumer never infers ownership
+	// from the counter (TS-14.R4).
+	execTurnID     string
+	turnQuota      *QuotaEvidence
+	turnFailure    *SessionFailureRecord
+	turnRateLimit  rateLimitEvidence // applicable rejected Claude windows this turn
+	turnActive     bool
+	toolNames      map[string]string         // toolCallID -> normalized name (for status detail)
+	toolInputs     map[string]*openToolInput // open toolCallID -> last recorded input (TS-04.R98)
+	toolInputSeq   uint64
+	toolInputBytes int
+	pending        map[string]*pendingPerm    // toolCallID -> withheld permission request
+	resolved       map[string]struct{}        // toolCallIDs already settled this turn
+	hostApproved   map[string]*HostPermission // approved host requests not yet admitted
+	hostVoidSeq    uint64                     // bumped by requester cancellation; voids open host requests
+	// cancelEscalated is set only when the current turn ignored cooperative
+	// cancellation and the fallback SIGINT was delivered successfully.
+	cancelEscalated bool
+	// cancelledTurnSeq is the turn sequence a Cancel claimed while it was active.
+	// That turn settles as `cancelled` even if the provider still answers
+	// `end_turn`, so a late completion never confirms quota recovery (FS-03.R9).
+	cancelledTurnSeq int64
+	settledTurnID    string
+	// Non-nil while the current prompt owns terminal settlement. EOF waits for
+	// that owner before tearing down the process and journal.
+	promptSettlement chan struct{}
+	// fileReportRequest is the one report request id this turn accepts.
+	fileReportRequest string
 	// held is the person's queued follow-up: at most one message per agent, live
 	// state only (FS-03.R48, TS-01.R29, TS-02.R31). Submitting another replaces
 	// it, turn end delivers it, and it dies with this agentState on stop or crash
@@ -464,13 +475,15 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		cancel:           acancel,
 		skipPerms:        spec.SkipPerms,
 		autoApproveTools: copyStringSet(spec.AutoApproveTools),
-		toolNames:        map[string]string{},
-		pending:          map[string]*pendingPerm{},
-		resolved:         map[string]struct{}{},
-		adapter:          ad,
-		processZone:      processZone(cmd.Env),
-		quotaSelection:   quotaSelectionOf(spec),
-		backendID:        spec.Agent.Backend,
+		turn: currentTurn{
+			toolNames: map[string]string{},
+			pending:   map[string]*pendingPerm{},
+			resolved:  map[string]struct{}{},
+		},
+		adapter:        ad,
+		processZone:    processZone(cmd.Env),
+		quotaSelection: quotaSelectionOf(spec),
+		backendID:      spec.Agent.Backend,
 	}
 	as.journals = c.journals
 	as.journal = c.journals.Acquire(as.agentID)
@@ -631,16 +644,16 @@ func (c *ChatRuntime) SendMessageOrHold(ctx context.Context, agentID string, mes
 	}
 	turnID, claimed := as.claimTurnLocked()
 	if !claimed {
-		if err := c.messageTransitionReason(as.agentID, as.held.RequestID, "released", "queue", "replaced"); err != nil {
+		if err := c.messageTransitionReason(as.agentID, as.turn.held.RequestID, "released", "queue", "replaced"); err != nil {
 			as.mu.Unlock()
 			return false, err
 		}
 		if err := c.messageTransitionReason(as.agentID, message.RequestID, "held", "queue", "accepted"); err != nil {
-			_ = c.messageTransitionReason(as.agentID, as.held.RequestID, "held", "queue", "replacement_failed")
+			_ = c.messageTransitionReason(as.agentID, as.turn.held.RequestID, "held", "queue", "replacement_failed")
 			as.mu.Unlock()
 			return false, err
 		}
-		as.held = hold(message, as.seq)
+		as.turn.held = hold(message, as.seq)
 	}
 	as.mu.Unlock()
 	held := !claimed
@@ -667,20 +680,20 @@ func (c *ChatRuntime) WithdrawHeldExpected(agentID, expectedID string) (Message,
 		return Message{}, false, err
 	}
 	as.mu.Lock()
-	if as.held.message().empty() {
+	if as.turn.held.message().empty() {
 		as.mu.Unlock()
 		return Message{}, false, nil
 	}
-	if expectedID != "" && expectedID != as.held.HeldID {
+	if expectedID != "" && expectedID != as.turn.held.HeldID {
 		as.mu.Unlock()
 		return Message{}, false, ErrHeldChanged
 	}
-	removed := as.held.message().copy()
-	if err := c.messageTransitionReason(agentID, as.held.RequestID, "released", "withdraw", "withdrawn"); err != nil {
+	removed := as.turn.held.message().copy()
+	if err := c.messageTransitionReason(agentID, as.turn.held.RequestID, "released", "withdraw", "withdrawn"); err != nil {
 		as.mu.Unlock()
 		return Message{}, false, err
 	}
-	as.held = heldMessage{}
+	as.turn.held = heldMessage{}
 	as.mu.Unlock()
 	return removed, true, nil
 }
@@ -706,7 +719,7 @@ func (c *ChatRuntime) HeldSnapshot(agentID string) (Message, int64, string, erro
 	}
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	return as.held.message().copy(), as.held.AfterSeq, as.held.HeldID, nil
+	return as.turn.held.message().copy(), as.turn.held.AfterSeq, as.turn.held.HeldID, nil
 }
 
 // SteerOutcome is what the adapter did with a steered message (TS-04.R49). The
@@ -752,21 +765,21 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		// Take the hold under the same lock it is written and released under, so a
 		// concurrent withdraw or turn-end delivery cannot let one message both
 		// steer and run as its own turn (INV §5).
-		if as.held.message().empty() {
+		if as.turn.held.message().empty() {
 			as.mu.Unlock()
 			return "", ErrNothingHeld
 		}
-		if message.HeldID != "" && message.HeldID != as.held.HeldID {
+		if message.HeldID != "" && message.HeldID != as.turn.held.HeldID {
 			as.mu.Unlock()
 			return "", ErrHeldChanged
 		}
 		requestID := message.RequestID
-		message = as.held.message()
+		message = as.turn.held.message()
 		if message.RequestID == "" {
 			message.RequestID = requestID
 		}
 	}
-	if !as.steerFallback.message().empty() {
+	if !as.turn.steerFallback.message().empty() {
 		as.mu.Unlock()
 		return "", ErrTurnInFlight
 	}
@@ -780,25 +793,25 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		as.mu.Unlock()
 		return "", ErrNoHandle
 	}
-	heldSnapshot := as.held.message()
+	heldSnapshot := as.turn.held.message()
 	if heldSnapshot.RequestID == "" {
 		heldSnapshot.RequestID = message.RequestID
 	}
-	if promoted && (as.held.message().empty() || !reflect.DeepEqual(heldSnapshot, message)) {
+	if promoted && (as.turn.held.message().empty() || !reflect.DeepEqual(heldSnapshot, message)) {
 		as.mu.Unlock()
 		return "", ErrNothingHeld
 	}
-	if !as.steerFallback.message().empty() {
+	if !as.turn.steerFallback.message().empty() {
 		as.mu.Unlock()
 		return "", ErrTurnInFlight
 	}
 	if promoted {
-		as.held = heldMessage{}
+		as.turn.held = heldMessage{}
 	}
-	as.steerFallback = hold(message, as.seq)
-	if !as.turnActive {
+	as.turn.steerFallback = hold(message, as.seq)
+	if !as.turn.turnActive {
 		turnID, _ := as.claimTurnLocked()
-		as.steerFallback.TurnID = turnID
+		as.turn.steerFallback.TurnID = turnID
 	}
 	as.mu.Unlock()
 	persisted := message.RequestID != "" || len(message.Attachments) > 0
@@ -808,7 +821,7 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 	}
 	if persisted {
 		as.mu.Lock()
-		as.steerFallback.recorded = true
+		as.turn.steerFallback.recorded = true
 		as.mu.Unlock()
 	}
 	// Reserve uncertainty durably before the native call. A failed receipt
@@ -971,7 +984,7 @@ func (as *agentState) claimTurnOrHold(text string) (string, bool, error) {
 	}
 	// At most one held message per agent: a second submission replaces it rather
 	// than stacking a second queued turn (FS-03.R48, INV §16).
-	as.held = heldMessage{Text: text, AfterSeq: as.seq}
+	as.turn.held = heldMessage{Text: text, AfterSeq: as.seq}
 	return "", true, nil
 }
 
@@ -981,47 +994,47 @@ func (as *agentState) claimTurnOrHold(text string) (string, bool, error) {
 func (as *agentState) resolveSteerFallback(outcome SteerOutcome, callErr error, promoted bool) (Message, string) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	fallback := as.steerFallback
+	fallback := as.turn.steerFallback
 	if fallback.message().empty() {
 		return Message{}, ""
 	}
 	if callErr == nil && outcome == steerPromptRequired {
-		as.steerFallback.Ready = true
+		as.turn.steerFallback.Ready = true
 		if fallback.TurnID == "" {
 			return Message{}, ""
 		}
-		as.steerFallback = heldMessage{}
+		as.turn.steerFallback = heldMessage{}
 		return fallback.message(), fallback.TurnID
 	}
-	as.steerFallback = heldMessage{}
+	as.turn.steerFallback = heldMessage{}
 	restoredPromoted := false
-	if callErr != nil && promoted && as.held.message().empty() {
-		as.held = hold(fallback.message(), as.seq)
+	if callErr != nil && promoted && as.turn.held.message().empty() {
+		as.turn.held = hold(fallback.message(), as.seq)
 		restoredPromoted = true
 	}
 	if fallback.TurnID == "" {
 		return Message{}, ""
 	}
 	if restoredPromoted {
-		as.turnActive = false
+		as.turn.turnActive = false
 		return Message{}, ""
 	}
-	if as.held.message().empty() {
-		as.turnActive = false
+	if as.turn.held.message().empty() {
+		as.turn.turnActive = false
 		return Message{}, ""
 	}
-	message := as.held.message()
-	as.held = heldMessage{}
+	message := as.turn.held.message()
+	as.turn.held = heldMessage{}
 	return message, fallback.TurnID
 }
 
 func (as *agentState) claimTurnLocked() (string, bool) {
-	if as.turnActive || as.stopping || as.stopped {
+	if as.turn.turnActive || as.stopping || as.stopped {
 		return "", false
 	}
-	as.turnActive = true
-	as.cancelEscalated = false
-	as.resolved = map[string]struct{}{}
+	as.turn.turnActive = true
+	as.turn.cancelEscalated = false
+	as.turn.resolved = map[string]struct{}{}
 	return as.nextTurnIDLocked(), true
 }
 
@@ -1040,8 +1053,8 @@ func (c *ChatRuntime) claimIdleStop(agentID, endingTurn string) bool {
 	as.mu.Lock()
 	defer c.mu.Unlock()
 	defer as.mu.Unlock()
-	settling := endingTurn != "" && as.execTurnID == endingTurn
-	if (as.turnActive && !settling) || as.stopping {
+	settling := endingTurn != "" && as.turn.execTurnID == endingTurn
+	if (as.turn.turnActive && !settling) || as.stopping {
 		return false
 	}
 	as.stopping = true
@@ -1062,27 +1075,27 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 	// history cannot be recorded (FS-03.R99).
 	if err := as.journal.Admit(); err != nil {
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return err
 	}
 	content, err := c.messageContent(as, message)
 	if err != nil {
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return err
 	}
 	if err := c.store.ResetTurnBudget(as.agentID, turnID); err != nil {
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return err
 	}
 	promptText, deliveryKey, _, mailNotice, err := c.prepareTurnPrompt(as.agentID, message.Text, false)
 	if err != nil {
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return err
 	}
@@ -1092,7 +1105,7 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 	if bindManual != nil {
 		if err := bindManual(as.agentID, as.generation, turnID); err != nil {
 			as.mu.Lock()
-			as.turnActive = false
+			as.turn.turnActive = false
 			as.mu.Unlock()
 			return err
 		}
@@ -1100,13 +1113,13 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 	as.setExecTurn(turnID)
 	if !message.recorded && c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return fmt.Errorf("runtime: could not retain the accepted message")
 	}
 	if err := c.messageTransitionReason(as.agentID, message.RequestID, "submitted", "prompt", "provider_submission"); err != nil {
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return fmt.Errorf("%w: delivery receipt unavailable", ErrMessageAccepted)
 	}
@@ -1295,19 +1308,19 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, outcome TurnOutc
 	// Every root turn end refreshes the scope snapshot once (FS-09.R83); a
 	// quota settlement that already read it stands in for this refresh.
 	as.mu.Lock()
-	readInTurn := as.quotaReadInTurn
-	as.quotaReadInTurn = false
+	readInTurn := as.turn.quotaReadInTurn
+	as.turn.quotaReadInTurn = false
 	as.mu.Unlock()
 	if !readInTurn {
 		c.refreshQuota(as.quotaScope)
 	}
 	as.mu.Lock()
-	close(as.promptSettlement)
-	as.promptSettlement = nil
-	as.execTurnID = ""
+	close(as.turn.promptSettlement)
+	as.turn.promptSettlement = nil
+	as.turn.execTurnID = ""
 	as.releaseTurnToolInputsLocked("")
 	if as.quotaBlocked {
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return Message{}, ""
 	}
@@ -1318,12 +1331,12 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, outcome TurnOutc
 
 func (as *agentState) setExecTurn(turnID string) {
 	as.mu.Lock()
-	as.execTurnID = turnID
+	as.turn.execTurnID = turnID
 	as.releaseTurnToolInputsLocked(turnID)
-	as.turnQuota = nil
-	as.turnFailure = nil
-	as.turnRateLimit = rateLimitEvidence{}
-	as.liveMsg.reset()
+	as.turn.turnQuota = nil
+	as.turn.turnFailure = nil
+	as.turn.turnRateLimit = rateLimitEvidence{}
+	as.turn.liveMsg.reset()
 	as.mu.Unlock()
 }
 
@@ -1333,39 +1346,39 @@ func (as *agentState) setExecTurn(turnID string) {
 // §15). Caller must hold as.mu.
 func (as *agentState) reserveHeldSuccessorLocked() (Message, string) {
 	if as.stopped || as.stopping {
-		as.turnActive = false
+		as.turn.turnActive = false
 		return Message{}, ""
 	}
-	message := as.steerFallback.message()
+	message := as.turn.steerFallback.message()
 	if !message.empty() {
-		if as.steerFallback.TurnID == "" {
-			as.steerFallback.TurnID = as.nextTurnIDLocked()
+		if as.turn.steerFallback.TurnID == "" {
+			as.turn.steerFallback.TurnID = as.nextTurnIDLocked()
 		}
-		if !as.steerFallback.Ready {
+		if !as.turn.steerFallback.Ready {
 			return Message{}, ""
 		}
-		turnID := as.steerFallback.TurnID
-		as.steerFallback = heldMessage{}
-		as.cancelEscalated = false
-		as.resolved = map[string]struct{}{}
+		turnID := as.turn.steerFallback.TurnID
+		as.turn.steerFallback = heldMessage{}
+		as.turn.cancelEscalated = false
+		as.turn.resolved = map[string]struct{}{}
 		return message, turnID
 	} else {
-		message = as.held.message()
-		as.held = heldMessage{}
+		message = as.turn.held.message()
+		as.turn.held = heldMessage{}
 	}
 	if message.empty() {
-		as.turnActive = false
+		as.turn.turnActive = false
 		return Message{}, ""
 	}
-	as.cancelEscalated = false
-	as.resolved = map[string]struct{}{}
+	as.turn.cancelEscalated = false
+	as.turn.resolved = map[string]struct{}{}
 	return message, as.nextTurnIDLocked()
 }
 
 func (as *agentState) settleTurnContext() contextReading {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	as.cancelEscalated = false
+	as.turn.cancelEscalated = false
 	return as.context
 }
 
@@ -1395,10 +1408,10 @@ func (c *ChatRuntime) runReservedHeld(as *agentState, message Message, turnID st
 func (as *agentState) restoreRefusedHeld(message Message) bool {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	if as.stopping || as.stopped || !as.held.message().empty() {
+	if as.stopping || as.stopped || !as.turn.held.message().empty() {
 		return false
 	}
-	as.held = hold(message, as.seq)
+	as.turn.held = hold(message, as.seq)
 	return true
 }
 
@@ -1427,17 +1440,17 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 	// shutting down the peer so no timer survives the lifecycle boundary and the
 	// durable transcript explains why the tool did not run.
 	as.mu.Lock()
-	pendingIDs := make([]string, 0, len(as.pending))
+	pendingIDs := make([]string, 0, len(as.turn.pending))
 	as.stopping = true
-	_ = c.messageTransition(agentID, as.held.RequestID, "released")
+	_ = c.messageTransition(agentID, as.turn.held.RequestID, "released")
 	steerDelivery := "unknown"
-	if as.steerFallback.Ready {
+	if as.turn.steerFallback.Ready {
 		steerDelivery = "released"
 	}
-	_ = c.messageTransition(agentID, as.steerFallback.RequestID, steerDelivery)
-	as.held = heldMessage{}
-	as.steerFallback = heldMessage{}
-	for id := range as.pending {
+	_ = c.messageTransition(agentID, as.turn.steerFallback.RequestID, steerDelivery)
+	as.turn.held = heldMessage{}
+	as.turn.steerFallback = heldMessage{}
+	for id := range as.turn.pending {
 		pendingIDs = append(pendingIDs, id)
 	}
 	as.mu.Unlock()
@@ -1450,15 +1463,13 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 	// the transport goroutine exits, so all in-flight emit() calls complete first.
 	_ = c.store.DeleteRunning(agentID)
 	// Keep the status row so the archive/UI can show a final state (§7.5).
-	st, err := c.store.ReadStatus(agentID)
-	if err != nil {
-		st = state.Status{AgentID: agentID}
-		as.applyLive(&st)
+	if err := c.mutateStatus(as, true, func(st *state.Status, _ error) bool {
+		st.State = "done"
+		st.BusySince = nil
+		return true
+	}); err != nil {
+		c.touchState(agentID)
 	}
-	st.State = "done"
-	st.BusySince = nil
-	_ = c.store.WriteStatus(st)
-	c.touchState(agentID)
 	as.hub.Close()
 	return nil
 }
@@ -1542,14 +1553,16 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		cancel:           acancel,
 		skipPerms:        spec.SkipPerms,
 		autoApproveTools: copyStringSet(spec.AutoApproveTools),
-		toolNames:        map[string]string{},
-		pending:          map[string]*pendingPerm{},
-		resolved:         map[string]struct{}{},
-		context:          contextReading{pct: spec.LastContextPct, counts: spec.LastContext},
-		adapter:          ad,
-		processZone:      processZone(cmd.Env),
-		quotaSelection:   quotaSelectionOf(spec),
-		backendID:        spec.Agent.Backend,
+		turn: currentTurn{
+			toolNames: map[string]string{},
+			pending:   map[string]*pendingPerm{},
+			resolved:  map[string]struct{}{},
+		},
+		context:        contextReading{pct: spec.LastContextPct, counts: spec.LastContext},
+		adapter:        ad,
+		processZone:    processZone(cmd.Env),
+		quotaSelection: quotaSelectionOf(spec),
+		backendID:      spec.Agent.Backend,
 		// The notification callback is installed before session/load runs, so the
 		// replay gate has to be closed from construction — a provider that starts
 		// replaying immediately must not race an assignment made later.
@@ -1768,7 +1781,7 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	as.mu.Lock()
 	// A cleanup stop claims the runtime without changing its status; like
 	// claimTurnLocked, no activation may enter it (TS-10.R19).
-	if as.turnActive || as.stopping || as.stopped {
+	if as.turn.turnActive || as.stopping || as.stopped {
 		as.mu.Unlock()
 		return false, nil
 	}
@@ -1787,20 +1800,20 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 			return false, nil
 		}
 	}
-	as.turnActive = true
-	as.cancelEscalated = false
+	as.turn.turnActive = true
+	as.turn.cancelEscalated = false
 	turnID := as.nextTurnIDLocked()
 	as.mu.Unlock()
 	if err := before(turnID); err != nil {
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return false, err
 	}
 	promptText, deliveryKey, hasWakingMail, mailNotice, err := c.prepareTurnPrompt(as.agentID, contract.Instruction, kind == state.ActivationKindMail)
 	if err != nil {
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return false, err
 	}
@@ -1813,7 +1826,7 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	if kind == state.ActivationKindMail && !hasWakingMail {
 		c.clearInlineMail(as.agentID, deliveryKey)
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return false, nil
 	}
@@ -1831,7 +1844,7 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	if err := c.writeStatus(as, busy); err != nil {
 		c.clearInlineMail(as.agentID, deliveryKey)
 		as.mu.Lock()
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		return false, fmt.Errorf("runtime: write activation status: %w", err)
 	}
@@ -2010,14 +2023,14 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 	// an idle session. They do not themselves finish a turn or create a schedule.
 	if failure, ok := decodeSessionFailureRecord(params); ok {
 		as.mu.Lock()
-		if as.caps.SessionFailure && !as.loadReplay && as.execTurnID != "" && as.turnActive {
-			if as.turnFailure == nil ||
-				(as.turnFailure.ID == failure.ID && failure.Revision > as.turnFailure.Revision) ||
-				(failure.ID != as.turnFailure.ID && failure.Quota && !as.turnFailure.Quota) {
-				as.turnFailure = &failure
-				as.turnQuota = nil
+		if as.caps.SessionFailure && !as.loadReplay && as.turn.execTurnID != "" && as.turn.turnActive {
+			if as.turn.turnFailure == nil ||
+				(as.turn.turnFailure.ID == failure.ID && failure.Revision > as.turn.turnFailure.Revision) ||
+				(failure.ID != as.turn.turnFailure.ID && failure.Quota && !as.turn.turnFailure.Quota) {
+				as.turn.turnFailure = &failure
+				as.turn.turnQuota = nil
 				if failure.Quota {
-					as.turnQuota = &QuotaEvidence{FailureID: failure.ID, Revision: failure.Revision}
+					as.turn.turnQuota = &QuotaEvidence{FailureID: failure.ID, Revision: failure.Revision}
 				}
 			}
 		}
@@ -2050,8 +2063,8 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 		// A rejected subscription window is reset evidence for this executing
 		// root turn only; it never classifies quota itself (TS-04.R96).
 		as.mu.Lock()
-		if !as.loadReplay && as.turnActive && as.execTurnID != "" {
-			as.turnRateLimit.observe(params)
+		if !as.loadReplay && as.turn.turnActive && as.turn.execTurnID != "" {
+			as.turn.turnRateLimit.observe(params)
 		}
 		as.mu.Unlock()
 		if reading, ok := decodeContextUsage(params); ok {
@@ -2082,8 +2095,8 @@ func (c *ChatRuntime) onNotification(as *agentState, method string, params json.
 		as.replayMsg.observe(params)
 	case kind == "user_message_chunk" && replay:
 		as.replayMsg.reset()
-	case kind == "agent_message_chunk" && as.turnActive && as.execTurnID != "":
-		as.liveMsg.observe(params)
+	case kind == "agent_message_chunk" && as.turn.turnActive && as.turn.execTurnID != "":
+		as.turn.liveMsg.observe(params)
 	}
 	as.mu.Unlock()
 	if replay {
@@ -2172,37 +2185,37 @@ func (c *ChatRuntime) Commands(agentID string) ([]CommandItem, error) {
 // row to error, delete the running row, and tear down (techspec §8.2).
 func (c *ChatRuntime) onTransportClosed(as *agentState) {
 	as.mu.Lock()
-	for as.promptSettlement != nil {
-		settled := as.promptSettlement
+	for as.turn.promptSettlement != nil {
+		settled := as.turn.promptSettlement
 		as.mu.Unlock()
 		<-settled
 		as.mu.Lock()
 	}
 	if as.stopped {
-		as.turnActive = false
+		as.turn.turnActive = false
 		as.mu.Unlock()
 		// Stop() already handled state.db cleanup; close the transcript writer now
 		// that the transport goroutine (and any in-flight emit calls) have exited.
 		as.closePersistence()
 		return
 	}
-	turnID := as.execTurnID
-	activeTurn := as.turnActive && turnID != "" && turnID != as.settledTurnID
-	cancelEscalated := as.cancelEscalated
-	cancelled := cancelEscalated || activeTurn && as.cancelledTurnSeq != 0 && as.cancelledTurnSeq == as.turnSeq
+	turnID := as.turn.execTurnID
+	activeTurn := as.turn.turnActive && turnID != "" && turnID != as.turn.settledTurnID
+	cancelEscalated := as.turn.cancelEscalated
+	cancelled := cancelEscalated || activeTurn && as.turn.cancelledTurnSeq != 0 && as.turn.cancelledTurnSeq == as.turn.turnSeq
 	outcome := resolveTurnOutcome(TurnUnknown, cancelled, true, false, nil)
-	_ = c.messageTransition(as.agentID, as.held.RequestID, "released")
+	_ = c.messageTransition(as.agentID, as.turn.held.RequestID, "released")
 	steerDelivery := "unknown"
-	if as.steerFallback.Ready {
+	if as.turn.steerFallback.Ready {
 		steerDelivery = "released"
 	}
-	_ = c.messageTransition(as.agentID, as.steerFallback.RequestID, steerDelivery)
-	as.held = heldMessage{}
-	as.steerFallback = heldMessage{}
+	_ = c.messageTransition(as.agentID, as.turn.steerFallback.RequestID, steerDelivery)
+	as.turn.held = heldMessage{}
+	as.turn.steerFallback = heldMessage{}
 	as.stopped = true
-	as.turnActive = false
-	pend := as.pending
-	as.pending = map[string]*pendingPerm{}
+	as.turn.turnActive = false
+	pend := as.turn.pending
+	as.turn.pending = map[string]*pendingPerm{}
 	as.mu.Unlock()
 
 	// Abandon any held permission (the process is gone; the request can't be answered).
@@ -2298,7 +2311,7 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 	}
 	// Capture scope under as.mu, then release it before entering the journal.
 	as.mu.Lock()
-	turnID := as.execTurnID
+	turnID := as.turn.execTurnID
 	if scope.ActivityID != "" || scope.TurnID != "" {
 		turnID = scope.TurnID
 	}
@@ -2312,11 +2325,11 @@ func (c *ChatRuntime) emitChecked(as *agentState, scope activityScope, typ strin
 	}
 	// A root turn_end records its fork point once, with the event (TS-02.R65).
 	if typ == EvTurnEnd && scope.ActivityID == "" {
-		if fp := as.liveMsg.fingerprint(); fp != "" {
-			ev.ForkPoint = &ForkPoint{SessionID: as.sessionID, MessageID: as.liveMsg.id, Fingerprint: fp,
+		if fp := as.turn.liveMsg.fingerprint(); fp != "" {
+			ev.ForkPoint = &ForkPoint{SessionID: as.sessionID, MessageID: as.turn.liveMsg.id, Fingerprint: fp,
 				AdapterName: as.adapterInfo.Name, AdapterVersion: as.adapterInfo.Version}
 		}
-		as.liveMsg.reset()
+		as.turn.liveMsg.reset()
 	}
 	ctx := as.ctx
 	as.mu.Unlock()
@@ -2433,7 +2446,7 @@ func (c *ChatRuntime) AppendQuotaNoticeAndSync(agentID string, data NoticeData) 
 			return old, nil
 		}
 	}
-	ev := Event{Generation: as.generation, TurnID: as.execTurnID, Type: EvNotice}
+	ev := Event{Generation: as.generation, TurnID: as.turn.execTurnID, Type: EvNotice}
 	as.mu.Unlock()
 	return c.commitNotice(as, CommitRequest{Event: ev, IndexedByCaller: true}, data, "quota notice")
 }
@@ -2480,7 +2493,7 @@ func (c *ChatRuntime) AppendPeerStopNoticeAndSync(agentID string, data NoticeDat
 			return old, nil
 		}
 	}
-	ev := Event{Generation: as.generation, TurnID: as.execTurnID, Type: EvNotice}
+	ev := Event{Generation: as.generation, TurnID: as.turn.execTurnID, Type: EvNotice}
 	as.mu.Unlock()
 	return c.commitNotice(as, CommitRequest{Event: ev}, data, "peer stop notice")
 }
@@ -2496,7 +2509,7 @@ func (c *ChatRuntime) AppendMailNotice(agentID string, data NoticeData) error {
 		return err
 	}
 	as.mu.Lock()
-	ev := Event{Generation: as.generation, TurnID: as.execTurnID, Type: EvNotice}
+	ev := Event{Generation: as.generation, TurnID: as.turn.execTurnID, Type: EvNotice}
 	as.mu.Unlock()
 	_, err = c.commitNotice(as, CommitRequest{Event: ev}, data, "mail notice")
 	return err
@@ -2695,31 +2708,33 @@ func (c *ChatRuntime) applyEventStatus(as *agentState, m mappedEvent) {
 // parallel tool frame cannot erase waiting_input and a background frame racing
 // the turn end cannot leave busy behind it (FS-02.R3/R22, FS-01.R52, INV §5).
 func (c *ChatRuntime) updateOwnedBusy(as *agentState, detail, trace string) {
-	as.statusMu.Lock()
-	defer as.statusMu.Unlock()
-	as.mu.Lock()
-	owned := as.turnActive && !as.stopped && as.execTurnID != "" &&
-		as.execTurnID != as.settledTurnID && len(as.pending) == 0
-	as.mu.Unlock()
-	if owned {
-		c.writeStatusRowLocked(as, "busy", detail, trace, keepBusySince)
-	}
+	c.mutateStatus(as, false, func(st *state.Status, _ error) bool {
+		as.mu.Lock()
+		owned := as.turn.turnActive && !as.stopped && as.turn.execTurnID != "" &&
+			as.turn.execTurnID != as.turn.settledTurnID && len(as.turn.pending) == 0
+		as.mu.Unlock()
+		if owned {
+			setStatusTransition(st, "busy", detail, trace, keepBusySince)
+		}
+		return owned
+	})
 }
 
 func (c *ChatRuntime) applyTurnEndStatus(as *agentState, turnID string, outcome TurnOutcome) {
-	as.statusMu.Lock()
-	defer as.statusMu.Unlock()
-	as.mu.Lock()
-	as.settledTurnID = turnID
-	as.mu.Unlock()
-	switch outcome {
-	case TurnCancelled:
-		c.writeStatusRowLocked(as, "idle", "cancelled", "Cancelled", clearBusySince)
-	case TurnFailed, TurnQuotaBlocked, TurnProcessEnded, TurnUnknown, turnRefused:
-		c.writeStatusRowLocked(as, "error", "turn failed", "Error", clearBusySince)
-	default:
-		c.writeStatusRowLocked(as, "idle", "", "Stop", clearBusySince)
-	}
+	c.mutateStatus(as, false, func(st *state.Status, _ error) bool {
+		as.mu.Lock()
+		as.turn.settledTurnID = turnID
+		as.mu.Unlock()
+		switch outcome {
+		case TurnCancelled:
+			setStatusTransition(st, "idle", "cancelled", "Cancelled", clearBusySince)
+		case TurnFailed, TurnQuotaBlocked, TurnProcessEnded, TurnUnknown, turnRefused:
+			setStatusTransition(st, "error", "turn failed", "Error", clearBusySince)
+		default:
+			setStatusTransition(st, "idle", "", "Stop", clearBusySince)
+		}
+		return true
+	})
 }
 
 type busySinceMode int
@@ -2731,42 +2746,26 @@ const (
 
 // updateStatus reads the current row, applies the transition, and writes it back.
 func (c *ChatRuntime) updateStatus(as *agentState, st, detail, trace string, mode busySinceMode) {
-	as.statusMu.Lock()
-	defer as.statusMu.Unlock()
-	c.writeStatusRowLocked(as, st, detail, trace, mode)
+	c.mutateStatus(as, false, func(cur *state.Status, _ error) bool {
+		setStatusTransition(cur, st, detail, trace, mode)
+		return true
+	})
 }
 
-// writeStatusRowLocked is updateStatus's read-modify-write. Caller holds statusMu.
-func (c *ChatRuntime) writeStatusRowLocked(as *agentState, st, detail, trace string, mode busySinceMode) {
-	cur, err := c.store.ReadStatus(as.agentID)
-	if err != nil {
-		cur = state.Status{AgentID: as.agentID}
-	}
+func setStatusTransition(cur *state.Status, st, detail, trace string, mode busySinceMode) {
 	cur.State = st
 	cur.Detail = detail
 	cur.LastTrace = trace
-	as.applyLive(&cur)
 	if mode == clearBusySince {
 		cur.BusySince = nil
 	}
-	if err := c.store.WriteStatus(cur); err != nil {
-		slog.Error("runtime: write status", "agent", as.agentID, "err", err)
-	}
-	c.touchState(as.agentID)
 }
 
-// writeStatus writes a fully-specified status row. Its live projections are
-// read under statusMu, so a task/usage republish that lands between the
-// caller building st and this write is not overwritten (INV §5).
 func (c *ChatRuntime) writeStatus(as *agentState, st state.Status) error {
-	as.statusMu.Lock()
-	defer as.statusMu.Unlock()
-	as.applyLive(&st)
-	if err := c.store.WriteStatus(st); err != nil {
-		return err
-	}
-	c.touchState(as.agentID)
-	return nil
+	return c.mutateStatus(as, false, func(cur *state.Status, _ error) bool {
+		*cur = st
+		return true
+	})
 }
 
 // republishLive refreshes only the current status row's live projections —
@@ -2775,22 +2774,39 @@ func (c *ChatRuntime) writeStatus(as *agentState, st state.Status) error {
 // without disturbing the row's state/detail/trace/busy_since (neither a
 // usage_update nor a task lifecycle update implies a status transition).
 func (c *ChatRuntime) republishLive(as *agentState) {
+	c.mutateStatus(as, false, func(_ *state.Status, err error) bool {
+		if err != nil {
+			// Without a transition to record, wait for the next write to carry
+			// forward these projections instead of creating an empty status.
+			slog.Debug("runtime: read status for usage republish", "agent", as.agentID, "err", err)
+		}
+		return err == nil
+	})
+}
+
+// mutateStatus owns the entire status transaction, including the turn ownership
+// decision and the final Stop fence for callbacks that still hold this agentState.
+func (c *ChatRuntime) mutateStatus(as *agentState, final bool, mutate func(*state.Status, error) bool) error {
 	as.statusMu.Lock()
 	defer as.statusMu.Unlock()
+	if as.statusFinalized {
+		return ErrNoHandle
+	}
+	as.statusFinalized = final
 	cur, err := c.store.ReadStatus(as.agentID)
 	if err != nil {
-		// Unlike updateStatus there is no state transition to record, so an
-		// unreadable row is skipped rather than replaced with an empty one; the
-		// next status write carries the value forward.
-		slog.Debug("runtime: read status for usage republish", "agent", as.agentID, "err", err)
-		return
+		cur = state.Status{AgentID: as.agentID}
+	}
+	if !mutate(&cur, err) {
+		return nil
 	}
 	as.applyLive(&cur)
 	if err := c.store.WriteStatus(cur); err != nil {
 		slog.Error("runtime: write status", "agent", as.agentID, "err", err)
-		return
+		return err
 	}
 	c.touchState(as.agentID)
+	return nil
 }
 
 func (c *ChatRuntime) touchState(agentID string) {
@@ -2985,8 +3001,8 @@ func (as *agentState) applyLive(st *state.Status) {
 }
 
 func (as *agentState) nextTurnIDLocked() string {
-	as.turnSeq++
-	return fmt.Sprintf("t_%012d", as.turnSeq)
+	as.turn.turnSeq++
+	return fmt.Sprintf("t_%012d", as.turn.turnSeq)
 }
 
 // Open-call input memory is bounded: past either limit the oldest call is
@@ -3017,23 +3033,23 @@ func (as *agentState) admitToolInput(scope activityScope, m mappedEvent) (mapped
 	defer as.mu.Unlock()
 	switch d := m.Data.(type) {
 	case ToolCallData:
-		if as.toolInputs == nil {
-			as.toolInputs = map[string]*openToolInput{}
-			as.toolNames = map[string]string{}
+		if as.turn.toolInputs == nil {
+			as.turn.toolInputs = map[string]*openToolInput{}
+			as.turn.toolNames = map[string]string{}
 		}
 		in := &openToolInput{title: d.Title, args: string(d.Args), activityID: scope.ActivityID}
 		if scope.ActivityID == "" {
-			in.turnID = as.execTurnID
+			in.turnID = as.turn.execTurnID
 		}
 		as.forgetToolInputLocked(d.ToolCallID)
-		as.toolInputSeq++
-		in.seq = as.toolInputSeq
-		as.toolInputs[d.ToolCallID] = in
-		as.toolNames[d.ToolCallID] = d.Name
-		as.toolInputBytes += len(in.title) + len(in.args)
+		as.turn.toolInputSeq++
+		in.seq = as.turn.toolInputSeq
+		as.turn.toolInputs[d.ToolCallID] = in
+		as.turn.toolNames[d.ToolCallID] = d.Name
+		as.turn.toolInputBytes += len(in.title) + len(in.args)
 		as.boundToolInputsLocked(d.ToolCallID)
 	case ToolCallUpdateData:
-		in, open := as.toolInputs[d.ToolCallID]
+		in, open := as.turn.toolInputs[d.ToolCallID]
 		if !open {
 			return m, false
 		}
@@ -3046,10 +3062,10 @@ func (as *agentState) admitToolInput(scope activityScope, m mappedEvent) (mapped
 		if d.Title == in.title && string(d.Args) == in.args {
 			return m, false
 		}
-		as.toolInputBytes += len(d.Title) + len(d.Args) - len(in.title) - len(in.args)
+		as.turn.toolInputBytes += len(d.Title) + len(d.Args) - len(in.title) - len(in.args)
 		in.title, in.args = d.Title, string(d.Args)
 		as.boundToolInputsLocked(d.ToolCallID)
-		if n := as.toolNames[d.ToolCallID]; n != "" {
+		if n := as.turn.toolNames[d.ToolCallID]; n != "" {
 			d.Name = n
 		}
 		m.Data = d
@@ -3061,25 +3077,25 @@ func (as *agentState) admitToolInput(scope activityScope, m mappedEvent) (mapped
 }
 
 func (as *agentState) dropToolInputLocked(id string) {
-	if in, ok := as.toolInputs[id]; ok {
-		as.toolInputBytes -= len(in.title) + len(in.args)
-		delete(as.toolInputs, id)
+	if in, ok := as.turn.toolInputs[id]; ok {
+		as.turn.toolInputBytes -= len(in.title) + len(in.args)
+		delete(as.turn.toolInputs, id)
 	}
 }
 
 // forgetToolInputLocked ends one call's memory: its input and its name.
 func (as *agentState) forgetToolInputLocked(id string) {
 	as.dropToolInputLocked(id)
-	delete(as.toolNames, id)
+	delete(as.turn.toolNames, id)
 }
 
 // boundToolInputsLocked forgets the oldest other calls until both limits hold;
 // the call just written is kept even when it alone exceeds the byte limit.
 func (as *agentState) boundToolInputsLocked(keep string) {
-	for len(as.toolInputs) > maxOpenToolInputs || (as.toolInputBytes > maxOpenToolInputBytes && len(as.toolInputs) > 1) {
+	for len(as.turn.toolInputs) > maxOpenToolInputs || (as.turn.toolInputBytes > maxOpenToolInputBytes && len(as.turn.toolInputs) > 1) {
 		oldest := ""
-		for id, in := range as.toolInputs {
-			if id != keep && (oldest == "" || in.seq < as.toolInputs[oldest].seq) {
+		for id, in := range as.turn.toolInputs {
+			if id != keep && (oldest == "" || in.seq < as.turn.toolInputs[oldest].seq) {
 				oldest = id
 			}
 		}
@@ -3092,7 +3108,7 @@ func (as *agentState) boundToolInputsLocked(keep string) {
 // without a result; its turn ending releases it. Background continuations (no
 // turn) and child activities' calls are untouched.
 func (as *agentState) releaseTurnToolInputsLocked(keep string) {
-	for id, in := range as.toolInputs {
+	for id, in := range as.turn.toolInputs {
 		if in.activityID == "" && in.turnID != "" && in.turnID != keep {
 			as.forgetToolInputLocked(id)
 		}
@@ -3101,7 +3117,7 @@ func (as *agentState) releaseTurnToolInputsLocked(keep string) {
 
 // releaseActivityToolInputsLocked forgets one ended child activity's calls.
 func (as *agentState) releaseActivityToolInputsLocked(activityID string) {
-	for id, in := range as.toolInputs {
+	for id, in := range as.turn.toolInputs {
 		if in.activityID == activityID {
 			as.forgetToolInputLocked(id)
 		}
@@ -3112,8 +3128,8 @@ func (as *agentState) releaseActivityToolInputsLocked(activityID string) {
 func (as *agentState) endToolCall(id string) string {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	n := as.toolNames[id]
-	delete(as.toolNames, id)
+	n := as.turn.toolNames[id]
+	delete(as.turn.toolNames, id)
 	if n == "" {
 		return "tool"
 	}

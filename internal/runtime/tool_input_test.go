@@ -11,7 +11,7 @@ import (
 func openToolInputs(as *agentState) int {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	return len(as.toolInputs)
+	return len(as.turn.toolInputs)
 }
 
 func toolCallFrame(id, args string) json.RawMessage {
@@ -51,7 +51,7 @@ func TestCanceledTurnsReleaseToolInput(t *testing.T) {
 // a background continuation (no owning turn) and a live child activity keep
 // their calls until their result or the child ends.
 func TestToolInputOwnershipRelease(t *testing.T) {
-	as := &agentState{toolNames: map[string]string{}}
+	as := &agentState{turn: currentTurn{toolNames: map[string]string{}}}
 	admit := func(scope activityScope, id string) {
 		for _, m := range mapSessionUpdate(toolCallFrame(id, `{"file_path":"a.go"}`)) {
 			as.admitToolInput(scope, scopeMapped(scope, m))
@@ -65,11 +65,11 @@ func TestToolInputOwnershipRelease(t *testing.T) {
 	admit(activityScope{}, "background")
 	as.setExecTurn("B")
 	as.mu.Lock()
-	_, rootOpen := as.toolInputs["root-a"]
-	_, childOpen := as.toolInputs[child.toolCallID("child-a")]
-	_, bgOpen := as.toolInputs["background"]
+	_, rootOpen := as.turn.toolInputs["root-a"]
+	_, childOpen := as.turn.toolInputs[child.toolCallID("child-a")]
+	_, bgOpen := as.turn.toolInputs["background"]
 	as.releaseActivityToolInputsLocked(child.ActivityID)
-	_, childAfter := as.toolInputs[child.toolCallID("child-a")]
+	_, childAfter := as.turn.toolInputs[child.toolCallID("child-a")]
 	as.mu.Unlock()
 	if rootOpen || !childOpen || !bgOpen || childAfter {
 		t.Fatalf("root(A) open=%v child open=%v background open=%v child after end=%v", rootOpen, childOpen, bgOpen, childAfter)
@@ -77,8 +77,8 @@ func TestToolInputOwnershipRelease(t *testing.T) {
 	for _, m := range mapSessionUpdate(json.RawMessage(`{"sessionId":"s","update":{"sessionUpdate":"tool_call_update","toolCallId":"background","status":"completed"}}`)) {
 		as.admitToolInput(activityScope{}, m)
 	}
-	if n := openToolInputs(as); n != 0 || as.toolInputBytes != 0 {
-		t.Fatalf("after background result: open=%d bytes=%d, want 0/0", n, as.toolInputBytes)
+	if n := openToolInputs(as); n != 0 || as.turn.toolInputBytes != 0 {
+		t.Fatalf("after background result: open=%d bytes=%d, want 0/0", n, as.turn.toolInputBytes)
 	}
 }
 
@@ -158,7 +158,7 @@ func TestEndedChildrenFreeTheirSlots(t *testing.T) {
 		}
 	}
 	as.mu.Lock()
-	children, names, inputs, spans := len(as.children), len(as.toolNames), len(as.toolInputs), len(as.spanOpen)
+	children, names, inputs, spans := len(as.children), len(as.turn.toolNames), len(as.turn.toolInputs), len(as.spanOpen)
 	as.mu.Unlock()
 	if children != live+maxEndedChildren || names != 0 || inputs != 0 || spans != 0 {
 		t.Fatalf("children=%d names=%d inputs=%d spans=%d, want %d, 0, 0, 0", children, names, inputs, spans, live+maxEndedChildren)
@@ -174,7 +174,7 @@ func TestEndedChildrenFreeTheirSlots(t *testing.T) {
 // Active input retention is bounded by call count and bytes; the oldest call
 // is forgotten first and the newest is kept even when it alone is large.
 func TestOpenToolInputIsBounded(t *testing.T) {
-	as := &agentState{toolNames: map[string]string{}}
+	as := &agentState{turn: currentTurn{toolNames: map[string]string{}}}
 	admit := func(id, args string) {
 		for _, m := range mapSessionUpdate(toolCallFrame(id, args)) {
 			as.admitToolInput(activityScope{}, m)
@@ -183,17 +183,17 @@ func TestOpenToolInputIsBounded(t *testing.T) {
 	for i := 0; i <= maxOpenToolInputs; i++ {
 		admit(fmt.Sprintf("t%d", i), `{}`)
 	}
-	if _, ok := as.toolInputs["t0"]; ok || len(as.toolInputs) != maxOpenToolInputs {
-		t.Fatalf("open=%d oldest retained=%v, want %d without t0", len(as.toolInputs), ok, maxOpenToolInputs)
+	if _, ok := as.turn.toolInputs["t0"]; ok || len(as.turn.toolInputs) != maxOpenToolInputs {
+		t.Fatalf("open=%d oldest retained=%v, want %d without t0", len(as.turn.toolInputs), ok, maxOpenToolInputs)
 	}
 	big := `{"new_text":"` + strings.Repeat("x", maxOpenToolInputBytes) + `"}`
 	admit("big1", big)
 	admit("big2", big)
-	if len(as.toolInputs) != 1 || as.toolInputs["big2"] == nil {
-		t.Fatalf("open=%d, want only the newest oversized call", len(as.toolInputs))
+	if len(as.turn.toolInputs) != 1 || as.turn.toolInputs["big2"] == nil {
+		t.Fatalf("open=%d, want only the newest oversized call", len(as.turn.toolInputs))
 	}
-	if in := as.toolInputs["big2"]; as.toolInputBytes != len(in.title)+len(in.args) {
-		t.Fatalf("bytes=%d, want only big2's %d", as.toolInputBytes, len(in.title)+len(in.args))
+	if in := as.turn.toolInputs["big2"]; as.turn.toolInputBytes != len(in.title)+len(in.args) {
+		t.Fatalf("bytes=%d, want only big2's %d", as.turn.toolInputBytes, len(in.title)+len(in.args))
 	}
 }
 

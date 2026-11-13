@@ -189,10 +189,12 @@ func TestSendPromptOrHoldQueuesOneFollowUpAndDeliversItAsTheNextTurn(t *testing.
 // the ordering that a race detector cannot observe (FS-03.A31, INV §5/§15).
 func TestHeldSuccessorOwnsGateBeforeNewerSend(t *testing.T) {
 	as := &agentState{
-		journal:    NewJournal("", nil),
-		turnActive: true,
-		turnSeq:    1,
-		held:       heldMessage{Text: "queued first", AfterSeq: 7},
+		journal: NewJournal("", nil),
+		turn: currentTurn{
+			turnActive: true,
+			turnSeq:    1,
+			held:       heldMessage{Text: "queued first", AfterSeq: 7},
+		},
 	}
 	as.mu.Lock()
 	text, turnID := as.reserveHeldSuccessorLocked()
@@ -204,7 +206,7 @@ func TestHeldSuccessorOwnsGateBeforeNewerSend(t *testing.T) {
 		t.Fatal("newer Send claimed the gate before the queued successor")
 	}
 	as.mu.Lock()
-	got := as.held.Text
+	got := as.turn.held.Text
 	as.mu.Unlock()
 	if got != "newer send" {
 		t.Fatalf("next held message = %q, want newer send", got)
@@ -596,7 +598,7 @@ func TestHeldSurvivesHistoryRefusal(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		as.mu.Lock()
-		settled := !as.turnActive && as.held.Text == "keep this follow-up"
+		settled := !as.turn.turnActive && as.turn.held.Text == "keep this follow-up"
 		as.mu.Unlock()
 		if settled {
 			break

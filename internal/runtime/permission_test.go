@@ -109,7 +109,7 @@ func waitTurnSettled(t *testing.T, c *ChatRuntime, agentID string) {
 	deadline := time.Now().Add(3 * time.Second)
 	for {
 		as.mu.Lock()
-		active := as.turnActive
+		active := as.turn.turnActive
 		as.mu.Unlock()
 		if !active {
 			return
@@ -244,7 +244,7 @@ func TestBackgroundFrameAfterTurnSettlesCannotReopenBusy(t *testing.T) {
 	}
 	waitForChunk(t, ch, "working")
 	as.mu.Lock()
-	turnID := as.execTurnID
+	turnID := as.turn.execTurnID
 	as.mu.Unlock()
 	c.applyTurnEndStatus(as, turnID, TurnCompleted)
 	c.mapScoped(as, activityScope{}, "tool_call", toolCallFrame("background", `{"file_path":"a.go"}`))
@@ -550,13 +550,15 @@ func TestTakePendingSingleWinner(t *testing.T) {
 		journal: NewJournal("", nil),
 		agentID: "a_perm_race",
 		hub:     NewHub(),
-		pending: map[string]*pendingPerm{
-			"tc_p": {
-				req:       &IncomingRequest{ID: 1, t: NewTransport(io.Discard, nil, nil)},
-				optByKind: map[string]string{"allow_once": "opt_allow"},
+		turn: currentTurn{
+			pending: map[string]*pendingPerm{
+				"tc_p": {
+					req:       &IncomingRequest{ID: 1, t: NewTransport(io.Discard, nil, nil)},
+					optByKind: map[string]string{"allow_once": "opt_allow"},
+				},
 			},
+			resolved: map[string]struct{}{},
 		},
-		resolved: map[string]struct{}{},
 	}
 
 	var wg sync.WaitGroup
@@ -592,11 +594,13 @@ func TestTakePendingReportsAlreadyResolved(t *testing.T) {
 
 	c := NewChatRuntime(st)
 	as := &agentState{
-		journal:  NewJournal("", nil),
-		agentID:  "a_perm_done",
-		hub:      NewHub(),
-		pending:  map[string]*pendingPerm{},
-		resolved: map[string]struct{}{"tc_p": {}},
+		journal: NewJournal("", nil),
+		agentID: "a_perm_done",
+		hub:     NewHub(),
+		turn: currentTurn{
+			pending:  map[string]*pendingPerm{},
+			resolved: map[string]struct{}{"tc_p": {}},
+		},
 	}
 
 	if _, err := c.takePending(as, "tc_p"); err != ErrPermissionAlreadyResolved {

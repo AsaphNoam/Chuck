@@ -74,7 +74,7 @@ func (c *ChatRuntime) onRequest(as *agentState, req *IncomingRequest) {
 	}
 
 	as.mu.Lock()
-	as.pending[toolCallID] = p
+	as.turn.pending[toolCallID] = p
 	as.mu.Unlock()
 
 	// waiting_input while withheld (techspec §4.4). A settler that claims the
@@ -200,20 +200,20 @@ func (c *ChatRuntime) cancel(as *agentState, expectedGeneration, expectedTurn st
 	guarded := expectedGeneration != "" || expectedTurn != ""
 
 	as.mu.Lock()
-	if guarded && (as.generation != expectedGeneration || !as.turnActive || expectedTurn != fmt.Sprintf("t_%012d", as.turnSeq)) {
+	if guarded && (as.generation != expectedGeneration || !as.turn.turnActive || expectedTurn != fmt.Sprintf("t_%012d", as.turn.turnSeq)) {
 		as.mu.Unlock()
 		return false, nil
 	}
-	ids := make([]string, 0, len(as.pending))
-	for id := range as.pending {
+	ids := make([]string, 0, len(as.turn.pending))
+	for id := range as.turn.pending {
 		ids = append(ids, id)
 	}
 	as.voidHostApprovalsLocked()
-	active := as.turnActive && as.promptSettlement == nil
-	armedTurn := as.turnSeq
+	active := as.turn.turnActive && as.turn.promptSettlement == nil
+	armedTurn := as.turn.turnSeq
 	cancelled := active || len(ids) > 0
 	if active {
-		as.cancelledTurnSeq = armedTurn
+		as.turn.cancelledTurnSeq = armedTurn
 	}
 	as.mu.Unlock()
 
@@ -224,7 +224,7 @@ func (c *ChatRuntime) cancel(as *agentState, expectedGeneration, expectedTurn st
 	// answer permissions first, then recheck the captured turn under its lock so
 	// a successor cannot receive the old turn's cancellation.
 	as.mu.Lock()
-	if active && as.turnActive && as.turnSeq == armedTurn {
+	if active && as.turn.turnActive && as.turn.turnSeq == armedTurn {
 		_ = as.transport.Notify("session/cancel", map[string]any{"sessionId": as.sessionID})
 	}
 	as.mu.Unlock()
@@ -259,12 +259,12 @@ func (c *ChatRuntime) escalateCancel(as *agentState, armedTurn int64) {
 		as.mu.Lock()
 		// Only escalate if the SAME turn we armed against is still active. A new
 		// turn (re-prompt) bumped turnSeq, making this escalation stale.
-		stillBusy := as.turnActive && as.promptSettlement == nil && !as.stopped && as.turnSeq == armedTurn
+		stillBusy := as.turn.turnActive && as.turn.promptSettlement == nil && !as.stopped && as.turn.turnSeq == armedTurn
 		pgid := as.pgid
 		hasProc := as.cmd != nil && as.cmd.Process != nil
 		if stillBusy && hasProc && pgid > 0 {
 			if err := syscall.Kill(-pgid, syscall.SIGINT); err == nil {
-				as.cancelEscalated = true
+				as.turn.cancelEscalated = true
 			}
 		}
 		as.mu.Unlock()
@@ -293,12 +293,12 @@ func (c *ChatRuntime) resolvePending(as *agentState, toolCallID, outcome, option
 func (c *ChatRuntime) takePending(as *agentState, toolCallID string) (*pendingPerm, error) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	p, ok := as.pending[toolCallID]
+	p, ok := as.turn.pending[toolCallID]
 	if ok {
-		delete(as.pending, toolCallID)
+		delete(as.turn.pending, toolCallID)
 		return p, nil
 	}
-	if _, resolved := as.resolved[toolCallID]; resolved {
+	if _, resolved := as.turn.resolved[toolCallID]; resolved {
 		return nil, ErrPermissionAlreadyResolved
 	}
 	return nil, ErrNoPendingPermission
@@ -307,19 +307,19 @@ func (c *ChatRuntime) takePending(as *agentState, toolCallID string) (*pendingPe
 func (c *ChatRuntime) restorePending(as *agentState, toolCallID string, p *pendingPerm) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	if _, exists := as.pending[toolCallID]; exists {
+	if _, exists := as.turn.pending[toolCallID]; exists {
 		return
 	}
-	as.pending[toolCallID] = p
+	as.turn.pending[toolCallID] = p
 }
 
 func (c *ChatRuntime) markResolved(as *agentState, toolCallID string) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	if as.resolved == nil {
-		as.resolved = map[string]struct{}{}
+	if as.turn.resolved == nil {
+		as.turn.resolved = map[string]struct{}{}
 	}
-	as.resolved[toolCallID] = struct{}{}
+	as.turn.resolved[toolCallID] = struct{}{}
 }
 
 func (p *pendingPerm) resolve(outcome, optionID string) {

@@ -47,8 +47,8 @@ func (as *agentState) fileReportMeta(params map[string]any) {
 	}
 	sum := sha256.Sum256([]byte(as.generation))
 	as.mu.Lock()
-	id := "fcr-" + hex.EncodeToString(sum[:4]) + "-" + strconv.FormatInt(as.turnSeq, 10)
-	as.fileReportRequest = id
+	id := "fcr-" + hex.EncodeToString(sum[:4]) + "-" + strconv.FormatInt(as.turn.turnSeq, 10)
+	as.turn.fileReportRequest = id
 	as.mu.Unlock()
 	params["_meta"] = map[string]any{"jetbrains": map[string]any{"air": map[string]any{
 		"agentFileChangeReportRequest": map[string]any{"version": fileReportVersion, "requestId": id},
@@ -89,13 +89,13 @@ func (c *ChatRuntime) onFileReport(as *agentState, params json.RawMessage) bool 
 	}
 	valid := r.Version == fileReportVersion && (r.Status == "reported" || r.Status == "unavailable")
 	as.mu.Lock()
-	matched := r.RequestID != "" && r.RequestID == as.fileReportRequest
+	matched := r.RequestID != "" && r.RequestID == as.turn.fileReportRequest
 	// Only a validated report consumes the outstanding request. A malformed
 	// frame that happens to carry the matching request id must not burn the
 	// slot — otherwise a genuine report arriving right after it is dropped as
 	// unmatched (TS-04.R66).
 	if matched && valid {
-		as.fileReportRequest = ""
+		as.turn.fileReportRequest = ""
 	}
 	roots := as.roots
 	as.mu.Unlock()

@@ -8,6 +8,58 @@ import (
 	"time"
 )
 
+func TestStopKeepsDoneWhenTurnCompletesLate(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	ctx := context.Background()
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Stop(ctx, h.AgentID) })
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The provider has answered, but the turn still owes a status write.
+	// Pause its real completion path at quota settlement until Stop returns.
+	completing, release := make(chan struct{}), make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	defer unblock()
+	c.SetQuotaSettlement(func(string, string, string, *QuotaEvidence, bool) error {
+		close(completing)
+		<-release
+		return nil
+	})
+	if err := c.SendPrompt(ctx, h.AgentID, "finish while stopping"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-completing:
+	case <-time.After(5 * time.Second):
+		t.Fatal("turn did not reach settlement")
+	}
+	as.mu.Lock()
+	settled := as.turn.promptSettlement
+	as.mu.Unlock()
+	if err := c.Stop(ctx, h.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	unblock()
+	select {
+	case <-settled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("turn did not finish settlement")
+	}
+	status, err := c.store.ReadStatus(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != "done" || status.BusySince != nil {
+		t.Fatalf("status after Stop and late completion = %+v, want done with no busy timer", status)
+	}
+}
+
 // TT-02: pause completion after its idle write but before terminal emission.
 // The real Send path must hold B until A's terminal callback has finished.
 func TestCompletionRetainsGateAndTurnOwner(t *testing.T) {
@@ -128,7 +180,7 @@ func TestLateRootToolsAfterTurnEndKeepIdle(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	for {
 		as.mu.Lock()
-		active := as.turnActive
+		active := as.turn.turnActive
 		as.mu.Unlock()
 		if !active {
 			break

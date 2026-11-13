@@ -45,7 +45,7 @@ type HostPermission struct {
 	generation string
 	turnID     string
 	decision   chan string   // buffered: the single settled decision
-	voidSeq    uint64        // as.hostVoidSeq at open; a later cancellation voids it
+	voidSeq    uint64        // as.turn.hostVoidSeq at open; a later cancellation voids it
 	published  chan struct{} // closed once the request and waiting status are published
 }
 
@@ -90,13 +90,13 @@ func (c *ChatRuntime) RequestHostPermission(agentID string, req HostPermissionRe
 		optByKind: map[string]string{"allow_once": "allow_once", "reject_once": "reject_once"}}
 
 	as.mu.Lock()
-	if as.stopped || as.stopping || as.generation != req.Generation || !as.turnActive || as.execTurnID == "" {
+	if as.stopped || as.stopping || as.generation != req.Generation || !as.turn.turnActive || as.turn.execTurnID == "" {
 		as.mu.Unlock()
 		return nil, ErrHostPermissionStale
 	}
-	h.turnID = as.execTurnID
-	h.voidSeq = as.hostVoidSeq
-	as.pending[h.ID] = p
+	h.turnID = as.turn.execTurnID
+	h.voidSeq = as.turn.hostVoidSeq
+	as.turn.pending[h.ID] = p
 	as.mu.Unlock()
 	if timeout > 0 {
 		p.timer = time.AfterFunc(timeout, func() { c.onPermissionTimeout(as, h.ID) })
@@ -119,7 +119,7 @@ func (c *ChatRuntime) PermissionPending(agentID, toolCallID string) bool {
 	}
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	_, ok := as.pending[toolCallID]
+	_, ok := as.turn.pending[toolCallID]
 	return ok
 }
 
@@ -150,12 +150,12 @@ func (h *HostPermission) Admit() error {
 	as := h.as
 	as.mu.Lock()
 	defer as.mu.Unlock()
-	if _, held := as.hostApproved[h.ID]; !held {
+	if _, held := as.turn.hostApproved[h.ID]; !held {
 		return ErrHostPermissionStale
 	}
-	delete(as.hostApproved, h.ID)
-	if as.hostVoidSeq != h.voidSeq || as.stopped || as.stopping || as.generation != h.generation ||
-		!as.turnActive || as.execTurnID != h.turnID {
+	delete(as.turn.hostApproved, h.ID)
+	if as.turn.hostVoidSeq != h.voidSeq || as.stopped || as.stopping || as.generation != h.generation ||
+		!as.turn.turnActive || as.turn.execTurnID != h.turnID {
 		return ErrHostPermissionStale
 	}
 	return nil
@@ -165,10 +165,10 @@ func (h *HostPermission) Admit() error {
 // Admit. It runs before the decision is published to the waiter.
 func (h *HostPermission) approved(as *agentState) {
 	as.mu.Lock()
-	if as.hostApproved == nil {
-		as.hostApproved = map[string]*HostPermission{}
+	if as.turn.hostApproved == nil {
+		as.turn.hostApproved = map[string]*HostPermission{}
 	}
-	as.hostApproved[h.ID] = h
+	as.turn.hostApproved[h.ID] = h
 	as.mu.Unlock()
 }
 
@@ -176,8 +176,8 @@ func (h *HostPermission) approved(as *agentState) {
 // race: every host request opened before it, approved yet or not, can no
 // longer be admitted. Caller holds as.mu.
 func (as *agentState) voidHostApprovalsLocked() {
-	as.hostVoidSeq++
-	clear(as.hostApproved)
+	as.turn.hostVoidSeq++
+	clear(as.turn.hostApproved)
 }
 
 func (h *HostPermission) settle(decision string) {

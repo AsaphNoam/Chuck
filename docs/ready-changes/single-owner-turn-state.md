@@ -1,6 +1,6 @@
 # Single-owner turn state
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-11-13. Fifth of five single-owner refactors from
 the 60-day invariant review: `internal/runtime/chat.go` grew from 1,533 to 3,694 lines in 90 days
 and its `agentState` holds about eighty fields behind five locks with no stated order.

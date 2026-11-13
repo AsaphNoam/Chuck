@@ -29,7 +29,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**In progress:** [Single-owner turn state](../ready-changes/single-owner-turn-state.md).
+Turn fields now share one structure under the existing turn lock. Chat status writes share one
+transaction and Stop closes it for that launch. The regression reproduces a late completion
+overwriting `done` when the Stop fence is removed. Run the focused race checks, both Go test
+variants and the build before queuing review.
 
 ## Acceptance gates still owed
 

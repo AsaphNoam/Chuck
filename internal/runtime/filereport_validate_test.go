@@ -53,11 +53,11 @@ func newFileReportAgentState(t *testing.T, requestID, root string) (*ChatRuntime
 	c := NewChatRuntime(st)
 	history := recordHistory(c)
 	as := &agentState{
-		journal:           NewJournal("a_filereport", c.publishHistory),
-		agentID:           "a_filereport",
-		hub:               NewHub(),
-		roots:             []string{root},
-		fileReportRequest: requestID,
+		journal: NewJournal("a_filereport", c.publishHistory),
+		agentID: "a_filereport",
+		hub:     NewHub(),
+		roots:   []string{root},
+		turn:    currentTurn{fileReportRequest: requestID},
 	}
 	return c, as, history
 }
@@ -86,7 +86,7 @@ func TestFileReportMalformedFrameDoesNotConsumeMatchingRequest(t *testing.T) {
 		t.Fatal("malformed matching frame should still report handled=true")
 	}
 	as.mu.Lock()
-	stillPending := as.fileReportRequest
+	stillPending := as.turn.fileReportRequest
 	as.mu.Unlock()
 	if stillPending != "fcr-x" {
 		t.Fatalf("malformed frame consumed the pending request; fileReportRequest = %q, want fcr-x", stillPending)
@@ -107,7 +107,7 @@ func TestFileReportMalformedFrameDoesNotConsumeMatchingRequest(t *testing.T) {
 		t.Fatalf("recorded report = %+v", got[0])
 	}
 	as.mu.Lock()
-	consumed := as.fileReportRequest
+	consumed := as.turn.fileReportRequest
 	as.mu.Unlock()
 	if consumed != "" {
 		t.Fatalf("fileReportRequest after valid report = %q, want consumed", consumed)

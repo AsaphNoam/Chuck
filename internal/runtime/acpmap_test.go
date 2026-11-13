@@ -281,7 +281,7 @@ func TestToolCallUpdateRecordsLaterInputOnce(t *testing.T) {
 	frame := func(update string) []mappedEvent {
 		return mapSessionUpdate(json.RawMessage(`{"sessionId":"s","update":` + update + `}`))
 	}
-	as := &agentState{toolNames: map[string]string{"t1": "edit"}}
+	as := &agentState{turn: currentTurn{toolNames: map[string]string{"t1": "edit"}}}
 	admitted := func(ms []mappedEvent) []mappedEvent {
 		var out []mappedEvent
 		for _, m := range ms {
@@ -318,8 +318,8 @@ func TestToolCallUpdateRecordsLaterInputOnce(t *testing.T) {
 	if got := admitted(frame(`{"sessionUpdate":"tool_call_update","toolCallId":"t1","title":"Late","rawInput":{"x":1}}`)); len(got) != 0 {
 		t.Fatalf("update after result = %+v, want nothing", got)
 	}
-	if len(as.toolInputs) != 0 {
-		t.Fatalf("call memory retained after result: %v", as.toolInputs)
+	if len(as.turn.toolInputs) != 0 {
+		t.Fatalf("call memory retained after result: %v", as.turn.toolInputs)
 	}
 }
 

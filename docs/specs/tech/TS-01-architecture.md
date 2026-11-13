@@ -656,13 +656,14 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   resume and switch suites including `TestSwitchRuntimeKeepsTargetRegistration`; a failure
   injected at each branch after registration leaves no token, MCP session, hook-settings file or
   second process, for launch, resume, Switch target and Switch rollback alike.
-- **R44 (planned) — Current-turn state has one owner and status has one writer.** After R42, the
+- **R44 — Current-turn state has one owner and status has one writer.** After R42, the
   fields that describe the turn in progress (identity, active and cancelled markers, per-turn
   failure and quota evidence, pending permissions, tool tracking, the held and steer-fallback
   messages) live in one turn structure of `agentState` guarded by one lock, with the lock order
   against the remaining `agentState` locks written beside their declarations. Every agent status
   write, including Stop's final `done`, goes through one function that holds the status lock for
-  the whole read-modify-write. Behavior is unchanged. *Why:* about eighty loosely guarded fields
+  the whole read-modify-write. Stop closes that launch's status writer so a late callback cannot
+  overwrite the final row. *Why:* about eighty loosely guarded fields
   and a Stop that writes outside the status lock make each new turn feature a fresh race (INV §5,
   §23). *Verify:* both Go test variants and focused `-race` runs over cancel, permission, steer,
   held-message and Stop-during-turn interleavings; a test that a status write racing Stop cannot
