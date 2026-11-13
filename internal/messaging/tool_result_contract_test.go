@@ -40,6 +40,18 @@ func TestRefusalRetryClasses(t *testing.T) {
 	for _, code := range []string{"assignment_unknown", "stale_assignment", "validation_failed"} {
 		emitted[code] = true
 	}
+	// The task control plane forwards the store's typed stage-result codes.
+	stageSource, err := os.ReadFile(filepath.Join("..", "state", "pipeline_tasks.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageCodes := regexp.MustCompile(`StageResultRefusal\{Code:\s*"([^"]+)"`).FindAllSubmatch(stageSource, -1)
+	if len(stageCodes) == 0 {
+		t.Fatal("found no stage result refusal codes")
+	}
+	for _, match := range stageCodes {
+		emitted[string(match[1])] = true
+	}
 	// contextToolError forwards every code the context service declares.
 	contextCodes, err := os.ReadFile(filepath.Join("..", "contextref", "errors.go"))
 	if err != nil {

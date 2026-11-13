@@ -962,6 +962,34 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 74,
 		apply:   migrateQuotaSnapshotResetSource,
 	},
+	{
+		version: 75,
+		apply:   addPipelineRecoverySweep,
+	},
+	{
+		version: 76,
+		apply:   addPipelineInputOrigin,
+	},
+}
+
+func addPipelineInputOrigin(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'attachment_receipts'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE attachment_receipts ADD COLUMN origin_task_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE attachment_receipts ADD COLUMN origin_question TEXT NOT NULL DEFAULT '';`)
+	return err
+}
+
+func addPipelineRecoverySweep(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_runs'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE pipeline_runs ADD COLUMN owner_stall_turn_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE tasks ADD COLUMN pipeline_recovery_kind TEXT NOT NULL DEFAULT '';`)
+	return err
 }
 
 // addPipelineVisitProvenance follows addPipelineDecisions for a legacy

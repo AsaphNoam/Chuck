@@ -328,7 +328,7 @@ func (s *Server) startLaunchedTask(ctx context.Context, task state.Task) {
 	// The task's instruction is the assignment input FS-00.R14–R15 permits, sent
 	// as an ordinary turn exactly as a pipeline stage's assignment is, with the
 	// shared reporting paragraph after it (FS-16.R49).
-	if err := s.registry.SendPrompt(ctx, task.AssignedAgentID, runtime.LaunchedTaskPrompt(task.Instruction)); err != nil {
+	if err := s.registry.StartLaunchedTask(task.AssignedAgentID, task.Instruction); err != nil {
 		// The claim is already held, so use the unclaimed stop core.
 		if stopErr := s.stopStageLocked(ctx, task.AssignedAgentID); stopErr != nil {
 			s.log.Debug("stop failed task runtime failed", "agent", task.AssignedAgentID, "err", stopErr)
@@ -506,25 +506,37 @@ func (s *Server) releaseDependencyActivation(activation state.Activation, token 
 // live runtime that holds it (FS-16.R6, TS-10.R4).
 func (s *Server) confirmTaskStart(task state.Task) {
 	if confirmed, ok, err := s.stateStore.ConfirmTaskStart(task.TaskID, task.StartAttemptID); err != nil {
-		s.log.Debug("confirm task start failed", "task", task.TaskID, "err", err)
+		s.log.Warn("confirm task start failed", "task", task.TaskID, "attempt", task.StartAttemptID, "err", err)
 	} else if !ok {
 		s.log.Debug("task start was settled by someone else", "task", task.TaskID)
 	} else {
 		// A pipeline association becomes standing-owner authority only after the
 		// dispatcher confirmed this exact task/runtime assignment. A coordinator
 		// or an unstarted task can therefore never report a stage by lineage alone.
-		if err := s.stateStore.BindPipelineStageTaskStandingAgent(confirmed.TaskID, confirmed.AssignedAgentID); err == nil {
-			// Binding may have moved the run from queued to running (FS-14.R37).
-			if stage, err := s.stateStore.ReadPipelineStageTaskByTask(confirmed.TaskID); err == nil {
-				if run, err := s.stateStore.ReadPipelineRun(stage.RunID); err == nil {
-					s.publishPipelineRun(run)
-				}
-			}
-		} else if !errors.Is(err, state.ErrNotFound) && !errors.Is(err, state.ErrPipelineStageConflict) {
-			s.log.Debug("bind pipeline standing task failed", "task", confirmed.TaskID, "err", err)
-		}
+		s.bindPipelineOwner(confirmed.TaskID, confirmed.AssignedAgentID, confirmed.AssignedGeneration)
 		s.publishTaskUpdate(confirmed)
 	}
+}
+
+func (s *Server) bindPipelineOwner(taskID, agentID, generation string) {
+	visit, err := s.stateStore.ReadPipelineStageTaskByTask(taskID)
+	if errors.Is(err, state.ErrNotFound) {
+		return
+	}
+	if err == nil {
+		err = s.stateStore.BindConfirmedPipelineOwner(taskID, agentID, generation)
+	}
+	if err != nil {
+		s.log.Warn("bind pipeline standing owner", "run", visit.RunID, "task", taskID, "agent", agentID, "generation", generation, "err", err)
+		return
+	}
+	s.log.Info("bound pipeline standing owner", "run", visit.RunID, "task", taskID, "agent", agentID, "generation", generation)
+	run, err := s.stateStore.ReadPipelineRun(visit.RunID)
+	if err != nil {
+		s.log.Warn("read run after binding standing owner", "run", visit.RunID, "task", taskID, "err", err)
+		return
+	}
+	s.publishPipelineRun(run)
 }
 
 // parkTaskStart stops a task whose target can never become startable, spending no
@@ -1011,7 +1023,7 @@ func (s *Server) finishInterruptedRelease(ctx context.Context, task state.Task) 
 }
 
 func (s *Server) interruptTask(task state.Task, reason string) {
-	if interrupted, ok, err := s.stateStore.InterruptTask(task.TaskID, reason); err != nil {
+	if interrupted, ok, err := s.stateStore.InterruptPipelineOwner(task.TaskID, "", reason, "restart_interrupted"); err != nil {
 		s.log.Warn("interrupt task failed", "task", task.TaskID, "err", err)
 	} else if ok {
 		s.publishTaskUpdate(interrupted)
@@ -1036,17 +1048,19 @@ func (s *Server) interruptTaskOnExit(agentID, generation, cause string) {
 			return
 		}
 	}
+	recoveryKind := "unexpected_exit"
+	if cause == "requested_stop" {
+		recoveryKind = "interrupted"
+	}
 	if task, ok, err := s.stateStore.InterruptTaskForAgent(agentID, generation,
-		"the assigned agent went away before recording a result: "+cause); err != nil {
+		"the assigned agent went away before recording a result: "+cause, recoveryKind); err != nil {
 		s.log.Warn("interrupt task on agent exit", "agent_id", agentID, "err", err)
 	} else if ok {
 		s.publishTaskUpdate(task)
 		s.notifyTaskWaiters(task.TaskID)
 		if s.pipelineMgr != nil && cause == "requested_stop" {
 			// A person stopped this owner: recovery never restarts stopped work.
-			if err := s.pipelineMgr.OnStageTaskInterrupted(task.TaskID, "interrupted"); err != nil {
-				s.log.Warn("pause pipeline after stage task exit", "task", task.TaskID, "err", err)
-			}
+			s.pauseInterruptedOwner(task.TaskID, "interrupted")
 		} else {
 			s.recoverStageTask(task.TaskID, "interrupted", false)
 		}

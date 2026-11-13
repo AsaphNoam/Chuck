@@ -16,8 +16,9 @@ type pipelineRunDetailResponse struct {
 }
 
 type pipelineRunControl struct {
-	Eligible bool   `json:"eligible"`
-	Reason   string `json:"reason,omitempty"`
+	Eligible           bool   `json:"eligible"`
+	Reason             string `json:"reason,omitempty"`
+	RequiresEmptyInput bool   `json:"requires_empty_input,omitempty"`
 }
 
 type pipelineRunControls struct {
@@ -261,10 +262,9 @@ func (s *Server) pipelineTaskRunProjection(detail pipeline.RunDetail) ([]pipelin
 		controls.Replace = pipelineRunControl{Eligible: detail.Run.State == "paused" && current.State == state.TaskInterrupted, Reason: "Replaces only the interrupted standing owner and retains stage work."}
 		controls.RepairCleanup = pipelineRunControl{Eligible: pipeline.CleanupRepairable(detail.Run.State, detail.Run.PendingAction), Reason: "Retries only the retained cleanup effects."}
 		if current.Room != nil {
-			// A room stage recovers from its room; only the approval gate and
-			// held output acceptance remain run controls (TS-09.R55).
+			// Execution recovery belongs to the room. Accepted-result approval,
+			// retained controller recovery and output acceptance belong to the run.
 			roomReason := "Open the Think Tank room to resume or retry it."
-			controls.Continue = pipelineRunControl{Eligible: detail.Run.State == "paused" && detail.Run.PendingAction == "await_approval", Reason: "Approves the accepted judge synthesis."}
 			controls.Retry = pipelineRunControl{Eligible: detail.Run.State == "paused" && detail.Run.PendingAction == "accept_room_output", Reason: "Retry output acceptance of the same published synthesis."}
 			if !controls.Retry.Eligible {
 				controls.Retry.Reason = roomReason
@@ -415,19 +415,32 @@ func continueControl(run state.PipelineRunRecord, current pipelineStageTaskDetai
 	if run.State != "paused" {
 		return pipelineRunControl{Reason: "Available when the run pauses for approval, a question or recovery."}
 	}
-	switch {
-	case run.PendingAction == "await_approval":
+	outcome := ""
+	if current.Result != nil {
+		outcome = current.Result.Outcome
+	}
+	switch pipeline.ContinueKindFor(run, current.State, outcome, current.Room != nil) {
+	case pipeline.ContinueApproval:
+		if current.Room != nil {
+			return pipelineRunControl{Eligible: true, Reason: "Approves the accepted judge synthesis."}
+		}
 		return pipelineRunControl{Eligible: true, Reason: "Approves this step's accepted result; the owner's recorded decision then runs."}
-	case run.AttentionReason == state.PauseControllerRecoveryFailed && run.PendingAction != "":
-		return pipelineRunControl{Eligible: true, Reason: "Retries the held control step after repair; completed work is not repeated."}
-	case run.PendingAction != "":
-		return pipelineRunControl{Reason: "Wait for the current control step to finish."}
-	case run.AttentionReason == "needs_input":
+	case pipeline.ContinueController:
+		return pipelineRunControl{Eligible: true, RequiresEmptyInput: true, Reason: "Retries the held control step after repair."}
+	case pipeline.ContinueAnswer:
 		return pipelineRunControl{Eligible: true, Reason: "Answers the run's question; an answer is required."}
-	case current.State == state.TaskInterrupted:
+	case pipeline.ContinueInterrupted:
 		return pipelineRunControl{Eligible: true, Reason: "Resumes the interrupted owner with a fresh recovery allowance; instructions are optional and reach it with its resumed turn."}
-	case run.AttentionReason != "" || current.Result != nil && (current.Result.Outcome == state.OutcomeFailure || current.Result.Outcome == state.OutcomeBlocked):
+	case pipeline.ContinueResume:
 		return pipelineRunControl{Eligible: true, Reason: "Resumes the run with a fresh recovery allowance; instructions are optional."}
+	case pipeline.ContinueRoomContext:
+		return pipelineRunControl{Eligible: true, Reason: "Resumes the producing step so its owner can correct the Think Tank stage context."}
+	}
+	if current.Room != nil {
+		return pipelineRunControl{Reason: "Open the Think Tank room to resume or retry it."}
+	}
+	if run.PendingAction != "" {
+		return pipelineRunControl{Reason: "Wait for the current control step to finish."}
 	}
 	return pipelineRunControl{Reason: "Nothing is waiting for you."}
 }

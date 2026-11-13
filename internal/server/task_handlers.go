@@ -865,24 +865,33 @@ func (s *Server) ReportAgentTaskResult(req messaging.AgentTaskResultRequest) (st
 	if stageErr != nil {
 		return state.Task{}, stageErr
 	}
-	// A stage result carries run-wide consequences, so it names the execution it
-	// belongs to rather than relying on agent plus generation, which a re-borrowed
-	// runtime can repeat (TS-09.R40, TS-10.R28).
-	if req.ExecutionHandle == "" {
-		return state.Task{}, &messaging.ToolError{
-			Code:    "validation",
-			Message: "A pipeline stage result requires the execution_handle from get_assigned_task.",
-		}
-	}
 	run, err := s.stateStore.ReadPipelineRun(stage.RunID)
 	if err != nil {
 		return state.Task{}, err
 	}
 	updated, err := s.stateStore.AcceptPipelineStageTaskResult(task.TaskID, req.AgentID, req.Generation, req.ExecutionHandle, run.Revision, req.Result)
-	if errors.Is(err, state.ErrThinkTankOutputRefused) {
-		return state.Task{}, &messaging.ToolError{Code: "validation", Message: strings.TrimPrefix(err.Error(), state.ErrThinkTankOutputRefused.Error()+": ")}
-	}
 	if err != nil {
+		code := "internal"
+		var refusal *state.StageResultRefusal
+		var decision *state.DecisionError
+		switch {
+		case errors.As(err, &refusal):
+			code = refusal.Code
+			err = &messaging.ToolError{Code: code, Message: refusal.Message}
+		case errors.As(err, &decision):
+			code = "invalid_decision"
+		case errors.Is(err, state.ErrThinkTankOutputRefused):
+			code = "validation"
+			err = &messaging.ToolError{Code: code, Message: strings.TrimPrefix(err.Error(), state.ErrThinkTankOutputRefused.Error()+": ")}
+		case errors.Is(err, state.ErrInvalidOutcome):
+			code = "invalid_outcome"
+		case errors.Is(err, state.ErrInvalidReportFields):
+			code = "validation"
+		case errors.Is(err, state.ErrNotFound):
+			code = "task_not_found"
+		}
+		s.log.Warn("pipeline stage task result refused", "run_id", run.RunID, "task_id", task.TaskID,
+			"agent_id", req.AgentID, "generation", req.Generation, "code", code)
 		return state.Task{}, err
 	}
 	s.publishPipelineRun(updated)

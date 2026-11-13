@@ -470,11 +470,18 @@ func proposalClaimLoss(err error) (code, message string) {
 }
 
 func writePipelineError(w http.ResponseWriter, err error) {
+	writeAPIError(w, pipelineAPIError(err))
+}
+
+func pipelineAPIError(err error) *runtime.APIError {
 	var controlled *pipeline.ControlError
 	var gate *pipeline.ProjectGateError
+	var existing *runtime.APIError
 	switch {
+	case errors.As(err, &existing):
+		return existing
 	case errors.As(err, &gate):
-		writeAPIError(w, apiError(gate.Code, gate.Message))
+		return apiError(gate.Code, gate.Message)
 	case errors.As(err, &controlled):
 		code := runtime.CodeValidation
 		if controlled.Code == "revision_conflict" || controlled.Code == "request_conflict" || controlled.Code == "stale_assignment" || controlled.Code == "invalid_state" || controlled.Code == "room_recovery_required" {
@@ -482,9 +489,9 @@ func writePipelineError(w http.ResponseWriter, err error) {
 		}
 		ae := apiError(code, controlled.Message)
 		ae.Details = map[string]any{"pipeline_code": controlled.Code, "diagnostics": controlled.Diagnostics}
-		writeAPIError(w, ae)
+		return ae
 	case errors.Is(err, pipeline.ErrTemplateNotFound), errors.Is(err, state.ErrNotFound):
-		writeAPIError(w, apiError(runtime.CodeNotFound, "pipeline resource not found"))
+		return apiError(runtime.CodeNotFound, "pipeline resource not found")
 	case errors.Is(err, state.ErrPipelineProposalConsumed),
 		errors.Is(err, state.ErrPipelineProposalDeclined),
 		errors.Is(err, state.ErrPipelineProposalNotDeclined):
@@ -494,10 +501,10 @@ func writePipelineError(w http.ResponseWriter, err error) {
 		code, message := proposalClaimLoss(err)
 		ae := apiError(runtime.CodeConflict, message)
 		ae.Details = map[string]any{"pipeline_code": code}
-		writeAPIError(w, ae)
-	case errors.Is(err, pipeline.ErrTemplateExists), errors.Is(err, state.ErrPipelineActive), errors.Is(err, state.ErrPipelineConflict), errors.Is(err, state.ErrPipelineRequestConflict):
-		writeAPIError(w, apiError(runtime.CodeConflict, "pipeline operation conflicts with current state"))
+		return ae
+	case errors.Is(err, pipeline.ErrTemplateExists), errors.Is(err, state.ErrPipelineActive), errors.Is(err, state.ErrPipelineConflict), errors.Is(err, state.ErrPipelineStageConflict), errors.Is(err, state.ErrPipelineRequestConflict):
+		return apiError(runtime.CodeConflict, "pipeline operation conflicts with current state")
 	default:
-		writeAPIError(w, apiError(runtime.CodeInternal, "pipeline operation failed"))
+		return apiError(runtime.CodeInternal, "pipeline operation failed")
 	}
 }

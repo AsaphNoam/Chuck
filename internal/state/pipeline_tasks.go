@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -15,6 +17,16 @@ import (
 // task changed while a control was in flight. Callers must hydrate and retry
 // through the pipeline controller; generic task mutation must not bypass it.
 var ErrPipelineStageConflict = errors.New("state: pipeline stage conflict")
+
+// StageResultRefusal preserves the reason a stage report could not commit.
+// It remains a conflict to callers that only need to distinguish failed guards.
+type StageResultRefusal struct {
+	Code    string
+	Message string
+}
+
+func (e *StageResultRefusal) Error() string { return e.Message }
+func (e *StageResultRefusal) Unwrap() error { return ErrPipelineStageConflict }
 
 // CreatePipelineStageTaskParams contains the server-composed task and its
 // provenance. The task's pipeline fields are deliberately not caller-owned.
@@ -39,6 +51,7 @@ type CreatePipelineStageTaskParams struct {
 	// allowance after an explicit Resume (TS-09.R70).
 	ChargeRound    bool
 	RenewAllowance bool
+	Input          *AttachmentReceipt
 	// DecisionSourceTaskID makes this a decision-only owner visit for that
 	// accepted room result; its output contract is empty (TS-09.R66).
 	DecisionSourceTaskID string
@@ -338,8 +351,8 @@ FROM pipeline_stage_tasks p JOIN pipeline_runs r ON r.run_id = p.run_id JOIN tas
 	if err != nil {
 		return PipelineRunRecord{}, fmt.Errorf("state: read stage result authority: %w", err)
 	}
-	if revision != expectedRunRevision || stageState != "open" || !OwnsReportedWork(agentID, generation, assignedID, assignedGeneration) || (taskState != TaskStarting && taskState != TaskRunning) {
-		return PipelineRunRecord{}, ErrPipelineStageConflict
+	if !OwnsReportedWork(agentID, generation, assignedID, assignedGeneration) {
+		return PipelineRunRecord{}, &StageResultRefusal{Code: "stale_assignment", Message: "This stage assignment belongs to another execution. Use get_assigned_task to check your current assignment."}
 	}
 	// The run state, not the revision, is the stop fence. A caller reads the
 	// current revision immediately before reporting, so a report that arrives
@@ -347,24 +360,42 @@ FROM pipeline_stage_tasks p JOIN pipeline_runs r ON r.run_id = p.run_id JOIN tas
 	// otherwise overwrite it with `finishing`, un-stopping the run before
 	// cancellation reached this task (TS-09.R42, INV §5/§15).
 	if runState == "stopping" || runState == "stopped" || runState == "completed" {
-		return PipelineRunRecord{}, ErrPipelineStageConflict
+		return PipelineRunRecord{}, &StageResultRefusal{Code: "stage_run_closed", Message: "The pipeline is " + runState + " and cannot accept a stage result. End work on this assignment."}
 	}
-	if executionHandle == "" || executionHandle != storedHandle || pendingYield != 0 {
-		return PipelineRunRecord{}, ErrPipelineStageConflict
+	if taskState == TaskFinished {
+		return PipelineRunRecord{}, &StageResultRefusal{Code: "already_reported", Message: "This task already has a recorded result. Do not report it again."}
+	}
+	if stageState != "open" {
+		return PipelineRunRecord{}, &StageResultRefusal{Code: "stale_assignment", Message: "This stage assignment is closed. Use get_assigned_task to check your current assignment."}
+	}
+	if pendingYield != 0 || taskState == TaskWaiting {
+		return PipelineRunRecord{}, &StageResultRefusal{Code: "stage_waiting", Message: "This stage is yielding or waiting on other work. End this turn and report only after the task resumes with its new execution handle."}
+	}
+	if taskState != TaskStarting && taskState != TaskRunning {
+		return PipelineRunRecord{}, &StageResultRefusal{Code: "stale_assignment", Message: "This stage assignment is no longer active. Use get_assigned_task to check your current assignment."}
+	}
+	if executionHandle == "" {
+		return PipelineRunRecord{}, &StageResultRefusal{Code: "stage_handle_required", Message: "A pipeline stage result requires the execution_handle from get_assigned_task."}
+	}
+	if executionHandle != storedHandle {
+		return PipelineRunRecord{}, &StageResultRefusal{Code: "stale_assignment", Message: "This execution_handle is stale. Use get_assigned_task and report only a result for its current execution."}
+	}
+	if revision != expectedRunRevision {
+		return PipelineRunRecord{}, stageResultRunChanged()
 	}
 	declared := map[string]string{}
 	if err := json.Unmarshal([]byte(outputJSON), &declared); err != nil {
 		return PipelineRunRecord{}, fmt.Errorf("state: decode stage output contract: %w", err)
 	}
-	for name := range result.Outputs {
+	for _, name := range slices.Sorted(maps.Keys(result.Outputs)) {
 		if _, ok := declared[name]; !ok {
-			return PipelineRunRecord{}, ErrPipelineStageConflict
+			return PipelineRunRecord{}, &StageResultRefusal{Code: "stage_output_undeclared", Message: fmt.Sprintf("Output %q is not declared for this stage. Remove it and report again.", name)}
 		}
 	}
 	if result.Outcome == OutcomeSuccess {
-		for name := range declared {
+		for _, name := range slices.Sorted(maps.Keys(declared)) {
 			if result.Outputs[name] == "" {
-				return PipelineRunRecord{}, ErrPipelineStageConflict
+				return PipelineRunRecord{}, &StageResultRefusal{Code: "stage_output_missing", Message: fmt.Sprintf("A successful stage result requires a non-empty output named %q. Include it and report again.", name)}
 			}
 		}
 	}
@@ -381,12 +412,19 @@ FROM pipeline_stage_tasks p JOIN pipeline_runs r ON r.run_id = p.run_id JOIN tas
 		RunID: runID, TaskID: taskID, TaskState: taskState, Revision: revision, Source: "agent",
 		PendingRelease: true, Result: result, Declared: declared, Decision: decision,
 	}); err != nil {
+		if errors.Is(err, ErrPipelineStageConflict) {
+			return PipelineRunRecord{}, stageResultRunChanged()
+		}
 		return PipelineRunRecord{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return PipelineRunRecord{}, fmt.Errorf("state: commit pipeline task result: %w", err)
 	}
 	return s.ReadPipelineRun(runID)
+}
+
+func stageResultRunChanged() *StageResultRefusal {
+	return &StageResultRefusal{Code: "stage_run_changed", Message: "The pipeline changed while this result was being recorded. Check get_assigned_task and retry if this execution is still current."}
 }
 
 // stageResultCommit is one already-authorized stage result. Authority is
@@ -767,6 +805,11 @@ func (s *Store) CreatePipelineStageTask(p CreatePipelineStageTaskParams) (Pipeli
 	if _, err := insertPipelineStageRowsTx(tx, p, now); err != nil {
 		return PipelineStageTask{}, Task{}, false, err
 	}
+	if p.Input != nil {
+		if err := bindAssignmentInput(tx, *p.Input, p.Task.TaskID); err != nil {
+			return PipelineStageTask{}, Task{}, false, err
+		}
+	}
 	// A room-backed stage needs no task dispatch: the room engine owns it, so
 	// the run is running from creation (TS-09.R55).
 	runState, pending := "queued", "dispatch_stage_task"
@@ -906,13 +949,34 @@ func (s *Store) PipelineOrchestratorTemplateSnapshot(taskID string) (json.RawMes
 // BindPipelineStageTaskStandingAgent records the dispatcher-confirmed identity.
 // A non-empty different identity is never silently substituted.
 func (s *Store) BindPipelineStageTaskStandingAgent(taskID, agentID string) error {
+	return s.bindPipelineStageTaskStandingAgent(taskID, agentID, nil)
+}
+
+// BindConfirmedPipelineOwner publishes standing authority only for the
+// current visit's exact, confirmed assignment.
+func (s *Store) BindConfirmedPipelineOwner(taskID, agentID, generation string) error {
+	return s.bindPipelineStageTaskStandingAgent(taskID, agentID, &generation)
+}
+
+func (s *Store) bindPipelineStageTaskStandingAgent(taskID, agentID string, generation *string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	var coordinator, runID string
-	res, err := tx.Exec(`UPDATE pipeline_stage_tasks SET standing_agent_id = ? WHERE task_id = ? AND state = 'open' AND (standing_agent_id = '' OR standing_agent_id = ?)`, agentID, taskID, agentID)
+	query := `UPDATE pipeline_stage_tasks SET standing_agent_id = ? WHERE task_id = ? AND state = 'open'
+  AND (standing_agent_id = '' OR standing_agent_id = ?)`
+	args := []any{agentID, taskID, agentID}
+	if generation != nil {
+		query += `
+  AND EXISTS (SELECT 1 FROM pipeline_runs r WHERE r.run_id = pipeline_stage_tasks.run_id
+    AND r.current_task_id = ? AND r.state IN ('queued', 'running'))
+  AND EXISTS (SELECT 1 FROM tasks t WHERE t.task_id = ? AND t.state = 'running'
+    AND t.assigned_agent_id = ? AND COALESCE(t.assigned_generation, '') = ?)`
+		args = append(args, taskID, taskID, agentID, *generation)
+	}
+	res, err := tx.Exec(query, args...)
 	if err != nil {
 		return fmt.Errorf("state: bind pipeline standing agent: %w", err)
 	}
@@ -961,19 +1025,19 @@ func (s *Store) ClosePipelineStageTask(taskID string, closureRevision int64) err
 // transaction. The confirmed standing agent id remains on the task, so the
 // dispatcher resumes that identity rather than minting a replacement.
 func (s *Store) RetryInterruptedPipelineStageTask(runID, taskID string, expectedRevision int64) (PipelineRunRecord, error) {
-	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, false, false)
+	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, false, false, nil)
 }
 
 // ResumeInterruptedPipelineStageTask is the person's Resume of a paused,
 // interrupted visit: the same owner continues with a fresh allowance.
-func (s *Store) ResumeInterruptedPipelineStageTask(runID, taskID string, expectedRevision int64) (PipelineRunRecord, error) {
-	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, false, true)
+func (s *Store) ResumeInterruptedPipelineStageTask(runID, taskID string, expectedRevision int64, input *AttachmentReceipt) (PipelineRunRecord, error) {
+	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, false, true, input)
 }
 
 // RecoverInterruptedPipelineStageTask is the automatic form of Retry: it spends
 // one recovery round in the same transaction (TS-09.R70).
 func (s *Store) RecoverInterruptedPipelineStageTask(runID, taskID string, expectedRevision int64) (PipelineRunRecord, error) {
-	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, true, false)
+	return s.retryInterruptedStageTask(runID, taskID, expectedRevision, true, false, nil)
 }
 
 // chargeRoundTx spends one round of the run's allowance or reports exhaustion.
@@ -993,7 +1057,7 @@ func chargeRoundTx(tx *sql.Tx, runID string) error {
 // can replace the owner through the ordinary replacement transaction.
 func (s *Store) InterruptParkedStageTask(taskID string) (bool, error) {
 	now := formatTime(timeNow())
-	res, err := s.db.Exec(`UPDATE tasks SET state = ?, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state = ?
+	res, err := s.db.Exec(`UPDATE tasks SET state = ?, pipeline_recovery_kind = 'owner_unavailable', revision = revision + 1, updated_at = ? WHERE task_id = ? AND state = ?
   AND EXISTS (SELECT 1 FROM pipeline_stage_tasks p WHERE p.task_id = tasks.task_id AND p.state = 'open' AND p.execution_kind = ?)`, TaskInterrupted, now, taskID, TaskDependencyFailed, StageExecutionAgent)
 	if err != nil {
 		return false, err
@@ -1002,41 +1066,43 @@ func (s *Store) InterruptParkedStageTask(taskID string) (bool, error) {
 	return n == 1, err
 }
 
-// ParkedPipelineStageTasks lists open owner visits of active runs whose start
-// was parked for good, for the dispatcher's missed-recovery sweep (TS-09.R70).
-func (s *Store) ParkedPipelineStageTasks(limit int) ([]Task, error) {
-	rows, err := s.db.Query(`SELECT t.task_id FROM pipeline_stage_tasks p JOIN tasks t ON t.task_id = p.task_id
-JOIN pipeline_runs r ON r.run_id = p.run_id
-WHERE p.state = 'open' AND p.execution_kind = ? AND t.state = ? AND r.state IN ('queued', 'running')
-ORDER BY p.created_at LIMIT ?`, StageExecutionAgent, TaskDependencyFailed, limit)
-	if err != nil {
-		return nil, fmt.Errorf("state: list parked pipeline owners: %w", err)
-	}
-	ids := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	out := make([]Task, 0, len(ids))
-	for _, id := range ids {
-		task, err := s.ReadTask(id)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, task)
-	}
-	return out, nil
+type PipelineOwnerRecovery struct {
+	TaskID, AgentID, Generation, Action string
 }
 
-func (s *Store) retryInterruptedStageTask(runID, taskID string, expectedRevision int64, charge, renew bool) (PipelineRunRecord, error) {
+// PipelineOwnersNeedingRecovery lists only current, actionable visits. A
+// rotating cursor bounds each pass and allows later rows past a failing owner.
+func (s *Store) PipelineOwnersNeedingRecovery(after string, limit int) ([]PipelineOwnerRecovery, error) {
+	rows, err := s.db.Query(`SELECT t.task_id, COALESCE(t.assigned_agent_id, ''), COALESCE(t.assigned_generation, ''),
+CASE t.state
+  WHEN 'interrupted' THEN COALESCE(NULLIF(t.pipeline_recovery_kind, ''), 'interrupted')
+  WHEN 'dependency_failed' THEN 'parked'
+  ELSE CASE WHEN r.state = 'queued' OR p.standing_agent_id <> t.assigned_agent_id THEN 'bind' ELSE 'check_stall' END
+END
+FROM pipeline_stage_tasks p JOIN tasks t ON t.task_id = p.task_id
+JOIN pipeline_runs r ON r.run_id = p.run_id
+LEFT JOIN status s ON s.agent_id = t.assigned_agent_id
+WHERE p.state = 'open' AND p.execution_kind = ? AND r.state IN ('queued', 'running') AND r.current_task_id = p.task_id
+  AND (t.state IN ('interrupted', 'dependency_failed') OR
+    (t.state = 'running' AND (r.state = 'queued' OR p.standing_agent_id <> t.assigned_agent_id OR
+      (s.state = 'idle' AND s.background_running = 0 AND t.pending_yield = 0 AND t.pending_release = 0))))
+  AND p.task_id > ? ORDER BY p.task_id LIMIT ?`, StageExecutionAgent, after, limit)
+	if err != nil {
+		return nil, fmt.Errorf("state: list pipeline owners needing recovery: %w", err)
+	}
+	defer rows.Close()
+	var out []PipelineOwnerRecovery
+	for rows.Next() {
+		var owner PipelineOwnerRecovery
+		if err := rows.Scan(&owner.TaskID, &owner.AgentID, &owner.Generation, &owner.Action); err != nil {
+			return nil, err
+		}
+		out = append(out, owner)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) retryInterruptedStageTask(runID, taskID string, expectedRevision int64, charge, renew bool, input *AttachmentReceipt) (PipelineRunRecord, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return PipelineRunRecord{}, err
@@ -1076,6 +1142,11 @@ func (s *Store) retryInterruptedStageTask(runID, taskID string, expectedRevision
 	}
 	if n, _ := res.RowsAffected(); n != 1 {
 		return PipelineRunRecord{}, ErrPipelineStageConflict
+	}
+	if input != nil {
+		if err := bindAssignmentInput(tx, *input, taskID); err != nil {
+			return PipelineRunRecord{}, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return PipelineRunRecord{}, err
@@ -1174,7 +1245,9 @@ func (s *Store) ActivatePipelineStageReplacement(runID, taskID string, expectedR
 	if n, _ := res.RowsAffected(); n != 1 {
 		return PipelineRunRecord{}, ErrPipelineStageConflict
 	}
-	res, err = tx.Exec(`UPDATE pipeline_runs SET state = 'queued', pending_action = 'dispatch_stage_task', revision = revision + 1, updated_at = ? WHERE run_id = ? AND revision = ? AND pending_action = 'activate_replacement'`, now, runID, expectedRevision)
+	res, err = tx.Exec(`UPDATE pipeline_runs SET state = 'queued', pending_action = 'dispatch_stage_task',
+ controller_failures = 0, controller_retry_at = NULL, controller_last_error = '',
+ revision = revision + 1, updated_at = ? WHERE run_id = ? AND revision = ? AND pending_action = 'activate_replacement'`, now, runID, expectedRevision)
 	if err != nil {
 		return PipelineRunRecord{}, err
 	}

@@ -102,13 +102,13 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
   // paused run with a fresh recovery allowance (FS-14.R99).
   const continueMode = !canContinue ? "" : run.pending_action === "await_approval" ? "approve" : run.attention_reason === "needs_input" ? "answer" : "resume";
   const continuationRequired = continueMode === "answer";
-  const continuationOffered = continueMode === "answer" || continueMode === "resume";
+  const continuationOffered = !data.controls.continue.requires_empty_input && (continueMode === "answer" || continueMode === "resume");
   // A pause whose stage agent is no longer running — a restart stopped it, its launch
   // failed, or its resume failed — is a pause no chat can resolve: Continue rejects the
   // state, and an ordinary chat resume of that agent mints an unrelated generation whose
   // report is refused forever, so Open agent there is a dead end. Withhold it and name
   // the route that works (FS-14.R48).
-  const restarted = run.attention_reason.startsWith("restart_");
+  const restarted = run.attention_reason.startsWith("restart_") && !canContinue;
   const recovered = paused && (restarted || run.attention_reason === "launch_failed" || run.attention_reason === "resume_failed");
   const terminal = run.state === "completed" || run.state === "stopped";
   const nextStage = !terminal && stage ? stages[stageIndex + 1] : undefined;
@@ -118,7 +118,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
     setError(null);
     const mutation = action === "continue" ? continueRun : action === "retry" ? retryRun : stopRun;
     mutation.mutate(
-      { id: run.run_id, revision: run.revision, input: action === "continue" ? continuation : "" },
+      { id: run.run_id, revision: run.revision, input: action === "continue" && continuationOffered ? continuation : "" },
       { onSuccess: () => setContinuation(""), onError: (reason) => setError(messageOf(reason)) },
     );
   };

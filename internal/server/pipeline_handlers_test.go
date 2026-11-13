@@ -349,6 +349,14 @@ func TestOrdinaryStageAgentStopPausesPipelineRun(t *testing.T) {
 	if agentID == "" || !srv.registry.Owns(agentID) {
 		t.Fatalf("started run has no live stage task owner: %+v", started.Run.Run)
 	}
+	// The confirmed owner is visible before the launch worker releases its
+	// lifecycle claim. Exercise Stop after that launch has finished.
+	for srv.lifecycleInFlight(agentID) && time.Now().Before(startDeadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if srv.lifecycleInFlight(agentID) {
+		t.Fatal("stage launch did not release its lifecycle claim")
+	}
 
 	rec = doRequest(t, handler, http.MethodPost, "/api/sessions/"+agentID+"/stop", nil)
 	if rec.Code != http.StatusOK {

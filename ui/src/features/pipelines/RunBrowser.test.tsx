@@ -86,6 +86,17 @@ it("shows the owner's question and requires an answer", async () => {
   expect(screen.getByRole("button", { name: "Send answer" })).toBeEnabled();
 });
 
+it("offers Resume for a retained controller action without showing instructions", async () => {
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({
+    ...detail,
+    run: { ...run, state: "paused", pending_action: "activate_replacement", attention_reason: "controller_recovery_failed" },
+    controls: { ...controls, continue: { eligible: true, requires_empty_input: true } },
+  })));
+  renderRun();
+  expect(await screen.findByRole("button", { name: "Resume run" })).toBeEnabled();
+  expect(screen.queryByRole("textbox", { name: "Instructions (optional)" })).toBeNull();
+});
+
 it("offers Retry and explains why a restart-paused stage cannot be opened", async () => {
   server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({
     ...detail,

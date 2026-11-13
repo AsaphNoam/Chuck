@@ -271,7 +271,7 @@ export const pipelineRunDetailSchema = z.object({
   // Absent for runs started before run workspaces (TS-12.R17).
   workspace: pipelineWorkspaceSchema.optional(),
   controls: z.object({
-    continue: z.object({ eligible: z.boolean(), reason: z.string().optional().default("") }),
+    continue: z.object({ eligible: z.boolean(), reason: z.string().optional().default(""), requires_empty_input: z.boolean().optional() }),
     retry: z.object({ eligible: z.boolean(), reason: z.string().optional().default("") }),
     replace: z.object({ eligible: z.boolean(), reason: z.string().optional().default("") }),
     stop: z.object({ eligible: z.boolean(), reason: z.string().optional().default("") }),

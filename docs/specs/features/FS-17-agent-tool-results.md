@@ -58,6 +58,10 @@ remain supported.
 
   A refusal keeps every field it carries today; classification only adds `retry`.
 
+  Pipeline-stage task result refusals (TS-09.R68) classify `stage_run_closed` and
+  `stage_waiting` as `never`, `stage_handle_required`, `stage_output_missing` and
+  `stage_output_undeclared` as `after_change`, and `stage_run_changed` as `transient`.
+
 - **R4 — Classification never discloses other work and never asks an agent to poll.** No
   `retry` value names a task, pipeline run, agent, message, or context reference that the caller is
   not already a participant in, and no class directs an agent to re-call a tool on a schedule.

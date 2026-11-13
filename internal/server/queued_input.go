@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
+	"github.com/AsaphNoam/Chuck/internal/pipeline"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
@@ -14,14 +16,13 @@ import (
 func (s *Server) admitConversationInput(ctx context.Context, receipt state.AttachmentReceipt, msg runtime.Message) (state.AttachmentReceipt, bool, error) {
 	taskID, queued, err := s.stateStore.QueueAssignmentInput(receipt)
 	if err != nil {
-		return state.AttachmentReceipt{}, false, err
+		return s.replayConversationInput(receipt, err)
 	}
 	if queued {
 		receipt.Delivery, receipt.AssignmentTaskID = "prepared", taskID
 		return receipt, true, nil
 	}
-	continued, ok := s.continueRunFromConversation(ctx, receipt, msg)
-	return continued, ok, nil
+	return s.continueRunFromConversation(ctx, receipt, msg)
 }
 
 // continueQueuedInput moves a person's queued assignment input toward its
@@ -34,7 +35,7 @@ func (s *Server) admitConversationInput(ctx context.Context, receipt state.Attac
 func (s *Server) continueQueuedInput() {
 	prepared, executing, err := s.stateStore.QueuedInputWork()
 	if err != nil {
-		s.log.Debug("queued assignment input pass failed", "err", err)
+		s.log.Warn("queued assignment input pass failed", "err", err)
 		return
 	}
 	for _, task := range prepared {
@@ -53,75 +54,92 @@ func (s *Server) continueQueuedInput() {
 			continue
 		}
 		rec, ok, err := s.stateStore.ClaimQueuedInputForTurn(queued.SourceAgentID, queued.RequestID)
-		if err != nil || !ok {
+		if err != nil {
+			s.log.Warn("claim queued assignment input", "agent", boundedLogID(queued.SourceAgentID), "request_id", boundedLogID(queued.RequestID), "reason", "claim_failed")
+			continue
+		}
+		if !ok {
 			continue
 		}
 		var msg runtime.Message
 		if err := json.Unmarshal([]byte(rec.MessageJSON), &msg); err != nil {
-			_ = s.stateStore.SetAttachmentDelivery(rec.AgentID, rec.RequestID, "failed")
+			s.setQueuedInputDelivery(rec, "failed", "message_decode_failed")
 			continue
 		}
 		// Input accepted by a replaced owner carries its attachments to the
 		// assignment's new owner (TS-09.R69).
 		if err := runtime.CloneQueuedAttachments(s.configStore.Home(), rec, msg); err != nil {
-			_ = s.stateStore.SetAttachmentDelivery(rec.AgentID, rec.RequestID, "failed")
+			s.setQueuedInputDelivery(rec, "failed", "attachment_copy_failed")
 			continue
 		}
 		msg.RequestID = rec.RequestID
 		if _, err := s.registry.SendMessageOrHold(context.Background(), rec.AgentID, msg); err != nil {
 			// The runtime records its own transition when it touched the
 			// receipt; an untouched one is offered back for recovery.
-			if current, readErr := s.stateStore.AttachmentReceipt(rec.AgentID, rec.RequestID); readErr == nil && current.Delivery == "prepared" {
-				_ = s.stateStore.SetAttachmentDelivery(rec.AgentID, rec.RequestID, "released")
+			current, readErr := s.stateStore.AttachmentReceipt(rec.AgentID, rec.RequestID)
+			if readErr != nil {
+				s.log.Warn("read queued input after delivery refusal", "agent", boundedLogID(rec.AgentID), "request_id", boundedLogID(rec.RequestID), "reason", "receipt_read_failed")
+			} else if current.Delivery == "prepared" {
+				s.setQueuedInputDelivery(rec, "released", "turn_refused")
 			}
 		}
 	}
 }
 
+func (s *Server) setQueuedInputDelivery(rec state.AttachmentReceipt, delivery, reason string) {
+	if err := s.stateStore.SetAttachmentDelivery(rec.AgentID, rec.RequestID, delivery); err != nil {
+		s.log.Warn("record queued input delivery", "agent", boundedLogID(rec.AgentID), "request_id", boundedLogID(rec.RequestID), "delivery", delivery, "reason", "write_failed")
+		return
+	}
+	s.log.Warn("queued input delivery settled", "agent", boundedLogID(rec.AgentID), "request_id", boundedLogID(rec.RequestID), "delivery", delivery, "reason", reason)
+}
+
 // continueRunFromConversation lets a person's message to the owner of a paused
-// run answer or resume that run. The message is recorded with the visit that
-// carries it: words the continuation already carries are submitted with it,
-// and anything else stays prepared for that assignment's turn. It reports
-// false, recording nothing, when no paused run awaits this owner (FS-14.R99/R100).
-func (s *Server) continueRunFromConversation(ctx context.Context, receipt state.AttachmentReceipt, msg runtime.Message) (state.AttachmentReceipt, bool) {
+// run answer or resume that run. The full message stays prepared for that
+// assignment's turn. When no paused run awaits this owner, admission can
+// proceed as ordinary chat (FS-14.R99/R100).
+func (s *Server) continueRunFromConversation(ctx context.Context, receipt state.AttachmentReceipt, msg runtime.Message) (state.AttachmentReceipt, bool, error) {
 	if s.pipelineMgr == nil {
-		return state.AttachmentReceipt{}, false
+		return state.AttachmentReceipt{}, false, nil
 	}
-	text := strings.TrimSpace(msg.Text)
-	if text == "" {
-		text = "(their answer is in the attached files)"
-	}
-	recorded := receipt
-	ok, err := s.pipelineMgr.ContinueFromOwner(ctx, receipt.AgentID, text, func(taskID string, textCarried bool) error {
-		recorded.AssignmentTaskID = taskID
-		if textCarried && len(msg.Attachments) == 0 {
-			recorded.Delivery = "submitted"
-			if err := s.stateStore.CreateAttachmentReceipt(recorded); err != nil {
-				return err
-			}
-			return s.stateStore.SetAttachmentDelivery(recorded.AgentID, recorded.RequestID, "submitted")
-		}
-		if textCarried {
-			// The visit's continuation carries the words; its turn carries
-			// the attachments.
-			attachmentsOnly := runtime.Message{Attachments: msg.Attachments}
-			data, err := json.Marshal(attachmentsOnly)
-			if err != nil {
-				return err
-			}
-			recorded.MessageJSON = string(data)
-		}
-		recorded.Delivery = "prepared"
-		return s.stateStore.BindAssignmentInput(recorded, taskID)
-	})
+	ok, err := s.pipelineMgr.ContinueFromOwner(ctx, strings.TrimSpace(msg.Text), receipt)
 	if err != nil {
-		s.log.Warn("continue paused run from conversation", "agent", receipt.AgentID, "err", err)
-		return state.AttachmentReceipt{}, false
+		if replay, accepted, replayErr := s.replayConversationInput(receipt, nil); accepted || replayErr != nil {
+			return replay, accepted, replayErr
+		}
+		reason := "store_failure"
+		var control *pipeline.ControlError
+		if errors.As(err, &control) {
+			reason = control.Code
+		}
+		s.log.Warn("refused paused run input", "agent", boundedLogID(receipt.AgentID),
+			"request_id", boundedLogID(receipt.RequestID), "reason", reason)
+		return state.AttachmentReceipt{}, false, err
 	}
-	if ok {
-		s.logRunInputTransition(recorded)
+	if !ok {
+		// A concurrent copy of this command may already have advanced the run.
+		if replay, accepted, err := s.replayConversationInput(receipt, nil); accepted || err != nil {
+			return replay, accepted, err
+		}
+		return state.AttachmentReceipt{}, false, nil
 	}
-	return recorded, ok
+	recorded, err := s.stateStore.AcceptedAttachmentReceipt(receipt.AgentID, receipt.RequestID)
+	if err != nil {
+		return receipt, true, err
+	}
+	s.logRunInputTransition(recorded)
+	return recorded, true, nil
+}
+
+func (s *Server) replayConversationInput(receipt state.AttachmentReceipt, cause error) (state.AttachmentReceipt, bool, error) {
+	previous, err := s.stateStore.AcceptedAttachmentReceipt(receipt.AgentID, receipt.RequestID)
+	if err != nil {
+		return state.AttachmentReceipt{}, false, cause
+	}
+	if previous.PayloadHash != receipt.PayloadHash {
+		return state.AttachmentReceipt{}, false, apiError(runtime.CodeConflict, "request id already belongs to different content")
+	}
+	return previous, true, nil
 }
 
 // logRunInputTransition records which visit accepted a chat Send that continued
@@ -166,7 +184,10 @@ func (s *Server) recoverParkedStageTask(task state.Task) {
 	if task.State != state.TaskDependencyFailed || s.pipelineMgr == nil {
 		return
 	}
-	if ok, err := s.stateStore.InterruptParkedStageTask(task.TaskID); err != nil || !ok {
+	if ok, err := s.stateStore.InterruptParkedStageTask(task.TaskID); err != nil {
+		s.log.Warn("interrupt parked pipeline owner", "task", task.TaskID, "err", err)
+		return
+	} else if !ok {
 		return
 	}
 	s.recoverStageTask(task.TaskID, "owner_unavailable", true)

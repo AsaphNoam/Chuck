@@ -506,8 +506,9 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 				// never answered with an empty wake and a refusal (TS-09.R69).
 				receipt := state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}
 				admitted, queued, err := s.admitConversationInput(r.Context(), receipt, receiptMessage)
+				owned = queued
 				if err != nil {
-					writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain message receipt"))
+					writePipelineError(w, err)
 					return
 				}
 				if queued {
@@ -521,7 +522,12 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 				}
 			}
 			if err := s.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}); err != nil {
-				writeAPIError(w, apiError(runtime.CodeInternal, "cannot retain message receipt"))
+				replay, accepted, replayErr := s.replayConversationInput(state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash}, err)
+				if accepted {
+					s.writeAttachmentAcceptance(w, replay)
+					return
+				}
+				writePipelineError(w, replayErr)
 				return
 			}
 			owned = true

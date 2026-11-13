@@ -602,6 +602,10 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 }
 
 func (c *ChatRuntime) SendPrompt(ctx context.Context, agentID, text string) error {
+	return c.sendPrompt(agentID, text, false)
+}
+
+func (c *ChatRuntime) sendPrompt(agentID, text string, assignment bool) error {
 	as, err := c.lookup(agentID)
 	if err != nil {
 		return err
@@ -610,7 +614,7 @@ func (c *ChatRuntime) SendPrompt(ctx context.Context, agentID, text string) erro
 	if !claimed {
 		return ErrTurnInFlight
 	}
-	return c.runPromptTurn(as, text, turnID)
+	return c.runMessageTurnWithAssignment(as, Message{Text: text}, turnID, assignment)
 }
 
 // SendPromptOrHold is the person's chat prompt path, and only that path
@@ -1071,6 +1075,10 @@ func (c *ChatRuntime) runPromptTurn(as *agentState, text, turnID string) error {
 }
 
 func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID string) error {
+	return c.runMessageTurnWithAssignment(as, message, turnID, false)
+}
+
+func (c *ChatRuntime) runMessageTurnWithAssignment(as *agentState, message Message, turnID string, assignment bool) error {
 	// No turn — manual, held successor or dispatched — starts while its
 	// history cannot be recorded (FS-03.R99).
 	if err := as.journal.Admit(); err != nil {
@@ -1144,6 +1152,10 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 		LastTrace: "UserPromptSubmit", BusySince: &now,
 	}
 	_ = c.writeStatus(as, busy)
+	var carried Message
+	if assignment {
+		content, carried = c.appendQueuedAssignmentInput(as, content)
+	}
 
 	// Drive the turn asynchronously: notifications stream over the hub while the
 	// prompt Call blocks for the result. SendPrompt itself returns immediately.
@@ -1156,6 +1168,7 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 		res, err := as.transport.Call(as.ctx, "session/prompt", params)
 		if err != nil {
 			_ = c.messageTransitionReason(as.agentID, message.RequestID, "unknown", "prompt", "provider_error")
+			_ = c.messageTransitionReason(as.agentID, carried.RequestID, "unknown", "prompt", "provider_error")
 			// Transport closed (crash/stop) is owned by onTransportClosed / Stop.
 			// A genuine RPC error while the process lives surfaces here.
 			if errors.Is(err, errTransportClosed) || as.isStopped() {
@@ -1854,21 +1867,8 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	}
 	prompt := []map[string]any{{"type": "text", "text": promptText}}
 	var personMessage Message
-	carried := false
 	if kind == state.ActivationKindDependency {
-		if m, content, ok := c.takeQueuedAssignmentInput(as); ok {
-			// The person's own words are recorded as their message before the
-			// provider frame; the activation instruction stays host-owned
-			// (TS-09.R69).
-			personMessage = m
-			if c.emit(as, EvUserPrompt, m.promptData()).Seq == 0 {
-				_ = c.messageTransition(as.agentID, m.RequestID, "released")
-			} else if err := c.messageTransition(as.agentID, m.RequestID, "submitted"); err == nil {
-				prompt[0]["text"] = promptText + "\n\n" + queuedInputPreamble
-				prompt = append(prompt, content...)
-				carried = true
-			}
-		}
+		prompt, personMessage = c.appendQueuedAssignmentInput(as, prompt)
 	}
 
 	go func() {
@@ -1879,9 +1879,7 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		as.fileReportMeta(params)
 		res, err := as.transport.Call(as.ctx, "session/prompt", params)
 		if err != nil {
-			if carried {
-				_ = c.messageTransitionReason(as.agentID, personMessage.RequestID, "unknown", "prompt", "provider_error")
-			}
+			_ = c.messageTransitionReason(as.agentID, personMessage.RequestID, "unknown", "prompt", "provider_error")
 			if errors.Is(err, errTransportClosed) || as.isStopped() {
 				return
 			}

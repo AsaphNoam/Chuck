@@ -48,6 +48,54 @@ func mixedRoomFixture(t *testing.T, approval bool) (*Manager, *fakeLifecycle, Ru
 	return manager, lifecycle, detail
 }
 
+func TestRoomContextHoldResumesProducingStep(t *testing.T) {
+	m, _, detail := mixedRoomFixture(t, false)
+	runID := detail.Run.RunID
+	stage, _, err := m.currentStageTask(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.store.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_owner', assigned_generation = 'gen-1', execution_handle = 'ta_draft' WHERE task_id = ?`, state.TaskRunning, stage.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.store.BindPipelineStageTaskStandingAgent(stage.TaskID, "a_owner"); err != nil {
+		t.Fatal(err)
+	}
+	run := readRun(t, m, runID)
+	if _, err := m.store.AcceptPipelineStageTaskResult(stage.TaskID, "a_owner", "gen-1", "ta_draft", run.Revision,
+		state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "drafted", Outputs: map[string]string{"options": "A or B"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.store.CompleteTaskRelease(stage.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate an older accepted result that predates the encoded-context check.
+	if _, err := m.store.DB().Exec(`UPDATE pipeline_values SET value = ? WHERE run_id = ? AND name = 'options'`, strings.Repeat("<", 44000), runID); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Reconcile(context.Background(), runID); err != nil {
+		t.Fatal(err)
+	}
+	held := readRun(t, m, runID)
+	if held.State != "paused" || held.PendingAction != "repair_room_context" || !strings.Contains(held.AttentionReason, "stages.debate.context") {
+		t.Fatalf("room context pause = %+v", held)
+	}
+	if err := m.Startup(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Continue(context.Background(), runID, held.Revision, ""); err != nil {
+		t.Fatal(err)
+	}
+	repair, _, err := m.currentStageTask(runID)
+	if err != nil || repair.StageID != "draft" || repair.TaskID == stage.TaskID || repair.RoomID != "" {
+		t.Fatalf("Resume did not open a corrective owner visit: %+v, %v", repair, err)
+	}
+	prior, err := m.store.ReadTask(stage.TaskID)
+	if err != nil || prior.Outcome != state.OutcomeSuccess {
+		t.Fatalf("Resume lost the accepted result: %+v, %v", prior, err)
+	}
+}
+
 // FS-14.A52, TS-09.R67 — a room synthesis too large for a later room's context
 // is accepted as this room's result; routing to that room is the correctable
 // refusal, and the owner can choose another step.

@@ -57,6 +57,19 @@ function renderScreen() {
 // FS-20.R14/R27 — the phone run screen's controls send the desktop's requests at
 // the current revision and keep typed input when refused.
 describe("RunScreen", () => {
+  it("retries a retained controller action without offering instructions", async () => {
+    server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({
+      ...detail,
+      run: { ...run, attention_reason: "controller_recovery_failed", pending_action: "activate_replacement" },
+      controls: { ...controls, continue: { ...eligible, requires_empty_input: true } },
+    })));
+    renderScreen();
+    const resume = await screen.findByRole("button", { name: "Resume run" });
+    expect(screen.queryByRole("textbox", { name: "Instructions (optional)" })).toBeNull();
+    fireEvent.click(resume);
+    await waitFor(() => expect(posts).toEqual(['continue {"revision":7,"input":""}']));
+  });
+
   it("shows the run's stage and reason and continues with the typed input", async () => {
     renderScreen();
     expect(await screen.findByRole("heading", { name: "Ship" })).toBeInTheDocument();

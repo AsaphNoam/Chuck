@@ -341,6 +341,36 @@ func (r *Registry) SendPrompt(ctx context.Context, agentID, text string) error {
 	return rt.SendPrompt(ctx, agentID, text)
 }
 
+// ContinueSettledChat claims an idle chat turn for exactly the assigned
+// generation. decide sees the last settled turn while the new-turn gate is
+// held; it can record the disposition, decline, or supply a continuation.
+func (r *Registry) ContinueSettledChat(agentID, generation string, decide func(string) (string, error)) error {
+	r.mu.Lock()
+	if generation == "" || r.generationByAgent[agentID] != generation || r.rtByAgent[agentID] != r.chat {
+		r.mu.Unlock()
+		return ErrNoHandle
+	}
+	as, err := r.chat.lookup(agentID)
+	r.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	as.mu.Lock()
+	settled := as.turn.settledTurnID
+	if settled == "" || as.turn.turnActive || as.stopping || as.stopped || as.quotaBlocked || as.openTasks > 0 {
+		as.mu.Unlock()
+		return nil
+	}
+	prompt, err := decide(settled)
+	if err != nil || prompt == "" {
+		as.mu.Unlock()
+		return err
+	}
+	turnID, _ := as.claimTurnLocked()
+	as.mu.Unlock()
+	return r.chat.runPromptTurn(as, prompt, turnID)
+}
+
 // SendPromptOrHold routes the person's chat prompt, which queues behind a
 // running turn instead of being refused (FS-03.R48). Only a chat agent holds:
 // every other owner keeps the plain fail-closed SendPrompt, so a terminal agent's

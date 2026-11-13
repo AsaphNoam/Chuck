@@ -338,6 +338,15 @@ func TestAcceptPipelineStageTaskResultFencesHandleAndYield(t *testing.T) {
 	}
 	assertUntouched(t, "a stage report carrying a stale execution handle")
 
+	// A report with otherwise valid authority but a stale run snapshot must
+	// tell the caller to refresh and retry, without advancing the current run.
+	var refusal *StageResultRefusal
+	if _, err := st.AcceptPipelineStageTaskResult(stageTaskID, "owner", "gen", "ta_current", run.Revision-1, result); !errors.As(err, &refusal) ||
+		refusal.Code != "stage_run_changed" || !strings.Contains(refusal.Message, "retry if this execution is still current") {
+		t.Fatalf("stale revision error = %v, want retry guidance", err)
+	}
+	assertUntouched(t, "a stage report carrying a stale run revision")
+
 	// The owner registers a wait in the same turn, then reports: yield and
 	// release intents must never both stand on one task.
 	if _, _, err := st.WaitForTasks("owner", "gen", "ta_current", []TaskWaitObservation{{TaskID: "tk_missing"}}); !errors.Is(err, ErrTaskWaitScope) {

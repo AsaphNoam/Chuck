@@ -18,6 +18,9 @@ func (m *Manager) Reconcile(ctx context.Context, runID string) error {
 		if err != nil {
 			return err
 		}
+		if run.ControllerFailures >= state.MaxPipelineControllerFailures {
+			return nil
+		}
 		switch run.PendingAction {
 		case "release_stage_task":
 			return m.reconcileTaskStageRelease(run)

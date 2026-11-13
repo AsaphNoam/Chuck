@@ -27,6 +27,7 @@ type visitOptions struct {
 	// DecisionSource makes the visit a decision-only owner assignment about
 	// that accepted room result: no room, coordinator or outputs (TS-09.R66).
 	DecisionSource string
+	Input          *state.AttachmentReceipt
 }
 
 // decisionStage is the step as a decision-only visit sees it: the owner judges
@@ -189,7 +190,7 @@ func (m *Manager) createVisit(run state.PipelineRunRecord, detail RunDetail, cur
 		RunID: run.RunID, ExpectedRevision: run.Revision, StageIndex: index,
 		AttemptNumber: attempt, StageID: next.ID, AssignmentDigest: digest, ParentTaskID: current.TaskID,
 		OutputValues: stageOutputValues(next), Coordinator: coordinator, ChargeRound: opts.ChargeRound, RenewAllowance: opts.RenewAllowance,
-		DecisionSourceTaskID: opts.DecisionSource,
+		DecisionSourceTaskID: opts.DecisionSource, Input: opts.Input,
 		Task: state.Task{
 			TaskID: taskID, Project: run.Project, DisplayName: next.Title, Instruction: instruction,
 			TargetKind: targetKind, TargetAgentID: standing, Role: detail.Template.OrchestratorRole,
@@ -198,12 +199,24 @@ func (m *Manager) createVisit(run state.PipelineRunRecord, detail RunDetail, cur
 		},
 	}
 	if StageCoordination(next) == CoordinationThinkTank {
+		if opts.Input != nil {
+			return errRoomRecovery
+		}
 		room, err := m.roomStage(context.Background(), run, next, detail.Values, attempt, frozenAssignments(run))
 		var refused *ControlError
-		if errors.As(err, &refused) && len(refused.Diagnostics) > 0 {
+		if errors.As(err, &refused) && len(refused.Diagnostics) > 0 && refused.Diagnostics[0].Code == "too_large" {
 			// Produced values overflowed the room's stage context: hold the run
-			// with the field named rather than truncating (TS-09.R56).
-			return m.pauseRun(run, current.StageID, clipText(refused.Diagnostics[0].Field+": "+refused.Diagnostics[0].Message, MaxDescriptionRunes), "")
+			// with the field named so Resume can open a corrective owner visit.
+			paused, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
+				State: "paused", PendingAction: pendingRepairRoomContext, CurrentStageID: current.StageID,
+				CurrentAttemptID: run.CurrentAttemptID, CurrentAgentID: run.CurrentAgentID,
+				AttentionReason: clipText(refused.Diagnostics[0].Field+": "+refused.Diagnostics[0].Message, MaxDescriptionRunes),
+			})
+			if err == nil {
+				m.publish(paused)
+				m.notify(paused, "needs_attention")
+			}
+			return err
 		}
 		if err != nil {
 			return err
@@ -243,41 +256,53 @@ func (m *Manager) RecoverStageTask(taskID, attention string, replace bool) (bool
 	}
 	unlock := m.lockRun(visit.RunID)
 	defer unlock()
-	run, err := m.store.ReadPipelineRun(visit.RunID)
-	if err != nil {
+	paused, ok, err := m.pauseInterruptedStage(visit.RunID, taskID, attention)
+	if err != nil || !ok {
 		return false, err
 	}
-	current, found, err := m.currentStageTask(run.RunID)
-	if err != nil || !found || current.TaskID != taskID || run.State == "completed" || run.State == "stopped" || run.State == "stopping" {
-		return false, err
-	}
-	paused, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
-		State: "paused", PendingAction: "", CurrentStageID: current.StageID, CurrentAgentID: current.StandingAgentID, AttentionReason: attention,
-	})
-	if errors.Is(err, state.ErrPipelineConflict) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	detail, err := m.Detail(run.RunID)
-	if err != nil {
-		return false, err
-	}
-	stage, ok := stageByID(detail.Template, current.StageID)
-	if !ok {
-		return false, controlError("invalid_state", "current stage is missing")
-	}
-	if replace {
-		err = m.replaceOwner(paused, detail, current, stage, standingAssignment(detail.Assignments, stage.ID), true)
-	} else {
-		var updated state.PipelineRunRecord
-		if updated, err = m.store.RecoverInterruptedPipelineStageTask(run.RunID, taskID, paused.Revision); err == nil {
+	// Publish the durable pause if the next step fails before making progress.
+	// A replacement can also fail after committing its retained action, in
+	// which case its newer revision is the one to publish.
+	recover := func() error {
+		detail, err := m.Detail(visit.RunID)
+		if err != nil {
+			return err
+		}
+		current, found, err := m.currentStageTask(visit.RunID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return controlError("invalid_state", "current stage is missing")
+		}
+		stage, ok := stageByID(detail.Template, current.StageID)
+		if !ok {
+			return controlError("invalid_state", "current stage is missing")
+		}
+		if replace {
+			return m.replaceOwner(paused, detail, current, stage, standingAssignment(detail.Assignments, stage.ID), true)
+		}
+		updated, err := m.store.RecoverInterruptedPipelineStageTask(visit.RunID, taskID, paused.Revision)
+		if err == nil {
 			m.publish(updated)
 		}
+		return err
 	}
+	err = recover()
 	if errors.Is(err, state.ErrRecoveryExhausted) {
-		return false, m.pauseRun(paused, stage.ID, attentionRecoveryExhausted, "")
+		err = m.pauseRun(paused, visit.StageID, attentionRecoveryExhausted, "")
+		if err == nil {
+			return false, nil
+		}
+	}
+	if err != nil {
+		if latest, readErr := m.store.ReadPipelineRun(visit.RunID); readErr == nil {
+			paused = latest
+		}
+		m.publish(paused)
+		if paused.State == "paused" {
+			m.notify(paused, "needs_attention")
+		}
 	}
 	return err == nil, err
 }

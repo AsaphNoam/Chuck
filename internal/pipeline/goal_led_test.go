@@ -203,6 +203,9 @@ func TestRecoveryExhaustionPausesAndResumeRenewsTheAllowance(t *testing.T) {
 // question; the answer continues the same goal on a new visit.
 func TestQuestionPausesAndTheAnswerContinuesTheRun(t *testing.T) {
 	manager, _, runID := goalLedFixture(t, false)
+	if err := manager.store.WriteAgent(state.Agent{AgentID: "a_owner", Interface: "chat"}); err != nil {
+		t.Fatal(err)
+	}
 	finishVisit(t, manager, runID, state.TaskResult{Outcome: state.OutcomeBlocked, Summary: "storage unclear", Decision: &state.PipelineDecision{Action: state.DecisionNeedsInput, Question: "Postgres or SQLite?", Reason: "the spec allows both"}})
 	run := readRun(t, manager, runID)
 	if run.State != "paused" || run.AttentionReason != "needs_input" || run.PauseQuestion != "Postgres or SQLite?" {
@@ -216,8 +219,12 @@ func TestQuestionPausesAndTheAnswerContinuesTheRun(t *testing.T) {
 	}
 	current, _ := manager.store.LatestPipelineStageTask(runID)
 	task, _ := manager.store.ReadTask(current.TaskID)
-	if current.StageID != "work" || !strings.Contains(task.Instruction, "Postgres or SQLite?") || !strings.Contains(task.Instruction, "SQLite") {
+	if current.StageID != "work" || !strings.Contains(task.Instruction, "Postgres or SQLite?") || !strings.Contains(task.Instruction, "as a user message") {
 		t.Fatalf("answer visit = %+v %q", current, task.Instruction)
+	}
+	input, err := manager.store.QueuedAssignmentInput("a_owner")
+	if err != nil || len(input) != 1 || input[0].AssignmentTaskID != current.TaskID || input[0].MessageJSON != `{"text":"SQLite"}` {
+		t.Fatalf("answer receipt = %+v, %v", input, err)
 	}
 	if after := readRun(t, manager, runID); after.PauseQuestion != "" || after.RecoveryRoundsUsed != 0 {
 		t.Fatalf("after answer = %+v", after)
@@ -233,6 +240,12 @@ func TestApprovalGateHoldsCompletionUntilApproved(t *testing.T) {
 	run := readRun(t, manager, runID)
 	if run.State != "paused" || run.PendingAction != "await_approval" {
 		t.Fatalf("gate = %s/%s, want awaiting approval", run.State, run.PendingAction)
+	}
+	if _, err := manager.Continue(context.Background(), runID, run.Revision, "Change the approach"); err == nil {
+		t.Fatal("approval accepted instructions")
+	}
+	if after := readRun(t, manager, runID); after.Revision != run.Revision || after.PendingAction != "await_approval" {
+		t.Fatalf("refused instructions advanced approval: %+v", after)
 	}
 	if _, err := manager.Continue(context.Background(), runID, run.Revision, ""); err != nil {
 		t.Fatal(err)
@@ -412,6 +425,18 @@ func TestPersistentControllerFailurePausesAndResumes(t *testing.T) {
 	}
 	if due, err := m.store.ListDuePipelineControllerActions(time.Now(), 8); err != nil || len(due) != 0 {
 		t.Fatalf("held action still retried automatically: %+v %v", due, err)
+	}
+	if _, err := m.store.DB().Exec(`CREATE TRIGGER startup_hold_fail BEFORE INSERT ON pipeline_stage_tasks WHEN NEW.stage_index = 1 BEGIN SELECT RAISE(ABORT, 'injected next stage'); END;`); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Startup(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if held := readRun(t, m, run.RunID); held.Revision != run.Revision || held.PendingAction != run.PendingAction || held.ControllerFailures != run.ControllerFailures {
+		t.Fatalf("startup changed the explicit repair hold: %+v", held)
+	}
+	if _, err := m.store.DB().Exec(`DROP TRIGGER startup_hold_fail`); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := m.Continue(context.Background(), run.RunID, run.Revision, ""); err != nil {
 		t.Fatalf("Resume after repair: %v", err)

@@ -66,7 +66,7 @@ WHERE source_agent_id=? AND command_id=?`, effectID, state, formatTime(time.Now(
 // a prompt whose native effect may already have happened.
 func (s *Store) ClaimAnnotationEffect(sourceAgentID, commandID string) error {
 	_, err := s.db.Exec(`UPDATE annotation_receipts SET state='unknown', updated_at=?
-WHERE source_agent_id=? AND command_id=? AND state='recorded'`, formatTime(time.Now().UTC()), sourceAgentID, commandID)
+WHERE source_agent_id=? AND command_id=? AND state IN ('prepared', 'recorded', 'rejected')`, formatTime(time.Now().UTC()), sourceAgentID, commandID)
 	return err
 }
 

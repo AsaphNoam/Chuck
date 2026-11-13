@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -48,7 +50,7 @@ func TestQueuedInputSurvivesStartRetry(t *testing.T) {
 	}
 }
 
-// TS-09.R69/R70 — an attachment-only message queued for a parked owner moves
+// TS-09.R69/R70 — a reply queued for a parked owner moves
 // to the automatic replacement's assignment, and its new owner gets its own
 // copy of the bytes when the message is delivered; it is never declared
 // submitted without them.
@@ -64,7 +66,7 @@ func TestQueuedAttachmentFollowsReplacementOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	message, _ := json.Marshal(runtime.Message{Attachments: []attachment.Descriptor{descriptor}})
+	message, _ := json.Marshal(runtime.Message{Text: "Use the attached evidence", Attachments: []attachment.Descriptor{descriptor}})
 	task := createPipelineSnapshotTask(t, srv, "pr_attach", "tk_attach", inputSnapshot)
 	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id='a_old', started_at=created_at WHERE task_id=?`, task.TaskID); err != nil {
 		t.Fatal(err)
@@ -72,7 +74,7 @@ func TestQueuedAttachmentFollowsReplacementOwner(t *testing.T) {
 	if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, "a_old"); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := srv.stateStore.QueueAssignmentInput(state.AttachmentReceipt{AgentID: "a_old", RequestID: "attachment-only", PayloadHash: "hash", Action: "prompt", MessageJSON: string(message)}); err != nil || !ok {
+	if _, ok, err := srv.stateStore.QueueAssignmentInput(state.AttachmentReceipt{AgentID: "a_old", RequestID: "reply-with-attachment", PayloadHash: "hash", Action: "prompt", MessageJSON: string(message)}); err != nil || !ok {
 		t.Fatalf("queue = %v %v", ok, err)
 	}
 	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='dependency_failed' WHERE task_id=?`, task.TaskID); err != nil {
@@ -84,7 +86,7 @@ func TestQueuedAttachmentFollowsReplacementOwner(t *testing.T) {
 	if err != nil || successor.TaskID == task.TaskID {
 		t.Fatalf("replacement = %+v %v", successor, err)
 	}
-	if rec, err := srv.stateStore.AttachmentReceipt("a_old", "attachment-only"); err != nil || rec.Delivery != "prepared" || rec.AssignmentTaskID != successor.TaskID {
+	if rec, err := srv.stateStore.AttachmentReceipt("a_old", "reply-with-attachment"); err != nil || rec.Delivery != "prepared" || rec.AssignmentTaskID != successor.TaskID {
 		t.Fatalf("receipt after replacement = %+v %v, want it pending for the successor", rec, err)
 	}
 	// The successor's new owner is executing: the queued message is claimed
@@ -96,13 +98,16 @@ func TestQueuedAttachmentFollowsReplacementOwner(t *testing.T) {
 	if err != nil || len(executing) != 1 || executing[0].AgentID != "a_new" || executing[0].SourceAgentID != "a_old" {
 		t.Fatalf("executing input = %+v %v", executing, err)
 	}
-	rec, ok, err := srv.stateStore.ClaimQueuedInputForTurn("a_old", "attachment-only")
+	rec, ok, err := srv.stateStore.ClaimQueuedInputForTurn("a_old", "reply-with-attachment")
 	if err != nil || !ok || rec.AgentID != "a_new" || rec.SourceAgentID != "a_old" {
 		t.Fatalf("claim = %+v %v %v", rec, ok, err)
 	}
 	var msg runtime.Message
 	if err := json.Unmarshal([]byte(rec.MessageJSON), &msg); err != nil {
 		t.Fatal(err)
+	}
+	if msg.Text != "Use the attached evidence" {
+		t.Fatalf("replacement lost the text: %+v", msg)
 	}
 	if err := runtime.CloneQueuedAttachments(srv.configStore.Home(), rec, msg); err != nil {
 		t.Fatal(err)
@@ -112,7 +117,7 @@ func TestQueuedAttachmentFollowsReplacementOwner(t *testing.T) {
 	} else {
 		f.Close()
 	}
-	if moved, err := srv.stateStore.AttachmentReceipt("a_new", "attachment-only"); err != nil || moved.Delivery != "prepared" {
+	if moved, err := srv.stateStore.AttachmentReceipt("a_new", "reply-with-attachment"); err != nil || moved.Delivery != "prepared" {
 		t.Fatalf("moved receipt = %+v %v", moved, err)
 	}
 }
@@ -122,12 +127,22 @@ func TestQueuedAttachmentFollowsReplacementOwner(t *testing.T) {
 func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
 	for _, route := range []string{"prompt", "annotations"} {
 		t.Run(route, func(t *testing.T) {
-			srv, ts, _ := activationTestServer(t)
+			srv, ts, promptLog := activationTestServer(t)
 			id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
 			task := createQuestionPause(t, srv, id)
-			var command any = map[string]string{"text": "Use SQLite", "request_id": "question-answer"}
+			answer := "Use SQLite"
+			var command any
+			var assetID string
 			if route == "annotations" {
 				command = runtime.AnnotationData{CommandID: "question-answer", Annotations: []runtime.Annotation{{Seq: 1, Excerpt: "database", Instruction: "Use SQLite"}}, Target: runtime.AnnotationTarget{Kind: "self"}}
+			} else {
+				asset, err := attachment.New(srv.configStore.Home()).Put(id, "evidence.txt", strings.NewReader("test evidence"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				assetID = asset.ID
+				answer += strings.Repeat(" scope", 1000)
+				command = map[string]any{"text": answer, "request_id": "question-answer", "attachment_ids": []string{assetID}}
 			}
 			var logs bytes.Buffer
 			var logMu sync.Mutex
@@ -140,14 +155,14 @@ func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
 			run, _ := srv.stateStore.ReadPipelineRun("pr_question")
 			visit, _ := srv.stateStore.LatestPipelineStageTask("pr_question")
 			next, _ := srv.stateStore.ReadTask(visit.TaskID)
-			if run.State == "paused" || visit.TaskID == task.TaskID || !strings.Contains(next.Instruction, "Postgres or SQLite?") || !strings.Contains(next.Instruction, "Use SQLite") {
+			if run.State == "paused" || visit.TaskID == task.TaskID || !strings.Contains(next.Instruction, "Postgres or SQLite?") || strings.Contains(next.Instruction, "Use SQLite") {
 				t.Fatalf("conversation answer did not continue the run: run=%s visit=%s", run.State, visit.TaskID)
 			}
 			// TS-02.R55: the accepting visit is traceable from logs without the words.
 			logMu.Lock()
 			logged := logs.String()
 			logMu.Unlock()
-			for _, want := range []string{"conversation input continued paused run", "question-answer", "run=pr_question", "visit=" + visit.TaskID, "surface=chat", "delivery=submitted"} {
+			for _, want := range []string{"conversation input continued paused run", "question-answer", "run=pr_question", "visit=" + visit.TaskID, "surface=chat"} {
 				if !strings.Contains(logged, want) {
 					t.Fatalf("input transition log lacks %q:\n%s", want, logged)
 				}
@@ -161,6 +176,46 @@ func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
 			}
 			if again, _ := srv.stateStore.LatestPipelineStageTask("pr_question"); again.TaskID != visit.TaskID {
 				t.Fatalf("replay created another visit: %s", again.TaskID)
+			}
+			srv.dispatchReadyTasks(context.Background())
+			waitPrompts(t, promptLog, 1)
+			raw, err := os.ReadFile(promptLog)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var frame struct {
+				Prompt []struct{ Text, Name string }
+			}
+			if err := json.Unmarshal(raw, &frame); err != nil {
+				t.Fatal(err)
+			}
+			var parts []string
+			var hasAttachment bool
+			for _, part := range frame.Prompt {
+				parts = append(parts, part.Text)
+				hasAttachment = hasAttachment || part.Name == "evidence.txt"
+			}
+			wire := strings.Join(parts, "\n")
+			if strings.Count(wire, answer) != 1 || assetID != "" && !hasAttachment {
+				t.Fatal("provider prompt did not carry the full reply and attachment exactly once")
+			}
+			response := doGET(t, srv.routes(), "/api/sessions/"+id+"/transcript")
+			var history struct{ Events []runtime.Event }
+			if err := json.Unmarshal(response.Body.Bytes(), &history); err != nil {
+				t.Fatal(err)
+			}
+			prompts := 0
+			for _, event := range history.Events {
+				var data runtime.UserPromptData
+				if event.Type == runtime.EvUserPrompt && json.Unmarshal(event.Data, &data) == nil && strings.Contains(data.Text, answer) {
+					prompts++
+					if assetID != "" && (len(data.Attachments) != 1 || data.Attachments[0].ID != assetID) {
+						t.Fatal("retained user message lost the attachment")
+					}
+				}
+			}
+			if prompts != 1 {
+				t.Fatalf("retained user messages = %d, want one", prompts)
 			}
 		})
 	}
@@ -184,10 +239,90 @@ func createQuestionPause(t *testing.T, srv *Server, id string) state.Task {
 	return task
 }
 
+// An insertion failure must leave the original visit and question intact.
+// The retry is the same command, so a partial commit would strand it or
+// deliver it outside the paused run.
+func TestConversationAnswerRollsBackOnReceiptFailure(t *testing.T) {
+	srv := testServer(t, true)
+	const id = "a_owner"
+	if err := srv.stateStore.WriteAgent(state.Agent{AgentID: id, Interface: "chat"}); err != nil {
+		t.Fatal(err)
+	}
+	task := createQuestionPause(t, srv, id)
+	db := srv.stateStore.DB()
+	if _, err := db.Exec(`CREATE TRIGGER reject_answer BEFORE INSERT ON attachment_receipts
+WHEN NEW.request_id = 'atomic-answer' BEGIN SELECT RAISE(ABORT, 'test receipt failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	h := srv.routes()
+	url := "/api/sessions/" + id + "/prompt"
+	const body = `{"text":"Use SQLite","request_id":"atomic-answer"}`
+	before, err := srv.stateStore.ReadPipelineRun("pr_question")
+	if err != nil {
+		t.Fatal(err)
+	}
+	oversized, err := json.Marshal(map[string]string{"text": strings.Repeat("a", 64_001), "request_id": "oversized-answer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp := doJSON(t, h, http.MethodPost, url, string(oversized)); resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("oversized answer = %d %s", resp.Code, resp.Body)
+	}
+	if _, err := srv.stateStore.AcceptedAttachmentReceipt(id, "oversized-answer"); err == nil {
+		t.Fatal("refused answer has an acceptance receipt")
+	}
+	if resp := doJSON(t, h, http.MethodPost, url, body); resp.Code != http.StatusInternalServerError {
+		t.Fatalf("failed answer = %d %s", resp.Code, resp.Body)
+	}
+	after, err := srv.stateStore.ReadPipelineRun("pr_question")
+	if err != nil || after.State != "paused" || after.Revision != before.Revision {
+		t.Fatalf("failed receipt changed the run: %+v, %v", after, err)
+	}
+	visit, err := srv.stateStore.LatestPipelineStageTask("pr_question")
+	if err != nil || visit.TaskID != task.TaskID {
+		t.Fatalf("failed receipt left a successor: %+v, %v", visit, err)
+	}
+	if _, err := db.Exec(`DROP TRIGGER reject_answer`); err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	results := make(chan *httptest.ResponseRecorder, 2)
+	for range 2 {
+		go func() {
+			<-start
+			results <- doJSON(t, h, http.MethodPost, url, body)
+		}()
+	}
+	close(start)
+	accepted := 0
+	for range 2 {
+		response := <-results
+		switch response.Code {
+		case http.StatusAccepted:
+			accepted++
+		case http.StatusConflict:
+			// The route's owner guard can refuse an overlapping command.
+		default:
+			t.Fatalf("retried answer = %d %s", response.Code, response.Body)
+		}
+	}
+	if response := doJSON(t, h, http.MethodPost, url, body); accepted == 0 || response.Code != http.StatusAccepted {
+		t.Fatalf("answer replays after concurrent admission: accepted=%d, replay=%d %s", accepted, response.Code, response.Body)
+	}
+	visits, err := srv.stateStore.ListPipelineStageTasks("pr_question")
+	if err != nil || len(visits) != 2 {
+		t.Fatalf("replayed answer created extra visits: %+v, %v", visits, err)
+	}
+	receipt, err := srv.stateStore.AcceptedAttachmentReceipt(id, "atomic-answer")
+	if err != nil || receipt.AssignmentTaskID != visits[1].TaskID || receipt.Delivery != "prepared" ||
+		receipt.OriginTaskID != task.TaskID || receipt.OriginQuestion != before.PauseQuestion {
+		t.Fatalf("retried answer receipt = %+v, %v", receipt, err)
+	}
+}
+
 // FS-14.R100 promises ordinary conversation input. A fresh client must be able
 // to retrieve the accepted Send in queued input or in the durable transcript.
 func TestConversationAnswerRetainsHumanReplyInHistory(t *testing.T) {
-	t.Skip("PIPE-CHAT-1: answer reported sent is absent from the owner's durable transcript")
 	srv := testServer(t, true)
 	const id = "a_owner"
 	if err := srv.stateStore.WriteAgent(state.Agent{AgentID: id, Interface: "chat"}); err != nil {

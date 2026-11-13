@@ -317,6 +317,7 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 	// missing for work an agent is already acting on.
 	var deliver func() *runtime.APIError
 	delivery := ""
+	refusedInput := false
 	switch body.Target.Kind {
 	case "self":
 		// Delivery follows an ordinary chat message (FS-13.R37): wake a stopped
@@ -352,7 +353,8 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 			if !body.Target.Steer {
 				admitted, ok, err := s.admitConversationInput(r.Context(), recorded, msg)
 				if err != nil {
-					return apiError(runtime.CodeInternal, "cannot retain annotation input")
+					refusedInput = !ok
+					return pipelineAPIError(err)
 				}
 				if ok {
 					delivery = receiptDelivery(admitted.Delivery)
@@ -517,7 +519,13 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 	}
 	if apiErr := deliver(); apiErr != nil {
 		if commandID != "" && body.Target.Kind == "self" {
-			_ = s.stateStore.SetAnnotationEffect(sourceID, commandID, "", "unknown")
+			effectState := "unknown"
+			if refusedInput {
+				// The source event is retained. No delivery effect was taken,
+				// so a retry can reuse that event and try admission again.
+				effectState = "rejected"
+			}
+			_ = s.stateStore.SetAnnotationEffect(sourceID, commandID, "", effectState)
 		}
 		writeAPIError(w, apiErr)
 		return

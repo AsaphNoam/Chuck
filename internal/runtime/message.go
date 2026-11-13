@@ -76,34 +76,54 @@ func (c *ChatRuntime) SetMessageOutcomeHandler(fn func(string, string, string) e
 // assignment continuation that carries it (TS-09.R69, FS-14.R100).
 const queuedInputPreamble = "The person sent this message for your assignment while it was waiting. Treat it as an instruction or correction; it does not approve a permission request or a pipeline checkpoint:"
 
+func (c *ChatRuntime) appendQueuedAssignmentInput(as *agentState, prompt []map[string]any) ([]map[string]any, Message) {
+	message, content, question, ok := c.takeQueuedAssignmentInput(as)
+	if !ok {
+		return prompt, Message{}
+	}
+	if c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
+		_ = c.messageTransition(as.agentID, message.RequestID, "released")
+		return prompt, Message{}
+	}
+	if err := c.messageTransition(as.agentID, message.RequestID, "submitted"); err != nil {
+		return prompt, Message{}
+	}
+	preamble := queuedInputPreamble
+	if question != "" {
+		preamble = "The pipeline owner asked: " + question + "\n\n" + preamble
+	}
+	prompt = append(prompt, map[string]any{"type": "text", "text": preamble})
+	return append(prompt, content...), message
+}
+
 // takeQueuedAssignmentInput claims the oldest input a person queued for the
 // assignment this activation continues. Input that cannot be composed (its
 // bytes vanished or the runtime cannot read images) is refused for explicit
 // recovery rather than silently dropped or retried forever.
-func (c *ChatRuntime) takeQueuedAssignmentInput(as *agentState) (Message, []map[string]any, bool) {
+func (c *ChatRuntime) takeQueuedAssignmentInput(as *agentState) (Message, []map[string]any, string, bool) {
 	if c.store == nil {
-		return Message{}, nil, false
+		return Message{}, nil, "", false
 	}
 	rec, ok, err := c.store.TakeQueuedAssignmentInput(as.agentID)
 	if err != nil || !ok {
-		return Message{}, nil, false
+		return Message{}, nil, "", false
 	}
 	var m Message
 	if err := json.Unmarshal([]byte(rec.MessageJSON), &m); err != nil {
 		_ = c.messageTransition(as.agentID, rec.RequestID, "failed")
-		return Message{}, nil, false
+		return Message{}, nil, "", false
 	}
 	m.RequestID = rec.RequestID
 	if err := c.cloneQueuedAttachments(rec, m); err != nil {
 		_ = c.messageTransition(as.agentID, rec.RequestID, "failed")
-		return Message{}, nil, false
+		return Message{}, nil, "", false
 	}
 	content, err := c.messageContent(as, m)
 	if err != nil || len(content) == 0 {
 		_ = c.messageTransition(as.agentID, rec.RequestID, "failed")
-		return Message{}, nil, false
+		return Message{}, nil, "", false
 	}
-	return m, content, true
+	return m, content, rec.OriginQuestion, true
 }
 
 // cloneQueuedAttachments gives an assignment's new owner its own copy of the

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -14,15 +15,14 @@ const stallSnapshot = `{"version":2,"title":"x","orchestrator_role":"impl","inpu
 // ending it: once that work ends, the missed-event sweep continues the idle
 // owner instead of leaving the run active indefinitely.
 func TestStallCheckDeferredByBackgroundWorkResumesWhenItEnds(t *testing.T) {
-	srv := testServer(t, true)
-	if err := srv.stateStore.WriteAgent(state.Agent{AgentID: "a_bg", Interface: "chat"}); err != nil {
+	promptLog := filepath.Join(t.TempDir(), "prompts.log")
+	srv, _, owner := taskChatServer(t, map[string]string{"FAKEACP_CAPS": "1", "FAKEACP_PROMPT_LOG": promptLog})
+	generation := srv.taskGeneration(owner)
+	task := createDispatchingStallVisit(t, srv, "pr_bg", "tk_bg")
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, execution_handle = 'ta_bg', started_at = created_at WHERE task_id = ?`, state.TaskRunning, owner, generation, task.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	task := createPipelineSnapshotTask(t, srv, "pr_bg", "tk_bg", stallSnapshot)
-	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = 'a_bg', assigned_generation = 'g1', execution_handle = 'ta_bg', started_at = created_at WHERE task_id = ?`, state.TaskRunning, task.TaskID); err != nil {
-		t.Fatal(err)
-	}
-	if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, "a_bg"); err != nil {
+	if err := srv.stateStore.BindConfirmedPipelineOwner(task.TaskID, owner, generation); err != nil {
 		t.Fatal(err)
 	}
 	stalls := func() int {
@@ -32,25 +32,23 @@ func TestStallCheckDeferredByBackgroundWorkResumesWhenItEnds(t *testing.T) {
 		}
 		return n
 	}
-	if err := srv.stateStore.WriteStatus(state.Status{AgentID: "a_bg", State: "idle", BackgroundRunning: 1, UpdatedAt: 1}); err != nil {
-		t.Fatal(err)
-	}
-	srv.nudgeStalledOwner("a_bg", "g1")
+	// No turn-end callback is needed to discover the stalled visit.
 	srv.recoverMissedStageStalls()
 	if got := stalls(); got != 0 {
 		t.Fatalf("stall counted while background work runs: %d", got)
 	}
-	if err := srv.stateStore.WriteStatus(state.Status{AgentID: "a_bg", State: "idle", BackgroundRunning: 0, UpdatedAt: 2}); err != nil {
+	if err := srv.registry.Chat().StopBackgroundTask(context.Background(), owner, "task_1"); err != nil {
 		t.Fatal(err)
 	}
-	srv.recoverMissedStageStalls()
-	if got := stalls(); got != 1 {
-		t.Fatalf("owner left idle after background work ended: stall turns = %d", got)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && promptCount(t, promptLog) < 2 {
+		srv.recoverMissedStageStalls()
+		time.Sleep(10 * time.Millisecond)
 	}
-	// The deferred check is consumed once, not repeated by every sweep.
-	srv.recoverMissedStageStalls()
-	if got := stalls(); got != 1 {
-		t.Fatalf("sweep repeated the stall check: %d", got)
+	// The nudge can itself settle and trigger the next nudge before this
+	// check runs. The contract here is that the deferred nudge gets through.
+	if got := promptCount(t, promptLog); got < 2 {
+		t.Fatalf("provider prompts = %d, want the original turn and a nudge", got)
 	}
 }
 
@@ -73,6 +71,67 @@ func TestParkedOwnerAfterRestartIsRecovered(t *testing.T) {
 	}
 	srv.recoverMissedStageStalls()
 	assertOwnerRecovered(t, srv, "pr_stranded", stranded.TaskID)
+}
+
+func TestPipelineRecoverySweepRespectsInterruptedOwnerDisposition(t *testing.T) {
+	srv := testServer(t, true)
+	for _, tc := range []struct{ run, kind, want string }{
+		{"pr_exit", "unexpected_exit", "queued"},
+		{"pr_stop", "interrupted", "paused"},
+	} {
+		task := createPipelineSnapshotTask(t, srv, tc.run, "tk_"+tc.run, stallSnapshot)
+		if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = 'running' WHERE task_id = ?`, task.TaskID); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok, err := srv.stateStore.InterruptPipelineOwner(task.TaskID, "", "owner exited", tc.kind); err != nil || !ok {
+			t.Fatalf("interrupt task = %v %v", ok, err)
+		}
+		srv.recoverMissedStageStalls()
+		run, err := srv.stateStore.ReadPipelineRun(tc.run)
+		if err != nil || run.State != tc.want {
+			t.Fatalf("%s recovery = %+v, %v, want %s", tc.kind, run, err, tc.want)
+		}
+		if tc.kind == "unexpected_exit" && run.RecoveryRoundsUsed != 1 {
+			t.Fatalf("unexpected exit recovery charged %d rounds", run.RecoveryRoundsUsed)
+		}
+		if tc.kind == "interrupted" && run.AttentionReason != "interrupted" {
+			t.Fatalf("explicit stop paused with %q", run.AttentionReason)
+		}
+	}
+}
+
+func TestPipelineRecoverySweepRetriesConfirmedOwnerBind(t *testing.T) {
+	srv := testServer(t, true)
+	task := createDispatchingStallVisit(t, srv, "pr_bind", "tk_bind")
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = 'starting', start_attempt_id = 'bind', assigned_agent_id = 'a_owner', assigned_generation = 'g_bind' WHERE task_id = ?`, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`CREATE TRIGGER fail_pipeline_bind BEFORE UPDATE OF standing_agent_id ON pipeline_stage_tasks BEGIN SELECT RAISE(ABORT, 'injected bind failure'); END;`); err != nil {
+		t.Fatal(err)
+	}
+	task.StartAttemptID = "bind"
+	srv.confirmTaskStart(task)
+	if run, err := srv.stateStore.ReadPipelineRun("pr_bind"); err != nil || run.State != "queued" {
+		t.Fatalf("after bind failure run = %+v, %v", run, err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`DROP TRIGGER fail_pipeline_bind`); err != nil {
+		t.Fatal(err)
+	}
+	srv.recoverMissedStageStalls()
+	run, err := srv.stateStore.ReadPipelineRun("pr_bind")
+	visit, visitErr := srv.stateStore.LatestPipelineStageTask("pr_bind")
+	if err != nil || visitErr != nil || run.State != "running" || visit.StandingAgentID != "a_owner" {
+		t.Fatalf("after sweep run = %+v, %v, owner = %q, %v", run, err, visit.StandingAgentID, visitErr)
+	}
+}
+
+func createDispatchingStallVisit(t *testing.T, srv *Server, runID, taskID string) state.Task {
+	t.Helper()
+	task := createPipelineSnapshotTask(t, srv, runID, taskID, stallSnapshot)
+	if _, err := srv.stateStore.DB().Exec(`UPDATE pipeline_runs SET pending_action = 'dispatch_stage_task' WHERE run_id = ?`, runID); err != nil {
+		t.Fatal(err)
+	}
+	return task
 }
 
 func assertOwnerRecovered(t *testing.T, srv *Server, runID, oldTaskID string) {
@@ -100,19 +159,51 @@ func TestStalledOwnerIsContinuedThenPaused(t *testing.T) {
 	srv, ts, promptLog := activationTestServer(t)
 	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
 	generation := srv.taskGeneration(id)
-	task := createPipelineSnapshotTask(t, srv, "pr_stall", "tk_stall", `{"version":2,"title":"x","orchestrator_role":"impl","inputs":[],"stages":[{"id":"stage","title":"Stage","objective":"work","inputs":[],"outputs":[]}]}`)
+	task := createDispatchingStallVisit(t, srv, "pr_stall", "tk_stall")
 	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, execution_handle = 'ta_stall', started_at = created_at WHERE task_id = ?`, state.TaskRunning, id, generation, task.TaskID); err != nil {
 		t.Fatal(err)
 	}
 	if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, id); err != nil {
 		t.Fatal(err)
 	}
-	// The first stalled turn end; every continuation turn's own end then
-	// drives the next check through the ordinary turn-end hook.
-	srv.nudgeStalledOwner(id, generation)
-	deadline := time.Now().Add(10 * time.Second)
+	// A real assigned turn is the first stall. Losing its turn-end observation
+	// costs latency only, so run the same bounded pass as the dispatcher tick.
+	if !srv.claimLifecycle(id) {
+		t.Fatal("could not hold the initial turn-end check")
+	}
+	if err := srv.registry.SendPrompt(t.Context(), id, "begin assigned work"); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, srv, id, "idle")
+	if _, err := srv.stateStore.DB().Exec(`CREATE TRIGGER fail_stall_nudge BEFORE INSERT ON turn_budget BEGIN SELECT RAISE(ABORT, 'injected prompt admission failure'); END;`); err != nil {
+		t.Fatal(err)
+	}
+	srv.releaseLifecycle(id)
+	deadline := time.Now().Add(3 * time.Second)
+	stalls := 0
+	for time.Now().Before(deadline) && stalls == 0 {
+		srv.recoverMissedStageStalls()
+		if err := srv.stateStore.DB().QueryRow(`SELECT owner_stall_turns FROM pipeline_runs WHERE run_id = 'pr_stall'`).Scan(&stalls); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for range state.MaxOwnerStallTurns {
+		srv.recoverMissedStageStalls()
+	}
+	if err := srv.stateStore.DB().QueryRow(`SELECT owner_stall_turns FROM pipeline_runs WHERE run_id = 'pr_stall'`).Scan(&stalls); err != nil {
+		t.Fatal(err)
+	}
+	if got := promptCount(t, promptLog); got != 1 || stalls != 1 {
+		t.Fatalf("repeated refused nudge saw %d prompts and %d counted turns, want one each", got, stalls)
+	}
+	if _, err := srv.stateStore.DB().Exec(`DROP TRIGGER fail_stall_nudge`); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(10 * time.Second)
 	var run state.PipelineRunRecord
 	for time.Now().Before(deadline) {
+		srv.recoverMissedStageStalls()
 		var err error
 		if run, err = srv.stateStore.ReadPipelineRun("pr_stall"); err == nil && run.State == "paused" {
 			break
@@ -126,7 +217,7 @@ func TestStalledOwnerIsContinuedThenPaused(t *testing.T) {
 		t.Fatalf("stalled visit = %s, want interrupted", after.State)
 	}
 	// Turns one and two were continued; the third stalled end paused instead.
-	if got := promptCount(t, promptLog); got != state.MaxOwnerStallTurns-1 {
-		t.Fatalf("continuation prompts = %d, want %d", got, state.MaxOwnerStallTurns-1)
+	if got := promptCount(t, promptLog); got != state.MaxOwnerStallTurns {
+		t.Fatalf("assignment plus continuation prompts = %d, want %d", got, state.MaxOwnerStallTurns)
 	}
 }

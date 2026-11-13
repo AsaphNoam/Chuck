@@ -224,6 +224,9 @@ func TestContinueFailureCreatesAnotherDurableStageTaskForStandingOwner(t *testin
 	if err != nil || len(stages) != 1 {
 		t.Fatalf("stage tasks = %#v, err=%v", stages, err)
 	}
+	if err := manager.store.WriteAgent(state.Agent{AgentID: "agent-standing", Interface: "chat"}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := manager.store.DB().Exec(`UPDATE pipeline_stage_tasks SET state = 'closing', standing_agent_id = 'agent-standing' WHERE task_id = ?`, stages[0].TaskID); err != nil {
 		t.Fatal(err)
 	}
@@ -249,8 +252,12 @@ func TestContinueFailureCreatesAnotherDurableStageTaskForStandingOwner(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if continued.Run.State != "queued" || continued.Run.PendingAction != "dispatch_stage_task" || stages[1].AttemptNumber != 2 || retry.TargetKind != state.TargetAgent || retry.TargetAgentID != "agent-standing" || !strings.Contains(retry.Instruction, "Correct the failed check") {
+	if continued.Run.State != "queued" || continued.Run.PendingAction != "dispatch_stage_task" || stages[1].AttemptNumber != 2 || retry.TargetKind != state.TargetAgent || retry.TargetAgentID != "agent-standing" {
 		t.Fatalf("continued=%#v stage=%#v task=%#v", continued.Run, stages[1], retry)
+	}
+	input, err := manager.store.QueuedAssignmentInput("agent-standing")
+	if err != nil || len(input) != 1 || input[0].AssignmentTaskID != retry.TaskID || input[0].MessageJSON != `{"text":"Correct the failed check"}` {
+		t.Fatalf("resume input = %+v, %v", input, err)
 	}
 }
 
@@ -461,14 +468,17 @@ func TestFailedStartupRecoveryRetainsTheStopFence(t *testing.T) {
 	if _, err := manager.store.DB().Exec(`UPDATE pipeline_runs SET state = 'stopping', pending_action = 'cleanup_run' WHERE run_id = ?`, detail.Run.RunID); err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.pauseStartupRun(context.Background(), detail.Run.RunID, "restart_reconcile_failed"); err != nil {
+	if _, err := manager.store.DB().Exec(`CREATE TRIGGER stop_reconcile_fail BEFORE UPDATE ON tasks WHEN NEW.state = 'finished' BEGIN SELECT RAISE(ABORT, 'injected stop cleanup failure'); END;`); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Startup(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	run, err := manager.store.ReadPipelineRun(detail.Run.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if run.State != "stopping" || run.PendingAction != "cleanup_run" {
+	if run.State != "stopping" || run.PendingAction != "cleanup_run" || run.ControllerFailures != 1 {
 		t.Fatalf("recovered run = %#v, want the stop and its cleanup retained", run)
 	}
 	if _, err := manager.Retry(context.Background(), run.RunID, run.Revision); err == nil {
@@ -515,6 +525,46 @@ func TestStartupRetainsAcceptedStageCursorAfterControllerFailure(t *testing.T) {
 	recovered, err := manager.store.ReadPipelineRun(detail.Run.RunID)
 	if err != nil || recovered.ControllerFailures != 0 || recovered.ControllerRetryAt != nil || recovered.ControllerLastError != "" {
 		t.Fatalf("successful cursor transition retained retry metadata: %+v, %v", recovered, err)
+	}
+}
+
+func TestStartupRetainsReplacementActivationThroughFailure(t *testing.T) {
+	m, _, _ := pipelineManagerFixture(t)
+	detail, old := startStagePipeline(t, m, "startup-replacement", "a_owner", "gen-1")
+	if _, err := m.store.DB().Exec(`UPDATE tasks SET state = ? WHERE task_id = ?`, state.TaskInterrupted, old.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.store.DB().Exec(`CREATE TRIGGER replacement_fail BEFORE UPDATE ON tasks WHEN OLD.state = 'armed' AND NEW.state = 'ready' BEGIN SELECT RAISE(ABORT, 'injected activation failure'); END;`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.RecoverStageTask(old.TaskID, "owner_unavailable", true); err == nil {
+		t.Fatal("replacement activation succeeded through injected failure")
+	}
+	for i := 0; i < state.MaxPipelineControllerFailures; i++ {
+		if err := m.Startup(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := readRun(t, m, detail.Run.RunID)
+	if run.State != "paused" || run.PendingAction != "activate_replacement" || run.AttentionReason != state.PauseControllerRecoveryFailed {
+		t.Fatalf("startup lost the replacement action: %+v", run)
+	}
+	armed, err := m.store.LatestPipelineStageTask(run.RunID)
+	if err != nil || armed.TaskID == old.TaskID {
+		t.Fatalf("replacement task = %+v, %v", armed, err)
+	}
+	if _, err := m.store.DB().Exec(`DROP TRIGGER replacement_fail`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Continue(context.Background(), run.RunID, run.Revision, ""); err != nil {
+		t.Fatal(err)
+	}
+	task, err := m.store.ReadTask(armed.TaskID)
+	if err != nil || task.State != state.TaskReady {
+		t.Fatalf("Resume did not activate the same task: %+v, %v", task, err)
+	}
+	if got := visits(t, m, run.RunID); len(got) != 2 {
+		t.Fatalf("replacement visits = %v, want one replacement", got)
 	}
 }
 
@@ -835,13 +885,13 @@ func TestRunListAndStartupIsolateMalformedRunDetail(t *testing.T) {
 	if err != nil || len(runs) != 1 || len(runs[0].Diagnostics) != 1 || !hasDiagnostic(runs[0].Diagnostics, "frozen_stage_title_unavailable") {
 		t.Fatalf("List = %+v err=%v", runs, err)
 	}
-	// Startup reconciliation cannot decode the snapshot either, so it must pause
-	// the run for a person rather than advance a cursor it cannot read.
+	// Startup reconciliation cannot decode the snapshot either. Keep the
+	// failed action for bounded retry without advancing the cursor.
 	if err := manager.Startup(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	run, err := manager.store.ReadPipelineRun(detail.Run.RunID)
-	if err != nil || run.State != "paused" || run.AttentionReason != "restart_reconcile_failed" {
+	if err != nil || run.PendingAction != "release_stage_task" || run.ControllerFailures != 1 {
 		t.Fatalf("recovered run = %+v err=%v", run, err)
 	}
 }

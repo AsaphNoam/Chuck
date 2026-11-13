@@ -12,30 +12,16 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
-// InputBinder records a person's input for the assignment that will carry it.
-// textCarried reports that the continuation instruction already carries the
-// words, so only the rest of the message (attachments) still needs delivery.
-type InputBinder func(taskID string, textCarried bool) error
-
-// Continue is the run page's control. Its input is recorded through the same
-// continuation as a conversation answer (ContinueFromOwner): text the new
-// visit's continuation does not carry is retained for the owner's next turn
-// under a request identity unique to this run revision (TS-09.R69).
+// Continue records run-page input through the same transaction as chat input.
 func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision int64, input string) (RunDetail, error) {
 	text := strings.TrimSpace(input)
-	return m.continueRun(ctx, runID, expectedRevision, input, func(owner string) InputBinder {
-		return func(taskID string, textCarried bool) error {
-			if textCarried || text == "" {
-				return nil
-			}
-			if owner == "" {
-				return controlError("invalid_state", "the run has no owner to receive instructions")
-			}
-			message, _ := json.Marshal(map[string]string{"text": text})
-			requestID := fmt.Sprintf("run_%s_%d", runID, expectedRevision)
-			return m.store.BindAssignmentInput(state.AttachmentReceipt{AgentID: owner, RequestID: requestID, PayloadHash: requestID, MessageJSON: string(message), Action: "prompt"}, taskID)
-		}
-	})
+	var receipt *state.AttachmentReceipt
+	if text != "" {
+		message, _ := json.Marshal(map[string]string{"text": text})
+		requestID := fmt.Sprintf("run_%s_%d", runID, expectedRevision)
+		receipt = &state.AttachmentReceipt{RequestID: requestID, PayloadHash: requestID, MessageJSON: string(message), Action: "prompt"}
+	}
+	return m.continueRun(ctx, runID, expectedRevision, text, receipt)
 }
 
 // ContinueFromOwner lets a person's message in a paused run owner's
@@ -43,33 +29,30 @@ func (m *Manager) Continue(ctx context.Context, runID string, expectedRevision i
 // its question, or instructions that resume it. It reports false, changing
 // nothing, when no paused run awaits this owner's input; approval checkpoints
 // are never continued this way (TS-09.R69, FS-14.R99/R100).
-func (m *Manager) ContinueFromOwner(ctx context.Context, agentID, text string, bind InputBinder) (bool, error) {
+func (m *Manager) ContinueFromOwner(ctx context.Context, text string, receipt state.AttachmentReceipt) (bool, error) {
 	runs, err := m.store.ListActivePipelineRuns()
 	if err != nil {
 		return false, err
 	}
 	for _, run := range runs {
-		if run.State != "paused" || run.PendingAction != "" {
+		if run.State != "paused" || run.PendingAction != "" && run.PendingAction != pendingRepairRoomContext {
 			continue
 		}
 		current, found, err := m.currentStageTask(run.RunID)
 		if err != nil {
 			return false, err
 		}
-		if !found || current.RoomID != "" || current.StandingAgentID != agentID {
+		if !found || current.RoomID != "" || current.StandingAgentID != receipt.AgentID {
 			continue
 		}
-		_, err = m.continueRun(ctx, run.RunID, run.Revision, text, func(string) InputBinder { return bind })
-		var control *ControlError
-		if errors.As(err, &control) && control.Code == "invalid_state" {
-			return false, nil
-		}
+		_, err = m.continueRun(ctx, run.RunID, run.Revision, text, &receipt)
 		return err == nil, err
 	}
 	return false, nil
 }
 
-func (m *Manager) continueRun(ctx context.Context, runID string, expectedRevision int64, input string, binder func(owner string) InputBinder) (RunDetail, error) {
+func (m *Manager) continueRun(ctx context.Context, runID string, expectedRevision int64, input string, receipt *state.AttachmentReceipt) (RunDetail, error) {
+	fromConversation := receipt != nil && receipt.AgentID != ""
 	unlock := m.lockRun(runID)
 	run, err := m.store.ReadPipelineRun(runID)
 	if err != nil {
@@ -81,15 +64,9 @@ func (m *Manager) continueRun(ctx context.Context, runID string, expectedRevisio
 		return RunDetail{}, controlError("revision_conflict", "run changed; refresh before continuing")
 	}
 	if current, found, stageErr := m.currentStageTask(runID); stageErr == nil && found {
-		bind := binder(current.StandingAgentID)
-		// newVisit binds the input to the visit just created; its continuation
-		// carries the text.
-		newVisit := func() error {
-			next, found, err := m.currentStageTask(runID)
-			if err != nil || !found || next.TaskID == current.TaskID {
-				return err
-			}
-			return bind(next.TaskID, true)
+		if fromConversation && receipt.AgentID != current.StandingAgentID {
+			unlock()
+			return RunDetail{}, controlError("revision_conflict", "the run's owner changed; refresh before continuing")
 		}
 		detail, detailErr := m.Detail(runID)
 		if detailErr != nil {
@@ -106,66 +83,73 @@ func (m *Manager) continueRun(ctx context.Context, runID string, expectedRevisio
 			unlock()
 			return RunDetail{}, controlError("invalid_state", "current stage is missing")
 		}
-		input = strings.TrimSpace(input)
+		kind := ContinueKindFor(run, task.State, task.Outcome, current.RoomID != "")
+		if current.RoomID != "" && kind == ContinueUnavailable {
+			unlock()
+			return RunDetail{}, errRoomRecovery
+		}
+		if receipt != nil && receipt.AgentID == "" {
+			receipt.AgentID = current.StandingAgentID
+			if receipt.AgentID == "" && kind != ContinueApproval && kind != ContinueController {
+				unlock()
+				return RunDetail{}, controlError("invalid_state", "the run has no owner to receive instructions")
+			}
+		}
+		if receipt != nil {
+			receipt.OriginTaskID = current.TaskID
+			receipt.OriginQuestion = run.PauseQuestion
+		}
 		var continueErr error
 		resumeController := false
 		switch {
 		case utf8.RuneCountInString(input) > MaxValueRunes:
 			continueErr = validationError("continuation input is too long", []Diagnostic{{Field: "input", Code: "invalid", Message: "input must fit the pipeline value limit"}})
-		case run.State == "paused" && run.AttentionReason == state.PauseControllerRecoveryFailed && run.PendingAction != "":
+		case receipt != nil && (kind == ContinueController || kind == ContinueApproval):
+			continueErr = validationError("this control does not accept instructions", []Diagnostic{{Field: "input", Code: "invalid", Message: "clear the instructions before continuing"}})
+		case kind == ContinueController:
 			// Resume after repair retries the retained controller action once
 			// with a fresh failure allowance; nothing already done repeats.
 			restored := run.State
-			if run.PendingAction == "release_stage_task" {
+			action := ControllerActionForContinue(run, task.State, task.Outcome)
+			if action == "release_stage_task" {
 				restored = "finishing"
 			}
 			var resumed state.PipelineRunRecord
 			if resumed, continueErr = m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
-				State: restored, PendingAction: run.PendingAction, CurrentStageID: run.CurrentStageID,
+				State: restored, PendingAction: action, CurrentStageID: run.CurrentStageID,
 				CurrentAttemptID: run.CurrentAttemptID, CurrentAgentID: run.CurrentAgentID,
 			}); continueErr == nil {
 				m.publish(resumed)
 				resumeController = true
 			}
-		case run.State == "paused" && run.PendingAction == "await_approval" && task.Outcome == state.OutcomeSuccess:
+		case kind == ContinueApproval:
 			// Approval is the explicit checkpoint action; the recorded decision
 			// then runs exactly as reported (TS-09.R68).
 			if continueErr = m.store.ApproveStageVisit(current.TaskID); continueErr == nil {
 				continueErr = m.executeStageDecision(run, detail, current, stage, task)
 			}
-		case current.RoomID != "":
-			continueErr = errRoomRecovery
-		case run.State == "paused" && run.PendingAction == "" && task.State == state.TaskInterrupted:
+		case kind == ContinueInterrupted:
 			// Resume continues the same owner on its interrupted visit with a
 			// fresh allowance; Retry and Replace stay available (TS-09.R70/R71).
-			// Instructions are retained for that assignment first, so its
-			// resumed turn carries them.
-			if continueErr = bind(current.TaskID, false); continueErr != nil {
-				break
-			}
 			var resumed state.PipelineRunRecord
-			if resumed, continueErr = m.store.ResumeInterruptedPipelineStageTask(runID, current.TaskID, run.Revision); continueErr == nil {
+			if resumed, continueErr = m.store.ResumeInterruptedPipelineStageTask(runID, current.TaskID, run.Revision, receipt); continueErr == nil {
 				m.publish(resumed)
 			}
-		case run.State == "paused" && run.PendingAction == "" && run.AttentionReason == attentionNeedsInput:
+		case kind == ContinueAnswer:
 			// The answer continues the same goal on a new visit (FS-14.R99).
-			if input == "" {
+			if receipt == nil {
 				continueErr = validationError("an answer is required", []Diagnostic{{Field: "input", Code: "invalid", Message: "answer the run's question: " + run.PauseQuestion}})
 				break
 			}
-			if continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText("You asked the person: "+run.PauseQuestion+"\nTheir answer: "+input, MaxValueRunes), DecisionSource: current.DecisionSourceTaskID}); continueErr == nil {
-				continueErr = newVisit()
-			}
-		case run.State == "paused" && run.PendingAction == "" && (run.AttentionReason == attentionRecoveryExhausted || task.Outcome == state.OutcomeFailure || task.Outcome == state.OutcomeBlocked || run.AttentionReason == attentionCheckMissing || run.AttentionReason == attentionApprovalMissing):
+			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: "You asked the person: " + run.PauseQuestion + "\nTheir answer accompanies this assignment as a user message.", DecisionSource: current.DecisionSourceTaskID, Input: receipt})
+		case kind == ContinueResume || kind == ContinueRoomContext:
 			// Resume after repair needs no invented text, and grants a fresh
 			// allowance exactly once under this revision (TS-09.R70).
 			text := "The person resumed this run after the pause (" + run.AttentionReason + "). Re-check the current state before repeating any action."
-			if input != "" {
-				text += "\nTheir instructions: " + input
+			if kind == ContinueRoomContext {
+				text = roomContextContinuation(run)
 			}
-			if continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: clipText(text, MaxValueRunes), RenewAllowance: true, DecisionSource: current.DecisionSourceTaskID}); continueErr == nil {
-				continueErr = newVisit()
-			}
+			continueErr = m.createVisit(run, detail, current, stage, visitOptions{Continuation: text, RenewAllowance: true, DecisionSource: current.DecisionSourceTaskID, Input: receipt})
 		default:
 			continueErr = controlError("invalid_state", "continue is not valid for the current run state")
 		}
@@ -177,6 +161,11 @@ func (m *Manager) continueRun(ctx context.Context, runID string, expectedRevisio
 			if err := m.Reconcile(ctx, runID); err != nil {
 				m.RecordReconcileFailure(runID, err)
 			}
+		}
+		if fromConversation {
+			// The caller already has the committed input identity. A later
+			// detail read must not turn its acceptance into a refusal.
+			return RunDetail{}, nil
 		}
 		return m.Detail(runID)
 	} else if stageErr != nil {

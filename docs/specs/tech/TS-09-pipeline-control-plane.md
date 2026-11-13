@@ -746,7 +746,11 @@ task-backed controller; do not add a second executor for simple sequences.
   execution handle, current task/run revision, decision shape, destination and required evidence in
   report acceptance. Commit result, outputs, decision and closure intent before success or external
   effects. Rejection leaves the assignment actionable with a concrete correction and spends no
-  repair-round allowance; stalled decision recovery is separately bounded. After reporting turn-end
+  repair-round allowance; stalled decision recovery is separately bounded. A refused stage result
+  distinguishes missing and undeclared outputs, missing and stale execution handles, a pending or
+  active wait, closed runs, stale assignments, and revision conflicts. The report operation logs the
+  refusal code with the run, task, caller and generation, without logging result content.
+  After reporting turn-end
   and existing cleanup, compare-and-set activation
   executes only that recorded decision. Stop/replay/restart cannot create duplicate visits.
   Successful completion replaces the last-index test with owner intent and accepted successful
@@ -775,11 +779,20 @@ task-backed controller; do not add a second executor for simple sequences.
   WAIT-PROMPT's receipt ordering without bypassing lifecycle admission or treating an ordinary
   answer as tool approval. After a paused attempt's immutable result, an answer creates a new visit
   through the common continuation transaction; it does not reopen/rewrite that finished task.
+  The visit or resumed dispatch and its prepared receipt commit together. The assignment
+  describes the pause and question; the full answer or instructions travel as user input.
+  A controller-only Resume or explicit checkpoint approval refuses extra instructions before
+  changing the run.
+  Startup preserves the controller's pending action and existing retry limit. When immutable
+  produced values exceed a room's stage context limit, Resume opens a corrective visit of the
+  producing step and retains the previous accepted result.
 - **R70 (shipped 2026-10-30) — Recover actionable stalls through ordinary dispatch.** Persist recovery
   reason/count/next-attempt time. Watch changes, accepted results, retained input, confirmed exits
   and turn-end without report/wait drive coalesced assignment continuation or recovery. Bounded
-  sweeps recover missed actionable events, not periodically prompt an LLM. Silence during a live
-  turn/tool, permission wait, child watch or known quota sleep does not authorize blind replay.
+  sweeps recheck open visits, retry the confirmed owner's standing bind, and recover interrupted
+  visits using the recorded cause. An explicit owner stop pauses for the person. A nudge requires
+  a settled turn of the assigned generation, and retries of the same turn count once. Silence
+  during a live turn/tool, permission wait, child watch or known quota sleep does not authorize replay.
   Resolve ownership/uncertain effects first; use an owner recovery assignment when judgment is
   required. Existing TS-10.R35 mechanical backoff stays separate from three automatic repair/revisit
   rounds per allowance. Charge one round atomically on committing a same-stage/backward route or

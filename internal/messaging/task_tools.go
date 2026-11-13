@@ -212,7 +212,7 @@ func (s *Server) handleReportTaskResult(_ context.Context, req *mcp.CallToolRequ
 			"ok": false, "error": "not_assigned",
 			"message": "This assignment belongs to another agent or to an earlier session.",
 		})
-	case errors.Is(err, state.ErrWorkResultRecorded), errors.Is(err, state.ErrTaskNotReportable), errors.Is(err, state.ErrPipelineStageConflict):
+	case errors.Is(err, state.ErrWorkResultRecorded), errors.Is(err, state.ErrTaskNotReportable):
 		return errResult(map[string]any{
 			"ok": false, "error": "already_reported",
 			"message": "This task already has a recorded result.",

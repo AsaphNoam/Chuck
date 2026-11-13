@@ -30,6 +30,9 @@ var retryClasses = map[string]RetryClass{
 	"internal":                RetryTransient, "store_unavailable": RetryTransient,
 	"context_unavailable": RetryTransient, "context_busy": RetryTransient,
 	"pipeline_unavailable": RetryTransient,
+	"stage_run_closed":     RetryNever, "stage_waiting": RetryNever,
+	"stage_handle_required": RetryAfterChange, "stage_output_missing": RetryAfterChange,
+	"stage_output_undeclared": RetryAfterChange, "stage_run_changed": RetryTransient,
 	// Peer reads and approved Stop (FS-17.R22). A terminal Stop refusal never
 	// invites a retry: another Stop needs a fresh operator decision.
 	"agent_not_found":        RetryAfterChange,

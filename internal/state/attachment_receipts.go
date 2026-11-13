@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -13,6 +14,9 @@ import (
 type AttachmentReceipt struct {
 	AgentID, RequestID, PayloadHash, MessageJSON, Action, Delivery, Outcome string
 	AssignmentTaskID                                                        string
+	// OriginTaskID identifies the paused visit, even after a replacement or
+	// delivery clears AssignmentTaskID. Its lineage identifies the run.
+	OriginTaskID, OriginQuestion string
 	// SourceAgentID is set, durably, when a claim moved queued input to its
 	// assignment's current agent: this earlier conversation accepted it, owns
 	// the original attachment bytes, and its replays still find the receipt
@@ -20,11 +24,11 @@ type AttachmentReceipt struct {
 	SourceAgentID string
 }
 
-const attachmentReceiptColumns = `agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id,source_agent_id`
+const attachmentReceiptColumns = `agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id,source_agent_id,origin_task_id,origin_question`
 
 func scanAttachmentReceipt(row *sql.Row) (AttachmentReceipt, error) {
 	var r AttachmentReceipt
-	err := row.Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &r.AssignmentTaskID, &r.SourceAgentID)
+	err := row.Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &r.AssignmentTaskID, &r.SourceAgentID, &r.OriginTaskID, &r.OriginQuestion)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, ErrNotFound
 	}
@@ -155,9 +159,9 @@ func (s *Store) claimQueuedInput(predicate string, args ...any) (AttachmentRecei
 	defer tx.Rollback()
 	var r AttachmentReceipt
 	var target string
-	err = tx.QueryRow(`SELECT a.agent_id,a.request_id,a.payload_hash,a.message_json,a.action,a.delivery,a.outcome,t.assigned_agent_id
+	err = tx.QueryRow(`SELECT a.agent_id,a.request_id,a.payload_hash,a.message_json,a.action,a.delivery,a.outcome,a.origin_task_id,a.origin_question,t.assigned_agent_id
 FROM attachment_receipts a JOIN tasks t ON t.task_id = a.assignment_task_id
-WHERE `+predicate+` ORDER BY a.updated_at, a.rowid LIMIT 1`, args...).Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &target)
+WHERE `+predicate+` ORDER BY a.updated_at, a.rowid LIMIT 1`, args...).Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &r.OriginTaskID, &r.OriginQuestion, &target)
 	if errors.Is(err, sql.ErrNoRows) {
 		return AttachmentReceipt{}, false, nil
 	}
@@ -189,10 +193,8 @@ WHERE `+predicate+` ORDER BY a.updated_at, a.rowid LIMIT 1`, args...).Scan(&r.Ag
 // delivery (TS-09.R69/R70).
 func (s *Store) QueuedInputWork() (prepared []Task, executing []AttachmentReceipt, err error) {
 	now := formatTime(time.Now().UTC())
-	if _, err := s.db.Exec(`UPDATE attachment_receipts SET delivery='released', assignment_task_id='', updated_at=?
-WHERE assignment_task_id <> '' AND delivery = 'prepared' AND NOT EXISTS (SELECT 1 FROM tasks
-  WHERE tasks.task_id = attachment_receipts.assignment_task_id AND state <> 'finished'`+taskRunOpenClause+`)`, now); err != nil {
-		return nil, nil, fmt.Errorf("state: release stale queued input: %w", err)
+	if err := s.releaseEndedAssignmentInput(now); err != nil {
+		return nil, nil, err
 	}
 	rows, err := s.db.Query(`UPDATE tasks
 SET state = 'ready', continuation_pending = 1, resume_needed = 1, ready_at = ?, revision = revision + 1, updated_at = ?
@@ -241,6 +243,33 @@ ORDER BY a.updated_at, a.rowid LIMIT 16`)
 	return prepared, executing, rows.Err()
 }
 
+func (s *Store) releaseEndedAssignmentInput(now string) error {
+	rows, err := s.db.Query(`UPDATE attachment_receipts SET delivery = 'released', assignment_task_id = '', updated_at = ?
+WHERE rowid IN (SELECT rowid FROM attachment_receipts WHERE assignment_task_id <> '' AND delivery = 'prepared'
+  AND NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.task_id = attachment_receipts.assignment_task_id
+    AND state <> 'finished'`+taskRunOpenClause+`) ORDER BY rowid LIMIT 16)
+RETURNING agent_id, request_id`, now)
+	if err != nil {
+		return fmt.Errorf("state: release stale queued input: %w", err)
+	}
+	defer rows.Close()
+	var released []AttachmentReceipt
+	for rows.Next() {
+		var receipt AttachmentReceipt
+		if err := rows.Scan(&receipt.AgentID, &receipt.RequestID); err != nil {
+			return err
+		}
+		released = append(released, receipt)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("state: release stale queued input: %w", err)
+	}
+	for _, receipt := range released {
+		slog.Info("state: released queued assignment input", "agent", receipt.AgentID, "request_id", receipt.RequestID, "reason", "assignment_ended")
+	}
+	return nil
+}
+
 // QueuedAssignmentInput lists, oldest first and bounded, the input a person
 // sent this conversation that is still retained for an assignment's next turn,
 // so supervision can show it after navigation or restart (TS-09.R69/R71).
@@ -265,8 +294,14 @@ WHERE agent_id = ? AND assignment_task_id <> '' AND delivery = 'prepared' ORDER 
 // BindAssignmentInput records a person's input, prepared, for the assignment
 // whose turn will carry it (TS-09.R69).
 func (s *Store) BindAssignmentInput(r AttachmentReceipt, taskID string) error {
-	_, err := s.db.Exec(`INSERT INTO attachment_receipts(agent_id,request_id,payload_hash,message_json,action,delivery,updated_at,assignment_task_id) VALUES(?,?,?,?,?,'prepared',?,?)`,
-		r.AgentID, r.RequestID, r.PayloadHash, r.MessageJSON, r.Action, formatTime(time.Now().UTC()), taskID)
+	return bindAssignmentInput(s.db, r, taskID)
+}
+
+func bindAssignmentInput(db interface {
+	Exec(string, ...any) (sql.Result, error)
+}, r AttachmentReceipt, taskID string) error {
+	_, err := db.Exec(`INSERT INTO attachment_receipts(agent_id,request_id,payload_hash,message_json,action,delivery,updated_at,assignment_task_id,origin_task_id,origin_question) VALUES(?,?,?,?,?,'prepared',?,?,?,?)`,
+		r.AgentID, r.RequestID, r.PayloadHash, r.MessageJSON, r.Action, formatTime(time.Now().UTC()), taskID, r.OriginTaskID, r.OriginQuestion)
 	return err
 }
 

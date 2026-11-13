@@ -223,25 +223,42 @@ func (m *Manager) OnStageTaskInterrupted(taskID, attentionReason string) error {
 	if err != nil {
 		return err
 	}
-	run, err := m.store.ReadPipelineRun(stage.RunID)
-	if err != nil {
-		return err
-	}
-	if run.State == "completed" || run.State == "stopped" || run.State == "stopping" {
-		return nil
-	}
-	updated, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
-		State: "paused", PendingAction: "", CurrentStageID: stage.StageID,
-		CurrentAgentID: stage.StandingAgentID, AttentionReason: attentionReason,
-	})
-	if errors.Is(err, state.ErrPipelineConflict) {
-		return nil
-	}
-	if err == nil {
+	unlock := m.lockRun(stage.RunID)
+	defer unlock()
+	updated, ok, err := m.pauseInterruptedStage(stage.RunID, taskID, attentionReason)
+	if ok {
 		m.publish(updated)
 		m.notify(updated, "needs_attention")
 	}
 	return err
+}
+
+// pauseInterruptedStage runs under the run lock. The dispatcher can bind a
+// confirmed owner without that lock, so a revision conflict calls for a fresh
+// decision. The dispatcher also retries any interruption left by a store error.
+func (m *Manager) pauseInterruptedStage(runID, taskID, attention string) (state.PipelineRunRecord, bool, error) {
+	for range 3 {
+		run, err := m.store.ReadPipelineRun(runID)
+		if err != nil || (run.State != "running" && run.State != "queued") {
+			return run, false, err
+		}
+		visit, found, err := m.currentStageTask(runID)
+		if err != nil || !found || visit.TaskID != taskID || visit.State != "open" {
+			return run, false, err
+		}
+		task, err := m.store.ReadTask(taskID)
+		if err != nil || task.State != state.TaskInterrupted {
+			return run, false, err
+		}
+		updated, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
+			State: "paused", CurrentStageID: visit.StageID, CurrentAgentID: visit.StandingAgentID,
+			AttentionReason: attention,
+		})
+		if !errors.Is(err, state.ErrPipelineConflict) {
+			return updated, err == nil, err
+		}
+	}
+	return state.PipelineRunRecord{}, false, state.ErrPipelineConflict
 }
 
 // roomStage composes a think_tank stage's room: fresh same-project
@@ -813,32 +830,21 @@ func (m *Manager) Startup(ctx context.Context) error {
 		return err
 	}
 	for _, run := range runs {
-		if run.PendingAction == "" || run.PendingAction == "await_approval" {
+		if !retryableControllerAction(run.PendingAction) || run.ControllerFailures >= state.MaxPipelineControllerFailures {
 			continue
 		}
 		if err := m.Reconcile(ctx, run.RunID); err != nil {
 			current, readErr := m.store.ReadPipelineRun(run.RunID)
-			if readErr == nil {
-				run = current
+			if readErr != nil {
+				return errors.Join(err, readErr)
 			}
-			// A reported stage has already committed its result and release. Keep
-			// that cursor durable when controller bookkeeping is temporarily
-			// unavailable; the shared task dispatcher retries it after startup.
-			if run.State == "finishing" && run.PendingAction == "release_stage_task" {
-				if updated, recordErr := m.store.RecordPipelineControllerFailure(run, err, time.Now().UTC().Add(taskControllerRetryDelay(run.ControllerFailures))); recordErr != nil {
-					return errors.Join(err, recordErr)
-				} else {
-					m.publish(updated)
-					if updated.ControllerFailures == state.MaxPipelineControllerFailures {
-						m.notify(updated, "needs_attention")
-					}
-				}
-				slog.Warn("pipeline: startup reconcile deferred", "run", run.RunID, "err", err)
+			if current.PendingAction != run.PendingAction || current.ControllerFailures >= state.MaxPipelineControllerFailures {
 				continue
 			}
-			if pauseErr := m.pauseStartupRun(ctx, run.RunID, "restart_reconcile_failed"); pauseErr != nil {
-				return errors.Join(err, pauseErr)
+			if recordErr := m.recordReconcileFailure(current, err); recordErr != nil && !errors.Is(recordErr, state.ErrPipelineConflict) {
+				return errors.Join(err, recordErr)
 			}
+			slog.Warn("pipeline: startup reconcile deferred", "run", run.RunID, "action", run.PendingAction, "err", err)
 		}
 	}
 	return nil
@@ -850,23 +856,22 @@ func (m *Manager) Startup(ctx context.Context) error {
 func (m *Manager) ReconcilePending(ctx context.Context) {
 	runs, err := m.store.ListDuePipelineControllerActions(time.Now().UTC(), reconcileBatch)
 	if err != nil {
-		slog.Debug("pipeline: list pending reconciliation", "err", err)
+		slog.Warn("pipeline: list pending reconciliation", "err", err)
 		return
 	}
 	for _, run := range runs {
 		before := run.Revision
 		if err := m.Reconcile(ctx, run.RunID); err != nil {
-			if updated, recordErr := m.store.RecordPipelineControllerFailure(run, err, time.Now().UTC().Add(taskControllerRetryDelay(run.ControllerFailures))); recordErr == nil {
-				m.publish(updated)
-				if updated.ControllerFailures == state.MaxPipelineControllerFailures {
-					m.notify(updated, "needs_attention")
-				}
-			}
-			slog.Debug("pipeline: deferred reconcile", "run", run.RunID, "action", run.PendingAction, "err", err)
+			_ = m.recordReconcileFailure(run, err)
+			slog.Warn("pipeline: deferred reconcile", "run", run.RunID, "action", run.PendingAction, "reason", "reconcile_failed")
 		} else if current, readErr := m.store.ReadPipelineRun(run.RunID); readErr == nil && current.Revision == before && current.PendingAction == run.PendingAction {
 			// Cleanup can be correctly unfinished. Yield its unchanged action for
 			// one dispatcher interval rather than consuming every immediate batch.
-			_ = m.store.DeferPipelineControllerAction(current, time.Now().UTC().Add(taskDispatchDelay))
+			if err := m.store.DeferPipelineControllerAction(current, time.Now().UTC().Add(taskDispatchDelay)); err != nil {
+				slog.Warn("pipeline: defer controller action", "run", run.RunID, "action", run.PendingAction, "err", err)
+			}
+		} else if readErr != nil {
+			slog.Warn("pipeline: read reconciled run", "run", run.RunID, "err", readErr)
 		}
 	}
 }
@@ -876,19 +881,35 @@ func (m *Manager) ReconcilePending(ctx context.Context) {
 func (m *Manager) RecordReconcileFailure(runID string, cause error) {
 	run, err := m.store.ReadPipelineRun(runID)
 	if err != nil {
+		slog.Warn("pipeline: read run to record controller failure", "run", runID, "err", err)
 		return
 	}
-	switch run.PendingAction {
+	if !retryableControllerAction(run.PendingAction) || run.ControllerFailures >= state.MaxPipelineControllerFailures {
+		return
+	}
+	_ = m.recordReconcileFailure(run, cause)
+}
+
+func retryableControllerAction(action string) bool {
+	switch action {
 	case "release_stage_task", "cleanup_run", "activate_replacement":
-		updated, err := m.store.RecordPipelineControllerFailure(run, cause, time.Now().UTC().Add(taskControllerRetryDelay(run.ControllerFailures)))
-		if err != nil {
-			return
-		}
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *Manager) recordReconcileFailure(run state.PipelineRunRecord, cause error) error {
+	updated, err := m.store.RecordPipelineControllerFailure(run, cause, time.Now().UTC().Add(taskControllerRetryDelay(run.ControllerFailures)))
+	if err == nil {
 		m.publish(updated)
 		if updated.ControllerFailures == state.MaxPipelineControllerFailures {
 			m.notify(updated, "needs_attention")
 		}
+	} else {
+		slog.Warn("pipeline: record controller failure", "run", run.RunID, "action", run.PendingAction, "err", err)
 	}
+	return err
 }
 
 const taskDispatchDelay = 2 * time.Second
@@ -927,42 +948,6 @@ func (m *Manager) resetLegacyPipelines(ctx context.Context) error {
 		return err
 	}
 	return m.store.CompleteLegacyPipelineReset()
-}
-
-func (m *Manager) pauseStartupRun(ctx context.Context, runID, reason string) error {
-	run, err := m.store.ReadPipelineRun(runID)
-	if err != nil {
-		return err
-	}
-	if run.State == "completed" || run.State == "stopped" {
-		return nil
-	}
-	// A stop already committed its closure fence. Pausing here would drop that
-	// fence and re-enable Retry on a run a person asked to stop, so a failed
-	// recovery leaves the stop standing and its cleanup pending instead
-	// (TS-09.R42/R43, INV §15).
-	if run.State == "stopping" {
-		slog.Warn("pipeline: startup reconcile failed for a stopping run; retaining the stop fence",
-			"run", run.RunID, "reason", reason, "pending_action", run.PendingAction)
-		return nil
-	}
-	updated, err := m.store.UpdatePipelineRunCAS(run.RunID, run.Revision, state.PipelineRunUpdate{
-		State: "paused", PendingAction: "", CurrentStageID: run.CurrentStageID,
-		CurrentAttemptID: run.CurrentAttemptID, CurrentAgentID: run.CurrentAgentID,
-		AttentionReason: reason,
-	})
-	if errors.Is(err, state.ErrPipelineConflict) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	m.publish(updated)
-	m.notify(updated, "needs_attention")
-	if m.lifecycle != nil && run.CurrentAgentID != "" {
-		_ = m.lifecycle.StopStage(ctx, run.CurrentAgentID)
-	}
-	return nil
 }
 
 // lockRun serializes one run's control transitions and returns its unlock. The

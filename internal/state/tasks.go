@@ -2028,40 +2028,40 @@ ORDER BY COALESCE(cleanup_next_retry_at, finished_at, updated_at), task_id LIMIT
 // The generation is required, so a resumed agent's exit cannot interrupt work
 // assigned to the runtime that replaced it. A task that already recorded a
 // result is untouched, which is what makes the stop that follows a report safe.
-func (s *Store) InterruptTaskForAgent(agentID, generation, reason string) (Task, bool, error) {
-	return s.interrupt(reason, `
-WHERE assigned_agent_id = ? AND assigned_generation = ? AND pending_yield = 0 AND state IN (?, ?)`,
-		[]any{agentID, generation, TaskStarting, TaskRunning})
+func (s *Store) InterruptTaskForAgent(agentID, generation, reason, recoveryKind string) (Task, bool, error) {
+	return s.interrupt(reason, recoveryKind, `assigned_agent_id = ? AND assigned_generation = ?`, agentID, generation)
 }
 
 // InterruptTask interrupts one task by id, for a recovery sweep that already
 // knows which rows it is resolving (TS-10.R15).
 func (s *Store) InterruptTask(taskID, reason string) (Task, bool, error) {
-	return s.interrupt(reason, `WHERE task_id = ? AND pending_yield = 0 AND state IN (?, ?)`,
-		[]any{taskID, TaskStarting, TaskRunning})
+	return s.interrupt(reason, "", `task_id = ?`, taskID)
 }
 
-func (s *Store) interrupt(reason, where string, args []any) (Task, bool, error) {
+// InterruptPipelineOwner retains why the active run's visit was interrupted
+// so recovery can make the same decision when the callback does not finish.
+func (s *Store) InterruptPipelineOwner(taskID, generation, reason, recoveryKind string) (Task, bool, error) {
+	if generation == "" {
+		return s.interrupt(reason, recoveryKind, `task_id = ?`, taskID)
+	}
+	return s.interrupt(reason, recoveryKind, `task_id = ? AND assigned_generation = ? AND pending_release = 0`+taskRunOpenClause, taskID, generation)
+}
+
+func (s *Store) interrupt(reason, recoveryKind, predicate string, identity ...any) (Task, bool, error) {
+	args := append([]any{TaskInterrupted, reason, recoveryKind, formatTime(timeNow()), TaskStarting, TaskRunning}, identity...)
 	var taskID string
-	err := s.db.QueryRow(`SELECT task_id FROM tasks `+where, args...).Scan(&taskID)
+	err := s.db.QueryRow(`
+UPDATE tasks SET state = ?, attention_reason = ?, assigned_generation = '', pending_yield = 0,
+  continuation_pending = 0, resume_needed = 0,
+  runtime_claim = '', execution_turn = '', start_attempt_id = '', start_claimed_at = NULL,
+  pipeline_recovery_kind = ?, revision = revision + 1, updated_at = ?
+WHERE pending_yield = 0 AND state IN (?, ?) AND `+predicate+`
+RETURNING task_id`, args...).Scan(&taskID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, false, nil
 	}
 	if err != nil {
-		return Task{}, false, fmt.Errorf("state: find task to interrupt: %w", err)
-	}
-	res, err := s.db.Exec(`
-UPDATE tasks SET state = ?, attention_reason = ?, assigned_generation = '', pending_yield = 0,
-  continuation_pending = 0, resume_needed = 0,
-  runtime_claim = '', execution_turn = '', start_attempt_id = '', start_claimed_at = NULL,
-  revision = revision + 1, updated_at = ?
-WHERE task_id = ? AND pending_yield = 0 AND state IN (?, ?)`,
-		TaskInterrupted, reason, formatTime(timeNow()), taskID, TaskStarting, TaskRunning)
-	if err != nil {
 		return Task{}, false, fmt.Errorf("state: interrupt task: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return Task{}, false, nil
 	}
 	task, err := s.ReadTask(taskID)
 	return task, err == nil, err
