@@ -76,7 +76,7 @@ export async function readHeldRecovery(agentId: string, isCurrent = () => true, 
     const snapshot = await getHeldPrompt(agentId);
     if (read.stale || !isCurrent()) return;
     if (includeHold) {
-      if (snapshot.text || snapshot.attachments?.length) useHeldStore.getState().hold(agentId, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id);
+      if (snapshot.text || snapshot.attachments?.length) useHeldStore.getState().hold(agentId, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id, snapshot.request_id);
       else useHeldStore.getState().release(agentId);
     }
     useHeldStore.getState().setRecovery(agentId, snapshot.recovery ?? null);

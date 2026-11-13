@@ -2207,7 +2207,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   dashboard chat pane; `PointerContextMenu` items gained `disabled` and an accessible description.
   The quota disclosure is a native `<details>` with a `<meter>` per known window, rendered in
   the presentation fixture; the rendered fork-action journey is still owed.
-- **R163 (planned) — Local prompt echo reconciles by request id.** For FS-03.R118 the transcript
+- **R163 — Local prompt echo reconciles by request id.** For FS-03.R118 the transcript
   store pairs an unsequenced local `user_text` with its sequenced event by comparing the echo's
   `message_id` to the event's `request_id`, in both arrival orders and in the reconciliation tail.
   The composer's already-delivered check and the held-message clear use the same id. Text equality

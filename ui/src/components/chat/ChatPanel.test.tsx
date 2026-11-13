@@ -637,6 +637,22 @@ describe("ChatPanel queued follow-up and steering", () => {
     expect(useHeldStore.getState().afterSeqByAgent.a_live).toBe(21);
   });
 
+  it("keeps a held follow-up when an identical prompt with a different ID arrives", async () => {
+    useAgentStore.setState({ agents: { a_live: { ...liveAgent("a_live"), state: "busy" } }, order: ["a_live"], hydrated: true });
+    mocks.getHeldPrompt.mockResolvedValue({ agent_id: "a_live", text: "run tests", after_seq: 10, request_id: "held-request" });
+    renderPanel("a_live");
+    expect(await screen.findByText("Queued — sends when this turn ends")).toBeInTheDocument();
+
+    act(() => useTranscriptStore.getState().appendMessage("a_live", {
+      type: "user_text", seq: 11, data: { text: "run tests", request_id: "another-request" },
+    }));
+    expect(screen.getByText("Queued — sends when this turn ends")).toBeInTheDocument();
+    act(() => useTranscriptStore.getState().appendMessage("a_live", {
+      type: "user_text", seq: 12, data: { text: "run tests", request_id: "held-request" },
+    }));
+    expect(screen.queryByText("Queued — sends when this turn ends")).toBeNull();
+  });
+
   it("keeps queued annotation A withdrawable when distinct batch B is steered", async () => {
     useAgentStore.setState({ agents: { a_live: { ...liveAgent("a_live"), state: "busy", steering_available: true } }, order: ["a_live"], hydrated: true });
     const a = "[Chuck annotations]\nqueued batch A";

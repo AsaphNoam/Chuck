@@ -592,6 +592,41 @@ describe("Composer queued follow-up and steering", () => {
     expect(useTranscriptStore.getState().byAgent.a_1).toEqual([expect.objectContaining({ text: "send once", message_id: "accepted-id" })]);
   });
 
+  it.each([true, false])("renders identical sends once each when delivery precedes acknowledgment: %s", async (deliveryFirst) => {
+    let count = 0;
+    let deliverLast: (() => void) | undefined;
+    server.use(http.post("/api/sessions/:id/prompt", async ({ request }) => {
+      const { text, request_id } = await request.json() as { text: string; request_id: string };
+      const seq = ++count;
+      const deliver = () => useTranscriptStore.getState().appendMessage("a_1", {
+        type: "user_text", seq, data: { text, request_id },
+      });
+      if (seq === 1 || deliveryFirst) deliver();
+      else deliverLast = deliver;
+      return HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "sent", after_seq: seq - 1, request_id }, { status: 202 });
+    }));
+    render(<Composer agentId="a_1" busy={false} />);
+    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
+    const send = screen.getByRole("button", { name: "Send" });
+    const events = () => useTranscriptStore.getState().byAgent.a_1;
+    const submit = async () => {
+      type(ta, "repeat");
+      fireEvent.click(send);
+      await waitFor(() => expect(getChatDraft("a_1")).toBe(""));
+    };
+
+    await submit();
+    await waitFor(() => expect(events()).toHaveLength(1));
+    await submit();
+    await waitFor(() => expect(events()).toHaveLength(2));
+    if (!deliveryFirst) {
+      expect(events()[1].seq).toBeUndefined();
+      deliverLast?.();
+    }
+    expect(events().map((event) => event.seq)).toEqual([1, 2]);
+    expect(new Set(events().map((event) => event.request_id)).size).toBe(2);
+  });
+
   it("keeps ordinary Send recoverable when delivery is uncertain", async () => {
     server.use(
       http.post("/api/sessions/:id/prompt", () => HttpResponse.json({ error: { code: "delivery_uncertain", message: "This message may already have reached the agent." } }, { status: 409 })),

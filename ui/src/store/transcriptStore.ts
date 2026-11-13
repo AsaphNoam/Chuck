@@ -54,18 +54,35 @@ function textOf(event: TranscriptEvent) {
 // composer and SSE stream both use appendMessage, so whichever arrives second
 // finds its opposite form here: the durable event replaces an optimistic one,
 // while an optimistic event is suppressed when the durable event already won.
-// Do not cross a completed turn when matching repeated prompt text.
+// A completed turn only limits the legacy text match.
+export function matchesPromptDelivery(
+  event: TranscriptEvent, text: string, requestId: string | undefined, afterSeq = 0,
+): boolean {
+  return kindOf(event) === "user_text" && event.seq != null &&
+    (event.request_id ? event.request_id === requestId : event.seq > afterSeq && textOf(event) === text);
+}
+
 function reconcileUserMessage(events: TranscriptEvent[], event: TranscriptEvent) {
   if (kindOf(event) !== "user_text") return false;
+  let withinTurn = true;
+  let matchedIndex = -1;
   for (let i = events.length - 1; i >= 0; i--) {
     const candidate = events[i];
-    if (kindOf(candidate) === "turn_end") break;
-    if (kindOf(candidate) !== "user_text" || textOf(candidate) !== textOf(event)) continue;
+    if (kindOf(candidate) === "turn_end") withinTurn = false;
+    if (kindOf(candidate) !== "user_text") continue;
     if ((candidate.seq == null) === (event.seq == null)) continue;
-    if (event.seq != null) events[i] = event;
-    return true;
+    const [delivery, echo] = event.seq != null ? [event, candidate] : [candidate, event];
+    if (!delivery.request_id && (!withinTurn || matchedIndex !== -1)) continue;
+    if (!matchesPromptDelivery(delivery, textOf(echo), echo.message_id, echo.echo_after_seq)) continue;
+    matchedIndex = i;
+    if (delivery.request_id || event.seq != null) break;
   }
-  return false;
+  if (matchedIndex === -1) return false;
+  if (event.seq != null) {
+    events.splice(matchedIndex, 1);
+    events.push(event);
+  }
+  return true;
 }
 
 // clipPreview keeps the last `n` Unicode code points of `s` — the same end and
@@ -125,7 +142,7 @@ function suppressedAnnotationPrompt(events: TranscriptEvent[], event: Transcript
     if (kindOf(candidate) !== "annotation" || candidate.prompt_paired) continue;
     if ((candidate.target as { kind?: string } | undefined)?.kind !== "self") continue;
     // prompt_seq lets the held-message tail see a quieted delivery.
-    events[i] = { ...candidate, prompt_paired: true, prompt_seq: event.seq, prompt_text: textOf(event) };
+    events[i] = { ...candidate, prompt_paired: true, prompt_seq: event.seq, prompt_text: textOf(event), prompt_request_id: event.request_id };
     return true;
   }
   return false;
@@ -229,9 +246,7 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
       }
 
       const events = [...(state.byAgent[agentId] ?? [])];
-	      // The composer displays a local user bubble immediately. Replace that
-	      // exact unsequenced bubble when its durable runtime event arrives so a
-	      // live SSE delivery does not render the prompt twice.
+      // Pair the composer bubble with its durable runtime event.
       if (reconcileUserMessage(events, event)) {
         if (rawEvents && !reconcileUserMessage(rawEvents, event) && event.seq != null) rawEvents.push(event);
         return { byAgent: { ...state.byAgent, [agentId]: events }, pending: state.pending, appliedSeq };
@@ -298,9 +313,12 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
       const newerDelivered = (state.rawByAgent[agentId] ?? []).filter(
         (event) => event.seq == null || Number(event.seq) > responseMaxSeq,
       );
-      const reconciledRaw = [...events.map(normalizeEvent), ...newerDelivered];
+      const reconciledRaw = [...events.map(normalizeEvent), ...newerDelivered.filter((event) => event.seq != null)];
       const loadedSeq = reconciledRaw.reduce((max, event) => Math.max(max, Number(event.seq ?? 0)), 0);
       let folded = foldTranscript(reconciledRaw);
+      for (const echo of newerDelivered) {
+        if (echo.seq == null && !reconcileUserMessage(folded, echo)) appendRenderedEvent(folded, echo);
+      }
       for (const current of state.byAgent[agentId] ?? []) {
         if (kindOf(current) !== "permission_request" || !current.resolved) continue;
         folded = markResolved(folded, String(current.tool_call_id ?? ""), current.resolved as PermissionResolution);

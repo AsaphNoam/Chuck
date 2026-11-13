@@ -1,6 +1,6 @@
 # Match sent prompts by request id
 
-**State:** Waiting to start
+**State:** Finished
 **Why:** Direct `/design-feature` request on 2026-11-13. Second of five single-owner refactors from
 the 60-day invariant review; submitted input is the area with the most recent field reports.
 **Relevant requirements:** FS-03.R118/A93 (building on R7, R48); TS-08.R163; INV §17, §19.

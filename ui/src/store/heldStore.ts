@@ -14,6 +14,7 @@ import type { AttachmentDescriptor } from "../api/types";
 interface HeldStoreState {
   byAgent: Record<string, string>;
   heldIdByAgent: Record<string, string>;
+  requestIdByAgent: Record<string, string | undefined>;
   afterSeqByAgent: Record<string, number>;
   attachmentsByAgent: Record<string, AttachmentDescriptor[]>;
   recoveryByAgent: Record<string, { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string }>;
@@ -21,7 +22,7 @@ interface HeldStoreState {
   // says so and offers to read it again rather than showing nothing (FS-03.R90).
   // The value counts failed reads so a failed retry shows a new outcome.
   recoveryUnreadByAgent: Record<string, number>;
-  hold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[], heldId?: string) => void;
+  hold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[], heldId?: string, requestId?: string) => void;
   release: (agentId: string) => void;
   setRecovery: (agentId: string, recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } | null) => void;
   markRecoveryUnread: (agentId: string) => void;
@@ -32,16 +33,18 @@ interface HeldStoreState {
 export const useHeldStore = create<HeldStoreState>((set) => ({
   byAgent: {},
   heldIdByAgent: {},
+  requestIdByAgent: {},
   afterSeqByAgent: {},
   attachmentsByAgent: {},
   recoveryByAgent: {},
   recoveryUnreadByAgent: {},
   queuedByAgent: {},
   setQueued: (agentId, queued) => set((state) => ({ queuedByAgent: { ...state.queuedByAgent, [agentId]: queued } })),
-  hold: (agentId, text, afterSeq = 0, attachments = [], heldId = "") =>
+  hold: (agentId, text, afterSeq = 0, attachments = [], heldId = "", requestId) =>
     set((state) => ({
       byAgent: { ...state.byAgent, [agentId]: text },
       heldIdByAgent: { ...state.heldIdByAgent, [agentId]: heldId },
+      requestIdByAgent: { ...state.requestIdByAgent, [agentId]: requestId },
       afterSeqByAgent: { ...state.afterSeqByAgent, [agentId]: afterSeq },
       attachmentsByAgent: { ...state.attachmentsByAgent, [agentId]: attachments },
     })),
@@ -50,13 +53,15 @@ export const useHeldStore = create<HeldStoreState>((set) => ({
       if (!(agentId in state.byAgent)) return state;
       const byAgent = { ...state.byAgent };
       const heldIdByAgent = { ...state.heldIdByAgent };
+      const requestIdByAgent = { ...state.requestIdByAgent };
       const afterSeqByAgent = { ...state.afterSeqByAgent };
       const attachmentsByAgent = { ...state.attachmentsByAgent };
       delete byAgent[agentId];
       delete heldIdByAgent[agentId];
+      delete requestIdByAgent[agentId];
       delete afterSeqByAgent[agentId];
       delete attachmentsByAgent[agentId];
-      return { byAgent, heldIdByAgent, afterSeqByAgent, attachmentsByAgent };
+      return { byAgent, heldIdByAgent, requestIdByAgent, afterSeqByAgent, attachmentsByAgent };
     }),
   setRecovery: (agentId, recovery) => set((state) => {
     const recoveryByAgent = { ...state.recoveryByAgent };

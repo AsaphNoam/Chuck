@@ -59,11 +59,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 - **R6.** On an idle chat agent, submitting non-whitespace text through the composer calls
   `POST /api/sessions/{id}/prompt` with `{text}`. Enter submits and Shift+Enter inserts a newline.
   The accepted response is `202` with `{accepted:true, agent_id}`.
-- **R7.** The composer immediately displays the submitted user text for the current browser view
-  and clears its draft. On acceptance, the runtime emits a sequenced `user_text` event that replaces
-  the optimistic bubble and joins the durable transcript. If delivery fails, it shows an actionable
-  error and restores the draft so the user can retry; the optimistic bubble remains visible and is
-  not presented as server-acknowledged.
+- **R7.** The composer clears its input on submission. For a sent prompt, the desktop shows a
+  local bubble when the request is acknowledged if the sequenced `user_text` event has yet to
+  arrive. The sequenced event joins the durable transcript and replaces any local bubble. If
+  delivery fails, the composer shows an actionable error and restores the draft for retry.
 - **R36.** Each chat composer keeps its exact non-empty unsent text as a separate draft for
   that `agent_id` in the current browser profile. Returning to the chat after navigating elsewhere,
   refreshing, or closing and reopening Chuck restores that draft. The draft is removed only
@@ -1162,7 +1161,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   transcript's turn end, quota continuation, inline-mail read state and notifications all reflect
   that same ending. No surface reports a failed or cancelled turn as completed. The `turn_end`
   event and stored transcripts keep their existing `stop_reason` values.
-- **R118 (planned) — A sent prompt appears exactly once.** The bubble R7 shows for a sent prompt
+- **R118 — A sent prompt appears exactly once.** The bubble R7 shows for a sent prompt
   and the sequenced `user_text` event for that prompt are the same message whenever both carry the
   prompt's `request_id`, whichever arrives first. Sending identical text twice in one turn shows
   two messages. A queued follow-up leaves the R48 tail only when the event carrying its own

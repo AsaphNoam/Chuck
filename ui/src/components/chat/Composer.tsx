@@ -6,7 +6,7 @@ import { readHeldRecovery, reconcileSteerRecovery, withdrawHeldMessage } from ".
 import { useHeldStore } from "../../store/heldStore";
 import { QueuedInput } from "./QueuedInput";
 import { RunningTasks } from "./RunningTasks";
-import { useTranscriptStore } from "../../store/transcriptStore";
+import { matchesPromptDelivery, useTranscriptStore } from "../../store/transcriptStore";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
 import { useAutocomplete } from "./autocomplete";
 import { useComposerEditing } from "./useComposerEditing";
@@ -25,9 +25,7 @@ function latestTranscriptSeq(agentId: string): number {
 
 function alreadyDelivered(agentId: string, text: string, beforeSeq: number, requestId?: string): boolean {
   return (useTranscriptStore.getState().byAgent[agentId] ?? []).some((event) =>
-    event.kind === "user_text" && (requestId && event.request_id
-      ? event.request_id === requestId
-      : event.seq != null && event.seq > beforeSeq && event.text === text));
+    matchesPromptDelivery(event, text, requestId, beforeSeq));
 }
 
 function isDeliveryUncertain(error: unknown): boolean {
@@ -169,12 +167,12 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       const acceptedAttachments = "attachments" in result ? result.attachments ?? [] : [];
       const acceptedRequestId = "request_id" in result ? result.request_id : undefined;
       if (steeringMessage) await reconcileSteerRecovery(agentId, acceptedRequestId);
-      if (!steeringMessage && "delivery" in result && result.delivery === "held") hold(agentId, prompt, result.after_seq, acceptedAttachments, "held_id" in result ? result.held_id : undefined);
+      if (!steeringMessage && "delivery" in result && result.delivery === "held") hold(agentId, prompt, result.after_seq, acceptedAttachments, result.held_id, acceptedRequestId ?? requestId);
       const attachmentStatus = "attachment_delivery" in result ? result.attachment_delivery : undefined;
       const queued = !steeringMessage && "delivery" in result && result.delivery === "queued";
-      if (!steeringMessage && !queued && (!selected.length || attachmentStatus === "submitted") &&
+      if (!steeringMessage && !queued && !("delivery" in result && result.delivery === "held") && (!selected.length || attachmentStatus === "submitted") &&
           !alreadyDelivered(agentId, prompt, beforeSeq, acceptedRequestId ?? requestId)) {
-        append(agentId, { kind: "user_text", text: prompt, attachments: acceptedAttachments, message_id: acceptedRequestId ?? requestId });
+        append(agentId, { kind: "user_text", text: prompt, attachments: acceptedAttachments, message_id: acceptedRequestId ?? requestId, echo_after_seq: beforeSeq });
       }
       if (selected.length && attachmentStatus !== "submitted" && attachmentStatus !== "held" && attachmentStatus !== "queued") {
         setError(attachmentStatus === "released"
@@ -286,9 +284,9 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       // The server's answer decides whether this ran or is waiting, so the
       // pending state is rendered from what happened rather than inferred from
       // agent status (TS-03.R38).
-      if (result.delivery === "held") hold(agentId, prompt, result.after_seq, result.attachments ?? [], result.held_id);
+      if (result.delivery === "held") hold(agentId, prompt, result.after_seq, result.attachments ?? [], result.held_id, result.request_id ?? requestId);
       else if (result.delivery === "queued") { if (currentAgentId.current === agentId) setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE); void readHeldRecovery(agentId); }
-      else if (!alreadyDelivered(agentId, prompt, beforeSeq, result.request_id ?? requestId)) append(agentId, { kind: "user_text", text: prompt, message_id: result.request_id ?? requestId });
+      else if (!alreadyDelivered(agentId, prompt, beforeSeq, result.request_id ?? requestId)) append(agentId, { kind: "user_text", text: prompt, message_id: result.request_id ?? requestId, echo_after_seq: beforeSeq });
       // Only clear the draft we actually sent; a newer same-agent draft survives.
       if (chatDraftRevision(agentId) === draftRev) discardChatDraft(agentId);
     } catch (err) {

@@ -159,6 +159,8 @@ export interface TranscriptEvent {
   seq?: number;
   ts?: string;
   message_id?: string;
+  request_id?: string;
+  echo_after_seq?: number;
   text?: string;
   delta?: string;
   resolved?: PermissionResolution;

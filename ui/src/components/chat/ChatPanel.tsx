@@ -11,7 +11,7 @@ import { sseClient } from "../../api/sse";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { useHeldStore } from "../../store/heldStore";
-import { useTranscriptStore } from "../../store/transcriptStore";
+import { matchesPromptDelivery, useTranscriptStore } from "../../store/transcriptStore";
 import { useUiStore } from "../../store/uiStore";
 import { ContextBar } from "../grid/ContextBar";
 import { SubscriptionQuotaDisclosure } from "./SubscriptionQuotaDisclosure";
@@ -88,6 +88,8 @@ function AgentPanel({ id }: { id: string }) {
   const transcriptSettled = useTranscriptStore((state) => Boolean(state.settled[id]));
   const search = useSearchReference(id, agentsHydrated && transcriptSettled, agent?.archived);
   const held = useHeldStore((state) => state.byAgent[id]);
+  const heldRequestId = useHeldStore((state) => state.requestIdByAgent[id]);
+  const heldAttachments = useHeldStore((state) => state.attachmentsByAgent[id]);
   const heldAfterSeq = useHeldStore((state) => state.afterSeqByAgent[id] ?? 0);
   const releaseHeld = useHeldStore((state) => state.release);
   const pushError = useUiStore((state) => state.pushError);
@@ -148,14 +150,18 @@ function AgentPanel({ id }: { id: string }) {
   // Matching the sequenced server event rather than the local echo is what keeps
   // the pending tail from clearing before delivery (FS-03.R48, TS-08.R56).
   useEffect(() => {
-    if (!held) return;
+    if (!held && !heldAttachments?.length) return;
     // A held annotation batch's prompt is quieted under FS-13.R23; its card
     // records where that prompt landed instead.
-    const delivered = events.some((event) =>
-      ((event.kind ?? event.type) === "user_text" && event.seq != null && event.seq > heldAfterSeq && String(event.text ?? "") === held)
-      || ((event.kind ?? event.type) === "annotation" && Number(event.prompt_seq ?? 0) > heldAfterSeq && event.prompt_text === held));
+    const delivered = events.some((event) => {
+      const delivery = (event.kind ?? event.type) === "annotation" && event.prompt_paired
+        ? { kind: "user_text", seq: Number(event.prompt_seq ?? 0), text: String(event.prompt_text ?? ""),
+            request_id: typeof event.prompt_request_id === "string" ? event.prompt_request_id : undefined }
+        : event;
+      return matchesPromptDelivery(delivery, held ?? "", heldRequestId, heldAfterSeq);
+    });
     if (delivered) releaseHeld(id);
-  }, [events, held, heldAfterSeq, id, releaseHeld]);
+  }, [events, held, heldAttachments, heldRequestId, heldAfterSeq, id, releaseHeld]);
 
   // The conversation's saved file tabs; ?file=/?fileLine= name the active one,
   // so a file URL opens it and Back hides the reader (FS-03.R101–R106). Opening

@@ -261,6 +261,27 @@ describe("transcriptStore", () => {
     expect(events[0]).toMatchObject({ kind: "user_text", seq: 2, text: "already persisted" });
   });
 
+  it("leaves an identical pending echo alone until its own sequenced event arrives", () => {
+    const store = useTranscriptStore.getState();
+    store.appendMessage("a_5", { kind: "user_text", text: "repeat", message_id: "second" });
+    store.appendMessage("a_5", { seq: 1, type: "user_text", data: { text: "repeat", request_id: "first" } });
+    expect(useTranscriptStore.getState().byAgent.a_5).toHaveLength(2);
+    store.appendMessage("a_5", { seq: 2, type: "user_text", data: { text: "repeat", request_id: "second" } });
+    expect(useTranscriptStore.getState().byAgent.a_5.map((event) => event.seq)).toEqual([1, 2]);
+  });
+
+  it("reconciles a pending echo against the transcript read after its turn has ended", () => {
+    const store = useTranscriptStore.getState();
+    store.appendMessage("a_5", { kind: "user_text", text: "repeat", message_id: "second" });
+    store.beginReconciliation("a_5");
+    store.setTranscript("a_5", [
+      { seq: 1, type: "user_text", data: { text: "repeat", request_id: "first" } },
+      { seq: 2, type: "user_text", data: { text: "repeat", request_id: "second" } },
+      { seq: 3, type: "turn_end" },
+    ]);
+    expect(useTranscriptStore.getState().byAgent.a_5.map((event) => event.seq)).toEqual([1, 2, 3]);
+  });
+
   it("folds permission_resolved on setTranscript (refetch/archive replay)", () => {
     useTranscriptStore.getState().setTranscript("a_6", [
       { agent_id: "a_6", seq: 1, type: "permission_request", ts: "t1", data: { tool_call_id: "tc_7", name: "Bash", reason: "run" } },

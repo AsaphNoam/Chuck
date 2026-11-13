@@ -238,6 +238,11 @@ None.
 
 ## Review queue
 
+- **Match sent prompts by request ID** — ready for review. Desktop transcript reconciliation and
+  held follow-up delivery use the request ID. See FS-03.R118/A93 and TS-08.R163.
+  Verification on the implementation diff: `make check-specs`, UI suite (1,251 tests),
+  `npm run build` and `git diff --check` passed.
+
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
 ownership and record the reviewed HEAD. Intended for a frontier reviewer; the charters' leads are
