@@ -40,8 +40,7 @@ import { useHeldStore } from "../../store/heldStore";
 import { readWithdrawnRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { WorkingIndicator } from "./WorkingIndicator";
 import { useUiStore } from "../../store/uiStore";
-import { dismissPromptRecovery, sendRecoveredPrompt } from "../../api/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { RecoveryOffer } from "./RecoveryOffer";
 
 // fileTabs/onOpenFile are per-surface, exactly as annotationsEnabled already is
 // (TS-08.R57). The agent and archived-agent screens pass their route's saved file
@@ -239,7 +238,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           )}
           {busy && <WorkingIndicator tool={currentToolLabel(events)} />}
           {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
-          {recovery && <RecoveryMessage agentId={agentId} recovery={recovery} />}
+          {recovery && <RecoveryOffer key={recovery.request_id} agentId={agentId} recovery={recovery} />}
           {!recovery && recoveryUnread && (
             <div className="transcript-held" data-ui="transcript" data-variant="held">
               <p className="transcript-held-error" role="alert">{recoveryUnread > 1 ? "Still could not load the withdrawn message — try again shortly." : "Withdrawn, but the message and its attachments could not be loaded."}</p>
@@ -268,46 +267,6 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   );
 }
 
-function RecoveryMessage({ agentId, recovery }: { agentId: string; recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } }) {
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const client = useQueryClient();
-  const key = `chuck-recovery-send:${agentId}:${recovery.request_id}`;
-  const sendId = () => {
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-    const id = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    localStorage.setItem(key, id);
-    return id;
-  };
-  const send = async () => {
-    setBusy(true); setError("");
-    try {
-      await sendRecoveredPrompt(agentId, recovery.text, (recovery.attachments ?? []).map((item) => item.id), sendId());
-      localStorage.removeItem(key);
-      useHeldStore.getState().setRecovery(agentId, null);
-      await client.invalidateQueries({ queryKey: ["held", agentId] });
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not restore this message."); }
-    finally { setBusy(false); }
-  };
-  const dismiss = async () => {
-    setBusy(true); setError("");
-    try {
-      await dismissPromptRecovery(agentId, recovery.request_id);
-      localStorage.removeItem(key);
-      useHeldStore.getState().setRecovery(agentId, null);
-      await client.invalidateQueries({ queryKey: ["held", agentId] });
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not dismiss this message."); }
-    finally { setBusy(false); }
-  };
-  return <div className="transcript-held" data-ui="transcript" data-variant="held">
-    <p className="transcript-held-label">{recovery.delivery === "unknown" || recovery.delivery === "uncertain" || recovery.delivery === "delivery_uncertain" ? "This message may already have reached the agent — sending again may repeat it" : "Message not delivered — choose whether to send it again"}</p>
-    {recovery.text && <p className="transcript-held-text">{recovery.text}</p>}
-    <MessageAttachments agentId={agentId} attachments={recovery.attachments ?? []} />
-    <div className="transcript-held-actions"><button type="button" className="ad-button-primary" disabled={busy} onClick={() => void send()}>Send recovered message</button><button type="button" className="ad-button-secondary" disabled={busy} onClick={() => void dismiss()}>Dismiss</button></div>
-    {error && <p className="transcript-held-error" role="alert">{error}</p>}
-  </div>;
-}
 
 // eventRenderer is the one row renderer for the root list and every nested
 // child (TS-08.R59). A Think Tank room reuses it for each attempt's retained

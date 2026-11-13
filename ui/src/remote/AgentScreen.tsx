@@ -7,19 +7,16 @@ import {
   cloneAgent,
   decidePermission,
   getHeldPrompt,
-  dismissPromptRecovery,
   getTrackedFiles,
   probeFileContent,
   renameAgent,
   getTranscriptWindow,
   resumeAgent,
   sendPrompt,
-  sendRecoveredPrompt,
   setSessionConfig,
   steerPrompt,
   stopAgent,
   switchRuntime,
-  withdrawPrompt,
   updateAgentIdentity,
   QUEUED_FOR_ASSIGNMENT_NOTICE,
   type QueuedPrompt,
@@ -58,7 +55,8 @@ import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
 import { recallPlace, rememberPlace } from "./scrollMemory";
 import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
-import { restoreWithdrawnDraft } from "../lib/heldMessage";
+import { withdrawHeldMessage } from "../lib/heldMessage";
+import { RecoveryOffer } from "../components/chat/RecoveryOffer";
 import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
@@ -118,33 +116,6 @@ function sameAttachmentSet(left: DraftAttachment[], right: DraftAttachment[]) {
   return left.length === right.length && left.every((file) => right.some((candidate) => candidate.id === file.id));
 }
 
-function PhoneRecovery({ agentId, recovery, offline }: { agentId: string; recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string }; offline: boolean }) {
-  const client = useQueryClient();
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const key = `chuck-recovery-send:${agentId}:${recovery.request_id}`;
-  const act = async (dismiss: boolean) => {
-    setBusy(true); setError("");
-    try {
-      if (dismiss) await dismissPromptRecovery(agentId, recovery.request_id);
-      else {
-        let id = localStorage.getItem(key);
-        if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); }
-        await sendRecoveredPrompt(agentId, recovery.text, (recovery.attachments ?? []).map((item) => item.id), id);
-      }
-      localStorage.removeItem(key);
-      await client.invalidateQueries({ queryKey: ["held", agentId] });
-    } catch (reason) { setError(errorText(reason)); }
-    finally { setBusy(false); }
-  };
-  return <section className="phone-card" aria-label="Message available to restore">
-    <p className="phone-card-kicker">{recovery.delivery === "unknown" || recovery.delivery === "uncertain" || recovery.delivery === "delivery_uncertain" ? "This message may already have reached the agent — sending again may repeat it" : "Message not delivered — choose whether to send it again"}</p>
-    {recovery.text && <p>{recovery.text}</p>}
-    <MessageAttachments agentId={agentId} attachments={recovery.attachments ?? []} />
-    <div className="phone-actions"><button type="button" disabled={busy || offline} onClick={() => void act(false)}>Send recovered message</button><button type="button" disabled={busy || offline} onClick={() => void act(true)}>Dismiss</button></div>
-    {error && <p className="phone-error" role="alert">{error}</p>}
-  </section>;
-}
 
 function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   agent: AgentState;
@@ -935,18 +906,16 @@ export function AgentScreen({ agentId }: { agentId: string }) {
                     Send now
                   </button>
                 )}
-                <button type="button" disabled={offline || busy} onClick={() => void act(async () => {
-                  const result = await withdrawPrompt(agentId, heldId);
-                  await restoreWithdrawnDraft(agentId, result);
-                  await client.cancelQueries({ queryKey: ["held", agentId] });
-                  return result;
-                }, false)}>
+                <button type="button" disabled={offline || busy} onClick={() => void act(() => withdrawHeldMessage(agentId, {
+                  heldId,
+                  refresh: () => client.cancelQueries({ queryKey: ["held", agentId] }),
+                }))}>
                   Withdraw
                 </button>
               </div>
             </div>
           )}
-          {recovery && <PhoneRecovery agentId={agentId} recovery={recovery} offline={offline} />}
+          {recovery && <RecoveryOffer key={recovery.request_id} agentId={agentId} recovery={recovery} phone offline={offline} />}
           {awayFromLatest && <button type="button" className="phone-jump-latest ad-button-secondary" onClick={() => window.scrollTo(0, document.documentElement.scrollHeight)}>Jump to latest</button>}
           {agent.running && (
             <div className="phone-runtime-controls">

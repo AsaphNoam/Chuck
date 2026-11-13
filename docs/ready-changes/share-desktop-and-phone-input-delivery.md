@@ -1,6 +1,6 @@
 # Share input delivery between desktop and phone
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-11-13. Third of five single-owner refactors from
 the 60-day invariant review: `ui/src/remote/AgentScreen.tsx` took 21 fix commits in six weeks,
 mostly in paths it re-implements from desktop chat.

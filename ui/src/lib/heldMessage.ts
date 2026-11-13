@@ -36,28 +36,35 @@ export async function reconcileSteerRecovery(agentId: string, requestId?: string
   await readHeldRecovery(agentId);
 }
 
-export function withdrawHeldMessage(agentId: string): Promise<void> {
+export function withdrawHeldMessage(agentId: string, projection?: {
+  heldId?: string;
+  refresh: () => Promise<void>;
+}): Promise<void> {
   const existing = withdrawing.get(agentId);
   if (existing) return existing;
-  const run = withdrawOnce(agentId).finally(() => withdrawing.delete(agentId));
+  const run = withdrawOnce(agentId, projection).finally(() => withdrawing.delete(agentId));
   withdrawing.set(agentId, run);
   return run;
 }
 
-async function withdrawOnce(agentId: string): Promise<void> {
+async function withdrawOnce(agentId: string, projection?: {
+  heldId?: string;
+  refresh: () => Promise<void>;
+}): Promise<void> {
   const store = useHeldStore.getState();
-  const expectedID = store.heldIdByAgent[agentId];
+  const expectedID = projection ? projection.heldId : store.heldIdByAgent[agentId];
   const result = await withdrawPrompt(agentId, expectedID);
   const message = result.withdrawn ? result.message : undefined;
   const attachments = message?.attachments ?? [];
   const hadAttachments = attachments.length > 0;
   invalidateHeldReads(agentId);
-  useHeldStore.getState().release(agentId);
+  if (!projection) useHeldStore.getState().release(agentId);
   try {
     if (!hadAttachments) await restoreWithdrawnDraft(agentId, result);
   } finally {
     invalidateHeldReads(agentId);
-    if (hadAttachments || message?.request_id) await readWithdrawnRecovery(agentId);
+    if (projection) await projection.refresh();
+    else if (hadAttachments || message?.request_id) await readWithdrawnRecovery(agentId);
   }
 }
 

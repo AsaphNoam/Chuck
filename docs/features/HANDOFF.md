@@ -29,7 +29,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+[Share input delivery between desktop and phone](../ready-changes/share-desktop-and-phone-input-delivery.md)
+is in progress. The shared recovery offer and withdrawal pass the Composer, TranscriptView
+and AgentScreen suites (159 tests). Next unify send, Steer and retry, then exercise both
+client projections and the phone render harness.
 
 ## Acceptance gates still owed
 
