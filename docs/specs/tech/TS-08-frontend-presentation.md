@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Partial
+**Status:** Current
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2216,7 +2216,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   *Why:* text matching is ambiguous for repeated prompts and was correct for one arrival order
   only (INV §19). *Verify:* store tests for both arrival orders, repeated identical text and the
   no-id fallback, with fixtures built by the real client serializer (INV §17).
-- **R164 (planned) — Desktop and phone share one input-delivery implementation.** Send, Steer,
+- **R164 — Desktop and phone share one input-delivery implementation.** Send, Steer,
   retry of an uncertain or failed send, attachment-send completion, withdraw and the recovery
   offer are implemented once, in shared hooks and one recovery-offer component under
   `ui/src/components/chat`, and used by both the desktop composer and transcript and the phone

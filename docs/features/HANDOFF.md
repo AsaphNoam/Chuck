@@ -29,10 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-[Share input delivery between desktop and phone](../ready-changes/share-desktop-and-phone-input-delivery.md)
-is in progress. The shared recovery offer and withdrawal pass the Composer, TranscriptView
-and AgentScreen suites (159 tests). Next unify send, Steer and retry, then exercise both
-client projections and the phone render harness.
+None.
 
 ## Acceptance gates still owed
 
@@ -240,6 +237,14 @@ client projections and the phone render harness.
   switch shows it above the composer.
 
 ## Review queue
+
+- **Shared desktop and phone input delivery** — ready for review (TS-08.R164). Both clients
+  share send, Steer, retry, attachment completion, withdrawal and the recovery offer. Desktop
+  projects the prompt into its transcript store; phone waits for sequenced events. The full
+  UI suite (1261 tests), UI build and 390px Chromium harness passed. The harness uses stubbed
+  responses. On reconnect, desktop refetch advances the transcript token and clears the
+  reconciliation marker for open agents. Phone still uses its held query. Review the lifetime
+  of browser retry IDs when another client settles the recovery offer.
 
 - **Shared resume start and Switch rollback** — ready for review at `95d4f621` (TS-01.R43).
   Explicit resume, wakes and both Switch starts share registration cleanup and applied identity

@@ -12,13 +12,10 @@ import {
   renameAgent,
   getTranscriptWindow,
   resumeAgent,
-  sendPrompt,
   setSessionConfig,
-  steerPrompt,
   stopAgent,
   switchRuntime,
   updateAgentIdentity,
-  QUEUED_FOR_ASSIGNMENT_NOTICE,
   type QueuedPrompt,
   type HeldPrompt,
 } from "../api/client";
@@ -54,10 +51,11 @@ import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
 import { recallPlace, rememberPlace } from "./scrollMemory";
-import { bumpChatDraftRevision, chatDraftRevision, discardChatDraft, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
+import { bumpChatDraftRevision, chatDraftRevision, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
 import { withdrawHeldMessage } from "../lib/heldMessage";
+import { useInputDelivery, sameAttachmentSet } from "../components/chat/useInputDelivery";
 import { RecoveryOffer } from "../components/chat/RecoveryOffer";
-import { addFiles, attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, hasPersistedAttachmentDraft, isDefiniteSendRefusal, isPreviewImage, persistAttachments, persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
+import { addFiles, attachmentErrorForStorage, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
 import { SubscriptionQuotaDisclosure } from "../components/chat/SubscriptionQuotaDisclosure";
@@ -77,7 +75,6 @@ const EARLIER_PAGES = 3;
 const EARLIER_EVENTS = TRANSCRIPT_PAGE * EARLIER_PAGES;
 const EARLIER_BYTES = 3 * 1024 * 1024;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
-const isDeliveryUncertain = (error: unknown) => typeof error === "object" && error !== null && (error as { code?: string }).code === "delivery_uncertain";
 const isAtLatest = () => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 48;
 
 function retainEarlier(events: TranscriptEvent[]) {
@@ -111,11 +108,6 @@ function requestSummary(event: TranscriptEvent): string {
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
-
-function sameAttachmentSet(left: DraftAttachment[], right: DraftAttachment[]) {
-  return left.length === right.length && left.every((file) => right.some((candidate) => candidate.id === file.id));
-}
-
 
 function PermissionCard({ agent, event, latest, disabled, onSettled }: {
   agent: AgentState;
@@ -293,11 +285,10 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const [attachmentsReady, setAttachmentsReady] = useState(() => !hasPersistedAttachmentDraft(agentId));
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [draggingFiles, setDraggingFiles] = useState(false);
-  const [retryPhoneSend, setRetryPhoneSend] = useState<{ text: string; files: DraftAttachment[]; requestId: string; steer: boolean; revision: number; retryable?: boolean } | null>(null);
   const attachmentPicker = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [acting, setBusy] = useState(false);
   const [quotaCancelError, setQuotaCancelError] = useState<string | undefined>();
   const [stopOpen, setStopOpen] = useState(false);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
@@ -328,6 +319,24 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     enabled: diffSeq !== null,
   });
   const diffCard = useRef<HTMLElement | null>(null);
+  const { deliver, matchingRetry, retry: retryPhoneSend, setRetry: setRetryPhoneSend, sending, inFlight } = useInputDelivery(agentId, {
+    acceptSteer: async (result) => {
+      await client.cancelQueries({ queryKey: ["held", agentId] });
+      const requestId = result.request_id;
+      if (requestId) client.setQueriesData<HeldPrompt | null>({ queryKey: ["held", agentId] }, (snapshot) =>
+        snapshot?.recovery?.request_id === requestId ? { ...snapshot, recovery: undefined } : snapshot);
+    },
+    refreshRecovery: (releaseHold) => {
+      if (releaseHold) useHeldStore.getState().release(agentId);
+      void client.invalidateQueries({ queryKey: ["held", agentId] });
+    },
+    settled: () => {
+      refresh();
+      void client.invalidateQueries({ queryKey: ["held", agentId] });
+    },
+  }, { phone: true, clearDraft: () => setText(""), setError, setNotice, setAttachmentError });
+  const busy = acting || sending;
+
   useEffect(() => {
     if (tab === "chat" && focusedDiff.data) diffCard.current?.scrollIntoView?.({ block: "start" });
   }, [tab, focusedDiff.data]);
@@ -354,8 +363,9 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     void restorePendingAttachmentSend(agentId).then(async (pending) => {
       if (current && pending) {
         const liveFiles = await restoreAttachments(agentId);
+        if (!current || inFlight.current.has(agentId)) return;
         const revision = chatDraftRevision(agentId);
-        const sameFiles = pending.files.length === liveFiles.length && pending.files.every((file) => liveFiles.some((live) => live.id === file.id));
+        const sameFiles = sameAttachmentSet(pending.files, liveFiles);
         const sameDraft = getChatDraft(agentId) === pending.text && sameFiles;
         setRetryPhoneSend({ ...pending, revision: revision === initialRevision && sameDraft ? revision : -1 });
       }
@@ -613,22 +623,12 @@ export function AgentScreen({ agentId }: { agentId: string }) {
 
   // Every refused action shows the desktop's reason and keeps the typed text
   // (FS-20.R27); only a delivered message clears the composer.
-  const reconcilePhoneSteer = async (requestId?: string) => {
-    await client.cancelQueries({ queryKey: ["held", agentId] });
-    if (requestId) client.setQueriesData<HeldPrompt | null>({ queryKey: ["held", agentId] }, (snapshot) =>
-      snapshot?.recovery?.request_id === requestId ? { ...snapshot, recovery: undefined } : snapshot);
-  };
-  const act = async (fn: () => Promise<unknown>, clears = false, after?: (result: unknown) => void | Promise<void>) => {
-    const submittedRevision = chatDraftRevision(agentId);
+  const act = async (fn: () => Promise<unknown>, after?: (result: unknown) => void | Promise<void>) => {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
       const result = await fn();
-      if (clears && chatDraftRevision(agentId) === submittedRevision) {
-        discardChatDraft(agentId);
-        setText("");
-      }
       await after?.(result);
     } catch (err) {
       setError(errorText(err));
@@ -638,40 +638,11 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       void client.invalidateQueries({ queryKey: ["held", agentId] });
     }
   };
-  const finishPhoneAttachmentSend = async (result: unknown, selected: DraftAttachment[], promptText: string, requestId: string, steeringMessage: boolean, submittedRevision: number) => {
-    const response = result && typeof result === "object" ? result as { attachment_delivery?: string; delivery?: string } : {};
-    if (selected.length && response.attachment_delivery !== "submitted" && response.attachment_delivery !== "held" && response.attachment_delivery !== "queued") {
-      setError(response.attachment_delivery === "released"
-        ? "This message was released for recovery. Restore it from the conversation before sending again."
-        : response.attachment_delivery === "failed"
-          ? "The message was not delivered. Its attachments remain here; retry the same send."
-          : "Delivery could not be confirmed. Its attachments remain available; retry uses the same request receipt.");
-      const retryable = response.attachment_delivery !== "released";
-      const pendingRetry = { text: promptText, files: selected, requestId, steer: steeringMessage, revision: submittedRevision, retryable };
-      setRetryPhoneSend(pendingRetry);
-      if (!retryable) void persistPendingAttachmentSend(agentId, pendingRetry).catch(() => setAttachmentError(attachmentErrorForStorage()));
-      return;
-    }
-    if (response.delivery === "held" || response.attachment_delivery === "held") setNotice("Held — it will be sent when the current turn ends.");
-    if (response.delivery === "queued") setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE);
-    if (chatDraftRevision(agentId) === submittedRevision) {
-      discardChatDraft(agentId);
-      setText("");
-    }
-    try { await removeAcceptedAttachments(agentId, selected.map((file) => file.id), getChatDraft(agentId) !== ""); }
-    catch { setAttachmentError("Message was accepted, but attachment cleanup could not be saved. Remove any sent files before sending again."); }
-    setRetryPhoneSend(null);
-    void clearPendingAttachmentSend(agentId, requestId).catch(() => setAttachmentError("Message was sent, but its retry receipt could not be cleared from browser storage."));
-  };
-  const sendPhoneMessage = (steeringMessage: boolean, requestId?: string, expectedRevision?: number, retryFiles?: DraftAttachment[], retryText?: string) => {
-    const matchingRetry = !requestId && !retryFiles && retryPhoneSend?.retryable !== false && retryPhoneSend && retryPhoneSend.text === text && sameAttachmentSet(retryPhoneSend.files, attachments) ? retryPhoneSend : null;
-    const messageText = retryText ?? matchingRetry?.text ?? text;
-    const selected = retryFiles ?? matchingRetry?.files ?? [...attachments];
-    const request = requestId ?? matchingRetry?.requestId ?? (chatDraftRequestId(agentId) || crypto.randomUUID());
-    const submittedRevision = expectedRevision ?? matchingRetry?.revision ?? chatDraftRevision(agentId);
+  const sendPhoneMessage = (steer: boolean, retry?: typeof retryPhoneSend) => {
+    const message = retry?.text ?? text;
+    const selected = retry?.files ?? attachments;
     if (!attachmentsReady) { setAttachmentError("Restoring attachments… wait before sending."); return; }
-    if (!messageText.trim() && !selected.length) return;
-    if (!requestId && retryPhoneSend?.retryable === false && retryPhoneSend.text === messageText && sameAttachmentSet(retryPhoneSend.files, selected)) return;
+    if (!message.trim() && !selected.length) return;
     const unsupportedImage = selected.some((file) => isPreviewImage(file) && agent?.attachment_capabilities?.image_input === false);
     const unsupportedFile = selected.some((file) => !isPreviewImage(file) && agent?.attachment_capabilities?.files === false);
     if (unsupportedImage || unsupportedFile) {
@@ -680,66 +651,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
         : "This runtime cannot read uploaded files. Remove the file or choose a runtime that supports it.");
       return;
     }
-    if (!selected.length) {
-      void act(
-        async () => {
-          try {
-            const result = await ((matchingRetry?.steer ?? steeringMessage)
-              ? steerPrompt(agentId, messageText, [], request)
-              : sendPrompt(agentId, messageText, [], request));
-            if (matchingRetry?.steer ?? steeringMessage) await reconcilePhoneSteer(result.request_id);
-            return result;
-          } catch (err) {
-            if (isDeliveryUncertain(err) && (matchingRetry?.steer ?? steeringMessage)) {
-              // The promoted hold may already have been consumed. Keep the
-              // typed request recoverable, clear the stale local hold, and
-              // re-read the server's explicit recovery offer.
-              setRetryPhoneSend({ text: messageText, files: [], requestId: request, steer: true, revision: submittedRevision, retryable: false });
-              useHeldStore.getState().release(agentId);
-              await getHeldPrompt(agentId);
-              await client.invalidateQueries({ queryKey: ["held", agentId] });
-            }
-            throw err;
-          }
-        },
-        true,
-        (result) => {
-          if (result && typeof result === "object" && "delivery" in result && result.delivery === "held") setNotice("Held — it will be sent when the current turn ends.");
-          if (result && typeof result === "object" && "delivery" in result && result.delivery === "queued") setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE);
-        },
-      );
-      return;
-    }
-    setRetryPhoneSend({ text: messageText, files: selected, requestId: request, steer: steeringMessage, revision: submittedRevision });
-    void (async () => {
-      try { await persistPendingAttachmentSend(agentId, { text: messageText, files: selected, requestId: request, steer: steeringMessage, revision: submittedRevision }); }
-      catch { setAttachmentError(attachmentErrorForStorage()); }
-      await act(
-        () => ((matchingRetry?.steer ?? steeringMessage)
-          ? steerPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
-          : sendPrompt(agentId, messageText, selected.map(({ name, blob }) => ({ name, blob })), request)
-        ).then(async (result) => {
-          if (matchingRetry?.steer ?? steeringMessage) await reconcilePhoneSteer(result.request_id);
-          return result;
-        }).catch(async (err: unknown) => {
-          if (isDeliveryUncertain(err)) {
-            const isSteer = matchingRetry?.steer ?? steeringMessage;
-            setRetryPhoneSend({ text: messageText, files: selected, requestId: request, steer: isSteer, revision: submittedRevision, retryable: false });
-            if (isSteer) useHeldStore.getState().release(agentId);
-            try {
-              await getHeldPrompt(agentId);
-              await client.invalidateQueries({ queryKey: ["held", agentId] });
-            } catch { /* the original typed uncertainty remains the user-visible result */ }
-          } else if (isDefiniteSendRefusal(err)) {
-            setRetryPhoneSend(null);
-            try { await clearPendingAttachmentSend(agentId, request); } catch { setAttachmentError(attachmentErrorForStorage()); }
-          }
-          throw err;
-        }),
-        false,
-        (result) => finishPhoneAttachmentSend(result, selected, messageText, request, matchingRetry?.steer ?? steeringMessage, submittedRevision),
-      );
-    })();
+    void deliver(message, selected, steer, retry ? { retry } : {});
   };
   const isBusy = agent.state === "busy" || agent.state === "waiting_input";
   const quota = decodeQuotaState(agent.quota);
@@ -776,7 +688,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const heldRequestId = held.data && typeof held.data === "object" && "request_id" in held.data ? String((held.data as { request_id?: string }).request_id ?? "") : "";
   const heldAttachments = held.data && typeof held.data === "object" && Array.isArray((held.data as { attachments?: unknown }).attachments) ? (held.data as { attachments: AttachmentDescriptor[] }).attachments : [];
   const recovery = held.data && typeof held.data === "object" && "recovery" in held.data ? (held.data as { recovery?: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } }).recovery : undefined;
-  const releaseBlocked = retryPhoneSend?.retryable === false && retryPhoneSend.text === text && sameAttachmentSet(retryPhoneSend.files, attachments);
+  const releaseBlocked = matchingRetry(text, attachments)?.retryable === false;
   const stateLabel = agent.running ? agent.state.replace("_", " ") : "Stopped";
   const runtimeLabel = [agent.backend, agent.model].filter(Boolean).join(" · ");
   // The effort button steps through the live model's efforts in order and wraps;
@@ -887,22 +799,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
               <MessageAttachments agentId={agentId} attachments={heldAttachments} />
               <div className="phone-actions">
                 {agent.steering_available && isBusy && (
-                  <button type="button" disabled={offline || busy} onClick={() => void act(async () => {
-                    const requestId = heldRequestId || crypto.randomUUID();
-                    try {
-                      const result = await steerPrompt(agentId, "", [], requestId);
-                      await reconcilePhoneSteer(result.request_id);
-                      return result;
-                    } catch (err) {
-                      if (isDeliveryUncertain(err)) {
-                        setRetryPhoneSend({ text: heldText, files: [], requestId, steer: true, revision: chatDraftRevision(agentId), retryable: false });
-                        useHeldStore.getState().release(agentId);
-                        await getHeldPrompt(agentId);
-                        await client.invalidateQueries({ queryKey: ["held", agentId] });
-                      }
-                      throw err;
-                    }
-                  })}>
+                  <button type="button" disabled={offline || busy} onClick={() => void deliver("", [], true, { held: { requestId: heldRequestId, text: heldText } })}>
                     Send now
                   </button>
                 )}
@@ -932,7 +829,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
           )}
           {runtimeOpen && (
             <PhoneSheet title="Switch runtime" onClose={() => setRuntimeOpen(false)}>
-              <AgentManagement agent={agent} offline={offline} busy={busy} act={(fn, clears, after) => void act(fn, clears, (result) => { after?.(result); setRuntimeOpen(false); })} rename={rename} setRename={setRename} error={error} action="runtime" />
+              <AgentManagement agent={agent} offline={offline} busy={busy} act={(fn, after) => void act(fn, (result) => { after?.(result); setRuntimeOpen(false); })} rename={rename} setRename={setRename} error={error} action="runtime" />
             </PhoneSheet>
           )}
           {agent.running && (
@@ -960,7 +857,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
               {notice && <p className="phone-meta">{notice}</p>}
               {attachmentError && <p className="phone-error" role="alert">{attachmentError}</p>}
                 {!attachmentsReady && !attachmentError && <p className="phone-meta" role="status">Restoring attachments…</p>}
-                {retryPhoneSend && <p className="phone-meta" role="status">Previous message was not confirmed. {retryPhoneSend.retryable === false ? "Use the recovered message above to decide whether to send it again." : <button type="button" disabled={!attachmentsReady || busy || offline} onClick={() => sendPhoneMessage(retryPhoneSend.steer, retryPhoneSend.requestId, retryPhoneSend.revision, retryPhoneSend.files, retryPhoneSend.text)}>Retry previous send</button>}</p>}
+                {retryPhoneSend && <p className="phone-meta" role="status">Previous message was not confirmed. {retryPhoneSend.retryable === false ? "Use the recovered message above to decide whether to send it again." : <button type="button" disabled={!attachmentsReady || busy || offline} onClick={() => sendPhoneMessage(retryPhoneSend.steer, retryPhoneSend)}>Retry previous send</button>}</p>}
                 {attachments.some((file) => isPreviewImage(file) && agent.attachment_capabilities?.image_input === false) && <p className="phone-error">This runtime does not accept image input. Remove the image or switch runtime.</p>}
                 {attachments.some((file) => !isPreviewImage(file) && agent.attachment_capabilities?.files === false) && <p className="phone-error">This runtime cannot read uploaded files. Remove the file or switch runtime.</p>}
               <div className="phone-actions phone-composer-actions">
@@ -988,7 +885,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
         pending={busy}
         confirmDisabled={offline}
         onCancel={() => setStopOpen(false)}
-        onConfirm={() => void act(() => stopAgent(agentId), false, () => setStopOpen(false))}
+        onConfirm={() => void act(() => stopAgent(agentId), () => setStopOpen(false))}
       >
         <p>Stop this agent on your Mac? You can still view its transcript and recorded output.</p>
         {error && <p className="phone-error" role="alert">{error}</p>}
@@ -997,7 +894,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   );
 }
 
-export function AgentManagement({ agent, offline, busy, act, rename, setRename, error, action }: { agent: AgentState; offline: boolean; busy: boolean; act: (fn: () => Promise<unknown>, clears?: boolean, after?: (result: unknown) => void) => void; rename: string; setRename: (value: string) => void; error: string | null; action?: "rename" | "group" | "runtime" }) {
+export function AgentManagement({ agent, offline, busy, act, rename, setRename, error, action }: { agent: AgentState; offline: boolean; busy: boolean; act: (fn: () => Promise<unknown>, after?: (result: unknown) => void) => void; rename: string; setRename: (value: string) => void; error: string | null; action?: "rename" | "group" | "runtime" }) {
   const { data: roles } = useRoles();
   const options = useQuery({ queryKey: ["runtime-options"], queryFn: getRuntimeOptions });
   const [runtime, setRuntime] = useState({ backend: agent.backend, model: agent.model, effort: agent.effort ?? "" });
@@ -1023,11 +920,11 @@ export function AgentManagement({ agent, offline, busy, act, rename, setRename, 
   };
   return (
     <section className="phone-section phone-manage" aria-label="Agent management">
-      {(!action || action === "rename") && <form className="phone-card phone-form phone-manage-rename" onSubmit={(event) => { event.preventDefault(); if (rename.trim()) act(() => renameAgent(agent.agent_id, rename.trim()), false, () => setRename("")); }}>
+      {(!action || action === "rename") && <form className="phone-card phone-form phone-manage-rename" onSubmit={(event) => { event.preventDefault(); if (rename.trim()) act(() => renameAgent(agent.agent_id, rename.trim()), () => setRename("")); }}>
         <label className="phone-field">Name<input value={rename} placeholder={agent.name || personaIdentityLabel(agent.role, roles?.[agent.role])} onChange={(event) => setRename(event.target.value)} /></label>
         <button type="submit" disabled={offline || busy || !rename.trim()}>Rename</button>
       </form>}
-      {(!action || action === "group") && <form className="phone-card phone-form phone-manage-group" onSubmit={(event) => { event.preventDefault(); if (groupInvalid) return; act(() => updateAgentIdentity(agent.agent_id, { group: group.trim() }), false, () => setGroup(group.trim())); }}>
+      {(!action || action === "group") && <form className="phone-card phone-form phone-manage-group" onSubmit={(event) => { event.preventDefault(); if (groupInvalid) return; act(() => updateAgentIdentity(agent.agent_id, { group: group.trim() }), () => setGroup(group.trim())); }}>
         <label className="phone-field">Group<GroupPicker id="phone-manage-group" value={group} groups={groups} onChange={setGroup} disabled={offline || busy} /></label>
         <button type="submit" disabled={offline || busy || groupInvalid}>Save group</button>
       </form>}
@@ -1044,7 +941,7 @@ export function AgentManagement({ agent, offline, busy, act, rename, setRename, 
       {agent.fast_available && <label className="phone-card phone-check"><input type="checkbox" checked={agent.fast} disabled={disable} onChange={(event) => act(() => setSessionConfig(agent.agent_id, { fast: event.target.checked }))} /> Fast mode</label>}
       {agent.running && agent.interface === "chat" && (liveModel?.efforts.length ?? 0) > 0 && <label className="phone-card phone-field">Effort<select value={agent.effort ?? ""} disabled={disable} onChange={(event) => act(() => setSessionConfig(agent.agent_id, { effort: event.target.value }))}><option value="">Model default</option>{liveModel!.efforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}</select></label>}
       <div className="phone-card phone-manage-lifecycle">
-        <button type="button" disabled={offline || busy || !agent.clone?.available} title={agent.clone?.reason} onClick={() => act(() => cloneAgent(agent.agent_id), false, (result) => navigate(`/agent/${encodeURIComponent((result as { agent: { agent_id: string } }).agent.agent_id)}`))}>Clone</button>
+        <button type="button" disabled={offline || busy || !agent.clone?.available} title={agent.clone?.reason} onClick={() => act(() => cloneAgent(agent.agent_id), (result) => navigate(`/agent/${encodeURIComponent((result as { agent: { agent_id: string } }).agent.agent_id)}`))}>Clone</button>
         {agent.clone && !agent.clone.available && <p className="phone-meta">{agent.clone.reason}</p>}
         <button type="button" className="ad-button-danger" disabled={offline || busy} onClick={() => setArchiveConfirm(true)}>Archive</button>
       </div>
@@ -1058,7 +955,7 @@ export function AgentManagement({ agent, offline, busy, act, rename, setRename, 
         pending={busy}
         confirmDisabled={offline}
         onCancel={() => setArchiveConfirm(false)}
-        onConfirm={() => act(() => archiveAgent(agent.agent_id), false, () => navigate(`/project/${encodeURIComponent(agent.project)}`))}
+        onConfirm={() => act(() => archiveAgent(agent.agent_id), () => navigate(`/project/${encodeURIComponent(agent.project)}`))}
       >
         <p>Restore is available on the desktop.</p>
         {error && <p className="phone-error" role="alert">{error}</p>}

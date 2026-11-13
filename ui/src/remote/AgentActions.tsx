@@ -50,7 +50,7 @@ export function AgentActions({ agentId, onClose }: { agentId: string; onClose: (
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { if (!agent || agent.archived) onClose(); }, [agent, onClose]);
   if (!agent || agent.archived) return null;
-  const act = async (fn: () => Promise<unknown>, _clears?: boolean, after?: (result: unknown) => void) => {
+  const act = async (fn: () => Promise<unknown>, after?: (result: unknown) => void) => {
     if (offline || busy) return;
     setBusy(true); setError(null);
     try { const result = await fn(); after?.(result); onClose(); }
@@ -65,7 +65,7 @@ export function AgentActions({ agentId, onClose }: { agentId: string; onClose: (
       <button type="button" disabled={disabled} onClick={() => setAction("rename")}>Rename</button>
       <button type="button" disabled={disabled} onClick={() => agent.running ? setConfirm("stop") : void act(() => resumeAgent(agentId))}>{agent.running ? "Stop" : "Resume"}</button>
       <button type="button" disabled={disabled || !agent.running || agent.interface !== "chat"} title={agent.running && agent.interface === "chat" ? undefined : "A running chat agent is required"} onClick={() => setAction("runtime")}>Switch runtime</button>
-      <button type="button" disabled={disabled || !agent.clone?.available} title={agent.clone?.reason} onClick={() => void act(() => cloneAgent(agentId), false, (result) => navigate(`/agent/${encodeURIComponent((result as { agent: { agent_id: string } }).agent.agent_id)}`))}>Clone</button>
+      <button type="button" disabled={disabled || !agent.clone?.available} title={agent.clone?.reason} onClick={() => void act(() => cloneAgent(agentId), (result) => navigate(`/agent/${encodeURIComponent((result as { agent: { agent_id: string } }).agent.agent_id)}`))}>Clone</button>
       {agent.clone && !agent.clone.available && <p className="phone-meta">{agent.clone.reason}</p>}
       <button type="button" disabled={disabled} onClick={() => setAction("group")}>Move to group</button>
       <button type="button" className="ad-button-danger" disabled={disabled} onClick={() => setConfirm("archive")}>Archive</button>

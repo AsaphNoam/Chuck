@@ -20,6 +20,7 @@ const detailsCheck = process.argv.includes("--details-check");
 const spinnerCheck = process.argv.includes("--spinner-check");
 const parityCheck = process.argv.includes("--parity-check");
 const scrollCheck = process.argv.includes("--scroll-check");
+const inputCheck = process.argv.includes("--input-check");
 const recoveryCheck = process.argv.includes("--recovery-check");
 // FS-13.A19–A21/FS-20.A27: phone capture, tray, launch and cards (stubbed API).
 const annotationCheck = process.argv.includes("--annotation-check");
@@ -28,6 +29,7 @@ const fileReads = [];
 const annotationPosts = [];
 const launches = [];
 let failAnnotationDelivery = false;
+let recovery = inputCheck ? { text: "Recover this message.", request_id: "recover-1", delivery: "unknown" } : undefined;
 let healthCount = 0;
 let healthDown = false;
 let skin = "";
@@ -140,6 +142,15 @@ try {
       return route.fulfill({ json: { agent_id: "a1", events: eligible.slice(-750), has_more: eligible.length > 750, pending_permission: null, latest_assistant: "" } });
     }
     if (path === "/api/remote/home") return route.fulfill({ json: { needs_you: scrollCheck ? activeRuns : [], active_runs: scrollCheck ? activeRuns : [] } });
+    if (inputCheck && path === "/api/sessions/a1/prompt") {
+      if (route.request().method() === "POST") {
+        const body = route.request().postDataJSON();
+        if (body.text !== recovery?.text || !body.request_id) throw new Error("recovered send lost its text or request ID");
+        recovery = undefined;
+        return route.fulfill({ json: { accepted: true, agent_id: "a1", delivery: "sent", after_seq: 20 } });
+      }
+      return route.fulfill({ json: { agent_id: "a1", text: "", after_seq: 20, recovery } });
+    }
     if (path === "/api/sessions/a1/prompt") return route.fulfill({ status: 404, json: { error: { code: "not_found", message: "none" } } });
     return route.fulfill({ json: {} });
   });
@@ -153,6 +164,26 @@ try {
   });
   // Screenshot even when the conversation never appears; that view is the evidence.
   const shown = await page.getByRole("list", { name: "Conversation" }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+  if (inputCheck) {
+    const offer = page.getByRole("region", { name: "Message available to restore" });
+    const composer = page.getByPlaceholder("Ask for changes…");
+    const recoveredSend = offer.getByRole("button", { name: "Send recovered message" });
+    await recoveredSend.waitFor();
+    await composer.waitFor();
+    for (const element of [offer, composer, recoveredSend]) {
+      const box = await element.boundingBox();
+      if (!box || box.width <= 0 || box.x < 0 || box.x + box.width > 390) {
+        throw new Error("input delivery controls do not fit the 390px phone viewport");
+      }
+    }
+    await page.screenshot({ path: out, fullPage: true });
+    await recoveredSend.click();
+    await offer.waitFor({ state: "hidden" });
+    if (await page.getByRole("list", { name: "Conversation" }).getByText("Recover this message.").count()) {
+      throw new Error("phone echoed a recovered send before a sequenced transcript event");
+    }
+    console.log("390px phone composer and recovery offer fit; recovered send settled without a local echo");
+  }
   if (shown && historyCheck) {
     const anchor = page.getByText("History 751", { exact: true });
     await anchor.waitFor();
@@ -287,7 +318,7 @@ try {
     console.log(`recovery: healthy stream kept, row ${after.key} within ${Math.abs(after.top - before.top)}px, text and attachment kept, outage retried once after 5s`);
   }
   if (await page.locator('[data-slot="running-indicator"], [data-slot="task-list"]').count()) throw new Error("Phone must not show desktop background-work controls (FS-03.R107)");
-  await page.screenshot({ path: out, fullPage: !historyCheck && !scrollCheck && !recoveryCheck });
+  if (!inputCheck) await page.screenshot({ path: out, fullPage: !historyCheck && !scrollCheck && !recoveryCheck });
   if (shown && parityCheck) {
     const openAgent = async () => {
       await page.evaluate(() => {

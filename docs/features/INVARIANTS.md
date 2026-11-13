@@ -796,6 +796,7 @@ condition and a test that it is taken; cache only validated responses; treat an 
 
 | Helper | Where | Use for |
 |---|---|---|
+| `useInputDelivery` / `RecoveryOffer` / `withdrawHeldMessage` | `ui/src/components/chat`, `ui/src/lib/heldMessage.ts` | desktop and phone prompt submission, retry, recovery and withdrawal (§2, §19) |
 | `teardownAgentRegistration` | `internal/server/launch.go` | every agent exit/failure path (§4) |
 | `startResumedRuntime` | `internal/server/resume.go` | compose, start and persist explicit resume, wakes and both Switch starts under the lifecycle claim (§2, §4) |
 | `composeLaunch`, `composeResumeSpec`, `composeSwitchSpec`, `resolveSkip`, `expandAddDirs`, `composeEnv` | `internal/server/{launch,resume,switch}.go` | any path that builds/rebuilds a LaunchSpec (§2) |
