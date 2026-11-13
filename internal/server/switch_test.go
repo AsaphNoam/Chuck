@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1049,6 +1050,203 @@ func TestSwitchRuntimeRollbackOnResumeFailure(t *testing.T) {
 	}
 }
 
+// The database rejects the applied identity only once the target has a running
+// row. Capture its PID before the refusal so a replacement row cannot hide a
+// leaked target process.
+func TestSwitchStopsStartedTargetBeforeRollback(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	oldMCPToken := readMessagingToken(t, srv, id)
+	installAppliedIdentityFailure(t, srv, "NEW.interface = 'terminal'")
+
+	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", map[string]string{"interface": "terminal"})
+	if code := apiErrorCode(t, body); resp.StatusCode != http.StatusInternalServerError || code != runtime.CodeSwitchFailedRolledBack {
+		t.Fatalf("switch = %d: %s", resp.StatusCode, body)
+	}
+	assertFailedStartStopped(t, srv)
+	run, err := srv.stateStore.ReadRunning(id)
+	if err != nil || run.Interface != "chat" || srv.registry.Generation(id) != run.Generation {
+		t.Fatalf("previous runtime was not restored: %+v, %v", run, err)
+	}
+	if _, ok := srv.messaging.Lookup(oldMCPToken); ok {
+		t.Fatal("old MCP token survived Switch")
+	}
+	if got, ok := srv.messaging.Lookup(readMessagingToken(t, srv, id)); !ok || got != id {
+		t.Fatal("restored MCP token is unusable")
+	}
+}
+
+func TestSwitchPreparationFailureRestoresPreviousRuntime(t *testing.T) {
+	for _, stage := range []string{"model provenance", "target identity"} {
+		t.Run(stage, func(t *testing.T) {
+			srv, ts := switchTestServer(t)
+			id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+			previousToken := readMessagingToken(t, srv, id)
+			request := map[string]string{"backend": "codex", "model": "gpt-5.5"}
+			var wantMessage string
+			switch stage {
+			case "model provenance":
+				if _, err := srv.stateStore.DB().Exec("UPDATE sessions SET launch_config_json = 'null' WHERE agent_id = ?", id); err != nil {
+					t.Fatal(err)
+				}
+				wantMessage = "record model choice"
+			case "target identity":
+				if _, err := srv.stateStore.DB().Exec(`
+CREATE TRIGGER reject_target_identity BEFORE UPDATE ON agents WHEN NEW.backend = 'codex'
+BEGIN SELECT RAISE(FAIL, 'target identity unavailable'); END;`); err != nil {
+					t.Fatal(err)
+				}
+				wantMessage = "persist identity"
+			}
+
+			resp, body := post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", request)
+			if resp.StatusCode != http.StatusInternalServerError || apiErrorCode(t, body) != runtime.CodeSwitchFailedRolledBack ||
+				!strings.Contains(string(body), wantMessage) {
+				t.Fatalf("switch = %d: %s", resp.StatusCode, body)
+			}
+			if a, err := srv.stateStore.ReadAgent(id); err != nil || a.Backend != "claude" {
+				t.Fatalf("previous identity was not restored: %+v, %v", a, err)
+			}
+			if _, ok := srv.messaging.Lookup(previousToken); ok {
+				t.Fatal("old MCP token survived Switch")
+			}
+			if got, ok := srv.messaging.Lookup(readMessagingToken(t, srv, id)); !ok || got != id {
+				t.Fatal("restored MCP token is unusable")
+			}
+		})
+	}
+}
+
+func TestFailedSwitchRollbackTearsDownStartedRuntime(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	srv.terminal.SetCommand("/nonexistent/chuck-no-such-binary")
+	installAppliedIdentityFailure(t, srv, "NEW.interface = 'chat'")
+
+	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", map[string]string{"interface": "terminal"})
+	if code := apiErrorCode(t, body); resp.StatusCode != http.StatusInternalServerError || code != runtime.CodeSwitchFailed {
+		t.Fatalf("switch = %d: %s", resp.StatusCode, body)
+	}
+	assertFailedStartStopped(t, srv)
+	assertNoStartRegistration(t, srv, id)
+	if status, err := srv.stateStore.ReadStatus(id); err != nil || status.State != "error" {
+		t.Fatalf("failed rollback status = %+v, %v", status, err)
+	}
+}
+
+func TestLaunchRegistrationFailureTearsDown(t *testing.T) {
+	for _, stage := range []string{"mcp config", "hook settings", "initial identity", "runtime start", "applied identity"} {
+		t.Run(stage, func(t *testing.T) {
+			srv, _ := switchTestServer(t)
+			const id = "registration-test"
+			wantMessage := ""
+			switch stage {
+			case "mcp config":
+				path := filepath.Join(srv.configStore.Home(), "mcp", id+".mcp.json")
+				if err := os.MkdirAll(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Remove(path) })
+				wantMessage = "write mcp config"
+			case "hook settings":
+				path := filepath.Join(hooks.Dir(srv.configStore.Home()), "agents", id+".json")
+				if err := os.MkdirAll(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				wantMessage = "hooks: write settings"
+			case "initial identity":
+				if _, err := srv.stateStore.DB().Exec(`
+CREATE TRIGGER reject_initial_identity BEFORE INSERT ON agents
+BEGIN SELECT RAISE(FAIL, 'initial identity unavailable'); END;`); err != nil {
+					t.Fatal(err)
+				}
+				wantMessage = "initial identity unavailable"
+			case "runtime start":
+				srv.registry.Chat().SetCommand("/nonexistent/chuck-no-such-binary")
+				wantMessage = "chuck-no-such-binary"
+			case "applied identity":
+				installAppliedIdentityFailure(t, srv, "1")
+				wantMessage = "applied identity unavailable"
+			}
+			_, ae := srv.launchClaimed(context.Background(), launchRequest{Role: "impl", Project: "tmpproj"}, launchOptions{AgentID: id})
+			if ae == nil || !strings.Contains(ae.Message, wantMessage) {
+				t.Fatalf("launch error = %v, want %q", ae, wantMessage)
+			}
+			if stage == "mcp config" {
+				// The directory is the fault fixture, not a written MCP config.
+				if err := os.Remove(filepath.Join(srv.configStore.Home(), "mcp", id+".mcp.json")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if stage == "applied identity" {
+				assertFailedStartStopped(t, srv)
+			}
+			assertNoStartRegistration(t, srv, id)
+		})
+	}
+}
+
+func TestResumeAppliedIdentityFailureTearsDown(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	id := launchThenStop(t, srv, ts)
+	installAppliedIdentityFailure(t, srv, "1")
+
+	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/resume", nil)
+	if resp.StatusCode != http.StatusInternalServerError || !strings.Contains(string(body), "applied identity unavailable") {
+		t.Fatalf("resume = %d: %s", resp.StatusCode, body)
+	}
+	assertFailedStartStopped(t, srv)
+	assertNoStartRegistration(t, srv, id)
+}
+
+func installAppliedIdentityFailure(t *testing.T, srv *Server, condition string) {
+	t.Helper()
+	if _, err := srv.stateStore.DB().Exec(`
+CREATE TABLE rejected_start (pid INTEGER NOT NULL);
+CREATE TRIGGER reject_applied_identity BEFORE UPDATE ON agents
+WHEN (` + condition + `) AND EXISTS (SELECT 1 FROM running WHERE agent_id = NEW.agent_id)
+BEGIN
+  INSERT INTO rejected_start SELECT pid FROM running WHERE agent_id = NEW.agent_id;
+  SELECT RAISE(FAIL, 'applied identity unavailable');
+END;`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertFailedStartStopped(t *testing.T, srv *Server) {
+	t.Helper()
+	var pid int
+	if err := srv.stateStore.DB().QueryRow("SELECT pid FROM rejected_start").Scan(&pid); err != nil || pid <= 0 {
+		t.Fatalf("failed start did not reach the applied identity write: pid=%d, %v", pid, err)
+	}
+	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+		t.Fatalf("failed start left process %d behind: %v", pid, err)
+	}
+}
+
+func assertNoStartRegistration(t *testing.T, srv *Server, id string) {
+	t.Helper()
+	waitRunning(t, srv, id, false)
+	if srv.registry.Generation(id) != "" {
+		t.Fatal("failed start retained registry ownership")
+	}
+	for _, path := range []string{
+		filepath.Join(hooks.Dir(srv.configStore.Home()), "agents", id+".json"),
+		filepath.Join(srv.configStore.Home(), "mcp", id+".mcp.json"),
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("registration artifact %s survived failed start: %v", path, err)
+		}
+	}
+	srv.hookMu.Lock()
+	_, tokenLeft := srv.hookTokens[id]
+	_, mcpLeft := srv.mcpCleanups[id]
+	srv.hookMu.Unlock()
+	if tokenLeft || mcpLeft {
+		t.Fatalf("registration survived failed start: hook=%v mcp=%v", tokenLeft, mcpLeft)
+	}
+}
+
 // INV §4/§15, FS-09.R44: a newly unsafe personal Codex setup is detected
 // before a switch tears down an already working Codex runtime. The live agent
 // and its registrations therefore remain usable rather than relying on a
@@ -1137,8 +1335,5 @@ func TestResumeFailureRemovesHookSettings(t *testing.T) {
 	if resp.StatusCode == http.StatusOK {
 		t.Fatalf("resume unexpectedly succeeded: %s", body)
 	}
-	settingsPath := filepath.Join(hooks.Dir(srv.configStore.Home()), "agents", id+".json")
-	if _, err := os.Stat(settingsPath); !os.IsNotExist(err) {
-		t.Fatalf("hook-settings file leaked after failed resume: stat err = %v (%s)", err, settingsPath)
-	}
+	assertNoStartRegistration(t, srv, id)
 }

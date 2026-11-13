@@ -641,14 +641,15 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   completion, cancellation racing completion, failure inside a successful result, quota refusal,
   RPC error and transport close; one test per consumer driven from the same emitted event; a
   source scan that fails on a `stop_reason` comparison outside the resolver and decoder (INV §17).
-- **R43 (planned) — One resume start step and one teardown, including Switch.** Explicit resume,
+- **R43 — One resume start step and one teardown, including Switch.** Explicit resume,
   every wake, the Switch target start and the Switch rollback start share one step that composes
   the resume spec, starts the runtime, persists what the runtime reported, and on any failure
   after registration calls `teardownAgentRegistration`. Switch keeps its own ordering around that
   step (validate, stop the old runtime, remove the old registration, start the target, roll back),
   but removes the old registration and the failed target's registration through
   `teardownAgentRegistration` rather than a partial hand-written subset, and stops a target
-  process that already started before rolling back. The launch and resume composers route their
+  process that already started before rolling back. If stopping it fails, Switch reports
+  `switch_failed` and does not attempt to start a replacement. The launch and resume composers route their
   own partial-registration failures through the same function. API results, `history_handoff` and
   rollback outcomes are unchanged. *Why:* Switch and the composers are the remaining hand-written
   copies of a sequence INV §2 and §4 already require to be shared. *Verify:* the existing launch,

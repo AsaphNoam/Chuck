@@ -350,25 +350,10 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 	if refreshedConfig != nil {
 		snap.LaunchConfig = refreshedConfig
 	}
-	spec, ae := s.composeResumeSpecContext(ctx, resumeAgent, snap, backend, model, "", notice)
-	if ae != nil {
+	if ae, _ := s.startResumedRuntime(ctx, func() (runtime.LaunchSpec, *runtime.APIError) {
+		return s.composeResumeSpecContext(ctx, resumeAgent, snap, backend, model, "", notice)
+	}, nil); ae != nil {
 		return ae
-	}
-
-	// 7. Resume via the registry (double-resume is guarded by the registry sentinel
-	//    inside the claim taken above).
-	handle, err := s.registry.Resume(ctx, spec)
-	if err != nil {
-		// composeResumeSpec wrote the hook-settings file too (via
-		// composeHookRegistration) — tear down all three artifacts, not just
-		// token + MCP, so a failed resume leaves nothing behind (launch parity).
-		s.teardownAgentRegistration(id)
-		return resumeStartError(err)
-	}
-	resumeAgent.Fast = handle.Fast
-	if err := s.stateStore.WriteAgent(resumeAgent); err != nil {
-		_ = s.stopAgentClaimed(ctx, id)
-		return apiError(runtime.CodeInternal, "write applied session configuration: "+err.Error())
 	}
 	if after != nil {
 		if err := after(); err != nil {
@@ -385,6 +370,54 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 			return apiError(runtime.CodeInternal, err.Error())
 		}
 	}
+	return nil
+}
+
+// startResumedRuntime owns registration through persistence under the caller's
+// lifecycle claim. Switch can prepare the composed spec and persist the new
+// identity before starting it. The second result reports a failed stop, when
+// replacing the started runtime would be unsafe.
+func (s *Server) startResumedRuntime(ctx context.Context, compose func() (runtime.LaunchSpec, *runtime.APIError), prepare func(*runtime.LaunchSpec) *runtime.APIError) (*runtime.APIError, error) {
+	spec, ae := compose()
+	if ae != nil {
+		return ae, nil // the composer owns partial registration
+	}
+	id := spec.Agent.AgentID
+	if prepare != nil {
+		if ae := prepare(&spec); ae != nil {
+			s.teardownAgentRegistration(id)
+			return ae, nil
+		}
+	}
+	handle, err := s.registry.Resume(ctx, spec)
+	if err != nil {
+		s.teardownAgentRegistration(id)
+		return resumeStartError(err), nil
+	}
+	spec.Agent.Fast = handle.Fast
+	if err := s.stateStore.WriteAgent(spec.Agent); err != nil {
+		stopErr := s.stopFailedStart(id)
+		return apiError(runtime.CodeInternal, "write applied session configuration: "+err.Error()), stopErr
+	}
+	return nil, nil
+}
+
+// stopFailedStart runs independently of the request that failed. Retain the
+// registration if the process cannot be stopped and surface the stop error.
+func (s *Server) stopFailedStart(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), switchRollbackTimeout)
+	defer cancel()
+	if err := s.registry.Stop(ctx, id); err != nil {
+		if !errors.Is(err, runtime.ErrNoHandle) {
+			s.log.Warn("stop after failed start", "agent_id", id, "err", err)
+			return err
+		}
+		if err := s.reapOrphanRuntime(id); err != nil {
+			s.log.Warn("reap after failed start", "agent_id", id, "err", err)
+			return err
+		}
+	}
+	s.teardownAgentRegistration(id)
 	return nil
 }
 
@@ -541,13 +574,12 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 	s.rememberHookToken(agent.AgentID, token)
 	mcpSpec, err := s.registerMessagingMCP(agent, generation)
 	if err != nil {
-		s.forgetHookToken(agent.AgentID)
+		s.teardownAgentRegistration(agent.AgentID)
 		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
 	}
 	extraArgs, err := s.composeHookRegistration(agent, be.Type)
 	if err != nil {
-		s.forgetHookToken(agent.AgentID)
-		s.cleanupMessagingMCP(agent.AgentID)
+		s.teardownAgentRegistration(agent.AgentID)
 		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
 	}
 	spec := runtime.LaunchSpec{

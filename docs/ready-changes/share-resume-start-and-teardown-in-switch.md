@@ -1,6 +1,6 @@
 # Share the resume start and teardown in Switch
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-11-13. Fourth of five single-owner refactors from
 the 60-day invariant review: launch and resume each converge on one function, while Switch is
 still a hand-written third sequence with partial cleanup.

@@ -29,7 +29,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+- [Share the resume start and teardown in Switch](../ready-changes/share-resume-start-and-teardown-in-switch.md)
+  is in progress. Shared start and teardown are implemented. Focused launch, resume, wake and
+  Switch checks pass, including applied-identity failures that capture the failed process's PID.
+  Both Switch applied-identity regressions fail on the original source. Finish `make test`,
+  `make build` and focused race checks, then queue the change for review.
 
 ## Acceptance gates still owed
 

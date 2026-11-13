@@ -178,8 +178,7 @@ func (s *Server) launchAgent(ctx context.Context, req launchRequest, options lau
 	}
 	agent.Fast = handle.Fast
 	if err := s.stateStore.WriteAgent(agent); err != nil {
-		_ = s.registry.Stop(ctx, agent.AgentID)
-		s.teardownAgentRegistration(agent.AgentID)
+		_ = s.stopFailedStart(agent.AgentID)
 		return sessionResponse{}, apiError(runtime.CodeInternal, "write applied session configuration: "+err.Error())
 	}
 
@@ -437,15 +436,14 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 	s.rememberHookToken(agentID, token)
 	mcpSpec, err := s.registerMessagingMCP(agent, generation)
 	if err != nil {
-		s.forgetHookToken(agentID)
+		s.teardownAgentRegistration(agentID)
 		return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeInternal, err.Error())
 	}
 
 	hookEnv := s.hookEnv(agent, token)
 	extraArgs, err := s.composeHookRegistration(agent, backend.Type)
 	if err != nil {
-		s.forgetHookToken(agentID)
-		s.cleanupMessagingMCP(agentID)
+		s.teardownAgentRegistration(agentID)
 		return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeInternal, err.Error())
 	}
 

@@ -797,6 +797,7 @@ condition and a test that it is taken; cache only validated responses; treat an 
 | Helper | Where | Use for |
 |---|---|---|
 | `teardownAgentRegistration` | `internal/server/launch.go` | every agent exit/failure path (§4) |
+| `startResumedRuntime` | `internal/server/resume.go` | compose, start and persist explicit resume, wakes and both Switch starts under the lifecycle claim (§2, §4) |
 | `composeLaunch`, `composeResumeSpec`, `composeSwitchSpec`, `resolveSkip`, `expandAddDirs`, `composeEnv` | `internal/server/{launch,resume,switch}.go` | any path that builds/rebuilds a LaunchSpec (§2) |
 | `resolveStartCheckout` / `ensureRunWorkspace` | `internal/server/pipeline_workspace.go` | every launch/resume/switch/clone cwd readiness, project-owned or run-owned (§2) |
 | `placeRunTaskTx` / `checkRunTarget` | `internal/state/pipeline_workspaces.go` | run group placement and existing-target checkout eligibility for run work (§2, §5) |

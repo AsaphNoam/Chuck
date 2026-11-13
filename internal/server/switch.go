@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -214,8 +213,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	//    per-agent hook settings file under the same id; cleaning afterward would
 	//    revoke the new token and delete the settings file the resume needs (and
 	//    orphan the old MCP token, whose cleanup closure the new register overwrote).
-	s.cleanupMessagingMCP(id)
-	s.cleanupHookSettings(id)
+	s.teardownAgentRegistration(id)
 
 	// 3. Compose the target launch spec (registers a fresh MCP token + writes the
 	//    per-agent hook settings file for the target identity).
@@ -223,53 +221,38 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	// so it must roll back to the previous identity (re-register + re-resume) rather
 	// than leave the agent dead with no running row — the same recovery step 5 uses.
 	var worktreeNotice worktreeStartNotice
-	spec, ae := s.composeSwitchSpecContext(r.Context(), target, resumeID, &worktreeNotice)
+	ae, stopErr := s.startResumedRuntime(r.Context(), func() (runtime.LaunchSpec, *runtime.APIError) {
+		return s.composeSwitchSpecContext(r.Context(), target, resumeID, &worktreeNotice)
+	}, func(spec *runtime.LaunchSpec) *runtime.APIError {
+		spec.Driver = req.Driver
+		// Preserve the frozen selection on interface-only switches. Record
+		// an explicit choice when switching the backend or model.
+		if target.Backend != agent.Backend || target.Model != agent.Model {
+			var err error
+			spec.LaunchConfig, err = explicitModelConfig(spec.LaunchConfig)
+			if err != nil {
+				return apiError(runtime.CodeInternal, "record model choice: "+err.Error())
+			}
+		}
+		if usePrimer {
+			primer, err := s.buildHistoryPrimer(r.Context(), *spec, s.switchPrimerTokenBudget())
+			if err != nil {
+				return apiError(runtime.CodeInternal, "build history primer: "+err.Error())
+			}
+			// Replace the prior bridge without stacking it into the persona.
+			spec.HistoryPrimer = primer
+		}
+		if err := s.stateStore.WriteAgent(target); err != nil {
+			return apiError(runtime.CodeInternal, "persist identity: "+err.Error())
+		}
+		return nil
+	})
+	if stopErr != nil {
+		s.failSwitch(w, id, "stop failed target: "+stopErr.Error())
+		return
+	}
 	if ae != nil {
 		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, errors.New(ae.Message))
-		return
-	}
-	// Carry the requested terminal driver into the resume (validated above); chat
-	// targets ignore it. Rollback re-launches the previous identity under the
-	// default driver, which is correct for the only shipped terminal driver.
-	spec.Driver = req.Driver
-	// The composer continued the frozen model choice for an interface/driver-only
-	// switch and froze an explicit one for a new backend/model; the launch object
-	// records that explicit choice as provenance.
-	if target.Backend != agent.Backend || target.Model != agent.Model {
-		var err error
-		spec.LaunchConfig, err = explicitModelConfig(spec.LaunchConfig)
-		if err != nil {
-			s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, fmt.Errorf("record model choice: %w", err))
-			return
-		}
-	}
-	if usePrimer {
-		primer, err := s.buildHistoryPrimer(r.Context(), spec, s.switchPrimerTokenBudget())
-		if err != nil {
-			s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, fmt.Errorf("build history primer: %w", err))
-			return
-		}
-		// The current native context owns one bounded bridge. Replacing it keeps
-		// subsequent loads safe without modifying or stacking into the persona.
-		spec.HistoryPrimer = primer
-	}
-
-	// 4. Persist the new identity (agent_id UNCHANGED) so the resume composes the
-	//    new interface/backend/model and the card re-renders its badges.
-	if err := s.stateStore.WriteAgent(target); err != nil {
-		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, fmt.Errorf("persist identity: %w", err))
-		return
-	}
-
-	// 5. Resume under the target runtime (registry dispatches by target interface).
-	handle, err := s.registry.Resume(r.Context(), spec)
-	if err != nil {
-		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, err)
-		return
-	}
-	target.Fast = handle.Fast
-	if err := s.stateStore.WriteAgent(target); err != nil {
-		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, err)
 		return
 	}
 	if usePrimer {
@@ -304,26 +287,25 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAgent state.Agent, prevSessionID string, previousSnapshot state.SessionSnapshot, cause error) {
 	rollbackCtx, cancel := context.WithTimeout(context.Background(), switchRollbackTimeout)
 	defer cancel()
-	s.cleanupMessagingMCP(prevAgent.AgentID)
-	s.cleanupHookSettings(prevAgent.AgentID)
 	if err := s.stateStore.WriteAgent(prevAgent); err != nil {
 		s.failSwitch(w, prevAgent.AgentID, "restore identity: "+err.Error())
 		return
 	}
 	// Compose from the pre-switch snapshot: a target startup may already have
 	// written its own metadata (bridge, launch object, contract) before failing.
-	spec, ae := s.composeSwitchSpecFrom(rollbackCtx, prevAgent, prevSessionID, previousSnapshot, nil)
-	if ae != nil {
-		// composeSwitchSpec mints a fresh hook token + MCP registration before it
-		// can fail; tear those down so a failed rollback leaves no spoofable
-		// registration residue for the stopped agent (INV §4/§15).
-		s.teardownAgentRegistration(prevAgent.AgentID)
-		s.failSwitch(w, prevAgent.AgentID, "recompose previous: "+ae.Message)
+	ae, stopErr := s.startResumedRuntime(rollbackCtx, func() (runtime.LaunchSpec, *runtime.APIError) {
+		spec, ae := s.composeSwitchSpecFrom(rollbackCtx, prevAgent, prevSessionID, previousSnapshot, nil)
+		if ae != nil {
+			return runtime.LaunchSpec{}, apiError(ae.Code, "recompose previous: "+ae.Message)
+		}
+		return spec, nil
+	}, nil)
+	if stopErr != nil {
+		s.failSwitch(w, prevAgent.AgentID, "stop failed rollback: "+stopErr.Error())
 		return
 	}
-	if _, err := s.registry.Resume(rollbackCtx, spec); err != nil {
-		s.teardownAgentRegistration(prevAgent.AgentID)
-		s.failSwitch(w, prevAgent.AgentID, err.Error())
+	if ae != nil {
+		s.failSwitch(w, prevAgent.AgentID, ae.Message)
 		return
 	}
 	writeAPIError(w, apiError(runtime.CodeSwitchFailedRolledBack, "switch failed, rolled back to previous runtime: "+cause.Error()))
@@ -470,13 +452,12 @@ func (s *Server) composeSwitchSpecFrom(ctx context.Context, target state.Agent, 
 	s.rememberHookToken(target.AgentID, token)
 	mcpSpec, err := s.registerMessagingMCP(target, token)
 	if err != nil {
-		s.forgetHookToken(target.AgentID)
+		s.teardownAgentRegistration(target.AgentID)
 		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
 	}
 	extraArgs, err := s.composeHookRegistration(target, be.Type)
 	if err != nil {
-		s.forgetHookToken(target.AgentID)
-		s.cleanupMessagingMCP(target.AgentID)
+		s.teardownAgentRegistration(target.AgentID)
 		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
 	}
 
