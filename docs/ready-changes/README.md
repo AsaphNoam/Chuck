@@ -83,8 +83,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 - [`share-desktop-and-phone-input-delivery.md`](share-desktop-and-phone-input-delivery.md) — one
   Send/Steer/retry/withdraw/recovery implementation for desktop chat and the phone.
-- [`single-owner-turn-state.md`](single-owner-turn-state.md) — one turn structure, one lock and
-  one status writer in the runtime; starts after the typed turn outcome.
 
 ## Paused changes
 

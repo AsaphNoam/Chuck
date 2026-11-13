@@ -29,11 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**In progress:** [Single-owner turn state](../ready-changes/single-owner-turn-state.md).
-Turn fields now share one structure under the existing turn lock. Chat status writes share one
-transaction and Stop closes it for that launch. The regression reproduces a late completion
-overwriting `done` when the Stop fence is removed. Run the focused race checks, both Go test
-variants and the build before queuing review.
+None.
 
 ## Acceptance gates still owed
 
@@ -241,6 +237,13 @@ variants and the build before queuing review.
   switch shows it above the composer.
 
 ## Review queue
+
+- **Single-owner turn state** — ready for review at `35f33a07` (TS-01.R44). Current-turn
+  fields share one structure and the existing turn lock. Chat status writes share one
+  transaction, and explicit Stop prevents late callbacks from overwriting `done`.
+  The regression fails with the Stop guard removed and passed five consecutive runs
+  with it restored. Both Go variants, the build, and focused race tests for cancellation,
+  permission, Steer, held messages and Stop passed.
 
 - **Shared desktop and phone input delivery** — ready for review (TS-08.R164). Both clients
   share send, Steer, retry, attachment completion, withdrawal and the recovery offer. Desktop
