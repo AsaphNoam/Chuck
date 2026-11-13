@@ -19,7 +19,8 @@ interface HeldStoreState {
   recoveryByAgent: Record<string, { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string }>;
   // A withdrawal succeeded but its recovery offer could not be read yet; the tail
   // says so and offers to read it again rather than showing nothing (FS-03.R90).
-  recoveryUnreadByAgent: Record<string, true>;
+  // The value counts failed reads so a failed retry shows a new outcome.
+  recoveryUnreadByAgent: Record<string, number>;
   hold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[], heldId?: string) => void;
   release: (agentId: string) => void;
   setRecovery: (agentId: string, recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } | null) => void;
@@ -65,5 +66,5 @@ export const useHeldStore = create<HeldStoreState>((set) => ({
     delete recoveryUnreadByAgent[agentId];
     return { recoveryByAgent, recoveryUnreadByAgent };
   }),
-  markRecoveryUnread: (agentId) => set((state) => ({ recoveryUnreadByAgent: { ...state.recoveryUnreadByAgent, [agentId]: true } })),
+  markRecoveryUnread: (agentId) => set((state) => ({ recoveryUnreadByAgent: { ...state.recoveryUnreadByAgent, [agentId]: (state.recoveryUnreadByAgent[agentId] ?? 0) + 1 } })),
 }));

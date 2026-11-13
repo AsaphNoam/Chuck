@@ -140,7 +140,8 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   succeeds. A failed withdrawal changes no draft. The text kept is what the composer shows, even
   when browser storage could not save it. Overlapping withdrawals of one hold restore it once. If
   the recovery offer cannot be read after a successful withdrawal, the transcript says so and
-  offers to load it again without repeating the withdrawal.
+  offers to load it again without repeating the withdrawal; a retry that fails again says so. A
+  failed read that does not follow a confirmed withdrawal never claims one.
 
 - **R50.** **Steer the turn that is running.** Beside Send, a chat agent
   whose runtime advertises steering offers **Steer**, which delivers the message into the in-flight
@@ -1613,14 +1614,16 @@ when accepted by HTTP but an id-less repeat is still a new command.
   typed, both remain, withdrawn text first. A rejected withdrawal leaves the composer unchanged.
   An attachment-bearing withdrawal shows the recovery offer instead. Unsaved typed text survives a
   storage failure on desktop and phone; overlapping withdrawals restore one copy; a failed recovery
-  read offers a load retry that does not withdraw again.
+  read offers a load retry that does not withdraw again, and a retry that fails again shows a new
+  outcome. A failed ordinary read, such as opening a stopped chat, shows no withdrawal notice.
   With a released text receipt, successful durable draft restoration dismisses only that receipt;
   a subsequent recovery read does not offer a duplicate. If saving the draft fails, recovery remains.
   *Verify:* `Composer.test.tsx` ("withdraws the held message…", "puts the withdrawn text ahead…",
   "turns a withdrawn attachment hold…", "leaves the composer unchanged…", "keeps newer typed
   text…", "reports a recovery read…", "restores the held text once…"), `AgentScreen.test.tsx`
   ("withdraw returns the held text…", "withdraw keeps text typed…"), `TranscriptView.test.tsx`
-  ("offers to load a withdrawn attachment message…").
+  ("offers to load a withdrawn attachment message…", "does not claim withdrawal…", "shows a new
+  outcome…").
 
 - **A71** (R92) — Read representative Markdown with long paths/URLs/inline code,
   nested lists, blockquotes, wide tables, long fenced lines, diagrams and a long filename.

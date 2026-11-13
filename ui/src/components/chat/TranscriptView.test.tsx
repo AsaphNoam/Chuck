@@ -365,7 +365,7 @@ describe("TranscriptView pending follow-up", () => {
   });
 
   // PIPE-CHAT-2: a failed background read is not evidence of a withdrawal.
-  it.skip("does not claim withdrawal after an ordinary prompt read for a stopped chat", async () => {
+  it("does not claim withdrawal after an ordinary prompt read for a stopped chat", async () => {
     mswServer.use(http.get("/api/sessions/a1/prompt", () =>
       HttpResponse.json({ error: { code: "not_found", message: "agent not started" } }, { status: 404 }),
     ));
@@ -426,7 +426,7 @@ describe("TranscriptView pending follow-up", () => {
   });
 
   // PIPE-CHAT-2: a second failed read must report the result of the retry.
-  it.skip("shows a new outcome when reloading a withdrawn message fails again", async () => {
+  it("shows a new outcome when reloading a withdrawn message fails again", async () => {
     const attachment = { id: "att_1", name: "shot.png", kind: "image", mime_type: "image/png", size: 4, sha256: "abcd" } as const;
     let withdrawals = 0;
     let reads = 0;

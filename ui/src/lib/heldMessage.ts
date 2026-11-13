@@ -57,13 +57,19 @@ async function withdrawOnce(agentId: string): Promise<void> {
     if (!hadAttachments) await restoreWithdrawnDraft(agentId, result);
   } finally {
     invalidateHeldReads(agentId);
-    if (hadAttachments || message?.request_id) await readHeldRecovery(agentId);
+    if (hadAttachments || message?.request_id) await readWithdrawnRecovery(agentId);
   }
 }
 
-// Reads the recovery offer after a completed withdrawal. A failed read is shown
+// Reads the recovery offer after a confirmed withdrawal. A failed read is shown
 // with a retry that only reads again; the withdrawal is never repeated (INV §8).
-export async function readHeldRecovery(agentId: string, isCurrent = () => true, includeHold = false): Promise<void> {
+export function readWithdrawnRecovery(agentId: string): Promise<void> {
+  return readHeldRecovery(agentId, () => true, false, true);
+}
+
+// Reads the hold, queue and recovery offer. Only a read that follows a confirmed
+// withdrawal may report a failure as an unloaded withdrawn message (FS-03.R90).
+export async function readHeldRecovery(agentId: string, isCurrent = () => true, includeHold = false, afterWithdrawal = false): Promise<void> {
   const read = { agentId, stale: false };
   reads.add(read);
   try {
@@ -76,7 +82,7 @@ export async function readHeldRecovery(agentId: string, isCurrent = () => true, 
     useHeldStore.getState().setRecovery(agentId, snapshot.recovery ?? null);
     useHeldStore.getState().setQueued(agentId, snapshot.queued ?? []);
   } catch {
-    if (!read.stale && isCurrent()) useHeldStore.getState().markRecoveryUnread(agentId);
+    if (afterWithdrawal && !read.stale && isCurrent()) useHeldStore.getState().markRecoveryUnread(agentId);
   } finally {
     reads.delete(read);
   }

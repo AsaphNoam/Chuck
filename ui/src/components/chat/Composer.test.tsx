@@ -761,7 +761,7 @@ describe("Composer queued follow-up and steering", () => {
     render(<Composer agentId="a_1" busy />);
 
     fireEvent.click(screen.getByRole("button", { name: "Withdraw queued" }));
-    await waitFor(() => expect(useHeldStore.getState().recoveryUnreadByAgent.a_1).toBe(true));
+    await waitFor(() => expect(useHeldStore.getState().recoveryUnreadByAgent.a_1).toBe(1));
     expect(useHeldStore.getState().byAgent.a_1).toBeUndefined();
     expect(screen.queryByText(/Could not withdraw/)).toBeNull();
   });
