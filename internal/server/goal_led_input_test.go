@@ -1,10 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/AsaphNoam/Chuck/internal/attachment"
@@ -126,6 +129,9 @@ func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
 			if route == "annotations" {
 				command = runtime.AnnotationData{CommandID: "question-answer", Annotations: []runtime.Annotation{{Seq: 1, Excerpt: "database", Instruction: "Use SQLite"}}, Target: runtime.AnnotationTarget{Kind: "self"}}
 			}
+			var logs bytes.Buffer
+			var logMu sync.Mutex
+			srv.log = slog.New(slog.NewTextHandler(&lockedWriter{w: &logs, mu: &logMu}, nil))
 			url := ts.URL + "/api/sessions/" + id + "/" + route
 			resp, body := post(t, url, command)
 			if resp.StatusCode != http.StatusAccepted {
@@ -136,6 +142,18 @@ func TestConversationAnswerContinuesQuestionPause(t *testing.T) {
 			next, _ := srv.stateStore.ReadTask(visit.TaskID)
 			if run.State == "paused" || visit.TaskID == task.TaskID || !strings.Contains(next.Instruction, "Postgres or SQLite?") || !strings.Contains(next.Instruction, "Use SQLite") {
 				t.Fatalf("conversation answer did not continue the run: run=%s visit=%s", run.State, visit.TaskID)
+			}
+			// TS-02.R55: the accepting visit is traceable from logs without the words.
+			logMu.Lock()
+			logged := logs.String()
+			logMu.Unlock()
+			for _, want := range []string{"conversation input continued paused run", "question-answer", "run=pr_question", "visit=" + visit.TaskID, "surface=chat", "delivery=submitted"} {
+				if !strings.Contains(logged, want) {
+					t.Fatalf("input transition log lacks %q:\n%s", want, logged)
+				}
+			}
+			if strings.Contains(logged, "SQLite") {
+				t.Fatalf("input transition log carries message text:\n%s", logged)
 			}
 			// A network replay returns the recorded acceptance and creates nothing.
 			if resp, _ := post(t, url, command); resp.StatusCode != http.StatusAccepted {

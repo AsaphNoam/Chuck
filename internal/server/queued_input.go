@@ -118,7 +118,32 @@ func (s *Server) continueRunFromConversation(ctx context.Context, receipt state.
 		s.log.Warn("continue paused run from conversation", "agent", receipt.AgentID, "err", err)
 		return state.AttachmentReceipt{}, false
 	}
+	if ok {
+		s.logRunInputTransition(recorded)
+	}
 	return recorded, ok
+}
+
+// logRunInputTransition records which visit accepted a chat Send that continued
+// a paused run, matching the runtime's receipt transition log. Identities and
+// fixed vocabulary only: no message text, attachment metadata or provider
+// errors (TS-02.R55, INV §15).
+func (s *Server) logRunInputTransition(receipt state.AttachmentReceipt) {
+	runID := ""
+	if lineage, err := s.stateStore.ReadTaskLineage(receipt.AssignmentTaskID); err == nil {
+		runID = lineage.PipelineRunID
+	}
+	s.log.Info("conversation input continued paused run", "agent", boundedLogID(receipt.AgentID),
+		"request_id", boundedLogID(receipt.RequestID), "run", boundedLogID(runID),
+		"visit", boundedLogID(receipt.AssignmentTaskID), "surface", "chat", "delivery", receipt.Delivery)
+}
+
+func boundedLogID(id string) string {
+	const limit = 128
+	if len(id) > limit {
+		return id[:limit]
+	}
+	return id
 }
 
 // recoverStageTask hands an interrupted pipeline owner to the controller's

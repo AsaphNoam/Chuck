@@ -845,7 +845,8 @@ archival/reload does not erase the acceptance needed for harmless retry.
 
 Input receipt transitions emit bounded structured diagnostics with agent/request identity,
 operation, delivery state and fixed reason at queue acceptance/replacement, withdrawal, submission
-and uncertainty. Never log message bodies, attachment metadata/contents or raw provider errors.
+and uncertainty. Input that continues a paused run also names its run, accepting visit and input
+surface. Never log message bodies, attachment metadata/contents or raw provider errors.
 
 **R56 — Offline repair publishes one complete conversation at a time.** For
 FS-05.R43–R45, replace global reset followed by independently committed replay with one `sql.Tx`
