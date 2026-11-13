@@ -29,11 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-- [Share the resume start and teardown in Switch](../ready-changes/share-resume-start-and-teardown-in-switch.md)
-  is in progress. Shared start and teardown are implemented. Focused launch, resume, wake and
-  Switch checks pass, including applied-identity failures that capture the failed process's PID.
-  Both Switch applied-identity regressions fail on the original source. Finish `make test`,
-  `make build` and focused race checks, then queue the change for review.
+None.
 
 ## Acceptance gates still owed
 
@@ -241,6 +237,13 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   switch shows it above the composer.
 
 ## Review queue
+
+- **Shared resume start and Switch rollback** — ready for review at `95d4f621` (TS-01.R43).
+  Explicit resume, wakes and both Switch starts share registration cleanup and applied identity
+  persistence. Switch stops a target whose final identity write failed before starting rollback.
+  The build, specification checks, both Go variants and focused race checks passed. The first
+  untagged run hit a pipeline Stop 409. Ten focused repetitions and the full rerun passed.
+  Both new Switch persistence regressions fail against the original source.
 
 - **One typed turn outcome** — ready for review. Runtime status, quota settlement, inline mail
   and event readers use the resolved outcome. See FS-03.R117/A92 and TS-01.R42.
