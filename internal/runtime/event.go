@@ -187,7 +187,8 @@ type TurnEndData struct {
 	// The exact pair recorded with ContextPct, omitted when unknown, so an index
 	// rebuild restores the same tuple as the live rollup (TS-02.R39).
 	*state.ContextCounts
-	Quota *QuotaEvidence `json:"quota,omitempty"`
+	Quota        *QuotaEvidence `json:"quota,omitempty"`
+	ProcessEnded bool           `json:"process_ended,omitempty"`
 }
 
 // ErrorData — runtime/protocol/process error surfaced to the client.

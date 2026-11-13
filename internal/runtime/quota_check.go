@@ -333,13 +333,14 @@ func (c *ChatRuntime) driveQuotaCheck(ctx context.Context, as *agentState, ad ba
 		return out
 	}
 	resultFailure, hasResultFailure := decodeSessionFailureRecord(res)
+	provider := promptOutcome(res)
 	probe.mu.Lock()
 	defer probe.mu.Unlock()
 	failure := probe.failure
 	if hasResultFailure && (failure == nil || resultFailure.ID == failure.ID && resultFailure.Revision >= failure.Revision || resultFailure.Quota && !failure.Quota) {
 		failure = &resultFailure
 	}
-	if err == nil && recoveredByTerminalSuccess(res, hasResultFailure) {
+	if err == nil && recoveredByTerminalSuccess(provider, hasResultFailure) {
 		failure = nil // a recovered streaming warning, as in an ordinary turn
 	}
 	quota, text, observed := rpcQuotaRefusal(spec.BackendType, err), promptErrorText(err), promptErrorArrival(err)
@@ -357,8 +358,7 @@ func (c *ChatRuntime) driveQuotaCheck(ctx context.Context, as *agentState, ad ba
 		}
 		return out
 	}
-	var plain acpPromptResult
-	if err != nil || failure != nil || json.Unmarshal(res, &plain) != nil || plain.StopReason != "end_turn" ||
+	if err != nil || failure != nil || provider != TurnCompleted ||
 		probe.tool || strings.TrimSpace(probe.reply.String()) == "" {
 		out.Outcome = "failed"
 		return out

@@ -266,6 +266,12 @@ func TestCancelledTurnLateCompletionDoesNotConfirmQuotaRecovery(t *testing.T) {
 		"FAKEACP_HOLD_FILE="+holdFile, "FAKEACP_HOLD_IGNORE_CANCEL=1")
 	c.cancelGrace = 0
 	mu, calls := recordQuotaSettlement(c)
+	if _, err := c.store.InsertMessage(state.Message{
+		FromAgent: "a_sender", FromAddress: "reviewer@test", ToAgent: h.AgentID,
+		Subject: "Review", Body: "Keep unread after cancellation.",
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if err := c.SendPrompt(context.Background(), h.AgentID, "retry after quota"); err != nil {
 		t.Fatal(err)
 	}
@@ -291,6 +297,12 @@ func TestCancelledTurnLateCompletionDoesNotConfirmQuotaRecovery(t *testing.T) {
 	}
 	if len(ends) != 1 || ends[0].StopReason != "cancelled" {
 		t.Fatalf("terminal events = %+v; want one cancelled turn_end", ends)
+	}
+	if unread, err := c.store.UnreadCount(h.AgentID); err != nil || unread != 1 {
+		t.Fatalf("unread inline mail = %d, %v; want retained", unread, err)
+	}
+	if status, err := c.store.ReadStatus(h.AgentID); err != nil || status.Detail != "cancelled" {
+		t.Fatalf("status = %+v, %v; want cancelled", status, err)
 	}
 	mu.Lock()
 	if len(*calls) != 1 || (*calls)[0].successful {
@@ -545,7 +557,12 @@ func TestQuotaSameIDRevisionResultDoesNotOverrideNewerUpdate(t *testing.T) {
 
 func TestQuotaEvidenceCarriesNoProviderText(t *testing.T) {
 	result := `{"stopReason":"end_turn","_meta":{"jetbrains":{"air":{"version":1,"sessionFailure":{"id":"quota-1","revision":3,"category":"limit","severity":"error","title":"provider secret","actions":[]}}}}}`
-	td, _ := mapPromptResult(json.RawMessage(result))
+	quota, ok := decodeSessionFailure(json.RawMessage(result))
+	if !ok {
+		t.Fatal("missing quota evidence")
+	}
+	outcome := resolveTurnOutcome(promptOutcome(json.RawMessage(result)), false, false, false, &quota)
+	td := outcome.eventData(contextReading{}, &quota)
 	raw, err := json.Marshal(td)
 	if err != nil {
 		t.Fatal(err)
@@ -787,7 +804,7 @@ func TestTerminalRPCResetResolvesAtArrivalNotSettlement(t *testing.T) {
 					panic(r)
 				}
 			}()
-			c.completePromptTurn(as, "t1", "", json.RawMessage(`{"stopReason":"error"}`), err)
+			c.completePromptTurn(as, "t1", "", nil, err)
 		}()
 		if got == nil || got.ResetAt == nil || !got.ResetAt.Equal(want) {
 			t.Fatalf("settled at %s: quota = %+v, want reset %s", time.Now().UTC(), got, want)

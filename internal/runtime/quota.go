@@ -11,6 +11,18 @@ import (
 	"unicode/utf8"
 )
 
+const quotaSettlementError = "Quota recovery state could not be saved. Retry after restoring local storage."
+
+func (c *ChatRuntime) settleTurnQuota(as *agentState, turnID string, outcome TurnOutcome, quota *QuotaEvidence) error {
+	c.mu.Lock()
+	settle := c.quotaSettlement
+	c.mu.Unlock()
+	if settle == nil {
+		return nil
+	}
+	return settle(as.agentID, as.generation, turnID, quota, outcome == TurnCompleted)
+}
+
 // claudeUsageLimitPrefixes are pinned claude-agent-sdk 0.3.286's
 // USAGE_LIMIT_ERROR_PREFIXES: the openings of its synthetic usage-limit errors.
 var claudeUsageLimitPrefixes = []string{"You've hit your", "You've reached your", "You're out of usage credits",
@@ -179,31 +191,24 @@ func (r *Registry) ClearQuotaBlock(agentID, generation, turnID string) {
 // after a real model success; that recovery has no clear notification on the
 // wire, so this result is the confirmation (TS-04.R86). Ordinary turns and
 // isolated checks share it.
-func recoveredByTerminalSuccess(result json.RawMessage, hasResultFailure bool) bool {
-	var plain acpPromptResult
-	return !hasResultFailure && json.Unmarshal(result, &plain) == nil && plain.StopReason == "end_turn"
+func recoveredByTerminalSuccess(provider TurnOutcome, hasResultFailure bool) bool {
+	return !hasResultFailure && provider == TurnCompleted
 }
 
 // completePromptTurn is shared by user prompts and every owned activation.
 // Streaming failure metadata becomes terminal evidence only at completion.
 func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey string, result json.RawMessage, promptErr error) {
-	as.mu.Lock()
-	current := !as.stopped && as.turnActive && as.execTurnID == turnID
-	as.mu.Unlock()
-	if !current {
-		return
-	}
-	td, hasPct := mapPromptResult(result)
-	var plain acpPromptResult
-	if json.Unmarshal(result, &plain) == nil {
-		td.StopReason = defaultStr(plain.StopReason, "end_turn")
-	}
-	td.Quota = nil
+	provider := promptOutcome(result)
 	resultFailure, hasResultFailure := decodeSessionFailureRecord(result)
 	as.mu.Lock()
-	if as.cancelledTurnSeq != 0 && turnID == fmt.Sprintf("t_%012d", as.cancelledTurnSeq) {
-		td.StopReason = "cancelled"
+	if as.stopped || as.stopping || !as.turnActive || as.execTurnID != turnID || as.promptSettlement != nil {
+		as.mu.Unlock()
+		return
 	}
+	as.promptSettlement = make(chan struct{})
+	cancelled := provider == TurnCancelled ||
+		as.cancelledTurnSeq != 0 && turnID == fmt.Sprintf("t_%012d", as.cancelledTurnSeq)
+	td := TurnEndData{}
 	if hasResultFailure &&
 		(as.turnFailure == nil ||
 			resultFailure.ID == as.turnFailure.ID && resultFailure.Revision >= as.turnFailure.Revision ||
@@ -217,18 +222,15 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 			as.turnQuota = &QuotaEvidence{FailureID: resultFailure.ID, Revision: resultFailure.Revision}
 		}
 	}
-	if td.StopReason != "cancelled" && recoveredByTerminalSuccess(result, hasResultFailure) {
+	if !cancelled && promptErr == nil && recoveredByTerminalSuccess(provider, hasResultFailure) {
 		as.turnFailure = nil
 		as.turnQuota = nil
 	}
 	// TS-04.R86/FS-01.R43: an accepted Cancel wins over late provider quota
 	// evidence, so the cancelled work is never re-armed for continuation.
-	if as.caps.SessionFailure && as.turnQuota != nil && td.Quota == nil && td.StopReason != "cancelled" {
+	if as.caps.SessionFailure && as.turnQuota != nil && !cancelled {
 		q := *as.turnQuota
 		td.Quota = &q
-	}
-	if !as.caps.SessionFailure {
-		td.Quota = nil
 	}
 	backendType := ""
 	if as.adapter != nil {
@@ -237,7 +239,7 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 	// TS-04.R105: without AIR evidence for this turn, a verified quota carrier
 	// on the terminal RPC is the refusal. A current AIR record (including a
 	// newer non-quota or retryable revision) and cancellation keep precedence.
-	if td.Quota == nil && as.turnFailure == nil && td.StopReason != "cancelled" && rpcQuotaRefusal(backendType, promptErr) {
+	if td.Quota == nil && as.turnFailure == nil && !cancelled && rpcQuotaRefusal(backendType, promptErr) {
 		td.Quota = &QuotaEvidence{FailureID: "rpc:" + turnID, Revision: 1}
 	}
 	if td.Quota != nil {
@@ -252,7 +254,6 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 				td.Quota.ResetSource = "structured"
 			}
 		}
-		td.StopReason = "error"
 		as.quotaBlocked = true
 		as.quotaBlockedGeneration = as.generation
 		as.quotaBlockedTurnID = turnID
@@ -262,14 +263,14 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 	// neither a successful completion nor an inline-mail receipt (FS-03.R8).
 	var terminal, failed *SessionFailureRecord
 	if as.caps.SessionFailure && as.turnFailure != nil && (td.Quota != nil ||
-		hasResultFailure && as.turnFailure.Severity == "error" && td.StopReason != "cancelled") {
+		hasResultFailure && as.turnFailure.Severity == "error" && !cancelled) {
 		f := *as.turnFailure
 		terminal = &f
 		if td.Quota == nil {
 			failed = &f
-			td.StopReason = "error"
 		}
 	}
+	outcome := resolveTurnOutcome(provider, cancelled, false, promptErr != nil || failed != nil || provider == TurnUnknown, td.Quota)
 	as.mu.Unlock()
 	// TS-04.R111: with no structured or text reset, one snapshot read on this
 	// still-live process may supply the latest exhausted applicable reset. It
@@ -289,38 +290,27 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 			"failure_id", terminal.ID, "revision", terminal.Revision,
 			"category", terminal.Category, "severity", terminal.Severity, "quota", terminal.Quota)
 	}
-	c.mu.Lock()
-	settle := c.quotaSettlement
-	c.mu.Unlock()
-	successful := td.StopReason == "end_turn" && validInlineReceipt(result)
-	settled := true
-	if settle != nil {
-		if err := settle(as.agentID, as.generation, turnID, td.Quota, successful); err != nil {
-			settled = false
-			as.mu.Lock()
-			as.quotaBlocked = true
-			as.quotaBlockedGeneration = as.generation
-			as.quotaBlockedTurnID = turnID
-			as.mu.Unlock()
-			c.emit(as, EvError, ErrorData{Scope: "internal", Message: "Quota recovery state could not be saved. Retry after restoring local storage.", Fatal: false})
-		}
+	successful := outcome == TurnCompleted
+	settlementErr := c.settleTurnQuota(as, turnID, outcome, td.Quota)
+	if settlementErr != nil {
+		as.mu.Lock()
+		as.quotaBlocked = true
+		as.quotaBlockedGeneration = as.generation
+		as.quotaBlockedTurnID = turnID
+		as.mu.Unlock()
+		c.emit(as, EvError, ErrorData{Scope: "internal", Message: quotaSettlementError, Fatal: false})
 	}
-	if td.Quota == nil && failed == nil {
-		c.settleInlineMail(as, deliveryKey, result)
-	} else {
-		c.clearInlineMail(as.agentID, deliveryKey)
-	}
+	c.settleInlineMail(as, deliveryKey, outcome)
 	if failed != nil {
 		c.emit(as, EvError, ErrorData{Scope: "protocol", Message: failed.Text, Fatal: false})
 	}
-	if successful && settled {
+	if successful && settlementErr == nil {
 		as.mu.Lock()
 		as.quotaBlocked = false
 		as.quotaBlockedGeneration = ""
 		as.quotaBlockedTurnID = ""
 		as.mu.Unlock()
 	}
-	as.settleTurnContext(&td, hasPct)
-	nextText, nextTurnID := c.finishTurn(as, turnID, td)
+	nextText, nextTurnID := c.finishTurn(as, turnID, outcome, outcome.eventData(as.settleTurnContext(), td.Quota))
 	c.runReservedHeld(as, nextText, nextTurnID)
 }

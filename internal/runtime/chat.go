@@ -332,6 +332,9 @@ type agentState struct {
 	// open permission gate (FS-02.R3/R22, FS-01.R52, INV §5).
 	statusMu      sync.Mutex
 	settledTurnID string
+	// Non-nil while the current prompt owns terminal settlement. EOF waits for
+	// that owner before tearing down the process and journal.
+	promptSettlement chan struct{}
 	// loadReplay is set only while ACP session/load is restoring provider-native
 	// context. A provider is allowed to replay the prior conversation as
 	// session/update frames during that call; those frames describe history
@@ -1145,9 +1148,8 @@ func (c *ChatRuntime) runMessageTurn(as *agentState, message Message, turnID str
 			if errors.Is(err, errTransportClosed) || as.isStopped() {
 				return
 			}
-			c.clearInlineMail(as.agentID, deliveryKey)
 			c.emit(as, EvError, ErrorData{Scope: "protocol", Message: promptFailureMessage(as, err), Fatal: false})
-			c.completePromptTurn(as, turnID, deliveryKey, json.RawMessage(`{"stopReason":"error"}`), err)
+			c.completePromptTurn(as, turnID, deliveryKey, nil, err)
 			return
 		}
 		c.completePromptTurn(as, turnID, deliveryKey, res, nil)
@@ -1258,21 +1260,8 @@ func inlineMailNotice(messages []state.Message) *NoticeData {
 	return &data
 }
 
-func validInlineReceipt(raw json.RawMessage) bool {
-	var result acpPromptResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return false
-	}
-	switch result.StopReason {
-	case "end_turn", "max_tokens":
-		return true
-	default:
-		return false
-	}
-}
-
-func (c *ChatRuntime) settleInlineMail(as *agentState, deliveryKey string, raw json.RawMessage) {
-	if deliveryKey == "" || !validInlineReceipt(raw) {
+func (c *ChatRuntime) settleInlineMail(as *agentState, deliveryKey string, outcome TurnOutcome) {
+	if deliveryKey == "" || !outcome.confirmsInlineMail() {
 		c.clearInlineMail(as.agentID, deliveryKey)
 		return
 	}
@@ -1298,8 +1287,8 @@ func (c *ChatRuntime) clearInlineMail(agentID, deliveryKey string) {
 // the activation turn end here, so cancel and normal completion cannot grow
 // divergent delivery paths (FS-03.R49, INV §2). The crash path deliberately does
 // not: its held message has no next turn to run in and dies with the agent.
-func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) (Message, string) {
-	c.applyTurnEndStatus(as, turnID, td)
+func (c *ChatRuntime) finishTurn(as *agentState, turnID string, outcome TurnOutcome, td TurnEndData) (Message, string) {
+	c.applyTurnEndStatus(as, turnID, outcome)
 	// Keep the gate until terminal subscribers have settled this owner. A racing
 	// Send cannot start a successor before the room completion callback returns.
 	c.emitIn(as, activityScope{TurnID: turnID}, EvTurnEnd, td)
@@ -1313,6 +1302,8 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, td TurnEndData) 
 		c.refreshQuota(as.quotaScope)
 	}
 	as.mu.Lock()
+	close(as.promptSettlement)
+	as.promptSettlement = nil
 	as.execTurnID = ""
 	as.releaseTurnToolInputsLocked("")
 	if as.quotaBlocked {
@@ -1371,15 +1362,11 @@ func (as *agentState) reserveHeldSuccessorLocked() (Message, string) {
 	return message, as.nextTurnIDLocked()
 }
 
-func (as *agentState) settleTurnContext(td *TurnEndData, hasPct bool) {
+func (as *agentState) settleTurnContext() contextReading {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 	as.cancelEscalated = false
-	if hasPct {
-		as.context = contextReading{pct: td.ContextPct}
-	} else {
-		td.ContextPct, td.ContextCounts = as.context.pct, as.context.counts
-	}
+	return as.context
 }
 
 func (c *ChatRuntime) runReservedHeld(as *agentState, message Message, turnID string) {
@@ -1885,9 +1872,8 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 			if errors.Is(err, errTransportClosed) || as.isStopped() {
 				return
 			}
-			c.clearInlineMail(as.agentID, deliveryKey)
 			c.emit(as, EvError, ErrorData{Scope: "protocol", Message: promptFailureMessage(as, err), Fatal: false})
-			c.completePromptTurn(as, turnID, deliveryKey, json.RawMessage(`{"stopReason":"error"}`), err)
+			c.completePromptTurn(as, turnID, deliveryKey, nil, err)
 			return
 		}
 		c.completePromptTurn(as, turnID, deliveryKey, res, nil)
@@ -2186,6 +2172,12 @@ func (c *ChatRuntime) Commands(agentID string) ([]CommandItem, error) {
 // row to error, delete the running row, and tear down (techspec §8.2).
 func (c *ChatRuntime) onTransportClosed(as *agentState) {
 	as.mu.Lock()
+	for as.promptSettlement != nil {
+		settled := as.promptSettlement
+		as.mu.Unlock()
+		<-settled
+		as.mu.Lock()
+	}
 	if as.stopped {
 		as.turnActive = false
 		as.mu.Unlock()
@@ -2194,7 +2186,11 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 		as.closePersistence()
 		return
 	}
+	turnID := as.execTurnID
+	activeTurn := as.turnActive && turnID != "" && turnID != as.settledTurnID
 	cancelEscalated := as.cancelEscalated
+	cancelled := cancelEscalated || activeTurn && as.cancelledTurnSeq != 0 && as.cancelledTurnSeq == as.turnSeq
+	outcome := resolveTurnOutcome(TurnUnknown, cancelled, true, false, nil)
 	_ = c.messageTransition(as.agentID, as.held.RequestID, "released")
 	steerDelivery := "unknown"
 	if as.steerFallback.Ready {
@@ -2231,21 +2227,27 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 	// A silent exit still names its cause on the card and header (FS-03.R89).
 	statusDetail := clip(errorMessage, 120)
 	lastTrace := "Error"
-	stopReason := "error"
-	if cancelEscalated {
-		errorMessage = "Cancelled — agent process exited after ignoring cancellation."
+	if outcome == TurnCancelled {
+		errorMessage = "Cancelled — agent process exited."
+		if cancelEscalated {
+			errorMessage = "Cancelled — agent process exited after ignoring cancellation."
+		}
 		if tail != "" {
 			errorMessage += " " + tail
 		}
 		statusDetail = "cancelled — process exited"
 		lastTrace = "Cancelled"
-		stopReason = "cancelled"
 	}
 	c.emit(as, EvError, ErrorData{Scope: "process", Message: errorMessage, Fatal: true})
 
 	// Settle state.db before emitting turn_end so a client reacting to turn_end
 	// never observes a stale running row or busy status.
 	c.updateStatus(as, "error", statusDetail, lastTrace, clearBusySince)
+	if activeTurn {
+		if err := c.settleTurnQuota(as, turnID, outcome, nil); err != nil {
+			c.emit(as, EvError, ErrorData{Scope: "internal", Message: quotaSettlementError, Fatal: false})
+		}
+	}
 	_ = c.store.DeleteRunning(as.agentID)
 	c.touchState(as.agentID)
 	c.removeAgent(as.agentID)
@@ -2257,7 +2259,7 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 		c.onExit(as.agentID, as.generation)
 	}
 
-	c.emit(as, EvTurnEnd, as.lastContext().turnEnd(stopReason))
+	c.emit(as, EvTurnEnd, outcome.eventData(as.lastContext(), nil))
 	as.closePersistence()
 	as.cancel()
 	as.hub.Close()
@@ -2704,16 +2706,16 @@ func (c *ChatRuntime) updateOwnedBusy(as *agentState, detail, trace string) {
 	}
 }
 
-func (c *ChatRuntime) applyTurnEndStatus(as *agentState, turnID string, td TurnEndData) {
+func (c *ChatRuntime) applyTurnEndStatus(as *agentState, turnID string, outcome TurnOutcome) {
 	as.statusMu.Lock()
 	defer as.statusMu.Unlock()
 	as.mu.Lock()
 	as.settledTurnID = turnID
 	as.mu.Unlock()
-	switch td.StopReason {
-	case "cancelled":
+	switch outcome {
+	case TurnCancelled:
 		c.writeStatusRowLocked(as, "idle", "cancelled", "Cancelled", clearBusySince)
-	case "error":
+	case TurnFailed, TurnQuotaBlocked, TurnProcessEnded, TurnUnknown, turnRefused:
 		c.writeStatusRowLocked(as, "error", "turn failed", "Error", clearBusySince)
 	default:
 		c.writeStatusRowLocked(as, "idle", "", "Stop", clearBusySince)

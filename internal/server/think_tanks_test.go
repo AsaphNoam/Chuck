@@ -11,6 +11,7 @@ import (
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
+	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
 // thinkTankTestServer runs fake ACP turns that stay open until the hold file
@@ -133,7 +134,13 @@ func TestThinkTankEngineRunsGuardedTurns(t *testing.T) {
 		t.Fatal("a second room turn started during the first")
 	}
 	actAsAgent(t, srv, first, state.ThinkTankReply, "Use a durable queue")
+	turnEvents, unsubscribe, err := srv.registry.Subscribe(agents[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
 	releaseTurn(t, hold, srv, room, first.Head)
+	assertCompletedRoomTurnReaders(t, turnEvents, first.TurnID)
 
 	srv.progressThinkTanks(ctx)
 	second := waitActiveAttempt(t, srv, room, agents[1])
@@ -160,6 +167,35 @@ func TestThinkTankEngineRunsGuardedTurns(t *testing.T) {
 	for _, id := range agents {
 		if _, err := srv.stateStore.ReadRunning(id); err != nil {
 			t.Fatalf("participant %s stopped: %v", id, err)
+		}
+	}
+}
+
+// The same emitted event that released the room floor must be recognized as
+// completion by quota progress and the transcript readers.
+func assertCompletedRoomTurnReaders(t *testing.T, events <-chan runtime.Event, turnID string) {
+	t.Helper()
+	timeout := time.NewTimer(2 * time.Second)
+	defer timeout.Stop()
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				t.Fatalf("event stream closed before turn end for %s", turnID)
+			}
+			if ev.Type != runtime.EvTurnEnd || ev.TurnID != turnID {
+				continue
+			}
+			if !qualifyingQuotaProgress(ev) {
+				t.Error("completed room turn did not qualify as quota progress")
+			}
+			projection, err := transcript.ProjectEvent(ev)
+			if err != nil || len(projection.Parts) != 1 || projection.Parts[0].Text != "end_turn" {
+				t.Errorf("completed room turn projection = %+v, %v", projection, err)
+			}
+			return
+		case <-timeout.C:
+			t.Fatalf("missing emitted turn end for %s", turnID)
 		}
 	}
 }

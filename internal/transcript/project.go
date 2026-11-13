@@ -194,9 +194,9 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 			{Kind: PartErrorMessage, Text: d.Message},
 		}
 	case runtime.EvTurnEnd:
-		var d runtime.TurnEndData
-		if err := decode(ev, &d); err != nil {
-			return Projection{}, err
+		_, d, err := runtime.DecodeTurnEnd(ev)
+		if err != nil {
+			return Projection{}, fmt.Errorf("transcript: project %s seq %d: %w", ev.Type, ev.Seq, err)
 		}
 		p.Role = "system"
 		p.Parts = []Part{{Kind: PartTurnStopReason, Text: d.StopReason}}

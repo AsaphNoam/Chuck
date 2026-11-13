@@ -192,6 +192,7 @@ func TestForkAffordanceReasons(t *testing.T) {
 	}{
 		{"verified codex", runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ForkPoint: codex}, ""},
 		{"cancelled turn", runtime.Event{Type: runtime.EvTurnEnd, Data: json.RawMessage(`{"stop_reason":"cancelled"}`), ForkPoint: codex}, runtime.ForkReasonNotTurnBoundary},
+		{"quota refusal with legacy completion reason", runtime.Event{Type: runtime.EvTurnEnd, Data: json.RawMessage(`{"stop_reason":"end_turn","quota":{"failure_id":"f1","revision":1}}`), ForkPoint: codex}, runtime.ForkReasonNotTurnBoundary},
 		{"switched session", runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ForkPoint: point("s0", "@agentclientprotocol/codex-acp", "2.1.1")}, runtime.ForkReasonOtherSession},
 		{"unverified version", runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ForkPoint: point("s1", "@agentclientprotocol/codex-acp", "2.2.0")}, runtime.ForkReasonUnverifiedAdapter},
 		{"no fork point", runtime.Event{Type: runtime.EvTurnEnd, Data: ended}, runtime.ForkReasonNoForkPoint},

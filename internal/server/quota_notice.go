@@ -57,8 +57,8 @@ func qualifyingQuotaProgress(ev runtime.Event) bool {
 		var data runtime.ToolResultData
 		return json.Unmarshal(ev.Data, &data) == nil && data.ToolCallID != "" && (data.Status == "completed" || data.Status == "failed")
 	case runtime.EvTurnEnd:
-		var data runtime.TurnEndData
-		return json.Unmarshal(ev.Data, &data) == nil && data.StopReason == "end_turn" && data.Quota == nil
+		outcome, _, err := runtime.DecodeTurnEnd(ev)
+		return err == nil && outcome == runtime.TurnCompleted
 	default:
 		return false
 	}

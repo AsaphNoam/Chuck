@@ -524,8 +524,7 @@ func (j *Journal) writeLocked(ev Event, req CommitRequest) (CommitOutcome, bool)
 			r = *req.Rollup
 		}
 		r.LastSeq, r.UpdatedAt = ev.Seq, ev.Ts
-		var td TurnEndData
-		if json.Unmarshal(ev.Data, &td) == nil {
+		if _, td, err := DecodeTurnEnd(ev); err == nil {
 			r.LastContextPct, r.LastContext = td.ContextPct, td.ContextCounts
 		}
 		err = j.ix.OnEventAndTurnEnd(j.agentID, ev, r)

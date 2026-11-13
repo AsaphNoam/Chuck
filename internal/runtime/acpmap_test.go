@@ -122,9 +122,10 @@ func TestContextUsageFromRealClaudeAdapterShapes(t *testing.T) {
 	// (1) Real prompt-result usage shape: token counts only, no used/window.
 	result := `{"stopReason":"end_turn","usage":{"inputTokens":42000,"outputTokens":800,` +
 		`"cachedReadTokens":1200,"cachedWriteTokens":0,"totalTokens":44000}}`
-	td, hasPct := mapPromptResult(json.RawMessage(result))
-	if hasPct || td.ContextPct != 0 {
-		t.Fatalf("prompt-result usage produced context_pct=%v hasPct=%v, want no context fraction without a window", td.ContextPct, hasPct)
+	outcome := promptOutcome(json.RawMessage(result))
+	td := outcome.eventData(contextReading{}, nil)
+	if outcome != TurnCompleted || td.ContextPct != 0 || td.ContextCounts != nil {
+		t.Fatalf("prompt-result usage produced outcome=%v data=%+v, want completion without a context window", outcome, td)
 	}
 
 	// (2) Real usage_update session notification: used + size (context window).
@@ -181,8 +182,8 @@ func TestValidInlineReceiptRequiresRecognizedNonCancelledResult(t *testing.T) {
 		{"unknown", `{"stopReason":"future_value"}`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := validInlineReceipt(json.RawMessage(tc.raw)); got != tc.want {
-				t.Fatalf("validInlineReceipt(%s) = %v, want %v", tc.raw, got, tc.want)
+			if got := promptOutcome(json.RawMessage(tc.raw)).confirmsInlineMail(); got != tc.want {
+				t.Fatalf("inline receipt for %s = %v, want %v", tc.raw, got, tc.want)
 			}
 		})
 	}

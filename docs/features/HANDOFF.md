@@ -29,7 +29,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+- **One typed turn outcome** — in progress. Runtime resolution and event readers are integrated.
+  Focused runtime and loopback server checks passed. Full Go suites, the build and focused
+  race checks are running before review handoff.
+  [Change](../ready-changes/one-typed-turn-outcome.md).
 
 ## Acceptance gates still owed
 

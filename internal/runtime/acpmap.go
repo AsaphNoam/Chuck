@@ -275,10 +275,6 @@ func (r contextReading) applyTo(st *state.Status) {
 }
 
 // turnEnd is the terminal turn event carrying this reading.
-func (r contextReading) turnEnd(stopReason string) TurnEndData {
-	return TurnEndData{StopReason: stopReason, ContextPct: r.pct, ContextCounts: r.counts}
-}
-
 // acpmap.go is the ONLY place ACP wire shapes are decoded (techspec §12.1
 // isolation rule). Everything else in the package sees normalized Events. This
 // keeps the blast radius of an ACP version bump — or a Codex backend — localized
@@ -587,22 +583,6 @@ func mapSessionUpdateImages(params json.RawMessage, image func(acpContentBlock, 
 		// agent_thought_chunk, plan, and any unrecognized kind: dropped this phase.
 		return nil
 	}
-}
-
-// mapPromptResult converts the `session/prompt` result into a turn_end event.
-// Context percentage arrives separately in usage_update (TS-04.R25).
-func mapPromptResult(result json.RawMessage) (TurnEndData, bool) {
-	var r acpPromptResult
-	if err := json.Unmarshal(result, &r); err != nil {
-		return TurnEndData{StopReason: "end_turn"}, false
-	}
-	td := TurnEndData{StopReason: defaultStr(r.StopReason, "end_turn")}
-	if quota, ok := decodeSessionFailure(result); ok {
-		td.Quota = &quota
-		// A terminal typed account quota failure overrides a misleading success.
-		td.StopReason = "error"
-	}
-	return td, false
 }
 
 // toolName picks a normalized tool name: the adapter's canonical name when it

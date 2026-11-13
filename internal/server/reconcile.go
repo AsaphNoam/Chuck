@@ -181,6 +181,9 @@ func lastAssistantPreviewFrom(path string, retained func(int)) (string, error) {
 				}
 			}
 		case runtime.EvTurnEnd:
+			if _, _, err := runtime.DecodeTurnEnd(ev); err != nil {
+				return nil
+			}
 			if strings.TrimSpace(current) != "" {
 				completed = current
 			}

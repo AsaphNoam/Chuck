@@ -209,7 +209,7 @@ func (c *ChatRuntime) cancel(as *agentState, expectedGeneration, expectedTurn st
 		ids = append(ids, id)
 	}
 	as.voidHostApprovalsLocked()
-	active := as.turnActive
+	active := as.turnActive && as.promptSettlement == nil
 	armedTurn := as.turnSeq
 	cancelled := active || len(ids) > 0
 	if active {
@@ -259,7 +259,7 @@ func (c *ChatRuntime) escalateCancel(as *agentState, armedTurn int64) {
 		as.mu.Lock()
 		// Only escalate if the SAME turn we armed against is still active. A new
 		// turn (re-prompt) bumped turnSeq, making this escalation stale.
-		stillBusy := as.turnActive && !as.stopped && as.turnSeq == armedTurn
+		stillBusy := as.turnActive && as.promptSettlement == nil && !as.stopped && as.turnSeq == armedTurn
 		pgid := as.pgid
 		hasProc := as.cmd != nil && as.cmd.Process != nil
 		if stillBusy && hasProc && pgid > 0 {

@@ -246,7 +246,7 @@ func TestBackgroundFrameAfterTurnSettlesCannotReopenBusy(t *testing.T) {
 	as.mu.Lock()
 	turnID := as.execTurnID
 	as.mu.Unlock()
-	c.applyTurnEndStatus(as, turnID, TurnEndData{StopReason: "end_turn"})
+	c.applyTurnEndStatus(as, turnID, TurnCompleted)
 	c.mapScoped(as, activityScope{}, "tool_call", toolCallFrame("background", `{"file_path":"a.go"}`))
 	if got := readState(t, c, h.AgentID); got != "idle" {
 		t.Fatalf("status after a background frame = %q, want idle", got)
@@ -659,6 +659,7 @@ func TestCrashMidTurn(t *testing.T) {
 	st.WriteAgent(agent)
 
 	c := NewChatRuntime(st)
+	mu, calls := recordQuotaSettlement(c)
 	c.command = bin
 	h, err := c.Start(context.Background(), LaunchSpec{
 		Agent: agent, Cwd: t.TempDir(), BackendType: "claude-acp", ModelID: "claude-sonnet-4-6",
@@ -677,7 +678,16 @@ func TestCrashMidTurn(t *testing.T) {
 	if !ed.Fatal {
 		t.Fatal("crash error should be fatal")
 	}
-	waitForEvent(t, ch, EvTurnEnd)
+	ev := waitForEvent(t, ch, EvTurnEnd)
+	outcome, data, err := DecodeTurnEnd(ev)
+	if err != nil || outcome != TurnProcessEnded || data.StopReason != "error" {
+		t.Fatalf("crash outcome = %v, data = %+v, err = %v", outcome, data, err)
+	}
+	mu.Lock()
+	if len(*calls) != 1 || (*calls)[0].turnID != ev.TurnID || (*calls)[0].successful {
+		t.Errorf("crash settlement = %+v; want one unsuccessful settlement for %s", *calls, ev.TurnID)
+	}
+	mu.Unlock()
 
 	// Running row deleted; status row error.
 	if _, err := c.store.ReadRunning(h.AgentID); err == nil {

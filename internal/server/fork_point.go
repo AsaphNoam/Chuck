@@ -21,13 +21,10 @@ func forkAffordance(ev runtime.Event, currentSession string) *runtime.ForkAfford
 	if ev.Type != runtime.EvTurnEnd || ev.ActivityID != "" {
 		return nil
 	}
-	var td struct {
-		StopReason string `json:"stop_reason"`
-	}
-	_ = json.Unmarshal(ev.Data, &td)
+	outcome, _, _ := runtime.DecodeTurnEnd(ev)
 	reason := ""
 	switch fp := ev.ForkPoint; {
-	case td.StopReason != "end_turn":
+	case outcome != runtime.TurnCompleted:
 		reason = runtime.ForkReasonNotTurnBoundary
 	case fp != nil && fp.Copied:
 		reason = runtime.ForkReasonCopiedTurn

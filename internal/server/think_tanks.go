@@ -484,10 +484,7 @@ func (s *Server) finishThinkTankTurn(ev runtime.Event) {
 	if ev.TurnID == "" {
 		return
 	}
-	var td runtime.TurnEndData
-	if err := json.Unmarshal(ev.Data, &td); err != nil {
-		td.StopReason = "error"
-	}
+	outcome, _, _ := runtime.DecodeTurnEnd(ev)
 	var finish state.ThinkTankFinish
 	var err error
 	captureFailed := s.endThinkTankCapture(ev.AgentID, ev.Generation, ev.TurnID)
@@ -498,10 +495,10 @@ func (s *Server) finishThinkTankTurn(ev runtime.Event) {
 		// Storage failure prevents final publication (TS-14.R10).
 		finish, err = s.failThinkTankAttempt(ev.AgentID, ev.Generation, ev.TurnID,
 			"Room activity for this turn could not be saved.")
-	} else if td.StopReason == "end_turn" {
+	} else if outcome == runtime.TurnCompleted {
 		finish, err = s.stateStore.FinalizeThinkTankAttemptAt(ev.AgentID, ev.Generation, ev.TurnID, ev.Seq)
 	} else {
-		finish, err = s.failThinkTankAttempt(ev.AgentID, ev.Generation, ev.TurnID, thinkTankStopText(td.StopReason))
+		finish, err = s.failThinkTankAttempt(ev.AgentID, ev.Generation, ev.TurnID, thinkTankStopText(outcome))
 	}
 	if errors.Is(err, state.ErrNotFound) {
 		return
@@ -533,11 +530,11 @@ func (s *Server) finishThinkTankTurn(ev runtime.Event) {
 	}
 }
 
-func thinkTankStopText(reason string) string {
-	switch reason {
-	case "cancelled":
+func thinkTankStopText(outcome runtime.TurnOutcome) string {
+	switch outcome {
+	case runtime.TurnCancelled:
 		return "The turn was cancelled."
-	case "max_tokens":
+	case runtime.TurnProviderTruncated:
 		return "The turn was cut off at the provider's output limit."
 	default:
 		return "The provider reported an error."

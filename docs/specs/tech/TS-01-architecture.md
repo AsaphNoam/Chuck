@@ -633,7 +633,9 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   turns a `turn_end` event into the same value; Think Tank attempt settlement, the quota notice,
   fork points, the switch primer, reconciliation and transcript projection use it instead of
   comparing `stop_reason`. The serialized `stop_reason` vocabulary and stored transcripts are
-  unchanged, and an event written before this change decodes to the same outcome it had.
+  unchanged. New process-exit events carry optional `process_ended` evidence to distinguish a
+  process exit from a provider failure with the same reason. Without that evidence, a historical
+  `error` still decodes as failed. Missing or unfamiliar reasons never establish completion.
   *Why:* three producers and about a dozen string comparisons let one turn read as successful to
   one consumer and failed to another (INV §20). *Verify:* table tests of the resolver over
   completion, cancellation racing completion, failure inside a successful result, quota refusal,

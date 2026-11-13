@@ -20,10 +20,6 @@ func TestDecodeSessionFailurePinnedQuotaShapes(t *testing.T) {
 			t.Fatalf("decodeSessionFailure(%s) = %+v, %v; want bounded quota evidence", raw, got, ok)
 		}
 	}
-	td, _ := mapPromptResult(json.RawMessage(claudeQuotaPromptResult))
-	if td.StopReason != "error" || td.Quota == nil || td.Quota.FailureID != "turn-1:error" {
-		t.Fatalf("mapPromptResult quota = %+v, want error with Claude evidence", td)
-	}
 }
 
 func TestDecodeSessionFailureRequiresCompleteTerminalQuotaPolicy(t *testing.T) {
@@ -56,9 +52,5 @@ func TestDecodeSessionFailureRecordSupportsSameIDRecoveryRevision(t *testing.T) 
 	record, ok := decodeSessionFailureRecord(json.RawMessage(recovered))
 	if !ok || record.ID != "turn-1:error" || record.Revision != 2 || record.Quota {
 		t.Fatalf("recovery revision = %+v, %v; want same-ID non-quota revision 2", record, ok)
-	}
-	td, _ := mapPromptResult(json.RawMessage(claudeQuotaPromptResult))
-	if td.Quota == nil || td.Quota.FailureID != "turn-1:error" {
-		t.Fatalf("turn quota evidence = %+v", td.Quota)
 	}
 }

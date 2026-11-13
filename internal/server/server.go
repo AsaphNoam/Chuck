@@ -487,8 +487,8 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 				go s.recheckDeferredStall(ev.AgentID)
 			}
 			if ev.Type == runtime.EvTurnEnd {
-				var terminal runtime.TurnEndData
-				if json.Unmarshal(ev.Data, &terminal) == nil && terminal.Quota != nil {
+				outcome, _, _ := runtime.DecodeTurnEnd(ev)
+				if outcome == runtime.TurnQuotaBlocked {
 					return // its exact owner was preserved by settleQuotaTurn
 				}
 				// The observation's own generation and turn, never the current

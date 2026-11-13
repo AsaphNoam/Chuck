@@ -1,6 +1,6 @@
 # One typed turn outcome
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Direct `/design-feature` request on 2026-11-13, after a review of 60 days of invariant
 evidence and fix history named `internal/runtime/chat.go` the most-fixed file (34 fix commits) and
 the turn outcome its clearest missing owner. First of five single-owner refactors.
