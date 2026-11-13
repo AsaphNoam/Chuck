@@ -439,7 +439,9 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   configuration and checks that provider in the same action. For sign-in needed, show the
   existing provider-specific sign-in instructions and **Check again**. Checking never opens a
   login flow or sends a model prompt. A failed check is retryable without losing input or blocking
-  a ready provider. **Set up later** remains available under R32.
+  a ready provider. A provider setup error includes the backend Settings link in FS-09.R85.
+  Returning from Settings checks the affected provider again and retains the folder, provider
+  choice and any completed setup steps. **Set up later** remains available under R32.
 
 - **R64** `(planned)` — With a ready backend, show one **Start chat** form with the selected
   provider and project. Use a configured, launchable project when available, otherwise ask the
@@ -447,7 +449,8 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   project. Opening the form creates no project or chat. The person's explicit **Start chat**
   creates the selected project when needed and opens the new chat using the ordinary launch
   defaults. Preserve the folder and provider on failure, and resume from the last successful
-  step without duplicating the project or chat. Completion uses the existing Chuck configuration
+  step without duplicating the project or chat. If a launch response is lost, explain how to
+  check for the chat before starting another. Completion uses the existing Chuck configuration
   flag and prevents a future setup gate. The form adds no required federation step. Explicit
   native configuration linking remains available under FS-08.R34 without being a prerequisite
   to the first chat. This replaces the fresh Claude/Codex wizard sequence in R18–R20 and R32.
@@ -668,9 +671,10 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 - **A42** `(planned)` (R62–R64) — With neither provider ready, distinguish missing CLI, missing
   sign-in and unavailable checks. Use an available bundle or complete sign-in externally and
   retry the affected provider without losing setup progress. A source build without a bundle
-  offers install guidance. **Set up later** still opens the dashboard. Existing configured homes
-  keep their saved choices. *Verify:* server and rendered recovery journeys and a packaged
-  missing-CLI bundle check.
+  offers install guidance. Follow a provider setup error's link to the affected backend, repair
+  it there and return to the preserved setup. **Set up later** still opens the dashboard. Existing
+  configured homes keep their saved choices. *Verify:* server and rendered recovery journeys and
+  a packaged missing-CLI bundle check.
 
 - **A43** `(planned)` (R64) — A seeded project with a missing folder cannot satisfy first-chat
   setup. Choose a real folder by keyboard, then exercise launch failure and a completion-write

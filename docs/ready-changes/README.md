@@ -43,6 +43,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`instant-first-chat-and-backend-setup.md`](instant-first-chat-and-backend-setup.md) — detect
+  Claude and Codex on first run, give each provider one Settings action, and link setup errors to
+  the affected backend.
+
 - [`file-viewer-refresh-and-editing.md`](file-viewer-refresh-and-editing.md) — settled file updates
   with an unobtrusive spinner, desktop source editing and recoverable local drafts/conflicts.
 

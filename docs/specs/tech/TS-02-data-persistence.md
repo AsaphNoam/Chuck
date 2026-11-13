@@ -999,6 +999,17 @@ table or retention rule is added. Subscription quota observations stay in memory
 TS-04.R89. Verify the migration on a populated store under both SQLite build variants and that
 an old journal replays with every fork action unavailable (INV §7/§9/§11).
 
+**R66 (planned) — First-chat eligibility comes from fresh seeding.** For FS-04.R62–R64 and
+TS-03.R87, write a first-chat eligibility flag with `config.json` only when both config and backend
+catalog are absent before ordinary seeding. Persist the flag with the absent-only config write so a
+partially completed seed can resume. A missing flag on upgrade, pre-existing catalog, or corrupt
+config never qualifies. The flag is server-owned, adds no backfill or SQLite migration, and is
+inactive once `onboarding_complete` is true. Setup persists the normal project/session records and
+existing config and catalog settings. Use the existing catalog and config write authorities for
+TS-03.R89's completion. A failed config write after catalog promotion retains the saved default
+and the exact launched chat. Completion retry treats an already-promoted default as settled and
+does not rewrite a newer default.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

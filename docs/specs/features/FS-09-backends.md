@@ -412,6 +412,14 @@ Configuration-source federation for Claude/Codex is FS-08.
   restriction in Settings. The New Agent refresh behavior and existing API operations remain
   available. Saved changes apply on subsequent starts under R75.
 
+- **R85** `(planned)` — On desktop, first-run provider setup and New Agent show an **Open backend
+  settings** link on an identified provider setup error. It opens Settings → Backends in a new
+  tab and brings the affected backend and relevant controls into view. The original form stays
+  open with its input. If the backend was removed, show the Backends list and explain that the
+  requested backend is unavailable. On return, update the affected provider's readiness or
+  next-start information without starting a chat or retrying a launch. Phone setup errors retain
+  their existing desktop repair guidance under R74.
+
 ## 3. States & transitions
 
 - **R20** — Saving Settings transitions the submitted catalog through validation → deterministic
@@ -842,6 +850,13 @@ Configuration-source federation for Claude/Codex is FS-08.
   late response after another edit, and a stale save from a second window. The result names the
   affected provider, reports what was saved and provides the relevant repair action. *Verify:*
   server concurrency and failure tests and a rendered keyboard Settings journey.
+
+- **A54** `(planned)` (R85, FS-04.R63) — From a provider check error in onboarding and a typed
+  provider launch error in New Agent, open the linked backend by keyboard. The Settings page
+  selects Backends and focuses the intended backend. Repair it and return to the original form.
+  Existing input survives and the provider feedback updates. A removed target shows a usable
+  Backends list, and an unrelated launch error adds no provider repair link. *Verify:* browser
+  journeys and focused error/route component coverage.
 
 ## 6. Deviations & open decisions
 

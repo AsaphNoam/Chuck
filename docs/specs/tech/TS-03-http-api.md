@@ -1281,6 +1281,59 @@ deltas, accents/non-Latin text, empty collections, stale digests and budget exha
 upgraded old documents and failed reconstruction; verify no GET writes or lifecycle/provider calls.
 Keep endpoint/client Go/TypeScript shapes aligned (INV §7/§8/§11/§14/§16/§17).
 
+**R87 (planned) — First-run readiness reuses a target-scoped provider operation.** For
+FS-04.R62–R64, extend `GET /api/config` with an optional `onboarding.first_chat` boolean derived
+from the first-chat seed marker and `onboarding_complete`. When active, the new first-run client
+uses the separate provider outcomes below even if the legacy `satisfied` projection is true.
+Keep the old response fields for existing clients. An active first-chat config read resolves
+catalog and project eligibility without waiting for a provider command; an unchecked backend has
+`done:false` with a checking detail until an identity-matching ready observation is available.
+Expose the eligible project ids in `onboarding.launchable_projects` for this flow. The server
+checks the existing launch path's project and directory conditions before a first chat starts.
+
+Extend R53's local-only `POST /api/backends/{id}/refresh-provider` with optional
+`check_only:true` or an editable `backend` definition. They are mutually exclusive. Check-only
+uses the same provider probe against the saved target and imports no models. Existing bodies
+without either field retain R53's behavior. Use check-only for independent initial and retry
+checks of the seeded Claude and Codex default models. Keep the 4 KiB limit for checks. Cap an
+item write at 1 MiB and leave full-catalog editing available for larger definitions. All
+variants retain the catalog `If-Match` guard, typed errors and the same result shape. An optional
+`bundle_available` boolean in R52's runtime metadata reports whether the provider's packaged
+executable resolves. Opening a form performs no check except the first-run readiness flow and
+returning from a requested repair. No route or field is exposed through remote allowlists.
+
+**R88 (planned) — Save & check writes one backend before probing its committed settings.** For
+FS-09.R84 and the explicit first-run bundle choice, reuse R87's backend-definition request with
+the same `If-Match` precondition. Under the existing catalog lock merge only that id and validate
+the full candidate with the ordinary catalog validator and source-prune/restore path. The target
+must already exist and retain its type and default-backend flag. The route does not add, remove,
+retype or transfer the default between backends. A failing write starts no probe. Accept only
+the existing editable backend fields. Use the committed target's default model and the R53
+readiness/import path outside the lock. After execution revalidate the target and catalog before
+publishing or importing. A post-commit conflict, busy check or import failure returns an explicit
+partial outcome identifying the settings committed and the check/import failure. Use R3 for
+pre-commit refusals and include `backend` and optional `check_error` in the success body when a
+write committed. Return the relevant ETag and refetch current state on conflict. A stale response
+cannot replace an edited draft. R52–R54's original GET, full PUT and refresh contracts remain
+available. A check refused before any provider work omits `runtime`/`credentials`/`catalog` from
+the partial outcome instead of fabricating results. Go serializers, browser schemas and real API
+tests ship together (INV §3/§5/§8/§11/§15).
+
+**R89 (planned) — Finish first chat without replaying project creation or launch.** For
+FS-04.R64 use the existing project create and session launch services with the explicitly selected
+project and backend. Retain each confirmed result in the active setup form. Retry a definite
+failure at its failed step. On uncertain create or launch response, refetch current projects or
+sessions and offer recovery through the existing lists. Do not automatically replay a request
+with an unknown outcome. A confirmed launch exposes its exact chat link even if completion fails.
+Complete setup using `PUT /api/config` with `onboarding_complete:true` and optional
+`onboarding_backend` and `onboarding_catalog_etag` for the completed launch selection. `Set up later`
+sends only the existing completion flag. Only an active fresh setup can promote a default.
+Perform the optional catalog promotion under the catalog lock after revalidating its captured
+ETag and original default. A catalog changed by another writer or a non-seeded default skips
+promotion. A failed promotion or completion write reports the remaining step and retries only
+completion. A replay after successful completion has no further catalog effects. Ordinary config
+and session calls retain their existing request shapes and behavior.
+
 ## 3. Interfaces & data shapes
 
 **R61 (planned) — Subscription quota is a scoped observation, not a probe.** FS-09.R80–R81 and

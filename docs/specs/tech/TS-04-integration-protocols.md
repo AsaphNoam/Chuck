@@ -1769,6 +1769,22 @@ only when a permission request also recorded them.
 - **Retention:** the detail lives and is deleted with the transcript. Existing transcripts are
   not backfilled.
 
+**R112 (planned) — Setup, refresh, and Save & check share provider readiness.** For
+FS-04.R62–R63 and FS-09.R84, use R15, R71–R72 and R75's fixed probes, execution environment and
+provider resolution through one target-scoped operation. Use the same person-owned native
+authentication origin that launch uses. Keep the existing Codex session-home and one-way profile
+preparation rules. The readiness probe performs no model turn, native configuration bind, login
+or executable source switch. Report missing or invalid executable, positive not-signed-in
+evidence, known incompatibility, or an unavailable check independently. A timeout, unrecognized
+status, or missing observation never means sign-in is needed. Positive readiness does not
+promise model entitlement or launch success. A valid credential cannot make an unresolved
+executable ready. Reuse TS-03.R53's two process-wide probe slots and
+R72's deadline. Admit at most one in-flight readiness check per configured target and selection.
+Keep at most the latest matching in-memory result per configured target, expiring it after
+R72's 60 seconds. Key it to the catalog revision and resolved executable identity and fence late
+results against config change, removal or executable replacement. Retry rechecks the affected
+target even after a failed observation. There is no periodic provider probe or credential cache.
+
 ## 3. Interfaces & data shapes
 
 R97's internal check operation accepts a sanitized frozen provider selection (backend type,

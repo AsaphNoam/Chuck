@@ -597,11 +597,6 @@ episodes and activation tokens are compared on every late write) and §24. §4, 
 
 ## Blocked on human
 
-- **First chat setup:** review the planned flow in [Ideas being defined](../ideas.md#ideas-being-defined).
-  Confirm whether missing installed CLIs should require one click to use the Chuck bundle and
-  whether native configuration linking should remain explicit. The feature draft is in FS-04.R62–R65,
-  FS-09.R84 and FS-10.R27. Technical design follows scope confirmation.
-
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
   The four requested product changes are committed and independently reviewable. No unrelated
@@ -617,6 +612,10 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-13 — Design:** [first-chat and backend setup](../ready-changes/instant-first-chat-and-backend-setup.md)
+  is waiting to start. The operator approved one-click bundle selection and explicit native
+  configuration linking, and requested direct links from provider setup errors to backend Settings.
 
 - **2026-11-13 — Review:** CR-A10 durable state transitions at `8faec36f`: five findings recorded,
   one Must fix (a cancelled quota wait re-armed by a failed turn, probed) and four Worth fixing,

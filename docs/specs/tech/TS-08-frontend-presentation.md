@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2227,6 +2227,36 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   existing desktop and phone input tests pass against the shared hooks; one shared test suite
   covers accepted, held, queued, uncertain and refused outcomes for both projections; the phone
   render harness checks the composer and recovery offer at phone width (INV §13).
+
+- **R165** `(planned)` — The existing desktop onboarding gate uses TS-03.R87's first-chat
+  flag for fresh homes and retains the existing path for other homes. Keep one mounted setup
+  form with independent provider checks and a stable, operator-changeable ready selection.
+  Reuse the existing project picker, folder control and launch services. Keep the selected
+  folder, backend and confirmed create/launch results in the mounted form during repair.
+  A later response cannot change the selection or write status for a newer check.
+  On completion, navigate to the confirmed chat. If only the completion write fails, keep
+  the setup form mounted with the chat link and a completion retry that never relaunches.
+
+- **R166** `(planned)` — Settings displays FS-09.R84's provider action with target-scoped
+  dirty tracking. Refresh reads a saved target even when other drafts are dirty. Save & check
+  submits that target only with its catalog validator and captures its submitted draft revision.
+  Merge the committed target and added model entries into the saved baseline. Preserve later
+  edits, including removed draft models, and unrelated drafts. Keep the editor's existing
+  stale-document protection when a new
+  ETag cannot be adopted without reconciliation. The catalog-wide editor remains the path for
+  create/delete, retype and coordinated default changes. FS-04.R65 reuses the existing Add
+  backend dialog and create API with one submit and an explicit native-link option.
+
+- **R167** `(planned)` — Use one desktop link builder for FS-09.R85. Derive the backend id
+  from the checked or submitted target and the existing typed provider status/error, never
+  from error prose. Link to `/settings?tab=backends&backend=<id>` in a new tab with an accessible
+  name that indicates this. Use `rel="noopener"`. Select Backends from the validated query and
+  focus the matching card after load. Open its Advanced disclosure when it contains the provider
+  repair controls. An invalid or removed target leaves a usable Backends list with an explanation.
+  On return to the originating mounted form, refresh only the affected backend's readiness or
+  next-start metadata and reject stale results by selection. Make no launch request on return.
+  Keep the phone's local-settings boundary. Verify FS-04.A42 and FS-09.A54 in the rendered
+  desktop flow with keyboard activation, focus, return, and preserved edits (INV §8/§10/§13/§14).
 
 ## 3. Interfaces & data shapes
 
