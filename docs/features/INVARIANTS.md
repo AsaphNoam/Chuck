@@ -1,11 +1,16 @@
 # Chuck invariants — normative technical-spec appendix
 
 Every class below cost at least one review cycle; most recurred in two or more subsystems before
-being named. The evidence base is multiple full top-to-bottom reviews plus the repo's `review fix:`
-commit history. Treat these as **load-bearing rules, not suggestions**: a diff that violates one is
+being named. The evidence base is multiple full top-to-bottom reviews, the repo's `review fix:`
+commit history, and the field bug investigations of §12 of the workflow. Treat these as **load-bearing rules, not suggestions**: a diff that violates one is
 wrong until proven otherwise, and a review finding that matches one is almost certainly real.
 This file is governed by TS-01 and indexed with the technical specs as `INV`; it is not a third
 product-spec set. Add or change a binding rule here through the same spec-delta lifecycle as a TS.
+
+**The principle behind most classes: every fact has one owner.** One builder (§2), one teardown
+(§4), one claim (§5), one receipt (§19), one outcome (§20). Any other copy of a fact — an in-memory
+duplicate, a browser cache, a parallel list — states which authority it derives from, how long it
+lives, and how it is rebuilt. When a case fits no class below, apply that test.
 
 The hot-spot areas: launch/resume/switch composition, `internal/runtime` concurrency,
 `internal/state`/`internal/index` persistence, terminal/PTY, UI forms over seeded config.
@@ -19,8 +24,10 @@ How the loop uses this file:
   (or a new canonical pattern), append it here. Keep this file curated — merge near-duplicates,
   don't let it become a graveyard.
 
-Read the trigger index first, then read in full only the classes your diff actually touches. Reading
-all seventeen classes for a diff that touches one is waste, not diligence. Read one class with:
+Read the trigger index first. Its rule column is binding on its own; a class body adds the evidence
+and the canonical patterns. Read in full only the classes your diff actually touches — reading
+every class for a diff that touches one is waste, not diligence. Class numbers are stable citations
+(`INV §n`): narrow or extend a class, never renumber. Read one class with:
 
 ```bash
 awk '/^## 7\./{f=1} f&&/^## 8\./{exit} f' docs/features/INVARIANTS.md
@@ -28,25 +35,32 @@ awk '/^## 7\./{f=1} f&&/^## 8\./{exit} f' docs/features/INVARIANTS.md
 
 ## Trigger index
 
-| # | Class | Read it when the diff touches |
+| # | Rule | Read the body when the diff touches |
 |---|---|---|
-| 1 | Boundary crossing resets or republishes derived state | reconnect, relaunch, resume, switch, or any lifecycle transition that leaves derived state behind |
-| 2 | Parallel paths that build the same thing share one helper | a second code path constructing an artifact or projection that already has a builder (check the canonical-helpers registry below) |
-| 3 | Persisted fields never receive one-shot data | a field that is both sent to the runtime and persisted; any form that writes seeded config |
-| 4 | Create/teardown symmetry | anything created at registration — hook tokens, MCP sessions/files, hook-settings files, temp artifacts |
-| 5 | Check-then-act needs an atomic claim | "if pending then resolve" / "if active then fire" across goroutines; `internal/runtime` concurrency |
-| 6 | A new interface/runtime joins every contract | a new interface, runtime, driver, or adapter — walk the checklist line by line |
-| 7 | Read paths don't swallow errors or amplify damage | iteration, repair, migration, or recovery code over records |
-| 8 | User-facing surfaces get parsed, bounded, in-vocabulary data | card previews, `status.detail`, toasts, rendered output, disabled controls, or a UI mutation's error/recovery path |
-| 9 | Liveness & durability primitives are weaker than they look | SQLite, file locks, signals, process liveness, timeouts, fsync |
-| 10 | Ship the wiring; kill the drift | a feature reachable from some surfaces but not all; docs or defaults left behind |
-| 11 | Cross-boundary serialization and protocol contracts | Go structs crossing to the UI; nil slices/maps; ACP or streaming payload identity/status/error semantics |
-| 12 | External-CLI invocations tolerate version and environment variance | any `exec.Command` or adapter call to a user-installed tool — agent CLIs, probers, git |
-| 13 | Every referenced className has a defined selector | `ui/src` markup or `ui/src/styles/**` |
-| 14 | Loopback is not a security boundary | HTTP handlers, CORS, file paths from requests, anything reachable from a browser |
-| 15 | Commit local truth before releasing external side effects | an operation that makes work externally observable or lets a peer proceed |
-| 16 | Bound work and memory where they enter the system | external output, streams, queues, sweeps, retained maps/lists, goroutine fan-out, or per-client state |
-| 17 | Tests prove their contract independently | regression or acceptance tests, contract enumerations, mocks/fixtures, build tags, packaging or release gates |
+| 1 | Crossing a lifecycle boundary explicitly resets or republishes every piece of state derived from the old side. | reconnect, relaunch, resume, switch, or any lifecycle transition that leaves derived state behind |
+| 2 | Two paths that build the same artifact or projection share one helper from the moment the second path appears. | a second code path constructing an artifact or projection that already has a builder (check the canonical-helpers registry below) |
+| 3 | A persisted field never receives one-shot data, and a form over seeded config merges instead of replacing. | a field that is both sent to the runtime and persisted; any form that writes seeded config |
+| 4 | Everything created at registration is torn down by one shared, generation-scoped function on every exit path. | anything created at registration — hook tokens, MCP sessions/files, hook-settings files, temp artifacts |
+| 5 | Check-then-act across goroutines claims atomically or rechecks a generation token; only the winner emits side effects. | "if pending then resolve" / "if active then fire" across goroutines; `internal/runtime` concurrency |
+| 6 | A new interface, runtime or driver walks the full contract checklist; silence on any line is a bug. | a new interface, runtime, driver, or adapter — walk the checklist line by line |
+| 7 | Iteration and repair code treats each record as independently failable: check the real error, skip, continue, report. | iteration, repair, migration, or recovery code over records |
+| 8 | What a person sees is parsed, bounded and in vocabulary; every mutation surfaces its failure and names what blocks a disabled action. | card previews, `status.detail`, toasts, rendered output, disabled controls, or a UI mutation's error/recovery path |
+| 9 | OS and SQLite liveness and durability primitives are weaker than they look; corroborate before any destructive action. | SQLite, file locks, signals, process liveness, timeouts, fsync |
+| 10 | A feature is done when every surface that promises it can reach it and every document describing it matches. | a feature reachable from some surfaces but not all; a gating stub; docs left behind |
+| 11 | Data crossing a boundary keeps its meaning: collections are never `null`, and identity, status and error semantics survive transport. | Go structs crossing to the UI; nil slices/maps; ACP or streaming payload identity/status/error semantics |
+| 12 | A user-installed tool runs at whatever version the user has: optional flags retry bare, parsing is defensive, and uninterrogable means unknown, never failed. | any `exec.Command` or adapter call to a user-installed tool — agent CLIs, probers, git |
+| 13 | The test suite cannot see CSS or layout: every className has a selector, and geometry contracts get a real-browser assertion. | `ui/src` markup or `ui/src/styles/**`; anything about where an element is, how large it is, or what it covers |
+| 14 | A loopback bind is not a security boundary: every route sits behind the local or remote guard, and everything under `~/.chuck` is owner-only. | HTTP handlers, CORS, file paths from requests, anything reachable from a browser |
+| 15 | Persist and publish local state before an effect becomes externally observable; a retryable multi-store mutation is atomic, rolled back, or idempotent. | an operation that makes work externally observable or lets a peer proceed |
+| 16 | Streams, queues, retained collections, sweeps and fan-out are bounded at admission, with a stated limit and lifetime. | external output, streams, queues, sweeps, retained maps/lists, goroutine fan-out, or per-client state |
+| 17 | A test's oracle is independent of the code it checks, and its doubles mirror the real producer's shapes and failures. | regression or acceptance tests, contract enumerations, mocks/fixtures, build tags, packaging or release gates |
+| 18 | A durable wait records who can end it, gives that party a legal move from every honest state, and raises attention when they cannot act. | a durable state that waits on an agent, person, child task or peer; a status derived from an event stream; turn-end/exit handlers; protocol dispositions |
+| 19 | Submitted input is accepted durably under one owning record or refused with no side effect; handoffs between owners are acknowledged. | prompts, steers, answers, reports, proposals or annotations being queued, held, withdrawn, recovered, rerouted, or carried into an assignment or handoff |
+| 20 | Offered comes from the executor, effective is what it reported back, missing evidence is `unknown`, and one validated outcome feeds every consumer. | a model, effort, capability, session identity, saved setting or turn outcome decided by a peer or another component and then persisted, displayed, offered for selection, or used to settle work |
+| 21 | Text an agent acts on is machine contract: it shares the code's vocabulary, and each refusal has one meaning and names the next valid move. | assignment text, tool descriptions, standing guidance, refusal codes/messages, or forwarding a provider-native command under an assignment |
+| 22 | Every refusal, delivery transition, process start/stop and boundary error logs who, which operation and the typed reason — never payloads. | a refusal, a delivery or ownership transition, process start/stop, an error crossing a process or wire boundary, client error handling |
+| 23 | Anything with a lifecycle is keyed by its name plus a generation or birth proof, and a late action rechecks that pair. | a map, cooldown, cache, token, session or signal keyed by agent id, PID, session id or another reusable name; work that can arrive after its owner was replaced |
+| 24 | A fallback fails closed or becomes a recorded, visible, time-limited mode that is re-tested for recovery. | a default for an absent field, a retry on a different path, a degraded mode, a catch-all route, a cache of a failed response, "warn and continue" |
 
 A class with no applicable surface in the diff is a result to state, not a step to skip — the index
 is enough to state it. Open the class body only when the trigger matches.
@@ -75,6 +89,8 @@ Paid for by:
   id, and growth across agents was unbounded against the localStorage quota. Browser-local state
   needs the same boundary handling as server-derived state, plus its own retention bound when no
   server event can be relied on (drop on the delete event; expire and cap on rehydration).
+- `handlePutBackends` wrote the config and left the config-derived `onboardingCache` stale. A write
+  is a boundary too: invalidate derived caches in the handler that writes their source.
 
 **Canonical patterns:** reset connection-scoped state in `onopen`, not the constructor; republish
 the affected agent after any read/delete mutation; per-agent request tokens for async UI fetches.
@@ -92,44 +108,22 @@ Paid for by:
 - `session/new` vs `session/load` params in `internal/runtime/chat.go`: `load` omitted
   `cwd`/`mcpServers`, then later `model`/`systemPrompt` — resumed agents silently lost registration
   or kept the old model.
-- foreground vs `--detach` in `internal/cli/dashboard.go`: only the foreground path had the
-  live-pidfile refusal, so a doomed detached child clobbered a live server's pidfile.
-- POST-only slug validation: PUT/DELETE role/project handlers in
-  `internal/server/config_handlers.go` took path ids unvalidated (path traversal, BLOCKING).
 - Live transcript append coalesced streamed assistant deltas, but full transcript replay did not,
   so Archive and resume split one assistant reply into many bubbles. Fix: both paths use the same
-  `appendRenderedEvent` reducer (`ui/src/store/transcriptStore.ts`).
-- Annotation capture shipped `clipExcerpt` copied verbatim into two chat components plus a third
-  server implementation, and `AnnotationDraft` declared three times. Both had already drifted (the
-  JS marker kept 1,998 runes against the server's 2,000; one local type made the diff anchor fields
-  required and another optional) with nothing failing yet — structural typing and a CSS-blind test
-  suite see none of it. Fix: `ui/src/lib/annotations.ts` for the clip, `api/types.ts` for the type.
-
-- Five statements re-spelled the task row's persistence shape across
-  `internal/state/pipeline_tasks.go` and `pipelines.go`, with differing creator and ready-time
-  columns, so any schema or default change had to find all of them. Fix: `insertTaskRowTx`, with
-  each caller still owning its own lifecycle and ownership fields.
+  `appendRenderedEvent` reducer (`ui/src/store/transcriptStore.ts`). The phone conversation later
+  forked the same projection and rendered one streamed reply as 29 rows.
 - Creation was the only writer that checked inherited pipeline closure; admission, retry, re-arm and
   wait wake each re-derived (or skipped) the rule, so work that was already ready and watches that
   fired later escaped a stage completion or a Stop. Fix: one `taskRunOpenClause` fragment every
   writer appends to its own statement.
-- Every pipeline control path listed all stage attempts and took the last one, re-stating the run
-  cursor's definition at each site and growing with the run. Fix: `LatestPipelineStageTask`, with
-  `PipelineStageTaskForAssignee` ordered the same way.
+- The same drift, each fixed by one helper now in the registry: the live-pidfile refusal existed
+  only on the foreground dashboard path; slug validation only on POST (a path traversal); the
+  annotation excerpt clip and its type were declared three times and had already diverged; the
+  task row's shape was re-spelled in five statements; every pipeline control path re-derived the
+  run cursor; one notification payload was built inline.
 
-**Canonical helpers:** `composeLaunch`, `composeResumeSpec`, `composeSwitchSpec`, `resolveSkip`,
-`expandAddDirs`, `composeEnv`
-(`internal/server/launch.go`); keep `sessionNewParams`/`sessionLoadParams` in lockstep;
-`config.ValidSlug` on **every** verb of every path-keyed resource; `foldTranscript` and live append
-share `appendRenderedEvent` for every render-affecting event transform; Go transcript
-consumers derive typed text parts from `transcript.ProjectEvent` rather than adding another
-`runtime.Event` switch; `insertTaskRowTx` for every task row a transaction writes;
-`taskRunOpenClause` for every mutation that makes an existing task executable again;
-`LatestPipelineStageTask` for the run cursor and `Manager.settleCleanup` for stage/run cleanup
-convergence.
-
-Corollary: permission-relevant re-resolution **fails closed** — on a role-read error, refuse, never
-fall back to the permissive global default (`resolveSkip`).
+**Canonical helpers:** the registry at the end of this file is the list. Check it before writing a
+builder, and add a row when a second path appears.
 
 ## 3. Persisted fields never receive one-shot data; forms merge, never replace
 
@@ -242,8 +236,6 @@ Paid for by (this one recurred **four times** as the same literal mistake):
   unreadable transcript — the repair tool left the archive worse than before. Per-entity isolation.
 - reindex flush logic lost the final partial turn when a transcript had one finished turn plus a
   crash mid-later-turn.
-- FTS content buffer capped at 1 MiB silently dropped older transcript text; "newest N" implemented
-  as `ORDER BY created_at ASC LIMIT N` returned *oldest* N (subquery DESC + re-sort).
 
 ## 8. User-facing surfaces get parsed, bounded, in-vocabulary data — and errors always surface
 
@@ -262,10 +254,7 @@ Paid for by:
 - bare `void switchRuntime(...)`/`void rename(...)` in `ui/src/components/grid/CardContextMenu.tsx`
   swallowed structured server errors → extract the `{error:{code,message}}` envelope in
   `ui/src/api/client.ts`, `.catch → pushError` on every mutation.
-- `budget_exceeded` payload built inline instead of via the shared `notificationPayload()` builder.
-- config-derived caches invalidated in the same handler that writes the config
-  (`handlePutBackends` once left `onboardingCache` stale); DELETE UIs implement the 409
-  confirm+force-retry loop the API contract requires.
+- DELETE UIs implement the 409 confirm+force-retry loop the API contract requires.
 - Pipeline **Continue** was disabled until continuation text existed without saying what it needed,
   while **Continue** and **Retry stage** were offered together without explaining that Retry creates
   a fresh agent with bounded prior summaries (`ui/src/features/pipelines/RunBrowser.tsx`).
@@ -293,8 +282,7 @@ Paid for by:
   the durable table on first use per process — an empty-seeded buffer once wiped all FTS content
   after a restart (`seedLocked`, `internal/index/indexer.go`).
 - **Destructive CLI ops sharing the live server's DB hard-refuse on liveness** (`reindex` once only
-  warned); manually-tracked version constants get a guard test asserting equality with the
-  migrations slice.
+  warned).
 
 ## 10. Ship the wiring; kill the drift
 
@@ -305,13 +293,13 @@ Paid for by:
 - Clone context-menu action stayed a disabled stub with an obsolete phase tooltip after the feature
   shipped; only a holistic pass caught it. When closing a change, check both the governing FS
   requirements and acceptance items for unowned promises.
-- `tmux` driver implemented + tested but unselectable from any API/UI while capabilities advertised
-  it.
+- A blocked pipeline pause offered **Open agent** beside **Continue**, on a pause where answering
+  in that chat was a dead end.
 - Docs drift: README omitted `install.sh` defaults/prereqs; `MAP.md` described the messaging MCP as
   stdio after HTTP shipped; `architecture-flow.md` showed terminal→bus parity that didn't exist.
 - `.claude/skills` vs `.agents/skills` twin drift ("Codex **or** Codex" — since fixed).
-- Dead-code removal requires a tree-wide call-site check first; soft-cancel to an external peer
-  needs a time-bounded escalation tier (grace → SIGINT) distinct from Stop's hard kill.
+
+A capability advertised with no way to select it is §20's *offered*, not this class.
 
 ## 11. Cross-boundary serialization and protocol contracts preserve meaning
 
@@ -349,8 +337,8 @@ hand-editable files; validate required protocol identity/status fields before mu
 version the user has, not the one the author tested. Optional flags need a detect-and-retry
 fallback; output parsing is defensive (substring vocabulary, not exact format); a tool that can't
 be interrogated reports "unknown"/"skipped", **never** "failed" — a wrongly failed gate blocks the
-user harder than no gate at all. Exit zero or a successful RPC envelope is not semantic success:
-validate the required output shape, identity, and effective configuration before relying on it.
+user harder than no gate at all. Exit zero is not success: validate the output's shape before
+relying on it. What Chuck may then claim about the tool's effective state is §20.
 
 Paid for by:
 - `internal/backend/credcheck/claude.go` ran `claude auth status --no-color`; older Claude builds
@@ -360,13 +348,7 @@ Paid for by:
   zero, so a worktree repository anchor became `--path-format=absolute\n.git`. Detect the echo,
   retry without the optional flag, and normalize the fallback locally.
 - The ACP handshake once logged an incompatible protocol version and proceeded. Version gates fail
-  and run the normal shutdown path; they never warn and continue with an unsupported peer.
-- BR-1: a `model` member was asserted from a reading of the adapter's internal parser, emitted by
-  Chuck, accepted by the fake, and read by no provider — the pinned request schema has no such
-  field. A claim that a provider *honors* a value needs a complete trace from the wire call to the
-  provider-side read, or a credentialed run that observed the effect. An adapter-local readback is
-  neither: an ACP `configOptions.model.currentValue` is adapter configuration evidence, not provider
-  execution evidence, and a stale one produced a false "delivery is broken" finding (TS-04.R54).
+  and run the normal shutdown path; they never warn and continue with an unsupported peer (§24).
 
 **Canonical pattern:** `runClaudeAuthStatus` (`internal/backend/credcheck/claude.go`) — try with
 optional flags, sniff the error output, retry bare. The `/usability-review` S3 sweep audits every
@@ -374,7 +356,7 @@ external `exec.Command` for this class.
 
 ---
 
-## 13. Every referenced className must have a defined selector (the test suite can't see CSS)
+## 13. The test suite cannot see CSS or layout
 
 **Rule:** the UI styles itself with hand-written global CSS (`ui/src/styles/global.css`, tokens in
 `tokens.css`) — no Tailwind, no CSS modules. A `className="x"` with **no** matching selector renders
@@ -391,6 +373,13 @@ Paid for by:
   Settings/config surface — `.settings-tabs*`, `.config-*`, `.backend-card`, `.model-row`,
   `.env-row`, `.string-list`, `.btn-danger/-link/-sm` referenced, defined nowhere; tabs render as
   default buttons and the Backends editor's controls overlap.
+- **Geometry is equally invisible.** The projects background menu listened on a content-height
+  element, so most of the canvas opened nothing while the test right-clicked a heading inside it.
+  Its fix (`min-block-size: 100%` on a grid with no `align-content`) then stretched every project
+  card to the bottom of the viewport. Mermaid diagrams rendered black and oversized behind a mocked
+  renderer, and the phone transcript split one streamed reply into 29 rows. A contract about where
+  something is, how large it is, or what it covers needs a real-browser assertion; a parsed-CSS
+  check is only a proxy.
 
 **Canonical guard:** the `/usability-review` S2 sweep three-ways the referenced-className set against
 defined selectors (both directions) and every journey renders the surface in a real browser and
@@ -483,6 +472,8 @@ Paid for by:
 - Worktree setup used `CombinedOutput`, buffering arbitrary command output before clipping its
   stored tail to 64 KiB. `setupOutputTail` enforces the byte bound while stdout/stderr are produced
   and preserves a valid UTF-8 boundary (`internal/server/worktree.go`).
+- The FTS content buffer was capped at 1 MiB by silently dropping older transcript text. A bound
+  states what it discards and tells the consumer that it did.
 
 **Canonical patterns:** bounded tail writers for external output; oldest-first limited queries plus
 a process-wide in-flight cap for sweeps; ref-counted registration with per-owner teardown; temporary
@@ -520,11 +511,284 @@ Paid for by:
   confirming delivery. The fake now decodes through the same member set, and the params check
   enumerates that set from the protocol schema and its backends from the adapter registry rather
   than from `sessionNewParams` (`internal/runtime/acp_session_schema_test.go`, TS-04.R54).
+- The same shape of escape recurred across six field reports: a fixture authored from the code
+  under test instead of from the real counterpart. `fakeacp` emitted an invented `{used,window}`
+  usage result and an invented `sessionId` on load; phone transcript fixtures used whole-text
+  events where the wire sends deltas; the remote-gateway annotation test posted a body without the
+  `command_id` the bundled client always adds; the permission-save mock merged the requested value
+  into every response; the Mermaid module was mocked out of its own sanitizer test.
+- A manually tracked schema-version constant gets a guard test asserting equality with the
+  migrations slice.
 
-**Canonical patterns:** enumerate producers independently from their policy table; drive the real
+**Canonical patterns:** build request fixtures with the real client serializer and response
+fixtures from a captured frame of the pinned peer; enumerate producers independently from their policy table; drive the real
 wire/serialization boundary; make fixtures trigger the named OS or storage failure; inspect built
 artifacts rather than trusting build commands; for a bug regression, demonstrate the test fails on
 the old behavior before relying on it.
+
+---
+
+## 18. A waiting state names who can end it, and something notices when they cannot
+
+**Rule:** every durable non-terminal state that waits on a party — an agent's report, a person's
+Continue, a child task, a peer's reply — records which party and generation can end it, gives that
+party a legal move from every state it can honestly be in (including "nothing to add" and "cannot
+proceed"), and has a detector that turns "that party can no longer act" into an attention state. A
+wait that looks identical to active work is a defect. So is a status derived from an event stream
+with no owner responsible for settling it. A handler that loses a compare-and-swap on the waited
+record re-reads under the lock and decides again; it never returns quietly (§5).
+
+Paid for by:
+- A 23-hour pipeline run spent about nineteen hours in two stalls after its work was done. The
+  stage agent stopped after a refused report; `OnTurnEnd` was a no-op without an accepted report,
+  `internal/pipeline` had no sweep or timer, and the notification categories excluded the state by
+  enumeration, so `await_result` with a silent agent rendered exactly like a run being worked.
+- `OnTurnEnd`/`OnExit` read the run outside `runLock`, lost the revision compare-and-swap inside it
+  and returned `nil`, which could park a run at `await_quiescence` with no attention reason, no
+  notification and no log.
+- A Think Tank participant that may not leave had `reply` as its only accepted discussion move, so
+  settled participants produced filler until their allowance ran out, and one that ended its turn
+  without submitting held the whole room until the operator intervened. Fix: a `pass` disposition
+  for every participant, and a full quiet rotation ends the discussion.
+- A root tool result arriving after the owned prompt settled set the agent `busy` again; only
+  `finishTurn` restored `idle`, and no further turn end was coming (`internal/runtime/chat.go`).
+- A person's prompt to an assignee whose task was waiting could not reach it: each attempt was
+  refused, woke one empty continuation turn, and the assignee went back to waiting (§19).
+
+**Canonical patterns:** the wait record carries the waiter's identity and generation; the waiter's
+turn end, exit, and a periodic sweep all re-evaluate the wait under its lock; "cannot advance"
+is an enumerated attention reason, not an absence of one; every protocol state offers a decline,
+pass or blocked move. In-process timers do not survive a restart (§9), so the detector is driven
+from durable state. A soft request to an external peer (cancel) has a time-bounded escalation tier
+(grace, then SIGINT) distinct from Stop's hard kill.
+
+---
+
+## 19. Accepted input has one durable owner; a refusal changes nothing
+
+**Rule:** anything a person or agent submits — a prompt, steer, answer, report, proposal or
+annotation — is either accepted or refused. Accepted means recorded durably with its provenance
+before the response, with exactly one record that says where it is now (held, delivered,
+withdrawn, unknown). Refused means no side effect at all: no wake, no state advance, no partial
+write. Moving input between owners (queue to turn, receipt to composer draft, chat to pipeline
+assignment, transcript to handoff primer) is one acknowledged handoff, and the old owner lets go
+only on the new owner's confirmation of that exact request. No route-specific branch bypasses the
+receipt, and accepted input is never reconstructed from a display artifact such as
+adapter-rendered tool output, an optimistic bubble, or a browser-local pointer. §15 orders the
+commit before the effect; this class says who owns the input while that happens.
+
+Paid for by:
+- A validated pipeline proposal was returned only to the MCP caller and persisted nowhere; the
+  Pipelines page rebuilt proposals from tool-result content in one browser-remembered transcript,
+  and the real adapter recorded that result as `content:null`.
+- The waiting-assignee prompt path prepared the task continuation and then returned 409 before any
+  receipt was written: the text was kept nowhere while the refusal had already woken a turn
+  (`internal/server/attachments.go`). Waking mail on the same path was retained and delivered.
+- A chat answer to a paused pipeline owner was marked submitted before provider delivery and left
+  no durable user event; the successor visit was published before its input receipt was bound, and
+  a bind failure fell through to ordinary standalone delivery after the run had advanced.
+- Withdrawing queued text restored it to the composer while its `released` receipt stayed offered
+  as a separate recovered message; a transient `unknown` snapshot outlived the Steer that
+  submitted it. The draft, the held store and the receipt each claimed the same text.
+- Answering a blocked stage agent in its own chat let it do a full turn of work whose report was
+  then refused, because the run had already accepted that agent's `blocked` report.
+- The backend-switch primer dropped every accepted human prompt, and the cross-backend bridge lived
+  only in a runtime-only prompt field, so stopping the target before its first prompt lost the
+  pre-switch conversation.
+- A sent prompt rendered twice when its sequenced server event beat the HTTP response, because the
+  unsequenced local echo was reconciled in one arrival order only.
+
+**Canonical patterns:** a caller-supplied command id on every submission; the receipt state machine
+is the sole authority and every surface derives held/recovered/delivered from it instead of keeping
+its own copy; a handoff acknowledges the request id it took; validation and eligibility checks run
+before the first write so a refusal has nothing to undo.
+
+---
+
+## 20. Requested, offered and effective are different facts
+
+**Rule:** when a peer or another component decides something — the model, effort, session identity,
+a capability, a saved setting, how a turn ended — Chuck keeps three facts apart. *Offered* is
+derived from the component that will execute the choice, at the version and schema it actually
+runs; it is never a parallel list. *Requested* is what Chuck sent. *Effective* is what the executor
+reported back, and only that is persisted as current, displayed, and returned as the operation's
+result. Missing evidence is `unknown`, a distinct value that never collapses into false, success,
+or the requested value. Each operation has one validated terminal outcome, and every consumer —
+status, settlement, receipts, handoff kind, notification — reads that outcome instead of
+re-deriving success from the raw envelope. §11 and §12 govern reading a peer correctly; this class
+governs what Chuck then claims.
+
+Paid for by:
+- BR-1: Chuck persisted and displayed the requested Codex model and effort for about ten weeks
+  while the adapter dropped the field. The `model` member was asserted from a reading of the
+  adapter's internal parser, accepted by the fake, and read by no provider. A claim that a provider
+  *honors* a value needs a complete trace from the wire call to the provider-side read, or a
+  credentialed run that observed the effect. An adapter-local readback is neither: an ACP
+  `configOptions.model.currentValue` is adapter configuration evidence, not provider execution
+  evidence, and a stale one produced a false "delivery is broken" finding (TS-04.R54).
+- A Claude-to-Claude model switch recorded the new model while `session/load` resumed the
+  transcript's previous one.
+- A rejected `session/load` fell through to `session/new` and returned an ordinary successful
+  Resume; a same-backend switch could report `history_handoff:native_resume` over a fresh session,
+  with the old context-usage reading attached.
+- A terminal provider failure carried inside a successful prompt result ended as `end_turn`: the
+  status went idle, quota settlement recorded `successful:true`, and inline mail was marked read.
+  Three consumers each derived success from the raw result, so correcting the displayed stop
+  reason alone would have left the other two wrong.
+- Model catalogs were imported from the user's personal CLI cache while prompts ran on the
+  release-pinned runtime, so a selectable model failed at prompt time (Codex Astra; Claude 5.5).
+  All four adapters claimed `CanSwitchModelOnResume` while model application existed for two, and
+  capabilities once advertised a `tmux` driver that no API or UI surface could select.
+- The paired-phone allowlist for annotation routes was a hand-kept field list that did not admit
+  the `command_id` the bundled client always sends; the starter Claude effort list was a seed
+  constant that lagged the provider's levels.
+- A capability snapshot written before image negotiation decoded its absent key as `false`, so a
+  stopped agent refused images as if the provider had; the context meter read an invented usage
+  shape and showed 0% for every real turn.
+- The permission toggle installed any 2xx response without comparing the saved value to the one
+  submitted, so an acknowledged-but-unapplied write looked like a checkbox that would not stay set.
+
+**Canonical patterns:** read back the effective value after every configuration call and fail
+closed on a mismatch for required settings; decode capabilities as present-true, present-false or
+unknown, and let unknown reach the server-side recheck; derive selectable values and admitted
+request fields from the executing runtime or the shared request type (`backend.Support`); one
+typed turn-outcome value consumed by status, settlement and receipt code alike.
+
+---
+
+## 21. Agent-facing instructions and refusals are protocol
+
+**Rule:** an agent acts literally on the text Chuck gives it and cannot ask what was meant.
+Assignment text, tool descriptions, standing guidance and refusal messages are therefore part of
+the machine contract. They use the same vocabulary as the code (retry class, state names), state
+each boundary in terms of the accepted result rather than the call made, and reach every route by
+which an agent can receive the work. A refusal code has one meaning; its message names the true
+condition and the next valid move. Forwarding text that a provider interprets natively (a leading
+slash command) is a separate route with its own policy and is chosen deliberately. This class is
+about truth and consistency, not volume: procedure belongs in the skill the text points to.
+
+Paid for by:
+- Every stage assignment said to report "exactly once" and that the one call ended the agent's
+  part, while the shared retry vocabulary classified several refusals of that call as retryable.
+  The agent obeyed the sentence it re-read each turn; the same result was accepted as soon as a
+  person told it to try again (§18's nineteen hours).
+- `stale_assignment`, retry class `never`, was returned for three conditions, one of them the
+  run's own current attempt whose report had already been accepted. The shared vocabulary already
+  had `already_reported` for that case.
+- A task aimed at a stopped pipeline agent was refused as "No agent matches" for an agent that
+  existed and that the same caller had just shared context with.
+- Think Tank guidance told participants a turn was "a maximum, not a quota" while the tool accepted
+  only `reply` from those who could not leave.
+- Launched tasks carried no instruction to report a result; existing-agent activation said read and
+  execute but not report, and the three assignee routes composed their text separately (§2).
+- A `/review` task instruction was forwarded unchanged, the provider entered its native review
+  mode, and that child's approval policy refused the task-control calls the assignment required.
+
+**Canonical patterns:** compose agent-facing text for new, existing and continued assignees in one
+place; test that each refusal's message matches its condition and its retry class; when a protocol
+gains a state, add the move that lets an agent express it.
+
+---
+
+## 22. Failure points leave a bounded, correlated trace
+
+**Rule:** every refusal, every delivery or ownership transition of durable work, every process
+start and stop, and every error that crosses a process or wire boundary writes one bounded
+structured record to Chuck's own log: who (agent and generation, run/visit/request id), which
+operation, and the typed reason. A peer's typed reason survives to the surface that shows the
+failure, bounded and allowlisted; message bodies, prompt text, attachment contents and raw provider
+data are never logged. A semantic failure carried in a successful envelope is recorded like a
+failed call. Browser-side failures reach the server log. Reports arrive from machines where live
+debugging is impossible, so a failure point that logs nothing is a defect in its own right.
+
+Paid for by:
+- No refusal of `report_pipeline_stage_result` was logged anywhere, so two pipeline reports could
+  be traced only through the agent's own transcript. The fields that were missing (caller and
+  attempt agent/generation, pending action, code) were exactly those that separated the three
+  conditions one refusal code conflated (§21).
+- `rpcError.Error` returned only `Message` and discarded `code` and `data`
+  (`internal/runtime/jsonrpc.go`). The same loss hid the cause of a clone's first-message failure
+  and reduced a provider's "requires a newer version" reason to `Internal error`. A denied tool
+  call's reason in `rawOutput` was likewise never decoded, leaving a failure with null content.
+- A graceful dashboard shutdown recorded neither signal nor caller, so a freeze report could not
+  separate server churn, browser churn and an external stop.
+- A refused file read logged its path without the query and its status without the refusal code.
+- `ErrorBoundary` only called `console.error` and nothing handled `window` errors, so a dead
+  dashboard arrived as one bare message with no stack, route or build.
+- Queue, withdrawal, Steer and paused-run delivery transitions kept only the receipt's latest state,
+  so a recovery card could not be attributed to the transition that produced it.
+- The prompt fingerprint covered only the frozen persona prompt, not the runtime-only suffix or
+  knowledge revisions, so an archived task could not show which instructions accompanied it.
+
+**Canonical patterns:** log at the seam that makes the decision, at Warn for a refusal; carry
+identities and typed codes, never payloads; preserve `code` plus an allowlisted reason through
+error wrapping; give terminal-result failures the same diagnostic as failed RPCs.
+
+---
+
+## 23. A reusable name is not an identity
+
+**Rule:** agent ids are reused across launches, PIDs across processes, session ids across a load
+that became a new session, counters across restarts. Anything with a lifecycle — a registration,
+cooldown, cache entry, token, transport session, pending action, signal target — is keyed by its
+name **plus** a generation or birth proof. Any action that can arrive late (a crash teardown, a
+timer, an async reply, a reaper) rechecks that pair before it acts. A refusal says which half
+failed to match: wrong party, wrong generation, or already done.
+
+Paid for by (each first recorded under the class named):
+- Teardown keyed by `agent_id` alone let a late crash-teardown of launch N delete launch N+1's
+  artifacts (§4); the nudger cooldown keyed the same way survived stop and relaunch, and a deleted
+  agent's annotation drafts could resurface against a reused id (§1).
+- Orphan reapers and both reconcilers trusted `kill(pid, 0)` and could SIGKILL a reused PID (§9).
+- The in-process `turnSeq` restarted at zero on resume, so "current turn budget" picked a stale row
+  (§5); a cancel armed for turn A could SIGINT turn B.
+- `Revoke` deleted Chuck's token mapping while the MCP SDK session and its reader goroutine lived
+  on: 100 revoked launches left 100 sessions and 100 goroutines (`internal/messaging/messaging.go`).
+- A rejected `session/load` produced a new provider session under the same agent, which kept the
+  old session's context-usage reading and was reported as the resumed conversation (§20, §24).
+- `stale_assignment` answered three different mismatches — another agent, another generation, and
+  the current attempt already reported — with one code (§21).
+- Switch read the agent's identity and merged the request before taking the lifecycle claim, so a
+  second switch finishing in the gap was overwritten from the stale read.
+
+**Canonical patterns:** launch generation on every registration and its teardown
+(`teardownAgentRegistration`); recorded leader PID plus kernel birth (`runtime.ClassifyProcess`);
+capture-and-recheck of `turnSeq`; transport sessions bound to the launch that created them; re-read
+identity while holding the claim.
+
+---
+
+## 24. A fallback is a state change: fail closed, or make it visible, bounded and reversible
+
+**Rule:** when the intended path is unavailable, the code either refuses or enters a second mode.
+A second mode is real state: it is recorded as the mode now in effect, reported to whoever relies
+on the result, limited in duration, and re-tested so the system returns to the intended path when
+it can. A fallback never reports the intended path's success, never becomes permanent by default,
+and never supplies a permissive or terminal value for missing evidence. Where the caller needs the
+intended guarantee — permissions, history, identity — fail closed.
+
+Paid for by:
+- A rejected `session/load` fell through to `session/new` and returned an ordinary successful
+  Resume: the model had no memory of the conversation while the dashboard still showed it.
+- TS-03.R7 demoted a tab to its own direct event stream "for the rest of the session" when the
+  shared stream did not open in time. Any restart longer than about 30 seconds demoted every open
+  tab; five demoted tabs plus the worker exhausted the browser's six-connection pool and every
+  request queued forever. Fix: demote only on evidence that the worker itself is dead, and keep
+  reconnecting through an outage (`ui/src/api/sse.ts`).
+- The SPA fallback answered a missing `/assets/*.css` with 200 app HTML, and the phone service
+  worker cached whatever came back and never retried, so one bad response outlived the server
+  restart that fixed it (`internal/server/spa.go`, `ui/public/remote-sw.js`).
+- `CREATE VIRTUAL TABLE IF NOT EXISTS` froze a degraded FTS fallback forever (§9).
+- A status-bearing event with no status defaulted to `completed` (§11); a capability snapshot
+  with no image key decoded as `false` (§20).
+- The ACP handshake logged an incompatible protocol version and proceeded (§12).
+- Permission re-resolution on a role-read error must refuse, never fall back to the permissive
+  global default (`resolveSkip`).
+
+**Canonical patterns:** refuse where the guarantee matters; otherwise name the mode in the result
+(`history_handoff` reports what actually happened) and in status; give every degraded mode an exit
+condition and a test that it is taken; cache only validated responses; treat an absent field as
+`unknown` (§20).
 
 ---
 
@@ -536,6 +800,9 @@ the old behavior before relying on it.
 | `composeLaunch`, `composeResumeSpec`, `composeSwitchSpec`, `resolveSkip`, `expandAddDirs`, `composeEnv` | `internal/server/{launch,resume,switch}.go` | any path that builds/rebuilds a LaunchSpec (§2) |
 | `resolveStartCheckout` / `ensureRunWorkspace` | `internal/server/pipeline_workspace.go` | every launch/resume/switch/clone cwd readiness, project-owned or run-owned (§2) |
 | `placeRunTaskTx` / `checkRunTarget` | `internal/state/pipeline_workspaces.go` | run group placement and existing-target checkout eligibility for run work (§2, §5) |
+| `sessionNewParams` / `sessionLoadParams` | `internal/runtime/chat.go` | kept in lockstep: any session member added to one is added to the other (§2) |
+| `insertTaskRowTx` / `taskRunOpenClause` | `internal/state/tasks.go` | every task row a transaction writes; every mutation that makes an existing task executable again (§2) |
+| `LatestPipelineStageTask` / `Manager.settleCleanup` | `internal/state/pipeline_tasks.go`, `internal/pipeline/reconcile.go` | the run cursor; stage and run cleanup convergence (§2) |
 | `takePending` | `internal/runtime/permission.go` | atomic claim for racy resolutions (§5) |
 | `SubscribeWithSnapshot` | `internal/bus/bus.go` | any snapshot+subscribe consumer (§5) |
 | `runtime.ClassifyProcess` / `StopRecordedProcess` / `ReconcileStale` | `internal/runtime/procstart.go`, `reconcile.go` | every liveness decision, signal or prune for a process the registry doesn't hold; proof is recorded leader PID + kernel birth (§4, §9) |

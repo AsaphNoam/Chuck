@@ -129,7 +129,10 @@ blocked under §3 instead of archiving the finding: §1.1's read order never rea
 report, so an unrecorded failure is invisible to every later role and an already-detected defect
 goes on being treated as an open gate. A commit or review that carries an acceptance run record
 reconciles every **Must fix** in that record against the live findings before the record is
-archived.
+archived. The same holds for an investigation or review recorded anywhere other than `main`'s
+handoff — a side branch, a cloud workspace, an uncommitted local tree: its findings are not in the
+fix queue or any release gate until they are on `main`, so the role that produced them says where
+they are and what publishing them still needs before it closes.
 
 Delegate bounded work with an explicit deliverable, file/interface ownership, dependencies, and
 verification criteria. Keep shared migration ordering and tightly coupled lifecycle changes under
@@ -234,7 +237,7 @@ findings, then stop rather than continuing into another unit unless the user ask
 
 1. Confirm the report is true by reading the code, the cited requirement, and the real path. Reproduce it with a failing test when practical. A finding that cites a committed skipped reproduction test (§12) starts by un-skipping it and confirming it fails.
 2. If it is false or already fixed, remove the finding and record the short evidence in the changelog and human update; do not change code.
-3. If it is real, fix it, add or keep a regression test, run the required checks, and update the relevant specification if the correct fix changes behavior or fills missing coverage. Use `write-tests` (§17) when behavior needs new verification or tests/fixtures materially change.
+3. If it is real, fix it, add or keep a regression test, run the required checks, and update the relevant specification if the correct fix changes behavior or fills missing coverage. Use `write-tests` (§17) when behavior needs new verification or tests/fixtures materially change. Before closing, check the defect's siblings: the adjacent fields, routes or consumers built on the same assumption, and what the changed code now does to its neighbours. Fix a sibling that shares the cause; record any other as its own finding.
 4. When the work is verified, remove the finding, update the handoff, and commit.
 
 Use focused regression checks per finding; run §2's applicable completion checks once after the
