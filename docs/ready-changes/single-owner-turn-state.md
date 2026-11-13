@@ -31,5 +31,4 @@ held-message and Stop-during-turn interleavings, and the Stop-versus-status-writ
 
 ## Waiting on
 
-`one-typed-turn-outcome.md` (TS-01.R42) ships first, so the outcome is already a single value
-before the fields around it move.
+Nothing. TS-01.R42 already supplies the typed outcome before the fields around it move.

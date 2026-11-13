@@ -81,8 +81,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
   complete 5-hour/Weekly quota per backend through a typed adapter read, Edit and Fork from here
   at a turn boundary, and snapshot-informed quota recovery with the current behavior as fallback.
 
-- [`one-typed-turn-outcome.md`](one-typed-turn-outcome.md) — decide each turn's ending once in the
-  runtime and have status, quota, mail and server consumers read that one value.
 - [`share-desktop-and-phone-input-delivery.md`](share-desktop-and-phone-input-delivery.md) — one
   Send/Steer/retry/withdraw/recovery implementation for desktop chat and the phone.
 - [`share-resume-start-and-teardown-in-switch.md`](share-resume-start-and-teardown-in-switch.md) —

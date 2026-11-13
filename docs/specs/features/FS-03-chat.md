@@ -1156,7 +1156,7 @@ when accepted by HTTP but an id-less repeat is still a new command.
   Initial limits are 10 files, 10 MiB per file, 25 MiB aggregate per message, and 40 megapixels per
   preview image. PNG/JPEG/WebP/GIF have native previews; other formats remain ordinary uploaded
   files without native preview. Provider/model limits may be stricter and are reported honestly.
-- **R117 (planned) — A turn ends one way everywhere.** However a turn ends — completed, cancelled,
+- **R117 — A turn ends one way everywhere.** However a turn ends — completed, cancelled,
   failed, refused for quota, or cut off by the process ending — the agent's status, the
   transcript's turn end, quota continuation, inline-mail read state and notifications all reflect
   that same ending. No surface reports a failed or cancelled turn as completed. The `turn_end`

@@ -624,7 +624,7 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
 (`terminal_unavailable`); external views are polled with `ClassifyProcess` at `exitPollInterval`
 (1 s) and Cancel/Stop re-prove them first. The bootstrap lives in
 `internal/runtime/terminal/bootstrap.go`; `cli.Execute` dispatches it before cobra.
-- **R42 (planned) — A turn has one typed outcome, produced once.** `internal/runtime` resolves each
+- **R42 — A turn has one typed outcome, produced once.** `internal/runtime` resolves each
   turn's end into one typed value (completed, cancelled, failed, quota-blocked, provider-truncated,
   process-ended) in a single function. Normal prompt completion, a failed `session/prompt` call and
   a closed transport all call it; none builds its own stop reason or synthesizes a provider result

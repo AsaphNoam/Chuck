@@ -29,10 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-- **One typed turn outcome** — in progress. Runtime resolution and event readers are integrated.
-  Focused runtime, race and loopback server checks and the build passed. The fork fixture now
-  waits for the retained turn boundary and passed eight tagged repetitions. Full Go suites are
-  running before review handoff. See FS-03.R117/A92 and TS-01.R42.
+None.
 
 ## Acceptance gates still owed
 
@@ -240,6 +237,13 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   switch shows it above the composer.
 
 ## Review queue
+
+- **One typed turn outcome** — ready for review. Runtime status, quota settlement, inline mail
+  and event readers use the resolved outcome. See FS-03.R117/A92 and TS-01.R42.
+  Both Go variants, the build, and focused race checks passed. The fork fixture now waits for the
+  retained turn boundary and passed eight tagged repetitions. The known deferred-assignment
+  lifecycle test failed once in the untagged matrix, then passed five focused runs and the full
+  untagged rerun.
 
 - **Match sent prompts by request ID** — ready for review. Desktop transcript reconciliation and
   held follow-up delivery use the request ID. See FS-03.R118/A93 and TS-08.R163.
