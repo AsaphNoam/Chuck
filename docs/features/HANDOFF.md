@@ -240,6 +240,19 @@ None.
 - **MAIL-DETAIL — expandable agent mail in transcript activity (`a44abd23`).** Independent review
   found defects. Fix the grouped findings below before closing the unit.
 
+**Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
+complete current implementation and callers, not of a commit. Read the charter, refresh fix
+ownership and record the reviewed HEAD. Intended for a frontier reviewer; the charters' leads are
+questions, not findings.
+
+| Unit | Responsibility | Status |
+|---|---|---|
+| [CR-A8](CORE-RELIABILITY-REVIEW-A8.md) | Pipeline pause, answer and recovery ownership: who can end each pause, refused input with no side effect, answers through replacement, stall detection | waiting for review; run first |
+| [CR-A9](CORE-RELIABILITY-REVIEW-A9.md) | Think Tank lifecycle and its quota join: fenced member launch, requested Pause/End under quota, restart recovery | waiting for review |
+
+PIPE-CHAT-1 and -3 sit on CR-A8's contract; CR-A8's result says whether they are fixed alone or
+with its findings. PIPE-CHAT-2 and -4 are independent.
+
 ## Investigations awaiting evidence
 
 ### EFFORT-BUDGET — worker infers a work budget from its own configuration (2026-11-05)
@@ -388,6 +401,13 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-13 — Review planning:** queued two subsystem reviews, CR-A8 (pipeline pause, answer and
+  recovery) and CR-A9 (Think Tank lifecycle and quota join), chosen from the October audit's scope
+  and fix history plus fresh Sonnet code maps at `e8a8a128`. Charters carry ten and eleven
+  unreproduced leads; four were checked against source by the planner. A third candidate, one
+  transition rule per durable state machine, is a design topic for after these reviews and is not
+  queued. No product code, specification or finding changed.
 
 - **2026-11-13 — Design:** five single-owner refactors from a review of 60 days of invariant
   evidence and fix history are waiting to start as separate ready changes: typed turn outcome

@@ -220,6 +220,18 @@ or report a clearly new counterexample. Reuse ASR-E's source trace unless that n
 a reason to inspect further. No assumption that every message is automatically injected into every
 active provider turn; verify the documented inbox/deferred-delivery behavior.
 
+## Added 2026-11-13: two slices over code written after this round
+
+Chosen from this round's scope and fix history plus fresh code maps at `e8a8a128`; both are
+waiting for review in the handoff. They cover code this round could not: the goal-led pause and
+answer contract of 2026-10-30 onward, and room lifecycle beyond ASR-F's joint pipeline review.
+
+- **[CR-A8: Pipeline pause, answer and recovery ownership](CORE-RELIABILITY-REVIEW-A8.md).** When a
+  run pauses, stalls or takes an answer, does one party own the next move and can it always make
+  it?
+- **[CR-A9: Think Tank lifecycle and its quota join](CORE-RELIABILITY-REVIEW-A9.md).** Is every
+  room phase, attempt and member launch owned and fenced, including under quota and restart?
+
 ## Lower priority for this reliability-first round
 
 - **Updater/rollback:** include installed-runtime and data-preservation evidence in the proposed
