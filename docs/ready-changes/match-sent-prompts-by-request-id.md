@@ -22,6 +22,9 @@ phone; delivery records for the launch assignment prompt and the owner stall nud
 operator dropped from scope on 2026-11-13 because the task row and the stall counter already own
 them; consolidation of the receipt tables.
 
+Settle while here: FS-03.R7 says the composer shows sent text immediately, but `Composer.tsx`
+appends the local bubble after `sendPrompt` returns. Correct whichever is stale.
+
 ## How we will know it works
 
 FS-03.A93 and the TS-08.R163 checks: store and composer tests for both arrival orders, repeated

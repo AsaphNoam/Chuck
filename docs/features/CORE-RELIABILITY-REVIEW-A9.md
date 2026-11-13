@@ -93,7 +93,7 @@ milliseconds between the session row and the running row tearing down the launch
 hold writes whose own failure is swallowed.
 
 The writer inventory for the room and quota tables is in
-[HOTSPOT-REVIEW-LEADS-2026-11-13.md](HOTSPOT-REVIEW-LEADS-2026-11-13.md).
+[CR-A10](CORE-RELIABILITY-REVIEW-A10.md).
 
 ## Reuse these proofs before adding any
 

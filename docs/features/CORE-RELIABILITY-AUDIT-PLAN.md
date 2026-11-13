@@ -232,9 +232,16 @@ answer contract of 2026-10-30 onward, and room lifecycle beyond ASR-F's joint pi
 - **[CR-A9: Think Tank lifecycle and its quota join](CORE-RELIABILITY-REVIEW-A9.md).** Is every
   room phase, attempt and member launch owned and fenced, including under quota and restart?
 
-Leads from the same pass that neither slice owns, including the candidates considered and not
-queued and the writer inventory behind a possible transition-rule design, are kept in
-[HOTSPOT-REVIEW-LEADS-2026-11-13.md](HOTSPOT-REVIEW-LEADS-2026-11-13.md).
+- **[CR-A10: Durable state transitions have one rule](CORE-RELIABILITY-REVIEW-A10.md).** Can each
+  status column move only along transitions stated in one place? Run after CR-A8 and CR-A9; its
+  second output is the recommendation for a transition-rule design.
+
+Considered in the same pass and not queued, for lack of evidence rather than because they were
+cleared: run workspaces and placement (2026-10-29 code); file writing and opening any local file
+(2026-11-06 code); an updater error returned after the first pointer swap; phone revocation
+during an in-flight attachment download, and whether the CR-A7-1 stream fix covers the phone's
+own connection; operator CLI output truthfulness; other batch-limited sweeps; test doubles against
+captured real frames.
 
 ## Lower priority for this reliability-first round
 

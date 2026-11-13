@@ -20,6 +20,10 @@ write, including Stop's, through one function under the status lock.
 Not included: splitting `chat.go` into files for its own sake, changes to the ACP wire, and any
 behavior change.
 
+Check while here, each unverified: `Start` and `Resume` repeat the same spawn and goroutine
+block; `sessionNewParams` and `sessionLoadParams` are near-copies kept in step by convention;
+`ChatRuntime.agents` is keyed by agent id alone, so `Stop` and `lookup` do not check generation.
+
 ## How we will know it works
 
 The TS-01.R44 checks: both Go test variants, focused `-race` runs over cancel, permission, steer,

@@ -24,6 +24,12 @@ connection, transcript window and pagination; the permission card; any visual ch
 Easier after `match-sent-prompts-by-request-id.md`, which settles the id the shared send path
 carries, but not blocked by it.
 
+Check while here, each unverified: the `chuck-recovery-send:{agent}:{request_id}` localStorage key
+is removed only on send or dismiss, not when the recovery is resolved elsewhere;
+`transcriptRequestToken` is never reset on reconnect and `reconciled` is not cleared on stream
+open (`ui/src/api/sse.ts`); the phone reads held state through its own query, so desktop
+held-store fixes do not reach it.
+
 ## How we will know it works
 
 The TS-08.R164 checks: existing desktop and phone input tests against the shared hooks, one shared

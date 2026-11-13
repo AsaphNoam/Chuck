@@ -92,7 +92,7 @@ Also sweep the state-changing calls whose errors are discarded or logged at Debu
 `queued_input.go`, `manager.go` and `task_dispatcher.go`.
 
 The writer inventory for `pipeline_runs` and `tasks` is in
-[HOTSPOT-REVIEW-LEADS-2026-11-13.md](HOTSPOT-REVIEW-LEADS-2026-11-13.md).
+[CR-A10](CORE-RELIABILITY-REVIEW-A10.md).
 
 ## Reuse these proofs before adding any
 
