@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/transcript"
@@ -23,11 +24,28 @@ func forkServer(t *testing.T, env map[string]string) (*Server, string, string, s
 		all[k] = v
 	}
 	srv, ts, src := cloneServer(t, all)
-	for _, text := range []string{"second", "third"} {
+	for i, text := range []string{"second", "third"} {
 		if resp, body := post(t, ts.URL+"/api/sessions/"+src+"/prompt", map[string]string{"text": text}); resp.StatusCode != http.StatusAccepted {
 			t.Fatalf("prompt = %d %s", resp.StatusCode, body)
 		}
 		waitStatus(t, srv, src, "idle")
+		// Idle is persisted before turn_end is appended. Wait for the retained
+		// boundary that the fork endpoint actually needs.
+		want := i + 2
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			events, err := transcript.ReadFile(srv.configStore.Home(), src, transcript.ReadOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rootTurnEnds(events)) == want {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("missing retained turn end %d", want)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 	return srv, ts.URL, src, metaDump
 }

@@ -30,9 +30,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 ## Active change
 
 - **One typed turn outcome** — in progress. Runtime resolution and event readers are integrated.
-  Focused runtime and loopback server checks passed. Full Go suites, the build and focused
-  race checks are running before review handoff.
-  [Change](../ready-changes/one-typed-turn-outcome.md).
+  Focused runtime, race and loopback server checks and the build passed. The fork fixture now
+  waits for the retained turn boundary and passed eight tagged repetitions. Full Go suites are
+  running before review handoff. See FS-03.R117/A92 and TS-01.R42.
 
 ## Acceptance gates still owed
 
