@@ -276,11 +276,12 @@ questions, not findings.
 
 | Unit | Responsibility | Status |
 |---|---|---|
-| [CR-A8](CORE-RELIABILITY-REVIEW-A8.md) | Pipeline pause, answer and recovery ownership: who can end each pause, refused input with no side effect, answers through replacement, stall detection | waiting for review; run first |
+| [CR-A8](CORE-RELIABILITY-REVIEW-A8.md) | Pipeline pause, answer and recovery ownership: who can end each pause, refused input with no side effect, answers through replacement, stall detection | reviewed at `35f33a07`; findings open under [Review findings](#review-findings) |
 | [CR-A9](CORE-RELIABILITY-REVIEW-A9.md) | Think Tank lifecycle and its quota join: fenced member launch, requested Pause/End under quota, restart recovery | waiting for review |
+| [CR-A10](CORE-RELIABILITY-REVIEW-A10.md) | Durable state transitions have one rule: status-writer inventory, unguarded and divergent writers, recommendation for a transition-rule design | waiting for review; run after CR-A8 and CR-A9 |
 
-PIPE-CHAT-1 and -3 sit on CR-A8's contract; CR-A8's result says whether they are fixed alone or
-with its findings.
+CR-A8's result: fix PIPE-CHAT-1 and -3 together with CR-A8-3, -4 and -7 as one input-record
+change. CR-A8-1, -2, -5, -6 and -8 are independent of it and can be fixed first.
 
 ## Investigations awaiting evidence
 
@@ -337,8 +338,8 @@ and its retained run and input metadata did not identify the reported submission
 > /investigate-bug messages sent though the chat to a pipeline orchestrator when it's blocked sometimes disappear, I think chuck treats them like tool calls (as if they came from the pipeline continue/send message box) because when it needed my explicit approval the agent said it came through as a system call through chuck so the approval was rejected. Also I have the Withdraw message box on but empty:Withdrawn, but the message and its attachments could not be loaded. Load withdrawn message (button doesn't do antyhing)
 
 The paused-run chat branch came from `376add97`. The HTTP reproduction reports the answer sent
-without a durable user event; it is committed skipped for the fix. PIPE-CHAT-2 and -4 are fixed;
-1 and 3 wait on CR-A8's result (Review queue).
+without a durable user event; it is committed skipped for the fix. PIPE-CHAT-2 and -4 are fixed.
+CR-A8 reviewed the contract: fix 1 and 3 in one change with CR-A8-3, -4 and -7 below.
 
 - **Must fix** PIPE-CHAT-1 — confirmed, difficult. Sending an answer in the owner's chat during a
   `needs_input` pause or a recoverable blocked visit enters the same continuation branch as the
@@ -360,6 +361,116 @@ without a durable user event; it is committed skipped for the fix. PIPE-CHAT-2 a
   the run has already advanced. Commit the successor and input receipt together before publication.
   Inject a bind failure and race admission/retry against acceptance, verifying that no input is
   lost, misrouted or delivered twice. TS-02.R55, TS-09.R69, INV §5/§15.
+
+### CR-A8 — Pipeline pause, answer and recovery ownership — **Fix model:** difficult — Codex Sol.
+
+Subsystem review of the complete implementation at `35f33a07` ([charter](CORE-RELIABILITY-REVIEW-A8.md)).
+Dirty work at review time was documentation only (this file's CR-A10 queue row and `docs/ideas.md`).
+"Probe" means a throwaway test against the real store and manager, run and then deleted; "source"
+means read and traced, not executed. No product code, test or specification changed. The level is
+set by CR-A8-3, which shares PIPE-CHAT-1's remedy; every other finding is medium or easier.
+
+**Pause ledger.** Run states are `pipeline_runs.state` / `pending_action` / `attention_reason`.
+
+| Pause | Who can end it | Evidence of progress | Gap |
+|---|---|---|---|
+| `paused` / none / `needs_input` | person: run-page answer or owner chat | `TestQuestionPausesAndTheAnswerContinuesTheRun`, `TestConversationAnswerContinuesQuestionPause` | PIPE-CHAT-1, CR-A8-3, CR-A8-4 |
+| `paused` / none, task interrupted (`interrupted`, `owner_not_reporting`, `restart_interrupted`, `owner_unavailable`) | person: Resume, Retry, Replace, owner chat | `TestStalledOwnerIsContinuedThenPaused`, `TestInterruptedOwnerRecoversAutomaticallyWithinTheAllowance` | CR-A8-7 |
+| `paused` / none / `recovery_exhausted`, `required_check_missing`, `approval_required`, or a failed/blocked result | person: Resume or owner chat | `TestRecoveryExhaustionPausesAndResumeRenewsTheAllowance` | CR-A8-3, CR-A8-4 |
+| `paused` / `await_approval` | person, run page only; chat is skipped | `TestApprovalGateHoldsCompletionUntilApproved` | input sent with the API call is dropped (CR-A8-7) |
+| `paused` / retained action / `controller_recovery_failed` | person: Resume | `TestPersistentControllerFailurePausesAndResumes` | a restart destroys it (CR-A8-1) |
+| `paused` / none / `restart_reconcile_failed`, or the room-context refusal text from `createVisit` | nobody but Stop when the current task finished successfully or is an armed successor | none | CR-A8-1 |
+| `finishing` / `release_stage_task`, `stopping` / `cleanup_run`, `paused` / `activate_replacement` | `Reconcile` from turn end, the dispatcher tick and startup; Repair cleanup | `TestStartupRetainsAcceptedStageCursorAfterControllerFailure`, `TestFailedStartupRecoveryRetainsTheStopFence` | startup failure of `activate_replacement` falls into CR-A8-1 |
+| `queued`/`running` with an open visit and a silent owner | stall detector, in memory and event-driven | `TestStalledOwnerIsContinuedThenPaused`, `TestStallCheckDeferredByBackgroundWorkResumesWhenItEnds` | CR-A8-5, CR-A8-6 |
+| `queued`/`running`, owner in `wait_for_tasks` | watched child changes; no deadline | not reviewed here | lead 13 belongs to CR-A2 |
+
+**Input records.** A chat message for a waiting assignment is one `prepared` receipt bound to the
+task, and it follows a replacement (`TestQueuedAttachmentFollowsReplacementOwner`). A chat answer to
+a paused run is a receipt marked `submitted` at bind, its words living only in the new visit's
+instruction. A run-page answer or Resume instruction has no receipt when the visit carries the
+words. Refusal without side effect is proven only for an empty answer on the run page; no test
+covers a refused chat answer.
+
+**Confirmed findings.**
+
+- **Must fix** CR-A8-1 — probe, medium. `Manager.Startup` (`internal/pipeline/manager.go:816-841`)
+  reconciles every run with a pending action and retains the action only for `finishing`. A run
+  already held as `paused` / `release_stage_task` / `controller_recovery_failed` whose cause
+  persists across a restart reaches `pauseStartupRun`, which clears the action. Before the restart
+  Resume retried it; afterwards Continue, Retry and Replace all answer `invalid_state` and the
+  dispatcher lists nothing, with the accepted result unadvanced. By source, not probed, the same
+  Stop-only state follows a startup failure of `activate_replacement` and the room-context pause in
+  `internal/pipeline/decisions.go:206`. `continueControl`
+  (`internal/server/pipeline_projection.go:429`) still offers Continue for all three. Keep the
+  retained action through startup, give every projected pause a legal Continue, and test each
+  pause reason against the manager rather than the projection. TS-09.R42/R43, FS-14.R99/R101,
+  INV §8/§18.
+- **Must fix** CR-A8-2 — probe, medium. `AcceptPipelineStageTaskResult`
+  (`internal/state/pipeline_tasks.go:341-369`) returns `ErrPipelineStageConflict` for a missing
+  required output, an undeclared output name, a wrong execution handle, a pending wait, the stop
+  fence and a revision race. `internal/messaging/task_tools.go:215` reports all of them as
+  `already_reported`, "This task already has a recorded result", and logs nothing. An owner that
+  omits one output is told it is finished, ends its turn, and the run pauses as
+  `owner_not_reporting` after three silent turns. Return a typed refusal per condition naming the
+  correction, log it, and test message against condition. TS-09.R68, INV §21/§22.
+- **Must fix** CR-A8-3 — probe, difficult. `replaceOwner` (`internal/pipeline/actions.go:297`)
+  writes a fixed continuation and `PreparePipelineStageReplacement` moves only `prepared` receipts.
+  An answer or Resume instruction carried by a visit whose owner is replaced before acting, for
+  example a wake that fails for good, reaches the successor in neither its instruction nor a
+  receipt. The successor's text promises the person's messages "follow as their own messages".
+  Same root as PIPE-CHAT-1: the visit instruction is the input's only home. Give accepted run input
+  one durable record that the replacement transaction carries. TS-09.R69/R70, INV §2/§19.
+- **Must fix** CR-A8-4 — source, easy. `continueRunFromConversation`
+  (`internal/server/queued_input.go:117-120`) logs any `ContinueFromOwner` error and reports "not
+  continued", so `handleMessageAction` falls through to ordinary delivery, waking a stopped owner.
+  An answer over the 64,000-character limit, one that loses the revision check to a simultaneous
+  run-page action, or one hit by a store error is delivered as plain chat and shown as sent while
+  the run stays paused. The annotation route (`internal/server/sessions.go:353`) shares it. Return
+  the refusal to the caller before any write; the bind-failure variant stays with PIPE-CHAT-3.
+  FS-14.R100, INV §19/§24.
+- **Must fix** CR-A8-5 — source, medium. `OnStageTaskInterrupted`
+  (`internal/pipeline/manager.go:218-245`) reads the run outside the run lock and returns nil on a
+  lost compare-and-swap; `RecoverStageTask` (`internal/pipeline/decisions.go:257`) returns
+  `(false, nil)`. Unlocked writers of the revision include start confirmation
+  (`BindPipelineStageTaskStandingAgent`), report acceptance and controller-failure records. The
+  loser leaves an interrupted task under a `queued`/`running` run; no sweep covers that pair, and
+  Continue, Retry and Replace all require `paused`. `RecoverStageTask` also pauses without
+  publishing or notifying when its next step errors. INV §18 names this exact shape. Take the lock,
+  re-read and decide again, and add the durable sweep. Occurrence needs an exit racing a revision
+  write; not reproduced. INV §5/§18.
+- **Worth fixing** CR-A8-6 — source, medium. The stall detector (`internal/server/pipeline_stall.go`)
+  counts before the nudge is delivered, logs a refused nudge at Debug and never re-evaluates it,
+  and keeps deferred checks only in memory. Its lifecycle-in-flight and not-yet-idle returns have
+  no later check, and a background-end event racing the tick can count one stall twice. An idle
+  owner with an open visit can stay `running` until a restart. A person's own chat turns do count,
+  which the requirement's wording permits. Drive the check from durable state on the tick.
+  TS-09.R70, INV §18.
+- **Worth fixing** CR-A8-7 — source, easy. Resume instructions on a `controller_recovery_failed`
+  pause, where the run page offers the box, and input sent with an approval are accepted and
+  dropped (`internal/pipeline/actions.go:115-135`). Resume of an interrupted visit binds the
+  receipt before the Resume transaction (`:143-147`); after a failure between them the run-page
+  retry at the same revision hits the receipt's uniqueness and a chat retry reports acceptance
+  with the run still paused. Refuse or carry the first; commit the second with PIPE-CHAT-3.
+  TS-09.R69, INV §15/§19.
+- **Worth fixing** CR-A8-8 — source, easy. `confirmTaskStart` (`internal/server/task_dispatcher.go:516-525`)
+  swallows a standing-agent bind conflict and logs other failures at Debug; nothing rebinds. The
+  run stays `queued`, a dedicated coordinator stays armed, and owner chat is not matched to the
+  run. Queued-input release, delivery-state writes and the retained-action records in
+  `queued_input.go`, `manager.go` and `task_dispatcher.go` discard or Debug-log their errors the
+  same way. Log ownership transitions at Warn and retry the bind from the tick. INV §18/§22.
+
+**Hypotheses, not filed.** Steer skips `admitConversationInput`, and `SteerMessage` claims a turn on
+an idle agent, so a Steer that lands after a turn ended reaches a paused or waiting owner outside
+run control (lead 11). A follow-up held during the reporting turn is sent before the pause commits.
+Released queued input is offered through the recovery card but its release is not logged (lead 12).
+Lead 13 has no wait deadline and belongs to CR-A2. The stall interrupt skipping
+`notifyTaskWaiters` has no effect: nothing can wait on a stage task.
+
+**Invariant sweep.** Findings touch §2, §5, §8, §15, §18, §19, §21, §22 and §24. §7 was checked
+(`ListActivePipelineRuns` skips an unreadable run and continues) with no finding. §1, §3, §4, §6,
+§9–§14, §16, §17, §20 and §23 have no surface in this scope; no test changed. The ready changes
+`one-typed-turn-outcome` and `match-sent-prompts-by-request-id` resolve none of these; the typed
+outcome is the natural input for CR-A8-6.
 
 ## Blocked on human
 
@@ -383,6 +494,11 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-13 — Review:** CR-A8 reviewed at `35f33a07`. Eight findings recorded, five Must fix;
+  three confirmed by throwaway probes (a restart destroying a held controller action, six report
+  refusals answered as `already_reported`, an answer lost on owner replacement). The unit stays
+  open at difficult — Codex Sol. PIPE-CHAT-1 and -3 are fixed with CR-A8-3, -4 and -7.
 
 - **2026-11-13 — Design:** drafted first-chat setup with automatic Claude/Codex readiness and one
   provider action in Settings. Scope confirmation is pending.
