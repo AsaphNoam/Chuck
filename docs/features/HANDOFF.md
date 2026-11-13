@@ -29,12 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-- **Fix CR-A9 — Think Tank lifecycle and quota recovery.** The repair covers room turn boundaries,
-  setup and judge recovery, launch ownership, quota hold cleanup, and pipeline room recovery.
-  The focused state and launch race checks passed, along with the UI suite and build. The final Go
-  completion checks are running. Close the unit once they pass.
-  The built UI passed Chromium recovery at 1024px on an isolated fake-provider server with a seeded
-  judge hold. Keyboard Resume cleared the hold and started synthesis with discussion still ended.
+None.
 
 ## Acceptance gates still owed
 
@@ -484,108 +479,6 @@ Lead 13 has no wait deadline and belongs to CR-A2. The stall interrupt skipping
 `one-typed-turn-outcome` and `match-sent-prompts-by-request-id` resolve none of these; the typed
 outcome is the natural input for CR-A8-6.
 
-### CR-A9 — Think Tank lifecycle and its quota join — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Subsystem review of the complete implementation at `8bcd53ed` ([charter](CORE-RELIABILITY-REVIEW-A9.md)).
-Dirty work at review time was `docs/ideas.md` only. "Probe" means a throwaway test against the real
-store or a test server with the fake adapter's handshake held, run and then deleted; "source" means
-read and traced, not executed. No product code, test or specification changed. The level is set by
-CR-A9-1, -3 and -4, each a bounded change at an existing seam across state, server, UI and tests;
-nothing needs new lifecycle machinery.
-
-**Room ledger.** Progression is `think_tanks.phase` / `control` / `hold` / `judge_status`.
-
-| State | Fence | Stop or Archive of the actor | Quota | Restart | Gap |
-|---|---|---|---|---|---|
-| `setup`, slot `launching` | slot claim transaction and the per-room sweep claim; no agent lifecycle claim | accepted mid-handshake; registration lost, archive reverted | none | slot `failed`, room paused with the restart hold | CR-A9-2, -4, -6 |
-| openings, discussion or closing with a running attempt | admission inside `before(turn)` under the lifecycle claim, by revision or opening eligibility | exit hook fails the attempt, holds, applies Pause/End | attempt failed, hold set, Pause/End not applied | attempt failed, Pause/End applied, room paused | CR-A9-1 |
-| `pause_requested` / `end_requested` | control transaction; applied only when an attempt finishes | as above | stays requested with no attempt | `pause_requested` becomes paused; `end_requested` is left | CR-A9-1 |
-| held (`hold` set) | hold transaction; cleared by Resume, Retry or End | none | quota hold cleared only by an admitted continuation | paused, text kept | CR-A9-2, -5 |
-| `ended`, judge `ready` → `launching` → `starting` → `running` | reservation transaction; launch without lifecycle claim; turn as an attempt | as `setup` and attempt rows | judge back to `starting` plus hold | `launching` becomes `failed`; nothing else on an ended room | CR-A9-3, -4 |
-| `ended`, judge `completed`, pipeline room | finalize transaction; acceptance by compare-and-swap, swept | none | none | sweep re-accepts | CR-A9-7, -8 |
-| deleted | delete transaction refuses an active attempt, a launching slot or judge and a pinned run | none | the route cancels the room's intents | none | none found |
-
-**Confirmed findings.**
-
-- **Must fix** CR-A9-1 — probe, medium. End requested during a turn that then hits quota strands
-  the room. `ObserveOwnedQuota` (`internal/state/quota_owners.go:49-71`) fails the attempt and sets
-  the hold without `applyThinkTankBoundaryTx`, and the turn-end hook returns before
-  `finishThinkTankTurn` for a quota stop (`internal/server/server.go:490-493`). The room stays
-  `discussion` / `end_requested` / "Quota reached" with no attempt. End and Pause change nothing,
-  and End's 200 cancels the quota intent; Resume and Retry turn answer "discussion is ending";
-  Delete refuses; `RecoverThinkTanks` converts only `running` and `pause_requested`; the
-  continuation is refused as under operator control. The page hides End and offers a Resume that
-  errors. With Pause the room stays `pause_requested` and Keep going or End recover it. Apply the
-  boundary in the quota branch, settle the intent of a room that ends, and convert an
-  `end_requested` room with no attempt at startup. Test End and Pause before the quota observation,
-  not after. FS-21.R18/R32, TS-14.R13, TS-10.R42, INV §18.
-- **Must fix** CR-A9-2 — probe, easy. Resume on a setup room with a failed slot leaves it stuck and
-  spins the sweep. A restart during a participant launch marks the slot `failed` and holds
-  "Chuck restarted; resume to continue." Resume clears the hold and keeps the slot failed. Retry
-  launch needs a hold (`ui/src/features/thinktank/ThinkTankPage.tsx:357`), so the page reads
-  "Starting new participants." with Pause and End only. `launchThinkTankSetup`
-  (`internal/server/think_tanks.go:347-374`) kicks the loop after every pass, including one that
-  launched nothing: 9,101 passes in 500 ms. The same loop follows a `MarkThinkTankMemberSetup`
-  failure after a launch, which is logged at Debug and leaves the slot `launching` until restart
-  (lead 9). Keep or derive the setup hold while a slot is failed, kick only after a launch, and log
-  the mark failures at Warn. FS-21.R37, TS-14.R2, INV §16/§18/§22.
-- **Must fix** CR-A9-3 — probe for the state, source for the page, medium. A hold on an ended room
-  blocks the judge and cannot be seen or cleared. `NextThinkTankOpportunity` offers no judge turn
-  while `hold` is set. An ended room gets one from a setup launch that fails after End
-  (`MarkThinkTankMemberSetup` has no phase check; probed with the judge launched and left
-  `starting`), from a judge turn's quota stop whose intent is cancelled, held or exhausted, and from
-  "The judge cannot start: …" in `startThinkTankOpportunity`. `roomText.ts:88-92` and the room card
-  return the ended text before the hold, the Resume button requires `!ended`
-  (`ThinkTankPage.tsx:363`), and Retry synthesis needs `failed`. The page reads "Starting the judge
-  for a final synthesis." indefinitely; Delete is the only control, though the Resume route would
-  clear it. Do not hold an ended room for a setup slot, and show a judge hold with a working
-  recovery. FS-21.R32/R36, TS-14.R13, INV §8/§18.
-- **Must fix** CR-A9-4 — probe, medium. Room member and judge launches hold no lifecycle claim
-  (leads 1–3). `launchReservedThinkTankAgent` (`internal/server/think_tanks.go:437`) calls
-  `launchAgent` directly; manual launch, Clone and the task dispatcher hold the claim. With the
-  handshake held, Stop answered 200; afterwards the agent was live and idle with an empty registry
-  generation and no hook token, the slot was `ready`, and every sweep failed admission at Debug
-  with no attempt, hold or notice. Archive answered 200, lost the registration the same way and was
-  reverted by the launch's second `WriteAgent`. By source, shutdown does not wait for this launch.
-  Launch through `launchClaimed`, and hold the room when admission fails for a lasting reason. Keep
-  the probes as tests beside `TestStopDuringLaunchHandshakeKeepsRegistration`.
-  TS-01.R16/R41, TS-14.R2, INV §2/§4/§5/§23.
-- **Worth fixing** CR-A9-5 — probe, easy. "Quota reached" outlives its intent. Only `CompleteQuota`
-  and an admitted continuation release the hold. `ResolveQuota`, `CancelQuotaSnapshots` (Send,
-  Steer, Stop or Archive on the agent) and `CancelPendingQuotas` leave it, and
-  `ReleaseQuotaRoomHold` has no production caller. The room shows a quota hold with nothing
-  scheduled, a restart turns it into a pause with the same text, and Resume clears it. Release
-  through `releaseQuotaRoomHoldTx` in those transactions and remove the unused export.
-  TS-10.R52, FS-01.R43, INV §10/§20.
-- **Worth fixing** CR-A9-6 — source, easy. `launchReservedThinkTankAgent`
-  (`internal/server/think_tanks.go:425-427`) treats an existing agent row as a finished launch, but
-  `launchAgent` writes that row before the process starts. After a crash in that window Retry
-  launch marks the slot `ready` unlaunched; its first turn holds "has no saved session to resume.
-  Resume it manually", which cannot work, leaving End. Require a session or running row, otherwise
-  relaunch under the reserved id. Not reproduced. TS-14.R2, FS-21.R37, INV §24.
-- **Worth fixing** CR-A9-7 — source, easy. `RecoverThinkTanks` publishes nothing and
-  `SyncRoomPhase` runs only from `publishThinkTankUpdate`; `Manager.Startup` does not call it. A
-  pipeline room held by restart leaves its run `running` with no attention until the next room
-  event. Sync open room stages at startup. TS-09.R55, TS-10.R38, INV §1/§18.
-- **Worth fixing** CR-A9-8 — probe, trivial. `ClosePipelineThinkTank`
-  (`internal/state/think_tanks.go:1426-1448`) re-runs the end transition on a room that already
-  ended: `nothing_further` became `pipeline_stopped` and `ended_at` moved three hours. Skip the end
-  transition for an ended room and keep its original reason and time. FS-21.R32/R42, INV §15.
-
-**Hypotheses, not filed.** An unreadable judge configuration is retried every sweep at Debug, but
-nothing in normal use corrupts it (lead 14). Rename takes no claim: in the room launch window it
-answered 200 and was overwritten, and the same holds for manual launch and any whole-row agent
-write, which belongs to CR-A10 (lead 12). Hold writes that fail are retried by the next sweep. A
-quota-stopped turn leaves its in-memory capture entry until that agent's next attempt.
-
-**Not a defect, for a product decision.** Every hold on an open room shows on its card and page;
-none sends a notification (lead 11). **Live-provider evidence owed:** a real quota stop of a room
-turn with End requested, behind the existing FS-01.A28 gate.
-
-**Invariant sweep.** Findings touch §1, §2, §4, §5, §8, §10, §15, §16, §18, §20, §22, §23 and §24.
-§7 (room listing skips an unreadable room) and §19 (a message to a stranded room is stored and stays pending) were checked with no finding.
-§3, §6, §9, §11–§14, §17 and §21 have no surface in this scope; no test changed.
-
 ## Blocked on human
 
 - **First chat setup:** review the planned flow in [Ideas being defined](../ideas.md#ideas-being-defined).
@@ -608,6 +501,16 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-13 — Fix:** closed CR-A9-1–8 at `0da7c581`. Quota stops settle requested Pause or
+  End at the room boundary, and settled quota intents release their room hold (INV §10/§15/§18/§20).
+  Setup failures retain Retry launch without spinning, and ended rooms expose judge holds and Resume
+  (INV §8/§16/§18/§22). Reserved launches use the lifecycle claim and retry incomplete identities
+  (INV §2/§4/§5/§23/§24). Startup projects recovered rooms to their runs and pipeline Stop preserves
+  an existing room end record (INV §1/§15/§18). Both Go variants, the Go build, focused race checks,
+  the UI build and 1,261 UI tests passed. In Chromium at 1024px, keyboard Resume cleared a seeded
+  hold and started the fake-provider judge while the discussion stayed ended. The live quota gate
+  remains above. CR-A8 and its linked PIPE-CHAT findings remain open.
 
 - **2026-11-13 — Review:** CR-A9 reviewed at `8bcd53ed`. Eight findings recorded, four Must fix,
   six confirmed by throwaway probes: End requested before a quota stop strands a room for good,
