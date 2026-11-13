@@ -121,6 +121,12 @@ person's provider credentials or Chuck configuration.
   sessions. Rollback to a pre-policy binary restores that binary's old selection behavior and must
   be disclosed. Existing configs lacking mode adopt Installed without rewriting user state.
 
+- **R27** `(planned)` — The interactive installer opens Chuck directly after successful fresh
+  installation under R6. First provider setup happens in the dashboard under FS-04.R62–R64. The
+  installer does not stop for a Claude-only readiness or sign-in prompt. The existing explicit
+  `chuck auth` commands remain available. Non-interactive and `--no-start` installs keep R6's
+  startup behavior. This replaces the interactive installer sign-in path in R23.
+
 ## 3. States & transitions
 
 - **R10** — A release runtime is either absent, staged, current, previous, or retained.
@@ -203,6 +209,10 @@ person's provider credentials or Chuck configuration.
   user data survive update/rollback unchanged. Old immutable release directories are not patched.
   *Verify by* installed-version transition tests and documentation review that distinguishes
   application rollback from provider/session rollback and pre-policy selection behavior.
+
+- **A15** `(planned)` (R27, FS-04.A41) — On a fresh interactive install with only Codex signed in,
+  the installer opens the dashboard without a Claude sign-in prompt. Start a Codex chat directly
+  from first-run setup. *Verify:* release installer fixture and packaged onboarding journey.
 
 ## 6. Deviations & open decisions
 

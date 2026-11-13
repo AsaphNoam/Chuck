@@ -394,6 +394,24 @@ Configuration-source federation for Claude/Codex is FS-08.
   Closing/opening the disclosure does not start a runtime, a read or a provider turn. Use the
   current header's type/spacing/semantic colors and no new motion, theme or preference.
 
+### One provider action in Settings
+
+- **R84** `(planned)` — A Claude or Codex backend in Settings has one primary provider action.
+  With unchanged provider settings, **Refresh provider** checks the current saved provider and
+  imports newly configured models if autosync is enabled. An unrelated dirty backend cannot
+  disable it. With edits to that backend, **Save & check** applies only that backend's valid
+  changes and checks the provider they select, without a separate save click. Any catalog-wide
+  edit that needs a coordinated change, such as transferring the default between backends, is
+  handled through the existing catalog editor. Both actions show progress and report which
+  settings were saved, what was checked and the actionable result. If a save fails, the draft and
+  prior saved settings survive. If the check fails after saving, the result identifies the saved
+  state and how to retry. No result claims to verify newer edits. Other backends' unsaved edits
+  survive, and stale writes cannot overwrite newer saved settings. Source, executable, model,
+  environment and native configuration management remain available in **Advanced**. A result
+  that needs one of those controls offers a direct path to it. This replaces R72's save-first
+  restriction in Settings. The New Agent refresh behavior and existing API operations remain
+  available. Saved changes apply on subsequent starts under R75.
+
 ## 3. States & transitions
 
 - **R20** — Saving Settings transitions the submitted catalog through validation → deterministic
@@ -817,6 +835,13 @@ Configuration-source federation for Claude/Codex is FS-08.
   read each matches the provider's own usage display for window identity, percentage and reset
   instant. *Verify:* contract tests of each packaged adapter's read against the pinned bundle,
   runtime/API/projection tests, the A49 desktop/phone browser journey, and the two live receipts.
+
+- **A53** `(planned)` (R84) — In Settings, edit Claude while refreshing saved Codex. Then change
+  Codex's executable choice and use **Save & check**. Verify the check uses the submitted choice
+  and the Claude draft survives. Exercise validation failure, a check failure after saving, a
+  late response after another edit, and a stale save from a second window. The result names the
+  affected provider, reports what was saved and provides the relevant repair action. *Verify:*
+  server concurrency and failure tests and a rendered keyboard Settings journey.
 
 ## 6. Deviations & open decisions
 

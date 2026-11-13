@@ -1,6 +1,6 @@
 # FS-04 — Configuration & Onboarding
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/config/`, `internal/server/config_handlers.go`, `internal/server/directory_picker.go`, `ui/src/features/settings/`, `ui/src/features/onboarding/` · **Journeys:** J2, J9
 **Absorbed:** [`phase-3-config-onboarding.md`](../../archive/phases/phase-3-config-onboarding.md)
 
@@ -416,6 +416,48 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   repair credentials that are fine. Codex retains OpenAI API-key configuration as an alternative to
   native sign-in; it is not required for a successfully signed-in Codex CLI.
 
+- **R62** `(planned)` — On first dashboard use with fresh Chuck configuration, Chuck discovers
+  and checks the seeded Claude and Codex backends independently using the executable, native
+  sign-in or applicable configured API-key route that each will use for a new chat. Setup reports
+  each provider's outcome as it arrives. As soon as a provider is ready, the person can proceed
+  to their first chat, even while the other provider is checking or needs repair. The chat uses
+  the configured default if it is ready and known when the form opens, otherwise it preselects a
+  known-ready provider. The person can select either ready provider, and a late result never
+  replaces the selection. Discovery creates no extra backend and requires no settings save.
+  Launch sends the chosen backend explicitly. Completing the first chat setup makes that
+  provider the default for new agents if the catalog still has its original seeded default
+  and no user-selected default. The form says when the selection will become the default.
+  The ordinary backend catalog reports that saved default to API clients. Completed setups
+  and existing saved choices retain their current behavior. This replaces R17 and R21's
+  default-only gate for fresh Claude/Codex setup. Other backend types retain their explicit
+  setup path.
+
+- **R63** `(planned)` — First-run recovery distinguishes a missing executable, an incompatible
+  installation, sign-in needed, and a check that could not complete. Each offers the relevant
+  next action. For a missing installed CLI, offer **Use Chuck bundle** when available and retain
+  official install guidance. Choosing the bundle saves the provider choice in Chuck's backend
+  configuration and checks that provider in the same action. For sign-in needed, show the
+  existing provider-specific sign-in instructions and **Check again**. Checking never opens a
+  login flow or sends a model prompt. A failed check is retryable without losing input or blocking
+  a ready provider. **Set up later** remains available under R32.
+
+- **R64** `(planned)` — With a ready backend, show one **Start chat** form with the selected
+  provider and project. Use a configured, launchable project when available, otherwise ask the
+  person to pick a folder before starting. An unusable seeded path does not qualify as a ready
+  project. Opening the form creates no project or chat. The person's explicit **Start chat**
+  creates the selected project when needed and opens the new chat using the ordinary launch
+  defaults. Preserve the folder and provider on failure, and resume from the last successful
+  step without duplicating the project or chat. Completion uses the existing Chuck configuration
+  flag and prevents a future setup gate. The form adds no required federation step. Explicit
+  native configuration linking remains available under FS-08.R34 without being a prerequisite
+  to the first chat. This replaces the fresh Claude/Codex wizard sequence in R18–R20 and R32.
+
+- **R65** `(planned)` — The **Add backend** dialog has one primary **Add backend** action. Pick a
+  provider and accept or edit its suggested name. For Claude and Codex, an optional unchecked
+  **Use my native configuration** choice invokes the existing R40/FS-08.R34 connection in that
+  action. The dialog identifies the native-setup read before submission. Creation and linking
+  failures retain R40's distinct recovery states. This replaces R40's alternate submit action.
+
 ## 5. Acceptance criteria
 
 - **A1.** Role create/edit/delete round-trips through the API preserving all fields including
@@ -613,6 +655,33 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   `skip_permissions` is true and all five seeded personas inherit it. Set the saved global policy
   and a persona override to false, seed again, and verify both choices survive. *Verify:*
   `TestSeedIfAbsentNoClobber`, with `TestResolveSkip` retaining role-over-global precedence.
+
+- **A41** `(planned)` (R62–R64) — Open packaged Chuck with a fresh home and just Claude ready,
+  then repeat with just Codex ready. Get to the first chat by choosing a folder and starting it.
+  The ready provider is used without a settings visit, credential entry or federation step, and
+  it remains usable while the other provider is slow or unavailable. With both ready, either can
+  start the chat. A late result never replaces an existing selection. After a Codex-only first
+  chat, opening New Agent preselects Codex. A concurrently set user default is preserved.
+  *Verify:* deterministic server and rendered onboarding journeys, plus one clean-home packaged
+  first chat per provider using an existing native sign-in.
+
+- **A42** `(planned)` (R62–R64) — With neither provider ready, distinguish missing CLI, missing
+  sign-in and unavailable checks. Use an available bundle or complete sign-in externally and
+  retry the affected provider without losing setup progress. A source build without a bundle
+  offers install guidance. **Set up later** still opens the dashboard. Existing configured homes
+  keep their saved choices. *Verify:* server and rendered recovery journeys and a packaged
+  missing-CLI bundle check.
+
+- **A43** `(planned)` (R64) — A seeded project with a missing folder cannot satisfy first-chat
+  setup. Choose a real folder by keyboard, then exercise launch failure and a completion-write
+  failure after launch. Retrying retains the choice and creates at most one project and one
+  chat. Reloading after successful completion opens the dashboard without the wizard. *Verify:*
+  rendered journey and server/API failure and retry coverage.
+
+- **A44** `(planned)` (R65) — Add a Claude or Codex backend from Settings with one submit, first
+  with the ordinary starter and then with the explicit native configuration choice. Verify a
+  failed link leaves the created backend saved and offers a retry. Unrelated unsaved edits survive
+  both paths. *Verify:* rendered Settings journey and existing create API contract coverage.
 
 ## 6. Deviations & open decisions
 

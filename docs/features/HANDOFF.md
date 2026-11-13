@@ -332,6 +332,11 @@ without a durable user event; it is committed skipped for the fix. PIPE-CHAT-2 a
 
 ## Blocked on human
 
+- **First chat setup:** review the planned flow in [Ideas being defined](../ideas.md#ideas-being-defined).
+  Confirm whether missing installed CLIs should require one click to use the Chuck bundle and
+  whether native configuration linking should remain explicit. The feature draft is in FS-04.R62–R65,
+  FS-09.R84 and FS-10.R27. Technical design follows scope confirmation.
+
 - **File reader full UI closure:** permission requested through the asynchronous question to
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
   The four requested product changes are committed and independently reviewable. No unrelated
@@ -347,6 +352,9 @@ Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
+
+- **2026-11-13 — Design:** drafted first-chat setup with automatic Claude/Codex readiness and one
+  provider action in Settings. Scope confirmation is pending.
 
 - **2026-11-13 — Fix:** closed PIPE-CHAT-2 and -4; PIPE-CHAT-1 and -3 stay open on CR-A8, so
   the unit stays open. A failed prompt read (e.g. hydrating a stopped chat) no longer claims a

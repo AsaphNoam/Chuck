@@ -33,6 +33,12 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Make Claude and Codex ready on first launch.** Requested 2026-11-13. Detect both providers and
+  reuse native sign-in so first-run setup leads straight to a first chat when either is ready. Give
+  each backend one primary Settings action that can check current edits in the same click. Feature
+  draft in FS-04, FS-09 and FS-10. Confirm the missing-CLI bundle choice and the boundary between
+  automatic readiness and optional native configuration linking before technical design.
+
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;
