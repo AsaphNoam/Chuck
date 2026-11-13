@@ -1,6 +1,6 @@
 # TS-08 — Frontend presentation architecture
 
-**Status:** Current
+**Status:** Partial
 **Code:** `ui/src`, `ui/package.json`, `ui/vite.config.ts`
 **Absorbed:** —
 
@@ -2200,6 +2200,26 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   dashboard chat pane; `PointerContextMenu` items gained `disabled` and an accessible description.
   The quota disclosure is a native `<details>` with a `<meter>` per known window, rendered in
   the presentation fixture; the rendered fork-action journey is still owed.
+- **R163 (planned) — Local prompt echo reconciles by request id.** For FS-03.R118 the transcript
+  store pairs an unsequenced local `user_text` with its sequenced event by comparing the echo's
+  `message_id` to the event's `request_id`, in both arrival orders and in the reconciliation tail.
+  The composer's already-delivered check and the held-message clear use the same id. Text equality
+  remains only for a sequenced event without `request_id`, bounded as today by the enclosing turn
+  and, for a held message, by its accepted sequence. No new wire field or stored data is added.
+  *Why:* text matching is ambiguous for repeated prompts and was correct for one arrival order
+  only (INV §19). *Verify:* store tests for both arrival orders, repeated identical text and the
+  no-id fallback, with fixtures built by the real client serializer (INV §17).
+- **R164 (planned) — Desktop and phone share one input-delivery implementation.** Send, Steer,
+  retry of an uncertain or failed send, attachment-send completion, withdraw and the recovery
+  offer are implemented once, in shared hooks and one recovery-offer component under
+  `ui/src/components/chat`, and used by both the desktop composer and transcript and the phone
+  agent screen. Each client supplies only its own projection of agent and held state (the desktop
+  stores, the phone connection) and its own layout. The phone continues to show a sent prompt only
+  from its sequenced event; it gains no local echo. Neither client's behavior changes. *Why:* the
+  phone re-implemented these paths and each copy has needed its own fixes (INV §2). *Verify:* the
+  existing desktop and phone input tests pass against the shared hooks; one shared test suite
+  covers accepted, held, queued, uncertain and refused outcomes for both projections; the phone
+  render harness checks the composer and recovery offer at phone width (INV §13).
 
 ## 3. Interfaces & data shapes
 

@@ -1156,6 +1156,17 @@ when accepted by HTTP but an id-less repeat is still a new command.
   Initial limits are 10 files, 10 MiB per file, 25 MiB aggregate per message, and 40 megapixels per
   preview image. PNG/JPEG/WebP/GIF have native previews; other formats remain ordinary uploaded
   files without native preview. Provider/model limits may be stricter and are reported honestly.
+- **R117 (planned) — A turn ends one way everywhere.** However a turn ends — completed, cancelled,
+  failed, refused for quota, or cut off by the process ending — the agent's status, the
+  transcript's turn end, quota continuation, inline-mail read state and notifications all reflect
+  that same ending. No surface reports a failed or cancelled turn as completed. The `turn_end`
+  event and stored transcripts keep their existing `stop_reason` values.
+- **R118 (planned) — A sent prompt appears exactly once.** The bubble R7 shows for a sent prompt
+  and the sequenced `user_text` event for that prompt are the same message whenever both carry the
+  prompt's `request_id`, whichever arrives first. Sending identical text twice in one turn shows
+  two messages. A queued follow-up leaves the R48 tail only when the event carrying its own
+  `request_id` arrives. Matching by text applies only to a sequenced event that has no
+  `request_id`.
 
 ## 5. Acceptance criteria
 
@@ -1793,6 +1804,14 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
   match their pre-acceptance state. Redo and check the same result and trailing space return.
   Verify only the visible draft persists across reload and no edit sends a prompt. *Verify:*
   composer integration tests and the rendered keyboard and pointer journey.
+- **A92** (R117) — End a turn each way: normal completion, Cancel racing completion, a provider
+  failure carried inside a successful result, a quota refusal, a failed prompt call and a process
+  exit mid-turn. For each, the status, the `turn_end`, quota settlement and inline-mail read state
+  agree. *Verify:* runtime and server integration tests driven from one emitted event per case.
+- **A93** (R118) — Send a prompt with the sequenced event arriving before the response and after
+  it; send the same text twice in one turn; queue a follow-up whose text equals an earlier prompt.
+  Each prompt renders once and the queued tail clears only for its own delivery. *Verify:*
+  transcript store and composer tests using the real client serializer for both arrival orders.
 
 ## 6. Deviations & open decisions
 

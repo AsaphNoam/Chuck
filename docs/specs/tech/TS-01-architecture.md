@@ -624,6 +624,46 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
 (`terminal_unavailable`); external views are polled with `ClassifyProcess` at `exitPollInterval`
 (1 s) and Cancel/Stop re-prove them first. The bootstrap lives in
 `internal/runtime/terminal/bootstrap.go`; `cli.Execute` dispatches it before cobra.
+- **R42 (planned) — A turn has one typed outcome, produced once.** `internal/runtime` resolves each
+  turn's end into one typed value (completed, cancelled, failed, quota-blocked, provider-truncated,
+  process-ended) in a single function. Normal prompt completion, a failed `session/prompt` call and
+  a closed transport all call it; none builds its own stop reason or synthesizes a provider result
+  to reach it. Status, quota settlement, inline-mail settlement and the emitted `turn_end` read
+  that value and never re-read the raw prompt result. Outside the runtime, one exported decoder
+  turns a `turn_end` event into the same value; Think Tank attempt settlement, the quota notice,
+  fork points, the switch primer, reconciliation and transcript projection use it instead of
+  comparing `stop_reason`. The serialized `stop_reason` vocabulary and stored transcripts are
+  unchanged, and an event written before this change decodes to the same outcome it had.
+  *Why:* three producers and about a dozen string comparisons let one turn read as successful to
+  one consumer and failed to another (INV §20). *Verify:* table tests of the resolver over
+  completion, cancellation racing completion, failure inside a successful result, quota refusal,
+  RPC error and transport close; one test per consumer driven from the same emitted event; a
+  source scan that fails on a `stop_reason` comparison outside the resolver and decoder (INV §17).
+- **R43 (planned) — One resume start step and one teardown, including Switch.** Explicit resume,
+  every wake, the Switch target start and the Switch rollback start share one step that composes
+  the resume spec, starts the runtime, persists what the runtime reported, and on any failure
+  after registration calls `teardownAgentRegistration`. Switch keeps its own ordering around that
+  step (validate, stop the old runtime, remove the old registration, start the target, roll back),
+  but removes the old registration and the failed target's registration through
+  `teardownAgentRegistration` rather than a partial hand-written subset, and stops a target
+  process that already started before rolling back. The launch and resume composers route their
+  own partial-registration failures through the same function. API results, `history_handoff` and
+  rollback outcomes are unchanged. *Why:* Switch and the composers are the remaining hand-written
+  copies of a sequence INV §2 and §4 already require to be shared. *Verify:* the existing launch,
+  resume and switch suites including `TestSwitchRuntimeKeepsTargetRegistration`; a failure
+  injected at each branch after registration leaves no token, MCP session, hook-settings file or
+  second process, for launch, resume, Switch target and Switch rollback alike.
+- **R44 (planned) — Current-turn state has one owner and status has one writer.** After R42, the
+  fields that describe the turn in progress (identity, active and cancelled markers, per-turn
+  failure and quota evidence, pending permissions, tool tracking, the held and steer-fallback
+  messages) live in one turn structure of `agentState` guarded by one lock, with the lock order
+  against the remaining `agentState` locks written beside their declarations. Every agent status
+  write, including Stop's final `done`, goes through one function that holds the status lock for
+  the whole read-modify-write. Behavior is unchanged. *Why:* about eighty loosely guarded fields
+  and a Stop that writes outside the status lock make each new turn feature a fresh race (INV §5,
+  §23). *Verify:* both Go test variants and focused `-race` runs over cancel, permission, steer,
+  held-message and Stop-during-turn interleavings; a test that a status write racing Stop cannot
+  leave a state other than `done`.
 
 ## 3. Interfaces & data shapes
 

@@ -81,6 +81,17 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
   complete 5-hour/Weekly quota per backend through a typed adapter read, Edit and Fork from here
   at a turn boundary, and snapshot-informed quota recovery with the current behavior as fallback.
 
+- [`one-typed-turn-outcome.md`](one-typed-turn-outcome.md) — decide each turn's ending once in the
+  runtime and have status, quota, mail and server consumers read that one value.
+- [`match-sent-prompts-by-request-id.md`](match-sent-prompts-by-request-id.md) — pair a sent
+  prompt's local echo and queued tail with its server event by request id instead of text.
+- [`share-desktop-and-phone-input-delivery.md`](share-desktop-and-phone-input-delivery.md) — one
+  Send/Steer/retry/withdraw/recovery implementation for desktop chat and the phone.
+- [`share-resume-start-and-teardown-in-switch.md`](share-resume-start-and-teardown-in-switch.md) —
+  one resume start step and one teardown for resume, wakes and Switch, including rollback.
+- [`single-owner-turn-state.md`](single-owner-turn-state.md) — one turn structure, one lock and
+  one status writer in the runtime; starts after the typed turn outcome.
+
 ## Paused changes
 
 - [`running-background-work-indicator.md`](running-background-work-indicator.md) — replace the

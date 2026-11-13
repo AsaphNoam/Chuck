@@ -389,6 +389,16 @@ Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
 
 ## Changelog
 
+- **2026-11-13 — Design:** five single-owner refactors from a review of 60 days of invariant
+  evidence and fix history are waiting to start as separate ready changes: typed turn outcome
+  (FS-03.R117/A92, TS-01.R42), request-id prompt echo (FS-03.R118/A93, TS-08.R163), shared
+  desktop/phone input delivery (TS-08.R164), shared resume start and teardown in Switch
+  (TS-01.R43), single-owner turn state (TS-01.R44, after R42). All planned; TS-08 is now Partial.
+  Operator decisions: five changes not one; the phone gains no local echo; delivery records for
+  the launch assignment prompt and stall nudge are out of scope. No product code changed.
+  `make check-specs`, twin-skill comparison and `git diff --check` pass. Not traced: whether the
+  Think Tank launch path holds a lifecycle claim.
+
 - **2026-11-12 — Fix:** closed the QUOTA-FORK review (QUOTA-FORK-1–7; INV
   §2/§5/§7/§8/§10/§11/§16/§17). One Go decoder reads the SDK's Claude usage shape
   (`model_scoped` array, unknown members); an undecodable success is a failed read keeping
