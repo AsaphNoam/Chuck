@@ -29,7 +29,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+- **Fix CR-A9 — Think Tank lifecycle and quota recovery.** The repair covers room turn boundaries,
+  setup and judge recovery, launch ownership, quota hold cleanup, and pipeline room recovery.
+  The focused state and launch race checks passed, along with the UI suite and build. The final Go
+  completion checks are running. Close the unit once they pass.
+  The built UI passed Chromium recovery at 1024px on an isolated fake-provider server with a seeded
+  judge hold. Keyboard Resume cleared the hold and started synthesis with discussion still ended.
 
 ## Acceptance gates still owed
 
@@ -187,7 +192,8 @@ None.
   real reset text/`_claude/rateLimit` wire, actual continuation, and isolated checks proving
   same account/model, Claude non-persistence, Codex `/rename` + archive, the dotted
   `CODEX_CONFIG` `mcp_servers.<name>.enabled:false` overlay and no auto-title turn. Parsers follow
-  pinned formatter source; fake-provider/browser proof is not live delivery evidence.
+  pinned formatter source; fake-provider/browser proof is not live delivery evidence. Include a
+  Think Tank turn that reaches quota after the operator requests End.
 - **FS-14.A50 / FS-21.A31:** bounded packaged Claude/Codex Think Tank stage probe (start → fresh
   participants → judge → accepted output → next stage). Fake-provider E2E and the 318-check render
   pass are not live receipts. **FS-14.A49** restart/race matrix and **FS-21.A32** live Stop-cancel

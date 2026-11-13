@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -791,6 +792,24 @@ func TestThinkTankJudgeLifecycle(t *testing.T) {
 
 // FS-21.A27, A30: restart fences a running attempt and holds the room;
 // deletion is refused while a turn is active.
+func TestCloseEndedPipelineThinkTankPreservesDiscussionEnd(t *testing.T) {
+	st, _ := newTestStore(t)
+	d := ttCreate(t, st, false, ttMember("a", 2), ttMember("b", 2))
+	endedAt := timeNow().UTC().Add(-3 * time.Hour).Truncate(time.Second)
+	if _, err := st.DB().Exec(`UPDATE think_tanks SET pipeline_run_id='run', phase=?, end_reason=?, ended_at=?, judge_status=? WHERE room_id=?`,
+		ThinkTankPhaseEnded, ThinkTankEndOperator, formatTime(endedAt), ThinkTankJudgeReady, d.Room.RoomID); err != nil {
+		t.Fatal(err)
+	}
+	closed, err := st.ClosePipelineThinkTank(d.Room.RoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := closed.Room
+	if r.EndReason != ThinkTankEndOperator || r.EndedAt == nil || !r.EndedAt.Equal(endedAt) || r.JudgeStatus != ThinkTankJudgeNone {
+		t.Fatalf("pipeline stop changed the discussion end or left synthesis ready: %+v", r)
+	}
+}
+
 func TestThinkTankRecoveryAndDeletionGuard(t *testing.T) {
 	st, _ := newTestStore(t)
 	room := ttCreate(t, st, false, ttMember("a", 2), ttMember("b", 2)).Room.RoomID
@@ -833,6 +852,10 @@ func TestThinkTankSetupSlots(t *testing.T) {
 	d, err := st.MarkThinkTankMemberSetup(d.Room.RoomID, "n", "", "launch failed")
 	if err != nil || d.Room.Hold == "" || d.Room.Phase != ThinkTankPhaseSetup {
 		t.Fatalf("failed slot: %+v %v", d.Room, err)
+	}
+	d, err = st.ResumeThinkTank(d.Room.RoomID)
+	if err != nil || d.Room.Hold == "" {
+		t.Fatalf("resume must retain failed setup hold: %+v %v", d.Room, err)
 	}
 	d, _ = st.RetryThinkTankSetup(d.Room.RoomID)
 	d, err = st.MarkThinkTankMemberSetup(d.Room.RoomID, "n", "Nova", "")

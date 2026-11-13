@@ -150,6 +150,15 @@ func (s *Store) CancelQuotaSnapshots(snapshots []QuotaControlSnapshot) ([]string
 		}
 		if ok {
 			changed = append(changed, snapshot.AgentID)
+			q, err := scanQuota(tx.QueryRow(quotaSelect+` WHERE agent_id=?`, snapshot.AgentID))
+			if err != nil {
+				return nil, err
+			}
+			if q.Owner.Kind == "room" {
+				if err := releaseQuotaRoomHoldTx(tx, q.Owner.RoomID); err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {

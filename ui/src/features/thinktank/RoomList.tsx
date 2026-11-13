@@ -78,6 +78,7 @@ type Tone = "active" | "attention" | "paused" | "ended" | "waiting";
 function cardStatus(room: ThinkTankSummary): { tone: Tone; text: string } {
   const name = (id: string) => room.roster.find((m) => m.agent_id === id)?.name ?? "A participant";
   if (room.phase === "ended") {
+    if (room.hold) return { tone: "attention", text: room.hold };
     return { tone: room.judge_status === "failed" ? "attention" : "ended", text: endReasonText(room.end_reason) || "Discussion ended." };
   }
   if (room.hold) return { tone: "attention", text: room.hold };

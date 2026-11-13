@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+func releaseQuotaRoomHoldForTest(st *Store, roomID string) error {
+	tx, err := st.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := releaseQuotaRoomHoldTx(tx, roomID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func quotaRoomBegin(t *testing.T, st *Store, room string, d ThinkTankDetail, agent, turn string) (ThinkTankAttempt, string) {
 	t.Helper()
 	ttTurnSeq++
@@ -89,6 +101,92 @@ func quotaRoomSetup(t *testing.T, st *Store, phase string) (ThinkTankDetail, Thi
 		}
 	}
 	return d, a, before
+}
+
+func TestQuotaSettlesRequestedRoomBoundary(t *testing.T) {
+	for _, action := range []string{"pause", "end"} {
+		t.Run(action, func(t *testing.T) {
+			st, _ := newTestStore(t)
+			d, a, _ := quotaRoomSetup(t, st, ThinkTankTurnDiscussion)
+			var err error
+			if action == "pause" {
+				_, err = st.PauseThinkTank(d.Room.RoomID)
+			} else {
+				_, err = st.EndThinkTank(d.Room.RoomID)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := timeNow().UTC().Truncate(time.Second)
+			reset := now.Add(time.Minute)
+			due := reset.Add(time.Minute)
+			_, err = st.ObserveOwnedQuota(QuotaObservation{AgentID: a.AgentID, EpisodeID: "boundary-quota", SourceGeneration: a.Generation, ExecutingTurn: a.TurnID, ObservedAt: now, ResetAt: &reset, DueAt: &due, State: QuotaScheduled})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := mustTT(t, st, d.Room.RoomID)
+			q, err := st.GetQuota(a.AgentID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if action == "pause" && got.Room.Control != ThinkTankPaused {
+				t.Fatalf("pause did not settle: %+v", got.Room)
+			}
+			if action == "end" && (got.Room.Phase != ThinkTankPhaseEnded || got.Room.Hold != "" || q.State != QuotaCancelled) {
+				t.Fatalf("end did not settle: room=%+v quota=%+v", got.Room, q)
+			}
+		})
+	}
+}
+
+func TestEndWaitsForOtherOpeningAfterQuotaStop(t *testing.T) {
+	st, _ := newTestStore(t)
+	d := ttCreate(t, st, true, ttMember("a", 3), ttMember("b", 3))
+	for _, id := range []string{"a", "b"} {
+		if err := st.WriteAgent(testAgent(id, timeNow())); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a, _ := quotaRoomBegin(t, st, d.Room.RoomID, d, "a", ThinkTankTurnOpening)
+	b, _ := quotaRoomBegin(t, st, d.Room.RoomID, d, "b", ThinkTankTurnOpening)
+	if _, err := st.EndThinkTank(d.Room.RoomID); err != nil {
+		t.Fatal(err)
+	}
+	now := timeNow().UTC().Truncate(time.Second)
+	reset, due := now.Add(time.Minute), now.Add(2*time.Minute)
+	q, err := st.ObserveOwnedQuota(QuotaObservation{AgentID: a.AgentID, EpisodeID: "opening-end", SourceGeneration: a.Generation, ExecutingTurn: a.TurnID, ObservedAt: now, ResetAt: &reset, DueAt: &due, State: QuotaScheduled})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending := mustTT(t, st, d.Room.RoomID); pending.Room.Control != ThinkTankEndRequested || len(pending.Running) != 1 || q.State != QuotaScheduled {
+		t.Fatalf("opening barrier did not wait: room=%+v running=%v quota=%s", pending.Room, pending.Running, q.State)
+	}
+	if _, err := st.FailThinkTankAttempt(b.AgentID, b.Generation, b.TurnID, "opening failed"); err != nil {
+		t.Fatal(err)
+	}
+	q, err = st.GetQuota(a.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ended := mustTT(t, st, d.Room.RoomID); ended.Room.Phase != ThinkTankPhaseEnded || q.State != QuotaCancelled {
+		t.Fatalf("final opening did not settle End: room=%+v quota=%s", ended.Room, q.State)
+	}
+}
+
+func TestCancelPendingQuotaReleasesRoomHold(t *testing.T) {
+	st, _ := newTestStore(t)
+	d, a, _ := quotaRoomSetup(t, st, ThinkTankTurnDiscussion)
+	now := timeNow().UTC().Truncate(time.Second)
+	reset, due := now.Add(time.Minute), now.Add(2*time.Minute)
+	if _, err := st.ObserveOwnedQuota(QuotaObservation{AgentID: a.AgentID, EpisodeID: "cancel-room", SourceGeneration: a.Generation, ExecutingTurn: a.TurnID, ObservedAt: now, ResetAt: &reset, DueAt: &due, State: QuotaScheduled}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.CancelPendingQuotas(); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustTT(t, st, d.Room.RoomID).Room.Hold; got != "" {
+		t.Fatalf("cancelled quota left hold %q", got)
+	}
 }
 
 func continueQuotaRoom(t *testing.T, st *Store, d ThinkTankDetail, source ThinkTankAttempt, completed int) ThinkTankAttempt {
@@ -295,7 +393,7 @@ func TestReleaseQuotaRoomHoldWaitsForEveryRoomEpisode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ReleaseQuotaRoomHold(d.Room.RoomID); err != nil {
+	if err := releaseQuotaRoomHoldForTest(st, d.Room.RoomID); err != nil {
 		t.Fatal(err)
 	}
 	if got := mustTT(t, st, d.Room.RoomID).Room.Hold; got != "Quota reached" {
@@ -339,7 +437,7 @@ func TestReleaseQuotaRoomHoldWaitsForEveryRoomEpisode(t *testing.T) {
 	if err := st.CompleteQuota(quota.AgentID, quota.EpisodeID, quota.Revision, quota.AttemptToken, "release-generation", "release-turn"); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ReleaseQuotaRoomHold(d.Room.RoomID); err != nil {
+	if err := releaseQuotaRoomHoldForTest(st, d.Room.RoomID); err != nil {
 		t.Fatal(err)
 	}
 	room := mustTT(t, st, d.Room.RoomID).Room

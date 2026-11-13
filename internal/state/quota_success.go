@@ -18,7 +18,24 @@ func (s *Store) ResolveQuota(agentID, generation, turn string) error {
 		(q.ManualGeneration != generation || q.ManualTurn != turn) {
 		return nil
 	}
-	_, err = s.db.Exec(`UPDATE quota_intents SET state='continued', revision=revision+1, due_at=NULL, updated_at=?
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`UPDATE quota_intents SET state='continued', revision=revision+1, due_at=NULL, updated_at=?
 WHERE agent_id=? AND episode_id=? AND revision=?`, formatTime(timeNow()), agentID, q.EpisodeID, q.Revision)
-	return err
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 1 && q.Owner.Kind == "room" {
+		if err := releaseQuotaRoomHoldTx(tx, q.Owner.RoomID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

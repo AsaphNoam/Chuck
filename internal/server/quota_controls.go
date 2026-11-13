@@ -263,10 +263,30 @@ func (s *Server) cancelQuotaSnapshots(snapshots []state.QuotaControlSnapshot) er
 
 func (s *Server) publishQuotaAgents(ids []string) error {
 	var failures []error
+	rooms := make(map[string]bool)
 	for _, id := range ids {
 		if _, err := s.stateMgr.Touch(id); err != nil {
 			failures = append(failures, fmt.Errorf("publish %s: %w", id, err))
 		}
+		q, err := s.stateStore.GetQuota(id)
+		if errors.Is(err, state.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if q.Owner.Kind == "room" && !rooms[q.Owner.RoomID] {
+			rooms[q.Owner.RoomID] = true
+			if d, err := s.stateStore.ReadThinkTank(q.Owner.RoomID); err == nil {
+				s.publishThinkTankUpdate(d)
+			} else if !errors.Is(err, state.ErrNotFound) {
+				failures = append(failures, err)
+			}
+		}
+	}
+	if len(rooms) > 0 {
+		s.kickThinkTanks()
 	}
 	return errors.Join(failures...)
 }

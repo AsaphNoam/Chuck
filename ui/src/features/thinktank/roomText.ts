@@ -86,6 +86,7 @@ export function roomStatus(room: ThinkTankDetail): RoomStatus {
   const active = room.active ? memberName(room, room.active.agent_id) : "";
   const turn = room.active ? TURN_WORDS[room.active.turn] ?? "turn" : "";
   if (room.phase === "ended") {
+    if (room.hold) return { tone: "attention", text: room.hold };
     const parts = [endReasonText(room.end_reason), judgeText(room.judge_status, room.judge.error)].filter(Boolean);
     if (room.active) parts.push(`${active} is writing the ${turn}.`);
     return { tone: room.judge_status === "failed" ? "attention" : "ended", text: parts.join(" ") || "Discussion ended." };

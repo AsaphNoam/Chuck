@@ -69,6 +69,16 @@ AND state IN (?,?,?) AND pending_release=0 AND pending_yield=0`, in.AgentID, in.
 				return QuotaIntent{}, err
 			}
 		}
+		if err := applyThinkTankBoundaryTx(tx, a.RoomID); err != nil {
+			return QuotaIntent{}, err
+		}
+		if err := releaseQuotaRoomHoldTx(tx, a.RoomID); err != nil {
+			return QuotaIntent{}, err
+		}
+		q, err = scanQuota(tx.QueryRow(quotaSelect+` WHERE agent_id=?`, in.AgentID))
+		if err != nil {
+			return QuotaIntent{}, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return QuotaIntent{}, fmt.Errorf("state: commit owned quota: %w", err)

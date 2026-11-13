@@ -578,6 +578,17 @@ func (s *Store) CancelPendingQuotas() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, id := range ids {
+		q, err := scanQuota(tx.QueryRow(quotaSelect+` WHERE agent_id=?`, id))
+		if err != nil {
+			return nil, err
+		}
+		if q.Owner.Kind == "room" {
+			if err := releaseQuotaRoomHoldTx(tx, q.Owner.RoomID); err != nil {
+				return nil, err
+			}
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}

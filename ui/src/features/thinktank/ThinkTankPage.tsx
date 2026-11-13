@@ -363,6 +363,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
               {room.phase !== "setup" && room.hold && !ended && failedOpenings.length === 0 && (
                 <Button type="button" onClick={() => act(() => retry.mutateAsync({ target: "turn" }))}>{failedTurn ? "Retry turn" : "Resume"}</Button>
               )}
+              {ended && room.hold && <Button type="button" onClick={() => act(() => control.mutateAsync("resume"))}>Resume</Button>}
               {failedOpenings.length > 0 && room.control === "paused" && (
                 <Button type="button" onClick={() => act(() => control.mutateAsync("resume"))}>Resume</Button>
               )}

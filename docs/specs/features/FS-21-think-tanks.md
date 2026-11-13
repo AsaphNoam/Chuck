@@ -82,6 +82,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   it does not cancel the turn. Chuck acknowledges the pending pause, preserves the active speaker,
   and starts no next participant turn. Once the turn finishes, the room is paused until the
   operator resumes. R19 still applies if the active turn needs approval or fails.
+  A quota stop settles the pending pause at that same boundary.
 - **R19** — If a speaker needs approval or its turn fails, the room waits for intervention
   and shows the reason. It does not automatically skip the speaker, advance discussion, or retry
   the failed turn. Waiting for approval/failure intervention does not constitute a departure or
@@ -169,6 +170,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   without waiting for a selected participant's private work. History and objections are preserved,
   completion identifies the operator's action, and the configured optional judge runs afterward.
   This does not stop, archive or delete participant sessions or cancel their private work.
+  A quota stop settles a pending End and cancels that participant's room continuation.
 - **R33** — Normal Steer remains available under FS-03.R50 while a participant is taking
   a room turn. The individual agent view clearly identifies the active Think Tank turn, so the
   person can understand that steering affects the room contribution being formed. The steering
@@ -192,6 +194,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   project. The separate final-step budget is one completed synthesis contribution. A judge failure
   leaves participant discussion ended, shows the final-step failure separately, and supports
   explicit launch-setting repair/retry without reopening discussion or consuming participant limits.
+  A held judge shows the hold on the room and its card and can be resumed without reopening discussion.
 - **R37** — Restart retains committed history and holds unfinished rooms for explicit
   resume/recovery; uncertain provider turns are not replayed automatically. Opening failure retains
   completed withheld answers and waits for explicit retry. End during openings publishes completed
@@ -200,6 +203,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   An archived/removed participant or project holds the room with a reason: restore/unarchive the
   same identity and retry where normal lifecycle allows, or End discussion. Deleted identities are
   never silently substituted; retained history remains available for new independent follow-up.
+  A failed setup slot remains held until explicitly retried, including after Resume.
 - **R38** — Ordinary agent-facing room actions are membership-scoped. Recorded
   participants, including leavers, can retrieve retained room history; the fresh judge gains room
   access when launched. Contribution/departure actions require the caller's current turn authority
@@ -232,6 +236,7 @@ each participant keeps its own ordinary provider session. TS-14 owns the archite
   committed contributions, and never cancels unrelated private turns. A pipeline-pinned room cannot
   be deleted while retained run history needs it. Run deletion removes only the pin. Standalone
   room creation, manual End, private follow-up, retention and eligible deletion are unchanged.
+  Stopping a room already ended preserves its original end reason and time.
 
 - **R43** — A room has a short title distinct from its full goal. The creation UI asks
   for a title; existing rooms and API callers omitting it receive a readable goal-derived fallback.

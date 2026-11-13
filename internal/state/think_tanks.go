@@ -1128,7 +1128,7 @@ WHERE room_id = ? AND agent_id = ? AND setup_state IN ('pending', 'launching', '
 		if n, _ := res.RowsAffected(); n != 1 {
 			return thinkTankConflict("participant %s is not awaiting setup", agentID)
 		}
-		if launchErr != "" {
+		if launchErr != "" && d.Room.Phase == ThinkTankPhaseSetup {
 			return setThinkTankHoldTx(tx, roomID, "Setup failed for a new participant: "+launchErr)
 		}
 		return nil
@@ -1232,7 +1232,16 @@ func (s *Store) ResumeThinkTank(roomID string) (ThinkTankDetail, error) {
 		if err := setThinkTankControlTx(tx, roomID, ThinkTankRunning); err != nil {
 			return err
 		}
-		return setThinkTankHoldTx(tx, roomID, unretriedOpeningHold(d))
+		hold := unretriedOpeningHold(d)
+		if d.Room.Phase == ThinkTankPhaseSetup {
+			for _, m := range d.Members {
+				if m.SetupState == ThinkTankSetupFailed {
+					hold = "Setup failed for a new participant. Retry launch, or end the discussion."
+					break
+				}
+			}
+		}
+		return setThinkTankHoldTx(tx, roomID, hold)
 	})
 }
 
@@ -1428,19 +1437,22 @@ func (s *Store) ClosePipelineThinkTank(roomID string) (ThinkTankDetail, error) {
 		if d.Room.PipelineRunID == "" {
 			return thinkTankConflict("only a pipeline room closes with its run")
 		}
-		if d.Room.Phase == ThinkTankPhaseEnded && d.Room.EndReason == ThinkTankEndPipelineStopped {
-			return errNoThinkTankChange
-		}
-		if err := endThinkTankTx(tx, d, ThinkTankEndPipelineStopped); err != nil {
-			return err
+		endReason := d.Room.EndReason
+		if d.Room.Phase != ThinkTankPhaseEnded {
+			if err := endThinkTankTx(tx, d, ThinkTankEndPipelineStopped); err != nil {
+				return err
+			}
+			endReason = ThinkTankEndPipelineStopped
 		}
 		judge := d.Room.JudgeStatus
 		switch judge {
 		case ThinkTankJudgeWaiting, ThinkTankJudgeReady, ThinkTankJudgeFailed:
 			judge = ThinkTankJudgeNone
 		}
-		if _, err := tx.Exec(`UPDATE think_tanks SET end_reason = ?, judge_status = ? WHERE room_id = ?`,
-			ThinkTankEndPipelineStopped, judge, roomID); err != nil {
+		if d.Room.Phase == ThinkTankPhaseEnded && judge == d.Room.JudgeStatus {
+			return errNoThinkTankChange
+		}
+		if _, err := tx.Exec(`UPDATE think_tanks SET end_reason = ?, judge_status = ? WHERE room_id = ?`, endReason, judge, roomID); err != nil {
 			return fmt.Errorf("state: close pipeline think tank: %w", err)
 		}
 		return nil

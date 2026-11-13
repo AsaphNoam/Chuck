@@ -29,7 +29,13 @@ func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *r
 			if q.State == state.QuotaContinued {
 				return nil
 			}
-			return s.stateStore.ResolveQuota(agentID, generation, turnID)
+			if err := s.stateStore.ResolveQuota(agentID, generation, turnID); err != nil {
+				return err
+			}
+			if q.Owner.Kind == "room" {
+				return s.publishQuotaAgents([]string{agentID})
+			}
+			return nil
 		}
 		q, err := s.stateStore.GetQuota(agentID)
 		if errors.Is(err, state.ErrNotFound) {

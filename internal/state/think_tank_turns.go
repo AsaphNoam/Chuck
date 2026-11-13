@@ -553,7 +553,13 @@ func applyThinkTankBoundaryTx(tx *sql.Tx, roomID string) error {
 	}
 	switch d.Room.Control {
 	case ThinkTankEndRequested:
-		return endThinkTankTx(tx, d, ThinkTankEndOperator)
+		if err := endThinkTankTx(tx, d, ThinkTankEndOperator); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`UPDATE quota_intents SET state='cancelled', due_at=NULL, revision=revision+1, updated_at=? WHERE json_extract(owner_json,'$.kind')='room' AND json_extract(owner_json,'$.room_id')=? AND json_extract(owner_json,'$.turn')<>'judge' AND state NOT IN ('continued','cancelled')`, formatTime(timeNow()), roomID); err != nil {
+			return err
+		}
+		return releaseQuotaRoomHoldTx(tx, roomID)
 	case ThinkTankPauseRequested:
 		if err := setThinkTankControlTx(tx, roomID, ThinkTankPaused); err != nil {
 			return err
@@ -802,6 +808,30 @@ func (s *Store) RecoverThinkTanks() error {
 		return fmt.Errorf("state: iterate running think tank attempts: %w", err)
 	}
 	rows.Close()
+	// Settle a previously stranded End request once no turn remains.
+	endRows, err := tx.Query(`SELECT room_id FROM think_tanks WHERE control=? AND NOT EXISTS (SELECT 1 FROM think_tank_attempts a WHERE a.room_id=think_tanks.room_id AND a.state=?)`, ThinkTankEndRequested, ThinkTankAttemptRunning)
+	if err != nil {
+		return err
+	}
+	var ending []string
+	for endRows.Next() {
+		var id string
+		if err := endRows.Scan(&id); err != nil {
+			endRows.Close()
+			return err
+		}
+		ending = append(ending, id)
+	}
+	if err := endRows.Err(); err != nil {
+		endRows.Close()
+		return err
+	}
+	endRows.Close()
+	for _, id := range ending {
+		if err := applyThinkTankBoundaryTx(tx, id); err != nil {
+			return err
+		}
+	}
 	if _, err := tx.Exec(`UPDATE think_tank_members SET setup_state = ?, setup_error = ? WHERE role = ? AND setup_state = ?`,
 		ThinkTankSetupFailed, "Chuck restarted while this participant was starting.", ThinkTankRoleParticipant, ThinkTankSetupLaunching); err != nil {
 		return fmt.Errorf("state: fence think tank setup launch: %w", err)
@@ -856,21 +886,6 @@ AND json_extract(q.owner_json,'$.room_id')=think_tanks.room_id `+quotaRoomOwnerC
 		return fmt.Errorf("state: commit recover think tanks: %w", err)
 	}
 	return nil
-}
-
-// ReleaseQuotaRoomHold clears only the quota-owned intervention hold, and only
-// after every current room-owned episode has settled. A concurrent observation
-// or continuation changes the answer inside this same transaction.
-func (s *Store) ReleaseQuotaRoomHold(roomID string) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return fmt.Errorf("state: begin quota room hold release: %w", err)
-	}
-	defer tx.Rollback()
-	if err := releaseQuotaRoomHoldTx(tx, roomID); err != nil {
-		return err
-	}
-	return tx.Commit()
 }
 
 func releaseQuotaRoomHoldTx(tx *sql.Tx, roomID string) error {

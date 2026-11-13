@@ -40,6 +40,17 @@ func (s *Server) startThinkTanks(ctx context.Context) error {
 	if err := s.stateStore.RecoverThinkTanks(); err != nil {
 		return err
 	}
+	if s.pipelineMgr != nil {
+		runs, err := s.stateStore.ListActivePipelineRuns()
+		if err != nil {
+			return err
+		}
+		for _, run := range runs {
+			if err := s.pipelineMgr.SyncRoomPhase(ctx, run.RunID); err != nil {
+				s.log.Warn("sync recovered pipeline room", "run", run.RunID, "err", err)
+			}
+		}
+	}
 	go func() {
 		ticker := time.NewTicker(thinkTankSweepInterval)
 		defer ticker.Stop()
@@ -282,6 +293,11 @@ func (s *Server) startThinkTankTurn(ctx context.Context, d state.ThinkTankDetail
 		started, err := s.registry.StartActivation(ctx, agentID, state.ActivationKindThinkTank, begin)
 		if err != nil {
 			s.log.Debug("start think tank turn", "room", d.Room.RoomID, "agent", agentID, "err", err)
+			if !s.registry.Owns(agentID) {
+				if held, holdErr := s.stateStore.SetThinkTankHold(d.Room.RoomID, "The agent's running session is unavailable. Stop it and resume the room."); holdErr == nil {
+					s.publishThinkTankUpdate(held)
+				}
+			}
 		}
 		if !started {
 			abandon(err)
@@ -346,11 +362,13 @@ func (s *Server) startThinkTankTurn(ctx context.Context, d state.ThinkTankDetail
 // interruption and is marked ready rather than duplicated (TS-14.R2).
 func (s *Server) launchThinkTankSetup(ctx context.Context, d state.ThinkTankDetail) {
 	placement, placementErr := s.thinkTankPlacement(d.Room)
+	launched := false
 	for _, m := range d.Members {
 		if m.Role != state.ThinkTankRoleParticipant || m.SetupState != state.ThinkTankSetupPending {
 			continue
 		}
 		generation := mintHookToken()
+		launched = true
 		if _, err := s.stateStore.ClaimThinkTankMemberSetup(d.Room.RoomID, m.AgentID, generation); err != nil {
 			return
 		}
@@ -362,7 +380,7 @@ func (s *Server) launchThinkTankSetup(ctx context.Context, d state.ThinkTankDeta
 		}
 		updated, err := s.stateStore.MarkThinkTankMemberSetup(d.Room.RoomID, m.AgentID, name, launchErr, generation)
 		if err != nil {
-			s.log.Debug("mark think tank setup", "room", d.Room.RoomID, "agent", m.AgentID, "err", err)
+			s.log.Warn("mark think tank setup", "room", d.Room.RoomID, "agent", m.AgentID, "err", err)
 			return
 		}
 		s.publishThinkTankUpdate(updated)
@@ -370,7 +388,9 @@ func (s *Server) launchThinkTankSetup(ctx context.Context, d state.ThinkTankDeta
 			return
 		}
 	}
-	s.kickThinkTanks()
+	if launched {
+		s.kickThinkTanks()
+	}
 }
 
 // Requested Stop suppresses turn_end. Settle only attempts owned by the exiting
@@ -423,7 +443,12 @@ func (s *Server) thinkTankPlacement(room state.ThinkTank) (roomPlacement, error)
 // (FS-21.R51, TS-14.R22).
 func (s *Server) launchReservedThinkTankAgent(ctx context.Context, agentID, config string, placement roomPlacement, launchGeneration ...string) (string, string) {
 	if agent, err := s.stateStore.ReadAgent(agentID); err == nil {
-		return agent.Name, ""
+		if _, err := s.stateStore.ReadRunning(agentID); err == nil {
+			return agent.Name, ""
+		}
+		if session, err := s.stateStore.ReadSession(agentID); err == nil && session.LastSessionID != "" {
+			return agent.Name, ""
+		}
 	}
 	var req launchRequest
 	if err := json.Unmarshal([]byte(config), &req); err != nil {
@@ -434,7 +459,7 @@ func (s *Server) launchReservedThinkTankAgent(ctx context.Context, agentID, conf
 	if len(launchGeneration) > 0 {
 		generation = launchGeneration[0]
 	}
-	resp, ae := s.launchAgent(ctx, req, launchOptions{AgentID: agentID, Generation: generation, WorkspaceID: placement.WorkspaceID})
+	resp, ae := s.launchClaimed(ctx, req, launchOptions{AgentID: agentID, Generation: generation, WorkspaceID: placement.WorkspaceID})
 	if ae != nil {
 		return "", ae.Message
 	}

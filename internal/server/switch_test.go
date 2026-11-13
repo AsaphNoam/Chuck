@@ -968,6 +968,50 @@ func TestStopDuringLaunchHandshakeKeepsRegistration(t *testing.T) {
 	}
 }
 
+func TestRoomLaunchHandshakeFencesStopAndArchive(t *testing.T) {
+	for _, action := range []string{"stop", "archive"} {
+		t.Run(action, func(t *testing.T) {
+			srv, ts := switchTestServer(t)
+			dir := t.TempDir()
+			dump, release := filepath.Join(dir, "new.json"), filepath.Join(dir, "release")
+			t.Setenv("FAKEACP_NEW_DUMP", dump)
+			t.Setenv("FAKEACP_NEW_HOLD_FILE", release)
+			id := "a_room_handshake"
+			done := make(chan string, 1)
+			go func() {
+				_, msg := srv.launchReservedThinkTankAgent(context.Background(), id, `{"role":"impl","project":"tmpproj"}`, roomPlacement{Group: "Room"})
+				done <- msg
+			}()
+			deadline := time.Now().Add(10 * time.Second)
+			for {
+				if _, err := os.Stat(dump); err == nil {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("room launch never reached session/new")
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+			resp, body := post(t, ts.URL+"/api/sessions/"+id+"/"+action, nil)
+			if resp.StatusCode != http.StatusConflict {
+				t.Fatalf("%s during room handshake = %d %s", action, resp.StatusCode, body)
+			}
+			if err := os.WriteFile(release, []byte("go"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if msg := <-done; msg != "" {
+				t.Fatalf("room launch: %s", msg)
+			}
+			srv.hookMu.Lock()
+			_, tokenKept := srv.hookTokens[id]
+			srv.hookMu.Unlock()
+			if !tokenKept || !srv.registry.Owns(id) {
+				t.Fatalf("registration lost: token=%v owned=%v", tokenKept, srv.registry.Owns(id))
+			}
+		})
+	}
+}
+
 // FS-01.R21/R54: after a restart, an orphan whose live PID lacks process proof
 // is neither signaled nor joined by a second runtime. Stop and Switch refuse
 // with an actionable conflict and keep the orphan row.
