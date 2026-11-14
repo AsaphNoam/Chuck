@@ -1328,10 +1328,10 @@ func advanceArmedTasks(tx *sql.Tx, taskIDs []string, now time.Time) ([]string, e
 	var changed []string
 	for _, id := range taskIDs {
 		res, err := tx.Exec(`
-UPDATE tasks SET state = ?, attention_reason = ?, `+clearTaskContinuation+`, revision = revision + 1, updated_at = ?
+UPDATE tasks SET `+taskParkColumns+`, revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state IN (?, ?)
   AND EXISTS (SELECT 1 FROM task_arms WHERE task_id = tasks.task_id AND state = ?)`,
-			TaskDependencyFailed, parkedAttentionReason, stamp,
+			parkedAttentionReason, stamp,
 			id, TaskArmed, TaskReady, ArmUnsatisfiable)
 		if err != nil {
 			return nil, fmt.Errorf("state: park task: %w", err)
@@ -1555,6 +1555,9 @@ const taskCommitmentClause = `(state IN ('starting','running','waiting') OR (sta
 const activeTaskAssignmentClause = taskCommitmentClause + ` AND state <> 'ready'`
 
 const clearTaskContinuation = `pending_yield = 0, continuation_pending = 0, resume_needed = 0`
+const taskParkColumns = `state = 'dependency_failed', attention_reason = ?, ` + clearTaskContinuation
+const releaseTaskStartColumns = keepConfirmedAssignee + `, assigned_generation = '',
+runtime_claim = '', start_attempt_id = '', start_claimed_at = NULL`
 
 func finishTaskRow(tx *sql.Tx, taskID, from, source string, result TaskResult, release bool, stamp string) (sql.Result, error) {
 	return tx.Exec(`UPDATE tasks SET state = ?, outcome = ?, outcome_source = ?, outcome_summary = ?,
@@ -1573,8 +1576,7 @@ WHERE task_id = ? AND state = ?`,
 // (FS-16.R25, TS-10.R15).
 func (s *Store) AbandonTaskStart(taskID, attemptID string) (Task, bool, error) {
 	return s.settleTaskStart(taskID, attemptID, `
-UPDATE tasks SET state = ?, `+keepConfirmedAssignee+`, assigned_generation = '',
-  runtime_claim = '', start_attempt_id = '', start_claimed_at = NULL,
+UPDATE tasks SET state = ?, `+releaseTaskStartColumns+`,
   revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 		[]any{TaskReady}, "abandon task start")
@@ -1593,8 +1595,7 @@ UPDATE tasks SET
   continuation_pending = CASE WHEN start_attempt_count + 1 >= ? THEN 0 ELSE continuation_pending END,
   resume_needed = CASE WHEN start_attempt_count + 1 >= ? THEN 0 ELSE resume_needed END,
   start_attempt_count = start_attempt_count + 1,
-  `+keepConfirmedAssignee+`, assigned_generation = '', runtime_claim = '',
-  start_attempt_id = '', start_claimed_at = NULL,
+  `+releaseTaskStartColumns+`,
   revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 		[]any{MaxTaskStartAttempts, TaskDependencyFailed, TaskReady,
@@ -1607,11 +1608,10 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 // (FS-16.R8, R19).
 func (s *Store) ParkTaskStart(taskID, attemptID, reason string) (Task, bool, error) {
 	return s.settleTaskStart(taskID, attemptID, `
-UPDATE tasks SET state = ?, attention_reason = ?, `+clearTaskContinuation+`, `+keepConfirmedAssignee+`,
-  assigned_generation = '', runtime_claim = '', start_attempt_id = '',
-  start_claimed_at = NULL, revision = revision + 1, updated_at = ?
+UPDATE tasks SET `+taskParkColumns+`, `+releaseTaskStartColumns+`,
+  revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
-		[]any{TaskDependencyFailed, reason}, "park task start")
+		[]any{reason}, "park task start")
 }
 
 // settleTaskStart runs one conditional statement that resolves a starting row,
