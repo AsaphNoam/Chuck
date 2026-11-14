@@ -25,6 +25,8 @@ func TestTurnAdmissionPreservesOriginRules(t *testing.T) {
 		{"runtime quota gate", AdmitWithQuotaGate, false},
 		{"owner nudge quota gate", AdmitWithQuotaGate, false},
 		{"task restart ignores an ordinary quota intent", AdmitTaskRestart, true},
+		{"room restart ignores an ordinary quota intent", AdmitRoomRestart, true},
+		{"runtime admission without a durable turn", AdmitRuntimeTurn, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			due := timeNow().Truncate(time.Second)
