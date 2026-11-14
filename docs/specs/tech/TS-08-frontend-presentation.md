@@ -2257,7 +2257,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   next-start metadata and reject stale results by selection. Make no launch request on return.
   Keep the phone's local-settings boundary. Verify FS-04.A42 and FS-09.A54 in the rendered
   desktop flow with keyboard activation, focus, return, and preserved edits (INV §8/§10/§13/§14).
-- **R168** `(planned)` — A reconnect refreshes every server-backed view without a list. When the
+- **R168** — A reconnect refreshes every server-backed view without a list. When the
   desktop event stream opens or reopens, the client invalidates all server-backed queries through
   one call, and open transcripts keep their existing sequence-based refetch. No feature registers
   itself in a reconnect list. The phone's hydration revision already covers its own reads and is

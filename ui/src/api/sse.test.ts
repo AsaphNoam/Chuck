@@ -1,3 +1,4 @@
+import { QueryObserver } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./client", () => ({
@@ -343,14 +344,46 @@ describe("SseClient watchdog reconnect", () => {
   it("refetches open pipeline run details on every reopen", async () => {
     const { sseClient } = await import("./sse");
     const { queryClient } = await import("./config");
-    const spy = vi.spyOn(queryClient, "invalidateQueries");
     sseClient.connect();
     const es = FakeEventSource.instances[0];
     es.onopen?.();
-    spy.mockClear();
+    const runKey = ["pipelines", "run-detail", "pr_1"];
+    const tasksKey = ["tasks"];
+    queryClient.setQueryData(runKey, { run: { revision: 1 } });
+    queryClient.setQueryData(tasksKey, []);
     es.onopen?.();
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["pipelines", "run-detail"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks"] });
+    expect(queryClient.getQueryState(runKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(tasksKey)?.isInvalidated).toBe(true);
+  });
+
+  // TS-08.R168: a new view must not need a subscription in the stream client.
+  it("refreshes a newly added server query family on reconnect", async () => {
+    const { sseClient } = await import("./sse");
+    const { queryClient } = await import("./config");
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let serverValue = "before disconnect";
+    const observer = new QueryObserver(queryClient, {
+      queryKey: ["new-server-query-family"],
+      queryFn: async () => serverValue,
+    });
+    const unsubscribe = observer.subscribe(() => undefined);
+    try {
+      sseClient.connect();
+      const es = FakeEventSource.instances[0];
+      es.onopen?.();
+      await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe("before disconnect"));
+      expect(invalidate.mock.calls).toEqual([[]]);
+
+      es.onerror?.();
+      invalidate.mockClear();
+      serverValue = "changed while disconnected";
+      es.onopen?.();
+      await vi.waitFor(() => expect(observer.getCurrentResult().data).toBe(serverValue));
+      expect(invalidate.mock.calls).toEqual([[]]);
+    } finally {
+      unsubscribe();
+      invalidate.mockRestore();
+    }
   });
 
   // FS-13.R16 / FS-03.A19: deletion drops browser-local state keyed to the
@@ -445,10 +478,12 @@ describe("SseClient watchdog reconnect", () => {
     const { sseClient } = await import("./sse");
     const { queryClient } = await import("./config");
     const spy = vi.spyOn(queryClient, "invalidateQueries");
+    const workspacesKey = ["pipelines", "workspaces"];
     queryClient.setQueryData(["pipelines", "run-detail", "pr_1"], { run: { revision: 4, attention_reason: "" } });
+    queryClient.setQueryData(workspacesKey, []);
     sseClient.connect();
     FakeEventSource.instances[0].onopen?.();
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["pipelines", "workspaces"] });
+    expect(queryClient.getQueryState(workspacesKey)?.isInvalidated).toBe(true);
     spy.mockClear();
 
     FakeEventSource.instances[0].emit("pipeline_update", JSON.stringify({

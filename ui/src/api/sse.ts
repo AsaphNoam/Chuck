@@ -80,13 +80,7 @@ class SseClient {
       }
       // The server also ends an overflowed stream to land here: anything that
       // stream dropped is recovered only by these refetches (TS-03.R9).
-      queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runs });
-      queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runDetails });
-      queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.proposals });
-      queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.workspaces });
-      queryClient.invalidateQueries({ queryKey: TASK_QUERY_KEYS.all });
-      queryClient.invalidateQueries({ queryKey: THINK_TANK_KEYS.all });
-      queryClient.invalidateQueries({ queryKey: REMOTE_QUERY_KEY });
+      void queryClient.invalidateQueries();
     };
     this.es.onerror = () => useUiStore.getState().setConnection("reconnecting");
     this.es.addEventListener("state_update", (event) => this.onStateUpdate(event as MessageEvent<string>));
