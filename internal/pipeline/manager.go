@@ -841,7 +841,7 @@ func (m *Manager) Startup(ctx context.Context) error {
 			if current.PendingAction != run.PendingAction || current.ControllerFailures >= state.MaxPipelineControllerFailures {
 				continue
 			}
-			if recordErr := m.recordReconcileFailure(current, err); recordErr != nil && !errors.Is(recordErr, state.ErrPipelineConflict) {
+			if recordErr := m.recordReconcileFailure(current, err); recordErr != nil {
 				return errors.Join(err, recordErr)
 			}
 			slog.Warn("pipeline: startup reconcile deferred", "run", run.RunID, "action", run.PendingAction, "err", err)

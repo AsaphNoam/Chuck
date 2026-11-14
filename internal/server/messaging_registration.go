@@ -59,7 +59,7 @@ func (s *Server) writeMessagingMCPConfig(agentID string, spec runtime.MCPServerS
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", fmt.Errorf("write mcp config: mkdir: %w", err)
 	}
-	path := filepath.Join(dir, agentID+".mcp.json")
+	path := s.messagingMCPConfigPath(agentID)
 	entry := map[string]any{}
 	if spec.Type == "http" {
 		entry["type"] = "http"
@@ -83,6 +83,10 @@ func (s *Server) writeMessagingMCPConfig(agentID string, spec runtime.MCPServerS
 	return path, nil
 }
 
+func (s *Server) messagingMCPConfigPath(agentID string) string {
+	return filepath.Join(s.configStore.Home(), "mcp", agentID+".mcp.json")
+}
+
 func mintMessagingToken() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -104,6 +108,16 @@ func (s *Server) cleanupMessagingMCP(agentID string) {
 	s.hookMu.Unlock()
 	if cleanup != nil {
 		cleanup()
+		return
+	}
+	// A restart loses the registration closure but keeps the pathname.
+	path := s.messagingMCPConfigPath(agentID)
+	if info, err := os.Lstat(path); err == nil && info.Mode().IsRegular() {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			s.log.Warn("cleanup messaging config", "agent_id", agentID, "err", err)
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		s.log.Warn("read messaging config for cleanup", "agent_id", agentID, "err", err)
 	}
 }
 

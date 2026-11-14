@@ -597,6 +597,15 @@ func stampArmsFromResults(tx *sql.Tx, arms []TaskArm, now time.Time) ([]TaskArm,
 			stamped[i].SourceKind, stamped[i].SourceID).Scan(&outcome)
 		if errors.Is(err, sql.ErrNoRows) {
 			stamped[i].State = ArmUnsatisfied
+			if stamped[i].SourceKind == SourceTask {
+				parked, err := parkedTaskSource(tx, stamped[i].SourceID)
+				if err != nil {
+					return nil, err
+				}
+				if parked {
+					stamped[i].State = ArmUnsatisfiable
+				}
+			}
 			continue
 		}
 		if err != nil {
@@ -1105,70 +1114,6 @@ FROM work_results WHERE source_kind = ? AND source_id = ?`, sourceKind, sourceID
 	return r, nil
 }
 
-// TaskUpdate carries the fields one compare-and-set may change. A nil pointer
-// leaves that column alone.
-type TaskUpdate struct {
-	State           string
-	Outcome         *string
-	OutcomeSource   *string
-	OutcomeSummary  *string
-	OutcomeDetails  *string
-	AttentionReason *string
-	ReadyAt         *time.Time
-	FinishedAt      *time.Time
-}
-
-// UpdateTaskCAS advances a task against the revision the caller observed. State
-// advances monotonically under compare-and-set, so a stale writer loses rather
-// than overwriting a newer transition (TS-10.R10). A finished task is terminal
-// and never reopened.
-func (s *Store) UpdateTaskCAS(taskID string, revision int, update TaskUpdate) (Task, error) {
-	now := timeNow()
-	sets := []string{"state = ?", "revision = revision + 1", "updated_at = ?"}
-	args := []any{update.State, formatTime(now)}
-	for _, col := range []struct {
-		name  string
-		value *string
-	}{
-		{"outcome", update.Outcome},
-		{"outcome_source", update.OutcomeSource},
-		{"outcome_summary", update.OutcomeSummary},
-		{"outcome_details", update.OutcomeDetails},
-		{"attention_reason", update.AttentionReason},
-	} {
-		if col.value != nil {
-			sets = append(sets, col.name+" = ?")
-			args = append(args, *col.value)
-		}
-	}
-	if update.ReadyAt != nil {
-		sets = append(sets, "ready_at = ?")
-		args = append(args, formatTime(*update.ReadyAt))
-	}
-	if update.FinishedAt != nil {
-		sets = append(sets, "finished_at = ?")
-		args = append(args, formatTime(*update.FinishedAt))
-	}
-	args = append(args, taskID, revision)
-
-	res, err := s.db.Exec(`UPDATE tasks SET `+strings.Join(sets, ", ")+`
-WHERE task_id = ? AND revision = ? AND state != '`+TaskFinished+`'`, args...)
-	if err != nil {
-		return Task{}, fmt.Errorf("state: update task: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return Task{}, fmt.Errorf("state: update task rows: %w", err)
-	}
-	if n == 0 {
-		if _, readErr := s.ReadTask(taskID); errors.Is(readErr, ErrNotFound) {
-			return Task{}, ErrNotFound
-		}
-		return Task{}, ErrTaskConflict
-	}
-	return s.ReadTask(taskID)
-}
-
 func encodeOutcomeSet(outcomes []string) string {
 	if len(outcomes) == 0 {
 		return ""
@@ -1194,6 +1139,20 @@ func decodeOutcomeSet(raw string) []string {
 func (s *Store) EvaluateSource(sourceKind, sourceID string) ([]Task, error) {
 	result, err := s.ReadWorkResult(sourceKind, sourceID)
 	if errors.Is(err, ErrNotFound) {
+		if sourceKind == SourceTask {
+			return s.resolveArms(func(tx *sql.Tx, _ time.Time) error {
+				parked, err := parkedTaskSource(tx, sourceID)
+				if err != nil || !parked {
+					return err
+				}
+				_, err = tx.Exec(`UPDATE task_arms SET state = ?
+WHERE kind = ? AND source_kind = ? AND source_id = ? AND state = ?
+  AND NOT EXISTS (SELECT 1 FROM work_results WHERE source_kind = ? AND source_id = ?)`,
+					ArmUnsatisfiable, ArmWorkResult, SourceTask, sourceID, ArmUnsatisfied,
+					SourceTask, sourceID)
+				return err
+			}, armsNamingSource(sourceKind, sourceID))
+		}
 		return []Task{}, nil
 	}
 	if err != nil {
@@ -1220,6 +1179,36 @@ WHERE kind = ? AND source_kind = ? AND source_id = ? AND state = ?`,
 		}
 		return nil
 	}, armsNamingSource(sourceKind, sourceID))
+}
+
+func parkedTaskSource(tx *sql.Tx, taskID string) (bool, error) {
+	var parked bool
+	err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM tasks WHERE task_id = ? AND state = ?)`,
+		taskID, TaskDependencyFailed).Scan(&parked)
+	return parked, err
+}
+
+// ParkedTaskSourcesAfter lists parked prerequisites with unresolved dependents.
+func (s *Store) ParkedTaskSourcesAfter(after string, limit int) ([]string, error) {
+	rows, err := s.db.Query(`SELECT t.task_id FROM tasks t
+WHERE t.task_id > ? AND t.state = 'dependency_failed'
+  AND EXISTS (SELECT 1 FROM task_arms a WHERE a.kind = 'work_result'
+    AND a.source_kind = 'task' AND a.source_id = t.task_id AND a.state = 'unsatisfied')
+  AND NOT EXISTS (SELECT 1 FROM work_results w WHERE w.source_kind = 'task' AND w.source_id = t.task_id)
+ORDER BY t.task_id LIMIT ?`, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // MarkSourceUnsatisfiable parks every arm still waiting on a source that can no
@@ -1339,7 +1328,7 @@ func advanceArmedTasks(tx *sql.Tx, taskIDs []string, now time.Time) ([]string, e
 	var changed []string
 	for _, id := range taskIDs {
 		res, err := tx.Exec(`
-UPDATE tasks SET state = ?, attention_reason = ?, revision = revision + 1, updated_at = ?
+UPDATE tasks SET state = ?, attention_reason = ?, `+clearTaskContinuation+`, revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state IN (?, ?)
   AND EXISTS (SELECT 1 FROM task_arms WHERE task_id = tasks.task_id AND state = ?)`,
 			TaskDependencyFailed, parkedAttentionReason, stamp,
@@ -1451,7 +1440,7 @@ UPDATE tasks
 SET state = ?, assigned_agent_id = ?, assigned_generation = ?, runtime_claim = ?,
   start_attempt_id = ?, start_claimed_at = ?, revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ?
-  AND NOT EXISTS (SELECT 1 FROM think_tank_attempts WHERE agent_id = ? AND state = 'running')
+  AND `+noRunningRoomAttempt+`
   AND (? = ? OR `+taskCapacityFreeClause+`)`+taskRunOpenClause,
 		TaskStarting, reservation.AgentID, reservation.Generation, reservation.Claim,
 		reservation.AttemptID, stamp, stamp,
@@ -1562,6 +1551,21 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ? AND assigned_generation
 // (FS-16.R23, TS-10.R4/R48).
 const keepConfirmedAssignee = `assigned_agent_id = CASE WHEN started_at IS NULL THEN NULL ELSE assigned_agent_id END`
 
+const taskCommitmentClause = `(state IN ('starting','running','waiting') OR (state = 'ready' AND continuation_pending = 1))`
+const activeTaskAssignmentClause = taskCommitmentClause + ` AND state <> 'ready'`
+
+const clearTaskContinuation = `pending_yield = 0, continuation_pending = 0, resume_needed = 0`
+
+func finishTaskRow(tx *sql.Tx, taskID, from, source string, result TaskResult, release bool, stamp string) (sql.Result, error) {
+	return tx.Exec(`UPDATE tasks SET state = ?, outcome = ?, outcome_source = ?, outcome_summary = ?,
+outcome_details = ?, attention_reason = '', pending_release = ?, `+clearTaskContinuation+`,
+cleanup_phase = '', cleanup_effect_key = '', cleanup_failure_count = 0,
+cleanup_first_failure_at = NULL, cleanup_next_retry_at = NULL, cleanup_last_error = '',
+cleanup_unsafe = 0, finished_at = ?, revision = revision + 1, updated_at = ?
+WHERE task_id = ? AND state = ?`,
+		TaskFinished, result.Outcome, source, result.Summary, result.Details, release, stamp, stamp, taskID, from)
+}
+
 // AbandonTaskStart returns a task whose start produced no confirmed runtime to
 // ready, releasing its assignment claim and its slot and spending no attempt.
 // This is the deferral path — a lost lifecycle claim, a start the caller gave up
@@ -1586,13 +1590,15 @@ func (s *Store) FailTaskStart(taskID, attemptID, reason string) (Task, bool, err
 UPDATE tasks SET
   state = CASE WHEN start_attempt_count + 1 >= ? THEN ? ELSE ? END,
   attention_reason = CASE WHEN start_attempt_count + 1 >= ? THEN ? ELSE attention_reason END,
+  continuation_pending = CASE WHEN start_attempt_count + 1 >= ? THEN 0 ELSE continuation_pending END,
+  resume_needed = CASE WHEN start_attempt_count + 1 >= ? THEN 0 ELSE resume_needed END,
   start_attempt_count = start_attempt_count + 1,
   `+keepConfirmedAssignee+`, assigned_generation = '', runtime_claim = '',
   start_attempt_id = '', start_claimed_at = NULL,
   revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 		[]any{MaxTaskStartAttempts, TaskDependencyFailed, TaskReady,
-			MaxTaskStartAttempts, reason}, "fail task start")
+			MaxTaskStartAttempts, reason, MaxTaskStartAttempts, MaxTaskStartAttempts}, "fail task start")
 }
 
 // ParkTaskStart parks a task whose target can never become eligible — a deleted,
@@ -1601,7 +1607,7 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 // (FS-16.R8, R19).
 func (s *Store) ParkTaskStart(taskID, attemptID, reason string) (Task, bool, error) {
 	return s.settleTaskStart(taskID, attemptID, `
-UPDATE tasks SET state = ?, attention_reason = ?, `+keepConfirmedAssignee+`,
+UPDATE tasks SET state = ?, attention_reason = ?, `+clearTaskContinuation+`, `+keepConfirmedAssignee+`,
   assigned_generation = '', runtime_claim = '', start_attempt_id = '',
   start_claimed_at = NULL, revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
@@ -1634,7 +1640,7 @@ func (s *Store) settleTaskStart(taskID, attemptID, stmt string, leading []any, w
 // one, so this needs no ordering or tie-break (FS-16.R2, TS-10.R18).
 func (s *Store) AssignedTask(agentID string) (Task, error) {
 	task, err := scanTask(s.db.QueryRow(taskSelect+`
-WHERE assigned_agent_id = ? AND state IN (?, ?, ?)`, agentID, TaskStarting, TaskRunning, TaskWaiting))
+WHERE assigned_agent_id = ? AND `+activeTaskAssignmentClause, agentID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrNotFound
 	}
@@ -1653,7 +1659,7 @@ WHERE assigned_agent_id = ? AND state IN (?, ?, ?)`, agentID, TaskStarting, Task
 // is ready or starting but has not yet reacquired runtime ownership.
 func (s *Store) TaskAssignment(agentID string) (Task, error) {
 	task, err := scanTask(s.db.QueryRow(taskSelect+`
-WHERE assigned_agent_id = ? AND (state IN (?, ?, ?) OR (state = ? AND continuation_pending = 1))`, agentID, TaskStarting, TaskRunning, TaskWaiting, TaskReady))
+WHERE assigned_agent_id = ? AND `+taskCommitmentClause, agentID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrNotFound
 	}
@@ -1827,13 +1833,7 @@ FROM tasks WHERE task_id = ?`, taskID).Scan(&taskState, &assignedAgent, &assigne
 	}
 	now := timeNow()
 	stamp := formatTime(now)
-	if _, err := tx.Exec(`
-UPDATE tasks SET state = ?, outcome = ?, outcome_source = ?, outcome_summary = ?,
-  outcome_details = ?, attention_reason = '', pending_release = 1, finished_at = ?,
-  revision = revision + 1, updated_at = ?
-WHERE task_id = ? AND state = ?`,
-		TaskFinished, result.Outcome, "agent", result.Summary, result.Details,
-		stamp, stamp, taskID, taskState); err != nil {
+	if _, err := finishTaskRow(tx, taskID, taskState, "agent", result, true, stamp); err != nil {
 		return Task{}, fmt.Errorf("state: record task result: %w", err)
 	}
 	if err := RegisterWorkResultTx(tx, WorkResult{
@@ -2210,20 +2210,7 @@ func (s *Store) finishTask(taskID string, result TaskResult, source string, from
 	}
 	now := timeNow()
 	stamp := formatTime(now)
-	release := 0
-	if claim != "" {
-		release = 1
-	}
-	if _, err := tx.Exec(`
-UPDATE tasks SET state = ?, outcome = ?, outcome_source = ?, outcome_summary = ?,
-  outcome_details = ?, attention_reason = '', pending_release = ?, pending_yield = 0,
-  continuation_pending = 0, resume_needed = 0, cleanup_phase = '', cleanup_effect_key = '',
-  cleanup_failure_count = 0, cleanup_first_failure_at = NULL, cleanup_next_retry_at = NULL,
-  cleanup_last_error = '', cleanup_unsafe = 0, finished_at = ?,
-  revision = revision + 1, updated_at = ?
-WHERE task_id = ? AND state = ?`,
-		TaskFinished, result.Outcome, source, result.Summary, result.Details,
-		release, stamp, stamp, taskID, taskState); err != nil {
+	if _, err := finishTaskRow(tx, taskID, taskState, source, result, claim != "", stamp); err != nil {
 		return Task{}, fmt.Errorf("state: finish task: %w", err)
 	}
 	if err := RegisterWorkResultTx(tx, WorkResult{
@@ -2407,12 +2394,14 @@ func (s *Store) RearmTask(taskID string, arms []TaskArm) (Task, error) {
 		readyAt = stamp
 	}
 	reason := ""
+	continuation := ""
 	if next == TaskDependencyFailed {
 		reason = parkedAttentionReason
+		continuation = clearTaskContinuation + ","
 	}
 	if _, err := tx.Exec(`
 UPDATE tasks SET state = ?, attention_reason = ?, ready_at = ?, late_start = 0,
-  revision = revision + 1, updated_at = ?
+  `+continuation+` revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ?`, next, reason, readyAt, stamp, taskID, taskState); err != nil {
 		return Task{}, fmt.Errorf("state: rearm task: %w", err)
 	}

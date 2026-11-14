@@ -91,12 +91,11 @@ func (s *Store) BeginThinkTankAttempt(b ThinkTankBegin) (ThinkTankAttempt, error
 	if b.Generation == "" || b.TurnID == "" {
 		return ThinkTankAttempt{}, thinkTankInvalid("generation and turn id are required")
 	}
-	var assigned int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent_id = ? AND state IN (?, ?, ?)`,
-		b.AgentID, TaskStarting, TaskRunning, TaskWaiting).Scan(&assigned); err != nil {
+	admission, err := decideTurnAdmission(tx, TurnAdmissionRequest{AgentID: b.AgentID, Check: AdmitRoomAssignment})
+	if err != nil {
 		return ThinkTankAttempt{}, fmt.Errorf("state: check think tank task assignment: %w", err)
 	}
-	if assigned != 0 {
+	if !admission.Allowed {
 		return ThinkTankAttempt{}, thinkTankConflict("the participant has assigned work")
 	}
 	var checkpoint int64
@@ -148,7 +147,11 @@ AND json_extract(q.owner_json,'$.kind')='room' AND json_extract(q.owner_json,'$.
 			}
 		}
 	}
-	if err := resetTurnBudgetTx(tx, b.AgentID, b.TurnID); err != nil {
+	origin := TurnOrigin{Generation: b.Generation, Kind: TurnOriginRoom, ID: attemptID}
+	if quotaSource != nil {
+		origin.Kind, origin.ID = TurnOriginQuota, b.QuotaContinuation.EpisodeID
+	}
+	if err := resetTurnBudgetTx(tx, b.AgentID, b.TurnID, origin); err != nil {
 		return ThinkTankAttempt{}, err
 	}
 	if err := bumpThinkTankTx(tx, b.RoomID); err != nil {
@@ -837,11 +840,11 @@ func (s *Store) RecoverThinkTanks() error {
 		return fmt.Errorf("state: fence think tank setup launch: %w", err)
 	}
 	for _, a := range running {
-		quotaContinuation, err := quotaContinuationRunningTx(tx, a)
+		admission, err := decideTurnAdmission(tx, TurnAdmissionRequest{Check: AdmitRoomRestart, RoomAttempt: a})
 		if err != nil {
 			return err
 		}
-		if quotaContinuation {
+		if !admission.Allowed {
 			if _, err := tx.Exec(`UPDATE think_tank_attempts SET state=?, failure='Quota continuation delivery uncertain', finished_at=? WHERE attempt_id=? AND state=?`,
 				ThinkTankAttemptFailed, formatTime(timeNow()), a.AttemptID, ThinkTankAttemptRunning); err != nil {
 				return err
@@ -903,7 +906,7 @@ AND json_extract(q.owner_json,'$.kind')='room' AND json_extract(q.owner_json,'$.
 	return nil
 }
 
-func quotaContinuationRunningTx(tx *sql.Tx, current ThinkTankAttempt) (bool, error) {
+func quotaContinuationRunning(tx admissionReader, current ThinkTankAttempt) (bool, error) {
 	var found int
 	err := tx.QueryRow(`SELECT 1 FROM quota_intents q
 JOIN think_tank_attempts source ON source.attempt_id=json_extract(q.owner_json,'$.attempt_id')

@@ -87,12 +87,13 @@ func (s *Server) executePendingMailActivations(ctx context.Context, onlyAgentID 
 }
 
 func (s *Server) executeMailActivation(ctx context.Context, activation state.Activation) {
-	if task, err := s.stateStore.TaskAssignment(activation.AgentID); err == nil {
-		if task.PendingYield || task.PendingRelease {
-			return
-		}
-		switch task.State {
-		case state.TaskWaiting:
+	if admission, err := s.stateStore.DecideTurnAdmission(state.TurnAdmissionRequest{
+		AgentID: activation.AgentID, Check: state.AdmitMailAssignment,
+	}); err != nil {
+		s.log.Debug("task assignment lookup failed", "agent", activation.AgentID, "err", err)
+		return
+	} else if !admission.Allowed {
+		if admission.WakeTask {
 			prepared, changed, err := s.stateStore.PrepareTaskContinuation(activation.AgentID)
 			if err != nil {
 				s.log.Debug("prepare task continuation for mail failed", "agent", activation.AgentID, "err", err)
@@ -101,17 +102,7 @@ func (s *Server) executeMailActivation(ctx context.Context, activation state.Act
 				s.publishTaskUpdate(prepared)
 				go s.dispatchReadyTasks(context.Background())
 			}
-			return
-		case state.TaskStarting:
-			// The dependency admission owns the next turn. Leave mail pending.
-			return
-		case state.TaskReady:
-			if task.ContinuationPending {
-				return
-			}
 		}
-	} else if !errors.Is(err, state.ErrNotFound) {
-		s.log.Debug("task assignment lookup failed", "agent", activation.AgentID, "err", err)
 		return
 	}
 	if blocked, err := s.quotaBlocksAgent(activation.AgentID); err != nil || blocked {
@@ -144,10 +135,7 @@ func (s *Server) executeMailActivation(ctx context.Context, activation state.Act
 	if !claimed {
 		return
 	}
-	if task, err := s.stateStore.TaskAssignment(activation.AgentID); err == nil && (task.PendingYield || task.PendingRelease || task.State == state.TaskWaiting || task.State == state.TaskReady || task.State == state.TaskStarting) {
-		s.releaseMailActivation(activation, token)
-		return
-	} else if err != nil && !errors.Is(err, state.ErrNotFound) {
+	if blocked, err := s.assignmentNeedsAdmission(activation.AgentID); err != nil || blocked {
 		s.releaseMailActivation(activation, token)
 		return
 	}
@@ -222,7 +210,7 @@ func (s *Server) runActivationTurn(ctx context.Context, kind string, activation 
 	}
 	started, err := s.registry.StartActivation(ctx, activation.AgentID, kind, func(turnID string) error {
 		var err error
-		attempted, err = s.stateStore.AttemptActivation(kind, activation.ActivationID, token, turnID)
+		attempted, err = s.stateStore.AttemptActivation(kind, activation.ActivationID, token, turnID, s.registry.Generation(activation.AgentID))
 		if err == nil && !attempted {
 			return errors.New("activation claim lost")
 		}
@@ -288,7 +276,7 @@ func (s *Server) wakeForActivation(ctx context.Context, kind string, activation 
 		return err
 	}, func() error {
 		started, err := s.registry.StartActivation(ctx, activation.AgentID, kind, func(turnID string) error {
-			return s.stateStore.StartAttemptedTurn(kind, activation.ActivationID, token, turnID)
+			return s.stateStore.StartAttemptedTurn(kind, activation.ActivationID, token, turnID, s.registry.Generation(activation.AgentID))
 		})
 		if err != nil {
 			return err
@@ -307,14 +295,8 @@ func (s *Server) wakeForActivation(ctx context.Context, kind string, activation 
 // Recheck under the lifecycle claim immediately before a mail side effect.
 // A waiting task may have appeared since the executor's initial hint read.
 func (s *Server) assignmentNeedsAdmission(agentID string) (bool, error) {
-	task, err := s.stateStore.TaskAssignment(agentID)
-	if errors.Is(err, state.ErrNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return task.PendingYield || task.PendingRelease || task.State != state.TaskRunning, nil
+	decision, err := s.stateStore.DecideTurnAdmission(state.TurnAdmissionRequest{AgentID: agentID, Check: state.AdmitMailAssignment})
+	return !decision.Allowed, err
 }
 
 func (s *Server) releaseMailActivation(activation state.Activation, token string) {

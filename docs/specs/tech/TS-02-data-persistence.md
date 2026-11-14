@@ -1010,7 +1010,7 @@ TS-03.R89's completion. A failed config write after catalog promotion retains th
 and the exact launched chat. Completion retry treats an already-promoted default as settled and
 does not rewrite a newer default.
 
-**R67 (planned) — The per-turn row records the turn.** For TS-01.R45–R47, one forward-only
+**R67 — The per-turn row records the turn.** For TS-01.R45–R47, one forward-only
 migration extends `turn_budget`, the row every turn begin already writes and prunes to one per
 agent. It adds the launch generation, a closed code-owned origin kind (`person`, `mail`, `task`,
 `quota`, `room`, `owner_continuation`) with a nullable origin id, a state (`running` or `ended`),
@@ -1029,15 +1029,19 @@ memory, so every other component infers it from `status` (INV §1, §20). *Verif
 test from a database holding a live budget row; a begin for each origin records it; exactly one
 row per agent after any sequence of turns (INV §16).
 
-**R68 (planned) — History scans read on their own connection.** Archive and project search,
+**R68 — History scans read on their own connection.** Archive and project search,
 reference scans and other read-only queries that scan retained history use a second, read-only
-connection to the same write-ahead-log database, opened with its own busy timeout. Every write, and every read inside a write
-transaction, stays on the single writer connection (TS-01.R10). A runtime event observer does
-not query the store for each streamed event when a fact already held in memory answers the
-question. *Why:* with one pooled connection a project search held every other store call for
-260–400 ms on a 49 MB database, and a point read that takes 8 µs waited 37 ms on average.
-*Verify:* a point read during continuous search stays within a small multiple of its idle time;
-the store's write paths still open no second writer.
+connection to the same write-ahead-log database, with a two-second busy timeout. Every write
+and every read inside a write transaction stays on the single writer connection (TS-01.R10).
+The runtime captures the executing turn's quota-continuation flag with each control
+observation. Progress on other turns bypasses the quota lookup. The durable quota claim still
+authorizes receipt writes for the exact generation and turn. Manager Touch serializes
+recompute and publication with hook and stale-correction mutations. *Why:* with one pooled
+connection a project search held every other store call for 260–400 ms on a 49 MB database, and
+a point read that takes 8 µs waited 37 ms on average. *Verify:* a point read during continuous
+search stays within a small multiple of its idle time; the store's write paths still open no
+second writer. Check the separation by holding the history connection for the entire point
+read and write, then verify that the history handle rejects writes.
 
 ## 3. Interfaces & data shapes
 

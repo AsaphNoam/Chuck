@@ -30,7 +30,7 @@ func ReconcileStale(s *state.Store) ([]string, error) {
 			errs = append(errs, err)
 			continue
 		}
-		if err := MarkProcessExited(s, r.AgentID); err != nil {
+		if err := markProcessExited(s, r.AgentID, r.Generation); err != nil {
 			errs = append(errs, err)
 		}
 		pruned = append(pruned, r.AgentID)
@@ -41,15 +41,19 @@ func ReconcileStale(s *state.Store) ([]string, error) {
 // MarkProcessExited writes FS-01.R20's outcome for an agent whose process is
 // gone without a live owner.
 func MarkProcessExited(s *state.Store, agentID string) error {
+	return markProcessExited(s, agentID, "")
+}
+
+func markProcessExited(s *state.Store, agentID, generation string) error {
 	st, err := s.ReadStatus(agentID)
 	if err != nil {
 		st = state.Status{AgentID: agentID}
 	}
-	st.State = "done"
+	st.State = state.ComposeChatStatus(state.ChatProcessStopped, state.ConversationTurn{}, false)
 	st.Detail = "process exited"
 	st.LastTrace = "Stop"
 	st.BusySince = nil
-	return s.WriteStatus(st)
+	return s.WriteTurnEndStatus(st, state.TurnEnd{Generation: generation, Outcome: TurnProcessEnded.storageValue()})
 }
 
 // pidAlive reports whether a process group / pid is still alive. signal 0 does no

@@ -261,36 +261,23 @@ func TestWorkResultRegistrationIsUniqueAndImmutable(t *testing.T) {
 // holding a stale revision loses instead of overwriting a newer transition, and
 // a finished task is terminal: recovery may resume a pending transition but
 // never reopens a recorded outcome.
-func TestUpdateTaskCASRejectsStaleWritersAndFinishedTasks(t *testing.T) {
+func TestTaskTransitionsRejectStaleAttemptsAndFinishedTasks(t *testing.T) {
 	st, _ := newTestStore(t)
 	task := newTask(t, st, "my-app", "cas")
-	stale := task.Revision
-
-	reason := "waiting for capacity"
-	advanced, err := st.UpdateTaskCAS(task.TaskID, stale, TaskUpdate{
-		State: TaskStarting, AttentionReason: &reason,
-	})
-	if err != nil {
-		t.Fatalf("UpdateTaskCAS: %v", err)
+	reservation := TaskReservation{AttemptID: "current", AgentID: "a_worker", Generation: "generation", Claim: ClaimBorrowed}
+	advanced, ok, err := st.AdmitReadyTask(task.TaskID, reservation, 1)
+	if err != nil || !ok || advanced.Revision != task.Revision+1 {
+		t.Fatalf("admission = %+v, %t, %v", advanced, ok, err)
 	}
-	if advanced.Revision != stale+1 {
-		t.Fatalf("revision = %d, want %d", advanced.Revision, stale+1)
-	}
-	if advanced.AttentionReason != reason {
-		t.Fatalf("attention reason = %q, want %q", advanced.AttentionReason, reason)
-	}
-
-	if _, err := st.UpdateTaskCAS(task.TaskID, stale, TaskUpdate{State: TaskReady}); !errors.Is(err, ErrTaskConflict) {
-		t.Fatalf("stale writer = %v, want %v", err, ErrTaskConflict)
+	if _, ok, err := st.AbandonTaskStart(task.TaskID, "old"); err != nil || ok {
+		t.Fatalf("stale abandon = %t, %v", ok, err)
 	}
 	if current, err := st.ReadTask(task.TaskID); err != nil || current.State != TaskStarting {
 		t.Fatalf("state after a lost race = %+v, %v; want %s untouched", current.State, err, TaskStarting)
 	}
 
-	outcome, source := OutcomeSuccess, "agent"
-	now := time.Now().UTC()
-	finished, err := st.UpdateTaskCAS(task.TaskID, advanced.Revision, TaskUpdate{
-		State: TaskFinished, Outcome: &outcome, OutcomeSource: &source, FinishedAt: &now,
+	finished, err := st.RecordAgentTaskResult(task.TaskID, reservation.AgentID, reservation.Generation, "", TaskResult{
+		Outcome: OutcomeSuccess, Summary: "completed",
 	})
 	if err != nil {
 		t.Fatalf("finish: %v", err)
@@ -298,12 +285,12 @@ func TestUpdateTaskCASRejectsStaleWritersAndFinishedTasks(t *testing.T) {
 	if finished.Outcome != OutcomeSuccess || finished.FinishedAt == nil {
 		t.Fatalf("finished task = %+v, want a recorded outcome", finished)
 	}
-	if _, err := st.UpdateTaskCAS(task.TaskID, finished.Revision, TaskUpdate{State: TaskReady}); !errors.Is(err, ErrTaskConflict) {
-		t.Fatalf("reopening a finished task = %v, want %v", err, ErrTaskConflict)
+	if _, ok, err := st.AdmitReadyTask(task.TaskID, reservation, 1); err != nil || ok {
+		t.Fatalf("reopening a finished task = %t, %v", ok, err)
 	}
 
-	if _, err := st.UpdateTaskCAS("tk_absent", 1, TaskUpdate{State: TaskReady}); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("CAS on an unknown task = %v, want %v", err, ErrNotFound)
+	if _, err := st.ReadTask("tk_absent"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("read unknown task = %v, want %v", err, ErrNotFound)
 	}
 }
 

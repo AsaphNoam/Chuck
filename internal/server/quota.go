@@ -47,8 +47,9 @@ func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *r
 		if q.State == state.QuotaClaimed && q.ProviderStarted && q.ContinuedGeneration == generation && q.ContinuedTurn == turnID {
 			return s.stateStore.HoldQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, "non_quota_failure")
 		}
-		if q.ManualGeneration == generation && q.ManualTurn == turnID {
-			return s.stateStore.HoldQuotaManualTurn(agentID, generation, turnID)
+		if q.ManualGeneration == generation && q.ManualTurn == turnID &&
+			q.State != state.QuotaCancelled && q.State != state.QuotaDisabled && q.State != state.QuotaContinued {
+			return s.stateStore.HoldQuotaManualTurn(agentID, generation, turnID, q.Revision)
 		}
 		return nil
 	}
@@ -101,9 +102,6 @@ func resetSource(resetAt *time.Time, source string) string {
 }
 
 func (s *Server) quotaBlocksAgent(agentID string) (bool, error) {
-	q, err := s.stateStore.GetQuota(agentID)
-	if errors.Is(err, state.ErrNotFound) {
-		return false, nil
-	}
-	return err == nil && q.State != state.QuotaContinued && q.State != state.QuotaCancelled, err
+	decision, err := s.stateStore.DecideTurnAdmission(state.TurnAdmissionRequest{AgentID: agentID, Check: state.AdmitWithQuotaGate})
+	return err == nil && !decision.Allowed, err
 }

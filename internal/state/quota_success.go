@@ -25,14 +25,10 @@ func (s *Store) ResolveQuota(agentID, generation, turn string) error {
 	defer tx.Rollback()
 	res, err := tx.Exec(`UPDATE quota_intents SET state='continued', revision=revision+1, due_at=NULL, updated_at=?
 WHERE agent_id=? AND episode_id=? AND revision=?`, formatTime(timeNow()), agentID, q.EpisodeID, q.Revision)
-	if err != nil {
+	if err := quotaCASResult(res, err); err != nil {
 		return err
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 1 && q.Owner.Kind == "room" {
+	if q.Owner.Kind == "room" {
 		if err := releaseQuotaRoomHoldTx(tx, q.Owner.RoomID); err != nil {
 			return err
 		}

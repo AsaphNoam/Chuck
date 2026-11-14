@@ -89,12 +89,6 @@ AND state IN (?,?,?) AND pending_release=0 AND pending_yield=0`, in.AgentID, in.
 // QuotaHoldsTask distinguishes a preserved quota assignment from generic crash
 // recovery. Completed/cancelled task cleanup remains independently authoritative.
 func (s *Store) QuotaHoldsTask(task Task) (bool, error) {
-	var found int
-	err := s.db.QueryRow(`SELECT 1 FROM quota_intents WHERE agent_id=? AND (source_generation=? OR continued_generation=? OR manual_generation=?)
-AND state != ? AND json_extract(owner_json,'$.task_id')=?`,
-		task.AssignedAgentID, task.AssignedGeneration, task.AssignedGeneration, task.AssignedGeneration, QuotaContinued, task.TaskID).Scan(&found)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
+	decision, err := s.DecideTurnAdmission(TurnAdmissionRequest{Check: AdmitTaskRestart, Task: task})
+	return err == nil && !decision.Allowed, err
 }

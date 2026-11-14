@@ -668,15 +668,19 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   §23). *Verify:* both Go test variants and focused `-race` runs over cancel, permission, steer,
   held-message and Stop-during-turn interleavings; a test that a status write racing Stop cannot
   leave a state other than `done`.
-- **R45 (planned) — A conversation turn has one beginning, one end and one durable row.** Every
+- **R45 — A conversation turn has one beginning, one end and one durable row.** Every
   path that sends a conversation turn to the provider — a person's Send, the held successor, a
   promoted Steer fallback, the launched-task first prompt, the settled-chat continuation and each
   activation kind — calls one runtime function. It claims the turn gate, refuses a stopped or
   exited generation, and sets the turn identity in the critical section that claims the gate.
-  The caller's own preparation (inline mail, assignment input, the kind-owned pre-side-effect
+  The gate stays reserved through preparation and terminal callbacks so a newer prompt cannot
+  overtake a held message. The caller's own preparation (inline mail, assignment input, the kind-owned pre-side-effect
   transition of R21) stays with the caller and runs inside that claim. No path keeps its own
   provider goroutine. The quota check's throwaway session and Codex session naming also send a
-  provider prompt; they are not conversation turns and stay outside this function. One function
+  provider prompt; they are not conversation turns and stay outside this function. Cancel checks
+  the turn under its lock, writes to the peer after releasing the lock, and fences a successor
+  from reaching the provider until the write finishes. Stop signals the peer before receipt
+  or permission handling can block. One function
   ends a turn with the runtime's resolved outcome (R42), and the transport-closed path uses it
   for the turn it interrupts. It writes the row's outcome in the transaction that writes the
   turn-end status, so the two cannot disagree. The per-turn row every begin already writes (TS-02.R67) records
@@ -729,7 +733,7 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   and re-read against the code, asserting today's outcome; an inventory test that the replaced
   sites no longer read another plane's table; the mail, task, quota, room and pipeline suites
   pass unchanged.
-- **R48 (planned) — One way to make an agent run.** Extends R9, R16 and R43. Launch, resume and
+- **R48 — One way to make an agent run.** Extends R9, R16 and R43. Launch, resume and
   Switch compose their spec through one builder. Every origin that needs a live process calls
   one function that takes the lifecycle claim, runs the checks that origin makes today (passed
   in explicitly, none added or removed), registers, starts, and on failure tears down through
@@ -737,10 +741,14 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   reaped it ends every remaining member of the agent's process group, shutdown stops agents
   concurrently within its budget, and `dashboard stop` waits longer than that budget plus one
   agent stop grace before it escalates. A write that follows a provider handshake updates only the
-  fields the runtime reported, so a rename made during the handshake survives; rename takes no
+  runtime identity fields, so a rename made during the handshake survives; rename takes no
   new claim and answers as it does now. A project delete that removes a checkout repeats its
   running-agent check after it holds the project claim. No global lock is held across a provider
-  start. *Why:* three hand-built specs that have drifted, five copies of stop-then-reap, a rename
+  start. Startup removes the identity and registration left by a launch that crashed before it
+  persisted a session, preserving a process whose ownership cannot be proved. Startup restores
+  the previous native selection when a cross-backend Switch left a stopped agent with its
+  target identity and the previous session snapshot. *Why:* three
+  hand-built specs that have drifted, five copies of stop-then-reap, a rename
   that a concurrent handshake overwrites, and process-group members that survive Stop (INV §2,
   §4, §5). *Verify:* the launch, resume, switch, wake, task, quota and room suites pass
   unchanged; one site builds a `LaunchSpec`; a rename during a handshake returns as today and is

@@ -45,6 +45,7 @@ func (s *Server) runTaskDispatcher(ctx context.Context) {
 				s.recoverMissedStageStalls()
 			}
 			s.reconcileTaskWaits()
+			s.reconcileParkedTaskSources()
 			s.resolveDueTimeArms()
 			s.processDueSchedules()
 			s.recoverStartingTasks(ctx)
@@ -328,7 +329,7 @@ func (s *Server) startLaunchedTask(ctx context.Context, task state.Task) {
 	// The task's instruction is the assignment input FS-00.R14–R15 permits, sent
 	// as an ordinary turn exactly as a pipeline stage's assignment is, with the
 	// shared reporting paragraph after it (FS-16.R49).
-	if err := s.registry.StartLaunchedTask(task.AssignedAgentID, task.Instruction); err != nil {
+	if err := s.registry.StartLaunchedTask(task.AssignedAgentID, task.TaskID, task.Instruction); err != nil {
 		// The claim is already held, so use the unclaimed stop core.
 		if stopErr := s.stopStageLocked(ctx, task.AssignedAgentID); stopErr != nil {
 			s.log.Debug("stop failed task runtime failed", "agent", task.AssignedAgentID, "err", stopErr)
@@ -862,6 +863,21 @@ func (s *Server) evaluateSourceResult(sourceKind, sourceID string) {
 			s.publishTaskUpdate(task)
 			s.propagateTaskFailure(task)
 		}
+	}
+}
+
+func (s *Server) reconcileParkedTaskSources() {
+	ids, err := s.stateStore.ParkedTaskSourcesAfter(s.parkedTaskAfter, taskDispatchBatch)
+	if err != nil {
+		s.log.Warn("list parked prerequisites", "err", err)
+		return
+	}
+	for _, id := range ids {
+		s.parkedTaskAfter = id
+		s.evaluateSourceResult(state.SourceTask, id)
+	}
+	if len(ids) < taskDispatchBatch {
+		s.parkedTaskAfter = ""
 	}
 }
 

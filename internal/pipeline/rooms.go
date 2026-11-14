@@ -179,9 +179,6 @@ func (m *Manager) SyncRoomPhase(_ context.Context, runID string) error {
 	updated, err := m.store.UpdatePipelineRunCAS(runID, run.Revision, state.PipelineRunUpdate{
 		State: want, PendingAction: "", CurrentStageID: current.StageID, AttentionReason: reason,
 	})
-	if errors.Is(err, state.ErrPipelineConflict) {
-		return nil
-	}
 	if err != nil {
 		return err
 	}

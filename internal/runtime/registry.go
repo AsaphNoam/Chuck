@@ -240,6 +240,10 @@ func (r *Registry) runtimeFor(iface string) (Runtime, error) {
 // Launch dispatches by the agent's interface, guards against a double-start, runs
 // Start, and records the owning runtime for later control ops (techspec §6.1 step 7).
 func (r *Registry) Launch(ctx context.Context, spec LaunchSpec) (*Handle, error) {
+	return r.start(ctx, spec, false)
+}
+
+func (r *Registry) start(ctx context.Context, spec LaunchSpec, resume bool) (*Handle, error) {
 	rt, err := r.runtimeFor(spec.Agent.Interface)
 	if err != nil {
 		return nil, err
@@ -247,7 +251,12 @@ func (r *Registry) Launch(ctx context.Context, spec LaunchSpec) (*Handle, error)
 	if err := r.claimStart(spec.Agent.AgentID, spec.Generation); err != nil {
 		return nil, err
 	}
-	h, err := rt.Start(ctx, spec)
+	var h *Handle
+	if resume {
+		h, err = rt.Resume(ctx, spec, spec.LastSessionID)
+	} else {
+		h, err = rt.Start(ctx, spec)
+	}
 	if err != nil {
 		r.releaseStart(spec.Agent.AgentID)
 		return nil, err
@@ -314,22 +323,7 @@ func (r *Registry) ownerFor(agentID string) (Runtime, error) {
 // and LastContextPct from the sessions snapshot. Guards against double-resume with
 // the same nil-sentinel pattern used by Launch.
 func (r *Registry) Resume(ctx context.Context, spec LaunchSpec) (*Handle, error) {
-	rt, err := r.runtimeFor(spec.Agent.Interface)
-	if err != nil {
-		return nil, err
-	}
-	if err := r.claimStart(spec.Agent.AgentID, spec.Generation); err != nil {
-		return nil, err
-	}
-	h, err := rt.Resume(ctx, spec, spec.LastSessionID)
-	if err != nil {
-		r.releaseStart(spec.Agent.AgentID)
-		return nil, err
-	}
-	if err := r.commitStart(ctx, rt, spec.Agent.AgentID, spec.Generation); err != nil {
-		return nil, err
-	}
-	return h, nil
+	return r.start(ctx, spec, true)
 }
 
 // SendPrompt routes a prompt to the owning runtime.
@@ -368,7 +362,7 @@ func (r *Registry) ContinueSettledChat(agentID, generation string, decide func(s
 	}
 	turnID, _ := as.claimTurnLocked()
 	as.mu.Unlock()
-	return r.chat.runPromptTurn(as, prompt, turnID)
+	return r.chat.runMessageTurnFrom(as, Message{Text: prompt}, turnID, state.TurnOrigin{Kind: state.TurnOriginOwnerContinuation, ID: settled})
 }
 
 // SendPromptOrHold routes the person's chat prompt, which queues behind a
@@ -658,13 +652,15 @@ func (r *Registry) Owns(agentID string) bool {
 
 // Shutdown stops every live agent (server shutdown, techspec §8.5).
 func (r *Registry) Shutdown(ctx context.Context) {
-	r.chat.StopAll(ctx)
 	r.mu.Lock()
 	term := r.term
 	r.mu.Unlock()
+	var stopped sync.WaitGroup
+	stopped.Go(func() { r.chat.StopAll(ctx) })
 	if sa, ok := term.(stopAller); ok {
-		sa.StopAll(ctx)
+		stopped.Go(func() { sa.StopAll(ctx) })
 	}
+	stopped.Wait()
 	r.mu.Lock()
 	r.rtByAgent = map[string]Runtime{}
 	r.generationByAgent = map[string]string{}

@@ -26,7 +26,7 @@ import (
 
 // stopTimeout bounds how long `stop` waits for graceful SIGTERM exit before
 // escalating to SIGKILL.
-const stopTimeout = 5 * time.Second
+const stopTimeout = server.ShutdownTimeout + runtime.StopGrace + 3*time.Second
 
 // newDashboardCmd builds the `dashboard` parent command and its subcommands.
 func newDashboardCmd() *cobra.Command {

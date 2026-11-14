@@ -81,7 +81,7 @@ func (m *Manager) Start() error {
 		return fmt.Errorf("state: manager startup scan rows: %w", err)
 	}
 	for _, id := range ids {
-		if _, err := m.recomputeAndPublish(id); err != nil {
+		if _, err := m.Touch(id); err != nil {
 			return err
 		}
 	}
@@ -90,6 +90,8 @@ func (m *Manager) Start() error {
 
 // Touch recomputes and publishes the current effective state for agentID.
 func (m *Manager) Touch(agentID string) (AgentStateUpdate, error) {
+	m.writeMu.Lock()
+	defer m.writeMu.Unlock()
 	return m.recomputeAndPublish(agentID)
 }
 
@@ -166,7 +168,7 @@ ON CONFLICT(agent_id) DO UPDATE SET
 			// Gate on the terminal interface: chat agents self-suppress these hooks
 			// and own their own turn budget, so they must not be reset from here.
 			if current.Interface == "terminal" {
-				if err := resetTurnBudgetTx(tx, payload.AgentID, terminalTurnID(now)); err != nil {
+				if err := resetTurnBudgetTx(tx, payload.AgentID, terminalTurnID(now), TurnOrigin{}); err != nil {
 					return err
 				}
 			}

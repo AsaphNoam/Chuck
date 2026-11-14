@@ -249,8 +249,11 @@ func TestQuotaDeferralNoticeAndExactTupleClear(t *testing.T) {
 	if q.NoticeKey != "quota-notice-key" {
 		t.Fatalf("notice receipt missing: %+v", q)
 	}
-	if cleared, err := st.ClearQuota(q.AgentID, q.SourceGeneration, q.ExecutingTurn); err != nil || !cleared {
-		t.Fatalf("exact source tuple clear = %v, %v", cleared, err)
+	if err := st.ResolveQuota(q.AgentID, q.SourceGeneration, q.ExecutingTurn); err != nil {
+		t.Fatal(err)
+	}
+	if resolved, err := st.GetQuota(q.AgentID); err != nil || resolved.State != QuotaContinued {
+		t.Fatalf("exact source tuple resolution = %+v, %v", resolved, err)
 	}
 }
 

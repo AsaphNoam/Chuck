@@ -497,12 +497,12 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError("internal", "internal error"))
 		return
 	}
-	if !force || deleteCheckout {
+	checkRunning := func() bool {
 		agents, err := s.runningAgentsForProject(id)
 		if err != nil {
 			s.log.Error("projects: in-use check", "err", err)
 			writeAPIError(w, apiError("internal", "internal error"))
-			return
+			return false
 		}
 		if len(agents) > 0 {
 			hint := "retry with ?force=true to delete the definition; running agents are unaffected"
@@ -515,8 +515,12 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 				Agents:  agents,
 				Hint:    hint,
 			})
-			return
+			return false
 		}
+		return true
+	}
+	if (!force || deleteCheckout) && !checkRunning() {
+		return
 	}
 	if deleteCheckout {
 		// Deletion takes the same exclusive claim an archive does, so no start can
@@ -528,6 +532,9 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer s.endProjectArchive(id)
+		if !checkRunning() {
+			return
+		}
 		if _, err := s.deleteOwnedCheckout(r.Context(), id, expectedDirty); err != nil {
 			s.log.Error("worktree: delete checkout on project delete", "project", id, "err", err)
 			writeAPIError(w, apiError(runtime.CodeInternal, "delete checkout: "+err.Error()))

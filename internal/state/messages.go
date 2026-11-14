@@ -462,12 +462,16 @@ func (s *Store) UnreadCount(agentID string) (int, error) {
 // a stale row and could block send_message/check_messages for the resumed agent.
 // Collapsing to one row also caps turn_budget's otherwise unbounded growth.
 func (s *Store) ResetTurnBudget(agentID, turnID string) error {
+	return s.resetTurnBudget(agentID, turnID, TurnOrigin{})
+}
+
+func (s *Store) resetTurnBudget(agentID, turnID string, origin TurnOrigin) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("state: begin reset turn budget: %w", err)
 	}
 	defer tx.Rollback()
-	if err := resetTurnBudgetTx(tx, agentID, turnID); err != nil {
+	if err := resetTurnBudgetTx(tx, agentID, turnID, origin); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -479,22 +483,31 @@ func (s *Store) ResetTurnBudget(agentID, turnID string) error {
 // resetTurnBudgetTx performs the turn-budget reset inside an existing transaction
 // so callers already holding a tx (e.g. Manager.ApplyHook's terminal turn
 // boundary) can reset without opening a second connection.
-func resetTurnBudgetTx(tx *sql.Tx, agentID, turnID string) error {
+func resetTurnBudgetTx(tx *sql.Tx, agentID, turnID string, origin TurnOrigin) error {
 	var raw [16]byte
 	if _, err := randRead(raw[:]); err != nil {
 		return fmt.Errorf("state: delivery key: %w", err)
 	}
 	deliveryKey := "d_" + hex.EncodeToString(raw[:])
+	turnState := "ended"
+	var startedAt any
+	if origin.Generation != "" {
+		turnState, startedAt = "running", formatTime(timeNow())
+	}
 	if _, err := tx.Exec(`DELETE FROM turn_budget WHERE agent_id = ? AND turn_id <> ?`, agentID, turnID); err != nil {
 		return fmt.Errorf("state: prune turn budget rows: %w", err)
 	}
 	if _, err := tx.Exec(`
-INSERT INTO turn_budget(agent_id, turn_id, inbound, outbound, breached, delivery_turn_key, inline_message_ids)
-VALUES (?, ?, 0, 0, 0, ?, '[]')
+INSERT INTO turn_budget(agent_id, turn_id, inbound, outbound, breached, delivery_turn_key, inline_message_ids,
+                        generation, origin_kind, origin_id, state, outcome, started_at, ended_at)
+VALUES (?, ?, 0, 0, 0, ?, '[]', ?, ?, NULLIF(?, ''), ?, '', ?, NULL)
 ON CONFLICT(agent_id, turn_id) DO UPDATE SET
     inbound = 0,
     outbound = 0,
-    breached = 0, delivery_turn_key = excluded.delivery_turn_key, inline_message_ids = '[]'`, agentID, turnID, deliveryKey); err != nil {
+    breached = 0, delivery_turn_key = excluded.delivery_turn_key, inline_message_ids = '[]',
+    generation = excluded.generation, origin_kind = excluded.origin_kind, origin_id = excluded.origin_id,
+    state = excluded.state, outcome = '', started_at = excluded.started_at, ended_at = NULL`,
+		agentID, turnID, deliveryKey, origin.Generation, origin.Kind, origin.ID, turnState, startedAt); err != nil {
 		return fmt.Errorf("state: reset turn budget: %w", err)
 	}
 	return nil

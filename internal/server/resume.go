@@ -350,7 +350,7 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 	if refreshedConfig != nil {
 		snap.LaunchConfig = refreshedConfig
 	}
-	if ae, _ := s.startResumedRuntime(ctx, func() (runtime.LaunchSpec, *runtime.APIError) {
+	if ae, _ := s.startRuntimeClaimed(ctx, false, func() (runtime.LaunchSpec, *runtime.APIError) {
 		return s.composeResumeSpecContext(ctx, resumeAgent, snap, backend, model, "", notice)
 	}, nil); ae != nil {
 		return ae
@@ -371,35 +371,6 @@ func (s *Server) resumeSessionWithHooksAndNotice(ctx context.Context, id string,
 		}
 	}
 	return nil
-}
-
-// startResumedRuntime owns registration through persistence under the caller's
-// lifecycle claim. Switch can prepare the composed spec and persist the new
-// identity before starting it. The second result reports a failed stop, when
-// replacing the started runtime would be unsafe.
-func (s *Server) startResumedRuntime(ctx context.Context, compose func() (runtime.LaunchSpec, *runtime.APIError), prepare func(*runtime.LaunchSpec) *runtime.APIError) (*runtime.APIError, error) {
-	spec, ae := compose()
-	if ae != nil {
-		return ae, nil // the composer owns partial registration
-	}
-	id := spec.Agent.AgentID
-	if prepare != nil {
-		if ae := prepare(&spec); ae != nil {
-			s.teardownAgentRegistration(id)
-			return ae, nil
-		}
-	}
-	handle, err := s.registry.Resume(ctx, spec)
-	if err != nil {
-		s.teardownAgentRegistration(id)
-		return resumeStartError(err), nil
-	}
-	spec.Agent.Fast = handle.Fast
-	if err := s.stateStore.WriteAgent(spec.Agent); err != nil {
-		stopErr := s.stopFailedStart(id)
-		return apiError(runtime.CodeInternal, "write applied session configuration: "+err.Error()), stopErr
-	}
-	return nil, nil
 }
 
 // stopFailedStart runs independently of the request that failed. Retain the
@@ -567,51 +538,11 @@ func (s *Server) composeResumeSpecContext(ctx context.Context, agent state.Agent
 	if ae != nil {
 		return runtime.LaunchSpec{}, ae
 	}
-	token := mintHookToken()
-	if generation == "" {
-		generation = token
-	}
-	s.rememberHookToken(agent.AgentID, token)
-	mcpSpec, err := s.registerMessagingMCP(agent, generation)
-	if err != nil {
-		s.teardownAgentRegistration(agent.AgentID)
-		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
-	}
-	extraArgs, err := s.composeHookRegistration(agent, be.Type)
-	if err != nil {
-		s.teardownAgentRegistration(agent.AgentID)
-		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
-	}
-	spec := runtime.LaunchSpec{
-		Agent:              agent,
-		Generation:         generation,
-		Cwd:                snap.Cwd,
-		WorkspaceID:        snap.WorkspaceID,
-		AddDirs:            snap.AddDirs,
-		SystemPrompt:       snap.SystemPrompt,
-		HistoryPrimer:      snap.HistoryPrimer,
-		ChuckAware:         &snap.ChuckAware,
-		BackendType:        be.Type,
-		ModelID:            contract.ProviderModelID(),
-		Effort:             agent.Effort,
-		Fast:               agent.Fast,
-		Env:                composeChildEnv(be.Type, s.configStore.Home(), be.Env, model.Env, s.hookEnv(agent, token), projectResourcesEnv(resourceDir), providerEnv),
-		QuotaCheckEnv:      s.quotaCheckEnv(be, model, providerEnv),
-		ProviderExecutable: provider.Path,
-		ProviderSource:     provider.Source,
-		SkipPerms:          snap.SkipPermissions,
-		HookToken:          token,
-		MCPServers:         []runtime.MCPServerSpec{mcpSpec},
-		ExtraArgs:          extraArgs,
-		LastSessionID:      snap.LastSessionID,
-		LastContextPct:     snap.LastContextPct,
-		LastContext:        snap.LastContext,
-		// Resume reproduces the frozen federation launch object by default
-		// (techspec §2.5); "Resume with latest setup" re-resolves it (handleResume).
-		LaunchConfig:      snap.LaunchConfig,
-		ExecutionContract: contract,
-	}
-	return s.applyKnowledgeOverlay(spec), nil
+	snap.Effort, snap.Fast, snap.ExecutionContract = agent.Effort, agent.Fast, contract
+	return s.buildLaunchSpec(startSpec{
+		agent: agent, session: snap, backend: be, model: model, provider: provider,
+		providerEnv: providerEnv, resourceDir: resourceDir, generation: generation,
+	})
 }
 
 // resumeStartError maps a Resume failure to the right API error code.

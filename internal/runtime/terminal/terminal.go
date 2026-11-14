@@ -16,10 +16,6 @@ import (
 	"github.com/creack/pty"
 )
 
-// stopGrace is how long Stop waits after SIGTERM before SIGKILL (techspec §8.5,
-// matching the chat runtime).
-const stopGrace = 5 * time.Second
-
 // defaultInitialIdleDelay is the §3.1 step-7 race guard: the runtime writes the
 // initial idle status only if a SessionStart hook hasn't already produced one.
 const defaultInitialIdleDelay = 500 * time.Millisecond
@@ -414,7 +410,7 @@ func (r *Runtime) Stop(ctx context.Context, agentID string) error {
 		// silently succeed: if the recorded process group is alive, kill it before
 		// clearing the row, otherwise the PTY/CLI keeps running invisible and
 		// unkillable from the UI (Finding 5).
-		if err := rt.StopRecordedRow(r.store, agentID, stopGrace); err != nil {
+		if err := rt.StopRecordedRow(r.store, agentID, rt.StopGrace); err != nil {
 			return err
 		}
 		_ = r.store.DeleteRunningRetainingSession(agentID)
@@ -513,9 +509,7 @@ func (r *Runtime) StopAll(ctx context.Context) {
 		ids = append(ids, id)
 	}
 	r.mu.Unlock()
-	for _, id := range ids {
-		_ = r.Stop(ctx, id)
-	}
+	rt.StopAgents(ctx, ids, r.Stop)
 }
 
 // --- internals ---
@@ -614,14 +608,14 @@ func (r *Runtime) terminate(a *termAgent) error {
 	if classifyProcess(a.tab.PGID, a.tab.Birth) == rt.ProcessUnverified {
 		return &rt.ProcessUnverifiedError{PID: a.tab.PGID}
 	}
-	if err := rt.StopRecordedProcess(a.tab.PGID, a.tab.Birth, stopGrace); err != nil {
+	if err := rt.StopRecordedProcess(a.tab.PGID, a.tab.Birth, rt.StopGrace); err != nil {
 		return err
 	}
 	if a.tab.exited != nil {
 		// The leader is no longer alive, so the reaper is about to close this.
 		select {
 		case <-a.tab.exited:
-		case <-time.After(stopGrace):
+		case <-time.After(rt.StopGrace):
 		}
 	}
 	return nil

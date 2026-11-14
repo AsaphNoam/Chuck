@@ -190,7 +190,7 @@ func TestAgentCreatedWorkInheritsStageLineageAndClosureFence(t *testing.T) {
 	if err != nil || lineage.ParentTaskID != stageTaskID || lineage.PipelineRunID != runID || lineage.PipelineStageID != "implement" {
 		t.Fatalf("lineage = %#v, err=%v", lineage, err)
 	}
-	if err := st.ClosePipelineStageTask(stageTaskID, 2); err != nil {
+	if _, err := st.DB().Exec(`UPDATE pipeline_stage_tasks SET state='closing', closure_revision=2 WHERE task_id=?`, stageTaskID); err != nil {
 		t.Fatal(err)
 	}
 	blockedID, _ := st.NewTaskID()
@@ -747,7 +747,7 @@ func TestPipelineTaskConstructionSharesOnePersistenceShape(t *testing.T) {
 	}
 	// A continuation attempt on the same stage, with its own coordinator. The
 	// first attempt is closed first, exactly as acceptance closes it.
-	if err := st.ClosePipelineStageTask(firstID, 2); err != nil {
+	if _, err := st.DB().Exec(`UPDATE pipeline_stage_tasks SET state='closing', closure_revision=2 WHERE task_id=?`, firstID); err != nil {
 		t.Fatal(err)
 	}
 	created, err := st.ReadPipelineRun(runID)

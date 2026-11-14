@@ -79,11 +79,26 @@ func newTestStore(t *testing.T) (*Store, string) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() {
+		assertTaskStateColumns(t, st)
 		if err := st.Close(); err != nil {
 			t.Fatalf("Close: %v", err)
 		}
 	})
 	return st, home
+}
+
+func assertTaskStateColumns(t *testing.T, st *Store) {
+	t.Helper()
+	var id, taskState string
+	err := st.db.QueryRow(`SELECT task_id, state FROM tasks
+WHERE (continuation_pending <> 0 AND state NOT IN ('ready','starting'))
+   OR (pending_yield <> 0 AND state <> 'running')
+LIMIT 1`).Scan(&id, &taskState)
+	if err == nil {
+		t.Errorf("task %s in state %s has an invalid continuation or yield marker", id, taskState)
+	} else if !errors.Is(err, sql.ErrNoRows) && err.Error() != "sql: database is closed" {
+		t.Errorf("check task state columns: %v", err)
+	}
 }
 
 func mustTime(t *testing.T, s string) time.Time {

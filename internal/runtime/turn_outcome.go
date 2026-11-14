@@ -26,6 +26,27 @@ func (o TurnOutcome) confirmsInlineMail() bool {
 	return o == TurnCompleted || o == TurnProviderTruncated
 }
 
+func (o TurnOutcome) storageValue() string {
+	switch o {
+	case TurnCompleted:
+		return "completed"
+	case TurnCancelled:
+		return "cancelled"
+	case TurnFailed:
+		return "failed"
+	case TurnQuotaBlocked:
+		return "quota_blocked"
+	case TurnProviderTruncated, turnRequestLimit:
+		return "provider_truncated"
+	case TurnProcessEnded:
+		return "process_ended"
+	case turnRefused:
+		return "refused"
+	default:
+		return "unknown"
+	}
+}
+
 func outcomeForReason(reason string) TurnOutcome {
 	switch reason {
 	case "end_turn":

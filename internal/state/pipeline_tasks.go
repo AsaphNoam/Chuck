@@ -448,7 +448,7 @@ func commitStageResultTx(tx *sql.Tx, c stageResultCommit) error {
 	result, taskID, runID, revision, declared := c.Result, c.TaskID, c.RunID, c.Revision, c.Declared
 	now := timeNow()
 	stamp := formatTime(now)
-	res, err := tx.Exec(`UPDATE tasks SET state = ?, outcome = ?, outcome_source = ?, outcome_summary = ?, outcome_details = ?, attention_reason = '', pending_release = ?, finished_at = ?, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state = ?`, TaskFinished, result.Outcome, c.Source, result.Summary, result.Details, c.PendingRelease, stamp, stamp, taskID, c.TaskState)
+	res, err := finishTaskRow(tx, taskID, c.TaskState, c.Source, result, c.PendingRelease, stamp)
 	if err != nil {
 		return fmt.Errorf("state: finish stage task: %w", err)
 	}
@@ -733,6 +733,28 @@ WHERE p.task_id = ?`, taskID).Scan(&runState, &stageState, &kind, &roomID, &judg
 	return scanPipelineStageTask(s.db.QueryRow(`SELECT `+pipelineStageTaskColumns+` FROM pipeline_stage_tasks p WHERE p.task_id = ?`, taskID))
 }
 
+// PipelineRoomRunsAfter is a bounded visit of runs with an open room stage.
+func (s *Store) PipelineRoomRunsAfter(after string, limit int) ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT r.run_id FROM pipeline_runs r
+JOIN pipeline_stage_tasks p ON p.run_id = r.run_id
+WHERE r.run_id > ? AND r.state IN ('running','paused') AND r.pending_action = ''
+  AND p.state = 'open' AND p.room_id <> ''
+ORDER BY r.run_id LIMIT ?`, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // PendingThinkTankStageOutputs lists open room-backed stages whose judge has
 // completed, for the bounded post-commit recovery sweep (TS-09.R53).
 func (s *Store) PendingThinkTankStageOutputs(limit int) ([]PipelineStageTask, error) {
@@ -1004,22 +1026,6 @@ func (s *Store) bindPipelineStageTaskStandingAgent(taskID, agentID string, gener
 	return tx.Commit()
 }
 
-// ClosePipelineStageTask fences descendant creation before release/cleanup.
-func (s *Store) ClosePipelineStageTask(taskID string, closureRevision int64) error {
-	res, err := s.db.Exec(`UPDATE pipeline_stage_tasks SET state = 'closing', closure_revision = ?, closed_at = ? WHERE task_id = ? AND state = 'open'`, closureRevision, formatTime(timeNow()), taskID)
-	if err != nil {
-		return fmt.Errorf("state: close pipeline stage task: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n != 1 {
-		return ErrPipelineStageConflict
-	}
-	return nil
-}
-
 // RetryInterruptedPipelineStageTask returns the current interrupted assignment
 // to ordinary task admission while advancing the governing run in the same
 // transaction. The confirmed standing agent id remains on the task, so the
@@ -1184,7 +1190,9 @@ func (s *Store) PreparePipelineStageReplacement(p CreatePipelineStageTaskParams,
 	if _, err := tx.Exec(`UPDATE pipeline_stage_tasks SET state = 'replaced', closure_revision = ?, closed_at = ? WHERE task_id = ? AND state = 'open'`, revision+1, stamp, oldTaskID); err != nil {
 		return PipelineRunRecord{}, err
 	}
-	if _, err := tx.Exec(`UPDATE tasks SET state = ?, outcome = ?, outcome_source = 'host', outcome_summary = 'replaced', attention_reason = '', finished_at = ?, revision = revision + 1, updated_at = ? WHERE task_id = ? AND state = ?`, TaskFinished, OutcomeCancelled, stamp, stamp, oldTaskID, TaskInterrupted); err != nil {
+	if _, err := finishTaskRow(tx, oldTaskID, TaskInterrupted, "host", TaskResult{
+		Outcome: OutcomeCancelled, Summary: "replaced",
+	}, false, stamp); err != nil {
 		return PipelineRunRecord{}, err
 	}
 	if err := RegisterWorkResultTx(tx, WorkResult{SourceKind: SourceTask, SourceID: oldTaskID, Outcome: OutcomeCancelled, Summary: "replaced"}, now); err != nil && !errors.Is(err, ErrWorkResultRecorded) {

@@ -103,7 +103,7 @@ func (c *ChatRuntime) RequestHostPermission(agentID string, req HostPermissionRe
 	}
 	// A settler that claims the request in this gap waits on published, so the
 	// request, then its waiting status, precede any resolution.
-	c.updateStatus(as, "waiting_input", "Permission: "+req.Name, "PermissionRequest: "+req.Name, keepBusySince)
+	c.updatePermissionStatus(as, "Permission: "+req.Name, "PermissionRequest: "+req.Name)
 	c.emit(as, EvPermissionRequest, data)
 	close(h.published)
 	return h, nil

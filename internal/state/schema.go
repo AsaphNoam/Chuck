@@ -970,6 +970,45 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 76,
 		apply:   addPipelineInputOrigin,
 	},
+	{
+		version: 77,
+		apply:   addConversationTurn,
+	},
+	{
+		version: 78,
+		apply:   migrateTaskCommitment,
+	},
+}
+
+func migrateTaskCommitment(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name = 'continuation_pending'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`
+DROP INDEX IF EXISTS idx_tasks_active_assignee;
+UPDATE tasks SET ` + clearTaskContinuation + `
+WHERE state IN ('finished','dependency_failed') AND
+  (continuation_pending <> 0 OR resume_needed <> 0 OR pending_yield <> 0);
+CREATE UNIQUE INDEX idx_tasks_active_assignee ON tasks(assigned_agent_id)
+WHERE assigned_agent_id IS NOT NULL AND ` + taskCommitmentClause + `;`)
+	return err
+}
+
+func addConversationTurn(tx *sql.Tx) error {
+	var found int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'turn_budget'`).Scan(&found); err != nil || found == 0 {
+		return err
+	}
+	_, err := tx.Exec(`
+ALTER TABLE turn_budget ADD COLUMN generation TEXT NOT NULL DEFAULT '';
+ALTER TABLE turn_budget ADD COLUMN origin_kind TEXT NOT NULL DEFAULT '' CHECK(origin_kind IN ('', 'person', 'mail', 'task', 'quota', 'room', 'owner_continuation'));
+ALTER TABLE turn_budget ADD COLUMN origin_id TEXT;
+ALTER TABLE turn_budget ADD COLUMN state TEXT NOT NULL DEFAULT 'ended' CHECK(state IN ('running', 'ended'));
+ALTER TABLE turn_budget ADD COLUMN outcome TEXT NOT NULL DEFAULT '';
+ALTER TABLE turn_budget ADD COLUMN started_at TEXT;
+ALTER TABLE turn_budget ADD COLUMN ended_at TEXT;`)
+	return err
 }
 
 func addPipelineInputOrigin(tx *sql.Tx) error {

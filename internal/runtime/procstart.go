@@ -97,6 +97,34 @@ func ProcessBirth(pid int) time.Time {
 // output pipes after termination (TS-12.R11).
 const groupDrainBound = time.Second
 
+// StopGrace is how long an agent receives to exit after SIGTERM.
+const StopGrace = 5 * time.Second
+
+// stopAndReap sends TERM, waits for the leader, and sweeps the owned group.
+// A recorded process supplies a signal function that rechecks its ownership.
+func stopAndReap(pid int, grace time.Duration, signal func(syscall.Signal) error, wait func(time.Duration) bool) error {
+	if err := signal(syscall.SIGTERM); err != nil {
+		return err
+	}
+	if !wait(grace) {
+		if err := signal(syscall.SIGKILL); err != nil {
+			return err
+		}
+		wait(groupDrainBound)
+	}
+	if PidAlive(pid) {
+		// The leader has not exited, or its PID now names a later process.
+		return nil
+	}
+	// A group ID is not reassigned while any member remains. Sweep descendants
+	// even when TERM was sufficient to stop the leader.
+	_ = syscall.Kill(-pid, syscall.SIGKILL)
+	for end := time.Now().Add(groupDrainBound); time.Now().Before(end) && LeaderlessGroup(pid); {
+		time.Sleep(20 * time.Millisecond)
+	}
+	return nil
+}
+
 // ContainCommand gives an exec.CommandContext child a dedicated process group
 // whose whole membership is SIGKILLed when the context ends, and bounds the
 // wait for output pipes held open by descendants (TS-01.R41, TS-12.R11). The
@@ -131,29 +159,18 @@ func StopRecordedProcess(pid int, birth time.Time, grace time.Duration) error {
 	case ProcessUnverified:
 		return &ProcessUnverifiedError{PID: pid}
 	}
-	_ = syscall.Kill(-pid, syscall.SIGTERM)
-	deadline := time.Now().Add(grace)
-	for time.Now().Before(deadline) && ClassifyProcess(pid, birth) == ProcessOwned {
-		time.Sleep(50 * time.Millisecond)
-	}
-	switch ClassifyProcess(pid, birth) {
-	case ProcessOwned:
-		_ = syscall.Kill(-pid, syscall.SIGKILL)
-		for i := 0; i < 20 && ClassifyProcess(pid, birth) == ProcessOwned; i++ {
+	return stopAndReap(pid, grace, func(sig syscall.Signal) error {
+		switch ClassifyProcess(pid, birth) {
+		case ProcessOwned:
+			_ = syscall.Kill(-pid, sig)
+		case ProcessUnverified:
+			return &ProcessUnverifiedError{PID: pid}
+		}
+		return nil
+	}, func(bound time.Duration) bool {
+		for deadline := time.Now().Add(bound); time.Now().Before(deadline) && ClassifyProcess(pid, birth) == ProcessOwned; {
 			time.Sleep(50 * time.Millisecond)
 		}
-	case ProcessUnverified:
-		return &ProcessUnverifiedError{PID: pid}
-	}
-	if PidAlive(pid) {
-		// The PID now names a later process; its group is not ours to sweep.
-		return nil
-	}
-	// The leader is gone. A group ID is not reassigned while any member
-	// remains, so this reaches only descendants left in the owned group.
-	_ = syscall.Kill(-pid, syscall.SIGKILL)
-	for end := time.Now().Add(groupDrainBound); time.Now().Before(end) && syscall.Kill(-pid, 0) == nil; {
-		time.Sleep(20 * time.Millisecond)
-	}
-	return nil
+		return ClassifyProcess(pid, birth) == ProcessExited
+	})
 }

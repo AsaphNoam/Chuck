@@ -8,12 +8,10 @@ import (
 // QuotaWorkEligible is a read-only preflight shared by checks and actual
 // continuation. Admission revalidates its transactional predicates before effects.
 func (s *Store) QuotaWorkEligible(q QuotaIntent, budget int) (bool, error) {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-	return quotaWorkEligibleTx(tx, q, budget)
+	decision, err := s.DecideTurnAdmission(TurnAdmissionRequest{
+		AgentID: q.AgentID, Check: AdmitQuotaOwner, Quota: q, Budget: budget,
+	})
+	return decision.Allowed, err
 }
 
 func quotaWorkEligibleTx(tx *sql.Tx, q QuotaIntent, budget int) (bool, error) {
@@ -72,17 +70,8 @@ func quotaWorkEligibleTx(tx *sql.Tx, q QuotaIntent, budget int) (bool, error) {
 }
 
 func quotaUnassignedTx(tx *sql.Tx, agentID string) (bool, error) {
-	var assigned, rooms int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM tasks WHERE assigned_agent_id=? AND state IN (?,?,?)`, agentID, TaskStarting, TaskRunning, TaskWaiting).Scan(&assigned); err != nil {
-		return false, err
-	}
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM think_tank_attempts WHERE agent_id=? AND state=?`, agentID, ThinkTankAttemptRunning).Scan(&rooms); err != nil {
-		return false, err
-	}
-	if assigned != 0 || rooms != 0 {
-		return false, ErrQuotaOwner
-	}
-	return true, nil
+	decision, err := decideTurnAdmission(tx, TurnAdmissionRequest{AgentID: agentID, Check: AdmitQuotaUnassigned})
+	return decision.Allowed, err
 }
 
 func quotaTaskClaimTx(tx *sql.Tx, q QuotaIntent) (string, error) {
@@ -131,7 +120,7 @@ func (s *Store) AdmitQuotaTurn(q QuotaIntent, generation, turn string) error {
 	if err := markQuotaProviderStartedTx(tx, q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, generation, turn); err != nil {
 		return err
 	}
-	if err := resetTurnBudgetTx(tx, q.AgentID, turn); err != nil {
+	if err := resetTurnBudgetTx(tx, q.AgentID, turn, TurnOrigin{Generation: generation, Kind: TurnOriginQuota, ID: q.EpisodeID}); err != nil {
 		return err
 	}
 	return tx.Commit()

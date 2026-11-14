@@ -247,17 +247,17 @@ WHERE activation_id = ? AND kind = ? AND state = ? AND claim_token = ?`,
 // provider side effect. A running activation supplies turnID so its budget reset
 // commits atomically with this boundary; a stopped activation supplies "" and
 // opens its freshly resumed turn through StartAttemptedTurn.
-func (s *Store) AttemptActivation(kind, activationID, token, turnID string) (bool, error) {
+func (s *Store) AttemptActivation(kind, activationID, token, turnID string, generation ...string) (bool, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return false, fmt.Errorf("state: begin activation attempt: %w", err)
 	}
 	defer tx.Rollback()
-	var agentID string
+	var agentID, sourceID string
 	if err := tx.QueryRow(`
-SELECT agent_id FROM activations
+SELECT agent_id, source_id FROM activations
 WHERE activation_id = ? AND kind = ? AND state = ? AND claim_token = ?`,
-		activationID, kind, ActivationClaimed, token).Scan(&agentID); err == sql.ErrNoRows {
+		activationID, kind, ActivationClaimed, token).Scan(&agentID, &sourceID); err == sql.ErrNoRows {
 		return false, nil
 	} else if err != nil {
 		return false, fmt.Errorf("state: read claimed activation: %w", err)
@@ -276,7 +276,7 @@ WHERE activation_id = ? AND kind = ? AND state = ? AND claim_token = ?`,
 		return false, nil
 	}
 	if turnID != "" {
-		if err := resetTurnBudgetTx(tx, agentID, turnID); err != nil {
+		if err := resetTurnBudgetTx(tx, agentID, turnID, activationTurnOrigin(kind, activationID, sourceID, generation)); err != nil {
 			return false, err
 		}
 	}
@@ -288,26 +288,37 @@ WHERE activation_id = ? AND kind = ? AND state = ? AND claim_token = ?`,
 
 // StartAttemptedTurn initializes the runtime turn budget for the claimed
 // activation that already crossed the wake boundary.
-func (s *Store) StartAttemptedTurn(kind, activationID, token, turnID string) error {
+func (s *Store) StartAttemptedTurn(kind, activationID, token, turnID string, generation ...string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("state: begin attempted activation turn: %w", err)
 	}
 	defer tx.Rollback()
-	var agentID string
+	var agentID, sourceID string
 	if err := tx.QueryRow(`
-SELECT agent_id FROM activations
+SELECT agent_id, source_id FROM activations
 WHERE activation_id = ? AND kind = ? AND state = ? AND claim_token = ?`,
-		activationID, kind, ActivationAttempted, token).Scan(&agentID); err != nil {
+		activationID, kind, ActivationAttempted, token).Scan(&agentID, &sourceID); err != nil {
 		return fmt.Errorf("state: read attempted activation: %w", err)
 	}
-	if err := resetTurnBudgetTx(tx, agentID, turnID); err != nil {
+	if err := resetTurnBudgetTx(tx, agentID, turnID, activationTurnOrigin(kind, activationID, sourceID, generation)); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("state: commit attempted activation turn: %w", err)
 	}
 	return nil
+}
+
+func activationTurnOrigin(kind, activationID, sourceID string, generation []string) TurnOrigin {
+	if len(generation) == 0 || generation[0] == "" {
+		return TurnOrigin{}
+	}
+	origin := TurnOrigin{Generation: generation[0], Kind: TurnOriginMail, ID: activationID}
+	if kind == ActivationKindDependency {
+		origin.Kind, origin.ID = TurnOriginTask, sourceID
+	}
+	return origin
 }
 
 // RetireActivation removes an attempted record after its one bounded handoff.

@@ -221,7 +221,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	// so it must roll back to the previous identity (re-register + re-resume) rather
 	// than leave the agent dead with no running row — the same recovery step 5 uses.
 	var worktreeNotice worktreeStartNotice
-	ae, stopErr := s.startResumedRuntime(r.Context(), func() (runtime.LaunchSpec, *runtime.APIError) {
+	ae, stopErr := s.startRuntimeClaimed(r.Context(), false, func() (runtime.LaunchSpec, *runtime.APIError) {
 		return s.composeSwitchSpecContext(r.Context(), target, resumeID, &worktreeNotice)
 	}, func(spec *runtime.LaunchSpec) *runtime.APIError {
 		spec.Driver = req.Driver
@@ -242,7 +242,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 			// Replace the prior bridge without stacking it into the persona.
 			spec.HistoryPrimer = primer
 		}
-		if err := s.stateStore.WriteAgent(target); err != nil {
+		if err := s.stateStore.WriteAgentRuntimeIdentity(target); err != nil {
 			return apiError(runtime.CodeInternal, "persist identity: "+err.Error())
 		}
 		return nil
@@ -287,13 +287,13 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAgent state.Agent, prevSessionID string, previousSnapshot state.SessionSnapshot, cause error) {
 	rollbackCtx, cancel := context.WithTimeout(context.Background(), switchRollbackTimeout)
 	defer cancel()
-	if err := s.stateStore.WriteAgent(prevAgent); err != nil {
+	if err := s.stateStore.WriteAgentRuntimeIdentity(prevAgent); err != nil {
 		s.failSwitch(w, prevAgent.AgentID, "restore identity: "+err.Error())
 		return
 	}
 	// Compose from the pre-switch snapshot: a target startup may already have
 	// written its own metadata (bridge, launch object, contract) before failing.
-	ae, stopErr := s.startResumedRuntime(rollbackCtx, func() (runtime.LaunchSpec, *runtime.APIError) {
+	ae, stopErr := s.startRuntimeClaimed(rollbackCtx, false, func() (runtime.LaunchSpec, *runtime.APIError) {
 		spec, ae := s.composeSwitchSpecFrom(rollbackCtx, prevAgent, prevSessionID, previousSnapshot, nil)
 		if ae != nil {
 			return runtime.LaunchSpec{}, apiError(ae.Code, "recompose previous: "+ae.Message)
@@ -315,7 +315,7 @@ func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAg
 // switch_failed; the agent is recoverable via archive resume (§5.4).
 func (s *Server) failSwitch(w http.ResponseWriter, agentID, detail string) {
 	if st, err := s.stateStore.ReadStatus(agentID); err == nil {
-		st.State = "error"
+		st.State = state.ComposeChatStatus(state.ChatProcessFailed, state.ConversationTurn{}, false)
 		st.Detail = "switch failed: " + clipDetail(detail)
 		st.BusySince = nil
 		_ = s.stateStore.WriteStatus(st)
@@ -448,49 +448,12 @@ func (s *Server) composeSwitchSpecFrom(ctx context.Context, target state.Agent, 
 		return runtime.LaunchSpec{}, rae
 	}
 
-	token := mintHookToken()
-	s.rememberHookToken(target.AgentID, token)
-	mcpSpec, err := s.registerMessagingMCP(target, token)
-	if err != nil {
-		s.teardownAgentRegistration(target.AgentID)
-		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
-	}
-	extraArgs, err := s.composeHookRegistration(target, be.Type)
-	if err != nil {
-		s.teardownAgentRegistration(target.AgentID)
-		return runtime.LaunchSpec{}, apiError(runtime.CodeInternal, err.Error())
-	}
-
-	spec := runtime.LaunchSpec{
-		Agent:              target,
-		Generation:         token,
-		Cwd:                snap.Cwd,
-		WorkspaceID:        snap.WorkspaceID,
-		AddDirs:            snap.AddDirs,
-		SystemPrompt:       snap.SystemPrompt,
-		HistoryPrimer:      snap.HistoryPrimer,
-		ChuckAware:         &snap.ChuckAware,
-		BackendType:        be.Type,
-		ModelID:            contract.ProviderModelID(),
-		Effort:             target.Effort,
-		Fast:               target.Fast,
-		Env:                composeChildEnv(be.Type, s.configStore.Home(), be.Env, model.Env, s.hookEnv(target, token), projectResourcesEnv(resourceDir), providerEnv),
-		QuotaCheckEnv:      s.quotaCheckEnv(be, model, providerEnv),
-		ProviderExecutable: provider.Path,
-		ProviderSource:     provider.Source,
-		SkipPerms:          snap.SkipPermissions,
-		HookToken:          token,
-		MCPServers:         []runtime.MCPServerSpec{mcpSpec},
-		ExtraArgs:          extraArgs,
-		LastSessionID:      resumeID,
-		LastContextPct:     snap.LastContextPct,
-		LastContext:        snap.LastContext,
-		// Switch continues the same logical session, so the frozen federation launch
-		// object carries over unchanged — switch never re-resolves the source (§2.5).
-		LaunchConfig:      snap.LaunchConfig,
-		ExecutionContract: contract,
-	}
-	return s.applyKnowledgeOverlay(spec), nil
+	snap.LastSessionID = resumeID
+	snap.Effort, snap.Fast, snap.ExecutionContract = target.Effort, target.Fast, contract
+	return s.buildLaunchSpec(startSpec{
+		agent: target, session: snap, backend: be, model: model, provider: provider,
+		providerEnv: providerEnv, resourceDir: resourceDir,
+	})
 }
 
 // cancelAndWait cancels the in-flight turn and waits up to timeout for the agent

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -80,7 +81,7 @@ func (c *ChatRuntime) onRequest(as *agentState, req *IncomingRequest) {
 	// waiting_input while withheld (techspec §4.4). A settler that claims the
 	// request in this gap waits on published, so the request and its waiting
 	// status precede any resolution (INV §5).
-	c.updateStatus(as, "waiting_input", "Permission: "+data.Name, "PermissionRequest: "+data.Name, keepBusySince)
+	c.updatePermissionStatus(as, "Permission: "+data.Name, "PermissionRequest: "+data.Name)
 	c.emitIn(as, scope, EvPermissionRequest, data)
 	close(p.published)
 	// NB: no req.Respond here — withholding the response IS the pause.
@@ -223,14 +224,14 @@ func (c *ChatRuntime) cancel(as *agentState, expectedGeneration, expectedTurn st
 	// A cooperative peer can finish immediately on session/cancel. Record and
 	// answer permissions first, then recheck the captured turn under its lock so
 	// a successor cannot receive the old turn's cancellation.
-	as.mu.Lock()
-	if active && as.turn.turnActive && as.turn.turnSeq == armedTurn {
-		_ = as.transport.Notify("session/cancel", map[string]any{"sessionId": as.sessionID})
-	}
-	as.mu.Unlock()
-
 	if active {
 		c.escalateCancel(as, armedTurn)
+	}
+	as.mu.Lock()
+	send := active && as.turn.turnActive && as.turn.turnSeq == armedTurn && !as.stopping && !as.stopped
+	as.mu.Unlock()
+	if send {
+		_ = as.transport.Notify("session/cancel", map[string]any{"sessionId": as.sessionID})
 	}
 	return cancelled, nil
 }
@@ -356,7 +357,14 @@ func (c *ChatRuntime) StopAll(ctx context.Context) {
 		ids = append(ids, id)
 	}
 	c.mu.Unlock()
+	StopAgents(ctx, ids, c.Stop)
+}
+
+// StopAgents starts every owned stop before waiting for any one grace period.
+func StopAgents(ctx context.Context, ids []string, stop func(context.Context, string) error) {
+	var done sync.WaitGroup
 	for _, id := range ids {
-		_ = c.Stop(ctx, id)
+		done.Go(func() { _ = stop(ctx, id) })
 	}
+	done.Wait()
 }

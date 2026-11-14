@@ -330,10 +330,16 @@ func scanQuota(row interface{ Scan(...any) error }) (QuotaIntent, error) {
 }
 
 func (s *Store) DueQuotaIntents(now time.Time, limit int) ([]QuotaIntent, error) {
+	return s.DueQuotaIntentsAfter(now, time.Time{}, "", limit)
+}
+
+func (s *Store) DueQuotaIntentsAfter(now, after time.Time, afterAgent string, limit int) ([]QuotaIntent, error) {
 	if limit < 1 || limit > MaxQuotaDueBatch {
 		return nil, ErrQuotaConflict
 	}
-	rows, err := s.db.Query(quotaSelect+` WHERE state IN ('scheduled','deferred') AND due_at IS NOT NULL AND due_at <= ? ORDER BY due_at, agent_id LIMIT ?`, formatTime(now), limit)
+	rows, err := s.db.Query(quotaSelect+` WHERE state IN ('scheduled','deferred') AND due_at IS NOT NULL
+AND due_at <= ? AND (due_at, agent_id) > (?, ?) ORDER BY due_at, agent_id LIMIT ?`,
+		formatTime(now), formatTime(after), afterAgent, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -350,6 +356,15 @@ func (s *Store) DueQuotaIntents(now time.Time, limit int) ([]QuotaIntent, error)
 		return nil, err
 	}
 	return items, nil
+}
+
+// HoldDueQuotaWithoutOwner fences the observation by episode and revision.
+func (s *Store) HoldDueQuotaWithoutOwner(q QuotaIntent) error {
+	res, err := s.db.Exec(`UPDATE quota_intents SET state='needs_attention', revision=revision+1,
+reason_code='owner_unavailable', due_at=NULL, updated_at=?
+WHERE agent_id=? AND episode_id=? AND revision=? AND state IN ('scheduled','deferred')`,
+		formatTime(timeNow()), q.AgentID, q.EpisodeID, q.Revision)
+	return quotaCASResult(res, err)
 }
 
 func quotaCASResult(res sql.Result, err error) error {
@@ -484,12 +499,16 @@ func (s *Store) BindQuotaManualTurn(agentID, generation, turn string) error {
 	return tx.Commit()
 }
 
-func (s *Store) HoldQuotaManualTurn(agentID, generation, turn string) error {
+func (s *Store) HoldQuotaManualTurn(agentID, generation, turn string, revision int64) error {
 	if agentID == "" || generation == "" || turn == "" {
 		return ErrQuotaConflict
 	}
-	_, err := s.db.Exec(`UPDATE quota_intents SET state='needs_attention', revision=revision+1, reason_code='non_quota_failure', due_at=NULL, updated_at=? WHERE agent_id=? AND manual_generation=? AND manual_turn=? AND state<>'continued'`, formatTime(timeNow()), agentID, generation, turn)
-	return err
+	res, err := s.db.Exec(`UPDATE quota_intents SET state='needs_attention', revision=revision+1,
+reason_code='non_quota_failure', due_at=NULL, updated_at=?
+WHERE agent_id=? AND manual_generation=? AND manual_turn=? AND revision=?
+  AND state IN ('unknown_reset','scheduled','deferred','claimed','needs_attention')`,
+		formatTime(timeNow()), agentID, generation, turn, revision)
+	return quotaCASResult(res, err)
 }
 
 func (s *Store) ConfirmQuotaSuccess(agentID, episode string, revision int64, token, generation, turn string) error {
@@ -593,17 +612,6 @@ func (s *Store) CancelPendingQuotas() ([]string, error) {
 		return nil, err
 	}
 	return ids, nil
-}
-
-// ClearQuota cancels an intent only when it still names the exact execution
-// tuple that received successful manual input.
-func (s *Store) ClearQuota(agentID, generation, turn string) (bool, error) {
-	res, err := s.db.Exec(`UPDATE quota_intents SET state='cancelled', revision=revision+1, due_at=NULL, updated_at=? WHERE agent_id=? AND state IN ('scheduled','deferred','claimed') AND ((source_generation=? AND executing_turn=?) OR (continued_generation=? AND continued_turn=?))`, formatTime(timeNow()), agentID, generation, turn, generation, turn)
-	if err != nil {
-		return false, err
-	}
-	n, err := res.RowsAffected()
-	return n == 1, err
 }
 
 // RecoverQuotaClaims repairs process-owned claims after a restart. A claim with

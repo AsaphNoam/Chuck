@@ -492,20 +492,6 @@ type PipelineRunUpdate struct {
 	PauseQuestion string
 }
 
-type PipelineReportInput struct {
-	RunID            string
-	AttemptID        string
-	AgentID          string
-	AgentGeneration  string
-	ExpectedRevision int64
-	Outcome          string
-	Summary          string
-	Details          string
-	Checks           string
-	Outputs          []PipelineValueRecord
-	ReportedAt       time.Time
-}
-
 type PipelineAssociation struct {
 	RunID     string `json:"run_id"`
 	RunName   string `json:"run_name"`

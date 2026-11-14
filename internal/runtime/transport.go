@@ -266,6 +266,12 @@ func (t *Transport) writeMessage(msg rpcMessage) error {
 // Done returns a channel closed when the read loop exits.
 func (t *Transport) Done() <-chan struct{} { return t.done }
 
+func (t *Transport) isClosed() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.closed
+}
+
 // Err returns the read loop's terminal error after Done is closed (nil on EOF).
 func (t *Transport) Err() error {
 	t.mu.Lock()

@@ -86,6 +86,32 @@ ON CONFLICT(agent_id) DO UPDATE SET
 	return nil
 }
 
+// RenameAgent changes only the name, including during a provider handshake.
+func (s *Store) RenameAgent(id, name string) error {
+	result, err := s.db.Exec(`UPDATE agents SET name = ? WHERE agent_id = ?`, name, id)
+	if err != nil {
+		return fmt.Errorf("state: write agent: %w", err)
+	}
+	if rows, _ := result.RowsAffected(); rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// WriteAgentRuntimeIdentity changes the runtime selection without overwriting
+// independently edited identity fields.
+func (s *Store) WriteAgentRuntimeIdentity(a Agent) error {
+	result, err := s.db.Exec(`UPDATE agents SET backend = ?, model = ?, effort = ?, fast = ?, interface = ? WHERE agent_id = ?`,
+		a.Backend, a.Model, a.Effort, a.Fast, a.Interface, a.AgentID)
+	if err != nil {
+		return fmt.Errorf("state: write agent: %w", err)
+	}
+	if rows, _ := result.RowsAffected(); rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // UpdateAgentSessionSettings commits a live session-setting change to identity,
 // the frozen session snapshot, and the running row's fast-mode advertisement in
 // one transaction, so resume, the archive, and the chat header can never observe
@@ -150,11 +176,43 @@ ORDER BY created_at, agent_id`)
 	return out, nil
 }
 
+// AgentsWithoutSession returns identities left before a launch persisted its snapshot.
+func (s *Store) AgentsWithoutSession() ([]string, error) {
+	rows, err := s.db.Query(`SELECT agent_id FROM agents WHERE NOT EXISTS
+		(SELECT 1 FROM sessions WHERE sessions.agent_id = agents.agent_id) ORDER BY agent_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// RestoreInterruptedSwitches restores a stopped agent's native selection when
+// a Switch committed the target identity but crashed before writing its
+// session. An interface-only Switch can legitimately differ from the snapshot.
+func (s *Store) RestoreInterruptedSwitches() error {
+	_, err := s.db.Exec(`
+UPDATE agents AS a
+SET (backend, model, effort, fast, interface) =
+    (SELECT backend, model, effort, fast, interface FROM sessions WHERE agent_id = a.agent_id)
+WHERE NOT EXISTS (SELECT 1 FROM running WHERE agent_id = a.agent_id)
+  AND EXISTS (SELECT 1 FROM sessions WHERE agent_id = a.agent_id AND backend <> a.backend)`)
+	return err
+}
+
 // ArchivedAgentCounts returns one aggregate row per project. Archive group
 // listing uses this bounded projection instead of loading every durable agent
 // identity merely to count archived members.
 func (s *Store) ArchivedAgentCounts() (map[string]int, error) {
-	rows, err := s.db.Query(`
+	rows, err := s.history.Query(`
 SELECT project, COUNT(*)
 FROM agents
 WHERE archived = 1

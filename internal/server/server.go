@@ -40,8 +40,10 @@ type onboardingCacheEntry struct {
 
 const onboardingCacheTTL = 60 * time.Second
 
-// shutdownTimeout bounds graceful shutdown after the context is cancelled.
-const shutdownTimeout = 5 * time.Second
+// ShutdownTimeout bounds graceful quiescence after the context is cancelled.
+const ShutdownTimeout = 5 * time.Second
+
+const shutdownTimeout = ShutdownTimeout
 
 // Server owns the HTTP lifecycle and its dependencies.
 type Server struct {
@@ -82,7 +84,11 @@ type Server struct {
 	ownerStallNudgeOff bool
 	// pipelineRecoveryAfter is the dispatcher's rotating visit cursor.
 	pipelineRecoveryAfter string
+	parkedTaskAfter       string // task dispatcher cursor
+	roomPhaseAfter        string // room dispatcher cursor
 	quotaStartSlots       chan struct{}
+	quotaDueAfter         time.Time // task dispatcher cursor, advanced for each visited intent
+	quotaDueAfterAgent    string
 	quotaControlMu        sync.Mutex
 	quotaActionMu         sync.Mutex
 	quotaActions          map[string]bool
@@ -470,8 +476,10 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 				s.holdUnretainedPermission(ev)
 				eventBus.PublishPermissionNotification(ev)
 			}
-			if err := s.confirmQuotaProgress(ev); err != nil {
-				s.log.Error("confirm quota continuation progress", "agent", ev.AgentID, "err", err)
+			if obs.QuotaContinuation {
+				if err := s.confirmQuotaProgress(ev); err != nil {
+					s.log.Error("confirm quota continuation progress", "agent", ev.AgentID, "err", err)
+				}
 			}
 			s.captureThinkTankEvent(obs)
 			if ev.Type == runtime.EvPermissionRequest || ev.Type == runtime.EvPermissionResolved {
@@ -631,6 +639,7 @@ func (s *Server) Start(ctx context.Context) error {
 	serveErr := make(chan error, 1)
 	sweepCtx, stopSweep := context.WithCancel(ctx)
 	defer stopSweep()
+	s.recoverIncompleteLaunches()
 	s.startReconciliationSweep(sweepCtx)
 	if err := s.stateStore.RecoverQuotaClaims(); err != nil {
 		ln.Close()

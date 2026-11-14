@@ -39,6 +39,9 @@ func (o CommitOutcome) String() string {
 type Observation struct {
 	Event   Event
 	Outcome CommitOutcome
+	// QuotaContinuation is captured from the originating turn before the
+	// observation is queued. It is control metadata, outside retained history.
+	QuotaContinuation bool
 	// IndexOK is false when the canonical record committed but its derived
 	// index projection failed; that never changes Outcome (TS-01.R39).
 	IndexOK bool

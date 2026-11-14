@@ -151,39 +151,24 @@ func (s *Server) launchAgent(ctx context.Context, req launchRequest, options lau
 	defer s.releaseProjectStart(req.Project)
 	var notice worktreeStartNotice
 	options.Notice = &notice
-	// Resolve config + defaults; validate (§6.1 step 1, §6.5).
-	spec, agent, ae := s.composeLaunchWithOptions(ctx, req, options)
+	var id string
+	ae, _ := s.startRuntimeClaimed(ctx, true, func() (runtime.LaunchSpec, *runtime.APIError) {
+		spec, agent, ae := s.composeLaunchWithOptions(ctx, req, options)
+		id = agent.AgentID
+		return spec, ae
+	}, func(spec *runtime.LaunchSpec) *runtime.APIError {
+		// Persist the identity before the handshake so it has a stable id.
+		if err := s.stateStore.WriteAgent(spec.Agent); err != nil {
+			return apiError(runtime.CodeInternal, "write identity: "+err.Error())
+		}
+		return nil
+	})
 	if ae != nil {
 		return sessionResponse{}, ae
 	}
 
-	// Insert identity row before Start so a crash mid-handshake still has a
-	// stable id; roll back if Start fails outright (§6.1 step 4, step 8).
-	if err := s.stateStore.WriteAgent(agent); err != nil {
-		// composeLaunch already remembered the hook token, registered the MCP
-		// session, and wrote the hook-settings file — tear them all down so a
-		// WriteAgent failure doesn't leak a spoofable messaging identity + files.
-		s.teardownAgentRegistration(agent.AgentID)
-		return sessionResponse{}, apiError(runtime.CodeInternal, "write identity: "+err.Error())
-	}
-
-	handle, err := s.registry.Launch(ctx, spec)
-	if err != nil {
-		// Roll back identity + any partial rows + all registration artifacts.
-		_ = s.stateStore.DeleteRunning(agent.AgentID)
-		_ = s.stateStore.DeleteStatus(agent.AgentID)
-		_ = s.stateStore.DeleteAgent(agent.AgentID)
-		s.teardownAgentRegistration(agent.AgentID)
-		return sessionResponse{}, launchStartError(err)
-	}
-	agent.Fast = handle.Fast
-	if err := s.stateStore.WriteAgent(agent); err != nil {
-		_ = s.stopFailedStart(agent.AgentID)
-		return sessionResponse{}, apiError(runtime.CodeInternal, "write applied session configuration: "+err.Error())
-	}
-
 	// Runtime inserted running + status rows during Start.
-	resp := s.readSession(agent.AgentID)
+	resp := s.readSession(id)
 	if notice.Recreated {
 		resp.Worktree = &notice
 	}
@@ -428,25 +413,6 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 		CreatedAt: time.Now().UTC(), Group: normalizedGroup,
 	}
 
-	token := mintHookToken()
-	generation := options.Generation
-	if generation == "" {
-		generation = token
-	}
-	s.rememberHookToken(agentID, token)
-	mcpSpec, err := s.registerMessagingMCP(agent, generation)
-	if err != nil {
-		s.teardownAgentRegistration(agentID)
-		return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeInternal, err.Error())
-	}
-
-	hookEnv := s.hookEnv(agent, token)
-	extraArgs, err := s.composeHookRegistration(agent, backend.Type)
-	if err != nil {
-		s.teardownAgentRegistration(agentID)
-		return runtime.LaunchSpec{}, state.Agent{}, apiError(runtime.CodeInternal, err.Error())
-	}
-
 	aware := role.IsChuckAware()
 	if options.ChuckAware != nil {
 		aware = *options.ChuckAware
@@ -457,41 +423,28 @@ func (s *Server) composeLaunchWithOptions(ctx context.Context, req launchRequest
 	}
 	contract := newExecutionContract(agent, backend.Type, choice, skip, setup)
 	contract.Fast = req.Fast // requested; the runtime records the applied value before persistence
-	spec := runtime.LaunchSpec{
-		ChuckAware:         &aware,
-		Agent:              agent,
-		Generation:         generation,
-		Cwd:                cwd,
-		WorkspaceID:        workspaceID,
-		AddDirs:            addDirs,
-		SystemPrompt:       joinSystemPrompt(project.ContextPrompt, role.SystemPrompt, projectResourcesInstruction(resourceDir), pipelineOrchestrationBlock(options.OrchestratorInstructions)),
-		BackendType:        backend.Type,
-		ModelID:            contract.ProviderModelID(),
-		Effort:             resolvedEffort,
-		Fast:               req.Fast,
-		Driver:             driver,
-		Env:                composeChildEnv(backend.Type, s.configStore.Home(), backend.Env, model.Env, hookEnv, projectResourcesEnv(resourceDir), providerEnv),
-		QuotaCheckEnv:      s.quotaCheckEnv(backend, model, providerEnv),
-		ProviderExecutable: provider.Path,
-		ProviderSource:     provider.Source,
-		SkipPerms:          skip,
-		HookToken:          token,
-		MCPServers:         []runtime.MCPServerSpec{mcpSpec},
-		ExtraArgs:          extraArgs,
-		LaunchConfig:       launchConfig,
-		ExecutionContract:  contract,
-		Fork:               options.Fork,
+	snap := state.SessionSnapshot{
+		ChuckAware: aware, Cwd: cwd, WorkspaceID: workspaceID, AddDirs: addDirs,
+		SystemPrompt: joinSystemPrompt(project.ContextPrompt, role.SystemPrompt, projectResourcesInstruction(resourceDir), pipelineOrchestrationBlock(options.OrchestratorInstructions)),
+		Effort:       resolvedEffort, Fast: req.Fast, SkipPermissions: skip, LaunchConfig: launchConfig, ExecutionContract: contract,
 	}
 	if options.Fork != nil {
-		spec.HistoryPrimer = options.Fork.HistoryPrimer
+		snap.HistoryPrimer = options.Fork.HistoryPrimer
 	}
 	if options.Source != nil {
 		// A fork inherits its source's frozen persona, not today's role and
 		// project text (FS-01.R53); Codex keeps it natively, Claude is given it
 		// on load exactly as the source's own resume would be.
-		spec.SystemPrompt = options.Source.SystemPrompt
+		snap.SystemPrompt = options.Source.SystemPrompt
 	}
-	return s.applyKnowledgeOverlay(spec), agent, nil
+	spec, ae := s.buildLaunchSpec(startSpec{
+		agent: agent, session: snap, backend: backend, model: model, provider: provider,
+		providerEnv: providerEnv, resourceDir: resourceDir, generation: options.Generation, driver: driver, fork: options.Fork,
+	})
+	if ae != nil {
+		return runtime.LaunchSpec{}, state.Agent{}, ae
+	}
+	return spec, agent, nil
 }
 
 // operatingContextPrompt is the stable standing guidance every Chuck role

@@ -39,11 +39,31 @@ func (s *Store) ReadStatus(id string) (Status, error) {
 // WriteStatus inserts or updates a live status row. The percentage and the
 // optional exact pair are written together (TS-02.R39).
 func (s *Store) WriteStatus(st Status) error {
+	return writeStatus(s.db, st)
+}
+
+// WriteTurnEndStatus makes the outcome and its status visible together.
+func (s *Store) WriteTurnEndStatus(st Status, end TurnEnd) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := endConversationTurn(tx, st.AgentID, end); err != nil {
+		return err
+	}
+	if err := writeStatus(tx, st); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func writeStatus(db statusExecer, st Status) error {
 	if st.UpdatedAt == 0 {
 		st.UpdatedAt = timeNow().UnixMilli()
 	}
 	used, size := contextCountsColumns(st.ContextCounts)
-	_, err := s.db.Exec(`
+	_, err := db.Exec(`
 INSERT INTO status(`+statusColumns+`)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(agent_id) DO UPDATE SET

@@ -998,20 +998,18 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, ae)
 		return
 	}
-	agent, err := s.stateStore.ReadAgent(id)
-	if err != nil {
+	if _, err := s.stateStore.ReadAgent(id); err != nil {
 		writeAPIError(w, apiError(runtime.CodeNotFound, "no such agent: "+id))
 		return
 	}
-	agent.Name = name
-	if err := s.stateStore.WriteAgent(agent); err != nil {
+	if err := s.stateStore.RenameAgent(id, name); err != nil {
 		writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
 		return
 	}
 	if _, err := s.stateMgr.Touch(id); err != nil {
 		s.log.Debug("rename state touch failed", "agent", id, "err", err)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"agent_id": id, "name": agent.Name})
+	writeJSON(w, http.StatusOK, map[string]any{"agent_id": id, "name": name})
 }
 
 func (s *Server) handleIdentity(w http.ResponseWriter, r *http.Request) {

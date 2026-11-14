@@ -10,7 +10,7 @@ func (r *Registry) SetMessageOutcomeHandler(fn func(string, string, string) erro
 
 // StartLaunchedTask sends the initial assignment together with any input
 // retained for this owner, using the ordinary chat turn gate.
-func (r *Registry) StartLaunchedTask(id, instruction string) error {
+func (r *Registry) StartLaunchedTask(id, taskID, instruction string) error {
 	rt, err := r.ownerFor(id)
 	if err != nil {
 		return err
@@ -19,7 +19,7 @@ func (r *Registry) StartLaunchedTask(id, instruction string) error {
 	if !ok {
 		return ErrNoHandle
 	}
-	return chat.sendPrompt(id, LaunchedTaskPrompt(instruction), true)
+	return chat.sendPrompt(id, LaunchedTaskPrompt(instruction), taskID)
 }
 func (r *Registry) SendMessageOrHold(ctx context.Context, id string, m Message) (bool, error) {
 	rt, err := r.ownerFor(id)

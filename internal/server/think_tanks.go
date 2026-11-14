@@ -63,11 +63,30 @@ func (s *Server) startThinkTanks(ctx context.Context) error {
 			}
 			s.dispatchThinkTanks(ctx)
 			if s.pipelineMgr != nil {
+				s.syncPipelineRoomPhases(ctx)
 				s.pipelineMgr.AcceptRoomOutputs(ctx)
 			}
 		}
 	}()
 	return nil
+}
+
+func (s *Server) syncPipelineRoomPhases(ctx context.Context) {
+	const batch = 64
+	ids, err := s.stateStore.PipelineRoomRunsAfter(s.roomPhaseAfter, batch)
+	if err != nil {
+		s.log.Warn("list pipeline room phases", "err", err)
+		return
+	}
+	for _, id := range ids {
+		s.roomPhaseAfter = id
+		if err := s.pipelineMgr.SyncRoomPhase(ctx, id); err != nil {
+			s.log.Warn("sync pipeline room phase", "run", id, "err", err)
+		}
+	}
+	if len(ids) < batch {
+		s.roomPhaseAfter = ""
+	}
 }
 
 // progressThinkTanks runs one dispatch pass and waits for it.
@@ -205,7 +224,9 @@ func (s *Server) startThinkTankOpportunity(ctx context.Context, d state.ThinkTan
 	}
 	// Assigned work holds the same speaker rather than racing or skipping it
 	// (FS-21.R28, R34); private busy turns are refused by StartActivation.
-	if _, err := s.stateStore.AssignedTask(next.AgentID); err == nil {
+	if admission, err := s.stateStore.DecideTurnAdmission(state.TurnAdmissionRequest{
+		AgentID: next.AgentID, Check: state.AdmitRoomAssignment,
+	}); err == nil && !admission.Allowed {
 		return
 	}
 	if s.startThinkTankTurn(ctx, d, next) {

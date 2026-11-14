@@ -14,7 +14,7 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 		return
 	}
 	s.startQuotaCleanup(ctx)
-	due, err := s.stateStore.DueQuotaIntents(time.Now().UTC(), taskDispatchBatch)
+	due, err := s.stateStore.DueQuotaIntentsAfter(time.Now().UTC(), s.quotaDueAfter, s.quotaDueAfterAgent, taskDispatchBatch)
 	if err != nil {
 		s.log.Error("read due quota continuations", "err", err)
 		return
@@ -25,6 +25,7 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 		default:
 			return
 		}
+		s.quotaDueAfter, s.quotaDueAfterAgent = *q.DueAt, q.AgentID
 		claimed, ok := s.claimDueQuota(q)
 		if !ok {
 			<-s.quotaStartSlots
@@ -46,6 +47,9 @@ func (s *Server) dispatchQuotaContinuations(ctx context.Context) {
 			s.startQuotaContinuation(ctx, q)
 		}(claimed)
 	}
+	if len(due) < taskDispatchBatch {
+		s.quotaDueAfter, s.quotaDueAfterAgent = time.Time{}, ""
+	}
 }
 
 // Claims follow the indexed due order; provider/resume work uses bounded worker
@@ -54,6 +58,13 @@ func (s *Server) claimDueQuota(q state.QuotaIntent) (state.QuotaIntent, bool) {
 	keys, err := s.quotaAdmissionKeys(q)
 	if err != nil {
 		s.log.Error("read quota admission owner", "err", err)
+		if errors.Is(err, state.ErrNotFound) {
+			if err := s.stateStore.HoldDueQuotaWithoutOwner(q); err == nil {
+				_, _ = s.stateMgr.Touch(q.AgentID)
+			} else if !errors.Is(err, state.ErrQuotaConflict) {
+				s.log.Error("hold due quota continuation with unavailable owner", "err", err)
+			}
+		}
 		return state.QuotaIntent{}, false
 	}
 	release, ok := s.claimQuotaActions(keys)
@@ -101,7 +112,7 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 	keys, err := s.quotaAdmissionKeys(q)
 	if err != nil {
 		s.log.Error("read quota admission owner", "err", err)
-		if q.State == state.QuotaClaimed {
+		if q.State == state.QuotaClaimed && errors.Is(err, state.ErrNotFound) {
 			if holdErr := s.stateStore.HoldQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, "owner_unavailable"); holdErr != nil && !errors.Is(holdErr, state.ErrQuotaConflict) {
 				s.log.Error("hold quota continuation with unavailable owner", "err", holdErr)
 			}
@@ -118,12 +129,23 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		return
 	}
 	defer release()
-	s.quotaControlMu.Lock()
-	defer s.quotaControlMu.Unlock()
+	policyLocked := false
+	lockPolicy := func() {
+		s.quotaControlMu.Lock()
+		s.configMu.Lock()
+		policyLocked = true
+	}
+	unlockPolicy := func() {
+		if policyLocked {
+			policyLocked = false
+			s.configMu.Unlock()
+			s.quotaControlMu.Unlock()
+		}
+	}
 	// The live policy lock spans eligibility, claim, and the turn's durable
 	// provider boundary. Disable/cancel and automatic admission have one winner.
-	s.configMu.Lock()
-	defer s.configMu.Unlock()
+	lockPolicy()
+	defer unlockPolicy()
 	cfg, err := s.configStore.ReadConfig()
 	if err != nil {
 		s.deferQuotaPolicyFailure(q, err)
@@ -176,7 +198,7 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		hold("check_unsupported")
 		return
 	}
-	started := false
+	started, passSettled := false, false
 	if eligible, err := s.quotaWorkEligible(q); err != nil {
 		if errors.Is(err, state.ErrQuotaOwner) {
 			hold("owner_unavailable")
@@ -245,7 +267,32 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 				return
 			}
 		}
-		if ae := s.resumeSessionWithHooks(ctx, q.AgentID, resumeOverride{}, nil, start); ae != nil {
+		unlockPolicy()
+		if ae := s.resumeSessionWithHooks(ctx, q.AgentID, resumeOverride{}, nil, func() error {
+			lockPolicy()
+			cfg, err := s.configStore.ReadConfig()
+			if err != nil {
+				s.deferQuotaPolicyFailure(q, err)
+				passSettled = true
+				return nil
+			}
+			if !cfg.AutoContinue {
+				passSettled = true // disabling automatic continuation owns settlement
+				return nil
+			}
+			current, err := s.stateStore.GetQuota(q.AgentID)
+			if err != nil || current.Revision != q.Revision || current.EpisodeID != q.EpisodeID ||
+				current.AttemptToken != q.AttemptToken || current.State != state.QuotaClaimed {
+				passSettled = true // another action changed the episode
+				return nil
+			}
+			if q.CheckReady && !s.quotaCheckStillMatches(q) {
+				hold("check_unsupported")
+				passSettled = true
+				return nil
+			}
+			return start()
+		}); ae != nil {
 			if ae.Code == runtime.CodeConflict {
 				deferBusy()
 			} else {
@@ -257,7 +304,7 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		hold("store_failure")
 		return
 	}
-	if !started {
+	if !started && !passSettled {
 		deferBusy()
 	}
 }
