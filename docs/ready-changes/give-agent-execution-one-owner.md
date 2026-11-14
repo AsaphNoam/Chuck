@@ -1,6 +1,6 @@
 # Give agent execution one owner
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** Operator request, 2026-11-14, after the
 [adversarial assessment](../archive/reviews/adversarial-2026-11-14/ASSESSMENT.md) and its
 [structural pass](../archive/reviews/adversarial-2026-11-14/ARCHITECTURE.md). Operator decision:

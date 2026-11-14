@@ -60,7 +60,7 @@ func parseArchiveQuery(r *http.Request) (persistarchive.Query, *runtime.APIError
 func (s *Server) archiveRows(q persistarchive.Query, project string) ([]archiveAgentResult, int, string, error) {
 	q.Project = project
 	q.ArchivedOnly = strings.TrimSpace(q.Q) == "" && q.Active == nil
-	flat, err := persistarchive.New(s.stateStore.DB()).Search(q)
+	flat, err := persistarchive.New(s.stateStore.HistoryDB()).Search(q)
 	if err != nil {
 		return nil, 0, "", err
 	}
@@ -72,7 +72,7 @@ func (s *Server) archiveRows(q persistarchive.Query, project string) ([]archiveA
 }
 
 func (s *Server) archiveGroups(q persistarchive.Query) (archiveGroupsResponse, error) {
-	archive := persistarchive.New(s.stateStore.DB())
+	archive := persistarchive.New(s.stateStore.HistoryDB())
 	projectQuery := q
 	projectQuery.ArchivedOnly = strings.TrimSpace(q.Q) == "" && q.Active == nil
 	matchingProjects, mode, err := archive.Projects(projectQuery)
@@ -204,7 +204,7 @@ func (s *Server) handleProjectSearch(w http.ResponseWriter, r *http.Request, pro
 		writeAPIError(w, apiError(runtime.CodeInternal, "Search is busy. Retry shortly."))
 		return
 	}
-	resp, err := persistarchive.New(s.stateStore.DB()).ProjectSearch(r.Context(), persistarchive.Query{
+	resp, err := persistarchive.New(s.stateStore.HistoryDB()).ProjectSearch(r.Context(), persistarchive.Query{
 		Q: query, Project: project, Limit: limit, Offset: offset, ProjectSearch: true,
 	})
 	if err != nil {

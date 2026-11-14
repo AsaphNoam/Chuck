@@ -2,7 +2,9 @@ package state
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -13,8 +15,9 @@ import (
 
 // Store owns the SQLite state database.
 type Store struct {
-	db   *sql.DB
-	home string
+	db      *sql.DB
+	history *sql.DB
+	home    string
 	// scheduleZone is the zone schedule due times were last rebased to.
 	scheduleZone atomic.Pointer[time.Location]
 }
@@ -64,18 +67,40 @@ func Open(home string) (*Store, error) {
 		return nil, fmt.Errorf("state: chmod db: %w", err)
 	}
 
-	return &Store{db: db, home: home}, nil
+	absolutePath, err := filepath.Abs(dbPath)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("state: resolve history db path: %w", err)
+	}
+	historyURI := url.URL{Scheme: "file", Path: absolutePath, RawQuery: "mode=ro&_busy_timeout=2000"}
+	history, err := sql.Open("sqlite3", historyURI.String())
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("state: open history db: %w", err)
+	}
+	history.SetMaxOpenConns(1)
+	if err := history.Ping(); err != nil {
+		history.Close()
+		db.Close()
+		return nil, fmt.Errorf("state: connect history db: %w", err)
+	}
+	return &Store{db: db, history: history, home: home}, nil
 }
 
-// Close closes the underlying database handle.
+// Close closes both database handles.
 func (s *Store) Close() error {
 	if s == nil || s.db == nil {
 		return nil
 	}
-	return s.db.Close()
+	return errors.Join(s.history.Close(), s.db.Close())
 }
 
 // DB exposes the underlying database for later phases and narrow tests.
 func (s *Store) DB() *sql.DB {
 	return s.db
+}
+
+// HistoryDB exposes the read-only connection for retained-history scans.
+func (s *Store) HistoryDB() *sql.DB {
+	return s.history
 }

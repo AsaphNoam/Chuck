@@ -67,7 +67,7 @@ func (s *Server) handleSearchMatch(w http.ResponseWriter, r *http.Request) {
 	// Establish identity from authoritative state before any filesystem access,
 	// under the same cancellation/read budget as the selected document.
 	var known int
-	if err := s.stateStore.DB().QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE agent_id=?`, id).Scan(&known); errors.Is(err, sql.ErrNoRows) {
+	if err := s.stateStore.HistoryDB().QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE agent_id=?`, id).Scan(&known); errors.Is(err, sql.ErrNoRows) {
 		writeAPIError(w, apiError(runtime.CodeNotFound, "chat not found"))
 		return
 	} else if err != nil {
@@ -85,7 +85,7 @@ func (s *Server) handleSearchMatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) resolveSearchMatch(ctx context.Context, id, doc, digest string, start, end int) (searchMatchResponse, bool, error) {
-	db := s.stateStore.DB()
+	db := s.stateStore.HistoryDB()
 	var size int
 	err := db.QueryRowContext(ctx, `SELECT length(CAST(content AS BLOB)) FROM sessions_fts WHERE agent_id=? AND document_id=?`, id, doc).Scan(&size)
 	if errors.Is(err, sql.ErrNoRows) {

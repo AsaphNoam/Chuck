@@ -303,7 +303,7 @@ func (s *Store) ListContextGrantsForRecipient(recipient string, includeHidden bo
 	if !after.IsZero() {
 		afterUpdatedAt = formatTime(after)
 	}
-	rows, err := s.db.Query(`
+	rows, err := s.history.Query(`
 SELECT `+contextGrantColumns+` `+contextGrantJoin+`
 WHERE g.granted_to_agent_id = ?
   AND g.revoked_at IS NULL
