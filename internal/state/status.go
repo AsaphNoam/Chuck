@@ -49,6 +49,16 @@ func (s *Store) WriteTurnEndStatus(st Status, end TurnEnd) error {
 		return err
 	}
 	defer tx.Rollback()
+	if end.Generation != "" {
+		var runningGeneration string
+		err := tx.QueryRow(`SELECT generation FROM running WHERE agent_id=?`, st.AgentID).Scan(&runningGeneration)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err == nil && runningGeneration != "" && runningGeneration != end.Generation {
+			return nil
+		}
+	}
 	if err := endConversationTurn(tx, st.AgentID, end); err != nil {
 		return err
 	}

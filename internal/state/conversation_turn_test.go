@@ -77,8 +77,19 @@ func TestConversationTurnReplacementAndEndAreGenerationScoped(t *testing.T) {
 		t.Fatalf("turn row count %d, err %v", count, err)
 	}
 	st := Status{AgentID: agentID, State: "idle"}
+	if err := s.WriteRunning(RunningEntry{AgentID: agentID, Generation: "g6", PID: 1}); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.WriteTurnEndStatus(st, TurnEnd{Generation: "g6", TurnID: "t1", Outcome: "completed"}); err != nil {
 		t.Fatal(err)
+	}
+	if err := s.WriteTurnEndStatus(Status{AgentID: agentID, State: "error"}, TurnEnd{
+		Generation: "g5", TurnID: "t1", Outcome: "failed",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if current, err := s.ReadStatus(agentID); err != nil || current.State != "idle" {
+		t.Fatalf("old generation changed status: %+v, %v", current, err)
 	}
 	if err := s.EndConversationTurn(agentID, TurnEnd{Generation: "g6", TurnID: "t1", Outcome: "failed"}); err != nil {
 		t.Fatal(err)
