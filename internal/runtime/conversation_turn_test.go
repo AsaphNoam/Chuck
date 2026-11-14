@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -118,5 +119,55 @@ func TestConversationTurnEndsWithProviderOutcomeOrStop(t *testing.T) {
 				t.Fatalf("ended turn = %+v, err %v", row, err)
 			}
 		})
+	}
+}
+
+// TestConversationTurnRowAtPromptAndTurnEnd checks the durable row against the
+// turn gate's edges (TS-01.R45, TS-02.R67): the row is running by the time the
+// accepted prompt is published, already ended when turn_end observers run, and
+// the gate is released only after that.
+func TestConversationTurnRowAtPromptAndTurnEnd(t *testing.T) {
+	c, spec := newChatTest(t, "")
+	spec.Generation = "g"
+	var mu sync.Mutex
+	seen := map[string]state.ConversationTurn{}
+	c.SetHistoryPublisher(func(ev Event) {
+		if ev.Type != EvUserPrompt && ev.Type != EvTurnEnd {
+			return
+		}
+		// The publisher runs under the journal lock; read only the store.
+		row, err := c.store.ReadConversationTurn(ev.AgentID, "g")
+		if err != nil {
+			row = state.ConversationTurn{State: "read error: " + err.Error()}
+		}
+		mu.Lock()
+		seen[ev.Type] = row
+		mu.Unlock()
+	})
+	ctx := context.Background()
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Stop(ctx, h.AgentID) })
+	if err := c.SendPrompt(ctx, h.AgentID, "work"); err != nil {
+		t.Fatal(err)
+	}
+	waitTurnSettled(t, c, h.AgentID)
+	mu.Lock()
+	prompt, end := seen[EvUserPrompt], seen[EvTurnEnd]
+	mu.Unlock()
+	if prompt.State != "running" || prompt.TurnID == "" {
+		t.Fatalf("row when the prompt was published = %+v, want running", prompt)
+	}
+	if end.State != "ended" || end.TurnID != prompt.TurnID || end.Outcome != "completed" {
+		t.Fatalf("row when turn_end was published = %+v, want the same turn ended completed", end)
+	}
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if as.canStartTurn(prompt.TurnID) {
+		t.Fatal("turn gate still held after the turn settled")
 	}
 }

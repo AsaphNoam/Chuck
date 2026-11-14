@@ -1556,6 +1556,19 @@ const activeTaskAssignmentClause = taskCommitmentClause + ` AND state <> 'ready'
 
 const clearTaskContinuation = `pending_yield = 0, continuation_pending = 0, resume_needed = 0`
 const taskParkColumns = `state = 'dependency_failed', attention_reason = ?, ` + clearTaskContinuation
+
+// taskParkColumnsWhen is taskParkColumns applied only when cond holds; otherwise
+// the row moves to otherwise and keeps its other columns. It takes the same one
+// argument, the attention reason (TS-01.R50).
+func taskParkColumnsWhen(cond, otherwise string) string {
+	keep := func(column, parked string) string {
+		return column + ` = CASE WHEN ` + cond + ` THEN ` + parked + ` ELSE ` + column + ` END`
+	}
+	return `state = CASE WHEN ` + cond + ` THEN 'dependency_failed' ELSE '` + otherwise + `' END, ` +
+		keep("attention_reason", "?") + `, ` + keep("pending_yield", "0") + `, ` +
+		keep("continuation_pending", "0") + `, ` + keep("resume_needed", "0")
+}
+
 const releaseTaskStartColumns = keepConfirmedAssignee + `, assigned_generation = '',
 runtime_claim = '', start_attempt_id = '', start_claimed_at = NULL`
 
@@ -1590,16 +1603,12 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 func (s *Store) FailTaskStart(taskID, attemptID, reason string) (Task, bool, error) {
 	return s.settleTaskStart(taskID, attemptID, `
 UPDATE tasks SET
-  state = CASE WHEN start_attempt_count + 1 >= ? THEN ? ELSE ? END,
-  attention_reason = CASE WHEN start_attempt_count + 1 >= ? THEN ? ELSE attention_reason END,
-  continuation_pending = CASE WHEN start_attempt_count + 1 >= ? THEN 0 ELSE continuation_pending END,
-  resume_needed = CASE WHEN start_attempt_count + 1 >= ? THEN 0 ELSE resume_needed END,
+  `+taskParkColumnsWhen(fmt.Sprintf("start_attempt_count + 1 >= %d", MaxTaskStartAttempts), TaskReady)+`,
   start_attempt_count = start_attempt_count + 1,
   `+releaseTaskStartColumns+`,
   revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
-		[]any{MaxTaskStartAttempts, TaskDependencyFailed, TaskReady,
-			MaxTaskStartAttempts, reason, MaxTaskStartAttempts, MaxTaskStartAttempts}, "fail task start")
+		[]any{reason}, "fail task start")
 }
 
 // ParkTaskStart parks a task whose target can never become eligible — a deleted,
@@ -2393,16 +2402,14 @@ func (s *Store) RearmTask(taskID string, arms []TaskArm) (Task, error) {
 	if next == TaskReady {
 		readyAt = stamp
 	}
-	reason := ""
-	continuation := ""
+	columns, reason := `state = '`+next+`', attention_reason = ?`, ""
 	if next == TaskDependencyFailed {
-		reason = parkedAttentionReason
-		continuation = clearTaskContinuation + ","
+		columns, reason = taskParkColumns, parkedAttentionReason
 	}
 	if _, err := tx.Exec(`
-UPDATE tasks SET state = ?, attention_reason = ?, ready_at = ?, late_start = 0,
-  `+continuation+` revision = revision + 1, updated_at = ?
-WHERE task_id = ? AND state = ?`, next, reason, readyAt, stamp, taskID, taskState); err != nil {
+UPDATE tasks SET `+columns+`, ready_at = ?, late_start = 0,
+  revision = revision + 1, updated_at = ?
+WHERE task_id = ? AND state = ?`, reason, readyAt, stamp, taskID, taskState); err != nil {
 		return Task{}, fmt.Errorf("state: rearm task: %w", err)
 	}
 	if err := tx.Commit(); err != nil {

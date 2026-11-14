@@ -51,8 +51,10 @@ func (s *Store) StartEligibleQuotaCheck(q QuotaIntent, backend string, budget in
 		return false, err
 	}
 	defer tx.Rollback()
-	eligible, err := quotaWorkEligibleTx(tx, q, budget)
-	if err != nil || !eligible {
+	decision, err := decideTurnAdmission(tx, TurnAdmissionRequest{
+		AgentID: q.AgentID, Check: AdmitQuotaOwner, Quota: q, Budget: budget,
+	})
+	if err != nil || !decision.Allowed {
 		return false, err
 	}
 	if err := startQuotaCheckTx(tx, q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, backend); err != nil {

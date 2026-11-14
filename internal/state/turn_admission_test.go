@@ -1,6 +1,10 @@
 package state
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -44,5 +48,42 @@ func TestTurnAdmissionPreservesOriginRules(t *testing.T) {
 				t.Fatalf("admission = %+v, err=%v, want allowed=%t", got, err, tc.allowed)
 			}
 		})
+	}
+}
+
+// TestAdmissionPredicatesStayInTheDecision pins where the cross-plane admission
+// predicates may be read (TS-01.R47). AdmitReadyTask embeds the room rule in its
+// claiming compare-and-swap, and AdmitQuotaTurn revalidates inside quota's own
+// write; both are writes that stay with their plane.
+func TestAdmissionPredicatesStayInTheDecision(t *testing.T) {
+	allowed := map[string][]string{
+		"noRunningRoomAttempt":     {"tasks.go", "turn_admission.go"},
+		"quotaWorkEligibleTx":      {"turn_admission.go"},
+		"quotaContinuationRunning": {"turn_admission.go"},
+		"quotaUnassignedTx":        {"quota_admission.go"},
+	}
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range allowed {
+		use := regexp.MustCompile(`\b` + name + `\b`)
+		def := regexp.MustCompile(`(?:func|const) ` + name + `\b`)
+		var got []string
+		for _, file := range files {
+			if strings.HasSuffix(file, "_test.go") {
+				continue
+			}
+			src, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(use.FindAll(src, -1)) > len(def.FindAll(src, -1)) {
+				got = append(got, file)
+			}
+		}
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("%s is read in %v, want only %v; call DecideTurnAdmission instead", name, got, want)
+		}
 	}
 }

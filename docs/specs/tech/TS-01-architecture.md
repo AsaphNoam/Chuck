@@ -714,7 +714,7 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   after runtime and server tests that a chat agent's stored state equals the composition; the
   status-writer inventory test expects one composing site; a crash with a pending permission
   request records its resolution, as Stop does.
-- **R47 (planned) — One function decides whether an origin may begin a turn on an agent.**
+- **R47 — One function decides whether an origin may begin a turn on an agent.**
   Today each plane reads other planes' rows to learn whether it may use an agent: mail reads
   tasks and quota, tasks read quota and rooms, quota reads tasks and rooms, rooms read tasks and
   quota, the runtime reads quota, and the owner continuation reads all of them. One store
@@ -753,7 +753,7 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   §4, §5). *Verify:* the launch, resume, switch, wake, task, quota and room suites pass
   unchanged; one site builds a `LaunchSpec`; a rename during a handshake returns as today and is
   not lost; a TERM-ignoring member of the group does not survive Stop.
-- **R49 (planned) — Derived control effects are recomputed, and a bounded pass cannot be
+- **R49 — Derived control effects are recomputed, and a bounded pass cannot be
   pinned.** A control effect that follows a commit is a function of durable rows that a named
   periodic pass and startup recompute: parking the dependents of a parked task, projecting a room
   phase onto its run, and releasing a runtime after a reported or yielded turn. A post-commit
@@ -767,7 +767,7 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   enumerates each derived effect with its pass and each bounded pass with its progress rule; a
   parked prerequisite parks dependents created before, after and across a restart; eight due
   quota intents that cannot be claimed do not delay a ninth.
-- **R50 (planned) — Each task state owns its columns, and commitment has one predicate.** Every
+- **R50 — Each task state owns its columns, and commitment has one predicate.** Every
   write that moves a task to a terminal or parked state goes through one helper per target state
   that sets the columns the state owns, including the continuation and yield markers. "This agent
   is committed to a task" is one predicate shared by the active-assignee index, task admission,
@@ -861,7 +861,7 @@ lost.
   activation and lifecycle seams serve both first assignment and same-task continuation; no
   additional provider protocol, daemon, or scheduler is introduced.
 
-- **Execution ownership is planned (R45–R50).** These consolidate how a turn begins and ends,
+- **Execution ownership (R45–R50).** These consolidate how a turn begins and ends,
   how status is chosen, how a plane learns whether it may use an agent and how an agent is
   started. They change no product behavior and leave R19–R21 in force: each domain keeps its own
   durable intent, attempt boundary, retry policy and recovery, and the `activations` table is
