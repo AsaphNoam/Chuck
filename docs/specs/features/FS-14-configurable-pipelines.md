@@ -910,18 +910,20 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   any required user approval is recorded. Checkpoints govern Chuck-managed actions. Workspace
   and provider authority retain their existing boundaries. For work spanning repositories, the
   operator can see which checkouts are in scope. Any broader Chuck project access needs its own
-  authorization. One run remains responsible for its managed descendants and Stop.
+  authorization. One run remains responsible for its managed descendants and Stop. Planned
+  review and repair passes that make verifiable progress are ordinary work. Chuck still bounds
+  unattended work and retries without progress, and pauses recoverably when a limit is reached.
 - **R107 (planned) — Required evidence applies to the delivered work.** Each required check shows
   what it covers, who or what provided the result, and the requirements and deliverable revision
   it evaluated. For a software delivery check, the evidence identifies the Git candidate for
   each repository in scope. A successful outcome requires qualifying evidence for every
   applicable check against the candidate the run identifies as delivered.
   A check declared independent requires an accepted report from an assigned reviewer distinct
-  from the implementer and the orchestrator. Subsequent changes to the covered work or requirements
-  reopen affected checks and any approvals tied to their old evidence. Earlier evidence remains
-  visible. Code changes after review, a self-review and an owner summary cannot satisfy a check that
-  requires a current independent review. The results show what Chuck verified about the evidence
-  and where a person or agent supplied judgment.
+  from the implementers of the covered work and the orchestrator. Subsequent changes to the covered
+  work or requirements reopen affected checks and any approvals tied to their old evidence. Earlier
+  evidence remains visible. Code changes after review, a self-review and an owner summary cannot
+  satisfy a check that requires a current independent review. The results show what Chuck verified
+  about the evidence and where a person or agent supplied judgment.
 - **R108 (planned) — A deliberate change to requirements continues the same run.** Ordinary chat
   still answers questions and steers work within the current requirements. To amend the goal or
   requirements, the operator confirms a run-scoped change and sees which work will need to be
@@ -1362,8 +1364,10 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   parallel, wait for both results and send the combined candidate for independent review. After a
   finding and repair, refuse completion that cites review of the previous candidate or a report
   from an implementer. Accept fresh qualifying review and verification. A clean run bypasses
-  repair. Stop another run while descendants are working or waiting and verify they close with it.
-  *Verify:* admission, evidence and task lineage integration tests plus a run-detail journey.
+  repair. Several review and repair passes with advancing evidence can proceed within the run's
+  limits. Repeated attempts without progress pause with a reason. Stop another run while
+  descendants are working or waiting and verify they close with it. *Verify:* admission,
+  evidence, recovery and task lineage integration tests plus a run-detail journey.
 
 - **A71 (planned)** (R107–R109) — Amend requirements while one repository still has work in flight
   and a coupled deliverable already has an accepted review. Show the change and which checks need
