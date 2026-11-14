@@ -1195,6 +1195,9 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 	}
 	now := time.Now().UTC()
 	turn := state.ConversationTurn{State: "running"}
+	if retained, readErr := c.store.ReadConversationTurn(as.agentID, as.generation); readErr == nil && retained.TurnID == turnID {
+		turn = retained
+	}
 	busy := state.Status{AgentID: as.agentID, State: state.ComposeChatStatus(state.ChatProcessLive, turn, false), Detail: prompt.detail, LastTrace: prompt.trace, BusySince: &now}
 	if err := c.mutateStatus(as, false, func(cur *state.Status, _ error) bool {
 		if !as.canStartTurn(turnID) {
@@ -1870,6 +1873,12 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	}
 	st, err := c.store.ReadStatus(as.agentID)
 	if err != nil || st.State != "idle" && st.State != "error" {
+		return false, err
+	}
+	admission, err := c.store.DecideTurnAdmission(state.TurnAdmissionRequest{
+		AgentID: as.agentID, Generation: as.generation, Check: state.AdmitRuntimeTurn,
+	})
+	if err != nil || !admission.Allowed {
 		return false, err
 	}
 	as.mu.Lock()

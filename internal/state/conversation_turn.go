@@ -42,8 +42,12 @@ func (s *Store) BeginConversationTurn(agentID, turnID string, origin TurnOrigin)
 }
 
 func (s *Store) ReadConversationTurn(agentID, generation string) (ConversationTurn, error) {
+	return readConversationTurn(s.db, agentID, generation)
+}
+
+func readConversationTurn(db admissionReader, agentID, generation string) (ConversationTurn, error) {
 	var t ConversationTurn
-	err := s.db.QueryRow(`SELECT turn_id, generation, origin_kind, COALESCE(origin_id, ''), state, outcome,
+	err := db.QueryRow(`SELECT turn_id, generation, origin_kind, COALESCE(origin_id, ''), state, outcome,
 COALESCE(started_at, ''), COALESCE(ended_at, '') FROM turn_budget
 WHERE agent_id=? AND generation=? AND generation<>''`, agentID, generation).
 		Scan(&t.TurnID, &t.Generation, &t.Kind, &t.ID, &t.State, &t.Outcome, &t.StartedAt, &t.EndedAt)

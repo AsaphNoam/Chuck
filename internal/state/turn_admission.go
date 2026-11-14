@@ -18,10 +18,12 @@ const (
 	AdmitQuotaUnassigned
 	AdmitTaskRestart
 	AdmitRoomRestart
+	AdmitRuntimeTurn
 )
 
 type TurnAdmissionRequest struct {
 	AgentID     string
+	Generation  string
 	Check       TurnAdmission
 	Quota       QuotaIntent
 	Budget      int
@@ -120,6 +122,13 @@ AND state != ? AND json_extract(owner_json,'$.task_id')=?`,
 	case AdmitRoomRestart:
 		held, err := quotaContinuationRunning(db, req.RoomAttempt)
 		decision.Allowed = err == nil && !held
+		return decision, err
+	case AdmitRuntimeTurn:
+		turn, err := readConversationTurn(db, req.AgentID, req.Generation)
+		if errors.Is(err, ErrNotFound) {
+			err = nil
+		}
+		decision.Allowed = err == nil && turn.State != "running"
 		return decision, err
 	default:
 		return decision, errors.New("state: unknown turn admission check")
