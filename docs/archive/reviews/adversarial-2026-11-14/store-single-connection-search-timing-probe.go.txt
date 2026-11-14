@@ -1,0 +1,91 @@
+package archive
+
+import (
+	"context"
+	"os"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+// Probe: with one pooled connection, how long does a history search hold every
+// other store call? Runs against a private copy of a real state.db; prints
+// timings only.
+func TestProbeSearchHeadOfLine(t *testing.T) {
+	home := os.Getenv("PROBE_HOME")
+	if home == "" {
+		t.Skip("no PROBE_HOME")
+	}
+	st, err := state.Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	a := New(st.DB())
+	var projects []string
+	rows, _ := st.DB().Query(`SELECT DISTINCT project FROM agents WHERE project != '' LIMIT 5`)
+	for rows.Next() {
+		var p string
+		_ = rows.Scan(&p)
+		projects = append(projects, p)
+	}
+	rows.Close()
+	var agent string
+	_ = st.DB().QueryRow(`SELECT agent_id FROM agents LIMIT 1`).Scan(&agent)
+
+	baseline := func() time.Duration {
+		start := time.Now()
+		for i := 0; i < 200; i++ {
+			_, _ = st.GetQuota(agent)
+		}
+		return time.Since(start) / 200
+	}
+	t.Logf("baseline GetQuota: %v per call", baseline())
+
+	for _, term := range []string{"error", "test", "the", "func", "chuck"} {
+		start := time.Now()
+		resp, err := a.Search(Query{Q: term, Limit: 50})
+		d := time.Since(start)
+		t.Logf("archive Search(%d-char term): %v hits=%d err=%v", len(term), d, len(resp.Results), err != nil)
+		for _, p := range projects[:1] {
+			start = time.Now()
+			_, err := a.ProjectSearch(context.Background(), Query{Q: term, Project: p, ProjectSearch: true})
+			t.Logf("  ProjectSearch(%d-char term): %v err=%v", len(term), time.Since(start), err != nil)
+		}
+	}
+	// Concurrent: point reads while searches loop.
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		terms := []string{"error", "test", "the", "func"}
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			_, _ = a.Search(Query{Q: terms[i%len(terms)], Limit: 50})
+		}
+	}()
+	var worst, total time.Duration
+	n := 0
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		start := time.Now()
+		_, _ = st.GetQuota(agent)
+		d := time.Since(start)
+		if d > worst {
+			worst = d
+		}
+		total += d
+		n++
+		time.Sleep(2 * time.Millisecond)
+	}
+	close(stop)
+	wg.Wait()
+	t.Logf("point read during continuous search: n=%d mean=%v worst=%v", n, total/time.Duration(n), worst)
+}

@@ -668,6 +668,110 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   §23). *Verify:* both Go test variants and focused `-race` runs over cancel, permission, steer,
   held-message and Stop-during-turn interleavings; a test that a status write racing Stop cannot
   leave a state other than `done`.
+- **R45 (planned) — A conversation turn has one beginning, one end and one durable row.** Every
+  path that sends a conversation turn to the provider — a person's Send, the held successor, a
+  promoted Steer fallback, the launched-task first prompt, the settled-chat continuation and each
+  activation kind — calls one runtime function. It claims the turn gate, refuses a stopped or
+  exited generation, and sets the turn identity in the critical section that claims the gate.
+  The caller's own preparation (inline mail, assignment input, the kind-owned pre-side-effect
+  transition of R21) stays with the caller and runs inside that claim. No path keeps its own
+  provider goroutine. The quota check's throwaway session and Codex session naming also send a
+  provider prompt; they are not conversation turns and stay outside this function. One function
+  ends a turn with the runtime's resolved outcome (R42), and the transport-closed path uses it
+  for the turn it interrupts. It writes the row's outcome in the transaction that writes the
+  turn-end status, so the two cannot disagree. The per-turn row every begin already writes (TS-02.R67) records
+  the turn's generation, origin, state and outcome through the existing reset helper, in
+  whichever transaction resets the turn budget today. A failed write refuses the turn on every
+  path, as it does now. No request, claim, retry or recovery rule changes: R19–R21 and each
+  domain's policy stand. Terminal-interface turns remain hook-observed (FS-07). *Why:* two start
+  paths order reservation, binding and identity differently, so a queued turn can start on a
+  process that has exited and leave a dead agent `busy`; an open turn exists only in memory, so
+  every other component infers it from `status` (INV §2, §5, §15, §23). *Verify:* a source scan
+  finds one call site for a conversation-turn prompt and names the exempt sites; a table test of
+  the begin function over every entry path; a turn begun as its process exits ends
+  `process_ended` and leaves no `busy` status; focused `-race` runs of begin against exit, Stop
+  and Cancel; both Go variants.
+- **R46 (planned) — Chat status is composed by one function from stated inputs.** One pure
+  function in `internal/state` composes a chat agent's `status.state` from: how the last process
+  ended (Stop or a reconciled exit gives `done`; an unexpected exit or a failed Switch gives
+  `error` with its cause), whether a process is live, the live generation's turn row (a `running`
+  turn gives `busy`), whether a permission request is pending (`waiting_input`), and that row's
+  outcome (`idle` or `error`). A row left by an earlier generation is read as no row. The runtime
+  supplies the pending-permission input and calls the function under R44's status lock; Switch
+  and exit reconciliation call it under the store's write. A writer that corrects only detail,
+  trace, context or counts — the stale-status correction and the live republish — keeps the
+  stored state and does not compose. No call site chooses a state itself. `busy` requires a live
+  process and a `running` turn, so an exited agent cannot show it. Terminal-interface status
+  remains the hook's report and passes through the same write. Every state a person sees today,
+  in every situation, is the state they see after this change, except where the change names a
+  defect that stops; the API and event shapes are unchanged. *Why:* seventeen call sites choose the state, and one of them can leave a dead agent
+  `busy` (INV §1, §20). *Verify:* a table test of the function with one row per entry of the
+  present writer inventory, asserting the state that site writes today; an assertion helper run
+  after runtime and server tests that a chat agent's stored state equals the composition; the
+  status-writer inventory test expects one composing site; a crash with a pending permission
+  request records its resolution, as Stop does.
+- **R47 (planned) — One function decides whether an origin may begin a turn on an agent.**
+  Today each plane reads other planes' rows to learn whether it may use an agent: mail reads
+  tasks and quota, tasks read quota and rooms, quota reads tasks and rooms, rooms read tasks and
+  quota, the runtime reads quota, and the owner continuation reads all of them. One store
+  function answers that question for a named origin from the task, quota, room, turn and process
+  rows, inside the caller's transaction where the caller has one, and each read that decides
+  admission calls it instead of reading another plane's rows. It transcribes today's outcome for
+  every pair, including the pairs that differ by origin; it adds and removes no rule, and a
+  difference between origins is a visible branch of that function. Reads that are not admission
+  stay where they are: the in-memory lifecycle claim, the workspace rule for a stage target, the
+  quota action lock keys, queued-input routing, quota's own compare-and-swap writes, and a read
+  that feeds a plane's own write. Each plane keeps its own
+  durable intent, periodic pass, attempt boundary and retry policy (R19). The lifecycle claim and
+  the runtime turn gate remain the arbiters they are now. *Why:* thirty call sites answer "may
+  this agent take a turn now?", and six questions are answered from different inputs (INV §2,
+  §5). *Verify:* a table test with one row per replaced read, built from the archived inventory
+  and re-read against the code, asserting today's outcome; an inventory test that the replaced
+  sites no longer read another plane's table; the mail, task, quota, room and pipeline suites
+  pass unchanged.
+- **R48 (planned) — One way to make an agent run.** Extends R9, R16 and R43. Launch, resume and
+  Switch compose their spec through one builder. Every origin that needs a live process calls
+  one function that takes the lifecycle claim, runs the checks that origin makes today (passed
+  in explicitly, none added or removed), registers, starts, and on failure tears down through
+  `teardownAgentRegistration`. Stop paths share one stop-and-reap helper; after the leader is
+  reaped it ends every remaining member of the agent's process group, shutdown stops agents
+  concurrently within its budget, and `dashboard stop` waits longer than that budget plus one
+  agent stop grace before it escalates. A write that follows a provider handshake updates only the
+  fields the runtime reported, so a rename made during the handshake survives; rename takes no
+  new claim and answers as it does now. A project delete that removes a checkout repeats its
+  running-agent check after it holds the project claim. No global lock is held across a provider
+  start. *Why:* three hand-built specs that have drifted, five copies of stop-then-reap, a rename
+  that a concurrent handshake overwrites, and process-group members that survive Stop (INV §2,
+  §4, §5). *Verify:* the launch, resume, switch, wake, task, quota and room suites pass
+  unchanged; one site builds a `LaunchSpec`; a rename during a handshake returns as today and is
+  not lost; a TERM-ignoring member of the group does not survive Stop.
+- **R49 (planned) — Derived control effects are recomputed, and a bounded pass cannot be
+  pinned.** A control effect that follows a commit is a function of durable rows that a named
+  periodic pass and startup recompute: parking the dependents of a parked task, projecting a room
+  phase onto its run, and releasing a runtime after a reported or yielded turn. A post-commit
+  call may wake that pass and carries no meaning of its own. A bounded pass over durable rows
+  either changes each row it visits — a state change, a hold with a reason, a later due time —
+  or advances a cursor. A due quota intent whose owner no longer exists takes the existing
+  `owner_unavailable` hold; one whose owner could not be read this time is skipped as today and
+  the cursor moves past it. A lost compare-and-swap is re-read and
+  decided again or returned to the caller, never reported as success. *Why:* the same two shapes
+  were fixed in one place and found in the next (INV §9, §16, §18). *Verify:* one test
+  enumerates each derived effect with its pass and each bounded pass with its progress rule; a
+  parked prerequisite parks dependents created before, after and across a restart; eight due
+  quota intents that cannot be claimed do not delay a ninth.
+- **R50 (planned) — Each task state owns its columns, and commitment has one predicate.** Every
+  write that moves a task to a terminal or parked state goes through one helper per target state
+  that sets the columns the state owns, including the continuation and yield markers. "This agent
+  is committed to a task" is one predicate shared by the active-assignee index, task admission,
+  mail deferral, quota eligibility and room turn admission, and R47's function uses it. The
+  queued-input routing predicate stays separate and named, because it differs on purpose. A quota
+  hold is written only from a state a continuation can still follow and compares the revision. A
+  row-shape assertion runs after every store test: a continuation marker only on a `ready` or
+  `starting` task, a yield marker only on a `running` one. An exported store writer with no
+  production caller is deleted. *Why:* one flag has three contracts depending on which statement
+  wrote the state, and four copies of the commitment rule disagree (INV §2, §5, §10). *Verify:* a
+  parked or finished continuation frees its agent for the next task; a cancelled quota wait is
+  not re-armed by a later failed turn; the writer inventory lists no uncalled writer.
 
 ## 3. Interfaces & data shapes
 
@@ -748,6 +852,13 @@ lost.
   lifecycle executor with stage tasks and the shared dispatcher when shipped. R19–R24's existing
   activation and lifecycle seams serve both first assignment and same-task continuation; no
   additional provider protocol, daemon, or scheduler is introduced.
+
+- **Execution ownership is planned (R45–R50).** These consolidate how a turn begins and ends,
+  how status is chosen, how a plane learns whether it may use an agent and how an agent is
+  started. They change no product behavior and leave R19–R21 in force: each domain keeps its own
+  durable intent, attempt boundary, retry policy and recovery, and the `activations` table is
+  unchanged. Replacing those per-domain protocols with one is recorded in `docs/ideas.md`; a
+  design review on 2026-11-14 found it cannot be done without per-domain behavior decisions.
 
 - **Optional terminal drivers are not selectable in the normal UI.** The terminal runtime itself is
   installed by `internal/server` and xterm is usable; tmux/iTerm2 APIs/capabilities exist but the UI

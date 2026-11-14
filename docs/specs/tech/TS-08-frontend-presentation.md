@@ -2257,6 +2257,14 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   next-start metadata and reject stale results by selection. Make no launch request on return.
   Keep the phone's local-settings boundary. Verify FS-04.A42 and FS-09.A54 in the rendered
   desktop flow with keyboard activation, focus, return, and preserved edits (INV §8/§10/§13/§14).
+- **R168** `(planned)` — A reconnect refreshes every server-backed view without a list. When the
+  desktop event stream opens or reopens, the client invalidates all server-backed queries through
+  one call, and open transcripts keep their existing sequence-based refetch. No feature registers
+  itself in a reconnect list. The phone's hydration revision already covers its own reads and is
+  unchanged. Rendered output is unchanged. *Why:* the per-family list omitted open run details,
+  then schedules and configuration sources, so a view stayed stale after a dropped event until a
+  remount (INV §1, §16). *Verify:* a reconnect test that invalidation is unfiltered, and that a
+  query family added without touching the stream client is refreshed.
 
 ## 3. Interfaces & data shapes
 

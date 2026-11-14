@@ -1010,6 +1010,35 @@ TS-03.R89's completion. A failed config write after catalog promotion retains th
 and the exact launched chat. Completion retry treats an already-promoted default as settled and
 does not rewrite a newer default.
 
+**R67 (planned) — The per-turn row records the turn.** For TS-01.R45–R47, one forward-only
+migration extends `turn_budget`, the row every turn begin already writes and prunes to one per
+agent. It adds the launch generation, a closed code-owned origin kind (`person`, `mail`, `task`,
+`quota`, `room`, `owner_continuation`) with a nullable origin id, a state (`running` or `ended`),
+the outcome the runtime resolved for the turn (TS-01.R42's values and the refused and unknown
+results it maps to `error` today), and started and ended times. The helper that resets the turn
+budget writes them in the same statement, so a begin adds no write and no transaction; the end
+writes the outcome inside the existing turn-end status write.
+Retention is unchanged: one row per agent, replaced at the next begin; the transcript remains
+the history of turns. The budget counters, delivery key and inline-mail reservation keep their
+meaning. A row written without a conversation-turn begin — the terminal hook's reset, the
+implicit budget row, and every row that exists at migration — is `ended` with no origin,
+generation or outcome, and TS-01.R46 and R47 read it as no row. No table is added and
+`activations` is unchanged. An older binary refuses the newer schema through
+the existing guard. *Why:* the only record that a turn is open is a flag in the runtime's
+memory, so every other component infers it from `status` (INV §1, §20). *Verify:* a migration
+test from a database holding a live budget row; a begin for each origin records it; exactly one
+row per agent after any sequence of turns (INV §16).
+
+**R68 (planned) — History scans read on their own connection.** Archive and project search,
+reference scans and other read-only queries that scan retained history use a second, read-only
+connection to the same write-ahead-log database, opened with its own busy timeout. Every write, and every read inside a write
+transaction, stays on the single writer connection (TS-01.R10). A runtime event observer does
+not query the store for each streamed event when a fact already held in memory answers the
+question. *Why:* with one pooled connection a project search held every other store call for
+260–400 ms on a 49 MB database, and a point read that takes 8 µs waited 37 ms on average.
+*Verify:* a point read during continuous search stays within a small multiple of its idle time;
+the store's write paths still open no second writer.
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For

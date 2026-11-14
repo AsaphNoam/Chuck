@@ -88,6 +88,11 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 - [`share-desktop-and-phone-input-delivery.md`](share-desktop-and-phone-input-delivery.md) — one
   Send/Steer/retry/withdraw/recovery implementation for desktop chat and the phone.
 
+- [`give-agent-execution-one-owner.md`](give-agent-execution-one-owner.md) — one place a turn
+  begins and ends with a durable row, one function that chooses status, one that decides whether
+  a plane may use an agent, and one that brings an agent up; no product change. Owns CR-A10-1 to
+  -5 and the 2026-11-14 assessment findings.
+
 ## Paused changes
 
 - [`running-background-work-indicator.md`](running-background-work-indicator.md) — replace the

@@ -1,0 +1,99 @@
+package state
+
+import "testing"
+
+func parkByExhaustion(t *testing.T, st *Store, taskID string) Task {
+	t.Helper()
+	var last Task
+	for i, id := range []string{"p1", "p2", "p3"} {
+		if _, ok, err := st.AdmitReadyTask(taskID, reservation(id, "a_p", ClaimCreated), 10); err != nil || !ok {
+			t.Fatalf("admit %d: %v %v", i, ok, err)
+		}
+		var err error
+		var ok bool
+		last, ok, err = st.FailTaskStart(taskID, id, "launch failed")
+		if err != nil || !ok {
+			t.Fatalf("fail %d: %v %v", i, ok, err)
+		}
+	}
+	if last.State != TaskDependencyFailed {
+		t.Fatalf("prereq state %s", last.State)
+	}
+	return last
+}
+
+// Probe 1: propagation of a parked prerequisite is not durable and the
+// startup re-evaluation (EvaluateSource) cannot repair it.
+func TestProbeLostParkPropagationIsNotRecovered(t *testing.T) {
+	st, _ := newTestStore(t)
+	p := newTask(t, st, "proj", "p")
+	d := newTask(t, st, "proj", "d", taskArm(p.TaskID, OutcomeSuccess))
+	parkByExhaustion(t, st, p.TaskID)
+	// crash here: propagateTaskFailure never ran. Startup does EvaluateSource
+	// for each unsatisfied work_result arm of each armed task.
+	changed, err := st.EvaluateSource(SourceTask, p.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, _ := st.ReadTask(d.TaskID)
+	t.Logf("startup re-eval changed=%d dependent state=%s arm=%s", len(changed), after.State, after.Arms[0].State)
+}
+
+// Probe 2: a dependent created on an already-parked prerequisite.
+func TestProbeDependentCreatedOnParkedPrereq(t *testing.T) {
+	st, _ := newTestStore(t)
+	p := newTask(t, st, "proj", "p")
+	parkByExhaustion(t, st, p.TaskID)
+	if _, err := st.MarkSourceUnsatisfiable(SourceTask, p.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	d := newTask(t, st, "proj", "d", taskArm(p.TaskID, OutcomeSuccess))
+	t.Logf("dependent created on parked prereq: state=%s arm=%s", d.State, d.Arms[0].State)
+	// And re-arming an existing task onto it.
+	e := newTask(t, st, "proj", "e")
+	re, err := st.RearmTask(e.TaskID, []TaskArm{taskArm(p.TaskID, OutcomeSuccess)})
+	t.Logf("rearm onto parked prereq: state=%s err=%v", re.State, err)
+}
+
+// Probe 3: a parked continuation keeps the agent's exclusive slot.
+func TestProbeParkedContinuationHoldsAgent(t *testing.T) {
+	st, _ := newTestStore(t)
+	id, _ := st.NewTaskID()
+	x, err := st.CreateTask(Task{TaskID: id, Project: "proj", DisplayName: "x", Instruction: "x",
+		TargetKind: TargetAgent, TargetAgentID: "a_w", CreatedByKind: "person"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := st.AdmitReadyTask(x.TaskID, TaskReservation{AttemptID: "at1", AgentID: "a_w", Generation: "g1", Claim: ClaimBorrowed}, 10); err != nil || !ok {
+		t.Fatalf("admit: %v %v", ok, err)
+	}
+	if _, ok, err := st.ConfirmTaskStart(x.TaskID, "at1"); err != nil || !ok {
+		t.Fatalf("confirm: %v %v", ok, err)
+	}
+	cid, _ := st.NewTaskID()
+	child, err := st.CreateTask(Task{TaskID: cid, Project: "proj", DisplayName: "c", Instruction: "c",
+		TargetKind: TargetLaunch, Role: "impl", Backend: "claude-acp", CreatedByKind: "agent", CreatedByAgentID: "a_w"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.WaitForTasks("a_w", "g1", "at1", []TaskWaitObservation{{TaskID: child.TaskID, AfterRevision: child.Revision}}); err != nil {
+		t.Fatalf("wait: %v", err)
+	}
+	if _, err := st.CompleteTaskYield(x.TaskID); err != nil {
+		t.Fatalf("yield: %v", err)
+	}
+	if _, ok, err := st.PrepareTaskContinuation("a_w"); err != nil || !ok {
+		t.Fatalf("prepare: %v %v", ok, err)
+	}
+	if _, ok, err := st.AdmitReadyTask(x.TaskID, TaskReservation{AttemptID: "at2", AgentID: "a_w", Generation: "at2", Claim: ClaimWoke}, 10); err != nil || !ok {
+		t.Fatalf("admit2: %v %v", ok, err)
+	}
+	parked, ok, err := st.ParkTaskStart(x.TaskID, "at2", "the target agent is archived")
+	t.Logf("parked: ok=%v err=%v state=%s cont=%v assigned=%q", ok, err, parked.State, parked.ContinuationPending, parked.AssignedAgentID)
+	yid, _ := st.NewTaskID()
+	y, _ := st.CreateTask(Task{TaskID: yid, Project: "proj", DisplayName: "y", Instruction: "y",
+		TargetKind: TargetAgent, TargetAgentID: "a_w", CreatedByKind: "person"})
+	_, ok, err = st.AdmitReadyTask(y.TaskID, TaskReservation{AttemptID: "aty", AgentID: "a_w", Generation: "aty", Claim: ClaimWoke}, 10)
+	yy, _ := st.ReadTask(y.TaskID)
+	t.Logf("other task for same agent admitted=%v err=%v state=%s", ok, err, yy.State)
+}

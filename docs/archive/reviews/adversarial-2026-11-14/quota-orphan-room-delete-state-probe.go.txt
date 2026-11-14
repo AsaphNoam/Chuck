@@ -1,0 +1,27 @@
+package state
+
+import (
+	"testing"
+	"time"
+)
+
+func TestProbeDeletePausedRoomOrphansQuota(t *testing.T) {
+	st, _ := newTestStore(t)
+	d, source, _ := quotaRoomSetup(t, st, ThinkTankTurnDiscussion)
+	now := timeNow().UTC().Truncate(time.Second)
+	observed := now.Add(-2 * time.Minute)
+	reset := now.Add(-time.Minute)
+	if _, err := st.ObserveOwnedQuota(QuotaObservation{AgentID: source.AgentID, EpisodeID: "probe", SourceGeneration: source.Generation,
+		ExecutingTurn: source.TurnID, ObservedAt: observed, ResetAt: &reset, DueAt: &now, State: QuotaScheduled}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.PauseThinkTank(d.Room.RoomID); err != nil {
+		t.Fatal(err)
+	}
+	err := st.DeleteThinkTank(d.Room.RoomID)
+	t.Logf("delete err=%v", err)
+	q, qerr := st.GetQuota(source.AgentID)
+	t.Logf("quota state=%s owner=%+v err=%v", q.State, q.Owner, qerr)
+	due, _ := st.DueQuotaIntents(now.Add(time.Hour), 8)
+	t.Logf("due=%d", len(due))
+}

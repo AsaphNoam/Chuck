@@ -142,6 +142,11 @@ are clear.
   authentication only with an explicit threat model and UI/CLI handshake design whose benefit
   outweighs its setup and compatibility cost; remote-control device authentication (FS-20) is a
   separate concern. Revisit an environment allowlist only if it preserves provider compatibility.
+  Concrete case found 2026-11-14: the Origin check accepts any local port, the terminal WebSocket
+  relies on it, and handlers decode JSON whatever the Content-Type, so a page served from another
+  local port (an agent's dev server) can open a PTY socket and send launch or prompt requests.
+  Pinning the Origin to the server's own origin plus the configured dev origin is a
+  compatibility decision.
 - **Chat and tracking refresh fidelity.** Make replayed streaming deltas match live deltas; show
   chat initial-load errors instead of a silent panel (FS-03 §6); refresh visible files/commands
   without stale-request overwrite; and let hook-only activity update recency.
@@ -165,9 +170,61 @@ are clear.
 - **HTTP API contract.** Decide how mixed legacy error envelopes converge, and define shared JSON
   request-body limits with a structured over-limit error before enforcing them (TS-03 §5).
 - **Frontend state ownership.** Define Zustand/React Query ownership and mutation-error behavior
-  before broad frontend refactors.
-- **Process and filesystem hardening.** Corroborate process identity, scope crash cleanup by
-  generation, serialize concurrent events, define/test detached-start pidfile races, and bound
-  aggregate shutdown grace across many agents (`StopAll` stops them sequentially). Decide whether
-  startup repairs existing descendant modes and whether valid-name role/project files may be
-  symlinks (TS-05 §5); add adversarial tests for the chosen rules.
+  before broad frontend refactors. The 2026-11-14 classification put about a quarter of all
+  recorded findings in "the client showed stale or wrong state". A candidate rule: every server
+  resource family carries a revision, the stream announces only "family at revision N", and
+  desktop and phone share one data layer.
+- **Process and filesystem hardening.** Corroborate process identity and serialize concurrent
+  events. Decide whether startup repairs existing descendant modes and whether valid-name
+  role/project files may be symlinks (TS-05 §5); add adversarial tests for the chosen rules.
+  Crash cleanup and the shutdown budget moved to
+  [`give-agent-execution-one-owner.md`](ready-changes/give-agent-execution-one-owner.md) on
+  2026-11-14.
+- **One server per home.** The single-instance guard is a pidfile checked with `kill(pid, 0)`
+  (ADV-9). `dashboard start` checks it before it writes it, after opening and reconciling the
+  store, so two starts in that window both proceed; a doomed second start still reconciles and
+  releases attachment holds in the live server's database; and after a reboot a reused PID makes
+  `start` report a running server and `stop` signal an unrelated process. An advisory lock held
+  for the server's lifetime fixes these, but a design review on 2026-11-14 found two cases to
+  decide first: a detached start must still report a failed bind, and a server from an older
+  version never holds the lock, so mixed versions need a rule.
+- **Checkout deletion and gitignored files.** The dirty check (`git status --porcelain`) does not
+  report ignored files, and consented deletion removes them, so a checkout reported clean can
+  still lose `.env.local`, a local database or ignored notes. FS-19.R8 says uncommitted changes
+  are the only thing deletion can lose. Decide what the dialog discloses before changing the
+  probe. Found 2026-11-14 (ADV-6).
+- **Host settlement of assignment turns.** A task is waiting or finished only when its agent
+  calls `wait_for_tasks` or `report_task_result`. An ordinary task whose agent just ends its turn
+  stays `running` with nothing shown; only pipeline owners are nudged. Agents also fetch and echo
+  an `execution_handle` the server can derive from the caller's token. Candidate changes, each a
+  product or agent-protocol decision: record "ended without a result" for every task, treat a
+  turn that ends with unfinished children as waiting, drop the handle from the tools, and retry a
+  transient start failure with backoff before parking. Checks a stage declares and the host runs
+  are already being defined under "Simplify pipeline setup for software factories".
+  The [structural pass](archive/reviews/adversarial-2026-11-14/ARCHITECTURE.md) has the evidence.
+- **Quota attention on a pipeline run.** A run whose stage owner's quota intent ends in
+  `needs_attention` stays `running` with nothing shown on the run; only the agent's own banner
+  says so. TS-09 specifies the suppression of the stall nudge while quota-held, so what the run
+  should show, and when it clears, is a product decision. Found 2026-11-14 (ADV-10).
+- **One request protocol for every plane.** Mail, tasks, quota continuation, rooms and the
+  pipeline owner each have their own claim, attempt, retry and restart protocol (eight in all;
+  TS-01.R19 assigns those semantics to each domain). A single durable turn-request protocol with
+  a per-origin policy table would replace them. A design review on 2026-11-14 found it cannot be
+  introduced without behavior decisions: it changed mail's attempt count after a failed wake, a
+  person's Send during a host-initiated start, and when a stopped pipeline owner is woken.
+  [`give-agent-execution-one-owner.md`](ready-changes/give-agent-execution-one-owner.md) builds
+  the two seams it would need (one turn begin and one admission function) without changing any
+  protocol. Decide per origin before designing it.
+- **Small truthfulness gaps found 2026-11-14.** A `starting` task whose settle write failed is
+  retried only at the next restart. `send_message` accepts the sender as its own
+  recipient and creates a wake for it. `--rollback` reports success for a binary that will refuse
+  the migrated database. The update manifest's archive name is not restricted to a base name
+  before download. A failed mail wake is logged at Debug and the sender only ever sees
+  `queued_waking`.
+- **Provider conformance from captured frames.** Five of nine field bugs were assumptions about a
+  provider or adapter. Derive the fake adapter's frames from captures of each pinned adapter
+  version and replay them in the release check; keep one list of every vendor extension, patch
+  and text parse with its fallback.
+- **Database durability, backup and integrity.** `synchronous=NORMAL` lets a power loss roll back
+  committed task, quota and message rows while the transcript keeps them, and TS-02 states no
+  durability level. There is no pre-migration copy and no startup integrity check.

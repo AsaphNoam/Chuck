@@ -1,0 +1,45 @@
+package runtime
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+)
+
+func TestProbeStopLeavesTermIgnoringDescendant(t *testing.T) {
+	c, spec := newChatTest(t, "text")
+	fake := c.command
+	dir := t.TempDir()
+	pidfile := filepath.Join(dir, "child.pid")
+	wrapper := filepath.Join(dir, "wrap.sh")
+	script := "#!/bin/sh\n(trap '' TERM; exec sleep 300) &\necho $! > \"" + pidfile + "\"\nexec " + fake + "\n"
+	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c.command = wrapper
+	if _, err := c.Start(context.Background(), spec); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(pidfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err := c.Stop(context.Background(), spec.Agent.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	alive := syscall.Kill(pid, 0) == nil
+	if alive {
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+	}
+	t.Logf("descendant pid %d alive after Stop: %v", pid, alive)
+	if alive {
+		t.Fatal("PROBE: TERM-ignoring descendant survived live Stop")
+	}
+}

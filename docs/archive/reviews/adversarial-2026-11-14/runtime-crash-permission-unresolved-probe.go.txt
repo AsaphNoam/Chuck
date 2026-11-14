@@ -1,0 +1,31 @@
+package runtime
+
+import (
+	"context"
+	"syscall"
+	"testing"
+	"time"
+)
+
+// Probe: a crash with an ordinary withheld permission records no resolution.
+func TestProbeCrashLeavesPermissionUnresolved(t *testing.T) {
+	c, h, _, ch := startPermAgent(t, false, "")
+	history := recordHistory(c)
+	if err := c.SendPrompt(context.Background(), h.AgentID, "run ls"); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvPermissionRequest)
+	_ = syscall.Kill(-h.Pid, syscall.SIGKILL)
+	waitForEvent(t, ch, EvTurnEnd)
+	time.Sleep(100 * time.Millisecond)
+	resolved := false
+	for _, ev := range history() {
+		t.Logf("seq=%d type=%s data=%s", ev.Seq, ev.Type, ev.Data)
+		if ev.Type == EvPermissionResolved {
+			resolved = true
+		}
+	}
+	if !resolved {
+		t.Error("crash left the permission_request without a permission_resolved")
+	}
+}

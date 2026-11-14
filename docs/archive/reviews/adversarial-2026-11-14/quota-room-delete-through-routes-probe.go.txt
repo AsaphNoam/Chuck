@@ -1,0 +1,43 @@
+package server
+
+import (
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+// Probe: does deleting a quota-held room through the real HTTP routes leave
+// its member's quota intent due and ownerless (ADV-1's stated trigger)?
+func TestProbeRoomDeleteRouteAndQuotaIntent(t *testing.T) {
+	srv, _, room := roomQuotaRecoverySetup(t)
+	d, err := srv.stateStore.ReadThinkTank(room)
+	if err != nil || len(d.Attempts) == 0 {
+		t.Fatalf("room = %+v err=%v", d, err)
+	}
+	agent := d.Attempts[0].AgentID
+	before, err := srv.stateStore.GetQuota(agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("before: quota state=%s owner=%+v room phase=%s control=%s", before.State, before.Owner, d.Room.Phase, d.Room.Control)
+
+	rec := doJSON(t, srv.routes(), http.MethodPost, "/api/think-tanks/"+room+"/pause", "{}")
+	t.Logf("pause -> %d", rec.Code)
+	afterPause, _ := srv.stateStore.GetQuota(agent)
+	t.Logf("after pause: quota state=%s", afterPause.State)
+
+	rec = doJSON(t, srv.routes(), http.MethodDelete, "/api/think-tanks/"+room, "")
+	t.Logf("delete -> %d %s", rec.Code, rec.Body.String())
+	after, err := srv.stateStore.GetQuota(agent)
+	t.Logf("after delete: quota state=%s owner=%+v err=%v", after.State, after.Owner, err)
+	due, _ := srv.stateStore.DueQuotaIntents(time.Now().UTC().Add(24*time.Hour), 8)
+	blocked, _ := srv.quotaBlocksAgent(agent)
+	t.Logf("due intents=%d agent blocked=%v", len(due), blocked)
+	if after.State == state.QuotaScheduled || blocked {
+		t.Log("RESULT: intent stranded through the HTTP route")
+	} else {
+		t.Log("RESULT: the HTTP route resolves the intent; ADV-1's trigger does not occur this way")
+	}
+}

@@ -1,0 +1,74 @@
+package runtime
+
+import (
+	"context"
+	"os"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"testing"
+	"time"
+)
+
+// Probe: a held successor reserved at turn end races a process exit.
+func TestProbeHeldSuccessorAfterProcessExit(t *testing.T) {
+	c, spec := newChatTest(t, "hold_turn")
+	dir := t.TempDir()
+	hold := dir + "/hold"
+	spec.Env = append(spec.Env, "FAKEACP_HOLD_FILE="+hold)
+	history := recordHistory(c)
+	c.SetPersistence(t.TempDir(), func(string, string, *SessionMetaData) (TranscriptWriter, error) { return &recordingWriter{}, nil }, &removalIndexer{})
+
+	var killed atomic.Bool
+	sinkEntered := make(chan struct{})
+	sinkRelease := make(chan struct{})
+	var once sync.Once
+	c.SetEventSink(func(obs Observation) {
+		if killed.Load() && obs.Event.Type == EvTurnEnd {
+			once.Do(func() { close(sinkEntered) })
+			<-sinkRelease
+		}
+	})
+	ctx := context.Background()
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, unsub, _ := c.Subscribe(h.AgentID)
+	defer unsub()
+	first := ""
+	c.SetQuotaManualBind(func(agentID, gen, turnID string) error {
+		if first == "" {
+			first = turnID
+			return nil
+		}
+		killed.Store(true)
+		_ = syscall.Kill(-h.Pid, syscall.SIGKILL)
+		select {
+		case <-sinkEntered: // onTransportClosed is emitting its turn_end
+		case <-time.After(5 * time.Second):
+			t.Error("exit teardown never reached turn_end")
+		}
+		return nil
+	})
+	if err := c.SendPrompt(ctx, h.AgentID, "first"); err != nil {
+		t.Fatal(err)
+	}
+	waitForChunk(t, ch, "working")
+	if held, err := c.SendPromptOrHold(ctx, h.AgentID, "second"); err != nil || !held {
+		t.Fatalf("hold: %v %v", held, err)
+	}
+	_ = os.WriteFile(hold, []byte("go"), 0o644)
+	time.Sleep(500 * time.Millisecond)
+	close(sinkRelease)
+	time.Sleep(500 * time.Millisecond)
+	st, _ := c.store.ReadStatus(h.AgentID)
+	_, runErr := c.store.ReadRunning(h.AgentID)
+	t.Logf("final status=%q detail=%q running_err=%v", st.State, st.Detail, runErr)
+	for _, ev := range history() {
+		t.Logf("seq=%d turn=%s type=%s data=%s", ev.Seq, ev.TurnID, ev.Type, string(ev.Data))
+	}
+	if st.State == "busy" {
+		t.Errorf("dead agent left with busy status")
+	}
+}

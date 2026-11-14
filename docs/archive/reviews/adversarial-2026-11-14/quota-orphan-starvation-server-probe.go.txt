@@ -1,0 +1,63 @@
+package server
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+// Probe: quota intents whose room owner no longer exists (the durable state
+// DeleteThinkTank leaves for a paused room) are never claimed, held or
+// cancelled, and because the due query is ORDER BY due_at LIMIT 8 with no
+// cursor, eight of them stop every later continuation.
+func TestProbeOrphanRoomQuotaStarvesDueBatch(t *testing.T) {
+	s, ts, log := activationTestServer(t)
+	victim := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	observe := func(id, episode string, due time.Time) {
+		t.Helper()
+		if _, err := s.stateStore.ObserveQuota(state.QuotaObservation{AgentID: id, EpisodeID: episode, SourceGeneration: s.registry.Generation(id), ExecutingTurn: "interrupted-turn", Owner: state.QuotaOwner{Kind: "ordinary"}, ObservedAt: due.Add(-2 * time.Minute), ResetAt: quotaResetFor(due), DueAt: &due, State: state.QuotaScheduled}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var orphans []string
+	for i := 0; i < taskDispatchBatch; i++ {
+		id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+		orphans = append(orphans, id)
+		observe(id, fmt.Sprintf("orphan-%d", i), time.Now().UTC().Add(-10*time.Minute))
+		if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET owner_json = ? WHERE agent_id = ?`, `{"kind":"room","room_id":"tt_deleted_room","attempt_id":"att","turn":"discussion"}`, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	observe(victim, "victim", time.Now().UTC().Add(-time.Second))
+
+	for i := 0; i < 5; i++ {
+		s.dispatchQuotaContinuations(context.Background())
+		time.Sleep(200 * time.Millisecond)
+	}
+	q, err := s.stateStore.GetQuota(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("after 5 dispatch passes with 8 orphans: victim state=%s prompts=%d", q.State, promptCount(t, log))
+	for _, id := range orphans[:2] {
+		oq, _ := s.stateStore.GetQuota(id)
+		blocked, _ := s.quotaBlocksAgent(id)
+		t.Logf("orphan %s state=%s revision=%d blocks_agent=%v", id, oq.State, oq.Revision, blocked)
+	}
+	starved := q.State == state.QuotaScheduled && promptCount(t, log) == 0
+
+	// Control: remove the orphans; the same dispatcher now continues the victim.
+	if _, err := s.stateStore.DB().Exec(`DELETE FROM quota_intents WHERE agent_id != ?`, victim); err != nil {
+		t.Fatal(err)
+	}
+	s.dispatchQuotaContinuations(context.Background())
+	waitPrompts(t, log, 1)
+	t.Logf("control (orphans removed): victim continued, prompts=%d", promptCount(t, log))
+	if !starved {
+		t.Fatalf("NOT REPRODUCED: victim was admitted despite orphans (state=%s)", q.State)
+	}
+	t.Log("REPRODUCED: eight ownerless room intents starve every later quota continuation")
+}

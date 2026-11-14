@@ -1,0 +1,26 @@
+package runtime
+
+import (
+	"io"
+	"testing"
+	"time"
+)
+
+// Probe: Cancel writes session/cancel while holding agentState.mu.
+func TestProbeCancelNotifyUnderTurnLock(t *testing.T) {
+	c := NewChatRuntime(nil)
+	pr, pw := io.Pipe() // a child that is not reading stdin
+	defer pr.Close()
+	as := &agentState{agentID: "a", turn: currentTurn{turnActive: true, turnSeq: 1, pending: map[string]*pendingPerm{}}}
+	as.transport = NewTransport(pw, nil, nil)
+	go c.cancel(as, "", "")
+	time.Sleep(100 * time.Millisecond)
+	got := make(chan struct{})
+	go func() { as.mu.Lock(); as.mu.Unlock(); close(got) }()
+	select {
+	case <-got:
+		t.Log("turn lock free")
+	case <-time.After(time.Second):
+		t.Error("turn lock held across a blocked stdin write: Stop's as.mu.Lock would wait forever")
+	}
+}

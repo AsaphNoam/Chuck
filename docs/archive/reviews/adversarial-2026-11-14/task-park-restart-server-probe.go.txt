@@ -1,0 +1,35 @@
+package server
+
+import (
+	"context"
+	"testing"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+// Probe: crash after the first link parked but before propagation reached the
+// second. Restart recovery must park the second; it does not.
+func TestProbeRestartAfterLostPropagation(t *testing.T) {
+	srv := testServer(t, true)
+	seedPipelineRun(t, srv, "pr_failed")
+	first := newDependentTask(t, srv, "first", state.SourcePipelineRun, "pr_failed")
+	second := newDependentTask(t, srv, "second", state.SourceTask, first.TaskID)
+	if err := srv.stateStore.RegisterWorkResult(state.WorkResult{SourceKind: state.SourcePipelineRun,
+		SourceID: "pr_failed", Outcome: state.OutcomeFailure}); err != nil {
+		t.Fatal(err)
+	}
+	// The live path commits first's park, then crashes before propagateTaskFailure.
+	if _, err := srv.stateStore.EvaluateSource(state.SourcePipelineRun, "pr_failed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.recoverTasks(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ { // a few dispatcher ticks' worth of sweeps
+		srv.reconcileTaskWaits()
+		srv.resolveDueTimeArms()
+	}
+	f, _ := srv.stateStore.ReadTask(first.TaskID)
+	s, _ := srv.stateStore.ReadTask(second.TaskID)
+	t.Logf("first=%s second=%s attention=%q", f.State, s.State, s.AttentionReason)
+}
