@@ -838,6 +838,15 @@ task-backed controller; do not add a second executor for simple sequences.
   native restoration. Reuse task dispatch, lifecycle composers, stage cleanup and receipts under
   INV §2/§5/§8/§9/§11/§15/§16/§17; apply TS-06's closure matrix during implementation.
 
+- **R73 (planned) — Pipeline Think Tank participant labels are independent of slot keys.** For
+  FS-14.R110, use the stage title and participant position to construct each new room member's
+  display name through the existing room setup path. Apply existing name bounds and pass the
+  same name to launch configuration and the member record. Continue using the frozen participant
+  key to resolve its runtime assignment. Existing room records retain their names. Membership,
+  execution, synthesis and result contracts stay the same. *Verify:* the pipeline room creation
+  fixture supplies distinct opaque keys, preserves their assigned runtimes, and creates members
+  named by stage and position.
+
 ## 3. Interfaces & data shapes
 
 **Goal-led additions (R66–R71, planned):**

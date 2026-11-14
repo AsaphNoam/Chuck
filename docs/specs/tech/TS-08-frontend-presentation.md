@@ -2266,6 +2266,35 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   remount (INV §1, §16). *Verify:* a reconnect test that invalidation is unfiltered, and that a
   query family added without touching the stream client is refreshed.
 
+- **R169 (planned) — Pipeline forms preserve the existing template and launch contracts.** For
+  FS-14.R110–R111, edit the complete v2 template draft through the existing template client.
+  Generate filename-safe keys for new manual templates and unique keys within the draft for new
+  stages, output values and Think Tank participants. Assign each key once per draft item. Preserve
+  saved, imported and proposal keys through renames and unrelated edits. Use the existing create
+  endpoint for new manual drafts and the update endpoint for edits to existing templates. Determine
+  that intent from how the editor was entered, including the existing proposal workflow. A create
+  conflict preserves the draft and cannot turn the next save into an update of the conflicting
+  template. Regenerate a generated template key only after a definite create conflict. An uncertain
+  save retains the same key and reconciles through the template read against the submitted draft
+  before a retry.
+  Select handoff sources by their existing key and serialize the current binding fields, preserving
+  explicit aliases and flags. Reuse canonical save validation and preserve the whole draft on a
+  refusal or when closing optional controls. An exact proposal uses its unchanged payload and
+  existing confirmation and edit invalidation.
+- **R170 (planned) — Pipeline views project labels and errors from the existing records.** For
+  FS-14.R110/R113, use existing name resolution and the run's frozen template for historical stage
+  labels. Distinguish equal labels with context such as their stage or participant position. Use
+  TS-09.R73's pipeline Think Tank member labels for newly launched rooms.
+  Use field paths and diagnostic codes to identify the corresponding visible control, expand it if
+  needed, and present a named problem or a human-readable fallback. Raw identifiers remain in
+  routing, payloads and deliberately opened exact proposal details. The desktop form uses the
+  existing configured runtime resolver and groups Setup rows only when the resolved backend,
+  model, effort and fast mode match. Keep slot-level choices in Review. Optional run naming uses
+  the existing template-title fallback and preserves a supplied name. The phone uses its existing
+  launch and workspace controls. Use the existing request and mutation clients. *Verify:*
+  FS-14.A72/A74 through serialized requests and rendered authoring, validation, and launch journeys
+  on the affected desktop and phone surfaces (INV §2/§3/§5/§8/§11/§13/§17/§20).
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

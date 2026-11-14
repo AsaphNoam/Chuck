@@ -223,11 +223,6 @@ None.
 
 ## Decisions needing input
 
-- **Simpler pipeline setup for software factories** — proposed behavior and acceptance are in
-  [FS-14 §4.12](../specs/features/FS-14-configurable-pipelines.md#412-simpler-pipeline-setup-and-verifiable-runs).
-  Confirm the proposed authoring and manual launch flow before technical design. The draft now
-  uses the existing engine, gate semantics and repository scope.
-
 - Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID
   ownership (compatibility change).
 - Whether a pipeline stage paused after failed launch/resume continues withholding **Open agent**,

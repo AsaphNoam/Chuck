@@ -896,13 +896,15 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
 - **R110 (planned) — Author the usual workflow as named stages.** The basic editor shows the
   template title and ordered stage list. Name each stage and write its instructions. File paths
   or references can be included in those instructions under the existing workspace access rules.
-  Template, stage and binding identities are generated or retained by Chuck and hidden in normal
-  authoring, launch and supervision, including field-level diagnostics. Names can change without
-  changing identity. Existing CLI/API identifiers and exact proposal details remain available
-  through their technical surfaces. The standing orchestrator and standing coordination use
-  existing defaults when valid. Role selection, shared instructions, named run inputs, dedicated
-  coordination and Think Tanks remain available. Save validates the draft, identifies the affected
-  field by name and preserves edits. Chucky proposal review retains its existing consent.
+  Template, stage, binding and Think Tank participant identities are generated or retained by
+  Chuck and hidden in normal authoring, launch and supervision, including field-level diagnostics.
+  Templates and stages can be renamed without changing identity. This refines R51's missing-resource
+  labels: ordinary summaries identify unavailable resources in words. Existing CLI/API identifiers
+  and exact proposal payloads remain available through technical details. The standing orchestrator
+  and standing coordination use existing defaults when valid. Role selection, shared instructions,
+  named run inputs, dedicated coordination and Think Tanks remain available. Save validates the
+  draft, identifies the affected field by name and preserves edits. Chucky proposal review retains
+  its existing consent.
 - **R111 (planned) — Configure requirements and explicit handoffs only when needed.** Ordinary
   stages need no gate setting or input/output bindings. The owner receives its existing stage
   assignment, prior result context and normal workspace access. The stage editor allows **Required
@@ -917,13 +919,14 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   The template format and the engine's delivery, reporting and gate behavior stay the same.
 - **R112 — retired 2026-11-14:** R113 keeps the current setup and review flow and reduces
   optional or repeated information within it.
-- **R113 (planned) — Keep launch focused on the decisions it already needs.** Retain Setup and
-  Review. Use the template name unless the operator chooses a custom run name. Expose a custom
-  name if the draft already has one. Setup summarizes resolved runtimes compactly, grouping
-  identical choices. Review shows the effective checkout and actual runtime selections before
-  Start. Goal, workspace choices, named inputs required by the template, runtime overrides,
-  and missing or invalid choices remain visible at the point of use. Exact proposal and shared
-  checkout confirmation, launch validation and the persisted snapshot keep their existing contracts.
+- **R113 (planned) — Keep launch focused on the decisions it already needs.** Retain desktop
+  Setup and Review and the phone's single launch form. Use the template name unless the operator
+  chooses a custom run name. Expose a custom name if the draft already has one. Desktop Setup
+  groups identical runtime choices. Review shows the effective checkout and actual runtime
+  selections before Start. Goal, workspace choices, named inputs required by the template, runtime
+  overrides, and missing or invalid choices remain visible at the point of use. Exact proposal and
+  shared checkout confirmation, launch validation and the persisted snapshot keep their existing
+  contracts.
 
 ## 5. Acceptance criteria
 
@@ -1349,22 +1352,24 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   as its required source and refuse a route to Implement if the value is absent. Rename a stage
   and verify that its identity and bindings survive. Reopen and save an existing template with
   custom aliases, dedicated coordination or a Think Tank and preserve its configuration. A Chucky
-  proposal still presents its exact configuration for confirmation. *Verify:* browser authoring
-  journeys, serialized configuration, and existing assignment, admission and gate tests.
+  proposal still presents its exact configuration for confirmation. On desktop and phone, inspect
+  a missing resource or a refused action and see a named or human-readable fallback. *Verify:*
+  browser journeys, serialized configuration, and existing assignment, admission and gate tests.
 
 - **A73 — retired 2026-11-14:** A74 covers the retained Setup → Review journey.
 - **A74 (planned)** (R113) — Start the saved template with a goal and valid defaults through
   Setup → Review → Start. See the effective run name without editing it and confirm a custom name
   is retained when set. With matching runtimes, Setup summarizes them together and Review shows
   the effective checkout and selections. Preserve setup after a refused launch or a shared-checkout
-  conflict. Confirm an exact Chucky run proposal with the existing explicit action. *Verify:*
-  browser launch journeys and equivalent start requests and snapshots for the same choices.
+  conflict. Confirm an exact Chucky run proposal with the existing explicit action. Start from
+  the phone's project page using its existing single form. *Verify:* browser launch journeys and
+  equivalent start requests and snapshots for the same choices.
 
 ## 6. Deviations & open decisions
 
-- **Simpler pipeline setup (proposed):** R110–R111/R113/A72/A74 are the draft for operator review.
-  This reduces routine authoring fields and repeated launch information within the existing
-  template and execution contracts.
+- **Simpler pipeline setup (planned):** The operator approved R110–R111/R113/A72/A74. These
+  reduce routine authoring fields and repeated launch information within the existing template
+  and execution contracts.
   Repository scope, staged instructions, routing, recovery, report acceptance and checkpoint
   semantics follow the shipped rules. Stage-to-stage hard gates beyond existing required input
   bindings would need a concrete case those bindings cannot cover. Mechanically checking evidence
