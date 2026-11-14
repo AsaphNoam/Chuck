@@ -695,7 +695,7 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   the begin function over every entry path; a turn begun as its process exits ends
   `process_ended` and leaves no `busy` status; focused `-race` runs of begin against exit, Stop
   and Cancel; both Go variants.
-- **R46 (planned) — Chat status is composed by one function from stated inputs.** One pure
+- **R46 — Chat status is composed by one function from stated inputs.** One pure
   function in `internal/state` composes a chat agent's `status.state` from: how the last process
   ended (Stop or a reconciled exit gives `done`; an unexpected exit or a failed Switch gives
   `error` with its cause), whether a process is live, the live generation's turn row (a `running`
