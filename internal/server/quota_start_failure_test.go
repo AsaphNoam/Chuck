@@ -49,6 +49,13 @@ func TestQuotaRoomStartFailureAbandonsAttempt(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// This fixture injects quota evidence directly, without a provider
+			// callback. Record the source turn ending before the next admission.
+			if err := s.stateStore.EndConversationTurn(id, state.TurnEnd{
+				Generation: gen, TurnID: "quota-source", Outcome: "quota_blocked",
+			}); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := s.stateStore.DB().Exec(`CREATE TRIGGER fail_quota_activation BEFORE INSERT ON status
 WHEN NEW.last_trace='QuotaContinuation' BEGIN SELECT RAISE(FAIL, 'injected activation status failure'); END`); err != nil {
 				t.Fatal(err)
