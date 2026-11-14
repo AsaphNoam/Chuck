@@ -103,6 +103,36 @@ func TestQuotaDispatchAdvancesPastMissingRoomOwners(t *testing.T) {
 	waitPrompts(t, log, 1)
 }
 
+func TestQuotaDispatchRotatesPastClaimContention(t *testing.T) {
+	s, ts, log := activationTestServer(t)
+	victim := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	now := time.Now().UTC().Truncate(time.Second)
+	for i := 0; i < taskDispatchBatch; i++ {
+		id := fmt.Sprintf("quota_contended_%02d", i)
+		seedQuotaHTTP(t, s, id)
+		if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET due_at=? WHERE agent_id=?`, now.Add(-time.Minute).Format(time.RFC3339), id); err != nil {
+			t.Fatal(err)
+		}
+		release, ok := s.claimQuotaActions(quotaAgentKeys([]string{id}))
+		if !ok {
+			t.Fatalf("claim %s", id)
+		}
+		t.Cleanup(release)
+	}
+	due := now.Add(-time.Second)
+	if _, err := s.stateStore.ObserveQuota(state.QuotaObservation{
+		AgentID: victim, EpisodeID: "victim", SourceGeneration: s.registry.Generation(victim),
+		ExecutingTurn: "interrupted-turn", Owner: state.QuotaOwner{Kind: "ordinary"},
+		ObservedAt: due.Add(-2 * time.Minute), ResetAt: quotaResetFor(due),
+		DueAt: &due, State: state.QuotaScheduled,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.dispatchQuotaContinuations(context.Background())
+	s.dispatchQuotaContinuations(context.Background())
+	waitPrompts(t, log, 1)
+}
+
 func TestRecoverTasksPropagatesAlreadyParkedPrerequisite(t *testing.T) {
 	srv := testServer(t, true)
 	seedPipelineRun(t, srv, "pr_failed")
