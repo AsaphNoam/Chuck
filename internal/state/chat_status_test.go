@@ -1,6 +1,11 @@
 package state
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"testing"
+)
 
 func TestComposeChatStatusWriterInventory(t *testing.T) {
 	running := ConversationTurn{State: "running"}
@@ -32,5 +37,18 @@ func TestComposeChatStatusWriterInventory(t *testing.T) {
 				t.Errorf("state = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestChatStatusWritersUseComposition(t *testing.T) {
+	literal := regexp.MustCompile(`(?:State:|\.State\s*=|setStatusTransition\([^,]+,)\s*"(?:idle|busy|waiting_input|done|error)"`)
+	for _, file := range []string{"runtime/chat.go", "runtime/reconcile.go", "server/switch.go"} {
+		src, err := os.ReadFile(filepath.Join("..", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if matches := literal.FindAll(src, -1); len(matches) != 0 {
+			t.Errorf("%s chooses a chat status outside ComposeChatStatus: %q", file, matches)
+		}
 	}
 }
