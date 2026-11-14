@@ -29,7 +29,17 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+- **Give agent execution one owner** — in progress.
+  [Ready change](../ready-changes/give-agent-execution-one-owner.md) and
+  [implementation plan](../plans/agent-execution-ownership.md).
+  Operator approved updating existing store and reconnect tests on 2026-11-14.
+  History reads and desktop reconnect are committed. All 1,264 UI tests and
+  the UI build passed. Focused tests pass for turn and permission ownership,
+  lifecycle and process cleanup, parked dependency recovery, ownerless quota
+  dispatch, and cancelled manual quota settlement. The integrated Go matrix
+  log is `/private/tmp/chuck-execution-final.log`. Before closing, verify the
+  remaining status/admission inventory assertions and the task park/requeue
+  transition helpers against the plan.
 
 ## Acceptance gates still owed
 
