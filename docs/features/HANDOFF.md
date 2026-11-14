@@ -29,22 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-- **Give agent execution one owner** — in progress.
-  [Ready change](../ready-changes/give-agent-execution-one-owner.md) and
-  [implementation plan](../plans/agent-execution-ownership.md).
-  Operator approved updating existing store and reconnect tests on 2026-11-14.
-  History reads and desktop reconnect are committed. All 1,264 UI tests and
-  the UI build passed. Focused tests pass for turn and permission ownership,
-  lifecycle and process cleanup, parked dependency recovery, ownerless quota
-  dispatch, and cancelled manual quota settlement. The integrated Go matrix
-  for `11662dcc` is in `/private/tmp/chuck-execution-11662dcc.log`. The two
-  full server runs with the approved quota failure fixture update are in
-  `/private/tmp/chuck-execution-server-latest.log` and
-  `/private/tmp/chuck-execution-server-fts-latest.log`. Focused race checks
-  and the binary build passed.
-  Before closing, finish the status/admission inventory assertions and
-  the per-state park/requeue consolidation. Check the turn gate against
-  the plan's row invariant during preparation and terminal observers.
+None.
 
 ## Acceptance gates still owed
 
@@ -257,6 +242,16 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   switch shows it above the composer.
 
 ## Review queue
+
+- **Give agent execution one owner** — ready for review, `193f301e..1d6077fa` (TS-01.R45–R50,
+  TS-02.R67–R68, TS-08.R168); its ready change and plan stay until review closes. Intended to
+  change no product behavior. Operator approved the edited store, reconnect and quota failure
+  fixtures on 2026-11-14. Check two notes: task admission keeps the room rule inside its claiming
+  compare-and-swap (named in the admission predicate test); and the turn gate also covers
+  preparation before the row's begin write and terminal callbacks after its end write, so the
+  row is `running` only while the gate is held, not for the gate's whole span (R45 allows this;
+  the plan's "exactly while" wording is stricter). Both Go variants, vet, build, UI suite and
+  focused race checks passed. Credentialed provider and device gates are not closed by it.
 
 - **Single-owner turn state** — ready for review at `35f33a07` (TS-01.R44). Current-turn
   fields share one structure and the existing turn lock. Chat status writes share one
