@@ -33,6 +33,11 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Simplify pipeline setup for software factories.** Make the reusable workflow and its enforced
+  checks easy to author, then let the run owner plan parallel work and repair against the current
+  requirements. [Proposed behavior and acceptance](specs/features/FS-14-configurable-pipelines.md#412-simpler-pipeline-setup-and-verifiable-runs).
+  Confirm the repository scope for the first version and the feature behavior before technical design.
+
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;
