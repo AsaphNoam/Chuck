@@ -894,29 +894,36 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
 - **R109 — retired 2026-11-14:** Run supervision and run API changes are outside this design.
 
 - **R110 (planned) — Author the usual workflow as named stages.** The basic editor shows the
-  template title and the ordered stage list. For a normal stage, show its name, instructions and
-  one choice for the existing completion rules: **Usual step**, **Must pass to finish**, or
-  **Must pass and get approval**. Approval pauses after the successful visit before the run can
-  proceed. The editor suggests an immutable template ID from its title and generates a stable
-  stage ID on creation. Existing IDs survive edits and stay inspectable for CLI/API use. The
-  existing standing orchestrator role and standing coordination defaults are visible without
-  requiring selection when valid. Role selection, shared instructions, named run inputs, and
-  dedicated or Think Tank coordination remain available. Save validates the draft and identifies
-  the affected field while preserving edits. Chucky proposal review retains its existing consent.
-- **R111 (planned) — Choose a handoff by its source.** The
-  stage editor shows configured inputs and outputs and lets the author expand their settings.
-  To use a structured handoff, name an output on its producing stage and choose it by stage and
-  name from the receiving stage's input source control. Required bindings keep their existing
-  meaning. The editor supplies internal keys for new bindings and offers local aliases and raw
-  values when needed. Opening and saving existing templates preserves IDs, effective flags,
-  descriptions and bindings. The template format and the engine's assignment, reporting, and gate
-  behavior stay the same.
-- **R112 (planned) — Show the existing launch choices together.** A manual run with valid setup
-  can start from the setup form. The same view shows the selected template and project, goal,
-  checkout, configured obligations and resolved runtimes, with runtime overrides available.
-  Required inputs, checkout conflicts and missing runtime choices remain visible and actionable.
-  A Chucky run proposal still requires confirmation of the exact payload. Shared-checkout
-  confirmation, start validation and the persisted run snapshot keep their existing contracts.
+  template title and ordered stage list. Name each stage and write its instructions. File paths
+  or references can be included in those instructions under the existing workspace access rules.
+  Template, stage and binding identities are generated or retained by Chuck and hidden in normal
+  authoring, launch and supervision, including field-level diagnostics. Names can change without
+  changing identity. Existing CLI/API identifiers and exact proposal details remain available
+  through their technical surfaces. The standing orchestrator and standing coordination use
+  existing defaults when valid. Role selection, shared instructions, named run inputs, dedicated
+  coordination and Think Tanks remain available. Save validates the draft, identifies the affected
+  field by name and preserves edits. Chucky proposal review retains its existing consent.
+- **R111 (planned) — Configure requirements and explicit handoffs only when needed.** Ordinary
+  stages need no gate setting or input/output bindings. The owner receives its existing stage
+  assignment, prior result context and normal workspace access. The stage editor allows **Required
+  for completion** and **Require human approval**, and shows configured requirements in the stage
+  list. Required for completion means Chuck needs an accepted successful result for that stage
+  from this run before it can finish. Human approval implies that requirement and pauses the run
+  after a successful visit until the operator approves it. Use explicit handoffs when Chuck must
+  require a declared result value or verify its presence before entering a consumer stage. The
+  author can name an output on its producing stage and select it by source on the receiving stage.
+  Existing contracts that need named bindings, including the Think Tank synthesis, retain them.
+  Opening and saving existing templates preserves identities, flags, descriptions and bindings.
+  The template format and the engine's delivery, reporting and gate behavior stay the same.
+- **R112 — retired 2026-11-14:** R113 keeps the current setup and review flow and reduces
+  optional or repeated information within it.
+- **R113 (planned) — Keep launch focused on the decisions it already needs.** Retain Setup and
+  Review. Use the template name unless the operator chooses a custom run name. Expose a custom
+  name if the draft already has one. Setup summarizes resolved runtimes compactly, grouping
+  identical choices. Review shows the effective checkout and actual runtime selections before
+  Start. Goal, workspace choices, named inputs required by the template, runtime overrides,
+  and missing or invalid choices remain visible at the point of use. Exact proposal and shared
+  checkout confirmation, launch validation and the persisted snapshot keep their existing contracts.
 
 ## 5. Acceptance criteria
 
@@ -1333,25 +1340,31 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   covered by A61–A68 and the applicable stage and task regression checks.
 - **A71 — retired 2026-11-14:** A versioned run brief is outside the setup design.
 
-- **A72 (planned)** (R110–R111) — Create one delivery template with Design, Implement, Review,
-  Fix and Verify. Enter a name and instructions for each stage, mark Design, Implement, Review
-  and Verify as required for completion, and give Implement a required input by selecting Design's
-  **Design plan** output. Complete the authoring journey without entering IDs or copying binding
-  keys. Change a stage title and verify its ID and existing bindings survive. Save and run an
-  equivalent existing template with custom aliases, dedicated coordination or a Think Tank. A
-  Chucky proposal still presents its exact configuration for confirmation. *Verify:* browser
-  authoring journey, equivalent serialized configuration, and existing admission and gate tests.
+- **A72 (planned)** (R110–R111) — Create a delivery template with Design, Implement, Review,
+  Fix and Verify using stage names and instructions, including a workspace-relative design file
+  referenced by Design and Implement. Mark Review and Verify as required for completion.
+  Complete authoring and launch without seeing internal IDs or configuring bindings. On the
+  first run, check that the current stage receives its instructions and prior result context.
+  Separately, when Implement must have a machine-checked input, select a declared Design output
+  as its required source and refuse a route to Implement if the value is absent. Rename a stage
+  and verify that its identity and bindings survive. Reopen and save an existing template with
+  custom aliases, dedicated coordination or a Think Tank and preserve its configuration. A Chucky
+  proposal still presents its exact configuration for confirmation. *Verify:* browser authoring
+  journeys, serialized configuration, and existing assignment, admission and gate tests.
 
-- **A73 (planned)** (R112) — Start the saved template with a goal and valid defaults through one
-  manual Start action. See the checkout, completion requirements and runtimes before launch.
-  Preserve setup after a refused launch or a shared-checkout conflict. Confirm an exact Chucky
-  run proposal with the existing explicit action. *Verify:* browser launch journeys and equivalent
-  start requests and snapshots for the same choices.
+- **A73 — retired 2026-11-14:** A74 covers the retained Setup → Review journey.
+- **A74 (planned)** (R113) — Start the saved template with a goal and valid defaults through
+  Setup → Review → Start. See the effective run name without editing it and confirm a custom name
+  is retained when set. With matching runtimes, Setup summarizes them together and Review shows
+  the effective checkout and selections. Preserve setup after a refused launch or a shared-checkout
+  conflict. Confirm an exact Chucky run proposal with the existing explicit action. *Verify:*
+  browser launch journeys and equivalent start requests and snapshots for the same choices.
 
 ## 6. Deviations & open decisions
 
-- **Simpler pipeline setup (proposed):** R110–R112/A72–A73 are the draft for operator review. This
-  changes authoring and manual launch UX using the existing template and execution contracts.
+- **Simpler pipeline setup (proposed):** R110–R111/R113/A72/A74 are the draft for operator review.
+  This reduces routine authoring fields and repeated launch information within the existing
+  template and execution contracts.
   Repository scope, staged instructions, routing, recovery, report acceptance and checkpoint
   semantics follow the shipped rules. Stage-to-stage hard gates beyond existing required input
   bindings would need a concrete case those bindings cannot cover. Mechanically checking evidence
