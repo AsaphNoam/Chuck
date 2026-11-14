@@ -884,67 +884,39 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
 
 ### 4.12 Simpler pipeline setup and verifiable runs
 
-- **R104 (planned) — A template defines named, configurable stages and their obligations.** In
-  the basic editor, give the workflow a title and define its ordered stages. Each stage has a
-  name and its own instructions. In the stage editor, the author can mark a stage as required,
-  declare the result and evidence it must produce, require that evidence before a downstream
-  stage or completion, and add an explicit human approval. The stage list shows which obligations
-  are configured. Offer an editable software delivery starter with Design, Implement, Review,
-  Fix, and Verify. An accepted design is required before Implement. A current independent
-  review with no open must-fix findings and passing verification are required before completion.
-  Fix is available when findings warrant it. A workflow with no required checks is valid and
-  that fact is visible. Chuck generates internal identifiers for ordinary authoring. Chucky
-  proposals use the same stage editor and keep explicit save/start consent.
-- **R105 (planned) — Add explicit configuration where it serves a contract.** Keep named run
-  inputs, structured handoffs, dedicated coordinators and Think Tanks available in the editor
-  when the author uses them. Use standing orchestration by default for a new ordinary stage.
-  Keep templates portable across runtimes. On manual start, show the goal, applicable repositories
-  and checkouts, and required checks alongside resolved execution defaults. With a valid setup,
-  a single deliberate Start launches the run. Show missing or conflicting setup where it can be
-  corrected and preserve the draft. Per-role and per-agent runtime choices remain available
-  wherever currently offered. Proposals and shared-checkout conflicts retain their corresponding
-  confirmation. Existing templates remain editable and runnable with their configured behavior,
-  and existing runs retain their snapshots and history.
-- **R106 (planned) — The owner plans the work inside the authorized scope.** The owner can choose
-  among eligible stages, delegate parallel tasks within a stage, wait for dependencies, choose
-  reviewers and revisit stages through existing run and task controls. The owner sees a compact
-  outline for routing. On activation or revisit it receives the active stage's detailed
-  instructions and relevant accepted handoff. The rest of the stage instructions stay out of
-  that assignment. A declared checkpoint prevents the designated pipeline-managed work or
-  completion until its evidence is accepted and any required user approval is recorded. Checkpoints
-  govern Chuck-managed actions. Workspace and provider authority retain their existing boundaries.
-  For work spanning repositories, the operator can see which checkouts are in scope. Any broader
-  Chuck project access needs its own authorization. One run remains responsible for its managed
-  descendants and Stop. Planned review and repair passes that make verifiable progress are
-  ordinary work. Chuck still bounds
-  unattended work and retries without progress, and pauses recoverably when a limit is reached.
-- **R107 (planned) — Required evidence applies to the delivered work.** Each required check shows
-  what it covers, who or what provided the result, and the requirements and deliverable revision
-  it evaluated. For a software delivery check, the evidence identifies the Git candidate for
-  each repository in scope. A successful outcome requires qualifying evidence for every
-  applicable check against the candidate the run identifies as delivered.
-  A check declared independent requires an accepted report from an assigned reviewer distinct
-  from the implementers of the covered work and the orchestrator. Subsequent changes to the covered
-  work or requirements reopen affected checks and any approvals tied to their old evidence. Earlier
-  evidence remains visible. Code changes after review, a self-review and an owner summary cannot
-  satisfy a check that requires a current independent review. The results show what Chuck verified
-  about the evidence and where a person or agent supplied judgment.
-- **R108 (planned) — A deliberate change to requirements continues the same run.** Ordinary chat
-  still answers questions and steers work within the current requirements. To amend the goal or
-  requirements, the operator confirms a run-scoped change and sees which work will need to be
-  reconciled and which checks lose their current pass. Chuck retains the original brief, each
-  accepted amendment, results and approvals in run history. The owner receives the new brief and
-  reconciles unfinished and previously accepted work before completing. Late results remain useful
-  as history but satisfy a gate only if they cover the current requirements and work. A run
-  amendment cannot silently change the template, remove a mandatory check, expand repository or
-  provider authority or approve a pending checkpoint. Terminal runs retain the brief and evidence
-  they completed with.
-- **R109 (planned) — Supervision shows what is happening and what remains.** The run detail and
-  API show the effective brief, current stage, active and waiting work, and required checks with
-  their status, scope and evidence links. A check awaiting work, requiring a rerun or awaiting
-  explicit approval names the reason and valid next action. Chronological work and repair history
-  stays inspectable alongside the current state. Notifications, recoverable pauses, workspace
-  cleanup and explicit Stop keep their existing meanings.
+- **R104 — retired 2026-11-14:** R110–R111 cover authoring with the existing stage contracts.
+- **R105 — retired 2026-11-14:** R110–R112 cover configuration and launch using existing defaults.
+- **R106 — retired 2026-11-14:** Stage execution and staged instruction delivery retain R62–R64
+  and R97–R103, including the current recovery allowance.
+- **R107 — retired 2026-11-14:** Revision-bound evidence and independence enforcement are separate
+  product decisions.
+- **R108 — retired 2026-11-14:** A versioned run brief is a separate product decision.
+- **R109 — retired 2026-11-14:** Run supervision and run API changes are outside this design.
+
+- **R110 (planned) — Author the usual workflow as named stages.** The basic editor shows the
+  template title and the ordered stage list. For a normal stage, show its name, instructions and
+  one choice for the existing completion rules: **Usual step**, **Must pass to finish**, or
+  **Must pass and get approval**. Approval pauses after the successful visit before the run can
+  proceed. The editor suggests an immutable template ID from its title and generates a stable
+  stage ID on creation. Existing IDs survive edits and stay inspectable for CLI/API use. The
+  existing standing orchestrator role and standing coordination defaults are visible without
+  requiring selection when valid. Role selection, shared instructions, named run inputs, and
+  dedicated or Think Tank coordination remain available. Save validates the draft and identifies
+  the affected field while preserving edits. Chucky proposal review retains its existing consent.
+- **R111 (planned) — Choose a handoff by its source.** The
+  stage editor shows configured inputs and outputs and lets the author expand their settings.
+  To use a structured handoff, name an output on its producing stage and choose it by stage and
+  name from the receiving stage's input source control. Required bindings keep their existing
+  meaning. The editor supplies internal keys for new bindings and offers local aliases and raw
+  values when needed. Opening and saving existing templates preserves IDs, effective flags,
+  descriptions and bindings. The template format and the engine's assignment, reporting, and gate
+  behavior stay the same.
+- **R112 (planned) — Show the existing launch choices together.** A manual run with valid setup
+  can start from the setup form. The same view shows the selected template and project, goal,
+  checkout, configured obligations and resolved runtimes, with runtime overrides available.
+  Required inputs, checkout conflicts and missing runtime choices remain visible and actionable.
+  A Chucky run proposal still requires confirmation of the exact payload. Shared-checkout
+  confirmation, start validation and the persisted run snapshot keep their existing contracts.
 
 ## 5. Acceptance criteria
 
@@ -1356,42 +1328,36 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   *Verify:* old-JSON/start serialization, migration and fake-provider lifecycle tests; one bounded
   packaged Claude/Codex replacement probe verifies real handoff delivery when credentials permit.
 
-- **A69 (planned)** (R104, R105) — Open the software delivery starter, edit the Review stage's
-  instructions and required evidence, save the workflow, and start from a project with a goal
-  and valid defaults in one deliberate launch action. Find the checkout and required checks before
-  launch. Refuse a missing required input or shared-checkout conflict with a path to correction
-  and retain the draft. Reopen an existing template with bindings, dedicated coordination and a
-  Think Tank and run it with its existing contracts. Editing a Chucky proposal requires
-  confirmation of the resulting setup.
-  *Verify:* authoring and launch browser journeys and existing-template round-trip tests.
+- **A69 — retired 2026-11-14:** A72–A73 cover the revised authoring and launch design.
+- **A70 — retired 2026-11-14:** Existing stage, evidence, recovery and Stop behavior stays
+  covered by A61–A68 and the applicable stage and task regression checks.
+- **A71 — retired 2026-11-14:** A versioned run brief is outside the setup design.
 
-- **A70 (planned)** (R106, R107, R109) — Start a software run with two accessible repositories.
-  See the compact stage outline during Design and verify the full Review instructions arrive only
-  when Review activates. Hold Implement until the required design result is accepted. Delegate
-  implementation in parallel, wait for both results and send the combined candidate for
-  independent review. After a finding and repair, refuse completion that cites review of the
-  previous candidate or a report from an implementer. Accept fresh qualifying review and
-  verification. A clean run bypasses repair. Several review and repair passes with advancing
-  evidence can proceed within the run's limits. Repeated attempts without progress pause with a
-  reason. Stop another run while descendants are working or waiting and verify they close with it.
-  *Verify:* staged instruction delivery, admission, evidence, recovery and task lineage integration
-  tests plus a run-detail journey.
+- **A72 (planned)** (R110–R111) — Create one delivery template with Design, Implement, Review,
+  Fix and Verify. Enter a name and instructions for each stage, mark Design, Implement, Review
+  and Verify as required for completion, and give Implement a required input by selecting Design's
+  **Design plan** output. Complete the authoring journey without entering IDs or copying binding
+  keys. Change a stage title and verify its ID and existing bindings survive. Save and run an
+  equivalent existing template with custom aliases, dedicated coordination or a Think Tank. A
+  Chucky proposal still presents its exact configuration for confirmation. *Verify:* browser
+  authoring journey, equivalent serialized configuration, and existing admission and gate tests.
 
-- **A71 (planned)** (R107–R109) — Amend requirements while one repository still has work in flight
-  and a coupled deliverable already has an accepted review. Show the change and which checks need
-  new evidence. Across restart or owner replacement, retain both briefs and the old evidence,
-  reject stale evidence or approval as grounds to complete, and allow the current work and
-  checks to finish the same run. Ordinary chat cannot authorize a requirement change or approve
-  a checkpoint. *Verify:* restart and concurrent-result integration tests and a browser walkthrough
-  of amending the brief and inspecting the resulting evidence.
+- **A73 (planned)** (R112) — Start the saved template with a goal and valid defaults through one
+  manual Start action. See the checkout, completion requirements and runtimes before launch.
+  Preserve setup after a refused launch or a shared-checkout conflict. Confirm an exact Chucky
+  run proposal with the existing explicit action. *Verify:* browser launch journeys and equivalent
+  start requests and snapshots for the same choices.
 
 ## 6. Deviations & open decisions
 
-- **Simpler pipeline setup (proposed):** R104–R109/A69–A71 are the draft behavior and acceptance
-  for operator review. The initial repository scope is open. The recommended first release supports
-  multiple repositories reachable by one configured Chuck project, using its existing checkout
-  and permission boundaries. Independent per-repository checkout provisioning and orchestration
-  across separately configured Chuck projects require a separate scope decision.
+- **Simpler pipeline setup (proposed):** R110–R112/A72–A73 are the draft for operator review. This
+  changes authoring and manual launch UX using the existing template and execution contracts.
+  Repository scope, staged instructions, routing, recovery, report acceptance and checkpoint
+  semantics follow the shipped rules. Stage-to-stage hard gates beyond existing required input
+  bindings would need a concrete case those bindings cannot cover. Mechanically checking evidence
+  freshness or reviewer independence would address a separate assurance requirement. Versioning a
+  live run's goal, changing the recovery allowance, running host-owned checks or expanding checkout
+  scope would each change execution behavior and need their own justification and design.
 
 - **Goal-led runs shipped (2026-10-30):** R97–R103 are implemented as TS-09 §5 records. Evidence:
   `internal/pipeline/goal_led_test.go` (A61 fixture half, A62, A63 question/recovery, A66,

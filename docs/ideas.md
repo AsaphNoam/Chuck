@@ -33,10 +33,10 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
-- **Simplify pipeline setup for software factories.** Make the reusable workflow and its enforced
-  checks easy to author, then let the run owner plan parallel work and repair against the current
-  requirements. [Proposed behavior and acceptance](specs/features/FS-14-configurable-pipelines.md#412-simpler-pipeline-setup-and-verifiable-runs).
-  Confirm the repository scope for the first version and the feature behavior before technical design.
+- **Simplify pipeline setup for software factories.** Reduce the fields needed to author stages,
+  configure existing checks and handoffs, and launch a run using the current engine.
+  [Proposed behavior and acceptance](specs/features/FS-14-configurable-pipelines.md#412-simpler-pipeline-setup-and-verifiable-runs).
+  Confirm the authoring and launch flow before technical design.
 
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
@@ -199,8 +199,8 @@ are clear.
   an `execution_handle` the server can derive from the caller's token. Candidate changes, each a
   product or agent-protocol decision: record "ended without a result" for every task, treat a
   turn that ends with unfinished children as waiting, drop the handle from the tools, and retry a
-  transient start failure with backoff before parking. Checks a stage declares and the host runs
-  are already being defined under "Simplify pipeline setup for software factories".
+  transient start failure with backoff before parking. Host-run stage checks would require a
+  distinct execution design. Pipeline setup simplification covers configuration of existing checks.
   The [structural pass](archive/reviews/adversarial-2026-11-14/ARCHITECTURE.md) has the evidence.
 - **Quota attention on a pipeline run.** A run whose stage owner's quota intent ends in
   `needs_attention` stays `running` with nothing shown on the run; only the agent's own banner
