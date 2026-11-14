@@ -37,9 +37,14 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   the UI build passed. Focused tests pass for turn and permission ownership,
   lifecycle and process cleanup, parked dependency recovery, ownerless quota
   dispatch, and cancelled manual quota settlement. The integrated Go matrix
-  log is `/private/tmp/chuck-execution-final.log`. Before closing, verify the
-  remaining status/admission inventory assertions and the task park/requeue
-  transition helpers against the plan.
+  for `11662dcc` is in `/private/tmp/chuck-execution-11662dcc.log`. The two
+  full server runs with the approved quota failure fixture update are in
+  `/private/tmp/chuck-execution-server-latest.log` and
+  `/private/tmp/chuck-execution-server-fts-latest.log`. Focused race checks
+  and the binary build passed.
+  Before closing, finish the status/admission inventory assertions and
+  the per-state park/requeue consolidation. Check the turn gate against
+  the plan's row invariant during preparation and terminal observers.
 
 ## Acceptance gates still owed
 
