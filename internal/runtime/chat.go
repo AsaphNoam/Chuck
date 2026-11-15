@@ -375,6 +375,11 @@ type currentTurn struct {
 	// `end_turn`, so a late completion never confirms quota recovery (FS-03.R9).
 	cancelledTurnSeq int64
 	settledTurnID    string
+	// begunTurnID is the turn beginTurn has committed to the provider. A gate
+	// that is only reserved — an idle Steer awaiting its native call, a claim
+	// whose preparation may still be refused — owns no busy status, because
+	// releasing it writes none (TS-01.R44/R45, INV §5).
+	begunTurnID string
 	// Non-nil while the current prompt owns terminal settlement. EOF waits for
 	// that owner before tearing down the process and journal.
 	promptSettlement chan struct{}
@@ -1222,6 +1227,7 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 		return false, nil
 	}
 	as.turn.quotaContinuation = quotaContinuation
+	as.turn.begunTurnID = turnID
 	as.mu.Unlock()
 	if prompt.mailNotice != nil {
 		c.emit(as, EvNotice, *prompt.mailNotice)
@@ -2769,14 +2775,16 @@ func (c *ChatRuntime) applyEventStatus(as *agentState, m mappedEvent) {
 	// assistant_text / diff carry no status transition (agent stays busy).
 }
 
-// updateOwnedBusy writes busy only while an unsettled turn owns the agent and
-// no permission gate is open. The decision and the write share statusMu, so a
-// parallel tool frame cannot erase waiting_input and a background frame racing
-// the turn end cannot leave busy behind it (FS-02.R3/R22, FS-01.R52, INV §5).
+// updateOwnedBusy writes busy only while a begun, unsettled turn owns the agent
+// and no permission gate is open. The decision and the write share statusMu, so
+// a parallel tool frame cannot erase waiting_input and a background frame racing
+// the turn end, or arriving while the gate is only reserved, cannot leave busy
+// behind it (FS-02.R3/R22, FS-01.R52, INV §5).
 func (c *ChatRuntime) updateOwnedBusy(as *agentState, detail, trace string) {
 	c.mutateStatus(as, false, func(st *state.Status, _ error) bool {
 		as.mu.Lock()
 		owned := as.turn.turnActive && !as.stopped && as.turn.execTurnID != "" &&
+			as.turn.execTurnID == as.turn.begunTurnID &&
 			as.turn.execTurnID != as.turn.settledTurnID && len(as.turn.pending) == 0
 		as.mu.Unlock()
 		if owned {

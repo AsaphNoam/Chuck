@@ -54,8 +54,8 @@ None.
 ## Review queue
 
 - **Give agent execution one owner** — reviewed 2026-11-15, `193f301e..1d6077fa` (TS-01.R45–R50,
-  TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left only the EXEC-6c remainder open
-  under **Review findings**, blocked on a human decision. Its ready change and plan stay until they close. Both implementer notes were
+  TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left EXEC-13 open for `/fix` and the
+  EXEC-6c remainder blocked on a human decision, both under **Review findings**. Its ready change and plan stay until they close. Both implementer notes were
   confirmed: the room rule stays inside task admission's claiming compare-and-swap, and the
   gate-versus-row span is sound except on a failed end write (EXEC-2). Credentialed provider and
   device gates are not closed by it.
@@ -234,7 +234,8 @@ gaps below predate this refactor and still violate the contract it consolidates.
   including live runtime, guarded idle cleanup, orphan reap and exit reconciliation. Identify where
   each path proves the generation and which store transition settles the running row, turn and
   final status, including its failure and retry behavior. Verify the shared status rule against
-  the writer inventory (TS-01.R44/R46, INV §5, §15, §23).
+  the writer inventory (TS-01.R44/R46, INV §5, §15, §23). The Stop bullets of the `docs/ideas.md`
+  entry "One exit rule for a claimed chat turn" are unverified inputs to this inventory.
 
 ### Shared resume start and Switch rollback (`95d4f621`) — reviewed 2026-11-15 at `9fd1fd39` — **Fix model:** difficult — Codex Sol.
 
@@ -274,9 +275,20 @@ and `7b7a12f9` (ASW-3). `7e2539a3` moved the reviewed start path to `startRuntim
 
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Fix rounds closed every finding except the one below. EXEC-9 and the inventory (EXEC-12) went to
+Fix rounds closed every finding except those below. The inventory (EXEC-12) stays in
 `docs/ideas.md` ("One exit rule for a claimed chat turn"), with the independent check's
-same-cause concerns. The independent check is owed again only for the EXEC-6c repair.
+same-cause concerns; on 2026-11-15 the operator declined a design pass for it while
+TURN-STOP-1–3 are open. The independent check is owed again only for the EXEC-6c repair.
+
+- **Worth fixing** — EXEC-13 (sibling found while closing EXEC-9; read on 2026-11-15, not
+  reproduced). A permission request with no begun turn leaves `waiting_input` stored after it
+  resolves. `updatePermissionStatus` writes `waiting_input` whether or not a turn owns the agent
+  (`internal/runtime/chat.go`, `updatePermissionStatus`), and every resolution restores status
+  only through `updateOwnedBusy` (`internal/runtime/permission.go:113,124,159,288`), which
+  writes nothing without a begun, unsettled turn. A native background continuation after a turn
+  end, or a request during an idle Steer's reservation, has no turn end to restore `idle`. Test a
+  permission request and resolution on a settled agent and assert the stored status (FS-02.R3,
+  FS-01.R52, TS-01.R44, INV §1, §5).
 
 - **Must fix** — EXEC-6c (remainder, blocked on human): 11 exported `*Store` writers are called
   only from other packages' tests — `AddThinkTankRecord`, `AttachTaskContext`,

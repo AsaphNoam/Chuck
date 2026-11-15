@@ -67,3 +67,62 @@ func TestPromotedSteerLostAcknowledgementNeverRequeues(t *testing.T) {
 		})
 	}
 }
+
+// EXEC-9, FS-02.R3, TS-01.R44/R45, INV §5: a Steer to an idle agent reserves the
+// turn gate while the native call is in flight, but no turn has begun. A tool
+// frame streamed in that window must not write busy, because releasing the
+// reservation has no turn end to restore idle.
+func TestIdleSteerReservationNeverWritesBusy(t *testing.T) {
+	for _, acknowledged := range []bool{false, true} {
+		name := "lost acknowledgement"
+		if acknowledged {
+			name = "injected"
+		}
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			ack, steerLog := filepath.Join(dir, "ack"), filepath.Join(dir, "steer.log")
+			c, spec := newChatTest(t, "stream_text")
+			spec.Env = append(spec.Env, "FAKEACP_STEERING=1", "FAKEACP_STEER_LOG="+steerLog, "FAKEACP_STEER_ACK_FILE="+ack)
+			h, err := c.Start(context.Background(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = c.Stop(context.Background(), h.AgentID) })
+			as, err := c.lookup(h.AgentID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := readState(t, c, h.AgentID); got != "idle" {
+				t.Fatalf("status before the Steer = %q, want idle", got)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { _, err := c.Steer(ctx, h.AgentID, "nudge"); done <- err }()
+			waitForPrompts(t, steerLog, 1)
+			c.mapScoped(as, activityScope{}, "tool_call", toolCallFrame("background", `{"file_path":"a.go"}`))
+			if got := readState(t, c, h.AgentID); got != "idle" {
+				t.Errorf("status while the Steer is in flight = %q, want idle", got)
+			}
+			if acknowledged {
+				if err := os.WriteFile(ack, []byte("go"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				cancel()
+			}
+			if err := <-done; acknowledged != (err == nil) {
+				t.Fatalf("Steer error = %v with acknowledged=%v", err, acknowledged)
+			}
+			as.mu.Lock()
+			active := as.turn.turnActive
+			as.mu.Unlock()
+			if active {
+				t.Fatal("the Steer reservation still holds the turn gate")
+			}
+			if got := readState(t, c, h.AgentID); got != "idle" {
+				t.Fatalf("status after the Steer released its reservation = %q, want idle", got)
+			}
+		})
+	}
+}
