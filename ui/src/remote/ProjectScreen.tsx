@@ -1,5 +1,5 @@
 import { AutoGrowTextarea } from "../components/ui";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listPipelineTemplates, pipelineDiagnostics, sharedWorkspaceConflicts, startPipelineRun } from "../api/pipelines";
 import type { AgentState } from "../api/types";
@@ -15,17 +15,86 @@ import { personaLabel } from "../lib/personas";
 import { AgentActions, AgentPress } from "./AgentActions";
 import { NewAgentForm } from "./NewAgentForm";
 import { usePhoneGroupChoices } from "./groupChoices";
-
-const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
+import type { PipelineStartRequest } from "../schemas/pipeline";
+import { focusStartDiagnostic, startDiagnosticText } from "../features/pipelines/startDiagnostics";
+import { pipelineActionError, pipelineOptionLabels } from "../features/pipelines/pipelineLabels";
 
 function StartPipeline({ project, onClose }: { project: string; onClose: () => void }) {
-  const offline = useConnection((state) => state.link !== "connected"); const templates = useQuery({ queryKey: ["templates"], queryFn: listPipelineTemplates });
-  const valid = (templates.data ?? []).filter((template) => template.valid); const [templateID, setTemplateID] = useState(""); const template = valid.find((item) => item.id === templateID) ?? valid[0];
-  const [name, setName] = useState(""); const [goal, setGoal] = useState(""); const [inputs, setInputs] = useState<Record<string, string>>({}); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [conflicts, setConflicts] = useState<{ name: string }[]>([]);
-  const [worktree, setWorktree] = useState(false); const [branch, setBranch] = useState(""); const [base, setBase] = useState("");
-  const submit = async (acknowledge = false) => { if (!template) return; setBusy(true); setError(""); try { const result = await startPipelineRun({ request_id: crypto.randomUUID(), template_id: template.id, display_name: name.trim() || template.template.title, project, goal, inputs, orchestrator: { backend: "", model: "", effort: "", fast: false }, dedicated_assignments: {}, ...(worktree ? { workspace: { mode: "new_worktree" as const, branch: branch.trim(), ...(base.trim() ? { base: base.trim() } : {}) } } : {}) }, acknowledge); navigate(`/run/${encodeURIComponent(result.run.run.run_id)}`); } catch (err) { const shared = sharedWorkspaceConflicts(err); if (shared.length) setConflicts(shared); else setError([errorText(err), ...pipelineDiagnostics(err).map((item) => item.message)].join(": ")); } finally { setBusy(false); } };
+  const offline = useConnection((state) => state.link !== "connected");
+  const templates = useQuery({ queryKey: ["templates"], queryFn: listPipelineTemplates });
+  const valid = (templates.data ?? []).filter((template) => template.valid);
+  const [templateID, setTemplateID] = useState("");
+  const template = valid.find((item) => item.id === templateID) ?? valid[0];
+  const [name, setName] = useState("");
+  const [customNameOpen, setCustomNameOpen] = useState(false);
+  const [goal, setGoal] = useState("");
+  const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<{ text: string; field?: string } | null>(null);
+  const [worktree, setWorktree] = useState(false);
+  const [branch, setBranch] = useState("");
+  const [base, setBase] = useState("");
+  const [shared, setShared] = useState<{ request: PipelineStartRequest; conflicts: { name: string }[] } | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (!busy && error?.field) focusStartDiagnostic(formRef.current, error.field);
+  }, [busy, error]);
+
+  if (templates.isLoading) return <p className="phone-empty">Loading pipeline templates…</p>;
+  if (templates.isError && !template) return <p className="phone-error" role="alert">Could not load pipeline templates. Reopen this form to try again.</p>;
   if (!template) return <p className="phone-empty">No valid pipeline templates. Create one on the Mac.</p>;
-  return <form className="phone-card phone-form" aria-label="Start pipeline" onSubmit={(event) => { event.preventDefault(); void submit(); }}><h2>Start pipeline</h2><label className="phone-field">Template<select value={template.id} onChange={(event) => setTemplateID(event.target.value)}>{valid.map((item) => <option key={item.id} value={item.id}>{item.template.title}</option>)}</select></label><label className="phone-field">Display name <input value={name} placeholder={template.template.title} onChange={(event) => setName(event.target.value)} /></label><label className="phone-field">Run goal<AutoGrowTextarea rows={3} value={goal} onChange={(event) => setGoal(event.target.value)} /></label>{template.template.inputs.map((input) => <label key={input.name} className="phone-field">{input.name}{input.required ? "" : " (optional)"}<input value={inputs[input.name] ?? ""} onChange={(event) => setInputs({ ...inputs, [input.name]: event.target.value })} /></label>)}<label className="phone-field">Workspace<select value={worktree ? "new_worktree" : "project"} onChange={(event) => setWorktree(event.target.value === "new_worktree")}><option value="project">Project checkout</option><option value="new_worktree">New worktree</option></select></label>{worktree ? <><p className="phone-meta">The whole run shares one new checkout of this project on a new branch. The project itself is unchanged.</p><label className="phone-field">Branch<input value={branch} placeholder="New branch name" onChange={(event) => setBranch(event.target.value)} /></label><label className="phone-field">Base (optional)<input value={base} placeholder="Project's base branch" onChange={(event) => setBase(event.target.value)} /></label></> : <p className="phone-meta">Agents work in the project's current checkout.</p>}{error && <p className="phone-error">{error}</p>}{conflicts.length > 0 && <div className="phone-card"><p>Other work is using this workspace: {conflicts.map((item) => item.name).join(", ")}.</p><button type="button" disabled={offline || busy} onClick={() => void submit(true)}>Start anyway</button></div>}<div className="phone-actions"><button type="button" onClick={onClose}>Cancel</button><button className="ad-button-primary" type="submit" disabled={offline || busy || !goal.trim() || (worktree && !branch.trim())}>Start pipeline</button></div></form>;
+
+  const runName = name.trim() || template.template.title;
+  const requiredMissing = template.template.inputs.some((input) => input.required && !inputs[input.name]?.trim());
+  const cannotStart = offline || busy || !goal.trim() || requiredMissing || (worktree && !branch.trim());
+  const edit = () => { setShared(null); setError(null); };
+  const submit = async (acknowledged?: PipelineStartRequest) => {
+    if (cannotStart) return;
+    const request: PipelineStartRequest = acknowledged ?? {
+      request_id: crypto.randomUUID(),
+      template_id: template.id,
+      display_name: runName,
+      project,
+      goal,
+      inputs: Object.fromEntries(template.template.inputs.filter(({ name }) => name in inputs).map(({ name }) => [name, inputs[name]])),
+      orchestrator: { backend: "", model: "", effort: "", fast: false },
+      dedicated_assignments: {},
+      ...(worktree ? { workspace: { mode: "new_worktree", branch: branch.trim(), ...(base.trim() ? { base: base.trim() } : {}) } } : {}),
+    };
+    setBusy(true);
+    setError(null);
+    setShared(null);
+    try {
+      const result = await startPipelineRun(request, Boolean(acknowledged));
+      navigate(`/run/${encodeURIComponent(result.run.run.run_id)}`);
+    } catch (err) {
+      const conflicts = sharedWorkspaceConflicts(err);
+      if (conflicts.length) {
+        setShared({ request, conflicts });
+      } else {
+        const issues = pipelineDiagnostics(err);
+        if (issues.some((issue) => issue.field === "display_name")) setCustomNameOpen(true);
+        setError({ text: issues.length ? issues.map((item) => startDiagnosticText(item)).join(" ") : pipelineActionError(err), field: issues[0]?.field });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <form ref={formRef} className="phone-card phone-form" aria-label="Start pipeline" onChange={edit} onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <h2>Start pipeline</h2>
+    <label className="phone-field" data-field="template_id">Template<select disabled={busy} value={template.id} onChange={(event) => setTemplateID(event.target.value)}>{pipelineOptionLabels(valid.map((item) => [item.id, item.template.title]), "template").map(([id, title]) => <option key={id} value={id}>{title}</option>)}</select></label>
+    <label className="phone-field" data-field="goal">Run goal<AutoGrowTextarea disabled={busy} rows={3} value={goal} onChange={(event) => setGoal(event.target.value)} /></label>
+    {customNameOpen || name ? <label className="phone-field" data-field="display_name">Run name (optional)<input autoFocus={customNameOpen} disabled={busy} value={name} placeholder={template.template.title} onChange={(event) => setName(event.target.value)} /></label>
+      : <p><span>Run name: {runName}</span>{" "}<button type="button" onClick={() => setCustomNameOpen(true)}>Use a custom name</button></p>}
+    {template.template.inputs.map((input) => <label key={input.name} className="phone-field" data-field={`inputs.${input.name}`}>{input.name}{input.required ? " (required)" : " (optional)"}<input disabled={busy} value={inputs[input.name] ?? ""} onChange={(event) => setInputs({ ...inputs, [input.name]: event.target.value })} /></label>)}
+    <label className="phone-field" data-field="workspace">Workspace<select disabled={busy} value={worktree ? "new_worktree" : "project"} onChange={(event) => setWorktree(event.target.value === "new_worktree")}><option value="project">Project checkout</option><option value="new_worktree">New worktree</option></select></label>
+    {worktree ? <><p className="phone-meta">The whole run shares one new checkout of this project on a new branch. The project itself is unchanged.</p><label className="phone-field" data-field="workspace.branch">Branch<input disabled={busy} value={branch} placeholder="New branch name" onChange={(event) => setBranch(event.target.value)} /></label><label className="phone-field" data-field="workspace.base">Base (optional)<input disabled={busy} value={base} placeholder="Project's base branch" onChange={(event) => setBase(event.target.value)} /></label></> : <p className="phone-meta">Agents work in the project's current checkout.</p>}
+    {error && <p className="phone-error" role="alert">{error.text}</p>}
+    {shared && <div className="phone-card"><p>Other work is using this workspace: {shared.conflicts.map((item) => item.name).join(", ")}.</p><button type="button" disabled={cannotStart} onClick={() => void submit(shared.request)}>Start anyway</button></div>}
+    <div className="phone-actions"><button type="button" onClick={onClose}>Cancel</button><button className="ad-button-primary" type="submit" disabled={cannotStart}>Start pipeline</button></div>
+  </form>;
 }
 
 export function ProjectScreen({ projectID }: { projectID: string }) {

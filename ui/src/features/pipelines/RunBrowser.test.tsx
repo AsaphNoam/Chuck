@@ -63,7 +63,7 @@ it("shows no next stage once the run is finished and falls back to a neutral lab
   server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, template: threeStages, run: { ...run, state: "completed", current_stage_id: "gone" }, stage_tasks: [{ ...stageTask, stage_id: "gone", state: "finished" }] })));
   renderRun();
   expect(await screen.findByText("Final position")).toBeInTheDocument();
-  expect(screen.getAllByText("Untitled stage")).toHaveLength(2);
+  expect(screen.getAllByText("Stage unavailable")).toHaveLength(2);
   expect(screen.queryByText("gone")).toBeNull();
   expect(screen.queryByText(/^Stage \d+ of/)).toBeNull();
   expect(screen.queryByText(/^Usual next:/)).toBeNull();
@@ -144,6 +144,7 @@ it("links stage-work cards to their agents by live or archive route", async () =
 
 it("loads retained run pages to an exact complete-history state", async () => {
   const retained = Array.from({ length: 51 }, (_, index) => ({ run_id: `run_${index}`, template_id: "delivery", display_name: `Run ${index + 1}`, project: index === 0 ? "gone" : "app", state: "completed", revision: 1, pending_action: "", current_stage_id: "work", current_stage_title: "Work", current_agent_id: "", attention_reason: "", final_outcome: "success", updated_at: new Date(Date.UTC(2026, 6, 26, 0, 0, 51 - index)).toISOString(), diagnostics: [] }));
+  Object.assign(retained[0], { current_stage_id: "stage-opaque", current_stage_title: "stage-opaque", diagnostics: [{ field: "current_stage_title", code: "frozen_stage_title_unavailable", message: "frozen template snapshot has no current stage title" }] });
   server.use(http.get("/api/pipeline-runs", ({ request }) => { const url = new URL(request.url); const offset = Number(url.searchParams.get("offset") ?? 0); const limit = Number(url.searchParams.get("limit") ?? 50); return HttpResponse.json(retained.slice(offset, offset + limit), { headers: { "X-Total-Count": "51" } }); }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
   render(<QueryClientProvider client={client}><MemoryRouter><RunsLedger /></MemoryRouter></QueryClientProvider>);
@@ -152,6 +153,8 @@ it("loads retained run pages to an exact complete-history state", async () => {
   expect(await screen.findAllByText("App Project")).toHaveLength(49);
   expect(screen.getByText("Unavailable project")).toBeInTheDocument();
   expect(screen.queryByText("gone")).toBeNull();
+  expect(screen.getByText("Stage unavailable")).toBeInTheDocument();
+  expect(screen.queryByText("stage-opaque")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "More runs" }));
   expect(await screen.findByText("51 of 51 retained runs")).toBeInTheDocument();
 });

@@ -10,6 +10,7 @@ import { useConnection } from "./connection";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
+import { pipelineActionError, pipelineAttentionText, pipelineStageLabels } from "../features/pipelines/pipelineLabels";
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -34,7 +35,7 @@ export function RunScreen({ runId }: { runId: string }) {
   const [input, setInput] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const [stopOpen, setStopOpen] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
-  const run = async (operation: () => Promise<unknown>, after?: () => void) => { setBusy(true); setError(""); try { await operation(); after?.(); } catch (err) { setError(errorText(err)); } finally { setBusy(false); void client.invalidateQueries({ queryKey: ["run"] }); } };
+  const run = async (operation: () => Promise<unknown>, after?: () => void) => { setBusy(true); setError(""); try { await operation(); after?.(); } catch (err) { setError(pipelineActionError(err)); } finally { setBusy(false); void client.invalidateQueries({ queryKey: ["run"] }); } };
   const projects = useQuery({ queryKey: ["projects", revision], queryFn: () => phoneFetch<Record<string, { title: string }>>("/api/projects"), placeholderData: (previous) => previous });
   const data = detail.data;
   if (!data) return <p className="phone-empty">{detail.isError ? errorText(detail.error) : "Loading…"}</p>;
@@ -46,8 +47,9 @@ export function RunScreen({ runId }: { runId: string }) {
   const terminal = pipeline.state === "completed" || pipeline.state === "stopped";
   const approving = pipeline.pending_action === "await_approval"; const answering = pipeline.attention_reason === "needs_input";
   const acceptsInput = !approving && !controls.continue.requires_empty_input;
-  const headingStage = stage?.title ?? (pipeline.current_stage_id ? "Untitled stage" : "");
-  const stageTitles = new Map(template.stages.map((item) => [item.id, item.title]));
+  const stageTitles = pipelineStageLabels(template.stages);
+  const headingStage = stageTitles.get(pipeline.current_stage_id) ?? (pipeline.current_stage_id ? "Stage unavailable" : "");
+  const outputNames = new Map(template.stages.flatMap((stage) => stage.outputs.map(({ value, name }) => [value, `${stageTitles.get(stage.id)} · ${name}`] as const)));
   const inputs = Object.entries(data.inputs);
   return <div className="phone-agent phone-run-page">
     <button type="button" className="phone-link phone-run-back ad-button-secondary" onClick={() => navigate(`/project/${encodeURIComponent(pipeline.project)}`)}><PhoneIcon name="back" size={16} />Project</button>
@@ -74,7 +76,7 @@ export function RunScreen({ runId }: { runId: string }) {
       {data.workspace.setup_ok === false && <p className="phone-meta">Project setup did not finish in this checkout.</p>}
       {terminal && data.workspace.owned && data.workspace.mode === "new_worktree" && data.workspace.state !== "removed" && <p className="phone-meta">Remove this checkout from Pipelines on the desktop.</p>}
     </section>}
-    {pipeline.attention_reason && <p className="phone-card phone-run-attention"><strong>Needs attention</strong><span>{humanize(pipeline.attention_reason)}</span>{pipeline.pause_question && <span>Question: {pipeline.pause_question}</span>}</p>}
+    {pipeline.attention_reason && <p className="phone-card phone-run-attention"><strong>Needs attention</strong><span>{humanize(pipelineAttentionText(pipeline.attention_reason, stageTitles))}</span>{pipeline.pause_question && <span>Question: {pipeline.pause_question}</span>}</p>}
     {pipeline.current_agent_id && <button type="button" className="phone-link ad-button-secondary" onClick={() => navigate(`/agent/${encodeURIComponent(pipeline.current_agent_id)}`)}>Open conversation</button>}
     {error && <p className="phone-error" role="alert">{error}</p>}
 
@@ -110,7 +112,7 @@ export function RunScreen({ runId }: { runId: string }) {
       <summary><PhoneIcon name="arrow" size={15} /><span>Goal &amp; required inputs</span></summary>
       <div className="phone-details-body"><section><h3>Goal</h3><p>{pipeline.goal}</p></section>
         {inputs.length > 0 && <section><h3>Run inputs</h3><dl>{inputs.map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl></section>}
-        {data.values.length > 0 && <section><h3>Recorded values</h3><dl>{data.values.map((item) => <div key={item.name}><dt>{item.name}</dt><dd>{item.value}</dd></div>)}</dl></section>}
+        {data.values.length > 0 && <section><h3>Recorded values</h3><dl>{data.values.map((item) => <div key={item.name}><dt>{item.source_kind === "run_input" ? template.inputs.find(({ name }) => name === item.name)?.name ?? "Unavailable run input" : outputNames.get(item.name) ?? "Unavailable stage output"}</dt><dd>{item.value}</dd></div>)}</dl></section>}
       </div>
     </details>
   </div>;

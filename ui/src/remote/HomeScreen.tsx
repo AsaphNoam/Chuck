@@ -8,6 +8,7 @@ import { deriveDashboardProjects } from "../features/dashboard/projectDashboardD
 import { PhoneIcon } from "./PhoneIcon";
 import { VisuallyHidden } from "../components/ui";
 import { projectTitle } from "../lib/labels";
+import { pipelineAttentionText } from "../features/pipelines/pipelineLabels";
 const DEBOUNCE_MS = 400;
 
 /** itemPath is where a Home row opens. */
@@ -39,7 +40,7 @@ function Row({ item }: { item: AttentionItem }) {
         <span className="phone-attention-meta"><span><PhoneIcon name={item.kind === "run" ? "pipeline" : "agent"} size={15} />{item.kind === "run" ? "Pipeline" : "Agent"}{project ? ` · ${project}` : ""}</span><small>{relative(item.since)}</small></span>
         <span className="phone-attention-heading"><span className="phone-row-title">{item.title}</span><PhoneIcon name="arrow" size={17} /></span>
         <span className="phone-row-reason">
-          {item.reason}
+          {item.kind === "run" ? pipelineAttentionText(item.reason) : item.reason}
           {stage ? ` · ${stage}` : ""}
           {item.outcome ? ` · ${item.outcome}` : ""}
         </span>

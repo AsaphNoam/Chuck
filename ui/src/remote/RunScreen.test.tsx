@@ -98,6 +98,19 @@ describe("RunScreen", () => {
     expect(input).toHaveValue("use the staging host");
   });
 
+  it("uses frozen stage and output names for recorded handoff values and attention", async () => {
+    const valueKey = "value-opaque";
+    const frozen = { ...template, stages: [{ ...template.stages[0], outputs: [{ name: "design-file", value: valueKey, description: "Design path" }] }, ...template.stages.slice(1)] };
+    server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, template: frozen,
+      run: { ...run, attention_reason: "stages.review.context: the goal, objective and inputs exceed the limit" },
+      values: [{ run_id: "run_1", name: valueKey, value: "docs/design.md", source_kind: "stage_task", updated_at: run.updated_at }],
+    })));
+    renderScreen();
+    expect(await screen.findByText(/Review has too much material for its room/)).toBeInTheDocument();
+    expect(screen.getByText("Work · design-file")).toBeInTheDocument();
+    expect(screen.queryByText(valueKey)).toBeNull();
+  });
+
   // FS-14.R96 — the phone reports the checkout but never offers its removal.
   it("shows the run's worktree status and points removal at the desktop", async () => {
     const workspace = { workspace_id: "ws_1", run_id: "run_1", project: "app", project_name: "App", run_name: "Ship", mode: "new_worktree", branch: "chuck/ship", cwd: "/tmp/app-ship", state: "ready", owned: true, revision: 2, removal_eligible: true, created_at: "2026-10-05T00:00:00Z", updated_at: "2026-10-05T00:00:00Z" };

@@ -1,327 +1,323 @@
-import { AutoGrowTextarea } from "../../components/ui";
-import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useRoles } from "../../api/config";
 import {
+  getPipelineTemplate,
+  PIPELINE_QUERY_KEYS,
+  PipelineAPIError,
   pipelineDiagnostics,
   useDeletePipelineTemplate,
-  usePipelineTemplates,
   useSavePipelineTemplate,
   validatePipelineTemplate,
 } from "../../api/pipelines";
-import type {
-  PipelineDiagnostic,
-  PipelineProposal,
-  PipelineTemplate,
-} from "../../schemas/pipeline";
-import { displayLabels } from "../../lib/labels";
+import { AutoGrowTextarea } from "../../components/ui";
 import { personaLabel } from "../../lib/personas";
-import { ThinkTankStageFields, defaultThinkTank } from "./ThinkTankStageFields";
+import { pipelineTemplateSchema, type PipelineDiagnostic, type PipelineProposal, type PipelineTemplate } from "../../schemas/pipeline";
+import { newPipelineKey, pipelineOptionLabels, pipelineStageLabels } from "./pipelineLabels";
+import { StageBindings } from "./StageBindings";
+import { defaultThinkTank, ThinkTankStageFields } from "./ThinkTankStageFields";
+import { templateDiagnostic } from "./templateDiagnostics";
 
 export interface TemplateEditorSeed {
   id: string;
   template: PipelineTemplate;
+  diagnostics?: PipelineDiagnostic[];
   proposal?: Extract<PipelineProposal, { kind: "save_template" }>;
 }
 
+const newStage = (): PipelineTemplate["stages"][number] => ({
+  id: newPipelineKey("stage"), title: "", objective: "", inputs: [], outputs: [],
+  coordination: "standing", dedicated_role: "", approval_after_success: false, required_for_completion: false,
+});
 const blankTemplate = (): PipelineTemplate => ({
-  version: 2,
-  title: "",
-  orchestrator_role: "implementer",
-  inputs: [],
-  stages: [{
-    id: "work",
-    title: "Work",
-    objective: "",
-    inputs: [],
-    outputs: [],
-    coordination: "standing",
-    dedicated_role: "",
-    approval_after_success: false,
-    required_for_completion: false,
-  }],
+  version: 2, title: "", orchestrator_role: "implementer", inputs: [], stages: [newStage()],
 });
 
-function copyTemplate(template: PipelineTemplate): PipelineTemplate {
-  return structuredClone(template);
+function sameTemplate(left: PipelineTemplate, right: PipelineTemplate) {
+  const compare = (template: PipelineTemplate) => JSON.stringify(pipelineTemplateSchema.parse({
+    ...template, orchestrator_instructions: template.orchestrator_instructions ?? "",
+  }));
+  return compare(left) === compare(right);
 }
 
-export function TemplateEditor({
-  seed,
-  createNew: createNewRoute = false,
-  onSaved,
-  onDeleted,
-}: {
+export function TemplateEditor({ seed, proposalUpdatesExisting = false, savedNotice, onSaved, onDeleted }: {
   seed?: TemplateEditorSeed | null;
-  createNew?: boolean;
-  onSaved?: (id: string) => void;
+  proposalUpdatesExisting?: boolean;
+  savedNotice?: string;
+  onSaved?: (id: string, notice: string) => void;
   onDeleted?: () => void;
 }) {
-  const templates = usePipelineTemplates();
+  const queryClient = useQueryClient();
   const roles = useRoles();
   const save = useSavePipelineTemplate();
   const remove = useDeletePipelineTemplate();
-  const [id, setID] = useState("");
-  const [draft, setDraft] = useState<PipelineTemplate>(blankTemplate);
-  const [savedID, setSavedID] = useState<string | null>(null);
-  const [proposal, setProposal] = useState<TemplateEditorSeed["proposal"]>();
-  const [diagnostics, setDiagnostics] = useState<PipelineDiagnostic[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [id, setID] = useState(() => seed?.id ?? newPipelineKey("pipeline"));
+  const [draft, setDraft] = useState(() => seed ? structuredClone(seed.template) : blankTemplate());
+  const [exists, setExists] = useState(Boolean(seed && (!seed.proposal || proposalUpdatesExisting)));
+  const [proposal, setProposal] = useState(seed?.proposal);
+  const [diagnostics, setDiagnostics] = useState(seed?.diagnostics ?? []);
+  const [notice, setNotice] = useState(savedNotice ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [selectedStage, setSelectedStage] = useState(0);
+  const [selectedStage, setSelectedStage] = useState(() => {
+    const index = seed?.diagnostics?.[0] && templateDiagnostic(seed.diagnostics[0], draft, pipelineStageLabels(draft.stages)).stageIndex;
+    return index !== undefined && draft.stages[index] ? index : 0;
+  });
+  const [busy, setBusy] = useState<"validate" | "save" | null>(null);
+  const submitted = useRef<PipelineTemplate | null>(null);
+  const form = useRef<HTMLFieldSetElement>(null);
+  const labels = pipelineStageLabels(draft.stages);
+  const roleOptions = pipelineOptionLabels(Object.entries(roles.data ?? {}).map(([key, role]) => [key, role.title?.trim() ? personaLabel(key, role) : ""]), "role");
+  const stage = draft.stages[selectedStage];
+  const path = `stages.${selectedStage}`;
+  const visibleDiagnostics = diagnostics.map((item) => templateDiagnostic(item, draft, labels));
 
-  const applyDiagnostics = (items: PipelineDiagnostic[]) => {
+  useEffect(() => {
+    if (busy || diagnostics.length === 0) return;
+    const first = templateDiagnostic(diagnostics[0], draft, pipelineStageLabels(draft.stages));
+    const fields = [...form.current?.querySelectorAll<HTMLElement>("[data-template-field]") ?? []];
+    const field = first.control;
+    const target = fields.find((item) => item.dataset.templateField === field)
+      ?? fields.reverse().find((item) => field.startsWith(`${item.dataset.templateField}.`));
+    for (let parent = target; parent && parent !== form.current; parent = parent.parentElement ?? undefined) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+    }
+    if (target?.matches("input, select, textarea, summary")) target.focus();
+    else target?.querySelector<HTMLElement>("input, select, textarea, summary, button:not(:disabled)")?.focus();
+  }, [busy, diagnostics, draft]);
+
+  const showDiagnostics = (items: PipelineDiagnostic[]) => {
     setDiagnostics(items);
-    const field = items[0]?.field ?? "";
-    const match = /stages(?:\.|\[)(\d+)/.exec(field);
-    if (match) setSelectedStage(Math.min(Number(match[1]), draft.stages.length - 1));
+    if (!items.length) return;
+    const index = templateDiagnostic(items[0], draft, labels).stageIndex;
+    if (index !== undefined && draft.stages[index]) setSelectedStage(index);
   };
-
-  useEffect(() => {
-    if (!seed) return;
-    setID(seed.id);
-    setDraft(copyTemplate(seed.template));
-    setSavedID(templates.data?.some((entry) => entry.id === seed.id) ? seed.id : null);
-    setProposal(seed.proposal);
-    setDiagnostics([]);
-    setNotice(seed.proposal ? "Review the exact Chucky proposal below before confirming Save." : null);
-    setError(null);
-    setSelectedStage(0);
-  }, [seed]);
-
-  useEffect(() => {
-    if (!createNewRoute || seed) return;
-    setID("");
-    setDraft(blankTemplate());
-    setSavedID(null);
-    setProposal(undefined);
-    setDiagnostics([]);
-    setNotice(null);
-    setError(null);
-    setSelectedStage(0);
-  }, [createNewRoute, seed]);
 
   const mutate = (fn: (next: PipelineTemplate) => void) => {
     setDraft((current) => {
-      const next = copyTemplate(current);
+      const next = structuredClone(current);
       fn(next);
       return next;
     });
     if (proposal) {
       setProposal(undefined);
-      setNotice("The proposal changed. Its confirmation was invalidated; this is now a manual draft.");
-    }
+      setNotice("The edit cleared the Chucky proposal confirmation. You are editing a manual draft.");
+    } else setNotice("");
     setDiagnostics([]);
+    setError(null);
   };
 
   const validate = async () => {
+    setBusy("validate");
     setError(null);
+    setNotice("");
     try {
       const record = await validatePipelineTemplate(id, draft);
-      applyDiagnostics(record.diagnostics);
-      setNotice(record.valid ? "Template is valid." : null);
-    } catch (reason) {
-      applyDiagnostics(pipelineDiagnostics(reason));
-      setError(reason instanceof Error ? reason.message : String(reason));
+      showDiagnostics(record.diagnostics);
+      if (record.valid) setNotice("Template is valid.");
+    } catch {
+      setError("Could not validate the template. Try again.");
+    } finally {
+      setBusy(null);
     }
   };
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
+    setBusy("save");
     setError(null);
-    save.mutate(
-      { id, template: draft, exists: templates.data?.some((entry) => entry.id === id) ?? false },
-      {
-        onSuccess: (record) => {
-          setSavedID(record.id);
-          setDraft(copyTemplate(record.template));
-          applyDiagnostics(record.diagnostics);
-          setNotice(proposal ? "Exact Chucky proposal saved." : "Template saved.");
-          setProposal(undefined);
-          onSaved?.(record.id);
-        },
-        onError: (reason) => {
-          applyDiagnostics(pipelineDiagnostics(reason));
-          setError(reason instanceof Error ? reason.message : String(reason));
-        },
-      },
-    );
+    setNotice("");
+    try {
+      if (submitted.current) {
+        let record;
+        try {
+          record = await getPipelineTemplate(id);
+        } catch (reason) {
+          if (!(reason instanceof PipelineAPIError && reason.status === 404)) {
+            setError("Could not check the earlier save. Try again to check before saving.");
+            return;
+          }
+        }
+        if (record?.id === id && sameTemplate(record.template, submitted.current)) {
+          submitted.current = null;
+          setExists(true);
+          await queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.templates });
+          if (sameTemplate(draft, record.template)) {
+            const message = proposal ? "Exact Chucky proposal saved." : "Template saved.";
+            setNotice(message);
+            setProposal(undefined);
+            onSaved?.(record.id, message);
+          } else setNotice("The earlier save succeeded. Your latest edits are ready to save.");
+          return;
+        }
+        submitted.current = null;
+      }
+
+      submitted.current = draft;
+      const record = await save.mutateAsync({ id, template: proposal?.payload.template ?? draft, exists });
+      submitted.current = null;
+      setExists(true);
+      setDraft(structuredClone(record.template));
+      setDiagnostics(record.diagnostics);
+      const message = proposal ? "Exact Chucky proposal saved." : "Template saved.";
+      setNotice(message);
+      setProposal(undefined);
+      onSaved?.(record.id, message);
+    } catch (reason) {
+      const items = pipelineDiagnostics(reason);
+      showDiagnostics(items);
+      if (reason instanceof PipelineAPIError && reason.status < 500) {
+        submitted.current = null;
+        if (reason.status === 409 && !exists && !seed) {
+          setID(newPipelineKey("pipeline"));
+          setError("This draft conflicted with another template. Save again to create a new template.");
+        } else if (reason.status === 409) {
+          setError("A template for this proposal already exists. Reopen the proposal from Templates to review it again.");
+        } else if (reason.status === 404 && exists) {
+          setError("This template was removed. Your draft is still here.");
+        } else if (items.length === 0) setError("Could not save the template. Try again.");
+      } else setError("Could not confirm the save. Save again to check whether it went through.");
+    } finally {
+      setBusy(null);
+    }
   };
 
   const deleteDraft = () => {
-    if (!savedID) return;
-    remove.mutate(savedID, {
+    if (!exists) return;
+    remove.mutate(id, {
       onSuccess: onDeleted,
-      onError: (reason) => setError(reason instanceof Error ? reason.message : String(reason)),
+      onError: () => setError("Could not delete the template. Try again."),
     });
   };
+
+  const roleSelect = (value: string, field: string, set: (value: string) => void) => (
+    <select value={value} data-template-field={field} onChange={(event) => set(event.target.value)}>
+      {roleOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+      {!roleOptions.some(([key]) => key === value) && <option value={value}>{value ? "Unavailable role" : "Choose role"}</option>}
+    </select>
+  );
 
   return (
     <section className="pipeline-template-editor" data-ui="pipeline-template-editor">
       <Link className="pipeline-back-link" to="/pipelines/templates">← All templates</Link>
-      <div className="pipeline-editor-heading" data-ui="pipeline-section">
-        <div>
-          <p className="pipeline-eyebrow">Reusable definition · version 2</p>
-          <h2>{draft.title || (savedID ? id : "New template")}</h2>
-          <p>Shape one stage at a time. Runtime choices remain outside the reusable definition.</p>
-        </div>
-      </div>
+      <div className="pipeline-editor-heading" data-ui="pipeline-section"><div><h2>{draft.title || (exists ? "Untitled template" : "New template")}</h2></div></div>
 
-      <div className="pipeline-editor-basics">
+      <fieldset ref={form} className="pipeline-template-fields" disabled={Boolean(busy) || remove.isPending} aria-label="Template configuration">
         <label className="form-field">
-          <span>Template id</span>
-          <input
-            value={id}
-            disabled={Boolean(savedID)}
-            placeholder="delivery-check"
-            onChange={(event) => { setID(event.target.value); setProposal(undefined); }}
-          />
+          <span>Template name</span><input value={draft.title} data-template-field="title" onChange={(event) => mutate((next) => { next.title = event.target.value; })} />
         </label>
-        <label className="form-field">
-          <span>Title</span>
-          <input value={draft.title} onChange={(event) => mutate((next) => { next.title = event.target.value; })} />
-        </label>
-        <label className="form-field">
-          <span>Standing orchestrator role</span>
-          <select value={draft.orchestrator_role} onChange={(event) => mutate((next) => { next.orchestrator_role = event.target.value; })}>
-            {displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, personaLabel(roleID, role)])).map(([roleID, title]) => <option key={roleID} value={roleID}>{title}</option>)}
-            {!roles.data?.[draft.orchestrator_role] && <option value={draft.orchestrator_role}>{draft.orchestrator_role || "Select role"}</option>}
-          </select>
-        </label>
-        <label className="form-field">
-          <span>Shared orchestrator instructions</span>
-          <AutoGrowTextarea
-            rows={2}
-            value={draft.orchestrator_instructions ?? ""}
-            placeholder="Optional run-wide conventions for the standing owner and dedicated coordinators, such as naming and grouping. A stage objective can state an exception."
-            onChange={(event) => mutate((next) => { next.orchestrator_instructions = event.target.value; })}
-          />
-        </label>
-      </div>
-
-      <details className="pipeline-disclosure pipeline-editor-inputs" data-slot="inputs">
-        <summary>Run inputs <span>{draft.inputs.length}</span></summary>
-        <div className="pipeline-disclosure-body">
-        <div className="pipeline-subsection-header">
-          <p>Named values collected before a run can start.</p>
-          <button type="button" onClick={() => mutate((next) => next.inputs.push({ name: "", description: "", required: true }))}>Add input</button>
-        </div>
-        {draft.inputs.length === 0 && <p className="pipeline-empty">No run inputs.</p>}
-        {draft.inputs.map((input, index) => (
-          <div className="pipeline-inline-row" key={`input-${index}`}>
-            <input aria-label={`Input ${index + 1} name`} placeholder="spec" value={input.name} onChange={(event) => mutate((next) => { next.inputs[index].name = event.target.value; })} />
-            <input aria-label={`Input ${index + 1} description`} placeholder="Description" value={input.description} onChange={(event) => mutate((next) => { next.inputs[index].description = event.target.value; })} />
-            <label className="pipeline-check"><input type="checkbox" checked={input.required} onChange={(event) => mutate((next) => { next.inputs[index].required = event.target.checked; })} /> Required</label>
-            <button type="button" className="ad-button-danger" onClick={() => mutate((next) => { next.inputs.splice(index, 1); })}>Remove</button>
+        <details className="pipeline-disclosure" data-template-field="orchestration">
+          <summary>Orchestration</summary>
+          <div className="pipeline-disclosure-body">
+            <label className="form-field"><span>Standing orchestrator role</span>{roleSelect(draft.orchestrator_role, "orchestrator_role", (value) => mutate((next) => { next.orchestrator_role = value; }))}</label>
+            <label className="form-field"><span>Shared orchestrator instructions</span>
+              <AutoGrowTextarea rows={2} value={draft.orchestrator_instructions ?? ""} data-template-field="orchestrator_instructions"
+                onChange={(event) => mutate((next) => { next.orchestrator_instructions = event.target.value; })} />
+            </label>
           </div>
-        ))}
-        </div>
-      </details>
+        </details>
 
-      <div className="pipeline-editor-workspace" data-slot="workspace">
-        <aside className="pipeline-stage-navigator" data-slot="navigator">
-          <div className="pipeline-stage-nav-heading"><div><p className="pipeline-eyebrow">Flow order</p><h3>Stages</h3></div>
-          <button type="button" className="ad-button-icon" onClick={() => mutate((next) => next.stages.push({
-            id: `stage-${next.stages.length + 1}`,
-            title: "",
-            objective: "",
-            inputs: [],
-            outputs: [],
-            coordination: "standing",
-            dedicated_role: "",
-            approval_after_success: false,
-            required_for_completion: false,
-          }))}>+</button></div>
-          <ol>{draft.stages.map((stage, stageIndex) => <li key={`nav-${stageIndex}`}><button type="button" className={selectedStage === stageIndex ? "pipeline-stage-nav-item pipeline-stage-nav-item-active" : "pipeline-stage-nav-item"} onClick={() => setSelectedStage(stageIndex)}><span>{String(stageIndex + 1).padStart(2, "0")}</span><span><strong>{stage.title || stage.id || "Untitled stage"}</strong><small>{stage.coordination === "dedicated" ? `Dedicated · ${stage.dedicated_role || "role needed"}` : stage.coordination === "think_tank" ? `Think Tank · ${stage.think_tank?.participants.length ?? 0} participants` : "Standing owner"}</small></span>{diagnostics.some((item) => item.field.includes(`stages.${stageIndex}`) || item.field.includes(`stages[${stageIndex}]`)) && <em>!</em>}</button></li>)}</ol>
-        </aside>
-        <div className="pipeline-stage-focus" data-slot="stage">
-          {draft.stages.map((stage, stageIndex) => stageIndex === selectedStage && (
-            <article className="pipeline-stage-card" key={`stage-${stageIndex}`}>
+        <details className="pipeline-disclosure pipeline-editor-inputs" data-slot="inputs" data-template-field="inputs">
+          <summary>Run inputs{draft.inputs.length > 0 && <span>{draft.inputs.length}</span>}</summary>
+          <div className="pipeline-disclosure-body">
+            <div className="pipeline-subsection-header">
+              <p>Named values collected before a run can start.</p>
+              <button type="button" onClick={() => mutate((next) => next.inputs.push({ name: "", description: "", required: true }))}>Add run input</button>
+            </div>
+            {draft.inputs.map((input, index) => (
+              <div className="pipeline-inline-row" key={index}>
+                <label className="form-field"><span>Input name</span><input value={input.name} data-template-field={`inputs.${index}.name`} onChange={(event) => mutate((next) => { next.inputs[index].name = event.target.value; })} /></label>
+                <label className="form-field"><span>Description</span><input value={input.description} data-template-field={`inputs.${index}.description`} onChange={(event) => mutate((next) => { next.inputs[index].description = event.target.value; })} /></label>
+                <label className="pipeline-check"><input type="checkbox" checked={input.required} onChange={(event) => mutate((next) => { next.inputs[index].required = event.target.checked; })} /> Required</label>
+                <button type="button" className="ad-button-danger" onClick={() => mutate((next) => { next.inputs.splice(index, 1); })}>Remove input</button>
+              </div>
+            ))}
+          </div>
+        </details>
+
+        <div className="pipeline-editor-workspace" data-slot="workspace" data-template-field="stages">
+          <aside className="pipeline-stage-navigator" data-slot="navigator">
+            <div className="pipeline-stage-nav-heading"><h3>Stages</h3>
+              <button type="button" disabled={draft.stages.length >= 32} onClick={() => {
+                const added = newStage();
+                mutate((next) => next.stages.push(added));
+                setSelectedStage(draft.stages.length);
+              }}>Add stage</button>
+            </div>
+            <ol>{draft.stages.map((item, index) => {
+              const requirements = [
+                item.approval_after_success ? "Human approval required" : item.required_for_completion ? "Required for completion" : "",
+                item.coordination === "think_tank" ? `Think Tank · ${item.think_tank?.participants.length ?? 0} participants` : item.coordination === "dedicated" ? "Dedicated coordinator" : "",
+              ].filter(Boolean);
+              return <li key={item.id}><button type="button" aria-current={selectedStage === index ? "step" : undefined} className={selectedStage === index ? "pipeline-stage-nav-item pipeline-stage-nav-item-active" : "pipeline-stage-nav-item"} onClick={() => setSelectedStage(index)}>
+                <span>{index + 1}</span><span><strong>{labels.get(item.id)}</strong>{requirements.map((requirement) => <small key={requirement}>{requirement}</small>)}</span>
+                {visibleDiagnostics.some((diagnostic) => diagnostic.stageIndex === index) && <em aria-label="Has issues">!</em>}
+              </button></li>;
+            })}</ol>
+          </aside>
+          <div className="pipeline-stage-focus" data-slot="stage">
+            {stage && <article className="pipeline-stage-card" key={stage.id} data-template-field={path}>
               <div className="pipeline-stage-heading">
-                <span className="pipeline-stage-number">{stageIndex + 1}</span>
-                <strong>{stage.title || stage.id || "Untitled stage"}</strong>
-                <button type="button" className="ad-button-danger" disabled={draft.stages.length === 1} onClick={() => { mutate((next) => { next.stages.splice(stageIndex, 1); }); setSelectedStage(Math.max(0, stageIndex - 1)); }}>Remove stage</button>
+                <strong>{labels.get(stage.id)}</strong>
+                <button type="button" className="ad-button-danger" disabled={draft.stages.length === 1} title={draft.stages.length === 1 ? "A template needs at least one stage" : undefined} onClick={() => {
+                  mutate((next) => { next.stages.splice(selectedStage, 1); });
+                  setSelectedStage(Math.max(0, selectedStage - 1));
+                }}>Remove stage</button>
               </div>
-              <div className="pipeline-form-grid">
-                <label className="form-field"><span>Stage id</span><input value={stage.id} onChange={(event) => mutate((next) => { next.stages[stageIndex].id = event.target.value; })} /></label>
-                <label className="form-field"><span>Title</span><input value={stage.title} onChange={(event) => mutate((next) => { next.stages[stageIndex].title = event.target.value; })} /></label>
-              </div>
-              <label className="form-field"><span>Stage objective</span><AutoGrowTextarea rows={4} value={stage.objective ?? ""} onChange={(event) => mutate((next) => { next.stages[stageIndex].objective = event.target.value; })} /></label>
-              <fieldset className="pipeline-coordination"><legend>Coordination</legend><label className="pipeline-check"><input type="radio" checked={stage.coordination === "standing"} onChange={() => mutate((next) => { next.stages[stageIndex].coordination = "standing"; next.stages[stageIndex].dedicated_role = ""; delete next.stages[stageIndex].think_tank; })} /> Standing owner</label><label className="pipeline-check"><input type="radio" checked={stage.coordination === "dedicated"} onChange={() => mutate((next) => { next.stages[stageIndex].coordination = "dedicated"; delete next.stages[stageIndex].think_tank; })} /> Dedicated coordinator</label><label className="pipeline-check"><input type="radio" checked={stage.coordination === "think_tank"} onChange={() => mutate((next) => { const target = next.stages[stageIndex]; target.coordination = "think_tank"; target.dedicated_role = ""; target.think_tank ??= defaultThinkTank(next.orchestrator_role); })} /> Think Tank</label>{stage.coordination === "dedicated" && <label className="form-field"><span>Coordinator role</span><select value={stage.dedicated_role} onChange={(event) => mutate((next) => { next.stages[stageIndex].dedicated_role = event.target.value; })}>{displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, personaLabel(roleID, role)])).map(([roleID, title]) => <option key={roleID} value={roleID}>{title}</option>)}<option value="">Select role</option></select></label>}</fieldset>
-              {stage.coordination === "think_tank" && <ThinkTankStageFields stage={stage} stageIndex={stageIndex} roleOptions={displayLabels(Object.entries(roles.data ?? {}).map(([roleID, role]) => [roleID, personaLabel(roleID, role)]))} mutate={mutate} />}
-              <label className="pipeline-check"><input type="checkbox" checked={stage.approval_after_success} onChange={(event) => mutate((next) => { next.stages[stageIndex].approval_after_success = event.target.checked; })} /> Require approval after success</label>
-              <label className="pipeline-check" title={stage.approval_after_success ? "A step that needs approval is always required" : undefined}><input type="checkbox" checked={stage.required_for_completion || stage.approval_after_success} disabled={stage.approval_after_success} onChange={(event) => mutate((next) => { next.stages[stageIndex].required_for_completion = event.target.checked; })} /> Must succeed before the run can complete</label>
+              <label className="form-field"><span>Stage name</span><input value={stage.title} data-template-field={`${path}.title`} onChange={(event) => mutate((next) => { next.stages[selectedStage].title = event.target.value; })} /></label>
+              <label className="form-field"><span>Stage instructions</span><AutoGrowTextarea rows={4} value={stage.objective} data-template-field={`${path}.objective`} onChange={(event) => mutate((next) => { next.stages[selectedStage].objective = event.target.value; })} /></label>
 
-              <StageBindings
-                kind="inputs"
-                stageIndex={stageIndex}
-                items={stage.inputs}
-                mutate={mutate}
-              />
-              <StageBindings
-                kind="outputs"
-                stageIndex={stageIndex}
-                items={stage.outputs}
-                mutate={mutate}
-              />
-            </article>
-          ))}
+              <details className="pipeline-disclosure" data-template-field={`${path}.requirements`}>
+                <summary>Completion and approval</summary>
+                <div className="pipeline-disclosure-body">
+                  <label className="pipeline-check"><input type="checkbox" checked={Boolean(stage.required_for_completion || stage.approval_after_success)} disabled={stage.approval_after_success}
+                    onChange={(event) => mutate((next) => { next.stages[selectedStage].required_for_completion = event.target.checked; })} /> Required for completion</label>
+                  <p>Chuck needs an accepted successful result for this stage before the run can finish.</p>
+                  <label className="pipeline-check"><input type="checkbox" checked={Boolean(stage.approval_after_success)}
+                    onChange={(event) => mutate((next) => { next.stages[selectedStage].approval_after_success = event.target.checked; })} /> Require human approval</label>
+                  <p>Makes the stage required and pauses the run after a successful visit for your approval.</p>
+                </div>
+              </details>
+
+              <details className="pipeline-disclosure" data-template-field={`${path}.coordination`}>
+                <summary>Coordination</summary>
+                <div className="pipeline-disclosure-body">
+                  <fieldset className="pipeline-coordination"><legend>Who coordinates this stage?</legend>
+                    {([["standing", "Standing owner"], ["dedicated", "Dedicated coordinator"], ["think_tank", "Think Tank"]] as const).map(([value, label]) => (
+                      <label className="pipeline-check" key={value}><input type="radio" name="stage-coordination" checked={stage.coordination === value} onChange={() => {
+                        const room = value === "think_tank" && !stage.think_tank ? defaultThinkTank(draft.orchestrator_role) : stage.think_tank;
+                        mutate((next) => {
+                          const target = next.stages[selectedStage];
+                          target.coordination = value;
+                          if (value !== "dedicated") target.dedicated_role = "";
+                          if (value === "think_tank") target.think_tank = room;
+                          else delete target.think_tank;
+                        });
+                      }} /> {label}</label>
+                    ))}
+                    {stage.coordination === "dedicated" && <label className="form-field"><span>Coordinator role</span>{roleSelect(stage.dedicated_role, `${path}.dedicated_role`, (value) => mutate((next) => { next.stages[selectedStage].dedicated_role = value; }))}</label>}
+                  </fieldset>
+                  {stage.coordination === "think_tank" && <ThinkTankStageFields stage={stage} stageIndex={selectedStage} roleOptions={roleOptions} mutate={mutate} />}
+                </div>
+              </details>
+              <StageBindings draft={draft} stageIndex={selectedStage} mutate={mutate} />
+            </article>}
+          </div>
         </div>
-      </div>
+      </fieldset>
 
-      {diagnostics.length > 0 && (
-        <ul className="pipeline-diagnostics">
-          {diagnostics.map((diagnostic, index) => <li key={`${diagnostic.field}-${diagnostic.code}-${index}`}><code>{diagnostic.field}</code> — {diagnostic.message}</li>)}
-        </ul>
-      )}
-      {notice && <p className="form-info">{notice}</p>}
-      {error && <p className="form-error">{error}</p>}
-      {proposal && <pre className="pipeline-proposal-payload">{JSON.stringify(proposal.payload, null, 2)}</pre>}
+      {visibleDiagnostics.length > 0 && <ul className="pipeline-diagnostics" role="alert">
+        {visibleDiagnostics.map(({ label, message }, index) => <li key={index}><strong>{label}</strong> — {message}</li>)}
+      </ul>}
+      {notice && <p className="form-info" role="status">{notice}</p>}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {proposal && <details className="pipeline-disclosure"><summary>Exact Chucky proposal</summary><pre className="pipeline-proposal-payload">{JSON.stringify(proposal.payload, null, 2)}</pre></details>}
       <div className="form-actions pipeline-editor-actions" data-slot="actions">
-        {savedID && <button type="button" className="btn-danger" disabled={remove.isPending} onClick={deleteDraft}>Delete</button>}
-        <button type="button" disabled={!id || save.isPending} onClick={() => void validate()}>Validate</button>
-        <button type="button" className="ad-button-primary" disabled={!id || save.isPending} onClick={saveDraft}>
-          {save.isPending ? "Saving…" : proposal ? "Confirm and save exact proposal" : "Save template"}
+        {exists && !proposal && <button type="button" className="btn-danger" disabled={Boolean(busy) || remove.isPending} onClick={deleteDraft}>Delete</button>}
+        <button type="button" disabled={Boolean(busy) || remove.isPending} onClick={() => void validate()}>{busy === "validate" ? "Validating…" : "Validate"}</button>
+        <button type="button" className="ad-button-primary" disabled={Boolean(busy) || remove.isPending} onClick={() => void saveDraft()}>
+          {busy === "save" ? "Saving…" : proposal ? "Confirm and save exact proposal" : "Save template"}
         </button>
       </div>
     </section>
-  );
-}
-
-type StageInput = PipelineTemplate["stages"][number]["inputs"][number];
-type StageOutput = PipelineTemplate["stages"][number]["outputs"][number];
-
-function StageBindings({
-  kind,
-  stageIndex,
-  items,
-  mutate,
-}: {
-  kind: "inputs" | "outputs";
-  stageIndex: number;
-  items: StageInput[] | StageOutput[];
-  mutate: (fn: (next: PipelineTemplate) => void) => void;
-}) {
-  return (
-    <div className="pipeline-bindings">
-      <div className="pipeline-subsection-header">
-        <h4>Stage {kind}</h4>
-        <button type="button" onClick={() => mutate((next) => {
-          if (kind === "inputs") next.stages[stageIndex].inputs.push({ name: "", value: "", required: true });
-          else next.stages[stageIndex].outputs.push({ name: "", value: "", description: "" });
-        })}>Add {kind === "inputs" ? "input" : "output"}</button>
-      </div>
-      {items.map((item, index) => (
-        <div className="pipeline-inline-row" key={`${kind}-${index}`}>
-          <input aria-label={`${kind} ${index + 1} local name`} placeholder="Local name" value={item.name} onChange={(event) => mutate((next) => { next.stages[stageIndex][kind][index].name = event.target.value; })} />
-          <input aria-label={`${kind} ${index + 1} value`} placeholder="Run value" value={item.value} onChange={(event) => mutate((next) => { next.stages[stageIndex][kind][index].value = event.target.value; })} />
-          {kind === "inputs" ? (
-            <label className="pipeline-check"><input type="checkbox" checked={(item as StageInput).required} onChange={(event) => mutate((next) => { next.stages[stageIndex].inputs[index].required = event.target.checked; })} /> Required</label>
-          ) : (
-            <input aria-label={`${kind} ${index + 1} description`} placeholder="Description" value={(item as StageOutput).description} onChange={(event) => mutate((next) => { next.stages[stageIndex].outputs[index].description = event.target.value; })} />
-          )}
-          <button type="button" className="ad-button-danger" onClick={() => mutate((next) => { next.stages[stageIndex][kind].splice(index, 1); })}>Remove</button>
-        </div>
-      ))}
-    </div>
   );
 }

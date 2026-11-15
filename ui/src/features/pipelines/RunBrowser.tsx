@@ -15,6 +15,7 @@ import { useProjects } from "../../api/config";
 import { agentName, projectTitle } from "../../lib/labels";
 import { RunWorkspace } from "./RunWorkspace";
 import { WorkspaceRemoveDialog } from "./WorkspaceRemoveDialog";
+import { pipelineActionError as messageOf, pipelineAttentionText, pipelineStageLabels } from "./pipelineLabels";
 
 export function RunsLedger() {
   const query = usePipelineRuns();
@@ -38,7 +39,9 @@ export function RunsLedger() {
       {runs.map((run) => (
         <Link className="pipeline-ledger-row" key={run.run_id} to={`/pipelines/runs/${encodeURIComponent(run.run_id)}`} data-slot="item">
           <span className="pipeline-ledger-identity"><strong>{run.display_name || "Pipeline run"}</strong></span>
-          <span className="pipeline-ledger-stage">{run.current_stage_title || (run.current_stage_id ? "Untitled stage" : "Complete")}</span>
+          <span className="pipeline-ledger-stage">{run.diagnostics.some(({ code }) => code === "frozen_stage_title_unavailable")
+            ? "Stage unavailable"
+            : run.current_stage_title || (run.current_stage_id ? "Untitled stage" : "Complete")}</span>
           <span className="pipeline-ledger-project">{projectTitle(projects.data, run.project)}</span>
           <span className="pipeline-ledger-status"><span className={`pipeline-state pipeline-state-${run.state}`}>{humanize(run.state)}</span>{run.final_outcome && <small className={`pipeline-outcome pipeline-state-${run.final_outcome}`}>{humanize(run.final_outcome)}</small>}</span>
           <time dateTime={run.updated_at}>{formatRelative(run.updated_at)}</time>
@@ -88,10 +91,9 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
   const data = detail.data;
   const run = data.run;
   const orchestratorRuntime = data.orchestrator ?? run.orchestrator;
-  // FS-14.R79: position and next stage come from the frozen template; an
-  // unmatched stage id shows as-is with no invented progress.
+  // The frozen template supplies both historical names and their positions.
   const stages = data.template.stages;
-  const stageTitles = new Map(stages.map((item) => [item.id, item.title]));
+  const stageTitles = pipelineStageLabels(stages);
   const stageIndex = stages.findIndex((item) => item.id === run.current_stage_id);
   const stage = stageIndex >= 0 ? stages[stageIndex] : undefined;
   const currentTask = data.stage_tasks.find((item) => item.task_id === run.current_task_id) ?? data.stage_tasks.find((item) => item.stage_id === run.current_stage_id && item.state !== "completed");
@@ -128,13 +130,13 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
       <Link className="pipeline-back-link" to="/pipelines/runs">← All runs</Link>
       <section className="pipeline-run-hero" data-slot="live">
         <div className="pipeline-run-kicker"><span className={`pipeline-state pipeline-state-${run.state}`}>{run.final_outcome || run.state}</span></div>
-        <div className="pipeline-run-title"><div><h2>{run.display_name || data.template.title}</h2><p>{run.goal}</p></div><div className="pipeline-live-stage"><small>{terminal ? "Final position" : "Current stage"}</small><strong>{stage?.title ?? (run.current_stage_id ? "Untitled stage" : "Complete")}</strong>{stage && <span>Stage {stageIndex + 1} of {stages.length}</span>}{nextStage && <span>Usual next: {nextStage.title}</span>}{!terminal && <span>Automatic recovery {run.recovery_rounds_used} of {run.recovery_limit}</span>}</div></div>
+        <div className="pipeline-run-title"><div><h2>{run.display_name || data.template.title}</h2><p>{run.goal}</p></div><div className="pipeline-live-stage"><small>{terminal ? "Final position" : "Current stage"}</small><strong>{stageTitles.get(run.current_stage_id) ?? (run.current_stage_id ? "Stage unavailable" : "Complete")}</strong>{stage && <span>Stage {stageIndex + 1} of {stages.length}</span>}{nextStage && <span>Usual next: {stageTitles.get(nextStage.id)}</span>}{!terminal && <span>Automatic recovery {run.recovery_rounds_used} of {run.recovery_limit}</span>}</div></div>
         <p className="pipeline-run-context">{projectTitle(projects.data, run.project)} · {data.template.title}</p>
         {data.workspace && <RunWorkspace workspace={data.workspace} terminal={terminal} onRemove={() => setRemoveOpen(true)} />}
         {removeOpen && data.workspace && <WorkspaceRemoveDialog workspaceID={data.workspace.workspace_id} onClose={() => setRemoveOpen(false)} />}
         {currentTask?.room && <div className="pipeline-owner-strip"><div><small>Think Tank stage</small><strong>{roomPhaseLabel(currentTask)}</strong><span>{currentTask.attention_reason || "The judge's published synthesis becomes this stage's output."}</span></div></div>}
         {currentTask && !currentTask.room && <div className="pipeline-owner-strip"><div><small>Standing owner</small><strong>{currentTask.standing_owner.name || currentTask.standing_owner.agent_id ? agentName(currentTask.standing_owner.name) : "Starting"}</strong><span>{humanize(currentTask.standing_owner.state || currentTask.state)}</span></div>{currentTask.coordinator && <div><small>Stage coordinator</small><strong>{currentTask.coordinator.name || currentTask.coordinator.agent_id ? agentName(currentTask.coordinator.name) : "Starting"}</strong><span>{currentTask.coordinator.report_summary ? "Reports to standing owner" : humanize(currentTask.coordinator.state || "assigned")}</span></div>}</div>}
-        {run.attention_reason && <div className="pipeline-warning"><strong>Needs attention</strong><p>{humanize(run.attention_reason)}</p>{run.pause_question && <p><strong>Question:</strong> {run.pause_question}</p>}{recovered && <p>{restarted ? "The stage agent was stopped when Chuck restarted" : "The stage agent is not running after this failure"}, so its chat can no longer report against this run. Retry the stage to run it again with a fresh agent.</p>}</div>}
+        {run.attention_reason && <div className="pipeline-warning"><strong>Needs attention</strong><p>{humanize(pipelineAttentionText(run.attention_reason, stageTitles))}</p>{run.pause_question && <p><strong>Question:</strong> {run.pause_question}</p>}{recovered && <p>{restarted ? "The stage agent was stopped when Chuck restarted" : "The stage agent is not running after this failure"}, so its chat can no longer report against this run. Retry the stage to run it again with a fresh agent.</p>}</div>}
         <div className="pipeline-run-actions" data-slot="actions">
           {currentTask?.room && <Link className="pipeline-link-button" to={`/think-tank/${currentTask.room.room_id}`}>Open Think Tank</Link>}
           {run.current_agent_id && !recovered && !currentTask?.room && <Link className="pipeline-link-button" to={`/agent/${run.current_agent_id}`}>Open agent</Link>}
@@ -153,7 +155,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
       <section className="pipeline-timeline" data-slot="timeline">
         <div className="pipeline-timeline-heading"><div><p className="pipeline-eyebrow">Durable stage work</p><h3>{data.stage_tasks.length} task{data.stage_tasks.length === 1 ? "" : "s"}</h3></div><span>Oldest → newest</span></div>
         <ol>
-          {data.stage_tasks.map((item) => <StageTask key={item.task_id} task={item} tasks={data.stage_tasks} titles={stageTitles} title={stageTitles.get(item.stage_id) || "Untitled stage"} current={item.task_id === run.current_task_id} />)}
+          {data.stage_tasks.map((item) => <StageTask key={item.task_id} task={item} tasks={data.stage_tasks} titles={stageTitles} title={stageTitles.get(item.stage_id) || "Stage unavailable"} current={item.task_id === run.current_task_id} />)}
         </ol>
       </section>
     </article>
@@ -224,7 +226,6 @@ function TaskWorkCard({ item }: { item: PipelineRunDetail["stage_tasks"][number]
 
 function RunsSkeleton() { return <div className="pipeline-ledger pipeline-skeleton" aria-label="Loading runs"><span /><span /><span /><span /></div>; }
 function RunDetailSkeleton() { return <div className="pipeline-run-page pipeline-skeleton" aria-label="Loading run"><span /><span /><span /><span /></div>; }
-function messageOf(reason: unknown) { return reason instanceof Error ? reason.message : String(reason); }
 function humanize(value: string) { return value.replace(/_/g, " "); }
 export function formatRelative(value: string) { const date = new Date(value); if (Number.isNaN(date.getTime())) return value; const delta = Date.now() - date.getTime(); if (delta < 60_000) return "just now"; if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`; if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`; return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date); }
 

@@ -169,11 +169,12 @@ export function PipelineTemplatePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const templates = usePipelineTemplates();
-  const routeSeed = (location.state as { seed?: TemplateEditorSeed } | null)?.seed;
+  const route = location.state as { seed?: TemplateEditorSeed; savedNotice?: string } | null;
+  const routeSeed = route?.seed;
   const record = templates.data?.find((entry) => entry.id === templateID);
-  const seed = routeSeed ?? (record ? { id: record.id, template: record.template } : null);
+  const seed = routeSeed ?? (record ? { id: record.id, template: record.template, diagnostics: record.diagnostics } : null);
 
-  if (templates.isLoading && !seed) return <TemplateEditorSkeleton />;
+  if (templates.isLoading && (!seed || routeSeed?.proposal)) return <TemplateEditorSkeleton />;
   if (templateID !== "new" && !seed) {
     const deleted = !templates.error || (templates.error instanceof PipelineAPIError && templates.error.status === 404);
     return <section className="pipeline-missing">
@@ -187,9 +188,13 @@ export function PipelineTemplatePage() {
 
   return (
     <TemplateEditor
+      key={`${templateID}:${routeSeed?.proposal?.proposal_id ?? ""}`}
       seed={seed}
-      createNew={templateID === "new"}
-      onSaved={(id) => navigate(`/pipelines/templates/${encodeURIComponent(id)}`, { replace: true })}
+      proposalUpdatesExisting={Boolean(routeSeed?.proposal && record)}
+      savedNotice={route?.savedNotice}
+      onSaved={(id, savedNotice) => {
+        if (id !== templateID || routeSeed) navigate(`/pipelines/templates/${encodeURIComponent(id)}`, { replace: true, state: { savedNotice } });
+      }}
       onDeleted={() => navigate("/pipelines/templates")}
     />
   );

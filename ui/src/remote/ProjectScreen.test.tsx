@@ -145,6 +145,7 @@ describe("ProjectScreen start pipeline", () => {
 
   it("starts a run in this project and opens it", async () => {
     await fillStart();
+    expect(screen.getByText("Run name: Delivery")).toBeInTheDocument();
     await waitFor(() => expect(window.location.pathname).toBe("/run/run_1"));
     expect(starts).toEqual([expect.objectContaining({ template_id: "delivery", display_name: "Delivery", project: "app", goal: "Ship it", acknowledge_shared_workspace: false })]);
   });
@@ -154,22 +155,47 @@ describe("ProjectScreen start pipeline", () => {
     renderScreen();
     fireEvent.click(await screen.findByRole("button", { name: "Start pipeline" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Run goal" }), { target: { value: "Ship it" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use a custom name" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Run name (optional)" }), { target: { value: "Release train" } });
     fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "new_worktree" } });
     const submit = screen.getByRole("dialog", { name: "Start pipeline" }).querySelector('button[type="submit"]') as HTMLButtonElement;
     expect(submit).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Branch"), { target: { value: "chuck/ship" } });
     fireEvent.click(submit);
     await waitFor(() => expect(starts).toHaveLength(1));
-    expect(starts[0]).toMatchObject({ workspace: { mode: "new_worktree", branch: "chuck/ship" } });
+    expect(starts[0]).toMatchObject({ display_name: "Release train", workspace: { mode: "new_worktree", branch: "chuck/ship" } });
     expect(starts[0]).not.toHaveProperty("workspace.base");
   });
 
   it("shows the Mac's reason and keeps the goal when the start is refused", async () => {
     startStatus = 422;
     await fillStart();
-    expect(await screen.findByText(/run cannot start: unknown model/)).toBeInTheDocument();
+    expect(await screen.findByText("Standing owner uses a model that is no longer configured.")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Run goal" })).toHaveValue("Ship it");
     expect(window.location.pathname).toBe("/");
+  });
+
+  it("keeps the setup and confirms the same request after a shared checkout conflict", async () => {
+    server.use(http.post("/api/pipeline-runs", async ({ request }) => {
+      const body = await request.json();
+      starts.push(body);
+      if (starts.length === 1) return HttpResponse.json({
+        error: {
+          code: "conflict",
+          message: "shared workspace confirmation required",
+          details: { code: "shared_workspace_confirmation_required", conflicts: [{ kind: "agent", id: "active-agent", name: "Alex" }] },
+        },
+      }, { status: 409 });
+      return HttpResponse.json({ run: detail, replay: false, workspace_conflicts: [] }, { status: 201 });
+    }));
+
+    await fillStart();
+    expect(await screen.findByText("Other work is using this workspace: Alex.")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Run goal" })).toHaveValue("Ship it");
+    fireEvent.click(screen.getByRole("button", { name: "Start anyway" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/run/run_1"));
+    expect(starts).toHaveLength(2);
+    expect(starts[1]).toEqual({ ...(starts[0] as object), acknowledge_shared_workspace: true });
   });
 });
 

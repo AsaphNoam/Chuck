@@ -2,7 +2,7 @@ import { AutoGrowTextarea } from "../../components/ui";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useBackends, useConfig, useProjects, useRoles } from "../../api/config";
-import { personaIdentityLabel } from "../../lib/personas";
+import { personaLabel } from "../../lib/personas";
 import {
   pipelineDiagnostics,
   sharedWorkspaceConflicts,
@@ -18,12 +18,26 @@ import type {
   PipelineWorkspaceSelection,
 } from "../../schemas/pipeline";
 import type { Backend } from "../../schemas/backends";
-import { displayLabel, displayLabels, projectTitle } from "../../lib/labels";
+import { projectTitle } from "../../lib/labels";
 import { describeWorkspace } from "./proposalSummary";
+import { pipelineActionError, pipelineOptionLabels, pipelineParticipantLabel, pipelineStageLabels } from "./pipelineLabels";
+import { focusStartDiagnostic, isRuntimeDiagnostic, startDiagnosticField, startDiagnosticText } from "./startDiagnostics";
 
 type Assignment = PipelineStartRequest["orchestrator"];
 type RoomAssignments = NonNullable<PipelineStartRequest["think_tank_assignments"]>;
 type RuntimeSlot = { key: string; label: string; editLabel?: string; field: string; value: Assignment; set: (value: Assignment) => void };
+
+function groupRuntimes(slots: RuntimeSlot[], backends: Record<string, Backend> | undefined) {
+  const groups = new Map<string, RuntimeSlot[]>();
+  for (const slot of slots) {
+    const { backend, model, effort, fast } = slot.value;
+    const key = backends?.[backend]?.models[model] ? JSON.stringify([backend, model, effort, fast]) : slot.field;
+    const group = groups.get(key);
+    if (group) group.push(slot);
+    else groups.set(key, [slot]);
+  }
+  return [...groups.values()];
+}
 
 function requestID() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -44,8 +58,8 @@ function RuntimeAssignment({ label, field, number = 1, value, backends, entries,
   return <div className="pipeline-runtime-row" data-field={field}>
     <span className="pipeline-stage-number">{number}</span>
     <div><strong>{label}</strong><small>Frozen for this run</small></div>
-    <label className="form-field"><span>Backend</span><select value={value.backend} onChange={(event) => { const backendID = event.target.value; const selected = backends?.[backendID]; const model = selected?.default_model || Object.keys(selected?.models ?? {})[0] || ""; onChange({ backend: backendID, model, effort: selected?.models[model]?.default_effort || "", fast: false }); }}><option value="">Select configured backend</option>{displayLabels(entries.map(([backendID, item]) => [backendID, item.name])).map(([backendID, name]) => <option key={backendID} value={backendID}>{name}</option>)}</select></label>
-    <label className="form-field"><span>Model</span><select value={value.model} onChange={(event) => { const model = backend?.models[event.target.value]; onChange({ ...value, model: event.target.value, effort: model?.default_effort || "", fast: false }); }}><option value="">Select configured model</option>{displayLabels(Object.entries(backend?.models ?? {}).map(([modelID, model]) => [modelID, model.name])).map(([modelID, name]) => <option key={modelID} value={modelID}>{name}</option>)}</select></label>
+    <label className="form-field"><span>Backend</span><select value={value.backend} onChange={(event) => { const backendID = event.target.value; const selected = backends?.[backendID]; const model = selected?.default_model || Object.keys(selected?.models ?? {})[0] || ""; onChange({ backend: backendID, model, effort: selected?.models[model]?.default_effort || "", fast: false }); }}><option value="">Select configured backend</option>{pipelineOptionLabels(entries.map(([backendID, item]) => [backendID, item.name]), "backend").map(([backendID, name]) => <option key={backendID} value={backendID}>{name}</option>)}</select></label>
+    <label className="form-field"><span>Model</span><select value={value.model} onChange={(event) => { const model = backend?.models[event.target.value]; onChange({ ...value, model: event.target.value, effort: model?.default_effort || "", fast: false }); }}><option value="">Select configured model</option>{pipelineOptionLabels(Object.entries(backend?.models ?? {}).map(([modelID, model]) => [modelID, model.name]), "model").map(([modelID, name]) => <option key={modelID} value={modelID}>{name}</option>)}</select></label>
     {(backend?.models[value.model]?.efforts ?? []).length > 0 && <label className="form-field"><span>Effort</span><select value={value.effort} onChange={(event) => onChange({ ...value, effort: event.target.value })}>{(backend?.models[value.model]?.efforts ?? []).map((effort) => <option key={effort} value={effort}>{effort}</option>)}</select></label>}
     {backend?.models[value.model]?.fast && <label className="form-field"><span>Speed</span><span><input type="checkbox" checked={value.fast} onChange={(event) => onChange({ ...value, fast: event.target.checked })} /> Fast mode</span></label>}
   </div>;
@@ -54,9 +68,9 @@ function RuntimeAssignment({ label, field, number = 1, value, backends, entries,
 function runtimeSummary(value: PipelineRuntimeAssignment, backends: Record<string, Backend> | undefined) {
   const backend = backends?.[value.backend];
   const model = backend?.models[value.model];
-  const backendLabel = backend ? displayLabel(Object.entries(backends ?? {}).map(([id, item]) => [id, item.name]), value.backend) : value.backend || "Choose a backend";
-  const modelLabel = model ? displayLabel(Object.entries(backend.models).map(([id, item]) => [id, item.name]), value.model) : value.model || "choose a model";
-  const fastLabel = model?.fast ? (value.fast ? "Fast mode on" : "Fast mode off") : "";
+  const backendLabel = pipelineOptionLabels(Object.entries(backends ?? {}).map(([id, item]) => [id, item.name]), "backend").find(([id]) => id === value.backend)?.[1] ?? (value.backend ? "Backend unavailable" : "Choose a backend");
+  const modelLabel = pipelineOptionLabels(Object.entries(backend?.models ?? {}).map(([id, item]) => [id, item.name]), "model").find(([id]) => id === value.model)?.[1] ?? (value.model ? "model unavailable" : "choose a model");
+  const fastLabel = value.fast ? "Fast mode on" : model?.fast ? "Fast mode off" : "";
   return [backendLabel, modelLabel, value.effort, fastLabel].filter(Boolean).join(" · ");
 }
 
@@ -76,11 +90,12 @@ export function RunStartForm({
   const backends = useBackends();
   const config = useConfig();
   const { data: roles } = useRoles();
-  const roleLabel = (id: string) => personaIdentityLabel(id, roles?.[id]);
+  const roleLabel = (id: string) => roles?.[id]?.title ? personaLabel(id, roles[id]) : "Persona unavailable";
   const start = useStartPipelineRun();
   const workspaceGroup = useId();
   const [templateID, setTemplateID] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [customNameOpen, setCustomNameOpen] = useState(false);
   const [project, setProject] = useState("");
   const [goal, setGoal] = useState("");
   const [inputs, setInputs] = useState<Record<string, string>>({});
@@ -135,22 +150,17 @@ export function RunStartForm({
   }, [proposalSeed]);
 
   useEffect(() => {
-    const field = diagnostics[0]?.field;
-    if (!field) return;
+    if (diagnostics.length === 0) return;
     setStep(0);
-    if (field.startsWith("orchestrator") || field.startsWith("assignments.") || field.startsWith("dedicated_assignments.") || field.startsWith("think_tank_assignments.")) setRuntimeOpen(true);
+    if (diagnostics.some(({ field }) => isRuntimeDiagnostic(field))) setRuntimeOpen(true);
+    if (diagnostics.some(({ field }) => field === "display_name")) setCustomNameOpen(true);
   }, [diagnostics]);
 
   useEffect(() => {
     const field = diagnostics[0]?.field;
     if (!field || step !== 0) return;
-    // An exact owner wins so workspace.branch reaches the Branch input rather than
-    // the Workspace group that contains it.
-    const owners = [...(formRef.current?.querySelectorAll<HTMLElement>("[data-field]") ?? [])];
-    const owner = owners.find((item) => field === item.dataset.field)
-      ?? owners.find((item) => field.startsWith(`${item.dataset.field}.`));
-    owner?.querySelector<HTMLElement>("input, select, textarea")?.focus();
-  }, [diagnostics, runtimeOpen, step]);
+    focusStartDiagnostic(formRef.current, field);
+  }, [customNameOpen, diagnostics, runtimeOpen, step]);
 
   useEffect(() => {
     if (project || !config.data?.default_project) return;
@@ -192,6 +202,7 @@ export function RunStartForm({
     setPendingRequest(null);
     setConflicts([]);
     setDiagnostics([]);
+    setError(null);
     if (proposal) {
       setProposal(undefined);
       setRuntimeSource("selected");
@@ -199,8 +210,8 @@ export function RunStartForm({
     }
   };
 
-  const buildRequest = (): PipelineStartRequest => ({
-    request_id: proposal?.payload.request_id || pendingRequest?.request_id || requestID(),
+  const buildRequest = (): PipelineStartRequest => proposal?.payload ?? ({
+    request_id: requestID(),
     template_id: templateID,
     display_name: displayName,
     project,
@@ -230,9 +241,10 @@ export function RunStartForm({
         onError: (reason) => {
           const shared = sharedWorkspaceConflicts(reason);
           setConflicts(shared);
-          setDiagnostics(pipelineDiagnostics(reason));
-          setError(shared.length === 0 ? (reason instanceof Error ? reason.message : String(reason)) : null);
-          if (pipelineDiagnostics(reason).length > 0) setStep(0);
+          const issues = pipelineDiagnostics(reason);
+          setDiagnostics(issues);
+          setError(shared.length === 0 && issues.length === 0 ? pipelineActionError(reason) : null);
+          if (issues.length > 0) setStep(0);
         },
       },
     );
@@ -248,29 +260,30 @@ export function RunStartForm({
     const room = current[stageID] ?? { participants: {}, judge: blank };
     return { ...current, [stageID]: participantID === null ? { ...room, judge: value } : { ...room, participants: { ...room.participants, [participantID]: value } } };
   });
+  const stageLabels = pipelineStageLabels(template?.stages ?? []);
   const slots: RuntimeSlot[] = template ? [
     ...(template.stages.some((stage) => stage.coordination !== "think_tank")
       ? [{ key: "orchestrator", label: `Standing owner · ${roleLabel(template.orchestrator_role)}`, field: "orchestrator", value: orchestrator, set: setOrchestrator }]
       : []),
     ...template.stages.filter((stage) => stage.coordination === "dedicated").map((stage) => ({
       key: stage.id,
-      label: `${stage.title} coordinator · ${roleLabel(stage.dedicated_role)}`,
-      editLabel: `${stage.title} · coordinator ${roleLabel(stage.dedicated_role)}`,
+      label: `${stageLabels.get(stage.id)} coordinator · ${roleLabel(stage.dedicated_role)}`,
+      editLabel: `${stageLabels.get(stage.id)} · coordinator ${roleLabel(stage.dedicated_role)}`,
       field: `dedicated_assignments.${stage.id}`,
       value: dedicatedAssignments[stage.id] ?? blank,
       set: (value: Assignment) => setDedicatedAssignments((current) => ({ ...current, [stage.id]: value })),
     })),
     ...template.stages.filter((stage) => stage.coordination === "think_tank" && stage.think_tank).flatMap((stage) => [
-      ...stage.think_tank!.participants.map((participant) => ({
+      ...stage.think_tank!.participants.map((participant, index) => ({
         key: `${stage.id}:${participant.id}`,
-        label: `${stage.title} Think Tank · ${participant.id} (${roleLabel(participant.role)})`,
+        label: `${stageLabels.get(stage.id)} Think Tank · ${pipelineParticipantLabel(index)} (${roleLabel(participant.role)})`,
         field: `think_tank_assignments.${stage.id}.participants.${participant.id}`,
         value: roomAssignments[stage.id]?.participants[participant.id] ?? blank,
         set: (value: Assignment) => setRoomSlot(stage.id, participant.id, value),
       })),
       {
         key: `${stage.id}:judge`,
-        label: `${stage.title} Think Tank · judge (${roleLabel(stage.think_tank!.judge_role)})`,
+        label: `${stageLabels.get(stage.id)} Think Tank · Judge (${roleLabel(stage.think_tank!.judge_role)})`,
         field: `think_tank_assignments.${stage.id}.judge`,
         value: roomAssignments[stage.id]?.judge ?? blank,
         set: (value: Assignment) => setRoomSlot(stage.id, null, value),
@@ -305,7 +318,8 @@ export function RunStartForm({
     ? `Customize runtimes for the standing owner and every dedicated coordinator${hasRoom ? ", Think Tank participant and judge" : ""}.`
     : null);
 
-  const runtimeRows = slots;
+  const runtimeGroups = stepMode ? groupRuntimes(slots, backends.data?.backends) : slots.map((slot) => [slot]);
+  const effectiveName = displayName || template?.title || "Untitled run";
   const runtimeSourceLabel = runtimeSource === "proposal"
     ? "Proposal selections"
     : runtimeSource === "defaults"
@@ -326,15 +340,16 @@ export function RunStartForm({
       {(!stepMode || step === 0) && <div className="pipeline-start-pane" data-slot="content"><div className="pipeline-form-grid">
         <label className="form-field" data-field="template_id"><span>Template</span><select value={templateID} onChange={(event) => { edit(); setTemplateID(event.target.value); }}>
           <option value="">Select a valid template</option>
-          {displayLabels((templates.data ?? []).filter((record) => record.valid).map((record) => [record.id, record.template.title])).map(([id, title]) => <option key={id} value={id}>{title}</option>)}
+          {pipelineOptionLabels((templates.data ?? []).filter((record) => record.valid).map((record) => [record.id, record.template.title]), "template").map(([id, title]) => <option key={id} value={id}>{title}</option>)}
         </select></label>
-        <label className="form-field" data-field="display_name"><span>Run display name</span><input value={displayName} placeholder={template?.title || "Delivery run"} onChange={(event) => { edit(); setDisplayName(event.target.value); }} /></label>
         <label className="form-field" data-field="project"><span>Project</span><select value={project} onChange={(event) => { edit(); setProject(event.target.value); }}>
           <option value="">Select project</option>
-          {displayLabels(Object.entries(projects.data ?? {}).filter(([, item]) => !item.archived).map(([projectID, item]) => [projectID, item.title])).map(([projectID, title]) => <option key={projectID} value={projectID}>{title}</option>)}
+          {pipelineOptionLabels(Object.entries(projects.data ?? {}).filter(([, item]) => !item.archived).map(([projectID, item]) => [projectID, item.title]), "project").map(([projectID, title]) => <option key={projectID} value={projectID}>{title}</option>)}
         </select></label>
       </div>
       <label className="form-field" data-field="goal"><span>Run goal</span><AutoGrowTextarea rows={3} value={goal} onChange={(event) => { edit(); setGoal(event.target.value); }} /></label>
+      {customNameOpen || displayName ? <label className="form-field" data-field="display_name"><span>Run name (optional)</span><input autoFocus={customNameOpen} value={displayName} placeholder={template?.title || "Untitled run"} onChange={(event) => { edit(); setDisplayName(event.target.value); }} /></label>
+        : template && <p><span>Run name: {effectiveName}</span>{" "}<button type="button" onClick={() => setCustomNameOpen(true)}>Use a custom name</button></p>}
 
       <fieldset className="pipeline-workspace-choice" data-field="workspace">
         <legend>Workspace</legend>
@@ -366,7 +381,7 @@ export function RunStartForm({
       </div>}
       {template && <section className="pipeline-runtime-summary" aria-label="Selected runtimes">
         <div className="pipeline-runtime-summary-heading"><h3>Selected runtimes</h3><span>{runtimeSourceLabel}</span></div>
-        <ol>{runtimeRows.map((row) => <li key={row.key}><strong>{row.label}</strong><small>{runtimeSummary(row.value, backends.data?.backends)}</small></li>)}</ol>
+        <ol>{runtimeGroups.map(([row, ...others]) => <li key={row.field}><strong>{others.length ? `${others.length + 1} runtime assignments` : row.label}</strong><small>{runtimeSummary(row.value, backends.data?.backends)}</small></li>)}</ol>
       </section>}
       {template && <details className="pipeline-disclosure pipeline-runtime-customize" open={runtimeOpen} onToggle={(event) => setRuntimeOpen(event.currentTarget.open)}>
         <summary>Customize runtimes</summary>
@@ -377,13 +392,13 @@ export function RunStartForm({
 
       {template && (!stepMode || step === 1) && <div className={stepMode ? "pipeline-start-pane pipeline-start-review" : "pipeline-subsection"} data-slot="content">
         {stepMode && <>
-        <div className="pipeline-review-hero"><p className="pipeline-eyebrow">Ready to launch</p><h3>{displayName || template?.title || "Untitled run"}</h3><p>{goal}</p></div>
+        <div className="pipeline-review-hero"><p className="pipeline-eyebrow">Ready to launch</p><h3>{effectiveName}</h3><p>{goal}</p></div>
         <dl className="pipeline-review-facts"><div><dt>Template</dt><dd>{template?.title || "Untitled pipeline"}</dd></div><div><dt>Project</dt><dd>{projectTitle(projects.data, project)}</dd></div><div><dt>Workspace</dt><dd>{describeWorkspace(selectedWorkspace)}</dd></div><div><dt>Stages</dt><dd>{template?.stages.length ?? 0}</dd></div><div><dt>Named inputs</dt><dd>{Object.values(inputs).filter((value) => value.trim()).length}</dd></div></dl>
-        <ol className="pipeline-review-runtimes">{runtimeRows.map((row, index) => <li key={row.key}><span>{index + 1}</span><div><strong>{row.label}</strong><small>{runtimeSummary(row.value, backends.data?.backends)}</small></div></li>)}</ol>
+        <ol className="pipeline-review-runtimes">{slots.map((row, index) => <li key={row.key}><span>{index + 1}</span><div><strong>{row.label}</strong><small>{runtimeSummary(row.value, backends.data?.backends)}</small></div></li>)}</ol>
         </>}
       </div>}
 
-      {proposal && (!stepMode || step === 1) && <pre className="pipeline-proposal-payload">{JSON.stringify(proposal.payload, null, 2)}</pre>}
+      {proposal && (!stepMode || step === 1) && <details className="pipeline-disclosure"><summary>Exact proposal details</summary><pre className="pipeline-proposal-payload">{JSON.stringify(proposal.payload, null, 2)}</pre></details>}
       {conflicts.length > 0 && <div className="pipeline-warning">
         <strong>Shared project workspace</strong>
         <p>These active agents or runs use the same project directory. Chuck does not isolate their filesystem changes.</p>
@@ -393,7 +408,11 @@ export function RunStartForm({
       {notice && <p className="form-info">{notice}</p>}
       {diagnostics.length > workspaceDiagnostics.length && (
         <ul className="pipeline-diagnostics">
-          {diagnostics.filter((item) => !workspaceDiagnostics.includes(item)).map((diagnostic, index) => <li key={`${diagnostic.field}-${diagnostic.code}-${index}`}><code>{diagnostic.field}</code> — {diagnostic.message}</li>)}
+          {diagnostics.filter((item) => !workspaceDiagnostics.includes(item)).map((diagnostic, index) => {
+            const field = startDiagnosticField(diagnostic.field);
+            const slot = slots.find((item) => field === item.field || field.startsWith(`${item.field}.`));
+            return <li key={`${field}-${diagnostic.code}-${index}`}>{startDiagnosticText(diagnostic, slot?.label)}</li>;
+          })}
         </ul>
       )}
       {error && <p className="form-error">{error}</p>}

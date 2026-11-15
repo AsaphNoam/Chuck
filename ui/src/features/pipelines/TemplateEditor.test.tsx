@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -30,14 +30,13 @@ describe("TemplateEditor focused workspace", () => {
     const { container } = render(<QueryClientProvider client={client}><MemoryRouter><TemplateEditor seed={{ id: "maximum", template }} /></MemoryRouter></QueryClientProvider>);
     await screen.findByText("Stage 32");
     expect(container.querySelectorAll(".pipeline-stage-card")).toHaveLength(1);
-    const title = container.querySelector<HTMLInputElement>(".pipeline-stage-card input")!;
+    const title = screen.getByLabelText("Stage name");
     fireEvent.change(title, { target: { value: "work" } });
     fireEvent.click(screen.getByRole("button", { name: /Stage 32/ }));
     expect(container.querySelectorAll(".pipeline-stage-card")).toHaveLength(1);
     expect(screen.getByDisplayValue("Instruction 32")).toBeInTheDocument();
-    const firstStage = [...container.querySelectorAll<HTMLButtonElement>(".pipeline-stage-nav-item")].find((button) => button.querySelector("strong")?.textContent === "Stage 1")!;
-    fireEvent.click(firstStage);
-    expect(container.querySelector<HTMLInputElement>(".pipeline-stage-card input")).toHaveValue("work");
+    fireEvent.click(screen.getByRole("button", { name: /1 work/ }));
+    expect(screen.getByLabelText("Stage name")).toHaveValue("work");
   });
 
   // FS-14.R81: switching one stage to Think Tank seeds a two-participant room
@@ -46,15 +45,17 @@ describe("TemplateEditor focused workspace", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
     render(<QueryClientProvider client={client}><MemoryRouter><TemplateEditor seed={{ id: "maximum", template }} /></MemoryRouter></QueryClientProvider>);
     await screen.findByText("Stage 32");
+    fireEvent.click(screen.getByText("Coordination", { selector: "summary" }));
     fireEvent.click(screen.getByRole("radio", { name: "Think Tank" }));
-    expect(screen.getAllByLabelText("Participant id")).toHaveLength(2);
+    expect(screen.getAllByLabelText(/Participant \d role/)).toHaveLength(2);
+    expect(screen.queryByLabelText("Participant id")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Judge role")).toHaveValue("implementer");
     expect(screen.getByText("Think Tank · 2 participants")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add participant" }));
-    expect(screen.getAllByLabelText("Participant id")).toHaveLength(3);
+    expect(screen.getAllByLabelText(/Participant \d role/)).toHaveLength(3);
     fireEvent.click(screen.getByRole("radio", { name: "Standing owner" }));
-    expect(screen.queryByLabelText("Participant id")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Standing owner").length).toBeGreaterThan(30);
+    expect(screen.queryByLabelText(/Participant \d role/)).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Standing owner" })).toBeChecked();
   });
 
   // FS-14.A53: shared orchestrator instructions are entered once, saved
@@ -73,6 +74,7 @@ describe("TemplateEditor focused workspace", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
     render(<QueryClientProvider client={client}><MemoryRouter><TemplateEditor seed={{ id: "maximum", template }} /></MemoryRouter></QueryClientProvider>);
     await screen.findByText("Stage 32");
+    fireEvent.click(screen.getByText("Orchestration", { selector: "summary" }));
     const field = screen.getByLabelText("Shared orchestrator instructions");
     fireEvent.change(field, { target: { value: guidance } });
     fireEvent.click(screen.getByRole("button", { name: "Save template" }));
@@ -83,8 +85,88 @@ describe("TemplateEditor focused workspace", () => {
 
     const oversized = "x".repeat(16001);
     fireEvent.change(screen.getByLabelText("Shared orchestrator instructions"), { target: { value: oversized } });
+    fireEvent.click(screen.getByText("Orchestration", { selector: "summary" }));
     fireEvent.click(screen.getByRole("button", { name: "Save template" }));
-    expect(await screen.findByText("orchestrator_instructions")).toBeInTheDocument();
+    expect(await screen.findByText("Shared orchestrator instructions", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Shared orchestrator instructions")).toHaveFocus();
     expect(screen.getByLabelText("Shared orchestrator instructions")).toHaveValue(oversized);
+  });
+
+  it("serializes a named handoff with fixed stage and value keys after renaming its producer", async () => {
+    const requests: Array<{ id: string; template: PipelineTemplate }> = [];
+    server.use(http.post("/api/pipelines", async ({ request }) => {
+      const body = await request.json() as typeof requests[number];
+      requests.push(body);
+      return HttpResponse.json({ ...body, valid: true, diagnostics: [] }, { status: 201 });
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><TemplateEditor /></MemoryRouter></QueryClientProvider>);
+    const fill = (name: string, value: string) => fireEvent.change(screen.getByLabelText(name), { target: { value } });
+    const click = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
+    const handoffs = () => fireEvent.click(screen.getByText(/Structured handoffs/, { selector: "summary" }));
+
+    expect(screen.queryByLabelText(/template id|stage id/i)).not.toBeInTheDocument();
+    fill("Template name", "Delivery");
+    fill("Stage name", "Design");
+    fill("Stage instructions", "Write docs/design.md.");
+    handoffs();
+    click("Add output");
+    fill("Output name", "design-file");
+    fill("Description", "Location of the design");
+    click("Add stage");
+    fill("Stage name", "Implement");
+    fill("Stage instructions", "Follow docs/design.md.");
+    handoffs();
+    click("Add handoff");
+    const source = screen.getByRole("combobox", { name: "Source" });
+    const value = within(source).getByRole<HTMLOptionElement>("option", { name: "Design · design-file" }).value;
+    fireEvent.change(source, { target: { value } });
+    fill("Input name", "design-to-implement");
+    fireEvent.click(screen.getByRole("button", { name: /1 Design/ }));
+    fill("Stage name", "Plan");
+    click("Save template");
+
+    await screen.findByText("Template saved.");
+    expect(requests).toHaveLength(1);
+    const saved = requests[0];
+    expect(saved.id).toMatch(/^[a-z0-9-]{1,63}$/);
+    expect(saved.template.stages[0]).toMatchObject({ title: "Plan", outputs: [{ name: "design-file", value, description: "Location of the design" }] });
+    expect(saved.template.stages[1].inputs).toEqual([{ name: "design-to-implement", value, required: true }]);
+    expect(saved.template.stages[0].id).not.toBe(saved.template.stages[1].id);
+  });
+
+  it("keeps create intent after conflict and reconciles a lost success before retrying", async () => {
+    const creates: Array<{ id: string; template: PipelineTemplate }> = [];
+    const reads: string[] = [];
+    server.use(
+      http.post("/api/pipelines", async ({ request }) => {
+        creates.push(await request.json() as typeof creates[number]);
+        return creates.length === 1
+          ? HttpResponse.json({ error: { code: "conflict", message: "pipeline operation conflicts with current state" } }, { status: 409 })
+          : HttpResponse.error();
+      }),
+      http.get("/api/pipelines/:id", ({ params }) => {
+        reads.push(String(params.id));
+        return HttpResponse.json({ ...creates[1], valid: true, diagnostics: [] });
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><TemplateEditor /></MemoryRouter></QueryClientProvider>);
+    fireEvent.change(screen.getByLabelText("Template name"), { target: { value: "Delivery" } });
+    fireEvent.change(screen.getByLabelText("Stage name"), { target: { value: "Design" } });
+    fireEvent.change(screen.getByLabelText("Stage instructions"), { target: { value: "Write docs/design.md." } });
+    const save = () => fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+
+    save();
+    await screen.findByText(/draft conflicted/);
+    expect(screen.getByLabelText("Stage instructions")).toHaveValue("Write docs/design.md.");
+    save();
+    await screen.findByText(/Could not confirm the save/);
+    save();
+    await screen.findByText("Template saved.");
+    expect(creates).toHaveLength(2);
+    expect(creates[0].id).not.toBe(creates[1].id);
+    expect(creates[0].template).toEqual(creates[1].template);
+    expect(reads).toEqual([creates[1].id]);
   });
 });

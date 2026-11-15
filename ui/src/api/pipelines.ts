@@ -72,6 +72,10 @@ export function listPipelineTemplates() {
   return request("/api/pipelines", z.array(pipelineTemplateRecordSchema));
 }
 
+export function getPipelineTemplate(id: string) {
+  return request(`/api/pipelines/${encodeURIComponent(id)}`, pipelineTemplateRecordSchema);
+}
+
 export function validatePipelineTemplate(id: string, template: PipelineTemplate) {
   return request("/api/pipelines/validate", pipelineTemplateRecordSchema, {
     method: "POST",

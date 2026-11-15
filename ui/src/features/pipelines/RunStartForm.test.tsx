@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -37,6 +37,9 @@ const server = setupServer(
     },
   })),
   http.get("/api/config", () => HttpResponse.json({ default_project: "app" })),
+  http.get("/api/roles", () => HttpResponse.json({
+    implementer: { title: "Implementer" }, designer: { title: "Designer" }, reviewer: { title: "Reviewer" },
+  })),
   http.post("/api/pipeline-runs", async ({ request }) => {
     starts.push(await request.json());
     return HttpResponse.json({
@@ -44,7 +47,7 @@ const server = setupServer(
       code: "validation_failed",
       message: "run cannot start",
       details: {
-        diagnostics: [{ field: "orchestrator", code: "unavailable", message: "unknown model \"gpt-5.6-sol\"" }],
+        diagnostics: [{ field: "assignments.standing", code: "unavailable", message: "unknown model \"gpt-5.6-sol\"" }],
       },
     },
     }, { status: 422 });
@@ -71,8 +74,8 @@ describe("RunStartForm", () => {
     await waitFor(() => expect(start).toBeEnabled());
     fireEvent.click(start);
 
-    expect(await screen.findByText("orchestrator")).toBeInTheDocument();
-    expect(screen.getByText(/unknown model "gpt-5.6-sol"/)).toBeInTheDocument();
+    expect(await screen.findByText("Standing owner · Implementer uses a model that is no longer configured.")).toBeInTheDocument();
+    expect(screen.queryByText("assignments.standing")).not.toBeInTheDocument();
     expect(screen.getAllByLabelText("Backend")[0]).toHaveFocus();
   });
 
@@ -111,17 +114,24 @@ describe("RunStartForm", () => {
     fireEvent.change(screen.getByLabelText("Run goal"), { target: { value: "Ship it" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Review" })).toBeEnabled());
     expect(screen.getByText("Configured defaults")).toBeInTheDocument();
-    expect(screen.getByText("Design coordinator · designer")).toBeInTheDocument();
-    expect(screen.getByText("Review coordinator · reviewer")).toBeInTheDocument();
+    expect(screen.getByText("Run name: Delivery")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Run name (optional)" })).not.toBeInTheDocument();
+    const summary = within(screen.getByRole("region", { name: "Selected runtimes" }));
+    expect(summary.getByText("3 runtime assignments")).toBeInTheDocument();
+    expect(summary.getAllByRole("listitem")).toHaveLength(1);
     expect(screen.getByText("Customize runtimes").closest("details")).not.toHaveAttribute("open");
 
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
     expect(screen.getByRole("heading", { name: "Delivery" })).toBeInTheDocument();
+    expect(screen.getByText("Project checkout")).toBeInTheDocument();
+    expect(screen.getByText("Design coordinator · Designer")).toBeInTheDocument();
+    expect(screen.getByText("Review coordinator · Reviewer")).toBeInTheDocument();
     expect(screen.getAllByText(/Codex · GPT-5.6-Sol/)).toHaveLength(3);
     fireEvent.click(screen.getByRole("button", { name: "Start run" }));
     await waitFor(() => expect(starts).toHaveLength(1));
     expect(starts[0]).toMatchObject({
       template_id: "delivery",
+      display_name: "",
       orchestrator: { backend: "codex", model: "gpt-5.6-sol", fast: false },
       dedicated_assignments: {
         design: { backend: "codex", model: "gpt-5.6-sol", fast: false },
@@ -146,8 +156,9 @@ describe("RunStartForm", () => {
     fireEvent.change(screen.getByLabelText("Run goal"), { target: { value: "Pick" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Review" })).toBeEnabled());
     expect(screen.queryByText(/Standing owner/)).not.toBeInTheDocument();
-    expect(screen.getAllByText("Deliberate Think Tank · judge (reviewer)").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByText("Customize runtimes"));
+    expect(screen.getByText("Deliberate Think Tank · Participant 1 (Implementer)")).toBeInTheDocument();
+    expect(screen.getByText("Deliberate Think Tank · Judge (Reviewer)")).toBeInTheDocument();
     fireEvent.change(screen.getAllByLabelText("Backend")[1], { target: { value: "alternate" } });
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
     fireEvent.click(screen.getByRole("button", { name: "Start run" }));
@@ -197,13 +208,14 @@ describe("RunStartForm", () => {
     fireEvent.click(screen.getByText("Customize runtimes"));
     expect(screen.getAllByRole("checkbox")[0]).toBeChecked();
 
-    fireEvent.change(screen.getByLabelText("Run display name"), { target: { value: "Release train" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use a custom name" }));
+    fireEvent.change(screen.getByLabelText("Run name (optional)"), { target: { value: "Release train" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Review" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
     expect(screen.getByRole("heading", { name: "Release train" })).toBeInTheDocument();
     expect(screen.getByText(/Alternate · Opus.*Fast mode on/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByLabelText("Run display name")).toHaveValue("Release train");
+    expect(screen.getByLabelText("Run name (optional)")).toHaveValue("Release train");
     expect(screen.getByLabelText("Run goal")).toHaveValue("Ship it");
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
     fireEvent.click(screen.getByRole("button", { name: "Start run" }));
@@ -219,14 +231,16 @@ describe("RunStartForm", () => {
         request_id: "proposal-request", template_id: "delivery", display_name: "Proposed run", project: "app", goal: "Ship it", inputs: {},
         orchestrator: { backend: "alternate", model: "opus", effort: "high", fast: true },
         dedicated_assignments: {
-          design: { backend: "codex", model: "gpt-5.6-sol", effort: "", fast: false },
+          design: { backend: "alternate", model: "opus", effort: "high", fast: false },
           review: { backend: "alternate", model: "opus", effort: "low", fast: false },
         },
+        think_tank_assignments: {},
       },
     };
     render(<QueryClientProvider client={client}><RunStartForm stepMode proposal={proposal} onCancel={() => {}} onStarted={() => {}} /></QueryClientProvider>);
 
     expect(await screen.findByText("Proposal selections")).toBeInTheDocument();
+    expect(screen.getByLabelText("Run name (optional)")).toHaveValue("Proposed run");
     expect(screen.getByText(/Alternate · Opus.*high.*Fast mode on/)).toBeInTheDocument();
     fireEvent.click(screen.getByText("Customize runtimes"));
     expect(screen.getAllByLabelText("Backend")[0]).toHaveValue("alternate");
@@ -239,12 +253,17 @@ describe("RunStartForm", () => {
         alternate: { name: "Updated Alternate", type: "codex-acp", default: true, default_model: "opus", models: { opus: { name: "Updated Opus", model: "opus", fast: true, efforts: ["low", "high"], default_effort: "high" } } },
       },
     });
-    expect(await screen.findAllByText(/Updated Alternate · Updated Opus/)).toHaveLength(2);
+    expect(await screen.findAllByText(/Updated Alternate · Updated Opus/)).toHaveLength(3);
     expect(screen.getAllByLabelText("Backend")[0]).toHaveValue("alternate");
     expect(screen.getAllByLabelText("Model")[0]).toHaveValue("opus");
     expect(screen.getAllByRole("checkbox")[0]).toBeChecked();
     fireEvent.click(screen.getByText("Customize runtimes"));
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByRole("button", { name: "Confirm and start exact proposal" })).toBeEnabled();
+    const details = screen.getByText("Exact proposal details").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Exact proposal details"));
+    expect(details).toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and start exact proposal" }));
+    await waitFor(() => expect(starts).toEqual([{ ...proposal.payload, acknowledge_shared_workspace: false }]));
   });
 });

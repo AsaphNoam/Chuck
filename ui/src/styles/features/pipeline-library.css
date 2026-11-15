@@ -88,6 +88,21 @@
 
   /* Template editing stays a focused workspace: stage order and selection on
      the left, one spacious editable stage at a time on the right. */
+  .pipeline-template-fields {
+    border: 0;
+    display: grid;
+    gap: var(--ad-space-4);
+    margin: 0;
+    min-inline-size: 0;
+    padding: 0;
+  }
+
+  .pipeline-template-fields > .form-field { max-inline-size: 40rem; }
+  .pipeline-stage-card .pipeline-inline-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pipeline-stage-card .pipeline-inline-row > button { justify-self: start; }
+  .pipeline-stage-card .pipeline-think-tank-participants > li { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pipeline-stage-nav-item strong, .pipeline-stage-heading strong { overflow-wrap: anywhere; }
+
   .pipeline-editor-basics {
     border-radius: var(--ad-radius-medium);
     grid-template-columns: minmax(160px, 0.75fr) minmax(0, 1fr) minmax(180px, 0.85fr);
