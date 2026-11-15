@@ -1,7 +1,10 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getHeldPrompt } from "../../api/client";
+import { useHeldStore } from "../../store/heldStore";
+import { useTranscriptStore } from "../../store/transcriptStore";
 import { DashboardChatPane } from "./DashboardChatPane";
 import type { FileLink } from "../chat/renderers/filePath";
 
@@ -9,6 +12,10 @@ const mocks = vi.hoisted(() => ({ teardown: vi.fn(), register: vi.fn() }));
 mocks.register.mockImplementation(() => mocks.teardown);
 
 vi.mock("../../api/sse", () => ({ sseClient: { registerOpenAgent: mocks.register } }));
+vi.mock("../../api/client", () => ({
+  getHeldPrompt: vi.fn(async (agentId: string) => ({ agent_id: agentId, text: "", after_seq: 0 })),
+  dismissPromptRecovery: vi.fn(), withdrawPrompt: vi.fn(),
+}));
 vi.mock("../chat/TranscriptView", () => ({
   TranscriptView: ({ openFile, onOpenFile }: { openFile?: FileLink | null; onOpenFile?: (link: FileLink | null) => void }) => (
     <div>
@@ -79,5 +86,28 @@ describe("a file link inside the expanded dashboard chat pane", () => {
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/agent/a_1?file=internal%2Fstate%2Fmessages.go&fileLine=12",
     );
+  });
+});
+
+// PROMPT-2 (FS-03.R48, TS-08.R56): the pane is a live desktop chat surface on
+// its own, so it rehydrates the server hold on open and settles that exact
+// request on delivery, not an identical prompt under another request ID.
+describe("the held follow-up in a pane-only chat", () => {
+  it("hydrates the server hold and releases it only on its own delivery", async () => {
+    vi.mocked(getHeldPrompt).mockResolvedValue({
+      agent_id: "a_held", text: "same text", after_seq: 1, held_id: "h1", request_id: "held-request",
+    });
+    render(<MemoryRouter><DashboardChatPane agent={{
+      agent_id: "a_held", name: "Atlas", role: "implementer", project: "my-app",
+      backend: "claude", model: "sonnet", interface: "chat", state: "busy",
+      detail: "", running: true, context_pct: 0,
+    }} /></MemoryRouter>);
+    await waitFor(() => expect(useHeldStore.getState().byAgent.a_held).toBe("same text"));
+
+    act(() => useTranscriptStore.getState().appendMessage("a_held", { seq: 2, type: "user_text", data: { text: "same text", request_id: "other-request" } }));
+    expect(useHeldStore.getState().byAgent.a_held).toBe("same text");
+
+    act(() => useTranscriptStore.getState().appendMessage("a_held", { seq: 3, type: "user_text", data: { text: "same text", request_id: "held-request" } }));
+    expect(useHeldStore.getState().byAgent.a_held).toBeUndefined();
   });
 });

@@ -270,6 +270,31 @@ describe("transcriptStore", () => {
     expect(useTranscriptStore.getState().byAgent.a_5.map((event) => event.seq)).toEqual([1, 2]);
   });
 
+  // PROMPT-1: a replayed acceptance repeats the request ID; one delivery must
+  // leave one bubble, live and through a refetch.
+  it("keeps one echo per request ID across replayed acknowledgments", () => {
+    const store = useTranscriptStore.getState();
+    store.appendMessage("a_5", { kind: "user_text", text: "same", message_id: "other" });
+    store.appendMessage("a_5", { kind: "user_text", text: "same", message_id: "replayed" });
+    store.appendMessage("a_5", { kind: "user_text", text: "same", message_id: "replayed" });
+    expect(useTranscriptStore.getState().byAgent.a_5).toHaveLength(2);
+    store.appendMessage("a_5", { seq: 1, type: "user_text", data: { text: "same", request_id: "replayed" } });
+    expect(useTranscriptStore.getState().byAgent.a_5.map((event) => [event.seq, event.message_id])).toEqual([
+      [undefined, "other"], [1, undefined],
+    ]);
+  });
+
+  it("keeps one echo per request ID through a refetch", () => {
+    const store = useTranscriptStore.getState();
+    store.appendMessage("a_5", { kind: "user_text", text: "same", message_id: "replayed" });
+    store.beginReconciliation("a_5");
+    store.appendMessage("a_5", { kind: "user_text", text: "same", message_id: "replayed" });
+    store.setTranscript("a_5", []);
+    expect(useTranscriptStore.getState().byAgent.a_5).toHaveLength(1);
+    store.appendMessage("a_5", { seq: 1, type: "user_text", data: { text: "same", request_id: "replayed" } });
+    expect(useTranscriptStore.getState().byAgent.a_5.map((event) => event.seq)).toEqual([1]);
+  });
+
   it("reconciles a pending echo against the transcript read after its turn has ended", () => {
     const store = useTranscriptStore.getState();
     store.appendMessage("a_5", { kind: "user_text", text: "repeat", message_id: "second" });

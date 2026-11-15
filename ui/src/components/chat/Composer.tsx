@@ -48,7 +48,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   const [draggingFiles, setDraggingFiles] = useState(false);
   const held = useHeldStore((state) => state.byAgent[agentId]);
   const queuedInput = useHeldStore((state) => state.queuedByAgent[agentId]) ?? NO_QUEUED;
-  const hold = useHeldStore((state) => state.hold);
+  const hold = useHeldStore((state) => state.acceptHold);
   const releaseHeld = useHeldStore((state) => state.release);
   const append = useTranscriptStore((state) => state.appendMessage);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

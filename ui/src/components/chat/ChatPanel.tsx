@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import * as Tabs from "@radix-ui/react-tabs";
 import { cancelTurn, resumeAgent, setSessionConfig, switchRuntime } from "../../api/client";
-import { readHeldRecovery } from "../../lib/heldMessage";
 import { useBackends, useProjects, useRoles } from "../../api/config";
 import { projectTitle as projectTitleFor } from "../../lib/labels";
 import { personaIdentityLabel } from "../../lib/personas";
@@ -10,8 +9,8 @@ import type { AgentState } from "../../api/types";
 import { sseClient } from "../../api/sse";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
-import { useHeldStore } from "../../store/heldStore";
-import { matchesPromptDelivery, useTranscriptStore } from "../../store/transcriptStore";
+import { useTranscriptStore } from "../../store/transcriptStore";
+import { useHeldProjection } from "./useHeldProjection";
 import { useUiStore } from "../../store/uiStore";
 import { ContextBar } from "../grid/ContextBar";
 import { SubscriptionQuotaDisclosure } from "./SubscriptionQuotaDisclosure";
@@ -87,11 +86,6 @@ function AgentPanel({ id }: { id: string }) {
   const events = useTranscriptStore((state) => state.byAgent[id] ?? []);
   const transcriptSettled = useTranscriptStore((state) => Boolean(state.settled[id]));
   const search = useSearchReference(id, agentsHydrated && transcriptSettled, agent?.archived);
-  const held = useHeldStore((state) => state.byAgent[id]);
-  const heldRequestId = useHeldStore((state) => state.requestIdByAgent[id]);
-  const heldAttachments = useHeldStore((state) => state.attachmentsByAgent[id]);
-  const heldAfterSeq = useHeldStore((state) => state.afterSeqByAgent[id] ?? 0);
-  const releaseHeld = useHeldStore((state) => state.release);
   const pushError = useUiStore((state) => state.pushError);
   const { data: backends } = useBackends();
   const { data: projects } = useProjects();
@@ -138,30 +132,7 @@ function AgentPanel({ id }: { id: string }) {
     return sseClient.registerOpenAgent(id);
   }, [id]);
 
-  useEffect(() => {
-    if (!agent || agent.interface !== "chat") return;
-    let current = true;
-    void readHeldRecovery(id, () => current, true);
-    return () => { current = false; };
-  }, [agent?.running, agent?.state, agent?.interface, id]);
-
-  // A held message stops being pending the moment the server actually sends it,
-  // which is when it enters the durable transcript as an ordinary user prompt.
-  // Matching the sequenced server event rather than the local echo is what keeps
-  // the pending tail from clearing before delivery (FS-03.R48, TS-08.R56).
-  useEffect(() => {
-    if (!held && !heldAttachments?.length) return;
-    // A held annotation batch's prompt is quieted under FS-13.R23; its card
-    // records where that prompt landed instead.
-    const delivered = events.some((event) => {
-      const delivery = (event.kind ?? event.type) === "annotation" && event.prompt_paired
-        ? { kind: "user_text", seq: Number(event.prompt_seq ?? 0), text: String(event.prompt_text ?? ""),
-            request_id: typeof event.prompt_request_id === "string" ? event.prompt_request_id : undefined }
-        : event;
-      return matchesPromptDelivery(delivery, held ?? "", heldRequestId, heldAfterSeq);
-    });
-    if (delivered) releaseHeld(id);
-  }, [events, held, heldAttachments, heldRequestId, heldAfterSeq, id, releaseHeld]);
+  useHeldProjection(id, agent);
 
   // The conversation's saved file tabs; ?file=/?fileLine= name the active one,
   // so a file URL opens it and Back hides the reader (FS-03.R101–R106). Opening

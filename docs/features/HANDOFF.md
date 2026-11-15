@@ -334,43 +334,8 @@ for an inventory (§7, §8).
   and retry state, held and recovery projections, and durable receipts. Identify the entry
   points for Send, Steer, withdraw, recover and dismiss, and which evidence permits each
   owner to release a specific request across navigation, reconnect and peer settlement.
-
-### Match sent prompts by request ID (`fb245d40`) — reviewed 2026-11-15 at `16bb8ad8` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Second fix round. Transcript reconciliation and held-input projection had findings fixed in the
-last 30 days (`e993ce01`, `242860c1`, `0e98d3c4`). PROMPT-4 asks for an inventory (§7, §8).
-
-- **Must fix** — PROMPT-1. A replayed acknowledgment leaves a duplicate prompt bubble.
-  `Composer.tsx:27–29,73–80` accepts both responses before the stream arrives, since it
-  only checks for a sequenced event. `transcriptStore.ts:65–85` skips matching two local
-  echoes and replaces only one on delivery. With a slow response and transcript stream,
-  reopen the composer and submit the restored draft with its original request ID. The server
-  can replay the same acceptance, and one sequenced event leaves two visible bubbles.
-  Reproduced via the real Send serializer with two matching acknowledgments and one delivery.
-  Make the echo idempotent by request ID in live and refetch paths. Preserve distinct IDs for
-  identical text and cover the delayed delivery after two acknowledgments (FS-03.R7/R118,
-  TS-08.R163, INV §11, §19).
-- **Must fix** — PROMPT-2. A dashboard chat pane keeps the queued tail and Withdraw after
-  the follow-up sends. `DashboardChatPane.tsx:11–38` subscribes to transcript events and
-  renders the shared composer and transcript, but the hold read and delivery matcher run
-  only in `ChatPanel.tsx:141–164`. An expanded pane has no hold rehydration on open, and
-  its own acknowledged hold stays queued alongside the delivered prompt. Reproduced by
-  sending from the pane and delivering its exact request ID. Share hold hydration and
-  settlement across the two live desktop surfaces. Test pane-only open with a server hold,
-  then deliver an identical prompt with a different ID before delivering the held request
-  (FS-03.R39/R48/R118, TS-08.R56/R163, INV §1, §2, §10, §19).
-- **Must fix** — PROMPT-3. An older hold read can erase a newly accepted follow-up.
-  `ChatPanel.tsx:141–146` starts a snapshot on open. `Composer.tsx:73–77` installs the
-  accepted hold without fencing that read, so `heldMessage.ts:79–89` can overwrite its ID
-  and text with an older hold or clear it from an earlier empty snapshot. A busy agent can
-  accept the follow-up without changing state, leaving no refresh to bring back Withdraw.
-  Reproduced with a deferred snapshot begun before Send. Use the hold mutation and snapshot
-  authority to reject stale results, and test both an empty snapshot and a replaced hold
-  (FS-03.R48/R118, TS-08.R56/R163, INV §1, §19, §23).
-- **Worth fixing** — PROMPT-4. Inventory (§7). List the writers of the desktop transcript's
-  local echo and reconciliation tail and of the live held projection, their entry points,
-  and which exact evidence can insert, replace or clear each request across acknowledgment,
-  delivery, refetch and navigation. Coordinate the hold portion with INPUT-8 (INV §1, §19).
+  Start from the echo and held-tail inventory in `docs/ideas.md` ("One owner for a sent
+  prompt's echo and the held tail").
 
 ## Blocked on human
 

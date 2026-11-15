@@ -64,6 +64,12 @@ export function matchesPromptDelivery(
 
 function reconcileUserMessage(events: TranscriptEvent[], event: TranscriptEvent) {
   if (kindOf(event) !== "user_text") return false;
+  // A replayed acknowledgment repeats its request ID; one request is one echo,
+  // live and on refetch, while identical text under another ID stays distinct.
+  if (event.seq == null && event.message_id &&
+      events.some((candidate) => candidate.seq == null && kindOf(candidate) === "user_text" && candidate.message_id === event.message_id)) {
+    return true;
+  }
   let withinTurn = true;
   let matchedIndex = -1;
   for (let i = events.length - 1; i >= 0; i--) {

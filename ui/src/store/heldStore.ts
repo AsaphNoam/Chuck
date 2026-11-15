@@ -22,6 +22,12 @@ interface HeldStoreState {
   // says so and offers to read it again rather than showing nothing (FS-03.R90).
   // The value counts failed reads so a failed retry shows a new outcome.
   recoveryUnreadByAgent: Record<string, number>;
+  // Counts locally accepted holds so a snapshot read begun before one cannot
+  // overwrite it with an older hold or an earlier empty state (INV §23).
+  // Snapshot installs and releases do not count: the last snapshot still wins
+  // among reads, and a re-installed delivered hold is released again by its match.
+  holdRevisionByAgent: Record<string, number>;
+  acceptHold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[], heldId?: string, requestId?: string) => void;
   hold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[], heldId?: string, requestId?: string) => void;
   release: (agentId: string) => void;
   setRecovery: (agentId: string, recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } | null) => void;
@@ -30,7 +36,7 @@ interface HeldStoreState {
   setQueued: (agentId: string, queued: QueuedPrompt[]) => void;
 }
 
-export const useHeldStore = create<HeldStoreState>((set) => ({
+export const useHeldStore = create<HeldStoreState>((set, get) => ({
   byAgent: {},
   heldIdByAgent: {},
   requestIdByAgent: {},
@@ -38,8 +44,13 @@ export const useHeldStore = create<HeldStoreState>((set) => ({
   attachmentsByAgent: {},
   recoveryByAgent: {},
   recoveryUnreadByAgent: {},
+  holdRevisionByAgent: {},
   queuedByAgent: {},
   setQueued: (agentId, queued) => set((state) => ({ queuedByAgent: { ...state.queuedByAgent, [agentId]: queued } })),
+  acceptHold: (agentId, ...held) => {
+    set((state) => ({ holdRevisionByAgent: { ...state.holdRevisionByAgent, [agentId]: (state.holdRevisionByAgent[agentId] ?? 0) + 1 } }));
+    get().hold(agentId, ...held);
+  },
   hold: (agentId, text, afterSeq = 0, attachments = [], heldId = "", requestId) =>
     set((state) => ({
       byAgent: { ...state.byAgent, [agentId]: text },

@@ -79,10 +79,13 @@ export function readWithdrawnRecovery(agentId: string): Promise<void> {
 export async function readHeldRecovery(agentId: string, isCurrent = () => true, includeHold = false, afterWithdrawal = false): Promise<void> {
   const read = { agentId, stale: false };
   reads.add(read);
+  const holdRevision = useHeldStore.getState().holdRevisionByAgent[agentId] ?? 0;
   try {
     const snapshot = await getHeldPrompt(agentId);
     if (read.stale || !isCurrent()) return;
-    if (includeHold) {
+    // A Send accepted a hold after this read began; the snapshot cannot know
+    // about it, so it leaves the local hold alone.
+    if (includeHold && (useHeldStore.getState().holdRevisionByAgent[agentId] ?? 0) === holdRevision) {
       if (snapshot.text || snapshot.attachments?.length) useHeldStore.getState().hold(agentId, snapshot.text, snapshot.after_seq, snapshot.attachments, snapshot.held_id, snapshot.request_id);
       else useHeldStore.getState().release(agentId);
     }

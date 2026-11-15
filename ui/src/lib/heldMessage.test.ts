@@ -26,6 +26,36 @@ it("rejects a late pre-success recovery read and preserves unrelated recovery", 
   expect(useHeldStore.getState().recoveryByAgent.agent).toEqual(older);
 });
 
+// PROMPT-3: a snapshot read begun before Send accepted a hold must not erase or
+// replace that hold, whether it saw no hold or an older one.
+it.each([
+  ["an empty snapshot", { agent_id: "agent", text: "", after_seq: 0 }],
+  ["an older hold", { agent_id: "agent", text: "older", after_seq: 1, held_id: "h-old", request_id: "r-old" }],
+])("keeps an accepted hold over %s read before it", async (_, snapshot) => {
+  useHeldStore.getState().release("agent");
+  let finish!: (value: Awaited<ReturnType<typeof getHeldPrompt>>) => void;
+  vi.mocked(getHeldPrompt).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const pending = readHeldRecovery("agent", () => true, true);
+  useHeldStore.getState().acceptHold("agent", "follow-up", 3, [], "h-new", "r-new");
+  finish(snapshot);
+  await pending;
+  const state = useHeldStore.getState();
+  expect([state.byAgent.agent, state.heldIdByAgent.agent, state.requestIdByAgent.agent]).toEqual(["follow-up", "h-new", "r-new"]);
+});
+
+// A delivery release during a read is not a Send; the newer server hold (for
+// example a self-annotation batch) still lands.
+it("applies a hold snapshot whose read overlapped a delivery release", async () => {
+  useHeldStore.getState().hold("agent", "delivered", 1, [], "h-old", "r-old");
+  let finish!: (value: Awaited<ReturnType<typeof getHeldPrompt>>) => void;
+  vi.mocked(getHeldPrompt).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const pending = readHeldRecovery("agent", () => true, true);
+  useHeldStore.getState().release("agent");
+  finish({ agent_id: "agent", text: "batch", after_seq: 2, held_id: "h-batch", request_id: "r-batch" });
+  await pending;
+  expect(useHeldStore.getState().heldIdByAgent.agent).toBe("h-batch");
+});
+
 const withdrawn = { accepted: true as const, agent_id: "agent", withdrawn: true,
   message: { text: "withdrawn input", request_id: "exact-withdrawal", attachments: [] } };
 

@@ -79,6 +79,27 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **One owner for a sent prompt's echo and the held tail.** From the request-ID matching review's
+  inventory (PROMPT-4, 2026-11-15). PROMPT-1–3 were patched: one echo per request ID, both desktop
+  surfaces share `useHeldProjection`, and a hold read begun before a Send's accepted hold
+  (`acceptHold`) leaves it alone. Writers today:
+  - desktop echo (`transcriptStore`): inserted only by `Composer` on an accepted, non-held,
+    non-queued Send, skipped when a sequenced event with its request ID (or, legacy, its text after
+    `beforeSeq`) is present; replaced or suppressed by `reconcileUserMessage` on SSE append and on
+    `setTranscript`; kept across a refetch only inside `beginReconciliation`, and dropped by a
+    refetch without one and by `discardAgent` (SSE reconnect);
+  - held tail (`heldStore`): set by `Composer`'s held acceptance and by `readHeldRecovery` with
+    `includeHold` (surface mount and agent state changes, self-annotation delivery); cleared by
+    the delivery match, held Steer, `useInputDelivery`'s release refresh, withdrawal, an empty
+    snapshot and the stopped-composer restore; phone keeps its own React Query hold snapshot and
+    releases the desktop store only on refresh.
+  Missing or divergent rules: no evidence other than its own delivery or a refetch clears an echo
+  whose request was later released, withdrawn or failed, so its lifetime depends on whether a
+  reconciliation was open; `acceptHold`'s revision and the `invalidateHeldReads` stale flag are two
+  fences for one projection; desktop and phone derive held state from different snapshots. Define, per
+  request ID, which receipt state inserts, replaces or clears the echo and the tail on both
+  surfaces across acknowledgment, delivery, refetch, reconnect and navigation. Coordinate the
+  hold portion with INPUT-8's inventory.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;

@@ -5,6 +5,7 @@ import type { AgentState } from "../../api/types";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { Composer } from "../chat/Composer";
 import { TranscriptView } from "../chat/TranscriptView";
+import { useHeldProjection } from "../chat/useHeldProjection";
 import type { FileLink } from "../chat/renderers/filePath";
 import { CONVERSATION_FILE_KEYS, writeFileTarget } from "../../features/fileTabs/useFileTabRoute";
 
@@ -13,6 +14,7 @@ export function DashboardChatPane({ agent }: { agent: AgentState }) {
   const navigate = useNavigate();
 
   useEffect(() => sseClient.registerOpenAgent(agent.agent_id), [agent.agent_id]);
+  useHeldProjection(agent.agent_id, agent);
 
   // The pane is one grid column wide and deliberately carries less than the agent
   // screen, so no viewer opens here: a file link takes the pane's existing route
