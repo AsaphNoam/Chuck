@@ -147,15 +147,17 @@ specs, live user state or unrelated dirty files changed.
   deterministic in the product or control it in the fixture, and rerun at `-count=40`
   (workflow §2, TS-01.R45, INV §5, §18).
 
-### Provider Refresh version observation (intermittent test, found 2026-11-15) — **Fix model:** medium — Codex Terra or Claude Opus.
+### Waiting-assignee prompt receipt (intermittent test, found 2026-11-15 during the PROVIDER-REFRESH-1 closure) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Worth fixing** — PROVIDER-REFRESH-1. `TestRefreshProviderObservesVersionWithoutExecOnRead`
-  (`internal/server/provider_refresh_test.go:88`) returned HTTP 200 with empty Version and CheckedAt
-  in the full SQLite FTS suite. The test took 2.06 s, close to the version probe's 2 s bound.
-  Five focused SQLite FTS runs passed. Check whether the marker process missed its deadline or
-  inherited competing probe work, and make the fixture distinguish correct timeout behavior from
-  a failed fast probe. The input-delivery fix did not change the probe or this fixture
-  (FS-09.A38/A43, TS-04.R72, INV §12, §17, §20).
+- **Must fix** — WAIT-PROMPT-3. `TestPromptToWaitingAssigneeIsDeliveredByContinuation`
+  (`internal/server/waiting_prompt_repro_test.go:44`) failed once in the full SQLite FTS suite at
+  `01cf102a` plus test-only fixture edits: after both 202 `queued` responses and
+  `ReleaseRestartedAttachments`, the receipt was `Delivery: released` with no
+  `AssignmentTaskID`, and the log shows `delivery=released reason=stopped_before_send` for
+  `req-wait-prompt`. 0 of 40 focused FTS runs failed. Find what released the prepared assignment
+  input (a stop/dispatch racing the route, or the restart release treating it as untracked), then
+  repair the ordering or control it in the fixture; rerun at `-count=40` (workflow §2, TS-09.R69,
+  TS-10.R29, INV §5, §18).
 
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
