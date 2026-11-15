@@ -395,3 +395,26 @@ func TestLastAssistantPreviewBoundsRetainedReply(t *testing.T) {
 		t.Fatalf("missing transcript should be empty, not an error: %v", err)
 	}
 }
+
+// OUTCOME-5 (INV §2, §7, §24): a retained turn end whose payload has the wrong
+// shape is still the turn boundary; only its outcome is unknown. The card
+// preview is the last reply, never the previous reply joined to it.
+func TestLastAssistantPreviewKeepsBoundaryAtMalformedTurnEnd(t *testing.T) {
+	path := filepath.Join(t.TempDir(), transcript.LogFileName)
+	log := transcriptEvent(t, "a_x", 1, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "old turn"}) +
+		transcriptEvent(t, "a_x", 2, runtime.EvTurnEnd, map[string]any{"stop_reason": 7}) +
+		transcriptEvent(t, "a_x", 3, runtime.EvAssistantText, runtime.AssistantTextData{Delta: " new turn"})
+	if err := os.WriteFile(path, []byte(log), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if outcome, _, err := runtime.DecodeTurnEnd(runtime.Event{Type: runtime.EvTurnEnd, Data: []byte(`{"stop_reason":7}`)}); err == nil || outcome != runtime.TurnUnknown {
+		t.Fatalf("fixture boundary decoded as %v, %v; want an undecodable payload", outcome, err)
+	}
+	got, err := lastAssistantPreviewFrom(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(got) != "new turn" {
+		t.Fatalf("preview = %q, want only the last reply", got)
+	}
+}

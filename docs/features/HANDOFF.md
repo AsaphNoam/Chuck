@@ -144,19 +144,6 @@ Second fix round: `bafade3e` and `efc65aaa` repaired Cancel precedence and termi
 quota settlement in the last 30 days. The fork test's wait for retained history matches the
 journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R110.
 
-- **Worth fixing** — OUTCOME-5. Reconciliation joins adjacent replies when a retained
-  turn-end payload has the wrong shape. A temporary test with a valid event envelope and
-  numeric `stop_reason` reproduced `old turn new turn` in the card preview.
-  `internal/server/reconcile.go:183–190` should keep the turn boundary while treating its outcome
-  as unknown. Test the last reply after a malformed boundary (INV §2, §7, §24).
-- **Worth fixing** — OUTCOME-6. The component tests leave the end-to-end agreement in A92
-  unproved. The resolver round trip (`internal/runtime/turn_outcome_test.go:13–47`) starts with
-  resolved inputs, and the source guard (`:70–102`) excludes the browser classifier.
-  The prompt RPC rejection fixture (`internal/runtime/chat_test.go:1301–1339`) checks logs but
-  does not validate the outcome, status, quota settlement or mail. Extend the existing fixtures
-  to assert the missing effects from the same emitted event and guard the live and retained
-  projections against reintroducing separate classifications (FS-03.A92, TS-01.R42, TS-06.R35,
-  INV §17).
 - **Worth fixing** — OUTCOME-8 (sibling of OUTCOME-4, found while fixing it). An assignment
   whose agent is killed by an escalated Cancel is still recovered as an unexpected exit.
   `internal/server/task_dispatcher.go:1056–1085` reads only `cause`, so a cancelled exit takes

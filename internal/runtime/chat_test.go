@@ -1305,23 +1305,54 @@ func TestPromptFailureLogsBoundedDiagnostic(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
 	c, spec := newChatTest(t, "stream_text")
+	spec.Generation = "g"
 	spec.Env = append(spec.Env, `FAKEACP_PROMPT_REJECT_DATA={"details":"secret_marker"}`)
+	quotaMu, quotaCalls := recordQuotaSettlement(c)
 	h, err := c.Start(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	ch, unsub, _ := c.Subscribe(h.AgentID)
 	defer unsub()
+	if _, err := c.store.InsertMessage(state.Message{
+		FromAgent: "a_sender", FromAddress: "reviewer@test", FromName: "Nova",
+		ToAgent: h.AgentID, Subject: "Review", Body: "Please review.",
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := c.SendPrompt(context.Background(), h.AgentID, "prompt_marker"); err != nil {
 		t.Fatalf("SendPrompt: %v", err)
 	}
+	// The mail was supplied inline with this prompt, so its receipt is at stake.
+	waitForEvent(t, ch, EvNotice)
 	var ed ErrorData
 	_ = json.Unmarshal(waitForEvent(t, ch, EvError).Data, &ed)
 	if ed.Message != "Internal error" || ed.Fatal {
 		t.Fatalf("transcript error = %+v, want the non-fatal peer message only", ed)
 	}
-	waitForEvent(t, ch, EvTurnEnd)
+	// FS-03.A92: status, the turn row, quota settlement and the inline-mail
+	// receipt all agree with this one emitted turn end.
+	end := waitForEvent(t, ch, EvTurnEnd)
+	waitTurnSettled(t, c, h.AgentID)
+	outcome, data, err := DecodeTurnEnd(end)
+	if err != nil || outcome != TurnFailed || data.StopReason != "error" || data.ProcessEnded {
+		t.Fatalf("turn end = %v %+v err=%v, want failed", outcome, data, err)
+	}
+	if status, _ := c.store.ReadStatus(h.AgentID); status.State != "error" || status.Detail != "turn failed" {
+		t.Fatalf("status = %q/%q, want error/turn failed", status.State, status.Detail)
+	}
+	if row, err := c.store.ReadConversationTurn(h.AgentID, "g"); err != nil || row.TurnID != end.TurnID || row.State != "ended" || row.Outcome != "failed" {
+		t.Fatalf("turn row = %+v err=%v, want %s ended failed", row, err, end.TurnID)
+	}
+	quotaMu.Lock()
+	if len(*quotaCalls) != 1 || (*quotaCalls)[0].turnID != end.TurnID || (*quotaCalls)[0].successful || (*quotaCalls)[0].quota != nil {
+		t.Errorf("quota settlement = %+v, want one unsuccessful non-quota settlement for %s", *quotaCalls, end.TurnID)
+	}
+	quotaMu.Unlock()
+	if unread, err := c.store.UnreadCount(h.AgentID); err != nil || unread != 1 {
+		t.Fatalf("unread after the failed turn = %d, %v; want the inline mail still unread", unread, err)
+	}
 
 	line := logs.String()
 	for _, want := range []string{"provider prompt failed", "agent=a_test01", "backend=claude-acp",

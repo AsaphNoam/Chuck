@@ -181,9 +181,8 @@ func lastAssistantPreviewFrom(path string, retained func(int)) (string, error) {
 				}
 			}
 		case runtime.EvTurnEnd:
-			if _, _, err := runtime.DecodeTurnEnd(ev); err != nil {
-				return nil
-			}
+			// The boundary stands whatever its payload: an undecodable turn end
+			// has an unknown outcome, never no turn end (INV §7, §24).
 			if strings.TrimSpace(current) != "" {
 				completed = current
 			}
