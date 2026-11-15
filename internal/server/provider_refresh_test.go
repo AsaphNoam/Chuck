@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/backend/credcheck"
 	"github.com/AsaphNoam/Chuck/internal/config"
@@ -28,6 +30,15 @@ func refreshFixture(t *testing.T, autosync bool) (*Server, http.Handler, string)
 	marker := filepath.Join(dir, "calls")
 	exe := filepath.Join(dir, "claude")
 	if err := os.WriteFile(exe, []byte("#!/bin/sh\necho \"$*\" >> "+marker+"\necho '2.1.300 (Claude Code)'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// macOS assesses a new executable on its first exec (~0.1 s idle, past
+	// the probe's 2 s bound under suite load). Pay that here, unbounded, so
+	// the probe measures a fast provider; timeouts are TestProbeVersionIsBounded's.
+	if out, err := exec.Command(exe, "warm").CombinedOutput(); err != nil {
+		t.Fatalf("warm provider: %v %s", err, out)
+	}
+	if err := os.Remove(marker); err != nil {
 		t.Fatal(err)
 	}
 	if err := srv.configStore.WriteBackends(config.BackendsConfig{Version: 2, Backends: map[string]config.Backend{
@@ -76,13 +87,19 @@ func TestRefreshProviderObservesVersionWithoutExecOnRead(t *testing.T) {
 		t.Fatalf("pre-refresh runtime = %+v", got)
 	}
 
+	start := time.Now()
 	rec := refresh(t, h, etag, "")
+	elapsed := time.Since(start)
 	if rec.Code != 200 {
 		t.Fatalf("refresh = %d %s", rec.Code, rec.Body)
 	}
 	var res refreshProviderResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
 		t.Fatal(err)
+	}
+	if res.Runtime.Version == "" {
+		// ≥2 s is the probe's timeout (a slow exec); shorter is a failed fast probe.
+		t.Fatalf("probe returned no version after %v", elapsed)
 	}
 	if res.Runtime.Version != "2.1.300" || res.Credentials.Status != "ok" || res.Catalog.Status != "disabled" || rec.Header().Get("ETag") != etag {
 		t.Fatalf("refresh result = %+v etag=%s", res, rec.Header().Get("ETag"))

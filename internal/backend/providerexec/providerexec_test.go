@@ -161,11 +161,19 @@ func TestProbeVersionIsBounded(t *testing.T) {
 		}
 		return p
 	}
+	// A fast provider is exec'd once first: macOS assesses a new executable
+	// on first exec, which under suite load can outlast the 2 s bound.
+	warm := func(p string) string {
+		if out, err := exec.Command(p).CombinedOutput(); err != nil {
+			t.Fatalf("warm %s: %v %s", p, err, out)
+		}
+		return p
+	}
 	ctx := context.Background()
-	if v := ProbeVersion(ctx, write(`echo "2.1.286 (Claude Code)"`), nil); v != "2.1.286" {
+	if v := ProbeVersion(ctx, warm(write(`echo "2.1.286 (Claude Code)"`)), nil); v != "2.1.286" {
 		t.Errorf("claude version = %q", v)
 	}
-	if v := ProbeVersion(ctx, write(`echo "codex-cli 0.159.2"`), nil); v != "0.159.2" {
+	if v := ProbeVersion(ctx, warm(write(`echo "codex-cli 0.159.2"`)), nil); v != "0.159.2" {
 		t.Errorf("codex version = %q", v)
 	}
 	for name, body := range map[string]string{
