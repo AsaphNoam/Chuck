@@ -110,7 +110,7 @@ func (c *ChatRuntime) Permission(ctx context.Context, agentID, toolCallID, decis
 		// Settle the exact request once as cancelled, recorded like any other
 		// resolution, so no actionable card survives it (FS-03.R9, INV §8).
 		c.markResolved(as, toolCallID)
-		c.updateOwnedBusy(as, "thinking", "PermissionResolved")
+		c.restoreAfterPermission(as, "thinking", "PermissionResolved")
 		c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "cancelled"})
 		c.emit(as, EvError, ErrorData{Scope: "tool", Message: "adapter offered no usable permission option"})
 		p.resolve("cancelled", "")
@@ -121,7 +121,7 @@ func (c *ChatRuntime) Permission(ctx context.Context, agentID, toolCallID, decis
 	// Write the resolved-but-active state before releasing the ACP peer. A peer
 	// may finish session/prompt as soon as it receives this response; writing busy
 	// afterwards could then overwrite the prompt goroutine's final idle status.
-	c.updateOwnedBusy(as, "thinking", "PermissionResolved")
+	c.restoreAfterPermission(as, "thinking", "PermissionResolved")
 	resolved := PermissionResolvedData{ToolCallID: toolCallID, Decision: decision}
 	if p.host != nil {
 		// The host waiter acts on this decision, so it is released only after the
@@ -156,7 +156,7 @@ func (c *ChatRuntime) onPermissionTimeout(as *agentState, toolCallID string) {
 	c.markResolved(as, toolCallID)
 	// As with a user decision, write busy before answering the peer so a fast
 	// prompt completion is the final owner of the idle transition.
-	c.updateOwnedBusy(as, "thinking", "PermissionResolved")
+	c.restoreAfterPermission(as, "thinking", "PermissionResolved")
 	c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "timeout"})
 	c.emit(as, EvError, ErrorData{Scope: "tool", Message: "permission timed out"})
 	if p.host != nil {
@@ -285,7 +285,7 @@ func (c *ChatRuntime) resolvePending(as *agentState, toolCallID, outcome, option
 	}
 	p.awaitPublished()
 	c.markResolved(as, toolCallID)
-	c.updateOwnedBusy(as, "thinking", "PermissionResolved")
+	c.restoreAfterPermission(as, "thinking", "PermissionResolved")
 	c.emitIn(as, p.scope, EvPermissionResolved, PermissionResolvedData{ToolCallID: toolCallID, Decision: "cancelled"})
 	p.resolve(outcome, optionID)
 	return true

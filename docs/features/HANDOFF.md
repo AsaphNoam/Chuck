@@ -54,8 +54,8 @@ None.
 ## Review queue
 
 - **Give agent execution one owner** — reviewed 2026-11-15, `193f301e..1d6077fa` (TS-01.R45–R50,
-  TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left EXEC-13 open for `/fix` and the
-  EXEC-6c remainder blocked on a human decision, both under **Review findings**. Its ready change and plan stay until they close. Both implementer notes were
+  TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left only the
+  EXEC-6c remainder, blocked on a human decision under **Review findings**. Its ready change and plan stay until they close. Both implementer notes were
   confirmed: the room rule stays inside task admission's claiming compare-and-swap, and the
   gate-versus-row span is sound except on a failed end write (EXEC-2). Credentialed provider and
   device gates are not closed by it.
@@ -243,21 +243,11 @@ and `7b7a12f9` (ASW-3). `7e2539a3` moved the reviewed start path to `startRuntim
 
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Fix rounds closed every finding except those below. The inventory (EXEC-12) stays in
+Fix rounds closed every finding except the one below. The inventory (EXEC-12) stays in
 `docs/ideas.md` ("One exit rule for a claimed chat turn"), with the independent check's
 same-cause concerns; on 2026-11-15 the operator declined a design pass for it while
 TURN-STOP-1–3 were open. They are closed and the Stop inventory is the next `docs/ideas.md` entry.
 The independent check is owed again only for the EXEC-6c repair.
-
-- **Worth fixing** — EXEC-13 (sibling found while closing EXEC-9; read on 2026-11-15, not
-  reproduced). A permission request with no begun turn leaves `waiting_input` stored after it
-  resolves. `updatePermissionStatus` writes `waiting_input` whether or not a turn owns the agent
-  (`internal/runtime/chat.go`, `updatePermissionStatus`), and every resolution restores status
-  only through `updateOwnedBusy` (`internal/runtime/permission.go:113,124,159,288`), which
-  writes nothing without a begun, unsettled turn. A native background continuation after a turn
-  end, or a request during an idle Steer's reservation, has no turn end to restore `idle`. Test a
-  permission request and resolution on a settled agent and assert the stored status (FS-02.R3,
-  FS-01.R52, TS-01.R44, INV §1, §5).
 
 - **Must fix** — EXEC-6c (remainder, blocked on human): 11 exported `*Store` writers are called
   only from other packages' tests — `AddThinkTankRecord`, `AttachTaskContext`,

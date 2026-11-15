@@ -263,6 +263,51 @@ func TestBackgroundFrameAfterTurnSettlesCannotReopenBusy(t *testing.T) {
 	waitForEvent(t, ch, EvTurnEnd)
 }
 
+// EXEC-13, FS-02.R3, FS-01.R52, INV §1 — a permission request outside a begun
+// turn (a native background continuation) shows waiting_input while open, and
+// its resolution restores the settled composition: no turn end follows it.
+func TestPermissionWithoutTurnRestoresIdleOnResolution(t *testing.T) {
+	c, spec := newChatTest(t, "")
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Stop(context.Background(), h.AgentID) })
+	ch, unsub, err := c.Subscribe(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(unsub)
+	if err := c.SendPrompt(context.Background(), h.AgentID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvTurnEnd)
+	waitTurnSettled(t, c, h.AgentID)
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Two gates open after the settled turn; only the last resolution clears waiting_input.
+	for _, id := range []string{"tc_bg_deny", "tc_bg_timeout"} {
+		params := json.RawMessage(`{"toolCall":{"toolCallId":"` + id + `","title":"Bash","kind":"execute"},
+"options":[{"optionId":"opt_allow","name":"Allow","kind":"allow_once"},{"optionId":"opt_reject","name":"Reject","kind":"reject_once"}]}`)
+		c.onRequest(as, &IncomingRequest{ID: 1, Method: "session/request_permission", Params: params, t: NewTransport(io.Discard, nil, nil)})
+	}
+	if got := readState(t, c, h.AgentID); got != "waiting_input" {
+		t.Fatalf("status while requests are open = %q, want waiting_input", got)
+	}
+	if err := c.Permission(context.Background(), h.AgentID, "tc_bg_deny", "deny"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readState(t, c, h.AgentID); got != "waiting_input" {
+		t.Fatalf("status with one gate still open = %q, want waiting_input", got)
+	}
+	c.onPermissionTimeout(as, "tc_bg_timeout")
+	if got := readState(t, c, h.AgentID); got != "idle" {
+		t.Fatalf("status after the last resolution with no turn = %q, want idle", got)
+	}
+}
+
 // ASRC-5, FS-03.R9, INV §5 — Cancel that claims an ACP permission before its
 // request and waiting status are published waits for that publication: the
 // resolution follows the request and no waiting_input survives the settled gate.

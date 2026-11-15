@@ -2794,15 +2794,50 @@ func (c *ChatRuntime) applyEventStatus(as *agentState, m mappedEvent) {
 // behind it (FS-02.R3/R22, FS-01.R52, INV §5).
 func (c *ChatRuntime) updateOwnedBusy(as *agentState, detail, trace string) {
 	c.mutateStatus(as, false, func(st *state.Status, _ error) bool {
-		as.mu.Lock()
-		owned := as.turn.turnActive && !as.stopped && as.turn.execTurnID != "" &&
-			as.turn.execTurnID == as.turn.begunTurnID &&
-			as.turn.execTurnID != as.turn.settledTurnID && len(as.turn.pending) == 0
-		as.mu.Unlock()
+		owned := as.ownsBusy()
 		if owned {
 			setStatusTransition(st, state.ComposeChatStatus(state.ChatProcessLive, state.ConversationTurn{State: "running"}, false), detail, trace, keepBusySince)
 		}
 		return owned
+	})
+}
+
+func (as *agentState) ownsBusy() bool {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	return as.turn.turnActive && !as.stopped && as.turn.execTurnID != "" &&
+		as.turn.execTurnID == as.turn.begunTurnID &&
+		as.turn.execTurnID != as.turn.settledTurnID && len(as.turn.pending) == 0
+}
+
+// restoreAfterPermission closes a resolved permission gate's waiting_input.
+// An owned turn returns to busy; otherwise, once no other gate is open, the row
+// returns to the live generation's own turn composition, because no turn end
+// will follow a request made outside a begun turn (FS-02.R3, FS-01.R52, INV §1).
+func (c *ChatRuntime) restoreAfterPermission(as *agentState, detail, trace string) {
+	c.mutateStatus(as, false, func(st *state.Status, _ error) bool {
+		if as.ownsBusy() {
+			setStatusTransition(st, state.ComposeChatStatus(state.ChatProcessLive, state.ConversationTurn{State: "running"}, false), detail, trace, keepBusySince)
+			return true
+		}
+		as.mu.Lock()
+		gated := as.stopped || len(as.turn.pending) > 0
+		as.mu.Unlock()
+		if gated || st.State != "waiting_input" {
+			return false
+		}
+		turn, err := c.store.ReadConversationTurn(as.agentID, as.generation)
+		if err != nil && !errors.Is(err, state.ErrNotFound) {
+			slog.Warn("runtime: read turn after permission", "agent", as.agentID, "err", err)
+			return false
+		}
+		composed := state.ComposeChatStatus(state.ChatProcessLive, turn, false)
+		mode := clearBusySince
+		if composed == "busy" {
+			mode = keepBusySince
+		}
+		setStatusTransition(st, composed, "", trace, mode)
+		return true
 	})
 }
 
