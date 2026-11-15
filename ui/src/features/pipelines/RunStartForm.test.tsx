@@ -232,7 +232,7 @@ describe("RunStartForm", () => {
         orchestrator: { backend: "alternate", model: "opus", effort: "high", fast: true },
         dedicated_assignments: {
           design: { backend: "alternate", model: "opus", effort: "high", fast: false },
-          review: { backend: "alternate", model: "opus", effort: "low", fast: false },
+          review: { backend: "alternate", model: "opus", effort: "", fast: false },
         },
         think_tank_assignments: {},
       },
@@ -242,6 +242,7 @@ describe("RunStartForm", () => {
     expect(await screen.findByText("Proposal selections")).toBeInTheDocument();
     expect(screen.getByLabelText("Run name (optional)")).toHaveValue("Proposed run");
     expect(screen.getByText(/Alternate · Opus.*high.*Fast mode on/)).toBeInTheDocument();
+    expect(screen.getByText("2 runtime assignments")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Customize runtimes"));
     expect(screen.getAllByLabelText("Backend")[0]).toHaveValue("alternate");
     expect(screen.getAllByLabelText("Model")[0]).toHaveValue("opus");
@@ -253,7 +254,7 @@ describe("RunStartForm", () => {
         alternate: { name: "Updated Alternate", type: "codex-acp", default: true, default_model: "opus", models: { opus: { name: "Updated Opus", model: "opus", fast: true, efforts: ["low", "high"], default_effort: "high" } } },
       },
     });
-    expect(await screen.findAllByText(/Updated Alternate · Updated Opus/)).toHaveLength(3);
+    expect(await screen.findAllByText(/Updated Alternate · Updated Opus/)).toHaveLength(2);
     expect(screen.getAllByLabelText("Backend")[0]).toHaveValue("alternate");
     expect(screen.getAllByLabelText("Model")[0]).toHaveValue("opus");
     expect(screen.getAllByRole("checkbox")[0]).toBeChecked();

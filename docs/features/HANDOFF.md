@@ -30,14 +30,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 ## Active change
 
 - [Simplify pipeline configuration](../ready-changes/simplify-pipeline-configuration.md) — in progress.
-  Template authoring, source-based handoffs, save recovery, launch setup and named supervision
-  pass the focused pipeline editor, routes, desktop run and phone run tests. Room member labels
-  and the missing-handoff refusal pass focused Go tests. Next finish the isolated desktop and
-  phone browser journeys, then run the full closure checks against stable embedded assets.
-  Keep the stage list and one active stage, place name and instructions first, and use existing
-  disclosures for coordination and machine-checked handoffs. The stage list surfaces actual
-  completion and approval requirements. Preserve the draft on a refusal and reopen the relevant
-  section. Use existing form and dialog styles without adding motion.
+  Both Go variants, the complete UI suite and the embedded build passed. The isolated browser
+  journeys covered authoring and launching five stages, required handoff serialization, existing
+  template and exact proposal round trips, configured launch defaults, custom names, validation,
+  and shared-checkout confirmation on desktop and phone. The short desktop viewport keeps the
+  focused stage field clear of the action footer. Close the specifications and queue the review.
 
 ## Decisions needing input
 

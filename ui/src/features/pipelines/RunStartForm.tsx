@@ -3,6 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useBackends, useConfig, useProjects, useRoles } from "../../api/config";
 import { personaLabel } from "../../lib/personas";
+import { resetRuntimeForBackend, resetRuntimeForModel } from "../../lib/runtimeSelection";
 import {
   pipelineDiagnostics,
   sharedWorkspaceConflicts,
@@ -17,7 +18,7 @@ import type {
   PipelineWorkspaceConflict,
   PipelineWorkspaceSelection,
 } from "../../schemas/pipeline";
-import type { Backend } from "../../schemas/backends";
+import type { Backend, BackendsConfig } from "../../schemas/backends";
 import { projectTitle } from "../../lib/labels";
 import { describeWorkspace } from "./proposalSummary";
 import { pipelineActionError, pipelineOptionLabels, pipelineParticipantLabel, pipelineStageLabels } from "./pipelineLabels";
@@ -27,11 +28,12 @@ type Assignment = PipelineStartRequest["orchestrator"];
 type RoomAssignments = NonNullable<PipelineStartRequest["think_tank_assignments"]>;
 type RuntimeSlot = { key: string; label: string; editLabel?: string; field: string; value: Assignment; set: (value: Assignment) => void };
 
-function groupRuntimes(slots: RuntimeSlot[], backends: Record<string, Backend> | undefined) {
+function groupRuntimes(slots: RuntimeSlot[], catalog: BackendsConfig | undefined) {
   const groups = new Map<string, RuntimeSlot[]>();
   for (const slot of slots) {
     const { backend, model, effort, fast } = slot.value;
-    const key = backends?.[backend]?.models[model] ? JSON.stringify([backend, model, effort, fast]) : slot.field;
+    const resolvedEffort = effort || resetRuntimeForModel(catalog, backend, model).effort;
+    const key = catalog?.backends[backend]?.models[model] ? JSON.stringify([backend, model, resolvedEffort, fast]) : slot.field;
     const group = groups.get(key);
     if (group) group.push(slot);
     else groups.set(key, [slot]);
@@ -45,33 +47,35 @@ function requestID() {
     : `ui_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-function RuntimeAssignment({ label, field, number = 1, value, backends, entries, onChange }: {
+function RuntimeAssignment({ label, field, number = 1, value, catalog, entries, onChange }: {
   label: string;
   field: string;
   number?: number;
   value: PipelineRuntimeAssignment;
-  backends: Record<string, Backend> | undefined;
+  catalog: BackendsConfig | undefined;
   entries: [string, Backend][];
   onChange: (value: PipelineRuntimeAssignment) => void;
 }) {
-  const backend = backends?.[value.backend];
+  const backend = catalog?.backends[value.backend];
   return <div className="pipeline-runtime-row" data-field={field}>
     <span className="pipeline-stage-number">{number}</span>
     <div><strong>{label}</strong><small>Frozen for this run</small></div>
-    <label className="form-field"><span>Backend</span><select value={value.backend} onChange={(event) => { const backendID = event.target.value; const selected = backends?.[backendID]; const model = selected?.default_model || Object.keys(selected?.models ?? {})[0] || ""; onChange({ backend: backendID, model, effort: selected?.models[model]?.default_effort || "", fast: false }); }}><option value="">Select configured backend</option>{pipelineOptionLabels(entries.map(([backendID, item]) => [backendID, item.name]), "backend").map(([backendID, name]) => <option key={backendID} value={backendID}>{name}</option>)}</select></label>
-    <label className="form-field"><span>Model</span><select value={value.model} onChange={(event) => { const model = backend?.models[event.target.value]; onChange({ ...value, model: event.target.value, effort: model?.default_effort || "", fast: false }); }}><option value="">Select configured model</option>{pipelineOptionLabels(Object.entries(backend?.models ?? {}).map(([modelID, model]) => [modelID, model.name]), "model").map(([modelID, name]) => <option key={modelID} value={modelID}>{name}</option>)}</select></label>
-    {(backend?.models[value.model]?.efforts ?? []).length > 0 && <label className="form-field"><span>Effort</span><select value={value.effort} onChange={(event) => onChange({ ...value, effort: event.target.value })}>{(backend?.models[value.model]?.efforts ?? []).map((effort) => <option key={effort} value={effort}>{effort}</option>)}</select></label>}
+    <label className="form-field"><span>Backend</span><select value={value.backend} onChange={(event) => onChange({ ...resetRuntimeForBackend(catalog, event.target.value), fast: false })}><option value="">Select configured backend</option>{pipelineOptionLabels(entries.map(([backendID, item]) => [backendID, item.name]), "backend").map(([backendID, name]) => <option key={backendID} value={backendID}>{name}</option>)}</select></label>
+    <label className="form-field"><span>Model</span><select value={value.model} onChange={(event) => onChange({ ...resetRuntimeForModel(catalog, value.backend, event.target.value), fast: false })}><option value="">Select configured model</option>{pipelineOptionLabels(Object.entries(backend?.models ?? {}).map(([modelID, model]) => [modelID, model.name]), "model").map(([modelID, name]) => <option key={modelID} value={modelID}>{name}</option>)}</select></label>
+    {(backend?.models[value.model]?.efforts ?? []).length > 0 && <label className="form-field"><span>Effort</span><select value={value.effort} onChange={(event) => onChange({ ...value, effort: event.target.value })}>{!value.effort && <option value="">Model default</option>}{(backend?.models[value.model]?.efforts ?? []).map((effort) => <option key={effort} value={effort}>{effort}</option>)}</select></label>}
     {backend?.models[value.model]?.fast && <label className="form-field"><span>Speed</span><span><input type="checkbox" checked={value.fast} onChange={(event) => onChange({ ...value, fast: event.target.checked })} /> Fast mode</span></label>}
   </div>;
 }
 
-function runtimeSummary(value: PipelineRuntimeAssignment, backends: Record<string, Backend> | undefined) {
+function runtimeSummary(value: PipelineRuntimeAssignment, catalog: BackendsConfig | undefined) {
+  const backends = catalog?.backends;
   const backend = backends?.[value.backend];
   const model = backend?.models[value.model];
   const backendLabel = pipelineOptionLabels(Object.entries(backends ?? {}).map(([id, item]) => [id, item.name]), "backend").find(([id]) => id === value.backend)?.[1] ?? (value.backend ? "Backend unavailable" : "Choose a backend");
   const modelLabel = pipelineOptionLabels(Object.entries(backend?.models ?? {}).map(([id, item]) => [id, item.name]), "model").find(([id]) => id === value.model)?.[1] ?? (value.model ? "model unavailable" : "choose a model");
   const fastLabel = value.fast ? "Fast mode on" : model?.fast ? "Fast mode off" : "";
-  return [backendLabel, modelLabel, value.effort, fastLabel].filter(Boolean).join(" · ");
+  const effort = value.effort || resetRuntimeForModel(catalog, value.backend, value.model).effort;
+  return [backendLabel, modelLabel, effort, fastLabel].filter(Boolean).join(" · ");
 }
 
 export function RunStartForm({
@@ -177,9 +181,10 @@ export function RunStartForm({
     // Configured defaults fill only absent selections (FS-14.R80).
     const seed = (current?: Assignment): Assignment => {
       const backendID = current?.backend || defaultBackend;
-      const backend = backends.data?.backends[backendID];
-      const model = current?.model || backend?.default_model || Object.keys(backend?.models ?? {})[0] || "";
-      return { backend: backendID, model, effort: current?.effort || backend?.models[model]?.default_effort || "", fast: current?.fast ?? false };
+      const selection = current?.model
+        ? resetRuntimeForModel(backends.data, backendID, current.model)
+        : resetRuntimeForBackend(backends.data, backendID);
+      return { ...selection, effort: current?.effort || selection.effort, fast: current?.fast ?? false };
     };
     setOrchestrator((current) => seed(current));
     setDedicatedAssignments((current) => Object.fromEntries(template.stages.filter((stage) => stage.coordination === "dedicated").map((stage) => [stage.id, seed(current[stage.id])])));
@@ -318,7 +323,7 @@ export function RunStartForm({
     ? `Customize runtimes for the standing owner and every dedicated coordinator${hasRoom ? ", Think Tank participant and judge" : ""}.`
     : null);
 
-  const runtimeGroups = stepMode ? groupRuntimes(slots, backends.data?.backends) : slots.map((slot) => [slot]);
+  const runtimeGroups = stepMode ? groupRuntimes(slots, backends.data) : slots.map((slot) => [slot]);
   const effectiveName = displayName || template?.title || "Untitled run";
   const runtimeSourceLabel = runtimeSource === "proposal"
     ? "Proposal selections"
@@ -381,12 +386,12 @@ export function RunStartForm({
       </div>}
       {template && <section className="pipeline-runtime-summary" aria-label="Selected runtimes">
         <div className="pipeline-runtime-summary-heading"><h3>Selected runtimes</h3><span>{runtimeSourceLabel}</span></div>
-        <ol>{runtimeGroups.map(([row, ...others]) => <li key={row.field}><strong>{others.length ? `${others.length + 1} runtime assignments` : row.label}</strong><small>{runtimeSummary(row.value, backends.data?.backends)}</small></li>)}</ol>
+        <ol>{runtimeGroups.map(([row, ...others]) => <li key={row.field}><strong>{others.length ? `${others.length + 1} runtime assignments` : row.label}</strong><small>{runtimeSummary(row.value, backends.data)}</small></li>)}</ol>
       </section>}
       {template && <details className="pipeline-disclosure pipeline-runtime-customize" open={runtimeOpen} onToggle={(event) => setRuntimeOpen(event.currentTarget.open)}>
         <summary>Customize runtimes</summary>
         <div className="pipeline-disclosure-body"><div className="pipeline-runtime-list">
-          {slots.map((slot, index) => <RuntimeAssignment key={slot.key} label={slot.editLabel ?? slot.label} field={slot.field} number={index + 1} value={slot.value} backends={backends.data?.backends} entries={backendEntries} onChange={(value) => { edit(); setRuntimeSource("selected"); slot.set(value); }} />)}
+          {slots.map((slot, index) => <RuntimeAssignment key={slot.key} label={slot.editLabel ?? slot.label} field={slot.field} number={index + 1} value={slot.value} catalog={backends.data} entries={backendEntries} onChange={(value) => { edit(); setRuntimeSource("selected"); slot.set(value); }} />)}
         </div></div>
       </details>}</div>}
 
@@ -394,7 +399,7 @@ export function RunStartForm({
         {stepMode && <>
         <div className="pipeline-review-hero"><p className="pipeline-eyebrow">Ready to launch</p><h3>{effectiveName}</h3><p>{goal}</p></div>
         <dl className="pipeline-review-facts"><div><dt>Template</dt><dd>{template?.title || "Untitled pipeline"}</dd></div><div><dt>Project</dt><dd>{projectTitle(projects.data, project)}</dd></div><div><dt>Workspace</dt><dd>{describeWorkspace(selectedWorkspace)}</dd></div><div><dt>Stages</dt><dd>{template?.stages.length ?? 0}</dd></div><div><dt>Named inputs</dt><dd>{Object.values(inputs).filter((value) => value.trim()).length}</dd></div></dl>
-        <ol className="pipeline-review-runtimes">{slots.map((row, index) => <li key={row.key}><span>{index + 1}</span><div><strong>{row.label}</strong><small>{runtimeSummary(row.value, backends.data?.backends)}</small></div></li>)}</ol>
+        <ol className="pipeline-review-runtimes">{slots.map((row, index) => <li key={row.key}><span>{index + 1}</span><div><strong>{row.label}</strong><small>{runtimeSummary(row.value, backends.data)}</small></div></li>)}</ol>
         </>}
       </div>}
 

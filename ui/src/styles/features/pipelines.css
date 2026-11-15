@@ -440,7 +440,6 @@ a.pipeline-agent-card:hover strong { text-decoration: underline; }
 
 .pipeline-template-editor { gap: var(--ad-space-4); }
 .pipeline-subsection { border-top: var(--ad-border-thin) solid var(--ad-border-default); display: grid; gap: var(--ad-space-3); padding-top: var(--ad-space-4); }
-.pipeline-editor-basics { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-large); display: grid; gap: var(--ad-space-4); grid-template-columns: minmax(180px, 0.7fr) minmax(0, 2fr); padding: var(--ad-space-4); }
 .pipeline-editor-workspace { align-items: start; display: grid; gap: var(--ad-space-4); grid-template-columns: minmax(220px, 0.55fr) minmax(0, 2fr); }
 .pipeline-stage-navigator { background: var(--ad-technical-background); color: var(--ad-technical-text); min-width: 0; padding: var(--ad-space-3); position: sticky; top: var(--ad-space-4); }
 .pipeline-stage-nav-heading { border-bottom: var(--ad-border-thin) solid var(--ad-technical-muted); padding: var(--ad-space-2); }

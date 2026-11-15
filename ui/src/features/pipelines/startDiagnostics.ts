@@ -36,7 +36,7 @@ export function startDiagnosticText({ field, code, message }: PipelineDiagnostic
     if (code === "unknown") return `${label} includes a selection that is no longer in the template.`;
     return `Check the configured runtime for ${label}.`;
   }
-  if (field.startsWith("inputs.")) return `${field.slice("inputs.".length)}: ${message}`;
+  if (field.startsWith("inputs.")) return code === "unknown" ? "One input is no longer defined by the template." : `${field.slice("inputs.".length)}: ${message}`;
   if (field.startsWith("workspace")) return message;
   if (field === "display_name") return message.replace(/display_name/g, "Run name");
   if (field === "goal") return message.replace(/^goal/, "Run goal");

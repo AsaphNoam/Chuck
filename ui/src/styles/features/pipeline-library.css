@@ -103,14 +103,6 @@
   .pipeline-stage-card .pipeline-think-tank-participants > li { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pipeline-stage-nav-item strong, .pipeline-stage-heading strong { overflow-wrap: anywhere; }
 
-  .pipeline-editor-basics {
-    border-radius: var(--ad-radius-medium);
-    grid-template-columns: minmax(160px, 0.75fr) minmax(0, 1fr) minmax(180px, 0.85fr);
-    padding: calc(var(--ad-space-4) + var(--ad-space-1));
-  }
-
-  .pipeline-editor-basics > .form-field:last-child { grid-column: 1 / -1; }
-
   .pipeline-editor-workspace {
     gap: var(--ad-space-4);
     grid-template-columns: minmax(210px, 0.34fr) minmax(0, 1fr);
@@ -132,7 +124,6 @@
   }
 
   .pipeline-stage-nav-heading h3 { color: var(--ad-text-primary); font-size: 1rem; }
-  .pipeline-stage-nav-heading .pipeline-eyebrow { margin-bottom: var(--ad-space-1); }
   .pipeline-stage-navigator > ol { gap: var(--ad-space-2); grid-template-columns: minmax(0, 1fr); padding-top: var(--ad-space-3); }
 
   .pipeline-stage-nav-item {
@@ -184,10 +175,12 @@
     bottom: var(--ad-space-3);
   }
 
+  @media (max-height: 820px) {
+    .pipeline-editor-actions { position: static; }
+  }
+
   @media (max-width: 900px) {
     .pipeline-template-row { grid-template-columns: minmax(60px, 0.18fr) minmax(0, 1fr) minmax(115px, 0.35fr) auto; }
-    .pipeline-editor-basics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .pipeline-editor-basics > .form-field:last-child { grid-column: 1 / -1; }
     .pipeline-editor-workspace { grid-template-columns: minmax(180px, 0.4fr) minmax(0, 1fr); }
     .pipeline-stage-card { padding: calc(var(--ad-space-4) + var(--ad-space-1)); }
   }
@@ -200,8 +193,6 @@
     .pipeline-template-validation { grid-column: 2; }
     .pipeline-template-row .pipeline-row-arrow { grid-column: 3; grid-row: 1; }
     .pipeline-library-footnote { text-align: left; }
-    .pipeline-editor-basics { grid-template-columns: minmax(0, 1fr); }
-    .pipeline-editor-basics > .form-field:last-child { grid-column: auto; }
     .pipeline-editor-workspace { grid-template-columns: minmax(0, 1fr); }
     .pipeline-stage-navigator { position: static; }
     .pipeline-stage-navigator > ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }

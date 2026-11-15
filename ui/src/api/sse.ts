@@ -21,6 +21,7 @@ import { fileTabs } from "../features/fileTabs/store";
 import { listDrafts, purgeOwnerDrafts, restoreDrafts } from "../features/fileTabs/drafts";
 import { notificationAgentId, openAgentConversation } from "../lib/agentConversation";
 import { refreshInputQueries } from "../lib/heldMessage";
+import { pipelineAttentionText } from "../features/pipelines/pipelineLabels";
 
 function parseBusData(raw: string): unknown {
   try {
@@ -258,7 +259,10 @@ class SseClient {
 
   private onNotification(event: MessageEvent<string>) {
     const envelope = JSON.parse(event.data) as BusEvent<NotificationPayload>;
-    const notification = envelope.data;
+    const received = envelope.data;
+    const notification = received.notification_type === "pipeline_needs_attention" && received.body
+      ? { ...received, body: pipelineAttentionText(received.body) }
+      : received;
     this.discoverUnsavedPermission(notification);
     const cfg = queryClient.getQueryData<Config>(QUERY_KEYS.config);
     if (cfg?.notifications?.muted?.[notification.notification_type]) return;

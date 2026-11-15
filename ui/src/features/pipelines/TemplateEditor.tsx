@@ -65,12 +65,19 @@ export function TemplateEditor({ seed, proposalUpdatesExisting = false, savedNot
   });
   const [busy, setBusy] = useState<"validate" | "save" | null>(null);
   const submitted = useRef<PipelineTemplate | null>(null);
+  const focusNewStage = useRef(false);
   const form = useRef<HTMLFieldSetElement>(null);
   const labels = pipelineStageLabels(draft.stages);
   const roleOptions = pipelineOptionLabels(Object.entries(roles.data ?? {}).map(([key, role]) => [key, role.title?.trim() ? personaLabel(key, role) : ""]), "role");
   const stage = draft.stages[selectedStage];
   const path = `stages.${selectedStage}`;
   const visibleDiagnostics = diagnostics.map((item) => templateDiagnostic(item, draft, labels));
+
+  useEffect(() => {
+    if (!focusNewStage.current) return;
+    focusNewStage.current = false;
+    form.current?.querySelector<HTMLInputElement>(`[data-template-field="${path}.title"]`)?.focus();
+  }, [path]);
 
   useEffect(() => {
     if (busy || diagnostics.length === 0) return;
@@ -205,41 +212,13 @@ export function TemplateEditor({ seed, proposalUpdatesExisting = false, savedNot
         <label className="form-field">
           <span>Template name</span><input value={draft.title} data-template-field="title" onChange={(event) => mutate((next) => { next.title = event.target.value; })} />
         </label>
-        <details className="pipeline-disclosure" data-template-field="orchestration">
-          <summary>Orchestration</summary>
-          <div className="pipeline-disclosure-body">
-            <label className="form-field"><span>Standing orchestrator role</span>{roleSelect(draft.orchestrator_role, "orchestrator_role", (value) => mutate((next) => { next.orchestrator_role = value; }))}</label>
-            <label className="form-field"><span>Shared orchestrator instructions</span>
-              <AutoGrowTextarea rows={2} value={draft.orchestrator_instructions ?? ""} data-template-field="orchestrator_instructions"
-                onChange={(event) => mutate((next) => { next.orchestrator_instructions = event.target.value; })} />
-            </label>
-          </div>
-        </details>
-
-        <details className="pipeline-disclosure pipeline-editor-inputs" data-slot="inputs" data-template-field="inputs">
-          <summary>Run inputs{draft.inputs.length > 0 && <span>{draft.inputs.length}</span>}</summary>
-          <div className="pipeline-disclosure-body">
-            <div className="pipeline-subsection-header">
-              <p>Named values collected before a run can start.</p>
-              <button type="button" onClick={() => mutate((next) => next.inputs.push({ name: "", description: "", required: true }))}>Add run input</button>
-            </div>
-            {draft.inputs.map((input, index) => (
-              <div className="pipeline-inline-row" key={index}>
-                <label className="form-field"><span>Input name</span><input value={input.name} data-template-field={`inputs.${index}.name`} onChange={(event) => mutate((next) => { next.inputs[index].name = event.target.value; })} /></label>
-                <label className="form-field"><span>Description</span><input value={input.description} data-template-field={`inputs.${index}.description`} onChange={(event) => mutate((next) => { next.inputs[index].description = event.target.value; })} /></label>
-                <label className="pipeline-check"><input type="checkbox" checked={input.required} onChange={(event) => mutate((next) => { next.inputs[index].required = event.target.checked; })} /> Required</label>
-                <button type="button" className="ad-button-danger" onClick={() => mutate((next) => { next.inputs.splice(index, 1); })}>Remove input</button>
-              </div>
-            ))}
-          </div>
-        </details>
-
         <div className="pipeline-editor-workspace" data-slot="workspace" data-template-field="stages">
           <aside className="pipeline-stage-navigator" data-slot="navigator">
             <div className="pipeline-stage-nav-heading"><h3>Stages</h3>
-              <button type="button" disabled={draft.stages.length >= 32} onClick={() => {
+              <button type="button" disabled={draft.stages.length >= 32} title={draft.stages.length >= 32 ? "A template can have up to 32 stages" : undefined} onClick={() => {
                 const added = newStage();
                 mutate((next) => next.stages.push(added));
+                focusNewStage.current = true;
                 setSelectedStage(draft.stages.length);
               }}>Add stage</button>
             </div>
@@ -303,6 +282,35 @@ export function TemplateEditor({ seed, proposalUpdatesExisting = false, savedNot
             </article>}
           </div>
         </div>
+
+        <details className="pipeline-disclosure" data-template-field="orchestration">
+          <summary>Orchestration</summary>
+          <div className="pipeline-disclosure-body">
+            <label className="form-field"><span>Standing orchestrator role</span>{roleSelect(draft.orchestrator_role, "orchestrator_role", (value) => mutate((next) => { next.orchestrator_role = value; }))}</label>
+            <label className="form-field"><span>Shared orchestrator instructions</span>
+              <AutoGrowTextarea rows={2} value={draft.orchestrator_instructions ?? ""} data-template-field="orchestrator_instructions"
+                onChange={(event) => mutate((next) => { next.orchestrator_instructions = event.target.value; })} />
+            </label>
+          </div>
+        </details>
+
+        <details className="pipeline-disclosure pipeline-editor-inputs" data-slot="inputs" data-template-field="inputs">
+          <summary>Run inputs{draft.inputs.length > 0 && <span>{draft.inputs.length}</span>}</summary>
+          <div className="pipeline-disclosure-body">
+            <div className="pipeline-subsection-header">
+              <p>Named values collected before a run can start.</p>
+              <button type="button" onClick={() => mutate((next) => next.inputs.push({ name: "", description: "", required: true }))}>Add run input</button>
+            </div>
+            {draft.inputs.map((input, index) => (
+              <div className="pipeline-inline-row" key={index}>
+                <label className="form-field"><span>Input name</span><input value={input.name} data-template-field={`inputs.${index}.name`} onChange={(event) => mutate((next) => { next.inputs[index].name = event.target.value; })} /></label>
+                <label className="form-field"><span>Description</span><input value={input.description} data-template-field={`inputs.${index}.description`} onChange={(event) => mutate((next) => { next.inputs[index].description = event.target.value; })} /></label>
+                <label className="pipeline-check"><input type="checkbox" checked={input.required} onChange={(event) => mutate((next) => { next.inputs[index].required = event.target.checked; })} /> Required</label>
+                <button type="button" className="ad-button-danger" onClick={() => mutate((next) => { next.inputs.splice(index, 1); })}>Remove input</button>
+              </div>
+            ))}
+          </div>
+        </details>
       </fieldset>
 
       {visibleDiagnostics.length > 0 && <ul className="pipeline-diagnostics" role="alert">
