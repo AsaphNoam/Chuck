@@ -29,11 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**Fix shared desktop and phone input delivery** (INPUT-1–8). The browser scoping, exact
-recovery/hold arbitration and ownership inventory are ready. The independent check and follow-up
-regressions, focused Go race checks, full UI tests, builds and Chromium phone reload passed.
-Finish both Go suites before removing the findings. Current logs are
-`/tmp/chuck-input-go-final.log` and `/tmp/chuck-input-go-tagged.log`.
+None.
 
 ## Decisions needing input
 
@@ -63,12 +59,6 @@ Finish both Go suites before removing the findings. Current logs are
   confirmed: the room rule stays inside task admission's claiming compare-and-swap, and the
   gate-versus-row span is sound except on a failed end write (EXEC-2). Credentialed provider and
   device gates are not closed by it.
-
-- **Shared desktop and phone input delivery** — reviewed 2026-11-15, `dfd644be^..91828210`
-  (TS-08.R164), with reconnect behavior checked at `80414288` (TS-08.R168). INPUT-1–8 are
-  under **Review findings** and wait for `/fix`. Desktop transcript refetch fences older reads;
-  the phone's held query and sequenced-only transcript are sound projection choices. The desktop
-  recovery read still misses reconnect and peer settlement (INPUT-2).
 
 - **Match sent prompts by request ID** — reviewed 2026-11-15, `fb245d40` (FS-03.R118/A93,
   TS-08.R163). PROMPT-1–4 are under **Review findings** and wait for `/fix`.
@@ -152,6 +142,16 @@ specs, live user state or unrelated dirty files changed.
   deterministic in the product or control it in the fixture, and rerun at `-count=40`
   (workflow §2, TS-01.R45, INV §5, §18).
 
+### Provider Refresh version observation (intermittent test, found 2026-11-15) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Worth fixing** — PROVIDER-REFRESH-1. `TestRefreshProviderObservesVersionWithoutExecOnRead`
+  (`internal/server/provider_refresh_test.go:88`) returned HTTP 200 with empty Version and CheckedAt
+  in the full SQLite FTS suite. The test took 2.06 s, close to the version probe's 2 s bound.
+  Five focused SQLite FTS runs passed. Check whether the marker process missed its deadline or
+  inherited competing probe work, and make the fixture distinguish correct timeout behavior from
+  a failed fast probe. The input-delivery fix did not change the probe or this fixture
+  (FS-09.A38/A43, TS-04.R72, INV §12, §17, §20).
+
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Fix rounds closed every finding except the one below. The inventory (EXEC-12) stays in
@@ -171,72 +171,6 @@ The independent check is owed again only for the EXEC-6c repair.
   shrink-only `fixtureOnlyWriters` list (`internal/state/store_writer_callers_test.go`); the
   decision is under **Blocked on human** (TS-01.R50, INV §10, §17).
 
-
-### Shared desktop and phone input delivery (`dfd644be^..91828210`) — reviewed 2026-11-15 at `80414288` — **Fix model:** difficult — Codex Sol.
-
-Second fix round: exact input identity, successful Steer recovery and withdrawn-input reads
-had findings fixed in the last 30 days (`2268e279`, `0e98d3c4`, `8b3ba830`). INPUT-8 asks
-for an inventory (§7, §8).
-
-- **Must fix** — INPUT-1: a delayed rejection restores text into the wrong desktop chat.
-  `useInputDelivery.ts:121,139` checks the original draft revision, then `Composer.tsx:93`
-  writes both that draft and the now-reused textarea. Reproduced with a delayed 409 after
-  navigating from chat A to chat B: both stored drafts were correct, but chat B displayed
-  chat A's text and could send it to B. Restore the submitted draft through its agent-scoped
-  owner and fence the view update. Make the existing switch-chat test wait for the request
-  and restoration to complete; cover refusal and uncertainty (FS-03.R36, INV §1, §23).
-- **Must fix** — INPUT-2: one recovery offer can submit after another client settles it.
-  `RecoveryOffer.tsx:18–41` keeps a browser retry ID until local success. A peer's Dismiss
-  changes the receipt without an event (`sessions.go:108–116`), and desktop recovery uses a
-  direct read keyed to agent state (`ChatPanel.tsx:141–146`), outside reconnect invalidation.
-  A stale card can send with a new ID and no source receipt (`api/client.ts:218–223`);
-  `attachments.go:480–547,629–635` admits it before checking for a recovery and infers the
-  source from the payload. Even after an authoritative refresh, the old browser key remains.
-  Bind recovery Send to the exact source, arbitrate settlement durably before delivery or
-  dismissal, preserve same-ID replay, refresh desktop held/recovery on reconnect, and bound
-  retry-key lifetime using authoritative settlement. Test two clients, concurrent actions,
-  a lost response, and a newer offer masking an older one (FS-03.R100, TS-03.R62/R74,
-  TS-08.R168, INV §1, §15, §16, §19, §23).
-- **Must fix** — INPUT-3: an attachment retry keeps blocking the composer after recovery
-  settles. `useInputDelivery.ts:80–88,114–119` persists the original receipt as non-retryable;
-  `RecoveryOffer.tsx:33–41` clears only the recovered Send's retry key and projection.
-  After the person sends or dismisses the recovered offer, the matching original draft can
-  remain disabled and still point to that offer, including after reload. Reconcile the exact
-  pending receipt with confirmed settlement on either client, preserving any newer unrelated
-  draft. Test uncertainty, recovery Send and Dismiss, and reload (FS-03.R84/R100, INV §8, §19).
-- **Must fix** — INPUT-4: a released text receipt renders as sent and clears the draft.
-  `attachments.go:726–738` returns `202` with `delivery: released` for a same-ID replay after
-  release. `Composer.tsx:75–80` treats it as sent when the draft has no files, and
-  `useInputDelivery.ts:79–94` clears the draft. Reproduced against that response shape. The
-  phone also clears the draft, while `RecoveryOffer.tsx:33–35` treats any 2xx as settlement.
-  Handle release by receipt status for both text and files, including recovered Sends; assert
-  no echo, no draft loss and an actionable recovery on a replay after Stop (TS-03.R62/R74,
-  FS-03.R100, INV §8, §11, §19).
-- **Must fix** — INPUT-5: a stale Send now can steer a different held message.
-  The phone supplies the displayed request ID (`AgentScreen.tsx:802`) and desktop supplies
-  no expected hold ID (`Composer.tsx:197`). The server replaces the request identity with
-  the hold it sees on arrival (`attachments.go:458–470`), so a second client replacing the
-  hold before the click arrives can cause the replacement to be sent. Carry and verify the
-  displayed hold identity before consuming it; reconcile only that hold on completion.
-  Test two clients replacing the held message before promotion (FS-03.R50/R100,
-  TS-03.R74, INV §19, §23).
-- **Worth fixing** — INPUT-6: the Steer completion can misreport which turn got the message.
-  `useInputDelivery.ts:101–105` reports every persisted desktop Steer as delivered into
-  the running turn, even when the server returns `new_turn`. Phone gives neither successful
-  Steer outcome. Use the authoritative outcome on both surfaces, and check the attachment
-  and phone turn-end race with `new_turn` from the server (FS-03.R50, INV §8, §11).
-- **Worth fixing** — INPUT-7: desktop Steer can do nothing while Send is pending.
-  `Composer.tsx:286` disables Steer only while steering, but `useInputDelivery.ts:44`
-  silently refuses every delivery while either request is pending. Send from a busy chat,
-  type new text before the reply, then click the enabled Steer. Keep the control aligned
-  with admission and give feedback if it must wait; verify with a deferred Send
-  (TS-08.R164, INV §8).
-- **Worth fixing** — INPUT-8: inventory (§7). List every writer and reader of browser draft
-  and retry state, held and recovery projections, and durable receipts. Identify the entry
-  points for Send, Steer, withdraw, recover and dismiss, and which evidence permits each
-  owner to release a specific request across navigation, reconnect and peer settlement.
-  Start from the echo and held-tail inventory in `docs/ideas.md` ("One owner for a sent
-  prompt's echo and the held tail").
 
 ## Blocked on human
 

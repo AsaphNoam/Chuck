@@ -1,33 +1,32 @@
 package state
 
 import (
-	"database/sql"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
 func TestConversationTurnMigrationPreservesBudget(t *testing.T) {
 	home := t.TempDir()
-	db, err := sql.Open("sqlite3", filepath.Join(home, "state.db"))
+	s, err := Open(home)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.Exec(`
-CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
-WITH RECURSIVE versions(n) AS (VALUES (1) UNION ALL SELECT n+1 FROM versions WHERE n<76)
-INSERT INTO schema_migrations SELECT n, '' FROM versions;
+	// Restore just the table that this migration owns. The other tables keep
+	// their real schemas when later migrations depend on them.
+	_, err = s.db.Exec(`
+DROP TABLE turn_budget;
+DELETE FROM schema_migrations WHERE version=77;
 CREATE TABLE turn_budget (agent_id TEXT, turn_id TEXT, inbound INTEGER, outbound INTEGER,
  breached INTEGER, delivery_turn_key TEXT, inline_message_ids TEXT, PRIMARY KEY(agent_id, turn_id));
 INSERT INTO turn_budget VALUES ('a', 't1', 7, 3, 1, 'existing-key', '["m1"]');`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Close(); err != nil {
+	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(home)
+	s, err = Open(home)
 	if err != nil {
 		t.Fatal(err)
 	}

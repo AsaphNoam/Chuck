@@ -402,7 +402,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const liveStart = transcript.data?.events[0]?.seq;
   const gap = !!earlier && !transcript.isPlaceholderData && !!transcript.data?.has_more && earlier.recoveredLiveStart !== liveStart;
   const held = useQuery({
-    queryKey: ["held", agentId, rev, heldRev, agent?.state, offline],
+    queryKey: ["held", agentId, rev, heldRev, agent?.state],
     queryFn: async ({ signal }) => {
       const snapshot = await getHeldPrompt(agentId).catch(() => null);
       if (!signal.aborted) void reconcileRecoverySettlement(agentId, snapshot?.recovery?.request_id);

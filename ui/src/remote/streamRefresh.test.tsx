@@ -94,7 +94,11 @@ describe("phone streamed transcript refresh", () => {
     await waitFor(() => expect(screen.getByText("Streamed reply 5")).toBeInTheDocument());
     expect(transcriptReads).toBeLessThanOrEqual(2);
     expect(promptReads).toBeLessThanOrEqual(2);
+    expect(await screen.findByText("Peer recovery")).toBeInTheDocument();
+    act(() => useConnection.getState().setLink("reconnecting"));
     expect(screen.getByText("Peer recovery")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send recovered message" })).toBeDisabled();
+    act(() => useConnection.getState().setLink("connected"));
     const beforeSettlement = transcriptReads;
     await act(async () => {
       recovery = undefined;

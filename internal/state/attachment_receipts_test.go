@@ -197,7 +197,7 @@ func TestAttachmentReceiptForwardMigrationPreservesCheckpointDatabase(t *testing
 	if err = s.WriteAgent(testAgent("a_migrate", timeNow())); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.db.Exec(`DROP TABLE attachment_receipts; DELETE FROM schema_migrations WHERE version IN (51, 65, 69, 76)`); err != nil {
+	if _, err = s.db.Exec(`DROP TABLE attachment_receipts; DELETE FROM schema_migrations WHERE version IN (51, 65, 69, 76, 79)`); err != nil {
 		t.Fatal(err)
 	}
 	var priorSchema string
@@ -230,6 +230,9 @@ func TestAttachmentReceiptForwardMigrationPreservesCheckpointDatabase(t *testing
 	var dismissed int
 	if err = s.db.QueryRow(`SELECT dismissed FROM attachment_receipts WHERE request_id='old'`).Scan(&dismissed); err != nil || dismissed != 1 {
 		t.Fatalf("dismissal changed: %d %v", dismissed, err)
+	}
+	if status, err := s.AttachmentRecoveryStatus("a_migrate", "old"); status != "settled" || err != nil {
+		t.Fatalf("migrated dismissal status = %q, %v", status, err)
 	}
 	if err = s.CreateAttachmentReceipt(AttachmentReceipt{AgentID: "a_migrate", RequestID: "new", PayloadHash: "new hash", MessageJSON: strings.Repeat(" ", 70<<10), Action: "prompt"}); err != nil {
 		t.Fatal("normalized descriptor overhead not admitted after upgrade:", err)
