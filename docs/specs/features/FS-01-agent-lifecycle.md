@@ -517,6 +517,10 @@ transitions:
   returns `404`.
 - **R28** — Launch/resume/switch never leak a spoofable messaging identity: if identity write or
   runtime Start fails, the server rolls back the identity row and every registration artifact.
+  A fresh launch refused after its process started also removes the archive session and
+  transcript it created, once that process is confirmed stopped, so a retry leaves one agent.
+  A Switch that rolls back restores the previous runtime selection together with the previous
+  native session, so a failed rollback start still resumes the conversation it had before.
 - **R29** — Launch and resume remain available when an FTS5-created home is opened by a build whose
   SQLite driver cannot load FTS5. The authoritative session row and lifecycle state still commit,
   derived search-document writes are skipped until an FTS5-capable build returns, and no raw SQLite

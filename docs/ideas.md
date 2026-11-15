@@ -27,6 +27,57 @@ Example:
   Kept separate from `docs/ready-changes/mermaid-diagrams-in-chat.md` on 2026-08-27 because it is a
   server-wide change that could affect the dev proxy, xterm, and inline styles. Noted while
   researching safe diagram rendering.
+- **One commit point for a started agent's identity and session.** From the shared resume start
+  review's inventory (SW-START-4, 2026-11-15). SW-START-1–3 were patched: a Switch rollback
+  restores the agent's selection and session snapshot in one transaction
+  (`RestoreSwitchSource`) and records it in the transcript, and a fresh launch refused at its applied write removes its session,
+  index rows, transcript and identity (`discardFreshLaunch`). Four records describe a started
+  agent: the `agents` runtime columns, the `sessions` snapshot (no foreign key to `agents`, so
+  `DeleteAgent` never removes it), the `running` row, and the registration (hook token, MCP
+  token and file, hook settings, registry slot). Their writers per origin:
+  - fresh launch and Clone: registration, `WriteAgent`, then the runtime writes the snapshot
+    (`UpsertSessionMeta` from `openPersistence`) and the running row, then the applied identity;
+  - Resume and wake: registration, snapshot, running row, applied identity; the identity is not
+    written before the start;
+  - Switch target: the target identity is written before the start (`switch.go` prepare), then
+    snapshot, running row and applied identity; rollback restores identity and snapshot together
+    and starts again;
+  - Stop and exit: delete the running row (terminal and orphan reaping also copy its session ID
+    into the snapshot; chat Stop and crash do not) and tear down registration;
+  - startup: `ReconcileStale` removes exited running rows, `RestoreInterruptedSwitches` copies
+    the snapshot's selection onto a stopped agent whose backend differs, and
+    `recoverIncompleteLaunches` deletes an agent that has no snapshot.
+  No rule says when a new process's snapshot becomes authoritative or who restores it, so each
+  failure branch chooses. Divergences read in code, none patched:
+  - a fresh start that fails inside the runtime after `openPersistence` (running or status
+    write, exit during start; non-fork chat and every terminal start) deletes the agent but
+    leaves the session row and transcript; the archive lists it and Resume answers 404. Only the
+    applied-write branch calls `discardFreshLaunch`, and startup never removes a session without
+    an agent;
+  - a Clone refused after its start succeeded leaves the provider-side forked session;
+  - a failed Resume restores nothing: the snapshot keeps the new native session ID, capabilities
+    and, with overrides, a launch object and contract the `agents` row never received;
+  - when `RestoreSwitchSource` itself fails and the target had not yet written a snapshot, the
+    stopped agent has the target identity with the source's native session, and Archive Resume
+    pairs them until the next restart; a model-, effort- or interface-only mismatch is never
+    repaired at startup;
+  - the transcript's newest session record rebuilds the row on reindex and feeds search, so every
+    direct `sessions` write needs a matching record; the Switch rollback now appends one, while
+    startup's `RestoreInterruptedSwitches` and the live effort/fast change do not;
+  - Switch reads the source's native session ID before stopping it, so a terminal hook's newer
+    ID arriving in between is overwritten by the restore (suspected, not reproduced);
+  - `discardFreshLaunch` leaves the agent's `conversation_health` row, and an identity whose
+    delete is refused (pending quota cleanup) stays without history until the next startup;
+  - launch and Resume discard the stop error of a failed start that Switch reports, leaving a
+    live process behind a generic error;
+  - a project archive stops each agent without that agent's lifecycle claim;
+  - the startup and periodic sweeps delete exited running rows without tearing down that
+    generation's registration files;
+  - Switch's stop of the old runtime reports `requested_stop`, which interrupts the agent's
+    assigned task as a person's Stop would (unverified whether intended).
+  Define the point at which a start's snapshot and selection commit together, the one rollback
+  every origin uses before that point, and what startup removes. Coordinate the Stop and exit
+  rows with "One settlement rule for a stopped or exited process" below.
 - **One exit rule for a claimed chat turn.** From the agent-execution review's inventory (EXEC-12,
   2026-11-15). Each exit from a claimed turn gate decides on its own who ends the durable turn row,
   emits `turn_end`, settles the request receipt and runs or releases the held successor, and

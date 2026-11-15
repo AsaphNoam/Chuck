@@ -66,9 +66,6 @@ None.
   the phone's held query and sequenced-only transcript are sound projection choices. The desktop
   recovery read still misses reconnect and peer settlement (INPUT-2).
 
-- **Shared resume start and Switch rollback** — `95d4f621` (TS-01.R43), reviewed 2026-11-15
-  at `9fd1fd39`. SW-START-1–4 wait for `/fix` under **Review findings**.
-
 - **One typed turn outcome** — reviewed 2026-11-15, `4f90befa^..ed3fec37` (FS-03.R117/A92,
   TS-01.R42). OUTCOME-1–7 wait for `/fix` under **Review findings**.
 
@@ -204,42 +201,6 @@ journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R
   ordering when the response, Cancel and EOF overlap, and use the Stop writer inventory in
   `docs/ideas.md` ("One settlement rule for a stopped or exited process") for the overlapping
   paths (TS-01.R42/R44/R45, INV §5, §15, §18, §20).
-
-### Shared resume start and Switch rollback (`95d4f621`) — reviewed 2026-11-15 at `9fd1fd39` — **Fix model:** difficult — Codex Sol.
-
-Second fix round: the same Switch and startup/stop lifecycle had findings fixed in `e2cf34f8`
-and `7b7a12f9` (ASW-3). `7e2539a3` moved the reviewed start path to `startRuntimeClaimed`.
-
-- **Must fix** — SW-START-1. A failed cross-backend Switch can replace the native session
-  needed to recover the previous conversation. The target writes its session snapshot before
-  the applied identity write (`runtime/chat.go:1800`, `server/lifecycle_start.go:70`). If the
-  identity write fails, Switch stops the target and restores the prior agent row, but if the
-  rollback runtime fails before persisting its own snapshot, `rollbackSwitch` leaves the target
-  snapshot in place (`server/switch.go:290–312`). Archive Resume combines the prior backend
-  with the target's native session ID. Restart recovery reads the same mismatched pair as an
-  interrupted Switch and adopts the failed target backend (`state/agents.go:201`). Confirmed
-  both the persisted mismatch and backend adoption by injecting the two write failures with
-  the fake provider. Preserve a recoverable previous selection and snapshot through the
-  Switch's commit boundary. Test the identity and native session Resume uses both before and
-  after restart (FS-01.R10/R26, TS-01.R43, INV §1, §15, §20).
-- **Must fix** — SW-START-2. A fresh Launch that returns an applied-identity write error leaves
-  an agent and an archive session (`server/lifecycle_start.go:69–72`, `server/launch.go:155–168`).
-  After the provider handshake, the failure path stops the runtime and clears registration but
-  leaves the new durable identity and session. A retry can leave two entries for the launch the
-  operator requested once. The existing registration test checks the process and registration
-  only. Extending it to read the identity and session reproduced both retained rows. Finish
-  fresh-launch rollback once stop is confirmed and verify a retry leaves one agent (FS-01.R28,
-  INV §4, §15, §17).
-- **Worth fixing** — SW-START-3. The new stop-refusal outcome has no Switch-level test
-  (`server/switch.go:252–255`, `server/switch_test.go:1100–1180`). Existing failure fixtures
-  prove successful teardown, including when the rollback's own applied write fails. Exercise
-  an applied write failure followed by a refused target stop, and verify `switch_failed`,
-  retained ownership, and zero replacement starts (TS-01.R43, FS-01.R54, INV §4, §17, §23).
-- **Worth fixing** — SW-START-4. Inventory the legal moves and owners across launch, resume,
-  wake, Switch target and rollback, process exit, and startup recovery. Include the writers of
-  the agent runtime identity, native session snapshot, running row, and registration. Use it
-  to settle when a new process and its persisted selection become authoritative and who
-  can clear or restore them after a failed start (TS-01.R41/R43/R48, INV §4, §15, §23).
 
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 

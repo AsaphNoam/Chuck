@@ -16,6 +16,7 @@ import (
 
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/hooks"
+	persistindex "github.com/AsaphNoam/Chuck/internal/index"
 	"github.com/AsaphNoam/Chuck/internal/messaging"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/runtime/terminal"
@@ -1178,6 +1179,114 @@ func TestFailedSwitchRollbackTearsDownStartedRuntime(t *testing.T) {
 	}
 }
 
+// SW-START-1: the target wrote its session snapshot, its applied identity was
+// refused, and the previous runtime then failed to load. The stopped agent must
+// keep the selection and native session it had before the Switch, now and
+// after a restart (FS-01.R10/R26, TS-01.R43).
+func TestFailedSwitchRollbackKeepsPreviousNativeSession(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	// The fake provider names every new session alike; give the previous
+	// conversation an ID the target cannot produce.
+	for _, q := range []string{
+		"UPDATE sessions SET last_session_id = 'native-before' WHERE agent_id = ?",
+		"UPDATE running SET session_id = 'native-before' WHERE agent_id = ?",
+	} {
+		if _, err := srv.stateStore.DB().Exec(q, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before, err := srv.stateStore.ReadSession(id)
+	if err != nil || before.Backend != "claude" || before.LastSessionID != "native-before" {
+		t.Fatalf("snapshot before Switch = %+v, %v", before, err)
+	}
+	installAppliedIdentityFailure(t, srv, "NEW.backend = 'codex'")
+	// Only the rollback loads a native session; the target starts a new one.
+	t.Setenv("FAKEACP_LOAD_REJECT_DATA", `{"message":"load refused"}`)
+
+	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", map[string]string{"backend": "codex", "model": "gpt-5.5"})
+	if code := apiErrorCode(t, body); resp.StatusCode != http.StatusInternalServerError || code != runtime.CodeSwitchFailed {
+		t.Fatalf("switch = %d: %s", resp.StatusCode, body)
+	}
+	assertFailedStartStopped(t, srv)
+	assertNoStartRegistration(t, srv, id)
+	assertSelection := func(when string) {
+		t.Helper()
+		agent, err := srv.stateStore.ReadAgent(id)
+		if err != nil || agent.Backend != "claude" || agent.Model != before.Model {
+			t.Fatalf("%s: identity = %+v, %v", when, agent, err)
+		}
+		snap, err := srv.stateStore.ReadSession(id)
+		if err != nil || snap.Backend != "claude" || snap.Model != before.Model || snap.LastSessionID != before.LastSessionID {
+			t.Fatalf("%s: snapshot backend/model/session = %q/%q/%q, %v; want claude/%q/%q",
+				when, snap.Backend, snap.Model, snap.LastSessionID, err, before.Model, before.LastSessionID)
+		}
+		if snap.HistoryPrimer != before.HistoryPrimer || string(snap.LaunchConfig) != string(before.LaunchConfig) {
+			t.Fatalf("%s: target metadata survived: primer %q, launch config %s", when, snap.HistoryPrimer, snap.LaunchConfig)
+		}
+		// Archive search reads the metadata document, where this build has one.
+		var indexed string
+		err = srv.stateStore.DB().QueryRow(`SELECT backend FROM sessions_fts WHERE agent_id = ? AND document_id = 'metadata'`, id).Scan(&indexed)
+		if err == nil && indexed != "claude" {
+			t.Fatalf("%s: search metadata backend = %q", when, indexed)
+		}
+	}
+	assertSelection("after failed rollback")
+	srv.recoverIncompleteLaunches()
+	assertSelection("after restart recovery")
+	// The transcript rebuilds the row; its newest session record must agree.
+	if err := persistindex.Reindex(srv.configStore.Home(), srv.stateStore.DB()); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+	srv.recoverIncompleteLaunches()
+	assertSelection("after reindex and restart recovery")
+}
+
+// TS-01.R43: a target that was refused its applied identity and then could not
+// be stopped keeps its records, and Switch starts nothing in its place.
+func TestSwitchRefusedTargetStopStartsNoReplacement(t *testing.T) {
+	srv, ts := switchTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	installAppliedIdentityFailure(t, srv, "NEW.backend = 'codex'")
+	// The source's own Stop settles; only the refused target's cannot.
+	if _, err := srv.stateStore.DB().Exec(`CREATE TRIGGER fail_target_stop BEFORE UPDATE ON status
+WHEN NEW.state = 'done' AND EXISTS (SELECT 1 FROM rejected_start)
+BEGIN SELECT RAISE(ABORT, 'injected done failure'); END;`); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, body := post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", map[string]string{"backend": "codex", "model": "gpt-5.5"})
+	if code := apiErrorCode(t, body); resp.StatusCode != http.StatusInternalServerError || code != runtime.CodeSwitchFailed ||
+		!strings.Contains(string(body), "stop failed target") {
+		t.Fatalf("switch = %d: %s", resp.StatusCode, body)
+	}
+	var targetPID int
+	if err := srv.stateStore.DB().QueryRow("SELECT pid FROM rejected_start").Scan(&targetPID); err != nil {
+		t.Fatal(err)
+	}
+	run, err := srv.stateStore.ReadRunning(id)
+	if err != nil || run.PID != targetPID {
+		t.Fatalf("running row = %+v, %v; want the unsettled target %d", run, err, targetPID)
+	}
+	if srv.registry.Owns(id) {
+		t.Fatal("Switch started a replacement beside the unsettled target")
+	}
+	if agent, err := srv.stateStore.ReadAgent(id); err != nil || agent.Backend != "codex" {
+		t.Fatalf("identity = %+v, %v; want the retained target", agent, err)
+	}
+	if status, err := srv.stateStore.ReadStatus(id); err != nil || status.State != "error" {
+		t.Fatalf("status = %+v, %v; want the failed Switch", status, err)
+	}
+	// The kept row is the retry's handle: a later Stop settles it.
+	if _, err := srv.stateStore.DB().Exec(`DROP TRIGGER fail_target_stop`); err != nil {
+		t.Fatal(err)
+	}
+	if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/stop", nil); resp.StatusCode != http.StatusOK {
+		t.Fatalf("retried stop = %d: %s", resp.StatusCode, body)
+	}
+	waitRunning(t, srv, id, false)
+}
+
 func TestLaunchRegistrationFailureTearsDown(t *testing.T) {
 	for _, stage := range []string{"mcp config", "hook settings", "initial identity", "runtime start", "applied identity"} {
 		t.Run(stage, func(t *testing.T) {
@@ -1226,6 +1335,16 @@ BEGIN SELECT RAISE(FAIL, 'initial identity unavailable'); END;`); err != nil {
 				assertFailedStartStopped(t, srv)
 			}
 			assertNoStartRegistration(t, srv, id)
+			// FS-01.R28: a refused launch leaves nothing a retry could duplicate.
+			if _, err := srv.stateStore.ReadAgent(id); !errors.Is(err, state.ErrNotFound) {
+				t.Fatalf("failed launch kept its identity: %v", err)
+			}
+			if _, err := srv.stateStore.ReadSession(id); !errors.Is(err, state.ErrNotFound) {
+				t.Fatalf("failed launch kept an archive session: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(srv.configStore.Home(), "sessions", id, transcript.LogFileName)); !os.IsNotExist(err) {
+				t.Fatalf("failed launch kept its transcript: %v", err)
+			}
 		})
 	}
 }

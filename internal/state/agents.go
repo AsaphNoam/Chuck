@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/AsaphNoam/Chuck/internal/attachment"
@@ -139,6 +140,54 @@ func (s *Store) UpdateAgentSessionSettings(agentID, effort string, fast, fastAva
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("state: commit session settings: %w", err)
+	}
+	return nil
+}
+
+// RestoreSwitchSource puts back the runtime selection and the native
+// conversation a failed Switch target may have replaced, in one transaction:
+// Resume and startup recovery pair the identity's backend with the snapshot's
+// native session, so neither may be restored without the other (INV §15).
+// Frozen launch fields a Switch never changes are left alone.
+func (s *Store) RestoreSwitchSource(a Agent, snap SessionSnapshot) error {
+	launchConfig := "{}"
+	if len(snap.LaunchConfig) > 0 {
+		launchConfig = string(snap.LaunchConfig)
+	}
+	contract, err := EncodeExecutionContract(snap.ExecutionContract)
+	if err != nil {
+		return fmt.Errorf("state: encode execution contract: %w", err)
+	}
+	capabilities, err := json.Marshal(snap.RuntimeCapabilities)
+	if err != nil {
+		return fmt.Errorf("state: encode runtime capabilities: %w", err)
+	}
+	used, size := contextCountsColumns(snap.LastContext)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("state: begin switch restore: %w", err)
+	}
+	defer tx.Rollback()
+	result, err := tx.Exec(`UPDATE agents SET backend = ?, model = ?, effort = ?, fast = ?, interface = ? WHERE agent_id = ?`,
+		a.Backend, a.Model, a.Effort, a.Fast, a.Interface, a.AgentID)
+	if err != nil {
+		return fmt.Errorf("state: restore agent selection: %w", err)
+	}
+	if rows, _ := result.RowsAffected(); rows == 0 {
+		return ErrNotFound
+	}
+	if _, err := tx.Exec(`
+UPDATE sessions SET backend = ?, model = ?, effort = ?, fast = ?, interface = ?, history_primer = ?,
+    launch_config_json = ?, execution_contract_json = ?, runtime_capabilities_json = ?,
+    last_session_id = ?, last_context_pct = ?, last_context_used = ?, last_context_size = ?
+WHERE agent_id = ?`,
+		snap.Backend, snap.Model, snap.Effort, snap.Fast, snap.Interface, snap.HistoryPrimer,
+		launchConfig, contract, string(capabilities),
+		snap.LastSessionID, snap.LastContextPct, used, size, a.AgentID); err != nil {
+		return fmt.Errorf("state: restore session snapshot: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("state: commit switch restore: %w", err)
 	}
 	return nil
 }

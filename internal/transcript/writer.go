@@ -170,6 +170,17 @@ func transcriptPath(home, agentID string) string {
 	return filepath.Join(home, dirSessions, agentID, fileLog)
 }
 
+// Remove deletes an agent's closed log. It is the rollback for a fresh launch
+// that was refused after its transcript was created (FS-01.R28, INV §15).
+func Remove(home, agentID string) error {
+	path := transcriptPath(home, agentID)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("transcript: remove: %w", err)
+	}
+	_ = os.Remove(filepath.Dir(path)) // only when empty
+	return nil
+}
+
 // LogFileName is the canonical transcript's file name inside sessions/{agentID}/.
 // Other files there (attachments, artifacts) are never transcript truth (TS-01.R8).
 const LogFileName = fileLog

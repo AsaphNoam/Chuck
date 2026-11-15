@@ -287,9 +287,21 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAgent state.Agent, prevSessionID string, previousSnapshot state.SessionSnapshot, cause error) {
 	rollbackCtx, cancel := context.WithTimeout(context.Background(), switchRollbackTimeout)
 	defer cancel()
-	if err := s.stateStore.WriteAgentRuntimeIdentity(prevAgent); err != nil {
+	// A target that got as far as its transcript replaced the session snapshot.
+	// Put the previous selection and native session back together before the
+	// rollback start, which may fail before it writes a snapshot of its own.
+	restored := previousSnapshot
+	if prevSessionID != "" {
+		restored.LastSessionID = prevSessionID // the ID the rollback start resumes
+	}
+	if err := s.stateStore.RestoreSwitchSource(prevAgent, restored); err != nil {
 		s.failSwitch(w, prevAgent.AgentID, "restore identity: "+err.Error())
 		return
+	}
+	// The transcript's last session record rebuilds the row on reindex and
+	// carries the search metadata; supersede the target's there too.
+	if err := s.appendRestoredSessionMeta(prevAgent, restored); err != nil {
+		s.log.Warn("record restored switch source", "agent_id", prevAgent.AgentID, "err", err)
 	}
 	// Compose from the pre-switch snapshot: a target startup may already have
 	// written its own metadata (bridge, launch object, contract) before failing.
@@ -309,6 +321,28 @@ func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAg
 		return
 	}
 	writeAPIError(w, apiError(runtime.CodeSwitchFailedRolledBack, "switch failed, rolled back to previous runtime: "+cause.Error()))
+}
+
+// appendRestoredSessionMeta commits the previous selection as the stopped
+// agent's newest session record, through the same journal and index path a
+// start uses.
+func (s *Server) appendRestoredSessionMeta(a state.Agent, snap state.SessionSnapshot) error {
+	aware, caps := snap.ChuckAware, snap.RuntimeCapabilities
+	data, err := json.Marshal(runtime.SessionMetaData{
+		Name: a.Name, Role: a.Role, Project: a.Project, Group: a.Group,
+		Backend: snap.Backend, Model: snap.Model, Effort: snap.Effort, Fast: snap.Fast, Interface: snap.Interface,
+		Cwd: snap.Cwd, WorkspaceID: snap.WorkspaceID, SystemPrompt: snap.SystemPrompt, HistoryPrimer: snap.HistoryPrimer,
+		ChuckAware: &aware, EnvKeys: snap.EnvKeys, SkipPermissions: snap.SkipPermissions, AddDirs: snap.AddDirs,
+		LaunchConfig: snap.LaunchConfig, ExecutionContract: snap.ExecutionContract, RuntimeCapabilities: &caps,
+		CreatedAt: snap.CreatedAt, SessionID: snap.LastSessionID,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = s.registry.AppendHistory(a.AgentID, runtime.CommitRequest{Event: runtime.Event{
+		Type: runtime.EvSessionMeta, Data: data, Ts: time.Now().UTC().Format(time.RFC3339),
+	}})
+	return err
 }
 
 // failSwitch records the unrecoverable state (status error) and returns 500

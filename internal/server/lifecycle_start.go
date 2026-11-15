@@ -7,6 +7,7 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
+	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
 // recoverIncompleteLaunches runs before request handling and background starts.
@@ -68,9 +69,31 @@ func (s *Server) startRuntimeClaimed(ctx context.Context, fresh bool, compose fu
 	}
 	spec.Agent.Fast = handle.Fast
 	if err := s.stateStore.WriteAgentRuntimeIdentity(spec.Agent); err != nil {
-		return apiError(runtime.CodeInternal, "write applied session configuration: "+err.Error()), s.stopFailedStart(id)
+		stopErr := s.stopFailedStart(id)
+		if fresh && stopErr == nil {
+			s.discardFreshLaunch(id)
+		}
+		return apiError(runtime.CodeInternal, "write applied session configuration: "+err.Error()), stopErr
 	}
 	return nil, nil
+}
+
+// discardFreshLaunch removes what a refused fresh launch persisted, once its
+// process is confirmed stopped: a retry must not find a second agent or archive
+// session (FS-01.R28). A process that could not be stopped keeps its records.
+func (s *Server) discardFreshLaunch(id string) {
+	if err := s.indexer.RemoveAgent(id); err != nil {
+		s.log.Warn("remove failed launch session", "agent_id", id, "err", err)
+	}
+	_ = s.stateStore.DeleteRunning(id)
+	_ = s.stateStore.DeleteStatus(id)
+	if err := s.stateStore.DeleteAgent(id); err != nil {
+		s.log.Warn("delete failed launch identity", "agent_id", id, "err", err)
+	}
+	// After the identity's attachments, so the session directory empties.
+	if err := transcript.Remove(s.configStore.Home(), id); err != nil {
+		s.log.Warn("remove failed launch transcript", "agent_id", id, "err", err)
+	}
 }
 
 type startSpec struct {
