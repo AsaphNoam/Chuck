@@ -289,8 +289,9 @@ func (m *Manager) roomStage(ctx context.Context, run state.PipelineRunRecord, st
 		Goal:          fmt.Sprintf("Pipeline stage %q of run %q. The stage context carries the run goal, objective and inputs.", clipText(stage.Title, MaxTitleRunes), clipText(run.DisplayName, MaxTitleRunes)),
 		OriginProject: run.Project, Openings: stage.ThinkTank.Openings, StageContext: stageContext,
 	}
-	for _, p := range stage.ThinkTank.Participants {
-		name := clipText(stage.Title, 40) + " · " + p.ID
+	participantTitle := clipText(strings.TrimSpace(stage.Title), 40)
+	for i, p := range stage.ThinkTank.Participants {
+		name := fmt.Sprintf("%s · %d", participantTitle, i+1)
 		config, err := compose(p.Role, name, assignments[thinkTankParticipantKey(stage.ID, p.ID)])
 		if err != nil {
 			return nil, err

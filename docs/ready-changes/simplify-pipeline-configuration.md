@@ -1,6 +1,6 @@
 # Simplify pipeline configuration
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** The operator wants to configure a goal-led development workflow with fewer fields. A
 stage's name and instructions should be enough for ordinary work, and explicit handoffs should
 remain available when Chuck needs to enforce them.

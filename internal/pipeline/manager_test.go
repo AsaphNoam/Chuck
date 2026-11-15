@@ -900,12 +900,13 @@ func TestRunListAndStartupIsolateMalformedRunDetail(t *testing.T) {
 // side effects, and the frozen map round-trips to the public shape (TS-09.R51).
 func TestStartValidatesThinkTankAssignments(t *testing.T) {
 	manager, lifecycle, _ := pipelineManagerFixture(t)
+	const firstKey, secondKey = "participant-c81d", "participant-a246"
 	template := Template{
 		Version: 2, Title: "Deliberate", OrchestratorRole: "orchestrator", Inputs: []ValueDecl{},
 		Stages: []Stage{{
 			ID: "debate", Title: "Debate", Objective: "Weigh it.", Coordination: CoordinationThinkTank,
 			ThinkTank: &ThinkTankStage{JudgeRole: "reviewer", Participants: []ThinkTankParticipant{
-				{ID: "pro", Role: "implementer", Limit: 2}, {ID: "con", Role: "implementer", Limit: 2},
+				{ID: firstKey, Role: "implementer", Limit: 2}, {ID: secondKey, Role: "implementer", Limit: 2},
 			}},
 			Inputs: []StageInput{}, Outputs: []StageOutput{{Name: "synthesis", Value: "synthesis", Description: "Judge synthesis"}},
 		}},
@@ -917,7 +918,7 @@ func TestStartValidatesThinkTankAssignments(t *testing.T) {
 	_, _, err := manager.Start(context.Background(), StartRequest{
 		RequestID: "room-slots", TemplateID: "debate", Project: "app", Goal: "Decide",
 		ThinkTankAssignments: map[string]ThinkTankAssignment{"debate": {
-			Participants: map[string]RuntimeAssignment{"pro": slot, "ghost": slot},
+			Participants: map[string]RuntimeAssignment{firstKey: slot, "ghost": slot},
 		}},
 	})
 	var controlled *ControlError
@@ -928,7 +929,7 @@ func TestStartValidatesThinkTankAssignments(t *testing.T) {
 	for _, d := range controlled.Diagnostics {
 		fields[d.Field] = true
 	}
-	for _, want := range []string{"think_tank_assignments.debate.participants.con", "think_tank_assignments.debate.participants.ghost", "think_tank_assignments.debate.judge"} {
+	for _, want := range []string{"think_tank_assignments.debate.participants." + secondKey, "think_tank_assignments.debate.participants.ghost", "think_tank_assignments.debate.judge"} {
 		if !fields[want] {
 			t.Errorf("diagnostics %+v missing %s", controlled.Diagnostics, want)
 		}
@@ -945,7 +946,7 @@ func TestStartValidatesThinkTankAssignments(t *testing.T) {
 	detail, _, err := manager.Start(context.Background(), StartRequest{
 		RequestID: "room-start", TemplateID: "debate", Project: "app", Goal: "Decide the plan",
 		ThinkTankAssignments: map[string]ThinkTankAssignment{"debate": {
-			Participants: map[string]RuntimeAssignment{"pro": slot, "con": {Backend: "codex", Model: "gpt"}}, Judge: slot,
+			Participants: map[string]RuntimeAssignment{firstKey: slot, secondKey: {Backend: "codex", Model: "gpt"}}, Judge: slot,
 		}},
 	})
 	if err != nil {
@@ -954,7 +955,7 @@ func TestStartValidatesThinkTankAssignments(t *testing.T) {
 	if detail.Run.State != "running" || detail.Run.PendingAction != "" || len(lifecycle.launches) != 0 {
 		t.Fatalf("room run = %+v launches=%d", detail.Run, len(lifecycle.launches))
 	}
-	if got := detail.ThinkTankAssignments["debate"].Participants["con"]; got.Backend != "codex" {
+	if got := detail.ThinkTankAssignments["debate"].Participants[secondKey]; got.Backend != "codex" {
 		t.Fatalf("frozen room slot = %+v", got)
 	}
 	if _, ok := detail.Assignments[thinkTankJudgeKey("debate")]; ok {
@@ -982,10 +983,23 @@ func TestStartValidatesThinkTankAssignments(t *testing.T) {
 	if len(room.Members) != 2 || room.Members[0].Project != "app" || room.Members[0].SetupConfig == "" || room.Members[0].AgentID == "" {
 		t.Fatalf("members = %+v", room.Members)
 	}
+	for i, want := range []struct{ Name, Backend, Model string }{
+		{"Debate · 1", "claude", "sonnet"},
+		{"Debate · 2", "codex", "gpt"},
+	} {
+		member := room.Members[i]
+		var launch struct{ Name, Backend, Model string }
+		if err := json.Unmarshal([]byte(member.SetupConfig), &launch); err != nil {
+			t.Fatalf("participant %d setup: %v", i+1, err)
+		}
+		if member.AgentName != want.Name || launch != want {
+			t.Errorf("participant %d name = %q, launch = %+v, want %+v", i+1, member.AgentName, launch, want)
+		}
+	}
 
-	frozen := map[string]RuntimeAssignment{thinkTankParticipantKey("debate", "pro"): slot, thinkTankParticipantKey("debate", "con"): slot, thinkTankJudgeKey("debate"): slot}
+	frozen := map[string]RuntimeAssignment{thinkTankParticipantKey("debate", firstKey): slot, thinkTankParticipantKey("debate", secondKey): slot, thinkTankJudgeKey("debate"): slot}
 	view := ThinkTankAssignmentsFrom(template, frozen)["debate"]
-	if view.Judge != slot || len(view.Participants) != 2 || view.Participants["con"] != slot {
+	if view.Judge != slot || len(view.Participants) != 2 || view.Participants[secondKey] != slot {
 		t.Fatalf("round trip = %+v", view)
 	}
 }

@@ -29,7 +29,16 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+- [Simplify pipeline configuration](../ready-changes/simplify-pipeline-configuration.md) — in progress.
+  First verify generated keys, source-based handoffs and save recovery through the template editor
+  and its HTTP client. In parallel, verify launch name/defaults and runtime grouping through the
+  existing desktop and phone inputs, and room member labels through real pipeline room creation.
+  Then exercise authoring, launch and supervision together in an isolated rendered application.
+  Keep the stage list and one active stage, place name and instructions first, and use existing
+  disclosures for coordination and machine-checked handoffs. The stage list surfaces actual
+  completion and approval requirements. Preserve the draft on a refusal and reopen the relevant
+  section. Use existing form and dialog styles without adding motion.
+  Room naming is implemented and the focused room-creation and missing-handoff refusal tests pass.
 
 ## Decisions needing input
 
