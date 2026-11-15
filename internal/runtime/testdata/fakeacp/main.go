@@ -650,6 +650,11 @@ func handle(msg *rpcMessage) {
 				}}}
 			}
 			respond(id, result)
+			// FAKEACP_EXIT_AFTER_RESULT answers the prompt completely and then
+			// exits, so the result and EOF reach the client back to back.
+			if os.Getenv("FAKEACP_EXIT_AFTER_RESULT") != "" {
+				os.Exit(0)
+			}
 			if ended := os.Getenv("FAKEACP_PROMPT_END_FILE"); ended != "" {
 				if hold := os.Getenv("FAKEACP_HOLD_FILE"); hold != "" {
 					_ = os.Remove(hold)

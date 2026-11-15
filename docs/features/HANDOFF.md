@@ -144,25 +144,6 @@ Second fix round: `bafade3e` and `efc65aaa` repaired Cancel precedence and termi
 quota settlement in the last 30 days. The fork test's wait for retained history matches the
 journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R110.
 
-- **Must fix** — OUTCOME-1. A provider can return a complete prompt result and then exit, yet
-  the runtime records the turn as interrupted. The transport enqueues the result before EOF
-  (`internal/runtime/transport.go:129–134,150–176`), but EOF only checks for a settlement already
-  claimed by the prompt goroutine (`internal/runtime/chat.go:2243–2270`,
-  `internal/runtime/quota.go:200–210`). If that goroutine has not resumed, EOF records
-  `process_ended` and discards completed-turn quota and mail confirmation. A fake provider that
-  sent `end_turn` and exited, with the caller held after writing the prompt, reproduced it in
-  three runs. Order terminal evidence at the transport-to-runtime handoff, preserve a previously
-  claimed Cancel, and test that a subsequent process error leaves the recorded turn outcome,
-  quota state and inline-mail state consistent (FS-03.R117/A92, TS-01.R42, INV §5, §11, §20).
-- **Must fix** — OUTCOME-2. An idle process exit fabricates a failed turn.
-  `internal/runtime/chat.go:2266–2270,2328–2345` detects whether a turn is active for quota
-  settlement but emits `turn_end` unconditionally. Killing the fake provider just after a real
-  turn ended produced a second boundary with an empty turn ID in six runs. The journal passes it
-  to the indexer as another turn (`internal/runtime/journal.go:524–533`,
-  `internal/index/indexer.go:304–316`). Keep the fatal process event and publish a turn boundary
-  only when the exit owns an unfinished turn. Verify the retained events and archive turn count
-  for exit while idle, after completion, and during an active turn (FS-03.R8/R117, TS-01.R42/R45,
-  INV §1, §5, §18, §20).
 - **Must fix** — OUTCOME-3. Replay and the visible transcript still use different meanings
   for the same ending. The decoder collapses the request limit and refusal
   (`internal/runtime/turn_outcome.go:19–26,122–132`); for example, the room then calls a request

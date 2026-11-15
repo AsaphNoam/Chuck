@@ -80,6 +80,9 @@ type ChatRuntime struct {
 	// steerProof overrides the Steer artifact proof (tests); nil uses the
 	// managed-runtime check.
 	steerProof func(backend.BackendAdapter) bool
+	// afterPromptCall runs in the prompt goroutine once session/prompt has
+	// returned and before its result is settled (tests hold the schedule here).
+	afterPromptCall func()
 }
 
 // NewChatRuntime constructs the chat runtime bound to the state store. The launch
@@ -383,6 +386,11 @@ type currentTurn struct {
 	// Non-nil while the current prompt owns terminal settlement. EOF waits for
 	// that owner before tearing down the process and journal.
 	promptSettlement chan struct{}
+	// promptDecided closes once the latest begun prompt's goroutine has either
+	// claimed promptSettlement or returned without it. The transport delivers a
+	// result before it reports EOF, so EOF waits here and a delivered result is
+	// never overtaken by the exit that followed it (TS-01.R42, INV §5).
+	promptDecided *promptDecision
 	// fileReportRequest is the one report request id this turn accepts.
 	fileReportRequest string
 	// held is the person's queued follow-up: at most one message per agent, live
@@ -1228,6 +1236,8 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 	}
 	as.turn.quotaContinuation = quotaContinuation
 	as.turn.begunTurnID = turnID
+	decision := &promptDecision{ch: make(chan struct{})}
+	as.turn.promptDecided = decision
 	as.mu.Unlock()
 	if prompt.mailNotice != nil {
 		c.emit(as, EvNotice, *prompt.mailNotice)
@@ -1237,6 +1247,9 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 		prompt.content, carried = c.appendQueuedAssignmentInput(as, prompt.content)
 	}
 	go func() {
+		// Every return without a settlement claim tells a waiting exit that
+		// this prompt will not end the turn.
+		defer decision.done()
 		// Finish any in-flight Cancel write before sending a new prompt to the
 		// same provider session.
 		as.cancelMu.Lock()
@@ -1253,6 +1266,9 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 		params := map[string]any{"sessionId": as.sessionID, "prompt": prompt.content}
 		as.fileReportMeta(params)
 		res, err := as.transport.Call(as.ctx, "session/prompt", params)
+		if c.afterPromptCall != nil {
+			c.afterPromptCall()
+		}
 		if err != nil {
 			for _, requestID := range []string{prompt.requestID, carried.RequestID} {
 				_ = c.messageTransitionReason(as.agentID, requestID, "unknown", "prompt", "provider_error")
@@ -1434,6 +1450,19 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, outcome TurnOutc
 	nextText, nextTurnID := as.reserveHeldSuccessorLocked()
 	as.mu.Unlock()
 	return nextText, nextTurnID
+}
+
+// promptDecision is one begun prompt's "claimed or declined" signal. done is
+// nil-safe and idempotent: the claim and the goroutine's return both call it.
+type promptDecision struct {
+	ch   chan struct{}
+	once sync.Once
+}
+
+func (d *promptDecision) done() {
+	if d != nil {
+		d.once.Do(func() { close(d.ch) })
+	}
 }
 
 func (as *agentState) setExecTurnLocked(turnID string) {
@@ -2260,6 +2289,13 @@ func (c *ChatRuntime) Commands(agentID string) ([]CommandItem, error) {
 // row to error, delete the running row, and tear down (techspec §8.2).
 func (c *ChatRuntime) onTransportClosed(as *agentState) {
 	as.mu.Lock()
+	// A prompt result the transport delivered before EOF is the turn's ending.
+	// Let its goroutine claim settlement (or decline) before the exit decides.
+	if decision := as.turn.promptDecided; decision != nil && as.stopComplete == nil {
+		as.mu.Unlock()
+		<-decision.ch
+		as.mu.Lock()
+	}
 	for as.stopComplete == nil && as.turn.promptSettlement != nil {
 		settled := as.turn.promptSettlement
 		as.mu.Unlock()
@@ -2354,7 +2390,12 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 		c.onExit(as.agentID, as.generation)
 	}
 
-	c.emit(as, EvTurnEnd, outcome.eventData(as.lastContext(), nil))
+	// The fatal error above is the exit's record. A turn boundary belongs only
+	// to a turn this exit interrupted: an idle agent has none to end, and a
+	// second boundary would count as another turn (FS-03.R8, TS-01.R42).
+	if activeTurn {
+		c.emit(as, EvTurnEnd, outcome.eventData(as.lastContext(), nil))
+	}
 	as.closePersistence()
 	as.cancel()
 	as.hub.Close()

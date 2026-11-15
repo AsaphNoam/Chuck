@@ -206,6 +206,7 @@ func (c *ChatRuntime) completePromptTurn(as *agentState, turnID, deliveryKey str
 		return
 	}
 	as.turn.promptSettlement = make(chan struct{})
+	as.turn.promptDecided.done() // the claim is visible in this critical section; EOF now waits on it
 	cancelled := provider == TurnCancelled ||
 		as.turn.cancelledTurnSeq != 0 && turnID == fmt.Sprintf("t_%012d", as.turn.cancelledTurnSeq)
 	td := TurnEndData{}

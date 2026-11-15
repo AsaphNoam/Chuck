@@ -636,6 +636,9 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   unchanged. New process-exit events carry optional `process_ended` evidence to distinguish a
   process exit from a provider failure with the same reason. Without that evidence, a historical
   `error` still decodes as failed. Missing or unfamiliar reasons never establish completion.
+  A prompt result the transport delivered before it closed is settled before the exit is
+  handled, so it stays the turn's outcome; the exit then publishes its fatal process error, and a
+  `turn_end` only for a turn it interrupts — never for an idle agent or an already ended turn.
   *Why:* three producers and about a dozen string comparisons let one turn read as successful to
   one consumer and failed to another (INV §20). *Verify:* table tests of the resolver over
   completion, cancellation racing completion, failure inside a successful result, quota refusal,
