@@ -602,9 +602,17 @@ func TestStopReapsOrphanRuntimeAfterRestart(t *testing.T) {
 	fakePID := 99999 // A PID unlikely to exist; pidAlive will return false on kill attempt.
 	if err := srv.stateStore.WriteRunning(state.RunningEntry{
 		AgentID: agent.AgentID, PID: fakePID, SessionID: "s_orphan",
-		Interface: "chat", StartedAt: time.Now().UTC(),
+		Interface: "chat", StartedAt: time.Now().UTC(), Generation: "g1",
 	}); err != nil {
 		t.Fatalf("WriteRunning: %v", err)
+	}
+	// The crashed dashboard left the agent mid-turn (FS-01.R6/R21).
+	if err := srv.stateStore.BeginConversationTurn(agent.AgentID, "t1", state.TurnOrigin{Generation: "g1", Kind: state.TurnOriginPerson}); err != nil {
+		t.Fatalf("BeginConversationTurn: %v", err)
+	}
+	busySince := time.Now().UTC()
+	if err := srv.stateStore.WriteStatus(state.Status{AgentID: agent.AgentID, State: "busy", BusySince: &busySince}); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
 	}
 
 	// Verify the running entry exists.
@@ -626,6 +634,69 @@ func TestStopReapsOrphanRuntimeAfterRestart(t *testing.T) {
 	if _, err := srv.stateStore.ReadRunning(agent.AgentID); err == nil {
 		t.Fatal("orphan running row still present after stop")
 	}
+	assertStopSettled(t, srv, agent.AgentID, "g1")
+}
+
+// assertStopSettled checks FS-01.R6's final state: `done`, no busy timer, and
+// the stopped generation's turn ended.
+func assertStopSettled(t *testing.T, srv *Server, id, generation string) {
+	t.Helper()
+	st, err := srv.stateStore.ReadStatus(id)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	if st.State != "done" || st.BusySince != nil {
+		t.Fatalf("status = %q busy_since=%v, want done with no busy timer", st.State, st.BusySince)
+	}
+	turn, err := srv.stateStore.ReadConversationTurn(id, generation)
+	if err != nil {
+		t.Fatalf("ReadConversationTurn: %v", err)
+	}
+	if turn.State != "ended" || turn.Outcome != "process_ended" {
+		t.Fatalf("turn = %q/%q, want ended/process_ended", turn.State, turn.Outcome)
+	}
+}
+
+// FS-01.R6 / TS-01.R44: a live Stop whose final status write fails reports the
+// failure and keeps the running row, so a retry with storage restored settles
+// it as `done` instead of reporting success over a stale status.
+func TestStopRetrySettlesAfterFinalStatusWriteFails(t *testing.T) {
+	srv, h, id := attachmentTestServer(t, nil)
+	running, err := srv.stateStore.ReadRunning(id)
+	if err != nil {
+		t.Fatalf("ReadRunning: %v", err)
+	}
+	// Stop lands mid-turn: the generation has an open turn and a busy timer.
+	if err := srv.stateStore.BeginConversationTurn(id, "t1", state.TurnOrigin{Generation: running.Generation, Kind: state.TurnOriginPerson}); err != nil {
+		t.Fatalf("BeginConversationTurn: %v", err)
+	}
+	busySince := time.Now().UTC()
+	if err := srv.stateStore.WriteStatus(state.Status{AgentID: id, State: "busy", BusySince: &busySince}); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`CREATE TRIGGER fail_done BEFORE UPDATE ON status
+WHEN NEW.state='done' BEGIN SELECT RAISE(ABORT, 'injected done failure'); END;`); err != nil {
+		t.Fatal(err)
+	}
+	if rec := serveLocal(t, h, http.MethodPost, "/api/sessions/"+id+"/stop", nil); rec.Code < 500 {
+		t.Fatalf("stop with failed final write = %d %s, want a server error", rec.Code, rec.Body.String())
+	}
+	if st, err := srv.stateStore.ReadStatus(id); err != nil || st.State == "done" {
+		t.Fatalf("status after failed write = %+v, %v", st, err)
+	}
+	if _, err := srv.stateStore.ReadRunning(id); err != nil {
+		t.Fatalf("running row must survive an unsettled Stop: %v", err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`DROP TRIGGER fail_done`); err != nil {
+		t.Fatal(err)
+	}
+	if rec := serveLocal(t, h, http.MethodPost, "/api/sessions/"+id+"/stop", nil); rec.Code != http.StatusOK {
+		t.Fatalf("retried stop = %d %s, want 200", rec.Code, rec.Body.String())
+	}
+	if _, err := srv.stateStore.ReadRunning(id); err == nil {
+		t.Fatal("running row still present after retried Stop")
+	}
+	assertStopSettled(t, srv, id, running.Generation)
 }
 
 func TestSessionMessagesEndpoint(t *testing.T) {

@@ -917,10 +917,15 @@ func (s *Server) reapOrphanRuntime(agentID string) error {
 		return err
 	}
 
-	// Delete the running row.
-	if err := s.stateStore.DeleteRunningRetainingSession(agentID); err != nil {
-		s.log.Warn("delete running row", "agent_id", agentID, "err", err)
+	// Settle the reaped generation as stopped, then delete its running row.
+	if err := runtime.SettleStoppedRow(s.stateStore, running, ""); err != nil {
+		s.log.Warn("settle reaped running row", "agent_id", agentID, "err", err)
 		return err
+	}
+	if s.stateMgr != nil {
+		if _, err := s.stateMgr.Touch(agentID); err != nil {
+			s.log.Debug("state touch failed", "agent_id", agentID, "err", err)
+		}
 	}
 	return nil
 }

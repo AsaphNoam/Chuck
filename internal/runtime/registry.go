@@ -563,6 +563,9 @@ func (r *Registry) StopGuardedIdle(ctx context.Context, agentID, expectedGenerat
 	extra := r.onExitExtra
 	r.mu.Unlock()
 	if err := r.chat.Stop(ctx, agentID); err != nil {
+		if extra != nil && errors.Is(err, ErrStopNotSettled) {
+			extra(agentID, expectedGeneration, "requested_stop")
+		}
 		return true, err
 	}
 	if extra != nil {
@@ -596,6 +599,11 @@ func (r *Registry) Stop(ctx context.Context, agentID string) error {
 				r.generationByAgent[agentID] = generation
 			}
 			r.mu.Unlock()
+		}
+		// A stopped but unsettled process still ran its exit teardown; the
+		// retry only settles the kept running row.
+		if extra != nil && errors.Is(err, ErrStopNotSettled) {
+			extra(agentID, generation, "requested_stop")
 		}
 		return err
 	}

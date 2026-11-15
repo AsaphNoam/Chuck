@@ -410,12 +410,9 @@ func (r *Runtime) Stop(ctx context.Context, agentID string) error {
 		// silently succeed: if the recorded process group is alive, kill it before
 		// clearing the row, otherwise the PTY/CLI keeps running invisible and
 		// unkillable from the UI (Finding 5).
-		if err := rt.StopRecordedRow(r.store, agentID, rt.StopGrace); err != nil {
-			return err
-		}
-		_ = r.store.DeleteRunningRetainingSession(agentID)
+		err := rt.StopRecordedRow(r.store, agentID, rt.StopGrace)
 		r.touchState(agentID)
-		return nil
+		return err
 	}
 
 	a.mu.Lock()

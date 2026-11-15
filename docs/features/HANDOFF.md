@@ -60,10 +60,6 @@ None.
   gate-versus-row span is sound except on a failed end write (EXEC-2). Credentialed provider and
   device gates are not closed by it.
 
-- **Single-owner turn state** — `35f33a07` (TS-01.R44), reviewed 2026-11-15 at `835ec808`.
-  The late-completion fence and focused turn-ownership tests passed under `-race`.
-  TURN-STOP-1–3 are under **Review findings** for `/fix`.
-
 - **Shared desktop and phone input delivery** — reviewed 2026-11-15, `dfd644be^..91828210`
   (TS-08.R164), with reconnect behavior checked at `80414288` (TS-08.R168). INPUT-1–8 are
   under **Review findings** and wait for `/fix`. Desktop transcript refetch fences older reads;
@@ -205,37 +201,9 @@ journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R
 - **Worth fixing** — OUTCOME-7. Inventory the terminal decision across ordinary and activation
   prompts, transport delivery and EOF, Cancel and Stop. For each exit, name who settles the
   turn row, publishes the terminal event, and settles quota, mail and the room. Include the legal
-  ordering when the response, Cancel and EOF overlap, and use the Stop writer inventory from
-  TURN-STOP-3 for the overlapping paths (TS-01.R42/R44/R45, INV §5, §15, §18, §20).
-
-### Single-owner turn state (`35f33a07`) — reviewed 2026-11-15 at `835ec808` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Second fix round: `ad08b386` fixed chat status and permission ownership (ASRC-2/5) in the last
-30 days. The review confirmed the single turn lock and the successful Stop fence. The final-state
-gaps below predate this refactor and still violate the contract it consolidates.
-
-- **Must fix** — TURN-STOP-1. Stop reports success when the final status write fails and a retry
-  cannot finish it. Stop removes the running row before the status write, logs the write error and
-  returns success (`internal/runtime/chat.go:1576–1585,2884–2906`). A retry has no runtime handle
-  or running row to reconcile (`internal/server/sessions.go:909–924`, `internal/server/launch.go:909–915`).
-  A SQLite write failure injected on `done` reproduced `Stop == nil` and `idle` still stored after a
-  retry with storage restored. Keep the late-writer fence and let a retry finish the durable Stop
-  transition. Exercise the Stop route with an injected final-write failure and assert the stored
-  status, running row, and retry result (FS-01.R6/R19, TS-01.R44, INV §5, §15).
-- **Must fix** — TURN-STOP-2. Stop on an agent surviving a dashboard restart reaps the process and
-  deletes its running row, but preserves the old status. Both the API orphan path
-  (`internal/server/launch.go:909–926`) and the no-handle chat path
-  (`internal/runtime/chat.go:1532–1543`) bypass final status settlement. Extending the live-child
-  orphan test to seed `busy` reproduced that status persisting after the child and running row
-  were gone. The Stop API test also returned 200 with `busy` still stored. Route both paths
-  through the recorded generation's Stop settlement and assert `done`, a cleared busy timer and
-  a settled turn after reaping (FS-01.R6/R19/R21, TS-01.R44, INV §1, §2, §15, §23).
-- **Worth fixing** — TURN-STOP-3. Inventory every chat-status writer and every entry to Stop,
-  including live runtime, guarded idle cleanup, orphan reap and exit reconciliation. Identify where
-  each path proves the generation and which store transition settles the running row, turn and
-  final status, including its failure and retry behavior. Verify the shared status rule against
-  the writer inventory (TS-01.R44/R46, INV §5, §15, §23). The Stop bullets of the `docs/ideas.md`
-  entry "One exit rule for a claimed chat turn" are unverified inputs to this inventory.
+  ordering when the response, Cancel and EOF overlap, and use the Stop writer inventory in
+  `docs/ideas.md` ("One settlement rule for a stopped or exited process") for the overlapping
+  paths (TS-01.R42/R44/R45, INV §5, §15, §18, §20).
 
 ### Shared resume start and Switch rollback (`95d4f621`) — reviewed 2026-11-15 at `9fd1fd39` — **Fix model:** difficult — Codex Sol.
 
@@ -278,7 +246,8 @@ and `7b7a12f9` (ASW-3). `7e2539a3` moved the reviewed start path to `startRuntim
 Fix rounds closed every finding except those below. The inventory (EXEC-12) stays in
 `docs/ideas.md` ("One exit rule for a claimed chat turn"), with the independent check's
 same-cause concerns; on 2026-11-15 the operator declined a design pass for it while
-TURN-STOP-1–3 are open. The independent check is owed again only for the EXEC-6c repair.
+TURN-STOP-1–3 were open. They are closed and the Stop inventory is the next `docs/ideas.md` entry.
+The independent check is owed again only for the EXEC-6c repair.
 
 - **Worth fixing** — EXEC-13 (sibling found while closing EXEC-9; read on 2026-11-15, not
   reproduced). A permission request with no begun turn leaves `waiting_input` stored after it

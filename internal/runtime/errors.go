@@ -25,6 +25,9 @@ var ErrSteerRefused = errors.New("runtime: adapter refused steered message")
 var (
 	// ErrNoHandle: no live handle for the agent (not started / already stopped).
 	ErrNoHandle = errors.New("runtime: agent not started")
+	// ErrStopNotSettled: Stop ended the process but could not record the final
+	// state; the running row stays so a retried Stop settles it (FS-01.R6).
+	ErrStopNotSettled = errors.New("runtime: stopped process could not be settled")
 	// ErrExitedDuringStart: the process exited before its launch committed, so
 	// the start failed rather than registering a dead runtime (TS-01.R41).
 	ErrExitedDuringStart = errors.New("runtime: agent process exited during startup")

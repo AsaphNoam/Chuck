@@ -41,9 +41,17 @@ func TestChatStopKillsOrphanedLiveProcess(t *testing.T) {
 	}
 	if err := store.WriteRunning(state.RunningEntry{
 		AgentID: id, PID: pgid, ProcessBirth: requireStartTime(t, pgid), SessionID: "sess-x", Interface: "chat",
-		StartedAt: time.Now().UTC(),
+		StartedAt: time.Now().UTC(), Generation: "g1",
 	}); err != nil {
 		t.Fatalf("WriteRunning: %v", err)
+	}
+	// The surviving process was mid-turn when the dashboard restarted.
+	if err := store.BeginConversationTurn(id, "t1", state.TurnOrigin{Generation: "g1", Kind: state.TurnOriginPerson}); err != nil {
+		t.Fatalf("BeginConversationTurn: %v", err)
+	}
+	busySince := time.Now().UTC()
+	if err := store.WriteStatus(state.Status{AgentID: id, State: "busy", Detail: "Running tool", BusySince: &busySince}); err != nil {
+		t.Fatalf("WriteStatus: %v", err)
 	}
 
 	c := NewChatRuntime(store) // empty agents map → the !ok branch
@@ -56,6 +64,27 @@ func TestChatStopKillsOrphanedLiveProcess(t *testing.T) {
 	}
 	if orphanAlive(t, pgid) {
 		t.Fatal("orphaned live process survived Stop (silent success bug)")
+	}
+	assertStoppedSettled(t, store, id, "g1")
+}
+
+// assertStoppedSettled checks FS-01.R6's final state after a Stop that reaped a
+// recorded process: `done`, no busy timer, and the generation's turn ended.
+func assertStoppedSettled(t *testing.T, store *state.Store, id, generation string) {
+	t.Helper()
+	st, err := store.ReadStatus(id)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	if st.State != "done" || st.BusySince != nil {
+		t.Fatalf("status = %q busy_since=%v, want done with no busy timer", st.State, st.BusySince)
+	}
+	turn, err := store.ReadConversationTurn(id, generation)
+	if err != nil {
+		t.Fatalf("ReadConversationTurn: %v", err)
+	}
+	if turn.State != "ended" || turn.Outcome != TurnProcessEnded.storageValue() {
+		t.Fatalf("turn = %q/%q, want ended/%s", turn.State, turn.Outcome, TurnProcessEnded.storageValue())
 	}
 }
 

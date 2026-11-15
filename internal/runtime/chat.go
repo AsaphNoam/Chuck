@@ -1541,12 +1541,9 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 		// silently succeed: if the recorded process group is alive, kill it before
 		// clearing the row, otherwise the CLI keeps running invisible and unkillable
 		// from the UI (Finding 5).
-		if err := StopRecordedRow(c.store, agentID, StopGrace); err != nil {
-			return err
-		}
-		_ = c.store.DeleteRunning(agentID)
+		err := StopRecordedRow(c.store, agentID, StopGrace)
 		c.touchState(agentID)
-		return nil
+		return err
 	}
 
 	// Terminate the peer before touching receipts or answering a permission.
@@ -1582,12 +1579,20 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 	<-processStopped
 	// closePersistence is called in onTransportClosed's early-return path after
 	// the transport goroutine exits, so all in-flight emit() calls complete first.
-	_ = c.store.DeleteRunning(agentID)
-	// Keep the status row so the archive/UI can show a final state (§7.5).
-	if ended, err := c.endTurn(as, turnID, TurnProcessEnded, "done", "", ""); !ended || err != nil {
+	// Keep the status row so the archive/UI can show a final state (§7.5). The
+	// final write fences late writers even when it fails; the running row is kept
+	// then, so a retried Stop settles it as a recorded row (TS-01.R44).
+	defer as.hub.Close()
+	ended, err := c.endTurn(as, turnID, TurnProcessEnded, "done", "", "")
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrStopNotSettled, err)
+	}
+	if !ended {
 		c.touchState(agentID)
 	}
-	as.hub.Close()
+	if err := c.store.DeleteRunning(agentID); err != nil {
+		return fmt.Errorf("%w: %w", ErrStopNotSettled, err)
+	}
 	return nil
 }
 
@@ -1595,12 +1600,19 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 // holds in memory (e.g. post-restart, where reconcile leaves the live PID
 // un-adopted), so Stop never reports success while a live child keeps running
 // (Finding 5). An unverifiable live PID is refused, not signaled (FS-01.R54).
+// Once the process is gone it settles the row's generation as stopped.
 func StopRecordedRow(store *state.Store, agentID string, grace time.Duration) error {
 	row, err := store.ReadRunning(agentID)
-	if err != nil {
+	if errors.Is(err, state.ErrNotFound) {
 		return nil // no running row → nothing to reconcile
 	}
-	return StopRecordedProcess(row.PID, row.ProcessBirth, grace)
+	if err != nil {
+		return err
+	}
+	if err := StopRecordedProcess(row.PID, row.ProcessBirth, grace); err != nil {
+		return err
+	}
+	return SettleStoppedRow(store, row, "")
 }
 
 func (c *ChatRuntime) Subscribe(agentID string) (<-chan Event, func(), error) {

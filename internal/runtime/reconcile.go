@@ -26,30 +26,33 @@ func ReconcileStale(s *state.Store) ([]string, error) {
 			continue
 		}
 		slog.Info("runtime: reconciling exited running row", "agent", r.AgentID, "pid", r.PID)
-		if err := s.DeleteRunningRetainingSession(r.AgentID); err != nil {
+		if err := SettleStoppedRow(s, r, "process exited"); err != nil {
 			errs = append(errs, err)
 			continue
-		}
-		if err := markProcessExited(s, r.AgentID, r.Generation); err != nil {
-			errs = append(errs, err)
 		}
 		pruned = append(pruned, r.AgentID)
 	}
 	return pruned, errors.Join(errs...)
 }
 
-// markProcessExited writes FS-01.R20's outcome for an agent whose process is
-// gone without a live owner.
-func markProcessExited(s *state.Store, agentID, generation string) error {
-	st, err := s.ReadStatus(agentID)
+// SettleStoppedRow ends a running row whose process is gone and that no live
+// runtime owns (FS-01.R6/R20/R21): it writes `done` and ends the recorded
+// generation's open turn in one transaction, then deletes the row. The status is
+// written first, so a failed write keeps the row for a retry to settle.
+func SettleStoppedRow(s *state.Store, row state.RunningEntry, detail string) error {
+	st, err := s.ReadStatus(row.AgentID)
 	if err != nil {
-		st = state.Status{AgentID: agentID}
+		st = state.Status{AgentID: row.AgentID}
 	}
 	st.State = state.ComposeChatStatus(state.ChatProcessStopped, state.ConversationTurn{}, false)
-	st.Detail = "process exited"
+	st.Detail = detail
 	st.LastTrace = "Stop"
 	st.BusySince = nil
-	return s.WriteTurnEndStatus(st, state.TurnEnd{Generation: generation, Outcome: TurnProcessEnded.storageValue()})
+	end := state.TurnEnd{Generation: row.Generation, Outcome: TurnProcessEnded.storageValue()}
+	if err := s.WriteTurnEndStatus(st, end); err != nil {
+		return err
+	}
+	return s.DeleteRunningRetainingSession(row.AgentID)
 }
 
 // pidAlive reports whether a process group / pid is still alive. signal 0 does no

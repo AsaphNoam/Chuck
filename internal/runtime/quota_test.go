@@ -390,6 +390,10 @@ func TestRepairedQuotaCompletionUnblocksOnlyItsExactTuple(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c, h, ch, as := startQuotaTestAgent(t, "stream_text")
 			as.generation = "runtime-generation"
+			// Keep the recorded launch generation equal to the runtime's, as Start does.
+			if _, err := c.store.DB().Exec(`UPDATE running SET generation=? WHERE agent_id=?`, as.generation, h.AgentID); err != nil {
+				t.Fatal(err)
+			}
 			now := time.Now().UTC()
 			q, err := c.store.ObserveQuota(state.QuotaObservation{
 				AgentID: h.AgentID, EpisodeID: "episode-" + tc.name, SourceGeneration: "source-generation",

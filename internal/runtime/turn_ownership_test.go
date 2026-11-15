@@ -3,9 +3,12 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 func TestStopKeepsDoneWhenTurnCompletesLate(t *testing.T) {
@@ -57,6 +60,48 @@ func TestStopKeepsDoneWhenTurnCompletesLate(t *testing.T) {
 	}
 	if status.State != "done" || status.BusySince != nil {
 		t.Fatalf("status after Stop and late completion = %+v, want done with no busy timer", status)
+	}
+}
+
+// TS-01.R44 / FS-01.R6: a failed final `done` write still closes the launch's
+// status writer and keeps the running row, so a retried Stop settles it.
+func TestFailedStopWriteKeepsFenceAndRowForRetry(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	ctx := context.Background()
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.store.DB().Exec(`CREATE TRIGGER fail_done BEFORE UPDATE ON status
+WHEN NEW.state='done' BEGIN SELECT RAISE(ABORT, 'injected done failure'); END;`); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Stop(ctx, h.AgentID); !errors.Is(err, ErrStopNotSettled) {
+		t.Fatalf("Stop with failed final write = %v, want ErrStopNotSettled", err)
+	}
+	if _, err := c.store.DB().Exec(`DROP TRIGGER fail_done`); err != nil {
+		t.Fatal(err)
+	}
+	// A late callback of the stopped launch must not write after the failed end.
+	if err := c.mutateStatus(as, false, func(st *state.Status, _ error) bool { st.State = "busy"; return true }); !errors.Is(err, ErrNoHandle) {
+		t.Fatalf("late status write = %v, want ErrNoHandle", err)
+	}
+	if _, err := c.store.ReadRunning(h.AgentID); err != nil {
+		t.Fatalf("running row must survive an unsettled Stop: %v", err)
+	}
+	if err := c.Stop(ctx, h.AgentID); err != nil {
+		t.Fatalf("retried Stop: %v", err)
+	}
+	if _, err := c.store.ReadRunning(h.AgentID); err == nil {
+		t.Fatal("running row still present after retried Stop")
+	}
+	status, err := c.store.ReadStatus(h.AgentID)
+	if err != nil || status.State != "done" {
+		t.Fatalf("status after retried Stop = %+v, %v; want done", status, err)
 	}
 }
 

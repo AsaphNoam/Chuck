@@ -53,6 +53,26 @@ Example:
     twice.
   Define, per exit, the owner of row, `turn_end`, receipt and successor, and whether a gate claim
   without a turn row may exist at all.
+- **One settlement rule for a stopped or exited process.** From the single-owner turn state
+  review's inventory (TURN-STOP-3, 2026-11-15). TURN-STOP-1/2 now settle Stop by writing `done`
+  and ending the generation's turn before deleting the running row. Live chat Stop goes through
+  `endTurn` under the status fence. Reaped, no-handle and reconciled rows share
+  `runtime.SettleStoppedRow`. A failed write keeps the row, and a retry or the liveness sweep
+  settles it. The other exits still decide ordering on their own:
+  - chat `onTransportClosed` deletes the running row whatever `endTurn("error")` returned, so a
+    failed write leaves `busy` and a `running` turn that no sweep can find (INV §15, §18);
+  - the terminal runtime's owned Stop and exit watcher delete the row first, then `setDone`
+    discards its write error, and neither ends the turn row;
+  - `WriteTurnEndStatus` returns success without writing when the running row names another
+    generation, and `SettleStoppedRow` then deletes that row anyway (INV §23);
+  - `StopGuardedIdle` callers (task dispatcher, pipeline stage stop) return an unsettled Stop's
+    error without the orphan reap, so they depend on a later call reaching `ErrNoHandle`;
+  - `reapOrphanRuntime` treats any running-row read error as "already gone";
+  - `Registry.Stop` forgets the claim on errors other than unverified or unsettled;
+  - `failSwitch` and terminal `scheduleInitialIdle` write status outside any fence.
+  Define, per exit (Stop, guarded idle stop, reap, crash, reconcile, terminal), which store
+  transaction settles the running row, turn row and final status, its order, and how a failed write
+  is retried. Coordinate with the claimed-turn exit rule above.
 
 ## Ideas being defined
 
