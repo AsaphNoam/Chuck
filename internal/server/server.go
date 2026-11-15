@@ -510,7 +510,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 
 // handleAgentExit is the one teardown every exit path runs, generation-scoped so
 // a late crash of launch N cannot clear launch N+1's state (INV §4).
-func (s *Server) handleAgentExit(agentID, generation, cause string) {
+func (s *Server) handleAgentExit(agentID, generation, cause string, ending runtime.TurnOutcome) {
 	if cause == "process_exit" {
 		// Registry.handleAgentExit has already admitted this generation and dropped
 		// its ownership before calling us. Join the same lifecycle claim as resume
@@ -529,7 +529,7 @@ func (s *Server) handleAgentExit(agentID, generation, cause string) {
 		s.teardownAgentRegistration(agentID)
 	}
 	s.interruptTaskOnExit(agentID, generation, cause)
-	s.interruptThinkTankOnExit(agentID, generation, cause)
+	s.interruptThinkTankOnExit(agentID, generation, cause, ending)
 	s.clearPermissionTools(agentID, generation)
 	if s.pipelineMgr != nil {
 		s.pipelineMgr.ClearPermissionAttention(agentID, generation)

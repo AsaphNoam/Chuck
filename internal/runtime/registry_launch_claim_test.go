@@ -53,7 +53,7 @@ func TestExitBeforeCommitFailsLaunchAndFreesClaim(t *testing.T) {
 			term := &exitingRuntime{notImplementedRuntime: notImplementedRuntime{name: "terminal"}, exitFirst: true}
 			r.SetTerminalRuntime(term)
 			hooked := 0
-			r.SetExitHook(func(string, string, string) { hooked++ })
+			r.SetExitHook(func(string, string, string, TurnOutcome) { hooked++ })
 			start := r.Launch
 			if op == "resume" {
 				start = r.Resume

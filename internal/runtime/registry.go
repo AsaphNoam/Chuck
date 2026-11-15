@@ -34,7 +34,7 @@ type Registry struct {
 	// onExitExtra runs after forget on an unsolicited agent exit (crash). The
 	// server wires its teardownAgentRegistration here so a crash tears down the
 	// hook token / MCP session / hook files, not just registry ownership.
-	onExitExtra func(string, string, string)
+	onExitExtra func(agentID, generation, cause string, ending TurnOutcome)
 }
 
 // exitNotifier is implemented by runtimes that can tell the Registry to drop
@@ -64,7 +64,7 @@ func NewRegistry(s *state.Store) *Registry {
 	// blocks relaunch/resume with ErrAlreadyStarted (techspec §8.2). It must also
 	// run the server's registration teardown (SetExitHook) so the hook token / MCP
 	// session / hook files don't leak on a crash.
-	chat.onExit = r.handleAgentExit
+	chat.onExit = r.handleChatExit
 	return r
 }
 
@@ -85,8 +85,11 @@ func (r *Registry) forget(agentID string) {
 
 // SetExitHook registers a callback run (after ownership forget) whenever an agent
 // exits unsolicited. The server uses it to tear down per-agent registration
-// artifacts on the crash path, mirroring a solicited stop.
-func (r *Registry) SetExitHook(fn func(string, string, string)) {
+// artifacts on the crash path, mirroring a solicited stop. ending is the
+// resolved outcome of the turn the exit interrupted and TurnUnknown when it
+// interrupted none, so cleanup that runs before that turn's turn_end reports
+// the same ending (TS-01.R42).
+func (r *Registry) SetExitHook(fn func(agentID, generation, cause string, ending TurnOutcome)) {
 	r.mu.Lock()
 	r.onExitExtra = fn
 	r.mu.Unlock()
@@ -97,6 +100,12 @@ func (r *Registry) SetExitHook(fn func(string, string, string)) {
 // that same generation is still launching only marks the claim exited: the
 // launcher owns that failure and its rollback.
 func (r *Registry) handleAgentExit(agentID, generation string) {
+	r.handleChatExit(agentID, generation, TurnUnknown)
+}
+
+// handleChatExit is handleAgentExit carrying the chat runtime's resolved ending
+// for the turn its exit interrupted.
+func (r *Registry) handleChatExit(agentID, generation string, ending TurnOutcome) {
 	r.mu.Lock()
 	if current, ok := r.generationByAgent[agentID]; !ok || current != generation {
 		r.mu.Unlock()
@@ -112,7 +121,7 @@ func (r *Registry) handleAgentExit(agentID, generation string) {
 	extra := r.onExitExtra
 	r.mu.Unlock()
 	if extra != nil {
-		extra(agentID, generation, "process_exit")
+		extra(agentID, generation, "process_exit", ending)
 	}
 }
 
@@ -564,12 +573,12 @@ func (r *Registry) StopGuardedIdle(ctx context.Context, agentID, expectedGenerat
 	r.mu.Unlock()
 	if err := r.chat.Stop(ctx, agentID); err != nil {
 		if extra != nil && errors.Is(err, ErrStopNotSettled) {
-			extra(agentID, expectedGeneration, "requested_stop")
+			extra(agentID, expectedGeneration, "requested_stop", TurnUnknown)
 		}
 		return true, err
 	}
 	if extra != nil {
-		extra(agentID, expectedGeneration, "requested_stop")
+		extra(agentID, expectedGeneration, "requested_stop", TurnUnknown)
 	}
 	return true, nil
 }
@@ -603,12 +612,12 @@ func (r *Registry) Stop(ctx context.Context, agentID string) error {
 		// A stopped but unsettled process still ran its exit teardown; the
 		// retry only settles the kept running row.
 		if extra != nil && errors.Is(err, ErrStopNotSettled) {
-			extra(agentID, generation, "requested_stop")
+			extra(agentID, generation, "requested_stop", TurnUnknown)
 		}
 		return err
 	}
 	if extra != nil {
-		extra(agentID, generation, "requested_stop")
+		extra(agentID, generation, "requested_stop", TurnUnknown)
 	}
 	return nil
 }

@@ -38,7 +38,7 @@ func TestAgentExitClearsPendingPermissionTools(t *testing.T) {
 
 	// The unsolicited crash path: the registry's exit hook, with no resolution
 	// event, because the process that owed one is gone.
-	srv.handleAgentExit("agent-a", "gen-1", "crash")
+	srv.handleAgentExit("agent-a", "gen-1", "crash", runtime.TurnUnknown)
 
 	if _, ok := srv.permissionTools[permissionToolKey("agent-a", "gen-1", "call-1")]; ok {
 		t.Fatal("crashed generation's pending tool name survived its exit")

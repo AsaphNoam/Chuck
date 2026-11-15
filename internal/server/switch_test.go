@@ -475,7 +475,7 @@ func TestStaleCrashKeepsResumedRegistration(t *testing.T) {
 	}
 	exited := make(chan struct{})
 	go func() {
-		srv.handleAgentExit(id, "g_stale", "process_exit")
+		srv.handleAgentExit(id, "g_stale", "process_exit", runtime.TurnUnknown)
 		close(exited)
 	}()
 	select {

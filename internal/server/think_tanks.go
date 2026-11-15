@@ -416,15 +416,22 @@ func (s *Server) launchThinkTankSetup(ctx context.Context, d state.ThinkTankDeta
 
 // Requested Stop suppresses turn_end. Settle only attempts owned by the exiting
 // generation, releasing capture and allowance-free intervention on every exit.
-func (s *Server) interruptThinkTankOnExit(agentID, generation, cause string) {
+func (s *Server) interruptThinkTankOnExit(agentID, generation, cause string, ending runtime.TurnOutcome) {
 	attempts, err := s.stateStore.RunningThinkTankAttempts(agentID, generation)
 	if err != nil {
 		s.log.Warn("read exiting think tank attempts", "agent", agentID, "err", err)
 		return
 	}
+	// This runs before the interrupted turn's turn_end reaches the room, so it
+	// names the ending that event will carry (TS-01.R42): an accepted Cancel
+	// that ended the process is a cancelled turn, not an unrelated exit.
+	reason := "The agent stopped (" + cause + "). Retry explicitly, or end the discussion."
+	if ending == runtime.TurnCancelled {
+		reason = thinkTankStopText(ending) + " The agent stopped. Retry explicitly, or end the discussion."
+	}
 	for _, a := range attempts {
 		s.endThinkTankCapture(agentID, generation, a.TurnID)
-		f, err := s.failThinkTankAttempt(agentID, generation, a.TurnID, "The agent stopped ("+cause+"). Retry explicitly, or end the discussion.")
+		f, err := s.failThinkTankAttempt(agentID, generation, a.TurnID, reason)
 		if err == nil {
 			s.publishThinkTankUpdate(f.Detail)
 		} else if !errors.Is(err, state.ErrNotFound) {

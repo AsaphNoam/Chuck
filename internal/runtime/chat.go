@@ -54,7 +54,9 @@ type ChatRuntime struct {
 	// gone after an unsolicited teardown (crash). Without it, Registry.rtByAgent
 	// keeps stale ownership and blocks relaunch/resume until a manual Stop. Nil
 	// when the runtime is constructed standalone (tests). See registry.go.
-	onExit func(agentID, generation string)
+	// ending is the resolved outcome of the turn the exit interrupted, or
+	// TurnUnknown when it interrupted none.
+	onExit func(agentID, generation string, ending TurnOutcome)
 
 	cancelGrace        time.Duration // Cancel→SIGINT escalation window (§8.4)
 	startupCallTimeout time.Duration // initialize/session load/new deadline (TS-04.R22)
@@ -2387,7 +2389,11 @@ func (c *ChatRuntime) onTransportClosed(as *agentState) {
 	// the runtime has no handle to serve it (techspec §8.2). Done before the
 	// turn_end emit so a client reacting to turn_end can immediately relaunch.
 	if c.onExit != nil {
-		c.onExit(as.agentID, as.generation)
+		ending := TurnUnknown
+		if activeTurn {
+			ending = outcome
+		}
+		c.onExit(as.agentID, as.generation, ending)
 	}
 
 	// The fatal error above is the exit's record. A turn boundary belongs only

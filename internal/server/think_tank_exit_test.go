@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
@@ -124,7 +125,7 @@ func TestThinkTankStaleExitCannotSettleNewGeneration(t *testing.T) {
 	}
 	room := rooms[0].RoomID
 	a := beginCapturedTurn(t, srv, room, "a_one", "old-turn", t.TempDir())
-	srv.interruptThinkTankOnExit(a.AgentID, a.Generation, "requested_stop")
+	srv.interruptThinkTankOnExit(a.AgentID, a.Generation, "requested_stop", runtime.TurnUnknown)
 	d, err := srv.stateStore.ResumeThinkTank(room)
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +136,7 @@ func TestThinkTankStaleExitCannotSettleNewGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv.beginThinkTankCapture(b.AgentID, b, "A", "alpha")
-	srv.interruptThinkTankOnExit(a.AgentID, a.Generation, "process_exit")
+	srv.interruptThinkTankOnExit(a.AgentID, a.Generation, "process_exit", runtime.TurnProcessEnded)
 	d, err = srv.stateStore.ReadThinkTank(room)
 	if err != nil || d.Active == nil || d.Active.AttemptID != b.AttemptID {
 		t.Fatalf("new attempt after stale exit: %+v %v", d.Active, err)
@@ -144,5 +145,40 @@ func TestThinkTankStaleExitCannotSettleNewGeneration(t *testing.T) {
 	defer srv.thinkTankCaptureMu.Unlock()
 	if capture := srv.thinkTankCaptures[b.AgentID]; capture == nil || capture.generation != "g2" {
 		t.Fatal("stale exit removed new capture")
+	}
+}
+
+// OUTCOME-4 (FS-03.R9/R117, TS-01.R42, TS-14.R6): a speaker that ignores
+// cooperative Cancel is killed, and the exit hook settles its room attempt
+// before the cancelled turn_end reaches the room. The hold must name the same
+// ending as the transcript, not an unrelated process exit.
+func TestThinkTankCancelledExitHoldAgreesWithTranscript(t *testing.T) {
+	srv, h := roomRESTServer(t)
+	rec := doJSON(t, h, http.MethodPost, "/api/think-tanks", roomBody("a_one", "a_two"))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %s", rec.Body.String())
+	}
+	rooms, err := srv.stateStore.ListThinkTanks("", "", 10)
+	if err != nil || len(rooms) != 1 {
+		t.Fatalf("rooms: %+v %v", rooms, err)
+	}
+	room := rooms[0].RoomID
+	a := beginCapturedTurn(t, srv, room, "a_one", "t-cancelled", t.TempDir())
+
+	// The runtime's order on an escalated Cancel: exit hook, then turn_end.
+	srv.interruptThinkTankOnExit(a.AgentID, a.Generation, "process_exit", runtime.TurnCancelled)
+	end := runtime.Event{AgentID: a.AgentID, Generation: a.Generation, TurnID: a.TurnID, Seq: 9,
+		Type: runtime.EvTurnEnd, Data: []byte(`{"stop_reason":"cancelled"}`)}
+	if outcome, _, err := runtime.DecodeTurnEnd(end); err != nil || outcome != runtime.TurnCancelled {
+		t.Fatalf("transcript ending = %v, %v; want cancelled", outcome, err)
+	}
+	srv.finishThinkTankTurn(end)
+
+	d, err := srv.stateStore.ReadThinkTank(room)
+	if err != nil || d.Active != nil {
+		t.Fatalf("room after exit: active=%+v err=%v", d.Active, err)
+	}
+	if !strings.Contains(d.Room.Hold, "cancelled") || strings.Contains(d.Room.Hold, "process_exit") {
+		t.Fatalf("room hold = %q, want the cancelled ending the transcript records", d.Room.Hold)
 	}
 }

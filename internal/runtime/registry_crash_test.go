@@ -95,10 +95,13 @@ func TestResumedAgentCrashCarriesItsGeneration(t *testing.T) {
 	r := NewRegistry(st)
 	r.Chat().SetCommand(bin)
 
-	type exitCall struct{ agentID, generation, cause string }
+	type exitCall struct {
+		agentID, generation, cause string
+		ending                     TurnOutcome
+	}
 	exits := make(chan exitCall, 4)
-	r.SetExitHook(func(agentID, generation, cause string) {
-		exits <- exitCall{agentID, generation, cause}
+	r.SetExitHook(func(agentID, generation, cause string, ending TurnOutcome) {
+		exits <- exitCall{agentID, generation, cause, ending}
 	})
 
 	spec := LaunchSpec{
@@ -126,7 +129,7 @@ func TestResumedAgentCrashCarriesItsGeneration(t *testing.T) {
 
 	select {
 	case got := <-exits:
-		if got.agentID != h.AgentID || got.generation != "gen-resume-1" || got.cause != "process_exit" {
+		if got.agentID != h.AgentID || got.generation != "gen-resume-1" || got.cause != "process_exit" || got.ending != TurnProcessEnded {
 			t.Fatalf("exit hook = %+v, want agent %q generation gen-resume-1 cause process_exit", got, h.AgentID)
 		}
 	case <-time.After(5 * time.Second):
@@ -144,4 +147,63 @@ func TestResumedAgentCrashCarriesItsGeneration(t *testing.T) {
 		t.Fatalf("re-resume after crash: %v", err)
 	}
 	_ = r.Stop(ctx, h.AgentID)
+}
+
+// OUTCOME-4 (FS-03.R9, TS-01.R42): when an accepted Cancel escalates and ends
+// the process, the exit hook — which runs before turn_end — carries the same
+// cancelled ending the turn_end then records.
+func TestCancelEscalatedExitHookCarriesCancelledEnding(t *testing.T) {
+	bin := buildFakeACP(t)
+	st, err := state.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("state.Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+	agent := state.Agent{
+		AgentID: "a_reg_cancel_exit", Name: "Nova", Role: "implementer", Project: "my-app",
+		Backend: "claude", Model: "sonnet-4-6", Interface: "chat", CreatedAt: time.Now().UTC(),
+	}
+	st.WriteAgent(agent)
+	r := NewRegistry(st)
+	r.Chat().SetCommand(bin)
+	r.Chat().SetCancelGrace(100 * time.Millisecond)
+	endings := make(chan TurnOutcome, 2)
+	r.SetExitHook(func(_, _, cause string, ending TurnOutcome) {
+		if cause == "process_exit" {
+			endings <- ending
+		}
+	})
+	ctx := context.Background()
+	h, err := r.Launch(ctx, LaunchSpec{
+		Agent: agent, Cwd: t.TempDir(), BackendType: "claude-acp", ModelID: "claude-sonnet-4-6",
+		Generation: "gen-cancel", Env: []string{"FAKEACP_SCENARIO=ignore_cancel", "HOME=" + os.Getenv("HOME")},
+	})
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	ch, unsub, err := r.Subscribe(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsub()
+	if err := r.SendPrompt(ctx, h.AgentID, "go"); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvAssistantText)
+	if cancelled, err := r.Cancel(ctx, h.AgentID); err != nil || !cancelled {
+		t.Fatalf("Cancel = %v, %v; want claimed", cancelled, err)
+	}
+	end := waitForEvent(t, ch, EvTurnEnd)
+	recorded, _, err := DecodeTurnEnd(end)
+	if err != nil || recorded != TurnCancelled {
+		t.Fatalf("turn end = %v, %v; want cancelled", recorded, err)
+	}
+	select {
+	case got := <-endings: // already sent: the hook precedes turn_end
+		if got != recorded {
+			t.Fatalf("exit hook ending = %v, turn end recorded %v", got, recorded)
+		}
+	default:
+		t.Fatal("exit hook had not run before turn_end")
+	}
 }

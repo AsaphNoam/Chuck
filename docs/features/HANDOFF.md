@@ -154,15 +154,6 @@ journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R
   shared decode and supply that interpretation on both live and retained transcript paths.
   Exercise both paths while preserving the stored wire labels (FS-03.R74/R117, TS-01.R42,
   INV §2, §11, §20).
-- **Must fix** — OUTCOME-4. When an accepted Cancel ends the provider process, the room
-  attempt settles as a generic process exit before the cancelled event reaches the room reader.
-  `internal/runtime/chat.go:2313–2345` runs the exit hook first, and
-  `internal/runtime/registry.go:99–115` passes a fixed `process_exit` cause. The hook fails the
-  attempt and publishes that cause (`internal/server/server.go:511–532`,
-  `internal/server/think_tanks.go:419–429`), so the later event cannot settle it as cancelled.
-  Carry the resolved ending into generation-scoped room cleanup and verify the room hold and
-  transcript agree when a speaker ignores cooperative Cancel (FS-03.R9/R117, TS-01.R42,
-  TS-14.R6, INV §15, §20, §23).
 - **Worth fixing** — OUTCOME-5. Reconciliation joins adjacent replies when a retained
   turn-end payload has the wrong shape. A temporary test with a valid event envelope and
   numeric `stop_reason` reproduced `old turn new turn` in the card preview.
@@ -176,6 +167,13 @@ journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R
   to assert the missing effects from the same emitted event and guard the live and retained
   projections against reintroducing separate classifications (FS-03.A92, TS-01.R42, TS-06.R35,
   INV §17).
+- **Worth fixing** — OUTCOME-8 (sibling of OUTCOME-4, found while fixing it). An assignment
+  whose agent is killed by an escalated Cancel is still recovered as an unexpected exit.
+  `internal/server/task_dispatcher.go:1056–1085` reads only `cause`, so a cancelled exit takes
+  `unexpected_exit` and `recoverStageTask`, which can restart work a person cancelled, with the
+  text "went away … process_exit". The exit hook now carries the resolved ending
+  (`handleAgentExit`'s `ending`); decide whether a cancelled exit pauses like a requested Stop,
+  and test the pipeline stage after an ignored Cancel (FS-03.R9, TS-01.R42, INV §20).
 - **Worth fixing** — OUTCOME-7. Inventory the terminal decision across ordinary and activation
   prompts, transport delivery and EOF, Cancel and Stop. For each exit, name who settles the
   turn row, publishes the terminal event, and settles quota, mail and the room. Include the legal
