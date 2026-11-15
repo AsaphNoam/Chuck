@@ -13,18 +13,24 @@ handoff or request,
 the handoff names — and workflow §§3–7 completely. Check whether code matches the specifications and
 whether the specifications cover the code across the handoff's eligible change unit.
 
-Then sweep the diff against every invariant class by that index and tag each finding with its class
-number; open a class body only where the trigger matches. A class with no applicable surface in the
-diff is a result to state, not a step to skip.
+Then check the diff against that index and tag each finding with its class number; open a class
+body only where the trigger matches.
 
 For materially changed tests, apply TS-06.R35 and INV §17: challenge the meaningful contract,
 independent oracle, real boundary and added confidence relative to cost. Do not demand more
-tests merely for coverage or invoke the test-writing companion during this read-only review.
+tests merely for coverage.
 
 Classify every fix independently from severity, then record exactly one §7 **Fix model**
-recommendation for the selected review unit at the level of its most difficult open fix:
-trivial/easy uses Claude Sonnet or Codex Luna; medium uses Codex Terra or Claude Opus; difficult uses
-Codex Sol. Record it once with the unit, not on individual findings, and repeat it in the human update.
+recommendation for the selected review unit at the level of its most difficult open fix, using
+workflow §7's bands. Record it once with the unit, not on individual findings, and repeat it in the
+human update.
+
+When every finding in the unit is trivial/easy, fix the unit in this session: read workflow §2 and
+§8, repair each finding with its regression test, run the applicable closure, and commit the repair
+with the review state, naming each finding and fix in the commit message. Record a unit with any
+medium or difficult finding whole and leave it for `/fix`; do not split it or shade a
+classification down. When the same subsystem already had findings fixed in the last 30 days, add
+the inventory finding workflow §7 describes.
 
 The human may name a commit/range in `$ARGUMENTS`; otherwise choose any available review unit named
 by the handoff and say which one you took (workflow §1.4 and §7). Administrative commits never become
@@ -33,6 +39,6 @@ archive, or queue-only commits when advancing the selected unit's review state. 
 constrain selection, and other role queues do not block review. A no-finding review closes its unit
 without creating another review obligation; if no eligible unit is pending, report that and do not
 make an empty commit.
-Do not change product code or specs. Record every finding and local-choice outcome, make the required
-state commit, and close with the concise human update. Findings keep that same unit open; they do not
+Outside that trivial/easy repair, do not change product code or specs. Record every finding and
+local-choice outcome, make the required state commit, and close with the concise human update. Findings keep that same unit open; they do not
 create a second review unit.

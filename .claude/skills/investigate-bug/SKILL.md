@@ -17,7 +17,6 @@ completely, then follow the investigation process.
 ask for the report. Do not change product code or specifications; the only allowed tree change is a
 reproduction test committed skipped. Record every fixable finding with its confidence level, classify
 each fix independently from severity, then record exactly one §7 **Fix model** recommendation for the
-investigation unit at the level of its most difficult open fix: trivial/easy uses Claude Sonnet or
-Codex Luna; medium uses Codex Terra or Claude Opus; difficult uses Codex Sol. Record it once with the
-unit, not on individual findings, and repeat it in the human update. Make the required state commit
+investigation unit at the level of its most difficult open fix, using workflow §7's bands. Record it
+once with the unit, not on individual findings, and repeat it in the human update. Make the required state commit
 and close with the concise human update.

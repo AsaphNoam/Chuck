@@ -7,8 +7,9 @@ description: Explicit invocation only. Run only when the user sends `/release`; 
 
 At startup, inspect `git status` and the existing diff before any repository edit. Use the injected
 handoff header when present; otherwise read only **Current position** and **Active
-change** in [`HANDOFF.md`](../../../docs/features/HANDOFF.md). Open its **Review findings**,
-**Acceptance gates**, and **Blocked on human** sections for readiness, then read FS-10 and
+change** in [`HANDOFF.md`](../../../docs/features/HANDOFF.md). Open its **Review findings** and
+**Blocked on human** sections and
+[`ACCEPTANCE-GATES.md`](../../../docs/features/ACCEPTANCE-GATES.md) for readiness, then read FS-10 and
 TS-06.R13–R22 for the release contract,
 FS-18 and TS-11 for the shipped `operating-chuck` package, and
 [`AGENT-WORKFLOW.md`](../../../docs/features/AGENT-WORKFLOW.md) §§2–6 and §16 completely. Then

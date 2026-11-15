@@ -9,8 +9,9 @@ says how agents work with them.
 1. Read the handoff's **Current position** and **Active change**, then inspect `git status` and the
    diff. Treat a dirty tree as user or interrupted work; do not discard it. When a session-start hook
    already injected that header, do not re-read it. Open the rest of [`HANDOFF.md`](HANDOFF.md) —
-   review findings, blocked-on-human, acceptance gates — only when the header points at it or the
-   task needs it, and read those sections by name rather than reading the file end to end.
+   review findings, blocked-on-human — and the owed gates in
+   [`ACCEPTANCE-GATES.md`](ACCEPTANCE-GATES.md) only when the header points at them or the
+   task needs them, and read those sections by name rather than reading a file end to end.
 2. Read the change file and relevant feature, technical, and invariant requirements for the unit
    selected by the invoked role before reading code. A role invocation may select any available unit
    in that role's queue: use the unit the user names, otherwise choose one clearly recorded available
@@ -74,9 +75,17 @@ style/presentation checks run once through the completion build's `prebuild` hoo
 `make dist` already rebuilds the UI and binary. Run `git diff --check` for every change.
 Reuse a passing check across work, fix and release when its relevant source, dependencies,
 command/flags and environment are unchanged. Record the command, result and checked revision or
-scope briefly in the existing handoff; bookkeeping-only commits do not invalidate it. If this
-evidence is missing or affected inputs changed, rerun that check. Reuse never turns a failed,
-blocked or unrun check into a pass. CI still runs its full clean-clone checks (TS-06.R8).
+scope briefly in the commit message of the work it verified; bookkeeping-only commits do not
+invalidate it. If this evidence is missing or affected inputs changed, rerun that check. Reuse
+never turns a failed, blocked or unrun check into a pass. CI still runs its full clean-clone
+checks (TS-06.R8).
+
+A lifecycle, concurrency or recovery test that fails and then passes on rerun has not passed.
+Record the failing output as an open finding under `## Review findings` (§7 format) on the unit
+that owns the code, or as its own unit when the owner is unclear. A green rerun, or many, does not
+close it: this is the code where Chuck's real defects concentrate, and an intermittent failure
+there is evidence of a race until a cause says otherwise. Closing it takes that cause — a product
+ordering repaired, or a fixture made to control the schedule it depends on.
 
 Capture verbose test/build output in a temporary log. Inspect the summary on success and bounded
 failure excerpts on failure; retain the log path when useful. Do not load or repeat entire passing
@@ -106,13 +115,22 @@ Record the question under `## Blocked on human` in `HANDOFF.md`, with enough con
 
 For a reversible local implementation choice, record a short note for the next independent review rather than asking the user. The reviewer either removes it after confirming it is sound or turns it into a user question when it has broader consequences.
 
+A note never narrows a stated requirement. When the simpler implementation delivers less than an FS/TS item promises — a bound left unreserved, "every process" built for one — either change the requirement through §10, with the user's decision where §3 reserves it, or keep the gap as an open finding. A note beside a contradicted requirement is not closure.
+
 ## 4. Keep the handoff useful
 
 `HANDOFF.md` is current working state, not history. It contains the available or resumable units for
-each role, their next small steps, unresolved user questions, open review findings tied to their
-originating units, and a short changelog. Review state lists substantive units independently; it is
-not a raw commit ledger or an ordered pipeline. Remove finished steps and resolved findings. Keep
-completed details in specifications, tests, commits, and Git history.
+each role, their next small steps, unresolved user questions, and open review findings tied to
+their originating units. Review state lists substantive units independently; it is not a raw commit
+ledger or an ordered pipeline. Remove finished steps and resolved findings. Keep completed details
+in specifications, tests, commits, and Git history.
+
+The handoff keeps no changelog and no test transcripts. The commit message says what changed, which
+findings it closed and which checks passed; Git history is the changelog. A queue entry is a
+pointer: the unit's name, its commit or range, the governing requirement IDs, and only what the
+next role cannot learn from that commit. Acceptance gates still owed live in
+[`ACCEPTANCE-GATES.md`](ACCEPTANCE-GATES.md), one line per gate; the handoff names a gate only
+when it blocks the current work.
 
 Update the active handoff at each verified checkpoint and before an intentional interruption:
 briefly identify completed slices, current unfinished work, the next action, and checks already
@@ -221,13 +239,30 @@ unit, not on its individual findings. Repeat it in the human update so the opera
 without reopening the findings. Recalculate it whenever findings are added to or removed from the
 unit; the recommendation may step down only after the harder findings are closed.
 
+**A trivial/easy unit is fixed in the review session.** When every finding in the selected unit is
+trivial/easy, the reviewer repairs them in the same run under §8 — confirm, fix, regression test,
+focused checks, then §2's applicable closure — and commits the repair with the review state. The
+commit message names each finding and its fix; nothing is written to `## Review findings`, and the
+unit closes. §8 never gave such a fix a second reader, so no independence is lost and a session, a
+state commit and a queue round-trip are saved. A unit with any medium or difficult finding is
+recorded whole and left for `/fix`: do not split it, and do not shade a classification down to
+keep the work.
+
+**A second fix round stops the patching.** Before recording findings, check whether the same
+subsystem — the same state column, queue or lifecycle owner — already had findings fixed in the
+last 30 days (`git log` and the handoff archive show this). If it did, say so on the unit and add
+one finding that asks for an inventory: every writer of the affected state, every entry point to
+the affected operation, and where the legal moves are stated. Repeated findings in one place mean
+the structure produces them; another local patch buys the next round. §8 says what the fixer does
+with it.
+
 Record each real finding in `## Review findings` in `HANDOFF.md` with its location, normal-use
 trigger, why it matters, relevant requirement ID when one exists, and a suggested test or fix. Start
 the bullet with either **Must fix** (a likely normal-use failure, data-loss risk, or requirement
 violation) or **Worth fixing** (useful but not urgent). Findings keep the selected unit open. A
 no-finding review closes it and creates no new review obligation; advance review state across that
 unit and its skipped administrative commits, leaving every other available unit unchanged. Commit
-only the state file (§5).
+only the state file (§5), or the state file with the repair when the unit was fixed in session.
 
 ## 8. Fix review findings
 
@@ -236,12 +271,28 @@ first, one finding at a time. That review continues its originating change unit 
 findings, then stop rather than continuing into another unit unless the user asks for more.
 
 1. Confirm the report is true by reading the code, the cited requirement, and the real path. Reproduce it with a failing test when practical. A finding that cites a committed skipped reproduction test (§12) starts by un-skipping it and confirming it fails.
-2. If it is false or already fixed, remove the finding and record the short evidence in the changelog and human update; do not change code.
+2. If it is false or already fixed, remove the finding and record the short evidence in the commit message and human update; do not change code.
 3. If it is real, fix it, add or keep a regression test, run the required checks, and update the relevant specification if the correct fix changes behavior or fills missing coverage. Use `write-tests` (§17) when behavior needs new verification or tests/fixtures materially change. Before closing, check the defect's siblings: the adjacent fields, routes or consumers built on the same assumption, and what the changed code now does to its neighbours. Fix a sibling that shares the cause; record any other as its own finding.
 4. When the work is verified, remove the finding, update the handoff, and commit.
 
 Use focused regression checks per finding; run §2's applicable completion checks once after the
 final repair in the selected review unit.
+
+**A medium or difficult unit gets one independent check before it closes.** Give a fresh-context
+subagent the finding text, the governing requirement and the fix diff, without your account of why
+the fix is right. Use a model at the unit's own band or stronger, not the discovery tier. Ask three
+things: does the diff close the finding at the real boundary; what does the changed code now do to
+one adjacent path — a sibling entry point, the restart or repair path, or an unchanged consumer of
+the changed state; and can the regression test fail. Repair what it confirms and record what you
+dispute as a finding with the evidence. This is verification inside the unit: it creates no review
+unit, is not repeated over its own repairs, and the checker reruns no full suite. If the harness
+cannot start a subagent, leave the unit open with one line saying the independent check is owed.
+Trivial/easy units and §18 architectural findings keep their existing closure.
+
+**An inventory finding ends the patching (§7).** Repair the Must-fix findings that lose work or
+misdirect an agent. Then do the inventory, record its result — the writers, the entry points, and
+the missing or divergent rule — as an entry in `docs/ideas.md` for `/design-feature`, and leave the
+unit's remaining same-cause findings attached to that idea instead of patching them one at a time.
 
 When every finding from the review is closed, close the originating change unit. The finding-fix
 commit is part of that closure and does not become a new default review unit. A fix that adds
@@ -267,7 +318,7 @@ Specifications describe shipped behavior and architecture. Requirement IDs are a
 
 Tests, commits, and review findings should cite a requirement ID only when that link helps someone find the rule being checked. The specification checker verifies the mechanics of these links, but people still need to judge whether the text and code agree.
 
-Build and fix sessions edit specifications. Review sessions report missing or incorrect specification coverage; usability reviews report observed behavior and do not edit specifications.
+Build and fix sessions edit specifications; a review repairing a trivial/easy unit under §7 is a fix session for that repair. Review sessions otherwise report missing or incorrect specification coverage; usability reviews report observed behavior and do not edit specifications.
 
 ## 11. Design a feature
 
@@ -300,6 +351,16 @@ the trigger does not pass, continue without recording a UX ceremony or rationale
    non-trivial tradeoff, explain the options and recommendation and wait for the user's decision;
    do not silently choose security, privacy, persistence, compatibility, migration, or protocol
    boundaries.
+
+   **When the change adds or alters a durable state, a wait, or which component owns a record or
+   effect, write its transition table** in the change file. One row per state; one column per event
+   that can reach it — at least restart, Stop or cancel, replacement of the owner, refused or failed
+   input, a quota or timeout hold, and a late callback from the previous owner. Each cell names the
+   next state, who owns the durable record, and what the person or agent observes. An empty cell is
+   an open design question, not a default. Then have a fresh-context subagent on a strong model run
+   §13's review over the change file and its planned items before step 6. This stays inside the
+   design unit: revise in place with the human, and record in the handoff only a finding that
+   remains open. Other changes need neither the table nor the automatic review.
 6. When both specifications are complete, create a descriptive file in `docs/ready-changes/` with
    the exact requirements and acceptance evidence, remove the source idea, and run the documentation
    checks. Do not make the change active in `HANDOFF.md`; implementation has not started. Commit the
@@ -347,7 +408,10 @@ and no specifications, with one exception: it may commit a reproduction test mar
 `/review-design` reviews a waiting change in `docs/ready-changes/` — its change file and the planned
 FS/TS/INV items it cites — before implementation starts. It is the §7 author/reviewer split applied
 to a design: record findings, change nothing. Resolving findings is follow-up design-feature work
-with the human (§11), which removes each finding as it revises.
+with the human (§11), which removes each finding as it revises. A design with a §11 transition
+table gets this review automatically inside its design session; the explicit role remains for any
+other waiting change. Read such a table cell by cell: an empty cell, or one that says only "as
+before", is a finding whenever a real journey reaches it.
 
 `$ARGUMENTS` names the change; without arguments, choose any waiting change and say which one you
 took. Other design, work, review, or fix units do not block it. Read the change file, every planned
@@ -716,8 +780,8 @@ behavior; when the release range needs one of those, that work happens first und
    passed them. A gate that was run and failed is recorded as a §4 finding before this role closes,
    never left to the run record alone.
 
-7. **Close.** Record the released version and the gates still owed in `HANDOFF.md`, commit the state
-   file (§5), and finish with the §6 human update.
+7. **Close.** Record the released version in `HANDOFF.md` and the gates still owed in
+   `ACCEPTANCE-GATES.md`, commit the state files (§5), and finish with the §6 human update.
 
    A release is a mandatory epoch boundary for the handoff, and an earlier cut is warranted whenever
    settled content obscures live state. Move everything the new
@@ -815,8 +879,8 @@ rerun is required to write it. Partial fixes can leave `closes` empty. Unrelated
 uses `kind: "coverage"` with its exact commits and focused independent affected-coverage evidence;
 it cannot close findings or be silently admitted as a fix.
 
-Only the receipt directory, live handoff, and specifically named release-note/handoff archive files
-are administrative allowances. Every other post-review commit needs exact verified update coverage.
+Only the receipt directory, live handoff, owed-gates file, and specifically named
+release-note/handoff archive files are administrative allowances. Every other post-review commit needs exact verified update coverage.
 The gate reads committed candidate files, checks prior-release/review ancestry and rejects open
 live Must-fix findings. Committing the receipt or later finding closure does not invalidate itself.
 It does not infer fix intent from commit subjects or broadly allow all files a fix happened to touch.

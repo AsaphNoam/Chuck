@@ -83,19 +83,27 @@ recommendation, then wait for the user's decision. Always ask before choosing a 
 data-retention, compatibility, destructive-migration, or externally visible protocol boundary. Do
 not interrupt the user for routine, reversible implementation mechanics.
 
+When the change adds or alters a durable state, a wait, or which component owns a record or effect,
+write the transition table workflow §11 describes: each state against restart, Stop or cancel,
+owner replacement, refused or failed input, a quota or timeout hold and a late callback from the
+previous owner, with the next state, the record's owner and what is observed in every cell. An
+empty cell is an open question. Then have a fresh-context subagent on a strong model review the
+draft change and its planned items under workflow §13, and revise with the user before calling the
+design ready. Other changes need neither.
+
 ## 4. Make the feature ready to implement
 
 When both specification sides are complete:
 
 1. Check that FS, TS, and invariant references agree; all unshipped requirements remain `(planned)`.
 2. Create `docs/ready-changes/<descriptive-name>.md` using its template. Include the outcome, scope,
-   acceptance evidence, exact FS/TS/INV references, and `Waiting to start` state.
+   acceptance evidence, exact FS/TS/INV references, `Waiting to start` state, and the transition
+   table when one was required.
 3. Remove the source entry from `docs/ideas.md`; preserve its origin and useful context in the ready
    change file.
 4. Do not make it active in `HANDOFF.md` and do not write product code.
 5. Run `make check-specs`, the twin-skill comparison, and `git diff --check`.
-6. Update the handoff changelog.
-7. Commit the specifications, the ready change, the removed idea, and the state file together.
+6. Commit the specifications, the ready change, the removed idea, and the state file together.
 
 If a material product or technical decision remains unresolved, do not create a ready change. Keep
 the entry under `Ideas being defined`, record what is needed, and tell the user plainly.

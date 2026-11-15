@@ -34,6 +34,14 @@ A change is either:
 ## How we will know it works
 <Linked acceptance criteria, tests, user journeys, or manual checks.>
 
+## State and ownership
+<Only when the change adds or alters a durable state, a wait, or which component owns a record or
+effect (workflow §11); delete this section otherwise. Each cell: next state / owner of the durable
+record / what the person or agent observes. An empty cell is an open design question.>
+
+| State | Restart | Stop or cancel | Owner replaced | Input refused or failed | Quota or timeout hold | Late callback from previous owner |
+|---|---|---|---|---|---|---|
+
 ## Waiting on
 <Only a decision or dependency that prevents starting.>
 ```

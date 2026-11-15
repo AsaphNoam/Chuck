@@ -21,7 +21,8 @@ function ancestor(before, after) {
   catch { return false; }
 }
 function administrative(path) {
-  return path === 'docs/features/HANDOFF.md' || path.startsWith(receiptRoot) ||
+  return path === 'docs/features/HANDOFF.md' || path === 'docs/features/ACCEPTANCE-GATES.md' ||
+    path.startsWith(receiptRoot) ||
     /^docs\/archive\/state\/(?:HANDOFF-through-\d{4}-\d{2}-\d{2}|RELEASE-v\d+\.\d+\.\d+-notes)\.md$/.test(path);
 }
 

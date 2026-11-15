@@ -73,16 +73,16 @@ for tree in .agents .claude; do
       if ! has_rule "$file" 'Classify every fix independently from severity, then record exactly one §7 **Fix model** recommendation for the selected review unit at the level of its most difficult open fix'; then
         fail "$tree/$role: missing fix-model recommendation"
       fi
-      if ! has_rule "$file" 'trivial/easy uses Claude Sonnet or Codex Luna; medium uses Codex Terra or Claude Opus; difficult uses Codex Sol.'; then
-        fail "$tree/$role: invalid fix-model mapping"
+      if ! has_rule "$file" "using workflow §7's bands"; then
+        fail "$tree/$role: fix-model bands are not taken from the workflow"
       fi
     fi
     if [ "$role" = investigate-bug ]; then
       if ! has_rule "$file" 'record exactly one §7 **Fix model** recommendation for the investigation unit at the level of its most difficult open fix'; then
         fail "$tree/$role: missing confidence and fix-model recommendation"
       fi
-      if ! has_rule "$file" 'trivial/easy uses Claude Sonnet or Codex Luna; medium uses Codex Terra or Claude Opus; difficult uses Codex Sol.'; then
-        fail "$tree/$role: invalid fix-model mapping"
+      if ! has_rule "$file" "using workflow §7's bands"; then
+        fail "$tree/$role: fix-model bands are not taken from the workflow"
       fi
       if ! has_rule "$file" 'Record it once with the unit, not on individual findings, and repeat it in the human update.'; then
         fail "$tree/$role: fix-model recommendation is not routed to the operator"
@@ -91,6 +91,14 @@ for tree in .agents .claude; do
     if [ "$role" = fix ] &&
        ! grep -Fq 'it does not create a new default review unit.' "$file"; then
       fail "$tree/$role: finding fix creates a review-loop risk"
+    fi
+    if [ "$role" = fix ] &&
+       ! has_rule "$file" "Before closing a medium or difficult unit, run workflow §8's independent check"; then
+      fail "$tree/$role: consequential fixes close without an independent check"
+    fi
+    if [ "$role" = design-feature ] &&
+       ! has_rule "$file" 'write the transition table workflow §11 describes'; then
+      fail "$tree/$role: lifecycle designs skip the transition table"
     fi
     if [ "$role" = fix ] &&
        ! grep -Fq 'Chronology and other role queues' "$file"; then

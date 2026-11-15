@@ -27,8 +27,14 @@ continuation of its originating change unit (workflow §1.4 and §8). Chronology
 do not constrain selection. Stop when that unit is closed rather than continuing into another unit.
 The unit's §7 **Fix model** recommendation applies to the whole grouped run and reflects its most
 difficult open fix; do not split the unit or choose a weaker model for its easier individual findings.
+Before closing a medium or difficult unit, run workflow §8's independent check: a fresh-context
+subagent on a model at that band or stronger gets the finding, the requirement and the fix diff,
+and answers whether the fix holds at the real boundary, what it does to one adjacent path, and
+whether the regression test can fail. For an inventory finding, repair the urgent Must-fix items,
+then do the inventory and route its result to `docs/ideas.md` instead of patching the rest.
 The fix commit
 closes that unit; it does not create a new default review unit. Name what is still open when you
-close. Name the finding's invariant class in the changelog line. Update the
+close. Name the finding's invariant class and the checks that passed in the commit message; the
+handoff keeps no changelog. Update the
 relevant specification when a fix changes behavior or fills missing coverage. Close with the handoff
 update, commit, and concise human update.

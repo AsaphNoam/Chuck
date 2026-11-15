@@ -62,7 +62,7 @@ Every role keeps the live handoff accurate and ends with a short, plain-language
 ## Repository rules
 
 - Read the [`INVARIANTS.md`](docs/features/INVARIANTS.md) trigger index, then the matching class in
-  full before a hot-spot change. Reading all fifteen classes for a diff that touches one is waste.
+  full before a hot-spot change. Reading every class for a diff that touches one is waste.
 - Shared verification is specified by TS-06 and workflow §2. Use focused checks while iterating
   and run the applicable closure matrix once after the final relevant edit; the server remains
   loopback-only.

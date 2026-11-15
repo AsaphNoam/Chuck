@@ -107,6 +107,21 @@ dir=$(fixture fix-model-unit)
 mutate_launcher "$dir" fix 's/applies to the whole grouped run/applies to each individual finding/'
 expect_failure 'fix model unit scope' 'fix-model recommendation does not apply to the whole unit' "$dir"
 
+# The fix launcher lets a medium or difficult unit close on the fixer's own evidence.
+dir=$(fixture fix-independent-check)
+mutate_launcher "$dir" fix 's/Before closing a medium or difficult unit, run workflow §8.s independent check/Before closing a unit, rerun your own checks/'
+expect_failure 'fix independent check omission' 'consequential fixes close without an independent check' "$dir"
+
+# The design launcher stops requiring the transition table for lifecycle changes.
+dir=$(fixture design-transition-table)
+mutate_launcher "$dir" design-feature 's/write the transition table workflow §11 describes/describe the transitions in prose/'
+expect_failure 'design transition table omission' 'lifecycle designs skip the transition table' "$dir"
+
+# The review launcher restates its own model bands instead of the workflow's.
+dir=$(fixture review-bands-source)
+mutate_launcher "$dir" review 's/workflow §7.s bands/the usual bands/'
+expect_failure 'review bands source' 'fix-model bands are not taken from the workflow' "$dir"
+
 # The design launcher recognizes a named idea only in the two queue sections.
 dir=$(fixture design-named)
 mutate_launcher "$dir" design-feature 's/names an entry in any section of `docs\/ideas.md`/names an entry in `New ideas` or `Ideas being defined`/'
