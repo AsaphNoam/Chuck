@@ -312,6 +312,9 @@ func TestOrdinaryStageAgentStopPausesPipelineRun(t *testing.T) {
 	srv := testServer(t, true)
 	t.Cleanup(func() { srv.registry.Shutdown(context.Background()) })
 	srv.registry.Chat().SetCommand(buildFakeACP(t))
+	// The fake owner never reports, so three settled turns would pause the run
+	// for owner_not_reporting before Stop arrives (TS-09.R70).
+	srv.ownerStallNudgeOff = true
 	if err := srv.configStore.WriteProject("pipeline-stop", config.Project{
 		Title: "Pipeline stop", Cwd: t.TempDir(), AddDirs: []string{},
 	}); err != nil {
@@ -358,6 +361,9 @@ func TestOrdinaryStageAgentStopPausesPipelineRun(t *testing.T) {
 		t.Fatal("stage launch did not release its lifecycle claim")
 	}
 
+	if d, err := srv.pipelineMgr.Detail(started.Run.Run.RunID); err != nil || d.Run.State == "paused" {
+		t.Fatalf("run paused before Stop: %+v err=%v", d.Run, err)
+	}
 	rec = doRequest(t, handler, http.MethodPost, "/api/sessions/"+agentID+"/stop", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("ordinary stop = %d %s", rec.Code, rec.Body.String())
