@@ -116,6 +116,11 @@ func (b *primerBuilder) visit(ev runtime.Event) error {
 	if err != nil {
 		b.append("\n[malformed transcript event omitted]\n")
 		b.delta = false
+		// An undecodable turn end is still the boundary; only its outcome is
+		// unknown (TS-01.R42, INV §7).
+		if ev.Type == runtime.EvTurnEnd {
+			b.flush()
+		}
 		return nil
 	}
 	if ev.Type == runtime.EvTurnEnd {

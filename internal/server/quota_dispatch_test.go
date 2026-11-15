@@ -108,10 +108,10 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 			path := "/api/sessions/" + id + "/transcript"
 			for _, suffix := range []string{"", "?limit=100"} {
 				got := getWindow(t, h, newLocalRequest(http.MethodGet, path+suffix, nil))
-				// The turn-end fork affordance is a read projection, never stored
+				// The turn-end fork affordance and decoded outcome are read projections, never stored
 				// (TS-03.R86); the durable records must otherwise match exactly.
 				for i := range got.Events {
-					got.Events[i].Fork = nil
+					got.Events[i].Fork, got.Events[i].Outcome = nil, ""
 				}
 				if !reflect.DeepEqual(got.Events, events) {
 					t.Fatalf("reloaded transcript differs: %s", suffix)
@@ -123,7 +123,7 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 			}
 			archived := getWindow(t, h, newLocalRequest(http.MethodGet, path, nil))
 			for i := range archived.Events {
-				archived.Events[i].Fork = nil
+				archived.Events[i].Fork, archived.Events[i].Outcome = nil, ""
 			}
 			if !reflect.DeepEqual(archived.Events, events) {
 				t.Fatal("archived transcript changed continuation history or attribution")

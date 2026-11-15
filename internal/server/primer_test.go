@@ -166,3 +166,22 @@ func primerEvent(t *testing.T, typ string, data any) runtime.Event {
 func tokenEstimate(s string) int {
 	return (len(s) + 3) / 4
 }
+
+// OUTCOME-5 sibling (TS-01.R42, INV §7, §24): the switch primer keeps the turn
+// boundary at a turn end whose payload cannot be decoded, like reconciliation.
+func TestHistoryPrimerKeepsBoundaryAtMalformedTurnEnd(t *testing.T) {
+	b := newPrimerBuilder(4000)
+	for _, ev := range []runtime.Event{
+		primerEvent(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "old turn"}),
+		primerEvent(t, runtime.EvTurnEnd, map[string]any{"stop_reason": 7}),
+		primerEvent(t, runtime.EvAssistantText, runtime.AssistantTextData{Delta: "new turn"}),
+	} {
+		if err := b.visit(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b.flush()
+	if len(b.tail) != 2 || !strings.Contains(b.tail[0], "old turn") || strings.Contains(b.tail[0], "new turn") || !strings.Contains(b.tail[1], "new turn") {
+		t.Fatalf("primer turns = %q, want the two replies in separate turns", b.tail)
+	}
+}

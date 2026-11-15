@@ -165,14 +165,11 @@ func TestThinkTankCancelledExitHoldAgreesWithTranscript(t *testing.T) {
 	room := rooms[0].RoomID
 	a := beginCapturedTurn(t, srv, room, "a_one", "t-cancelled", t.TempDir())
 
-	// The runtime's order on an escalated Cancel: exit hook, then turn_end.
-	srv.interruptThinkTankOnExit(a.AgentID, a.Generation, "process_exit", runtime.TurnCancelled)
-	end := runtime.Event{AgentID: a.AgentID, Generation: a.Generation, TurnID: a.TurnID, Seq: 9,
-		Type: runtime.EvTurnEnd, Data: []byte(`{"stop_reason":"cancelled"}`)}
-	if outcome, _, err := runtime.DecodeTurnEnd(end); err != nil || outcome != runtime.TurnCancelled {
-		t.Fatalf("transcript ending = %v, %v; want cancelled", outcome, err)
-	}
-	srv.finishThinkTankTurn(end)
+	// The runtime's order on an escalated Cancel: the server's exit hook, then
+	// the turn_end the transcript keeps.
+	srv.handleAgentExit(a.AgentID, a.Generation, "process_exit", runtime.TurnCancelled)
+	srv.finishThinkTankTurn(runtime.Event{AgentID: a.AgentID, Generation: a.Generation, TurnID: a.TurnID, Seq: 9,
+		Type: runtime.EvTurnEnd, Data: []byte(`{"stop_reason":"cancelled"}`)})
 
 	d, err := srv.stateStore.ReadThinkTank(room)
 	if err != nil || d.Active != nil {

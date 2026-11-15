@@ -66,9 +66,6 @@ None.
   the phone's held query and sequenced-only transcript are sound projection choices. The desktop
   recovery read still misses reconnect and peer settlement (INPUT-2).
 
-- **One typed turn outcome** — reviewed 2026-11-15, `4f90befa^..ed3fec37` (FS-03.R117/A92,
-  TS-01.R42). OUTCOME-1–7 wait for `/fix` under **Review findings**.
-
 - **Match sent prompts by request ID** — reviewed 2026-11-15, `fb245d40` (FS-03.R118/A93,
   TS-08.R163). PROMPT-1–4 are under **Review findings** and wait for `/fix`.
 
@@ -138,25 +135,18 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### One typed turn outcome (`4f90befa^..ed3fec37`) — reviewed 2026-11-15 at `d1b28fc4` — **Fix model:** difficult — Codex Sol.
+### Stage-owner Stop pause reason (intermittent test, found 2026-11-15 during the OUTCOME fix closure) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Second fix round: `bafade3e` and `efc65aaa` repaired Cancel precedence and terminal-success
-quota settlement in the last 30 days. The fork test's wait for retained history matches the
-journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R110.
-
-- **Worth fixing** — OUTCOME-8 (sibling of OUTCOME-4, found while fixing it). An assignment
-  whose agent is killed by an escalated Cancel is still recovered as an unexpected exit.
-  `internal/server/task_dispatcher.go:1056–1085` reads only `cause`, so a cancelled exit takes
-  `unexpected_exit` and `recoverStageTask`, which can restart work a person cancelled, with the
-  text "went away … process_exit". The exit hook now carries the resolved ending
-  (`handleAgentExit`'s `ending`); decide whether a cancelled exit pauses like a requested Stop,
-  and test the pipeline stage after an ignored Cancel (FS-03.R9, TS-01.R42, INV §20).
-- **Worth fixing** — OUTCOME-7. Inventory the terminal decision across ordinary and activation
-  prompts, transport delivery and EOF, Cancel and Stop. For each exit, name who settles the
-  turn row, publishes the terminal event, and settles quota, mail and the room. Include the legal
-  ordering when the response, Cancel and EOF overlap, and use the Stop writer inventory in
-  `docs/ideas.md` ("One settlement rule for a stopped or exited process") for the overlapping
-  paths (TS-01.R42/R44/R45, INV §5, §15, §18, §20).
+- **Must fix** — STAGE-STOP-1. `TestOrdinaryStageAgentStopPausesPipelineRun`
+  (`internal/server/pipeline_handlers_test.go:311`) fails intermittently: the run pauses with
+  `AttentionReason: owner_not_reporting` instead of `interrupted`. It failed 3 of 40 runs at
+  `9895380c` (before the OUTCOME fixes) and 2 of 40 after them, so it predates that unit. Likely
+  cause, unverified: the stage owner's first turn ends without a report just as the test stops
+  it, and `internal/server/pipeline_stall.go:52–61` pauses the run for a silent owner before
+  `interruptTaskOnExit`'s `requested_stop` pause is applied; whichever writes first wins.
+  Decide which reason a Stop that overlaps a silent turn end records, make that ordering
+  deterministic in the product or control it in the fixture, and rerun at `-count=40`
+  (workflow §2, TS-01.R45, INV §5, §18).
 
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 

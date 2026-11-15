@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -245,5 +246,52 @@ func TestProcessExitEndsOnlyAnUnfinishedTurn(t *testing.T) {
 				t.Fatal("turn end carries no turn identity")
 			}
 		})
+	}
+}
+
+// OUTCOME-1 (FS-03.R9/R117, TS-01.R42): an accepted Cancel is claimed first.
+// The provider then answers end_turn and exits. The delivered result settles
+// the turn, and the earlier Cancel still decides its outcome.
+func TestClaimedCancelWinsOverResultDeliveredBeforeExit(t *testing.T) {
+	c, spec := newChatTest(t, "hold_turn")
+	spec.Generation = "g"
+	hold := filepath.Join(t.TempDir(), "release")
+	spec.Env = append(spec.Env, "FAKEACP_HOLD_FILE="+hold, "FAKEACP_HOLD_IGNORE_CANCEL=1", "FAKEACP_EXIT_AFTER_RESULT=1")
+	c.SetCancelGrace(0) // no escalation: the provider answers on its own
+	mu, calls := recordQuotaSettlement(c)
+	ctx := context.Background()
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	ch, unsub, err := c.Subscribe(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsub()
+	if err := c.SendPrompt(ctx, h.AgentID, "go"); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvent(t, ch, EvAssistantText)
+	if cancelled, err := c.Cancel(ctx, h.AgentID); err != nil || !cancelled {
+		t.Fatalf("Cancel = %v, %v; want claimed", cancelled, err)
+	}
+	if err := os.WriteFile(hold, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ends := turnEndEvents(collectUntilClosed(t, ch))
+	if len(ends) != 1 {
+		t.Fatalf("turn_end events = %d, want exactly one", len(ends))
+	}
+	if outcome, data, err := DecodeTurnEnd(ends[0]); err != nil || outcome != TurnCancelled || data.ProcessEnded {
+		t.Fatalf("turn end = %v %+v err=%v, want cancelled", outcome, data, err)
+	}
+	if row, err := c.store.ReadConversationTurn(h.AgentID, "g"); err != nil || row.Outcome != "cancelled" {
+		t.Fatalf("turn row = %+v err=%v, want cancelled", row, err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(*calls) != 1 || (*calls)[0].successful {
+		t.Fatalf("quota settlement = %+v, want one unsuccessful settlement", *calls)
 	}
 }

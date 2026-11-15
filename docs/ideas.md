@@ -124,6 +124,53 @@ Example:
   Define, per exit (Stop, guarded idle stop, reap, crash, reconcile, terminal), which store
   transaction settles the running row, turn row and final status, its order, and how a failed write
   is retried. Coordinate with the claimed-turn exit rule above.
+- **One terminal decision for a turn across result, Cancel, Stop and exit.** From the typed turn
+  outcome review's inventory (OUTCOME-7, 2026-11-15). OUTCOME-1–6 were patched: EOF waits for a
+  delivered prompt result to be claimed (`promptDecided`), an exit publishes `turn_end` only for
+  a turn it interrupts, the exit hook carries the interrupted turn's ending, and clients render
+  the server-decoded `outcome`. Who settles what today, per exit:
+  - prompt result or RPC error (`completePromptTurn` → `finishTurn`, ordinary and activation
+    prompts alike): claims `promptSettlement` under the turn lock; settles quota, then inline
+    mail, then the row and status in one write (`endTurn`), then `turn_end`; the room settles
+    from that event (`finishThinkTankTurn`); the held successor starts in the same goroutine;
+  - accepted Cancel (`cancel`): claims nothing itself; it marks `cancelledTurnSeq`, and the
+    prompt's own completion resolves `cancelled` above. If the peer ignores it, escalation
+    kills the process and the exit below settles as cancelled;
+  - unsolicited exit (`onTransportClosed`): waits for the prompt's claim, then settles the
+    interrupted turn's row and `error` status, quota, the exit hook (room, task, registration)
+    and only then `turn_end`; it never settles inline mail, whose reservation waits for the
+    next turn's reset;
+  - Stop (`Stop`): fences with `stopComplete`, ends the row as `process_ended` with status
+    `done`, emits no `turn_end`, settles neither quota nor inline mail, and the room and task
+    settle from the `requested_stop` hook.
+  Legal order today when they overlap: result before EOF → the result wins, then the exit adds
+  only its fatal error; Cancel before result → cancelled whatever the result says; Cancel
+  escalation then EOF → cancelled from the exit; Stop at any time before the result's claim →
+  Stop wins and the result is dropped. Divergent or missing rules, unverified unless noted:
+  - Stop still discards a result the transport already delivered, the same race OUTCOME-1
+    closed for an exit (confirmed by reading: `completePromptTurn` returns on `stopping`); the
+    turn records `process_ended` and completed-turn quota and mail are not confirmed;
+  - the room and the task dispatcher settle from two signals (exit hook, then `turn_end`) and
+    agree only where each was patched: a cancelled exit now holds the room as cancelled, but
+    `interruptTaskOnExit` still treats it as `unexpected_exit` and may recover the work
+    (OUTCOME-8, attached here);
+  - a held successor begun inside the completing goroutine while the process exits has its
+    receipt marked `unknown`/`provider_error` although nothing was written to the provider;
+  - an exit that interrupts a turn leaves its inline-mail reservation to the next reset, and an
+    agent that never runs again keeps it;
+  - a turn gate that is reserved but not begun (idle Steer, a claim under preparation) counts
+    as an interrupted turn on exit and gets a `turn_end` with no `user_text` before it;
+  - `transcript.Project` rejects an undecodable `turn_end` while reconciliation now keeps the
+    boundary, so index projection and the card preview treat the same record differently.
+  - a process that dies before EOF is read can fail the prompt's write first, and the turn then
+    settles `failed` rather than `process_ended` (independent check, not reproduced);
+  - the browser marks a running child activity disconnected only at a root `turn_end`, so one
+    started outside a turn would stay active after an idle exit (independent check, unverified
+    that activities can start while idle);
+  Define one function that takes the terminal evidence (result, RPC error, Cancel claim, Stop,
+  EOF) in transport order and returns the single owner for row, status, `turn_end`, quota, mail,
+  room and task; state Stop's rule for a delivered result; and make the exit hook and `turn_end`
+  one signal for server-side settlement. Coordinate with the two entries above.
 
 ## Ideas being defined
 
