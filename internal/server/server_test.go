@@ -20,6 +20,7 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/remote"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
+	"github.com/AsaphNoam/Chuck/internal/state/statetest"
 )
 
 // testServer builds a Server backed by a seeded temp-home store. CHUCK_HOME
@@ -45,6 +46,28 @@ func testServer(t *testing.T, seed bool) *Server {
 		t.Fatalf("state.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = stateStore.Close() })
+	// Runs before Close: each settled chat agent's stored state equals its
+	// composition (TS-01.R46).
+	t.Cleanup(func() {
+		mismatches, err := statetest.ChatStatusMismatches(stateStore, nil)
+		if err != nil {
+			// A test that closed or damaged its handle is still checked from a
+			// fresh one over the same database.
+			if fresh, openErr := state.Open(cfgStore.Home()); openErr == nil {
+				mismatches, err = statetest.ChatStatusMismatches(fresh, nil)
+				_ = fresh.Close()
+			}
+		}
+		if err != nil && strings.Contains(err.Error(), "no such table") {
+			// The test dropped a composition input table on purpose.
+			t.Logf("status composition not checked: %v", err)
+		} else if err != nil {
+			t.Errorf("read status composition inputs: %v", err)
+		}
+		for _, m := range mismatches {
+			t.Errorf("TS-01.R46 status composition: %s", m)
+		}
+	})
 	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	registry := runtime.NewRegistry(stateStore)
 	s := New(cfgStore, stateStore, registry, config.DefaultConfig(), log)

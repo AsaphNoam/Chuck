@@ -95,12 +95,20 @@ func (s *Server) claimDueQuota(q state.QuotaIntent) (state.QuotaIntent, bool) {
 // visible reason when the live policy cannot be reread, rather than stranding
 // it until restart (FS-01.R44, TS-10.R40/R43). Callers hold configMu.
 func (s *Server) deferQuotaPolicyFailure(q state.QuotaIntent, err error) {
-	s.log.Error("read quota continuation policy", "err", err)
+	s.deferQuotaStoreFailure(q, "read quota continuation policy", err)
+}
+
+// deferQuotaStoreFailure returns an unstarted claim whose read failed this pass
+// to the due sweep; `claimed` is not in the due scan, so only startup would
+// otherwise see it again (TS-01.R49, INV §18). A lost compare-and-swap means
+// another owner already moved the intent.
+func (s *Server) deferQuotaStoreFailure(q state.QuotaIntent, operation string, err error) {
+	s.log.Error(operation, "err", err)
 	if q.State != state.QuotaClaimed {
 		return
 	}
-	if err := s.stateStore.DeferQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, time.Now().UTC().Add(taskDispatchInterval), "store_failure"); err != nil && !errors.Is(err, state.ErrQuotaConflict) {
-		s.log.Error("defer quota claim after policy read failure", "err", err)
+	if deferErr := s.stateStore.DeferQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, time.Now().UTC().Add(taskDispatchInterval), "store_failure"); deferErr != nil && !errors.Is(deferErr, state.ErrQuotaConflict) {
+		s.log.Error("defer quota claim after store failure", "operation", operation, "err", deferErr)
 	}
 	_, _ = s.stateMgr.Touch(q.AgentID)
 }
@@ -111,11 +119,13 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 	}
 	keys, err := s.quotaAdmissionKeys(q)
 	if err != nil {
-		s.log.Error("read quota admission owner", "err", err)
 		if q.State == state.QuotaClaimed && errors.Is(err, state.ErrNotFound) {
+			s.log.Error("read quota admission owner", "err", err)
 			if holdErr := s.stateStore.HoldQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, "owner_unavailable"); holdErr != nil && !errors.Is(holdErr, state.ErrQuotaConflict) {
 				s.log.Error("hold quota continuation with unavailable owner", "err", holdErr)
 			}
+		} else {
+			s.deferQuotaStoreFailure(q, "read quota admission owner", err)
 		}
 		return
 	}
@@ -155,17 +165,24 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		return
 	}
 	if q.State != state.QuotaClaimed {
-		if err := s.stateStore.ClaimQuota(q.AgentID, q.EpisodeID, q.Revision, mintHookToken()); err != nil {
+		token := mintHookToken()
+		if err := s.stateStore.ClaimQuota(q.AgentID, q.EpisodeID, q.Revision, token); err != nil {
 			return
 		}
+		claimed := q
+		claimed.State, claimed.Revision, claimed.AttemptToken = state.QuotaClaimed, q.Revision+1, token
 		q, err = s.stateStore.GetQuota(q.AgentID)
 		if err != nil {
-			s.log.Error("read claimed quota", "err", err)
+			s.deferQuotaStoreFailure(claimed, "read claimed quota", err)
 			return
 		}
 	} else {
 		fresh, err := s.stateStore.GetQuota(q.AgentID)
-		if err != nil || fresh.State != state.QuotaClaimed || fresh.EpisodeID != q.EpisodeID || fresh.Revision != q.Revision || fresh.AttemptToken != q.AttemptToken {
+		if err != nil {
+			s.deferQuotaStoreFailure(q, "reread claimed quota", err)
+			return
+		}
+		if fresh.State != state.QuotaClaimed || fresh.EpisodeID != q.EpisodeID || fresh.Revision != q.Revision || fresh.AttemptToken != q.AttemptToken {
 			return
 		}
 	}

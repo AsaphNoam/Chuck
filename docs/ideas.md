@@ -27,6 +27,32 @@ Example:
   Kept separate from `docs/ready-changes/mermaid-diagrams-in-chat.md` on 2026-08-27 because it is a
   server-wide change that could affect the dev proxy, xterm, and inline styles. Noted while
   researching safe diagram rendering.
+- **One exit rule for a claimed chat turn.** From the agent-execution review's inventory (EXEC-12,
+  2026-11-15). Each exit from a claimed turn gate decides on its own who ends the durable turn row,
+  emits `turn_end`, settles the request receipt and runs or releases the held successor, and
+  TS-01.R45 and INV §5/§19 state begin and end separately rather than as one exit matrix. EXEC-1–3
+  were patched one at a time. Divergent exits found:
+  - an idle Steer claims the gate with no turn row; `updateOwnedBusy` treats the claim as an owned
+    turn, so a tool frame writes `busy`, and `resolveSteerFallback` releases the gate with no
+    status write (EXEC-9, confirmed: `SteerMessage` → `claimTurnLocked`, `chat.go` ~820, ~1026);
+  - Stop ends the row but emits no `turn_end`, while crash and normal completion do;
+  - finishTurn's `!ended` branch and onTransportClosed's `stopped` branch assume Stop settles,
+    which holds only when `stopComplete` is set; a bare `shutdownProcess` skips every settlement;
+  - a quota block releases the gate but leaves the held message and Steer fallback in place with
+    receipts `held`, and `SteerMessage` refuses until a later turn end or Stop;
+  - a refused begin ends the row but leaves an already `submitted` receipt to its caller:
+    `runReservedHeld` writes `failed`, Send and the registry return the error and leave it
+    `submitted`;
+  - an ordinary prompt's receipt is never moved past `submitted` in the runtime;
+  - Stop's row end names the `execTurnID` captured after `finishTurn` may have cleared it;
+  - after a failed turn-end write the row and status stay `running`/`busy` on an idle agent until
+    the next begin or exit, with no sweep to correct them (INV §18);
+  - when Stop's final `done` write wins the race, a completion that already settled quota and
+    mail as `completed` loses its `turn_end` and the row records `process_ended`;
+  - a prompt released before send already has its transcript bubble, so recovering it shows it
+    twice.
+  Define, per exit, the owner of row, `turn_end`, receipt and successor, and whether a gate claim
+  without a turn row may exist at all.
 
 ## Ideas being defined
 

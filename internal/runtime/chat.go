@@ -1171,20 +1171,28 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 		if started {
 			return
 		}
+		// Decide under the lock, write without it: every emit and notification
+		// for the agent would otherwise wait on the store's busy timeout. The
+		// gate is still ours, so nothing can claim between (EXEC-8).
 		as.mu.Lock()
 		outcome := "refused"
 		if as.turnUnavailableLocked() {
 			outcome = "process_ended"
 		}
+		as.mu.Unlock()
 		if endErr := c.store.EndConversationTurn(as.agentID, state.TurnEnd{Generation: as.generation, TurnID: turnID, Outcome: outcome}); endErr != nil {
 			err = errors.Join(err, endErr)
 		}
+		as.mu.Lock()
 		if as.turn.execTurnID == turnID && !as.stopped {
 			as.turn.turnActive = false
 			as.setExecTurnLocked("")
 		}
 		as.mu.Unlock()
 		c.clearInlineMail(as.agentID, prompt.deliveryKey)
+		// A prepared prompt was already recorded submitted, but no provider
+		// frame carried it: release it for recovery (TS-01.R45, INV §19).
+		_ = c.messageTransitionReason(as.agentID, prompt.requestID, "released", "prompt", "not_started")
 	}()
 	if !as.canStartTurn(turnID) {
 		return false, nil
@@ -1228,7 +1236,13 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 		as.cancelMu.Lock()
 		as.cancelMu.Unlock()
 		if !as.canStartTurn(turnID) {
-			return // exit/Stop owns terminal settlement
+			// Exit/Stop owns the turn's terminal settlement, but nothing was
+			// written to the provider: the already-submitted receipts are
+			// released for recovery, never left submitted (TS-01.R45, INV §19).
+			for _, requestID := range []string{prompt.requestID, carried.RequestID} {
+				_ = c.messageTransitionReason(as.agentID, requestID, "released", "prompt", "stopped_before_send")
+			}
+			return
 		}
 		params := map[string]any{"sessionId": as.sessionID, "prompt": prompt.content}
 		as.fileReportMeta(params)
@@ -1379,7 +1393,13 @@ func (c *ChatRuntime) clearInlineMail(agentID, deliveryKey string) {
 // divergent delivery paths (FS-03.R49, INV §2). The crash path deliberately does
 // not: its held message has no next turn to run in and dies with the agent.
 func (c *ChatRuntime) finishTurn(as *agentState, turnID string, outcome TurnOutcome, td TurnEndData) (Message, string) {
-	ended := c.endTurn(as, turnID, outcome, "", "", "")
+	ended, err := c.endTurn(as, turnID, outcome, "", "", "")
+	if ended && err != nil {
+		// The decision stands; only its record failed. The row stays running
+		// until the next begin or exit replaces it (TS-02.R67, INV §5).
+		slog.Error("runtime: turn end not recorded", "agent", as.agentID, "generation", as.generation, "turn", turnID, "err", err)
+		c.emit(as, EvError, ErrorData{Scope: "internal", Message: "turn end could not be saved", Fatal: false})
+	}
 	// Keep the gate until terminal subscribers have settled this owner. A racing
 	// Send cannot start a successor before the room completion callback returns.
 	if ended {
@@ -1408,12 +1428,6 @@ func (c *ChatRuntime) finishTurn(as *agentState, turnID string, outcome TurnOutc
 	nextText, nextTurnID := as.reserveHeldSuccessorLocked()
 	as.mu.Unlock()
 	return nextText, nextTurnID
-}
-
-func (as *agentState) setExecTurn(turnID string) {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-	as.setExecTurnLocked(turnID)
 }
 
 func (as *agentState) setExecTurnLocked(turnID string) {
@@ -1564,7 +1578,7 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 	// the transport goroutine exits, so all in-flight emit() calls complete first.
 	_ = c.store.DeleteRunning(agentID)
 	// Keep the status row so the archive/UI can show a final state (§7.5).
-	if !c.endTurn(as, turnID, TurnProcessEnded, "done", "", "") {
+	if ended, err := c.endTurn(as, turnID, TurnProcessEnded, "done", "", ""); !ended || err != nil {
 		c.touchState(agentID)
 	}
 	as.hub.Close()
@@ -2772,17 +2786,18 @@ func (c *ChatRuntime) updateOwnedBusy(as *agentState, detail, trace string) {
 	})
 }
 
-func (c *ChatRuntime) applyTurnEndStatus(as *agentState, turnID string, outcome TurnOutcome) {
-	c.endTurn(as, turnID, outcome, "", "", "")
-}
-
-func (c *ChatRuntime) endTurn(as *agentState, turnID string, outcome TurnOutcome, processState, detail, trace string) bool {
+// endTurn decides whether this caller ends turnID and writes the decision. A
+// completion that already claimed promptSettlement for turnID owns its end even
+// once Stop has begun; Stop's later end finds no running row (TS-01.R45). Only
+// that ownership and the finalized status fence refuse an end: a failed write
+// still reports ended so turn_end and the held successor are not stranded.
+func (c *ChatRuntime) endTurn(as *agentState, turnID string, outcome TurnOutcome, processState, detail, trace string) (bool, error) {
 	ended := false
 	end := state.TurnEnd{Generation: as.generation, TurnID: turnID, Outcome: outcome.storageValue()}
 	err := c.mutateTurnStatus(as, processState == "done", &end, func(st *state.Status, _ error) bool {
 		as.mu.Lock()
 		defer as.mu.Unlock()
-		if processState == "" && (as.stopping || as.stopped || as.turn.execTurnID != turnID) {
+		if processState == "" && (as.turn.promptSettlement == nil || as.turn.execTurnID != turnID) {
 			return false
 		}
 		if processState == "error" && as.stopComplete != nil {
@@ -2810,7 +2825,7 @@ func (c *ChatRuntime) endTurn(as *agentState, turnID string, outcome TurnOutcome
 		}
 		return true
 	})
-	return ended && err == nil
+	return ended, err
 }
 
 type busySinceMode int

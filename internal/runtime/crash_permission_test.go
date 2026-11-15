@@ -22,12 +22,18 @@ func TestCrashResolvesPendingProviderPermission(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForEvent(t, events, EvTurnEnd)
-	for _, event := range history() {
+	cancelledAt, turnEndAt := -1, -1
+	for i, event := range history() {
 		var resolved PermissionResolvedData
 		if event.Type == EvPermissionResolved && json.Unmarshal(event.Data, &resolved) == nil &&
-			resolved.ToolCallID == pending.ToolCallID && resolved.Decision == "cancelled" {
-			return
+			resolved.ToolCallID == pending.ToolCallID && resolved.Decision == "cancelled" && cancelledAt < 0 {
+			cancelledAt = i
+		}
+		if event.Type == EvTurnEnd && turnEndAt < 0 {
+			turnEndAt = i
 		}
 	}
-	t.Fatalf("missing cancellation for request %s before turn end", pending.ToolCallID)
+	if cancelledAt < 0 || turnEndAt < 0 || cancelledAt > turnEndAt {
+		t.Fatalf("cancellation for request %s at %d, turn end at %d; want cancellation first", pending.ToolCallID, cancelledAt, turnEndAt)
+	}
 }

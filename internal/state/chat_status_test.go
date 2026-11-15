@@ -17,8 +17,9 @@ func TestComposeChatStatusWriterInventory(t *testing.T) {
 		permission bool
 		want       string
 	}{
-		{"launch", ChatProcessLive, ConversationTurn{}, false, "idle"},
-		{"resume ignores old generation", ChatProcessLive, ConversationTurn{}, false, "idle"},
+		// Launch and resume both pass a zero turn: the caller reads the row by the
+		// live generation, so an older generation's row never reaches here.
+		{"launch and resume", ChatProcessLive, ConversationTurn{}, false, "idle"},
 		{"person prompt", ChatProcessLive, running, false, "busy"},
 		{"activation", ChatProcessLive, running, false, "busy"},
 		{"stop", ChatProcessStopped, running, true, "done"},

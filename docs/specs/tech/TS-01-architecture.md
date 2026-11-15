@@ -683,7 +683,11 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   or permission handling can block. One function
   ends a turn with the runtime's resolved outcome (R42), and the transport-closed path uses it
   for the turn it interrupts. It writes the row's outcome in the transaction that writes the
-  turn-end status, so the two cannot disagree. The per-turn row every begin already writes (TS-02.R67) records
+  turn-end status, so the two cannot disagree. A completion that has claimed its settlement owns
+  that end even when Stop begins afterwards; only that ownership and Stop's finalized status
+  refuse an end. A failed end write is logged and shown as an error, and the turn still emits
+  `turn_end` and hands its gate to the held successor. A turn Stop or exit overtakes after the
+  begin but before the provider send marks its submitted requests `released`. The per-turn row every begin already writes (TS-02.R67) records
   the turn's generation, origin, state and outcome through the existing reset helper, in
   whichever transaction resets the turn budget today. A failed write refuses the turn on every
   path, as it does now. No request, claim, retry or recovery rule changes: R19–R21 and each
@@ -761,7 +765,8 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   either changes each row it visits — a state change, a hold with a reason, a later due time —
   or advances a cursor. A due quota intent whose owner no longer exists takes the existing
   `owner_unavailable` hold; one whose owner could not be read this time is skipped as today and
-  the cursor moves past it. A lost compare-and-swap is re-read and
+  the cursor moves past it, and one already claimed returns to the due sweep with a later due
+  time and reason `store_failure` rather than staying `claimed`. A lost compare-and-swap is re-read and
   decided again or returned to the caller, never reported as success. *Why:* the same two shapes
   were fixed in one place and found in the next (INV §9, §16, §18). *Verify:* one test
   enumerates each derived effect with its pass and each bounded pass with its progress rule; a

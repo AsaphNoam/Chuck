@@ -442,16 +442,6 @@ func (s *Store) MarkQuotaNotice(agentID, episode string, revision int64, token, 
 	return quotaCASResult(res, err)
 }
 
-// MarkQuotaNoticeConfirmed acknowledges the fsynced transcript event for the
-// exact durable notice key.
-func (s *Store) MarkQuotaNoticeConfirmed(agentID, episode string, revision int64, token, key string) error {
-	if key == "" || utf8.RuneCountInString(key) > 128 {
-		return ErrQuotaConflict
-	}
-	res, err := s.db.Exec(`UPDATE quota_intents SET revision=revision+1, notice_confirmed=1, updated_at=? WHERE agent_id=? AND episode_id=? AND revision=? AND state='claimed' AND attempt_token=? AND provider_started=1 AND notice_key=? AND notice_confirmed=0`, formatTime(timeNow()), agentID, episode, revision, token, key)
-	return quotaCASResult(res, err)
-}
-
 // ConfirmQuotaSuccess records successful terminal completion for the exact
 // continuation tuple so receipt repair cannot mistake progress for success.
 func (s *Store) BindQuotaManualTurn(agentID, generation, turn string) error {

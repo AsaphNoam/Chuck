@@ -270,3 +270,54 @@ func TestQuotaPolicyReadFailureDefersClaim(t *testing.T) {
 		})
 	}
 }
+
+// EXEC-5, TS-01.R49/INV §18: a non-NotFound owner read failure after the durable
+// claim defers that unstarted claim ("store_failure") instead of leaving it
+// claimed outside the due scan until restart; the next due pass admits it again.
+func TestQuotaOwnerReadFailureDefersClaim(t *testing.T) {
+	s := testServer(t, true)
+	q := seedQuotaHTTP(t, s, "owner-read-failure")
+	// Task-owned, so the admission read consults task_lineage.
+	if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET owner_json='{"kind":"task","task_id":"t-owner-read"}', due_at=? WHERE agent_id=?`,
+		time.Now().UTC().Add(-time.Second).Format(time.RFC3339), q.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil || q.Owner.Kind != "task" {
+		t.Fatalf("seed owner: %+v %v", q, err)
+	}
+	claimed, ok := s.claimDueQuota(q)
+	if !ok {
+		t.Fatal("claim refused")
+	}
+	if claimed.State != state.QuotaClaimed {
+		t.Fatalf("claim state = %s", claimed.State)
+	}
+	// Make the post-claim owner read fail with a non-NotFound error.
+	if _, err := s.stateStore.DB().Exec(`ALTER TABLE task_lineage RENAME TO task_lineage_broken`); err != nil {
+		t.Fatal(err)
+	}
+	s.startQuotaContinuation(context.Background(), claimed)
+	if _, err := s.stateStore.DB().Exec(`ALTER TABLE task_lineage_broken RENAME TO task_lineage`); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.State != state.QuotaDeferred || fresh.ReasonCode != "store_failure" || fresh.ProviderStarted {
+		t.Fatalf("after owner read failure: %+v; want deferred/store_failure", fresh)
+	}
+	// Once the read succeeds, the due sweep (past the retry delay) claims it again.
+	due, err := s.stateStore.DueQuotaIntents(time.Now().UTC().Add(time.Hour), 8)
+	if err != nil || len(due) != 1 || due[0].AgentID != q.AgentID {
+		t.Fatalf("due after defer = %+v %v; want the deferred claim", due, err)
+	}
+	if _, err := s.stateStore.DB().Exec(`UPDATE quota_intents SET due_at=? WHERE agent_id=?`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339), q.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	fresh, _ = s.stateStore.GetQuota(q.AgentID)
+	if again, ok := s.claimDueQuota(fresh); !ok || again.State != state.QuotaClaimed {
+		t.Fatalf("re-admission = %+v ok=%v; want claimed", again, ok)
+	}
+}

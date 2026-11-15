@@ -23,7 +23,7 @@ import (
 var statusTableWriters = map[string]map[string]int{
 	"quota_intents": {
 		"internal/index/indexer.go":          1,
-		"internal/state/quota.go":            18, // Includes the due-owner hold, fenced before a claim exists.
+		"internal/state/quota.go":            17, // Includes the due-owner hold, fenced before a claim exists; MarkQuotaNoticeConfirmed was uncalled and removed (TS-01.R50).
 		"internal/state/quota_checks.go":     4,
 		"internal/state/quota_controls.go":   1,
 		"internal/state/quota_success.go":    1,

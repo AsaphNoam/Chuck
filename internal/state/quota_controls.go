@@ -103,12 +103,6 @@ func quotaControlCancellable(state string) bool {
 	}
 }
 
-// CancelQuotaSnapshot is best-effort CAS: a changed or already-started source
-// episode is left alone because it may belong to work accepted after capture.
-func (s *Store) CancelQuotaSnapshot(snapshot QuotaControlSnapshot) (bool, error) {
-	return cancelQuotaSnapshotTx(s.db, snapshot)
-}
-
 type quotaControlDB interface {
 	Exec(string, ...any) (sql.Result, error)
 	QueryRow(string, ...any) *sql.Row

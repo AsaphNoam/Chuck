@@ -547,6 +547,40 @@ func TestRoomStopRecoversCloseAndWaitsForClaimedSetup(t *testing.T) {
 	}
 }
 
+// EXEC-4 / TS-01.R49 — a startup reconcile that fails while another owner bumps
+// the run revision loses the failure-record CAS; Startup defers instead of
+// failing, and the pending action stays due for the next owner to re-decide.
+func TestStartupToleratesLostCASRecordingReconcileFailure(t *testing.T) {
+	manager, lifecycle, detail := mixedRoomFixture(t, false)
+	runID := detail.Run.RunID
+	finishOrdinaryStage(t, manager, runID, "a_owner", map[string]string{"options": "A or B"})
+	run := readRun(t, manager, runID)
+	lifecycle.roomStopErrors = 1 // Stop's own close fails, leaving cleanup_run pending
+	if _, err := manager.Stop(context.Background(), runID, run.Revision); err != nil {
+		t.Fatal(err)
+	}
+	before := readRun(t, manager, runID)
+	if before.State != "stopping" || before.PendingAction != "cleanup_run" {
+		t.Fatalf("run before startup = %+v, want stopping/cleanup_run", before)
+	}
+	lifecycle.roomStopErrors = 1
+	// Startup re-reads the run after the failed reconcile, so the competing
+	// owner must land between that read and the failure record: the first
+	// failure-recording write bumps the revision and is itself dropped.
+	if _, err := manager.store.DB().Exec(`CREATE TRIGGER competing_owner BEFORE UPDATE ON pipeline_runs
+WHEN NEW.controller_failures = OLD.controller_failures + 1
+BEGIN UPDATE pipeline_runs SET revision = revision + 1 WHERE run_id = OLD.run_id; SELECT RAISE(IGNORE); END`); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Startup(context.Background()); err != nil {
+		t.Fatalf("Startup = %v, want a lost CAS deferred", err)
+	}
+	after := readRun(t, manager, runID)
+	if after.Revision != before.Revision+1 || after.PendingAction != "cleanup_run" || after.ControllerFailures != before.ControllerFailures {
+		t.Fatalf("run after startup = %+v, want bumped revision, cleanup_run still pending, no recorded failure", after)
+	}
+}
+
 func TestRoomStopReplaysCloseAfterCrashAtFence(t *testing.T) {
 	manager, lifecycle, detail := mixedRoomFixture(t, false)
 	runID := detail.Run.RunID

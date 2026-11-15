@@ -289,13 +289,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`,
 	return "", errors.New("state: could not mint unique message_id after 10 tries")
 }
 
-// InsertMessageWithBudget writes one outbound message and increments the
+// InsertMessageWithBudgetWake writes one outbound message and increments the
 // sender's turn budget in the same transaction. On breach, the message is not
 // inserted and the budget row is marked breached.
-func (s *Store) InsertMessageWithBudget(m Message, limit int) (string, BudgetStatus, bool, error) {
-	return s.InsertMessageWithBudgetWake(m, limit, true)
-}
-
 func (s *Store) InsertMessageWithBudgetWake(m Message, limit int, wake bool) (string, BudgetStatus, bool, error) {
 	m.Wake = wake
 	if m.DeliveredVia == "" {
@@ -425,19 +421,6 @@ func (s *Store) MarkRead(ids []string) error {
 	q := markReadStmt(placeholders)
 	if _, err := s.db.Exec(q, args...); err != nil {
 		return fmt.Errorf("state: mark messages read: %w", err)
-	}
-	return nil
-}
-
-// DeleteMessages removes the given messages (techspec §3.5).
-func (s *Store) DeleteMessages(ids []string) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	placeholders, args := inClause(ids)
-	q := `DELETE FROM messages WHERE message_id IN (` + placeholders + `)`
-	if _, err := s.db.Exec(q, args...); err != nil {
-		return fmt.Errorf("state: delete messages: %w", err)
 	}
 	return nil
 }

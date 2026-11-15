@@ -277,8 +277,8 @@ func TestReconcileSweepSkipsIneligibleRetainedHistory(t *testing.T) {
 		t.Fatalf("WriteAgent: %v", err)
 	}
 	old := time.Now().Add(-time.Hour).UnixMilli()
-	for _, id := range []string{live, stopped.AgentID} {
-		if err := srv.stateStore.WriteStatus(state.Status{AgentID: id, State: "idle", Detail: "old", LastTrace: "Stop", UpdatedAt: old}); err != nil {
+	for id, st := range map[string]string{live: "idle", stopped.AgentID: "done"} {
+		if err := srv.stateStore.WriteStatus(state.Status{AgentID: id, State: st, Detail: "old", LastTrace: "Stop", UpdatedAt: old}); err != nil {
 			t.Fatalf("WriteStatus: %v", err)
 		}
 	}

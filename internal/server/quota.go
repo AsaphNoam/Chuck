@@ -15,28 +15,24 @@ import (
 // therefore become local truth before another provider frame is possible.
 func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *runtime.QuotaEvidence, successful bool) error {
 	if evidence == nil {
-		if successful {
-			q, err := s.stateStore.GetQuota(agentID)
-			if errors.Is(err, state.ErrNotFound) {
-				return nil
-			}
-			if err != nil {
+		// A due dispatch or quota Cancel can bump the revision between the read
+		// and the write; re-read and decide again a bounded number of times
+		// (TS-01.R49, INV §8) instead of reporting a storage failure.
+		var err error
+		for attempt := 0; attempt < quotaSettleAttempts; attempt++ {
+			if err = s.settleQuotaTurnWithoutEvidence(agentID, generation, turnID, successful); !errors.Is(err, state.ErrQuotaConflict) {
 				return err
 			}
-			if q.State == state.QuotaClaimed && q.ProviderStarted && q.ContinuedGeneration == generation && q.ContinuedTurn == turnID {
-				return s.confirmQuotaSuccess(agentID, generation, turnID)
-			}
-			if q.State == state.QuotaContinued {
-				return nil
-			}
-			if err := s.stateStore.ResolveQuota(agentID, generation, turnID); err != nil {
-				return err
-			}
-			if q.Owner.Kind == "room" {
-				return s.publishQuotaAgents([]string{agentID})
-			}
-			return nil
 		}
+		return err
+	}
+	return s.settleQuotaTurnEvidence(agentID, generation, turnID, evidence)
+}
+
+const quotaSettleAttempts = 3
+
+func (s *Server) settleQuotaTurnWithoutEvidence(agentID, generation, turnID string, successful bool) error {
+	if successful {
 		q, err := s.stateStore.GetQuota(agentID)
 		if errors.Is(err, state.ErrNotFound) {
 			return nil
@@ -45,14 +41,37 @@ func (s *Server) settleQuotaTurn(agentID, generation, turnID string, evidence *r
 			return err
 		}
 		if q.State == state.QuotaClaimed && q.ProviderStarted && q.ContinuedGeneration == generation && q.ContinuedTurn == turnID {
-			return s.stateStore.HoldQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, "non_quota_failure")
+			return s.confirmQuotaSuccess(agentID, generation, turnID)
 		}
-		if q.ManualGeneration == generation && q.ManualTurn == turnID &&
-			q.State != state.QuotaCancelled && q.State != state.QuotaDisabled && q.State != state.QuotaContinued {
-			return s.stateStore.HoldQuotaManualTurn(agentID, generation, turnID, q.Revision)
+		if q.State == state.QuotaContinued {
+			return nil
+		}
+		if err := s.stateStore.ResolveQuota(agentID, generation, turnID); err != nil {
+			return err
+		}
+		if q.Owner.Kind == "room" {
+			return s.publishQuotaAgents([]string{agentID})
 		}
 		return nil
 	}
+	q, err := s.stateStore.GetQuota(agentID)
+	if errors.Is(err, state.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if q.State == state.QuotaClaimed && q.ProviderStarted && q.ContinuedGeneration == generation && q.ContinuedTurn == turnID {
+		return s.stateStore.HoldQuota(q.AgentID, q.EpisodeID, q.Revision, q.AttemptToken, "non_quota_failure")
+	}
+	if q.ManualGeneration == generation && q.ManualTurn == turnID &&
+		q.State != state.QuotaCancelled && q.State != state.QuotaDisabled && q.State != state.QuotaContinued {
+		return s.stateStore.HoldQuotaManualTurn(agentID, generation, turnID, q.Revision)
+	}
+	return nil
+}
+
+func (s *Server) settleQuotaTurnEvidence(agentID, generation, turnID string, evidence *runtime.QuotaEvidence) error {
 	s.configMu.Lock()
 	defer s.configMu.Unlock()
 	cfg, err := s.configStore.ReadConfig()

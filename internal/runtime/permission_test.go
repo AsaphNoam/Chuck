@@ -245,8 +245,14 @@ func TestBackgroundFrameAfterTurnSettlesCannotReopenBusy(t *testing.T) {
 	waitForChunk(t, ch, "working")
 	as.mu.Lock()
 	turnID := as.turn.execTurnID
+	as.turn.promptSettlement = make(chan struct{}) // the completion's claim
 	as.mu.Unlock()
-	c.applyTurnEndStatus(as, turnID, TurnCompleted)
+	if ended, err := c.endTurn(as, turnID, TurnCompleted, "", "", ""); !ended || err != nil {
+		t.Fatalf("end turn ended=%v err=%v", ended, err)
+	}
+	as.mu.Lock()
+	as.turn.promptSettlement = nil
+	as.mu.Unlock()
 	c.mapScoped(as, activityScope{}, "tool_call", toolCallFrame("background", `{"file_path":"a.go"}`))
 	if got := readState(t, c, h.AgentID); got != "idle" {
 		t.Fatalf("status after a background frame = %q, want idle", got)

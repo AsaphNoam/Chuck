@@ -258,6 +258,11 @@ func TestPeerStopVerifiesOrphanProcessIdentity(t *testing.T) {
 					t.Fatalf("refusal killed the unrelated process: %v", err)
 				case <-time.After(100 * time.Millisecond):
 				}
+				// The orphan row is this fixture's own injection; no runtime
+				// produced it, so it is not a status-composition input.
+				if err := srv.stateStore.DeleteRunning(target); err != nil {
+					t.Fatal(err)
+				}
 				return
 			}
 			req := waitHostRequest(t, srv, requester.AgentID)

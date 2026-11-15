@@ -38,12 +38,8 @@ func ReconcileStale(s *state.Store) ([]string, error) {
 	return pruned, errors.Join(errs...)
 }
 
-// MarkProcessExited writes FS-01.R20's outcome for an agent whose process is
+// markProcessExited writes FS-01.R20's outcome for an agent whose process is
 // gone without a live owner.
-func MarkProcessExited(s *state.Store, agentID string) error {
-	return markProcessExited(s, agentID, "")
-}
-
 func markProcessExited(s *state.Store, agentID, generation string) error {
 	st, err := s.ReadStatus(agentID)
 	if err != nil {

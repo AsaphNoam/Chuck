@@ -408,7 +408,7 @@ func TestPipelineRunDetailProjectsOneHopAgentsAndFallbacks(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := srv.stateStore.WriteStatus(state.Status{AgentID: "a_stage", State: "busy", Detail: "stage status"}); err != nil {
+	if err := srv.stateStore.WriteStatus(state.Status{AgentID: "a_stage", State: "done", Detail: "stage status"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := srv.stateStore.WriteStatus(state.Status{AgentID: "a_delegate", State: "idle"}); err != nil {

@@ -108,6 +108,9 @@ func newChatTest(t *testing.T, scenario string) (*ChatRuntime, LaunchSpec) {
 
 	c := NewChatRuntime(st)
 	c.command = bin
+	// Registered after st.Close, so it runs first: once the test is done, every
+	// settled chat agent's stored state equals its composition (TS-01.R46).
+	t.Cleanup(func() { assertChatStatusComposed(t, c) })
 
 	spec := LaunchSpec{
 		Agent:       agent,
@@ -115,6 +118,9 @@ func newChatTest(t *testing.T, scenario string) (*ChatRuntime, LaunchSpec) {
 		BackendType: "claude-acp",
 		ModelID:     "claude-sonnet-4-6",
 		Env:         []string{"FAKEACP_SCENARIO=" + scenario, "HOME=" + os.Getenv("HOME")},
+		// Production launches always carry a generation; with one, every turn
+		// writes the durable row the composition check reads (TS-01.R46).
+		Generation: "g_test",
 	}
 	return c, spec
 }

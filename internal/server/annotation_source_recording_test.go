@@ -85,7 +85,11 @@ func TestAnnotationOmittedSourceRollbackRestartAndReplay(t *testing.T) {
 		t.Fatalf("accepted receipt=%+v err=%v", receipt, err)
 	}
 	reopen() // Lost response, followed by a retry after server restart.
+	// The recipient's process is gone: its running row and a stopped status.
 	if _, err := srv.stateStore.DB().Exec(`DELETE FROM running WHERE agent_id=?`, target.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.stateStore.DB().Exec(`UPDATE status SET state='done' WHERE agent_id=?`, target.AgentID); err != nil {
 		t.Fatal(err)
 	}
 	assertAccepted(post()) // Acceptance must win before recipient revalidation.

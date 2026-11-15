@@ -79,7 +79,7 @@ func newTestStore(t *testing.T) (*Store, string) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() {
-		assertTaskStateColumns(t, st)
+		assertTaskStateColumns(t, st, home)
 		if err := st.Close(); err != nil {
 			t.Fatalf("Close: %v", err)
 		}
@@ -87,8 +87,19 @@ func newTestStore(t *testing.T) (*Store, string) {
 	return st, home
 }
 
-func assertTaskStateColumns(t *testing.T, st *Store) {
+// assertTaskStateColumns is TS-01.R50's row-shape check. A test that closed its
+// handle is checked from a fresh one over the same database, never skipped.
+func assertTaskStateColumns(t *testing.T, st *Store, home string) {
 	t.Helper()
+	if err := st.db.Ping(); err != nil {
+		fresh, openErr := Open(home)
+		if openErr != nil {
+			t.Errorf("reopen for task state columns: %v", openErr)
+			return
+		}
+		defer fresh.Close()
+		st = fresh
+	}
 	var id, taskState string
 	err := st.db.QueryRow(`SELECT task_id, state FROM tasks
 WHERE (continuation_pending <> 0 AND state NOT IN ('ready','starting'))
@@ -96,7 +107,7 @@ WHERE (continuation_pending <> 0 AND state NOT IN ('ready','starting'))
 LIMIT 1`).Scan(&id, &taskState)
 	if err == nil {
 		t.Errorf("task %s in state %s has an invalid continuation or yield marker", id, taskState)
-	} else if !errors.Is(err, sql.ErrNoRows) && err.Error() != "sql: database is closed" {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		t.Errorf("check task state columns: %v", err)
 	}
 }

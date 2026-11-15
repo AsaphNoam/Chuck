@@ -66,6 +66,36 @@ func TestFailedManualTurnDoesNotRearmCancelledQuota(t *testing.T) {
 	}
 }
 
+// EXEC-7 (TS-01.R49, INV §8): a manual turn ends while another owner bumps the
+// quota revision. Settlement re-reads and decides again instead of reporting
+// the lost compare-and-swap as a storage failure.
+func TestFailedManualTurnRedecidesAfterQuotaConflict(t *testing.T) {
+	s := testServer(t, true)
+	q := seedQuotaHTTP(t, s, "quota-conflict")
+	if err := s.stateStore.BindQuotaManualTurn(q.AgentID, "generation", "manual-turn"); err != nil {
+		t.Fatal(err)
+	}
+	// The first hold attempt loses: a concurrent writer bumps the revision and
+	// the hold's own update is skipped.
+	if _, err := s.stateStore.DB().Exec(`CREATE TABLE conflict_once (n INTEGER);
+CREATE TRIGGER quota_conflict_once BEFORE UPDATE ON quota_intents
+WHEN NEW.state='needs_attention' AND NOT EXISTS (SELECT 1 FROM conflict_once)
+BEGIN
+  INSERT INTO conflict_once VALUES (1);
+  UPDATE quota_intents SET revision=revision+1 WHERE agent_id=NEW.agent_id;
+  SELECT RAISE(IGNORE);
+END;`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.settleQuotaTurn(q.AgentID, "generation", "manual-turn", nil, false); err != nil {
+		t.Fatalf("settle after a lost compare-and-swap: %v", err)
+	}
+	got, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil || got.State != state.QuotaNeedsAttention || got.ReasonCode != "non_quota_failure" {
+		t.Fatalf("quota after re-decided manual turn: %+v err=%v", got, err)
+	}
+}
+
 func TestQuotaDispatchAdvancesPastMissingRoomOwners(t *testing.T) {
 	s, ts, log := activationTestServer(t)
 	victim := launchAndWaitIdle(t, ts, "impl", "tmpproj")
