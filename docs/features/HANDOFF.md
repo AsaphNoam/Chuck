@@ -60,7 +60,7 @@ None.
   gate-versus-row span is sound except on a failed end write (EXEC-2). Credentialed provider and
   device gates are not closed by it.
 
-- **Single-owner turn state** — `35f33a07` (TS-01.R44), reviewed 2026-11-15 at `56d4fd91`.
+- **Single-owner turn state** — `35f33a07` (TS-01.R44), reviewed 2026-11-15 at `835ec808`.
   The late-completion fence and focused turn-ownership tests passed under `-race`.
   TURN-STOP-1–3 are under **Review findings** for `/fix`.
 
@@ -149,7 +149,7 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### Single-owner turn state (`35f33a07`) — reviewed 2026-11-15 at `56d4fd91` — **Fix model:** medium — Codex Terra or Claude Opus.
+### Single-owner turn state (`35f33a07`) — reviewed 2026-11-15 at `835ec808` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Second fix round: `ad08b386` fixed chat status and permission ownership (ASRC-2/5) in the last
 30 days. The review confirmed the single turn lock and the successful Stop fence. The final-state
@@ -157,7 +157,7 @@ gaps below predate this refactor and still violate the contract it consolidates.
 
 - **Must fix** — TURN-STOP-1. Stop reports success when the final status write fails and a retry
   cannot finish it. Stop removes the running row before the status write, logs the write error and
-  returns success (`internal/runtime/chat.go:1562–1571,2869–2891`). A retry has no runtime handle
+  returns success (`internal/runtime/chat.go:1576–1585,2884–2906`). A retry has no runtime handle
   or running row to reconcile (`internal/server/sessions.go:909–924`, `internal/server/launch.go:909–915`).
   A SQLite write failure injected on `done` reproduced `Stop == nil` and `idle` still stored after a
   retry with storage restored. Keep the late-writer fence and let a retry finish the durable Stop
@@ -166,11 +166,11 @@ gaps below predate this refactor and still violate the contract it consolidates.
 - **Must fix** — TURN-STOP-2. Stop on an agent surviving a dashboard restart reaps the process and
   deletes its running row, but preserves the old status. Both the API orphan path
   (`internal/server/launch.go:909–926`) and the no-handle chat path
-  (`internal/runtime/chat.go:1518–1529`) bypass final status settlement. A `busy` agent can retain
-  that status after the process is gone. Route both paths through the recorded generation's Stop
-  settlement and assert `done`, a cleared busy timer and a settled turn after reaping. Seed `busy`
-  in the existing orphan Stop regressions so they check the final status as well as process and
-  running-row removal (FS-01.R6/R19/R21, TS-01.R44, INV §1, §2, §15, §23).
+  (`internal/runtime/chat.go:1532–1543`) bypass final status settlement. Extending the live-child
+  orphan test to seed `busy` reproduced that status persisting after the child and running row
+  were gone. The Stop API test also returned 200 with `busy` still stored. Route both paths
+  through the recorded generation's Stop settlement and assert `done`, a cleared busy timer and
+  a settled turn after reaping (FS-01.R6/R19/R21, TS-01.R44, INV §1, §2, §15, §23).
 - **Worth fixing** — TURN-STOP-3. Inventory every chat-status writer and every entry to Stop,
   including live runtime, guarded idle cleanup, orphan reap and exit reconciliation. Identify where
   each path proves the generation and which store transition settles the running row, turn and
