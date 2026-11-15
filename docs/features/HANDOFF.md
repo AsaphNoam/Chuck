@@ -134,19 +134,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### Stage-owner Stop pause reason (intermittent test, found 2026-11-15 during the OUTCOME fix closure) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** — STAGE-STOP-1. `TestOrdinaryStageAgentStopPausesPipelineRun`
-  (`internal/server/pipeline_handlers_test.go:311`) fails intermittently: the run pauses with
-  `AttentionReason: owner_not_reporting` instead of `interrupted`. It failed 3 of 40 runs at
-  `9895380c` (before the OUTCOME fixes) and 2 of 40 after them, so it predates that unit. Likely
-  cause, unverified: the stage owner's first turn ends without a report just as the test stops
-  it, and `internal/server/pipeline_stall.go:52–61` pauses the run for a silent owner before
-  `interruptTaskOnExit`'s `requested_stop` pause is applied; whichever writes first wins.
-  Decide which reason a Stop that overlaps a silent turn end records, make that ordering
-  deterministic in the product or control it in the fixture, and rerun at `-count=40`
-  (workflow §2, TS-01.R45, INV §5, §18).
-
 ### Provider Refresh version observation (intermittent test, found 2026-11-15) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Worth fixing** — PROVIDER-REFRESH-1. `TestRefreshProviderObservesVersionWithoutExecOnRead`
