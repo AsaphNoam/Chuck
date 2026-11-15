@@ -73,12 +73,8 @@ None.
 - **Shared resume start and Switch rollback** — `95d4f621` (TS-01.R43), reviewed 2026-11-15
   at `9fd1fd39`. SW-START-1–4 wait for `/fix` under **Review findings**.
 
-- **One typed turn outcome** — ready for review. Runtime status, quota settlement, inline mail
-  and event readers use the resolved outcome. See FS-03.R117/A92 and TS-01.R42.
-  Both Go variants, the build, and focused race checks passed. The fork fixture now waits for the
-  retained turn boundary and passed eight tagged repetitions. The known deferred-assignment
-  lifecycle test failed once in the untagged matrix, then passed five focused runs and the full
-  untagged rerun.
+- **One typed turn outcome** — reviewed 2026-11-15, `4f90befa^..ed3fec37` (FS-03.R117/A92,
+  TS-01.R42). OUTCOME-1–7 wait for `/fix` under **Review findings**.
 
 - **Match sent prompts by request ID** — reviewed 2026-11-15, `fb245d40` (FS-03.R118/A93,
   TS-08.R163). PROMPT-1–4 are under **Review findings** and wait for `/fix`.
@@ -148,6 +144,69 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### One typed turn outcome (`4f90befa^..ed3fec37`) — reviewed 2026-11-15 at `d1b28fc4` — **Fix model:** difficult — Codex Sol.
+
+Second fix round: `bafade3e` and `efc65aaa` repaired Cancel precedence and terminal-success
+quota settlement in the last 30 days. The fork test's wait for retained history matches the
+journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R110.
+
+- **Must fix** — OUTCOME-1. A provider can return a complete prompt result and then exit, yet
+  the runtime records the turn as interrupted. The transport enqueues the result before EOF
+  (`internal/runtime/transport.go:129–134,150–176`), but EOF only checks for a settlement already
+  claimed by the prompt goroutine (`internal/runtime/chat.go:2243–2270`,
+  `internal/runtime/quota.go:200–210`). If that goroutine has not resumed, EOF records
+  `process_ended` and discards completed-turn quota and mail confirmation. A fake provider that
+  sent `end_turn` and exited, with the caller held after writing the prompt, reproduced it in
+  three runs. Order terminal evidence at the transport-to-runtime handoff, preserve a previously
+  claimed Cancel, and test that a subsequent process error leaves the recorded turn outcome,
+  quota state and inline-mail state consistent (FS-03.R117/A92, TS-01.R42, INV §5, §11, §20).
+- **Must fix** — OUTCOME-2. An idle process exit fabricates a failed turn.
+  `internal/runtime/chat.go:2266–2270,2328–2345` detects whether a turn is active for quota
+  settlement but emits `turn_end` unconditionally. Killing the fake provider just after a real
+  turn ended produced a second boundary with an empty turn ID in six runs. The journal passes it
+  to the indexer as another turn (`internal/runtime/journal.go:524–533`,
+  `internal/index/indexer.go:304–316`). Keep the fatal process event and publish a turn boundary
+  only when the exit owns an unfinished turn. Verify the retained events and archive turn count
+  for exit while idle, after completion, and during an active turn (FS-03.R8/R117, TS-01.R42/R45,
+  INV §1, §5, §18, §20).
+- **Must fix** — OUTCOME-3. Replay and the visible transcript still use different meanings
+  for the same ending. The decoder collapses the request limit and refusal
+  (`internal/runtime/turn_outcome.go:19–26,122–132`); for example, the room then calls a request
+  limit an output limit (`internal/server/think_tanks.go:579–586`). Desktop and phone classify
+  the raw reason independently (`ui/src/components/chat/turnActivity.ts:68–69,148–163`).
+  Their projection rendered quota and process exit as generic failures, and displayed no outcome
+  for retained `end_turn` carrying quota evidence. Preserve typed distinctions through the
+  shared decode and supply that interpretation on both live and retained transcript paths.
+  Exercise both paths while preserving the stored wire labels (FS-03.R74/R117, TS-01.R42,
+  INV §2, §11, §20).
+- **Must fix** — OUTCOME-4. When an accepted Cancel ends the provider process, the room
+  attempt settles as a generic process exit before the cancelled event reaches the room reader.
+  `internal/runtime/chat.go:2313–2345` runs the exit hook first, and
+  `internal/runtime/registry.go:99–115` passes a fixed `process_exit` cause. The hook fails the
+  attempt and publishes that cause (`internal/server/server.go:511–532`,
+  `internal/server/think_tanks.go:419–429`), so the later event cannot settle it as cancelled.
+  Carry the resolved ending into generation-scoped room cleanup and verify the room hold and
+  transcript agree when a speaker ignores cooperative Cancel (FS-03.R9/R117, TS-01.R42,
+  TS-14.R6, INV §15, §20, §23).
+- **Worth fixing** — OUTCOME-5. Reconciliation joins adjacent replies when a retained
+  turn-end payload has the wrong shape. A temporary test with a valid event envelope and
+  numeric `stop_reason` reproduced `old turn new turn` in the card preview.
+  `internal/server/reconcile.go:183–190` should keep the turn boundary while treating its outcome
+  as unknown. Test the last reply after a malformed boundary (INV §2, §7, §24).
+- **Worth fixing** — OUTCOME-6. The component tests leave the end-to-end agreement in A92
+  unproved. The resolver round trip (`internal/runtime/turn_outcome_test.go:13–47`) starts with
+  resolved inputs, and the source guard (`:70–102`) excludes the browser classifier.
+  The prompt RPC rejection fixture (`internal/runtime/chat_test.go:1301–1339`) checks logs but
+  does not validate the outcome, status, quota settlement or mail. Extend the existing fixtures
+  to assert the missing effects from the same emitted event and guard the live and retained
+  projections against reintroducing separate classifications (FS-03.A92, TS-01.R42, TS-06.R35,
+  INV §17).
+- **Worth fixing** — OUTCOME-7. Inventory the terminal decision across ordinary and activation
+  prompts, transport delivery and EOF, Cancel and Stop. For each exit, name who settles the
+  turn row, publishes the terminal event, and settles quota, mail and the room. Include the legal
+  ordering when the response, Cancel and EOF overlap, and use the Stop writer inventory from
+  TURN-STOP-3 for the overlapping paths (TS-01.R42/R44/R45, INV §5, §15, §18, §20).
 
 ### Single-owner turn state (`35f33a07`) — reviewed 2026-11-15 at `835ec808` — **Fix model:** medium — Codex Terra or Claude Opus.
 
