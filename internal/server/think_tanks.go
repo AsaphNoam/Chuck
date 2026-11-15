@@ -589,6 +589,12 @@ func thinkTankStopText(outcome runtime.TurnOutcome) string {
 		return "The turn was cancelled."
 	case runtime.TurnProviderTruncated:
 		return "The turn was cut off at the provider's output limit."
+	case runtime.TurnRequestLimit:
+		return "The turn stopped at the provider's request limit."
+	case runtime.TurnRefused:
+		return "The provider refused the request."
+	case runtime.TurnProcessEnded:
+		return "The agent process exited."
 	default:
 		return "The provider reported an error."
 	}

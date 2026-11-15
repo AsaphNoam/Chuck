@@ -18,8 +18,8 @@ export interface Turn {
   key: string;
   /** Only a root turn_end proves completion. */
   completed: boolean;
-  /** The root turn_end's stop_reason when completed. */
-  stopReason?: string;
+  /** The server-decoded outcome of the root turn_end when completed (TS-01.R42). */
+  outcome?: string;
   /** Whether a visible root response survives (partial labelling). */
   hasResponse: boolean;
   parts: TurnPart[];
@@ -53,8 +53,8 @@ export function projectTurns(events: TranscriptEvent[], scope = "", lead = "star
   const turns: Turn[] = [];
   let buffer: TranscriptEvent[] = [];
   let key = `${scope}${lead}`;
-  const close = (completed: boolean, stopReason?: string) => {
-    if (buffer.length) turns.push(build(key, buffer, completed, stopReason));
+  const close = (completed: boolean, outcome?: string) => {
+    if (buffer.length) turns.push(build(key, buffer, completed, outcome));
     buffer = [];
   };
   for (const event of events) {
@@ -66,7 +66,7 @@ export function projectTurns(events: TranscriptEvent[], scope = "", lead = "star
     }
     buffer.push(event);
     if (isRootTurnEnd(event)) {
-      close(true, String(event.stop_reason ?? ""));
+      close(true, String(event.outcome ?? ""));
       key = `${scope}${boundaryKey(event)}`;
     }
   }
@@ -107,7 +107,7 @@ export function carryLeadKey(events: TranscriptEvent[], atStart: boolean, known:
   return { lead, known: next };
 }
 
-function build(key: string, events: TranscriptEvent[], completed: boolean, stopReason?: string): Turn {
+function build(key: string, events: TranscriptEvent[], completed: boolean, outcome?: string): Turn {
   const seqs = new Set<number>();
   collectSeqs(events, seqs);
   let response = -1;
@@ -122,7 +122,7 @@ function build(key: string, events: TranscriptEvent[], completed: boolean, stopR
     if (last && last.hidden === hidden) last.events.push(event);
     else parts.push({ hidden, events: [event] });
   });
-  return { key, completed, stopReason, hasResponse: response >= 0, parts, seqs };
+  return { key, completed, outcome, hasResponse: response >= 0, parts, seqs };
 }
 
 // isActivity names what a completed turn tucks away: thoughts, tools and their
@@ -145,20 +145,23 @@ function collectSeqs(events: TranscriptEvent[], seqs: Set<number>) {
   }
 }
 
-// ACP stop reasons that cut a turn short, in the person's words. Anything else,
-// including an unknown future reason, claims no outcome (INV §8).
+// The server-decoded endings that cut a turn short, in the person's words
+// (TS-01.R42). The server classifies; this only names. A completed turn, a
+// missing outcome or an unknown future one claims nothing (INV §8, §20).
 const SHORT_OUTCOMES: Record<string, string> = {
   cancelled: "Cancelled",
-  error: "Failed",
-  max_tokens: "Stopped at the token limit",
-  max_turn_requests: "Stopped at the request limit",
-  refusal: "Refused",
+  failed: "Failed",
+  quota_blocked: "Quota reached",
+  provider_truncated: "Stopped at the token limit",
+  request_limit: "Stopped at the request limit",
+  refused: "Refused",
+  process_ended: "Agent exited",
 };
 
 // The visible outcome of a turn that did not end normally. The response above
 // it, when any, reads as partial rather than final (FS-03.R74).
-export function turnOutcome(turn: Pick<Turn, "completed" | "stopReason" | "hasResponse">): string | null {
-  const reason = turn.completed ? SHORT_OUTCOMES[turn.stopReason ?? ""] : undefined;
+export function turnOutcome(turn: Pick<Turn, "completed" | "outcome" | "hasResponse">): string | null {
+  const reason = turn.completed ? SHORT_OUTCOMES[turn.outcome ?? ""] : undefined;
   if (!reason) return null;
   return turn.hasResponse ? `${reason} — response is partial` : reason;
 }

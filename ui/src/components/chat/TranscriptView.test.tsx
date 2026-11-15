@@ -733,7 +733,7 @@ describe("TranscriptView quiet completed turns (FS-03.A55–A57)", () => {
       { kind: "diff", seq: 2, path: "a.go", new_text: "x" },
       { kind: "permission_request", seq: 3, tool_call_id: "t1", name: "Run rm" },
       { kind: "assistant_text", seq: 4, text: "Half an answer" },
-      { kind: "turn_end", seq: 5, stop_reason: "cancelled" },
+      { kind: "turn_end", seq: 5, stop_reason: "cancelled", outcome: "cancelled" },
     ];
     const client = new QueryClient();
     const view = (reveal: { seq: number } | null) => (

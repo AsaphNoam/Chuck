@@ -661,7 +661,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   outcome. Since the current provider transcript supplies no final/intermediate message marker,
   the last contiguous assistant passage is the visible response; do not infer finality from its
   wording or split already-merged text by guesswork. Cancellation/failure labels that response
-  partial rather than successful/final. A turn with no assistant response keeps its outcome and
+  partial rather than successful/final. The outcome names how the turn ended — Cancelled, Failed,
+  Quota reached, Stopped at the token limit, Stopped at the request limit, Refused or Agent
+  exited — identically on desktop and phone, live and after reload (R117); an ending Chuck
+  cannot identify claims no outcome. A turn with no assistant response keeps its outcome and
   inspectable activity. This supersedes R26's uninterrupted-run-only grouping at the completed
   turn level; original event order and individual tool inspection survive inside activity.
 - **R75 — Activity stays under the person's control.** Completed activity can be

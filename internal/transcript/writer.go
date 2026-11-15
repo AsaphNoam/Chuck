@@ -118,7 +118,7 @@ func (w *Writer) appendLocked(ev runtime.Event) error {
 	if w.f == nil {
 		return fmt.Errorf("transcript: writer is closed")
 	}
-	ev.Fork = nil
+	ev.Fork, ev.Outcome = nil, ""
 	b, err := json.Marshal(record{Event: ev, ForkPoint: ev.ForkPoint})
 	if err != nil {
 		return fmt.Errorf("transcript: marshal event: %w", err)
@@ -267,6 +267,6 @@ func decodeRecord(line []byte) (runtime.Event, bool) {
 		return runtime.Event{}, false
 	}
 	r.Event.ForkPoint = r.ForkPoint
-	r.Event.Fork = nil // a server read projection, never stored
+	r.Event.Fork, r.Event.Outcome = nil, "" // server read projections, never stored
 	return r.Event, true
 }

@@ -65,6 +65,10 @@ type Event struct {
 	// Fork is the server-computed turn-end fork affordance on transcript reads
 	// and live turn_end events (TS-03.R86); absent elsewhere.
 	Fork *ForkAffordance `json:"fork,omitempty"`
+	// Outcome is the server-decoded ending of a root turn_end (TurnOutcome.Label)
+	// on transcript reads and live events, so every client surface shows the
+	// decoder's interpretation. Never stored; stop_reason stays the stored label.
+	Outcome string `json:"outcome,omitempty"`
 }
 
 // ForkAffordance says whether Edit/Fork from here can end at this turn.

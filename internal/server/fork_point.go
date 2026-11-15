@@ -50,9 +50,25 @@ func (s *Server) currentNativeSession(agentID string) string {
 	return snap.LastSessionID
 }
 
-// decorateFork marks a root turn_end with its fork affordance for clients.
-func (s *Server) decorateFork(ev *runtime.Event, currentSession string) {
+// decorateTurnEnd marks a root turn_end with its fork affordance and decoded
+// outcome for clients, on live events and transcript reads alike (TS-01.R42).
+func (s *Server) decorateTurnEnd(ev *runtime.Event, currentSession string) {
 	ev.Fork = forkAffordance(*ev, currentSession)
+	ev.Outcome = ""
+	if ev.Type == runtime.EvTurnEnd && ev.ActivityID == "" {
+		outcome, _, _ := runtime.DecodeTurnEnd(*ev)
+		ev.Outcome = outcome.Label()
+	}
+}
+
+// publishHistory sends one committed event to live clients. A live root
+// turn_end carries the same fork affordance and decoded outcome as a transcript
+// read (TS-03.R86, TS-01.R42).
+func (s *Server) publishHistory(ev runtime.Event) {
+	if ev.Type == runtime.EvTurnEnd && ev.ActivityID == "" {
+		s.decorateTurnEnd(&ev, s.currentNativeSession(ev.AgentID))
+	}
+	s.eventBus.PublishRuntimeEvent(ev)
 }
 
 // composeText returns the person's message at seq when it is the first root

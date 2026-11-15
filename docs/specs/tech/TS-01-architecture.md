@@ -626,14 +626,20 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
 `internal/runtime/terminal/bootstrap.go`; `cli.Execute` dispatches it before cobra.
 - **R42 — A turn has one typed outcome, produced once.** `internal/runtime` resolves each
   turn's end into one typed value (completed, cancelled, failed, quota-blocked, provider-truncated,
-  process-ended) in a single function. Normal prompt completion, a failed `session/prompt` call and
-  a closed transport all call it; none builds its own stop reason or synthesizes a provider result
+  request-limit, refused, process-ended) in a single function. Normal prompt completion, a
+  failed `session/prompt` call and a closed transport all call it; none builds its own stop reason or synthesizes a provider result
   to reach it. Status, quota settlement, inline-mail settlement and the emitted `turn_end` read
   that value and never re-read the raw prompt result. Outside the runtime, one exported decoder
   turns a `turn_end` event into the same value; Think Tank attempt settlement, the quota notice,
   fork points, the switch primer, reconciliation and transcript projection use it instead of
-  comparing `stop_reason`. The serialized `stop_reason` vocabulary and stored transcripts are
-  unchanged. New process-exit events carry optional `process_ended` evidence to distinguish a
+  comparing `stop_reason`. The server marks every root `turn_end` it sends a client — on the live
+  stream and on whole and windowed transcript reads — with `outcome`, that decoded value's label
+  (`completed`, `cancelled`, `failed`, `quota_blocked`, `provider_truncated`, `request_limit`,
+  `refused`, `process_ended`; absent when unknown). Desktop and phone render that label and never
+  classify `stop_reason`; `outcome` is a read projection and is never stored. The exit hook
+  carries the resolved outcome of the turn an exit interrupts, so cleanup that runs before that
+  turn's `turn_end` reports the same ending. The serialized `stop_reason` vocabulary and stored
+  transcripts are unchanged. New process-exit events carry optional `process_ended` evidence to distinguish a
   process exit from a provider failure with the same reason. Without that evidence, a historical
   `error` still decodes as failed. Missing or unfamiliar reasons never establish completion.
   A prompt result the transport delivered before it closed is settled before the exit is

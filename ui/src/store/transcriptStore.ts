@@ -34,8 +34,9 @@ export function normalizeEvent(event: TranscriptEvent): TranscriptEvent {
   const data = event.data;
   if (data && typeof data === "object") {
     const scope = event.activity_id ? { activity_id: event.activity_id, parent_activity_id: event.parent_activity_id } : {};
-    // A turn end's server-computed fork affordance rides beside its data (TS-03.R86).
-    const fork = event.fork ? { fork: event.fork } : {};
+    // A turn end's server-computed fork affordance and decoded outcome ride beside
+    // its data (TS-03.R86, TS-01.R42).
+    const fork = { ...(event.fork ? { fork: event.fork } : {}), ...(event.outcome ? { outcome: event.outcome } : {}) };
     return { kind: type, seq: event.seq, ts: event.ts, ...scope, ...(data as Record<string, unknown>), ...fork };
   }
   const { type: _drop, ...rest } = event;

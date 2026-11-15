@@ -727,7 +727,7 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 		if chat := s.registry.Chat(); chat != nil {
 			tw.hostPending = func(toolCallID string) bool { return chat.PermissionPending(id, toolCallID) }
 		}
-		if err := transcript.ForEachFile(s.configStore.Home(), id, transcript.ReadOptions{IncludeMeta: includeMeta}, func(ev runtime.Event) error { s.decorateFork(&ev, native); return tw.visit(ev) }); err != nil {
+		if err := transcript.ForEachFile(s.configStore.Home(), id, transcript.ReadOptions{IncludeMeta: includeMeta}, func(ev runtime.Event) error { s.decorateTurnEnd(&ev, native); return tw.visit(ev) }); err != nil {
 			writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
 			return
 		}
@@ -744,7 +744,7 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range events {
-		s.decorateFork(&events[i], native)
+		s.decorateTurnEnd(&events[i], native)
 	}
 	body := map[string]any{"agent_id": id, "events": events}
 	// A live request whose record did not commit rides beside history, never

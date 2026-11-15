@@ -16,10 +16,10 @@ const (
 	TurnQuotaBlocked
 	TurnProviderTruncated
 	TurnProcessEnded
-	// These provider reasons have distinct existing wire labels. The decoder
-	// groups them with truncation and failure for external consumers.
-	turnRequestLimit
-	turnRefused
+	// The provider's request limit and refusal keep their own meaning through
+	// the decoder; only the durable turn row stores the first as truncation.
+	TurnRequestLimit
+	TurnRefused
 )
 
 func (o TurnOutcome) confirmsInlineMail() bool {
@@ -36,11 +36,11 @@ func (o TurnOutcome) storageValue() string {
 		return "failed"
 	case TurnQuotaBlocked:
 		return "quota_blocked"
-	case TurnProviderTruncated, turnRequestLimit:
+	case TurnProviderTruncated, TurnRequestLimit:
 		return "provider_truncated"
 	case TurnProcessEnded:
 		return "process_ended"
-	case turnRefused:
+	case TurnRefused:
 		return "refused"
 	default:
 		return "unknown"
@@ -56,9 +56,9 @@ func outcomeForReason(reason string) TurnOutcome {
 	case "max_tokens":
 		return TurnProviderTruncated
 	case "max_turn_requests":
-		return turnRequestLimit
+		return TurnRequestLimit
 	case "refusal":
-		return turnRefused
+		return TurnRefused
 	case "error":
 		return TurnFailed
 	default:
@@ -98,9 +98,9 @@ func (o TurnOutcome) eventData(reading contextReading, quota *QuotaEvidence) Tur
 		data.StopReason = "cancelled"
 	case TurnProviderTruncated:
 		data.StopReason = "max_tokens"
-	case turnRequestLimit:
+	case TurnRequestLimit:
 		data.StopReason = "max_turn_requests"
-	case turnRefused:
+	case TurnRefused:
 		data.StopReason = "refusal"
 	default:
 		data.StopReason = "error"
@@ -126,10 +126,20 @@ func DecodeTurnEnd(ev Event) (TurnOutcome, TurnEndData, error) {
 		outcome = TurnProcessEnded
 	case data.Quota != nil:
 		outcome = TurnQuotaBlocked
-	case outcome == turnRequestLimit:
-		outcome = TurnProviderTruncated
-	case outcome == turnRefused:
-		outcome = TurnFailed
 	}
 	return outcome, data, nil
+}
+
+// Label is the outcome's name on the client wire (Event.Outcome). It is the
+// one interpretation every transcript surface renders, so a client never
+// classifies stop_reason itself; an unknown outcome has no label (INV §20).
+func (o TurnOutcome) Label() string {
+	switch o {
+	case TurnUnknown:
+		return ""
+	case TurnRequestLimit:
+		return "request_limit"
+	default:
+		return o.storageValue()
+	}
 }

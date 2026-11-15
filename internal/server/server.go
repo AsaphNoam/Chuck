@@ -461,13 +461,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		// Committed history reaches SSE in commit order from inside the journal;
 		// the observer below is control only and checks each consumer's own
 		// authority against the commit outcome (TS-01.R39, TS-04.R100).
-		registry.SetHistoryPublisher(func(ev runtime.Event) {
-			// A live root turn_end carries its fork affordance like a read (TS-03.R86).
-			if ev.Type == runtime.EvTurnEnd && ev.ActivityID == "" {
-				s.decorateFork(&ev, s.currentNativeSession(ev.AgentID))
-			}
-			eventBus.PublishRuntimeEvent(ev)
-		})
+		registry.SetHistoryPublisher(s.publishHistory)
 		registry.SetEventSink(func(obs runtime.Observation) {
 			ev := obs.Event
 			if !obs.Committed() {

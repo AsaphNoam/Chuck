@@ -144,16 +144,6 @@ Second fix round: `bafade3e` and `efc65aaa` repaired Cancel precedence and termi
 quota settlement in the last 30 days. The fork test's wait for retained history matches the
 journal boundary. Plain Clone keeps its existing provider behavior under TS-04.R110.
 
-- **Must fix** — OUTCOME-3. Replay and the visible transcript still use different meanings
-  for the same ending. The decoder collapses the request limit and refusal
-  (`internal/runtime/turn_outcome.go:19–26,122–132`); for example, the room then calls a request
-  limit an output limit (`internal/server/think_tanks.go:579–586`). Desktop and phone classify
-  the raw reason independently (`ui/src/components/chat/turnActivity.ts:68–69,148–163`).
-  Their projection rendered quota and process exit as generic failures, and displayed no outcome
-  for retained `end_turn` carrying quota evidence. Preserve typed distinctions through the
-  shared decode and supply that interpretation on both live and retained transcript paths.
-  Exercise both paths while preserving the stored wire labels (FS-03.R74/R117, TS-01.R42,
-  INV §2, §11, §20).
 - **Worth fixing** — OUTCOME-5. Reconciliation joins adjacent replies when a retained
   turn-end payload has the wrong shape. A temporary test with a valid event envelope and
   numeric `stop_reason` reproduced `old turn new turn` in the card preview.

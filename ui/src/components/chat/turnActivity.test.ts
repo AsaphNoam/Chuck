@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TranscriptEvent } from "../../api/types";
-import { foldTranscript } from "../../store/transcriptStore";
+import { foldTranscript, normalizeEvent } from "../../store/transcriptStore";
 import { nestActivities } from "./runtimeActivity";
 import { projectTurns, turnOutcome } from "./turnActivity";
 
@@ -69,7 +69,7 @@ describe("turn projection (FS-03.A55–A56, TS-08.R100–R101)", () => {
       { kind: "permission_request", seq: 3, tool_call_id: "t1" },
       { kind: "permission_request", seq: 4, tool_call_id: "t2" },
       { kind: "permission_resolved", seq: 5, tool_call_id: "t2", decision: "approve" },
-      { kind: "turn_end", seq: 6, stop_reason: "cancelled" },
+      { kind: "turn_end", seq: 6, stop_reason: "cancelled", outcome: "cancelled" },
     ];
     expect(shown(raw)).toEqual([[1, 3, 6]]);
     expect(tucked(raw)).toEqual([[2, 4]]);
@@ -93,11 +93,39 @@ describe("turn projection (FS-03.A55–A56, TS-08.R100–R101)", () => {
     expect(shown(raw)[0]).toEqual([1, 2, 3]);
   });
 
-  it("labels a cut-short response partial and claims nothing for unknown reasons", () => {
-    expect(turnOutcome({ completed: true, stopReason: "error", hasResponse: true })).toBe("Failed — response is partial");
-    expect(turnOutcome({ completed: true, stopReason: "end_turn", hasResponse: true })).toBeNull();
-    expect(turnOutcome({ completed: true, stopReason: "novel_reason", hasResponse: true })).toBeNull();
-    expect(turnOutcome({ completed: false, stopReason: "cancelled", hasResponse: true })).toBeNull();
+  it("names the server-decoded ending, marks a cut-short response partial and claims nothing otherwise", () => {
+    // The labels are the server's (TurnOutcome.Label); this surface never reads stop_reason.
+    const named: Record<string, string> = {
+      cancelled: "Cancelled",
+      failed: "Failed",
+      quota_blocked: "Quota reached",
+      provider_truncated: "Stopped at the token limit",
+      request_limit: "Stopped at the request limit",
+      refused: "Refused",
+      process_ended: "Agent exited",
+    };
+    for (const [outcome, label] of Object.entries(named)) {
+      expect(turnOutcome({ completed: true, outcome, hasResponse: false })).toBe(label);
+    }
+    expect(turnOutcome({ completed: true, outcome: "failed", hasResponse: true })).toBe("Failed — response is partial");
+    expect(turnOutcome({ completed: true, outcome: "completed", hasResponse: true })).toBeNull();
+    expect(turnOutcome({ completed: true, outcome: "novel_outcome", hasResponse: true })).toBeNull();
+    expect(turnOutcome({ completed: true, outcome: undefined, hasResponse: true })).toBeNull();
+    expect(turnOutcome({ completed: false, outcome: "cancelled", hasResponse: true })).toBeNull();
+  });
+
+  it("takes the ending from the wire outcome on live and retained events alike, never from stop_reason", () => {
+    // A retained end_turn that carried quota evidence, and a process exit stored as error.
+    const wire = [
+      { type: "user_text", seq: 1, data: { text: "go" } },
+      { type: "turn_end", seq: 2, data: { stop_reason: "end_turn", quota: { failure_id: "f", revision: 1 } }, outcome: "quota_blocked" },
+      { type: "user_text", seq: 3, data: { text: "again" } },
+      { type: "turn_end", seq: 4, data: { stop_reason: "error", process_ended: true }, outcome: "process_ended" },
+      { type: "user_text", seq: 5, data: { text: "old client" } },
+      { type: "turn_end", seq: 6, data: { stop_reason: "error" } },
+    ] as TranscriptEvent[];
+    const turns = project(wire.map(normalizeEvent));
+    expect(turns.map(turnOutcome)).toEqual(["Quota reached", "Agent exited", null]);
   });
 
   it("collects nested child seqs so a reveal can find the turn that hides them", () => {

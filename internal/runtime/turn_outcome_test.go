@@ -53,8 +53,8 @@ func TestDecodeHistoricalTurnEnd(t *testing.T) {
 		{`{"stop_reason":"end_turn"}`, TurnCompleted},
 		{`{"stop_reason":"cancelled"}`, TurnCancelled},
 		{`{"stop_reason":"max_tokens"}`, TurnProviderTruncated},
-		{`{"stop_reason":"max_turn_requests"}`, TurnProviderTruncated},
-		{`{"stop_reason":"refusal"}`, TurnFailed},
+		{`{"stop_reason":"max_turn_requests"}`, TurnRequestLimit},
+		{`{"stop_reason":"refusal"}`, TurnRefused},
 		{`{"stop_reason":"error"}`, TurnFailed},
 		{`{"stop_reason":"error","quota":{"failure_id":"old","revision":1}}`, TurnQuotaBlocked},
 		{`{"stop_reason":"future_value"}`, TurnUnknown},
@@ -98,5 +98,34 @@ func TestTurnOutcomeOwnsRawReasonClassification(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The browser renders the server's decoded outcome on desktop and phone,
+	// live and retained; it never reads the raw reason to classify a turn.
+	scanned := 0
+	err = filepath.WalkDir("../../ui/src", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !(strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")) ||
+			strings.Contains(path, ".test.") || strings.Contains(path, "/test/") {
+			return nil
+		}
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		scanned++
+		for _, line := range strings.Split(string(source), "\n") {
+			if strings.Contains(line, "stop_reason") || strings.Contains(line, "stopReason") {
+				t.Errorf("%s reads the raw turn reason: %s", path, strings.TrimSpace(line))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scanned == 0 {
+		t.Fatal("no browser sources scanned")
 	}
 }
