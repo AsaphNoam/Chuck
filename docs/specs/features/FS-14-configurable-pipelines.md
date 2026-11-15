@@ -893,7 +893,7 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
 - **R108 — retired 2026-11-14:** A versioned run brief is a separate product decision.
 - **R109 — retired 2026-11-14:** Run supervision and run API changes are outside this design.
 
-- **R110 (planned) — Author the usual workflow as named stages.** The basic editor shows the
+- **R110 (shipped 2026-11-15) — Author the usual workflow as named stages.** The basic editor shows the
   template title and ordered stage list. Name each stage and write its instructions. File paths
   or references can be included in those instructions under the existing workspace access rules.
   Template, stage, binding and Think Tank participant identities are generated or retained by
@@ -905,7 +905,7 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   named run inputs, dedicated coordination and Think Tanks remain available. Save validates the
   draft, identifies the affected field by name and preserves edits. Chucky proposal review retains
   its existing consent.
-- **R111 (planned) — Configure requirements and explicit handoffs only when needed.** Ordinary
+- **R111 (shipped 2026-11-15) — Configure requirements and explicit handoffs only when needed.** Ordinary
   stages need no gate setting or input/output bindings. The owner receives its existing stage
   assignment, prior result context and normal workspace access. The stage editor allows **Required
   for completion** and **Require human approval**, and shows configured requirements in the stage
@@ -919,7 +919,7 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   The template format and the engine's delivery, reporting and gate behavior stay the same.
 - **R112 — retired 2026-11-14:** R113 keeps the current setup and review flow and reduces
   optional or repeated information within it.
-- **R113 (planned) — Keep launch focused on the decisions it already needs.** Retain desktop
+- **R113 (shipped 2026-11-15) — Keep launch focused on the decisions it already needs.** Retain desktop
   Setup and Review and the phone's single launch form. Use the template name unless the operator
   chooses a custom run name. Expose a custom name if the draft already has one. Desktop Setup
   groups identical runtime choices. Review shows the effective checkout and actual runtime
@@ -1343,7 +1343,7 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   covered by A61–A68 and the applicable stage and task regression checks.
 - **A71 — retired 2026-11-14:** A versioned run brief is outside the setup design.
 
-- **A72 (planned)** (R110–R111) — Create a delivery template with Design, Implement, Review,
+- **A72 (shipped 2026-11-15)** (R110–R111) — Create a delivery template with Design, Implement, Review,
   Fix and Verify using stage names and instructions, including a workspace-relative design file
   referenced by Design and Implement. Mark Review and Verify as required for completion.
   Complete authoring and launch without seeing internal IDs or configuring bindings. On the
@@ -1357,7 +1357,7 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   browser journeys, serialized configuration, and existing assignment, admission and gate tests.
 
 - **A73 — retired 2026-11-14:** A74 covers the retained Setup → Review journey.
-- **A74 (planned)** (R113) — Start the saved template with a goal and valid defaults through
+- **A74 (shipped 2026-11-15)** (R113) — Start the saved template with a goal and valid defaults through
   Setup → Review → Start. See the effective run name without editing it and confirm a custom name
   is retained when set. With matching runtimes, Setup summarizes them together and Review shows
   the effective checkout and selections. Preserve setup after a refused launch or a shared-checkout
@@ -1367,11 +1367,7 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
 
 ## 6. Deviations & open decisions
 
-- **Simpler pipeline setup (planned):** The operator approved R110–R111/R113/A72/A74. These
-  reduce routine authoring fields and repeated launch information within the existing template
-  and execution contracts.
-  Repository scope, staged instructions, routing, recovery, report acceptance and checkpoint
-  semantics follow the shipped rules. Stage-to-stage hard gates beyond existing required input
+- **Pipeline execution scope:** Stage-to-stage hard gates beyond existing required input
   bindings would need a concrete case those bindings cannot cover. Mechanically checking evidence
   freshness or reviewer independence would address a separate assurance requirement. Versioning a
   live run's goal, changing the recovery allowance, running host-owned checks or expanding checkout

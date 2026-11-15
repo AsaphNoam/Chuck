@@ -2266,7 +2266,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   remount (INV §1, §16). *Verify:* a reconnect test that invalidation is unfiltered, and that a
   query family added without touching the stream client is refreshed.
 
-- **R169 (planned) — Pipeline forms preserve the existing template and launch contracts.** For
+- **R169 (shipped 2026-11-15) — Pipeline forms preserve the existing template and launch contracts.** For
   FS-14.R110–R111, edit the complete v2 template draft through the existing template client.
   Generate filename-safe keys for new manual templates and unique keys within the draft for new
   stages, output values and Think Tank participants. Assign each key once per draft item. Preserve
@@ -2281,7 +2281,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   explicit aliases and flags. Reuse canonical save validation and preserve the whole draft on a
   refusal or when closing optional controls. An exact proposal uses its unchanged payload and
   existing confirmation and edit invalidation.
-- **R170 (planned) — Pipeline views project labels and errors from the existing records.** For
+- **R170 (shipped 2026-11-15) — Pipeline views project labels and errors from the existing records.** For
   FS-14.R110/R113, use existing name resolution and the run's frozen template for historical stage
   labels. Distinguish equal labels with context such as their stage or participant position. Use
   TS-09.R73's pipeline Think Tank member labels for newly launched rooms.

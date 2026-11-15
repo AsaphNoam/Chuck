@@ -29,12 +29,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-- [Simplify pipeline configuration](../ready-changes/simplify-pipeline-configuration.md) — in progress.
-  Both Go variants, the complete UI suite and the embedded build passed. The isolated browser
-  journeys covered authoring and launching five stages, required handoff serialization, existing
-  template and exact proposal round trips, configured launch defaults, custom names, validation,
-  and shared-checkout confirmation on desktop and phone. The short desktop viewport keeps the
-  focused stage field clear of the action footer. Close the specifications and queue the review.
+None.
 
 ## Decisions needing input
 
@@ -57,6 +52,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   switch shows it above the composer.
 
 ## Review queue
+
+- **Simplify pipeline configuration** — ready for review, `ca1447ad..a6aa622b`
+  (FS-14.R110–R111/R113/A72/A74, TS-08.R169–R170, TS-09.R73). Desktop and phone browser
+  journeys used isolated state and a fake provider. The existing assignment and admission tests
+  establish prior-result context and the missing-handoff refusal.
 
 - **Give agent execution one owner** — reviewed 2026-11-15, `193f301e..1d6077fa` (TS-01.R45–R50,
   TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left only the

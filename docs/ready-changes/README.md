@@ -81,8 +81,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 - [`simplify-agent-and-automation-setup.md`](simplify-agent-and-automation-setup.md) — reduce setup
   overhead for experienced operators across New Agent, native linking, Tasks and pipeline start.
-- [`simplify-pipeline-configuration.md`](simplify-pipeline-configuration.md) — author stages with
-  names and instructions, configure explicit checks and handoffs when needed, and trim launch setup.
 - [`phone-desktop-flow-and-agent-management.md`](phone-desktop-flow-and-agent-management.md) —
   give the phone the desktop's dashboard → project → chat flow, New agent with runtime choice,
   project-page pipeline start, agent management, and tracked-file views; remove phone task UI.
