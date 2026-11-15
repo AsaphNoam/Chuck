@@ -24,6 +24,7 @@ interface ConnectionState {
   agents: Record<string, AgentState>;
   /** Per-agent counter bumped when its transcript grows. */
   transcriptRev: Record<string, number>;
+  heldRev: Record<string, number>;
   setLink: (link: PhoneLink) => void;
   bump: () => void;
 }
@@ -34,6 +35,7 @@ export const useConnection = create<ConnectionState>((set) => ({
   revision: 0,
   agents: {},
   transcriptRev: {},
+  heldRev: {},
   setLink: (link) =>
     set((state) => ({
       link,
@@ -318,7 +320,8 @@ function open(gen: number) {
           transcriptRev[id] = (transcriptRev[id] ?? 0) + 1;
           fenceRev.set(id, transcriptRev[id]);
         }
-        return { agents, transcriptRev };
+        const heldRev = Object.fromEntries(Object.entries(state.heldRev).filter(([id]) => agents[id]));
+        return { agents, transcriptRev, heldRev };
       });
       admitting = true;
       if (visible()) armLiveness();
@@ -345,10 +348,19 @@ function open(gen: number) {
       const agents = { ...state.agents };
       if (agent.removed) delete agents[agent.agent_id];
       else agents[agent.agent_id] = agent;
-      return { agents };
+      if (!agent.removed) return { agents };
+      const heldRev = { ...state.heldRev };
+      delete heldRev[agent.agent_id];
+      return { agents, heldRev };
     });
   });
   stream.addEventListener("runtime_activity", admitReasoning);
+  stream.addEventListener("input_recovery_changed", (event) => {
+    if (gen !== generation || hydratingAgents) return;
+    const id = parse(event)?.agent_id;
+    if (!id || !useConnection.getState().agents[id]) return;
+    useConnection.setState((state) => ({ heldRev: { ...state.heldRev, [id]: (state.heldRev[id] ?? 0) + 1 } }));
+  });
   stream.addEventListener("new_message", (event) => {
     if (gen !== generation || hydratingAgents) return;
     const id = parse(event)?.agent_id;

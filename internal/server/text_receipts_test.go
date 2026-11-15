@@ -2,7 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
@@ -61,6 +64,69 @@ func TestTextReceiptReplayAndConflict(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("canonical input count = %d; want 1", count)
+	}
+}
+
+func TestRecoveredSendAndDismissSettleOneReceipt(t *testing.T) {
+	srv, handler, id, _ := busyAttachmentTestServer(t)
+	path := "/api/sessions/" + id + "/prompt"
+	input := map[string]string{"request_id": "released-source", "text": "recoverable input"}
+	if res, body := postJSONHandler(t, handler, path, input); res.StatusCode != http.StatusAccepted {
+		t.Fatalf("hold source: %d %s", res.StatusCode, body)
+	}
+	if withdraw := serveLocal(t, handler, http.MethodDelete, path, nil); withdraw.Code != http.StatusOK {
+		t.Fatalf("release source: %d %s", withdraw.Code, withdraw.Body)
+	}
+	// The ordinary same-text Send has no claim on the released receipt.
+	input["request_id"] = "ordinary-send"
+	if res, body := postJSONHandler(t, handler, path, input); res.StatusCode != http.StatusAccepted {
+		t.Fatalf("ordinary send: %d %s", res.StatusCode, body)
+	}
+	exactPath := path + "?recovery_request_id=released-source"
+	if exact := serveLocal(t, handler, http.MethodGet, exactPath, nil); exact.Code != http.StatusOK || fieldOf(t, exact.Body.Bytes(), "recovery_status") != "offered" {
+		t.Fatalf("ordinary Send affected recovery: %d %s", exact.Code, exact.Body)
+	}
+	send := newLocalRequest(http.MethodPost, path, strings.NewReader(`{"request_id":"recovered-send","recovery_request_id":"released-source","text":"recoverable input"}`))
+	send.Header.Set("Content-Type", "application/json")
+	dismiss := newLocalRequest(http.MethodDelete, exactPath, nil)
+	updates, unsubscribe := srv.eventBus.Subscribe()
+	defer unsubscribe()
+	start, done := make(chan struct{}), make(chan struct{}, 2)
+	responses := []*httptest.ResponseRecorder{httptest.NewRecorder(), httptest.NewRecorder()}
+	for i, request := range []*http.Request{send, dismiss} {
+		go func() {
+			<-start
+			handler.ServeHTTP(responses[i], request)
+			done <- struct{}{}
+		}()
+	}
+	close(start)
+	<-done
+	<-done
+	if responses[0].Code == http.StatusAccepted {
+		if responses[1].Code != http.StatusConflict || !strings.Contains(responses[1].Body.String(), `"code":"recovery_changed"`) {
+			t.Fatalf("losing dismiss: %d %s", responses[1].Code, responses[1].Body)
+		}
+	} else {
+		if responses[1].Code != http.StatusOK || responses[0].Code != http.StatusConflict || !strings.Contains(responses[0].Body.String(), `"code":"recovery_changed"`) {
+			t.Fatalf("send: %d %s, dismiss: %d %s", responses[0].Code, responses[0].Body, responses[1].Code, responses[1].Body)
+		}
+		if _, err := srv.stateStore.AttachmentReceipt(id, "recovered-send"); !errors.Is(err, state.ErrNotFound) {
+			t.Fatalf("losing send reached receipt admission: %v", err)
+		}
+	}
+	if exact := serveLocal(t, handler, http.MethodGet, exactPath, nil); exact.Code != http.StatusOK || fieldOf(t, exact.Body.Bytes(), "recovery_status") != "settled" {
+		t.Fatalf("settled source status: %d %s", exact.Code, exact.Body)
+	}
+	count := 0
+	for len(updates) > 0 {
+		update := <-updates
+		if update.Type == "input_recovery_changed" && update.AgentID != nil && *update.AgentID == id && update.Data.(map[string]any)["request_id"] == "released-source" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("peer settlement notifications = %d; want one", count)
 	}
 }
 

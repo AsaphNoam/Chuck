@@ -1,27 +1,27 @@
-import { useRef, useState } from "react";
-import { QUEUED_FOR_ASSIGNMENT_NOTICE, sendPrompt, steerPrompt, type PromptResult, type SteerResult } from "../../api/client";
-import { chatDraftRevision, discardChatDraft, getChatDraft } from "./drafts";
+import { useEffect, useRef, useState } from "react";
+import { QUEUED_FOR_ASSIGNMENT_NOTICE, sendPrompt, steerPrompt, unacceptedInputDelivery, type PromptResult, type SteerResult } from "../../api/client";
+import { chatDraftRevision, discardChatDraft, getChatDraft, republishChatDraft } from "./drafts";
 import {
   attachmentErrorForStorage, chatDraftRequestId, clearPendingAttachmentSend, isDefiniteSendRefusal,
-  persistPendingAttachmentSend, removeAcceptedAttachments, type DraftAttachment, type PendingAttachmentSend,
+  persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend,
+  subscribePendingSendCleared, type DraftAttachment, type PendingAttachmentSend,
 } from "./attachments";
 
-export function sameAttachmentSet(left: DraftAttachment[], right: DraftAttachment[]) {
+function sameAttachmentSet(left: DraftAttachment[], right: DraftAttachment[]) {
   return left.length === right.length && left.every((file) => right.some((candidate) => candidate.id === file.id));
 }
 
 type Projection = {
   beforeSend?: () => number;
   acceptPrompt?: (result: PromptResult, pending: PendingAttachmentSend, beforeSeq: number) => void;
-  acceptSteer: (result: SteerResult, held: boolean) => Promise<void>;
-  refreshRecovery: (releaseHold: boolean) => void;
+  acceptSteer: (result: SteerResult, heldId?: string) => Promise<void>;
+  refreshRecovery: (heldId?: string) => void;
   settled?: () => void;
 };
 
 export function useInputDelivery(agentId: string, projection: Projection, view: {
   phone?: boolean;
   clearDraft: () => void;
-  restoreDraft?: (text: string) => void;
   setError: (value: string | null) => void;
   setNotice: (value: string | null) => void;
   setAttachmentError: (value: string | null) => void;
@@ -29,24 +29,50 @@ export function useInputDelivery(agentId: string, projection: Projection, view: 
   const [retryState, setRetryState] = useState<{ agentId: string; receipt: PendingAttachmentSend } | null>(null);
   const retry = retryState?.agentId === agentId ? retryState.receipt : null;
   const setRetry = (receipt: PendingAttachmentSend | null) => setRetryState(receipt ? { agentId, receipt } : null);
-  const [inFlight, setInFlight] = useState<Record<string, boolean>>({});
+  const [inFlight, setInFlight] = useState<Record<string, true>>({});
   const active = useRef(new Set<string>());
   const currentAgent = useRef(agentId);
   currentAgent.current = agentId;
+  const { setAttachmentError } = view;
+  useEffect(() => {
+    let current = true;
+    let cleared: string | undefined;
+    const initialRevision = chatDraftRevision(agentId);
+    const unsubscribe = subscribePendingSendCleared(agentId, (requestId) => {
+      cleared = requestId;
+      setRetryState((previous) => previous?.agentId === agentId && previous.receipt.requestId === requestId ? null : previous);
+    });
+    void restorePendingAttachmentSend(agentId).then(async (pending) => {
+      if (!current || !pending) return;
+      const files = await restoreAttachments(agentId);
+      if (!current || cleared === pending.requestId || active.current.has(agentId)) return;
+      const revision = chatDraftRevision(agentId);
+      const sameDraft = getChatDraft(agentId) === pending.text && sameAttachmentSet(pending.files, files) &&
+        (!pending.draftRequestId || pending.draftRequestId === chatDraftRequestId(agentId));
+      setRetryState({ agentId, receipt: { ...pending, revision: revision === initialRevision && sameDraft ? revision : -1 } });
+    }).catch(() => { if (current) setAttachmentError("A previous send could not be restored from browser storage."); });
+    return () => { current = false; unsubscribe(); };
+  }, [agentId, setAttachmentError]);
 
   const matchingRetry = (text: string, files: DraftAttachment[]) =>
-    retry && retry.text === text && sameAttachmentSet(retry.files, files) ? retry : null;
+    retry && retry.text === text && sameAttachmentSet(retry.files, files) &&
+      (!retry.draftRequestId || retry.draftRequestId === chatDraftRequestId(agentId)) ? retry : null;
 
   const deliver = async (text: string, files: DraftAttachment[], steer = false, options: {
     retry?: PendingAttachmentSend;
-    held?: { requestId?: string; text: string };
+    held?: { id: string; requestId?: string };
   } = {}) => {
-    if (active.current.has(agentId)) return;
+    if (active.current.has(agentId)) {
+      view.setNotice("Wait for the current send to finish.");
+      return;
+    }
     const match = options.held ? null : matchingRetry(text, files);
     if ((options.retry ?? match)?.retryable === false) return;
+    const draftRequestId = chatDraftRequestId(agentId);
     const pending = options.retry ?? (!steer || view.phone ? match : null) ?? {
       text, files, steer,
-      requestId: options.held?.requestId || (!options.held && chatDraftRequestId(agentId)) || crypto.randomUUID(),
+      requestId: options.held?.requestId || (!options.held && draftRequestId) || crypto.randomUUID(),
+      draftRequestId,
       revision: chatDraftRevision(agentId),
     };
     const promoting = !!options.held;
@@ -57,7 +83,7 @@ export function useInputDelivery(agentId: string, projection: Projection, view: 
     const storageError = (message = attachmentErrorForStorage()) => { if (ownsView()) view.setAttachmentError(message); };
     const beforeSeq = projection.beforeSend?.() ?? 0;
     active.current.add(agentId);
-    setInFlight((running) => ({ ...running, [agentId]: pending.steer }));
+    setInFlight((running) => ({ ...running, [agentId]: true }));
     view.setError(null);
     view.setNotice(null);
     if (!view.phone && !pending.steer && !persist) view.clearDraft();
@@ -65,29 +91,43 @@ export function useInputDelivery(agentId: string, projection: Projection, view: 
       setRetry(pending);
       try { await persistPendingAttachmentSend(agentId, pending); } catch { storageError(); }
     }
+    const restoreHiddenDraft = () => {
+      if (!view.phone && !pending.steer && !persist) republishChatDraft(agentId, pending.text, pending.revision);
+    };
+    const retainForRecovery = async () => {
+      if (!promoting) {
+        const receipt = { ...pending, retryable: false };
+        if (ownsView()) setRetry(receipt);
+        try { await persistPendingAttachmentSend(agentId, receipt); } catch { if (hasFiles) storageError(); }
+        restoreHiddenDraft();
+      }
+      projection.refreshRecovery(options.held?.id);
+    };
     try {
       const requestFiles = pending.files.map(({ name, blob }) => ({ name, blob }));
       let prompt: PromptResult | undefined;
       let steered: SteerResult | undefined;
       if (pending.steer) {
-        steered = await steerPrompt(agentId, promoting ? "" : pending.text, requestFiles, pending.requestId);
-        await projection.acceptSteer(steered, promoting);
+        steered = await steerPrompt(agentId, promoting ? "" : pending.text, requestFiles, options.held ? options.held.requestId : pending.requestId, options.held?.id);
       } else {
         prompt = await sendPrompt(agentId, pending.text, requestFiles, pending.requestId);
-        projection.acceptPrompt?.(prompt, pending, beforeSeq);
       }
       const status = (prompt ?? steered)?.attachment_delivery;
-      if (hasFiles && status !== "submitted" && status !== "held" && status !== "queued") {
-        error(status === "released"
+      const unsuccessful = unacceptedInputDelivery((prompt ?? steered)!);
+      if (unsuccessful === "released" || unsuccessful === "unknown") {
+        error(unsuccessful === "released"
           ? "This message was released for recovery. Restore it from the conversation before sending again."
-          : status === "failed"
-            ? `The message was not delivered. Its attachments remain ${view.phone ? "here" : "in the composer"}; retry the same send.`
-            : "Delivery could not be confirmed. Its attachments remain available; retry uses the same request receipt.");
-        const receipt = { ...pending, retryable: status !== "released" };
-        if (ownsView()) setRetry(receipt);
-        if (!receipt.retryable) void persistPendingAttachmentSend(agentId, receipt).catch(() => storageError());
+          : "Delivery could not be confirmed. Check the conversation for the recovered message.");
+        await retainForRecovery();
         return;
       }
+      if (unsuccessful === "failed" || (hasFiles && status !== "submitted" && status !== "held" && status !== "queued")) {
+        restoreHiddenDraft();
+        error("Delivery could not be confirmed. The draft remains available to retry.");
+        return;
+      }
+      if (prompt) projection.acceptPrompt?.(prompt, pending, beforeSeq);
+      if (steered) await projection.acceptSteer(steered, options.held?.id);
       if (!promoting && chatDraftRevision(agentId) === pending.revision) {
         discardChatDraft(agentId);
         if (ownsView()) view.clearDraft();
@@ -100,27 +140,20 @@ export function useInputDelivery(agentId: string, projection: Projection, view: 
         if (persist) setRetry(null);
         if (prompt?.delivery === "queued") view.setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE);
         else if (view.phone && (prompt?.delivery === "held" || status === "held")) view.setNotice("Held — it will be sent when the current turn ends.");
-        else if (!view.phone && steered) view.setNotice(persist || steered.outcome === "steered"
+        else if (steered) view.setNotice(steered.outcome === "steered"
           ? "Delivered into the running turn."
           : "That turn had already ended — sent as a new turn.");
       }
-      if (prompt?.delivery === "queued") projection.refreshRecovery(false);
+      if (prompt?.delivery === "queued") projection.refreshRecovery();
       if (persist) void clearPendingAttachmentSend(agentId, pending.requestId).catch(() =>
         storageError("Message was sent, but its retry receipt could not be cleared from browser storage."));
     } catch (reason) {
       const message = reason instanceof Error && reason.message ? reason.message : view.phone ? String(reason) : "the agent may have stopped";
-      const uncertain = (reason as { code?: string } | null)?.code === "delivery_uncertain"
+      const code = (reason as { code?: string } | null)?.code;
+      const uncertain = code === "delivery_uncertain"
         || (!view.phone && /delivery[_ ]uncertain|may already have reached/i.test(message));
       if (uncertain) {
-        projection.refreshRecovery(pending.steer || (!view.phone && !persist));
-        if (persist || (view.phone && pending.steer)) {
-          const receipt = { ...pending, text: options.held?.text ?? pending.text, retryable: false };
-          if (ownsView()) setRetry(receipt);
-          if (persist) void persistPendingAttachmentSend(agentId, receipt).catch(() => storageError());
-        }
-        if (!view.phone && !pending.steer && !persist && chatDraftRevision(agentId) === pending.revision) {
-          view.restoreDraft?.(pending.text);
-        }
+        await retainForRecovery();
         error(view.phone ? message : pending.steer
           ? "Steer delivery is uncertain — the message may have reached the agent. Do not retry Steer; use Send deliberately if needed."
           : "Send delivery is uncertain — the message may have reached the agent. Check recovery/history, then use Send deliberately if needed.");
@@ -135,9 +168,10 @@ export function useInputDelivery(agentId: string, projection: Projection, view: 
       } else if (view.phone) {
         error(message);
       } else if (pending.steer) {
+        if (code === "held_changed") projection.refreshRecovery();
         error(`Could not steer — ${message}.`);
       } else if (chatDraftRevision(agentId) === pending.revision) {
-        view.restoreDraft?.(pending.text);
+        restoreHiddenDraft();
         error(`Failed to send — ${message}. Your message was restored.`);
       }
     } finally {
@@ -147,5 +181,5 @@ export function useInputDelivery(agentId: string, projection: Projection, view: 
     }
   };
 
-  return { deliver, matchingRetry, retry, setRetry, sending: agentId in inFlight, steering: inFlight[agentId] === true, inFlight: active };
+  return { deliver, matchingRetry, retry, sending: agentId in inFlight };
 }

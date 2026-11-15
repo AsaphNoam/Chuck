@@ -14,6 +14,23 @@ Example:
 - **Pinned agents.** Let people keep frequently used agents at the top of the dashboard.
 ```
 
+- **One owner for browser chat-input settlement.** INPUT-8 inventory from the shared desktop and
+  phone delivery review. Browser text is written by composer editing, draft restoration and
+  navigation, accepted delivery and agent deletion (`drafts.ts`, `useComposerEditing.ts`,
+  `AgentScreen.tsx`, `heldMessage.ts`, stream removal). `draftIndex.ts` provides the draft revision's
+  request identity and eviction. Attachment selection, rehydration and acceptance use
+  `attachments.ts`; `useInputDelivery` writes and restores Send/Steer retry records, while
+  `RecoveryOffer` holds the deliberate recovery command ID. The desktop held mirror is written by
+  `Composer`, `useHeldProjection` and `heldMessage.ts`; the phone reads its own held query. The
+  transcript may clear the matching held tail once its sequenced delivery arrives.
+  Server Send, Steer and held withdrawal go through the session routes and runtime's single hold
+  slot. Assignment admission and rerouting, runtime delivery/exit and restart update durable
+  attachment receipts; exact recovery Send/Dismiss claims and settles the source there.
+  Browser cleanup now has exact receipt evidence, but the draft index, IndexedDB retry rows,
+  held mirror and echo still make separate decisions about when to release. Define the per-request
+  transitions and ownership across acknowledgment, navigation, reconnect, partial storage failure
+  and peer settlement alongside the existing sent-echo and held-tail idea.
+
 - **Fix card drag-and-drop usability.** Dashboard card reorder (FS-02.R12) technically works but
   reads as broken: the drag listener is bound only to the tiny 28×28px `::` handle
   (`AgentCard.tsx`), not the card itself, so dragging the card body does nothing — and because the

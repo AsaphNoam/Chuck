@@ -30,6 +30,7 @@ const annotationPosts = [];
 const launches = [];
 let failAnnotationDelivery = false;
 let recovery = inputCheck ? { text: "Recover this message.", request_id: "recover-1", delivery: "unknown" } : undefined;
+let settledRecoveryId;
 let healthCount = 0;
 let healthDown = false;
 let skin = "";
@@ -143,12 +144,32 @@ try {
     }
     if (path === "/api/remote/home") return route.fulfill({ json: { needs_you: scrollCheck ? activeRuns : [], active_runs: scrollCheck ? activeRuns : [] } });
     if (inputCheck && path === "/api/sessions/a1/prompt") {
-      if (route.request().method() === "POST") {
+      const method = route.request().method();
+      const exact = new URL(route.request().url()).searchParams.get("recovery_request_id");
+      if (method === "POST") {
+        if (route.request().headers()["content-type"]?.startsWith("multipart/form-data")) {
+          const requestId = route.request().postData()?.match(/"request_id":"([^"]+)"/)?.[1];
+          if (!requestId) throw new Error("attachment send lost its request ID");
+          recovery = { text: "Review the attachment.", request_id: requestId, delivery: "unknown", attachments: [
+            { id: "receipt-attachment", kind: "file", name: "notes.txt", mime_type: "text/plain", size: 7 },
+          ] };
+          return route.fulfill({ status: 409, json: { error: { code: "delivery_uncertain", message: "Delivery uncertain" } } });
+        }
         const body = route.request().postDataJSON();
-        if (body.text !== recovery?.text || !body.request_id) throw new Error("recovered send lost its text or request ID");
+        if (body.text !== recovery?.text || !body.request_id || body.recovery_request_id !== recovery.request_id) {
+          throw new Error("recovered send lost its text, command ID or source ID");
+        }
+        settledRecoveryId = recovery.request_id;
         recovery = undefined;
         return route.fulfill({ json: { accepted: true, agent_id: "a1", delivery: "sent", after_seq: 20 } });
       }
+      if (method === "DELETE") {
+        if (!exact || exact !== recovery?.request_id) throw new Error("Dismiss used the wrong receipt");
+        settledRecoveryId = exact;
+        recovery = undefined;
+        return route.fulfill({ json: { accepted: true, agent_id: "a1", delivery: "dismissed" } });
+      }
+      if (exact) return route.fulfill({ json: { recovery_status: exact === settledRecoveryId ? "settled" : "offered" } });
       return route.fulfill({ json: { agent_id: "a1", text: "", after_seq: 20, recovery } });
     }
     if (path === "/api/sessions/a1/prompt") return route.fulfill({ status: 404, json: { error: { code: "not_found", message: "none" } } });
@@ -156,12 +177,15 @@ try {
   });
   const page = await context.newPage();
   page.on("pageerror", (error) => console.error(`page error: ${error.message}`));
-  await page.goto("http://localhost:5199/remote.html");
-  // Vite serves the desktop entry for deep links, so route inside the phone app.
-  await page.evaluate(() => {
-    history.pushState(null, "", "/agent/a1");
-    window.dispatchEvent(new PopStateEvent("popstate"));
-  });
+  const openConversation = async () => {
+    await page.goto("http://localhost:5199/remote.html");
+    // Vite serves the desktop entry for deep links, so route inside the phone app.
+    await page.evaluate(() => {
+      history.pushState(null, "", "/agent/a1");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+  };
+  await openConversation();
   // Screenshot even when the conversation never appears; that view is the evidence.
   const shown = await page.getByRole("list", { name: "Conversation" }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
   if (inputCheck) {
@@ -182,7 +206,39 @@ try {
     if (await page.getByRole("list", { name: "Conversation" }).getByText("Recover this message.").count()) {
       throw new Error("phone echoed a recovered send before a sequenced transcript event");
     }
-    console.log("390px phone composer and recovery offer fit; recovered send settled without a local echo");
+    await composer.fill("Review the attachment.");
+    await page.getByLabel("Choose files to attach").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("keep me") });
+    const send = page.getByRole("button", { name: "Send", exact: true });
+    const pending = page.getByText(/Previous message was not confirmed/);
+    await send.click();
+    await offer.waitFor();
+    await pending.waitFor();
+    await openConversation();
+    await offer.waitFor();
+    await pending.waitFor();
+    if (await send.isEnabled()) throw new Error("reload made the uncertain attachment send retryable");
+    await offer.getByRole("button", { name: "Dismiss" }).click();
+    await pending.waitFor({ state: "hidden" });
+    await page.waitForFunction(() => new Promise((resolve, reject) => {
+      const open = indexedDB.open("chuck-chat-attachments");
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction("drafts", "readonly");
+        const keys = tx.objectStore("drafts").getAllKeys();
+        tx.oncomplete = () => {
+          db.close();
+          resolve(!keys.result.includes("pending:a1") && !keys.result.includes("a1"));
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+    }));
+    await openConversation();
+    await composer.waitFor();
+    if (await composer.inputValue() || await pending.count() || await page.getByText("notes.txt", { exact: true }).count()) {
+      throw new Error("dismissed attachment receipt returned after reload");
+    }
+    console.log("390px phone input fit, recovered Send had no local echo, and Dismiss cleared the attachment retry across reload");
   }
   if (shown && historyCheck) {
     const anchor = page.getByText("History 751", { exact: true });

@@ -29,7 +29,7 @@ interface HeldStoreState {
   holdRevisionByAgent: Record<string, number>;
   acceptHold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[], heldId?: string, requestId?: string) => void;
   hold: (agentId: string, text: string, afterSeq?: number, attachments?: AttachmentDescriptor[], heldId?: string, requestId?: string) => void;
-  release: (agentId: string) => void;
+  release: (agentId: string, heldId?: string) => void;
   setRecovery: (agentId: string, recovery: { text: string; request_id: string; attachments?: AttachmentDescriptor[]; delivery?: string } | null) => void;
   markRecoveryUnread: (agentId: string) => void;
   queuedByAgent: Record<string, QueuedPrompt[]>;
@@ -59,9 +59,10 @@ export const useHeldStore = create<HeldStoreState>((set, get) => ({
       afterSeqByAgent: { ...state.afterSeqByAgent, [agentId]: afterSeq },
       attachmentsByAgent: { ...state.attachmentsByAgent, [agentId]: attachments },
     })),
-  release: (agentId) =>
+  release: (agentId, heldId) =>
     set((state) => {
       if (!(agentId in state.byAgent)) return state;
+      if (heldId !== undefined && state.heldIdByAgent[agentId] !== heldId) return state;
       const byAgent = { ...state.byAgent };
       const heldIdByAgent = { ...state.heldIdByAgent };
       const requestIdByAgent = { ...state.requestIdByAgent };

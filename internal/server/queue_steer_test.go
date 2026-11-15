@@ -279,6 +279,36 @@ func TestSteerRouteReportsTheAdapterOutcome(t *testing.T) {
 	}
 }
 
+func TestSteerRoutePromotesOnlyExpectedHold(t *testing.T) {
+	t.Setenv("FAKEACP_STEERING", "1")
+	_, handler, id, _ := busyAttachmentTestServer(t)
+	base := "/api/sessions/" + id
+	hold := func(requestID string) string {
+		t.Helper()
+		resp, body := postJSONHandler(t, handler, base+"/prompt", map[string]string{"text": requestID, "request_id": requestID})
+		heldID := fieldOf(t, body, "held_id")
+		if resp.StatusCode != http.StatusAccepted || heldID == "" {
+			t.Fatalf("create hold %s: %d %s", requestID, resp.StatusCode, body)
+		}
+		return heldID
+	}
+	stale, current := hold("first-held"), hold("replacement-held")
+	for _, command := range []map[string]string{{"held_id": stale}, {"request_id": "first-held"}} {
+		resp, body := postJSONHandler(t, handler, base+"/steer", command)
+		if resp.StatusCode != http.StatusConflict || !strings.Contains(string(body), `"code":"held_changed"`) {
+			t.Fatalf("stale steer: %d %s", resp.StatusCode, body)
+		}
+	}
+	snapshot := serveLocal(t, handler, http.MethodGet, base+"/prompt", nil)
+	if snapshot.Code != http.StatusOK || fieldOf(t, snapshot.Body.Bytes(), "held_id") != current {
+		t.Fatalf("replacement after stale steer: %d %s", snapshot.Code, snapshot.Body)
+	}
+	resp, body := postJSONHandler(t, handler, base+"/steer", map[string]string{"held_id": current, "request_id": "steer-intent"})
+	if resp.StatusCode != http.StatusAccepted || fieldOf(t, body, "request_id") != "replacement-held" || fieldOf(t, body, "outcome") != "steered" {
+		t.Fatalf("authoritative steer: %d %s", resp.StatusCode, body)
+	}
+}
+
 // TestSteerRouteReportsHostOwnedFallback is TS-03.R41's public contract: an
 // adapter's no-consumption result is accepted through the ordinary prompt gate,
 // while the route keeps the existing new_turn response shape.

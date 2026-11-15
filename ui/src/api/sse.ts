@@ -20,6 +20,7 @@ import { ownerKey } from "../features/fileTabs/model";
 import { fileTabs } from "../features/fileTabs/store";
 import { listDrafts, purgeOwnerDrafts, restoreDrafts } from "../features/fileTabs/drafts";
 import { notificationAgentId, openAgentConversation } from "../lib/agentConversation";
+import { refreshInputQueries } from "../lib/heldMessage";
 
 function parseBusData(raw: string): unknown {
   try {
@@ -85,6 +86,12 @@ class SseClient {
     this.es.onerror = () => useUiStore.getState().setConnection("reconnecting");
     this.es.addEventListener("state_update", (event) => this.onStateUpdate(event as MessageEvent<string>));
     this.es.addEventListener("new_message", (event) => this.onNewMessage(event as MessageEvent<string>));
+    this.es.addEventListener("input_recovery_changed", (event) => {
+      try {
+        const { agent_id } = JSON.parse((event as MessageEvent<string>).data) as BusEvent<unknown>;
+        if (agent_id) void refreshInputQueries(queryClient, agent_id);
+      } catch { /* The next authoritative read reconciles the offer. */ }
+    });
     this.es.addEventListener("runtime_activity", (event) => this.onRuntimeActivity(event as MessageEvent<string>));
     this.es.addEventListener("notification", (event) => this.onNotification(event as MessageEvent<string>));
     this.es.addEventListener("pipeline_update", (event) => this.onPipelineUpdate(event as MessageEvent<string>));

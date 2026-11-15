@@ -1,5 +1,8 @@
-import { dismissPromptRecovery, getHeldPrompt, withdrawPrompt, type WithdrawnPrompt } from "../api/client";
-import { restoreChatDraft } from "../components/chat/drafts";
+import type { QueryClient } from "@tanstack/react-query";
+import { dismissPromptRecovery, getHeldPrompt, getPromptRecoveryStatus, withdrawPrompt, type WithdrawnPrompt } from "../api/client";
+import { chatDraftRevision, discardChatDraft, getChatDraft, restoreChatDraft } from "../components/chat/drafts";
+import { chatDraftRequestId, clearPendingAttachmentSend, removeAcceptedAttachments, restorePendingAttachmentSend } from "../components/chat/attachments";
+import { clearRecoveryAttempt, recoveryAttempts } from "../components/chat/recoveryAttempts";
 import { useHeldStore } from "../store/heldStore";
 
 // Two surfaces offer withdrawing the queued follow-up — the composer (FS-03.R48)
@@ -21,12 +24,60 @@ export function invalidateHeldReads(agentId: string) {
   for (const read of reads) if (read.agentId === agentId) read.stale = true;
 }
 
+export async function refreshInputQueries(client: QueryClient, agentId: string) {
+  invalidateHeldReads(agentId);
+  const filters = { queryKey: ["held", agentId] };
+  await client.cancelQueries(filters);
+  await client.invalidateQueries(filters);
+}
+
+// A different latest offer says nothing about this exact receipt. Clear the
+// browser retry and its submitted draft only on evidence for that receipt.
+export async function settleRecoveryLocally(agentId: string, requestId: string) {
+  try { clearRecoveryAttempt(agentId, requestId); } catch { /* Retry storage is optional. */ }
+  const pending = await restorePendingAttachmentSend(agentId);
+  if (pending?.requestId !== requestId) return;
+  const revision = chatDraftRevision(agentId);
+  const ownsDraft = () => chatDraftRequestId(agentId) === (pending.draftRequestId || pending.requestId)
+    && getChatDraft(agentId) === pending.text && chatDraftRevision(agentId) === revision;
+  try {
+    if (ownsDraft()) {
+      discardChatDraft(agentId);
+      if (pending.files.length) {
+        await removeAcceptedAttachments(agentId, pending.files.map((file) => file.id), getChatDraft(agentId) !== "");
+      }
+    }
+  } finally {
+    await clearPendingAttachmentSend(agentId, requestId);
+  }
+}
+
+export async function reconcileRecoverySettlement(agentId: string, visibleId?: string) {
+  try {
+    const pending = await restorePendingAttachmentSend(agentId);
+    const attempts = new Map(recoveryAttempts(agentId));
+    if (pending && !attempts.has(pending.requestId)) attempts.set(pending.requestId, null);
+    attempts.delete(visibleId ?? "");
+    await Promise.allSettled([...attempts].map(async ([requestId, attemptId]) => {
+      const status = await getPromptRecoveryStatus(agentId, requestId);
+      if (status === "settled") await settleRecoveryLocally(agentId, requestId);
+      else if (status === "unavailable" && attemptId) clearRecoveryAttempt(agentId, requestId, attemptId);
+    }));
+  } catch { /* A failed read leaves the original receipt and retry key available. */ }
+}
+
 export async function restoreWithdrawnDraft(agentId: string, result: WithdrawnPrompt) {
   const message = result.withdrawn ? result.message : undefined;
   if (!message?.text || message.attachments?.length) return;
   const saved = restoreChatDraft(agentId, message.text);
   // Never give up the durable server copy when browser storage refused it.
-  if (saved && message.request_id) await dismissPromptRecovery(agentId, message.request_id);
+  if (!saved || !message.request_id) return;
+  try {
+    await dismissPromptRecovery(agentId, message.request_id);
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code !== "recovery_changed" ||
+        await getPromptRecoveryStatus(agentId, message.request_id) !== "settled") throw error;
+  }
 }
 
 export async function reconcileSteerRecovery(agentId: string, requestId?: string) {
@@ -58,7 +109,7 @@ async function withdrawOnce(agentId: string, projection?: {
   const attachments = message?.attachments ?? [];
   const hadAttachments = attachments.length > 0;
   invalidateHeldReads(agentId);
-  if (!projection) useHeldStore.getState().release(agentId);
+  if (!projection) useHeldStore.getState().release(agentId, expectedID);
   try {
     if (!hadAttachments) await restoreWithdrawnDraft(agentId, result);
   } finally {
@@ -77,6 +128,7 @@ export function readWithdrawnRecovery(agentId: string): Promise<void> {
 // Reads the hold, queue and recovery offer. Only a read that follows a confirmed
 // withdrawal may report a failure as an unloaded withdrawn message (FS-03.R90).
 export async function readHeldRecovery(agentId: string, isCurrent = () => true, includeHold = false, afterWithdrawal = false): Promise<void> {
+  invalidateHeldReads(agentId);
   const read = { agentId, stale: false };
   reads.add(read);
   const holdRevision = useHeldStore.getState().holdRevisionByAgent[agentId] ?? 0;
@@ -91,8 +143,10 @@ export async function readHeldRecovery(agentId: string, isCurrent = () => true, 
     }
     useHeldStore.getState().setRecovery(agentId, snapshot.recovery ?? null);
     useHeldStore.getState().setQueued(agentId, snapshot.queued ?? []);
+    void reconcileRecoverySettlement(agentId, snapshot.recovery?.request_id);
   } catch {
     if (afterWithdrawal && !read.stale && isCurrent()) useHeldStore.getState().markRecoveryUnread(agentId);
+    if (!read.stale && isCurrent()) void reconcileRecoverySettlement(agentId);
   } finally {
     reads.delete(read);
   }

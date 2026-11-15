@@ -2,11 +2,12 @@ package state
 
 import (
 	"errors"
-	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 )
 
 func TestAttachmentReceiptsRestartAndRecovery(t *testing.T) {
@@ -47,23 +48,22 @@ func TestAttachmentReceiptsRestartAndRecovery(t *testing.T) {
 	if err != nil || recovery.RequestID != "prepared" {
 		t.Fatalf("recovery %+v %v", recovery, err)
 	}
-	if err = s.DismissAttachmentRecovery(a.AgentID, "submitted"); err != nil {
-		t.Fatal(err)
+	if did, err := s.DismissAttachmentRecovery(a.AgentID, "submitted"); err != nil || did {
+		t.Fatalf("dismissed submitted input: %v %v", did, err)
 	}
 	if _, err = s.AttachmentRecovery(a.AgentID); err != nil {
 		t.Fatal("dismissing a different record removed recovery")
 	}
-	if err = s.DismissAttachmentRecovery(a.AgentID, "held"); err != nil {
-		t.Fatal(err)
-	}
-	if err = s.DismissAttachmentRecovery(a.AgentID, "prepared"); err != nil {
-		t.Fatal(err)
+	for _, requestID := range []string{"held", "prepared"} {
+		if did, err := s.DismissAttachmentRecovery(a.AgentID, requestID); err != nil || !did {
+			t.Fatalf("dismiss %s: %v %v", requestID, did, err)
+		}
 	}
 	if recovery, err = s.AttachmentRecovery(a.AgentID); err != nil || recovery.RequestID != "unknown" {
 		t.Fatalf("uncertain input is not recoverable: %+v %v", recovery, err)
 	}
-	if err = s.DismissAttachmentRecovery(a.AgentID, "unknown"); err != nil {
-		t.Fatal(err)
+	if did, err := s.DismissAttachmentRecovery(a.AgentID, "unknown"); err != nil || !did {
+		t.Fatalf("dismiss uncertain input: %v %v", did, err)
 	}
 	if _, err = s.AttachmentRecovery(a.AgentID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("dismissed recovery %v", err)
@@ -80,6 +80,59 @@ func TestAttachmentReceiptsRestartAndRecovery(t *testing.T) {
 	if f, _, err := attachment.New(s.home).Open(a.AgentID, asset.ID); err == nil {
 		f.Close()
 		t.Fatal("deleted conversation retained owned bytes")
+	}
+}
+
+func TestRecoveryClaimsReconcileAfterRestart(t *testing.T) {
+	home := t.TempDir()
+	s, err := Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	agentID := "a_123456"
+	if err := s.WriteAgent(Agent{AgentID: agentID, Name: "Recovery", Project: "p", Role: "r", Backend: "b", Model: "m", Interface: "chat"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, example := range []struct{ source, successor string }{{"claimed-only", "missing"}, {"already-retained", "successor"}} {
+		rec := AttachmentReceipt{AgentID: agentID, RequestID: example.source, PayloadHash: "old-" + example.source, MessageJSON: `{}`, Action: "prompt"}
+		if err := s.CreateAttachmentReceipt(rec); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetAttachmentDelivery(agentID, example.source, "unknown"); err != nil {
+			t.Fatal(err)
+		}
+		if did, err := s.ClaimAttachmentRecovery(agentID, example.source, example.successor, "new-"+example.successor); err != nil || !did {
+			t.Fatalf("claim %s: %v %v", example.source, did, err)
+		}
+	}
+	if err := s.CreateAttachmentReceipt(AttachmentReceipt{AgentID: agentID, RequestID: "successor", PayloadHash: "new-successor", MessageJSON: `{}`, Action: "prompt"}); err != nil {
+		t.Fatal(err)
+	}
+	if repaired, err := s.RepairAttachmentRecovery(agentID, "already-retained", "successor", "new-successor"); repaired || err != nil {
+		t.Fatalf("same-ID replay settled a provisional successor: %v %v", repaired, err)
+	}
+	if dismissed, err := s.DismissAttachmentRecovery(agentID, "already-retained"); dismissed || err != nil {
+		t.Fatalf("same-ID replay released the active claim: %v %v", dismissed, err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.ReleaseRestartedAttachments(); err != nil {
+		t.Fatal(err)
+	}
+	for id, expected := range map[string]string{"claimed-only": "offered", "already-retained": "settled", "successor": "offered"} {
+		if status, err := s.AttachmentRecoveryStatus(agentID, id); err != nil || status != expected {
+			t.Fatalf("%s status = %q, %v; want %q", id, status, err, expected)
+		}
+	}
+	if old, err := s.AttachmentReceipt(agentID, "already-retained"); err != nil || old.Delivery != "unknown" {
+		t.Fatalf("recovery changed historical receipt delivery: %+v %v", old, err)
 	}
 }
 

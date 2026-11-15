@@ -459,6 +459,49 @@ describe("TranscriptView pending follow-up", () => {
     expect(await screen.findByText("This message may already have reached the agent — sending again may repeat it")).toBeInTheDocument();
     expect(screen.queryByText("Message not delivered — choose whether to send it again")).toBeNull();
   });
+
+  it.each(["lost reply", "released reply"])("reconciles the exact recovery source after a %s", async (reply) => {
+    const recovery = { text: "Original offer", request_id: "old-offer", delivery: "released" };
+    const key = "chuck-recovery-send:a1:old-offer";
+    localStorage.setItem(key, "repeat-command");
+    useHeldStore.getState().setRecovery("a1", recovery);
+    const submit = vi.fn();
+    let status = reply === "released reply" ? "settled" : "offered";
+    const readStatus = vi.fn();
+    mswServer.use(
+      http.post("/api/sessions/a1/prompt", async ({ request }) => {
+        submit(await request.json());
+        if (reply === "lost reply") return HttpResponse.error();
+        return HttpResponse.json({ accepted: true, request_id: "repeat-command", delivery: "released" }, { status: 202 });
+      }),
+      http.get("/api/sessions/a1/prompt", ({ request }) => {
+        const requestId = new URL(request.url).searchParams.get("recovery_request_id");
+        if (requestId) {
+          readStatus(requestId);
+          return HttpResponse.json({ recovery_status: status });
+        }
+        return HttpResponse.json({ agent_id: "a1", text: "", after_seq: 0, recovery: {
+          text: "Newer offer", request_id: "new-offer", delivery: "released",
+        } });
+      }),
+    );
+    try {
+      renderTranscript(true, events, true);
+      fireEvent.click(screen.getByRole("button", { name: "Send recovered message" }));
+      expect(await screen.findByText("Newer offer")).toBeInTheDocument();
+      expect(submit).toHaveBeenCalledWith({
+        request_id: "repeat-command", recovery_request_id: "old-offer", text: "Original offer", attachment_ids: [],
+      });
+      await waitFor(() => expect(readStatus).toHaveBeenCalledWith("old-offer"));
+      if (reply === "lost reply") {
+        expect(localStorage.getItem(key)).toBe("repeat-command");
+        status = "settled";
+        await act(async () => { await readHeldRecovery("a1"); });
+      }
+      await waitFor(() => expect(localStorage.getItem(key)).toBeNull());
+      expect(screen.getByText("Newer offer")).toBeInTheDocument();
+    } finally { localStorage.removeItem(key); }
+  });
 });
 
 // FS-03.A46, FS-13.A16 (J13): the file viewer's own selection menu is reached

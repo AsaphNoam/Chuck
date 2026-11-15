@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   withdrawPrompt: vi.fn(),
   steerPrompt: vi.fn(),
   dismissPromptRecovery: vi.fn(),
+  getPromptRecoveryStatus: vi.fn(),
 }));
 vi.mock('../../api/client', async (original) => ({
   ...await original<typeof import('../../api/client')>(),
@@ -19,6 +20,7 @@ vi.mock('../../api/client', async (original) => ({
   withdrawPrompt: mocks.withdrawPrompt,
   steerPrompt: mocks.steerPrompt,
   dismissPromptRecovery: mocks.dismissPromptRecovery,
+  getPromptRecoveryStatus: mocks.getPromptRecoveryStatus,
 }));
 vi.mock('../../api/sse', () => ({
   sseClient: { registerOpenAgent: vi.fn(() => vi.fn()) },
@@ -35,7 +37,7 @@ vi.mock('../../api/config', async (original) => ({
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); });
 
 // RECOVERED-QUEUE-1 (FS-03.R90/R100): failed against the pre-fix implementation.
-it('restores withdrawn text to the draft without subsequently offering a second recovered copy', async () => {
+it.each([false, true])('restores withdrawn text once, with peer acknowledgement=%s', async (peerAcknowledged) => {
   const agent = {
     agent_id: 'repro-agent', name: 'Nova', role: 'implementer', project: 'app',
     backend: 'claude', model: 'sonnet', interface: 'chat', running: true,
@@ -48,7 +50,9 @@ it('restores withdrawn text to the draft without subsequently offering a second 
   mocks.withdrawPrompt.mockResolvedValue({ withdrawn: true, message });
   mocks.dismissPromptRecovery.mockImplementation(async () => {
     mocks.getHeldPrompt.mockResolvedValue({ agent_id: 'repro-agent', text: '', after_seq: 0 });
+    if (peerAcknowledged) throw Object.assign(new Error('Recovery changed'), { code: 'recovery_changed' });
   });
+  mocks.getPromptRecoveryStatus.mockResolvedValue('settled');
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <MemoryRouter initialEntries={['/agent/repro-agent']}><Routes><Route path='/agent/:id' element={<ChatPanel />} /></Routes></MemoryRouter>
   </QueryClientProvider>);
@@ -58,11 +62,13 @@ it('restores withdrawn text to the draft without subsequently offering a second 
 
   // The exact released receipt is acknowledged after durable draft restoration.
   expect(mocks.dismissPromptRecovery).toHaveBeenCalledWith('repro-agent', message.request_id);
+  if (peerAcknowledged) expect(mocks.getPromptRecoveryStatus).toHaveBeenCalledWith('repro-agent', message.request_id);
   act(() => useAgentStore.setState({ agents: { 'repro-agent': { ...agent, state: 'idle' } as never } }));
   await waitFor(() => expect(mocks.getHeldPrompt).toHaveBeenCalledTimes(3));
   expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(message.text);
   expect(JSON.parse(localStorage.getItem('chuck-chat-drafts')!).drafts['repro-agent'].text).toBe(message.text);
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Send recovered message' })).toBeNull());
+  expect(screen.queryByText(/Could not withdraw/)).not.toBeInTheDocument();
 });
 
 // RECOVERED-QUEUE-2 (FS-03.R50/R100): the real delayed-ack backend fixture also

@@ -89,21 +89,82 @@ func (s *Store) RemoveAttachmentReceipt(agentID, requestID string) error {
 	return err
 }
 
+const recoveringAttachmentDeliveries = `('released','failed','unknown')`
+
 func (s *Store) AttachmentRecovery(agentID string) (AttachmentReceipt, error) {
-	var id string
-	err := s.db.QueryRow(`SELECT request_id FROM attachment_receipts WHERE agent_id=? AND delivery IN ('released','failed','unknown') AND dismissed=0 ORDER BY updated_at DESC,rowid DESC LIMIT 1`, agentID).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return AttachmentReceipt{}, ErrNotFound
-	}
-	if err != nil {
-		return AttachmentReceipt{}, err
-	}
-	return s.AttachmentReceipt(agentID, id)
+	return scanAttachmentReceipt(s.db.QueryRow(`SELECT `+attachmentReceiptColumns+` FROM attachment_receipts
+WHERE agent_id=? AND delivery IN `+recoveringAttachmentDeliveries+` AND dismissed=0 AND recovery_attempt_id=''
+ORDER BY updated_at DESC,rowid DESC LIMIT 1`, agentID))
 }
 
-func (s *Store) DismissAttachmentRecovery(agentID, requestID string) error {
-	_, err := s.db.Exec(`UPDATE attachment_receipts SET dismissed=1 WHERE agent_id=? AND request_id=? AND delivery IN ('released','failed','unknown')`, agentID, requestID)
-	return err
+const recoverySuccessorMatch = `(successor.agent_id=source.agent_id OR successor.source_agent_id=source.agent_id)
+  AND successor.request_id=source.recovery_attempt_id AND successor.payload_hash=source.recovery_attempt_hash`
+
+const acceptedRecoverySuccessor = `EXISTS (SELECT 1 FROM attachment_receipts successor WHERE ` + recoverySuccessorMatch + `)`
+
+const settledRecoverySuccessor = `EXISTS (SELECT 1 FROM attachment_receipts successor WHERE ` + recoverySuccessorMatch + `
+	AND (successor.delivery<>'prepared' OR successor.assignment_task_id<>''))`
+
+func (s *Store) AttachmentRecoveryStatus(agentID, requestID string) (string, error) {
+	var status string
+	err := s.db.QueryRow(`SELECT CASE WHEN dismissed=1 OR delivery='submitted' THEN 'settled'
+	WHEN recovery_attempt_id<>'' AND `+settledRecoverySuccessor+` THEN 'settled'
+	WHEN recovery_attempt_id<>'' OR delivery IN ('prepared','held') THEN 'pending'
+	WHEN delivery IN `+recoveringAttachmentDeliveries+` THEN 'offered' ELSE 'unavailable' END
+FROM attachment_receipts AS source WHERE agent_id=? AND request_id=?`, agentID, requestID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "unavailable", nil
+	}
+	return status, err
+}
+
+// ClaimAttachmentRecovery reserves the exact source before Send can admit the
+// successor through the ordinary conversation and assignment paths.
+func (s *Store) ClaimAttachmentRecovery(agentID, sourceID, requestID, payloadHash string) (bool, error) {
+	result, err := s.db.Exec(`UPDATE attachment_receipts SET recovery_attempt_id=?,recovery_attempt_hash=?
+WHERE agent_id=? AND request_id=? AND delivery IN `+recoveringAttachmentDeliveries+` AND dismissed=0 AND recovery_attempt_id=''`,
+		requestID, payloadHash, agentID, sourceID)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n > 0, err
+}
+
+// FinishAttachmentRecovery settles the source if the matching successor was
+// retained, or releases the claim if admission left no durable receipt.
+func (s *Store) FinishAttachmentRecovery(agentID, sourceID, requestID, payloadHash string) (bool, error) {
+	result, err := s.db.Exec(`UPDATE attachment_receipts AS source SET dismissed=`+acceptedRecoverySuccessor+`, recovery_attempt_id='', recovery_attempt_hash=''
+WHERE agent_id=? AND request_id=? AND recovery_attempt_id=? AND recovery_attempt_hash=?`, agentID, sourceID, requestID, payloadHash)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n > 0, err
+}
+
+// RepairAttachmentRecovery settles a retained successor whose original
+// handler could not finish the claim. An unassigned prepared receipt can
+// still be rolled back by an active handler, so replay leaves it alone.
+func (s *Store) RepairAttachmentRecovery(agentID, sourceID, requestID, payloadHash string) (bool, error) {
+	result, err := s.db.Exec(`UPDATE attachment_receipts AS source SET dismissed=1,recovery_attempt_id='',recovery_attempt_hash=''
+WHERE agent_id=? AND request_id=? AND recovery_attempt_id=? AND recovery_attempt_hash=?
+  AND `+settledRecoverySuccessor, agentID, sourceID, requestID, payloadHash)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n > 0, err
+}
+
+func (s *Store) DismissAttachmentRecovery(agentID, requestID string) (bool, error) {
+	result, err := s.db.Exec(`UPDATE attachment_receipts SET dismissed=1
+WHERE agent_id=? AND request_id=? AND delivery IN `+recoveringAttachmentDeliveries+` AND dismissed=0 AND recovery_attempt_id=''`, agentID, requestID)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n > 0, err
 }
 
 // A held request is never a durable runnable queue. Startup releases it for
@@ -111,8 +172,19 @@ func (s *Store) DismissAttachmentRecovery(agentID, requestID string) error {
 // Input queued for an assignment is the exception: no provider frame carried
 // it yet and its assignment continuation is durable (TS-09.R69).
 func (s *Store) ReleaseRestartedAttachments() error {
-	_, err := s.db.Exec(`UPDATE attachment_receipts SET delivery='released',updated_at=? WHERE delivery IN ('held','prepared') AND assignment_task_id=''`, formatTime(time.Now().UTC()))
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.Exec(`UPDATE attachment_receipts AS source SET dismissed=` + acceptedRecoverySuccessor + `, recovery_attempt_id='', recovery_attempt_hash=''
+WHERE recovery_attempt_id<>''`); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`UPDATE attachment_receipts SET delivery='released',updated_at=? WHERE delivery IN ('held','prepared') AND assignment_task_id=''`, formatTime(time.Now().UTC())); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // queuedInputTaskClause selects the assignment whose next turn is a

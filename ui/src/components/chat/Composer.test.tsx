@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/re
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { Composer } from "./Composer";
-import { getChatDraft } from "./drafts";
+import { getChatDraft, subscribeChatDraft } from "./drafts";
 import { useHeldStore } from "../../store/heldStore";
 import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import type { AttachmentDescriptor } from "../../api/types";
@@ -387,21 +387,29 @@ describe("Composer autocomplete", () => {
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("wake up");
   });
 
-  it("does not restore a rejected send into a different chat opened while it was pending", async () => {
+  it.each(["agent_archived", "delivery_uncertain"])("restores %s only to the submitted chat after navigation", async (code) => {
     server.use(
       http.post("/api/sessions/:id/prompt", () => new Promise<Response>((resolve) => { resolvePrompt = resolve; })),
+      http.get("/api/sessions/:id/prompt", () => HttpResponse.json({ agent_id: "a_1", text: "", after_seq: 0 })),
     );
     const view = render(<Composer agentId="a_1" busy={false} />);
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
     type(ta, "first draft");
     fireEvent.keyDown(ta, { key: "Enter" });
+    await waitFor(() => expect(resolvePrompt).not.toBeNull());
+    expect(ta.value).toBe("");
+    const restored = vi.fn();
+    const unsubscribe = subscribeChatDraft("a_1", restored);
 
     view.rerender(<Composer agentId="a_2" busy={false} />);
     await waitFor(() => expect(ta.value).toBe(""));
     type(ta, "second draft");
-    resolvePrompt?.(HttpResponse.json({ error: { code: "agent_archived", message: "agent is archived" } }, { status: 409 }));
+    resolvePrompt?.(HttpResponse.json({ error: { code, message: code } }, { status: 409 }));
 
-    await waitFor(() => expect(ta.value).toBe("second draft"));
+    try {
+      await waitFor(() => expect(restored).toHaveBeenCalledWith("first draft"));
+      expect(ta.value).toBe("second draft");
+    } finally { unsubscribe(); }
     view.unmount();
     render(<Composer agentId="a_1" busy={false} />);
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("first draft");
@@ -876,8 +884,11 @@ describe("Composer queued follow-up and steering", () => {
     view.unmount();
 
     outcome = "new_turn";
+    server.use(http.post("/api/sessions/:id/steer", () =>
+      HttpResponse.json({ accepted: true, agent_id: "a_1", outcome, attachment_delivery: "submitted" }, { status: 202 })));
     render(<Composer agentId="a_1" busy steerable />);
     type(screen.getByRole("textbox") as HTMLTextAreaElement, "too late");
+    fireEvent.change(screen.getByLabelText("Choose files to attach"), { target: { files: [new File(["notes"], "notes.txt", { type: "text/plain" })] } });
     fireEvent.click(screen.getByRole("button", { name: "Steer" }));
     expect(await screen.findByText("That turn had already ended — sent as a new turn.")).toBeInTheDocument();
   });
@@ -901,6 +912,22 @@ describe("Composer queued follow-up and steering", () => {
     expect(steerButton).toBeDisabled();
     finishSteer?.();
     await waitFor(() => expect(steerButton).toBeEnabled());
+  });
+
+  it("lets the person type while Send is pending and enables Steer when it finishes", async () => {
+    server.use(http.post("/api/sessions/:id/prompt", () => new Promise<Response>((resolve) => { resolvePrompt = resolve; })));
+    render(<Composer agentId="a_1" busy steerable />);
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    type(textarea, "hold this");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(resolvePrompt).not.toBeNull());
+    type(textarea, "new direction");
+    const steer = screen.getByRole("button", { name: "Steer" });
+    expect(steer).toBeDisabled();
+    expect(steer).toHaveAttribute("title", "Wait for the current send to finish.");
+    resolvePrompt?.(HttpResponse.json({ accepted: true, delivery: "held", held_id: "hold-first", after_seq: 1 }, { status: 202 }));
+    await waitFor(() => expect(steer).toBeEnabled());
+    expect(textarea.value).toBe("new direction");
   });
 
   it("keeps a newer draft when a delayed Steer succeeds", async () => {
@@ -979,7 +1006,7 @@ describe("Composer queued follow-up and steering", () => {
     let steerBodies: string[] = [];
     server.use(
       http.post("/api/sessions/:id/prompt", () =>
-        HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held" }, { status: 202 })),
+        HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held", held_id: "hold-first" }, { status: 202 })),
       http.post("/api/sessions/:id/steer", async ({ request }) => {
         const body = await request.text();
         steerBodies.push(body);
@@ -1000,6 +1027,8 @@ describe("Composer queued follow-up and steering", () => {
     fireEvent.click(screen.getByRole("button", { name: "Steer" }));
     await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBeUndefined());
     expect(JSON.parse(steerBodies[0]).text).toBe("");
+    expect(JSON.parse(steerBodies[0]).held_id).toBe("hold-first");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Steer" })).toBeEnabled());
 
     // A refused steer leaves the composer's text exactly where it was.
     type(ta, "not acceptable");
@@ -1008,15 +1037,9 @@ describe("Composer queued follow-up and steering", () => {
     expect(ta.value).toBe("not acceptable");
   });
 
-  it("returns a held message to an empty composer when the agent stops, and discards it over typed text", async () => {
-    server.use(http.post("/api/sessions/:id/prompt", () =>
-      HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "held" }, { status: 202 })));
-
+  it("returns a legacy hold to an empty composer when the agent stops and preserves newer typed text", async () => {
+    useHeldStore.getState().hold("a_1", "held text");
     const view = render(<Composer agentId="a_1" busy running />);
-    const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
-    type(ta, "held text");
-    fireEvent.keyDown(ta, { key: "Enter" });
-    await waitFor(() => expect(useHeldStore.getState().byAgent.a_1).toBe("held text"));
 
     view.rerender(<Composer agentId="a_1" busy={false} running={false} />);
     await waitFor(() => expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("held text"));
@@ -1026,16 +1049,23 @@ describe("Composer queued follow-up and steering", () => {
 
     // Same stop, but the person has since typed: their text wins and the held
     // message is discarded rather than overwriting it.
+    useHeldStore.getState().hold("a_2", "queue me");
     const second = render(<Composer agentId="a_2" busy running />);
     const ta2 = screen.getByRole("textbox") as HTMLTextAreaElement;
-    type(ta2, "queue me");
-    fireEvent.keyDown(ta2, { key: "Enter" });
-    await waitFor(() => expect(useHeldStore.getState().byAgent.a_2).toBe("queue me"));
     type(ta2, "typed since");
 
     second.rerender(<Composer agentId="a_2" busy={false} running={false} />);
     await waitFor(() => expect(useHeldStore.getState().byAgent.a_2).toBeUndefined());
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("typed since");
     expect(getChatDraft("a_2")).toBe("typed since");
+  });
+
+  it("leaves a stopped receipt-bearing hold to the recovery offer", () => {
+    useHeldStore.getState().hold("a_1", "held text", 3, [], "hold-1", "request-1");
+    const view = render(<Composer agentId="a_1" busy running />);
+    view.rerender(<Composer agentId="a_1" busy={false} running={false} />);
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(useHeldStore.getState().byAgent.a_1).toBeUndefined();
+    expect(getChatDraft("a_1")).toBe("");
   });
 });

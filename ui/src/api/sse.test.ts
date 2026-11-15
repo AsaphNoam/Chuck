@@ -386,6 +386,32 @@ describe("SseClient watchdog reconnect", () => {
     }
   });
 
+  it("refreshes only the affected held view when a peer settles a recovery", async () => {
+    const { sseClient } = await import("./sse");
+    const { queryClient } = await import("./config");
+    sseClient.connect();
+    const stream = FakeEventSource.instances[0];
+    stream.onopen?.();
+    const before = { request_id: "released-source", text: "The unresolved offer" };
+    let serverValue: typeof before | null = before;
+    const observer = new QueryObserver(queryClient, {
+      queryKey: ["held", "a_peer", "desktop"],
+      queryFn: async () => serverValue,
+    });
+    const unsubscribe = observer.subscribe(() => undefined);
+    try {
+      await vi.waitFor(() => expect(observer.getCurrentResult().data).toEqual(before));
+      const another = ["held", "another-agent"];
+      queryClient.setQueryData(another, "another offer");
+      serverValue = null;
+      stream.emit("input_recovery_changed", JSON.stringify({
+        type: "input_recovery_changed", agent_id: "a_peer", data: { request_id: "released-source" },
+      }));
+      await vi.waitFor(() => expect(observer.getCurrentResult().data).toBeNull());
+      expect(queryClient.getQueryState(another)?.isInvalidated).toBe(false);
+    } finally { unsubscribe(); }
+  });
+
   // FS-13.R16 / FS-03.A19: deletion drops browser-local state keyed to the
   // agent and leaves other agents' state alone.
   it("drops a deleted agent's annotation tray and chat draft", async () => {

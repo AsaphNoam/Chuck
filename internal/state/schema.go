@@ -978,6 +978,11 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		version: 78,
 		apply:   migrateTaskCommitment,
 	},
+	{
+		version: 79,
+		sql: `ALTER TABLE attachment_receipts ADD COLUMN recovery_attempt_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE attachment_receipts ADD COLUMN recovery_attempt_hash TEXT NOT NULL DEFAULT ''`,
+	},
 }
 
 func migrateTaskCommitment(tx *sql.Tx) error {

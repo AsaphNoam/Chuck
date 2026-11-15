@@ -787,13 +787,13 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		// Take the hold under the same lock it is written and released under, so a
 		// concurrent withdraw or turn-end delivery cannot let one message both
 		// steer and run as its own turn (INV §5).
-		if as.turn.held.message().empty() {
-			as.mu.Unlock()
-			return "", ErrNothingHeld
-		}
 		if message.HeldID != "" && message.HeldID != as.turn.held.HeldID {
 			as.mu.Unlock()
 			return "", ErrHeldChanged
+		}
+		if as.turn.held.message().empty() {
+			as.mu.Unlock()
+			return "", ErrNothingHeld
 		}
 		requestID := message.RequestID
 		message = as.turn.held.message()
@@ -821,7 +821,7 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 	}
 	if promoted && (as.turn.held.message().empty() || !reflect.DeepEqual(heldSnapshot, message)) {
 		as.mu.Unlock()
-		return "", ErrNothingHeld
+		return "", ErrHeldChanged
 	}
 	if !as.turn.steerFallback.message().empty() {
 		as.mu.Unlock()

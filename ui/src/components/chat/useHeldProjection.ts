@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { AgentState } from "../../api/types";
 import { readHeldRecovery } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
@@ -14,12 +15,17 @@ export function useHeldProjection(id: string, agent: Pick<AgentState, "running" 
   const heldAfterSeq = useHeldStore((state) => state.afterSeqByAgent[id] ?? 0);
   const releaseHeld = useHeldStore((state) => state.release);
 
-  useEffect(() => {
-    if (!agent || agent.interface !== "chat") return;
-    let current = true;
-    void readHeldRecovery(id, () => current, true);
-    return () => { current = false; };
-  }, [agent?.running, agent?.state, agent?.interface, id]);
+  useQuery({
+    queryKey: ["held", id, "desktop", agent?.running, agent?.state],
+    queryFn: async ({ signal }) => {
+      await readHeldRecovery(id, () => !signal.aborted, true);
+      return true;
+    },
+    enabled: agent?.interface === "chat",
+    initialData: false,
+    initialDataUpdatedAt: 0,
+    refetchOnMount: "always",
+  });
 
   // A held message stops being pending the moment the server actually sends it,
   // which is when it enters the durable transcript as an ordinary user prompt.

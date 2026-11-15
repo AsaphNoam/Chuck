@@ -29,7 +29,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**Fix shared desktop and phone input delivery** (INPUT-1–8). The browser scoping, exact
+recovery/hold arbitration and ownership inventory are ready. The independent check and follow-up
+regressions, focused Go race checks, full UI tests, builds and Chromium phone reload passed.
+Finish both Go suites before removing the findings. Current logs are
+`/tmp/chuck-input-go-final.log` and `/tmp/chuck-input-go-tagged.log`.
 
 ## Decisions needing input
 

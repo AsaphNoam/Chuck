@@ -46,6 +46,11 @@ func promptDelivery(held bool) string {
 // and never enters the transcript or database (FS-03.R48/R49, TS-08.R56).
 func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	recoveryID := r.URL.Query().Get("recovery_request_id")
+	if recoveryID != "" && !validRequestID(recoveryID) {
+		writeAPIError(w, apiError(runtime.CodeValidation, "invalid recovery request id"))
+		return
+	}
 	msg, afterSeq, heldID, err := s.registry.HeldSnapshot(id)
 	// Input retained for an assignment's next turn is durable state, shown
 	// apart from the transcript until a turn delivers it (TS-09.R69/R71).
@@ -63,13 +68,6 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, sessionOpError(err))
 			return
 		}
-		if _, e := s.stateStore.AttachmentRecovery(id); errors.Is(e, state.ErrNotFound) && len(queued) == 0 {
-			writeAPIError(w, sessionOpError(err))
-			return
-		} else if e != nil && !errors.Is(e, state.ErrNotFound) {
-			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read message recovery"))
-			return
-		}
 	}
 	queuedBody := make([]map[string]any, 0, len(queued))
 	for _, rec := range queued {
@@ -84,6 +82,14 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	}
 	msg.Attachments = append([]attachment.Descriptor{}, msg.Attachments...)
 	body := map[string]any{"agent_id": id, "text": msg.Text, "after_seq": afterSeq, "held_id": heldID, "attachments": msg.Attachments, "request_id": msg.RequestID, "queued": queuedBody}
+	if recoveryID != "" {
+		status, err := s.stateStore.AttachmentRecoveryStatus(id, recoveryID)
+		if err != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "cannot read message recovery status"))
+			return
+		}
+		body["recovery_status"] = status
+	}
 	if recovery, e := s.stateStore.AttachmentRecovery(id); e == nil {
 		var recovered runtime.Message
 		if e = json.Unmarshal([]byte(recovery.MessageJSON), &recovered); e != nil {
@@ -102,16 +108,34 @@ func (s *Server) handleGetPrompt(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, body)
 }
 
+func recoveryChangedError() *runtime.APIError {
+	return apiError(runtime.CodeRecoveryChanged, "This recovered message is no longer available for this action. Refresh its delivery status.")
+}
+
+func (s *Server) publishInputRecoveryChanged(agentID, requestID string) {
+	s.eventBus.Publish("input_recovery_changed", &agentID, map[string]any{"request_id": requestID})
+}
+
 // handleWithdrawPrompt implements DELETE /api/sessions/{id}/prompt: the one
 // operation the hold adds, spelled as a resource (TS-03.R38). Withdrawing when
 // nothing is held returns the same body, so a double withdraw is not an error.
 func (s *Server) handleWithdrawPrompt(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if requestID := r.URL.Query().Get("recovery_request_id"); requestID != "" {
-		if err := s.stateStore.DismissAttachmentRecovery(id, requestID); err != nil {
+		if !validRequestID(requestID) {
+			writeAPIError(w, apiError(runtime.CodeValidation, "invalid recovery request id"))
+			return
+		}
+		dismissed, err := s.stateStore.DismissAttachmentRecovery(id, requestID)
+		if err != nil {
 			writeAPIError(w, apiError(runtime.CodeInternal, "cannot dismiss recovered message"))
 			return
 		}
+		if !dismissed {
+			writeAPIError(w, recoveryChangedError())
+			return
+		}
+		s.publishInputRecoveryChanged(id, requestID)
 		writeJSON(w, http.StatusOK, map[string]any{"accepted": true, "agent_id": id, "delivery": "dismissed"})
 		return
 	}

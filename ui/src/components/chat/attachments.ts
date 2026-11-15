@@ -22,6 +22,14 @@ const pendingInMemory = new Map<string, PendingAttachmentSend | null>();
 const draftVersions = new Map<string, number>();
 const writeQueues = new Map<string, Promise<void>>();
 const draftListeners = new Map<string, Set<(files: DraftAttachment[]) => void>>();
+const pendingClearListeners = new Map<string, Set<(requestId: string) => void>>();
+
+export function subscribePendingSendCleared(agentId: string, listener: (requestId: string) => void) {
+  const listeners = pendingClearListeners.get(agentId) ?? new Set();
+  listeners.add(listener);
+  pendingClearListeners.set(agentId, listeners);
+  return () => { listeners.delete(listener); if (!listeners.size) pendingClearListeners.delete(agentId); };
+}
 
 export function clearAttachmentDraftCacheForTests() {
   draftsInMemory.clear();
@@ -229,7 +237,7 @@ export function attachmentErrorForStorage() {
 }
 
 export type AttachmentMessage = { text: string; attachments: AttachmentDescriptor[] };
-export type PendingAttachmentSend = { text: string; files: DraftAttachment[]; requestId: string; steer: boolean; revision: number; retryable?: boolean };
+export type PendingAttachmentSend = { text: string; files: DraftAttachment[]; requestId: string; draftRequestId?: string; steer: boolean; revision: number; retryable?: boolean };
 
 // A 4xx answer (other than a timeout) means the server refused the send before
 // consuming it, so the draft stays but there is no unconfirmed send to retry.
@@ -268,7 +276,7 @@ export async function restorePendingAttachmentSend(agentId: string): Promise<Pen
     return { id: file.id, name: file.name, type: file.type, size: file.blob.size, blob: file.blob };
   });
   if (total > maxMessageBytes) throw new Error("Saved message could not be restored safely.");
-  return { text: value.text, files, requestId: value.requestId, steer: value.steer === true, revision: value.revision, retryable: value.retryable !== false };
+  return { text: value.text, files, requestId: value.requestId, draftRequestId: value.draftRequestId, steer: value.steer === true, revision: value.revision, retryable: value.retryable !== false };
 }
 
 export async function clearPendingAttachmentSend(agentId: string, requestId?: string) {
@@ -276,6 +284,7 @@ export async function clearPendingAttachmentSend(agentId: string, requestId?: st
   if (requestId && current && current.requestId !== requestId) return;
   // This page knows the receipt is settled even when storage cannot be written.
   if (current) pendingInMemory.set(agentId, null);
+  if (requestId) pendingClearListeners.get(agentId)?.forEach((listener) => listener(requestId));
   let cleared = !requestId;
   await queueDraftWrite(agentId, (store) => {
     if (!requestId) { store.delete(`pending:${agentId}`); return; }

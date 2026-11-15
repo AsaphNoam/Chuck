@@ -826,6 +826,10 @@ with its authoritative receipt; an older in-flight snapshot cannot revive its re
 Unknown consumption remains labelled uncertain; restoring it creates a new deliberate Send,
 never another Steer or an automatically runnable hold. Legacy requests receive recovery identity
 when accepted by HTTP but an id-less repeat is still a new command.
+Send recovered message and Dismiss act on the exact offer shown. A newer offer can hide an
+older one without settling it. Confirmed settlement releases the matching browser retry and
+its submitted draft without changing newer drafts. A released Send reply keeps the input
+available for recovery and never creates a sent bubble. Send now acts on the exact hold shown.
 
 ### 2.13 File-viewer tabs
 

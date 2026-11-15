@@ -92,8 +92,7 @@ describe("initialTab", () => {
   });
 });
 
-function renderPanel(id: string, search = "") {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+function renderPanel(id: string, search = "", qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } })) {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[`/agent/${id}${search}`]}>
@@ -635,6 +634,22 @@ describe("ChatPanel queued follow-up and steering", () => {
 
     expect(await screen.findByText("still queued")).toBeInTheDocument();
     expect(useHeldStore.getState().afterSeqByAgent.a_live).toBe(21);
+  });
+
+  it("refreshes the recovery offer on reconnect when the agent state stays the same", async () => {
+    useAgentStore.setState({ agents: { a_live: liveAgent("a_live") }, hydrated: true });
+    mocks.getHeldPrompt.mockResolvedValue({
+      agent_id: "a_live", text: "", after_seq: 0,
+      recovery: { request_id: "peer-settles", text: "Dismissed on the phone.", delivery: "released" },
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+    renderPanel("a_live", "", qc);
+    expect(await screen.findByText("Dismissed on the phone.")).toBeInTheDocument();
+
+    mocks.getHeldPrompt.mockResolvedValue({ agent_id: "a_live", text: "", after_seq: 0 });
+    // The onopen handler invalidates all queries, independently of agent state.
+    await act(async () => { await qc.invalidateQueries(); });
+    expect(screen.queryByText("Dismissed on the phone.")).not.toBeInTheDocument();
   });
 
   it("keeps a held follow-up when an identical prompt with a different ID arrives", async () => {

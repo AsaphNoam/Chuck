@@ -239,6 +239,18 @@ describe("AgentScreen", () => {
     expect(screen.queryByRole("button", { name: "Send recovered message" })).not.toBeInTheDocument();
   });
 
+  it("reports when a phone Steer starts a new turn and waits for its sequenced prompt", async () => {
+    useConnection.setState({ agents: { a1: { ...agent, state: "busy" } } });
+    server.use(http.post("/api/sessions/a1/steer", () => HttpResponse.json({
+      accepted: true, agent_id: "a1", request_id: "new-turn-steer", outcome: "new_turn", attachment_delivery: "submitted",
+    }, { status: 202 })));
+    renderScreen();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "take the new turn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Steer", exact: true }));
+    expect(await screen.findByText("That turn had already ended — sent as a new turn.")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Conversation" })).queryByText("take the new turn")).not.toBeInTheDocument();
+  });
+
   it("clears matching phone recovery on Steer success even if the refresh fails", async () => {
     useConnection.setState({ agents: { a1: { ...agent, state: "busy" } } });
     let submitted = false;

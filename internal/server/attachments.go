@@ -205,7 +205,9 @@ type messageRequest struct {
 		Part string `json:"part"`
 		Name string `json:"name"`
 	} `json:"files"`
-	AttachmentIDs []string `json:"attachment_ids"`
+	AttachmentIDs     []string `json:"attachment_ids"`
+	RecoveryRequestID string   `json:"recovery_request_id"`
+	HeldID            string   `json:"held_id"`
 }
 
 // Admission covers parsing and acceptance, limiting both temporary storage and
@@ -279,10 +281,9 @@ func attachmentAdmissionError(err error) *runtime.APIError {
 
 // parseMessage streams uploads directly into bounded owned storage. Until a
 // receipt accepts them, every created blob is owned by this request's rollback.
-func (s *Server) parseMessage(w http.ResponseWriter, r *http.Request, claimed *bool) (runtime.Message, []string, error) {
+func (s *Server) parseMessage(w http.ResponseWriter, r *http.Request, claimed *bool, req *messageRequest) (runtime.Message, []string, error) {
 	id := r.PathValue("id")
 	store := attachment.New(s.configStore.Home())
-	var req messageRequest
 	msg := runtime.Message{}
 	created := []string{}
 	fail := func(err error) (runtime.Message, []string, error) { return msg, created, err }
@@ -304,7 +305,7 @@ func (s *Server) parseMessage(w http.ResponseWriter, r *http.Request, claimed *b
 		if err != nil || len(data) > attachmentMessageLimit {
 			return fail(fmt.Errorf("message metadata exceeds 64 KiB"))
 		}
-		if err = decodeMessageJSON(strings.NewReader(string(data)), &req); err != nil {
+		if err = decodeMessageJSON(strings.NewReader(string(data)), req); err != nil {
 			return fail(fmt.Errorf("invalid message metadata"))
 		}
 		if len(req.Files) == 0 || len(req.Files) > attachment.MaxFiles || len(req.AttachmentIDs) > 0 {
@@ -340,7 +341,7 @@ func (s *Server) parseMessage(w http.ResponseWriter, r *http.Request, claimed *b
 		}
 	} else {
 		r.Body = http.MaxBytesReader(w, r.Body, remoteBodyLimit)
-		if err := decodeMessageJSON(r.Body, &req); err != nil {
+		if err := decodeMessageJSON(r.Body, req); err != nil {
 			return fail(fmt.Errorf("invalid JSON body"))
 		}
 		if len(req.Files) > 0 {
@@ -436,7 +437,8 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 			s.releaseAttachmentUpload(id)
 		}
 	}()
-	msg, created, err := s.parseMessage(w, r, &claimed)
+	var req messageRequest
+	msg, created, err := s.parseMessage(w, r, &claimed, &req)
 	owned := false
 	defer func() {
 		if !owned {
@@ -456,9 +458,24 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 	// Legacy requests receive a recovery identity too, without promising that
 	// a later id-less request is a replay of this command.
 	promoting := action == "steer" && strings.TrimSpace(msg.Text) == "" && len(msg.Attachments) == 0
+	if req.RecoveryRequestID != "" && (action != "prompt" || !validRequestID(req.RecoveryRequestID) || msg.RequestID == "" || req.RecoveryRequestID == msg.RequestID) {
+		writeAPIError(w, apiError(runtime.CodeValidation, "recovery Send requires distinct source and command request IDs"))
+		return
+	}
+	if req.HeldID != "" && (!promoting || !validRequestID(req.HeldID)) {
+		writeAPIError(w, apiError(runtime.CodeValidation, "held id requires empty Steer"))
+		return
+	}
 	receiptMessage := msg
 	if promoting {
-		if heldMessage, _, heldErr := s.registry.HeldMessage(id); heldErr == nil {
+		heldMessage, _, heldErr := s.registry.HeldMessage(id)
+		expectedHoldChanged := req.HeldID != "" && req.HeldID != heldMessage.HeldID
+		legacyHoldChanged := req.HeldID == "" && msg.RequestID != "" && msg.RequestID != heldMessage.RequestID
+		if expectedHoldChanged || legacyHoldChanged {
+			writeAPIError(w, steerError(runtime.ErrHeldChanged))
+			return
+		}
+		if heldErr == nil {
 			receiptMessage = heldMessage
 		}
 	}
@@ -477,6 +494,32 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 		return
 	}
 	hash := messagePayloadHash(action, receiptMessage)
+	if req.RecoveryRequestID != "" {
+		hash = messagePayloadHash(action+"/recovery/"+req.RecoveryRequestID, receiptMessage)
+	}
+	var finishRecovery func()
+	finish := func() {
+		if finishRecovery != nil {
+			finishRecovery()
+			finishRecovery = nil
+		}
+	}
+	defer finish()
+	writeAcceptance := func(receipt state.AttachmentReceipt) {
+		finish()
+		s.writeAttachmentAcceptance(w, receipt)
+	}
+	writeReplay := func(receipt state.AttachmentReceipt) {
+		if sourceID := req.RecoveryRequestID; sourceID != "" {
+			repaired, err := s.stateStore.RepairAttachmentRecovery(id, sourceID, msg.RequestID, hash)
+			if err != nil {
+				s.log.Error("repair message recovery claim", "agent", id, "request_id", sourceID, "err", err)
+			} else if repaired {
+				s.publishInputRecoveryChanged(id, sourceID)
+			}
+		}
+		s.writeAttachmentAcceptance(w, receipt)
+	}
 	if receiptBearing {
 		// Input this conversation accepted may since have moved to its
 		// assignment's new owner; a replay still answers with that receipt.
@@ -490,7 +533,7 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 				return
 			}
 			if !promoteReceipt {
-				s.writeAttachmentAcceptance(w, old)
+				writeReplay(old)
 				return
 			}
 		}
@@ -499,6 +542,39 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 			return
 		}
 		if !promoteReceipt {
+			if sourceID := req.RecoveryRequestID; sourceID != "" {
+				claimed, err := s.stateStore.ClaimAttachmentRecovery(id, sourceID, msg.RequestID, hash)
+				if err != nil {
+					writeAPIError(w, apiError(runtime.CodeInternal, "cannot claim message recovery"))
+					return
+				}
+				if !claimed {
+					// A same-ID Send may have won since our first receipt read.
+					old, err := s.stateStore.AcceptedAttachmentReceipt(id, msg.RequestID)
+					if err == nil {
+						if old.PayloadHash == hash {
+							writeReplay(old)
+						} else {
+							writeAPIError(w, apiError(runtime.CodeConflict, "request id already belongs to different content"))
+						}
+						return
+					}
+					if !errors.Is(err, state.ErrNotFound) {
+						writeAPIError(w, apiError(runtime.CodeInternal, "cannot read message receipt"))
+						return
+					}
+					writeAPIError(w, recoveryChangedError())
+					return
+				}
+				finishRecovery = func() {
+					finished, err := s.stateStore.FinishAttachmentRecovery(id, sourceID, msg.RequestID, hash)
+					if err != nil {
+						s.log.Error("settle message recovery claim", "agent", id, "request_id", sourceID, "err", err)
+					} else if finished {
+						s.publishInputRecoveryChanged(id, sourceID)
+					}
+				}
+			}
 			data, _ := json.Marshal(receiptMessage)
 			if action == "prompt" {
 				// Input for an assignment that must resume first is retained
@@ -508,6 +584,7 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 				admitted, queued, err := s.admitConversationInput(r.Context(), receipt, receiptMessage)
 				owned = queued
 				if err != nil {
+					finish()
 					writePipelineError(w, err)
 					return
 				}
@@ -517,16 +594,17 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 						s.log.Error("retain accepted attachment markers", "agent", id, "err", err)
 					}
 					s.continueQueuedInput()
-					s.writeAttachmentAcceptance(w, admitted)
+					writeAcceptance(admitted)
 					return
 				}
 			}
 			if err := s.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash, MessageJSON: string(data), Action: action}); err != nil {
 				replay, accepted, replayErr := s.replayConversationInput(state.AttachmentReceipt{AgentID: id, RequestID: msg.RequestID, PayloadHash: hash}, err)
 				if accepted {
-					s.writeAttachmentAcceptance(w, replay)
+					writeAcceptance(replay)
 					return
 				}
+				finish()
 				writePipelineError(w, replayErr)
 				return
 			}
@@ -573,6 +651,7 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 				return
 			}
 			if readErr == nil && rec.Delivery == "failed" {
+				finish()
 				// A definite adapter refusal stays retained for recovery but is
 				// reported as the refusal, never as a sent message (FS-03.R50).
 				if action == "steer" {
@@ -585,11 +664,11 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 				return
 			}
 			if readErr == nil && errors.Is(err, runtime.ErrMessageAccepted) {
-				s.writeAttachmentAcceptance(w, rec)
+				writeAcceptance(rec)
 				return
 			}
 			if readErr == nil && rec.Delivery != "prepared" {
-				s.writeAttachmentAcceptance(w, rec)
+				writeAcceptance(rec)
 				return
 			}
 			if readErr != nil {
@@ -597,11 +676,12 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 				return
 			}
 			if removeErr := s.stateStore.RemoveAttachmentReceipt(id, msg.RequestID); removeErr != nil {
-				s.writeAttachmentAcceptance(w, rec)
+				writeAcceptance(rec)
 				return
 			}
 			owned = false
 		}
+		finish()
 		if errors.Is(err, runtime.ErrAttachmentCapability) {
 			writeAPIError(w, apiError(runtime.CodeAttachmentCapability, "This agent does not support native image input; select an image-capable runtime or remove the image"))
 			return
@@ -626,20 +706,10 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 			writeAPIError(w, apiError(runtime.CodeInternal, "message accepted; receipt temporarily unavailable"))
 			return
 		}
-		// Explicit resubmission acknowledges only the recovery that supplied these
-		// exact owned copies, leaving a newer independent released record intact.
-		if len(created) == 0 {
-			if recovered, e := s.stateStore.AttachmentRecovery(id); e == nil {
-				var previous runtime.Message
-				if json.Unmarshal([]byte(recovered.MessageJSON), &previous) == nil && sameAttachmentIDs(previous, msg) {
-					_ = s.stateStore.DismissAttachmentRecovery(id, recovered.RequestID)
-				}
-			}
-		}
 		if action == "steer" {
 			rec.Action = "steer"
 		}
-		s.writeAttachmentAcceptance(w, rec)
+		writeAcceptance(rec)
 		return
 	}
 	if action == "steer" {
@@ -651,23 +721,6 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 		_, after, _ = s.registry.Held(id)
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "agent_id": id, "delivery": promptDelivery(held), "after_seq": after})
-}
-
-func sameAttachmentIDs(a, b runtime.Message) bool {
-	if len(a.Attachments) != len(b.Attachments) {
-		return false
-	}
-	// Text-only messages have no asset identity to establish recovery ownership.
-	// An unrelated Send must not dismiss a possibly consumed earlier input.
-	if len(a.Attachments) == 0 && a.Text != b.Text {
-		return false
-	}
-	for i := range a.Attachments {
-		if a.Attachments[i].ID != b.Attachments[i].ID {
-			return false
-		}
-	}
-	return true
 }
 
 // receiptDelivery reports only a submitted receipt as sent; an uncertain,
@@ -729,7 +782,10 @@ func (s *Server) writeAttachmentAcceptance(w http.ResponseWriter, rec state.Atta
 	after := int64(0)
 	heldID := ""
 	if rec.Delivery == "held" {
-		_, after, heldID, _ = s.registry.HeldSnapshot(rec.AgentID)
+		current, currentAfter, currentID, _ := s.registry.HeldSnapshot(rec.AgentID)
+		if current.RequestID == rec.RequestID {
+			after, heldID = currentAfter, currentID
+		}
 	}
 	body := map[string]any{"accepted": true, "agent_id": rec.AgentID, "request_id": rec.RequestID, "attachments": attachments, "attachment_delivery": rec.Delivery, "delivery": receiptDelivery(rec.Delivery), "after_seq": after, "held_id": heldID}
 	if rec.Action == "steer" {

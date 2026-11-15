@@ -22,7 +22,6 @@ import {
 import { QueuedInput } from "../components/chat/QueuedInput";
 import type { AgentState, AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../api/types";
 import { useAnnotationStore } from "../store/annotationStore";
-import { useHeldStore } from "../store/heldStore";
 import { useReasoningStore } from "../store/reasoningStore";
 import { foldTranscript, normalizeEvent } from "../store/transcriptStore";
 import { WorkingIndicator } from "../components/chat/WorkingIndicator";
@@ -51,11 +50,11 @@ import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
 import { recallPlace, rememberPlace } from "./scrollMemory";
-import { bumpChatDraftRevision, chatDraftRevision, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
-import { withdrawHeldMessage } from "../lib/heldMessage";
-import { useInputDelivery, sameAttachmentSet } from "../components/chat/useInputDelivery";
+import { bumpChatDraftRevision, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
+import { reconcileRecoverySettlement, refreshInputQueries, withdrawHeldMessage } from "../lib/heldMessage";
+import { useInputDelivery } from "../components/chat/useInputDelivery";
 import { RecoveryOffer } from "../components/chat/RecoveryOffer";
-import { addFiles, attachmentErrorForStorage, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
+import { addFiles, attachmentErrorForStorage, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, restoreAttachments, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "../components/chat/attachments";
 import { AssistantImageRow, DraftAttachments, MessageAttachments } from "../components/chat/AttachmentView";
 import { ContextBar } from "../components/grid/ContextBar";
 import { SubscriptionQuotaDisclosure } from "../components/chat/SubscriptionQuotaDisclosure";
@@ -277,6 +276,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const { data: roles } = useRoles();
   const agent = useConnection((state) => state.agents[agentId]);
   const rev = useConnection((state) => state.transcriptRev[agentId] ?? 0);
+  const heldRev = useConnection((state) => state.heldRev[agentId] ?? 0);
   const link = useConnection((state) => state.link);
   const offline = link !== "connected";
   const client = useQueryClient();
@@ -319,16 +319,22 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     enabled: diffSeq !== null,
   });
   const diffCard = useRef<HTMLElement | null>(null);
-  const { deliver, matchingRetry, retry: retryPhoneSend, setRetry: setRetryPhoneSend, sending, inFlight } = useInputDelivery(agentId, {
-    acceptSteer: async (result) => {
+  const { deliver, matchingRetry, retry: retryPhoneSend, sending } = useInputDelivery(agentId, {
+    acceptSteer: async (result, promotedId) => {
       await client.cancelQueries({ queryKey: ["held", agentId] });
       const requestId = result.request_id;
-      if (requestId) client.setQueriesData<HeldPrompt | null>({ queryKey: ["held", agentId] }, (snapshot) =>
-        snapshot?.recovery?.request_id === requestId ? { ...snapshot, recovery: undefined } : snapshot);
+      client.setQueriesData<HeldPrompt | null>({ queryKey: ["held", agentId] }, (snapshot) => {
+        if (!snapshot) return snapshot;
+        let next = snapshot;
+        if (requestId && snapshot.recovery?.request_id === requestId) next = { ...next, recovery: undefined };
+        if (promotedId && snapshot.held_id === promotedId) {
+          next = { ...next, held_id: undefined, request_id: undefined, text: "", attachments: [] };
+        }
+        return next;
+      });
     },
-    refreshRecovery: (releaseHold) => {
-      if (releaseHold) useHeldStore.getState().release(agentId);
-      void client.invalidateQueries({ queryKey: ["held", agentId] });
+    refreshRecovery: () => {
+      void refreshInputQueries(client, agentId);
     },
     settled: () => {
       refresh();
@@ -359,17 +365,6 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     if (needsAttachmentRestore) {
       void restoreAttachments(agentId).then((restored) => { if (current) { setAttachments(restored); setAttachmentsReady(true); } }).catch(() => { if (current) setAttachmentError("Saved attachments could not be restored. Reload before sending to avoid losing them."); });
     }
-    const initialRevision = chatDraftRevision(agentId);
-    void restorePendingAttachmentSend(agentId).then(async (pending) => {
-      if (current && pending) {
-        const liveFiles = await restoreAttachments(agentId);
-        if (!current || inFlight.current.has(agentId)) return;
-        const revision = chatDraftRevision(agentId);
-        const sameFiles = sameAttachmentSet(pending.files, liveFiles);
-        const sameDraft = getChatDraft(agentId) === pending.text && sameFiles;
-        setRetryPhoneSend({ ...pending, revision: revision === initialRevision && sameDraft ? revision : -1 });
-      }
-    }).catch(() => { if (current) setAttachmentError("A previous attachment send could not be restored from browser storage."); });
     return () => { current = false; };
   }, [agentId]);
 
@@ -407,9 +402,13 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const liveStart = transcript.data?.events[0]?.seq;
   const gap = !!earlier && !transcript.isPlaceholderData && !!transcript.data?.has_more && earlier.recoveredLiveStart !== liveStart;
   const held = useQuery({
-    queryKey: ["held", agentId, rev, agent?.state],
-    queryFn: () => getHeldPrompt(agentId).catch(() => null),
-    enabled: chat && !!agent,
+    queryKey: ["held", agentId, rev, heldRev, agent?.state, offline],
+    queryFn: async ({ signal }) => {
+      const snapshot = await getHeldPrompt(agentId).catch(() => null);
+      if (!signal.aborted) void reconcileRecoverySettlement(agentId, snapshot?.recovery?.request_id);
+      return snapshot;
+    },
+    enabled: chat && !!agent && !offline,
   });
 
   // Fold the joined windows as the desktop does, so streamed deltas coalesce
@@ -799,7 +798,9 @@ export function AgentScreen({ agentId }: { agentId: string }) {
               <MessageAttachments agentId={agentId} attachments={heldAttachments} />
               <div className="phone-actions">
                 {agent.steering_available && isBusy && (
-                  <button type="button" disabled={offline || busy} onClick={() => void deliver("", [], true, { held: { requestId: heldRequestId, text: heldText } })}>
+                  <button type="button" disabled={offline || busy || !heldId} onClick={() => {
+                    if (heldId) void deliver("", [], true, { held: { id: heldId, requestId: heldRequestId } });
+                  }}>
                     Send now
                   </button>
                 )}

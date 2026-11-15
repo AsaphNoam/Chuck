@@ -100,6 +100,11 @@ export function restoreChatDraft(agentId: string, text: string) {
   return saved;
 }
 
+// An in-flight Send hides the draft in the composer without removing it.
+export function republishChatDraft(agentId: string, text: string, revision: number) {
+  if (chatDraftRevision(agentId) === revision) notifyDraft(agentId, text);
+}
+
 
 function readDrafts(): StoredDrafts {
   try {

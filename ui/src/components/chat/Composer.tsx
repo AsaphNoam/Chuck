@@ -2,16 +2,16 @@ import { AutoGrowTextarea } from "../ui";
 import { SendIcon, StopIcon } from "../ui/icons";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cancelTurn } from "../../api/client";
-import { readHeldRecovery, reconcileSteerRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
+import { invalidateHeldReads, readHeldRecovery, reconcileSteerRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
 import { QueuedInput } from "./QueuedInput";
 import { RunningTasks } from "./RunningTasks";
 import { matchesPromptDelivery, useTranscriptStore } from "../../store/transcriptStore";
-import { bumpChatDraftRevision, chatDraftRevision, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
+import { bumpChatDraftRevision, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
 import { useAutocomplete } from "./autocomplete";
 import { useComposerEditing } from "./useComposerEditing";
-import { addFiles, attachmentErrorForStorage, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, restoreAttachments, restorePendingAttachmentSend, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "./attachments";
-import { sameAttachmentSet, useInputDelivery } from "./useInputDelivery";
+import { addFiles, attachmentErrorForStorage, hasPersistedAttachmentDraft, isPreviewImage, persistAttachments, restoreAttachments, subscribeAttachmentDraft, touchAttachmentDraft, type DraftAttachment } from "./attachments";
+import { useInputDelivery } from "./useInputDelivery";
 import { DraftAttachments } from "./AttachmentView";
 import type { AttachmentCapabilities } from "../../api/types";
 
@@ -47,6 +47,8 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [draggingFiles, setDraggingFiles] = useState(false);
   const held = useHeldStore((state) => state.byAgent[agentId]);
+  const heldId = useHeldStore((state) => state.heldIdByAgent[agentId]);
+  const heldRequestId = useHeldStore((state) => state.requestIdByAgent[agentId]);
   const queuedInput = useHeldStore((state) => state.queuedByAgent[agentId]) ?? NO_QUEUED;
   const hold = useHeldStore((state) => state.acceptHold);
   const releaseHeld = useHeldStore((state) => state.release);
@@ -68,32 +70,30 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     setText(next);
   }, [resetEditing, resetAutocomplete]);
 
-  const { deliver, matchingRetry, retry, setRetry, sending, steering, inFlight } = useInputDelivery(agentId, {
+  const { deliver, matchingRetry, retry, sending } = useInputDelivery(agentId, {
     beforeSend: () => latestTranscriptSeq(agentId),
     acceptPrompt: (result, pending, beforeSeq) => {
       const requestId = result.request_id ?? pending.requestId;
       const attachments = result.attachments ?? [];
       if (result.delivery === "held") {
         hold(agentId, pending.text, result.after_seq, attachments, result.held_id, requestId);
+        if (result.request_id && !result.held_id) void readHeldRecovery(agentId, () => true, true);
       } else if (result.delivery !== "queued" && (!pending.files.length || result.attachment_delivery === "submitted")
           && !alreadyDelivered(agentId, pending.text, beforeSeq, requestId)) {
         append(agentId, { kind: "user_text", text: pending.text, attachments, message_id: requestId, echo_after_seq: beforeSeq });
       }
     },
-    acceptSteer: async (result, held) => {
+    acceptSteer: async (result, promotedId) => {
+      if (promotedId !== undefined) releaseHeld(agentId, promotedId);
       await reconcileSteerRecovery(agentId, result.request_id);
-      if (held) releaseHeld(agentId);
     },
-    refreshRecovery: (releaseHold) => {
-      if (releaseHold) releaseHeld(agentId);
-      void readHeldRecovery(agentId);
+    refreshRecovery: (promotedId) => {
+      invalidateHeldReads(agentId);
+      if (promotedId !== undefined) releaseHeld(agentId, promotedId);
+      void readHeldRecovery(agentId, () => true, true);
     },
   }, {
     clearDraft: () => replaceDraftBaseline(""),
-    restoreDraft: (restored) => {
-      setChatDraft(agentId, restored);
-      replaceDraftBaseline(restored);
-    },
     setError, setNotice, setAttachmentError,
   });
 
@@ -106,7 +106,6 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
 
   useEffect(() => {
     let current = true;
-    const initialRevision = chatDraftRevision(agentId);
     setError(null);
     setNotice(null);
     setFiles([]);
@@ -116,18 +115,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     if (needsAttachmentRestore) {
       void restoreAttachments(agentId).then((restored) => { if (current) { setFiles(restored); setFilesReady(true); } }).catch(() => { if (current) setAttachmentError("Saved attachments could not be restored. Reload before sending to avoid losing them."); });
     }
-    void restorePendingAttachmentSend(agentId).then(async (pending) => {
-      if (current && pending) {
-        const liveFiles = await restoreAttachments(agentId);
-        if (!current || inFlight.current.has(agentId)) return;
-        const revision = chatDraftRevision(agentId);
-        const sameFiles = sameAttachmentSet(pending.files, liveFiles);
-        const sameDraft = getChatDraft(agentId) === pending.text && sameFiles;
-        setRetry({ ...pending, revision: revision === initialRevision && sameDraft ? revision : -1 });
-      }
-    }).catch(() => { if (current) setAttachmentError("A previous attachment send could not be restored from browser storage."); });
     return () => { current = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
 
   useEffect(() => subscribeAttachmentDraft(agentId, setFiles), [agentId]);
@@ -166,21 +154,19 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       : "This runtime cannot read uploaded files. Remove the file or choose a runtime that supports it."
     : null;
 
-  // Stop, crash, or archive leaves no next turn for a held message, so it comes
-  // back as the person's own text — but only into an empty composer, never over
-  // text typed since, which is R36's newer-draft rule applied to the same store
-  // (FS-03.R49, TS-08.R56).
+  // A receipt-bearing hold is restored through its server recovery offer.
+  // Older holds without receipts still return to an empty composer.
   useEffect(() => {
-    if (running || !held) return;
-    if (text === "") {
+    if (running || held === undefined) return;
+    if (!heldRequestId && held && text === "") {
       replaceDraftBaseline(held);
       setChatDraft(agentId, held);
     }
-    releaseHeld(agentId);
+    releaseHeld(agentId, heldId);
     // `text` is read, not depended on: this runs on the lifecycle boundary, and
     // re-running it on every keystroke would race the person's own typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId, running, held, releaseHeld]);
+  }, [agentId, running, held, heldId, heldRequestId, releaseHeld]);
 
   const submit = () => {
     if (!filesReady) { setAttachmentError("Restoring attachments… wait before sending."); return; }
@@ -191,10 +177,10 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
 
   const steer = () => {
     const typed = text.trim() ? text : "";
-    if (!typed && files.length === 0 && !held) return;
+    if (!typed && files.length === 0 && !heldId) return;
     if (!filesReady) { setAttachmentError("Restoring attachments… wait before steering."); return; }
     if (capabilityError) { setError(capabilityError); return; }
-    void deliver(typed, files, true, !typed && !files.length ? { held: { text: held ?? "" } } : {});
+    void deliver(typed, files, true, !typed && !files.length ? { held: { id: heldId, requestId: heldRequestId } } : {});
   };
 
   const withdraw = async () => {
@@ -283,7 +269,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         <button type="button" className="ad-button-secondary composer-attach" aria-label="Attach files" title="Attach files" disabled={sending} onClick={() => pickerRef.current?.click()}>Attach</button>
         <button type="submit" className="composer-icon ad-button-icon-primary" aria-label="Send" title="Send" disabled={!filesReady || sending || (!text.trim() && files.length === 0) || !!capabilityError || (matchingRetry(text, files)?.retryable === false)}>{!variant && <span className="composer-send-label">Send</span>}<SendIcon /></button>
         {busy && steerable && (
-          <button type="button" className="ad-button-secondary" disabled={steering || !!capabilityError || (matchingRetry(text, files)?.retryable === false)} onClick={() => void steer()}>Steer</button>
+          <button type="button" className="ad-button-secondary" title={sending ? "Wait for the current send to finish." : undefined} disabled={sending || !!capabilityError || (matchingRetry(text, files)?.retryable === false)} onClick={() => void steer()}>Steer</button>
         )}
         {held && (
           <button type="button" className="ad-button-secondary" onClick={() => void withdraw()}>Withdraw queued</button>

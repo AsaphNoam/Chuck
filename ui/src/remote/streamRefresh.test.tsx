@@ -34,6 +34,7 @@ const agent: AgentState = {
 let transcriptReads = 0;
 let promptReads = 0;
 let latestText = "Initial reply";
+let recovery: { request_id: string; text: string; delivery: string } | undefined;
 const server = setupServer(
   http.get("/api/roles", () => HttpResponse.json({})),
   http.get("/api/sessions/a1/transcript", () => {
@@ -42,7 +43,7 @@ const server = setupServer(
       { agent_id: "a1", seq: 1, type: "assistant_text", ts: "t", data: { text: latestText } },
     ], has_more: false, latest_assistant: latestText });
   }),
-  http.get("/api/sessions/a1/prompt", () => { promptReads++; return HttpResponse.json({ agent_id: "a1", text: "" }); }),
+  http.get("/api/sessions/a1/prompt", () => { promptReads++; return HttpResponse.json({ agent_id: "a1", text: "", recovery }); }),
   http.get("/api/sessions/a1/files", () => HttpResponse.json({ agent_id: "a1", files: [] })),
   http.get("/api/remote/runtime-options", () => HttpResponse.json({ backends: [] })),
 );
@@ -55,6 +56,7 @@ beforeEach(() => {
   transcriptReads = 0;
   promptReads = 0;
   latestText = "Initial reply";
+  recovery = undefined;
   useConnection.setState({ link: "checking", unreachableSince: null, revision: 0, agents: {}, transcriptRev: {} });
 });
 afterEach(() => {
@@ -66,6 +68,7 @@ afterAll(() => server.close());
 
 describe("phone streamed transcript refresh", () => {
   it("bounds transcript and prompt reads during a message burst and renders the final fetched reply", async () => {
+    recovery = { request_id: "peer-recovers", text: "Peer recovery", delivery: "released" };
     start();
     await waitFor(() => expect(FakeEventSource.current).toBeDefined());
     const stream = FakeEventSource.current!;
@@ -91,6 +94,14 @@ describe("phone streamed transcript refresh", () => {
     await waitFor(() => expect(screen.getByText("Streamed reply 5")).toBeInTheDocument());
     expect(transcriptReads).toBeLessThanOrEqual(2);
     expect(promptReads).toBeLessThanOrEqual(2);
+    expect(screen.getByText("Peer recovery")).toBeInTheDocument();
+    const beforeSettlement = transcriptReads;
+    await act(async () => {
+      recovery = undefined;
+      stream.emit("input_recovery_changed", { agent_id: "a1", data: { request_id: "peer-recovers" } });
+    });
+    await waitFor(() => expect(screen.queryByText("Peer recovery")).not.toBeInTheDocument());
+    expect(transcriptReads).toBe(beforeSettlement);
     queryClient.clear();
   });
 });

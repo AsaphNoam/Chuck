@@ -397,8 +397,9 @@ func TestAttachmentHoldWithdrawalReplacementAndRecoveryResubmit(t *testing.T) {
 		t.Fatalf("held and recovery = %+v", prompt)
 	}
 
-	// Withdraw the replacement to make it the latest recovery record, then
-	// resubmit that exact copy as explicit new intent.
+	// A newer recovery masks the first, but the earlier card's exact source
+	// remains independently actionable even when another client withdrew second.
+	masked := prompt.Recovery
 	withdraw = serveLocal(t, h, http.MethodDelete, "/api/sessions/"+id+"/prompt", nil)
 	if withdraw.Code != http.StatusOK {
 		t.Fatalf("withdraw replacement = %d %s", withdraw.Code, withdraw.Body)
@@ -410,14 +411,44 @@ func TestAttachmentHoldWithdrawalReplacementAndRecoveryResubmit(t *testing.T) {
 	if prompt.Recovery.RequestID != "held-2" {
 		t.Fatalf("latest recovery = %+v", prompt.Recovery)
 	}
-	jsonBody, _ := json.Marshal(map[string]any{"request_id": "recovered-2", "text": "retry second", "attachment_ids": []string{prompt.Recovery.Attachments[0].ID}})
-	resp2, body := postJSONHandler(t, h, "/api/sessions/"+id+"/prompt", json.RawMessage(jsonBody))
-	if resp2.StatusCode != http.StatusAccepted {
-		t.Fatalf("recovered resubmit = %d %s", resp2.StatusCode, body)
+	path := "/api/sessions/" + id + "/prompt"
+	if exact := serveLocal(t, h, http.MethodGet, path+"?recovery_request_id=held-1", nil); exact.Code != http.StatusOK || fieldOf(t, exact.Body.Bytes(), "recovery_status") != "offered" {
+		t.Fatalf("masked recovery status: %d %s", exact.Code, exact.Body)
 	}
-	accepted := decodeAttachmentAcceptance(t, body)
-	if accepted.RequestID != "recovered-2" || accepted.AttachmentDelivery != "held" || len(accepted.Attachments) != 1 || accepted.Attachments[0].ID != prompt.Recovery.Attachments[0].ID {
-		t.Fatalf("recovered receipt = %+v", accepted)
+	input := map[string]any{"request_id": "recovered-1", "recovery_request_id": masked.RequestID, "text": "retry first", "attachment_ids": []string{masked.Attachments[0].ID}}
+	if _, err := srv.stateStore.DB().Exec(`CREATE TRIGGER fail_recovery_finalization BEFORE UPDATE OF recovery_attempt_id ON attachment_receipts
+WHEN OLD.request_id='held-1' AND OLD.recovery_attempt_id<>'' AND NEW.recovery_attempt_id=''
+BEGIN SELECT RAISE(ABORT, 'test recovery finalization failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 0; attempt < 2; attempt++ { // simulate the first response being lost
+		resp2, body := postJSONHandler(t, h, path, input)
+		if resp2.StatusCode != http.StatusAccepted {
+			t.Fatalf("recovered resubmit = %d %s", resp2.StatusCode, body)
+		}
+		accepted := decodeAttachmentAcceptance(t, body)
+		if accepted.RequestID != "recovered-1" || accepted.AttachmentDelivery != "held" || len(accepted.Attachments) != 1 || accepted.Attachments[0].ID != masked.Attachments[0].ID {
+			t.Fatalf("recovered receipt = %+v", accepted)
+		}
+		// A peer can learn the source settled even before replay repairs the claim.
+		exact := serveLocal(t, h, http.MethodGet, path+"?recovery_request_id=held-1", nil)
+		if exact.Code != http.StatusOK || fieldOf(t, exact.Body.Bytes(), "recovery_status") != "settled" {
+			t.Fatalf("recovery status after attempt %d: %d %s; want settled", attempt, exact.Code, exact.Body)
+		}
+		if attempt == 0 {
+			if _, err := srv.stateStore.DB().Exec(`DROP TRIGGER fail_recovery_finalization`); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	var retainedClaim string
+	if err := srv.stateStore.DB().QueryRow("SELECT recovery_attempt_id FROM attachment_receipts WHERE agent_id=? AND request_id='held-1'", id).Scan(&retainedClaim); err != nil || retainedClaim != "" {
+		t.Fatalf("replay left a claim behind: %q, %v", retainedClaim, err)
+	}
+	stalePart := uploadPart{field: "asset", name: "retry.txt", data: []byte("recovery retry")}
+	staleMetadata := `{"request_id":"stale-recovery","recovery_request_id":"held-1","text":"retry first","files":[{"part":"asset","name":"retry.txt"}]}`
+	if stale, body := postAttachmentMessage(t, h, path, staleMetadata, stalePart); stale.StatusCode != http.StatusConflict || !strings.Contains(string(body), `"code":"recovery_changed"`) {
+		t.Fatalf("settled source could submit again: %d %s", stale.StatusCode, body)
 	}
 	if len(attachmentFiles(t, srv, id)) != 2 {
 		t.Fatalf("recovery resubmit duplicated blobs: %d", len(attachmentFiles(t, srv, id)))
@@ -429,8 +460,20 @@ func TestAttachmentHoldWithdrawalReplacementAndRecoveryResubmit(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&after); err != nil {
 		t.Fatal(err)
 	}
-	if after.Recovery == nil || after.Recovery.RequestID != "held-1" {
-		t.Fatalf("older released recovery was not preserved: %+v", after.Recovery)
+	if after.Recovery == nil || after.Recovery.RequestID != "held-2" {
+		t.Fatalf("newer released recovery was not preserved: %+v", after.Recovery)
+	}
+	if err := srv.registry.Stop(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	if replay, body := postJSONHandler(t, h, path, input); replay.StatusCode != http.StatusAccepted || fieldOf(t, body, "delivery") != "released" {
+		t.Fatalf("replay after Stop: %d %s", replay.StatusCode, body)
+	}
+	for requestID, want := range map[string]string{"held-1": "settled", "recovered-1": "offered"} {
+		exact := serveLocal(t, h, http.MethodGet, path+"?recovery_request_id="+requestID, nil)
+		if exact.Code != http.StatusOK || fieldOf(t, exact.Body.Bytes(), "recovery_status") != want {
+			t.Fatalf("post-Stop status of %s: %d %s; want %s", requestID, exact.Code, exact.Body, want)
+		}
 	}
 }
 

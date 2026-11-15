@@ -1,5 +1,6 @@
 import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getHeldPrompt } from "../../api/client";
@@ -27,6 +28,11 @@ vi.mock("../chat/TranscriptView", () => ({
 }));
 vi.mock("../chat/Composer", () => ({ Composer: () => <textarea aria-label="Pane composer" /> }));
 
+function renderPane(children: React.ReactNode) {
+  const client = new QueryClient();
+  return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>);
+}
+
 afterEach(() => {
   cleanup();
   mocks.register.mockClear();
@@ -40,7 +46,7 @@ describe("DashboardChatPane", () => {
   it("composes only the shared transcript and composer and releases registration", () => {
     // A file link in the pane routes to the agent screen (FS-03.R53), so the
     // pane is a router-scoped component like every other dashboard surface.
-    const view = render(<MemoryRouter><DashboardChatPane agent={{
+    const view = renderPane(<MemoryRouter><DashboardChatPane agent={{
       agent_id: "a_1", name: "Atlas", role: "implementer", project: "my-app",
       backend: "claude", model: "sonnet", interface: "chat", state: "idle",
       detail: "", running: true, context_pct: 0,
@@ -67,7 +73,7 @@ describe("a file link inside the expanded dashboard chat pane", () => {
   }
 
   it("navigates to the agent screen with that file open instead of opening a panel", () => {
-    render(
+    renderPane(
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
           <Route path="/" element={<DashboardChatPane agent={{
@@ -97,7 +103,7 @@ describe("the held follow-up in a pane-only chat", () => {
     vi.mocked(getHeldPrompt).mockResolvedValue({
       agent_id: "a_held", text: "same text", after_seq: 1, held_id: "h1", request_id: "held-request",
     });
-    render(<MemoryRouter><DashboardChatPane agent={{
+    renderPane(<MemoryRouter><DashboardChatPane agent={{
       agent_id: "a_held", name: "Atlas", role: "implementer", project: "my-app",
       backend: "claude", model: "sonnet", interface: "chat", state: "busy",
       detail: "", running: true, context_pct: 0,

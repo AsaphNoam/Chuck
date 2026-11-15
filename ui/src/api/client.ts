@@ -180,7 +180,7 @@ export function stopAgent(agentId: string) {
 /** What the server did with a submitted prompt (TS-03.R38): ran it now, held
  * it as the next turn because the agent was working, or queued it for the
  * agent's waiting assignment, whose continuation delivers it (TS-09.R69). */
-export type PromptDelivery = "sent" | "held" | "queued";
+export type PromptDelivery = "sent" | "held" | "queued" | "released" | "failed" | "unknown";
 
 /** Shown while an accepted message waits for its assignment to continue. */
 export const QUEUED_FOR_ASSIGNMENT_NOTICE = "Queued — it will be delivered when the agent's assignment continues.";
@@ -215,16 +215,33 @@ export function sendPrompt(agentId: string, text: string, files: PromptFile[] = 
   });
 }
 
-export function sendRecoveredPrompt(agentId: string, text: string, attachmentIds: string[], requestId: string) {
+export function sendRecoveredPrompt(agentId: string, recovery: RecoveryPrompt, requestId: string) {
   return json<PromptResult>(`/api/sessions/${encodeURIComponent(agentId)}/prompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ request_id: requestId, text, attachment_ids: attachmentIds }),
+    body: JSON.stringify({
+      request_id: requestId,
+      recovery_request_id: recovery.request_id,
+      text: recovery.text,
+      attachment_ids: (recovery.attachments ?? []).map((file) => file.id),
+    }),
   });
 }
 
 export function getHeldPrompt(agentId: string) {
   return json<HeldPrompt>(`/api/sessions/${encodeURIComponent(agentId)}/prompt`);
+}
+
+export async function getPromptRecoveryStatus(agentId: string, requestId: string) {
+  const result = await json<{ recovery_status: "offered" | "pending" | "settled" | "unavailable" }>(
+    `/api/sessions/${encodeURIComponent(agentId)}/prompt?recovery_request_id=${encodeURIComponent(requestId)}`,
+  );
+  return result.recovery_status;
+}
+
+export function unacceptedInputDelivery(result: PromptResult | SteerResult) {
+  const status = result.attachment_delivery ?? ("delivery" in result ? result.delivery : undefined);
+  if (status === "released" || status === "failed" || status === "unknown") return status;
 }
 
 /** Withdraws the agent's held follow-up. A no-op when nothing is held. */
@@ -249,13 +266,13 @@ export function localImageURL(agentId: string, path: string) {
  * which is the only way to send one (TS-03.R39). */
 export type SteerResult = { accepted: true; agent_id: string; outcome: SteerOutcome; request_id?: string; attachments?: AttachmentDescriptor[]; attachment_delivery?: PromptResult["attachment_delivery"] };
 
-export function steerPrompt(agentId: string, text: string, files: PromptFile[] = [], requestId?: string) {
+export function steerPrompt(agentId: string, text: string, files: PromptFile[] = [], requestId?: string, heldId?: string) {
   const url = `/api/sessions/${encodeURIComponent(agentId)}/steer`;
   if (files.length) {
     return json<SteerResult>(url, { method: "POST", body: multipartBody(text, files, requestId ?? crypto.randomUUID()) });
   }
   return json<SteerResult>(url, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, request_id: requestId ?? crypto.randomUUID() }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, request_id: heldId ? requestId : requestId ?? crypto.randomUUID(), held_id: heldId }),
   });
 }
 

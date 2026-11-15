@@ -876,9 +876,14 @@ Their `delivery` is `sent` only for a `submitted` receipt and otherwise names th
 `failed`) answers with R39's refusal envelope, on first response and on retry, not an acceptance.
 JSON prompt/steer additionally accept `{request_id,text,attachment_ids}` for explicit resubmission
 of owned recovered copies; client-supplied ids still undergo session ownership, limits and
-capability checks, and the new request id marks the user's explicit new delivery intent.
-Submitting the recovered copy acknowledges only that exact recovery record; dismissing it uses
-`DELETE /prompt?recovery_request_id=<id>`, which must not withdraw a different current hold.
+capability checks. A recovery Send supplies `recovery_request_id` in JSON or the multipart
+metadata to name the exact source receipt. The new `request_id` marks the deliberate delivery
+intent. Recovery Send and `DELETE /prompt?recovery_request_id=<id>` arbitrate against that receipt
+before delivery. A superseded or in-progress action returns `recovery_changed` (409), while a
+same-ID Send replays its successor receipt even after the source was settled. Replay also settles
+a missed claim finalization once its matching successor is durably retained. A definite refusal
+without a successor receipt leaves the source available. A retained released or uncertain
+successor can be recovered under its own ID.
 The existing parameter-free DELETE behavior is unchanged.
 Retries with the same id replay acceptance without provider re-consumption, including after a lost
 HTTP response. New field/error schemas move with Go and UI types; arrays normalize to `[]`.
@@ -1083,8 +1088,16 @@ can still be sent) plus the existing recoverable-input reference. GET recovery s
 CLI uncertainty remains a non-success outcome with no implicit resend.
 The uncertainty envelope includes `details.agent_id`, `details.request_id` and the GET prompt
 recovery URL. The original receipt remains non-replayable; a deliberate recovered Send uses a new
-request ID. Empty Steer promotes the exact held snapshot and advances that hold's receipt rather
-than allocating an independently runnable copy.
+request ID. Bundled clients supply `held_id` with empty Steer. Its atomic promotion advances
+that exact hold's receipt. A changed or consumed expected hold returns `held_changed` (409).
+
+`GET /prompt?recovery_request_id=<id>` adds `recovery_status` for the exact source alongside the
+current held and recovery projection. Status is `offered` even when a newer offer masks that
+source, `pending` while a Send is in progress or held, `settled` after confirmed submission,
+dismissal, or durable transfer to a new receipt, and `unavailable` when there is no such recovery.
+Known stopped agents return the same projection, with empty held and recovery fields when
+neither exists. `input_recovery_changed` carries `agent_id` and `data.request_id` to invalidate both
+projections after settlement or release of a claim. Clients also re-read on reconnect.
 
 Held projections include `held_id`. DELETE held accepts optional `held_id` and atomically returns
 200 `{withdrawn:true,message:{held_id,text,attachments,request_id?}}` for the exact removed input,

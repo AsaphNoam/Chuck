@@ -3,17 +3,20 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 import { getChatDraft, setChatDraft } from "./drafts";
+import { chatDraftRequestId, clearAttachmentDraftCacheForTests, restorePendingAttachmentSend } from "./attachments";
 import { useInputDelivery } from "./useInputDelivery";
+import { reconcileRecoverySettlement } from "../../lib/heldMessage";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
   localStorage.clear();
+  clearAttachmentDraftCacheForTests();
 });
 afterAll(() => server.close());
 
-const outcomes = ["accepted", "held", "queued", "uncertain", "refused"] as const;
+const outcomes = ["accepted", "held", "queued", "released", "uncertain", "refused"] as const;
 
 it.each(outcomes.flatMap((outcome) => [false, true].map((phone) => ({ outcome, phone }))))(
   "applies $outcome with phone=$phone",
@@ -26,7 +29,9 @@ it.each(outcomes.flatMap((outcome) => [false, true].map((phone) => ({ outcome, p
     const setError = vi.fn();
     const setNotice = vi.fn();
     const clearDraft = vi.fn();
+    const setAttachmentError = vi.fn();
     const rejected = outcome === "uncertain" || outcome === "refused";
+    const retained = rejected || outcome === "released";
     server.use(http.post("/api/sessions/:id/prompt", async ({ request: incoming }) => {
       const body = await incoming.json() as { text: string; request_id: string };
       request(body);
@@ -48,17 +53,47 @@ it.each(outcomes.flatMap((outcome) => [false, true].map((phone) => ({ outcome, p
       acceptSteer: vi.fn(),
       refreshRecovery,
     }, {
-      phone, clearDraft, setError, setNotice, setAttachmentError: vi.fn(),
+      phone, clearDraft, setError, setNotice, setAttachmentError,
     }));
     await act(async () => result.current.deliver(text, []));
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith({ text, request_id: expect.any(String) });
-    expect(getChatDraft(agentId)).toBe(rejected ? text : "");
-    expect(projectPrompt).toHaveBeenCalledTimes(phone || rejected ? 0 : 1);
-    if (!phone && !rejected) expect(projectPrompt.mock.calls[0][2]).toBe(5);
-    expect(refreshRecovery).toHaveBeenCalledTimes(outcome === "queued" || outcome === "uncertain" ? 1 : 0);
+    expect(getChatDraft(agentId)).toBe(retained ? text : "");
+    expect(projectPrompt).toHaveBeenCalledTimes(phone || retained ? 0 : 1);
+    if (!phone && !retained) expect(projectPrompt.mock.calls[0][2]).toBe(5);
+    expect(refreshRecovery).toHaveBeenCalledTimes(outcome === "queued" || outcome === "uncertain" || outcome === "released" ? 1 : 0);
     if (outcome === "queued") expect(setNotice).toHaveBeenLastCalledWith(expect.stringContaining("Queued"));
     if (outcome === "held" && phone) expect(setNotice).toHaveBeenLastCalledWith(expect.stringContaining("Held"));
-    if (rejected) expect(setError).toHaveBeenLastCalledWith(expect.any(String));
+    if (retained) expect(setError).toHaveBeenLastCalledWith(expect.any(String));
   },
 );
+
+it.each([false, true])("settles an attachment Send after a lost response, with newer draft=%s", async (newer) => {
+  const agentId = "attachment-settlement";
+  const text = "Original attachment message";
+  setChatDraft(agentId, text);
+  const requestId = chatDraftRequestId(agentId);
+  const files = [{ id: "file-1", name: "notes.txt", size: 5, type: "text/plain", blob: new Blob(["notes"]) }];
+  server.use(
+    http.post("/api/sessions/:id/prompt", () => HttpResponse.error()),
+    http.get("/api/sessions/:id/prompt", ({ request }) => HttpResponse.json({
+      recovery_status: new URL(request.url).searchParams.get("recovery_request_id") === requestId ? "settled" : "unavailable",
+    })),
+  );
+  const setAttachmentError = vi.fn();
+  const mount = () => renderHook(() => useInputDelivery(agentId, {
+    acceptSteer: vi.fn(), refreshRecovery: vi.fn(),
+  }, { clearDraft: vi.fn(), setError: vi.fn(), setNotice: vi.fn(), setAttachmentError }));
+  const first = mount();
+  await act(async () => first.result.current.deliver(text, files));
+  expect(first.result.current.retry?.requestId).toBe(requestId);
+  expect(first.result.current.retry?.retryable).not.toBe(false);
+  if (newer) setChatDraft(agentId, "New unrelated text");
+  first.unmount();
+
+  const reopened = mount();
+  await act(async () => reconcileRecoverySettlement(agentId));
+  expect(reopened.result.current.retry).toBeNull();
+  expect(await restorePendingAttachmentSend(agentId)).toBeNull();
+  expect(getChatDraft(agentId)).toBe(newer ? "New unrelated text" : "");
+});
