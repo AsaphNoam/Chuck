@@ -160,16 +160,14 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa`
-
-**Fix model:** medium — Codex Terra or Claude Opus.
+### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Second fix round: turn, quota and pipeline recovery state had findings fixed in the last 30 days
 (`35f33a07`, CR-A8 `0a8bda69`, CR-A9 `0da7c581`), so EXEC-12 asks for an inventory (§7, §8).
 The unit was meant to change no behavior; EXEC-1 to EXEC-5 are each a changed outcome, confirmed
 against `193f301e`.
 
-- **Must fix — EXEC-1: a prompt Stop overtakes stays `submitted`.** `runtime/chat.go:1229`
+- **Must fix** — EXEC-1: a prompt Stop overtakes stays `submitted`. `runtime/chat.go:1229`
   (`beginTurn`'s provider goroutine returns when `canStartTurn` fails). Trigger: Stop or a crash
   lands after `beginTurn` succeeded and before the send, including while the goroutine waits on
   `cancelMu` behind a Cancel. The prompt's request and the carried queued assignment input are
@@ -177,7 +175,7 @@ against `193f301e`.
   `unknown`. The receipt misreports delivery (TS-01.R45, INV §19). Fix: on that return mark both
   request IDs `released` (never written) or `unknown`. Test: hold `cancelMu`, let a held
   successor begin, Stop; neither request is `submitted`.
-- **Must fix — EXEC-2: a failed turn-end write strands the turn.** `runtime/chat.go:2779`
+- **Must fix** — EXEC-2: a failed turn-end write strands the turn. `runtime/chat.go:2779`
   (`endTurn` returns `ended && err == nil`) and `finishTurn` at `:1379`. Trigger: the end
   transaction fails (busy timeout, disk full). No `turn_end` is emitted, so task and room
   completion never run; the held successor stays held with the gate free, so a newer Send
@@ -187,30 +185,30 @@ against `193f301e`.
   gate and still emit `turn_end` and run the successor on a failed write, record the failure,
   and leave Stop and finalized fences as the only reasons for `!ended`. Test: fail the end
   write; `turn_end` is observed and the held message runs before a later Send.
-- **Must fix — EXEC-3: a turn that completes as Stop arrives loses its `turn_end`.**
+- **Must fix** — EXEC-3: a turn that completes as Stop arrives loses its `turn_end`.
   `runtime/quota.go:204` (`completePromptTurn` checks `stopping`, then settles quota and inline
   mail) against `endTurn`'s `stopping` refusal at `chat.go:2785`. Trigger: Stop lands between the
   settlement claim and `finishTurn`. Mail is confirmed and quota settled as completed while the
   row records `process_ended` and no `turn_end` exists; before, `finishTurn` always emitted it
   (TS-01.R45). Fix: once `promptSettlement` is claimed, `endTurn` accepts `stopping` for that
   turn; Stop's later end is ignored by the `running` predicate. Test: block between the claim
-  and `finishTurn`, Stop, assert outcome `completed` and one `turn_end`.
-- **Must fix — EXEC-4: a lost compare-and-swap in pipeline startup recovery aborts server
-  start.** `pipeline/manager.go:844` dropped `!errors.Is(recordErr, state.ErrPipelineConflict)`.
+  and `finishTurn`, Stop, assert outcome `completed` and one `turn_end`. INV §5.
+- **Must fix** — EXEC-4: a lost compare-and-swap in pipeline startup recovery aborts server
+  start. `pipeline/manager.go:844` dropped `!errors.Is(recordErr, state.ErrPipelineConflict)`.
   Trigger: startup with a run whose retryable controller action fails to reconcile while the
   task dispatcher or room-phase sync, both already running, bumps the run's revision.
   `Server.Start` treats the error as fatal; before it logged "startup reconcile deferred"
   (TS-01.R49 allows re-deciding; `ReconcilePending` already does). Fix: restore the tolerance.
   Test: bump the revision between the failed reconcile and its record; `Startup` returns nil and
-  the run stays due.
-- **Must fix — EXEC-5: a transient owner-read error after a quota claim leaves the intent
-  `claimed` until restart.** `server/quota_dispatch.go:112–121` now holds `owner_unavailable`
+  the run stays due. INV §5.
+- **Must fix** — EXEC-5: a transient owner-read error after a quota claim leaves the intent
+  `claimed` until restart. `server/quota_dispatch.go:112–121` now holds `owner_unavailable`
   only for `ErrNotFound` and otherwise returns. `claimed` is not in the due scan and only
   startup recovery reschedules it; the quota gate refuses the agent's mail and wakes meanwhile
   (TS-01.R49, INV §18). Fix: `DeferQuota(..., "store_failure")` for the other errors, as
   `deferQuotaPolicyFailure` does. Test: inject a non-NotFound error on the post-claim read; the
   intent becomes `deferred` and is admitted on the next pass.
-- **Must fix — EXEC-6: four *Verify* clauses are not implemented.** (a) TS-01.R46's assertion
+- **Must fix** — EXEC-6: four *Verify* clauses are not implemented. (a) TS-01.R46's assertion
   helper — stored chat state equals the composition after runtime and server tests — does not
   exist; composing sites pass literal inputs (`chat.go:2769`, `:2794`, `:2799`, `:2802`, `:2826`,
   `reconcile.go:52`, `switch.go:318`), so nothing checks them against the turn row, and
@@ -227,29 +225,29 @@ against `193f301e`.
   activation kind reading the turn row; an inventory of exported `*Store` writers with no
   non-test caller, deleting or moving the leftovers to test helpers; one fixture per differing
   admission pair taken from the pre-change reads (TS-06.R35, INV §17).
-- **Worth fixing — EXEC-7: a quota conflict reaches the person as a storage failure.**
+- **Worth fixing** — EXEC-7: a quota conflict reaches the person as a storage failure.
   `state/quota_success.go:28` and `HoldQuotaManualTurn` now return `ErrQuotaConflict`;
   `server/quota.go:32`, `:52` pass it to the runtime, which sets `quotaBlocked` and shows "Quota
   recovery state could not be saved". Trigger: a manual turn ends while the due dispatcher or a
   quota Cancel bumps the revision (TS-01.R49: re-read and decide again). Fix: on conflict
-  re-read and decide a bounded number of times in `settleQuotaTurn`.
-- **Worth fixing — EXEC-8: `beginTurn`'s failure path writes to the store under `as.mu`.**
+  re-read and decide a bounded number of times in `settleQuotaTurn`. INV §8.
+- **Worth fixing** — EXEC-8: `beginTurn`'s failure path writes to the store under `as.mu`.
   `runtime/chat.go:1172–1189`. With one store connection and a five-second busy timeout every
   emit and notification for the agent waits behind it. Fix: choose the outcome under the lock,
-  end the row unlocked, re-lock to release the gate.
-- **Worth fixing — EXEC-9: a failed steer can leave a live idle agent `busy`.** Confirm first.
+  end the row unlocked, re-lock to release the gate. (no invariant class)
+- **Worth fixing** — EXEC-9: a failed steer can leave a live idle agent `busy`. Confirm first.
   `claimTurnLocked` (`chat.go:1040`) and `reserveHeldSuccessorLocked` now set the executing turn
   at claim, so `updateOwnedBusy` writes `busy` for a tool frame during an idle steer;
   `resolveSteerFallback` then releases the gate with no status write (TS-01.R46). Fix: require
-  that the turn reached the provider, or release through the end path.
-- **Worth fixing — EXEC-10: dead code.** `MarkProcessExited` (`runtime/reconcile.go:43`) has no
+  that the turn reached the provider, or release through the end path. INV §1.
+- **Worth fixing** — EXEC-10: dead code. `MarkProcessExited` (`runtime/reconcile.go:43`) has no
   caller and passes an empty generation, so it would not end the turn row; `applyTurnEndStatus`
-  and `setExecTurn` serve tests only.
-- **Worth fixing — EXEC-11: weak new tests.** `crash_permission_test.go:30` names an order it
+  and `setExecTurn` serve tests only. INV §10.
+- **Worth fixing** — EXEC-11: weak new tests. `crash_permission_test.go:30` names an order it
   does not assert; `state_test.go:95` skips the row-shape check when the store is closed;
   `TestComposeChatStatusWriterInventory` has two identical rows ("launch", "resume ignores old
-  generation").
-- **Worth fixing — EXEC-12: inventory (§7).** EXEC-1, -2, -3 and -9 share one shape: a path
+  generation"). INV §17.
+- **Worth fixing** — EXEC-12: inventory (§7). EXEC-1, -2, -3 and -9 share one shape: a path
   leaves a claimed turn through an early return that assumes another owner settles it. List
   every exit from a claimed turn gate and every site that releases the gate, with who ends the
   row, emits `turn_end`, settles the request and runs the held successor on each, and where that
