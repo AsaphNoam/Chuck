@@ -534,8 +534,8 @@ func TestDeletingATaskPublishesItsRemoval(t *testing.T) {
 	srv := testServer(t, true)
 	seedPipelineRun(t, srv, "pr_failed")
 	parked := newDependentTask(t, srv, "parked", state.SourcePipelineRun, "pr_failed")
-	if err := srv.stateStore.RegisterWorkResult(state.WorkResult{SourceKind: state.SourcePipelineRun,
-		SourceID: "pr_failed", Outcome: state.OutcomeFailure}); err != nil {
+	if err := state.RegisterWorkResultTx(srv.stateStore.DB(), state.WorkResult{SourceKind: state.SourcePipelineRun,
+		SourceID: "pr_failed", Outcome: state.OutcomeFailure}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	srv.PublishPipelineUpdate(pipeline.PipelineUpdate{RunID: "pr_failed", State: "completed"})

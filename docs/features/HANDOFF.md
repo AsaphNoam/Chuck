@@ -54,8 +54,8 @@ None.
 ## Review queue
 
 - **Give agent execution one owner** — reviewed 2026-11-15, `193f301e..1d6077fa` (TS-01.R45–R50,
-  TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix round left EXEC-6c and EXEC-6d remainders open
-  under **Review findings** for `/fix`. Its ready change and plan stay until they close. Both implementer notes were
+  TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left only the EXEC-6c remainder open
+  under **Review findings**, blocked on a human decision. Its ready change and plan stay until they close. Both implementer notes were
   confirmed: the room rule stays inside task admission's claiming compare-and-swap, and the
   gate-versus-row span is sound except on a failed end write (EXEC-2). Credentialed provider and
   device gates are not closed by it.
@@ -215,18 +215,20 @@ and `7b7a12f9` (ASW-3). `7e2539a3` moved the reviewed start path to `startRuntim
 
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Fix round closed every finding except the two below. EXEC-9 and the inventory (EXEC-12) went to
+Fix rounds closed every finding except the one below. EXEC-9 and the inventory (EXEC-12) went to
 `docs/ideas.md` ("One exit rule for a claimed chat turn"), with the independent check's
-same-cause concerns.
+same-cause concerns. The independent check is owed again only for the EXEC-6c repair.
 
-- **Must fix** — EXEC-6c (remainder): 15 exported `*Store` writers are called only from other
-  packages' tests, so TS-01.R50's "no uncalled writer" still fails for them. They are listed in
-  `fixtureOnlyWriters` (`internal/state/store_writer_callers_test.go`), which may only shrink.
-  Fix: retarget each package's tests to the production writer or a raw `DB().Exec` fixture, then
-  delete the writer (TS-06.R35, INV §10, §17).
-- **Must fix** — EXEC-6d (remainder): `TestTurnAdmissionMatchesPreChangeReads` covers the quota
-  owner check for the ordinary and unknown owner kinds only. Add task and room owner rows from
-  `quotaWorkEligibleTx` at `7e2539a3^` (TS-01.R47, INV §17).
+- **Must fix** — EXEC-6c (remainder, blocked on human): 11 exported `*Store` writers are called
+  only from other packages' tests — `AddThinkTankRecord`, `AttachTaskContext`,
+  `BindAssignmentInput`, `BindPipelineStageTaskStandingAgent`, `ConsumeTurnBudget`,
+  `FinalizeThinkTankAttempt`, `InsertPipelineAttempt`, `InterruptTask`,
+  `MarkQuotaProviderStarted`, `ObserveQuota`, `StartQuotaCheck` (about 85 call sites, 30 for
+  `ObserveQuota`). Each wraps an unexported state helper with no exported production writer of the
+  same effect, so retargeting means driving each test through a longer production path, and a raw
+  `DB().Exec` fixture would copy write logic that can drift (INV §17). They stay in the
+  shrink-only `fixtureOnlyWriters` list (`internal/state/store_writer_callers_test.go`); the
+  decision is under **Blocked on human** (TS-01.R50, INV §10, §17).
 
 
 ### Shared desktop and phone input delivery (`dfd644be^..91828210`) — reviewed 2026-11-15 at `80414288` — **Fix model:** difficult — Codex Sol.
@@ -336,6 +338,10 @@ last 30 days (`e993ce01`, `242860c1`, `0e98d3c4`). PROMPT-4 asks for an inventor
   scope the pre-existing withdrawal test assertion to its exact error message (one test line).
   The four requested product changes are committed and independently reviewable. No unrelated
   test correction has been made without approval (repository instruction on separate fixes).
+- **EXEC-6c test-only store writers (TS-01.R50):** choose (a) rewrite the ~85 test call sites of
+  the 11 remaining writers to reach the same rows through production paths, then delete the
+  writers (large, test-by-test); or (b) amend R50 so a writer kept for other packages' tests is
+  allowed when named in the shrink-only `fixtureOnlyWriters` list, closing EXEC-6c as is.
 
 The published `v0.11.0` release body remains empty; its notes are in
 [`RELEASE-v0.11.0-notes.md`](../archive/state/RELEASE-v0.11.0-notes.md).

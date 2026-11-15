@@ -138,7 +138,7 @@ must explicitly walk this checklist — silence on any line is a bug, not a defa
 - [ ] **Messaging:** either it can drain its mailbox (`check_messages`) or `ResolveRecipient`
       excludes it — an undrainable nudge loop once burned thousands of paid turns.
 - [ ] **Turn boundaries:** its turn signal is identified and wired into every per-turn reset
-      (`ResetTurnBudget` via `terminalTurnID`) — not lumped into a generic status hook.
+      (`resetTurnBudgetTx` via `terminalTurnID`) — not lumped into a generic status hook.
 - [ ] **Reconcile:** the sweep knows its shape (no chat-shaped preview stomping, §1).
 - [ ] **Hooks/status:** feature flags scoped to the actual risk surface, not blanket-applied
       (`CHUCK_HOOK_REGISTRATION` once muted terminal agents entirely).

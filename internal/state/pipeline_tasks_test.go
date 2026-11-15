@@ -182,7 +182,7 @@ func TestAgentCreatedWorkInheritsStageLineageAndClosureFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	childID, _ := st.NewTaskID()
-	child, err := st.CreateTask(Task{TaskID: childID, Project: "proj", DisplayName: "Child", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "owner", CreatedByGeneration: "gen"})
+	child, err := st.CreateTaskWithAttachments(Task{TaskID: childID, Project: "proj", DisplayName: "Child", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "owner", CreatedByGeneration: "gen"}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestAgentCreatedWorkInheritsStageLineageAndClosureFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	blockedID, _ := st.NewTaskID()
-	_, err = st.CreateTask(Task{TaskID: blockedID, Project: "proj", DisplayName: "Too late", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "owner", CreatedByGeneration: "gen"})
+	_, err = st.CreateTaskWithAttachments(Task{TaskID: blockedID, Project: "proj", DisplayName: "Too late", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "owner", CreatedByGeneration: "gen"}, nil, "")
 	if !errors.Is(err, ErrTaskRunClosed) {
 		t.Fatalf("closed-stage create error = %v", err)
 	}
@@ -227,7 +227,7 @@ func TestRoomTurnCreatedWorkInheritsStageLineageOnlyDuringTurn(t *testing.T) {
 	}
 	create := func(agent, generation, turn, id string) Task {
 		t.Helper()
-		created, err := st.CreateTask(Task{TaskID: id, Project: "proj", DisplayName: "Delegated", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: agent, CreatedByGeneration: generation})
+		created, err := st.CreateTaskWithAttachments(Task{TaskID: id, Project: "proj", DisplayName: "Delegated", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: agent, CreatedByGeneration: generation}, nil, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -237,7 +237,7 @@ func TestRoomTurnCreatedWorkInheritsStageLineageOnlyDuringTurn(t *testing.T) {
 		if _, err := st.DB().Exec(`INSERT INTO think_tank_attempts(attempt_id, room_id, agent_id, turn, token, generation, turn_id, head, checkpoint, delivered_to, state, created_at) VALUES (?, ?, ?, ?, ?, 'gen1', ?, 0, 0, 0, 'running', ?)`, "attempt_"+actor.agent, roomID, actor.agent, actor.kind, "token_"+actor.agent, actor.turn, formatTime(now)); err != nil {
 			t.Fatal(err)
 		}
-		if err := st.ResetTurnBudget(actor.agent, actor.turn); err != nil {
+		if err := st.BeginConversationTurn(actor.agent, actor.turn, TurnOrigin{}); err != nil {
 			t.Fatal(err)
 		}
 		id, _ := st.NewTaskID()
@@ -246,7 +246,7 @@ func TestRoomTurnCreatedWorkInheritsStageLineageOnlyDuringTurn(t *testing.T) {
 		if err != nil || lineage.ParentTaskID != stageTaskID || lineage.PipelineRunID != runID {
 			t.Fatalf("%s lineage = %+v, err=%v", actor.agent, lineage, err)
 		}
-		if err := st.ResetTurnBudget(actor.agent, "private"); err != nil {
+		if err := st.BeginConversationTurn(actor.agent, "private", TurnOrigin{}); err != nil {
 			t.Fatal(err)
 		}
 		id, _ = st.NewTaskID()
@@ -269,11 +269,11 @@ func TestRoomTurnCreatedWorkInheritsStageLineageOnlyDuringTurn(t *testing.T) {
 	if _, err := st.DB().Exec(`UPDATE think_tank_attempts SET state = 'running' WHERE attempt_id = 'attempt_judge'`); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ResetTurnBudget("judge", "t2"); err != nil {
+	if err := st.BeginConversationTurn("judge", "t2", TurnOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	id, _ := st.NewTaskID()
-	_, err := st.CreateTask(Task{TaskID: id, Project: "proj", DisplayName: "Too late", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "judge", CreatedByGeneration: "gen1"})
+	_, err := st.CreateTaskWithAttachments(Task{TaskID: id, Project: "proj", DisplayName: "Too late", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "judge", CreatedByGeneration: "gen1"}, nil, "")
 	if !errors.Is(err, ErrTaskRunClosed) {
 		t.Fatalf("post-Stop create = %v, want closed run", err)
 	}
@@ -428,7 +428,7 @@ func TestStandingOwnerManagesRunWorkItDidNotCreate(t *testing.T) {
 	}
 	// Work in the same project that this run does not own stays out of scope.
 	outsideID, _ := st.NewTaskID()
-	if _, err := st.CreateTask(Task{TaskID: outsideID, Project: "proj", DisplayName: "Outside", Instruction: "unrelated", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "stranger", CreatedByGeneration: "g"}); err != nil {
+	if _, err := st.CreateTaskWithAttachments(Task{TaskID: outsideID, Project: "proj", DisplayName: "Outside", Instruction: "unrelated", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "stranger", CreatedByGeneration: "g"}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := st.WaitForTasks("owner", "gen", "ta_1", []TaskWaitObservation{{TaskID: outsideID}}); !errors.Is(err, ErrTaskWaitScope) {
@@ -487,11 +487,11 @@ func TestClosedRunFencesEveryTaskWriter(t *testing.T) {
 	}
 	// One child already ready to start, one settled waiter watching it.
 	readyID, _ := st.NewTaskID()
-	if _, err := st.CreateTask(Task{TaskID: readyID, Project: "proj", DisplayName: "Ready child", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "owner", CreatedByGeneration: "gen"}); err != nil {
+	if _, err := st.CreateTaskWithAttachments(Task{TaskID: readyID, Project: "proj", DisplayName: "Ready child", Instruction: "work", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "owner", CreatedByGeneration: "gen"}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	waiterID, _ := st.NewTaskID()
-	if _, err := st.CreateTask(Task{TaskID: waiterID, Project: "proj", DisplayName: "Waiter", Instruction: "watch", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "owner", CreatedByGeneration: "gen"}); err != nil {
+	if _, err := st.CreateTaskWithAttachments(Task{TaskID: waiterID, Project: "proj", DisplayName: "Waiter", Instruction: "watch", TargetKind: TargetLaunch, Role: "worker", CreatedByKind: "agent", CreatedByAgentID: "owner", CreatedByGeneration: "gen"}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.DB().Exec(`UPDATE tasks SET state = ? WHERE task_id = ?`, TaskWaiting, waiterID); err != nil {

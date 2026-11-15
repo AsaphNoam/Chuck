@@ -41,7 +41,7 @@ func TestTimeArmCombinesWithTaskArmAndRefusesPastTimes(t *testing.T) {
 	if got, _ := st.ReadTask(task.TaskID); got.State != TaskArmed || got.LateStart {
 		t.Fatalf("after due, before prerequisite: state=%s late=%v", got.State, got.LateStart)
 	}
-	if err := st.RegisterWorkResult(WorkResult{SourceKind: SourceTask, SourceID: prereq.TaskID, Outcome: OutcomeSuccess}); err != nil {
+	if err := RegisterWorkResultTx(st.db, WorkResult{SourceKind: SourceTask, SourceID: prereq.TaskID, Outcome: OutcomeSuccess}, timeNow()); err != nil {
 		t.Fatal(err)
 	}
 	changed, err := st.EvaluateSource(SourceTask, prereq.TaskID)
@@ -52,8 +52,9 @@ func TestTimeArmCombinesWithTaskArmAndRefusesPastTimes(t *testing.T) {
 	withFixedNow(t, created)
 	for _, at := range []time.Time{created, created.Add(-time.Minute)} {
 		id, _ := st.NewTaskID()
-		_, err := st.CreateTask(Task{TaskID: id, Project: "p", DisplayName: "past", Instruction: "x",
-			TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "person", Arms: []TaskArm{timeArm(at, true)}})
+		_, err := st.CreateTaskWithAttachments(Task{TaskID: id, Project: "p", DisplayName: "past", Instruction: "x",
+			TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "person", Arms: []TaskArm{timeArm(at, true)}}, nil, "")
+
 		if !errors.Is(err, ErrTaskStartTime) {
 			t.Fatalf("past time %s: err = %v", at, err)
 		}
@@ -62,9 +63,10 @@ func TestTimeArmCombinesWithTaskArmAndRefusesPastTimes(t *testing.T) {
 		}
 	}
 	id, _ := st.NewTaskID()
-	_, err = st.CreateTask(Task{TaskID: id, Project: "p", DisplayName: "two", Instruction: "x",
+	_, err = st.CreateTaskWithAttachments(Task{TaskID: id, Project: "p", DisplayName: "two", Instruction: "x",
 		TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "person",
-		Arms: []TaskArm{timeArm(due, true), timeArm(due.Add(time.Hour), true)}})
+		Arms: []TaskArm{timeArm(due, true), timeArm(due.Add(time.Hour), true)}}, nil, "")
+
 	if !errors.Is(err, ErrTaskStartTime) {
 		t.Fatalf("second time arm: err = %v", err)
 	}

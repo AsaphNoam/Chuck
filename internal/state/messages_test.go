@@ -25,7 +25,7 @@ func TestDurableMailInlineReservationSemantics(t *testing.T) {
 	if err != nil || len(acts) != 1 {
 		t.Fatalf("activations=%d err=%v", len(acts), err)
 	}
-	if err := st.ResetTurnBudget("a_mail", "turn-1"); err != nil {
+	if err := st.BeginConversationTurn("a_mail", "turn-1", TurnOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	b, err := st.PrepareInlineMail("a_mail", 50, 15, 10000, true)
@@ -66,7 +66,7 @@ func TestInlineReservationClearAndResetRecovery(t *testing.T) {
 	if _, err := st.InsertMessageWithWake(Message{FromAgent: "s", FromAddress: "x", FromName: "X", ToAgent: "a_mail", Body: "one"}, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ResetTurnBudget("a_mail", "turn-1"); err != nil {
+	if err := st.BeginConversationTurn("a_mail", "turn-1", TurnOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	b, err := st.PrepareInlineMail("a_mail", 50, 15, 10000, true)
@@ -76,14 +76,14 @@ func TestInlineReservationClearAndResetRecovery(t *testing.T) {
 	if err := st.ClearInlineReservation("a_mail", b.DeliveryTurnKey); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.ResetTurnBudget("a_mail", "turn-2"); err != nil {
+	if err := st.BeginConversationTurn("a_mail", "turn-2", TurnOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	b2, err := st.PrepareInlineMail("a_mail", 50, 15, 10000, true)
 	if err != nil || len(b2.Messages) != 1 {
 		t.Fatalf("eligible after clear=%+v err=%v", b2, err)
 	}
-	if err := st.ResetTurnBudget("a_mail", "turn-3"); err != nil {
+	if err := st.BeginConversationTurn("a_mail", "turn-3", TurnOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	b3, err := st.PrepareInlineMail("a_mail", 50, 15, 10000, true)

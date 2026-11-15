@@ -1623,7 +1623,7 @@ func TestStartActivationInjectsInlineMailTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	started, err := c.StartActivation(ctx, h.AgentID, "mail", func(turnID string) error {
-		return c.store.ResetTurnBudget(h.AgentID, turnID)
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 	})
 	if err != nil || !started {
 		t.Fatalf("StartActivation = %v, %v; want started", started, err)
@@ -1699,7 +1699,7 @@ func TestStartActivationRetiresDeferredOnlyMailOpportunity(t *testing.T) {
 		t.Fatal(err)
 	}
 	started, err := c.StartActivation(ctx, h.AgentID, "mail", func(turnID string) error {
-		return c.store.ResetTurnBudget(h.AgentID, turnID)
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 	})
 	if err != nil || started {
 		t.Fatalf("StartActivation with deferred-only mail = %v, %v; want no turn", started, err)
@@ -1720,7 +1720,7 @@ func TestStartActivationRetiresDeferredOnlyMailOpportunity(t *testing.T) {
 		t.Fatal(err)
 	}
 	started, err = c.StartActivation(ctx, h.AgentID, "mail", func(turnID string) error {
-		return c.store.ResetTurnBudget(h.AgentID, turnID)
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 	})
 	if err != nil || !started {
 		t.Fatalf("StartActivation after waking mail = %v, %v; want started (turn gate leaked)", started, err)
@@ -1806,7 +1806,7 @@ BEGIN SELECT RAISE(ABORT, 'injected status write failure'); END`); err != nil {
 	before := 0
 	started, err := c.StartActivation(ctx, h.AgentID, "mail", func(turnID string) error {
 		before++
-		return c.store.ResetTurnBudget(h.AgentID, turnID)
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 	})
 	if started || err == nil {
 		t.Fatalf("StartActivation = %v, %v; want not started with the status error surfaced", started, err)
@@ -1826,7 +1826,7 @@ BEGIN SELECT RAISE(ABORT, 'injected status write failure'); END`); err != nil {
 		t.Fatalf("drop status trigger: %v", err)
 	}
 	started, err = c.StartActivation(ctx, h.AgentID, "mail", func(turnID string) error {
-		return c.store.ResetTurnBudget(h.AgentID, turnID)
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 	})
 	if err != nil || !started {
 		t.Fatalf("StartActivation after recovery = %v, %v; want started (turn gate leaked)", started, err)
@@ -1879,7 +1879,7 @@ func TestStartActivationRefusesAKindWithNoRegisteredContract(t *testing.T) {
 	}
 	defer unsub()
 	started, err = c.StartActivation(ctx, h.AgentID, "mail", func(turnID string) error {
-		return c.store.ResetTurnBudget(h.AgentID, turnID)
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 	})
 	if err != nil || !started {
 		t.Fatalf("StartActivation after the refusal = %v, %v; want started (turn gate leaked)", started, err)

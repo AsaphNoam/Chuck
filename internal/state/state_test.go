@@ -355,7 +355,7 @@ func TestRoundTripStateObjects(t *testing.T) {
 
 func TestTurnBudgetConsumeAndBreach(t *testing.T) {
 	st, _ := newTestStore(t)
-	if err := st.ResetTurnBudget("a_budget", "t_000000000001"); err != nil {
+	if err := st.BeginConversationTurn("a_budget", "t_000000000001", TurnOrigin{}); err != nil {
 		t.Fatalf("ResetTurnBudget: %v", err)
 	}
 	got, breached, err := st.ConsumeTurnBudget("a_budget", 10, 4, 15)
@@ -380,7 +380,7 @@ func TestTurnBudgetConsumeAndBreach(t *testing.T) {
 		t.Fatalf("persisted budget = %+v, want breached remaining 1", got)
 	}
 
-	if err := st.ResetTurnBudget("a_budget", "t_000000000002"); err != nil {
+	if err := st.BeginConversationTurn("a_budget", "t_000000000002", TurnOrigin{}); err != nil {
 		t.Fatalf("ResetTurnBudget second: %v", err)
 	}
 	got, err = st.CurrentTurnBudget("a_budget", 15)
@@ -400,13 +400,13 @@ func TestTurnBudgetConsumeAndBreach(t *testing.T) {
 func TestResetTurnBudgetReusesSingleRow(t *testing.T) {
 	st, _ := newTestStore(t)
 	// Session 1: turn 1 runs to breach, then turn 2 starts.
-	if err := st.ResetTurnBudget("a_budget", "t_000000000001"); err != nil {
+	if err := st.BeginConversationTurn("a_budget", "t_000000000001", TurnOrigin{}); err != nil {
 		t.Fatalf("ResetTurnBudget t1: %v", err)
 	}
 	if _, _, err := st.ConsumeTurnBudget("a_budget", 15, 1, 15); err != nil {
 		t.Fatalf("ConsumeTurnBudget breach: %v", err)
 	}
-	if err := st.ResetTurnBudget("a_budget", "t_000000000002"); err != nil {
+	if err := st.BeginConversationTurn("a_budget", "t_000000000002", TurnOrigin{}); err != nil {
 		t.Fatalf("ResetTurnBudget t2: %v", err)
 	}
 	if _, _, err := st.ConsumeTurnBudget("a_budget", 5, 0, 15); err != nil {
@@ -416,7 +416,7 @@ func TestResetTurnBudgetReusesSingleRow(t *testing.T) {
 	// Simulate a server restart + resume: turnSeq is back to 0, so the first
 	// runtime turn resets t_...01 again. The handler's current-budget read must
 	// see this freshly-reset row (0 used), not the stale t_...02.
-	if err := st.ResetTurnBudget("a_budget", "t_000000000001"); err != nil {
+	if err := st.BeginConversationTurn("a_budget", "t_000000000001", TurnOrigin{}); err != nil {
 		t.Fatalf("ResetTurnBudget t1 after restart: %v", err)
 	}
 	got, err := st.CurrentTurnBudget("a_budget", 15)

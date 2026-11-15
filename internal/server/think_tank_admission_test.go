@@ -72,7 +72,7 @@ func TestThinkTankFinalAdmissionRechecksEligibility(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "task reservation":
-				task, err := srv.stateStore.CreateTask(state.Task{TaskID: "tk_reserved", Project: "tmpproj", DisplayName: "Assigned", Instruction: "work", TargetKind: state.TargetAgent, TargetAgentID: next.AgentID, CreatedByKind: "person"})
+				task, err := srv.stateStore.CreateTaskWithAttachments(state.Task{TaskID: "tk_reserved", Project: "tmpproj", DisplayName: "Assigned", Instruction: "work", TargetKind: state.TargetAgent, TargetAgentID: next.AgentID, CreatedByKind: "person"}, nil, "")
 				if err != nil {
 					t.Fatal(err)
 				}

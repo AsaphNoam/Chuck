@@ -21,7 +21,7 @@ import (
 func TestSelfAnnotationWaitingAssignmentContinuation(t *testing.T) {
 	srv, ts, promptLog := activationTestServer(t)
 	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
-	task, err := srv.stateStore.CreateTask(state.Task{TaskID: "tk_annotation_wait", Project: "tmpproj", DisplayName: "Work", Instruction: "coordinate", TargetKind: state.TargetAgent, TargetAgentID: id, CreatedByKind: "pipeline"})
+	task, err := srv.stateStore.CreateTaskWithAttachments(state.Task{TaskID: "tk_annotation_wait", Project: "tmpproj", DisplayName: "Work", Instruction: "coordinate", TargetKind: state.TargetAgent, TargetAgentID: id, CreatedByKind: "pipeline"}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

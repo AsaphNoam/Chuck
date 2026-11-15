@@ -18,10 +18,11 @@ func assignTask(t *testing.T, st *state.Store, agentID, name, instruction, taskS
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	task, err := st.CreateTask(state.Task{
+	task, err := st.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "my-app", DisplayName: name, Instruction: instruction,
 		TargetKind: state.TargetAgent, TargetAgentID: agentID, CreatedByKind: "person",
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -124,7 +125,7 @@ func TestWaitForTasksReturnsChangesOrPersistsYield(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := f.store.CreateTask(state.Task{TaskID: childID, Project: "my-app", DisplayName: "child", Instruction: "do work", TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_impl"})
+	child, err := f.store.CreateTaskWithAttachments(state.Task{TaskID: childID, Project: "my-app", DisplayName: "child", Instruction: "do work", TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_impl"}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestResumedAssignmentReadExposesObservedChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := f.store.CreateTask(state.Task{TaskID: childID, Project: "my-app", DisplayName: "child", Instruction: "do work", TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_impl"})
+	child, err := f.store.CreateTaskWithAttachments(state.Task{TaskID: childID, Project: "my-app", DisplayName: "child", Instruction: "do work", TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_impl"}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

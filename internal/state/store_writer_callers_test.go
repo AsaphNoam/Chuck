@@ -25,10 +25,9 @@ var uncalledWriterAllowlist = map[string]string{}
 // writer fails, and so does an entry that gained a production caller.
 var fixtureOnlyWriters = map[string]bool{
 	"AddThinkTankRecord": true, "AttachTaskContext": true, "BindAssignmentInput": true,
-	"BindPipelineStageTaskStandingAgent": true, "ConsumeTurnBudget": true, "CreateTask": true,
+	"BindPipelineStageTaskStandingAgent": true, "ConsumeTurnBudget": true,
 	"FinalizeThinkTankAttempt": true, "InsertPipelineAttempt": true, "InterruptTask": true,
-	"MarkQuotaProviderStarted": true, "ObserveQuota": true, "RecordTaskCleanupFailure": true,
-	"RegisterWorkResult": true, "ResetTurnBudget": true, "StartQuotaCheck": true,
+	"MarkQuotaProviderStarted": true, "ObserveQuota": true, "StartQuotaCheck": true,
 }
 
 var sqlWriteStatement = regexp.MustCompile(`(?i)\b(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE\s+(OR\s+\w+\s+)?\w+\s+SET|DELETE\s+FROM|REPLACE\s+INTO)\b`)

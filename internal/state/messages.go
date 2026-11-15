@@ -435,7 +435,7 @@ func (s *Store) UnreadCount(agentID string) (int, error) {
 	return n, nil
 }
 
-// ResetTurnBudget starts a new messaging-budget window for an agent turn. It is
+// resetTurnBudget starts a new messaging-budget window for an agent turn. It is
 // the single source of truth for the agent's current turn: it keeps at most one
 // turn_budget row per agent by deleting any other rows in the same transaction.
 // This matters across a server restart + resume — agentState.turnSeq resets to
@@ -444,10 +444,7 @@ func (s *Store) UnreadCount(agentID string) (int, error) {
 // rowids. Without this cleanup, currentBudgetTx's ORDER BY rowid DESC would read
 // a stale row and could block send_message/check_messages for the resumed agent.
 // Collapsing to one row also caps turn_budget's otherwise unbounded growth.
-func (s *Store) ResetTurnBudget(agentID, turnID string) error {
-	return s.resetTurnBudget(agentID, turnID, TurnOrigin{})
-}
-
+// BeginConversationTurn is its exported entry.
 func (s *Store) resetTurnBudget(agentID, turnID string, origin TurnOrigin) error {
 	tx, err := s.db.Begin()
 	if err != nil {

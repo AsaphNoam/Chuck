@@ -367,14 +367,6 @@ func (s *Store) NewTaskID() (string, error) {
 	return "", errors.New("state: could not mint unique task id")
 }
 
-// CreateTask inserts a task and its arms in one transaction, rejecting a cycle,
-// a self-reference, and an unknown or cross-project prerequisite inside it so
-// two concurrent writers cannot interleave into a cycle (TS-10.R9, FS-16.R15).
-// A rejected create mutates nothing.
-func (s *Store) CreateTask(task Task) (Task, error) {
-	return s.CreateTaskWithAttachments(task, nil, "")
-}
-
 // insertTaskRowTx writes one task row inside a transaction the caller already
 // owns. It is the single persistence shape for a task: the pipeline's atomic
 // run/stage writes cannot call a public create — that would open a nested
@@ -406,7 +398,10 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 // CreateTaskWithAttachments creates the task, its graph, and its context
 // attachments in one transaction. An agent creator's direct grants are checked
 // by that same transaction, so a revocation cannot slip between authorization
-// and insertion (FS-16.R10/R12, TS-10.R12, INV §5/§15).
+// and insertion (FS-16.R10/R12, TS-10.R12, INV §5/§15). It rejects a cycle, a
+// self-reference, and an unknown or cross-project prerequisite inside that
+// transaction so two concurrent writers cannot interleave into a cycle
+// (TS-10.R9, FS-16.R15). A rejected create mutates nothing.
 func (s *Store) CreateTaskWithAttachments(task Task, attachments []TaskAttachment, creatorAgentID string) (Task, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -1060,21 +1055,16 @@ func scanTask(row rowScanner) (Task, error) {
 	return t, nil
 }
 
-// RegisterWorkResult records one source's normalized terminal outcome. It is
-// unique per source and immutable once written, so a second registration for the
-// same source is a conflict rather than an overwrite (TS-10.R8).
-func (s *Store) RegisterWorkResult(result WorkResult) error {
-	return RegisterWorkResultTx(s.db, result, timeNow())
-}
-
 // execer is satisfied by both *sql.DB and *sql.Tx, so each domain registers its
 // result inside its own terminal-state transaction (TS-10.R7).
 type execer interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
 
-// RegisterWorkResultTx is the registration itself, callable from whichever
-// transaction commits the domain's terminal state.
+// RegisterWorkResultTx records one source's normalized terminal outcome,
+// callable from whichever transaction commits the domain's terminal state. It
+// is unique per source and immutable once written, so a second registration
+// for the same source is a conflict rather than an overwrite (TS-10.R8).
 func RegisterWorkResultTx(db execer, result WorkResult, now time.Time) error {
 	res, err := db.Exec(`
 INSERT OR IGNORE INTO work_results(source_kind, source_id, outcome, raw_label, summary, recorded_at)
@@ -1899,16 +1889,11 @@ const (
 	cleanupAttention    = "cleanup needs attention: "
 )
 
-// RecordTaskCleanupFailure retains an unresolved external cleanup effect with
-// bounded exponential backoff. It changes neither the task outcome nor its
-// execution attempt count (TS-10.R35).
-func (s *Store) RecordTaskCleanupFailure(taskID, phase, effectKey string, cause error) (Task, error) {
-	return s.RecordTaskCleanupFailureClassified(taskID, phase, effectKey, cause, false)
-}
-
-// RecordTaskCleanupFailureClassified records an unsafe effect without an
-// automatic retry. A caller must explicitly repair it after revalidating the
-// process/permission boundary; transient effects retain exponential backoff.
+// RecordTaskCleanupFailureClassified retains an unresolved external cleanup
+// effect. It changes neither the task outcome nor its execution attempt count
+// (TS-10.R35). A transient effect keeps bounded exponential backoff; an unsafe
+// one is recorded without an automatic retry, and a caller must explicitly
+// repair it after revalidating the process/permission boundary.
 func (s *Store) RecordTaskCleanupFailureClassified(taskID, phase, effectKey string, cause error, unsafe bool) (Task, error) {
 	if phase != cleanupPhaseRelease && phase != cleanupPhaseYield || effectKey == "" {
 		return Task{}, fmt.Errorf("state: invalid task cleanup effect")

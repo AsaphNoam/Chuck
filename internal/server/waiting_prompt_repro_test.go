@@ -23,7 +23,7 @@ func TestPromptToWaitingAssigneeIsDeliveredByContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := srv.stateStore.CreateTask(state.Task{TaskID: taskID, Project: "tmpproj", DisplayName: "Work", Instruction: "coordinate", TargetKind: state.TargetAgent, TargetAgentID: id, CreatedByKind: "pipeline"}); err != nil {
+	if _, err := srv.stateStore.CreateTaskWithAttachments(state.Task{TaskID: taskID, Project: "tmpproj", DisplayName: "Work", Instruction: "coordinate", TargetKind: state.TargetAgent, TargetAgentID: id, CreatedByKind: "pipeline"}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, started_at=created_at WHERE task_id = ?`, state.TaskWaiting, id, generation, taskID); err != nil {

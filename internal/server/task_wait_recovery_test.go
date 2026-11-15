@@ -37,7 +37,7 @@ func TestActionableChangesWakeWaitingAssignment(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			child, err := srv.stateStore.CreateTask(state.Task{TaskID: id, Project: "tmpproj", DisplayName: "child", Instruction: "work", TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_owner"})
+			child, err := srv.stateStore.CreateTaskWithAttachments(state.Task{TaskID: id, Project: "tmpproj", DisplayName: "child", Instruction: "work", TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_owner"}, nil, "")
 			if err != nil {
 				t.Fatal(err)
 			}

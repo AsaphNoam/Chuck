@@ -210,7 +210,7 @@ func TestTerminalProviderFailureEndsTurnAsError(t *testing.T) {
 			}
 			if activation {
 				started, err := c.StartActivation(context.Background(), h.AgentID, "mail", func(turnID string) error {
-					return c.store.ResetTurnBudget(h.AgentID, turnID)
+					return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 				})
 				if err != nil || !started {
 					t.Fatalf("StartActivation = %v, %v", started, err)
@@ -415,7 +415,7 @@ func TestRepairedQuotaCompletionUnblocksOnlyItsExactTuple(t *testing.T) {
 				t.Fatal(err)
 			}
 			started, err := c.StartActivation(context.Background(), h.AgentID, "mail", func(turn string) error {
-				return c.store.ResetTurnBudget(h.AgentID, turn)
+				return c.store.BeginConversationTurn(h.AgentID, turn, state.TurnOrigin{})
 			})
 			if err != nil || started != tc.wantStarted {
 				t.Fatalf("StartActivation = %v, %v, want started=%v", started, err, tc.wantStarted)
@@ -446,7 +446,7 @@ func TestCancelledQuotaEpisodeAllowsAutomaticActivationAfterBlockClear(t *testin
 		t.Fatal(err)
 	}
 	started, err := c.StartActivation(context.Background(), h.AgentID, "mail", func(turn string) error {
-		return c.store.ResetTurnBudget(h.AgentID, turn)
+		return c.store.BeginConversationTurn(h.AgentID, turn, state.TurnOrigin{})
 	})
 	if err != nil || !started {
 		t.Fatalf("StartActivation after cancelled quota = %v, %v; want started", started, err)
@@ -467,7 +467,7 @@ func TestQuotaActivationLeavesInlineMailUnread(t *testing.T) {
 	var activationTurn string
 	started, err := c.StartActivation(context.Background(), h.AgentID, "mail", func(turnID string) error {
 		activationTurn = turnID
-		return c.store.ResetTurnBudget(h.AgentID, turnID)
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 	})
 	if err != nil || !started {
 		t.Fatalf("StartActivation = %v, %v", started, err)
@@ -826,7 +826,7 @@ func TestTerminalRPCQuotaRefusalSharedByActivationNotProse(t *testing.T) {
 	var activationTurn string
 	started, err := c.StartActivation(context.Background(), h.AgentID, "mail", func(turnID string) error {
 		activationTurn = turnID
-		return c.store.ResetTurnBudget(h.AgentID, turnID)
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{})
 	})
 	if err != nil || !started {
 		t.Fatalf("StartActivation = %v, %v", started, err)

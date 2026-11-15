@@ -32,7 +32,7 @@ func TestRemoteHomeClassifiesAttention(t *testing.T) {
 	s.permissionTools[permissionToolKey("a-perm", "g1", "call-1")] = "Bash"
 
 	task := func(id, st string, at time.Time) {
-		if _, err := s.stateStore.CreateTask(state.Task{TaskID: id, Project: "my-app", DisplayName: id, Instruction: "x", TargetKind: state.TargetLaunch, Role: "implementer", CreatedByKind: "person"}); err != nil {
+		if _, err := s.stateStore.CreateTaskWithAttachments(state.Task{TaskID: id, Project: "my-app", DisplayName: id, Instruction: "x", TargetKind: state.TargetLaunch, Role: "implementer", CreatedByKind: "person"}, nil, ""); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.stateStore.DB().Exec(`UPDATE tasks SET state = ?, outcome = ?, updated_at = ? WHERE task_id = ?`,

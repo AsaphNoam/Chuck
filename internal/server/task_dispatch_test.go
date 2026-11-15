@@ -44,13 +44,14 @@ func newLaunchTask(t *testing.T, srv *Server, name string) state.Task {
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	task, err := srv.stateStore.CreateTask(state.Task{
+	task, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "tmpproj", DisplayName: name,
 		Instruction:   "please do " + name,
 		TargetKind:    state.TargetLaunch,
 		Role:          "impl",
 		CreatedByKind: "person",
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask %s: %v", name, err)
 	}
@@ -116,12 +117,13 @@ func newDependentTask(t *testing.T, srv *Server, name, sourceKind, sourceID stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	task, err := srv.stateStore.CreateTask(state.Task{
+	task, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "tmpproj", DisplayName: name, Instruction: name,
 		TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "person",
 		Arms: []state.TaskArm{{Kind: state.ArmWorkResult, SourceKind: sourceKind, SourceID: sourceID,
 			SatisfyingOutcomes: []string{state.OutcomeSuccess}}},
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,8 +163,8 @@ func TestTerminalPipelineFailurePublishesAndPropagatesDependencyFailure(t *testi
 	seedPipelineRun(t, srv, "pr_failed")
 	first := newDependentTask(t, srv, "first", state.SourcePipelineRun, "pr_failed")
 	second := newDependentTask(t, srv, "second", state.SourceTask, first.TaskID)
-	if err := srv.stateStore.RegisterWorkResult(state.WorkResult{SourceKind: state.SourcePipelineRun,
-		SourceID: "pr_failed", Outcome: state.OutcomeFailure}); err != nil {
+	if err := state.RegisterWorkResultTx(srv.stateStore.DB(), state.WorkResult{SourceKind: state.SourcePipelineRun,
+		SourceID: "pr_failed", Outcome: state.OutcomeFailure}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	events, unsubscribe := srv.eventBus.Subscribe()
@@ -191,8 +193,8 @@ func TestRestartReevaluationPublishesAndPropagatesDependencyFailure(t *testing.T
 	seedPipelineRun(t, srv, "pr_failed")
 	first := newDependentTask(t, srv, "first", state.SourcePipelineRun, "pr_failed")
 	second := newDependentTask(t, srv, "second", state.SourceTask, first.TaskID)
-	if err := srv.stateStore.RegisterWorkResult(state.WorkResult{SourceKind: state.SourcePipelineRun,
-		SourceID: "pr_failed", Outcome: state.OutcomeFailure}); err != nil {
+	if err := state.RegisterWorkResultTx(srv.stateStore.DB(), state.WorkResult{SourceKind: state.SourcePipelineRun,
+		SourceID: "pr_failed", Outcome: state.OutcomeFailure}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if err := srv.recoverTasks(context.Background()); err != nil {
@@ -400,11 +402,12 @@ func TestRepeatedStartFailuresParkTheTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	task, err := srv.stateStore.CreateTask(state.Task{
+	task, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "tmpproj", DisplayName: "unstartable",
 		Instruction: "no", TargetKind: state.TargetLaunch, Role: "no-such-role",
 		CreatedByKind: "person",
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -434,13 +437,14 @@ func newAgentTask(t *testing.T, srv *Server, agentID, name string) state.Task {
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	task, err := srv.stateStore.CreateTask(state.Task{
+	task, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "tmpproj", DisplayName: name,
 		Instruction:   "please do " + name,
 		TargetKind:    state.TargetAgent,
 		TargetAgentID: agentID,
 		CreatedByKind: "person",
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask %s: %v", name, err)
 	}
@@ -536,10 +540,11 @@ func TestYieldedTaskReleasesThenResumesOnWatchedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := srv.stateStore.CreateTask(state.Task{
+	child, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: childID, Project: "tmpproj", DisplayName: "child", Instruction: "do child work",
 		TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: running.AssignedAgentID,
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -567,7 +572,7 @@ func TestDispatcherReconcilesDueTaskCleanupWithoutRetryingWork(t *testing.T) {
 	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, outcome = ?, pending_release = 1, runtime_claim = ? WHERE task_id = ?`, state.TaskFinished, state.OutcomeSuccess, state.ClaimBorrowed, task.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := srv.stateStore.RecordTaskCleanupFailure(task.TaskID, "release", "release:"+task.TaskID, errors.New("temporary stop failure")); err != nil {
+	if _, err := srv.stateStore.RecordTaskCleanupFailureClassified(task.TaskID, "release", "release:"+task.TaskID, errors.New("temporary stop failure"), false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET cleanup_next_retry_at = ? WHERE task_id = ?`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339), task.TaskID); err != nil {
@@ -766,14 +771,15 @@ func TestADependentStartsWhenItsPrerequisiteRecordsItsResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	second, err := srv.stateStore.CreateTask(state.Task{
+	second, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "tmpproj", DisplayName: "second", Instruction: "after the first",
 		TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "person",
 		Arms: []state.TaskArm{{
 			Kind: state.ArmWorkResult, SourceKind: state.SourceTask, SourceID: first.TaskID,
 			SatisfyingOutcomes: []string{state.OutcomeSuccess},
 		}},
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -817,14 +823,15 @@ func TestAnUnsatisfyingResultParksTheDependent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	second, err := srv.stateStore.CreateTask(state.Task{
+	second, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "tmpproj", DisplayName: "second", Instruction: "only after success",
 		TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "person",
 		Arms: []state.TaskArm{{
 			Kind: state.ArmWorkResult, SourceKind: state.SourceTask, SourceID: first.TaskID,
 			SatisfyingOutcomes: []string{state.OutcomeSuccess},
 		}},
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -1063,14 +1070,15 @@ func newLaunchTaskWithEffort(t *testing.T, srv *Server, name, effort string) sta
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	task, err := srv.stateStore.CreateTask(state.Task{
+	task, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "tmpproj", DisplayName: name,
 		Instruction:   "please do " + name,
 		TargetKind:    state.TargetLaunch,
 		Role:          "impl",
 		Effort:        effort,
 		CreatedByKind: "person",
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask %s: %v", name, err)
 	}
@@ -1267,7 +1275,7 @@ func newLaunchTaskWithFast(t *testing.T, srv *Server, name string) state.Task {
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	task, err := srv.stateStore.CreateTask(state.Task{
+	task, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 		TaskID: id, Project: "tmpproj", DisplayName: name,
 		Instruction:   "please do " + name,
 		TargetKind:    state.TargetLaunch,
@@ -1276,7 +1284,8 @@ func newLaunchTaskWithFast(t *testing.T, srv *Server, name string) state.Task {
 		Model:         "sonnet",
 		Fast:          true,
 		CreatedByKind: "person",
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask %s: %v", name, err)
 	}
@@ -1406,11 +1415,12 @@ func TestCleanupTickWaitsForDeferredTurnEnd(t *testing.T) {
 				}
 			case "yield":
 				childID, _ := srv.stateStore.NewTaskID()
-				child, err := srv.stateStore.CreateTask(state.Task{
+				child, err := srv.stateStore.CreateTaskWithAttachments(state.Task{
 					TaskID: childID, Project: "tmpproj", DisplayName: "child", Instruction: "x",
 					TargetKind: state.TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: id,
 					Arms: []state.TaskArm{{Kind: state.ArmSignal, SignalName: "never"}},
-				})
+				}, nil, "")
+
 				if err != nil {
 					t.Fatal(err)
 				}

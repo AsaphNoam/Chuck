@@ -168,9 +168,9 @@ func TestRecoverTasksPropagatesAlreadyParkedPrerequisite(t *testing.T) {
 	seedPipelineRun(t, srv, "pr_failed")
 	first := newDependentTask(t, srv, "first", state.SourcePipelineRun, "pr_failed")
 	second := newDependentTask(t, srv, "second", state.SourceTask, first.TaskID)
-	if err := srv.stateStore.RegisterWorkResult(state.WorkResult{
+	if err := state.RegisterWorkResultTx(srv.stateStore.DB(), state.WorkResult{
 		SourceKind: state.SourcePipelineRun, SourceID: "pr_failed", Outcome: state.OutcomeFailure,
-	}); err != nil {
+	}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	// Simulate the crash window after the first park commits and before its

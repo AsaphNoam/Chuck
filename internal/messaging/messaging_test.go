@@ -400,7 +400,7 @@ func TestSendMessageBudgetExceeded(t *testing.T) {
 	st := newStore(t)
 	liveAgent(t, st, "a_impl", "Atlas", "implementer", "my-app")
 	liveAgent(t, st, "a_rev", "Nova", "reviewer", "my-app")
-	if err := st.ResetTurnBudget("a_impl", "t_000000000001"); err != nil {
+	if err := st.BeginConversationTurn("a_impl", "t_000000000001", state.TurnOrigin{}); err != nil {
 		t.Fatalf("ResetTurnBudget: %v", err)
 	}
 
@@ -448,7 +448,7 @@ func TestConfiguredBudgetFreezesForTheCurrentTurn(t *testing.T) {
 	st := newStore(t)
 	liveAgent(t, st, "a_impl", "Atlas", "implementer", "my-app")
 	liveAgent(t, st, "a_rev", "Nova", "reviewer", "my-app")
-	if err := st.ResetTurnBudget("a_impl", "turn-1"); err != nil {
+	if err := st.BeginConversationTurn("a_impl", "turn-1", state.TurnOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	configured := 2
@@ -466,7 +466,7 @@ func TestConfiguredBudgetFreezesForTheCurrentTurn(t *testing.T) {
 	if result, failed := call(t, cs, "send_message", map[string]any{"to": "a_rev", "body": "three"}); !failed || result["error"] != "message_budget_exceeded" {
 		t.Fatalf("third send = %v failed=%v", result, failed)
 	}
-	if err := st.ResetTurnBudget("a_impl", "turn-2"); err != nil {
+	if err := st.BeginConversationTurn("a_impl", "turn-2", state.TurnOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 3; i++ {
@@ -480,7 +480,7 @@ func TestCheckMessagesCapsAtRemainingBudget(t *testing.T) {
 	st := newStore(t)
 	liveAgent(t, st, "a_impl", "Atlas", "implementer", "my-app")
 	liveAgent(t, st, "a_rev", "Nova", "reviewer", "my-app")
-	if err := st.ResetTurnBudget("a_rev", "t_000000000001"); err != nil {
+	if err := st.BeginConversationTurn("a_rev", "t_000000000001", state.TurnOrigin{}); err != nil {
 		t.Fatalf("ResetTurnBudget: %v", err)
 	}
 	if _, _, err := st.ConsumeTurnBudget("a_rev", MessageBudgetPerTurn-2, 0, MessageBudgetPerTurn); err != nil {

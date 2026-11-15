@@ -16,7 +16,7 @@ func TestTaskWaitYieldsAndWakesAfterWatchedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := st.CreateTask(Task{TaskID: childID, Project: "proj", DisplayName: "child", Instruction: "work", TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_owner"})
+	child, err := st.CreateTaskWithAttachments(Task{TaskID: childID, Project: "proj", DisplayName: "child", Instruction: "work", TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_owner"}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestTaskCleanupFailureBacksOffWithoutChangingTaskOutcome(t *testing.T) {
 	original := timeNow
 	timeNow = func() time.Time { return now }
 	t.Cleanup(func() { timeNow = original })
-	first, err := st.RecordTaskCleanupFailure(task.TaskID, cleanupPhaseRelease, "release:"+task.TaskID, errors.New("stop timed out"))
+	first, err := st.RecordTaskCleanupFailureClassified(task.TaskID, cleanupPhaseRelease, "release:"+task.TaskID, errors.New("stop timed out"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestTaskCleanupFailureBacksOffWithoutChangingTaskOutcome(t *testing.T) {
 		t.Fatalf("due before retry = %+v, %v", due, err)
 	}
 	now = now.Add(2 * time.Second)
-	second, err := st.RecordTaskCleanupFailure(task.TaskID, cleanupPhaseRelease, "release:"+task.TaskID, errors.New("stop timed out"))
+	second, err := st.RecordTaskCleanupFailureClassified(task.TaskID, cleanupPhaseRelease, "release:"+task.TaskID, errors.New("stop timed out"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestTaskWaitReturnsAlreadyChangedTaskWithoutYield(t *testing.T) {
 		t.Fatal(err)
 	}
 	childID, _ := st.NewTaskID()
-	child, err := st.CreateTask(Task{TaskID: childID, Project: "proj", DisplayName: "child", Instruction: "work", TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_owner"})
+	child, err := st.CreateTaskWithAttachments(Task{TaskID: childID, Project: "proj", DisplayName: "child", Instruction: "work", TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "agent", CreatedByAgentID: "a_owner"}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestTaskWaitRefusesSameAssigneeAndCancellationWinsYield(t *testing.T) {
 		t.Fatal(err)
 	}
 	childID, _ := st.NewTaskID()
-	child, err := st.CreateTask(Task{TaskID: childID, Project: "proj", DisplayName: "same agent", Instruction: "work", TargetKind: TargetAgent, TargetAgentID: "a_owner", CreatedByKind: "agent", CreatedByAgentID: "a_owner"})
+	child, err := st.CreateTaskWithAttachments(Task{TaskID: childID, Project: "proj", DisplayName: "same agent", Instruction: "work", TargetKind: TargetAgent, TargetAgentID: "a_owner", CreatedByKind: "agent", CreatedByAgentID: "a_owner"}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

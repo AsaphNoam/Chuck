@@ -17,11 +17,12 @@ func newTask(t *testing.T, st *Store, project, name string, arms ...TaskArm) Tas
 	if err != nil {
 		t.Fatalf("NewTaskID: %v", err)
 	}
-	task, err := st.CreateTask(Task{
+	task, err := st.CreateTaskWithAttachments(Task{
 		TaskID: id, Project: project, DisplayName: name, Instruction: "do " + name,
 		TargetKind: TargetLaunch, Role: "impl", Backend: "claude-acp", Model: "sonnet",
 		CreatedByKind: "person", Arms: arms,
-	})
+	}, nil, "")
+
 	if err != nil {
 		t.Fatalf("CreateTask %s: %v", name, err)
 	}
@@ -144,10 +145,11 @@ func TestCreateTaskRejectsUnusableArmsAtomically(t *testing.T) {
 			if tc.name == "closes a loop" {
 				id = first.TaskID
 			}
-			_, err := st.CreateTask(Task{
+			_, err := st.CreateTaskWithAttachments(Task{
 				TaskID: id, Project: "my-app", DisplayName: "rejected", Instruction: "no",
 				TargetKind: TargetLaunch, CreatedByKind: "person", Arms: []TaskArm{tc.arm},
-			})
+			}, nil, "")
+
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("CreateTask = %v, want %v", err, tc.want)
 			}
@@ -225,15 +227,16 @@ func TestActiveAssignmentIsExclusivePerAgent(t *testing.T) {
 func TestWorkResultRegistrationIsUniqueAndImmutable(t *testing.T) {
 	st, _ := newTestStore(t)
 
-	if err := st.RegisterWorkResult(WorkResult{
+	if err := RegisterWorkResultTx(st.db, WorkResult{
 		SourceKind: SourcePipelineRun, SourceID: "pr_1", Outcome: OutcomeSuccess,
 		RawLabel: "shipped", Summary: "all stages passed",
-	}); err != nil {
+	}, timeNow()); err != nil {
 		t.Fatalf("RegisterWorkResult: %v", err)
 	}
-	err := st.RegisterWorkResult(WorkResult{
+	err := RegisterWorkResultTx(st.db, WorkResult{
 		SourceKind: SourcePipelineRun, SourceID: "pr_1", Outcome: OutcomeFailure,
-	})
+	}, timeNow())
+
 	if !errors.Is(err, ErrWorkResultRecorded) {
 		t.Fatalf("second registration = %v, want %v", err, ErrWorkResultRecorded)
 	}
@@ -247,9 +250,9 @@ func TestWorkResultRegistrationIsUniqueAndImmutable(t *testing.T) {
 	}
 
 	// The same id under the other source kind is a different result entirely.
-	if err := st.RegisterWorkResult(WorkResult{
+	if err := RegisterWorkResultTx(st.db, WorkResult{
 		SourceKind: SourceTask, SourceID: "pr_1", Outcome: OutcomeFailure,
-	}); err != nil {
+	}, timeNow()); err != nil {
 		t.Fatalf("RegisterWorkResult for the other source kind: %v", err)
 	}
 	if _, err := st.ReadWorkResult(SourceTask, "tk_absent"); !errors.Is(err, ErrNotFound) {
@@ -341,9 +344,9 @@ func TestFanInBecomesReadyOnlyOnTheLastArm(t *testing.T) {
 		taskArm(c.TaskID, OutcomeSuccess, OutcomeBlocked))
 
 	for i, src := range []Task{a, b} {
-		if err := st.RegisterWorkResult(WorkResult{
+		if err := RegisterWorkResultTx(st.db, WorkResult{
 			SourceKind: SourceTask, SourceID: src.TaskID, Outcome: OutcomeSuccess,
-		}); err != nil {
+		}, timeNow()); err != nil {
 			t.Fatalf("register %d: %v", i, err)
 		}
 		changed, err := st.EvaluateSource(SourceTask, src.TaskID)
@@ -362,9 +365,9 @@ func TestFanInBecomesReadyOnlyOnTheLastArm(t *testing.T) {
 		}
 	}
 
-	if err := st.RegisterWorkResult(WorkResult{
+	if err := RegisterWorkResultTx(st.db, WorkResult{
 		SourceKind: SourceTask, SourceID: c.TaskID, Outcome: OutcomeBlocked,
-	}); err != nil {
+	}, timeNow()); err != nil {
 		t.Fatalf("register c: %v", err)
 	}
 	changed, err := st.EvaluateSource(SourceTask, c.TaskID)
@@ -407,17 +410,17 @@ func TestUnsatisfiableArmParksTheDependent(t *testing.T) {
 	dependent := newTask(t, st, "my-app", "dependent",
 		taskArm(good.TaskID, OutcomeSuccess), taskArm(bad.TaskID, OutcomeSuccess))
 
-	if err := st.RegisterWorkResult(WorkResult{
+	if err := RegisterWorkResultTx(st.db, WorkResult{
 		SourceKind: SourceTask, SourceID: good.TaskID, Outcome: OutcomeSuccess,
-	}); err != nil {
+	}, timeNow()); err != nil {
 		t.Fatalf("register good: %v", err)
 	}
 	if _, err := st.EvaluateSource(SourceTask, good.TaskID); err != nil {
 		t.Fatalf("EvaluateSource good: %v", err)
 	}
-	if err := st.RegisterWorkResult(WorkResult{
+	if err := RegisterWorkResultTx(st.db, WorkResult{
 		SourceKind: SourceTask, SourceID: bad.TaskID, Outcome: OutcomeFailure,
-	}); err != nil {
+	}, timeNow()); err != nil {
 		t.Fatalf("register bad: %v", err)
 	}
 	changed, err := st.EvaluateSource(SourceTask, bad.TaskID)
@@ -575,9 +578,10 @@ func TestPendingCleanupKeepsItsBudgetSlot(t *testing.T) {
 			}
 			if yield {
 				childID, _ := st.NewTaskID()
-				child, err := st.CreateTask(Task{TaskID: childID, Project: "my-app", DisplayName: "child",
+				child, err := st.CreateTaskWithAttachments(Task{TaskID: childID, Project: "my-app", DisplayName: "child",
 					Instruction: "work", TargetKind: TargetLaunch, Role: "impl", CreatedByKind: "agent",
-					CreatedByAgentID: "a_owner", Arms: []TaskArm{{Kind: ArmSignal, SignalName: "never"}}})
+					CreatedByAgentID: "a_owner", Arms: []TaskArm{{Kind: ArmSignal, SignalName: "never"}}}, nil, "")
+
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -932,9 +936,9 @@ func TestDeletingAPrerequisiteParksOnlyWhatWasStillWaiting(t *testing.T) {
 		waiting[taskState] = dependent
 	}
 	// One more whose arm the prerequisite already satisfied.
-	if err := st.RegisterWorkResult(WorkResult{
+	if err := RegisterWorkResultTx(st.db, WorkResult{
 		SourceKind: SourceTask, SourceID: prerequisite.TaskID, Outcome: OutcomeSuccess,
-	}); err != nil {
+	}, timeNow()); err != nil {
 		t.Fatalf("RegisterWorkResult: %v", err)
 	}
 	satisfied := newTask(t, st, "my-app", "already satisfied", taskArm(prerequisite.TaskID, OutcomeSuccess))
@@ -992,9 +996,9 @@ VALUES(?, 'quality', 'Quality run', 'my-app', 'ship', 'running', 1, 'work', ?, ?
 		t.Fatalf("dependent = %s, want armed", dependent.State)
 	}
 
-	if err := st.RegisterWorkResult(WorkResult{
+	if err := RegisterWorkResultTx(st.db, WorkResult{
 		SourceKind: SourcePipelineRun, SourceID: runID, Outcome: OutcomeSuccess, RawLabel: "success",
-	}); err != nil {
+	}, timeNow()); err != nil {
 		t.Fatalf("RegisterWorkResult: %v", err)
 	}
 	changed, err := st.EvaluateSource(SourcePipelineRun, runID)

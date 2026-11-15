@@ -228,6 +228,58 @@ VALUES(?,?,?,'discussion',?,'rg','rt',0,0,0,?,?,?)`, id, roomID, agentID, "tok-"
 			q.Owner.Kind = "other"
 			return TurnAdmissionRequest{Quota: q, Budget: 8}
 		}, want{err: ErrQuotaOwner}},
+		// Task owner: quotaTaskClaimTx, then a created/woke claim, a live
+		// process, or free capacity (budget) admits a borrowed one.
+		{"quota owner task created claim", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			return taskOwnedQuota(t, quota(t, s, ""), task(t, s, `state='running', assigned_generation='generation-1', runtime_claim='created'`), 1)
+		}, want{allowed: true}},
+		{"quota owner task woke claim at capacity", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			q := quota(t, s, "")
+			occupyTaskCapacity(t, s)
+			return taskOwnedQuota(t, q, task(t, s, `state='running', assigned_generation='generation-1', runtime_claim='woke'`), 1)
+		}, want{allowed: true}},
+		{"quota owner task borrowed claim with free capacity", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			return taskOwnedQuota(t, quota(t, s, ""), task(t, s, `state='running', assigned_generation='generation-1', runtime_claim='borrowed'`), 8)
+		}, want{allowed: true}},
+		{"quota owner task borrowed claim at capacity", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			q := quota(t, s, "")
+			occupyTaskCapacity(t, s)
+			return taskOwnedQuota(t, q, task(t, s, `state='running', assigned_generation='generation-1', runtime_claim='borrowed'`), 1)
+		}, want{}},
+		{"quota owner task borrowed claim at capacity with live process", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			q := quota(t, s, "")
+			occupyTaskCapacity(t, s)
+			if err := s.WriteRunning(RunningEntry{AgentID: agent, PID: 1, Interface: "chat", StartedAt: timeNow()}); err != nil {
+				t.Fatal(err)
+			}
+			return taskOwnedQuota(t, q, task(t, s, `state='running', assigned_generation='generation-1', runtime_claim='borrowed'`), 1)
+		}, want{allowed: true}},
+		{"quota owner task not running", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			return taskOwnedQuota(t, quota(t, s, ""), task(t, s, `state='ready', assigned_generation='generation-1'`), 8)
+		}, want{err: ErrQuotaOwner}},
+		{"quota owner task other generation", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			return taskOwnedQuota(t, quota(t, s, ""), task(t, s, `state='running', assigned_generation='generation-2', runtime_claim='created'`), 8)
+		}, want{err: ErrQuotaOwner}},
+		// Room owner: an open room whose claimed continuation validates, then
+		// the member must be otherwise unassigned.
+		{"quota owner room valid continuation", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			return TurnAdmissionRequest{Quota: roomOwnedQuota(t, s), Budget: 8}
+		}, want{allowed: true}},
+		{"quota owner room paused", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			q := roomOwnedQuota(t, s)
+			if _, err := s.db.Exec(`UPDATE think_tanks SET control=? WHERE room_id=?`, ThinkTankPaused, q.Owner.RoomID); err != nil {
+				t.Fatal(err)
+			}
+			return TurnAdmissionRequest{Quota: q, Budget: 8}
+		}, want{err: ErrQuotaOwner}},
+		{"quota owner room member has running task", AdmitQuotaOwner, func(t *testing.T, s *Store) TurnAdmissionRequest {
+			q := roomOwnedQuota(t, s)
+			tk := newTask(t, s, "proj", "adm")
+			if _, err := s.db.Exec(`UPDATE tasks SET assigned_agent_id=?, state='running' WHERE task_id=?`, q.AgentID, tk.TaskID); err != nil {
+				t.Fatal(err)
+			}
+			return TurnAdmissionRequest{Quota: q, Budget: 8}
+		}, want{err: ErrQuotaOwner}},
 
 		// Task restart: a non-continued intent owned by this task and generation.
 		{"task restart no intent", AdmitTaskRestart, func(t *testing.T, s *Store) TurnAdmissionRequest {
@@ -325,6 +377,50 @@ VALUES(?,?,?,'discussion',?,'rg','rt',0,0,0,?,?,?)`, id, roomID, agentID, "tok-"
 			}
 		})
 	}
+}
+
+func taskOwnedQuota(t *testing.T, q QuotaIntent, tk Task, budget int) TurnAdmissionRequest {
+	t.Helper()
+	q.Owner = QuotaOwner{Kind: "task", TaskID: tk.TaskID}
+	return TurnAdmissionRequest{Quota: q, Budget: budget}
+}
+
+// occupyTaskCapacity fills one slot of the task runtime budget with another
+// agent's created claim.
+func occupyTaskCapacity(t *testing.T, s *Store) {
+	t.Helper()
+	if err := s.WriteAgent(testAgent("adm_other", timeNow())); err != nil {
+		t.Fatal(err)
+	}
+	tk := newTask(t, s, "proj", "other")
+	if _, err := s.db.Exec(`UPDATE tasks SET assigned_agent_id='adm_other', assigned_generation='g', state='running', runtime_claim=? WHERE task_id=?`, ClaimCreated, tk.TaskID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// roomOwnedQuota returns a claimed room quota intent whose failed source
+// attempt and held room make the continuation valid.
+func roomOwnedQuota(t *testing.T, s *Store) QuotaIntent {
+	t.Helper()
+	d, source, _ := quotaRoomSetup(t, s, ThinkTankTurnDiscussion)
+	now := timeNow().UTC().Truncate(time.Second)
+	reset := now.Add(-time.Minute)
+	if _, err := s.ObserveOwnedQuota(QuotaObservation{AgentID: source.AgentID, EpisodeID: "room-episode",
+		SourceGeneration: source.Generation, ExecutingTurn: source.TurnID, ObservedAt: now.Add(-2 * time.Minute),
+		ResetAt: &reset, DueAt: &now, State: QuotaScheduled}); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.GetQuota(source.AgentID)
+	if err != nil || q.Owner.Kind != "room" || q.Owner.RoomID != d.Room.RoomID {
+		t.Fatalf("room quota = %+v err=%v", q, err)
+	}
+	if err := s.ClaimQuota(q.AgentID, q.EpisodeID, q.Revision, "room-claim"); err != nil {
+		t.Fatal(err)
+	}
+	if q, err = s.GetQuota(source.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	return q
 }
 
 // roomRestartFixture builds a room whose source attempt hit quota and a quota

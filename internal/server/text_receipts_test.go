@@ -28,9 +28,9 @@ func TestTextReceiptReplayAndConflict(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := srv.stateStore.CreateTask(state.Task{TaskID: taskID, Project: "attachproj",
+			if _, err := srv.stateStore.CreateTaskWithAttachments(state.Task{TaskID: taskID, Project: "attachproj",
 				DisplayName: "waiting assignment", Instruction: "continue later", TargetKind: state.TargetLaunch,
-				Role: "attachrole", CreatedByKind: "person"}); err != nil {
+				Role: "attachrole", CreatedByKind: "person"}, nil, ""); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state='waiting', assigned_agent_id=? WHERE task_id=?`, id, taskID); err != nil {
