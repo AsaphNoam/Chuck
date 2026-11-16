@@ -8,26 +8,17 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Current position
 
-- **Next release:** v0.24.0 minor release and push authorized on 2026-11-16 with EXEC-6c
-  open and the combined architectural review incomplete. The
-  [version-specific waiver and release notes](../archive/state/RELEASE-v0.24.0-notes.md)
-  record the exception. Existing manual acceptance gates remain owed.
-- **Release:** operator confirmed v0.23.0 and authorized push on 2026-11-08. Main and the
-  annotated v0.23.0 tag at `f3f34986` are pushed. Missing v0.22.0 baseline tag was pushed with
-  explicit approval; its own workflow `42450809571` is cancelled. v0.23.0 retry `42450625734`
-  passed architecture, assembly, transaction/bootstrap and fresh-install checks, then published
-  [v0.23.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.23.0).
-  [Notes](../archive/state/RELEASE-v0.23.0-notes.md) are published too. Archive/manifest/installer
-  assets are present; manifest size and SHA-256 match GitHub's uploaded archive metadata.
-- **Architecture:** combined source audit and all quota repairs are reused, as explicitly
-  directed by the operator on 2026-11-08. No second architectural review.
-  [Receipt](../archive/reviews/architecture/v0.22.0-next.json) includes release preparation.
-  Original audit findings are closed.
-- **Verification:** hosted release assembly and fresh installation pass. Main CI retry
-  `42450626202` passes both Go variants, specs, gate tests and vet, but failed one of 1181 UI
-  tests (waiting-input pane opening); that fixture race is fixed locally, unconfirmed by a new
-  hosted run. Do not claim full clean-clone CI success. Native/provider/device gates in
-  [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md) remain owed.
+- **Release:** [v0.24.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.24.0) published
+  on 2026-11-16 at `4d511e1d`. The local build and 1,293 UI tests passed.
+  [Release CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819855461) passed assembly,
+  transaction/bootstrap and fresh installation. The published archive's size and SHA-256 match
+  the manifest, and the installer is attached.
+- **Architecture:** EXEC-6c and the combined review remain open under the
+  [v0.24.0-only waiver](../archive/state/RELEASE-v0.24.0-notes.md).
+- **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819859225)
+  was still running when release CI completed. The prior waiting-input UI fixture failure had a
+  local repair. Native, provider and device gates in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md)
+  remain owed.
 - **Installed runtime:** managed current was v0.20.0 at audit; no install or running-dashboard
   update is part of this release preparation. Global PATH adapters remain unpatched.
 - **Checks:** unset CHUCK_RUNTIME_ROOT; use GOFLAGS=-p=1 and a writable isolated GOCACHE.
@@ -165,4 +156,4 @@ Editing that older release is separate publication work.
 ## Release record
 
 Prepared notes: [v0.24.0](../archive/state/RELEASE-v0.24.0-notes.md).
-Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
+Latest published version: [v0.24.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.24.0).

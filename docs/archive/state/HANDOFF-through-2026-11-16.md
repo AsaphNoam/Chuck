@@ -10,3 +10,15 @@
 
 [v0.24.0 notes](RELEASE-v0.24.0-notes.md) record the version-specific waiver. EXEC-6c and
 the combined architectural review remain open in the [live handoff](../../features/HANDOFF.md).
+
+## Previous release
+
+- [v0.23.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.23.0) published from annotated
+  tag at `f3f34986` after workflow `42450625734` passed architecture, assembly,
+  transaction/bootstrap and fresh installation. GitHub's archive metadata matched its manifest.
+  The v0.22.0 baseline tag was pushed with explicit approval and its workflow `42450809571`
+  was cancelled. See [v0.23.0 notes](RELEASE-v0.23.0-notes.md).
+- The v0.23.0 [architecture receipt](../reviews/architecture/v0.22.0-next.json) covered
+  release preparation and closed the combined source audit and quota findings.
+- Main CI retry `42450626202` passed both Go variants, specs, gate tests and vet. One of 1,181
+  UI tests failed while opening the waiting-input pane. The fixture was repaired locally.
