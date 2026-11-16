@@ -352,6 +352,11 @@ push with open fix items and waived the architectural review for this version. T
 skips only this gate for v0.18.0; no review or finding closure is claimed. Open findings and manual
 acceptance gates remain live. R36 and its mechanical gate apply to subsequent releases unchanged.
 
+**One-release exception — v0.24.0 (2026-11-16):** the operator explicitly authorized release and
+push with EXEC-6c open and the combined architectural review incomplete. The release job skips
+only the architectural gate for this version. EXEC-6c and the review remain outstanding; all
+other release checks and manual acceptance gates retain their usual requirements.
+
 ## 3. Interfaces & data shapes
 
 The canonical commands are below; select the applicable ones through R5 and workflow §2 rather

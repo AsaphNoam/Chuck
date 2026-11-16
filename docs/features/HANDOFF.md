@@ -2,10 +2,16 @@
 
 Settled history through v0.23.0 preparation is archived in
 [HANDOFF-through-2026-11-08](../archive/state/HANDOFF-through-2026-11-08.md).
+Settled review units in the v0.24.0 range are archived in
+[HANDOFF-through-2026-11-16](../archive/state/HANDOFF-through-2026-11-16.md).
 Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live queues.
 
 ## Current position
 
+- **Next release:** v0.24.0 minor release and push authorized on 2026-11-16 with EXEC-6c
+  open and the combined architectural review incomplete. The
+  [version-specific waiver and release notes](../archive/state/RELEASE-v0.24.0-notes.md)
+  record the exception. Existing manual acceptance gates remain owed.
 - **Release:** operator confirmed v0.23.0 and authorized push on 2026-11-08. Main and the
   annotated v0.23.0 tag at `f3f34986` are pushed. Missing v0.22.0 baseline tag was pushed with
   explicit approval; its own workflow `42450809571` is cancelled. v0.23.0 retry `42450625734`
@@ -60,9 +66,6 @@ None.
   gate-versus-row span is sound except on a failed end write (EXEC-2). Credentialed provider and
   device gates are not closed by it.
 
-- **Match sent prompts by request ID** — reviewed 2026-11-15, `fb245d40` (FS-03.R118/A93,
-  TS-08.R163). PROMPT-1–4 are under **Review findings** and wait for `/fix`.
-
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
 ownership and record the reviewed HEAD. Intended for a frontier reviewer; the charters' leads are
@@ -70,12 +73,7 @@ questions, not findings.
 
 | Unit | Responsibility | Status |
 |---|---|---|
-| [CR-A8](CORE-RELIABILITY-REVIEW-A8.md) | Pipeline pause, answer and recovery ownership: who can end each pause, refused input with no side effect, answers through replacement, stall detection | findings closed, including PIPE-CHAT-1 and PIPE-CHAT-3 |
-| [CR-A9](CORE-RELIABILITY-REVIEW-A9.md) | Think Tank lifecycle and its quota join: fenced member launch, requested Pause/End under quota, restart recovery | findings closed at `0da7c581` |
 | [CR-A10](CORE-RELIABILITY-REVIEW-A10.md) | Durable state transitions have one rule: status-writer inventory, unguarded and divergent writers, recommendation for a transition-rule design | reviewed at `8faec36f`; findings owned by [`give-agent-execution-one-owner.md`](../ready-changes/give-agent-execution-one-owner.md) |
-
-CR-A9's result: eight findings, each fixable on its own. CR-A9-1 and -5 share the quota hold
-release; CR-A9-2 and -3 share the rule for which holds a room may carry in `setup` and `ended`.
 
 CR-A10's five findings and its transition-rule recommendation moved on 2026-11-14 into the
 waiting change [`give-agent-execution-one-owner.md`](../ready-changes/give-agent-execution-one-owner.md)
@@ -166,5 +164,5 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-Prepared notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
+Prepared notes: [v0.24.0](../archive/state/RELEASE-v0.24.0-notes.md).
 Latest published notes: [v0.23.0](../archive/state/RELEASE-v0.23.0-notes.md).
