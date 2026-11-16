@@ -134,18 +134,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### Waiting-assignee prompt receipt (intermittent test, found 2026-11-15 during the PROVIDER-REFRESH-1 closure) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** — WAIT-PROMPT-3. `TestPromptToWaitingAssigneeIsDeliveredByContinuation`
-  (`internal/server/waiting_prompt_repro_test.go:44`) failed once in the full SQLite FTS suite at
-  `01cf102a` plus test-only fixture edits: after both 202 `queued` responses and
-  `ReleaseRestartedAttachments`, the receipt was `Delivery: released` with no
-  `AssignmentTaskID`, and the log shows `delivery=released reason=stopped_before_send` for
-  `req-wait-prompt`. 0 of 40 focused FTS runs failed. Find what released the prepared assignment
-  input (a stop/dispatch racing the route, or the restart release treating it as untracked), then
-  repair the ordering or control it in the fixture; rerun at `-count=40` (workflow §2, TS-09.R69,
-  TS-10.R29, INV §5, §18).
-
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Fix rounds closed every finding except the one below. The inventory (EXEC-12) stays in
