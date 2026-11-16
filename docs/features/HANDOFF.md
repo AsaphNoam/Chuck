@@ -53,10 +53,10 @@ None.
 
 ## Review queue
 
-- **Simplify pipeline configuration** — ready for review, `ca1447ad..a6aa622b`
-  (FS-14.R110–R111/R113/A72/A74, TS-08.R169–R170, TS-09.R73). Desktop and phone browser
-  journeys used isolated state and a fake provider. The existing assignment and admission tests
-  establish prior-result context and the missing-handoff refusal.
+- **Simplify pipeline configuration** — reviewed 2026-11-16, `ca1447ad..a6aa622b`
+  (FS-14.R110–R111/R113/A72/A74, TS-08.R169–R170, TS-09.R73). CONFIG-1–4 await `/fix`.
+  Independent Chromium journeys confirmed desktop authoring, stable keys and handoff selection,
+  and phone custom naming and shared-checkout confirmation with isolated state and a fake provider.
 
 - **Give agent execution one owner** — reviewed 2026-11-15, `193f301e..1d6077fa` (TS-01.R45–R50,
   TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left only the
@@ -133,6 +133,38 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### Simplify pipeline configuration (`ca1447ad..a6aa622b`) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — CONFIG-1. Launch hides the cause of a valid Think Tank template's rejected start.
+  In Chromium, a stage named Design critique with a required 64,000-emoji brief and an
+  8,000-character goal returned 422 with `stages.<key>.context`, `too_large`, and the
+  combined context limit. `startDiagnostics.ts:45` replaces it with “A stage configuration
+  is invalid. Check the pipeline template.” Desktop preserves the draft but leaves focus on the
+  dialog, and phone uses the same formatter. Resolve the stage from the selected template, state
+  what exceeded the limit, and direct focus to a relevant run field. Verify both start forms
+  with the real diagnostic shape and preserve the draft (FS-14.R110/R113, TS-08.R170, INV §8/§11/§22).
+- **Must fix** — CONFIG-2. Desktop Review echoes the workspace selection instead of resolving the
+  checkout. Chromium showed only “Project checkout” for the current checkout and “New worktree ·
+  branch isolated-review” with Base left blank. `RunStartForm.tsx:401` uses the proposal
+  summary in `proposalSummary.ts`; the checkout path and implicit base are resolved by
+  `PlanWorkspace` in `internal/server/pipeline_workspace.go:24` only after Start.
+  Give Review a read-only projection from the existing planner, including the project checkout
+  or resolved worktree base and branch. Verify that Review and the frozen workspace agree for
+  both modes and preserve Setup on an invalid choice (FS-14.R113/A74, INV §2/§8/§20).
+- **Must fix** — CONFIG-3. Historical stage cards and the current owner strip can show raw agent
+  IDs after an owner or coordinator is deleted. `internal/server/pipeline_projection.go:210,237`
+  copies IDs into the display name when the snapshot cannot name the agent.
+  `RunBrowser.tsx:138,193` then treats them as readable names. Preserve IDs for routing and
+  show the shared unavailable-agent label when projection cannot resolve a name. Verify a
+  retained run with a missing owner and coordinator using the production projection
+  (FS-02.R69, FS-14.R110/A72, TS-08.R170, INV §8/§11).
+- **Must fix** — CONFIG-4. Checkout planning and missing-resource presentation already had fixes
+  in `ae609d07` (PIPE-WT) and `657ebd66` (no-raw-IDs review). Inventory entry points for
+  preview, start, and retained checkout, the writers of the frozen workspace record, and
+  the rule each path uses. For run supervision, include the producers and consumers of
+  missing owner and coordinator names and the existing fallback rules. Use the inventory
+  to close CONFIG-2 and CONFIG-3 at the relevant shared owners (workflow §7, INV §2/§8/§20).
 
 ### Waiting-assignee prompt receipt (intermittent test, found 2026-11-15 during the PROVIDER-REFRESH-1 closure) — **Fix model:** medium — Codex Terra or Claude Opus.
 
