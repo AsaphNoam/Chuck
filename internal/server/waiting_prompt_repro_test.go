@@ -30,6 +30,18 @@ func TestPromptToWaitingAssigneeIsDeliveredByContinuation(t *testing.T) {
 		t.Fatal(err)
 	}
 	const instruction = "use opus as the fixing agent"
+	// Acceptance starts a background dispatch of the continuation. Hold the
+	// dispatcher's sweep (the path that admits this waiting task) until the restart release
+	// has been checked: in production that release runs at startup before any
+	// dispatch, and a live turn claiming the input meanwhile would read as
+	// released or already sent (WAIT-PROMPT-3).
+	srv.taskSweepMu.Lock()
+	sweepHeld := true
+	defer func() {
+		if sweepHeld {
+			srv.taskSweepMu.Unlock()
+		}
+	}()
 	// A network retry of the same submission returns the same acceptance.
 	for i := 0; i < 2; i++ {
 		if resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": instruction, "request_id": "req-wait-prompt"}); resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"delivery":"queued"`) {
@@ -43,6 +55,8 @@ func TestPromptToWaitingAssigneeIsDeliveredByContinuation(t *testing.T) {
 	if rec, err := srv.stateStore.AttachmentReceipt(id, "req-wait-prompt"); err != nil || rec.Delivery != "prepared" || rec.AssignmentTaskID != taskID {
 		t.Fatalf("queued receipt after restart release = %+v %v", rec, err)
 	}
+	sweepHeld = false
+	srv.taskSweepMu.Unlock()
 	srv.dispatchReadyTasks(context.Background())
 	dispatchUntilTaskState(t, srv, taskID, state.TaskRunning)
 	waitPrompts(t, promptLog, 1)
