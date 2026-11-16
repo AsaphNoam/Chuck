@@ -13,8 +13,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   [Release CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819855461) passed assembly,
   transaction/bootstrap and fresh installation. The published archive's size and SHA-256 match
   the manifest, and the installer is attached.
-- **Architecture:** EXEC-6c and the combined review remain open under the
-  [v0.24.0-only waiver](../archive/state/RELEASE-v0.24.0-notes.md).
+- **Architecture:** v0.24.0 shipped under the
+  [v0.24.0-only waiver](../archive/state/RELEASE-v0.24.0-notes.md). The owed combined review of
+  `v0.23.0..d26e5fe2` is now recorded in the
+  [receipt](../archive/reviews/architecture/v0.23.0-next.json); it did not gate v0.24.0. EXEC-6c
+  and ARCH-STALL-1 are open Must-fix items. The next release needs its own review and
+  `v0.24.0-next.json`.
 - **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819859225)
   was still running when release CI completed. The prior waiting-input UI fixture failure had a
   local repair. Native, provider and device gates in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md)
@@ -136,6 +140,47 @@ The independent check is owed again only for the EXEC-6c repair.
   `DB().Exec` fixture would copy write logic that can drift (INV §17). They stay in the
   shrink-only `fixtureOnlyWriters` list (`internal/state/store_writer_callers_test.go`); the
   decision is under **Blocked on human** (TS-01.R50, INV §10, §17).
+
+### Architectural review of `v0.23.0..d26e5fe2` (shipped as v0.24.0) — reviewed 2026-11-16 — **Fix model:** medium — Codex Terra or Claude Opus.
+
+[Receipt](../archive/reviews/architecture/v0.23.0-next.json). Fixes append to that receipt and need
+no second architectural review (workflow §8/§18). Pipeline pause/recovery (CR-A8) and chat turn
+exits (EXEC, TURN-STOP, OUTCOME) both had fix rounds in the last 30 days, hence ARCH-STALL-2; the
+turn-exit inventory already exists in `docs/ideas.md` ("One exit rule for a claimed chat turn")
+and ARCH-TURN-1 is one more row for it.
+
+- **Must fix** — ARCH-STALL-1: a pipeline stage owner whose assigned turn ends in a provider
+  failure while its process stays alive is never continued or paused. The turn end writes status
+  `error`; `nudgeStalledOwner` (`internal/server/pipeline_stall.go:28–31`) and the sweep's
+  `check_stall` selection (`internal/state/pipeline_tasks.go:1092–1094`) both require `idle`, and
+  no other recovery action matches a live owner in `error`. The task stays `running` and the run
+  stays `running` with no attention reason until a person notices the agent. Trigger: any provider
+  service, connection or request error on an owner turn; since `7e2539a3` also a `refusal` or
+  unknown stop reason, which v0.23.0 left `idle` and nudged. FS-14.R101 ("a run cannot remain
+  nominally active indefinitely"), TS-09.R70, INV §8. Reproduced:
+  [probe](../archive/reviews/architecture/v0.23.0-next-owner-failure-repro.go.txt) ends with
+  `owner status=error run=running attention="" task=running stall_turns=0 prompts=1`. Fix: make a
+  settled failed turn of the assigned generation (not quota-blocked, not stopped) eligible for
+  the same bounded continuation-then-pause in both the nudge and the sweep query, or pause the
+  run with a cause; convert the probe to the regression and check the ordinary task assignee.
+- **Worth fixing** — ARCH-STALL-2 (inventory): list every settled owner state (`idle`, `error`
+  by outcome, `waiting_input`, `done`, quota-held, background work) against who continues, pauses
+  or deliberately leaves the stage, for the turn-end nudge and
+  `PipelineOwnersNeedingRecovery` (`internal/state/pipeline_tasks.go:1081`), and state the rule in
+  TS-09.R70 (INV §8).
+- **Worth fixing** — ARCH-TURN-1: a refused turn start stores outcome `refused`
+  (`internal/runtime/chat.go:1192–1198`), the same value as a provider refusal, which
+  `ComposeChatStatus` maps to `error` (`internal/state/chat_status.go:27`) while the stored status
+  stays `idle`. Trigger: a mail wake whose waking message was already read, then a permission
+  request resolved outside a turn recomposes the healthy agent to `error`
+  (`internal/runtime/chat.go:2876–2885`). TS-01.R46, INV §5. Fix: a distinct not-started value that
+  composes to `idle`; test a stale wake against the `statetest` compose helper.
+- **Worth fixing** — ARCH-INPUT-1: after the adapter definitively refuses a desktop text-only
+  Steer, pressing Steer again with the unchanged draft reuses the draft's request ID
+  (`ui/src/components/chat/useInputDelivery.ts:70–74`), so the server replays the stored `failed`
+  receipt (`internal/server/attachments.go:771–777`) without asking the adapter, and Send with
+  the same text gets a content conflict; it works only after an edit. FS-03.R50, TS-08.R163,
+  INV §19. Fix: rotate the draft request ID on a definite refusal; test refuse-then-retry.
 
 
 ## Blocked on human

@@ -1,0 +1,51 @@
+package server
+
+import (
+	"testing"
+	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+// Architectural-review probe (v0.23.0-next, ARCH-STALL-1). A pipeline stage
+// owner's assigned turn ends with a provider-reported failure while its process
+// stays alive. FS-14.R101 promises bounded continuation or a recoverable pause;
+// the run must not stay nominally active with nobody responsible.
+func TestArchProbeOwnerTurnFailureIsRecoveredOrPaused(t *testing.T) {
+	t.Setenv("FAKEACP_CAPS", "1")
+	t.Setenv("FAKEACP_FAILURE_RESULT", `{"id":"turn-1:error","revision":1,"category":"service","severity":"error","title":"provider failed","actions":[]}`)
+	srv, ts, promptLog := activationTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	generation := srv.taskGeneration(id)
+	task := createDispatchingStallVisit(t, srv, "pr_stall", "tk_stall")
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, execution_handle = 'ta_stall', started_at = created_at WHERE task_id = ?`, state.TaskRunning, id, generation, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.registry.SendPrompt(t.Context(), id, "begin assigned work"); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, srv, id, "error")
+
+	deadline := time.Now().Add(4 * time.Second)
+	var run state.PipelineRunRecord
+	for time.Now().Before(deadline) {
+		srv.recoverMissedStageStalls()
+		var err error
+		if run, err = srv.stateStore.ReadPipelineRun("pr_stall"); err == nil && run.State == "paused" {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	var stalls int
+	_ = srv.stateStore.DB().QueryRow(`SELECT owner_stall_turns FROM pipeline_runs WHERE run_id = 'pr_stall'`).Scan(&stalls)
+	after, _ := srv.stateStore.ReadTask(task.TaskID)
+	st, _ := srv.stateStore.ReadStatus(id)
+	prompts := promptCount(t, promptLog)
+	t.Logf("owner status=%s run=%s attention=%q task=%s stall_turns=%d prompts=%d", st.State, run.State, run.AttentionReason, after.State, stalls, prompts)
+	if run.State != "paused" && prompts < 2 {
+		t.Fatalf("owner turn failed with a live process: run stays %s, task %s, no continuation and no pause", run.State, after.State)
+	}
+}
