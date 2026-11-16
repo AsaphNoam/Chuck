@@ -182,6 +182,62 @@ and ARCH-TURN-1 is one more row for it.
   the same text gets a content conflict; it works only after an edit. FS-03.R50, TS-08.R163,
   INV §19. Fix: rotate the draft request ID on a definite refusal; test refuse-then-retry.
 
+### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report (verbatim):** “Bug: Chuck’s user authorization is not recognized by automatic execution
+review. Reproduction: A user approves scoped tests or instructs the agent to push branches/open
+PRs. Chuck delivers that response inside get_assigned_task → Human continuation input. The agent
+then calls create_task to perform the action. Actual: Automatic review rejects the call, saying
+“the transcript contains no trusted user message explicitly authorizing” it. No child task is
+created. Repeating approval through the same pipeline channel does not resolve it. Impact: Blocks
+fixture tests, Git pushes/PR creation and keystore retrieval despite explicit user direction.”
+No Chuck version, provider, run/agent identity or logs were supplied.
+
+**Diagnosis.** The refusal text exists nowhere in Chuck; the reviewer is the agent CLI's own
+automatic approval review, which runs before the `create_task` call reaches Chuck (which provider:
+undetermined). **Confirmed from code and history:** through v0.23.0 a person's Continue text was
+written only into the assignment's `Human continuation input:` section
+(`v0.23.0:internal/pipeline/actions.go:156,166`; `v0.20.0:…:83`), which the agent reads as the
+`get_assigned_task` tool result, while the turn's actual prompt was the fixed payload-free
+instruction (`internal/runtime/activation_kinds.go:57–61`). A reviewer that trusts only user turns
+could never see the approval, and repeating it used the same path. `0a8bda69` (2026-11-13, first
+released in v0.24.0) moved the person's text into the continuation turn's own prompt
+(`internal/pipeline/actions.go:16–24,138–152`, `internal/runtime/message.go:79–97`,
+`internal/runtime/chat.go:1247–1250`); `TestConversationAnswerContinuesQuestionPause` and
+`TestQueuedInputSurvivesStartRetry` cover that delivery. **Probable:** the report is the
+pre-v0.24.0 behavior — the managed runtime was v0.20.0 at the last audit — and v0.24.0 removes it
+for run-page and conversation Continue. Not reproduced against a live provider reviewer; no
+skipped test was added because the reported path no longer fails at HEAD. First step for whoever
+picks this up: install v0.24.0 and repeat the report's approval through Continue.
+
+- **Worth fixing** (spec gap; confirmed from code) — AUTH-TRUST-1: person-authored work still
+  reaches an already-running agent only as tool output. A task a person creates for an existing
+  agent (`internal/server/task_handlers.go:69`) and every later stage of a run on its standing
+  owner start through the payload-free activation (`internal/server/task_dispatcher.go:426`), so
+  the instruction, run goal and stage inputs arrive only through `get_assigned_task`. FS-16.R26
+  requires that; FS-00.R15 calls an assignment “a durable bounded prompt the recipient reads as
+  ordinary conversation”. No requirement says which person-authored text must cross as a user
+  turn, so the same reviewer refusal remains reachable when the authorization lives in a task
+  instruction or run goal. Needs a §3 security decision before any change: whether, and for which
+  authors, Chuck places person-authored instructions in the prompt; agent-authored text must never
+  gain that standing. Then FS-16.R26/FS-00.R15 via §10, the activation seam, and a test that a
+  person-created task's instruction is in the `session/prompt` content while an agent-created
+  one's is not.
+- **Worth fixing** (confirmed from code) — AUTH-TRUST-2: `Human continuation input:`
+  (`internal/pipeline/assignment.go:112–114`) no longer carries anything a person wrote. Its
+  callers now pass Chuck's resume notice, recovery evidence, the replacement notice, and the
+  owner agent's own `decision.Reason` (`internal/pipeline/decisions.go:78`), so agent-authored
+  text is presented to the next agent as human input. INV §21. Fix: rename the heading to what it
+  holds (why this visit exists) and assert in `assignment_test.go` that no caller-supplied text
+  appears under a heading naming a human.
+- **Worth fixing** (undetermined) — AUTH-TRUST-3: the preamble that now accompanies the person's
+  text in the prompt says it “does not approve a permission request or a pipeline checkpoint”
+  (`internal/runtime/message.go:77`). Whether a provider reviewer reads that sentence as negating
+  an explicit “push the branch and open the PR” is unknown. Evidence needed: on v0.24.0, with the
+  provider's automatic review on, approve a push through Continue and record whether
+  `create_task` is allowed. Reword only if that fails. The refusal happens inside the provider
+  CLI, so Chuck has no log line for it; the agent's transcript is the only trace.
+
 
 ## Blocked on human
 
