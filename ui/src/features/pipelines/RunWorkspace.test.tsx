@@ -38,6 +38,14 @@ const server = setupServer(
     starts.push(await request.json() as Record<string, unknown>);
     return HttpResponse.json({ error: { code: "validation_failed", message: "run cannot start", details: { diagnostics: [{ field: "workspace.branch", code: "exists", message: "branch \"chuck/ship\" already exists; choose a new branch name" }] } } }, { status: 422 });
   }),
+  // Mirrors PlanWorkspace: project mode returns the checkout path; a blank base
+  // resolves to the project's default base.
+  http.post("/api/pipeline-workspaces/preview", async ({ request }) => {
+    const { workspace } = await request.json() as { workspace?: { mode: string; branch?: string; base?: string } };
+    return HttpResponse.json(workspace?.mode === "new_worktree"
+      ? { mode: "new_worktree", cwd: "", branch: workspace.branch, base: workspace.base || "origin/main" }
+      : { mode: "project", cwd: "/tmp/app", branch: "", base: "" });
+  }),
   http.get("/api/pipeline-workspaces/ws_1", () => HttpResponse.json(currentDetail)),
   http.post("/api/pipeline-workspaces/ws_1/remove", async ({ request }) => {
     removals.push(await request.json());
@@ -98,13 +106,34 @@ describe("run start workspace", () => {
     fireEvent.change(screen.getByLabelText("Branch"), { target: { value: "chuck/ship" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Review" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByText("New worktree · branch chuck/ship")).toBeInTheDocument();
+    // CONFIG-2: Review shows the base the server resolved, not the blank field.
+    expect(await screen.findByText("New worktree · branch chuck/ship from origin/main")).toBeInTheDocument();
 
     const fields = summarizeProposal({
       proposal_id: "p1", digest: "d", created_at: "2026-10-29T00:00:00Z", kind: "start_run",
       payload: { request_id: "r", template_id: "delivery", display_name: "Ship", project: "app", goal: "Ship it", inputs: {}, orchestrator: { backend: "codex", model: "m", effort: "", fast: false }, dedicated_assignments: {}, workspace: { mode: "new_worktree", branch: "chuck/ship", base: "develop" } },
     }, undefined);
     expect(fields).toContainEqual({ label: "Workspace", value: "New worktree · branch chuck/ship from develop" });
+  });
+
+  // CONFIG-2: a choice the planner refuses keeps Setup, its values and the reason.
+  it("stays in Setup with the planner's reason when Review cannot plan the checkout", async () => {
+    server.use(http.post("/api/pipeline-workspaces/preview", () => HttpResponse.json({ error: { code: "validation", message: "pipeline validation failed", details: { diagnostics: [
+      { field: "workspace", code: "unavailable", message: "branch \"chuck/ship\" already exists; choose a new branch name" },
+    ] } } }, { status: 422 })));
+    render(<QueryClientProvider client={client()}><RunStartForm stepMode onCancel={() => {}} onStarted={() => {}} /></QueryClientProvider>);
+    await screen.findByRole("option", { name: "Delivery" });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "delivery" } });
+    fireEvent.change(screen.getByLabelText("Run goal"), { target: { value: "Ship it" } });
+    fireEvent.click(screen.getByRole("radio", { name: /New worktree/ }));
+    fireEvent.change(screen.getByLabelText("Branch"), { target: { value: "chuck/ship" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Review" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(await screen.findByText(/already exists; choose a new branch name/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start run" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Branch/)).toHaveValue("chuck/ship");
+    expect(screen.getByLabelText("Run goal")).toHaveValue("Ship it");
+    expect(starts).toHaveLength(0);
   });
 });
 

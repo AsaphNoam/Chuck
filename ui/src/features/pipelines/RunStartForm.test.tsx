@@ -40,6 +40,8 @@ const server = setupServer(
   http.get("/api/roles", () => HttpResponse.json({
     implementer: { title: "Implementer" }, designer: { title: "Designer" }, reviewer: { title: "Reviewer" },
   })),
+  // Mirrors PlanWorkspace's project-mode answer for the default checkout.
+  http.post("/api/pipeline-workspaces/preview", () => HttpResponse.json({ mode: "project", cwd: "/tmp/app", branch: "", base: "" })),
   http.post("/api/pipeline-runs", async ({ request }) => {
     starts.push(await request.json());
     return HttpResponse.json({
@@ -122,8 +124,8 @@ describe("RunStartForm", () => {
     expect(screen.getByText("Customize runtimes").closest("details")).not.toHaveAttribute("open");
 
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByRole("heading", { name: "Delivery" })).toBeInTheDocument();
-    expect(screen.getByText("Project checkout")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Delivery" })).toBeInTheDocument();
+    expect(screen.getByText("Project checkout · /tmp/app")).toBeInTheDocument();
     expect(screen.getByText("Design coordinator · Designer")).toBeInTheDocument();
     expect(screen.getByText("Review coordinator · Reviewer")).toBeInTheDocument();
     expect(screen.getAllByText(/Codex · GPT-5.6-Sol/)).toHaveLength(3);
@@ -161,7 +163,7 @@ describe("RunStartForm", () => {
     expect(screen.getByText("Deliberate Think Tank · Judge (Reviewer)")).toBeInTheDocument();
     fireEvent.change(screen.getAllByLabelText("Backend")[1], { target: { value: "alternate" } });
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    fireEvent.click(screen.getByRole("button", { name: "Start run" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start run" }));
     await waitFor(() => expect(starts).toHaveLength(1));
     expect(starts[0]).toMatchObject({ think_tank_assignments: { deliberate: {
       participants: { pro: { backend: "codex", model: "gpt-5.6-sol" }, con: { backend: "alternate", model: "opus" } },
@@ -190,7 +192,7 @@ describe("RunStartForm", () => {
     fireEvent.change(screen.getByLabelText("Run goal"), { target: { value: "A very long goal" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Review" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    fireEvent.click(screen.getByRole("button", { name: "Start run" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start run" }));
 
     expect(await screen.findByText("Design critique: the run goal, stage instructions and inputs together exceed the 262,144-byte stage context limit. Shorten the run goal or inputs.")).toBeInTheDocument();
     expect(screen.queryByText(/stage-7f3a/)).not.toBeInTheDocument();
@@ -241,13 +243,13 @@ describe("RunStartForm", () => {
     fireEvent.change(screen.getByLabelText("Run name (optional)"), { target: { value: "Release train" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Review" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByRole("heading", { name: "Release train" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Release train" })).toBeInTheDocument();
     expect(screen.getByText(/Alternate · Opus.*Fast mode on/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByLabelText("Run name (optional)")).toHaveValue("Release train");
     expect(screen.getByLabelText("Run goal")).toHaveValue("Ship it");
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    fireEvent.click(screen.getByRole("button", { name: "Start run" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start run" }));
     await waitFor(() => expect(starts).toHaveLength(1));
     expect(starts[0]).toMatchObject({ orchestrator: { backend: "alternate", model: "opus", fast: true } });
   });
@@ -289,7 +291,7 @@ describe("RunStartForm", () => {
     expect(screen.getAllByRole("checkbox")[0]).toBeChecked();
     fireEvent.click(screen.getByText("Customize runtimes"));
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    const details = screen.getByText("Exact proposal details").closest("details");
+    const details = (await screen.findByText("Exact proposal details")).closest("details");
     expect(details).not.toHaveAttribute("open");
     fireEvent.click(screen.getByText("Exact proposal details"));
     expect(details).toHaveAttribute("open");

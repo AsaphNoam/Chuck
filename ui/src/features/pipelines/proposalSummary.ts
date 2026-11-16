@@ -1,4 +1,5 @@
 import { pipelineProposalSchema, type PipelineListedProposal, type PipelineProposal, type PipelineTemplateRecord, type PipelineWorkspaceSelection } from "../../schemas/pipeline";
+import type { PipelineWorkspacePreview } from "../../api/pipelines";
 
 // One draft must never push the template library or the run ledger off the
 // surface, so every summarized value is clipped here rather than at each call
@@ -26,8 +27,11 @@ export function asPipelineProposal(entry: PipelineListedProposal): PipelinePropo
 }
 
 // describeWorkspace states the run's checkout choice for review and proposal
-// summaries; an absent selection is the project checkout (FS-14.R91).
-export function describeWorkspace(workspace: PipelineWorkspaceSelection | undefined) {
+// summaries; an absent selection is the project checkout (FS-14.R91). Review
+// passes the server's plan so it shows the resolved checkout (FS-14.R113).
+export function describeWorkspace(workspace: PipelineWorkspaceSelection | undefined, plan?: PipelineWorkspacePreview) {
+  if (plan?.mode === "project") return `Project checkout · ${plan.cwd}${plan.branch ? ` on ${plan.branch}` : ""}`;
+  if (plan?.mode === "new_worktree") return `New worktree · branch ${plan.branch} from ${plan.base}`;
   if (!workspace || workspace.mode !== "new_worktree") return "Project checkout";
   return `New worktree · branch ${workspace.branch ?? ""}${workspace.base ? ` from ${workspace.base}` : ""}`;
 }

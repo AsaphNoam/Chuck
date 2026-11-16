@@ -575,6 +575,21 @@ func (m *Manager) validateStart(ctx context.Context, request *StartRequest, work
 	return record, workspace, nil
 }
 
+// PreviewWorkspace returns the read-only plan Start would freeze for this
+// project and selection, through the same checks, so desktop Review shows the
+// effective checkout before Start (FS-14.R113, TS-09.R61).
+func (m *Manager) PreviewWorkspace(ctx context.Context, project string, selection *WorkspaceSelection) (*state.PipelineWorkspace, []Diagnostic) {
+	diagnostics := []Diagnostic{}
+	add := func(field, code, message string) {
+		diagnostics = append(diagnostics, Diagnostic{Field: field, Code: code, Message: message})
+	}
+	workspace := m.validateWorkspace(ctx, &StartRequest{Project: project, Workspace: selection}, "", true, add)
+	if len(diagnostics) > 0 {
+		return nil, diagnostics
+	}
+	return workspace, nil
+}
+
 // validateWorkspace checks the selection's shape and, once everything else is
 // valid, asks the lifecycle for the read-only plan Start will freeze. Every new
 // run gets a record; omission means the project checkout (TS-09.R61).

@@ -6,7 +6,9 @@ import { personaLabel } from "../../lib/personas";
 import { resetRuntimeForBackend, resetRuntimeForModel } from "../../lib/runtimeSelection";
 import {
   pipelineDiagnostics,
+  previewPipelineWorkspace,
   sharedWorkspaceConflicts,
+  type PipelineWorkspacePreview,
   usePipelineTemplates,
   useStartPipelineRun,
 } from "../../api/pipelines";
@@ -116,6 +118,8 @@ export function RunStartForm({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
+  const [plan, setPlan] = useState<PipelineWorkspacePreview | null>(null);
+  const [planning, setPlanning] = useState(false);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
   const [seededTemplate, setSeededTemplate] = useState<unknown>(null);
   const [runtimeSource, setRuntimeSource] = useState<"defaults" | "proposal" | "selected">("defaults");
@@ -227,6 +231,26 @@ export function RunStartForm({
     ...(Object.keys(roomAssignments).length > 0 ? { think_tank_assignments: roomAssignments } : {}),
     ...(selectedWorkspace ? { workspace: selectedWorkspace } : {}),
   });
+
+  // Review shows the checkout Start would freeze, planned by the server from
+  // the same selection; a refused choice stays in Setup with its message
+  // (FS-14.R113).
+  const review = async () => {
+    const requestBody = buildRequest();
+    setPlanning(true);
+    setError(null);
+    setDiagnostics([]);
+    try {
+      setPlan(await previewPipelineWorkspace(requestBody.project, requestBody.workspace));
+      setStep(1);
+    } catch (reason) {
+      const issues = pipelineDiagnostics(reason);
+      setDiagnostics(issues);
+      setError(issues.length === 0 ? pipelineActionError(reason) : null);
+    } finally {
+      setPlanning(false);
+    }
+  };
 
   const submit = (acknowledge: boolean) => {
     const requestBody = pendingRequest ?? buildRequest();
@@ -398,7 +422,7 @@ export function RunStartForm({
       {template && (!stepMode || step === 1) && <div className={stepMode ? "pipeline-start-pane pipeline-start-review" : "pipeline-subsection"} data-slot="content">
         {stepMode && <>
         <div className="pipeline-review-hero"><p className="pipeline-eyebrow">Ready to launch</p><h3>{effectiveName}</h3><p>{goal}</p></div>
-        <dl className="pipeline-review-facts"><div><dt>Template</dt><dd>{template?.title || "Untitled pipeline"}</dd></div><div><dt>Project</dt><dd>{projectTitle(projects.data, project)}</dd></div><div><dt>Workspace</dt><dd>{describeWorkspace(selectedWorkspace)}</dd></div><div><dt>Stages</dt><dd>{template?.stages.length ?? 0}</dd></div><div><dt>Named inputs</dt><dd>{Object.values(inputs).filter((value) => value.trim()).length}</dd></div></dl>
+        <dl className="pipeline-review-facts"><div><dt>Template</dt><dd>{template?.title || "Untitled pipeline"}</dd></div><div><dt>Project</dt><dd>{projectTitle(projects.data, project)}</dd></div><div><dt>Workspace</dt><dd>{describeWorkspace(selectedWorkspace, plan ?? undefined)}</dd></div><div><dt>Stages</dt><dd>{template?.stages.length ?? 0}</dd></div><div><dt>Named inputs</dt><dd>{Object.values(inputs).filter((value) => value.trim()).length}</dd></div></dl>
         <ol className="pipeline-review-runtimes">{slots.map((row, index) => <li key={row.key}><span>{index + 1}</span><div><strong>{row.label}</strong><small>{runtimeSummary(row.value, backends.data)}</small></div></li>)}</ol>
         </>}
       </div>}
@@ -424,7 +448,7 @@ export function RunStartForm({
       {stepMode ? <div className="pipeline-start-actions" data-slot="actions">
         <button type="button" onClick={onCancel}>Cancel</button>
         <span className="pipeline-start-blocker">{blocker}</span>
-        {step === 0 && <button type="button" className="ad-button-primary" disabled={setupIncomplete || assignmentsMissing} onClick={() => setStep(1)}>Review</button>}
+        {step === 0 && <button type="button" className="ad-button-primary" disabled={setupIncomplete || assignmentsMissing || planning} onClick={() => void review()}>{planning ? "Checking checkout…" : "Review"}</button>}
         {step === 1 && <button type="button" onClick={() => setStep(0)}>Back</button>}
         {step === 1 && <button type="button" className="ad-button-primary" disabled={cannotStart} onClick={() => submit(false)}>{start.isPending ? "Starting…" : proposal ? "Confirm and start exact proposal" : "Start run"}</button>}
       </div> : <div className="form-actions"><span className="pipeline-start-blocker">{blocker}</span><button type="button" className="ad-button-primary" disabled={cannotStart} onClick={() => submit(false)}>{start.isPending ? "Starting…" : proposal ? "Confirm and start exact proposal" : "Start run"}</button></div>}

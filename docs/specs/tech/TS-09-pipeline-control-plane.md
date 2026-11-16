@@ -650,7 +650,10 @@ unchanged by them.
   flag. Persist the selected mode, resolved repository/base, branch, setup command and canonical
   checkout identity under TS-12.R12–R14 with the run's original project id and frozen display-name
   group. Do not write project config or create a project. Read-only validation never creates Git
-  artifacts. R18's advisory conflict check compares effective canonical checkout identities rather
+  artifacts. Desktop Review previews the same plan through the desktop-only
+  `POST /api/pipeline-workspaces/preview` (`{project, workspace}`), which runs Start's workspace
+  checks and planner and returns `{mode, cwd, branch, base}` — the project checkout path, or the
+  new worktree's branch and resolved base — or Start's workspace diagnostics. R18's advisory conflict check compares effective canonical checkout identities rather
   than treating every agent in the same project as a checkout conflict; additional directories
   remain shared under their existing rules. This specializes R18/R37: initial commit may reserve
   a queued run, first stage task and workspace preparation intent together, but no agent starts

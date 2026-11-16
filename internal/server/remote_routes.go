@@ -103,7 +103,7 @@ var remoteDenied = map[string]bool{
 	// Retained pipeline workspace management and checkout removal are desktop
 	// actions (FS-14.R96, TS-09.R65); run detail carries status to the phone.
 	"GET /api/pipeline-workspaces": true, "GET /api/pipeline-workspaces/{id}": true,
-	"POST /api/pipeline-workspaces/{id}/remove": true,
+	"POST /api/pipeline-workspaces/{id}/remove": true, "POST /api/pipeline-workspaces/preview": true,
 	// Permission modes are a desktop chat-header control (FS-03.R88).
 	"GET /api/sessions/{id}/modes": true, "POST /api/sessions/{id}/mode": true,
 	"POST /api/remote/pairings": true, "POST /api/remote/pairings/{id}/allow": true,

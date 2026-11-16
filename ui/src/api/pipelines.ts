@@ -195,6 +195,23 @@ export function listPipelineWorkspaces(project: string, cursor: string) {
   return request(`/api/pipeline-workspaces?${query}`, pipelineWorkspaceListSchema);
 }
 
+const pipelineWorkspacePreviewSchema = z.object({
+  mode: z.enum(["project", "new_worktree"]),
+  cwd: z.string(),
+  branch: z.string(),
+  base: z.string(),
+});
+export type PipelineWorkspacePreview = z.output<typeof pipelineWorkspacePreviewSchema>;
+
+/** The checkout Start would freeze, from Start's own planner; creates nothing (FS-14.R113). */
+export function previewPipelineWorkspace(project: string, workspace: PipelineStartRequest["workspace"]) {
+  return request("/api/pipeline-workspaces/preview", pipelineWorkspacePreviewSchema, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project, ...(workspace ? { workspace } : {}) }),
+  });
+}
+
 export function getPipelineWorkspace(id: string) {
   return request(`/api/pipeline-workspaces/${encodeURIComponent(id)}`, pipelineWorkspaceDetailSchema);
 }

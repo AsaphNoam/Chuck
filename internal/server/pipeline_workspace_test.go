@@ -237,6 +237,48 @@ func TestPipelineRunWorkspacePreparationFailures(t *testing.T) {
 	}
 }
 
+// CONFIG-2, FS-14.R113/A74, TS-09.R61 — desktop Review's preview is the plan
+// Start freezes: the project checkout path, or the new worktree's branch and
+// the implicit base resolved from the project. A refused choice returns Start's
+// own diagnostic and creates nothing.
+func TestPipelineWorkspacePreviewMatchesFrozenWorkspace(t *testing.T) {
+	srv, repo, _ := workspaceTestServer(t)
+	handler := srv.routes()
+	preview := func(workspace *pipeline.WorkspaceSelection) map[string]string {
+		t.Helper()
+		rec := doRequest(t, handler, http.MethodPost, "/api/pipeline-workspaces/preview", map[string]any{"project": "repo", "workspace": workspace})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("preview %+v = %d %s", workspace, rec.Code, rec.Body.String())
+		}
+		var got map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	project := preview(nil)
+	frozen := startWorkspaceRun(t, srv, "project", "Project", nil).Workspace
+	if frozen == nil || project["mode"] != frozen.Mode || project["cwd"] != frozen.CheckoutPath || project["cwd"] == "" || project["base"] != "" {
+		t.Fatalf("project preview = %+v, frozen = %+v", project, frozen)
+	}
+
+	worktree := preview(&pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: "isolated-review"})
+	if branches := gitOutput(t, repo, "branch", "--list", "isolated-review"); branches != "" {
+		t.Fatalf("preview created a branch: %q", branches)
+	}
+	frozen = startWorkspaceRun(t, srv, "worktree", "Worktree", &pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: "isolated-review"}).Workspace
+	if frozen == nil || worktree["mode"] != frozen.Mode || worktree["branch"] != "isolated-review" || worktree["base"] == "" || worktree["base"] != frozen.Base || worktree["cwd"] != "" {
+		t.Fatalf("worktree preview = %+v, frozen = %+v", worktree, frozen)
+	}
+
+	gitOutput(t, repo, "branch", "taken")
+	rec := doRequest(t, handler, http.MethodPost, "/api/pipeline-workspaces/preview", map[string]any{"project": "repo", "workspace": pipeline.WorkspaceSelection{Mode: "new_worktree", Branch: "taken"}})
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), `"field":"workspace"`) || !strings.Contains(rec.Body.String(), "already exists") {
+		t.Fatalf("refused preview = %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 // FS-14.A60 (R96), TS-12.R14 — an owned checkout lost out of band is recreated
 // from its branch; a replaced directory or missing branch fails without repair;
 // an explicit-removal tombstone refuses recreation.

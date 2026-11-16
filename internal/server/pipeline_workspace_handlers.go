@@ -60,6 +60,30 @@ func (s *Server) handlePipelineWorkspaces(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, pipelineWorkspaceList{Workspaces: items, NextCursor: next})
 }
 
+// handlePreviewPipelineWorkspace answers desktop Review with the checkout Start
+// would freeze, from Start's own checks and planner; it creates nothing
+// (FS-14.R113, TS-09.R61).
+func (s *Server) handlePreviewPipelineWorkspace(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Project   string                       `json:"project"`
+		Workspace *pipeline.WorkspaceSelection `json:"workspace"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeAPIError(w, apiError(runtime.CodeValidation, "invalid JSON body"))
+		return
+	}
+	plan, diagnostics := s.pipelineMgr.PreviewWorkspace(r.Context(), request.Project, request.Workspace)
+	if len(diagnostics) > 0 {
+		writePipelineValidation(w, diagnostics)
+		return
+	}
+	if plan == nil {
+		writeAPIError(w, apiError(runtime.CodeInternal, "workspace planning is unavailable"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"mode": plan.Mode, "cwd": plan.CheckoutPath, "branch": plan.Branch, "base": plan.Base})
+}
+
 func (s *Server) handlePipelineWorkspace(w http.ResponseWriter, r *http.Request) {
 	ws, ae := s.readWorkspaceParam(r)
 	if ae != nil {
