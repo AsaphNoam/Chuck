@@ -120,6 +120,7 @@ export function RunStartForm({
   const [step, setStep] = useState(0);
   const [plan, setPlan] = useState<PipelineWorkspacePreview | null>(null);
   const [planning, setPlanning] = useState(false);
+  const previewSeq = useRef(0);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
   const [seededTemplate, setSeededTemplate] = useState<unknown>(null);
   const [runtimeSource, setRuntimeSource] = useState<"defaults" | "proposal" | "selected">("defaults");
@@ -208,6 +209,7 @@ export function RunStartForm({
   const workspaceMessages = (field: string) => workspaceDiagnostics.filter((item) => item.field === field).map((item) => <small className="form-error" key={`${item.code}-${item.message}`}>{item.message}</small>);
 
   const edit = () => {
+    previewSeq.current += 1;
     setPendingRequest(null);
     setConflicts([]);
     setDiagnostics([]);
@@ -237,13 +239,18 @@ export function RunStartForm({
   // (FS-14.R113).
   const review = async () => {
     const requestBody = buildRequest();
+    // An edit made while the plan loads makes it stale; stay in Setup.
+    const seq = ++previewSeq.current;
     setPlanning(true);
     setError(null);
     setDiagnostics([]);
     try {
-      setPlan(await previewPipelineWorkspace(requestBody.project, requestBody.workspace));
+      const planned = await previewPipelineWorkspace(requestBody.project, requestBody.workspace);
+      if (seq !== previewSeq.current) return;
+      setPlan(planned);
       setStep(1);
     } catch (reason) {
+      if (seq !== previewSeq.current) return;
       const issues = pipelineDiagnostics(reason);
       setDiagnostics(issues);
       setError(issues.length === 0 ? pipelineActionError(reason) : null);

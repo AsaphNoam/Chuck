@@ -174,6 +174,15 @@ describe("RunScreen", () => {
     expect(screen.getByRole("form", { name: "Replace orchestrator" })).toBe(form);
   });
 
+  // CONFIG-3, FS-02.R69: a deleted owner reads as unavailable, never its ID.
+  it("labels a deleted standing owner without showing its ID", async () => {
+    const gone = { ...stageTask("task_work", "work", 0, "completed", 1), standing_owner: { agent_id: "a_deleted_owner", name: "", state: "unknown", route: "unavailable" as const } };
+    server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, stage_tasks: [gone] })));
+    renderScreen();
+    expect(await screen.findByText(/Attempt 1 · Unavailable agent$/)).toBeInTheDocument();
+    expect(screen.queryByText(/a_deleted_owner/)).toBeNull();
+  });
+
   it("opens the current stage's conversation", async () => {
     renderScreen();
     fireEvent.click(await screen.findByRole("button", { name: "Open conversation" }));

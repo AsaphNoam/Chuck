@@ -53,11 +53,6 @@ None.
 
 ## Review queue
 
-- **Simplify pipeline configuration** — reviewed 2026-11-16, `ca1447ad..a6aa622b`
-  (FS-14.R110–R111/R113/A72/A74, TS-08.R169–R170, TS-09.R73). CONFIG-1–4 await `/fix`.
-  Independent Chromium journeys confirmed desktop authoring, stable keys and handoff selection,
-  and phone custom naming and shared-checkout confirmation with isolated state and a fake provider.
-
 - **Give agent execution one owner** — reviewed 2026-11-15, `193f301e..1d6077fa` (TS-01.R45–R50,
   TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left only the
   EXEC-6c remainder, blocked on a human decision under **Review findings**. Its ready change and plan stay until they close. Both implementer notes were
@@ -133,23 +128,6 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
-
-### Simplify pipeline configuration (`ca1447ad..a6aa622b`) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** — CONFIG-2. Desktop Review echoes the workspace selection instead of resolving the
-  checkout. Chromium showed only “Project checkout” for the current checkout and “New worktree ·
-  branch isolated-review” with Base left blank. `RunStartForm.tsx:401` uses the proposal
-  summary in `proposalSummary.ts`; the checkout path and implicit base are resolved by
-  `PlanWorkspace` in `internal/server/pipeline_workspace.go:24` only after Start.
-  Give Review a read-only projection from the existing planner, including the project checkout
-  or resolved worktree base and branch. Verify that Review and the frozen workspace agree for
-  both modes and preserve Setup on an invalid choice (FS-14.R113/A74, INV §2/§8/§20).
-- **Must fix** — CONFIG-4. Checkout planning and missing-resource presentation already had fixes
-  in `ae609d07` (PIPE-WT) and `657ebd66` (no-raw-IDs review). Inventory entry points for
-  preview, start, and retained checkout, the writers of the frozen workspace record, and
-  the rule each path uses. For run supervision, include the producers and consumers of
-  missing owner and coordinator names and the existing fallback rules. Use the inventory
-  to close CONFIG-2 and CONFIG-3 at the relevant shared owners (workflow §7, INV §2/§8/§20).
 
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
