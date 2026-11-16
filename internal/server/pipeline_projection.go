@@ -207,9 +207,11 @@ func (s *Server) pipelineTaskRunProjection(detail pipeline.RunDetail) ([]pipelin
 		if err != nil {
 			return nil, pipelineRunControls{}, err
 		}
-		owner := pipelineStageOwner{AgentID: stage.StandingAgentID, Name: stage.StandingAgentID, State: "unknown", Route: "unavailable", Runtime: pipeline.RuntimeAssignment{Backend: task.Backend, Model: task.Model, Effort: task.Effort, Fast: task.Fast}}
+		// An agent the snapshot cannot name keeps its ID for routing and an empty
+		// name; the UI shows the unavailable-agent label (FS-02.R69).
+		owner := pipelineStageOwner{AgentID: stage.StandingAgentID, State: "unknown", Route: "unavailable", Runtime: pipeline.RuntimeAssignment{Backend: task.Backend, Model: task.Model, Effort: task.Effort, Fast: task.Fast}}
 		if stage.StandingAgentID != "" {
-			card := pipelineAgentCard(snapshots[stage.StandingAgentID], stage.StandingAgentID, stage.StandingAgentID, task.OutcomeSummary)
+			card := pipelineAgentCard(snapshots[stage.StandingAgentID], stage.StandingAgentID, "", task.OutcomeSummary)
 			owner.Name, owner.State, owner.Route = card.Name, card.State, card.Route
 		}
 		work := projectWork(task.TaskID)
@@ -234,8 +236,8 @@ func (s *Server) pipelineTaskRunProjection(detail pipeline.RunDetail) ([]pipelin
 			if readErr != nil {
 				return nil, pipelineRunControls{}, readErr
 			}
-			name := coordinator.AssignedAgentID
-			if snapshot, ok := snapshots[coordinator.AssignedAgentID]; ok && snapshot.Name != "" {
+			name := ""
+			if snapshot, ok := snapshots[coordinator.AssignedAgentID]; ok && snapshot.IdentityFound {
 				name = snapshot.Name
 			}
 			item.Coordinator = &pipelineStageCoordinator{TaskID: coordinator.TaskID, AgentID: coordinator.AssignedAgentID, Name: name, State: coordinator.State, Route: agentRoute(snapshots, coordinator.AssignedAgentID), ReportSummary: coordinator.OutcomeSummary, Runtime: pipeline.RuntimeAssignment{Backend: coordinator.Backend, Model: coordinator.Model, Effort: coordinator.Effort, Fast: coordinator.Fast}}
@@ -321,7 +323,7 @@ func (s *Server) pipelineAttemptAgents(detail pipeline.RunDetail) (map[string]pi
 		entry := out[attempt.AttemptID]
 		if attempt.AgentID != "" {
 			snapshot := snapshots[attempt.AgentID]
-			summary := pipelineAgentCard(snapshot, attempt.AgentID, attempt.AgentID, attempt.ReportSummary)
+			summary := pipelineAgentCard(snapshot, attempt.AgentID, "", attempt.ReportSummary)
 			entry.StageAgent = &summary
 		}
 		out[attempt.AttemptID] = entry

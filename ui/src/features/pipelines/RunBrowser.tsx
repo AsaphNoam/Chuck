@@ -12,10 +12,10 @@ import type { PipelineRunDetail } from "../../schemas/pipeline";
 import { decisionOnlyLabel, evidenceVisits } from "../../lib/ownerDecision";
 import { useAgentStore } from "../../store/agentStore";
 import { useProjects } from "../../api/config";
-import { agentName, projectTitle } from "../../lib/labels";
+import { projectTitle } from "../../lib/labels";
 import { RunWorkspace } from "./RunWorkspace";
 import { WorkspaceRemoveDialog } from "./WorkspaceRemoveDialog";
-import { pipelineActionError as messageOf, pipelineAttentionText, pipelineStageLabels } from "./pipelineLabels";
+import { pipelineActionError as messageOf, pipelineAgentLabel, pipelineAttentionText, pipelineStageLabels } from "./pipelineLabels";
 
 export function RunsLedger() {
   const query = usePipelineRuns();
@@ -135,7 +135,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
         {data.workspace && <RunWorkspace workspace={data.workspace} terminal={terminal} onRemove={() => setRemoveOpen(true)} />}
         {removeOpen && data.workspace && <WorkspaceRemoveDialog workspaceID={data.workspace.workspace_id} onClose={() => setRemoveOpen(false)} />}
         {currentTask?.room && <div className="pipeline-owner-strip"><div><small>Think Tank stage</small><strong>{roomPhaseLabel(currentTask)}</strong><span>{currentTask.attention_reason || "The judge's published synthesis becomes this stage's output."}</span></div></div>}
-        {currentTask && !currentTask.room && <div className="pipeline-owner-strip"><div><small>Standing owner</small><strong>{currentTask.standing_owner.name || currentTask.standing_owner.agent_id ? agentName(currentTask.standing_owner.name) : "Starting"}</strong><span>{humanize(currentTask.standing_owner.state || currentTask.state)}</span></div>{currentTask.coordinator && <div><small>Stage coordinator</small><strong>{currentTask.coordinator.name || currentTask.coordinator.agent_id ? agentName(currentTask.coordinator.name) : "Starting"}</strong><span>{currentTask.coordinator.report_summary ? "Reports to standing owner" : humanize(currentTask.coordinator.state || "assigned")}</span></div>}</div>}
+        {currentTask && !currentTask.room && <div className="pipeline-owner-strip"><div><small>Standing owner</small><strong>{pipelineAgentLabel(currentTask.standing_owner, "Starting")}</strong><span>{humanize(currentTask.standing_owner.state || currentTask.state)}</span></div>{currentTask.coordinator && <div><small>Stage coordinator</small><strong>{pipelineAgentLabel(currentTask.coordinator, "Starting")}</strong><span>{currentTask.coordinator.report_summary ? "Reports to standing owner" : humanize(currentTask.coordinator.state || "assigned")}</span></div>}</div>}
         {run.attention_reason && <div className="pipeline-warning"><strong>Needs attention</strong><p>{humanize(pipelineAttentionText(run.attention_reason, stageTitles))}</p>{run.pause_question && <p><strong>Question:</strong> {run.pause_question}</p>}{recovered && <p>{restarted ? "The stage agent was stopped when Chuck restarted" : "The stage agent is not running after this failure"}, so its chat can no longer report against this run. Retry the stage to run it again with a fresh agent.</p>}</div>}
         <div className="pipeline-run-actions" data-slot="actions">
           {currentTask?.room && <Link className="pipeline-link-button" to={`/think-tank/${currentTask.room.room_id}`}>Open Think Tank</Link>}
@@ -190,7 +190,7 @@ function StageTask({ task, tasks, titles, title, current }: { task: PipelineRunD
   return <li id={`visit-${task.task_id}`} className={current ? "pipeline-timeline-item pipeline-timeline-current" : "pipeline-timeline-item"} data-slot="attempt">
     <span className="pipeline-timeline-line" aria-hidden="true" />
     <details open={current}>
-      <summary><span className="pipeline-stage-number">{task.visit_sequence || task.stage_index + 1}</span><span className="pipeline-attempt-identity"><strong>{title}</strong><small>{room ? `Think Tank · ${roomPhaseLabel(task)}` : `${task.standing_owner.name || task.standing_owner.agent_id ? agentName(task.standing_owner.name) : "Standing owner"} · step ${task.stage_index + 1} · attempt ${task.attempt_number}`}</small></span><span className={`pipeline-state pipeline-state-${outcome}`}>{humanize(outcome)}</span><span className="pipeline-disclosure-chevron" aria-hidden="true">⌄</span></summary>
+      <summary><span className="pipeline-stage-number">{task.visit_sequence || task.stage_index + 1}</span><span className="pipeline-attempt-identity"><strong>{title}</strong><small>{room ? `Think Tank · ${roomPhaseLabel(task)}` : `${pipelineAgentLabel(task.standing_owner, "Standing owner")} · step ${task.stage_index + 1} · attempt ${task.attempt_number}`}</small></span><span className={`pipeline-state pipeline-state-${outcome}`}>{humanize(outcome)}</span><span className="pipeline-disclosure-chevron" aria-hidden="true">⌄</span></summary>
       <div className="pipeline-attempt-body">
         {room && <p className="pipeline-room-source"><Link to={`/think-tank/${room.room_id}`}>Open Think Tank room</Link>{room.source_entry_seq > 0 && <span> · Output is the judge's synthesis (room entry {room.source_entry_seq}). Completion means a synthesis was produced, not that participants agreed.</span>}</p>}
         {task.result?.summary ? <p className="pipeline-result-summary">{task.result.summary}</p> : <p className="pipeline-unreported">{room ? (task.attention_reason || "The room has not published a judge synthesis yet.") : current ? "The standing owner has not accepted a stage outcome yet." : "No stage outcome was recorded."}</p>}

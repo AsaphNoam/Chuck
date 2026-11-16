@@ -144,13 +144,6 @@ specs, live user state or unrelated dirty files changed.
   Give Review a read-only projection from the existing planner, including the project checkout
   or resolved worktree base and branch. Verify that Review and the frozen workspace agree for
   both modes and preserve Setup on an invalid choice (FS-14.R113/A74, INV §2/§8/§20).
-- **Must fix** — CONFIG-3. Historical stage cards and the current owner strip can show raw agent
-  IDs after an owner or coordinator is deleted. `internal/server/pipeline_projection.go:210,237`
-  copies IDs into the display name when the snapshot cannot name the agent.
-  `RunBrowser.tsx:138,193` then treats them as readable names. Preserve IDs for routing and
-  show the shared unavailable-agent label when projection cannot resolve a name. Verify a
-  retained run with a missing owner and coordinator using the production projection
-  (FS-02.R69, FS-14.R110/A72, TS-08.R170, INV §8/§11).
 - **Must fix** — CONFIG-4. Checkout planning and missing-resource presentation already had fixes
   in `ae609d07` (PIPE-WT) and `657ebd66` (no-raw-IDs review). Inventory entry points for
   preview, start, and retained checkout, the writers of the frozen workspace record, and

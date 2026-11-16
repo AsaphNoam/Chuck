@@ -69,6 +69,17 @@ it("shows no next stage once the run is finished and falls back to a neutral lab
   expect(screen.queryByText(/^Usual next:/)).toBeNull();
 });
 
+// CONFIG-3, FS-02.R69: the projection leaves a deleted owner's or coordinator's name
+// empty; the owner strip and stage card show the shared label, never the ID.
+it("labels a deleted owner and coordinator as unavailable without showing their IDs", async () => {
+  const gone = { agent_id: "a_deleted_owner", name: "", state: "unknown", route: "unavailable" };
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, stage_tasks: [{ ...stageTask, standing_owner: gone, coordinator: { ...gone, task_id: "task_c", agent_id: "a_deleted_coordinator" } }] })));
+  renderRun();
+  expect(await screen.findAllByText("Unavailable agent")).toHaveLength(2);
+  expect(screen.getByText(/^Unavailable agent · step 1/)).toBeInTheDocument();
+  expect(screen.queryByText(/a_deleted/)).toBeNull();
+});
+
 it("resumes a paused run without invented text, offering optional instructions", async () => {
   server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, run: { ...run, state: "paused", attention_reason: "recovery_exhausted", recovery_rounds_used: 3, recovery_limit: 3 }, stage_tasks: [{ ...stageTask, state: "finished", result: { outcome: "failure", summary: "Tests fail", details: "", checks: "", outputs: {} } }], controls: { ...controls, continue: { eligible: true, reason: "Resumes the run with a fresh recovery allowance; instructions are optional." } } })));
   renderRun();

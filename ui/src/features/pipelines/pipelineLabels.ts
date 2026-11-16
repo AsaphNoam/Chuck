@@ -1,5 +1,5 @@
 import type { PipelineTemplate } from "../../schemas/pipeline";
-import type { LabelEntry } from "../../lib/labels";
+import { UNAVAILABLE_AGENT, UNNAMED_AGENT, type LabelEntry } from "../../lib/labels";
 
 export function pipelineOptionLabels(entries: readonly LabelEntry[], kind: string): [string, string][] {
   return entries.map(([key, name], index) => {
@@ -12,6 +12,14 @@ export function pipelineOptionLabels(entries: readonly LabelEntry[], kind: strin
 
 export function pipelineStageLabels(stages: PipelineTemplate["stages"]): Map<string, string> {
   return new Map(pipelineOptionLabels(stages.map(({ id, title }) => [id, title]), "stage"));
+}
+
+/** A stage owner's or coordinator's name. The projection leaves the name empty
+ *  when it cannot resolve the agent; the ID stays for routing only (FS-02.R69). */
+export function pipelineAgentLabel(agent: { agent_id?: string; name?: string; route?: string }, pending: string): string {
+  if (agent.name?.trim()) return agent.name.trim();
+  if (!agent.agent_id) return pending;
+  return agent.route === "unavailable" ? UNAVAILABLE_AGENT : UNNAMED_AGENT;
 }
 
 export function pipelineParticipantLabel(index: number): string {

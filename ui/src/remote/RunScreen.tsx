@@ -10,7 +10,7 @@ import { useConnection } from "./connection";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
-import { pipelineActionError, pipelineAttentionText, pipelineStageLabels } from "../features/pipelines/pipelineLabels";
+import { pipelineActionError, pipelineAgentLabel, pipelineAttentionText, pipelineStageLabels } from "../features/pipelines/pipelineLabels";
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -95,7 +95,7 @@ export function RunScreen({ runId }: { runId: string }) {
           <span className="phone-timeline-marker"><PhoneIcon name={outcome === "completed" || outcome === "success" ? "check" : "pipeline"} size={15} /></span>
           <div className="phone-timeline-content">
             <div className="phone-timeline-heading"><strong>{title}</strong><span className="phone-status" data-tone={runTone(outcome)}>{humanize(outcome)}</span></div>
-            <p className="phone-meta">Visit {task.visit_sequence || task.stage_index + 1} · Step {task.stage_index + 1} · Attempt {task.attempt_number}{task.room ? " · Think Tank" : task.standing_owner.name ? ` · ${task.standing_owner.name}` : ""}</p>
+            <p className="phone-meta">Visit {task.visit_sequence || task.stage_index + 1} · Step {task.stage_index + 1} · Attempt {task.attempt_number}{task.room ? " · Think Tank" : task.standing_owner.name || task.standing_owner.agent_id ? ` · ${pipelineAgentLabel(task.standing_owner, "")}` : ""}</p>
             {task.result?.summary ? <p>{task.result.summary}</p> : <p className="phone-meta">{task.room ? (task.attention_reason || "The room has not published a judge synthesis yet.") : current ? "The stage has not reported an outcome yet." : "No outcome was recorded."}</p>}
             {decisionOnlyLabel(task, stageTasks) && <p className="phone-meta">{decisionOnlyLabel(task, stageTasks)}</p>}
             {task.decision && !task.decision.implicit && <div className="phone-meta">
