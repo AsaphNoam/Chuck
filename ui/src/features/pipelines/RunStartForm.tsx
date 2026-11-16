@@ -416,7 +416,7 @@ export function RunStartForm({
           {diagnostics.filter((item) => !workspaceDiagnostics.includes(item)).map((diagnostic, index) => {
             const field = startDiagnosticField(diagnostic.field);
             const slot = slots.find((item) => field === item.field || field.startsWith(`${item.field}.`));
-            return <li key={`${field}-${diagnostic.code}-${index}`}>{startDiagnosticText(diagnostic, slot?.label)}</li>;
+            return <li key={`${field}-${diagnostic.code}-${index}`}>{startDiagnosticText(diagnostic, slot?.label, stageLabels)}</li>;
           })}
         </ul>
       )}

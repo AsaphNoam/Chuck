@@ -17,7 +17,7 @@ import { NewAgentForm } from "./NewAgentForm";
 import { usePhoneGroupChoices } from "./groupChoices";
 import type { PipelineStartRequest } from "../schemas/pipeline";
 import { focusStartDiagnostic, startDiagnosticText } from "../features/pipelines/startDiagnostics";
-import { pipelineActionError, pipelineOptionLabels } from "../features/pipelines/pipelineLabels";
+import { pipelineActionError, pipelineOptionLabels, pipelineStageLabels } from "../features/pipelines/pipelineLabels";
 
 function StartPipeline({ project, onClose }: { project: string; onClose: () => void }) {
   const offline = useConnection((state) => state.link !== "connected");
@@ -75,7 +75,7 @@ function StartPipeline({ project, onClose }: { project: string; onClose: () => v
       } else {
         const issues = pipelineDiagnostics(err);
         if (issues.some((issue) => issue.field === "display_name")) setCustomNameOpen(true);
-        setError({ text: issues.length ? issues.map((item) => startDiagnosticText(item)).join(" ") : pipelineActionError(err), field: issues[0]?.field });
+        setError({ text: issues.length ? issues.map((item) => startDiagnosticText(item, undefined, pipelineStageLabels(template.template.stages))).join(" ") : pipelineActionError(err), field: issues[0]?.field });
       }
     } finally {
       setBusy(false);

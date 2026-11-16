@@ -8,8 +8,12 @@ export function isRuntimeDiagnostic(field: string) {
   return /^(orchestrator|assignments|dedicated_assignments|think_tank_assignments)(\.|$)/.test(field);
 }
 
+// A Think Tank stage's combined context is the run goal, the stage's
+// instructions and its inputs; the goal is the run field the operator can shorten.
+const stageContextField = /^stages\.([^.]+)\.context$/;
+
 export function focusStartDiagnostic(root: HTMLElement | null, path: string) {
-  const field = startDiagnosticField(path);
+  const field = stageContextField.test(path) ? "goal" : startDiagnosticField(path);
   const owners = [...(root?.querySelectorAll<HTMLElement>("[data-field]") ?? [])];
   // A specific field such as workspace.branch wins over the workspace group.
   const owner = owners.find((item) => field === item.dataset.field)
@@ -17,7 +21,13 @@ export function focusStartDiagnostic(root: HTMLElement | null, path: string) {
   owner?.querySelector<HTMLElement>("input, select, textarea")?.focus();
 }
 
-export function startDiagnosticText({ field, code, message }: PipelineDiagnostic, runtimeLabel?: string) {
+export function startDiagnosticText({ field, code, message }: PipelineDiagnostic, runtimeLabel?: string, stageLabels?: Map<string, string>) {
+  const context = stageContextField.exec(field);
+  if (context && code === "too_large") {
+    const stage = stageLabels?.get(context[1]) ?? "A Think Tank stage";
+    const limit = /exceed (\d+) bytes/.exec(message)?.[1];
+    return `${stage}: the run goal, stage instructions and inputs together exceed the ${limit ? `${Number(limit).toLocaleString("en-US")}-byte ` : ""}stage context limit. Shorten the run goal or inputs.`;
+  }
   if (isRuntimeDiagnostic(field)) {
     const label = runtimeLabel ?? (startDiagnosticField(field) === "orchestrator" ? "Standing owner" : "Pipeline runtime");
     if (code === "required") return `${label} needs a configured backend and model.`;

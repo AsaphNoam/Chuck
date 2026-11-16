@@ -175,6 +175,20 @@ describe("ProjectScreen start pipeline", () => {
     expect(window.location.pathname).toBe("/");
   });
 
+  // CONFIG-1: the phone uses the same named stage-context message and focuses the goal.
+  it("names the stage whose combined context is too large and focuses the run goal", async () => {
+    server.use(
+      http.get("/api/pipelines", () => HttpResponse.json([{ id: "delivery", valid: true, diagnostics: [], template: { ...template, stages: [{ ...template.stages[0], id: "stage-7f3a", title: "Design critique" }] } }])),
+      http.post("/api/pipeline-runs", () => HttpResponse.json({ error: { code: "validation_failed", message: "stage context is too large", details: { diagnostics: [
+        { field: "stages.stage-7f3a.context", code: "too_large", message: "the goal, objective and inputs for this Think Tank stage exceed 262144 bytes" },
+      ] } } }, { status: 422 })),
+    );
+    await fillStart();
+    expect(await screen.findByText(/^Design critique: the run goal, stage instructions and inputs together exceed/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Run goal" })).toHaveFocus());
+    expect(screen.getByRole("textbox", { name: "Run goal" })).toHaveValue("Ship it");
+  });
+
   it("keeps the setup and confirms the same request after a shared checkout conflict", async () => {
     server.use(http.post("/api/pipeline-runs", async ({ request }) => {
       const body = await request.json();

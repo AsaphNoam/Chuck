@@ -169,6 +169,35 @@ describe("RunStartForm", () => {
     } } });
   });
 
+  // CONFIG-1: the server's oversized Think Tank context names the stage and the
+  // limit, returns to Setup with the goal focused, and keeps the draft.
+  it("names the stage whose combined context is too large and focuses the run goal", async () => {
+    server.use(
+      http.get("/api/pipelines", () => HttpResponse.json([{ id: "critique", valid: true, diagnostics: [], template: {
+        ...template, title: "Critique",
+        stages: [{ id: "stage-7f3a", title: "Design critique", objective: "Critique.", coordination: "think_tank", inputs: [], outputs: [{ name: "verdict", value: "verdict", description: "Synthesis" }],
+          think_tank: { participants: [{ id: "pro", role: "implementer", limit: 2 }], openings: false, judge_role: "reviewer" } }],
+      } }])),
+      http.post("/api/pipeline-runs", () => HttpResponse.json({ error: { code: "validation_failed", message: "stage context is too large", details: { diagnostics: [
+        { field: "stages.stage-7f3a.context", code: "too_large", message: "the goal, objective and inputs for this Think Tank stage exceed 262144 bytes" },
+      ] } } }, { status: 422 })),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+    render(<QueryClientProvider client={client}><RunStartForm stepMode onCancel={() => {}} onStarted={() => {}} /></QueryClientProvider>);
+
+    await screen.findByRole("option", { name: "Critique" });
+    fireEvent.change(screen.getByLabelText("Template"), { target: { value: "critique" } });
+    fireEvent.change(screen.getByLabelText("Run goal"), { target: { value: "A very long goal" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Review" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start run" }));
+
+    expect(await screen.findByText("Design critique: the run goal, stage instructions and inputs together exceed the 262,144-byte stage context limit. Shorten the run goal or inputs.")).toBeInTheDocument();
+    expect(screen.queryByText(/stage-7f3a/)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Run goal")).toHaveFocus());
+    expect(screen.getByLabelText("Run goal")).toHaveValue("A very long goal");
+  });
+
   it("opens the runtime controls when the defaults leave an assignment missing", async () => {
     server.use(http.get("/api/backends", () => HttpResponse.json({
       version: 2,

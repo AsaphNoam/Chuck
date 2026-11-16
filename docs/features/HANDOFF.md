@@ -136,14 +136,6 @@ specs, live user state or unrelated dirty files changed.
 
 ### Simplify pipeline configuration (`ca1447ad..a6aa622b`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** — CONFIG-1. Launch hides the cause of a valid Think Tank template's rejected start.
-  In Chromium, a stage named Design critique with a required 64,000-emoji brief and an
-  8,000-character goal returned 422 with `stages.<key>.context`, `too_large`, and the
-  combined context limit. `startDiagnostics.ts:45` replaces it with “A stage configuration
-  is invalid. Check the pipeline template.” Desktop preserves the draft but leaves focus on the
-  dialog, and phone uses the same formatter. Resolve the stage from the selected template, state
-  what exceeded the limit, and direct focus to a relevant run field. Verify both start forms
-  with the real diagnostic shape and preserve the draft (FS-14.R110/R113, TS-08.R170, INV §8/§11/§22).
 - **Must fix** — CONFIG-2. Desktop Review echoes the workspace selection instead of resolving the
   checkout. Chromium showed only “Project checkout” for the current checkout and “New worktree ·
   branch isolated-review” with Base left blank. `RunStartForm.tsx:401` uses the proposal
