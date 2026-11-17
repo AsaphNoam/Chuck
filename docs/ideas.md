@@ -121,6 +121,29 @@ Example:
     twice.
   Define, per exit, the owner of row, `turn_end`, receipt and successor, and whether a gate claim
   without a turn row may exist at all.
+  ARCH-TURN-1 (architectural review of v0.23.0..d26e5fe2) was one more row here: a turn refused
+  before it reached the provider stored `refused` and composed to `error`; it now stores
+  `not_started` and composes to `idle`.
+- **One recovery rule for a settled pipeline owner.** From the v0.23.0..d26e5fe2 architectural
+  review's inventory (ARCH-STALL-2, 2026-11-17). ARCH-STALL-1 was patched: a live owner whose turn
+  failed (`error`) is now continued, then paused, like an idle one. The turn-end nudge
+  (`nudgeStalledOwner`) and the sweep (`PipelineOwnersNeedingRecovery`) now agree on `idle` and
+  `error`, but each other settled state is decided in a different place:
+  - quota-held: both skip it; quota recovery owns it, and an owner that exits while held is not
+    interrupted (`interruptTaskOnExit`). Unverified that quota continuation always reaches a
+    pipeline stage owner;
+  - `waiting_input`: both skip it and only the attention label changes; nothing pauses an
+    abandoned permission prompt (unverified that a resolve re-runs the nudge);
+  - background work, pending yield/release and child waits: skipped and re-evaluated at the next
+    turn end; the sweep still selects child-waiting and quota-held rows every pass only for the
+    runtime gate to refuse them;
+  - `error` from a failed Switch: selected by both, but the runtime has no handle, so the nudge
+    does nothing silently; unverified whether anything else interrupts the task;
+  - process exit and Stop: the exit hook interrupts the task, then the sweep recovers or pauses.
+  Ordinary (non-pipeline) task assignees have no stall detector at all: a turn ending without a
+  report leaves the task running until the process exits. State one table in TS-09.R70 (and
+  decide FS-16 for ordinary tasks): per settled owner state, who continues, pauses or
+  deliberately leaves the visit, and what later event re-evaluates it (INV §8, §18).
 - **One settlement rule for a stopped or exited process.** From the single-owner turn state
   review's inventory (TURN-STOP-3, 2026-11-15). TURN-STOP-1/2 now settle Stop by writing `done`
   and ending the generation's turn before deleting the running row. Live chat Stop goes through

@@ -28,6 +28,14 @@
       "commits": ["4d511e1dc6c8337494110ce95105fc96875e360d"],
       "verified": true,
       "evidence": "v0.24.0 release preparation diff read in full on 2026-11-16: gate-skip list, TS-06.R36 exception text, release notes, one agentknowledge reference sentence and regenerated embed index. It changes no runtime, store, wire or UI source path assessed above and discloses the waiver truthfully. make check-specs passes at the resulting tree. No hosted assembly, install, provider or device evidence is claimed by this entry."
+    },
+    {
+      "kind": "fix",
+      "commits": ["80a05231ac44247c89fda4b4f22cacc7b30ffbdb", "3b818f230a3eded5f35ca9839e2806d7b7987fc4", "7c407643a90629bb5b90bf81c8f25c589b9d4554"],
+      "finding_ids": ["ARCH-STALL-1", "ARCH-STALL-2", "ARCH-TURN-1", "ARCH-INPUT-1"],
+      "closes": ["ARCH-STALL-1", "ARCH-STALL-2", "ARCH-TURN-1", "ARCH-INPUT-1"],
+      "verified": true,
+      "evidence": "2026-11-17. ARCH-STALL-1: nudgeStalledOwner and PipelineOwnersNeedingRecovery accept a live owner at status error; the probe became TestFailedOwnerTurnIsContinuedThenPaused, which fails without the fix and with it ends paused/owner_not_reporting after three prompts; TS-09.R70 updated. ARCH-TURN-1: a turn refused before the provider stores not_started (composes idle); TestStaleMailWakeComposesIdle fails without the fix; TS-01.R46 updated. ARCH-INPUT-1: a server-answered Steer refusal renews the draft request ID; the Composer refused-steer test retries the unchanged draft and fails without the fix. ARCH-STALL-2: inventory routed to docs/ideas.md ('One recovery rule for a settled pipeline owner'), including that ordinary task assignees have no stall detector. make test (check-specs, both Go variants), make build, UI npm test (1,293) and npm run build pass with GOFLAGS=-p=1, isolated GOCACHE, CHUCK_RUNTIME_ROOT unset. EXEC-6c remains open, blocked on human."
     }
   ]
 }
