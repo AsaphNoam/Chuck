@@ -127,7 +127,7 @@ specs, live user state or unrelated dirty files changed.
 **Report (verbatim):** “sometimes the page just goes blank when I switch between tabs and go back,
 click anywhere on the page makes the view render”. The operator confirmed Chrome browser tabs and
 the newest Chuck build: “the Chuck theme color is still active but other than that the screen goes
-completely blank”. No route, incident time, exact field build or browser error was supplied.
+completely blank”. No incident time, exact field build or browser error was supplied.
 
 **Cause undetermined.** The shell renders a header separately from its route outlet
 (`ui/src/App.tsx:8–15`); route loading and caught render errors show text or a retry, not a blank
@@ -151,6 +151,15 @@ theme decoration in `ui/src/styles/base.css:16–26` is painted behind the shell
 input. It is a candidate for a temporary CSS comparison if the failure reproduces with the shell
 still present and no obscuring overlay. Chrome repaint remains a hypothesis.
 
+**Loaded-chat follow-up:** The operator reported an individual agent chat as the affected view.
+Their projects include 120 chats, 104 all stopped, and 70, with 20 running and over 300 stopped
+overall. An isolated headless Chrome fixture matched that scale with 350 synthetic identities
+(20 running, 330 stopped) across four projects. Six tabs hosted three project grids and three
+individual chats (900-turn running, 200-turn running, 200-turn stopped). Over a simulated tab
+return, live update burst and forced stream reconnect, every sampled header and chat remained
+present, with no shell detachments or page errors. Reconnect refetched open chat histories and
+made zero transcript requests from the grid tabs. Native screen painting remains unverified.
+
 - **Worth fixing** (confirmed from code) — TAB-BLANK-1, missing browser diagnostics: the desktop
   entry point (`ui/src/main.tsx:12–21`) has no browser error reporting, and the route boundary
   (`ui/src/components/ErrorBoundary.tsx:22–24`) only logs to the browser console. Ordinary server
@@ -162,6 +171,17 @@ still present and no obscuring overlay. Chrome repaint remains a hypothesis.
   contents. Verify with an injected render failure and shell loss, and that healthy returns stay
   quiet. The page cannot attest to pixels on screen; an in-incident screenshot taken before a
   click, with the approximate time and page, is the next useful field evidence.
+- **Worth fixing** (confirmed in synthetic Chrome workload) — TAB-BLANK-2, long desktop histories
+  stall streaming and reconnect. A burst of 48 live assistant deltas per synthetic running chat
+  produced main-thread tasks up to 669 ms in the 900-turn tab, which rendered about 54,000 transcript
+  elements. The 200-turn running tab logged tasks up to 319 ms in the same burst. No project grid
+  logged a task of 50 ms or longer. These are local stress-run measurements with synthetic Markdown,
+  not a field profile or proof of the blank screen. Desktop reconnect fetches complete history
+  (`ui/src/api/sse.ts:80–82,371–383`; `ui/src/api/client.ts:71–75`), and live deltas reproject and
+  render completed turns along with the changing tail (`ui/src/components/chat/TranscriptView.tsx:148–155`,
+  `ui/src/components/chat/TurnList.tsx:56–86`; FS-03.R12, INV §16). Reuse unchanged turn work on
+  streaming updates, then compare the long-task trace with the same fixture and verify scroll,
+  selection and transcript correctness across reconnect. This is a bounded render-path fix.
 
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
