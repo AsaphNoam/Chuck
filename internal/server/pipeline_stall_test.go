@@ -155,6 +155,54 @@ func assertOwnerRecovered(t *testing.T, srv *Server, runID, oldTaskID string) {
 // FS-14.A65, TS-09.R70 — an owner whose turns end with its stage visit open
 // and neither a report nor a wait gets an ordinary continuation turn, and after
 // three such turns the visit is interrupted and the run pauses for the person.
+// FS-14.R101, TS-09.R70 — an owner turn that ends in a provider failure while
+// the process lives settles at `error`, not `idle`; the sweep and the turn-end
+// nudge must still continue it and then pause, not leave the run running.
+func TestFailedOwnerTurnIsContinuedThenPaused(t *testing.T) {
+	t.Setenv("FAKEACP_CAPS", "1")
+	t.Setenv("FAKEACP_FAILURE_RESULT", `{"id":"turn-1:error","revision":1,"category":"service","severity":"error","title":"provider failed","actions":[]}`)
+	srv, ts, promptLog := activationTestServer(t)
+	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+	generation := srv.taskGeneration(id)
+	task := createDispatchingStallVisit(t, srv, "pr_stall", "tk_stall")
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, execution_handle = 'ta_stall', started_at = created_at WHERE task_id = ?`, state.TaskRunning, id, generation, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.stateStore.BindPipelineStageTaskStandingAgent(task.TaskID, id); err != nil {
+		t.Fatal(err)
+	}
+	// Hold the claim through the first turn so its turn-end check is skipped
+	// and the first continuation has to come from the sweep.
+	if !srv.claimLifecycle(id) {
+		t.Fatal("could not hold the initial turn-end check")
+	}
+	if err := srv.registry.SendPrompt(t.Context(), id, "begin assigned work"); err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, srv, id, "error")
+	srv.releaseLifecycle(id)
+	srv.recoverMissedStageStalls()
+	deadline := time.Now().Add(10 * time.Second)
+	var run state.PipelineRunRecord
+	for time.Now().Before(deadline) {
+		var err error
+		if run, err = srv.stateStore.ReadPipelineRun("pr_stall"); err == nil && run.State == "paused" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+		srv.recoverMissedStageStalls()
+	}
+	if run.State != "paused" || run.AttentionReason != "owner_not_reporting" {
+		t.Fatalf("run after failed owner turns = %s attention %q, want paused owner_not_reporting", run.State, run.AttentionReason)
+	}
+	if after, _ := srv.stateStore.ReadTask(task.TaskID); after.State != state.TaskInterrupted {
+		t.Fatalf("failed owner visit = %s, want interrupted", after.State)
+	}
+	if got := promptCount(t, promptLog); got != state.MaxOwnerStallTurns {
+		t.Fatalf("assignment plus continuation prompts = %d, want %d", got, state.MaxOwnerStallTurns)
+	}
+}
+
 func TestStalledOwnerIsContinuedThenPaused(t *testing.T) {
 	srv, ts, promptLog := activationTestServer(t)
 	id := launchAndWaitIdle(t, ts, "impl", "tmpproj")

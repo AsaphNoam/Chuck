@@ -796,7 +796,8 @@ task-backed controller; do not add a second executor for simple sequences.
   visits using the recorded cause. An explicit owner stop pauses for the person. A stop and a
   stall check take the same per-agent lifecycle claim; the first to interrupt the owner's task
   keeps its pause reason, and a stop that meets a held claim is refused with a conflict. A nudge requires
-  a settled turn of the assigned generation, and retries of the same turn count once. Silence
+  a settled turn of the assigned generation, whether it ended normally or in a provider failure
+  with the process still live, and retries of the same turn count once. Silence
   during a live turn/tool, permission wait, child watch or known quota sleep does not authorize replay.
   Resolve ownership/uncertain effects first; use an owner recovery assignment when judgment is
   required. Existing TS-10.R35 mechanical backoff stays separate from three automatic repair/revisit

@@ -1091,7 +1091,7 @@ LEFT JOIN status s ON s.agent_id = t.assigned_agent_id
 WHERE p.state = 'open' AND p.execution_kind = ? AND r.state IN ('queued', 'running') AND r.current_task_id = p.task_id
   AND (t.state IN ('interrupted', 'dependency_failed') OR
     (t.state = 'running' AND (r.state = 'queued' OR p.standing_agent_id <> t.assigned_agent_id OR
-      (s.state = 'idle' AND s.background_running = 0 AND t.pending_yield = 0 AND t.pending_release = 0))))
+      (s.state IN ('idle', 'error') AND s.background_running = 0 AND t.pending_yield = 0 AND t.pending_release = 0))))
   AND p.task_id > ? ORDER BY p.task_id LIMIT ?`, StageExecutionAgent, after, limit)
 	if err != nil {
 		return nil, fmt.Errorf("state: list pipeline owners needing recovery: %w", err)

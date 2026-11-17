@@ -25,8 +25,11 @@ func (s *Server) nudgeStalledOwner(agentID, generation string) {
 		s.log.Warn("read pipeline owner for stall check", "agent", agentID, "generation", generation, "err", err)
 		return
 	}
+	// A settled turn that failed while the process lives is as stalled as an
+	// idle one; the runtime gate below still refuses a stopped, stopping or
+	// quota-held owner (FS-14.R101).
 	st, err := s.stateStore.ReadStatus(agentID)
-	if err != nil || st.State != "idle" || st.BackgroundRunning > 0 {
+	if err != nil || st.State != "idle" && st.State != "error" || st.BackgroundRunning > 0 {
 		return
 	}
 	if blocked, err := s.quotaBlocksAgent(agentID); err != nil || blocked {
