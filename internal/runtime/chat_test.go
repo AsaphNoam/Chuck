@@ -1802,6 +1802,34 @@ func TestStartActivationRefusesStoppingRuntime(t *testing.T) {
 	}
 }
 
+// TS-01.R46, INV §5 — a mail wake whose waking message was already read never
+// reaches the provider. Its turn row must not read as a provider refusal, or a
+// later recomposition (a permission resolved outside a turn) shows the healthy
+// agent as errored.
+func TestStaleMailWakeComposesIdle(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	spec.Generation = "g"
+	ctx := context.Background()
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { c.Stop(ctx, h.AgentID) })
+	started, err := c.StartActivation(ctx, h.AgentID, "mail", func(turnID string) error {
+		return c.store.BeginConversationTurn(h.AgentID, turnID, state.TurnOrigin{Generation: "g"})
+	})
+	if err != nil || started {
+		t.Fatalf("stale mail wake = %v, %v; want not started", started, err)
+	}
+	turn, err := c.store.ReadConversationTurn(h.AgentID, "g")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := state.ComposeChatStatus(state.ChatProcessLive, turn, false); got != "idle" {
+		t.Fatalf("stale wake turn %q/%q composes to %q, want idle", turn.State, turn.Outcome, got)
+	}
+}
+
 // TS-01.R21 / INV §15 — the ordinary busy turn state commits before the provider
 // frame. StartActivation used to discard the status write's error and prompt the
 // model anyway, so a store failure left durable and UI state `idle` while the

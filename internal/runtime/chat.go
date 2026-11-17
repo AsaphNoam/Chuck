@@ -1189,8 +1189,10 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 		// Decide under the lock, write without it: every emit and notification
 		// for the agent would otherwise wait on the store's busy timeout. The
 		// gate is still ours, so nothing can claim between (EXEC-8).
+		// A turn that never reached the provider is not a provider refusal: it
+		// composes to idle, so a healthy agent is not shown as errored.
 		as.mu.Lock()
-		outcome := "refused"
+		outcome := "not_started"
 		if as.turnUnavailableLocked() {
 			outcome = "process_ended"
 		}

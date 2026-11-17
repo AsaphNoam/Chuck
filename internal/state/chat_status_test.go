@@ -27,6 +27,8 @@ func TestComposeChatStatusWriterInventory(t *testing.T) {
 		{"completion", ChatProcessLive, ConversationTurn{State: "ended", Outcome: "completed"}, false, "idle"},
 		{"cancel", ChatProcessLive, ConversationTurn{State: "ended", Outcome: "cancelled"}, false, "idle"},
 		{"failure", ChatProcessLive, failed, false, "error"},
+		{"provider refusal", ChatProcessLive, ConversationTurn{State: "ended", Outcome: "refused"}, false, "error"},
+		{"refused turn start", ChatProcessLive, ConversationTurn{State: "ended", Outcome: "not_started"}, false, "idle"},
 		{"provider permission", ChatProcessLive, running, true, "waiting_input"},
 		{"host permission", ChatProcessLive, running, true, "waiting_input"},
 		{"transport crash", ChatProcessFailed, running, true, "error"},

@@ -719,7 +719,9 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   ended (Stop or a reconciled exit gives `done`; an unexpected exit or a failed Switch gives
   `error` with its cause), whether a process is live, the live generation's turn row (a `running`
   turn gives `busy`), whether a permission request is pending (`waiting_input`), and that row's
-  outcome (`idle` or `error`). A row left by an earlier generation is read as no row. The runtime
+  outcome (`idle` or `error`). A turn refused before it reached the provider, such as a stale
+  mail wake, stores `not_started` and composes to `idle`; only a provider's own refusal stores
+  `refused`. A row left by an earlier generation is read as no row. The runtime
   supplies the pending-permission input and calls the function under R44's status lock; Switch
   and exit reconciliation call it under the store's write. A writer that corrects only detail,
   trace, context or counts — the stale-status correction and the live republish — keeps the
