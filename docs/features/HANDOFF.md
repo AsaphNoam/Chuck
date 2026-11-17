@@ -181,6 +181,46 @@ desktop requests reach the log. Reproduction: `TestRefusedPromotedSteerKeepsTheH
   Send/Steer/Withdraw/turn-end/stop entry point, the transcript and receipt writes each makes,
   and where the legal moves are specified.
 
+### WITHDRAW-SEND — a re-sent message appears under the composer instead of in the transcript (investigated 2026-11-17) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report (verbatim):** “withdrawing a message then sending again makes it appear at the bottom of
+the text box weirdly, rather than in the chat transcript, it doesn't happen always, I'm not sure
+what the exact trigger conditions are”. No agent, build, screenshot or log was supplied. The local
+dashboard's state has no unfinished task and no assignment-queued receipt, so it is not the source.
+Source inspected at `42e4cc17`.
+
+**Cause: probable, not reproduced.** The only desktop surface that shows message text below the
+textarea is the assignment-queued list (`ui/src/components/chat/Composer.tsx:299`,
+`QueuedInput.tsx`), rendered when Send returns `queued`. That happens when the agent has an
+assigned task that is waiting or starting, is ready with a continuation pending, or is running with
+a pending yield (`internal/state/attachment_receipts.go:193–207`). TS-09.R69/R71 and FS-03.R48 specify
+that such input stays outside the transcript until the assignment's continuation delivers it.
+A runtime hold renders instead at the transcript's end
+(`TranscriptView.tsx:240`). The same person's earlier STEER-HOLD report saw the “Queued — …
+assignment continues” notice often, which points to assignment-queued sends. Withdraw itself does
+not change task state, and its restored draft receives a new request ID
+(`ui/src/components/chat/draftIndex.ts:28–37`). The intermittency therefore probably follows the
+agent's assignment state at the moment of Send, not the withdrawal. Next evidence: the agent ID and a
+screenshot from the next occurrence, plus whether the agent was working on a task.
+
+- **Worth fixing** — WITHDRAW-SEND-1 (confirmed code path; whether it occurred is undetermined;
+  TS-09.R69, INV §19/§23). `QueueAssignmentInput` diverts a chat Send to the most recently updated
+  matching task assigned to the agent, not to the assignment the agent's current turn is executing.
+  A waiting or starting task left behind by other work therefore sends ordinary chat input into its
+  queue. Bind the queue decision to the agent's current assignment, and test a second, unrelated
+  waiting task.
+- **Worth fixing** — WITHDRAW-SEND-2 (observability; INV §22). Accepting a Send into an assignment
+  queue logs nothing (`internal/server/queued_input.go:16–26`); only failures and settlement do.
+  Desktop request routes are not logged either. Log the agent, request ID, task ID and the
+  matched task state for each assignment-queued acceptance, so the next report shows which branch
+  ran.
+- **Worth fixing** — WITHDRAW-SEND-3 (spec gap; needs an operator decision; FS-03.R48, TS-09.R71).
+  Pending chat input renders in two places: a runtime hold at the transcript's end and
+  assignment-queued input under the composer. The person cannot tell them apart and reads the second as
+  misplaced. Decide whether assignment-queued input should render as the same pending tail at the
+  transcript's end, with its own “delivered with the assignment's next turn” label. Then specify
+  and test it.
+
 ### CODEX-FAST — a slow turn with Fast enabled has no tier receipt (investigated 2026-11-17) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “codex seems to be running really slow even in fast mode, any chance that
