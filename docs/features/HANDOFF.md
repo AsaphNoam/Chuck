@@ -159,9 +159,12 @@ desktop requests reach the log. Reproduction: `TestRefusedPromotedSteerKeepsTheH
   (`ui/src/components/chat/Composer.tsx:44,110,188,285,298`;
   `useInputDelivery.ts:141–147`). “Delivered into the running turn.”, “That turn had already
   ended…” and “Queued — …assignment continues.” therefore stay after the turn or queued input that
-  they describe has settled. FS-03 names the text but not the lifetime. Specify when each notice
-  clears (for example, at the next turn end or when the queued input is delivered), then add a
-  Composer test.
+  they describe has settled. FS-03 names the text but not the lifetime. **Operator decision
+  (2026-11-17):** each of these Send/Steer outcome notices becomes a toast that lasts 3 seconds and
+  then fades out, rather than a persistent composer line. Specify that in FS-03, and reuse the
+  existing toast surface (`ui/src/components/shell/NotificationCenter.tsx`, which currently
+  auto-dismisses after 6s) with a per-toast 3s duration and a fade. Add a Composer test for the
+  3s dismissal. Errors stay where they are.
 - **Worth fixing** — STEER-HOLD-4 (probable contributor; spec gap; FS-03.R48/R50, FS-14.R100). When
   the visible pending message is assignment-queued input rather than a runtime hold, Steer stays
   shown but returns silently with an empty composer (`Composer.tsx:178–183`). This matches
